@@ -61,4 +61,4 @@ jobs:
         run: grcov . --binary-path target/debug/ -s . -t lcov --branch --ignore-not-existing --ignore '../**' --ignore '/*' -o coverage.lcov
 
       - name: Upload to codecov.io
-        uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d # pin@v3
+        uses: codecov/codecov-action@ab904c41d6ece82784817410c45d8b8c02684457 # pin@v3
