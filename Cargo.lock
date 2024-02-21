@@ -12115,6 +12115,7 @@ dependencies = [
  "move-vm-profiler",
  "move-vm-test-utils",
  "move-vm-types",
+ "multiaddr",
  "mysten-metrics",
  "nonempty",
  "once_cell",

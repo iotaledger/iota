@@ -2,15 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use enum_dispatch::enum_dispatch;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
 use crate::base_types::{AuthorityName, EpochId, SuiAddress};
 use crate::committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata, StakeUnit};
+use crate::crypto::{NarwhalNetworkPublicKey, NarwhalPublicKey};
 use crate::multiaddr::Multiaddr;
 use anemo::types::{PeerAffinity, PeerInfo};
 use anemo::PeerId;
-use consensus_config::{Authority, Committee as ConsensusCommittee};
-use narwhal_config::{Committee as NarwhalCommittee, CommitteeBuilder, WorkerCache, WorkerIndex};
 use serde::{Deserialize, Serialize};
 use sui_protocol_config::ProtocolVersion;
 use tracing::warn;
@@ -26,12 +25,9 @@ pub trait EpochStartSystemStateTrait {
     fn get_validator_addresses(&self) -> Vec<SuiAddress>;
     fn get_sui_committee(&self) -> Committee;
     fn get_sui_committee_with_network_metadata(&self) -> CommitteeWithNetworkMetadata;
-    fn get_narwhal_committee(&self) -> NarwhalCommittee;
-    fn get_mysticeti_committee(&self) -> ConsensusCommittee;
     fn get_validator_as_p2p_peers(&self, excluding_self: AuthorityName) -> Vec<PeerInfo>;
     fn get_authority_names_to_peer_ids(&self) -> HashMap<AuthorityName, PeerId>;
     fn get_authority_names_to_hostnames(&self) -> HashMap<AuthorityName, String>;
-    fn get_narwhal_worker_cache(&self, transactions_address: &Multiaddr) -> WorkerCache;
 }
 
 /// This type captures the minimum amount of information from SuiSystemState needed by a validator
@@ -167,40 +163,6 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
         Committee::new(self.epoch, voting_rights)
     }
 
-    #[allow(clippy::mutable_key_type)]
-    fn get_narwhal_committee(&self) -> NarwhalCommittee {
-        let mut committee_builder = CommitteeBuilder::new(self.epoch as narwhal_config::Epoch);
-
-        for validator in self.active_validators.iter() {
-            committee_builder = committee_builder.add_authority(
-                validator.protocol_pubkey.clone(),
-                validator.voting_power as narwhal_config::Stake,
-                validator.narwhal_primary_address.clone(),
-                validator.narwhal_network_pubkey.clone(),
-                validator.hostname.clone(),
-            );
-        }
-
-        committee_builder.build()
-    }
-
-    #[allow(clippy::mutable_key_type)]
-    fn get_mysticeti_committee(&self) -> ConsensusCommittee {
-        let mut authorities = vec![];
-        for validator in self.active_validators.iter() {
-            authorities.push(Authority {
-                stake: validator.voting_power as consensus_config::Stake,
-                // TODO(mysticeti): Add EpochStartValidatorInfoV2 with new field for mysticeti address.
-                address: validator.narwhal_primary_address.clone(),
-                hostname: validator.hostname.clone(),
-                network_key: validator.narwhal_network_pubkey.clone(),
-                protocol_key: validator.protocol_pubkey.clone(),
-            });
-        }
-
-        ConsensusCommittee::new(self.epoch as consensus_config::Epoch, authorities)
-    }
-
     fn get_validator_as_p2p_peers(&self, excluding_self: AuthorityName) -> Vec<PeerInfo> {
         self.active_validators
             .iter()
@@ -250,41 +212,14 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
             })
             .collect()
     }
-
-    #[allow(clippy::mutable_key_type)]
-    fn get_narwhal_worker_cache(&self, transactions_address: &Multiaddr) -> WorkerCache {
-        let workers: BTreeMap<narwhal_crypto::PublicKey, WorkerIndex> = self
-            .active_validators
-            .iter()
-            .map(|validator| {
-                let workers = [(
-                    0,
-                    narwhal_config::WorkerInfo {
-                        name: validator.narwhal_worker_pubkey.clone(),
-                        transactions: transactions_address.clone(),
-                        worker_address: validator.narwhal_worker_address.clone(),
-                    },
-                )]
-                .into_iter()
-                .collect();
-                let worker_index = WorkerIndex(workers);
-
-                (validator.protocol_pubkey.clone(), worker_index)
-            })
-            .collect();
-        WorkerCache {
-            workers,
-            epoch: self.epoch,
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct EpochStartValidatorInfoV1 {
     pub sui_address: SuiAddress,
-    pub protocol_pubkey: narwhal_crypto::PublicKey,
-    pub narwhal_network_pubkey: narwhal_crypto::NetworkPublicKey,
-    pub narwhal_worker_pubkey: narwhal_crypto::NetworkPublicKey,
+    pub protocol_pubkey: NarwhalPublicKey,
+    pub narwhal_network_pubkey: NarwhalNetworkPublicKey,
+    pub narwhal_worker_pubkey: NarwhalNetworkPublicKey,
     pub sui_net_address: Multiaddr,
     pub p2p_address: Multiaddr,
     pub narwhal_primary_address: Multiaddr,

@@ -7,6 +7,7 @@ use crate::collection_types::{Bag, Table, TableVec, VecMap, VecSet};
 use crate::committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata};
 use crate::crypto::verify_proof_of_possession;
 use crate::crypto::AuthorityPublicKeyBytes;
+use crate::crypto::{NarwhalPublicKey, NarwhalNetworkPublicKey, NarwhalSignature};
 use crate::error::SuiError;
 use crate::id::ID;
 use crate::multiaddr::Multiaddr;
@@ -93,9 +94,9 @@ pub struct ValidatorMetadataV1 {
 #[derivative(Debug)]
 pub struct VerifiedValidatorMetadataV1 {
     pub sui_address: SuiAddress,
-    pub protocol_pubkey: narwhal_crypto::PublicKey,
-    pub network_pubkey: narwhal_crypto::NetworkPublicKey,
-    pub worker_pubkey: narwhal_crypto::NetworkPublicKey,
+    pub protocol_pubkey: NarwhalPublicKey,
+    pub network_pubkey: NarwhalNetworkPublicKey,
+    pub worker_pubkey: NarwhalNetworkPublicKey,
     #[derivative(Debug = "ignore")]
     pub proof_of_possession_bytes: Vec<u8>,
     pub name: String,
@@ -106,10 +107,10 @@ pub struct VerifiedValidatorMetadataV1 {
     pub p2p_address: Multiaddr,
     pub primary_address: Multiaddr,
     pub worker_address: Multiaddr,
-    pub next_epoch_protocol_pubkey: Option<narwhal_crypto::PublicKey>,
+    pub next_epoch_protocol_pubkey: Option<NarwhalPublicKey>,
     pub next_epoch_proof_of_possession: Option<Vec<u8>>,
-    pub next_epoch_network_pubkey: Option<narwhal_crypto::NetworkPublicKey>,
-    pub next_epoch_worker_pubkey: Option<narwhal_crypto::NetworkPublicKey>,
+    pub next_epoch_network_pubkey: Option<NarwhalNetworkPublicKey>,
+    pub next_epoch_worker_pubkey: Option<NarwhalNetworkPublicKey>,
     pub next_epoch_net_address: Option<Multiaddr>,
     pub next_epoch_p2p_address: Option<Multiaddr>,
     pub next_epoch_primary_address: Option<Multiaddr>,
@@ -126,20 +127,20 @@ impl ValidatorMetadataV1 {
     /// Verify validator metadata and return a verified version (on success) or error code (on failure)
     pub fn verify(&self) -> Result<VerifiedValidatorMetadataV1, u64> {
         let protocol_pubkey =
-            narwhal_crypto::PublicKey::from_bytes(self.protocol_pubkey_bytes.as_ref())
+        NarwhalPublicKey::from_bytes(self.protocol_pubkey_bytes.as_ref())
                 .map_err(|_| E_METADATA_INVALID_PUBKEY)?;
 
         // Verify proof of possession for the protocol key
-        let pop = narwhal_crypto::Signature::from_bytes(self.proof_of_possession_bytes.as_ref())
+        let pop = NarwhalSignature::from_bytes(self.proof_of_possession_bytes.as_ref())
             .map_err(|_| E_METADATA_INVALID_POP)?;
         verify_proof_of_possession(&pop, &protocol_pubkey, self.sui_address)
             .map_err(|_| E_METADATA_INVALID_POP)?;
 
         let network_pubkey =
-            narwhal_crypto::NetworkPublicKey::from_bytes(self.network_pubkey_bytes.as_ref())
+            NarwhalNetworkPublicKey::from_bytes(self.network_pubkey_bytes.as_ref())
                 .map_err(|_| E_METADATA_INVALID_NET_PUBKEY)?;
         let worker_pubkey =
-            narwhal_crypto::NetworkPublicKey::from_bytes(self.worker_pubkey_bytes.as_ref())
+            NarwhalNetworkPublicKey::from_bytes(self.worker_pubkey_bytes.as_ref())
                 .map_err(|_| E_METADATA_INVALID_WORKER_PUBKEY)?;
         if worker_pubkey == network_pubkey {
             return Err(E_METADATA_INVALID_WORKER_PUBKEY);
@@ -168,17 +169,17 @@ impl ValidatorMetadataV1 {
             .map_err(|_| E_METADATA_INVALID_WORKER_ADDR)?;
 
         let next_epoch_protocol_pubkey = match self.next_epoch_protocol_pubkey_bytes.clone() {
-            None => Ok::<Option<narwhal_crypto::PublicKey>, u64>(None),
+            None => Ok::<Option<NarwhalPublicKey>, u64>(None),
             Some(bytes) => Ok(Some(
-                narwhal_crypto::PublicKey::from_bytes(bytes.as_ref())
+                NarwhalPublicKey::from_bytes(bytes.as_ref())
                     .map_err(|_| E_METADATA_INVALID_PUBKEY)?,
             )),
         }?;
 
         let next_epoch_pop = match self.next_epoch_proof_of_possession.clone() {
-            None => Ok::<Option<narwhal_crypto::Signature>, u64>(None),
+            None => Ok::<Option<NarwhalSignature>, u64>(None),
             Some(bytes) => Ok(Some(
-                narwhal_crypto::Signature::from_bytes(bytes.as_ref())
+                NarwhalSignature::from_bytes(bytes.as_ref())
                     .map_err(|_| E_METADATA_INVALID_POP)?,
             )),
         }?;
@@ -200,18 +201,18 @@ impl ValidatorMetadataV1 {
         }
 
         let next_epoch_network_pubkey = match self.next_epoch_network_pubkey_bytes.clone() {
-            None => Ok::<Option<narwhal_crypto::NetworkPublicKey>, u64>(None),
+            None => Ok::<Option<NarwhalNetworkPublicKey>, u64>(None),
             Some(bytes) => Ok(Some(
-                narwhal_crypto::NetworkPublicKey::from_bytes(bytes.as_ref())
+                NarwhalNetworkPublicKey::from_bytes(bytes.as_ref())
                     .map_err(|_| E_METADATA_INVALID_NET_PUBKEY)?,
             )),
         }?;
 
-        let next_epoch_worker_pubkey: Option<narwhal_crypto::NetworkPublicKey> =
+        let next_epoch_worker_pubkey: Option<NarwhalNetworkPublicKey> =
             match self.next_epoch_worker_pubkey_bytes.clone() {
-                None => Ok::<Option<narwhal_crypto::NetworkPublicKey>, u64>(None),
+                None => Ok::<Option<NarwhalNetworkPublicKey>, u64>(None),
                 Some(bytes) => Ok(Some(
-                    narwhal_crypto::NetworkPublicKey::from_bytes(bytes.as_ref())
+                    NarwhalNetworkPublicKey::from_bytes(bytes.as_ref())
                         .map_err(|_| E_METADATA_INVALID_WORKER_PUBKEY)?,
                 )),
             }?;
