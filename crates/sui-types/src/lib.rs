@@ -64,6 +64,7 @@ pub mod move_package;
 pub mod multiaddr;
 pub mod multisig;
 pub mod multisig_legacy;
+pub mod narwhal_crypto;
 pub mod object;
 pub mod programmable_transaction_builder;
 pub mod quorum_driver_types;

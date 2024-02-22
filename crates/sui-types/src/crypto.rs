@@ -46,6 +46,7 @@ use crate::committee::{Committee, EpochId, StakeUnit};
 use crate::error::{SuiError, SuiResult};
 use crate::signature::GenericSignature;
 use crate::sui_serde::{Readable, SuiBitmap};
+use crate::narwhal_crypto;
 pub use enum_dispatch::enum_dispatch;
 use fastcrypto::encoding::{Base64, Bech32, Encoding, Hex};
 use fastcrypto::error::FastCryptoError;
@@ -82,11 +83,6 @@ pub type NetworkPrivateKey = Ed25519PrivateKey;
 
 pub type DefaultHash = Blake2b256;
 
-// TODO: narwhal types
-pub type NarwhalPublicKey = fastcrypto::bls12381::min_sig::BLS12381PublicKey;
-pub type NarwhalNetworkPublicKey = fastcrypto::ed25519::Ed25519PublicKey;
-pub type NarwhalSignature = fastcrypto::bls12381::min_sig::BLS12381Signature;
-
 pub const DEFAULT_EPOCH_ID: EpochId = 0;
 pub const SUI_PRIV_KEY_PREFIX: &str = "suiprivkey";
 
@@ -113,8 +109,8 @@ pub fn generate_proof_of_possession(
 /// Verify proof of possession against the expected intent message,
 /// consisting of the protocol pubkey and the authority account address.
 pub fn verify_proof_of_possession(
-    pop: &NarwhalSignature,
-    protocol_pubkey: &NarwhalPublicKey,
+    pop: &narwhal_crypto::Signature,
+    protocol_pubkey: &narwhal_crypto::PublicKey,
     sui_address: SuiAddress,
 ) -> Result<(), SuiError> {
     protocol_pubkey

@@ -6,8 +6,8 @@ use std::collections::HashMap;
 
 use crate::base_types::{AuthorityName, EpochId, SuiAddress};
 use crate::committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata, StakeUnit};
-use crate::crypto::{NarwhalNetworkPublicKey, NarwhalPublicKey};
 use crate::multiaddr::Multiaddr;
+use crate::narwhal_crypto;
 use anemo::types::{PeerAffinity, PeerInfo};
 use anemo::PeerId;
 use serde::{Deserialize, Serialize};
@@ -217,9 +217,9 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct EpochStartValidatorInfoV1 {
     pub sui_address: SuiAddress,
-    pub protocol_pubkey: NarwhalPublicKey,
-    pub narwhal_network_pubkey: NarwhalNetworkPublicKey,
-    pub narwhal_worker_pubkey: NarwhalNetworkPublicKey,
+    pub protocol_pubkey: narwhal_crypto::PublicKey,
+    pub narwhal_network_pubkey: narwhal_crypto::NetworkPublicKey,
+    pub narwhal_worker_pubkey: narwhal_crypto::NetworkPublicKey,
     pub sui_net_address: Multiaddr,
     pub p2p_address: Multiaddr,
     pub narwhal_primary_address: Multiaddr,
