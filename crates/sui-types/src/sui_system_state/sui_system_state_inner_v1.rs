@@ -127,7 +127,7 @@ impl ValidatorMetadataV1 {
     /// Verify validator metadata and return a verified version (on success) or error code (on failure)
     pub fn verify(&self) -> Result<VerifiedValidatorMetadataV1, u64> {
         let protocol_pubkey =
-        narwhal_crypto::PublicKey::from_bytes(self.protocol_pubkey_bytes.as_ref())
+            narwhal_crypto::PublicKey::from_bytes(self.protocol_pubkey_bytes.as_ref())
                 .map_err(|_| E_METADATA_INVALID_PUBKEY)?;
 
         // Verify proof of possession for the protocol key
@@ -137,10 +137,10 @@ impl ValidatorMetadataV1 {
             .map_err(|_| E_METADATA_INVALID_POP)?;
 
         let network_pubkey =
-        narwhal_crypto::NetworkPublicKey::from_bytes(self.network_pubkey_bytes.as_ref())
+            narwhal_crypto::NetworkPublicKey::from_bytes(self.network_pubkey_bytes.as_ref())
                 .map_err(|_| E_METADATA_INVALID_NET_PUBKEY)?;
         let worker_pubkey =
-        narwhal_crypto::NetworkPublicKey::from_bytes(self.worker_pubkey_bytes.as_ref())
+            narwhal_crypto::NetworkPublicKey::from_bytes(self.worker_pubkey_bytes.as_ref())
                 .map_err(|_| E_METADATA_INVALID_WORKER_PUBKEY)?;
         if worker_pubkey == network_pubkey {
             return Err(E_METADATA_INVALID_WORKER_PUBKEY);
