@@ -1,4 +1,4 @@
-// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use eyre::{eyre, Result};
@@ -7,6 +7,8 @@ use std::net::{IpAddr, SocketAddr};
 pub use ::multiaddr::Error;
 pub use ::multiaddr::Protocol;
 
+/// `Multiaddr` wraps `::multiaddr::Multiaddr` and extends its functionality to work
+/// consistently with addresses within the project.
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Multiaddr(::multiaddr::Multiaddr);
 
