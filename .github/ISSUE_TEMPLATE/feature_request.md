@@ -1,5 +1,5 @@
 ---
-name: Request a feature for movement
+name: Request a feature for kinesis
 about: Request a feature
 ---
 

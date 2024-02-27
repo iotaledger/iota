@@ -1,5 +1,5 @@
 ---
-name: Report a bug in movement
+name: Report a bug in kinesis
 about: Create a report to help us improve
 title: ""
 labels: c-bug
@@ -19,7 +19,7 @@ Which version of Rust are you running?
 
 Which version of the library are you using?
 
-- Version number, commit, or branch: 
+- Version number, commit, or branch:
 
 ## Hardware specification
 
@@ -34,9 +34,9 @@ What hardware are you using?
 
 Explain how the maintainer can reproduce the bug.
 
-1. 
-2. 
-3. 
+1.
+2.
+3.
 
 ## Expected behaviour
 
