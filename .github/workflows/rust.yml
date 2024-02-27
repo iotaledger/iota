@@ -76,7 +76,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: taiki-e/install-action@nextest
-      - uses: arduino/setup-protoc@v1
+      - uses: arduino/setup-protoc@v3
         # this avoids rate-limiting
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
@@ -150,7 +150,7 @@ jobs:
     if: needs.diff.outputs.isRust == 'true'
     runs-on: [ubuntu-ghcloud]
     steps:
-      - uses: arduino/setup-protoc@v1
+      - uses: arduino/setup-protoc@v3
         # this avoids rate-limiting
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
