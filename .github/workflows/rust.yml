@@ -42,7 +42,7 @@ jobs:
       isMove: ${{ steps.diff.outputs.isMove }}
       isReleaseNotesEligible: ${{ steps.diff.outputs.isReleaseNotesEligible }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4.1.1
       - name: Detect Changes
         uses: "./.github/actions/diffs"
         id: diff
@@ -51,7 +51,7 @@ jobs:
     name: license-check
     runs-on: [ubuntu-latest]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4.1.1
       - uses: bmwill/rust-cache@v1 # Fork of 'Swatinem/rust-cache' which allows caching additional paths
       - name: Install cargo-hakari, and cache the binary
         uses: baptiste0928/cargo-install@30f432979e99f3ea66a8fa2eede53c07063995d8
@@ -74,7 +74,7 @@ jobs:
           - [windows-ghcloud]
       fail-fast: false
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4.1.1
       - uses: taiki-e/install-action@nextest
       - uses: arduino/setup-protoc@v1
         # this avoids rate-limiting
@@ -103,7 +103,7 @@ jobs:
     timeout-minutes: 10
     runs-on: [ubuntu-ghcloud]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4.1.1
       - uses: taiki-e/install-action@nextest
       - name: Run move tests
         run: |
@@ -154,7 +154,7 @@ jobs:
         # this avoids rate-limiting
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4.1.1
       - run: rustup component add clippy
       # TODO(bradh): debug and re-enable this; the caching is breaking the clippy build
       # Enable caching of the 'librocksdb-sys' crate by additionally caching the
@@ -172,7 +172,7 @@ jobs:
     if: needs.diff.outputs.isRust == 'true'
     runs-on: [ubuntu-latest]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4.1.1
       - run: rustup component add rustfmt
       - name: rustfmt
         uses: actions-rs/cargo@v1
@@ -186,7 +186,7 @@ jobs:
     if: needs.diff.outputs.isRust == 'true'
     runs-on: [ubuntu-latest]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4.1.1
       - uses: mystenlabs/cargo-deny-action@main
 
   sui-excution-cut:
@@ -195,7 +195,7 @@ jobs:
     if: needs.diff.outputs.isRust == 'true'
     runs-on: [ubuntu-ghcloud]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4.1.1
       - name: Install cargo-hakari, and cache the binary
         uses: baptiste0928/cargo-install@30f432979e99f3ea66a8fa2eede53c07063995d8
         with:
