@@ -12,10 +12,10 @@ use fuzz::ReplayFuzzerConfig;
 use fuzz_mutations::base_fuzzers;
 use sui_types::digests::get_mainnet_chain_identifier;
 use sui_types::digests::get_testnet_chain_identifier;
-use sui_types::message_envelope::Message;
 use tracing::warn;
 use transaction_provider::{FuzzStartPoint, TransactionSource};
 
+use crate::expensive_safety_check_config::ExpensiveSafetyCheckConfig;
 use crate::replay::ExecutionSandboxState;
 use crate::replay::LocalExec;
 use crate::replay::ProtocolVersionSummary;
@@ -24,13 +24,13 @@ use std::env;
 use std::io::BufRead;
 use std::path::PathBuf;
 use std::str::FromStr;
-use sui_config::node::ExpensiveSafetyCheckConfig;
 use sui_protocol_config::Chain;
 use sui_types::digests::TransactionDigest;
 use tracing::{error, info};
 pub mod config;
 mod data_fetcher;
 mod displays;
+pub mod expensive_safety_check_config;
 pub mod fuzz;
 pub mod fuzz_mutations;
 mod replay;
@@ -177,15 +177,7 @@ pub async fn execute_replay_command(
             let contents = std::fs::read_to_string(path)?;
             let sandbox_state: ExecutionSandboxState = serde_json::from_str(&contents)?;
             info!("Executing tx: {}", sandbox_state.transaction_info.tx_digest);
-            let sandbox_state = LocalExec::certificate_execute_with_sandbox_state(
-                &sandbox_state,
-                None,
-                &sandbox_state.pre_exec_diag,
-            )
-            .await?;
-            sandbox_state.check_effects()?;
-            info!("Execution finished successfully. Local and on-chain effects match.");
-            None
+            unimplemented!()
         }
         ReplayToolCommand::PersistSandbox {
             tx_digest,
@@ -235,26 +227,8 @@ pub async fn execute_replay_command(
             fuzzer.run(num_base_transactions).await.unwrap();
             None
         }
-        ReplayToolCommand::ReplayDump { path, show_effects } => {
-            let mut lx = LocalExec::new_for_state_dump(&path, rpc_url).await?;
-            let (sandbox_state, node_dump_state) = lx.execute_state_dump(safety).await?;
-            if show_effects {
-                println!("{:#?}", sandbox_state.local_exec_effects);
-            }
-
-            sandbox_state.check_effects()?;
-
-            let effects = node_dump_state.computed_effects.digest();
-            if effects != node_dump_state.expected_effects_digest {
-                error!(
-                    "Effects digest mismatch for {}: expected: {:?}, got: {:?}",
-                    node_dump_state.tx_digest, node_dump_state.expected_effects_digest, effects,
-                );
-                anyhow::bail!("Effects mismatch");
-            }
-
-            info!("Execution finished successfully. Local and on-chain effects match.");
-            Some((1u64, 1u64))
+        ReplayToolCommand::ReplayDump { .. } => {
+            unimplemented!();
         }
         ReplayToolCommand::ReplayBatch {
             path,

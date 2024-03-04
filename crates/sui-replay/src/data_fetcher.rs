@@ -15,7 +15,6 @@ use rand::Rng;
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 use std::str::FromStr;
-use sui_core::authority::NodeStateDump;
 use sui_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
 use sui_json_rpc_types::EventFilter;
 use sui_json_rpc_types::SuiEvent;
@@ -638,7 +637,6 @@ pub fn extract_epoch_and_version(ev: SuiEvent) -> Result<(u64, u64), ReplayEngin
 
 #[derive(Clone)]
 pub struct NodeStateDumpFetcher {
-    pub node_state_dump: NodeStateDump,
     pub object_ref_pool: BTreeMap<(ObjectID, SequenceNumber), Object>,
     pub latest_object_version_pool: BTreeMap<ObjectID, Object>,
 
@@ -646,46 +644,9 @@ pub struct NodeStateDumpFetcher {
     pub backup_remote_fetcher: Option<RemoteFetcher>,
 }
 
-impl From<NodeStateDump> for NodeStateDumpFetcher {
-    fn from(node_state_dump: NodeStateDump) -> Self {
-        let mut object_ref_pool = BTreeMap::new();
-        let mut latest_object_version_pool: BTreeMap<ObjectID, Object> = BTreeMap::new();
-
-        node_state_dump
-            .all_objects()
-            .iter()
-            .for_each(|current_obj| {
-                // Dense storage
-                object_ref_pool.insert(
-                    (current_obj.id(), current_obj.version()),
-                    current_obj.clone(),
-                );
-
-                // Only most recent
-                if let Some(last_seen_obj) = latest_object_version_pool.get(&current_obj.id()) {
-                    if current_obj.version() <= last_seen_obj.version() {
-                        return;
-                    }
-                };
-                latest_object_version_pool.insert(current_obj.id(), current_obj.clone());
-            });
-        Self {
-            node_state_dump,
-            object_ref_pool,
-            latest_object_version_pool,
-            backup_remote_fetcher: None,
-        }
-    }
-}
-
 impl NodeStateDumpFetcher {
-    pub fn new(
-        node_state_dump: NodeStateDump,
-        backup_remote_fetcher: Option<RemoteFetcher>,
-    ) -> Self {
-        let mut s = Self::from(node_state_dump);
-        s.backup_remote_fetcher = backup_remote_fetcher;
-        s
+    pub fn new() -> Self {
+        unimplemented!("NodeStateDumpFetcher::new")
     }
 }
 
@@ -756,13 +717,7 @@ impl DataFetcher for NodeStateDumpFetcher {
         &self,
         _tx_digest: &TransactionDigest,
     ) -> Result<Vec<(ObjectID, SequenceNumber)>, ReplayEngineError> {
-        Ok(self
-            .node_state_dump
-            .loaded_child_objects
-            .iter()
-            .map(|q| q.compute_object_reference())
-            .map(|w| (w.0, w.1))
-            .collect())
+        unimplemented!("get_loaded_child_objects for state dump is not implemented")
     }
 
     async fn get_latest_checkpoint_sequence_number(&self) -> Result<u64, ReplayEngineError> {
@@ -782,10 +737,7 @@ impl DataFetcher for NodeStateDumpFetcher {
         &self,
         _epoch_id: u64,
     ) -> Result<(u64, u64), ReplayEngineError> {
-        Ok((
-            self.node_state_dump.epoch_start_timestamp_ms,
-            self.node_state_dump.reference_gas_price,
-        ))
+        unimplemented!("get_epoch_start_timestamp_and_rgp for state dump is not implemented")
     }
 
     async fn get_epoch_change_events(

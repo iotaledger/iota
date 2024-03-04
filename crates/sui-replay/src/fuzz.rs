@@ -4,7 +4,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use sui_config::node::ExpensiveSafetyCheckConfig;
+use crate::expensive_safety_check_config::ExpensiveSafetyCheckConfig;
 use sui_types::{
     digests::TransactionDigest, execution_status::ExecutionFailureStatus,
     transaction::TransactionKind,

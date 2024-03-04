@@ -5,10 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::chain_from_chain_id;
+use crate::expensive_safety_check_config::ExpensiveSafetyCheckConfig;
 use crate::{
     config::ReplayableNetworkConfigSet,
     data_fetcher::{
-        extract_epoch_and_version, DataFetcher, Fetchers, NodeStateDumpFetcher, RemoteFetcher,
+        extract_epoch_and_version, DataFetcher, Fetchers, RemoteFetcher,
     },
     displays::Pretty,
     types::*,
@@ -21,26 +22,13 @@ use move_core_types::{
     language_storage::{ModuleId, StructTag},
     resolver::{ModuleResolver, ResourceResolver},
 };
-use prometheus::Registry;
 use serde::{Deserialize, Serialize};
-use shared_crypto::intent::Intent;
 use similar::{ChangeTag, TextDiff};
 use std::{
     collections::{BTreeMap, HashSet},
     path::PathBuf,
     sync::Arc,
     sync::Mutex,
-};
-use sui_config::node::ExpensiveSafetyCheckConfig;
-use sui_core::{
-    authority::{
-        authority_per_epoch_store::AuthorityPerEpochStore,
-        epoch_start_configuration::EpochStartConfiguration,
-        test_authority_builder::TestAuthorityBuilder, AuthorityState, NodeStateDump,
-    },
-    epoch::epoch_metrics::EpochMetrics,
-    module_cache_metrics::ResolverMetrics,
-    signature_verifier::SignatureVerifierMetrics,
 };
 use sui_execution::Executor;
 use sui_framework::BuiltInFramework;
@@ -52,20 +40,18 @@ use sui_types::transaction::TransactionKind::ProgrammableTransaction;
 use sui_types::{
     base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress, VersionNumber},
     committee::EpochId,
-    digests::{ChainIdentifier, CheckpointDigest, ObjectDigest, TransactionDigest},
+    digests::{ObjectDigest, TransactionDigest},
     error::{ExecutionError, SuiError, SuiResult},
-    executable_transaction::VerifiedExecutableTransaction,
     gas::SuiGasStatus,
     inner_temporary_store::InnerTemporaryStore,
     metrics::LimitsMetrics,
     object::{Data, Object, Owner},
     storage::get_module_by_id,
     storage::{BackingPackageStore, ChildObjectResolver, ObjectStore, ParentSync},
-    sui_system_state::epoch_start_sui_system_state::EpochStartSystemState,
     transaction::{
-        CertifiedTransaction, CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
-        ObjectReadResultKind, SenderSignedData, Transaction, TransactionData, TransactionDataAPI,
-        TransactionKind, VerifiedCertificate, VerifiedTransaction,
+        CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
+        ObjectReadResultKind, SenderSignedData, TransactionDataAPI,
+        TransactionKind
     },
     DEEPBOOK_PACKAGE_ID,
 };
@@ -453,46 +439,10 @@ impl LocalExec {
     }
 
     pub async fn new_for_state_dump(
-        path: &str,
-        backup_rpc_url: Option<String>,
+        _path: &str,
+        _backup_rpc_url: Option<String>,
     ) -> Result<Self, ReplayEngineError> {
-        // Use a throwaway metrics registry for local execution.
-        let registry = prometheus::Registry::new();
-        let metrics = Arc::new(LimitsMetrics::new(&registry));
-
-        let state = NodeStateDump::read_from_file(&PathBuf::from(path))?;
-        let current_protocol_version = state.protocol_version;
-        let fetcher = match backup_rpc_url {
-            Some(url) => NodeStateDumpFetcher::new(
-                state,
-                Some(RemoteFetcher::new(
-                    SuiClientBuilder::default()
-                        .request_timeout(RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD)
-                        .max_concurrent_requests(MAX_CONCURRENT_REQUESTS)
-                        .build(url)
-                        .await?,
-                )),
-            ),
-            None => NodeStateDumpFetcher::new(state, None),
-        };
-
-        Ok(Self {
-            client: None,
-            protocol_version_epoch_table: BTreeMap::new(),
-            protocol_version_system_package_table: BTreeMap::new(),
-            current_protocol_version,
-            exec_store_events: Arc::new(Mutex::new(Vec::new())),
-            metrics,
-            storage: Storage::default(),
-            fetcher: Fetchers::NodeStateDump(fetcher),
-            // TODO: make these configurable
-            num_retries_for_timeout: RPC_TIMEOUT_ERR_NUM_RETRIES,
-            sleep_period_for_timeout: RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD,
-            diag: Default::default(),
-            executor_version: None,
-            protocol_version: None,
-            enable_profiler: None,
-        })
+        unimplemented!();
     }
 
     pub async fn multi_download_and_store(
@@ -827,147 +777,6 @@ impl LocalExec {
         .await
     }
 
-    /// Executes a transaction with the state specified in `pre_run_sandbox`
-    /// This is useful for executing a transaction with a specific state
-    /// However if the state in invalid, the behavior is undefined. Use wisely
-    /// If no transaction is provided, the transaction in the sandbox state is used
-    /// Currently if the transaction is provided, the signing will fail, so this feature is TBD
-    pub async fn certificate_execute_with_sandbox_state(
-        pre_run_sandbox: &ExecutionSandboxState,
-        override_transaction_data: Option<TransactionData>,
-        pre_exec_diag: &DiagInfo,
-    ) -> Result<ExecutionSandboxState, ReplayEngineError> {
-        assert!(
-            override_transaction_data.is_none(),
-            "Custom transaction data is not supported yet"
-        );
-
-        // These cannot be changed and are inherited from the sandbox state
-        let executed_epoch = pre_run_sandbox.transaction_info.executed_epoch;
-        let reference_gas_price = pre_run_sandbox.transaction_info.reference_gas_price;
-        let epoch_start_timestamp = pre_run_sandbox.transaction_info.epoch_start_timestamp;
-        let protocol_config = ProtocolConfig::get_for_version(
-            pre_run_sandbox.transaction_info.protocol_version,
-            pre_run_sandbox.transaction_info.chain,
-        );
-        let required_objects = pre_run_sandbox.required_objects.clone();
-        let shared_object_refs = pre_run_sandbox.transaction_info.shared_object_refs.clone();
-
-        assert_eq!(
-            pre_run_sandbox
-                .transaction_info
-                .sender_signed_data
-                .intent_message()
-                .intent,
-            Intent::sui_transaction()
-        );
-        let transaction_signatures = pre_run_sandbox
-            .transaction_info
-            .sender_signed_data
-            .tx_signatures()
-            .to_vec();
-
-        // This must be provided
-        let transaction_data = override_transaction_data.unwrap_or(
-            pre_run_sandbox
-                .transaction_info
-                .sender_signed_data
-                .transaction_data()
-                .clone(),
-        );
-
-        // Begin state prep
-        let (authority_state, epoch_store) = prep_network(
-            &required_objects,
-            reference_gas_price,
-            executed_epoch,
-            epoch_start_timestamp,
-            &protocol_config,
-        )
-        .await;
-
-        let sender_signed_tx =
-            Transaction::from_generic_sig_data(transaction_data, transaction_signatures);
-        let sender_signed_tx = VerifiedTransaction::new_unchecked(
-            VerifiedTransaction::new_unchecked(sender_signed_tx).into(),
-        );
-
-        let response = authority_state
-            .handle_transaction(&epoch_store, sender_signed_tx.clone())
-            .await?;
-
-        let auth_vote = response.status.into_signed_for_testing();
-
-        let mut committee = authority_state.clone_committee_for_testing();
-        committee.epoch = executed_epoch;
-        let certificate = CertifiedTransaction::new(
-            sender_signed_tx.clone().into_message(),
-            vec![auth_vote.clone()],
-            &committee,
-        )
-        .unwrap();
-
-        certificate.verify_committee_sigs_only(&committee).unwrap();
-
-        let certificate = &VerifiedExecutableTransaction::new_from_certificate(
-            VerifiedCertificate::new_unchecked(certificate.clone()),
-        );
-
-        let new_tx_digest = certificate.digest();
-
-        epoch_store
-            .set_shared_object_versions_for_testing(
-                new_tx_digest,
-                &shared_object_refs
-                    .iter()
-                    .map(|(id, version, _)| (*id, *version))
-                    .collect::<Vec<_>>(),
-            )
-            .unwrap();
-
-        // hack to simulate an epoch change just for this transaction
-        {
-            let mut execution_lock = authority_state.execution_lock_for_reconfiguration().await;
-            *execution_lock = executed_epoch;
-            drop(execution_lock);
-        }
-
-        let res = authority_state
-            .try_execute_immediately(certificate, None, &epoch_store)
-            .await
-            .map_err(ReplayEngineError::from)?;
-
-        let exec_res = match res.1 {
-            Some(q) => Err(q),
-            None => Ok(()),
-        };
-        let effects =
-            SuiTransactionBlockEffects::try_from(res.0).map_err(ReplayEngineError::from)?;
-
-        Ok(ExecutionSandboxState {
-            transaction_info: pre_run_sandbox.transaction_info.clone(),
-            required_objects,
-            local_exec_temporary_store: None, // We dont capture it for cert exec run
-            local_exec_effects: effects,
-            local_exec_status: Some(exec_res),
-            pre_exec_diag: pre_exec_diag.clone(),
-        })
-    }
-
-    /// Must be called after `init_for_execution`
-    /// This executes from `sui_core::authority::AuthorityState::try_execute_immediately`
-    pub async fn certificate_execute(
-        &mut self,
-        tx_digest: &TransactionDigest,
-        expensive_safety_check_config: ExpensiveSafetyCheckConfig,
-    ) -> Result<ExecutionSandboxState, ReplayEngineError> {
-        // Use the lighterweight execution engine to get the pre-run state
-        let pre_run_sandbox = self
-            .execution_engine_execute_impl(tx_digest, expensive_safety_check_config)
-            .await?;
-        Self::certificate_execute_with_sandbox_state(&pre_run_sandbox, None, &self.diag).await
-    }
-
     /// Must be called after `init_for_execution`
     /// This executes from `sui_adapter::execution_engine::execute_transaction_to_effects`
     pub async fn execution_engine_execute(
@@ -982,43 +791,16 @@ impl LocalExec {
         Ok(sandbox_state)
     }
 
-    pub async fn execute_state_dump(
-        &mut self,
-        expensive_safety_check_config: ExpensiveSafetyCheckConfig,
-    ) -> Result<(ExecutionSandboxState, NodeStateDump), ReplayEngineError> {
-        assert!(!self.is_remote_replay());
-
-        let d = match self.fetcher.clone() {
-            Fetchers::NodeStateDump(d) => d,
-            _ => panic!("Invalid fetcher for state dump"),
-        };
-        let tx_digest = d.node_state_dump.clone().tx_digest;
-        let sandbox_state = self
-            .execution_engine_execute_impl(&tx_digest, expensive_safety_check_config)
-            .await?;
-
-        Ok((sandbox_state, d.node_state_dump))
-    }
-
     pub async fn execute_transaction(
         &mut self,
-        tx_digest: &TransactionDigest,
-        expensive_safety_check_config: ExpensiveSafetyCheckConfig,
-        use_authority: bool,
-        executor_version: Option<i64>,
-        protocol_version: Option<i64>,
-        enable_profiler: Option<PathBuf>,
+        _tx_digest: &TransactionDigest,
+        _expensive_safety_check_config: ExpensiveSafetyCheckConfig,
+        _use_authority: bool,
+        _executor_version: Option<i64>,
+        _protocol_version: Option<i64>,
+        _enable_profiler: Option<PathBuf>,
     ) -> Result<ExecutionSandboxState, ReplayEngineError> {
-        self.executor_version = executor_version;
-        self.protocol_version = protocol_version;
-        self.enable_profiler = enable_profiler;
-        if use_authority {
-            self.certificate_execute(tx_digest, expensive_safety_check_config.clone())
-                .await
-        } else {
-            self.execution_engine_execute(tx_digest, expensive_safety_check_config)
-                .await
-        }
+        unimplemented!()
     }
     fn system_package_ids(protocol_version: u64) -> Vec<ObjectID> {
         let mut ids = BuiltInFramework::all_package_ids();
@@ -1100,13 +882,7 @@ impl LocalExec {
                 .into_iter()
                 .collect()),
 
-            Fetchers::NodeStateDump(d) => Ok(d
-                .node_state_dump
-                .relevant_system_packages
-                .iter()
-                .map(|w| w.compute_object_reference())
-                .map(|q| (q.0, q.1))
-                .collect()),
+            Fetchers::NodeStateDump(_) => unimplemented!(),
         }
     }
 
@@ -1499,78 +1275,9 @@ impl LocalExec {
 
     async fn resolve_tx_components_from_dump(
         &self,
-        tx_digest: &TransactionDigest,
+        _tx_digest: &TransactionDigest,
     ) -> Result<OnChainTransactionInfo, ReplayEngineError> {
-        assert!(!self.is_remote_replay());
-
-        let dp = self.fetcher.as_node_state_dump();
-
-        let sender = dp
-            .node_state_dump
-            .sender_signed_data
-            .transaction_data()
-            .sender();
-        let orig_tx = dp.node_state_dump.sender_signed_data.clone();
-        let effects = dp.node_state_dump.computed_effects.clone();
-        let effects = SuiTransactionBlockEffects::try_from(effects).unwrap();
-
-        // Fetch full transaction content
-        //let tx_info = self.fetcher.get_transaction(tx_digest).await?;
-
-        let input_objs = orig_tx
-            .transaction_data()
-            .input_objects()
-            .map_err(|e| ReplayEngineError::UserInputError { err: e })?;
-        let tx_kind_orig = orig_tx.transaction_data().kind();
-
-        // Download the objects at the version right before the execution of this TX
-        let modified_at_versions: Vec<(ObjectID, SequenceNumber)> = effects.modified_at_versions();
-
-        let shared_object_refs: Vec<ObjectRef> = effects
-            .shared_objects()
-            .iter()
-            .map(|so_ref| {
-                if so_ref.digest == ObjectDigest::OBJECT_DIGEST_DELETED {
-                    unimplemented!(
-                        "Replay of deleted shared object transactions is not supported yet"
-                    );
-                } else {
-                    so_ref.to_object_ref()
-                }
-            })
-            .collect();
-        let gas_data = orig_tx.transaction_data().gas_data();
-        let gas_object_refs: Vec<_> = gas_data.clone().payment.into_iter().collect();
-
-        let epoch_id = dp.node_state_dump.executed_epoch;
-
-        let chain = chain_from_chain_id(self.fetcher.get_chain_id().await?.as_str());
-
-        let protocol_config =
-            ProtocolConfig::get_for_version(dp.node_state_dump.protocol_version.into(), chain);
-        // Extract the epoch start timestamp
-        let (epoch_start_timestamp, reference_gas_price) =
-            self.get_epoch_start_timestamp_and_rgp(epoch_id).await?;
-
-        Ok(OnChainTransactionInfo {
-            kind: tx_kind_orig.clone(),
-            sender,
-            modified_at_versions,
-            input_objects: input_objs,
-            shared_object_refs,
-            gas: gas_object_refs,
-            gas_budget: gas_data.budget,
-            gas_price: gas_data.price,
-            executed_epoch: epoch_id,
-            dependencies: effects.dependencies().to_vec(),
-            effects,
-            protocol_version: protocol_config.version,
-            tx_digest: *tx_digest,
-            epoch_start_timestamp,
-            sender_signed_data: orig_tx.clone(),
-            reference_gas_price,
-            chain,
-        })
+        unimplemented!("Need to implement this function for node state dump");
     }
 
     async fn resolve_download_input_objects(
@@ -2087,95 +1794,4 @@ pub fn get_executor(
     let silent = true;
     sui_execution::executor(&protocol_config, silent, enable_profiler)
         .expect("Creating an executor should not fail here")
-}
-
-async fn prep_network(
-    objects: &[Object],
-    reference_gas_price: u64,
-    executed_epoch: u64,
-    epoch_start_timestamp: u64,
-    protocol_config: &ProtocolConfig,
-) -> (Arc<AuthorityState>, Arc<AuthorityPerEpochStore>) {
-    let authority_state = authority_state(protocol_config, objects, reference_gas_price).await;
-    let epoch_store = create_epoch_store(
-        &authority_state,
-        reference_gas_price,
-        executed_epoch,
-        epoch_start_timestamp,
-        protocol_config.version.as_u64(),
-    )
-    .await;
-
-    (authority_state, epoch_store)
-}
-
-async fn authority_state(
-    protocol_config: &ProtocolConfig,
-    objects: &[Object],
-    reference_gas_price: u64,
-) -> Arc<AuthorityState> {
-    // Initiaize some network
-    TestAuthorityBuilder::new()
-        .with_protocol_config(protocol_config.clone())
-        .with_reference_gas_price(reference_gas_price)
-        .with_starting_objects(objects)
-        .build()
-        .await
-}
-
-async fn create_epoch_store(
-    authority_state: &Arc<AuthorityState>,
-    reference_gas_price: u64,
-    executed_epoch: u64,
-    epoch_start_timestamp: u64,
-    protocol_version: u64,
-) -> Arc<AuthorityPerEpochStore> {
-    let sys_state = EpochStartSystemState::new_v1(
-        executed_epoch,
-        protocol_version,
-        reference_gas_price,
-        false,
-        epoch_start_timestamp,
-        ONE_DAY_MS,
-        vec![], // TODO: add validators
-    );
-
-    let path = {
-        let dir = std::env::temp_dir();
-        let store_base_path = dir.join(format!("DB_{:?}", ObjectID::random()));
-        std::fs::create_dir(&store_base_path).unwrap();
-        store_base_path
-    };
-
-    let epoch_start_config = EpochStartConfiguration::new(
-        sys_state,
-        CheckpointDigest::random(),
-        &authority_state.get_object_store(),
-    )
-    .unwrap();
-
-    let registry = Registry::new();
-    let cache_metrics = Arc::new(ResolverMetrics::new(&registry));
-    let signature_verifier_metrics = SignatureVerifierMetrics::new(&registry);
-    let mut committee = authority_state.committee_store().get_latest_committee();
-
-    // Overwrite the epoch so it matches this TXs
-    committee.epoch = executed_epoch;
-
-    let name = committee.names().next().unwrap();
-    AuthorityPerEpochStore::new(
-        *name,
-        Arc::new(committee.clone()),
-        &path,
-        None,
-        EpochMetrics::new(&registry),
-        epoch_start_config,
-        authority_state.get_execution_cache(),
-        cache_metrics,
-        signature_verifier_metrics,
-        &ExpensiveSafetyCheckConfig::default(),
-        // TODO(william) use correct chain ID and generally make replayer
-        // work with chain specific configs
-        ChainIdentifier::from(CheckpointDigest::random()),
-    )
 }

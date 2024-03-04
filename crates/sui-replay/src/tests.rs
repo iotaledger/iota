@@ -5,10 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::config::ReplayableNetworkConfigSet;
+use crate::expensive_safety_check_config::ExpensiveSafetyCheckConfig;
 use crate::types::ReplayEngineError;
 use crate::types::{MAX_CONCURRENT_REQUESTS, RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD};
 use crate::LocalExec;
-use sui_config::node::ExpensiveSafetyCheckConfig;
 use sui_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
 use sui_json_rpc_types::SuiTransactionBlockResponseOptions;
 use sui_sdk::{SuiClient, SuiClientBuilder};

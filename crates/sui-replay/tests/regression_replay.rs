@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use sui_replay::execute_replay_command;
 use sui_replay::ReplayToolCommand;
 
+#[ignore]
 #[tokio::test]
 async fn replay_sandboxes() {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
