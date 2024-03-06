@@ -58,9 +58,11 @@ workspace-hack.workspace = true
 pg_integration = []
 
 [dev-dependencies]
+simulacrum.workspace = true
 sui-keys.workspace = true
 sui-move-build.workspace = true
 sui-test-transaction-builder.workspace = true
+sui-types = { workspace = true, features = ["test-utils"] }
 ntest.workspace = true
 criterion.workspace = true
 
