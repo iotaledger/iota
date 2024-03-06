@@ -1461,7 +1461,7 @@ impl ProtocolConfig {
 
             gas_rounding_step: Some(1000),
 
-            execution_version: Some(2),
+            execution_version: Some(0),
 
             max_event_emit_size_total: Some(
                 256 /* former event count limit */ * 250 * 1024, /* size limit per event */
