@@ -21,19 +21,18 @@ use sui_indexer::test_utils::force_delete_database;
 use sui_indexer::test_utils::start_test_indexer;
 use sui_indexer::test_utils::start_test_indexer_impl;
 use sui_indexer::test_utils::ReaderWriterConfig;
-use sui_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use sui_types::storage::ReadStore;
-use test_cluster::TestCluster;
-use test_cluster::TestClusterBuilder;
 use tokio::task::JoinHandle;
 
-const VALIDATOR_COUNT: usize = 7;
-const EPOCH_DURATION_MS: u64 = 15000;
-
-const ACCOUNT_NUM: usize = 20;
-const GAS_OBJECT_COUNT: usize = 3;
-
 pub const DEFAULT_INTERNAL_DATA_SOURCE_PORT: u16 = 3000;
+
+pub struct TestCluster {}
+
+impl TestCluster {
+    pub fn rpc_url(&self) -> &str {
+        unimplemented!()
+    }
+}
 
 pub struct ExecutorCluster {
     pub executor_server_handle: JoinHandle<()>,
@@ -178,23 +177,8 @@ pub async fn start_graphql_server_with_fn_rpc(
     })
 }
 
-async fn start_validator_with_fullnode(internal_data_source_rpc_port: Option<u16>) -> TestCluster {
-    let mut test_cluster_builder = TestClusterBuilder::new()
-        .with_num_validators(VALIDATOR_COUNT)
-        .with_epoch_duration_ms(EPOCH_DURATION_MS)
-        .with_accounts(vec![
-            AccountConfig {
-                address: None,
-                gas_amounts: vec![DEFAULT_GAS_AMOUNT; GAS_OBJECT_COUNT],
-            };
-            ACCOUNT_NUM
-        ]);
-
-    if let Some(internal_data_source_rpc_port) = internal_data_source_rpc_port {
-        test_cluster_builder =
-            test_cluster_builder.with_fullnode_rpc_port(internal_data_source_rpc_port);
-    };
-    test_cluster_builder.build().await
+async fn start_validator_with_fullnode(_internal_data_source_rpc_port: Option<u16>) -> TestCluster {
+    TestCluster {}
 }
 
 /// Repeatedly ping the GraphQL server for 10s, until it responds

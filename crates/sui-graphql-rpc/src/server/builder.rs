@@ -10,6 +10,7 @@ use crate::config::{
 use crate::context_data::package_cache::DbPackageStore;
 use crate::data::Db;
 
+use crate::callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler};
 use crate::metrics::Metrics;
 use crate::mutation::Mutation;
 use crate::types::move_object::IMoveObject;
@@ -44,7 +45,6 @@ use http::{HeaderValue, Method, Request};
 use hyper::server::conn::AddrIncoming as HyperAddrIncoming;
 use hyper::Body;
 use hyper::Server as HyperServer;
-use mysten_network::callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler};
 use std::convert::Infallible;
 use std::net::TcpStream;
 use std::{any::Any, net::SocketAddr, time::Instant};

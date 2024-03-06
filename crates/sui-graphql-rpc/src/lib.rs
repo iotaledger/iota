@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub use sui_graphql_rpc_client as client;
+pub mod callback;
 pub mod commands;
 pub mod config;
 pub(crate) mod consistency;
