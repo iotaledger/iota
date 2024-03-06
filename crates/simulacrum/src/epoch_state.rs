@@ -9,7 +9,7 @@ use std::{collections::HashSet, sync::Arc};
 use anyhow::Result;
 use sui_execution::Executor;
 use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use sui_transaction_checks::transaction_deny_config::TransactionDenyConfig;
+use sui_transaction_checks::config::TransactionDenyConfig;
 use sui_types::{
     committee::{Committee, EpochId},
     effects::TransactionEffects,

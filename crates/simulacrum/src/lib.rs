@@ -28,7 +28,7 @@ use fastcrypto::traits::Signer;
 use rand::rngs::OsRng;
 use sui_genesis_builder::config;
 use sui_protocol_config::ProtocolVersion;
-use sui_transaction_checks::transaction_deny_config::TransactionDenyConfig;
+use sui_transaction_checks::config::TransactionDenyConfig;
 use sui_types::base_types::{AuthorityName, ObjectID, VersionNumber};
 use sui_types::crypto::AuthoritySignature;
 use sui_types::digests::ConsensusCommitDigest;
