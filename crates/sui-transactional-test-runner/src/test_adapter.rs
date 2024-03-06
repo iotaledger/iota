@@ -6,9 +6,8 @@
 
 //! This module contains the transactional test runner instantiation for the Sui adapter
 
-use crate::simulator_persisted_store::PersistedStore;
+use crate::TransactionalAdapter;
 use crate::{args::*, programmable_transaction_test_parser::parser::ParsedCommand};
-use crate::{TransactionalAdapter, ValidatorWithFullnode};
 use anyhow::{anyhow, bail};
 use async_trait::async_trait;
 use bimap::btree::BiBTreeMap;
@@ -39,10 +38,12 @@ use move_transactional_test_runner::{
 };
 use move_vm_runtime::session::SerializedReturnValues;
 use once_cell::sync::Lazy;
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{rngs::StdRng, SeedableRng};
+use simulacrum::genesis_config::AccountConfig;
+use simulacrum::network_config::ConfigBuilder;
+use simulacrum::{InMemoryStore, Simulacrum};
 use std::fmt::{self, Write};
-use std::hash::Hash;
-use std::hash::Hasher;
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::time::Duration;
 use std::{
@@ -50,21 +51,12 @@ use std::{
     path::Path,
     sync::Arc,
 };
-use sui_core::authority::test_authority_builder::TestAuthorityBuilder;
-use sui_core::authority::AuthorityState;
 use sui_framework::DEFAULT_FRAMEWORK_PATH;
-use sui_graphql_rpc::config::ConnectionConfig;
 use sui_graphql_rpc::test_infra::cluster::ExecutorCluster;
-use sui_graphql_rpc::test_infra::cluster::{serve_executor, SnapshotLagConfig};
 use sui_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
 use sui_json_rpc_types::{DevInspectResults, SuiExecutionStatus, SuiTransactionBlockEffectsAPI};
-use sui_protocol_config::{Chain, ProtocolConfig};
-use sui_storage::{
-    key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
-};
-use sui_swarm_config::genesis_config::AccountConfig;
+use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use sui_types::base_types::{SequenceNumber, VersionNumber};
-use sui_types::crypto::get_authority_key_pair;
 use sui_types::digests::{ConsensusCommitDigest, TransactionDigest, TransactionEventsDigest};
 use sui_types::effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents};
 use sui_types::messages_checkpoint::{
@@ -287,6 +279,8 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter<'a> {
             }
         };
 
+        // TODO: The `is_simulator` flag needs to be checked here to create a full node environment
+        //       instead of a simulator
         let (
             executor,
             AccountSetup {
@@ -297,23 +291,18 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter<'a> {
                 account_objects,
             },
             cluster,
-        ) = if is_simulator {
-            init_sim_executor(
-                rng,
-                account_names,
-                additional_mapping,
-                &protocol_config,
-                custom_validator_account,
-                reference_gas_price,
-                object_snapshot_min_checkpoint_lag,
-                object_snapshot_max_checkpoint_lag,
-                path.to_path_buf(),
-            )
-            .await
-        } else {
-            init_val_fullnode_executor(rng, account_names, additional_mapping, &protocol_config)
-                .await
-        };
+        ) = init_sim_executor(
+            rng,
+            account_names,
+            additional_mapping,
+            &protocol_config,
+            custom_validator_account,
+            reference_gas_price,
+            object_snapshot_min_checkpoint_lag,
+            object_snapshot_max_checkpoint_lag,
+            path.to_path_buf(),
+        )
+        .await;
 
         let object_ids = objects.iter().map(|obj| obj.id()).collect::<Vec<_>>();
 
@@ -1801,111 +1790,12 @@ pub static PRE_COMPILED: Lazy<FullyCompiledProgram> = Lazy::new(|| {
     }
 });
 
-async fn create_validator_fullnode(
-    protocol_config: &ProtocolConfig,
-    objects: &[Object],
-) -> (Arc<AuthorityState>, Arc<AuthorityState>) {
-    let builder = TestAuthorityBuilder::new()
-        .with_protocol_config(protocol_config.clone())
-        .with_starting_objects(objects);
-    let state = builder.clone().build().await;
-    let fullnode_key_pair = get_authority_key_pair().1;
-    let fullnode = builder.with_keypair(&fullnode_key_pair).build().await;
-    (state, fullnode)
-}
-
-async fn create_val_fullnode_executor(
-    protocol_config: &ProtocolConfig,
-    objects: &[Object],
-) -> ValidatorWithFullnode {
-    let (validator, fullnode) = create_validator_fullnode(protocol_config, objects).await;
-
-    let metrics = KeyValueStoreMetrics::new_for_tests();
-    let kv_store = Arc::new(TransactionKeyValueStore::new(
-        "rocksdb",
-        metrics,
-        validator.clone(),
-    ));
-    ValidatorWithFullnode {
-        validator,
-        fullnode,
-        kv_store,
-    }
-}
-
 struct AccountSetup {
     pub default_account: TestAccount,
     pub named_address_mapping: BTreeMap<String, NumericalAddress>,
     pub objects: Vec<Object>,
     pub account_objects: BTreeMap<String, ObjectID>,
     pub accounts: BTreeMap<String, TestAccount>,
-}
-
-/// Create the executor for a validator with a fullnode
-/// The issue with this executor is we cannot control the checkpoint
-/// and epoch creation process
-async fn init_val_fullnode_executor(
-    mut rng: StdRng,
-    account_names: BTreeSet<String>,
-    additional_mapping: BTreeMap<String, NumericalAddress>,
-    protocol_config: &ProtocolConfig,
-) -> (
-    Box<dyn TransactionalAdapter>,
-    AccountSetup,
-    Option<ExecutorCluster>,
-) {
-    // Initial list of named addresses with specified values
-    let mut named_address_mapping = NAMED_ADDRESSES.clone();
-    let mut account_objects = BTreeMap::new();
-    let mut accounts = BTreeMap::new();
-    let mut objects = vec![];
-
-    // Closure to create accounts with gas objects of value `GAS_FOR_TESTING`
-    let mut mk_account = || {
-        let (address, key_pair) = get_key_pair_from_rng(&mut rng);
-        let obj = Object::with_id_owner_gas_for_testing(
-            ObjectID::new(rng.gen()),
-            address,
-            GAS_FOR_TESTING,
-        );
-        let test_account = TestAccount {
-            address,
-            key_pair,
-            gas: obj.id(),
-        };
-        objects.push(obj);
-        test_account
-    };
-
-    // For each named Sui account without an address value, create an account with an address
-    // and a gas object
-    for n in account_names {
-        let test_account = mk_account();
-        account_objects.insert(n.clone(), test_account.gas);
-        accounts.insert(n, test_account);
-    }
-
-    // Make a default account with a gas object
-    let default_account = mk_account();
-
-    let executor = Box::new(create_val_fullnode_executor(protocol_config, &objects).await);
-
-    update_named_address_mapping(
-        &mut named_address_mapping,
-        &accounts,
-        additional_mapping,
-        &*executor,
-    )
-    .await;
-
-    let acc_setup = AccountSetup {
-        default_account,
-        named_address_mapping,
-        objects,
-        account_objects,
-        accounts,
-    };
-    (executor, acc_setup, None)
 }
 
 /// Create an executor using a simulator
@@ -1918,9 +1808,9 @@ async fn init_sim_executor(
     protocol_config: &ProtocolConfig,
     custom_validator_account: bool,
     reference_gas_price: Option<u64>,
-    object_snapshot_min_checkpoint_lag: Option<usize>,
-    object_snapshot_max_checkpoint_lag: Option<usize>,
-    test_file_path: PathBuf,
+    _object_snapshot_min_checkpoint_lag: Option<usize>,
+    _object_snapshot_max_checkpoint_lag: Option<usize>,
+    _test_file_path: PathBuf,
 ) -> (
     Box<dyn TransactionalAdapter>,
     AccountSetup,
@@ -1976,43 +1866,16 @@ async fn init_sim_executor(
 
     // Create the simulator with the specific account configs, which also crates objects
 
-    let (sim, read_replica) = PersistedStore::new_sim_replica_with_protocol_version_and_accounts(
+    let sim = new_sim_replica_with_protocol_version_and_accounts(
         rng,
         DEFAULT_CHAIN_START_TIMESTAMP,
         protocol_config.version,
         acc_cfgs,
         key_copy.map(|q| vec![q]),
         reference_gas_price,
-        None,
     );
 
-    // Hash the file path to create custom unique DB name
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    test_file_path.hash(&mut hasher);
-    let hash = hasher.finish();
-    let db_name = format!("sui_graphql_test_{}", hash);
-
-    // Use the hash as a seed to generate a random port number
-    let base_port = hash as u16 % 8192;
-
-    let graphql_port = 20000 + base_port;
-    let graphql_prom_port = graphql_port + 1;
-    let internal_data_port = graphql_prom_port + 1;
-    let cluster = serve_executor(
-        ConnectionConfig::ci_integration_test_cfg_with_db_name(
-            db_name,
-            graphql_port,
-            graphql_prom_port,
-        ),
-        internal_data_port,
-        Arc::new(read_replica),
-        Some(SnapshotLagConfig::new(
-            object_snapshot_min_checkpoint_lag,
-            object_snapshot_max_checkpoint_lag,
-            Some(1),
-        )),
-    )
-    .await;
+    // TODO: A cluster needs to be run here when a persistent storage is implemented
 
     // Get the actual object values from the simulator
     for (name, (addr, kp)) in account_kps {
@@ -2071,8 +1934,42 @@ async fn init_sim_executor(
             account_objects,
             accounts,
         },
-        Some(cluster),
+        None,
     )
+}
+
+fn new_sim_replica_with_protocol_version_and_accounts<R>(
+    mut rng: R,
+    chain_start_timestamp_ms: u64,
+    protocol_version: ProtocolVersion,
+    account_configs: Vec<AccountConfig>,
+    validator_keys: Option<Vec<AccountKeyPair>>,
+    reference_gas_price: Option<u64>,
+) -> Simulacrum<R, InMemoryStore>
+where
+    R: rand::RngCore + rand::CryptoRng,
+{
+    let mut builder = ConfigBuilder::new_with_temp_dir()
+        .rng(&mut rng)
+        .with_chain_start_timestamp_ms(chain_start_timestamp_ms)
+        .deterministic_committee_size(NonZeroUsize::new(1).unwrap())
+        .with_protocol_version(protocol_version)
+        .with_accounts(account_configs);
+
+    if let Some(validator_keys) = validator_keys {
+        builder = builder.deterministic_committee_validators(validator_keys)
+    };
+    if let Some(reference_gas_price) = reference_gas_price {
+        builder = builder.with_reference_gas_price(reference_gas_price)
+    };
+
+    let config = builder.build();
+
+    let genesis = &config.genesis;
+
+    let store = InMemoryStore::new(genesis);
+
+    Simulacrum::new_with_network_config_store(&config, rng, store)
 }
 
 async fn update_named_address_mapping(
