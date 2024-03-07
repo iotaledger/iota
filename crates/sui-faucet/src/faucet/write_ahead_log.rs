@@ -24,7 +24,7 @@ pub struct WriteAheadLog {
     //pub log: DBMap<ObjectID, Entry>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub(crate) enum TypedStoreError {
     SerializationError(String),
 }
@@ -84,13 +84,17 @@ impl WriteAheadLog {
     ) -> Result<(), TypedStoreError> {
         unimplemented!()
     }
+
+
+    pub(crate) fn increment_retry_count(&mut self, coin: ObjectID) -> Result<(), TypedStoreError> {
+        unimplemented!()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use sui_types::{
         base_types::{random_object_ref, ObjectRef},
-        transaction::TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
     };
 
     use super::*;
@@ -214,21 +218,6 @@ mod tests {
     }
 
     fn random_request(coin: ObjectRef) -> (SuiAddress, TransactionData) {
-        let gas_price = 1;
-        let send = SuiAddress::random_for_testing_only();
-        let recv = SuiAddress::random_for_testing_only();
-        (
-            recv,
-            TransactionData::new_pay_sui(
-                send,
-                vec![coin],
-                vec![recv],
-                vec![1000],
-                coin,
-                gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-                gas_price,
-            )
-            .unwrap(),
-        )
+        unimplemented!()
     }
 }
