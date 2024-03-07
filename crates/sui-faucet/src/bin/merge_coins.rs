@@ -4,15 +4,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use shared_crypto::intent::Intent;
-use std::{str::FromStr, time::Duration};
-use sui_config::{sui_config_dir, SUI_CLIENT_CONFIG};
+use std::{str::FromStr};
 use sui_faucet::FaucetError;
 use sui_json_rpc_types::SuiTransactionBlockResponseOptions;
 use sui_keys::keystore::AccountKeystore;
 use sui_sdk::wallet_context::WalletContext;
 use sui_types::quorum_driver_types::ExecuteTransactionRequestType;
 use sui_types::{base_types::ObjectID, gas_coin::GasCoin, transaction::Transaction};
-use tracing::info;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -126,8 +124,6 @@ async fn _merge_coins(gas_coin: &str, mut wallet: WalletContext) -> Result<(), a
     Ok(())
 }
 
-pub async fn create_wallet_context(timeout_secs: u64) -> Result<WalletContext, anyhow::Error> {
-    let wallet_conf = sui_config_dir()?.join(SUI_CLIENT_CONFIG);
-    info!("Initialize wallet from config path: {:?}", wallet_conf);
-    WalletContext::new(&wallet_conf, Some(Duration::from_secs(timeout_secs)), None).await
+pub async fn create_wallet_context(_timeout_secs: u64) -> Result<WalletContext, anyhow::Error> {
+    unimplemented!()
 }

@@ -22,7 +22,6 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-use sui_config::{sui_config_dir, SUI_CLIENT_CONFIG};
 use sui_faucet::{
     BatchFaucetResponse, BatchStatusFaucetResponse, Faucet, FaucetConfig, FaucetError,
     FaucetRequest, FaucetResponse, RequestMetricsLayer, SimpleFaucet,
@@ -288,15 +287,8 @@ async fn request_gas(
     }
 }
 
-async fn create_wallet_context(timeout_secs: u64) -> Result<WalletContext, anyhow::Error> {
-    let wallet_conf = sui_config_dir()?.join(SUI_CLIENT_CONFIG);
-    info!("Initialize wallet from config path: {:?}", wallet_conf);
-    WalletContext::new(
-        &wallet_conf,
-        Some(Duration::from_secs(timeout_secs)),
-        Some(1000),
-    )
-    .await
+async fn create_wallet_context(_timeout_secs: u64) -> Result<WalletContext, anyhow::Error> {
+    unimplemented!()
 }
 
 async fn handle_error(error: BoxError) -> impl IntoResponse {

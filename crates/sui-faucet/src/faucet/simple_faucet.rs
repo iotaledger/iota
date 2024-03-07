@@ -21,7 +21,6 @@ use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
 use tap::tap::TapFallible;
 use tokio::sync::oneshot;
 use ttl_cache::TtlCache;
-use typed_store::Map;
 
 use sui_json_rpc_types::{
     OwnedObjectRef, SuiObjectDataOptions, SuiTransactionBlockEffectsAPI,
@@ -376,35 +375,7 @@ impl SimpleFaucet {
 
     /// Clear the WAL list in the faucet
     pub async fn retry_wal_coins(&self) -> Result<(), FaucetError> {
-        let mut wal = self.wal.lock().await;
-        let mut pending = vec![];
-
-        for item in wal.log.safe_iter() {
-            // Safe unwrap as we are the only ones that ever add to the WAL.
-            let (coin_id, entry) = item.unwrap();
-            let uuid = Uuid::from_bytes(entry.uuid);
-            if !entry.in_flight {
-                pending.push((uuid, entry.recipient, coin_id, entry.tx));
-            }
-        }
-
-        for (_, _, coin_id, _) in &pending {
-            wal.increment_retry_count(*coin_id)
-                .map_err(FaucetError::internal)?;
-            wal.set_in_flight(*coin_id, true)
-                .map_err(FaucetError::internal)?;
-        }
-
-        info!("Retrying WAL of length: {:?}", pending.len());
-        // Drops the lock early because sign_and_execute_txn requires the lock.
-        drop(wal);
-
-        futures::future::join_all(pending.into_iter().map(|(uuid, recipient, coin_id, tx)| {
-            self.sign_and_execute_txn(uuid, recipient, coin_id, tx, false)
-        }))
-        .await;
-
-        Ok(())
+        unimplemented!()
     }
 
     /// Sign an already created transaction (in `tx_data`) and keep trying to execute it until
