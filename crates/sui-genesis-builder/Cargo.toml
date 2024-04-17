@@ -21,6 +21,11 @@ tempfile.workspace = true
 tracing.workspace = true
 prometheus.workspace = true
 
+bee-block = { git = "https://github.com/Thoralf-M/bee", rev = "2429d29752f5af4df538e3ddb6585db9cd6f5b8a", features = ["dto"] }
+bee-ledger = { git = "https://github.com/Thoralf-M/bee", rev = "2429d29752f5af4df538e3ddb6585db9cd6f5b8a" }
+bee-tangle = { git = "https://github.com/Thoralf-M/bee", rev = "2429d29752f5af4df538e3ddb6585db9cd6f5b8a" }
+packable = { version = "0.4.0", default-features = false, features = [ "serde", "primitive-types" ] }
+
 shared-crypto.workspace = true
 sui-config.workspace = true
 sui-execution.workspace = true
