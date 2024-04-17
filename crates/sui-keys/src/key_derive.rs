@@ -13,6 +13,7 @@ use fastcrypto::{
     traits::{KeyPair, ToFromBytes},
 };
 use slip10_ed25519::derive_ed25519_private_key;
+use sui_types::crypto::Ed25519LegacyKeyPair;
 use sui_types::{
     base_types::SuiAddress,
     crypto::{SignatureScheme, SuiKeyPair},
@@ -42,6 +43,16 @@ pub fn derive_key_pair_from_path(
                 .map_err(|e| SuiError::SignatureKeyGenError(e.to_string()))?;
             let kp: Ed25519KeyPair = sk.into();
             Ok((kp.public().into(), SuiKeyPair::Ed25519(kp)))
+        }
+        SignatureScheme::ED25519Legacy => {
+            // Must be implemented the same as above up to the keypair generation
+            let indexes = path.into_iter().map(|i| i.into()).collect::<Vec<_>>();
+            let derived = derive_ed25519_private_key(seed, &indexes);
+            let sk = Ed25519PrivateKey::from_bytes(&derived)
+                .map_err(|e| SuiError::SignatureKeyGenError(e.to_string()))?;
+            let kp: Ed25519KeyPair = sk.into();
+            let kpl = SuiKeyPair::Ed25519Legacy(Ed25519LegacyKeyPair(kp));
+            Ok(((&kpl.public()).into(), kpl))
         }
         SignatureScheme::Secp256k1 => {
             let child_xprv = XPrv::derive_from_path(seed, &path)
@@ -74,7 +85,7 @@ pub fn validate_path(
     path: Option<DerivationPath>,
 ) -> Result<DerivationPath, SuiError> {
     match key_scheme {
-        SignatureScheme::ED25519 => {
+        SignatureScheme::ED25519 | SignatureScheme::ED25519Legacy => {
             match path {
                 Some(p) => {
                     // The derivation path must be hardened at all levels with purpose = 44, coin_type = 4218
