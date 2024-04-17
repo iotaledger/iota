@@ -49,6 +49,7 @@ use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::fmt::{self, Display, Formatter};
 use std::hash::{Hash, Hasher};
+use std::ops::Deref;
 use std::str::FromStr;
 use strum::EnumString;
 use tracing::{instrument, warn};
@@ -83,6 +84,18 @@ pub type DefaultHash = Blake2b256;
 
 pub const DEFAULT_EPOCH_ID: EpochId = 0;
 pub const SUI_PRIV_KEY_PREFIX: &str = "suiprivkey";
+
+// Ed25519KeyPair legacy wrapper for signature
+#[derive(Debug, Eq, PartialEq)]
+pub struct Ed25519LegacyKeyPair(pub Ed25519KeyPair);
+
+impl Deref for Ed25519LegacyKeyPair {
+    type Target = Ed25519KeyPair;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 /// Creates a proof of that the authority account address is owned by the
 /// holder of authority protocol key, and also ensures that the authority
@@ -649,6 +662,7 @@ pub enum Signature {
     Ed25519SuiSignature,
     Secp256k1SuiSignature,
     Secp256r1SuiSignature,
+    Ed25519LegacySuiSignature,
 }
 
 impl Serialize for Signature {
@@ -708,6 +722,7 @@ impl AsRef<[u8]> for Signature {
             Signature::Ed25519SuiSignature(sig) => sig.as_ref(),
             Signature::Secp256k1SuiSignature(sig) => sig.as_ref(),
             Signature::Secp256r1SuiSignature(sig) => sig.as_ref(),
+            Signature::Ed25519LegacySuiSignature(sig) => sig.as_ref(),
         }
     }
 }
@@ -717,6 +732,7 @@ impl AsMut<[u8]> for Signature {
             Signature::Ed25519SuiSignature(sig) => sig.as_mut(),
             Signature::Secp256k1SuiSignature(sig) => sig.as_mut(),
             Signature::Secp256r1SuiSignature(sig) => sig.as_mut(),
+            Signature::Ed25519LegacySuiSignature(sig) => sig.as_mut(),
         }
     }
 }
@@ -731,6 +747,8 @@ impl ToFromBytes for Signature {
                     Ok(<Secp256k1SuiSignature as ToFromBytes>::from_bytes(bytes)?.into())
                 } else if x == &Secp256r1SuiSignature::SCHEME.flag() {
                     Ok(<Secp256r1SuiSignature as ToFromBytes>::from_bytes(bytes)?.into())
+                } else if x == &Ed25519LegacySuiSignature::SCHEME.flag() {
+                    Ok(<Ed25519LegacySuiSignature as ToFromBytes>::from_bytes(bytes)?.into())
                 } else {
                     Err(FastCryptoError::InvalidInput)
                 }
@@ -876,6 +894,52 @@ impl ToFromBytes for Secp256r1SuiSignature {
 impl Signer<Signature> for Secp256r1KeyPair {
     fn sign(&self, msg: &[u8]) -> Signature {
         Secp256r1SuiSignature::new(self, msg).into()
+    }
+}
+
+//
+// Ed25519 Legacy Sui Signature port
+//
+
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Hash, AsRef, AsMut)]
+#[as_ref(forward)]
+#[as_mut(forward)]
+pub struct Ed25519LegacySuiSignature(
+    #[schemars(with = "Base64")]
+    #[serde_as(as = "Readable<Base64, Bytes>")]
+    [u8; Ed25519PublicKey::LENGTH + Ed25519Signature::LENGTH + 1],
+);
+
+// Implementation useful for simplify testing when mock signature is needed
+impl Default for Ed25519LegacySuiSignature {
+    fn default() -> Self {
+        Self([0; Ed25519PublicKey::LENGTH + Ed25519Signature::LENGTH + 1])
+    }
+}
+
+impl SuiSignatureInner for Ed25519LegacySuiSignature {
+    type Sig = Ed25519Signature;
+    type PubKey = Ed25519PublicKey;
+    type KeyPair = Ed25519KeyPair;
+    const LENGTH: usize = Ed25519PublicKey::LENGTH + Ed25519Signature::LENGTH + 1;
+    const SCHEME: SignatureScheme = SignatureScheme::ED25519Legacy;
+}
+
+impl ToFromBytes for Ed25519LegacySuiSignature {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        if bytes.len() != Self::LENGTH {
+            return Err(FastCryptoError::InputLengthWrong(Self::LENGTH));
+        }
+        let mut sig_bytes = [0; Self::LENGTH];
+        sig_bytes.copy_from_slice(bytes);
+        Ok(Self(sig_bytes))
+    }
+}
+
+impl Signer<Signature> for Ed25519LegacyKeyPair {
+    fn sign(&self, msg: &[u8]) -> Signature {
+        Ed25519LegacySuiSignature::new(self, msg).into()
     }
 }
 
