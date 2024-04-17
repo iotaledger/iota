@@ -28,6 +28,8 @@ use sui_types::base_types::SuiAddress;
 use sui_types::crypto::get_key_pair;
 use sui_types::crypto::get_key_pair_from_rng;
 use sui_types::crypto::AuthorityKeyPair;
+use sui_types::crypto::Ed25519LegacyKeyPair;
+use sui_types::crypto::Ed25519LegacySuiSignature;
 use sui_types::crypto::Ed25519SuiSignature;
 use sui_types::crypto::EncodeDecodeBase64;
 use sui_types::crypto::Secp256k1SuiSignature;
@@ -69,6 +71,10 @@ async fn test_flag_in_signature_and_keypair() -> Result<(), anyhow::Error> {
 
     keystore.add_key(None, SuiKeyPair::Secp256k1(get_key_pair().1))?;
     keystore.add_key(None, SuiKeyPair::Ed25519(get_key_pair().1))?;
+    keystore.add_key(
+        None,
+        SuiKeyPair::Ed25519Legacy(Ed25519LegacyKeyPair(get_key_pair().1)),
+    )?;
 
     for pk in keystore.keys() {
         let pk1 = pk.clone();
@@ -96,6 +102,15 @@ async fn test_flag_in_signature_and_keypair() -> Result<(), anyhow::Error> {
                     Secp256r1SuiSignature::SCHEME.flag()
                 );
                 assert!(pk1.flag() == Secp256r1SuiSignature::SCHEME.flag())
+            }
+            Signature::Ed25519LegacySuiSignature(_) => {
+                // signature contains corresponding flag
+                assert_eq!(
+                    *sig.as_ref().first().unwrap(),
+                    Ed25519LegacySuiSignature::SCHEME.flag()
+                );
+                // keystore stores pubkey with corresponding flag
+                assert!(pk1.flag() == Ed25519LegacySuiSignature::SCHEME.flag())
             }
         }
     }

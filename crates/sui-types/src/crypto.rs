@@ -151,6 +151,7 @@ pub enum SuiKeyPair {
     Ed25519(Ed25519KeyPair),
     Secp256k1(Secp256k1KeyPair),
     Secp256r1(Secp256r1KeyPair),
+    Ed25519Legacy(Ed25519LegacyKeyPair),
 }
 
 impl SuiKeyPair {
@@ -159,6 +160,7 @@ impl SuiKeyPair {
             SuiKeyPair::Ed25519(kp) => PublicKey::Ed25519(kp.public().into()),
             SuiKeyPair::Secp256k1(kp) => PublicKey::Secp256k1(kp.public().into()),
             SuiKeyPair::Secp256r1(kp) => PublicKey::Secp256r1(kp.public().into()),
+            SuiKeyPair::Ed25519Legacy(kp) => PublicKey::Ed25519Legacy(kp.public().into()),
         }
     }
 }
@@ -169,6 +171,7 @@ impl Signer<Signature> for SuiKeyPair {
             SuiKeyPair::Ed25519(kp) => kp.sign(msg),
             SuiKeyPair::Secp256k1(kp) => kp.sign(msg),
             SuiKeyPair::Secp256r1(kp) => kp.sign(msg),
+            SuiKeyPair::Ed25519Legacy(kp) => kp.sign(msg),
         }
     }
 }
@@ -196,6 +199,9 @@ impl SuiKeyPair {
                 bytes.extend_from_slice(kp.as_bytes());
             }
             SuiKeyPair::Secp256r1(kp) => {
+                bytes.extend_from_slice(kp.as_bytes());
+            }
+            SuiKeyPair::Ed25519Legacy(kp) => {
                 bytes.extend_from_slice(kp.as_bytes());
             }
         }
@@ -263,6 +269,7 @@ pub enum PublicKey {
     Secp256k1(Secp256k1PublicKeyAsBytes),
     Secp256r1(Secp256r1PublicKeyAsBytes),
     ZkLogin(ZkLoginPublicIdentifier),
+    Ed25519Legacy(Ed25519PublicKeyAsBytes),
 }
 
 /// A wrapper struct to retrofit in [enum PublicKey] for zkLogin.
@@ -289,6 +296,7 @@ impl AsRef<[u8]> for PublicKey {
             PublicKey::Secp256k1(pk) => &pk.0,
             PublicKey::Secp256r1(pk) => &pk.0,
             PublicKey::ZkLogin(z) => &z.0,
+            PublicKey::Ed25519Legacy(pk) => &pk.0,
         }
     }
 }
@@ -320,6 +328,11 @@ impl EncodeDecodeBase64 for PublicKey {
                         bytes.get(1..).ok_or_else(|| eyre!("Invalid length"))?,
                     )?;
                     Ok(PublicKey::Secp256r1((&pk).into()))
+                } else if x == &SignatureScheme::ED25519Legacy.flag() {
+                    let pk: Ed25519PublicKey = Ed25519PublicKey::from_bytes(
+                        bytes.get(1..).ok_or_else(|| eyre!("Invalid length"))?,
+                    )?;
+                    Ok(PublicKey::Ed25519Legacy((&pk).into()))
                 } else {
                     Err(eyre!("Invalid flag byte"))
                 }
@@ -358,6 +371,7 @@ impl PublicKey {
             PublicKey::Secp256k1(_) => Secp256k1SuiSignature::SCHEME,
             PublicKey::Secp256r1(_) => Secp256r1SuiSignature::SCHEME,
             PublicKey::ZkLogin(_) => SignatureScheme::ZkLoginAuthenticator,
+            PublicKey::Ed25519Legacy(_) => Ed25519LegacySuiSignature::SCHEME,
         }
     }
 

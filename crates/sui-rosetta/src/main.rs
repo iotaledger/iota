@@ -228,6 +228,10 @@ fn read_prefunded_account(path: &Path) -> Result<Vec<PrefundedAccount>, anyhow::
                 SuiKeyPair::Secp256r1(k) => {
                     (Hex::encode(k.private().as_bytes()), CurveType::Secp256r1)
                 }
+                SuiKeyPair::Ed25519Legacy(k) => (
+                    Hex::encode(k.0.private().as_bytes()),
+                    CurveType::Edwards25519,
+                ),
             };
             PrefundedAccount {
                 privkey,

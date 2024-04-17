@@ -341,6 +341,10 @@ impl From<SuiPublicKey> for PublicKey {
                 hex_bytes: Hex::from_bytes(&k.0),
                 curve_type: CurveType::ZkLogin, // inaccurate but added for completeness.
             },
+            SuiPublicKey::Ed25519Legacy(k) => PublicKey {
+                hex_bytes: Hex::from_bytes(&k.0),
+                curve_type: CurveType::Edwards25519,
+            },
         }
     }
 }

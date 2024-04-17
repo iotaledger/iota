@@ -654,6 +654,7 @@ impl KeyToolCommand {
                             SuiKeyPair::Ed25519(kp) => kp.encode_base64(),
                             SuiKeyPair::Secp256k1(kp) => kp.encode_base64(),
                             SuiKeyPair::Secp256r1(kp) => kp.encode_base64(),
+                            SuiKeyPair::Ed25519Legacy(kp) => kp.encode_base64(),
                         };
                         KeypairData {
                             account_keypair: keypair.encode_base64(),
