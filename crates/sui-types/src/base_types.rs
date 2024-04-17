@@ -43,6 +43,7 @@ use crate::SUI_SYSTEM_ADDRESS;
 use anyhow::anyhow;
 use fastcrypto::encoding::decode_bytes_hex;
 use fastcrypto::encoding::{Encoding, Hex};
+use fastcrypto::hash::Blake2b256;
 use fastcrypto::hash::HashFunction;
 use fastcrypto::traits::AllowedRng;
 use fastcrypto_zkp::bn254::zk_login::ZkLoginInputs;
@@ -663,7 +664,17 @@ impl<T: SuiPublicKey> From<&T> for SuiAddress {
     fn from(pk: &T) -> Self {
         let mut hasher = DefaultHash::default();
         hasher.update([T::SIGNATURE_SCHEME.flag()]);
-        hasher.update(pk);
+        match T::SIGNATURE_SCHEME {
+            SignatureScheme::ED25519Legacy => {
+                let mut hasher_for_legacy = Blake2b256::default();
+                hasher_for_legacy.update(pk);
+                let hashed_pk = hasher_for_legacy.finalize();
+                hasher.update(hashed_pk.as_ref());
+            }
+            _ => {
+                hasher.update(pk);
+            }
+        };
         let g_arr = hasher.finalize();
         SuiAddress(g_arr.digest)
     }
@@ -673,7 +684,17 @@ impl From<&PublicKey> for SuiAddress {
     fn from(pk: &PublicKey) -> Self {
         let mut hasher = DefaultHash::default();
         hasher.update([pk.flag()]);
-        hasher.update(pk);
+        match pk.scheme() {
+            SignatureScheme::ED25519Legacy => {
+                let mut hasher_for_legacy = Blake2b256::default();
+                hasher_for_legacy.update(pk);
+                let hashed_pk = hasher_for_legacy.finalize();
+                hasher.update(hashed_pk.as_ref());
+            }
+            _ => {
+                hasher.update(pk);
+            }
+        };
         let g_arr = hasher.finalize();
         SuiAddress(g_arr.digest)
     }
@@ -694,7 +715,17 @@ impl From<&MultiSigPublicKey> for SuiAddress {
         hasher.update(multisig_pk.threshold().to_le_bytes());
         multisig_pk.pubkeys().iter().for_each(|(pk, w)| {
             hasher.update([pk.flag()]);
-            hasher.update(pk.as_ref());
+            match pk.scheme() {
+                SignatureScheme::ED25519Legacy => {
+                    let mut hasher_for_legacy = Blake2b256::default();
+                    hasher_for_legacy.update(pk);
+                    let hashed_pk = hasher_for_legacy.finalize();
+                    hasher.update(hashed_pk.as_ref());
+                }
+                _ => {
+                    hasher.update(pk.as_ref());
+                }
+            };
             hasher.update(w.to_le_bytes());
         });
         SuiAddress(hasher.finalize().digest)
