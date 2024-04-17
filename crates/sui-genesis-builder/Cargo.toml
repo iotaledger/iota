@@ -18,13 +18,14 @@ serde.workspace = true
 serde_with.workspace = true
 serde_yaml.workspace = true
 tempfile.workspace = true
+thiserror.workspace = true
 tracing.workspace = true
 prometheus.workspace = true
 
-bee-block = { git = "https://github.com/Thoralf-M/bee", rev = "2429d29752f5af4df538e3ddb6585db9cd6f5b8a", features = ["dto"] }
-bee-ledger = { git = "https://github.com/Thoralf-M/bee", rev = "2429d29752f5af4df538e3ddb6585db9cd6f5b8a" }
-bee-tangle = { git = "https://github.com/Thoralf-M/bee", rev = "2429d29752f5af4df538e3ddb6585db9cd6f5b8a" }
-packable = { version = "0.4.0", default-features = false, features = [ "serde", "primitive-types" ] }
+iota-sdk = "1.1.4"
+packable = { version = "0.8.3", default-features = false, features = [
+    "primitive-types",
+] }
 
 shared-crypto.workspace = true
 sui-config.workspace = true
