@@ -1,15 +1,11 @@
-use std::fs::File;
-use std::io::{BufRead, Read};
-use std::mem::size_of;
-
 use anyhow::Result;
+use iota_sdk::types::block::output::Output;
 use iota_sdk::types::block::output::OutputId;
 use iota_sdk::types::block::payload::milestone::MilestoneId;
 use iota_sdk::types::block::payload::milestone::MilestoneIndex;
 use iota_sdk::types::block::payload::milestone::MilestoneOption;
 use iota_sdk::types::block::protocol::ProtocolParameters;
 use iota_sdk::types::block::BlockId;
-
 use packable::error::UnknownTagError;
 use packable::error::UnpackError;
 use packable::error::UnpackErrorExt;
@@ -19,12 +15,13 @@ use packable::unpacker::Unpacker;
 use packable::Packable;
 use packable::PackableExt;
 use std::convert::Infallible;
+use std::fs::File;
+use std::io::{BufRead, Read};
+use std::mem::size_of;
 use thiserror::Error;
 
-type SdkOutput = ();
-const SNAPSHOT_VERSION: u8 = 2;
-
 const SNAPSHOT_HEADER_LENGTH: usize = std::mem::size_of::<FullSnapshotHeader>();
+const SNAPSHOT_VERSION: u8 = 2;
 
 #[derive(Debug, Error)]
 pub enum StardustError {
@@ -32,9 +29,9 @@ pub enum StardustError {
     UnsupportedSnapshotVersion(u8, u8),
     #[error("invalid snapshot kind: {0}")]
     InvalidSnapshotKind(u8),
-    #[error("iota_sdk::types::block::Error: {0}")]
+    #[error("block error: {0}")]
     BlockError(#[from] iota_sdk::types::block::Error),
-    #[error("Unknown tag: {0}")]
+    #[error("unknown tag: {0}")]
     UnknownTag(u8),
 }
 
@@ -209,7 +206,7 @@ impl Packable for FullSnapshotHeader {
         // This is only required in Hornet.
         let _parameters_milestone_option_length =
             u16::unpack::<_, VERIFY>(unpacker, &()).coerce()?;
-        // TODO: Verify that the parameters milestone option is valid.
+        // TODO: Verify that the provided protocol parameters milestone are valid.
         let parameters_milestone_option =
             MilestoneOption::unpack::<_, false>(unpacker, &ProtocolParameters::default())
                 .coerce()?;
@@ -255,7 +252,7 @@ pub fn parse_full_snapshot() -> Result<()> {
 pub fn iterate_on_outputs(
     src: &mut impl BufRead,
     output_count: u64,
-) -> Result<impl Iterator<Item = Result<SdkOutput, anyhow::Error>> + '_> {
+) -> Result<impl Iterator<Item = Result<Output, anyhow::Error>> + '_> {
     let mut header_buf = [0_u8; OutputHeader::LENGTH];
     let mut output_buf = [0_u8; u16::MAX as usize];
 
@@ -267,7 +264,7 @@ pub fn iterate_on_outputs(
         src.read_exact(&mut output_buf[0..header.length as usize])?;
         // TODO: Use the [iota_sdk::types::block::Output] to unpack the `output_buf`
         // let output = Output::unpack::<_, true>(&mut output_buf.as_slice())?;
-        let output = ();
+        let output = unimplemented!();
         Ok(output)
     });
     Ok(iter)
