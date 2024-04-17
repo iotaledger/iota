@@ -909,8 +909,7 @@ pub trait SuiSignatureInner: Sized + ToFromBytes + PartialEq + Eq + Hash {
         let sig = Signer::sign(kp, message);
 
         let mut signature_bytes: Vec<u8> = Vec::new();
-        signature_bytes
-            .extend_from_slice(&[<Self::PubKey as SuiPublicKey>::SIGNATURE_SCHEME.flag()]);
+        signature_bytes.extend_from_slice(&[Self::SCHEME.flag()]);
         signature_bytes.extend_from_slice(sig.as_ref());
         signature_bytes.extend_from_slice(kp.public().as_ref());
         Self::from_bytes(&signature_bytes[..])
