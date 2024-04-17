@@ -1620,6 +1620,7 @@ pub enum SignatureScheme {
     BLS12381, // This is currently not supported for user Sui Address.
     MultiSig,
     ZkLoginAuthenticator,
+    ED25519Legacy,
 }
 
 impl SignatureScheme {
@@ -1631,6 +1632,7 @@ impl SignatureScheme {
             SignatureScheme::MultiSig => 0x03,
             SignatureScheme::BLS12381 => 0x04, // This is currently not supported for user Sui Address.
             SignatureScheme::ZkLoginAuthenticator => 0x05,
+            SignatureScheme::ED25519Legacy => 0xFF,
         }
     }
 
@@ -1649,6 +1651,7 @@ impl SignatureScheme {
             0x03 => Ok(SignatureScheme::MultiSig),
             0x04 => Ok(SignatureScheme::BLS12381),
             0x05 => Ok(SignatureScheme::ZkLoginAuthenticator),
+            0xFF => Ok(SignatureScheme::ED25519Legacy),
             _ => Err(SuiError::KeyConversionError(
                 "Invalid key scheme".to_string(),
             )),
