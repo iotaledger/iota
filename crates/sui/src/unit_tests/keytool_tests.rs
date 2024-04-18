@@ -313,9 +313,23 @@ async fn test_private_keys_import_export() -> Result<(), anyhow::Error> {
 #[test]
 async fn test_mnemonics_ed25519() -> Result<(), anyhow::Error> {
     // Test case matches with /mysten/sui/sdk/typescript/test/unit/cryptography/ed25519-keypair.test.ts
-    const TEST_CASES: [[&str; 3]; 3] = [["film crazy soon outside stand loop subway crumble thrive popular green nuclear struggle pistol arm wife phrase warfare march wheat nephew ask sunny firm", "suiprivkey1qrwsjvr6gwaxmsvxk4cfun99ra8uwxg3c9pl0nhle7xxpe4s80y05ctazer", "a2d14fad60c56049ecf75246a481934691214ce413e6a8ae2fe6834c173a6133"],
-    ["require decline left thought grid priority false tiny gasp angle royal system attack beef setup reward aunt skill wasp tray vital bounce inflict level", "suiprivkey1qzdvpa77ct272ultqcy20dkw78dysnfyg90fhcxkdm60el0qht9mvzlsh4j", "1ada6e6f3f3e4055096f606c746690f1108fcc2ca479055cc434a3e1d3f758aa"],
-    ["organ crash swim stick traffic remember army arctic mesh slice swear summer police vast chaos cradle squirrel hood useless evidence pet hub soap lake", "suiprivkey1qqqscjyyr64jea849dfv9cukurqj2swx0m3rr4hr7sw955jy07tzgcde5ut", "e69e896ca10f5a77732769803cc2b5707f0ab9d4407afb5e4b4464b89769af14"]];
+    const TEST_CASES: [[&str; 3]; 3] = [
+        [
+            "film crazy soon outside stand loop subway crumble thrive popular green nuclear struggle pistol arm wife phrase warfare march wheat nephew ask sunny firm", 
+            "suiprivkey1qrqqxhsu3ndp96644fjk4z5ams5ulgmvprklngt2jhvg2ujn5w4q23vm2y8", 
+            "7ba26cca0b4c313c8d12193263f7df111f32e1835b12204b94e5859187a0aa26"
+        ],
+        [
+            "require decline left thought grid priority false tiny gasp angle royal system attack beef setup reward aunt skill wasp tray vital bounce inflict level", 
+            "suiprivkey1qqcxaf57fnenvflpacacaumf6vl0rt0edddhytanvzhkqhwnjk0zsawjy3x", 
+            "7abd0ad79244dfa245ed4e03b1e5f3295a2332c30f15fb7fa0d3a0f546ca0d74"
+        ],
+        [
+            "organ crash swim stick traffic remember army arctic mesh slice swear summer police vast chaos cradle squirrel hood useless evidence pet hub soap lake", 
+            "suiprivkey1qzq39vxzm0gq7l8dc5dj5allpuww4mavhwhg8mua4cl3lj2c3fvhcsjgphc", 
+            "0f5747833baf8d7794c6a810d74b5bce2cd1286c6634b004bd56a58c92cff7cb"
+        ]
+    ];
 
     for t in TEST_CASES {
         let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(0));
@@ -338,9 +352,23 @@ async fn test_mnemonics_ed25519() -> Result<(), anyhow::Error> {
 #[test]
 async fn test_mnemonics_secp256k1() -> Result<(), anyhow::Error> {
     // Test case matches with /mysten/sui/sdk/typescript/test/unit/cryptography/secp256k1-keypair.test.ts
-    const TEST_CASES: [[&str; 3]; 3] = [["film crazy soon outside stand loop subway crumble thrive popular green nuclear struggle pistol arm wife phrase warfare march wheat nephew ask sunny firm", "suiprivkey1qyqr6yvxdqkh32ep4pk9caqvphmk9epn6rhkczcrhaeermsyvwsg783y9am", "9e8f732575cc5386f8df3c784cd3ed1b53ce538da79926b2ad54dcc1197d2532"],
-    ["require decline left thought grid priority false tiny gasp angle royal system attack beef setup reward aunt skill wasp tray vital bounce inflict level", "suiprivkey1q8hexn5m2u36tx39ln5e22hfseadknp7d2qlkhe30ejy7fc6am5aqkqpqsj", "9fd5a804ed6b46d36949ff7434247f0fd594673973ece24aede6b86a7b5dae01"],
-    ["organ crash swim stick traffic remember army arctic mesh slice swear summer police vast chaos cradle squirrel hood useless evidence pet hub soap lake", "suiprivkey1qxx6yf53jgxvsmccst8cuwnj0rx4k4uzvn9aalvag7ns0xf0g8j2x246jst", "60287d7c38dee783c2ab1077216124011774be6b0764d62bd05f32c88979d5c5"]];
+    const TEST_CASES: [[&str; 3]; 3] = [
+        [
+            "film crazy soon outside stand loop subway crumble thrive popular green nuclear struggle pistol arm wife phrase warfare march wheat nephew ask sunny firm", 
+            "suiprivkey1q8cy2ll8a0dmzzzwn9zavrug0qf47cyuj6k2r4r6rnjtpjhrdh52vallxwz", 
+            "8520d58dde1ab268349b9a46e5124ae6fe7e4c61df4ca2bc9c97d3c4d07b0b55"
+        ],
+        [
+            "require decline left thought grid priority false tiny gasp angle royal system attack beef setup reward aunt skill wasp tray vital bounce inflict level", 
+            "suiprivkey1q9hm330d05jcxfvmztv046p8kclyaj39hk6elqghgpq4sz4x23hk2jtdnjf", 
+            "3740d570eefba29dfc0fdd5829848902064e31ecd059ca05c401907fa8646f61"
+        ],
+        [
+            "organ crash swim stick traffic remember army arctic mesh slice swear summer police vast chaos cradle squirrel hood useless evidence pet hub soap lake", 
+            "suiprivkey1qx2dnch6363h7gdqqfkzmmlequzj4ul3x4fq6dzyajk7wc2c0jgcxdv2dvl", 
+            "943b852c37fef403047e06ff5a2fa216557a4386212fb29554babdd3e1899da5"
+        ]
+    ];
 
     for t in TEST_CASES {
         let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(0));
@@ -366,18 +394,18 @@ async fn test_mnemonics_secp256r1() -> Result<(), anyhow::Error> {
     const TEST_CASES: [[&str; 3]; 3] = [
         [
             "act wing dilemma glory episode region allow mad tourist humble muffin oblige",
-            "suiprivkey1qgj6vet4rstf2p00j860xctkg4fyqqq5hxgu4mm0eg60fq787ujnqs5wc8q",
-            "0x4a822457f1970468d38dae8e63fb60eefdaa497d74d781f581ea2d137ec36f3a",
+            "suiprivkey1qtt65ua2lhal76zg4cxd6umdqynv2rj2gzrntp5rwlnyj370jg3pwhxg9kc",
+            "0x779a63b28528210a5ec6c4af5a70382fa3f0c2d3f98dcbe4e3a4ae2f8c39cc9c",
         ],
         [
             "flag rebel cabbage captain minimum purpose long already valley horn enrich salt",
-            "suiprivkey1qgmgr6dza8slgxn0rcxcy47xeas9l565cc5q440ngdzr575rc2356gzlq7a",
-            "0xcd43ecb9dd32249ff5748f5e4d51855b01c9b1b8bbe7f8638bb8ab4cb463b920",
+            "suiprivkey1qtcjgmue7q8u4gtutfvfpx3zj3aa2r9pqssuusrltxfv68eqhzsgjyhk7e4",
+            "0x8b45523042933aa55f57e2ccc661304baed292529b6e67a0c9857c1f3f871806",
         ],
         [
             "area renew bar language pudding trial small host remind supreme cabbage era",
-            "suiprivkey1qt2gsye4dyn0lxey0ht6d5f2ada7ew9044a49y2f3mymy2uf0hr55jmfze3",
-            "0x0d9047b7e7b698cc09c955ea97b0c68c2be7fb3aebeb59edcc84b1fb87e0f28e",
+            "suiprivkey1qtxafg26qxeqy7f56gd2rvsup0a5kl4cre7nt2rtcrf0p3v5pwd4c595zjp",
+            "0x8528ef86150ec331928a8b3edb8adbe2fb523db8c84679aa57a931da6a4cdb25",
         ],
     ];
 
@@ -398,6 +426,45 @@ async fn test_mnemonics_secp256r1() -> Result<(), anyhow::Error> {
         assert!(keystore.addresses().contains(&addr));
     }
 
+    Ok(())
+}
+
+#[test]
+async fn test_mnemonics_ed25519legacy() -> Result<(), anyhow::Error> {
+    // Test case matches with /mysten/sui/sdk/typescript/test/unit/cryptography/ed25519-keypair.test.ts
+    const TEST_CASES: [[&str; 3]; 3] = [
+        [
+            "film crazy soon outside stand loop subway crumble thrive popular green nuclear struggle pistol arm wife phrase warfare march wheat nephew ask sunny firm", 
+            "suiprivkey1llqqxhsu3ndp96644fjk4z5ams5ulgmvprklngt2jhvg2ujn5w4q2c9ha8m", 
+            "77a58912dac82dcae215d6910ee8ae5e79d4b76555ac0f505c188e91b49cddb3"
+        ],
+        [
+            "require decline left thought grid priority false tiny gasp angle royal system attack beef setup reward aunt skill wasp tray vital bounce inflict level", 
+            "suiprivkey1lucxaf57fnenvflpacacaumf6vl0rt0edddhytanvzhkqhwnjk0zs587nj6", 
+            "58357bc75b7f88132b50040cf5f04cd53710f349fe0095c3027bc2657c589962"
+        ],
+        [
+            "organ crash swim stick traffic remember army arctic mesh slice swear summer police vast chaos cradle squirrel hood useless evidence pet hub soap lake", 
+            "suiprivkey1l7q39vxzm0gq7l8dc5dj5allpuww4mavhwhg8mua4cl3lj2c3fvhcemyk5y", 
+            "8c1eea724b985d649790301a08481b581b42c20c5c044b7c4a44c611b8bbcd13"
+        ]
+    ];
+
+    for t in TEST_CASES {
+        let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(0));
+        KeyToolCommand::Import {
+            alias: None,
+            input_string: t[0].to_string(),
+            key_scheme: SignatureScheme::ED25519Legacy,
+            derivation_path: None,
+        }
+        .execute(&mut keystore)
+        .await?;
+        let kp = SuiKeyPair::decode(t[1]).unwrap();
+        let addr = SuiAddress::from_str(t[2]).unwrap();
+        assert_eq!(SuiAddress::from(&kp.public()), addr);
+        assert!(keystore.addresses().contains(&addr));
+    }
     Ok(())
 }
 
