@@ -1037,7 +1037,7 @@ impl<S: SuiSignatureInner + Sized> SuiSignature for S {
     }
 
     fn scheme(&self) -> SignatureScheme {
-        S::PubKey::SIGNATURE_SCHEME
+        S::SCHEME
     }
 
     fn verify_secure<T>(
