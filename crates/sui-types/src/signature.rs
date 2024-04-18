@@ -145,6 +145,14 @@ impl GenericSignature {
                         })?)
                             .into(),
                     )),
+                    SignatureScheme::ED25519Legacy => Ok(CompressedSignature::Ed25519(
+                        (&Ed25519Signature::from_bytes(bytes).map_err(|_| {
+                            SuiError::InvalidSignature {
+                                error: "Cannot parse ed25519 sig".to_string(),
+                            }
+                        })?)
+                            .into(),
+                    )),
                     _ => Err(SuiError::UnsupportedFeatureError {
                         error: "Unsupported signature scheme".to_string(),
                     }),
@@ -184,6 +192,12 @@ impl GenericSignature {
                         })?)
                             .into(),
                     )),
+                    SignatureScheme::ED25519Legacy => Ok(PublicKey::Ed25519Legacy(
+                        (&Ed25519PublicKey::from_bytes(bytes).map_err(|_| {
+                            SuiError::KeyConversionError("Cannot parse ed25519 pk".to_string())
+                        })?)
+                            .into(),
+                    )),
                     _ => Err(SuiError::UnsupportedFeatureError {
                         error: "Unsupported signature scheme in MultiSig".to_string(),
                     }),
@@ -210,7 +224,8 @@ impl ToFromBytes for GenericSignature {
             Ok(x) => match x {
                 SignatureScheme::ED25519
                 | SignatureScheme::Secp256k1
-                | SignatureScheme::Secp256r1 => Ok(GenericSignature::Signature(
+                | SignatureScheme::Secp256r1
+                | SignatureScheme::ED25519Legacy => Ok(GenericSignature::Signature(
                     Signature::from_bytes(bytes).map_err(|_| FastCryptoError::InvalidSignature)?,
                 )),
                 SignatureScheme::MultiSig => match MultiSig::from_bytes(bytes) {
