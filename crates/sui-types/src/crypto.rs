@@ -225,6 +225,11 @@ impl SuiKeyPair {
                         bytes.get(1..).ok_or_else(|| eyre!("Invalid length"))?,
                     )?))
                 }
+                SignatureScheme::ED25519Legacy => Ok(SuiKeyPair::Ed25519Legacy(
+                    Ed25519LegacyKeyPair(Ed25519KeyPair::from_bytes(
+                        bytes.get(1..).ok_or_else(|| eyre!("Invalid length"))?,
+                    )?),
+                )),
                 _ => Err(eyre!("Invalid flag byte")),
             },
             _ => Err(eyre!("Invalid bytes")),
@@ -360,6 +365,9 @@ impl PublicKey {
             )),
             SignatureScheme::Secp256r1 => Ok(PublicKey::Secp256r1(
                 (&Secp256r1PublicKey::from_bytes(key_bytes)?).into(),
+            )),
+            SignatureScheme::ED25519Legacy => Ok(PublicKey::Ed25519Legacy(
+                (&Ed25519PublicKey::from_bytes(key_bytes)?).into(),
             )),
             _ => Err(eyre!("Unsupported curve")),
         }
