@@ -5,8 +5,8 @@ use super::{MultiSigPublicKey, ThresholdUnit, WeightUnit};
 use crate::{
     base_types::SuiAddress,
     crypto::{
-        get_key_pair, get_key_pair_from_rng, Ed25519SuiSignature, PublicKey, Signature, SuiKeyPair,
-        SuiSignatureInner, ZkLoginPublicIdentifier,
+        get_key_pair, get_key_pair_from_rng, Ed25519LegacyKeyPair, Ed25519SuiSignature, PublicKey,
+        Signature, SuiKeyPair, SuiSignatureInner, ZkLoginPublicIdentifier,
     },
     multisig::{as_indices, MultiSig, MAX_SIGNER_IN_MULTISIG},
     multisig_legacy::bitmap_to_u16,
@@ -178,20 +178,75 @@ fn test_multisig_address() {
     let pk1 = keys[0].public();
     let pk2 = keys[1].public();
     let pk3 = keys[2].public();
+    let mut seed = StdRng::from_seed([0; 32]);
+    let kp4: SuiKeyPair =
+        SuiKeyPair::Ed25519Legacy(Ed25519LegacyKeyPair(get_key_pair_from_rng(&mut seed).1));
+    let pk4 = kp4.public();
 
     let threshold: ThresholdUnit = 2;
     let w1: WeightUnit = 1;
     let w2: WeightUnit = 2;
     let w3: WeightUnit = 3;
+    let w4: WeightUnit = 4;
 
-    let multisig_pk =
-        MultiSigPublicKey::new(vec![pk1, pk2, pk3], vec![w1, w2, w3], threshold).unwrap();
+    let multisig_pk = MultiSigPublicKey::new(
+        vec![pk1.clone(), pk2.clone(), pk3.clone()],
+        vec![w1, w2, w3],
+        threshold,
+    )
+    .unwrap();
     let address: SuiAddress = (&multisig_pk).into();
     assert_eq!(
         SuiAddress::from_str("0xe35c69eb504de34afdbd9f307fb3ca152646c92d549fea00065d26fc422109ea")
             .unwrap(),
         address
     );
+
+    let multisig_pk2 =
+        MultiSigPublicKey::new(vec![pk1, pk2, pk3, pk4], vec![w1, w2, w3, w4], threshold).unwrap();
+    let address2: SuiAddress = (&multisig_pk2).into();
+    assert_eq!(
+        SuiAddress::from_str("0x042ce5976856a5edd147137e6d60db21417fb77ce96c64a5744e39c98a96faaf")
+            .unwrap(),
+        address2
+    );
+}
+
+#[test]
+fn test_verify_claims_for_legacy() {
+    let keys = keys();
+    let pk1 = keys[0].public();
+    let mut seed = StdRng::from_seed([1; 32]);
+    let kp2: SuiKeyPair =
+        SuiKeyPair::Ed25519Legacy(Ed25519LegacyKeyPair(get_key_pair_from_rng(&mut seed).1));
+    let pk2 = kp2.public();
+
+    let threshold: ThresholdUnit = 1;
+    let w1: WeightUnit = 1;
+    let w2: WeightUnit = 2;
+
+    let multisig_pk = MultiSigPublicKey::new(vec![pk1, pk2], vec![w1, w2], threshold).unwrap();
+    let address: SuiAddress = (&multisig_pk).into();
+
+    let msg = IntentMessage::new(
+        Intent::sui_transaction(),
+        PersonalMessage {
+            message: "Hello".as_bytes().to_vec(),
+        },
+    );
+    let single_sig = GenericSignature::Signature(Signature::new_secure(&msg, &keys[0]));
+    let single_sig_legacy = GenericSignature::Signature(Signature::new_secure(&msg, &kp2));
+    let multisig = GenericSignature::MultiSig(
+        MultiSig::combine(vec![single_sig, single_sig_legacy], multisig_pk.clone()).unwrap(),
+    );
+
+    let parsed: ImHashMap<JwkId, JWK> = parse_jwks(DEFAULT_JWK_BYTES, &OIDCProvider::Twitch)
+        .unwrap()
+        .into_iter()
+        .collect();
+    let aux_verify_data = VerifyParams::new(parsed, vec![], ZkLoginEnv::Test, true, true);
+    let res = multisig.verify_claims(&msg, address, &aux_verify_data);
+    assert!(res.is_ok());
 }
 
 #[test]
@@ -378,6 +433,8 @@ fn zklogin_in_multisig_works_with_both_addresses() {
     let mut seed = StdRng::from_seed([0; 32]);
     let kp: Ed25519KeyPair = get_key_pair_from_rng(&mut seed).1;
     let skp: SuiKeyPair = SuiKeyPair::Ed25519(kp);
+    let lkp: SuiKeyPair =
+        SuiKeyPair::Ed25519Legacy(Ed25519LegacyKeyPair(get_key_pair_from_rng(&mut seed).1));
 
     // create a new multisig address based on pk1 and pk2 where pk1 is a zklogin public identifier, with a crafted unpadded bytes.
     let mut bytes = Vec::new();
@@ -391,7 +448,9 @@ fn zklogin_in_multisig_works_with_both_addresses() {
 
     let pk1 = PublicKey::ZkLogin(ZkLoginPublicIdentifier(bytes));
     let pk2 = skp.public();
-    let multisig_pk = MultiSigPublicKey::new(vec![pk1, pk2.clone()], vec![1; 2], 1).unwrap();
+    let pk3 = lkp.public();
+    let multisig_pk =
+        MultiSigPublicKey::new(vec![pk1, pk2.clone(), pk3.clone()], vec![1; 3], 1).unwrap();
     let multisig_address = SuiAddress::from(&multisig_pk);
 
     let (kp, _pk, input) = &load_test_vectors("./src/unit_tests/zklogin_test_vectors.json")[0];
