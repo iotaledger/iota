@@ -17,18 +17,18 @@ const PRIVATE_KEY_SIZE = 32;
 const TEST_CASES = [
 	[
 		'film crazy soon outside stand loop subway crumble thrive popular green nuclear struggle pistol arm wife phrase warfare march wheat nephew ask sunny firm',
-		'suiprivkey1qrwsjvr6gwaxmsvxk4cfun99ra8uwxg3c9pl0nhle7xxpe4s80y05ctazer',
-		'0xa2d14fad60c56049ecf75246a481934691214ce413e6a8ae2fe6834c173a6133',
+		'suiprivkey1qrqqxhsu3ndp96644fjk4z5ams5ulgmvprklngt2jhvg2ujn5w4q23vm2y8',
+		'0x7ba26cca0b4c313c8d12193263f7df111f32e1835b12204b94e5859187a0aa26',
 	],
 	[
 		'require decline left thought grid priority false tiny gasp angle royal system attack beef setup reward aunt skill wasp tray vital bounce inflict level',
-		'suiprivkey1qzdvpa77ct272ultqcy20dkw78dysnfyg90fhcxkdm60el0qht9mvzlsh4j',
-		'0x1ada6e6f3f3e4055096f606c746690f1108fcc2ca479055cc434a3e1d3f758aa',
+		'suiprivkey1qqcxaf57fnenvflpacacaumf6vl0rt0edddhytanvzhkqhwnjk0zsawjy3x',
+		'0x7abd0ad79244dfa245ed4e03b1e5f3295a2332c30f15fb7fa0d3a0f546ca0d74',
 	],
 	[
 		'organ crash swim stick traffic remember army arctic mesh slice swear summer police vast chaos cradle squirrel hood useless evidence pet hub soap lake',
-		'suiprivkey1qqqscjyyr64jea849dfv9cukurqj2swx0m3rr4hr7sw955jy07tzgcde5ut',
-		'0xe69e896ca10f5a77732769803cc2b5707f0ab9d4407afb5e4b4464b89769af14',
+		'suiprivkey1qzq39vxzm0gq7l8dc5dj5allpuww4mavhwhg8mua4cl3lj2c3fvhcsjgphc',
+		'0x0f5747833baf8d7794c6a810d74b5bce2cd1286c6634b004bd56a58c92cff7cb',
 	],
 ];
 
@@ -85,7 +85,7 @@ describe('ed25519-keypair', () => {
 	});
 
 	it('incorrect coin type node for ed25519 derivation path', () => {
-		const keypair = Ed25519Keypair.deriveKeypair(TEST_CASES[0][0], `m/44'/784'/0'/0'/0'`);
+		const keypair = Ed25519Keypair.deriveKeypair(TEST_CASES[0][0], `m/44'/4218'/0'/0'/0'`);
 
 		const signData = new TextEncoder().encode('hello world');
 		const signature = keypair.signData(signData);
@@ -105,7 +105,7 @@ describe('ed25519-keypair', () => {
 
 	it('incorrect purpose node for ed25519 derivation path', () => {
 		expect(() => {
-			Ed25519Keypair.deriveKeypair(TEST_CASES[0][0], `m/54'/784'/0'/0'/0'`);
+			Ed25519Keypair.deriveKeypair(TEST_CASES[0][0], `m/54'/4218'/0'/0'/0'`);
 		}).toThrow('Invalid derivation path');
 	});
 
