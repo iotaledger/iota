@@ -105,6 +105,13 @@ export class Ed25519Keypair extends Keypair {
 		);
 	}
 
+	/**
+	 * The raw secret key for this Ed25519 keypair
+	 */
+	getRawSecretKey(): Uint8Array {
+		return this.keypair.secretKey;
+	}
+
 	async sign(data: Uint8Array) {
 		return this.signData(data);
 	}

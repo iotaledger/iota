@@ -4,6 +4,7 @@
 import type { PublicKey, SerializedSignature, SignatureScheme } from '../cryptography/index.js';
 import { parseSerializedSignature } from '../cryptography/index.js';
 import { Ed25519PublicKey } from '../keypairs/ed25519/publickey.js';
+import { Ed25519LegacyPublicKey } from '../keypairs/ed25519legacy/publickey.js';
 import { Secp256k1PublicKey } from '../keypairs/secp256k1/publickey.js';
 import { Secp256r1PublicKey } from '../keypairs/secp256r1/publickey.js';
 // eslint-disable-next-line import/no-cycle
@@ -98,6 +99,8 @@ export function publicKeyFromRawBytes(
 			return new MultiSigPublicKey(bytes);
 		case 'ZkLogin':
 			return new ZkLoginPublicIdentifier(bytes);
+		case 'ED25519Legacy':
+			return new Ed25519LegacyPublicKey(bytes);
 		default:
 			throw new Error(`Unsupported signature scheme ${signatureScheme}`);
 	}
