@@ -94,6 +94,7 @@ export function parseSerializedSignature(serializedSignature: SerializedSignatur
 		case 'ED25519':
 		case 'Secp256k1':
 		case 'Secp256r1':
+		case 'ED25519Legacy':
 			const size =
 				SIGNATURE_SCHEME_TO_SIZE[signatureScheme as keyof typeof SIGNATURE_SCHEME_TO_SIZE];
 			const signature = bytes.slice(1, bytes.length - size);

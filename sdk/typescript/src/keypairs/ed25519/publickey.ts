@@ -6,7 +6,10 @@ import nacl from 'tweetnacl';
 
 import type { PublicKeyInitData } from '../../cryptography/publickey.js';
 import { bytesEqual, PublicKey } from '../../cryptography/publickey.js';
-import { SIGNATURE_SCHEME_TO_FLAG } from '../../cryptography/signature-scheme.js';
+import {
+	SIGNATURE_FLAG_TO_SCHEME,
+	SIGNATURE_SCHEME_TO_FLAG,
+} from '../../cryptography/signature-scheme.js';
 import type { SerializedSignature } from '../../cryptography/signature.js';
 import { parseSerializedSignature } from '../../cryptography/signature.js';
 
@@ -69,8 +72,15 @@ export class Ed25519PublicKey extends PublicKey {
 		let bytes;
 		if (typeof signature === 'string') {
 			const parsed = parseSerializedSignature(signature);
-			if (parsed.signatureScheme !== 'ED25519') {
+			if (parsed.signatureScheme !== 'ED25519' && parsed.signatureScheme !== 'ED25519Legacy') {
 				throw new Error('Invalid signature scheme');
+			}
+
+			if (
+				parsed.signatureScheme !==
+				SIGNATURE_FLAG_TO_SCHEME[this.flag() as keyof typeof SIGNATURE_FLAG_TO_SCHEME]
+			) {
+				throw new Error('Invalid ED25519 signature scheme');
 			}
 
 			if (!bytesEqual(this.toRawBytes(), parsed.publicKey)) {
