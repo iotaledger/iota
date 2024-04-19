@@ -20,6 +20,7 @@ use sui_types::{
     error::SuiError,
 };
 
+/// Derivation coin type as in https://github.com/satoshilabs/slips/blob/master/slip-0044.md
 pub const DERIVATION_PATH_COIN_TYPE: u32 = 4218;
 pub const DERVIATION_PATH_PURPOSE_ED25519: u32 = 44;
 pub const DERVIATION_PATH_PURPOSE_SECP256K1: u32 = 54;
