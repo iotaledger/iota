@@ -117,8 +117,16 @@ export abstract class PublicKey {
 	 */
 	toSuiAddress(): string {
 		// Each hex char represents half a byte, hence hex address doubles the length
+		let toHash = null;
+		if (this.flag() === 255) {
+			toHash = new Uint8Array(33);
+			toHash.set([this.flag()]);
+			toHash.set(blake2b(this.toRawBytes(), { dkLen: 32 }), 1);
+		} else {
+			toHash = this.toSuiBytes();
+		}
 		return normalizeSuiAddress(
-			bytesToHex(blake2b(this.toSuiBytes(), { dkLen: 32 })).slice(0, SUI_ADDRESS_LENGTH * 2),
+			bytesToHex(blake2b(toHash, { dkLen: 32 })).slice(0, SUI_ADDRESS_LENGTH * 2),
 		);
 	}
 
