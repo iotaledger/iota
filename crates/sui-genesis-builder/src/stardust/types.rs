@@ -93,7 +93,7 @@ pub struct FullSnapshotHeader {
 }
 
 impl FullSnapshotHeader {
-    /// The lengt of the header in bytes
+    /// The length of the header in bytes
     pub const LENGTH: usize = std::mem::size_of::<Self>();
 
     /// Returns the genesis milestone index of a [`FullSnapshotHeader`].
