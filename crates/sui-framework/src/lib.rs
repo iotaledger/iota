@@ -11,7 +11,6 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Formatter;
 use sui_types::base_types::ObjectRef;
 use sui_types::storage::ObjectStore;
-use sui_types::DEEPBOOK_PACKAGE_ID;
 use sui_types::{
     base_types::ObjectID,
     digests::TransactionDigest,
@@ -19,6 +18,7 @@ use sui_types::{
     object::{Object, OBJECT_START_VERSION},
     MOVE_STDLIB_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID, SUI_SYSTEM_PACKAGE_ID,
 };
+use sui_types::{DEEPBOOK_PACKAGE_ID, STARDUST_PACKAGE_ID};
 use tracing::error;
 
 /// Represents a system package in the framework, that's built from the source code inside
@@ -103,6 +103,18 @@ macro_rules! define_system_packages {
 
 pub struct BuiltInFramework;
 impl BuiltInFramework {
+    /// Dedicated method to iterate on `stardust` packages.
+    // TODO: integrate to iter_system_packages when we make a new system-framework-snapshot
+    // with the associated protocol bump:wq
+    pub fn iter_stardust_packages() -> impl Iterator<Item = &'static SystemPackage> {
+        define_system_packages!([(
+            STARDUST_PACKAGE_ID,
+            "stardust",
+            [MOVE_STDLIB_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID]
+        )])
+        .iter()
+    }
+
     pub fn iter_system_packages() -> impl Iterator<Item = &'static SystemPackage> {
         // All system packages in the current build should be registered here, and this is the only
         // place we need to worry about if any of them changes.
@@ -122,6 +134,11 @@ impl BuiltInFramework {
             (
                 DEEPBOOK_PACKAGE_ID,
                 "deepbook",
+                [MOVE_STDLIB_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID]
+            ),
+            (
+                STARDUST_PACKAGE_ID,
+                "stardust",
                 [MOVE_STDLIB_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID]
             )
         ])
