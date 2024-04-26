@@ -135,11 +135,6 @@ impl BuiltInFramework {
                 DEEPBOOK_PACKAGE_ID,
                 "deepbook",
                 [MOVE_STDLIB_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID]
-            ),
-            (
-                STARDUST_PACKAGE_ID,
-                "stardust",
-                [MOVE_STDLIB_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID]
             )
         ])
         .iter()
