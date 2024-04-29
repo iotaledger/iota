@@ -1054,10 +1054,12 @@ impl<S: SuiSignatureInner + Sized> SuiSignature for S {
         let digest = hasher.finalize().digest;
 
         let (sig, pk) = &self.get_verification_inputs()?;
+        let sui_pk = PublicKey::try_from_bytes(self.scheme(), self.public_key_bytes())
+            .map_err(|_| SuiError::KeyConversionError("Invalid public key".to_string()))?;
         match scheme {
             SignatureScheme::ZkLoginAuthenticator => {} // Pass this check because zk login does not derive address from pubkey.
             _ => {
-                let address = SuiAddress::from(pk);
+                let address = SuiAddress::from(&sui_pk);
                 if author != address {
                     return Err(SuiError::IncorrectSigner {
                         error: format!(
