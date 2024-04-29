@@ -246,7 +246,7 @@ fn test_verify_claims_for_legacy() {
         .collect();
     let aux_verify_data = VerifyParams::new(parsed, vec![], ZkLoginEnv::Test, true, true);
     let res = multisig.verify_claims(&msg, address, &aux_verify_data);
-    assert!(res.is_ok());
+    assert!(res.is_ok(), "res was not ok: {:?}", res);
 }
 
 #[test]
