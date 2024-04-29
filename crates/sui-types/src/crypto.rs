@@ -334,7 +334,7 @@ impl EncodeDecodeBase64 for PublicKey {
                     )?;
                     Ok(PublicKey::Secp256r1((&pk).into()))
                 } else if x == &SignatureScheme::ED25519Legacy.flag() {
-                    let pk: Ed25519PublicKey = Ed25519PublicKey::from_bytes(
+                    let pk = Ed25519PublicKey::from_bytes(
                         bytes.get(1..).ok_or_else(|| eyre!("Invalid length"))?,
                     )?;
                     Ok(PublicKey::Ed25519Legacy((&pk).into()))

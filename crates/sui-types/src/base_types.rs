@@ -664,15 +664,12 @@ impl<T: SuiPublicKey> From<&T> for SuiAddress {
     fn from(pk: &T) -> Self {
         let mut hasher = DefaultHash::default();
         hasher.update([T::SIGNATURE_SCHEME.flag()]);
-        match T::SIGNATURE_SCHEME {
-            SignatureScheme::ED25519Legacy => {
-                let hashed_pk = Blake2b256::digest(pk);
-                hasher.update(hashed_pk.as_ref());
-            }
-            _ => {
-                hasher.update(pk);
-            }
-        };
+        if let SignatureScheme::ED25519Legacy = T::SIGNATURE_SCHEME {
+            let hashed_pk = Blake2b256::digest(pk);
+            hasher.update(hashed_pk.as_ref());
+        } else {
+            hasher.update(pk);
+        }
         let g_arr = hasher.finalize();
         SuiAddress(g_arr.digest)
     }
@@ -682,15 +679,12 @@ impl From<&PublicKey> for SuiAddress {
     fn from(pk: &PublicKey) -> Self {
         let mut hasher = DefaultHash::default();
         hasher.update([pk.flag()]);
-        match pk.scheme() {
-            SignatureScheme::ED25519Legacy => {
-                let hashed_pk = Blake2b256::digest(pk);
-                hasher.update(hashed_pk.as_ref());
-            }
-            _ => {
-                hasher.update(pk);
-            }
-        };
+        if let SignatureScheme::ED25519Legacy = pk.scheme() {
+            let hashed_pk = Blake2b256::digest(pk);
+            hasher.update(hashed_pk.as_ref());
+        } else {
+            hasher.update(pk);
+        }
         let g_arr = hasher.finalize();
         SuiAddress(g_arr.digest)
     }
@@ -711,15 +705,12 @@ impl From<&MultiSigPublicKey> for SuiAddress {
         hasher.update(multisig_pk.threshold().to_le_bytes());
         multisig_pk.pubkeys().iter().for_each(|(pk, w)| {
             hasher.update([pk.flag()]);
-            match pk.scheme() {
-                SignatureScheme::ED25519Legacy => {
-                    let hashed_pk = Blake2b256::digest(pk);
-                    hasher.update(hashed_pk.as_ref());
-                }
-                _ => {
-                    hasher.update(pk.as_ref());
-                }
-            };
+            if let SignatureScheme::ED25519Legacy = pk.scheme() {
+                let hashed_pk = Blake2b256::digest(pk);
+                hasher.update(hashed_pk.as_ref());
+            } else {
+                hasher.update(pk);
+            }
             hasher.update(w.to_le_bytes());
         });
         SuiAddress(hasher.finalize().digest)
