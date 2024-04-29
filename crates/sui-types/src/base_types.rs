@@ -666,9 +666,7 @@ impl<T: SuiPublicKey> From<&T> for SuiAddress {
         hasher.update([T::SIGNATURE_SCHEME.flag()]);
         match T::SIGNATURE_SCHEME {
             SignatureScheme::ED25519Legacy => {
-                let mut hasher_for_legacy = Blake2b256::default();
-                hasher_for_legacy.update(pk);
-                let hashed_pk = hasher_for_legacy.finalize();
+                let hashed_pk = Blake2b256::digest(pk);
                 hasher.update(hashed_pk.as_ref());
             }
             _ => {
@@ -686,9 +684,7 @@ impl From<&PublicKey> for SuiAddress {
         hasher.update([pk.flag()]);
         match pk.scheme() {
             SignatureScheme::ED25519Legacy => {
-                let mut hasher_for_legacy = Blake2b256::default();
-                hasher_for_legacy.update(pk);
-                let hashed_pk = hasher_for_legacy.finalize();
+                let hashed_pk = Blake2b256::digest(pk);
                 hasher.update(hashed_pk.as_ref());
             }
             _ => {
@@ -717,9 +713,7 @@ impl From<&MultiSigPublicKey> for SuiAddress {
             hasher.update([pk.flag()]);
             match pk.scheme() {
                 SignatureScheme::ED25519Legacy => {
-                    let mut hasher_for_legacy = Blake2b256::default();
-                    hasher_for_legacy.update(pk);
-                    let hashed_pk = hasher_for_legacy.finalize();
+                    let hashed_pk = Blake2b256::digest(pk);
                     hasher.update(hashed_pk.as_ref());
                 }
                 _ => {
