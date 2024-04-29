@@ -2545,6 +2545,10 @@ async fn test_signature_flag() -> Result<(), anyhow::Error> {
     assert!(res.is_ok());
     assert_eq!(res.unwrap().flag(), SignatureScheme::Secp256r1.flag());
 
+    let res = SignatureScheme::from_flag("255");
+    assert!(res.is_ok());
+    assert_eq!(res.unwrap().flag(), SignatureScheme::ED25519Legacy.flag());
+
     let res = SignatureScheme::from_flag("something");
     assert!(res.is_err());
     Ok(())
