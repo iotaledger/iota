@@ -97,11 +97,14 @@ impl Migration {
     }
 
     /// Create objects for all outputs except for foundry outputs.
-    fn migrate_outputs(&mut self, outputs: impl Iterator<Item = Output>) -> Result<()> {
-        for output in outputs {
+    fn migrate_outputs(
+        &mut self,
+        outputs: impl Iterator<Item = (OutputHeader, Output)>,
+    ) -> Result<()> {
+        for (header, output) in outputs {
             let objects = match output {
                 Output::Alias(alias) => self.executor.create_alias_objects(alias)?,
-                Output::Basic(basic) => self.executor.create_basic_objects(basic)?,
+                Output::Basic(basic) => self.executor.create_basic_objects(header, basic)?,
                 Output::Nft(nft) => self.executor.create_nft_objects(nft)?,
                 Output::Treasury(treasury) => self.executor.create_treasury_objects(treasury)?,
                 Output::Foundry(_) => {
@@ -123,7 +126,7 @@ impl Migration {
     pub fn run(
         mut self,
         foundries: impl Iterator<Item = (OutputHeader, FoundryOutput)>,
-        outputs: impl Iterator<Item = Output>,
+        outputs: impl Iterator<Item = (OutputHeader, Output)>,
         writer: impl Write,
     ) -> Result<()> {
         self.migrate_foundries(foundries)?;
@@ -310,7 +313,11 @@ impl Executor {
         todo!();
     }
 
-    fn create_basic_objects(&mut self, _basic_output: BasicOutput) -> Result<Vec<Object>> {
+    fn create_basic_objects(
+        &mut self,
+        header: OutputHeader,
+        basic_output: BasicOutput,
+    ) -> Result<Vec<Object>> {
         todo!();
     }
 
