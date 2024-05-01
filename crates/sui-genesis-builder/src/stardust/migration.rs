@@ -1,10 +1,19 @@
 //! Contains the logic for the migration process.
+use move_core_types::{ident_str, language_storage::StructTag};
 use std::{
     collections::HashMap,
     io::{BufWriter, Write},
+    ops::Deref,
     sync::Arc,
 };
-use sui_types::move_package::TypeOrigin;
+use sui_types::{
+    balance::Balance,
+    base_types::ObjectRef,
+    move_package::TypeOrigin,
+    object::{Data, MoveObject, Owner},
+    transaction::ObjectArg,
+    TypeTag,
+};
 
 use anyhow::Result;
 use fastcrypto::hash::HashFunction;
@@ -102,7 +111,7 @@ impl Migration {
         outputs: impl Iterator<Item = (OutputHeader, Output)>,
     ) -> Result<()> {
         for (header, output) in outputs {
-            let objects = match output {
+            match output {
                 Output::Alias(alias) => self.executor.create_alias_objects(alias)?,
                 Output::Basic(basic) => self.executor.create_basic_objects(header, basic)?,
                 Output::Nft(nft) => self.executor.create_nft_objects(nft)?,
@@ -111,7 +120,6 @@ impl Migration {
                     continue;
                 }
             };
-            self.executor.update_store(objects);
         }
         Ok(())
     }
@@ -153,7 +161,7 @@ struct Executor {
     metrics: Arc<LimitsMetrics>,
     /// Map the stardust token id [`TokenId`] to the [`ObjectID`] and of the
     /// coin minted by the foundry and its [`TypeOrigin`].
-    native_tokens: HashMap<TokenId, (ObjectID, TypeOrigin)>,
+    native_tokens: HashMap<TokenId, (ObjectRef, TypeOrigin)>,
 }
 
 impl Executor {
@@ -247,11 +255,6 @@ impl Executor {
         Ok(temporary_store.into_inner())
     }
 
-    fn update_store(&mut self, objects: Vec<Object>) {
-        self.store
-            .finish(objects.into_iter().map(|obj| (obj.id(), obj)).collect());
-    }
-
     /// Process the foundry outputs as follows:
     ///
     /// * Publish the generated packages using a tailored unmetered executor.
@@ -272,11 +275,11 @@ impl Executor {
             };
             let InnerTemporaryStore { written, .. } = self.execute_pt_unmetered(deps, pt)?;
             // Get on-chain info
-            let mut minted_coin_id = None::<ObjectID>;
+            let mut minted_coin_ref = None::<ObjectRef>;
             let mut coin_type_origin = None::<TypeOrigin>;
-            for (id, object) in &written {
+            for object in written.values() {
                 if object.is_coin() {
-                    minted_coin_id = Some(*id);
+                    minted_coin_ref = Some(object.compute_object_reference());
                 }
                 if object.is_package() {
                     coin_type_origin = Some(
@@ -290,13 +293,13 @@ impl Executor {
                     );
                 }
             }
-            let (minted_coin_id, coin_type_origin) = (
-                minted_coin_id.expect("a coin must have been minted"),
+            let (minted_coin_ref, coin_type_origin) = (
+                minted_coin_ref.expect("a coin must have been minted"),
                 coin_type_origin.expect("the published package should include a type for the coin"),
             );
             self.native_tokens.insert(
                 *foundry.native_tokens()[0].token_id(),
-                (minted_coin_id, coin_type_origin),
+                (minted_coin_ref, coin_type_origin),
             );
             self.store.finish(
                 written
@@ -309,23 +312,156 @@ impl Executor {
         Ok(())
     }
 
-    fn create_alias_objects(&mut self, _alias: AliasOutput) -> Result<Vec<Object>> {
+    fn create_alias_objects(&mut self, _alias: AliasOutput) -> Result<()> {
         todo!();
     }
 
+    /// This implements the control flow in
+    /// crates/sui-framework/packages/stardust/basic_migration_graph.svg
     fn create_basic_objects(
         &mut self,
         header: OutputHeader,
         basic_output: BasicOutput,
-    ) -> Result<Vec<Object>> {
+    ) -> Result<()> {
+        let mut data = super::types::output::BasicOutput::new(header, &basic_output);
+        let owner: SuiAddress = basic_output.address().to_string().parse()?;
+
+        // Handle native tokens
+        let token = basic_output.native_tokens().deref().first();
+        if let Some(token) = token {
+            let Some((object_ref, type_origin)) = self.native_tokens.get(token.token_id()) else {
+                anyhow::bail!("foundry for native token has not been published");
+            };
+
+            let token_struct_tag = format!(
+                "{}::{}::{}",
+                type_origin.package, type_origin.module_name, type_origin.struct_name
+            );
+            // Decreate the original total balance manually
+            let token_type_tag: TypeTag = token_struct_tag.parse()?;
+            let pt = {
+                let mut builder = ProgrammableTransactionBuilder::new();
+                if token.amount().bits() > 64 {
+                    anyhow::bail!("unsupported number of tokens");
+                }
+                let foundry_coin_ref = builder.obj(ObjectArg::ImmOrOwnedObject(*object_ref))?;
+                let balance = builder.programmable_move_call(
+                    SUI_FRAMEWORK_PACKAGE_ID,
+                    ident_str!("coin").into(),
+                    ident_str!("balance_mut").into(),
+                    vec![token_type_tag.clone()],
+                    vec![foundry_coin_ref],
+                );
+                let amount = builder.pure(token.amount().as_u64())?;
+                builder.programmable_move_call(
+                    SUI_FRAMEWORK_PACKAGE_ID,
+                    ident_str!("balance").into(),
+                    ident_str!("split").into(),
+                    vec![token_type_tag.clone()],
+                    vec![balance, amount],
+                );
+
+                builder.finish()
+            };
+            self.execute_pt_unmetered(self.load_dependencies(), pt)?;
+
+            let dangle_balance = Balance::new(token.amount().as_u64());
+
+            if data.expiration.is_some()
+                || data.storage_deposit_return.is_some()
+                || data.timelock.is_some()
+            {
+                // Populate bag
+                let pt = {
+                    let mut builder = ProgrammableTransactionBuilder::new();
+                    let bag = builder.programmable_move_call(
+                        SUI_FRAMEWORK_PACKAGE_ID,
+                        ident_str!("bag").into(),
+                        ident_str!("new").into(),
+                        vec![],
+                        vec![],
+                    );
+                    let token_struct_tag = builder.pure(token_struct_tag)?;
+                    let balance = builder.pure(dangle_balance)?;
+                    let key_type: StructTag = "0x01::ascii::String".parse()?;
+                    let value_type = Balance::type_(token_type_tag);
+                    builder.programmable_move_call(
+                        SUI_FRAMEWORK_PACKAGE_ID,
+                        ident_str!("bag").into(),
+                        ident_str!("add").into(),
+                        vec![key_type.into(), value_type.into()],
+                        vec![bag, token_struct_tag, balance],
+                    );
+
+                    builder.finish()
+                };
+                let InnerTemporaryStore { mut written, .. } =
+                    self.execute_pt_unmetered(self.load_dependencies(), pt)?;
+                let (_, bag_object) = written
+                    .pop_first()
+                    .expect("the bag should have been created");
+                data.native_tokens = bcs::from_bytes(
+                    bag_object
+                        .data
+                        .try_as_move()
+                        .expect("this should be a move object")
+                        .contents(),
+                )
+                .expect("this should be a valid Bag Move object");
+            } else {
+                // We create a new coin with the dangle balance
+                // and transfer it to the owner.
+                let pt = {
+                    let mut builder = ProgrammableTransactionBuilder::new();
+                    let balance = builder.pure(dangle_balance)?;
+                    let owned_coin = builder.programmable_move_call(
+                        SUI_FRAMEWORK_PACKAGE_ID,
+                        ident_str!("coin").into(),
+                        ident_str!("from_balance").into(),
+                        vec![token_type_tag],
+                        vec![balance],
+                    );
+                    builder.transfer_arg(owner, owned_coin);
+                    builder.finish()
+                };
+                let InnerTemporaryStore { written, .. } =
+                    self.execute_pt_unmetered(self.load_dependencies(), pt)?;
+                self.store.finish(written);
+            }
+        }
+        // Construct the basic output object
+        let move_object = unsafe {
+            // Safety: we know from the definition of `BasicOutput` in the stardust package
+            // that it has not public transfer (`store` ability is absent).
+            MoveObject::new_from_execution(
+                super::types::output::BasicOutput::type_().into(),
+                false,
+                0.into(),
+                bcs::to_bytes(&data)?,
+                &self.protocol_config,
+            )?
+        };
+        // Resolve ownership
+        let owner = if data.expiration.is_some() {
+            Owner::Shared {
+                initial_shared_version: 0.into(),
+            }
+        } else {
+            Owner::AddressOwner(owner)
+        };
+        self.store.insert_object(Object::new_from_genesis(
+            Data::Move(move_object),
+            owner,
+            self.tx_context.digest(),
+        ));
+        Ok(())
+    }
+
+    fn create_nft_objects(&mut self, _nft: NftOutput) -> Result<()> {
         todo!();
     }
 
-    fn create_nft_objects(&mut self, _nft: NftOutput) -> Result<Vec<Object>> {
-        todo!();
-    }
-
-    fn create_treasury_objects(&mut self, _treasury: TreasuryOutput) -> Result<Vec<Object>> {
+    fn create_treasury_objects(&mut self, _treasury: TreasuryOutput) -> Result<()> {
         todo!();
     }
 }

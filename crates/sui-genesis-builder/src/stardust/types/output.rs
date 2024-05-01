@@ -1,5 +1,6 @@
 //! Rust types and logic for the Move counterparts in the `stardust` system package.
 
+use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -8,9 +9,13 @@ use sui_types::{
     base_types::{ObjectID, SuiAddress},
     collection_types::Bag,
     id::UID,
+    STARDUST_PACKAGE_ID,
 };
 
 use super::snapshot::OutputHeader;
+
+pub const BASIC_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("basic_output");
+pub const BASIC_OUTPUT_STRUCT_NAME: &IdentStr = ident_str!("BasicOutput");
 
 /// Rust version of the stardust expiration unlock condition.
 #[serde_as]
@@ -123,44 +128,19 @@ pub struct BasicOutput {
     pub sender: Option<SuiAddress>,
 }
 
-/// Helper struct to construct a [`BasicOutput`] value by injecting
-/// an [`Bag`] object.
-pub struct BasicOutputBuilder<'a> {
-    header: OutputHeader,
-    output: &'a iota_sdk::types::block::output::BasicOutput,
-    bag: Bag,
-}
-
-impl<'a> BasicOutputBuilder<'a> {
-    /// Construct the builder through the [`OutputHeader`] and [`Output`][iota_sdk::types::block::output::BasicOutput]
-    /// that represent the [`BasicOutput`] in the stardust ledger.
-    pub fn new(
-        header: OutputHeader,
-        output: &'a iota_sdk::types::block::output::BasicOutput,
-    ) -> Self {
-        Self {
-            header,
-            output,
-            bag: Default::default(),
-        }
-    }
-
-    /// Inject a [`Bag`] object.
-    pub fn with_bag(mut self, bag: Bag) -> Self {
-        self.bag = bag;
-        self
-    }
-
-    pub fn build(self) -> BasicOutput {
-        let id = UID::new(ObjectID::new(self.header.output_id().hash()));
-        let iota = Balance::new(self.output.amount());
-        let native_tokens = self.bag;
-        let unlock_conditions = self.output.unlock_conditions();
+impl BasicOutput {
+    /// Construct the basic output with an empty [`Bag`] through the [`OutputHeader`]
+    /// and [`Output`][iota_sdk::types::block::output::BasicOutput].
+    pub fn new(header: OutputHeader, output: &iota_sdk::types::block::output::BasicOutput) -> Self {
+        let id = UID::new(ObjectID::new(header.output_id().hash()));
+        let iota = Balance::new(output.amount());
+        let native_tokens = Default::default();
+        let unlock_conditions = output.unlock_conditions();
         let storage_deposit_return = unlock_conditions
             .storage_deposit_return()
             .and_then(|unlock| unlock.try_into().ok());
         let timelock = unlock_conditions.timelock().map(|unlock| unlock.into());
-        let expiration = self.output.try_into().ok();
+        let expiration = output.try_into().ok();
         BasicOutput {
             id,
             iota,
@@ -171,6 +151,15 @@ impl<'a> BasicOutputBuilder<'a> {
             metadata: Default::default(),
             tag: Default::default(),
             sender: Default::default(),
+        }
+    }
+
+    pub fn type_() -> StructTag {
+        StructTag {
+            address: STARDUST_PACKAGE_ID.into(),
+            name: BASIC_OUTPUT_MODULE_NAME.to_owned(),
+            module: BASIC_OUTPUT_STRUCT_NAME.to_owned(),
+            type_params: Vec::new(),
         }
     }
 }
