@@ -4,6 +4,7 @@ use std::{
     io::{BufWriter, Write},
     sync::Arc,
 };
+use sui_types::move_package::TypeOrigin;
 
 use anyhow::Result;
 use fastcrypto::hash::HashFunction;
@@ -147,9 +148,9 @@ struct Executor {
     store: InMemoryStorage,
     move_vm: Arc<MoveVM>,
     metrics: Arc<LimitsMetrics>,
-    /// Map the stardust token id [`TokenId`] to the [`ObjectID`] of the
-    /// coin minted by the foundry.
-    native_tokens: HashMap<TokenId, ObjectID>,
+    /// Map the stardust token id [`TokenId`] to the [`ObjectID`] and of the
+    /// coin minted by the foundry and its [`TypeOrigin`].
+    native_tokens: HashMap<TokenId, (ObjectID, TypeOrigin)>,
 }
 
 impl Executor {
@@ -267,14 +268,33 @@ impl Executor {
                 builder.finish()
             };
             let InnerTemporaryStore { written, .. } = self.execute_pt_unmetered(deps, pt)?;
-            let minted_coin_id = written
-                .iter()
-                // Since the execution is unmetered, the only coin written
-                // holds the total minted supply of native tokens
-                .find_map(|(id, object)| object.is_coin().then_some(*id))
-                .expect("the must be a coin create in the transaction");
-            self.native_tokens
-                .insert(*foundry.native_tokens()[0].token_id(), minted_coin_id);
+            // Get on-chain info
+            let mut minted_coin_id = None::<ObjectID>;
+            let mut coin_type_origin = None::<TypeOrigin>;
+            for (id, object) in &written {
+                if object.is_coin() {
+                    minted_coin_id = Some(*id);
+                }
+                if object.is_package() {
+                    coin_type_origin = Some(
+                        object
+                            .data
+                            .try_as_package()
+                            .expect("already verified this is a package")
+                            // there must be only one type created in the package
+                            .type_origin_table()[0]
+                            .clone(),
+                    );
+                }
+            }
+            let (minted_coin_id, coin_type_origin) = (
+                minted_coin_id.expect("a coin must have been minted"),
+                coin_type_origin.expect("the published package should include a type for the coin"),
+            );
+            self.native_tokens.insert(
+                *foundry.native_tokens()[0].token_id(),
+                (minted_coin_id, coin_type_origin),
+            );
             self.store.finish(
                 written
                     .into_iter()
