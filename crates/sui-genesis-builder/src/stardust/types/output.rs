@@ -3,7 +3,14 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use sui_types::base_types::SuiAddress;
+use sui_types::{
+    balance::Balance,
+    base_types::{ObjectID, SuiAddress},
+    collection_types::Bag,
+    id::UID,
+};
+
+use super::snapshot::OutputHeader;
 
 /// Rust version of the stardust expiration unlock condition.
 #[serde_as]
@@ -82,6 +89,88 @@ impl From<&iota_sdk::types::block::output::unlock_condition::TimelockUnlockCondi
     ) -> Self {
         Self {
             unix_time: unlock.timestamp(),
+        }
+    }
+}
+
+/// Rust version of the stardust basic output.
+#[serde_as]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
+pub struct BasicOutput {
+    /// Hash of the `OutputId` that was migrated.
+    pub id: UID,
+
+    /// The amount of IOTA coins held by the output.
+    pub iota: Balance,
+
+    /// The `Bag` holds native tokens, key-ed by the stringified type of the asset.
+    /// Example: key: "0xabcded::soon::SOON", value: Balance<0xabcded::soon::SOON>.
+    pub native_tokens: Bag,
+
+    /// The storage deposit return unlock condition.
+    pub storage_deposit_return: Option<StorageDepositReturnUnlockCondition>,
+    /// The timelock unlock condition.
+    pub timelock: Option<TimelockUnlockCondition>,
+    /// The expiration unlock condition.
+    pub expiration: Option<ExpirationUnlockCondition>,
+
+    // Possible features, they have no effect and only here to hold data until the object is deleted.
+    /// The metadata feature.
+    pub metadata: Option<Vec<u8>>,
+    /// The tag feature.
+    pub tag: Option<Vec<u8>>,
+    /// The sender feature.
+    pub sender: Option<SuiAddress>,
+}
+
+/// Helper struct to construct a [`BasicOutput`] value by injecting
+/// an [`Bag`] object.
+pub struct BasicOutputBuilder<'a> {
+    header: OutputHeader,
+    output: &'a iota_sdk::types::block::output::BasicOutput,
+    bag: Bag,
+}
+
+impl<'a> BasicOutputBuilder<'a> {
+    /// Construct the builder through the [`OutputHeader`] and [`Output`][iota_sdk::types::block::output::BasicOutput]
+    /// that represent the [`BasicOutput`] in the stardust ledger.
+    pub fn new(
+        header: OutputHeader,
+        output: &'a iota_sdk::types::block::output::BasicOutput,
+    ) -> Self {
+        Self {
+            header,
+            output,
+            bag: Default::default(),
+        }
+    }
+
+    /// Inject a [`Bag`] object.
+    pub fn with_bag(mut self, bag: Bag) -> Self {
+        self.bag = bag;
+        self
+    }
+
+    pub fn build(self) -> BasicOutput {
+        let id = UID::new(ObjectID::new(self.header.output_id().hash()));
+        let iota = Balance::new(self.output.amount());
+        let native_tokens = self.bag;
+        let unlock_conditions = self.output.unlock_conditions();
+        let storage_deposit_return = unlock_conditions
+            .storage_deposit_return()
+            .and_then(|unlock| unlock.try_into().ok());
+        let timelock = unlock_conditions.timelock().map(|unlock| unlock.into());
+        let expiration = self.output.try_into().ok();
+        BasicOutput {
+            id,
+            iota,
+            native_tokens,
+            storage_deposit_return,
+            timelock,
+            expiration,
+            metadata: Default::default(),
+            tag: Default::default(),
+            sender: Default::default(),
         }
     }
 }
