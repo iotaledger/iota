@@ -2,7 +2,9 @@
 //! and verifying the total supply.
 use std::fs::File;
 
-use sui_genesis_builder::stardust::{parse::FullSnapshotParser, types::TOTAL_SUPPLY_IOTA};
+use sui_genesis_builder::stardust::{
+    parse::FullSnapshotParser, types::snapshot::TOTAL_SUPPLY_IOTA,
+};
 
 fn main() -> anyhow::Result<()> {
     let Some(path) = std::env::args().nth(1) else {

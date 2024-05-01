@@ -5,7 +5,7 @@ use anyhow::Result;
 use iota_sdk::types::block::{output::Output, protocol::ProtocolParameters};
 use packable::{unpacker::IoUnpacker, Packable};
 
-use super::types::{FullSnapshotHeader, OutputHeader};
+use super::types::snapshot::{FullSnapshotHeader, OutputHeader};
 
 /// Parse a full-snapshot using a [`BufReader`] internally.
 pub struct FullSnapshotParser<R: Read> {

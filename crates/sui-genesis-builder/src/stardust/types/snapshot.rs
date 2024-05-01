@@ -15,7 +15,7 @@ use packable::{
     Packable, PackableExt,
 };
 
-use super::error::StardustError;
+use crate::stardust::error::StardustError;
 
 /// The snapshot version supported currently
 const SNAPSHOT_VERSION: u8 = 2;
