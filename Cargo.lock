@@ -12714,6 +12714,7 @@ dependencies = [
  "packable",
  "prometheus",
  "rand 0.8.5",
+ "schemars",
  "serde",
  "serde_with",
  "serde_yaml 0.8.26",

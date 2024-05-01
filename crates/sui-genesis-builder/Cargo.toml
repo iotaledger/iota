@@ -26,6 +26,7 @@ prometheus.workspace = true
 iota-sdk = { version = "1.1.4", default-features = false, features = ["std"] }
 packable = { version = "0.8.3", default-features = false, features = ["io"] }
 
+schemars.workspace = true
 shared-crypto.workspace = true
 sui-config.workspace = true
 sui-execution.workspace = true
