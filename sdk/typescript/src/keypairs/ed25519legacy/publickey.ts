@@ -9,7 +9,7 @@ import { Ed25519PublicKey } from '../ed25519/publickey.js';
  */
 export class Ed25519LegacyPublicKey extends Ed25519PublicKey {
 	/**
-	 * Return the Sui address associated with this Ed25519Legacy public key
+	 * Return the signature scheme flag associated with this Ed25519Legacy public key
 	 */
 	flag(): number {
 		return SIGNATURE_SCHEME_TO_FLAG['ED25519Legacy'];
