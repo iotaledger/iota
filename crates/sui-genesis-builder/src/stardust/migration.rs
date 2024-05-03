@@ -50,7 +50,9 @@ use sui_types::{
     MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID, SUI_SYSTEM_PACKAGE_ID,
 };
 
-use super::types::snapshot::OutputHeader;
+use super::types::{
+    self as stardust_types, snapshot::OutputHeader, Alias, ALIAS_OUTPUT_MODULE_NAME,
+};
 use crate::process_package;
 
 /// The dependencies of the generated packages for native tokens.
@@ -116,7 +118,7 @@ impl Migration {
     ) -> Result<()> {
         for (header, output) in outputs {
             match output {
-                Output::Alias(alias) => self.executor.create_alias_objects(alias)?,
+                Output::Alias(alias) => self.executor.create_alias_objects(header, alias)?,
                 Output::Basic(basic) => self.executor.create_basic_objects(header, basic)?,
                 Output::Nft(nft) => self.executor.create_nft_objects(nft)?,
                 Output::Treasury(treasury) => self.executor.create_treasury_objects(treasury)?,
@@ -332,8 +334,118 @@ impl Executor {
         Ok(())
     }
 
-    fn create_alias_objects(&mut self, _alias: AliasOutput) -> Result<()> {
-        todo!();
+    fn create_alias_objects(&mut self, header: OutputHeader, alias: AliasOutput) -> Result<()> {
+        // Take the Alias ID set in the output or, if its zeroized, compute it from the Output ID.
+        let alias_id: [u8; 32] = alias
+            .alias_id()
+            .or_from_output_id(&header.output_id())
+            .deref()
+            .clone();
+        let state_metadata: Option<Vec<u8>> = if alias.state_metadata().is_empty() {
+            None
+        } else {
+            Some(alias.state_metadata().to_vec())
+        };
+        let sender: Option<SuiAddress> = alias
+            .features()
+            .sender()
+            .map(|sender_feat| sender_feat.address().to_string().parse())
+            .transpose()?;
+        let metadata: Option<Vec<u8>> = alias
+            .features()
+            .metadata()
+            .map(|metadata_feat| metadata_feat.data().to_vec());
+        let immutable_issuer: Option<SuiAddress> = alias
+            .immutable_features()
+            .issuer()
+            .map(|issuer_feat| issuer_feat.address().to_string().parse())
+            .transpose()?;
+        let immutable_metadata: Option<Vec<u8>> = alias
+            .immutable_features()
+            .metadata()
+            .map(|metadata_feat| metadata_feat.data().to_vec());
+
+        let move_alias = Alias {
+            id: UID::new(ObjectID::new(alias_id)),
+            // TODO: Why is this an Option? The State Controller is always set in Stardust.
+            legacy_state_controller: Some(alias.state_controller_address().to_string().parse()?),
+            state_index: alias.state_index(),
+            state_metadata,
+            sender,
+            metadata,
+            immutable_issuer,
+            immutable_metadata,
+        };
+
+        // Construct the Alias object.
+        let move_alias_object = unsafe {
+            // Safety: we know from the definition of `Alias` in the stardust package
+            // that it has public transfer (`store` ability is present).
+            MoveObject::new_from_execution(
+                super::types::Alias::type_().into(),
+                true,
+                0.into(),
+                bcs::to_bytes(&move_alias)?,
+                &self.protocol_config,
+            )?
+        };
+
+        // TODO: Differentiate between representing Ed25519 ownership and object ownership (i.e. this Alias being owned by another Alias and NFT).
+        let governor = alias.governor_address().to_string().parse()?;
+        let alias_output_owner = Owner::AddressOwner(governor);
+
+        self.store.insert_object(Object::new_from_genesis(
+            Data::Move(move_alias_object),
+            // TODO: Temporary. How to represent the owner here since we want this object to be owned by the alias output object in a dynamic field?
+            alias_output_owner,
+            self.tx_context.digest(),
+        ));
+
+        let move_alias_output = stardust_types::AliasOutput {
+            // TODO: Is this the best way to generate a new / random UID?
+            // Alternatively, we could hash `alias_id`.
+            id: UID::new(ObjectID::random()),
+            iota: Balance::new(alias.amount()),
+            // TODO: Reuse native token creation logic from basic output.
+            native_tokens: bcs::from_bytes(&[]).expect("TODO"),
+        };
+
+        // Construct the Alias Output object.
+        let move_alias_output_object = unsafe {
+            // Safety: we know from the definition of `AliasOutput` in the stardust package
+            // that it does not have public transfer (`store` ability is absent).
+            MoveObject::new_from_execution(
+                super::types::AliasOutput::type_().into(),
+                false,
+                0.into(),
+                bcs::to_bytes(&move_alias_output)?,
+                &self.protocol_config,
+            )?
+        };
+
+        self.store.insert_object(Object::new_from_genesis(
+            Data::Move(move_alias_output_object),
+            alias_output_owner,
+            self.tx_context.digest(),
+        ));
+
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            let name_type: StructTag = "vector<u8>".parse()?;
+            let value_type: StructTag = Alias::type_();
+
+            let bag = builder.programmable_move_call(
+                SUI_FRAMEWORK_PACKAGE_ID,
+                ident_str!("dynamic_object_field").into(),
+                ident_str!("add").into(),
+                vec![name_type.into(), value_type.into()],
+                vec![/*TODO*/],
+            );
+
+            builder.finish()
+        };
+
+        Ok(())
     }
 
     /// Create a [`Bag`] of balances of native tokens.
