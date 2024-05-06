@@ -182,7 +182,7 @@ export class MultiSigPublicKey extends PublicKey {
 		// The initial value 3 ensures that following data will be after the flag byte and threshold bytes
 		let i = 3;
 		for (const { publicKey, weight } of this.publicKeys) {
-			const bytes = publicKey.toSuiBytes();
+			const bytes = publicKey.toSuiBytesForAddress();
 			tmp.set(bytes, i);
 			i += bytes.length;
 			tmp.set([weight], i++);
