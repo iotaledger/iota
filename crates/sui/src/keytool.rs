@@ -90,8 +90,8 @@ pub enum KeyToolCommand {
         tx_bytes: Option<String>,
     },
     /// Generate a new keypair with key scheme flag {ed25519 | secp256k1 | secp256r1}
-    /// with optional derivation path, default to m/44'/784'/0'/0'/0' for ed25519 or
-    /// m/54'/784'/0'/0/0 for secp256k1 or m/74'/784'/0'/0/0 for secp256r1. Word
+    /// with optional derivation path, default to m/44'/4218'/0'/0'/0' for ed25519 or
+    /// m/54'/4218'/0'/0/0 for secp256k1 or m/74'/4218'/0'/0/0 for secp256r1. Word
     /// length can be { word12 | word15 | word18 | word21 | word24} default to word12
     /// if not specified.
     ///
@@ -107,8 +107,8 @@ pub enum KeyToolCommand {
 
     /// Add a new key to Sui CLI Keystore using either the input mnemonic phrase or a Bech32 encoded 33-byte
     /// `flag || privkey` starting with "suiprivkey", the key scheme flag {ed25519 | secp256k1 | secp256r1}
-    /// and an optional derivation path, default to m/44'/784'/0'/0'/0' for ed25519 or m/54'/784'/0'/0/0
-    /// for secp256k1 or m/74'/784'/0'/0/0 for secp256r1. Supports mnemonic phrase of word length 12, 15,
+    /// and an optional derivation path, default to m/44'/4218'/0'/0'/0' for ed25519 or m/54'/4218'/0'/0/0
+    /// for secp256k1 or m/74'/4218'/0'/0/0 for secp256r1. Supports mnemonic phrase of word length 12, 15,
     /// 18, 21, 24. Set an alias for the key with the --alias flag. If no alias is provided, the tool will
     /// automatically generate one.
     Import {
