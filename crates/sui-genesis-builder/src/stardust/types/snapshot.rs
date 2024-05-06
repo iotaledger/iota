@@ -80,7 +80,7 @@ impl OutputHeader {
 
     #[cfg(test)]
     /// Creates a new OutputHeader for testing.
-    pub fn new() -> OutputHeader {
+    pub fn new_testing() -> OutputHeader {
         OutputHeader {
             output_id: OutputId::null(),
             block_id: BlockId::null(),

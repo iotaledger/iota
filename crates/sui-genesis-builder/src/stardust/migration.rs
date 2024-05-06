@@ -51,8 +51,7 @@ use sui_types::{
 };
 
 use super::types::{
-    self as stardust_types, snapshot::OutputHeader, stardust_to_sui_address, Alias,
-    ALIAS_DYNAMIC_OBJECT_FIELD_NAME,
+    self as stardust_types, snapshot::OutputHeader, stardust_to_sui_address, stardust_to_sui_address_owner, Alias, ALIAS_DYNAMIC_OBJECT_FIELD_NAME
 };
 use crate::process_package;
 
@@ -350,7 +349,7 @@ impl Executor {
         let sender: Option<SuiAddress> = alias
             .features()
             .sender()
-            .map(|sender_feat| sender_feat.address().to_string().parse())
+            .map(|sender_feat| stardust_to_sui_address(sender_feat.address()))
             .transpose()?;
         let metadata: Option<Vec<u8>> = alias
             .features()
@@ -359,7 +358,7 @@ impl Executor {
         let immutable_issuer: Option<SuiAddress> = alias
             .immutable_features()
             .issuer()
-            .map(|issuer_feat| issuer_feat.address().to_string().parse())
+            .map(|issuer_feat| stardust_to_sui_address(issuer_feat.address()))
             .transpose()?;
         let immutable_metadata: Option<Vec<u8>> = alias
             .immutable_features()
@@ -369,7 +368,9 @@ impl Executor {
         let move_alias = Alias {
             id: UID::new(ObjectID::new(alias_id)),
             // TODO: Why is this an Option? The State Controller is always set in Stardust.
-            legacy_state_controller: Some(alias.state_controller_address().to_string().parse()?),
+            legacy_state_controller: Some(stardust_to_sui_address(
+                alias.state_controller_address(),
+            )?),
             state_index: alias.state_index(),
             state_metadata,
             sender,
@@ -383,7 +384,7 @@ impl Executor {
             // Safety: we know from the definition of `Alias` in the stardust package
             // that it has public transfer (`store` ability is present).
             MoveObject::new_from_execution(
-                super::types::Alias::type_().into(),
+                super::types::Alias::tag().into(),
                 true,
                 0.into(),
                 bcs::to_bytes(&move_alias)?,
@@ -391,13 +392,13 @@ impl Executor {
             )?
         };
 
-        // TODO: Differentiate between representing Ed25519 ownership and object ownership (i.e. this Alias being owned by another Alias and NFT).
-        let governor = stardust_to_sui_address(alias.governor_address())?;
-        let alias_output_owner = Owner::AddressOwner(governor);
+        // TODO: Make sure that the conversion function returns the appropriate address depending on whether this Alias is owned by an Ed25519 address or by another object (NFT, Alias).
+        let alias_output_owner = stardust_to_sui_address_owner(alias.governor_address())?;
 
         let move_alias_object = Object::new_from_genesis(
             Data::Move(move_alias_object),
-            // TODO: Temporary. How to represent the owner here since we want this object to be owned by the alias output object in a dynamic field?
+            // We will later overwrite the owner we set here since this object will be added
+            // as a dynamic field on the alias output object.
             alias_output_owner,
             self.tx_context.digest(),
         );
@@ -418,7 +419,7 @@ impl Executor {
             // Safety: we know from the definition of `AliasOutput` in the stardust package
             // that it does not have public transfer (`store` ability is absent).
             MoveObject::new_from_execution(
-                super::types::AliasOutput::type_().into(),
+                stardust_types::AliasOutput::tag().into(),
                 false,
                 0.into(),
                 bcs::to_bytes(&move_alias_output)?,
@@ -437,7 +438,7 @@ impl Executor {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let name_type: TypeTag = "vector<u8>".parse()?;
-            let value_type: StructTag = Alias::type_();
+            let value_type: StructTag = Alias::tag();
 
             let alias_output_arg =
                 builder.obj(ObjectArg::ImmOrOwnedObject(move_alias_output_object_ref))?;
@@ -454,7 +455,28 @@ impl Executor {
 
             builder.finish()
         };
-        self.execute_pt_unmetered(self.load_dependencies(), pt)?;
+
+        let mut checked_inputs: Vec<ObjectReadResult> =
+            [move_alias_object_ref, move_alias_output_object_ref]
+                .into_iter()
+                .map(|object_ref| {
+                    self.store
+                        .get_object(&object_ref.0)
+                        .cloned()
+                        .map(|object| {
+                            ObjectReadResult::new(
+                                InputObjectKind::ImmOrOwnedMoveObject(object_ref),
+                                object.into(),
+                            )
+                        })
+                        .expect("object should have been added to the store earlier")
+                })
+                .collect();
+        checked_inputs.extend(self.load_dependency_objects());
+
+        let input_objects = CheckedInputObjects::new_for_genesis(checked_inputs);
+
+        self.execute_pt_unmetered(input_objects, pt)?;
 
         Ok(())
     }
@@ -814,7 +836,7 @@ mod tests {
         .unwrap();
         let mut exec = Executor::new(MIGRATION_PROTOCOL_VERSION.into()).unwrap();
 
-        let header = OutputHeader::new();
+        let header = OutputHeader::new_testing();
         let alias = AliasOutputBuilder::new_with_amount(1_000_000, AliasId::null())
             .add_unlock_condition(StateControllerAddressUnlockCondition::new(address))
             .add_unlock_condition(GovernorAddressUnlockCondition::new(address))

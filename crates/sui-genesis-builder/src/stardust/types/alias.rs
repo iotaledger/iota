@@ -5,6 +5,7 @@ use sui_types::{
     balance::Balance, base_types::SuiAddress, collection_types::Bag, id::UID, STARDUST_PACKAGE_ID,
 };
 
+pub const ALIAS_MODULE_NAME: &IdentStr = ident_str!("alias");
 pub const ALIAS_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("alias_output");
 pub const ALIAS_OUTPUT_STRUCT_NAME: &IdentStr = ident_str!("AliasOutput");
 pub const ALIAS_STRUCT_NAME: &IdentStr = ident_str!("Alias");
@@ -37,10 +38,10 @@ pub struct Alias {
 }
 
 impl Alias {
-    pub fn type_() -> StructTag {
+    pub fn tag() -> StructTag {
         StructTag {
             address: STARDUST_PACKAGE_ID.into(),
-            name: ALIAS_OUTPUT_MODULE_NAME.to_owned(),
+            name: ALIAS_MODULE_NAME.to_owned(),
             module: ALIAS_STRUCT_NAME.to_owned(),
             type_params: Vec::new(),
         }
@@ -55,14 +56,13 @@ pub struct AliasOutput {
 
     /// The amount of IOTA coins held by the output.
     pub iota: Balance,
-
     // /// The `Bag` holds native tokens, key-ed by the stringified type of the asset.
     // /// Example: key: "0xabcded::soon::SOON", value: Balance<0xabcded::soon::SOON>.
     // pub native_tokens: Bag,
 }
 
 impl AliasOutput {
-    pub fn type_() -> StructTag {
+    pub fn tag() -> StructTag {
         StructTag {
             address: STARDUST_PACKAGE_ID.into(),
             name: ALIAS_OUTPUT_MODULE_NAME.to_owned(),
