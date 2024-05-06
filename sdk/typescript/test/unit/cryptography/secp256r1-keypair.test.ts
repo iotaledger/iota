@@ -144,13 +144,13 @@ describe('secp256r1-keypair', () => {
 
 	it('incorrect purpose node for secp256r1 derivation path', () => {
 		expect(() => {
-			Secp256r1Keypair.deriveKeypair(TEST_CASES[0][0], `m/54'/784'/0'/0'/0'`);
+			Secp256r1Keypair.deriveKeypair(TEST_CASES[0][0], `m/54'/4218'/0'/0'/0'`);
 		}).toThrow('Invalid derivation path');
 	});
 
 	it('incorrect hardened path for secp256k1 key derivation', () => {
 		expect(() => {
-			Secp256r1Keypair.deriveKeypair(TEST_CASES[0][0], `m/44'/784'/0'/0'/0'`);
+			Secp256r1Keypair.deriveKeypair(TEST_CASES[0][0], `m/44'/4218'/0'/0'/0'`);
 		}).toThrow('Invalid derivation path');
 	});
 
