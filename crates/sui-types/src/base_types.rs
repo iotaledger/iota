@@ -662,7 +662,7 @@ impl FromStr for SuiAddress {
 impl<T: SuiPublicKey> From<&T> for SuiAddress {
     fn from(pk: &T) -> Self {
         let mut hasher = DefaultHash::default();
-        hasher.update([T::SIGNATURE_SCHEME.flag()]);
+        hasher_flag_update(&mut hasher, T::SIGNATURE_SCHEME);
         hasher.update(pk);
         let g_arr = hasher.finalize();
         SuiAddress(g_arr.digest)
@@ -672,7 +672,7 @@ impl<T: SuiPublicKey> From<&T> for SuiAddress {
 impl From<&PublicKey> for SuiAddress {
     fn from(pk: &PublicKey) -> Self {
         let mut hasher = DefaultHash::default();
-        hasher.update([pk.flag()]);
+        hasher_flag_update(&mut hasher, pk.scheme());
         hasher.update(pk);
         let g_arr = hasher.finalize();
         SuiAddress(g_arr.digest)
@@ -693,7 +693,7 @@ impl From<&MultiSigPublicKey> for SuiAddress {
         hasher.update([SignatureScheme::MultiSig.flag()]);
         hasher.update(multisig_pk.threshold().to_le_bytes());
         multisig_pk.pubkeys().iter().for_each(|(pk, w)| {
-            hasher.update([pk.flag()]);
+            hasher_flag_update(&mut hasher, pk.scheme());
             hasher.update(pk.as_ref());
             hasher.update(w.to_le_bytes());
         });
@@ -758,6 +758,13 @@ impl fmt::Debug for SuiAddress {
 pub fn dbg_addr(name: u8) -> SuiAddress {
     let addr = [name; SUI_ADDRESS_LENGTH];
     SuiAddress(addr)
+}
+
+pub fn hasher_flag_update(hasher: &mut DefaultHash, scheme: SignatureScheme) {
+    match scheme {
+        SignatureScheme::ED25519 => (),
+        _ => hasher.update([scheme.flag()]),
+    };
 }
 
 #[derive(
