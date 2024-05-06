@@ -51,7 +51,8 @@ use sui_types::{
 };
 
 use super::types::{
-    self as stardust_types, snapshot::OutputHeader, Alias, ALIAS_OUTPUT_MODULE_NAME,
+    self as stardust_types, snapshot::OutputHeader, stardust_to_sui_address, Alias,
+    ALIAS_DYNAMIC_OBJECT_FIELD_NAME,
 };
 use crate::process_package;
 
@@ -391,15 +392,17 @@ impl Executor {
         };
 
         // TODO: Differentiate between representing Ed25519 ownership and object ownership (i.e. this Alias being owned by another Alias and NFT).
-        let governor = alias.governor_address().to_string().parse()?;
+        let governor = stardust_to_sui_address(alias.governor_address())?;
         let alias_output_owner = Owner::AddressOwner(governor);
 
-        self.store.insert_object(Object::new_from_genesis(
+        let move_alias_object = Object::new_from_genesis(
             Data::Move(move_alias_object),
             // TODO: Temporary. How to represent the owner here since we want this object to be owned by the alias output object in a dynamic field?
             alias_output_owner,
             self.tx_context.digest(),
-        ));
+        );
+        let move_alias_object_ref = move_alias_object.compute_object_reference();
+        self.store.insert_object(move_alias_object);
 
         let move_alias_output = stardust_types::AliasOutput {
             // TODO: Is this the best way to generate a new / random UID?
@@ -407,7 +410,7 @@ impl Executor {
             id: UID::new(ObjectID::random()),
             iota: Balance::new(alias.amount()),
             // TODO: Reuse native token creation logic from basic output.
-            native_tokens: bcs::from_bytes(&[]).expect("TODO"),
+            // native_tokens: bcs::from_bytes(&[]).expect("TODO"),
         };
 
         // Construct the Alias Output object.
@@ -423,27 +426,35 @@ impl Executor {
             )?
         };
 
-        self.store.insert_object(Object::new_from_genesis(
+        let move_alias_output_object = Object::new_from_genesis(
             Data::Move(move_alias_output_object),
             alias_output_owner,
             self.tx_context.digest(),
-        ));
+        );
+        let move_alias_output_object_ref = move_alias_output_object.compute_object_reference();
+        self.store.insert_object(move_alias_output_object);
 
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
-            let name_type: StructTag = "vector<u8>".parse()?;
+            let name_type: TypeTag = "vector<u8>".parse()?;
             let value_type: StructTag = Alias::type_();
 
-            let bag = builder.programmable_move_call(
+            let alias_output_arg =
+                builder.obj(ObjectArg::ImmOrOwnedObject(move_alias_output_object_ref))?;
+            let field_name_arg = builder.pure(ALIAS_DYNAMIC_OBJECT_FIELD_NAME)?;
+            let alias_arg = builder.obj(ObjectArg::ImmOrOwnedObject(move_alias_object_ref))?;
+
+            builder.programmable_move_call(
                 SUI_FRAMEWORK_PACKAGE_ID,
                 ident_str!("dynamic_object_field").into(),
                 ident_str!("add").into(),
-                vec![name_type.into(), value_type.into()],
-                vec![/*TODO*/],
+                vec![name_type, value_type.into()],
+                vec![alias_output_arg, field_name_arg, alias_arg],
             );
 
             builder.finish()
         };
+        self.execute_pt_unmetered(self.load_dependencies(), pt)?;
 
         Ok(())
     }
@@ -764,6 +775,17 @@ mod pt {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
+    use iota_sdk::types::block::{
+        address::{Address, Ed25519Address},
+        output::{
+            unlock_condition::{
+                GovernorAddressUnlockCondition, StateControllerAddressUnlockCondition,
+            },
+            AliasId, AliasOutputBuilder,
+        },
+    };
     use sui_types::{inner_temporary_store::WrittenObjects, object::Object};
 
     use super::*;
@@ -781,5 +803,24 @@ mod tests {
         create_snapshot(store, &mut persisted).unwrap();
         let snapshot_objects: Vec<Object> = bcs::from_bytes(&persisted).unwrap();
         assert_eq!(objects.into_values().collect::<Vec<_>>(), snapshot_objects);
+    }
+
+    #[test]
+    fn alias_migration_test() {
+        // Some random address.
+        let address = Ed25519Address::from_str(
+            "0x3c169bcf408e61025c0a3575fe6566733eba4daf351f05b196e1ac7f6771a93c",
+        )
+        .unwrap();
+        let mut exec = Executor::new(MIGRATION_PROTOCOL_VERSION.into()).unwrap();
+
+        let header = OutputHeader::new();
+        let alias = AliasOutputBuilder::new_with_amount(1_000_000, AliasId::null())
+            .add_unlock_condition(StateControllerAddressUnlockCondition::new(address))
+            .add_unlock_condition(GovernorAddressUnlockCondition::new(address))
+            .finish()
+            .unwrap();
+
+        exec.create_alias_objects(header, alias).unwrap();
     }
 }

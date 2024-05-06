@@ -8,6 +8,8 @@ use sui_types::{
 pub const ALIAS_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("alias_output");
 pub const ALIAS_OUTPUT_STRUCT_NAME: &IdentStr = ident_str!("AliasOutput");
 pub const ALIAS_STRUCT_NAME: &IdentStr = ident_str!("Alias");
+// Matches `ALIAS_NAME` in alias_output.move.
+pub const ALIAS_DYNAMIC_OBJECT_FIELD_NAME: &[u8] = b"alias";
 
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
@@ -54,9 +56,9 @@ pub struct AliasOutput {
     /// The amount of IOTA coins held by the output.
     pub iota: Balance,
 
-    /// The `Bag` holds native tokens, key-ed by the stringified type of the asset.
-    /// Example: key: "0xabcded::soon::SOON", value: Balance<0xabcded::soon::SOON>.
-    pub native_tokens: Bag,
+    // /// The `Bag` holds native tokens, key-ed by the stringified type of the asset.
+    // /// Example: key: "0xabcded::soon::SOON", value: Balance<0xabcded::soon::SOON>.
+    // pub native_tokens: Bag,
 }
 
 impl AliasOutput {

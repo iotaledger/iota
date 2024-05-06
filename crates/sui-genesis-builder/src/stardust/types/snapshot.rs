@@ -77,6 +77,18 @@ impl OutputHeader {
     pub fn length(&self) -> u32 {
         self.length
     }
+
+    #[cfg(test)]
+    /// Creates a new OutputHeader for testing.
+    pub fn new() -> OutputHeader {
+        OutputHeader {
+            output_id: OutputId::null(),
+            block_id: BlockId::null(),
+            ms_index: MilestoneIndex::new(0),
+            ms_ts: 0,
+            length: 1,
+        }
+    }
 }
 
 /// Describes a snapshot header specific to full snapshots.
