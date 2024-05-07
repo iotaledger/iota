@@ -41,8 +41,8 @@ impl Alias {
     pub fn tag() -> StructTag {
         StructTag {
             address: STARDUST_PACKAGE_ID.into(),
-            name: ALIAS_MODULE_NAME.to_owned(),
-            module: ALIAS_STRUCT_NAME.to_owned(),
+            module: ALIAS_MODULE_NAME.to_owned(),
+            name: ALIAS_STRUCT_NAME.to_owned(),
             type_params: Vec::new(),
         }
     }
@@ -56,17 +56,17 @@ pub struct AliasOutput {
 
     /// The amount of IOTA coins held by the output.
     pub iota: Balance,
-    // /// The `Bag` holds native tokens, key-ed by the stringified type of the asset.
-    // /// Example: key: "0xabcded::soon::SOON", value: Balance<0xabcded::soon::SOON>.
-    // pub native_tokens: Bag,
+    /// The `Bag` holds native tokens, key-ed by the stringified type of the asset.
+    /// Example: key: "0xabcded::soon::SOON", value: Balance<0xabcded::soon::SOON>.
+    pub native_tokens: Bag,
 }
 
 impl AliasOutput {
     pub fn tag() -> StructTag {
         StructTag {
             address: STARDUST_PACKAGE_ID.into(),
-            name: ALIAS_OUTPUT_MODULE_NAME.to_owned(),
-            module: ALIAS_OUTPUT_STRUCT_NAME.to_owned(),
+            module: ALIAS_OUTPUT_MODULE_NAME.to_owned(),
+            name: ALIAS_OUTPUT_STRUCT_NAME.to_owned(),
             type_params: Vec::new(),
         }
     }

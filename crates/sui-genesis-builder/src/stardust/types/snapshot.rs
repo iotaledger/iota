@@ -80,12 +80,19 @@ impl OutputHeader {
 
     #[cfg(test)]
     /// Creates a new OutputHeader for testing.
-    pub fn new_testing() -> OutputHeader {
+    pub fn new_testing(
+        output_id_bytes: [u8; 32],
+        block_id_bytes: [u8; 32],
+        milestone_index: u32,
+        milestone_timestamp: u32,
+    ) -> OutputHeader {
+        use iota_sdk::types::block::payload::transaction::TransactionId;
+
         OutputHeader {
-            output_id: OutputId::null(),
-            block_id: BlockId::null(),
-            ms_index: MilestoneIndex::new(0),
-            ms_ts: 0,
+            output_id: OutputId::new(TransactionId::new(output_id_bytes), 0).unwrap(),
+            block_id: BlockId::new(block_id_bytes),
+            ms_index: MilestoneIndex::new(milestone_index),
+            ms_ts: milestone_timestamp,
             length: 1,
         }
     }

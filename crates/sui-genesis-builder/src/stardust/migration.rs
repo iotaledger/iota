@@ -51,7 +51,8 @@ use sui_types::{
 };
 
 use super::types::{
-    self as stardust_types, snapshot::OutputHeader, stardust_to_sui_address, stardust_to_sui_address_owner, Alias, ALIAS_DYNAMIC_OBJECT_FIELD_NAME
+    self as stardust_types, snapshot::OutputHeader, stardust_to_sui_address,
+    stardust_to_sui_address_owner, Alias, ALIAS_DYNAMIC_OBJECT_FIELD_NAME,
 };
 use crate::process_package;
 
@@ -209,6 +210,7 @@ impl Executor {
             )?;
         }
         let move_vm = Arc::new(new_move_vm(all_natives(silent), &protocol_config, None)?);
+
         Ok(Self {
             protocol_config,
             tx_context,
@@ -393,6 +395,7 @@ impl Executor {
         };
 
         // TODO: Make sure that the conversion function returns the appropriate address depending on whether this Alias is owned by an Ed25519 address or by another object (NFT, Alias).
+        // SAFETY: We should ensure that no circular ownership exists first.
         let alias_output_owner = stardust_to_sui_address_owner(alias.governor_address())?;
 
         let move_alias_object = Object::new_from_genesis(
@@ -405,13 +408,18 @@ impl Executor {
         let move_alias_object_ref = move_alias_object.compute_object_reference();
         self.store.insert_object(move_alias_object);
 
+        // TODO: Is this the best way to generate a new / random UID?
+        // Alternatively, we could hash `alias_id`.
+        let move_alias_output_id = UID::new(ObjectID::random());
         let move_alias_output = stardust_types::AliasOutput {
-            // TODO: Is this the best way to generate a new / random UID?
-            // Alternatively, we could hash `alias_id`.
-            id: UID::new(ObjectID::random()),
+            id: move_alias_output_id.clone(),
             iota: Balance::new(alias.amount()),
             // TODO: Reuse native token creation logic from basic output.
-            // native_tokens: bcs::from_bytes(&[]).expect("TODO"),
+            native_tokens: self.create_bag(
+                alias_output_owner
+                    .get_address_owner_address()
+                    .expect("todo"),
+            )?,
         };
 
         // Construct the Alias Output object.
@@ -444,7 +452,6 @@ impl Executor {
                 builder.obj(ObjectArg::ImmOrOwnedObject(move_alias_output_object_ref))?;
             let field_name_arg = builder.pure(ALIAS_DYNAMIC_OBJECT_FIELD_NAME)?;
             let alias_arg = builder.obj(ObjectArg::ImmOrOwnedObject(move_alias_object_ref))?;
-
             builder.programmable_move_call(
                 SUI_FRAMEWORK_PACKAGE_ID,
                 ident_str!("dynamic_object_field").into(),
@@ -476,7 +483,9 @@ impl Executor {
 
         let input_objects = CheckedInputObjects::new_for_genesis(checked_inputs);
 
-        self.execute_pt_unmetered(input_objects, pt)?;
+        // TODO: Do we have to remove `alias` from the store now that it was set as a dynamic object field on `alias_output`?
+        let InnerTemporaryStore { written, .. } = self.execute_pt_unmetered(input_objects, pt)?;
+        self.store.finish(written);
 
         Ok(())
     }
@@ -691,6 +700,36 @@ impl Executor {
     fn create_treasury_objects(&mut self, _treasury: TreasuryOutput) -> Result<()> {
         todo!();
     }
+
+    fn create_bag(&mut self, address: SuiAddress) -> Result<Bag> {
+        // Populate bag
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            let bag = builder.programmable_move_call(
+                SUI_FRAMEWORK_PACKAGE_ID,
+                ident_str!("bag").into(),
+                ident_str!("new").into(),
+                vec![],
+                vec![],
+            );
+            builder.transfer_arg(address, bag);
+
+            builder.finish()
+        };
+        let InnerTemporaryStore { mut written, .. } =
+            self.execute_pt_unmetered(self.load_dependencies(), pt)?;
+        let (_, bag_object) = written
+            .pop_first()
+            .expect("the bag should have been created");
+        Ok(bcs::from_bytes(
+            bag_object
+                .data
+                .try_as_move()
+                .expect("this should be a move object")
+                .contents(),
+        )
+        .expect("this should be a valid Bag Move object"))
+    }
 }
 
 /// Verify the ledger state represented by the objects in [`InMemoryStorage`].
@@ -797,15 +836,16 @@ mod pt {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
+    use std::{io::Read, str::FromStr};
 
     use iota_sdk::types::block::{
         address::{Address, Ed25519Address},
         output::{
+            feature::{IssuerFeature, MetadataFeature, SenderFeature},
             unlock_condition::{
                 GovernorAddressUnlockCondition, StateControllerAddressUnlockCondition,
             },
-            AliasId, AliasOutputBuilder,
+            AliasId, AliasOutputBuilder, Feature,
         },
     };
     use sui_types::{inner_temporary_store::WrittenObjects, object::Object};
@@ -829,17 +869,34 @@ mod tests {
 
     #[test]
     fn alias_migration_test() {
+        let random_bytes: [u8; 32] = rand::random();
+        let alias_id =
+            AliasId::from_str("0x8fac4aefdc1ae21c00f745605297041e0f39667844068e3757d587c8039d1e3f")
+                .unwrap();
+
         // Some random address.
         let address = Ed25519Address::from_str(
-            "0x3c169bcf408e61025c0a3575fe6566733eba4daf351f05b196e1ac7f6771a93c",
+            "0xbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeef",
         )
         .unwrap();
         let mut exec = Executor::new(MIGRATION_PROTOCOL_VERSION.into()).unwrap();
 
-        let header = OutputHeader::new_testing();
-        let alias = AliasOutputBuilder::new_with_amount(1_000_000, AliasId::null())
+        let header =
+            OutputHeader::new_testing(random_bytes, random_bytes, rand::random(), rand::random());
+
+        let alias = AliasOutputBuilder::new_with_amount(1_000_000, alias_id)
             .add_unlock_condition(StateControllerAddressUnlockCondition::new(address))
             .add_unlock_condition(GovernorAddressUnlockCondition::new(address))
+            .with_state_metadata([0xff; 1])
+            .with_features(vec![
+                Feature::Metadata(MetadataFeature::new([0xdd; 1]).unwrap()),
+                Feature::Sender(SenderFeature::new(address)),
+            ])
+            .with_immutable_features(vec![
+                Feature::Metadata(MetadataFeature::new([0xaa; 1]).unwrap()),
+                Feature::Issuer(IssuerFeature::new(address)),
+            ])
+            .with_state_index(3)
             .finish()
             .unwrap();
 
