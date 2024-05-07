@@ -109,9 +109,6 @@ describe('Publickey', () => {
 	});
 
 	it('`toSuiBytesForAddress()` should return the correct byte representation of the public key with the signature scheme flag', async () => {
-		//const pk1SuiBytes = new Uint8Array(pk1.toRawBytes().length + 1);
-		//pk1SuiBytes.set([0x00]);
-		//pk1SuiBytes.set(pk1.toRawBytes(), 1);
 		const pk1SuiBytes = new Uint8Array(pk1.toRawBytes().length);
 		pk1SuiBytes.set(pk1.toRawBytes());
 

@@ -760,7 +760,9 @@ pub fn dbg_addr(name: u8) -> SuiAddress {
     SuiAddress(addr)
 }
 
-pub fn hasher_flag_update(hasher: &mut DefaultHash, scheme: SignatureScheme) {
+/// Takes as input an hasher and updates it with a flag byte if the input scheme is not ED25519;
+/// it does nothing otherwise.
+fn hasher_flag_update(hasher: &mut DefaultHash, scheme: SignatureScheme) {
     match scheme {
         SignatureScheme::ED25519 => (),
         _ => hasher.update([scheme.flag()]),
