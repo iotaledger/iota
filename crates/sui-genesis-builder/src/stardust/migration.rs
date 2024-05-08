@@ -457,6 +457,8 @@ impl Executor {
                 ident_str!("dynamic_object_field").into(),
                 ident_str!("add").into(),
                 vec![name_type, value_type.into()],
+                // TODO: We actually need to pass `alias_output.id` here, but it seems that is impossible with PTBs.
+                // Perhaps we need to add a convenience function in alias_output.move that we can call with `alias_output_arg`.
                 vec![alias_output_arg, field_name_arg, alias_arg],
             );
 
