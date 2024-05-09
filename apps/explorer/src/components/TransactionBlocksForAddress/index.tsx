@@ -15,51 +15,51 @@ import { PlaceholderTable } from '~/ui/PlaceholderTable';
 import { TableCard } from '~/ui/TableCard';
 import clsx from 'clsx';
 
-export enum FILTER_VALUES {
-	INPUT = 'InputObject',
-	CHANGED = 'ChangedObject',
+export enum FilterValue {
+	Input = 'inputObject',
+	Changed = 'changedObject',
 }
 
 type TransactionBlocksForAddressProps = {
 	address: string;
-	filter?: FILTER_VALUES;
+	filter?: FilterValue;
 	header?: string;
 };
 
-enum PAGE_ACTIONS {
-	NEXT,
-	PREV,
-	FIRST,
+enum PageAction {
+	Next,
+	Prev,
+	First,
 }
 
 type TransactionBlocksForAddressActionType = {
-	type: PAGE_ACTIONS;
-	filterValue: FILTER_VALUES;
+	type: PageAction;
+	filterValue: FilterValue;
 };
 
 type PageStateByFilterMap = {
-	InputObject: number;
-	ChangedObject: number;
+	[FilterValue.Input]: number;
+	[FilterValue.Changed]: number;
 };
 
 const FILTER_OPTIONS = [
-	{ label: 'Input Objects', value: 'InputObject' },
-	{ label: 'Updated Objects', value: 'ChangedObject' },
+	{ label: 'Input Objects', value: 'inputObject' },
+	{ label: 'Updated Objects', value: 'changedObject' },
 ];
 
 const reducer = (state: PageStateByFilterMap, action: TransactionBlocksForAddressActionType) => {
 	switch (action.type) {
-		case PAGE_ACTIONS.NEXT:
+		case PageAction.Next:
 			return {
 				...state,
 				[action.filterValue]: state[action.filterValue] + 1,
 			};
-		case PAGE_ACTIONS.PREV:
+		case PageAction.Prev:
 			return {
 				...state,
 				[action.filterValue]: state[action.filterValue] - 1,
 			};
-		case PAGE_ACTIONS.FIRST:
+		case PageAction.First:
 			return {
 				...state,
 				[action.filterValue]: 0,
@@ -80,7 +80,7 @@ export function FiltersControl({
 		<RadioGroup
 			aria-label="transaction filter"
 			value={filterValue}
-			onValueChange={(value) => setFilterValue(value as FILTER_VALUES)}
+			onValueChange={(value) => setFilterValue(value as FilterValue)}
 		>
 			{FILTER_OPTIONS.map((filter) => (
 				<RadioGroupItem key={filter.value} value={filter.value} label={filter.label} />
@@ -91,13 +91,13 @@ export function FiltersControl({
 
 function TransactionBlocksForAddress({
 	address,
-	filter = FILTER_VALUES.CHANGED,
+	filter = FilterValue.Changed,
 	header,
 }: TransactionBlocksForAddressProps) {
 	const [filterValue, setFilterValue] = useState(filter);
 	const [currentPageState, dispatch] = useReducer(reducer, {
-		InputObject: 0,
-		ChangedObject: 0,
+		[FilterValue.Input]: 0,
+		[FilterValue.Changed]: 0,
 	});
 
 	const { data, isPending, isFetching, isFetchingNextPage, fetchNextPage, hasNextPage } =
@@ -154,7 +154,7 @@ function TransactionBlocksForAddress({
 								fetchNextPage();
 							}
 							dispatch({
-								type: PAGE_ACTIONS.NEXT,
+								type: PageAction.Next,
 
 								filterValue,
 							});
@@ -166,14 +166,14 @@ function TransactionBlocksForAddress({
 						hasPrev={currentPageState[filterValue] !== 0}
 						onPrev={() =>
 							dispatch({
-								type: PAGE_ACTIONS.PREV,
+								type: PageAction.Prev,
 
 								filterValue,
 							})
 						}
 						onFirst={() =>
 							dispatch({
-								type: PAGE_ACTIONS.FIRST,
+								type: PageAction.First,
 								filterValue,
 							})
 						}
