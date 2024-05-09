@@ -162,4 +162,10 @@ impl BasicOutput {
             type_params: Vec::new(),
         }
     }
+
+    pub fn has_empty_bag(&self) -> bool {
+        !(self.expiration.is_some()
+            || self.storage_deposit_return.is_some()
+            || self.timelock.is_some())
+    }
 }

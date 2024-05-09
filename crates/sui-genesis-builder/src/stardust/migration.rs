@@ -3,22 +3,23 @@ use move_core_types::{ident_str, language_storage::StructTag};
 use std::{
     collections::HashMap,
     io::{BufWriter, Write},
-    ops::Deref,
     sync::Arc,
 };
 use sui_types::{
     balance::Balance,
     base_types::ObjectRef,
+    collection_types::Bag,
     move_package::TypeOrigin,
     object::{Data, MoveObject, Owner},
-    transaction::ObjectArg,
+    transaction::{Argument, ObjectArg},
     TypeTag,
 };
 
 use anyhow::Result;
 use fastcrypto::hash::HashFunction;
 use iota_sdk::types::block::output::{
-    AliasOutput, BasicOutput, FoundryOutput, NftOutput, Output, TokenId, TreasuryOutput,
+    AliasOutput, BasicOutput, FoundryOutput, NativeTokens, NftOutput, Output, TokenId,
+    TreasuryOutput,
 };
 use move_vm_runtime_v2::move_vm::MoveVM;
 use sui_adapter_v2::{
@@ -316,6 +317,108 @@ impl Executor {
         todo!();
     }
 
+    /// Create a [`Bag`] of balances of native tokens.
+    fn create_bag(&mut self, native_tokens: &NativeTokens) -> Result<Bag> {
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            let bag = builder.programmable_move_call(
+                SUI_FRAMEWORK_PACKAGE_ID,
+                ident_str!("bag").into(),
+                ident_str!("new").into(),
+                vec![],
+                vec![],
+            );
+            for token in native_tokens.iter() {
+                let Some((object_ref, type_origin)) = self.native_tokens.get(token.token_id())
+                else {
+                    anyhow::bail!("foundry for native token has not been published");
+                };
+
+                if token.amount().bits() > 64 {
+                    anyhow::bail!("unsupported number of tokens");
+                }
+
+                let token_type = format!(
+                    "{}::{}::{}",
+                    type_origin.package, type_origin.module_name, type_origin.struct_name
+                );
+                let balance = pt::create_balance(
+                    &mut builder,
+                    *object_ref,
+                    &token_type,
+                    token.amount().as_u64(),
+                )?;
+                pt::bag_add(&mut builder, bag, balance, &token_type)?;
+            }
+
+            builder.finish()
+        };
+        // TODO: Add foundry coins to the loaded dependencies along
+        // with the system packages.
+        let InnerTemporaryStore { mut written, .. } =
+            self.execute_pt_unmetered(self.load_dependencies(), pt)?;
+        let (_, bag_object) = written
+            .pop_first()
+            .expect("the bag should have been created");
+        Ok(bcs::from_bytes(
+            bag_object
+                .data
+                .try_as_move()
+                .expect("this should be a move object")
+                .contents(),
+        )
+        .expect("this should be a valid Bag Move object"))
+    }
+
+    /// Create owned `Coin` objects representing native tokens.
+    fn create_native_token_coins(
+        &mut self,
+        native_tokens: &NativeTokens,
+        owner: SuiAddress,
+    ) -> Result<()> {
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            for token in native_tokens.iter() {
+                let Some((object_ref, type_origin)) = self.native_tokens.get(token.token_id())
+                else {
+                    anyhow::bail!("foundry for native token has not been published");
+                };
+
+                if token.amount().bits() > 64 {
+                    anyhow::bail!("unsupported number of tokens");
+                }
+
+                let token_type = format!(
+                    "{}::{}::{}",
+                    type_origin.package, type_origin.module_name, type_origin.struct_name
+                );
+                let balance = pt::create_balance(
+                    &mut builder,
+                    *object_ref,
+                    &token_type,
+                    token.amount().as_u64(),
+                )?;
+                let token_type_tag: TypeTag = token_type.parse()?;
+                let owned_coin = builder.programmable_move_call(
+                    SUI_FRAMEWORK_PACKAGE_ID,
+                    ident_str!("coin").into(),
+                    ident_str!("from_balance").into(),
+                    vec![token_type_tag],
+                    vec![balance],
+                );
+                builder.transfer_arg(owner, owned_coin);
+            }
+
+            builder.finish()
+        };
+        // TODO: Add foundry coins to the loaded dependencies along
+        // with the system packages.
+        let InnerTemporaryStore { written, .. } =
+            self.execute_pt_unmetered(self.load_dependencies(), pt)?;
+        self.store.finish(written);
+        Ok(())
+    }
+
     /// This implements the control flow in
     /// crates/sui-framework/packages/stardust/basic_migration_graph.svg
     fn create_basic_objects(
@@ -327,106 +430,11 @@ impl Executor {
         let owner: SuiAddress = basic_output.address().to_string().parse()?;
 
         // Handle native tokens
-        let token = basic_output.native_tokens().deref().first();
-        if let Some(token) = token {
-            let Some((object_ref, type_origin)) = self.native_tokens.get(token.token_id()) else {
-                anyhow::bail!("foundry for native token has not been published");
-            };
-
-            let token_struct_tag = format!(
-                "{}::{}::{}",
-                type_origin.package, type_origin.module_name, type_origin.struct_name
-            );
-            // Decreate the original total balance manually
-            let token_type_tag: TypeTag = token_struct_tag.parse()?;
-            let pt = {
-                let mut builder = ProgrammableTransactionBuilder::new();
-                if token.amount().bits() > 64 {
-                    anyhow::bail!("unsupported number of tokens");
-                }
-                let foundry_coin_ref = builder.obj(ObjectArg::ImmOrOwnedObject(*object_ref))?;
-                let balance = builder.programmable_move_call(
-                    SUI_FRAMEWORK_PACKAGE_ID,
-                    ident_str!("coin").into(),
-                    ident_str!("balance_mut").into(),
-                    vec![token_type_tag.clone()],
-                    vec![foundry_coin_ref],
-                );
-                let amount = builder.pure(token.amount().as_u64())?;
-                builder.programmable_move_call(
-                    SUI_FRAMEWORK_PACKAGE_ID,
-                    ident_str!("balance").into(),
-                    ident_str!("split").into(),
-                    vec![token_type_tag.clone()],
-                    vec![balance, amount],
-                );
-
-                builder.finish()
-            };
-            self.execute_pt_unmetered(self.load_dependencies(), pt)?;
-
-            let dangle_balance = Balance::new(token.amount().as_u64());
-
-            if data.expiration.is_some()
-                || data.storage_deposit_return.is_some()
-                || data.timelock.is_some()
-            {
-                // Populate bag
-                let pt = {
-                    let mut builder = ProgrammableTransactionBuilder::new();
-                    let bag = builder.programmable_move_call(
-                        SUI_FRAMEWORK_PACKAGE_ID,
-                        ident_str!("bag").into(),
-                        ident_str!("new").into(),
-                        vec![],
-                        vec![],
-                    );
-                    let token_struct_tag = builder.pure(token_struct_tag)?;
-                    let balance = builder.pure(dangle_balance)?;
-                    let key_type: StructTag = "0x01::ascii::String".parse()?;
-                    let value_type = Balance::type_(token_type_tag);
-                    builder.programmable_move_call(
-                        SUI_FRAMEWORK_PACKAGE_ID,
-                        ident_str!("bag").into(),
-                        ident_str!("add").into(),
-                        vec![key_type.into(), value_type.into()],
-                        vec![bag, token_struct_tag, balance],
-                    );
-
-                    builder.finish()
-                };
-                let InnerTemporaryStore { mut written, .. } =
-                    self.execute_pt_unmetered(self.load_dependencies(), pt)?;
-                let (_, bag_object) = written
-                    .pop_first()
-                    .expect("the bag should have been created");
-                data.native_tokens = bcs::from_bytes(
-                    bag_object
-                        .data
-                        .try_as_move()
-                        .expect("this should be a move object")
-                        .contents(),
-                )
-                .expect("this should be a valid Bag Move object");
+        if !basic_output.native_tokens().is_empty() {
+            if data.has_empty_bag() {
+                self.create_native_token_coins(basic_output.native_tokens(), owner)?;
             } else {
-                // We create a new coin with the dangle balance
-                // and transfer it to the owner.
-                let pt = {
-                    let mut builder = ProgrammableTransactionBuilder::new();
-                    let balance = builder.pure(dangle_balance)?;
-                    let owned_coin = builder.programmable_move_call(
-                        SUI_FRAMEWORK_PACKAGE_ID,
-                        ident_str!("coin").into(),
-                        ident_str!("from_balance").into(),
-                        vec![token_type_tag],
-                        vec![balance],
-                    );
-                    builder.transfer_arg(owner, owned_coin);
-                    builder.finish()
-                };
-                let InnerTemporaryStore { written, .. } =
-                    self.execute_pt_unmetered(self.load_dependencies(), pt)?;
-                self.store.finish(written);
+                data.native_tokens = self.create_bag(basic_output.native_tokens())?;
             }
         }
         // Construct the basic output object
@@ -508,6 +516,54 @@ fn create_migration_context() -> TxContext {
         &stardust_migration_transaction_digest,
         &EpochData::new_genesis(0),
     )
+}
+
+mod pt {
+    use super::*;
+
+    pub fn create_balance(
+        builder: &mut ProgrammableTransactionBuilder,
+        foundry_coin_ref: ObjectRef,
+        token_type: &str,
+        amount: u64,
+    ) -> Result<Argument> {
+        let token_type_tag: TypeTag = token_type.parse()?;
+        let foundry_coin_ref = builder.obj(ObjectArg::ImmOrOwnedObject(foundry_coin_ref))?;
+        let balance = builder.programmable_move_call(
+            SUI_FRAMEWORK_PACKAGE_ID,
+            ident_str!("coin").into(),
+            ident_str!("balance_mut").into(),
+            vec![token_type_tag.clone()],
+            vec![foundry_coin_ref],
+        );
+        let amount = builder.pure(amount)?;
+        Ok(builder.programmable_move_call(
+            SUI_FRAMEWORK_PACKAGE_ID,
+            ident_str!("balance").into(),
+            ident_str!("split").into(),
+            vec![token_type_tag.clone()],
+            vec![balance, amount],
+        ))
+    }
+
+    pub fn bag_add(
+        builder: &mut ProgrammableTransactionBuilder,
+        bag: Argument,
+        balance: Argument,
+        token_type: &str,
+    ) -> Result<()> {
+        let token_struct_tag = builder.pure(token_type.parse::<StructTag>()?)?;
+        let key_type: StructTag = "0x01::ascii::String".parse()?;
+        let value_type = Balance::type_(token_type.parse::<TypeTag>()?);
+        builder.programmable_move_call(
+            SUI_FRAMEWORK_PACKAGE_ID,
+            ident_str!("bag").into(),
+            ident_str!("add").into(),
+            vec![key_type.into(), value_type.into()],
+            vec![bag, token_struct_tag, balance],
+        );
+        Ok(())
+    }
 }
 
 #[cfg(test)]
