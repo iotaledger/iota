@@ -17,7 +17,7 @@ export type CoinBalanceVerified = CoinBalance & {
 	isRecognized?: boolean;
 };
 
-enum CoinFilters {
+enum CoinFilter {
 	All = 'allBalances',
 	Recognized = 'recognizedBalances',
 	Unrecognized = 'unrecognizedBalances',
@@ -26,13 +26,13 @@ enum CoinFilters {
 export function OwnedCoins({ id }: { id: string }) {
 	const [currentSlice, setCurrentSlice] = useState(1);
 	const [limit, setLimit] = useState(20);
-	const [filterValue, setFilterValue] = useState(CoinFilters.Recognized);
+	const [filterValue, setFilterValue] = useState(CoinFilter.Recognized);
 	const { isPending, data, isError } = useSuiClientQuery('getAllBalances', {
 		owner: normalizeSuiAddress(id),
 	});
 	const recognizedPackages = useRecognizedPackages();
 
-	const balances: Record<CoinFilters, CoinBalanceVerified[]> = useMemo(() => {
+	const balances: Record<CoinFilter, CoinBalanceVerified[]> = useMemo(() => {
 		const balanceData = data?.reduce(
 			(acc, coinBalance) => {
 				if (recognizedPackages.includes(coinBalance.coinType.split('::')[0])) {
@@ -77,12 +77,12 @@ export function OwnedCoins({ id }: { id: string }) {
 
 	const filterOptions = useMemo(
 		() => [
-			{ label: `${balances.recognizedBalances.length} RECOGNIZED`, value: CoinFilters.Recognized },
+			{ label: `${balances.recognizedBalances.length} RECOGNIZED`, value: CoinFilter.Recognized },
 			{
 				label: `${balances.unrecognizedBalances.length} UNRECOGNIZED`,
-				value: CoinFilters.Unrecognized,
+				value: CoinFilter.Unrecognized,
 			},
-			{ label: 'ALL', value: CoinFilters.All },
+			{ label: 'ALL', value: CoinFilter.All },
 		],
 		[balances],
 	);
@@ -112,7 +112,7 @@ export function OwnedCoins({ id }: { id: string }) {
 								<RadioGroup
 									aria-label="transaction filter"
 									value={filterValue}
-									onValueChange={(value) => setFilterValue(value as CoinFilters)}
+									onValueChange={(value) => setFilterValue(value as CoinFilter)}
 								>
 									{filterOptions.map((filter) => (
 										<RadioGroupItem
@@ -126,7 +126,7 @@ export function OwnedCoins({ id }: { id: string }) {
 							</div>
 						)}
 					</div>
-					{filterValue === CoinFilters.Unrecognized && (
+					{filterValue === CoinFilter.Unrecognized && (
 						<div className="flex items-center gap-2 rounded-2xl border border-gray-45 p-2 text-steel-darker">
 							<div>
 								<Info16 width="16px" />

@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ListView } from '~/components/OwnedObjects/ListView';
 import { SmallThumbnailsView } from '~/components/OwnedObjects/SmallThumbnailsView';
 import { ThumbnailsView } from '~/components/OwnedObjects/ThumbnailsView';
-import { ObjectViewModes } from '~/components/OwnedObjects/utils';
+import { ObjectViewMode } from '~/components/OwnedObjects/utils';
 import { Pagination, useCursorPagination } from '~/ui/Pagination';
 
 const PAGE_SIZES = [10, 20, 30, 40, 50];
@@ -20,18 +20,18 @@ const OWNED_OBJECTS_LOCAL_STORAGE_FILTER = 'owned-objects/filter';
 
 enum FilterValue {
 	All = 'all',
-	Kiosk = 'kiosks',
+	Kiosks = 'kiosks',
 }
 
 const FILTER_OPTIONS = [
 	{ label: 'NFTS', value: FilterValue.All },
-	{ label: 'KIOSKS', value: FilterValue.Kiosk },
+	{ label: 'KIOSKS', value: FilterValue.Kiosks },
 ];
 
 const VIEW_MODES = [
-	{ icon: <ViewList16 />, value: ObjectViewModes.List },
-	{ icon: <ViewSmallThumbnails16 />, value: ObjectViewModes.SmallThumbnail },
-	{ icon: <ThumbnailsOnly16 />, value: ObjectViewModes.Thumbnail },
+	{ icon: <ViewList16 />, value: ObjectViewMode.List },
+	{ icon: <ViewSmallThumbnails16 />, value: ObjectViewMode.SmallThumbnail },
+	{ icon: <ThumbnailsOnly16 />, value: ObjectViewMode.Thumbnail },
 ];
 
 function getItemsRangeFromCurrentPage(currentPage: number, itemsPerPage: number) {
@@ -46,7 +46,7 @@ function getShowPagination(
 	currentPage: number,
 	isFetching: boolean,
 ) {
-	if (filter === FilterValue.Kiosk) {
+	if (filter === FilterValue.Kiosks) {
 		return false;
 	}
 
@@ -65,7 +65,7 @@ export function OwnedObjects({ id }: { id: string }) {
 	);
 	const [viewMode, setViewMode] = useLocalStorage(
 		OWNED_OBJECTS_LOCAL_STORAGE_VIEW_MODE,
-		ObjectViewModes.Thumbnail,
+		ObjectViewMode.Thumbnail,
 	);
 
 	const ownedObjects = useGetOwnedObjects(
@@ -84,8 +84,8 @@ export function OwnedObjects({ id }: { id: string }) {
 	useEffect(() => {
 		if (!isPending) {
 			setFilter(
-				kioskData?.list?.length && filter === FilterValue.Kiosk
-					? FilterValue.Kiosk
+				kioskData?.list?.length && filter === FilterValue.Kiosks
+					? FilterValue.Kiosks
 					: FilterValue.All,
 			);
 		}
@@ -187,7 +187,7 @@ export function OwnedObjects({ id }: { id: string }) {
 											value={filter.value}
 											label={filter.label}
 											disabled={
-												(filter.value === FilterValue.Kiosk && !kioskData?.list?.length) ||
+												(filter.value === FilterValue.Kiosks && !kioskData?.list?.length) ||
 												isPending
 											}
 										/>
@@ -205,17 +205,17 @@ export function OwnedObjects({ id }: { id: string }) {
 						</div>
 					)}
 
-					{viewMode === ObjectViewModes.List && (
+					{viewMode === ObjectViewMode.List && (
 						<ListView loading={isPending} data={sortedDataByDisplayImages} />
 					)}
-					{viewMode === ObjectViewModes.SmallThumbnail && (
+					{viewMode === ObjectViewMode.SmallThumbnail && (
 						<SmallThumbnailsView
 							loading={isPending}
 							data={sortedDataByDisplayImages}
 							limit={limit}
 						/>
 					)}
-					{viewMode === ObjectViewModes.Thumbnail && (
+					{viewMode === ObjectViewMode.Thumbnail && (
 						<ThumbnailsView loading={isPending} data={sortedDataByDisplayImages} limit={limit} />
 					)}
 					{showPagination && (

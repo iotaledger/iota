@@ -15,14 +15,14 @@ import { PlaceholderTable } from '~/ui/PlaceholderTable';
 import { TableCard } from '~/ui/TableCard';
 import clsx from 'clsx';
 
-export enum FilterValue {
+export enum ObjectFilterValue {
 	Input = 'inputObject',
 	Changed = 'changedObject',
 }
 
 type TransactionBlocksForAddressProps = {
 	address: string;
-	filter?: FilterValue;
+	filter?: ObjectFilterValue;
 	header?: string;
 };
 
@@ -34,17 +34,17 @@ enum PageAction {
 
 type TransactionBlocksForAddressActionType = {
 	type: PageAction;
-	filterValue: FilterValue;
+	filterValue: ObjectFilterValue;
 };
 
 type PageStateByFilterMap = {
-	[FilterValue.Input]: number;
-	[FilterValue.Changed]: number;
+	[ObjectFilterValue.Input]: number;
+	[ObjectFilterValue.Changed]: number;
 };
 
-const FILTER_OPTIONS = [
-	{ label: 'Input Objects', value: 'inputObject' },
-	{ label: 'Updated Objects', value: 'changedObject' },
+const FILTER_OPTIONS: { label: string; value: ObjectFilterValue }[] = [
+	{ label: 'Input Objects', value: ObjectFilterValue.Input },
+	{ label: 'Updated Objects', value: ObjectFilterValue.Changed },
 ];
 
 const reducer = (state: PageStateByFilterMap, action: TransactionBlocksForAddressActionType) => {
@@ -80,7 +80,7 @@ export function FiltersControl({
 		<RadioGroup
 			aria-label="transaction filter"
 			value={filterValue}
-			onValueChange={(value) => setFilterValue(value as FilterValue)}
+			onValueChange={(value) => setFilterValue(value as ObjectFilterValue)}
 		>
 			{FILTER_OPTIONS.map((filter) => (
 				<RadioGroupItem key={filter.value} value={filter.value} label={filter.label} />
@@ -91,13 +91,13 @@ export function FiltersControl({
 
 function TransactionBlocksForAddress({
 	address,
-	filter = FilterValue.Changed,
+	filter = ObjectFilterValue.Changed,
 	header,
 }: TransactionBlocksForAddressProps) {
 	const [filterValue, setFilterValue] = useState(filter);
 	const [currentPageState, dispatch] = useReducer(reducer, {
-		[FilterValue.Input]: 0,
-		[FilterValue.Changed]: 0,
+		[ObjectFilterValue.Input]: 0,
+		[ObjectFilterValue.Changed]: 0,
 	});
 
 	const { data, isPending, isFetching, isFetchingNextPage, fetchNextPage, hasNextPage } =
