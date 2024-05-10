@@ -115,7 +115,7 @@ function AppWrapper() {
 
 (async () => {
 	await init();
-	initSentry();
-	initAmplitude();
+	// initSentry();
+	// initAmplitude();
 	renderApp();
 })();

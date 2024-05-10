@@ -128,9 +128,9 @@ function StakingCard() {
 				throw new Error('Failed, missing required field');
 			}
 
-			const sentryTransaction = Sentry.startTransaction({
-				name: 'stake',
-			});
+			// const sentryTransaction = Sentry.startTransaction({
+			// 	name: 'stake',
+			// });
 			try {
 				const transactionBlock = createStakeTransaction(amount, validatorAddress);
 				return await signer.signAndExecuteTransactionBlock(
@@ -148,7 +148,7 @@ function StakingCard() {
 					clientIdentifier,
 				);
 			} finally {
-				sentryTransaction.finish();
+				// sentryTransaction.finish();
 			}
 		},
 		onSuccess: (_, { amount, validatorAddress }) => {

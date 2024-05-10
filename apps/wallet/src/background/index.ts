@@ -21,7 +21,7 @@ import Transactions from './Transactions';
 growthbook.loadFeatures().catch(() => {
 	// silence the error
 });
-initSentry();
+// initSentry();
 
 Browser.runtime.onInstalled.addListener(async ({ reason, previousVersion }) => {
 	// Skip automatically opening the onboarding in end-to-end tests.

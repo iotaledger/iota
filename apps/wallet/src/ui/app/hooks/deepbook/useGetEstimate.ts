@@ -272,16 +272,16 @@ export function useGetEstimate({
 			amount,
 		],
 		queryFn: async () => {
-			const sentryTransaction = Sentry.startTransaction({
-				name: 'defi-swap',
-				op: 'get-estimate',
-				data: {
-					coinType,
-					isAsk,
-					swapAmount: amount,
-					maxAvailableBalanceToSwap: isAsk ? totalBaseBalance : totalQuoteBalance,
-				},
-			});
+			// const sentryTransaction = Sentry.startTransaction({
+			// 	name: 'defi-swap',
+			// 	op: 'get-estimate',
+			// 	data: {
+			// 		coinType,
+			// 		isAsk,
+			// 		swapAmount: amount,
+			// 		maxAvailableBalanceToSwap: isAsk ? totalBaseBalance : totalQuoteBalance,
+			// 	},
+			// });
 
 			try {
 				const [baseCoins, quoteCoins] = await Promise.all([
@@ -336,11 +336,11 @@ export function useGetEstimate({
 					dryRunResponse,
 				};
 			} catch (error) {
-				sentryTransaction.setStatus('failed_precondition');
+				// sentryTransaction.setStatus('failed_precondition');
 				Sentry.captureException(error);
 				throw error;
 			} finally {
-				sentryTransaction.finish();
+				// sentryTransaction.finish();
 			}
 		},
 		enabled:

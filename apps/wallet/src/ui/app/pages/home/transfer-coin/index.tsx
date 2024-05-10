@@ -55,9 +55,9 @@ function TransferCoinPage() {
 				throw new Error('Missing data');
 			}
 
-			const sentryTransaction = Sentry.startTransaction({
-				name: 'send-tokens',
-			});
+			// const sentryTransaction = Sentry.startTransaction({
+			// 	name: 'send-tokens',
+			// });
 			try {
 				return signer.signAndExecuteTransactionBlock(
 					{
@@ -72,11 +72,11 @@ function TransferCoinPage() {
 				);
 			} catch (error) {
 				if (!(error instanceof QredoActionIgnoredByUser)) {
-					sentryTransaction.setTag('failure', true);
+					// sentryTransaction.setTag('failure', true);
 				}
 				throw error;
 			} finally {
-				sentryTransaction.finish();
+				// sentryTransaction.finish();
 			}
 		},
 		onSuccess: (response) => {

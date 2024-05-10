@@ -726,11 +726,7 @@ export class Ampli {
   }
 
   private isInitializedAndEnabled(): boolean {
-    if (!this.amplitude) {
-      console.error('ERROR: Ampli is not yet initialized. Have you called ampli.load() on app start?');
-      return false;
-    }
-    return !this.disabled;
+		return false;
   }
 
   /**
