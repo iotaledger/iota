@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { ALPHANET_URL, SentryHttpTransport } from '@mysten/core';
+import { SentryHttpTransport } from '@mysten/core';
 import { SuiClient, SuiHTTPTransport, getFullnodeUrl } from '@mysten/sui.js/client';
+import { ALPHANET_URL } from '~/lib/constants';
 
 export enum Network {
 	Local = 'local',
