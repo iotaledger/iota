@@ -214,19 +214,22 @@ impl Executor {
         })
     }
 
-    fn load_dependencies(&self) -> CheckedInputObjects {
-        CheckedInputObjects::new_for_genesis(
-            PACKAGE_DEPS
-                .iter()
-                .zip(self.store.get_objects(&PACKAGE_DEPS))
-                .filter_map(|(dependency, object)| {
-                    Some(ObjectReadResult::new(
-                        InputObjectKind::MovePackage(*dependency),
-                        object?.clone().into(),
-                    ))
-                })
-                .collect(),
-        )
+    /// Load input objects from the store to be used as checked
+    /// input while executing a transaction
+    fn load_input_objects(
+        &self,
+        object_ids: impl IntoIterator<Item = ObjectID> + 'static,
+    ) -> impl Iterator<Item = ObjectReadResult> + '_ {
+        object_ids.into_iter().filter_map(|object_id| {
+            Some(ObjectReadResult::new(
+                InputObjectKind::MovePackage(object_id),
+                self.store.get_object(&object_id)?.clone().into(),
+            ))
+        })
+    }
+
+    fn checked_system_packages(&self) -> CheckedInputObjects {
+        CheckedInputObjects::new_for_genesis(self.load_input_objects(PACKAGE_DEPS).collect())
     }
 
     fn execute_pt_unmetered(
@@ -268,7 +271,7 @@ impl Executor {
     ) -> Result<()> {
         for (foundry, pkg) in foundries {
             let modules = package_module_bytes(&pkg)?;
-            let deps = self.load_dependencies();
+            let deps = self.checked_system_packages();
             let pt = {
                 let mut builder = ProgrammableTransactionBuilder::new();
                 builder.command(Command::Publish(modules, PACKAGE_DEPS.into()));
@@ -281,8 +284,7 @@ impl Executor {
             for object in written.values() {
                 if object.is_coin() {
                     minted_coin_ref = Some(object.compute_object_reference());
-                }
-                if object.is_package() {
+                } else if object.is_package() {
                     coin_type_origin = Some(
                         object
                             .data
@@ -319,24 +321,22 @@ impl Executor {
 
     /// Create a [`Bag`] of balances of native tokens.
     fn create_bag(&mut self, native_tokens: &NativeTokens) -> Result<Bag> {
+        let mut dependencies = Vec::with_capacity(native_tokens.len());
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
-            let bag = builder.programmable_move_call(
-                SUI_FRAMEWORK_PACKAGE_ID,
-                ident_str!("bag").into(),
-                ident_str!("new").into(),
-                vec![],
-                vec![],
-            );
+            let bag = pt::bag_new(&mut builder);
             for token in native_tokens.iter() {
+                if token.amount().bits() > 64 {
+                    anyhow::bail!("unsupported number of tokens");
+                }
+
                 let Some((object_ref, type_origin)) = self.native_tokens.get(token.token_id())
                 else {
                     anyhow::bail!("foundry for native token has not been published");
                 };
 
-                if token.amount().bits() > 64 {
-                    anyhow::bail!("unsupported number of tokens");
-                }
+                let (object_id, _, _) = object_ref;
+                dependencies.push(*object_id);
 
                 let token_type = format!(
                     "{}::{}::{}",
@@ -353,10 +353,13 @@ impl Executor {
 
             builder.finish()
         };
-        // TODO: Add foundry coins to the loaded dependencies along
-        // with the system packages.
+        let checked_input_objects = CheckedInputObjects::new_for_genesis(
+            self.load_input_objects(PACKAGE_DEPS)
+                .chain(self.load_input_objects(dependencies))
+                .collect(),
+        );
         let InnerTemporaryStore { mut written, .. } =
-            self.execute_pt_unmetered(self.load_dependencies(), pt)?;
+            self.execute_pt_unmetered(checked_input_objects, pt)?;
         let (_, bag_object) = written
             .pop_first()
             .expect("the bag should have been created");
@@ -370,23 +373,26 @@ impl Executor {
         .expect("this should be a valid Bag Move object"))
     }
 
-    /// Create owned `Coin` objects representing native tokens.
     fn create_native_token_coins(
         &mut self,
         native_tokens: &NativeTokens,
         owner: SuiAddress,
     ) -> Result<()> {
+        let mut dependencies = Vec::with_capacity(native_tokens.len());
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             for token in native_tokens.iter() {
+                if token.amount().bits() > 64 {
+                    anyhow::bail!("unsupported number of tokens");
+                }
+
                 let Some((object_ref, type_origin)) = self.native_tokens.get(token.token_id())
                 else {
                     anyhow::bail!("foundry for native token has not been published");
                 };
 
-                if token.amount().bits() > 64 {
-                    anyhow::bail!("unsupported number of tokens");
-                }
+                let (object_id, _, _) = object_ref;
+                dependencies.push(*object_id);
 
                 let token_type = format!(
                     "{}::{}::{}",
@@ -399,22 +405,18 @@ impl Executor {
                     token.amount().as_u64(),
                 )?;
                 let token_type_tag: TypeTag = token_type.parse()?;
-                let owned_coin = builder.programmable_move_call(
-                    SUI_FRAMEWORK_PACKAGE_ID,
-                    ident_str!("coin").into(),
-                    ident_str!("from_balance").into(),
-                    vec![token_type_tag],
-                    vec![balance],
-                );
-                builder.transfer_arg(owner, owned_coin);
+                pt::coin_from_balance(&mut builder, token_type_tag, balance, owner);
             }
 
             builder.finish()
         };
-        // TODO: Add foundry coins to the loaded dependencies along
-        // with the system packages.
+        let checked_input_objects = CheckedInputObjects::new_for_genesis(
+            self.load_input_objects(PACKAGE_DEPS)
+                .chain(self.load_input_objects(dependencies))
+                .collect(),
+        );
         let InnerTemporaryStore { written, .. } =
-            self.execute_pt_unmetered(self.load_dependencies(), pt)?;
+            self.execute_pt_unmetered(checked_input_objects, pt)?;
         self.store.finish(written);
         Ok(())
     }
@@ -504,7 +506,7 @@ fn package_module_bytes(pkg: &CompiledPackage) -> Result<Vec<Vec<u8>>> {
         .collect::<Result<_>>()
 }
 
-/// Create a [`TxContext]` that remains the same across invokations.
+/// Create a [`TxContext]` that remains the same across invocations.
 fn create_migration_context() -> TxContext {
     let mut hasher = DefaultHash::default();
     hasher.update(b"stardust-migration");
@@ -563,6 +565,32 @@ mod pt {
             vec![bag, token_struct_tag, balance],
         );
         Ok(())
+    }
+
+    pub fn coin_from_balance(
+        builder: &mut ProgrammableTransactionBuilder,
+        token_type_tag: TypeTag,
+        balance: Argument,
+        owner: SuiAddress,
+    ) {
+        let owned_coin = builder.programmable_move_call(
+            SUI_FRAMEWORK_PACKAGE_ID,
+            ident_str!("coin").into(),
+            ident_str!("from_balance").into(),
+            vec![token_type_tag],
+            vec![balance],
+        );
+        builder.transfer_arg(owner, owned_coin);
+    }
+
+    pub fn bag_new(builder: &mut ProgrammableTransactionBuilder) -> Argument {
+        builder.programmable_move_call(
+            SUI_FRAMEWORK_PACKAGE_ID,
+            ident_str!("bag").into(),
+            ident_str!("new").into(),
+            vec![],
+            vec![],
+        )
     }
 }
 
