@@ -1,3 +1,6 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! Types representing blocks of data in a Stardust snapshot.
 use std::mem::size_of;
 

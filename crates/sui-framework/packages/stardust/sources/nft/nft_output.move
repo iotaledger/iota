@@ -31,11 +31,11 @@ module stardust::nft_output {
         native_tokens: Bag,
 
         /// The storage deposit return unlock condition.
-        storage_deposit_return: Option<StorageDepositReturnUnlockCondition>,
+        storage_deposit_return_uc: Option<StorageDepositReturnUnlockCondition>,
         /// The timelock unlock condition.
-        timelock: Option<TimelockUnlockCondition>,
+        timelock_uc: Option<TimelockUnlockCondition>,
         /// The expiration unlock condition.
-        expiration: Option<ExpirationUnlockCondition>,
+        expiration_uc: Option<ExpirationUnlockCondition>,
     }
 
     /// The function extracts assets from a legacy NFT output.
@@ -48,30 +48,30 @@ module stardust::nft_output {
             id,
             iota: mut iota,
             native_tokens,
-            storage_deposit_return: mut storage_deposit_return,
-            timelock: mut timelock,
-            expiration: mut expiration
+            storage_deposit_return_uc: mut storage_deposit_return_uc,
+            timelock_uc: mut timelock_uc,
+            expiration_uc: mut expiration_uc
         } = output;
 
-        // If the output has a timelock, then we need to check if the timelock has expired.
-        if (timelock.is_some()) {
-            timelock.extract().unlock(ctx);
+        // If the output has a timelock unlock condition, then we need to check if the timelock_uc has expired.
+        if (timelock_uc.is_some()) {
+            timelock_uc.extract().unlock(ctx);
         };
 
-        // If the output has an expiration, then we need to check who can unlock the output.
-        if (expiration.is_some()) {
-            expiration.extract().unlock(ctx);
+        // If the output has an expiration unlock condition, then we need to check who can unlock the output.
+        if (expiration_uc.is_some()) {
+            expiration_uc.extract().unlock(ctx);
         };
 
-        // If the output has an SDRUC, then we need to return the deposit.
-        if (storage_deposit_return.is_some()) {
-            storage_deposit_return.extract().unlock(&mut iota, ctx);
+        // If the output has a storage deposit return unlock condition, then we need to return the deposit.
+        if (storage_deposit_return_uc.is_some()) {
+            storage_deposit_return_uc.extract().unlock(&mut iota, ctx);
         };
 
         // Destroy the output.
-        option::destroy_none(timelock);
-        option::destroy_none(expiration);
-        option::destroy_none(storage_deposit_return);
+        option::destroy_none(timelock_uc);
+        option::destroy_none(expiration_uc);
+        option::destroy_none(storage_deposit_return_uc);
 
         object::delete(id);
 
@@ -102,18 +102,18 @@ module stardust::nft_output {
     public fun create_for_testing(
         iota: Balance<SUI>,
         native_tokens: Bag,
-        storage_deposit_return: Option<StorageDepositReturnUnlockCondition>,
-        timelock: Option<TimelockUnlockCondition>,
-        expiration: Option<ExpirationUnlockCondition>,
+        storage_deposit_return_uc: Option<StorageDepositReturnUnlockCondition>,
+        timelock_uc: Option<TimelockUnlockCondition>,
+        expiration_uc: Option<ExpirationUnlockCondition>,
         ctx: &mut TxContext,
     ): NftOutput {
         NftOutput {
             id: object::new(ctx),
             iota,
             native_tokens,
-            storage_deposit_return,
-            timelock,
-            expiration,
+            storage_deposit_return_uc,
+            timelock_uc,
+            expiration_uc,
         }
     }
 }

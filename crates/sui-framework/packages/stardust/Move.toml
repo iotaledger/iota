@@ -7,6 +7,7 @@ edition = "2024.beta"
 [dependencies]
 MoveStdlib = { local = "../move-stdlib" }
 Sui = { local = "../sui-framework" }
+SuiSystem = { local = "../sui-system" }
 
 [addresses]
 stardust = "0x107a"

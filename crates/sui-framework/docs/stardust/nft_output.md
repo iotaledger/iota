@@ -64,19 +64,19 @@ The Stardust NFT output representation.
  Example: key: "0xabcded::soon::SOON", value: Balance<0xabcded::soon::SOON>.
 </dd>
 <dt>
-<code>storage_deposit_return: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="storage_deposit_return_unlock_condition.md#0x107a_storage_deposit_return_unlock_condition_StorageDepositReturnUnlockCondition">storage_deposit_return_unlock_condition::StorageDepositReturnUnlockCondition</a>&gt;</code>
+<code>storage_deposit_return_uc: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="storage_deposit_return_unlock_condition.md#0x107a_storage_deposit_return_unlock_condition_StorageDepositReturnUnlockCondition">storage_deposit_return_unlock_condition::StorageDepositReturnUnlockCondition</a>&gt;</code>
 </dt>
 <dd>
  The storage deposit return unlock condition.
 </dd>
 <dt>
-<code>timelock: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_TimelockUnlockCondition">timelock_unlock_condition::TimelockUnlockCondition</a>&gt;</code>
+<code>timelock_uc: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="timelock_unlock_condition.md#0x107a_timelock_unlock_condition_TimelockUnlockCondition">timelock_unlock_condition::TimelockUnlockCondition</a>&gt;</code>
 </dt>
 <dd>
  The timelock unlock condition.
 </dd>
 <dt>
-<code>expiration: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="expiration_unlock_condition.md#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</a>&gt;</code>
+<code>expiration_uc: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="expiration_unlock_condition.md#0x107a_expiration_unlock_condition_ExpirationUnlockCondition">expiration_unlock_condition::ExpirationUnlockCondition</a>&gt;</code>
 </dt>
 <dd>
  The expiration unlock condition.
@@ -126,30 +126,30 @@ The function extracts assets from a legacy NFT output.
         id,
         iota: <b>mut</b> iota,
         native_tokens,
-        storage_deposit_return: <b>mut</b> storage_deposit_return,
-        timelock: <b>mut</b> timelock,
-        expiration: <b>mut</b> expiration
+        storage_deposit_return_uc: <b>mut</b> storage_deposit_return_uc,
+        timelock_uc: <b>mut</b> timelock_uc,
+        expiration_uc: <b>mut</b> expiration_uc
     } = output;
 
-    // If the output <b>has</b> a timelock, then we need <b>to</b> check <b>if</b> the timelock <b>has</b> expired.
-    <b>if</b> (timelock.is_some()) {
-        timelock.extract().unlock(ctx);
+    // If the output <b>has</b> a <a href="timelock.md#0x107a_timelock">timelock</a> unlock condition, then we need <b>to</b> check <b>if</b> the timelock_uc <b>has</b> expired.
+    <b>if</b> (timelock_uc.is_some()) {
+        timelock_uc.extract().unlock(ctx);
     };
 
-    // If the output <b>has</b> an expiration, then we need <b>to</b> check who can unlock the output.
-    <b>if</b> (expiration.is_some()) {
-        expiration.extract().unlock(ctx);
+    // If the output <b>has</b> an expiration unlock condition, then we need <b>to</b> check who can unlock the output.
+    <b>if</b> (expiration_uc.is_some()) {
+        expiration_uc.extract().unlock(ctx);
     };
 
-    // If the output <b>has</b> an SDRUC, then we need <b>to</b> <b>return</b> the deposit.
-    <b>if</b> (storage_deposit_return.is_some()) {
-        storage_deposit_return.extract().unlock(&<b>mut</b> iota, ctx);
+    // If the output <b>has</b> a storage deposit <b>return</b> unlock condition, then we need <b>to</b> <b>return</b> the deposit.
+    <b>if</b> (storage_deposit_return_uc.is_some()) {
+        storage_deposit_return_uc.extract().unlock(&<b>mut</b> iota, ctx);
     };
 
     // Destroy the output.
-    <a href="../move-stdlib/option.md#0x1_option_destroy_none">option::destroy_none</a>(timelock);
-    <a href="../move-stdlib/option.md#0x1_option_destroy_none">option::destroy_none</a>(expiration);
-    <a href="../move-stdlib/option.md#0x1_option_destroy_none">option::destroy_none</a>(storage_deposit_return);
+    <a href="../move-stdlib/option.md#0x1_option_destroy_none">option::destroy_none</a>(timelock_uc);
+    <a href="../move-stdlib/option.md#0x1_option_destroy_none">option::destroy_none</a>(expiration_uc);
+    <a href="../move-stdlib/option.md#0x1_option_destroy_none">option::destroy_none</a>(storage_deposit_return_uc);
 
     <a href="../sui-framework/object.md#0x2_object_delete">object::delete</a>(id);
 

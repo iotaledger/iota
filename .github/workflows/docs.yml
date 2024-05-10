@@ -2,7 +2,7 @@ name: Documentation
 
 on:
   push:
-    branches: [ main, extensions ]
+    branches: [ develop, extensions ]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 

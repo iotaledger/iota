@@ -56,7 +56,6 @@ jobs:
         with:
           title: Link checker report
           content-filepath: ${{ env.LYCHEE_OUT }}
-          assignees: ronny-mysten, randall-Mysten, awelc, lxfind, patrickkuo
           issue-number: ${{ steps.last_issue.outputs.issue_number }}
           labels: |
             report

@@ -47,16 +47,17 @@ use sui_types::{
     transaction::{
         CheckedInputObjects, Command, InputObjectKind, ObjectReadResult, ProgrammableTransaction,
     },
-    MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID,
+    MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID, SUI_SYSTEM_PACKAGE_ID,
 };
 
 use super::types::snapshot::OutputHeader;
 use crate::process_package;
 
 /// The dependencies of the generated packages for native tokens.
-pub const PACKAGE_DEPS: [ObjectID; 3] = [
+pub const PACKAGE_DEPS: [ObjectID; 4] = [
     MOVE_STDLIB_PACKAGE_ID,
     SUI_FRAMEWORK_PACKAGE_ID,
+    SUI_SYSTEM_PACKAGE_ID,
     STARDUST_PACKAGE_ID,
 ];
 

@@ -1,3 +1,6 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! Example demonstrating parsing Stardust UTXOs from a snapshot file
 //! and verifying the total supply.
 use std::fs::File;
