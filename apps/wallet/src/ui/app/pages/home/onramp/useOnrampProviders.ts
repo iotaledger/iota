@@ -21,8 +21,8 @@ const MOONPAY_API_KEY =
 		? 'pk_live_iL2LFRM1wCc4EfBuxFJSVTkI8Xno4a'
 		: 'pk_test_RwNag1qi8jFoymVchhCSc5cYnqyPrVd5';
 
-const BACKEND_HOST =
-	process.env.NODE_ENV === 'production' ? 'https://apps-backend.sui.io' : 'http://localhost:3003';
+// TODO listed to remove this
+const BACKEND_HOST = 'http://localhost:3003';
 
 const ONRAMP_PROVIDER: OnrampProvider[] = [
 	{
@@ -102,6 +102,7 @@ const ONRAMP_PROVIDER: OnrampProvider[] = [
 				environment: process.env.NODE_ENV === 'production' ? 'PRODUCTION' : 'STAGING',
 			});
 
+			// TODO
 			const res = await fetch(`${BACKEND_HOST}/moonpay-url?${params}`);
 
 			const data = (await res.json()) as { url: string };

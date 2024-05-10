@@ -15,6 +15,7 @@ type CoinData = {
 	totalSupply: number;
 };
 
+// TODO
 export const COIN_GECKO_SUI_URL = 'https://www.coingecko.com/en/coins/sui';
 
 export function useSuiCoinData() {
