@@ -221,6 +221,20 @@ impl Executor {
     /// input while executing a transaction
     fn load_input_objects(
         &self,
+        object_refs: impl IntoIterator<Item = ObjectRef> + 'static,
+    ) -> impl Iterator<Item = ObjectReadResult> + '_ {
+        object_refs.into_iter().filter_map(|object_ref| {
+            Some(ObjectReadResult::new(
+                InputObjectKind::ImmOrOwnedMoveObject(object_ref),
+                self.store.get_object(&object_ref.0)?.clone().into(),
+            ))
+        })
+    }
+
+    /// Load packages from the store to be used as checked
+    /// input while executing a transaction
+    fn load_packages(
+        &self,
         object_ids: impl IntoIterator<Item = ObjectID> + 'static,
     ) -> impl Iterator<Item = ObjectReadResult> + '_ {
         object_ids.into_iter().filter_map(|object_id| {
@@ -232,7 +246,7 @@ impl Executor {
     }
 
     fn checked_system_packages(&self) -> CheckedInputObjects {
-        CheckedInputObjects::new_for_genesis(self.load_input_objects(PACKAGE_DEPS).collect())
+        CheckedInputObjects::new_for_genesis(self.load_packages(PACKAGE_DEPS).collect())
     }
 
     fn execute_pt_unmetered(
@@ -338,8 +352,7 @@ impl Executor {
                     anyhow::bail!("foundry for native token has not been published");
                 };
 
-                let (object_id, _, _) = object_ref;
-                dependencies.push(*object_id);
+                dependencies.push(*object_ref);
 
                 let token_type = format!(
                     "{}::{}::{}",
@@ -357,7 +370,7 @@ impl Executor {
             builder.finish()
         };
         let checked_input_objects = CheckedInputObjects::new_for_genesis(
-            self.load_input_objects(PACKAGE_DEPS)
+            self.load_packages(PACKAGE_DEPS)
                 .chain(self.load_input_objects(dependencies))
                 .collect(),
         );
@@ -409,8 +422,7 @@ impl Executor {
                     anyhow::bail!("foundry for native token has not been published");
                 };
 
-                let (object_id, _, _) = object_ref;
-                dependencies.push(*object_id);
+                dependencies.push(*object_ref);
 
                 let token_type = format!(
                     "{}::{}::{}",
@@ -434,7 +446,7 @@ impl Executor {
             builder.finish()
         };
         let checked_input_objects = CheckedInputObjects::new_for_genesis(
-            self.load_input_objects(PACKAGE_DEPS)
+            self.load_packages(PACKAGE_DEPS)
                 .chain(self.load_input_objects(dependencies))
                 .collect(),
         );
