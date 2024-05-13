@@ -352,12 +352,18 @@ impl Executor {
                     anyhow::bail!("unsupported number of tokens");
                 }
 
-                let Some((object_ref, type_origin)) = self.native_tokens.get(token.token_id())
+                let Some(((object_id, _, _), type_origin)) =
+                    self.native_tokens.get(token.token_id())
                 else {
                     anyhow::bail!("foundry for native token has not been published");
                 };
 
-                dependencies.push(*object_ref);
+                let Some(foundry_coin) = self.store.get_object(object_id) else {
+                    anyhow::bail!("foundry coin should exist");
+                };
+                let object_ref = foundry_coin.compute_object_reference();
+
+                dependencies.push(object_ref.clone());
 
                 let token_type = format!(
                     "{}::{}::{}",
@@ -365,7 +371,7 @@ impl Executor {
                 );
                 let balance = pt::coin_balance_split(
                     &mut builder,
-                    *object_ref,
+                    object_ref,
                     &token_type,
                     token.amount().as_u64(),
                 )?;
@@ -386,11 +392,20 @@ impl Executor {
                 .chain(self.load_input_objects(dependencies))
                 .collect(),
         );
-        let InnerTemporaryStore { mut written, .. } =
-            self.execute_pt_unmetered(checked_input_objects, pt)?;
-        let (_, bag_object) = written
+        let InnerTemporaryStore {
+            mut written,
+            input_objects,
+            ..
+        } = self.execute_pt_unmetered(checked_input_objects, pt)?;
+        let mut written_with_bag = written.clone();
+        written_with_bag.retain(|id, _| !input_objects.contains_key(id));
+        let (_, bag_object) = written_with_bag
             .pop_first()
             .expect("the bag should have been created");
+        written.retain(|id, _| !(id == &bag_object.id()));
+        // Save the modified coins
+        self.store.finish(written);
+        // Return bag
         Ok(bcs::from_bytes(
             bag_object
                 .data
