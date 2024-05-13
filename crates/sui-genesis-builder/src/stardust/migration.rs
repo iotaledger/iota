@@ -8,17 +8,14 @@ use std::{
 use sui_types::{
     balance::Balance,
     base_types::ObjectRef,
-    coin::Coin,
     collection_types::Bag,
-    id::UID,
     move_package::TypeOrigin,
-    object::{Data, MoveObject, Owner},
     transaction::{Argument, ObjectArg},
     TypeTag,
 };
 
 use anyhow::Result;
-use fastcrypto::hash::{Blake2b256, HashFunction};
+use fastcrypto::hash::HashFunction;
 use iota_sdk::types::block::output::{
     AliasOutput, BasicOutput, FoundryOutput, NativeTokens, NftOutput, Output, TokenId,
     TreasuryOutput,
@@ -42,7 +39,6 @@ use sui_types::{
     inner_temporary_store::InnerTemporaryStore,
     metrics::LimitsMetrics,
     move_package::UpgradeCap,
-    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
         CheckedInputObjects, Command, InputObjectKind, ObjectReadResult, ProgrammableTransaction,
@@ -424,7 +420,6 @@ impl Executor {
         owner: SuiAddress,
     ) -> Result<()> {
         let mut dependencies = Vec::with_capacity(native_tokens.len());
-        let mut coins = Vec::with_capacity(native_tokens.len());
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             for token in native_tokens.iter() {
@@ -432,8 +427,7 @@ impl Executor {
                     anyhow::bail!("unsupported number of tokens");
                 }
 
-                let Some((object_id, type_origin)) = self.native_tokens.get(token.token_id())
-                else {
+                let Some((object_id, _)) = self.native_tokens.get(token.token_id()) else {
                     anyhow::bail!("foundry for native token has not been published");
                 };
 
@@ -444,24 +438,8 @@ impl Executor {
 
                 dependencies.push(object_ref);
 
-                let token_type = format!(
-                    "{}::{}::{}",
-                    type_origin.package, type_origin.module_name, type_origin.struct_name
-                );
-                pt::coin_balance_split(
-                    &mut builder,
-                    object_ref,
-                    &token_type,
-                    token.amount().as_u64(),
-                )?;
-                let token_type_tag: TypeTag = token_type.parse()?;
-                let coin_id = self.tx_context.fresh_id();
-                coins.push(self.coin_from_balance_with_id(
-                    coin_id,
-                    token_type_tag,
-                    token.amount().as_u64(),
-                    owner,
-                )?);
+                // Pay using that object
+                builder.pay(vec![object_ref], vec![owner], vec![token.amount().as_u64()])?;
             }
 
             builder.finish()
@@ -477,39 +455,7 @@ impl Executor {
 
         // Save the modified coin
         self.store.finish(written);
-        // now that the transaction has been executed successfully we store the
-        // create coins
-        coins
-            .into_iter()
-            .for_each(|coin| self.store.insert_object(coin));
         Ok(())
-    }
-
-    fn coin_from_balance_with_id(
-        &self,
-        coin_id: ObjectID,
-        type_tag: TypeTag,
-        amount: u64,
-        owner: SuiAddress,
-    ) -> Result<Object> {
-        let coin = Coin::new(UID::new(coin_id), amount);
-        let data = unsafe {
-            // Safety: we know from the definition of `Coin`
-            // that it has public transfer (`store` ability is present).
-            MoveObject::new_from_execution(
-                Coin::type_(type_tag).into(),
-                true,
-                0.into(),
-                bcs::to_bytes(&coin)?,
-                &self.protocol_config,
-            )?
-        };
-        let owner = Owner::AddressOwner(owner);
-        Ok(Object::new_from_genesis(
-            Data::Move(data),
-            owner,
-            self.tx_context.digest(),
-        ))
     }
 
     /// This implements the control flow in
@@ -521,11 +467,10 @@ impl Executor {
     ) -> Result<()> {
         let mut data = super::types::output::BasicOutput::new(header.clone(), &basic_output);
         let owner: SuiAddress = basic_output.address().to_string().parse()?;
-
         // Handle native tokens
         if !basic_output.native_tokens().is_empty() {
             if data.has_empty_bag() {
-                self.create_native_token_coins(header, basic_output.native_tokens(), owner)?;
+                self.create_native_token_coins(basic_output.native_tokens(), owner)?;
             } else {
                 data.native_tokens = self.create_bag(basic_output.native_tokens())?;
             }
