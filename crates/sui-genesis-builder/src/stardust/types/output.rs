@@ -168,4 +168,11 @@ impl BasicOutput {
             || self.storage_deposit_return.is_some()
             || self.timelock.is_some())
     }
+
+    pub fn is_simple_basic_output(output: &iota_sdk::types::block::output::BasicOutput) -> bool {
+        let uc = output.unlock_conditions();
+        !(uc.expiration().is_some()
+            || uc.storage_deposit_return().is_some()
+            || uc.timelock().is_some())
+    }
 }

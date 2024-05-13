@@ -3,6 +3,7 @@ use move_core_types::{ident_str, language_storage::StructTag};
 use std::{
     collections::HashMap,
     io::{BufWriter, Write},
+    str::FromStr,
     sync::Arc,
 };
 use sui_types::{
@@ -63,6 +64,10 @@ pub const PACKAGE_DEPS: [ObjectID; 4] = [
 
 /// We fix the protocol version used in the migration.
 pub const MIGRATION_PROTOCOL_VERSION: u64 = 42;
+
+/// Temporary object id to the genesis treasury.
+pub const GENESIS_TREASURY_TEMP: &str =
+    "0xf1416fe18c7baa1673187375777a7606708481311cb3548509ec91a5871c6b9a";
 
 /// The orchestrator of the migration process.
 ///
@@ -396,6 +401,38 @@ impl Executor {
         .expect("this should be a valid Bag Move object"))
     }
 
+    /// Create SUI [`Coin`] objects.
+    fn create_sui_coins(&mut self, owner: SuiAddress, amount: u64) -> Result<()> {
+        let mut dependencies = Vec::with_capacity(1);
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+
+            // Get treasury object from which to pay from
+            let treasury_object = self
+                .store
+                .get_object(&ObjectID::from_str(GENESIS_TREASURY_TEMP).unwrap())
+                .expect("should exist treasury object");
+            let object_ref = treasury_object.compute_object_reference();
+            dependencies.push(object_ref.clone());
+
+            // Pay using that object
+            builder.pay(vec![object_ref], vec![owner], vec![amount])?;
+            builder.finish()
+        };
+        let checked_input_objects = CheckedInputObjects::new_for_genesis(
+            self.load_packages(PACKAGE_DEPS)
+                .chain(self.load_input_objects(dependencies))
+                .collect(),
+        );
+        // Execute
+        let InnerTemporaryStore { written, .. } =
+            self.execute_pt_unmetered(checked_input_objects, pt)?;
+
+        // Save new coin and modified coin
+        self.store.finish(written);
+        Ok(())
+    }
+
     /// Create [`Coin`] objects representing native tokens in the ledger.
     ///
     /// We set the [`ObjectID`] to the `hash(hash(OutputId) || TokenId)`
@@ -500,42 +537,47 @@ impl Executor {
         header: OutputHeader,
         basic_output: BasicOutput,
     ) -> Result<()> {
-        let mut data = super::types::output::BasicOutput::new(header.clone(), &basic_output);
         let owner: SuiAddress = basic_output.address().to_string().parse()?;
-
-        // Handle native tokens
-        if !basic_output.native_tokens().is_empty() {
-            if data.has_empty_bag() {
+        if super::types::output::BasicOutput::is_simple_basic_output(&basic_output) {
+            // Create and transfer SUI coin to the owner
+            self.create_sui_coins(owner, basic_output.amount())?;
+            // Create and transfer Native tokens to the owner, if present
+            if !basic_output.native_tokens().is_empty() {
                 self.create_native_token_coins(header, basic_output.native_tokens(), owner)?;
-            } else {
-                data.native_tokens = self.create_bag(basic_output.native_tokens())?;
-            }
-        }
-        // Construct the basic output object
-        let move_object = unsafe {
-            // Safety: we know from the definition of `BasicOutput` in the stardust package
-            // that it has not public transfer (`store` ability is absent).
-            MoveObject::new_from_execution(
-                super::types::output::BasicOutput::type_().into(),
-                false,
-                0.into(),
-                bcs::to_bytes(&data)?,
-                &self.protocol_config,
-            )?
-        };
-        // Resolve ownership
-        let owner = if data.expiration.is_some() {
-            Owner::Shared {
-                initial_shared_version: 0.into(),
             }
         } else {
-            Owner::AddressOwner(owner)
-        };
-        self.store.insert_object(Object::new_from_genesis(
-            Data::Move(move_object),
-            owner,
-            self.tx_context.digest(),
-        ));
+            let mut data = super::types::output::BasicOutput::new(header.clone(), &basic_output);
+
+            // Handle native tokens
+            if !basic_output.native_tokens().is_empty() {
+                data.native_tokens = self.create_bag(basic_output.native_tokens())?;
+            }
+            // Construct the basic output object
+            let move_object = unsafe {
+                // Safety: we know from the definition of `BasicOutput` in the stardust package
+                // that it has not public transfer (`store` ability is absent).
+                MoveObject::new_from_execution(
+                    super::types::output::BasicOutput::type_().into(),
+                    false,
+                    0.into(),
+                    bcs::to_bytes(&data)?,
+                    &self.protocol_config,
+                )?
+            };
+            // Resolve ownership
+            let owner = if data.expiration.is_some() {
+                Owner::Shared {
+                    initial_shared_version: 0.into(),
+                }
+            } else {
+                Owner::AddressOwner(owner)
+            };
+            self.store.insert_object(Object::new_from_genesis(
+                Data::Move(move_object),
+                owner,
+                self.tx_context.digest(),
+            ));
+        }
         Ok(())
     }
 
