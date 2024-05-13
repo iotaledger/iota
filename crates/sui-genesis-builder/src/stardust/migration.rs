@@ -461,12 +461,18 @@ impl Executor {
                     anyhow::bail!("unsupported number of tokens");
                 }
 
-                let Some((object_ref, type_origin)) = self.native_tokens.get(token.token_id())
+                let Some(((object_id, _, _), type_origin)) =
+                    self.native_tokens.get(token.token_id())
                 else {
                     anyhow::bail!("foundry for native token has not been published");
                 };
 
-                dependencies.push(*object_ref);
+                let Some(foundry_coin) = self.store.get_object(object_id) else {
+                    anyhow::bail!("foundry coin should exist");
+                };
+                let object_ref = foundry_coin.compute_object_reference();
+
+                dependencies.push(object_ref.clone());
 
                 let token_type = format!(
                     "{}::{}::{}",
@@ -474,7 +480,7 @@ impl Executor {
                 );
                 pt::coin_balance_split(
                     &mut builder,
-                    *object_ref,
+                    object_ref,
                     &token_type,
                     token.amount().as_u64(),
                 )?;
@@ -494,7 +500,12 @@ impl Executor {
                 .chain(self.load_input_objects(dependencies))
                 .collect(),
         );
-        self.execute_pt_unmetered(checked_input_objects, pt)?;
+        // Execute
+        let InnerTemporaryStore { written, .. } =
+            self.execute_pt_unmetered(checked_input_objects, pt)?;
+
+        // Save the modified coin
+        self.store.finish(written);
         // now that the transaction has been executed successfully we store the
         // create coins
         coins
