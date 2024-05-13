@@ -157,8 +157,8 @@ impl BasicOutput {
     pub fn type_() -> StructTag {
         StructTag {
             address: STARDUST_PACKAGE_ID.into(),
-            name: BASIC_OUTPUT_MODULE_NAME.to_owned(),
-            module: BASIC_OUTPUT_STRUCT_NAME.to_owned(),
+            module: BASIC_OUTPUT_MODULE_NAME.to_owned(),
+            name: BASIC_OUTPUT_STRUCT_NAME.to_owned(),
             type_params: Vec::new(),
         }
     }
