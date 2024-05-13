@@ -367,6 +367,13 @@ impl Executor {
                 pt::bag_add(&mut builder, bag, balance, &token_type)?;
             }
 
+            // The `Bag` object does not have the `drop` ability so we have to use it
+            // in the transaction block. Therefore we transfer it to the `0x0` address.
+            //
+            // Nevertheless, we only store the contents of the object, and thus the ownership
+            // metadata are irrelevant to us. This is a dummy transfer then to satisfy
+            // the VM.
+            builder.transfer_arg(Default::default(), bag);
             builder.finish()
         };
         let checked_input_objects = CheckedInputObjects::new_for_genesis(
