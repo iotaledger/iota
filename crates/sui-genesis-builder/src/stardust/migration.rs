@@ -394,12 +394,12 @@ impl Executor {
             input_objects,
             ..
         } = self.execute_pt_unmetered(checked_input_objects, pt)?;
-        let mut written_with_bag = written.clone();
-        written_with_bag.retain(|id, _| !input_objects.contains_key(id));
-        let (_, bag_object) = written_with_bag
-            .pop_first()
+        let bag_object = written
+            .iter()
+            .filter_map(|(id, object)| (!input_objects.contains_key(id)).then_some(object.clone()))
+            .next()
             .expect("the bag should have been created");
-        written.retain(|id, _| id != &bag_object.id());
+        written.remove(&bag_object.id());
         // Save the modified coins
         // TODO: we might want to check whether execution bumps the version
         // in order to force the genesis version in the end.
