@@ -358,7 +358,7 @@ impl Executor {
                 };
                 let object_ref = foundry_coin.compute_object_reference();
 
-                dependencies.push(object_ref.clone());
+                dependencies.push(object_ref);
 
                 let token_type = format!(
                     "{}::{}::{}",
@@ -397,7 +397,7 @@ impl Executor {
         let (_, bag_object) = written_with_bag
             .pop_first()
             .expect("the bag should have been created");
-        written.retain(|id, _| !(id == &bag_object.id()));
+        written.retain(|id, _| id != &bag_object.id());
         // Save the modified coins
         self.store.finish(written);
         // Return bag
@@ -450,7 +450,7 @@ impl Executor {
                 };
                 let object_ref = foundry_coin.compute_object_reference();
 
-                dependencies.push(object_ref.clone());
+                dependencies.push(object_ref);
 
                 let token_type = format!(
                     "{}::{}::{}",
