@@ -369,10 +369,10 @@ impl Executor {
                 let balance = pt::coin_balance_split(
                     &mut builder,
                     object_ref,
-                    &token_type,
+                    token_type.parse()?,
                     token.amount().as_u64(),
                 )?;
-                pt::bag_add(&mut builder, bag, balance, token_type.clone())?;
+                pt::bag_add(&mut builder, bag, balance, token_type)?;
             }
 
             // The `Bag` object does not have the `drop` ability so we have to use it
@@ -556,10 +556,9 @@ mod pt {
     pub fn coin_balance_split(
         builder: &mut ProgrammableTransactionBuilder,
         foundry_coin_ref: ObjectRef,
-        token_type: &str,
+        token_type_tag: TypeTag,
         amount: u64,
     ) -> Result<Argument> {
-        let token_type_tag: TypeTag = token_type.parse()?;
         let foundry_coin_ref = builder.obj(ObjectArg::ImmOrOwnedObject(foundry_coin_ref))?;
         let balance = builder.programmable_move_call(
             SUI_FRAMEWORK_PACKAGE_ID,
@@ -573,7 +572,7 @@ mod pt {
             SUI_FRAMEWORK_PACKAGE_ID,
             ident_str!("balance").into(),
             ident_str!("split").into(),
-            vec![token_type_tag.clone()],
+            vec![token_type_tag],
             vec![balance, amount],
         ))
     }
