@@ -28,7 +28,7 @@ pub struct Alias {
     pub id: UID,
 
     /// The last State Controller address assigned before the migration.
-    pub legacy_state_controller: Option<SuiAddress>,
+    pub legacy_state_controller: SuiAddress,
     /// A counter increased by 1 every time the alias was state transitioned.
     pub state_index: u32,
     /// State metadata that can be used to store additional information.
@@ -90,10 +90,7 @@ impl Alias {
 
         Ok(Alias {
             id: UID::new(alias_id),
-            // TODO: Why is this an Option? The State Controller is always set in Stardust.
-            legacy_state_controller: Some(stardust_to_sui_address(
-                alias.state_controller_address(),
-            )?),
+            legacy_state_controller: stardust_to_sui_address(alias.state_controller_address())?,
             state_index: alias.state_index(),
             state_metadata,
             sender,

@@ -746,8 +746,6 @@ mod pt {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use iota_sdk::types::block::{
         address::Ed25519Address,
         output::{
