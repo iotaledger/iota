@@ -398,6 +398,8 @@ impl Executor {
             .expect("the bag should have been created");
         written.retain(|id, _| id != &bag_object.id());
         // Save the modified coins
+        // TODO: we might want to check whether execution bumps the version
+        // in order to force the genesis version in the end.
         self.store.finish(written);
         // Return bag
         Ok(bcs::from_bytes(
@@ -418,22 +420,14 @@ impl Executor {
     /// should be sorted to attain idempotence.
     fn create_native_token_coins(
         &mut self,
-        header: OutputHeader,
         native_tokens: &NativeTokens,
         owner: SuiAddress,
     ) -> Result<()> {
         let mut dependencies = Vec::with_capacity(native_tokens.len());
         let mut coins = Vec::with_capacity(native_tokens.len());
-        let native_tokens_with_ids = native_tokens.iter().map(|token| {
-            let mut coin_id = header.output_id().hash().to_vec();
-            coin_id.extend(token.token_id().as_slice());
-            // we set the `ObjectID` of native token objects to
-            // `hash(hash(OutputId) || TokenId)`
-            (ObjectID::new(Blake2b256::digest(coin_id).into()), token)
-        });
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
-            for (coin_id, token) in native_tokens_with_ids {
+            for token in native_tokens.iter() {
                 if token.amount().bits() > 64 {
                     anyhow::bail!("unsupported number of tokens");
                 }
@@ -461,6 +455,7 @@ impl Executor {
                     token.amount().as_u64(),
                 )?;
                 let token_type_tag: TypeTag = token_type.parse()?;
+                let coin_id = self.tx_context.fresh_id();
                 coins.push(self.coin_from_balance_with_id(
                     coin_id,
                     token_type_tag,
