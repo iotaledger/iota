@@ -474,26 +474,19 @@ impl Executor {
     ) -> Result<()> {
         let mut data = super::types::output::BasicOutput::new(header.clone(), &basic_output);
         let owner: SuiAddress = basic_output.address().to_string().parse()?;
-        // Handle native tokens
-        if !basic_output.native_tokens().is_empty() {
-            if data.has_empty_bag() {
+
+        let object = if data.has_empty_bag() {
+            if !basic_output.native_tokens().is_empty() {
                 self.create_native_token_coins(basic_output.native_tokens(), owner)?;
-            } else {
+            }
+            data.into_genesis_coin_object(owner, &self.protocol_config, &self.tx_context)?
+        } else {
+            if !basic_output.native_tokens().is_empty() {
                 data.native_tokens = self.create_bag(basic_output.native_tokens())?;
             }
-        } else if data.has_empty_bag() {
-            self.store.insert_object(data.into_genesis_coin_object(
-                owner,
-                &self.protocol_config,
-                &self.tx_context,
-            )?);
-            return Ok(());
-        }
-        self.store.insert_object(data.to_genesis_object(
-            owner,
-            &self.protocol_config,
-            &self.tx_context,
-        )?);
+            data.to_genesis_object(owner, &self.protocol_config, &self.tx_context)?
+        };
+        self.store.insert_object(object);
         Ok(())
     }
 
