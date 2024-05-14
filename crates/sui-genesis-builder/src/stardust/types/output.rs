@@ -218,7 +218,7 @@ impl BasicOutput {
             // that it has public transfer (`store` ability is present).
             MoveObject::new_from_execution(
                 GAS::type_().into(),
-                false,
+                true,
                 0.into(),
                 bcs::to_bytes(&coin)?,
                 protocol_config,
