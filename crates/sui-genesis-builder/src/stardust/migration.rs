@@ -20,8 +20,8 @@ use sui_types::{
 use anyhow::Result;
 use fastcrypto::hash::{Blake2b256, HashFunction};
 use iota_sdk::types::block::output::{
-    AliasOutput, BasicOutput, FoundryOutput, NativeTokens, NftOutput, Output, TokenId,
-    TreasuryOutput,
+    AliasOutput as StardustAlias, BasicOutput, FoundryOutput, NativeTokens, NftOutput, Output,
+    TokenId, TreasuryOutput,
 };
 use move_vm_runtime_v2::move_vm::MoveVM;
 use sui_adapter_v2::{
@@ -50,10 +50,7 @@ use sui_types::{
     MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID, SUI_SYSTEM_PACKAGE_ID,
 };
 
-use super::types::{
-    self as stardust_types, snapshot::OutputHeader, stardust_to_sui_address,
-    stardust_to_sui_address_owner, Alias, ALIAS_DYNAMIC_OBJECT_FIELD_NAME,
-};
+use super::types::{snapshot::OutputHeader, stardust_to_sui_address_owner, Alias, AliasOutput};
 use crate::process_package;
 
 /// The dependencies of the generated packages for native tokens.
@@ -336,50 +333,10 @@ impl Executor {
         Ok(())
     }
 
-    fn create_alias_objects(&mut self, header: OutputHeader, alias: AliasOutput) -> Result<()> {
+    fn create_alias_objects(&mut self, header: OutputHeader, alias: StardustAlias) -> Result<()> {
         // Take the Alias ID set in the output or, if its zeroized, compute it from the Output ID.
-        let alias_id: [u8; 32] = alias
-            .alias_id()
-            .or_from_output_id(&header.output_id())
-            .deref()
-            .clone();
-        let state_metadata: Option<Vec<u8>> = if alias.state_metadata().is_empty() {
-            None
-        } else {
-            Some(alias.state_metadata().to_vec())
-        };
-        let sender: Option<SuiAddress> = alias
-            .features()
-            .sender()
-            .map(|sender_feat| stardust_to_sui_address(sender_feat.address()))
-            .transpose()?;
-        let metadata: Option<Vec<u8>> = alias
-            .features()
-            .metadata()
-            .map(|metadata_feat| metadata_feat.data().to_vec());
-        let immutable_issuer: Option<SuiAddress> = alias
-            .immutable_features()
-            .issuer()
-            .map(|issuer_feat| stardust_to_sui_address(issuer_feat.address()))
-            .transpose()?;
-        let immutable_metadata: Option<Vec<u8>> = alias
-            .immutable_features()
-            .metadata()
-            .map(|metadata_feat| metadata_feat.data().to_vec());
-
-        let move_alias = Alias {
-            id: UID::new(ObjectID::new(alias_id)),
-            // TODO: Why is this an Option? The State Controller is always set in Stardust.
-            legacy_state_controller: Some(stardust_to_sui_address(
-                alias.state_controller_address(),
-            )?),
-            state_index: alias.state_index(),
-            state_metadata,
-            sender,
-            metadata,
-            immutable_issuer,
-            immutable_metadata,
-        };
+        let alias_id = ObjectID::new(*alias.alias_id().or_from_output_id(&header.output_id()));
+        let move_alias = Alias::try_from_stardust(alias_id, &alias)?;
 
         // Construct the Alias object.
         let move_alias_object = unsafe {
@@ -394,7 +351,6 @@ impl Executor {
             )?
         };
 
-        // TODO: Make sure that the conversion function returns the appropriate address depending on whether this Alias is owned by an Ed25519 address or by another object (NFT, Alias).
         // SAFETY: We should ensure that no circular ownership exists first.
         let alias_output_owner = stardust_to_sui_address_owner(alias.governor_address())?;
 
@@ -408,26 +364,18 @@ impl Executor {
         let move_alias_object_ref = move_alias_object.compute_object_reference();
         self.store.insert_object(move_alias_object);
 
-        // TODO: Is this the best way to generate a new / random UID?
-        // Alternatively, we could hash `alias_id`.
-        let move_alias_output_id = UID::new(ObjectID::random());
-        let move_alias_output = stardust_types::AliasOutput {
-            id: move_alias_output_id.clone(),
-            iota: Balance::new(alias.amount()),
-            // TODO: Reuse native token creation logic from basic output.
-            native_tokens: self.create_bag(
-                alias_output_owner
-                    .get_address_owner_address()
-                    .expect("todo"),
-            )?,
-        };
+        let move_alias_output = AliasOutput::try_from_stardust(
+            alias_id,
+            &alias,
+            self.create_bag(alias.native_tokens())?,
+        )?;
 
         // Construct the Alias Output object.
         let move_alias_output_object = unsafe {
             // Safety: we know from the definition of `AliasOutput` in the stardust package
             // that it does not have public transfer (`store` ability is absent).
             MoveObject::new_from_execution(
-                stardust_types::AliasOutput::tag().into(),
+                AliasOutput::tag().into(),
                 false,
                 0.into(),
                 bcs::to_bytes(&move_alias_output)?,
@@ -443,49 +391,30 @@ impl Executor {
         let move_alias_output_object_ref = move_alias_output_object.compute_object_reference();
         self.store.insert_object(move_alias_output_object);
 
+        // Attach the Alias to the Alias Output as a dynamic field via the attach_alias convenience method.
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
-            let name_type: TypeTag = "vector<u8>".parse()?;
-            let value_type: StructTag = Alias::tag();
 
             let alias_output_arg =
                 builder.obj(ObjectArg::ImmOrOwnedObject(move_alias_output_object_ref))?;
-            let field_name_arg = builder.pure(ALIAS_DYNAMIC_OBJECT_FIELD_NAME)?;
             let alias_arg = builder.obj(ObjectArg::ImmOrOwnedObject(move_alias_object_ref))?;
             builder.programmable_move_call(
-                SUI_FRAMEWORK_PACKAGE_ID,
-                ident_str!("dynamic_object_field").into(),
-                ident_str!("add").into(),
-                vec![name_type, value_type.into()],
-                // TODO: We actually need to pass `alias_output.id` here, but it seems that is impossible with PTBs.
-                // Perhaps we need to add a convenience function in alias_output.move that we can call with `alias_output_arg`.
-                vec![alias_output_arg, field_name_arg, alias_arg],
+                STARDUST_PACKAGE_ID,
+                ident_str!("alias_output").into(),
+                ident_str!("attach_alias").into(),
+                vec![],
+                vec![alias_output_arg, alias_arg],
             );
 
             builder.finish()
         };
 
-        let mut checked_inputs: Vec<ObjectReadResult> =
-            [move_alias_object_ref, move_alias_output_object_ref]
-                .into_iter()
-                .map(|object_ref| {
-                    self.store
-                        .get_object(&object_ref.0)
-                        .cloned()
-                        .map(|object| {
-                            ObjectReadResult::new(
-                                InputObjectKind::ImmOrOwnedMoveObject(object_ref),
-                                object.into(),
-                            )
-                        })
-                        .expect("object should have been added to the store earlier")
-                })
-                .collect();
-        checked_inputs.extend(self.load_dependency_objects());
+        let input_objects = CheckedInputObjects::new_for_genesis(
+            self.load_input_objects([move_alias_object_ref, move_alias_output_object_ref])
+                .chain(self.load_packages(PACKAGE_DEPS))
+                .collect(),
+        );
 
-        let input_objects = CheckedInputObjects::new_for_genesis(checked_inputs);
-
-        // TODO: Do we have to remove `alias` from the store now that it was set as a dynamic object field on `alias_output`?
         let InnerTemporaryStore { written, .. } = self.execute_pt_unmetered(input_objects, pt)?;
         self.store.finish(written);
 
@@ -702,36 +631,6 @@ impl Executor {
     fn create_treasury_objects(&mut self, _treasury: TreasuryOutput) -> Result<()> {
         todo!();
     }
-
-    fn create_bag(&mut self, address: SuiAddress) -> Result<Bag> {
-        // Populate bag
-        let pt = {
-            let mut builder = ProgrammableTransactionBuilder::new();
-            let bag = builder.programmable_move_call(
-                SUI_FRAMEWORK_PACKAGE_ID,
-                ident_str!("bag").into(),
-                ident_str!("new").into(),
-                vec![],
-                vec![],
-            );
-            builder.transfer_arg(address, bag);
-
-            builder.finish()
-        };
-        let InnerTemporaryStore { mut written, .. } =
-            self.execute_pt_unmetered(self.load_dependencies(), pt)?;
-        let (_, bag_object) = written
-            .pop_first()
-            .expect("the bag should have been created");
-        Ok(bcs::from_bytes(
-            bag_object
-                .data
-                .try_as_move()
-                .expect("this should be a move object")
-                .contents(),
-        )
-        .expect("this should be a valid Bag Move object"))
-    }
 }
 
 /// Verify the ledger state represented by the objects in [`InMemoryStorage`].
@@ -779,6 +678,8 @@ fn create_migration_context() -> TxContext {
 }
 
 mod pt {
+    use std::str::FromStr;
+
     use super::*;
 
     pub fn coin_balance_split(
@@ -822,6 +723,13 @@ mod pt {
             vec![key_type.into(), value_type.into()],
             vec![bag, token_struct_tag, balance],
         );
+        builder.transfer_arg(
+            SuiAddress::from_str(
+                "0x8fac4aefdc1ae21c00f745605297041e0f39667844068e3757d587c8039d1e3f",
+            )
+            .unwrap(),
+            bag,
+        );
         Ok(())
     }
 
@@ -838,10 +746,10 @@ mod pt {
 
 #[cfg(test)]
 mod tests {
-    use std::{io::Read, str::FromStr};
+    use std::str::FromStr;
 
     use iota_sdk::types::block::{
-        address::{Address, Ed25519Address},
+        address::Ed25519Address,
         output::{
             feature::{IssuerFeature, MetadataFeature, SenderFeature},
             unlock_condition::{
@@ -886,7 +794,7 @@ mod tests {
         let header =
             OutputHeader::new_testing(random_bytes, random_bytes, rand::random(), rand::random());
 
-        let alias = AliasOutputBuilder::new_with_amount(1_000_000, alias_id)
+        let stardust_alias = AliasOutputBuilder::new_with_amount(1_000_000, alias_id)
             .add_unlock_condition(StateControllerAddressUnlockCondition::new(address))
             .add_unlock_condition(GovernorAddressUnlockCondition::new(address))
             .with_state_metadata([0xff; 1])
@@ -902,6 +810,38 @@ mod tests {
             .finish()
             .unwrap();
 
-        exec.create_alias_objects(header, alias).unwrap();
+        exec.create_alias_objects(header, stardust_alias.clone())
+            .unwrap();
+
+        // Ensure the migrated objects exist under the expected identifiers.
+        // We know the alias_id is non-zero here, so we don't need to use `or_from_output_id`.
+        let alias_object_id = ObjectID::new(*alias_id);
+        let alias_output_object_id = ObjectID::new(Blake2b256::digest(*alias_id).into());
+        let alias_object = exec.store.get_object(&alias_object_id).unwrap();
+        assert_eq!(alias_object.struct_tag().unwrap(), Alias::tag(),);
+        let alias_output_object = exec.store.get_object(&alias_output_object_id).unwrap();
+        assert_eq!(
+            alias_output_object.struct_tag().unwrap(),
+            AliasOutput::tag(),
+        );
+
+        let alias_output: AliasOutput =
+            bcs::from_bytes(alias_output_object.data.try_as_move().unwrap().contents()).unwrap();
+        let alias: Alias =
+            bcs::from_bytes(alias_object.data.try_as_move().unwrap().contents()).unwrap();
+
+        let expected_alias_output = AliasOutput::try_from_stardust(
+            alias_object_id,
+            &stardust_alias,
+            exec.create_bag(stardust_alias.native_tokens()).unwrap(),
+        )
+        .unwrap();
+        let expected_alias = Alias::try_from_stardust(alias_object_id, &stardust_alias).unwrap();
+
+        // Compare only ID and iota and not the bag as it will be different.
+        assert_eq!(expected_alias_output.id, alias_output.id);
+        assert_eq!(expected_alias_output.iota, alias_output.iota);
+
+        assert_eq!(expected_alias, alias);
     }
 }

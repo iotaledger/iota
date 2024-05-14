@@ -1,9 +1,17 @@
+use fastcrypto::hash::{Blake2b256, HashFunction};
+use iota_sdk::types::block::output::AliasOutput as StardustAlias;
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use sui_types::{
-    balance::Balance, base_types::SuiAddress, collection_types::Bag, id::UID, STARDUST_PACKAGE_ID,
+    balance::Balance,
+    base_types::{ObjectID, SuiAddress},
+    collection_types::Bag,
+    id::UID,
+    STARDUST_PACKAGE_ID,
 };
+
+use super::stardust_to_sui_address;
 
 pub const ALIAS_MODULE_NAME: &IdentStr = ident_str!("alias");
 pub const ALIAS_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("alias_output");
@@ -46,6 +54,49 @@ impl Alias {
             type_params: Vec::new(),
         }
     }
+
+    pub fn try_from_stardust(
+        alias_id: ObjectID,
+        alias: &StardustAlias,
+    ) -> Result<Self, anyhow::Error> {
+        let state_metadata: Option<Vec<u8>> = if alias.state_metadata().is_empty() {
+            None
+        } else {
+            Some(alias.state_metadata().to_vec())
+        };
+        let sender: Option<SuiAddress> = alias
+            .features()
+            .sender()
+            .map(|sender_feat| stardust_to_sui_address(sender_feat.address()))
+            .transpose()?;
+        let metadata: Option<Vec<u8>> = alias
+            .features()
+            .metadata()
+            .map(|metadata_feat| metadata_feat.data().to_vec());
+        let immutable_issuer: Option<SuiAddress> = alias
+            .immutable_features()
+            .issuer()
+            .map(|issuer_feat| stardust_to_sui_address(issuer_feat.address()))
+            .transpose()?;
+        let immutable_metadata: Option<Vec<u8>> = alias
+            .immutable_features()
+            .metadata()
+            .map(|metadata_feat| metadata_feat.data().to_vec());
+
+        Ok(Alias {
+            id: UID::new(alias_id),
+            // TODO: Why is this an Option? The State Controller is always set in Stardust.
+            legacy_state_controller: Some(stardust_to_sui_address(
+                alias.state_controller_address(),
+            )?),
+            state_index: alias.state_index(),
+            state_metadata,
+            sender,
+            metadata,
+            immutable_issuer,
+            immutable_metadata,
+        })
+    }
 }
 
 #[serde_as]
@@ -69,5 +120,20 @@ impl AliasOutput {
             name: ALIAS_OUTPUT_STRUCT_NAME.to_owned(),
             type_params: Vec::new(),
         }
+    }
+
+    pub fn try_from_stardust(
+        alias_id: ObjectID,
+        alias: &StardustAlias,
+        native_tokens: Bag,
+    ) -> Result<Self, anyhow::Error> {
+        // We need an ID that is different from Alias ID to identify the Alias Output.
+        // Hashing Alias ID means the generated ID is consistent across runs of the genesis builder.
+        let move_alias_output_id = UID::new(ObjectID::new(Blake2b256::digest(alias_id).into()));
+        Ok(AliasOutput {
+            id: move_alias_output_id.clone(),
+            iota: Balance::new(alias.amount()),
+            native_tokens,
+        })
     }
 }
