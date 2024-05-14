@@ -297,7 +297,12 @@ impl Executor {
             let deps = self.checked_system_packages();
             let pt = {
                 let mut builder = ProgrammableTransactionBuilder::new();
-                builder.command(Command::Publish(modules, PACKAGE_DEPS.into()));
+                let upgrade_cap = builder.command(Command::Publish(modules, PACKAGE_DEPS.into()));
+                // We make a dummy transfer because the `UpgradeCap` does
+                // not have the drop ability.
+                //
+                // We ignore it in the genesis, to render the package immutable.
+                builder.transfer_arg(Default::default(), upgrade_cap);
                 builder.finish()
             };
             let InnerTemporaryStore { written, .. } = self.execute_pt_unmetered(deps, pt)?;
