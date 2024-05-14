@@ -110,6 +110,13 @@ impl Migration {
         &mut self,
         outputs: impl Iterator<Item = (OutputHeader, Output)>,
     ) -> Result<()> {
+        let mut outputs: Vec<(OutputHeader, Output)> = outputs.collect();
+        // We sort the outputs to make sure the order of outputs up to
+        // a certain milestone timestamp remains the same between runs.
+        //
+        // This guarantees that fresh ids created through the transaction
+        // context will also map to the same objects betwen runs.
+        outputs.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
         for (header, output) in outputs {
             match output {
                 Output::Alias(alias) => self.executor.create_alias_objects(alias)?,
