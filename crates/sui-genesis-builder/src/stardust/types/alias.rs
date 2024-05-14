@@ -55,6 +55,11 @@ impl Alias {
         }
     }
 
+    /// Creates the Move-based Alias model from a Stardust-based Alias Output.
+    ///
+    /// # Warning
+    ///
+    /// The caller must ensure that `alias_id` is non-zeroed.
     pub fn try_from_stardust(
         alias_id: ObjectID,
         alias: &StardustAlias,
@@ -122,6 +127,11 @@ impl AliasOutput {
         }
     }
 
+    /// Creates the Move-based Alias Output model from a Stardust-based Alias Output.
+    ///
+    /// # Warning
+    ///
+    /// The caller must ensure that `alias_id` is non-zeroed.
     pub fn try_from_stardust(
         alias_id: ObjectID,
         alias: &StardustAlias,

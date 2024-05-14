@@ -779,32 +779,28 @@ mod tests {
 
     #[test]
     fn alias_migration_test() {
-        let random_bytes: [u8; 32] = rand::random();
-        let alias_id =
-            AliasId::from_str("0x8fac4aefdc1ae21c00f745605297041e0f39667844068e3757d587c8039d1e3f")
-                .unwrap();
+        let alias_id = AliasId::new(rand::random());
+        let random_address = Ed25519Address::from(rand::random::<[u8; 32]>());
+        let header = OutputHeader::new_testing(
+            rand::random(),
+            rand::random(),
+            rand::random(),
+            rand::random(),
+        );
 
-        // Some random address.
-        let address = Ed25519Address::from_str(
-            "0xbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeef",
-        )
-        .unwrap();
         let mut exec = Executor::new(MIGRATION_PROTOCOL_VERSION.into()).unwrap();
 
-        let header =
-            OutputHeader::new_testing(random_bytes, random_bytes, rand::random(), rand::random());
-
         let stardust_alias = AliasOutputBuilder::new_with_amount(1_000_000, alias_id)
-            .add_unlock_condition(StateControllerAddressUnlockCondition::new(address))
-            .add_unlock_condition(GovernorAddressUnlockCondition::new(address))
+            .add_unlock_condition(StateControllerAddressUnlockCondition::new(random_address))
+            .add_unlock_condition(GovernorAddressUnlockCondition::new(random_address))
             .with_state_metadata([0xff; 1])
             .with_features(vec![
                 Feature::Metadata(MetadataFeature::new([0xdd; 1]).unwrap()),
-                Feature::Sender(SenderFeature::new(address)),
+                Feature::Sender(SenderFeature::new(random_address)),
             ])
             .with_immutable_features(vec![
                 Feature::Metadata(MetadataFeature::new([0xaa; 1]).unwrap()),
-                Feature::Issuer(IssuerFeature::new(address)),
+                Feature::Issuer(IssuerFeature::new(random_address)),
             ])
             .with_state_index(3)
             .finish()
