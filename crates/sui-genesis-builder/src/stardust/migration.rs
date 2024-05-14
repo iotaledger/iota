@@ -534,32 +534,19 @@ impl Executor {
             } else {
                 data.native_tokens = self.create_bag(basic_output.native_tokens())?;
             }
-        }
-        // Construct the basic output object
-        let move_object = unsafe {
-            // Safety: we know from the definition of `BasicOutput` in the stardust package
-            // that it has not public transfer (`store` ability is absent).
-            MoveObject::new_from_execution(
-                super::types::output::BasicOutput::type_().into(),
-                false,
-                0.into(),
-                bcs::to_bytes(&data)?,
+        } else if data.has_empty_bag() {
+            self.store.insert_object(data.into_genesis_coin_object(
+                owner,
                 &self.protocol_config,
-            )?
-        };
-        // Resolve ownership
-        let owner = if data.expiration.is_some() {
-            Owner::Shared {
-                initial_shared_version: 0.into(),
-            }
-        } else {
-            Owner::AddressOwner(owner)
-        };
-        self.store.insert_object(Object::new_from_genesis(
-            Data::Move(move_object),
+                &self.tx_context,
+            )?);
+            return Ok(());
+        }
+        self.store.insert_object(data.to_genesis_object(
             owner,
-            self.tx_context.digest(),
-        ));
+            &self.protocol_config,
+            &self.tx_context,
+        )?);
         Ok(())
     }
 
