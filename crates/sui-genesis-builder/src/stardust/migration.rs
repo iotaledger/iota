@@ -165,7 +165,7 @@ struct Executor {
     metrics: Arc<LimitsMetrics>,
     /// Map the stardust token id [`TokenId`] to the [`ObjectID`] and of the
     /// coin minted by the foundry and its [`TypeOrigin`].
-    native_tokens: HashMap<TokenId, (ObjectRef, TypeOrigin)>,
+    native_tokens: HashMap<TokenId, (ObjectID, TypeOrigin)>,
 }
 
 impl Executor {
@@ -296,11 +296,11 @@ impl Executor {
             };
             let InnerTemporaryStore { written, .. } = self.execute_pt_unmetered(deps, pt)?;
             // Get on-chain info
-            let mut minted_coin_ref = None::<ObjectRef>;
+            let mut minted_coin_id = None::<ObjectID>;
             let mut coin_type_origin = None::<TypeOrigin>;
             for object in written.values() {
                 if object.is_coin() {
-                    minted_coin_ref = Some(object.compute_object_reference());
+                    minted_coin_id = Some(object.id());
                 } else if object.is_package() {
                     coin_type_origin = Some(
                         object
@@ -313,13 +313,13 @@ impl Executor {
                     );
                 }
             }
-            let (minted_coin_ref, coin_type_origin) = (
-                minted_coin_ref.expect("a coin must have been minted"),
+            let (minted_coin_id, coin_type_origin) = (
+                minted_coin_id.expect("a coin must have been minted"),
                 coin_type_origin.expect("the published package should include a type for the coin"),
             );
             self.native_tokens.insert(
                 *foundry.native_tokens()[0].token_id(),
-                (minted_coin_ref, coin_type_origin),
+                (minted_coin_id, coin_type_origin),
             );
             self.store.finish(
                 written
@@ -347,8 +347,7 @@ impl Executor {
                     anyhow::bail!("unsupported number of tokens");
                 }
 
-                let Some(((object_id, _, _), type_origin)) =
-                    self.native_tokens.get(token.token_id())
+                let Some((object_id, type_origin)) = self.native_tokens.get(token.token_id())
                 else {
                     anyhow::bail!("foundry for native token has not been published");
                 };
@@ -439,8 +438,7 @@ impl Executor {
                     anyhow::bail!("unsupported number of tokens");
                 }
 
-                let Some(((object_id, _, _), type_origin)) =
-                    self.native_tokens.get(token.token_id())
+                let Some((object_id, type_origin)) = self.native_tokens.get(token.token_id())
                 else {
                     anyhow::bail!("foundry for native token has not been published");
                 };
