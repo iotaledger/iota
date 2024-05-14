@@ -372,7 +372,7 @@ impl Executor {
                     &token_type,
                     token.amount().as_u64(),
                 )?;
-                pt::bag_add(&mut builder, bag, balance, &token_type)?;
+                pt::bag_add(&mut builder, bag, balance, token_type.clone())?;
             }
 
             // The `Bag` object does not have the `drop` ability so we have to use it
@@ -582,17 +582,17 @@ mod pt {
         builder: &mut ProgrammableTransactionBuilder,
         bag: Argument,
         balance: Argument,
-        token_type: &str,
+        token_type: String,
     ) -> Result<()> {
-        let token_struct_tag = builder.pure(token_type.parse::<StructTag>()?)?;
         let key_type: StructTag = "0x01::ascii::String".parse()?;
         let value_type = Balance::type_(token_type.parse::<TypeTag>()?);
+        let token_name = builder.pure(token_type)?;
         builder.programmable_move_call(
             SUI_FRAMEWORK_PACKAGE_ID,
             ident_str!("bag").into(),
             ident_str!("add").into(),
             vec![key_type.into(), value_type.into()],
-            vec![bag, token_struct_tag, balance],
+            vec![bag, token_name, balance],
         );
         Ok(())
     }
