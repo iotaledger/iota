@@ -323,10 +323,8 @@ impl Executor {
                 minted_coin_id.expect("a coin must have been minted"),
                 coin_type_origin.expect("the published package should include a type for the coin"),
             );
-            self.native_tokens.insert(
-                *foundry.native_tokens()[0].token_id(),
-                (minted_coin_id, coin_type_origin),
-            );
+            self.native_tokens
+                .insert(foundry.token_id(), (minted_coin_id, coin_type_origin));
             self.store.finish(
                 written
                     .into_iter()
