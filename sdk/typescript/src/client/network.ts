@@ -55,10 +55,7 @@ export function getRecommendedNetwork(): Network {
 	return Network.Mainnet
 }
 
-// TODO:
-export function getFullnodeUrl(_aa: string): string{
-	return ""
-}
 
-const _ads = getFullnodeUrl("asd");
-console.log(_ads)
+export function getFullnodeUrl(network: NetworkId): string{
+	return getNetwork(network).rpc
+}
