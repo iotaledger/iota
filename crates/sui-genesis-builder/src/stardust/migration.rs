@@ -48,6 +48,8 @@ use sui_types::{
 
 use super::types::snapshot::OutputHeader;
 use crate::process_package;
+use crate::stardust::native_token::package_builder;
+use crate::stardust::native_token::package_data::NativeTokenPackageData;
 
 /// The dependencies of the generated packages for native tokens.
 pub const PACKAGE_DEPS: [ObjectID; 4] = [
@@ -152,9 +154,10 @@ impl Migration {
     }
 }
 
-// stub of package generation and build logic
-fn generate_package(_foundry: &FoundryOutput) -> Result<CompiledPackage> {
-    todo!()
+// Build a `CompiledPackage` from a given `FoundryOutput`.
+fn generate_package(foundry: &FoundryOutput) -> Result<CompiledPackage> {
+    let native_token_data = NativeTokenPackageData::try_from(foundry)?;
+    package_builder::build_and_compile(native_token_data)
 }
 
 /// Creates the objects that map to the stardust UTXO ledger.

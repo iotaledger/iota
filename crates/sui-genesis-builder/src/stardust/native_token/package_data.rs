@@ -86,9 +86,9 @@ impl NativeTokenModuleData {
     }
 }
 
-impl TryFrom<FoundryOutput> for NativeTokenPackageData {
+impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
     type Error = StardustError;
-    fn try_from(output: FoundryOutput) -> Result<Self, StardustError> {
+    fn try_from(output: &FoundryOutput) -> Result<Self, StardustError> {
         let metadata =
             output
                 .features()
@@ -223,7 +223,7 @@ mod tests {
         let output = builder.finish().unwrap();
 
         // Step 2: Convert the FoundryOutput to NativeTokenPackageData
-        let native_token_data = NativeTokenPackageData::try_from(output)?;
+        let native_token_data = NativeTokenPackageData::try_from(&output)?;
 
         // Step 3: Verify the conversion
         assert!(package_builder::build_and_compile(native_token_data).is_ok());
@@ -262,7 +262,7 @@ mod tests {
         let output = builder.finish().unwrap();
 
         // Step 2: Convert the FoundryOutput to NativeTokenPackageData
-        let native_token_data = NativeTokenPackageData::try_from(output)?;
+        let native_token_data = NativeTokenPackageData::try_from(&output)?;
 
         // Step 3: Verify the conversion
         assert!(package_builder::build_and_compile(native_token_data).is_ok());
