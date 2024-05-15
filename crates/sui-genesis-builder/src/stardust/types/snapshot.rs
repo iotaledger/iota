@@ -78,7 +78,6 @@ impl OutputHeader {
         self.length
     }
 
-    #[cfg(test)]
     /// Creates a new OutputHeader for testing.
     pub fn new_testing(
         output_id_bytes: [u8; 32],

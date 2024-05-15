@@ -16,7 +16,7 @@ use sui_types::{
 };
 
 use anyhow::Result;
-use fastcrypto::hash::{Blake2b256, HashFunction};
+use fastcrypto::hash::HashFunction;
 use iota_sdk::types::block::output::{
     AliasOutput as StardustAlias, BasicOutput, FoundryOutput, NativeTokens, NftOutput, Output,
     TokenId, TreasuryOutput,
@@ -587,7 +587,8 @@ impl Executor {
 
 /// Verify the ledger state represented by the objects in [`InMemoryStorage`].
 fn verify_ledger_state(_store: &InMemoryStorage) -> Result<()> {
-    todo!();
+    // TODO: Implementation. Returns Ok for now so the migration can be tested.
+    Ok(())
 }
 
 /// Serialize the objects stored in [`InMemoryStorage`] into a file using
@@ -688,16 +689,6 @@ mod pt {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk::types::block::{
-        address::Ed25519Address,
-        output::{
-            feature::{IssuerFeature, MetadataFeature, SenderFeature},
-            unlock_condition::{
-                GovernorAddressUnlockCondition, StateControllerAddressUnlockCondition,
-            },
-            AliasId, AliasOutputBuilder, Feature,
-        },
-    };
     use sui_types::{inner_temporary_store::WrittenObjects, object::Object};
 
     use super::*;
@@ -715,69 +706,5 @@ mod tests {
         create_snapshot(store, &mut persisted).unwrap();
         let snapshot_objects: Vec<Object> = bcs::from_bytes(&persisted).unwrap();
         assert_eq!(objects.into_values().collect::<Vec<_>>(), snapshot_objects);
-    }
-
-    #[test]
-    fn alias_migration_test() {
-        let alias_id = AliasId::new(rand::random());
-        let random_address = Ed25519Address::from(rand::random::<[u8; 32]>());
-        let header = OutputHeader::new_testing(
-            rand::random(),
-            rand::random(),
-            rand::random(),
-            rand::random(),
-        );
-
-        let mut exec = Executor::new(MIGRATION_PROTOCOL_VERSION.into()).unwrap();
-
-        let stardust_alias = AliasOutputBuilder::new_with_amount(1_000_000, alias_id)
-            .add_unlock_condition(StateControllerAddressUnlockCondition::new(random_address))
-            .add_unlock_condition(GovernorAddressUnlockCondition::new(random_address))
-            .with_state_metadata([0xff; 1])
-            .with_features(vec![
-                Feature::Metadata(MetadataFeature::new([0xdd; 1]).unwrap()),
-                Feature::Sender(SenderFeature::new(random_address)),
-            ])
-            .with_immutable_features(vec![
-                Feature::Metadata(MetadataFeature::new([0xaa; 1]).unwrap()),
-                Feature::Issuer(IssuerFeature::new(random_address)),
-            ])
-            .with_state_index(3)
-            .finish()
-            .unwrap();
-
-        exec.create_alias_objects(header, stardust_alias.clone())
-            .unwrap();
-
-        // Ensure the migrated objects exist under the expected identifiers.
-        // We know the alias_id is non-zero here, so we don't need to use `or_from_output_id`.
-        let alias_object_id = ObjectID::new(*alias_id);
-        let alias_output_object_id = ObjectID::new(Blake2b256::digest(*alias_id).into());
-        let alias_object = exec.store.get_object(&alias_object_id).unwrap();
-        assert_eq!(alias_object.struct_tag().unwrap(), Alias::tag(),);
-        let alias_output_object = exec.store.get_object(&alias_output_object_id).unwrap();
-        assert_eq!(
-            alias_output_object.struct_tag().unwrap(),
-            AliasOutput::tag(),
-        );
-
-        let alias_output: AliasOutput =
-            bcs::from_bytes(alias_output_object.data.try_as_move().unwrap().contents()).unwrap();
-        let alias: Alias =
-            bcs::from_bytes(alias_object.data.try_as_move().unwrap().contents()).unwrap();
-
-        let expected_alias_output = AliasOutput::try_from_stardust(
-            alias_object_id,
-            &stardust_alias,
-            exec.create_bag(stardust_alias.native_tokens()).unwrap(),
-        )
-        .unwrap();
-        let expected_alias = Alias::try_from_stardust(alias_object_id, &stardust_alias).unwrap();
-
-        // Compare only ID and iota and not the bag as it will be different.
-        assert_eq!(expected_alias_output.id, alias_output.id);
-        assert_eq!(expected_alias_output.iota, alias_output.iota);
-
-        assert_eq!(expected_alias, alias);
     }
 }
