@@ -19,10 +19,7 @@ pub fn stardust_to_sui_address_owner(
         Address::Ed25519(_) => Ok(Owner::AddressOwner(stardust_to_sui_address(
             stardust_address,
         )?)),
-        Address::Alias(_) => Ok(Owner::ObjectOwner(stardust_to_sui_address(
-            stardust_address,
-        )?)),
-        Address::Nft(_) => Ok(Owner::ObjectOwner(stardust_to_sui_address(
+        Address::Alias(_) | Address::Nft(_) => Ok(Owner::ObjectOwner(stardust_to_sui_address(
             stardust_address,
         )?)),
     }

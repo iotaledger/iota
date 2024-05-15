@@ -54,14 +54,14 @@ impl Alias {
     }
 
     /// Creates the Move-based Alias model from a Stardust-based Alias Output.
-    ///
-    /// # Warning
-    ///
-    /// The caller must ensure that `alias_id` is non-zeroed.
     pub fn try_from_stardust(
         alias_id: ObjectID,
         alias: &StardustAlias,
     ) -> Result<Self, anyhow::Error> {
+        if alias_id.as_ref() == &[0; 32] {
+            anyhow::bail!("alias_id must be non-zeroed");
+        }
+
         let state_metadata: Option<Vec<u8>> = if alias.state_metadata().is_empty() {
             None
         } else {
@@ -123,15 +123,15 @@ impl AliasOutput {
     }
 
     /// Creates the Move-based Alias Output model from a Stardust-based Alias Output.
-    ///
-    /// # Warning
-    ///
-    /// The caller must ensure that `alias_id` is non-zeroed.
     pub fn try_from_stardust(
         alias_id: ObjectID,
         alias: &StardustAlias,
         native_tokens: Bag,
     ) -> Result<Self, anyhow::Error> {
+        if alias_id.as_ref() == &[0; 32] {
+            anyhow::bail!("alias_id must be non-zeroed");
+        }
+
         // We need an ID that is different from Alias ID to identify the Alias Output.
         // Hashing Alias ID means the generated ID is consistent across runs of the genesis builder.
         let move_alias_output_id = UID::new(ObjectID::new(Blake2b256::digest(alias_id).into()));
