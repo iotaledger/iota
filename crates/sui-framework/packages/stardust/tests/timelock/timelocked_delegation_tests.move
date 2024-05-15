@@ -12,6 +12,7 @@ module stardust::timelocked_stake_tests {
     use sui_system::staking_pool::{Self, PoolTokenExchangeRate};
     use sui_system::validator_set::{Self, ValidatorSet};
     use sui::balance::Balance;
+    use sui::coin::Coin;
     use sui::sui::SUI;
     use sui::test_utils::assert_eq;
     use sui::test_utils;
@@ -240,15 +241,6 @@ module stardust::timelocked_stake_tests {
 
     #[test]
     fun test_remove_stake_post_active_flow_no_rewards() {
-        test_remove_stake_post_active_flow(false)
-    }
-
-    #[test]
-    fun test_remove_stake_post_active_flow_with_rewards() {
-        test_remove_stake_post_active_flow(true)
-    }
-
-    fun test_remove_stake_post_active_flow(should_distribute_rewards: bool) {
         set_up_sui_system_state_with_storage_fund();
         let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
         let scenario = &mut scenario_val;
@@ -263,19 +255,11 @@ module stardust::timelocked_stake_tests {
             scenario
         );
 
-        if (should_distribute_rewards) {
-            // Each validator pool gets 30 MIST and each validator gets an additional 10 MIST.
-            advance_epoch_with_reward_amounts(0, 80, scenario);
-        } else {
-            advance_epoch(scenario);
-        };
+        advance_epoch(scenario);
 
         remove_validator(VALIDATOR_ADDR_1, scenario);
 
         advance_epoch(scenario);
-
-        let reward_amt = if (should_distribute_rewards) 15 * MIST_PER_SUI else 0;
-        let validator_reward_amt = if (should_distribute_rewards) 10 * MIST_PER_SUI else 0;
 
         // Make sure stake withdrawal happens
         scenario.next_tx(STAKER_ADDR_1);
@@ -289,21 +273,80 @@ module stardust::timelocked_stake_tests {
             assert_eq(staked_sui.amount(), 100 * MIST_PER_SUI);
 
             // Unstake from VALIDATOR_ADDR_1
-            assert_eq(total_sui_balance(STAKER_ADDR_1, scenario), 0);
+            assert!(!has_sui_coins(STAKER_ADDR_1, scenario), 1);
             let ctx = scenario.ctx();
             timelocked_staking::request_withdraw_stake(system_state_mut_ref, staked_sui, ctx);
 
             // Make sure they have all of their stake.
-            assert_eq(total_timelocked_sui_balance(STAKER_ADDR_1, scenario), 100 * MIST_PER_SUI); 
+            assert_eq(total_timelocked_sui_balance(STAKER_ADDR_1, scenario), 100 * MIST_PER_SUI);
+            assert!(!has_sui_coins(STAKER_ADDR_1, scenario), 2);
+
+            test_scenario::return_shared(system_state);
+        };
+
+        // Validator unstakes now.
+        assert!(!has_sui_coins(VALIDATOR_ADDR_1, scenario), 3);
+        unstake(VALIDATOR_ADDR_1, 0, scenario);
+
+        // Make sure have all of their stake. NB there is no epoch change. This is immediate.
+        assert_eq(total_sui_balance(VALIDATOR_ADDR_1, scenario), 100 * MIST_PER_SUI);
+
+        scenario_val.end();
+    }
+
+    #[test]
+    fun test_remove_stake_post_active_flow_with_rewards() {
+        set_up_sui_system_state_with_storage_fund();
+        let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
+        let scenario = &mut scenario_val;
+
+        stake_timelocked_with(STAKER_ADDR_1, VALIDATOR_ADDR_1, 100, 10, scenario);
+
+        advance_epoch(scenario);
+
+        assert_validator_total_stake_amounts(
+            vector[VALIDATOR_ADDR_1, VALIDATOR_ADDR_2],
+            vector[200 * MIST_PER_SUI, 100 * MIST_PER_SUI],
+            scenario
+        );
+
+        // Each validator pool gets 30 MIST and each validator gets an additional 10 MIST.
+        advance_epoch_with_reward_amounts(0, 80, scenario);
+
+        remove_validator(VALIDATOR_ADDR_1, scenario);
+
+        advance_epoch(scenario);
+
+        let reward_amt = 15 * MIST_PER_SUI;
+        let validator_reward_amt = 10 * MIST_PER_SUI;
+
+        // Make sure stake withdrawal happens
+        scenario.next_tx(STAKER_ADDR_1);
+        {
+            let mut system_state = scenario.take_shared<SuiSystemState>();
+            let system_state_mut_ref = &mut system_state;
+
+            assert!(!is_active_validator_by_sui_address(system_state_mut_ref.validators(), VALIDATOR_ADDR_1), 0);
+
+            let staked_sui = scenario.take_from_sender<TimelockedStakedSui>();
+            assert_eq(staked_sui.amount(), 100 * MIST_PER_SUI);
+
+            // Unstake from VALIDATOR_ADDR_1
+            assert!(!has_sui_coins(STAKER_ADDR_1, scenario), 1);
+            let ctx = scenario.ctx();
+            timelocked_staking::request_withdraw_stake(system_state_mut_ref, staked_sui, ctx);
+
+            // Make sure they have all of their stake.
+            assert_eq(total_timelocked_sui_balance(STAKER_ADDR_1, scenario), 100 * MIST_PER_SUI);
             assert_eq(total_sui_balance(STAKER_ADDR_1, scenario), reward_amt);
 
             test_scenario::return_shared(system_state);
         };
 
         // Validator unstakes now.
-        assert_eq(total_sui_balance(VALIDATOR_ADDR_1, scenario), 0);
+        assert!(!has_sui_coins(VALIDATOR_ADDR_1, scenario), 2);
         unstake(VALIDATOR_ADDR_1, 0, scenario);
-        if (should_distribute_rewards) unstake(VALIDATOR_ADDR_1, 0, scenario);
+        unstake(VALIDATOR_ADDR_1, 0, scenario);
 
         // Make sure have all of their stake. NB there is no epoch change. This is immediate.
         assert_eq(total_sui_balance(VALIDATOR_ADDR_1, scenario), 100 * MIST_PER_SUI + reward_amt + validator_reward_amt);
@@ -342,8 +385,8 @@ module stardust::timelocked_stake_tests {
             assert_eq(staked_sui.amount(), 100 * MIST_PER_SUI);
 
             // Unstake from VALIDATOR_ADDR_1
-            assert_eq(total_timelocked_sui_balance(STAKER_ADDR_1, scenario), 0);
-            assert_eq(total_sui_balance(STAKER_ADDR_1, scenario), 0);
+            assert!(!has_timelocked_sui_balance(STAKER_ADDR_1, scenario), 0);
+            assert!(!has_sui_coins(STAKER_ADDR_1, scenario), 1);
             let ctx = scenario.ctx();
             timelocked_staking::request_withdraw_stake(system_state_mut_ref, staked_sui, ctx);
 
@@ -355,7 +398,7 @@ module stardust::timelocked_stake_tests {
         };
 
         // Validator unstakes now.
-        assert_eq(total_sui_balance(VALIDATOR_ADDR_1, scenario), 0);
+        assert!(!has_sui_coins(VALIDATOR_ADDR_1, scenario), 2);
         unstake(VALIDATOR_ADDR_1, 0, scenario);
         unstake(VALIDATOR_ADDR_1, 0, scenario);
 
@@ -414,7 +457,7 @@ module stardust::timelocked_stake_tests {
 
         // Unstake from the preactive validator. There should be no rewards earned.
         unstake_timelocked(STAKER_ADDR_1, 0, scenario);
-        assert_eq(total_sui_balance(STAKER_ADDR_1, scenario), 0);
+        assert!(!has_sui_coins(STAKER_ADDR_1, scenario), 0);
         assert_eq(total_timelocked_sui_balance(STAKER_ADDR_1, scenario), 100 * MIST_PER_SUI);
 
         scenario_val.end();
@@ -543,7 +586,7 @@ module stardust::timelocked_stake_tests {
         // Unstake now and the staker should get no rewards.
         unstake_timelocked(STAKER_ADDR_1, 0, scenario);
         assert_eq(total_timelocked_sui_balance(STAKER_ADDR_1, scenario), 100 * MIST_PER_SUI);
-        assert_eq(total_sui_balance(STAKER_ADDR_1, scenario), 0);
+        assert!(!has_sui_coins(STAKER_ADDR_1, scenario), 0);
 
         scenario_val.end();
     }
@@ -652,6 +695,16 @@ module stardust::timelocked_stake_tests {
             i = i + 1;
         };
         sum
+    }
+
+    fun has_timelocked_sui_balance(addr: address, scenario: &mut Scenario): bool {
+        scenario.next_tx(addr);
+        scenario.has_most_recent_for_sender<TimeLock<Balance<SUI>>>()
+    }
+
+    fun has_sui_coins(addr: address, scenario: &mut Scenario): bool {
+        scenario.next_tx(addr);
+        scenario.has_most_recent_for_sender<Coin<SUI>>()
     }
 
     fun is_active_validator_by_sui_address(set: &ValidatorSet, validator_address: address): bool {

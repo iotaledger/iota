@@ -1,14 +1,19 @@
 //! Rust types and logic for the Move counterparts in the `stardust` system package.
 
+use anyhow::Result;
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use sui_protocol_config::ProtocolConfig;
 use sui_types::{
     balance::Balance,
-    base_types::{ObjectID, SuiAddress},
+    base_types::{ObjectID, SuiAddress, TxContext},
+    coin::Coin,
     collection_types::Bag,
+    gas_coin::GAS,
     id::UID,
+    object::{Data, MoveObject, Object, Owner},
     STARDUST_PACKAGE_ID,
 };
 
@@ -167,5 +172,64 @@ impl BasicOutput {
         !(self.expiration.is_some()
             || self.storage_deposit_return.is_some()
             || self.timelock.is_some())
+    }
+
+    pub fn to_genesis_object(
+        &self,
+        owner: SuiAddress,
+        protocol_config: &ProtocolConfig,
+        tx_context: &TxContext,
+    ) -> Result<Object> {
+        let move_object = unsafe {
+            // Safety: we know from the definition of `BasicOutput` in the stardust package
+            // that it has not public transfer (`store` ability is absent).
+            MoveObject::new_from_execution(
+                Self::type_().into(),
+                false,
+                0.into(),
+                bcs::to_bytes(self)?,
+                protocol_config,
+            )?
+        };
+        // Resolve ownership
+        let owner = if self.expiration.is_some() {
+            Owner::Shared {
+                initial_shared_version: 0.into(),
+            }
+        } else {
+            Owner::AddressOwner(owner)
+        };
+        Ok(Object::new_from_genesis(
+            Data::Move(move_object),
+            owner,
+            tx_context.digest(),
+        ))
+    }
+
+    pub fn into_genesis_coin_object(
+        self,
+        owner: SuiAddress,
+        protocol_config: &ProtocolConfig,
+        tx_context: &TxContext,
+    ) -> Result<Object> {
+        let coin = Coin::new(self.id, self.iota.value());
+        let move_object = unsafe {
+            // Safety: we know from the definition of `Coin`
+            // that it has public transfer (`store` ability is present).
+            MoveObject::new_from_execution(
+                GAS::type_().into(),
+                true,
+                0.into(),
+                bcs::to_bytes(&coin)?,
+                protocol_config,
+            )?
+        };
+        // Resolve ownership
+        let owner = Owner::AddressOwner(owner);
+        Ok(Object::new_from_genesis(
+            Data::Move(move_object),
+            owner,
+            tx_context.digest(),
+        ))
     }
 }

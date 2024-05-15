@@ -8,11 +8,9 @@ use std::{
 use sui_types::{
     balance::Balance,
     base_types::ObjectRef,
-    coin::Coin,
     collection_types::Bag,
-    id::UID,
     move_package::TypeOrigin,
-    object::{Data, MoveObject, Owner},
+    object::{Data, MoveObject, Object},
     transaction::{Argument, ObjectArg},
     TypeTag,
 };
@@ -42,7 +40,6 @@ use sui_types::{
     inner_temporary_store::InnerTemporaryStore,
     metrics::LimitsMetrics,
     move_package::UpgradeCap,
-    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
         CheckedInputObjects, Command, InputObjectKind, ObjectReadResult, ProgrammableTransaction,
@@ -114,6 +111,13 @@ impl Migration {
         &mut self,
         outputs: impl Iterator<Item = (OutputHeader, Output)>,
     ) -> Result<()> {
+        let mut outputs: Vec<(OutputHeader, Output)> = outputs.collect();
+        // We sort the outputs to make sure the order of outputs up to
+        // a certain milestone timestamp remains the same between runs.
+        //
+        // This guarantees that fresh ids created through the transaction
+        // context will also map to the same objects betwen runs.
+        outputs.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
         for (header, output) in outputs {
             match output {
                 Output::Alias(alias) => self.executor.create_alias_objects(header, alias)?,
@@ -165,7 +169,7 @@ struct Executor {
     metrics: Arc<LimitsMetrics>,
     /// Map the stardust token id [`TokenId`] to the [`ObjectID`] and of the
     /// coin minted by the foundry and its [`TypeOrigin`].
-    native_tokens: HashMap<TokenId, (ObjectRef, TypeOrigin)>,
+    native_tokens: HashMap<TokenId, (ObjectID, TypeOrigin)>,
 }
 
 impl Executor {
@@ -297,11 +301,11 @@ impl Executor {
             };
             let InnerTemporaryStore { written, .. } = self.execute_pt_unmetered(deps, pt)?;
             // Get on-chain info
-            let mut minted_coin_ref = None::<ObjectRef>;
+            let mut minted_coin_id = None::<ObjectID>;
             let mut coin_type_origin = None::<TypeOrigin>;
             for object in written.values() {
                 if object.is_coin() {
-                    minted_coin_ref = Some(object.compute_object_reference());
+                    minted_coin_id = Some(object.id());
                 } else if object.is_package() {
                     coin_type_origin = Some(
                         object
@@ -314,13 +318,13 @@ impl Executor {
                     );
                 }
             }
-            let (minted_coin_ref, coin_type_origin) = (
-                minted_coin_ref.expect("a coin must have been minted"),
+            let (minted_coin_id, coin_type_origin) = (
+                minted_coin_id.expect("a coin must have been minted"),
                 coin_type_origin.expect("the published package should include a type for the coin"),
             );
             self.native_tokens.insert(
                 *foundry.native_tokens()[0].token_id(),
-                (minted_coin_ref, coin_type_origin),
+                (minted_coin_id, coin_type_origin),
             );
             self.store.finish(
                 written
@@ -432,12 +436,17 @@ impl Executor {
                     anyhow::bail!("unsupported number of tokens");
                 }
 
-                let Some((object_ref, type_origin)) = self.native_tokens.get(token.token_id())
+                let Some((object_id, type_origin)) = self.native_tokens.get(token.token_id())
                 else {
                     anyhow::bail!("foundry for native token has not been published");
                 };
 
-                dependencies.push(*object_ref);
+                let Some(foundry_coin) = self.store.get_object(object_id) else {
+                    anyhow::bail!("foundry coin should exist");
+                };
+                let object_ref = foundry_coin.compute_object_reference();
+
+                dependencies.push(object_ref);
 
                 let token_type = format!(
                     "{}::{}::{}",
@@ -445,11 +454,11 @@ impl Executor {
                 );
                 let balance = pt::coin_balance_split(
                     &mut builder,
-                    *object_ref,
-                    &token_type,
+                    object_ref,
+                    token_type.parse()?,
                     token.amount().as_u64(),
                 )?;
-                pt::bag_add(&mut builder, bag, balance, &token_type)?;
+                pt::bag_add(&mut builder, bag, balance, token_type)?;
             }
 
             // The `Bag` object does not have the `drop` ability so we have to use it
@@ -466,11 +475,22 @@ impl Executor {
                 .chain(self.load_input_objects(dependencies))
                 .collect(),
         );
-        let InnerTemporaryStore { mut written, .. } =
-            self.execute_pt_unmetered(checked_input_objects, pt)?;
-        let (_, bag_object) = written
-            .pop_first()
+        let InnerTemporaryStore {
+            mut written,
+            input_objects,
+            ..
+        } = self.execute_pt_unmetered(checked_input_objects, pt)?;
+        let bag_object = written
+            .iter()
+            .filter_map(|(id, object)| (!input_objects.contains_key(id)).then_some(object.clone()))
+            .next()
             .expect("the bag should have been created");
+        written.remove(&bag_object.id());
+        // Save the modified coins
+        // TODO: we might want to check whether execution bumps the version
+        // in order to force the genesis version in the end.
+        self.store.finish(written);
+        // Return bag
         Ok(bcs::from_bytes(
             bag_object
                 .data
@@ -489,50 +509,30 @@ impl Executor {
     /// should be sorted to attain idempotence.
     fn create_native_token_coins(
         &mut self,
-        header: OutputHeader,
         native_tokens: &NativeTokens,
         owner: SuiAddress,
     ) -> Result<()> {
         let mut dependencies = Vec::with_capacity(native_tokens.len());
-        let mut coins = Vec::with_capacity(native_tokens.len());
-        let native_tokens_with_ids = native_tokens.iter().map(|token| {
-            let mut coin_id = header.output_id().hash().to_vec();
-            coin_id.extend(token.token_id().as_slice());
-            // we set the `ObjectID` of native token objects to
-            // `hash(hash(OutputId) || TokenId)`
-            (ObjectID::new(Blake2b256::digest(coin_id).into()), token)
-        });
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
-            for (coin_id, token) in native_tokens_with_ids {
+            for token in native_tokens.iter() {
                 if token.amount().bits() > 64 {
                     anyhow::bail!("unsupported number of tokens");
                 }
 
-                let Some((object_ref, type_origin)) = self.native_tokens.get(token.token_id())
-                else {
+                let Some((object_id, _)) = self.native_tokens.get(token.token_id()) else {
                     anyhow::bail!("foundry for native token has not been published");
                 };
 
-                dependencies.push(*object_ref);
+                let Some(foundry_coin) = self.store.get_object(object_id) else {
+                    anyhow::bail!("foundry coin should exist");
+                };
+                let object_ref = foundry_coin.compute_object_reference();
 
-                let token_type = format!(
-                    "{}::{}::{}",
-                    type_origin.package, type_origin.module_name, type_origin.struct_name
-                );
-                pt::coin_balance_split(
-                    &mut builder,
-                    *object_ref,
-                    &token_type,
-                    token.amount().as_u64(),
-                )?;
-                let token_type_tag: TypeTag = token_type.parse()?;
-                coins.push(self.coin_from_balance_with_id(
-                    coin_id,
-                    token_type_tag,
-                    token.amount().as_u64(),
-                    owner,
-                )?);
+                dependencies.push(object_ref);
+
+                // Pay using that object
+                builder.pay(vec![object_ref], vec![owner], vec![token.amount().as_u64()])?;
             }
 
             builder.finish()
@@ -542,40 +542,13 @@ impl Executor {
                 .chain(self.load_input_objects(dependencies))
                 .collect(),
         );
-        self.execute_pt_unmetered(checked_input_objects, pt)?;
-        // now that the transaction has been executed successfully we store the
-        // create coins
-        coins
-            .into_iter()
-            .for_each(|coin| self.store.insert_object(coin));
-        Ok(())
-    }
+        // Execute
+        let InnerTemporaryStore { written, .. } =
+            self.execute_pt_unmetered(checked_input_objects, pt)?;
 
-    fn coin_from_balance_with_id(
-        &self,
-        coin_id: ObjectID,
-        type_tag: TypeTag,
-        amount: u64,
-        owner: SuiAddress,
-    ) -> Result<Object> {
-        let coin = Coin::new(UID::new(coin_id), amount);
-        let data = unsafe {
-            // Safety: we know from the definition of `Coin`
-            // that it has public transfer (`store` ability is present).
-            MoveObject::new_from_execution(
-                Coin::type_(type_tag).into(),
-                true,
-                0.into(),
-                bcs::to_bytes(&coin)?,
-                &self.protocol_config,
-            )?
-        };
-        let owner = Owner::AddressOwner(owner);
-        Ok(Object::new_from_genesis(
-            Data::Move(data),
-            owner,
-            self.tx_context.digest(),
-        ))
+        // Save the modified coin
+        self.store.finish(written);
+        Ok(())
     }
 
     /// This implements the control flow in
@@ -588,39 +561,18 @@ impl Executor {
         let mut data = super::types::output::BasicOutput::new(header.clone(), &basic_output);
         let owner: SuiAddress = basic_output.address().to_string().parse()?;
 
-        // Handle native tokens
-        if !basic_output.native_tokens().is_empty() {
-            if data.has_empty_bag() {
-                self.create_native_token_coins(header, basic_output.native_tokens(), owner)?;
-            } else {
+        let object = if data.has_empty_bag() {
+            if !basic_output.native_tokens().is_empty() {
+                self.create_native_token_coins(basic_output.native_tokens(), owner)?;
+            }
+            data.into_genesis_coin_object(owner, &self.protocol_config, &self.tx_context)?
+        } else {
+            if !basic_output.native_tokens().is_empty() {
                 data.native_tokens = self.create_bag(basic_output.native_tokens())?;
             }
-        }
-        // Construct the basic output object
-        let move_object = unsafe {
-            // Safety: we know from the definition of `BasicOutput` in the stardust package
-            // that it has not public transfer (`store` ability is absent).
-            MoveObject::new_from_execution(
-                super::types::output::BasicOutput::type_().into(),
-                false,
-                0.into(),
-                bcs::to_bytes(&data)?,
-                &self.protocol_config,
-            )?
+            data.to_genesis_object(owner, &self.protocol_config, &self.tx_context)?
         };
-        // Resolve ownership
-        let owner = if data.expiration.is_some() {
-            Owner::Shared {
-                initial_shared_version: 0.into(),
-            }
-        } else {
-            Owner::AddressOwner(owner)
-        };
-        self.store.insert_object(Object::new_from_genesis(
-            Data::Move(move_object),
-            owner,
-            self.tx_context.digest(),
-        ));
+        self.store.insert_object(object);
         Ok(())
     }
 
@@ -678,17 +630,14 @@ fn create_migration_context() -> TxContext {
 }
 
 mod pt {
-    use std::str::FromStr;
-
     use super::*;
 
     pub fn coin_balance_split(
         builder: &mut ProgrammableTransactionBuilder,
         foundry_coin_ref: ObjectRef,
-        token_type: &str,
+        token_type_tag: TypeTag,
         amount: u64,
     ) -> Result<Argument> {
-        let token_type_tag: TypeTag = token_type.parse()?;
         let foundry_coin_ref = builder.obj(ObjectArg::ImmOrOwnedObject(foundry_coin_ref))?;
         let balance = builder.programmable_move_call(
             SUI_FRAMEWORK_PACKAGE_ID,
@@ -702,7 +651,7 @@ mod pt {
             SUI_FRAMEWORK_PACKAGE_ID,
             ident_str!("balance").into(),
             ident_str!("split").into(),
-            vec![token_type_tag.clone()],
+            vec![token_type_tag],
             vec![balance, amount],
         ))
     }
@@ -711,24 +660,17 @@ mod pt {
         builder: &mut ProgrammableTransactionBuilder,
         bag: Argument,
         balance: Argument,
-        token_type: &str,
+        token_type: String,
     ) -> Result<()> {
-        let token_struct_tag = builder.pure(token_type.parse::<StructTag>()?)?;
         let key_type: StructTag = "0x01::ascii::String".parse()?;
         let value_type = Balance::type_(token_type.parse::<TypeTag>()?);
+        let token_name = builder.pure(token_type)?;
         builder.programmable_move_call(
             SUI_FRAMEWORK_PACKAGE_ID,
             ident_str!("bag").into(),
             ident_str!("add").into(),
             vec![key_type.into(), value_type.into()],
-            vec![bag, token_struct_tag, balance],
-        );
-        builder.transfer_arg(
-            SuiAddress::from_str(
-                "0x8fac4aefdc1ae21c00f745605297041e0f39667844068e3757d587c8039d1e3f",
-            )
-            .unwrap(),
-            bag,
+            vec![bag, token_name, balance],
         );
         Ok(())
     }

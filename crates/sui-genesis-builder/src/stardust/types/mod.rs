@@ -1,5 +1,5 @@
-mod address;
-mod alias;
+pub mod address;
+pub mod alias;
 pub mod output;
 pub mod snapshot;
 

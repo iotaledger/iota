@@ -138,7 +138,14 @@ Withdraw a timelocked stake from a validator's staking pool.
     <b>let</b> (timelocked_sui, reward) = <a href="timelocked_staking.md#0x107a_timelocked_staking_request_withdraw_stake_non_entry">request_withdraw_stake_non_entry</a>(<a href="../sui-system/sui_system.md#0x3_sui_system">sui_system</a>, <a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui">timelocked_staked_sui</a>, ctx);
 
     <a href="timelock.md#0x107a_timelock_transfer">timelock::transfer</a>(timelocked_sui, ctx.sender());
-    <a href="../sui-framework/transfer.md#0x2_transfer_public_transfer">transfer::public_transfer</a>(reward.into_coin(ctx), ctx.sender());
+
+    // Send coins only <b>if</b> the reward is not zero.
+    <b>if</b> (reward.value() &gt; 0) {
+        <a href="../sui-framework/transfer.md#0x2_transfer_public_transfer">transfer::public_transfer</a>(reward.into_coin(ctx), ctx.sender());
+    }
+    <b>else</b> {
+        <a href="../sui-framework/balance.md#0x2_balance_destroy_zero">balance::destroy_zero</a>(reward);
+    }
 }
 </code></pre>
 

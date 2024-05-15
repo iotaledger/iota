@@ -3,7 +3,7 @@
 
 module stardust::timelocked_staking {
 
-    use sui::balance::Balance;
+    use sui::balance::{Self, Balance};
     use sui::sui::SUI;
 
     use sui_system::sui_system::{SuiSystemState};
@@ -57,7 +57,14 @@ module stardust::timelocked_staking {
         let (timelocked_sui, reward) = request_withdraw_stake_non_entry(sui_system, timelocked_staked_sui, ctx);
 
         timelock::transfer(timelocked_sui, ctx.sender());
-        transfer::public_transfer(reward.into_coin(ctx), ctx.sender());
+
+        // Send coins only if the reward is not zero.
+        if (reward.value() > 0) {
+            transfer::public_transfer(reward.into_coin(ctx), ctx.sender());
+        }
+        else {
+            balance::destroy_zero(reward);
+        }
     }
 
     /// Non-entry version of `request_withdraw_stake` that returns the withdrawn timelocked SUI and reward

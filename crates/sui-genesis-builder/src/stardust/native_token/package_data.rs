@@ -106,7 +106,7 @@ impl TryFrom<FoundryOutput> for NativeTokenPackageData {
             })?;
 
         // Derive a valid, lowercase move identifier from the symbol field in the irc30 metadata
-        let identifier = derive_lowercase_identifier(&irc_30_metadata.symbol())?;
+        let identifier = derive_lowercase_identifier(irc_30_metadata.symbol())?;
 
         let decimals = u8::try_from(*irc_30_metadata.decimals()).map_err(|e| {
             StardustError::FoundryConversionError {
@@ -144,7 +144,7 @@ impl TryFrom<FoundryOutput> for NativeTokenPackageData {
     }
 }
 
-fn derive_lowercase_identifier(input: &String) -> Result<String, StardustError> {
+fn derive_lowercase_identifier(input: &str) -> Result<String, StardustError> {
     let input = input.to_ascii_lowercase();
 
     static VALID_IDENTIFIER_PATTERN: &str = r"[a-z][a-z0-9_]*";
@@ -161,7 +161,7 @@ fn derive_lowercase_identifier(input: &String) -> Result<String, StardustError> 
     // Ensure no trailing underscore at the end of the identifier
     let final_identifier = concatenated.trim_end_matches('_').to_string();
 
-    if final_identifier.len() > 0 {
+    if !final_identifier.is_empty() {
         if move_core_types::identifier::is_valid(&final_identifier) {
             Ok(final_identifier)
         } else {
