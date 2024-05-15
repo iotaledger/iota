@@ -116,6 +116,7 @@ export async function getFaucetRequestStatus(input: {
 	});
 }
 
+// TODO: DEPRECATE
 export function getFaucetHost(network: 'testnet' | 'devnet' | 'localnet') {
 	switch (network) {
 		case 'testnet':

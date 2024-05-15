@@ -20,8 +20,7 @@ import type {
 	SignTransactionRequest,
 	SignTransactionResponse,
 } from '_payloads/transactions';
-import { API_ENV } from '_src/shared/api-env';
-import type { NetworkEnvType } from '_src/shared/api-env';
+import { getCustomNetwork, type NetworkEnvType } from '_src/shared/api-env';
 import {
 	isQredoConnectPayload,
 	type QredoConnectPayload,
@@ -33,10 +32,6 @@ import { fromB64, toB64 } from '@mysten/sui.js/utils';
 import {
 	ReadonlyWalletAccount,
 	SUI_CHAINS,
-	SUI_DEVNET_CHAIN,
-	SUI_LOCALNET_CHAIN,
-	SUI_MAINNET_CHAIN,
-	SUI_TESTNET_CHAIN,
 	type StandardConnectFeature,
 	type StandardConnectMethod,
 	type StandardEventsFeature,
@@ -53,6 +48,7 @@ import mitt, { type Emitter } from 'mitt';
 import { filter, map, type Observable } from 'rxjs';
 
 import { mapToPromise } from './utils';
+import { ChainType, Network, getNetwork } from '@mysten/sui.js/client';
 
 type WalletEventsMap = {
 	[E in keyof StandardEventsListeners]: Parameters<StandardEventsListeners[E]>[0];
@@ -80,13 +76,6 @@ type QredoConnectFeature = {
 		version: '0.0.1';
 		qredoConnect: (input: QredoConnectInput) => Promise<void>;
 	};
-};
-type ChainType = Wallet['chains'][number];
-const API_ENV_TO_CHAIN: Record<Exclude<API_ENV, API_ENV.customRPC>, ChainType> = {
-	[API_ENV.local]: SUI_LOCALNET_CHAIN,
-	[API_ENV.devNet]: SUI_DEVNET_CHAIN,
-	[API_ENV.testNet]: SUI_TESTNET_CHAIN,
-	[API_ENV.mainnet]: SUI_MAINNET_CHAIN,
 };
 
 export class SuiWallet implements Wallet {
@@ -349,8 +338,8 @@ export class SuiWallet implements Wallet {
 		);
 	}
 
-	#setActiveChain({ env }: NetworkEnvType) {
-		this.#activeChain = env === API_ENV.customRPC ? 'sui:unknown' : API_ENV_TO_CHAIN[env];
+	#setActiveChain({ network }: NetworkEnvType) {
+		this.#activeChain = network === Network.Custom ? getCustomNetwork().chain : getNetwork(network).chain;
 	}
 
 	#qredoConnect = async (input: QredoConnectInput): Promise<void> => {

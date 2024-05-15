@@ -20,7 +20,6 @@ import {
 	DELEGATED_STAKES_QUERY_STALE_TIME,
 } from '_shared/constants';
 import { ampli } from '_src/shared/analytics/ampli';
-import { API_ENV } from '_src/shared/api-env';
 import { FEATURES } from '_src/shared/experimentation/features';
 import { AccountsList } from '_src/ui/app/components/accounts/AccountsList';
 import { UnlockAccountButton } from '_src/ui/app/components/accounts/UnlockAccountButton';
@@ -40,7 +39,7 @@ import {
 } from '@mysten/core';
 import { useSuiClientQuery } from '@mysten/dapp-kit';
 import { Info12, Pin16, Unpin16 } from '@mysten/icons';
-import { type CoinBalance as CoinBalanceType } from '@mysten/sui.js/client';
+import { Network, type CoinBalance as CoinBalanceType } from '@mysten/sui.js/client';
 import { formatAddress, parseStructTag, SUI_TYPE_ARG } from '@mysten/sui.js/utils';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
@@ -216,7 +215,7 @@ export function MyTokens({
 	isFetched: boolean;
 }) {
 	const isDefiWalletEnabled = useIsWalletDefiEnabled();
-	const apiEnv = useAppSelector(({ app }) => app.apiEnv);
+	const network = useAppSelector(({ app }) => app.network);
 
 	const [_, { pinCoinType, unpinCoinType }] = usePinnedCoinTypes();
 
@@ -266,7 +265,7 @@ export function MyTokens({
 							? `${unrecognized.length} Unrecognized Coin`
 							: `${unrecognized.length} Unrecognized Coins`
 					}
-					defaultOpen={apiEnv !== API_ENV.mainnet}
+					defaultOpen={network !== Network.Mainnet}
 				>
 					{unrecognized.map((coinBalance) => (
 						<TokenLink
@@ -325,8 +324,8 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
 		{ enabled: !!activeAccountAddress, refetchInterval, staleTime },
 	);
 
-	const { apiEnv } = useAppSelector((state) => state.app);
-	const isMainnet = apiEnv === API_ENV.mainnet;
+	const network = useAppSelector((state) => state.app.network);
+	const isMainnet = network === Network.Mainnet;
 	const { request } = useAppsBackend();
 	const { data } = useQuery({
 		queryKey: ['apps-backend', 'monitor-network'],

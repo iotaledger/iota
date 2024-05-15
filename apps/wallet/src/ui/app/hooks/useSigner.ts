@@ -24,7 +24,7 @@ export function useSigner(account: SerializedUIAccount | null): WalletSigner | n
 			? account.sourceID
 			: undefined,
 	);
-	const networkName = useAppSelector(({ app: { apiEnv } }) => apiEnv);
+	const networkName = useAppSelector(({ app: { network: apiEnv } }) => apiEnv);
 	if (!account) {
 		return null;
 	}

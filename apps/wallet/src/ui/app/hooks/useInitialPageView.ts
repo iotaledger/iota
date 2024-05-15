@@ -9,12 +9,14 @@ import Browser from 'webextension-polyfill';
 import { AppType } from '../redux/slices/app/AppType';
 import { useActiveAccount } from './useActiveAccount';
 import useAppSelector from './useAppSelector';
+import { getCustomNetwork } from '_src/shared/api-env';
+import { getNetwork } from '@mysten/sui.js/client';
 
 export function useInitialPageView() {
 	const activeAccount = useActiveAccount();
 	const location = useLocation();
-	const { apiEnv, customRPC, activeOrigin, appType } = useAppSelector((state) => state.app);
-	const activeNetwork = customRPC && apiEnv === 'customRPC' ? customRPC : apiEnv.toUpperCase();
+	const { network, customRpc, activeOrigin, appType } = useAppSelector((state) => state.app);
+	const activeNetwork = customRpc ? getCustomNetwork(customRpc).rpc : getNetwork(network)?.rpc;
 	const isFullScreen = appType === AppType.fullscreen;
 
 	useEffect(() => {

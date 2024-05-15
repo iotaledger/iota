@@ -110,17 +110,17 @@ Browser.alarms.onAlarm.addListener((alarm) => {
 	}
 });
 
-NetworkEnv.getActiveNetwork().then(async ({ env, customRpcUrl }) => {
+NetworkEnv.getActiveNetwork().then(async ({ network, customRpcUrl }) => {
 	setAttributes({
-		apiEnv: env,
-		customRPC: customRpcUrl,
+		network,
+		customRpc: customRpcUrl,
 	});
 });
 
 NetworkEnv.on('changed', async (network) => {
 	setAttributes({
-		apiEnv: network.env,
-		customRPC: network.customRpcUrl,
+		network: network.network,
+		customRpc: network.customRpcUrl,
 	});
 	connections.notifyUI({ event: 'networkChanged', network });
 	connections.notifyContentScript({
