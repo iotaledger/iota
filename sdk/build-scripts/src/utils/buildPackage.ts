@@ -52,7 +52,6 @@ async function clean() {
 }
 
 async function embedIOTAEnvVars() {
-	console.log("TEST", process.env['IOTA_NETWORKS'])
 	return {
 		"process.env.IOTA_NETWORKS": JSON.stringify(process.env['IOTA_NETWORKS'])
 	}
