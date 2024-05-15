@@ -1635,6 +1635,15 @@ impl SignatureScheme {
         }
     }
 
+    /// Takes as input an hasher and updates it with a flag byte if the input scheme is not ED25519;
+    /// it does nothing otherwise.
+    pub fn update_hasher_with_flag(&self, hasher: &mut DefaultHash) {
+        match self {
+            SignatureScheme::ED25519 => (),
+            _ => hasher.update([self.flag()]),
+        };
+    }
+
     pub fn from_flag(flag: &str) -> Result<SignatureScheme, SuiError> {
         let byte_int = flag
             .parse::<u8>()

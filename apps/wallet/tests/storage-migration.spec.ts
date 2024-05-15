@@ -11,14 +11,14 @@ test('do storage migration', async ({ page, extensionUrl }) => {
 			imported_ledger_accounts: [
 				{
 					address: '0x58e8d44dbf0b002fc7c045c510e6c75f0d60780d85403bf0865a573301060636',
-					derivationPath: "m/44'/784'/0'/0'/0'",
+					derivationPath: "m/44'/4218'/0'/0'/0'",
 					isSelected: false,
 					publicKey: 's8lwY5sPtHKMnL+45E6UvHqUgnGvK4xGlPz5okOEjZ0=',
 					type: 'LEDGER',
 				},
 				{
 					address: '0xdaf137852dd2c6b2a8f3fd0364021bbdec0094e815f2dfd64cf0fe01c2b91eb2',
-					derivationPath: "m/44'/784'/1'/0'/0'",
+					derivationPath: "m/44'/4218'/1'/0'/0'",
 					isSelected: false,
 					publicKey: 'vw+GsG01+5MWfdxFqeMRc4YAgU6vJlBBs9j/MalnYB8=',
 					type: 'LEDGER',

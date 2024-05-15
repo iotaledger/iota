@@ -681,7 +681,7 @@ impl FromStr for SuiAddress {
 impl<T: SuiPublicKey> From<&T> for SuiAddress {
     fn from(pk: &T) -> Self {
         let mut hasher = DefaultHash::default();
-        hasher.update([T::SIGNATURE_SCHEME.flag()]);
+        T::SIGNATURE_SCHEME.update_hasher_with_flag(&mut hasher);
         hasher.update(pk);
         let g_arr = hasher.finalize();
         SuiAddress(g_arr.digest)
@@ -691,7 +691,7 @@ impl<T: SuiPublicKey> From<&T> for SuiAddress {
 impl From<&PublicKey> for SuiAddress {
     fn from(pk: &PublicKey) -> Self {
         let mut hasher = DefaultHash::default();
-        hasher.update([pk.flag()]);
+        pk.scheme().update_hasher_with_flag(&mut hasher);
         hasher.update(pk);
         let g_arr = hasher.finalize();
         SuiAddress(g_arr.digest)
@@ -712,7 +712,7 @@ impl From<&MultiSigPublicKey> for SuiAddress {
         hasher.update([SignatureScheme::MultiSig.flag()]);
         hasher.update(multisig_pk.threshold().to_le_bytes());
         multisig_pk.pubkeys().iter().for_each(|(pk, w)| {
-            hasher.update([pk.flag()]);
+            pk.scheme().update_hasher_with_flag(&mut hasher);
             hasher.update(pk.as_ref());
             hasher.update(w.to_le_bytes());
         });

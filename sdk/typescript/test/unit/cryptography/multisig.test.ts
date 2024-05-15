@@ -410,7 +410,7 @@ describe('Multisig address creation:', () => {
 			threshold: 1,
 		});
 		expect(publicKey.toSuiAddress()).toEqual(
-			'0xb9c0780a3943cde13a2409bf1a6f06ae60b0dff2b2f373260cf627aa4f43a588',
+			'0x3abd6a29ba3b00c7c84d7980160179c32a7bbd639d79c53dd30f9481ee0a94e2',
 		);
 		const data = new Uint8Array(
 			fromB64(
