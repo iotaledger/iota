@@ -17,8 +17,6 @@ pub const ALIAS_MODULE_NAME: &IdentStr = ident_str!("alias");
 pub const ALIAS_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("alias_output");
 pub const ALIAS_OUTPUT_STRUCT_NAME: &IdentStr = ident_str!("AliasOutput");
 pub const ALIAS_STRUCT_NAME: &IdentStr = ident_str!("Alias");
-// Matches `ALIAS_NAME` in alias_output.move.
-pub const ALIAS_DYNAMIC_OBJECT_FIELD_NAME: &[u8] = b"alias";
 
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]

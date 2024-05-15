@@ -17,7 +17,10 @@ fn migrate_alias(
     header: OutputHeader,
     stardust_alias: StardustAlias,
 ) -> (ObjectID, Alias, ObjectID, AliasOutput) {
-    let alias_id: AliasId = stardust_alias.alias_id().to_owned();
+    let alias_id: AliasId = stardust_alias
+        .alias_id()
+        .or_from_output_id(&header.output_id())
+        .to_owned();
     let mut snapshot_buffer = Vec::new();
     Migration::new()
         .unwrap()
@@ -31,7 +34,6 @@ fn migrate_alias(
     let migrated_objects: Vec<Object> = bcs::from_bytes(&snapshot_buffer).unwrap();
 
     // Ensure the migrated objects exist under the expected identifiers.
-    // We know the alias_id is non-zero here, so we don't need to use `or_from_output_id`.
     let alias_object_id = ObjectID::new(*alias_id);
     let alias_output_object_id = ObjectID::new(Blake2b256::digest(*alias_id).into());
     let alias_object = migrated_objects
@@ -56,7 +58,7 @@ fn migrate_alias(
     (alias_object_id, alias, alias_output_object_id, alias_output)
 }
 
-/// Test that the migrated alias objects in storage contain the expected data.
+/// Test that the migrated alias objects in the snapshot contain the expected data.
 #[test]
 fn alias_migration_test() {
     let alias_id = AliasId::new(rand::random());
