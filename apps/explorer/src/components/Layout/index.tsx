@@ -12,7 +12,7 @@ import { useInitialPageView } from '../../hooks/useInitialPageView';
 import { NetworkContext, useNetwork } from '~/context';
 import { Banner, type BannerProps } from '~/ui/Banner';
 import { persistableStorage } from '~/utils/analytics/amplitude';
-import { type Network, NetworkConfigs, createSuiClient } from '~/utils/api/DefaultRpcClient';
+import { type Network, createSuiClient, NetworkConfigs } from '~/utils/api/DefaultRpcClient';
 import { KioskClientProvider } from '@mysten/core/src/components/KioskClientProvider';
 
 const toastVariants: Partial<Record<ToastType, BannerProps['variant']>> = {

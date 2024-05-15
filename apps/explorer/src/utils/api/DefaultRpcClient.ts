@@ -2,8 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { SentryHttpTransport } from '@mysten/core';
-import { SuiClient, SuiHTTPTransport, getNetwork, Network, NetworkId} from '@mysten/sui.js/client';
+import { SuiClient, SuiHTTPTransport, getNetwork, Network, NetworkId, getAllNetworks} from '@mysten/sui.js/client';
 
+export { Network} from '@mysten/sui.js/client';
+
+const supportedNetworks = getAllNetworks();
+
+delete supportedNetworks[Network.Custom]
+
+export const NetworkConfigs = Object.fromEntries(Object.values(supportedNetworks).map((network) => {
+	return [network.id, {
+		url: network.rpc
+	}]
+})) as Record<Network, { url: string }>
 
 const defaultClientMap: Map<NetworkId, SuiClient> = new Map();
 
