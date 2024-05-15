@@ -20,9 +20,9 @@ function FieldsContainer({ children }: { children: ReactNode }) {
 	);
 }
 
-enum TABS_VALUES {
-	FIELDS = 'fields',
-	DYNAMIC_FIELDS = 'dynamicFields',
+enum TabValue {
+	Fields = 'fields',
+	DynamicFields = 'dynamicFields',
 }
 
 function useObjectFieldsCard(id: string) {
@@ -73,7 +73,7 @@ export function FieldsContent({ objectId }: { objectId: string }) {
 
 	const fieldsCount = normalizedStructData?.fields.length;
 
-	const [activeTab, setActiveTab] = useState<string>(TABS_VALUES.FIELDS);
+	const [activeTab, setActiveTab] = useState<string>(TabValue.Fields);
 
 	const { data: dynamicFieldsData } = useGetDynamicFields(objectId);
 
@@ -82,18 +82,18 @@ export function FieldsContent({ objectId }: { objectId: string }) {
 	return (
 		<Tabs size="lg" value={activeTab} onValueChange={setActiveTab}>
 			<TabsList>
-				<TabsTrigger value={TABS_VALUES.FIELDS}>
+				<TabsTrigger value={TabValue.Fields}>
 					<Heading variant="heading4/semibold">{fieldsCount} Fields</Heading>
 				</TabsTrigger>
 
 				{renderDynamicFields && (
-					<TabsTrigger value={TABS_VALUES.DYNAMIC_FIELDS}>
+					<TabsTrigger value={TabValue.DynamicFields}>
 						<Heading variant="heading4/semibold">Dynamic Fields</Heading>
 					</TabsTrigger>
 				)}
 			</TabsList>
 
-			<TabsContent value={TABS_VALUES.FIELDS}>
+			<TabsContent value={TabValue.Fields}>
 				<FieldsContainer>
 					<ObjectFieldsCard
 						objectType={objectType || ''}
@@ -106,7 +106,7 @@ export function FieldsContent({ objectId }: { objectId: string }) {
 				</FieldsContainer>
 			</TabsContent>
 			{renderDynamicFields && (
-				<TabsContent value={TABS_VALUES.DYNAMIC_FIELDS}>
+				<TabsContent value={TabValue.DynamicFields}>
 					<FieldsContainer>
 						<DynamicFieldsCard id={objectId} />
 					</FieldsContainer>
