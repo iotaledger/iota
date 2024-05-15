@@ -60,7 +60,7 @@ fn migrate_alias(
 
 /// Test that the migrated alias objects in the snapshot contain the expected data.
 #[test]
-fn alias_migration_test() {
+fn test_alias_migration() {
     let alias_id = AliasId::new(rand::random());
     let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
     let header = OutputHeader::new_testing(
@@ -95,4 +95,25 @@ fn alias_migration_test() {
     assert_eq!(stardust_alias.amount(), alias_output.iota.value());
 
     assert_eq!(expected_alias, alias);
+}
+
+#[test]
+fn test_alias_migration_with_zeroed_id() {
+    let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+    let header = OutputHeader::new_testing(
+        rand::random(),
+        rand::random(),
+        rand::random(),
+        rand::random(),
+    );
+
+    let stardust_alias = AliasOutputBuilder::new_with_amount(1_000_000, AliasId::null())
+        .add_unlock_condition(StateControllerAddressUnlockCondition::new(random_address))
+        .add_unlock_condition(GovernorAddressUnlockCondition::new(random_address))
+        .finish()
+        .unwrap();
+
+    // If this function does not panic, then the created aliases
+    // were found at the correct non-zeroed Alias ID.
+    migrate_alias(header, stardust_alias);
 }
