@@ -3,15 +3,17 @@ use iota_sdk::types::block::output::AliasOutput as StardustAlias;
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use sui_protocol_config::ProtocolConfig;
 use sui_types::{
     balance::Balance,
-    base_types::{ObjectID, SuiAddress},
+    base_types::{ObjectID, SequenceNumber, SuiAddress, TxContext},
     collection_types::Bag,
     id::UID,
+    object::{Data, MoveObject, Object, Owner},
     STARDUST_PACKAGE_ID,
 };
 
-use super::stardust_to_sui_address;
+use super::{stardust_to_sui_address, stardust_to_sui_address_owner};
 
 pub const ALIAS_MODULE_NAME: &IdentStr = ident_str!("alias");
 pub const ALIAS_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("alias_output");
@@ -97,6 +99,37 @@ impl Alias {
             immutable_metadata,
         })
     }
+
+    pub fn to_genesis_object(
+        &self,
+        owner: Owner,
+        protocol_config: &ProtocolConfig,
+        tx_context: &TxContext,
+        version: SequenceNumber,
+    ) -> anyhow::Result<Object> {
+        // Construct the Alias object.
+        let move_alias_object = unsafe {
+            // Safety: we know from the definition of `Alias` in the stardust package
+            // that it has public transfer (`store` ability is present).
+            MoveObject::new_from_execution(
+                Self::tag().into(),
+                true,
+                version,
+                bcs::to_bytes(&self)?,
+                protocol_config,
+            )?
+        };
+
+        let move_alias_object = Object::new_from_genesis(
+            Data::Move(move_alias_object),
+            // We will later overwrite the owner we set here since this object will be added
+            // as a dynamic field on the alias output object.
+            owner,
+            tx_context.digest(),
+        );
+
+        Ok(move_alias_object)
+    }
 }
 
 #[serde_as]
@@ -140,5 +173,34 @@ impl AliasOutput {
             iota: Balance::new(alias.amount()),
             native_tokens,
         })
+    }
+
+    pub fn to_genesis_object(
+        &self,
+        owner: Owner,
+        protocol_config: &ProtocolConfig,
+        tx_context: &TxContext,
+        version: SequenceNumber,
+    ) -> anyhow::Result<Object> {
+        // Construct the Alias Output object.
+        let move_alias_output_object = unsafe {
+            // Safety: we know from the definition of `AliasOutput` in the stardust package
+            // that it does not have public transfer (`store` ability is absent).
+            MoveObject::new_from_execution(
+                AliasOutput::tag().into(),
+                false,
+                version,
+                bcs::to_bytes(&self)?,
+                protocol_config,
+            )?
+        };
+
+        let move_alias_output_object = Object::new_from_genesis(
+            Data::Move(move_alias_output_object),
+            owner,
+            tx_context.digest(),
+        );
+
+        Ok(move_alias_output_object)
     }
 }

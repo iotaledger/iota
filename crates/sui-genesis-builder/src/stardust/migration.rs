@@ -342,29 +342,17 @@ impl Executor {
         let alias_id = ObjectID::new(*alias.alias_id().or_from_output_id(&header.output_id()));
         let move_alias = Alias::try_from_stardust(alias_id, &alias)?;
 
-        // Construct the Alias object.
-        let move_alias_object = unsafe {
-            // Safety: we know from the definition of `Alias` in the stardust package
-            // that it has public transfer (`store` ability is present).
-            MoveObject::new_from_execution(
-                super::types::Alias::tag().into(),
-                true,
-                0.into(),
-                bcs::to_bytes(&move_alias)?,
-                &self.protocol_config,
-            )?
-        };
-
-        // SAFETY: We should ensure that no circular ownership exists first.
+        // TODO: We should ensure that no circular ownership exists.
         let alias_output_owner = stardust_to_sui_address_owner(alias.governor_address())?;
 
-        let move_alias_object = Object::new_from_genesis(
-            Data::Move(move_alias_object),
-            // We will later overwrite the owner we set here since this object will be added
-            // as a dynamic field on the alias output object.
+        let version = 0.into();
+        let move_alias_object = move_alias.to_genesis_object(
             alias_output_owner,
-            self.tx_context.digest(),
-        );
+            &self.protocol_config,
+            &self.tx_context,
+            version,
+        )?;
+
         let move_alias_object_ref = move_alias_object.compute_object_reference();
         self.store.insert_object(move_alias_object);
 
@@ -374,28 +362,16 @@ impl Executor {
             self.create_bag(alias.native_tokens())?,
         )?;
 
-        // Construct the Alias Output object.
-        let move_alias_output_object = unsafe {
-            // Safety: we know from the definition of `AliasOutput` in the stardust package
-            // that it does not have public transfer (`store` ability is absent).
-            MoveObject::new_from_execution(
-                AliasOutput::tag().into(),
-                false,
-                0.into(),
-                bcs::to_bytes(&move_alias_output)?,
-                &self.protocol_config,
-            )?
-        };
-
-        let move_alias_output_object = Object::new_from_genesis(
-            Data::Move(move_alias_output_object),
+        let move_alias_output_object = move_alias_output.to_genesis_object(
             alias_output_owner,
-            self.tx_context.digest(),
-        );
+            &self.protocol_config,
+            &self.tx_context,
+            version,
+        )?;
         let move_alias_output_object_ref = move_alias_output_object.compute_object_reference();
         self.store.insert_object(move_alias_output_object);
 
-        // Attach the Alias to the Alias Output as a dynamic field via the attach_alias convenience method.
+        // Attach the Alias to the Alias Output as a dynamic object field via the attach_alias convenience method.
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
 
