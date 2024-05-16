@@ -4,11 +4,11 @@
 import { execSync } from 'child_process';
 import { existsSync, promises as fs } from 'fs';
 import * as path from 'path';
+import dotenv from 'dotenv';
 import type { BuildOptions } from 'esbuild';
 import { build } from 'esbuild';
-import dotenv from 'dotenv';
 
-dotenv.config({path: path.join(__dirname, '..', '..', '..', '.env')});
+dotenv.config({ path: path.join(__dirname, '..', '..', '..', '.env') });
 
 interface PackageJSON {
 	name?: string;
@@ -53,9 +53,9 @@ async function clean() {
 
 async function embedIOTAEnvVars() {
 	return {
-		"process.env.DEFAULT_NETWORK": JSON.stringify(process.env['DEFAULT_NETWORK']),
-		"process.env.IOTA_NETWORKS": JSON.stringify(process.env['IOTA_NETWORKS'])
-	}
+		'process.env.DEFAULT_NETWORK': JSON.stringify(process.env['DEFAULT_NETWORK']),
+		'process.env.IOTA_NETWORKS': JSON.stringify(process.env['IOTA_NETWORKS']),
+	};
 }
 
 async function buildCJS(

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli } from '_src/shared/analytics/ampli';
+import { getCustomNetwork } from '_src/shared/api-env';
+import { getNetwork } from '@mysten/sui.js/client';
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import Browser from 'webextension-polyfill';
@@ -9,8 +11,6 @@ import Browser from 'webextension-polyfill';
 import { AppType } from '../redux/slices/app/AppType';
 import { useActiveAccount } from './useActiveAccount';
 import useAppSelector from './useAppSelector';
-import { getCustomNetwork } from '_src/shared/api-env';
-import { getNetwork } from '@mysten/sui.js/client';
 
 export function useInitialPageView() {
 	const activeAccount = useActiveAccount();

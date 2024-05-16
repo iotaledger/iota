@@ -9,12 +9,12 @@ import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { Link } from '_src/ui/app/shared/Link';
 import { Text } from '_src/ui/app/shared/text';
 import { ArrowUpRight12, Clipboard24, Domain24, LockLocked24, More24 } from '@mysten/icons';
+import { getNetwork } from '@mysten/sui.js/client';
 import Browser from 'webextension-polyfill';
 
 import Loading from '../../loading';
 import { MenuLayout } from './MenuLayout';
 import MenuListItem from './MenuListItem';
-import { getNetwork } from '@mysten/sui.js/client';
 
 function MenuList() {
 	const networkUrl = useNextMenuUrl(true, '/network');
@@ -28,7 +28,12 @@ function MenuList() {
 	return (
 		<MenuLayout title="Wallet Settings">
 			<div className="flex flex-col divide-y divide-x-0 divide-solid divide-gray-45">
-				<MenuListItem to={networkUrl} icon={<Domain24 />} title="Network" subtitle={networkConfig.name} />
+				<MenuListItem
+					to={networkUrl}
+					icon={<Domain24 />}
+					title="Network"
+					subtitle={networkConfig.name}
+				/>
 				<MenuListItem
 					to={autoLockUrl}
 					icon={<LockLocked24 />}

@@ -6,7 +6,7 @@ export enum Network {
 	Devnet = 'devnet',
 	Testnet = 'testnet',
 	Local = 'local',
-	Custom = 'custom'
+	Custom = 'custom',
 }
 
 // We also accept `string` in case we want to use a network not supported by the SDK
@@ -15,21 +15,21 @@ export type NetworkId = Network | string;
 export type ChainType = `${string}:${string}`;
 
 export interface NetworkConfiguration {
-	id: Network,
-	name: string,
-	url: string,
-	explorer: string,
-	chain: ChainType,
-	faucet?: string
+	id: Network;
+	name: string;
+	url: string;
+	explorer: string;
+	chain: ChainType;
+	faucet?: string;
 }
 
-type NetworksConfiguration = Record<NetworkId, NetworkConfiguration>
+type NetworksConfiguration = Record<NetworkId, NetworkConfiguration>;
 
 export function getAllNetworks(): NetworksConfiguration {
 	const networksStringified = process.env.IOTA_NETWORKS;
 
-	if(!networksStringified){
-		throw new Error('"IOTA_NETWORKS" env var is not set.')
+	if (!networksStringified) {
+		throw new Error('"IOTA_NETWORKS" env var is not set.');
 	}
 
 	let networks;
@@ -37,10 +37,10 @@ export function getAllNetworks(): NetworksConfiguration {
 	try {
 		networks = JSON.parse(networksStringified);
 	} catch {
-		throw new Error('Failed to parse env var "IOTA_NETWORKS".')
+		throw new Error('Failed to parse env var "IOTA_NETWORKS".');
 	}
 
-	return networks
+	return networks;
 }
 
 export function getNetwork(network: NetworkId): NetworkConfiguration {
@@ -48,14 +48,13 @@ export function getNetwork(network: NetworkId): NetworkConfiguration {
 
 	const requestedNetwork = networks[network] ?? network;
 
-	return requestedNetwork
+	return requestedNetwork;
 }
 
 export function getDefaultNetwork(): Network {
-	return process.env.DEFAULT_NETWORK as Network || Network.Mainnet || Network.Testnet
+	return (process.env.DEFAULT_NETWORK as Network) || Network.Mainnet || Network.Testnet;
 }
 
-
-export function getFullnodeUrl(network: NetworkId): string{
-	return getNetwork(network).url
+export function getFullnodeUrl(network: NetworkId): string {
+	return getNetwork(network).url;
 }

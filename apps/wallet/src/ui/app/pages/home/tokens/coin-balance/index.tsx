@@ -5,9 +5,9 @@ import { useAppSelector } from '_hooks';
 import { Heading } from '_src/ui/app/shared/heading';
 import { Text } from '_src/ui/app/shared/text';
 import { useBalanceInUSD, useFormatCoin } from '@mysten/core';
+import { Network } from '@mysten/sui.js/client';
 import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
 import { useMemo } from 'react';
-import { Network } from '@mysten/sui.js/client';
 
 export type CoinProps = {
 	type: string;

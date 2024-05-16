@@ -7,7 +7,7 @@ import {
 	type QredoAPI,
 	type TransactionInfoResponse,
 } from '_src/shared/qredo-api';
-import { Network, type SuiClient } from '@mysten/sui.js/client';
+import { type Network, type SuiClient } from '@mysten/sui.js/client';
 import {
 	IntentScope,
 	messageWithIntent,

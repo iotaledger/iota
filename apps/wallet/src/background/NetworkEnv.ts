@@ -1,9 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Network, getDefaultNetwork } from '@mysten/sui.js/client';
-import { NetworkEnvType } from '_src/shared/api-env';
+import { type NetworkEnvType } from '_src/shared/api-env';
 import { isValidUrl } from '_src/shared/utils';
+import { getDefaultNetwork, Network } from '@mysten/sui.js/client';
 import mitt from 'mitt';
 import Browser from 'webextension-polyfill';
 

@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-;
 import { GrowthBook } from '@growthbook/growthbook';
 import { Network } from '@mysten/sui.js/client';
 import Browser from 'webextension-polyfill';
 
+// Copyright (c) Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
 export const growthbook = new GrowthBook({
 	// If you want to develop locally, you can set the API host to this:
 	// apiHost: 'http://localhost:3003',

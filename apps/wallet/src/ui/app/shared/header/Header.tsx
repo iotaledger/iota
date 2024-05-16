@@ -1,11 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { type Network } from '@mysten/sui.js/client';
 import { type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
 import Logo from '../../components/logo';
-import { Network } from '@mysten/sui.js/client';
 
 type HeaderProps = {
 	network: Network;

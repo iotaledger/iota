@@ -4,7 +4,7 @@
 import networkEnv from '_src/background/NetworkEnv';
 import { type NetworkEnvType } from '_src/shared/api-env';
 import { SentryHttpTransport } from '@mysten/core';
-import { Network, SuiClient, SuiHTTPTransport, getNetwork } from '@mysten/sui.js/client';
+import { getNetwork, Network, SuiClient, SuiHTTPTransport } from '@mysten/sui.js/client';
 
 const suiClientPerNetwork = new Map<string, SuiClient>();
 const SENTRY_MONITORED_ENVS = [Network.Custom];

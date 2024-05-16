@@ -6,12 +6,12 @@ import { resolve } from 'path';
 import { randomBytes } from '@noble/hashes/utils';
 import SentryWebpackPlugin from '@sentry/webpack-plugin';
 import CopyPlugin from 'copy-webpack-plugin';
+import dotenv from 'dotenv';
 import gitRevSync from 'git-rev-sync';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
 import MiniCssExtractPlugin from 'mini-css-extract-plugin';
 import { DefinePlugin, ProvidePlugin } from 'webpack';
 import type { Configuration } from 'webpack';
-import dotenv from 'dotenv';
 
 import packageJson from '../../package.json';
 
@@ -45,7 +45,7 @@ const IS_PROD = process.env.NODE_ENV === 'production';
 const TS_CONFIG_FILE = resolve(TS_CONFIGS_ROOT, `tsconfig.${IS_DEV ? 'dev' : 'prod'}.json`);
 const APP_NAME = WALLET_BETA ? 'Sui Wallet (BETA)' : IS_DEV ? 'Sui Wallet (DEV)' : 'Sui Wallet';
 
-dotenv.config({path: resolve(SDK_ROOT, '.env')});
+dotenv.config({ path: resolve(SDK_ROOT, '.env') });
 
 function loadTsConfig(tsConfigFilePath: string) {
 	return new Promise<string>((res, rej) => {

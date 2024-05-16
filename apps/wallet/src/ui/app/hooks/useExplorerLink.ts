@@ -1,6 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { getCustomNetwork } from '_src/shared/api-env';
+import { getNetwork, Network } from '@mysten/sui.js/client';
 import { useMemo } from 'react';
 
 import {
@@ -12,8 +14,6 @@ import {
 import { ExplorerLinkType } from '../components/explorer-link/ExplorerLinkType';
 import { useActiveAddress } from './useActiveAddress';
 import useAppSelector from './useAppSelector';
-import { Network, getNetwork } from '@mysten/sui.js/client';
-import { getCustomNetwork } from '_src/shared/api-env';
 
 export type ExplorerLinkConfig =
 	| {
@@ -47,7 +47,8 @@ export function useExplorerLink(linkConfig: ExplorerLinkConfig) {
 	const moduleName = type === ExplorerLinkType.object ? linkConfig.moduleName : null;
 
 	// fallback to localhost if customRPC is not set
-	const customExplorer = network == Network.Custom ? getCustomNetwork().explorer : getNetwork(network).explorer;
+	const customExplorer =
+		network == Network.Custom ? getCustomNetwork().explorer : getNetwork(network).explorer;
 	return useMemo(() => {
 		if (!address) return null;
 		switch (type) {

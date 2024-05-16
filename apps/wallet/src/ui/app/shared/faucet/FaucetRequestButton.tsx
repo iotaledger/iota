@@ -3,20 +3,19 @@
 
 import { Button, type ButtonProps } from '_app/shared/ButtonUI';
 import { useAppSelector } from '_hooks';
+import { getCustomNetwork } from '_src/shared/api-env';
+import { getNetwork } from '@mysten/sui.js/client';
 import { FaucetRateLimitError } from '@mysten/sui.js/faucet';
 import { toast } from 'react-hot-toast';
 
 import FaucetMessageInfo from './FaucetMessageInfo';
 import { useFaucetMutation } from './useFaucetMutation';
 import { useFaucetRateLimiter } from './useFaucetRateLimiter';
-import { getNetwork } from '@mysten/sui.js/client';
-import { getCustomNetwork } from '_src/shared/api-env';
 
 export type FaucetRequestButtonProps = {
 	variant?: ButtonProps['variant'];
 	size?: ButtonProps['size'];
 };
-
 
 function FaucetRequestButton({ variant = 'primary', size = 'narrow' }: FaucetRequestButtonProps) {
 	const network = useAppSelector(({ app }) => app.network);

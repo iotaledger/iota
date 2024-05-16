@@ -1,8 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Network, getNetwork } from '@mysten/sui.js/client';
 import { getUrlWithDeviceId } from '_src/shared/analytics/amplitude';
+import { getNetwork, Network } from '@mysten/sui.js/client';
 
 function getExplorerUrl(path: string, network: Network, customExplorer: string) {
 	const networkConfig = getNetwork(network);

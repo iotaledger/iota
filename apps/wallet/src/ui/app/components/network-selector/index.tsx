@@ -4,7 +4,9 @@
 import { useAppDispatch, useAppSelector } from '_hooks';
 import { changeActiveNetwork } from '_redux/slices/app';
 import { ampli } from '_src/shared/analytics/ampli';
+import { getCustomNetwork } from '_src/shared/api-env';
 import { Check24 } from '@mysten/icons';
+import { getAllNetworks, Network, type NetworkConfiguration } from '@mysten/sui.js/client';
 import cl from 'clsx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useMemo, useState } from 'react';
@@ -12,11 +14,12 @@ import { toast } from 'react-hot-toast';
 
 import { CustomRPCInput } from './custom-rpc-input';
 import st from './NetworkSelector.module.scss';
-import { getAllNetworks, Network, NetworkConfiguration } from '@mysten/sui.js/client';
-import { getCustomNetwork } from '_src/shared/api-env';
 
 const NetworkSelector = () => {
-	const [activeNetwork, activeCustomRpc] = useAppSelector(({ app }) => [app.network, app.customRpc]);
+	const [activeNetwork, activeCustomRpc] = useAppSelector(({ app }) => [
+		app.network,
+		app.customRpc,
+	]);
 	const [isCustomRpcInputVisible, setCustomRpcInputVisible] = useState<boolean>(
 		activeNetwork === Network.Custom,
 	);
@@ -26,9 +29,9 @@ const NetworkSelector = () => {
 	}, [activeNetwork, activeCustomRpc]);
 	const dispatch = useAppDispatch();
 	const networks = useMemo(() => {
-		const supportedNetworks =  Object.entries(getAllNetworks());
+		const supportedNetworks = Object.entries(getAllNetworks());
 		const customNetwork: [Network, NetworkConfiguration] = [Network.Custom, getCustomNetwork()];
-		return [...supportedNetworks, customNetwork]
+		return [...supportedNetworks, customNetwork];
 	}, []);
 
 	return (
@@ -69,9 +72,7 @@ const NetworkSelector = () => {
 									st.networkIcon,
 									st.selectedNetwork,
 									activeNetwork === network.id && st.networkActive,
-									network.id === Network.Custom &&
-										isCustomRpcInputVisible &&
-										st.customRpcActive,
+									network.id === Network.Custom && isCustomRpcInputVisible && st.customRpcActive,
 								)}
 							/>
 

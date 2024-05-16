@@ -1,20 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import {  walletApiProvider } from '_app/ApiProvider';
+import { walletApiProvider } from '_app/ApiProvider';
 import type { RootState } from '_redux/RootReducer';
 import type { NetworkEnvType } from '_src/shared/api-env';
 import type { AppThunkConfig } from '_store/thunk-extras';
+import { getDefaultNetwork, type Network, type NetworkConfiguration } from '@mysten/sui.js/client';
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 
 import { AppType } from './AppType';
-import { Network, getDefaultNetwork, type NetworkConfiguration } from '@mysten/sui.js/client';
 
 type AppState = {
 	appType: AppType;
 	network: Network;
-	customRpc: string | null
+	customRpc: string | null;
 	navVisible: boolean;
 	activeOrigin: string | null;
 	activeOriginFavIcon: string | null;

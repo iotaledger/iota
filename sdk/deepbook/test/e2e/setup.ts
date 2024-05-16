@@ -21,7 +21,7 @@ import type { PoolSummary } from '../../src/types/index.js';
 import { FLOAT_SCALING_FACTOR, NORMALIZED_SUI_COIN_TYPE } from '../../src/utils/index.js';
 
 const DEFAULT_FAUCET_URL = import.meta.env.VITE_FAUCET_URL ?? getFaucetHost('localnet');
-const DEFAULT_FULLNODE_URL = import.meta.env.VITE_FULLNODE_URL ?? getNetwork(Network.Local).rpc
+const DEFAULT_FULLNODE_URL = import.meta.env.VITE_FULLNODE_URL ?? getNetwork(Network.Local).rpc;
 const SUI_BIN = import.meta.env.VITE_SUI_BIN ?? 'cargo run --bin sui';
 
 export const DEFAULT_TICK_SIZE = 1n * FLOAT_SCALING_FACTOR;

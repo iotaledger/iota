@@ -27,6 +27,7 @@ import {
 } from '_src/shared/messaging/messages/payloads/QredoConnect';
 import { type SignMessageRequest } from '_src/shared/messaging/messages/payloads/transactions/SignMessage';
 import { isWalletStatusChangePayload } from '_src/shared/messaging/messages/payloads/wallet-status-change';
+import { getNetwork, Network, type ChainType } from '@mysten/sui.js/client';
 import { isTransactionBlock } from '@mysten/sui.js/transactions';
 import { fromB64, toB64 } from '@mysten/sui.js/utils';
 import {
@@ -48,7 +49,6 @@ import mitt, { type Emitter } from 'mitt';
 import { filter, map, type Observable } from 'rxjs';
 
 import { mapToPromise } from './utils';
-import { ChainType, Network, getNetwork } from '@mysten/sui.js/client';
 
 type WalletEventsMap = {
 	[E in keyof StandardEventsListeners]: Parameters<StandardEventsListeners[E]>[0];
@@ -339,7 +339,8 @@ export class SuiWallet implements Wallet {
 	}
 
 	#setActiveChain({ network }: NetworkEnvType) {
-		this.#activeChain = network === Network.Custom ? getCustomNetwork().chain : getNetwork(network).chain;
+		this.#activeChain =
+			network === Network.Custom ? getCustomNetwork().chain : getNetwork(network).chain;
 	}
 
 	#qredoConnect = async (input: QredoConnectInput): Promise<void> => {

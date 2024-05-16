@@ -16,7 +16,6 @@ export default class ApiProvider {
 	private _apiFullNodeProvider?: SuiClient;
 	private _signerByAddress: Map<string, WalletSigner> = new Map();
 	network = getDefaultNetwork();
-	
 
 	public setNewJsonRpcProvider(network: Network = getDefaultNetwork(), customRPC?: string | null) {
 		this.network = network;

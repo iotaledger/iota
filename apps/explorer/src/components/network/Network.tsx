@@ -15,8 +15,8 @@ export default function WrappedNetworkSelect() {
 	const { data: binaryVersion } = useSuiClientQuery('getRpcApiVersion');
 
 	const networks = Object.values(getAllNetworks()).map((network) => ({
-		id: network.id, 
-		label: network.name
+		id: network.id,
+		label: network.name,
 	})) as NetworkOption[];
 
 	return (

@@ -3,6 +3,7 @@
 
 import { type NetworkEnvType } from '_src/shared/api-env';
 import { fetchWithSentry } from '_src/shared/utils';
+import { Network } from '@mysten/sui.js/client';
 import { type PublicKey } from '@mysten/sui.js/cryptography';
 import { Ed25519Keypair } from '@mysten/sui.js/keypairs/ed25519';
 import {
@@ -17,7 +18,6 @@ import { v4 as uuidV4 } from 'uuid';
 import Browser from 'webextension-polyfill';
 
 import { zkLoginProviderDataMap, type ZkLoginProvider } from './providers';
-import { Network } from '@mysten/sui.js/client';
 
 export function prepareZkLogin(currentEpoch: number) {
 	const maxEpoch = currentEpoch + 2;
