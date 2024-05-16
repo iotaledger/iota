@@ -11,9 +11,6 @@ import { growthbook } from './utils/growthbook';
 import { queryClient } from './utils/queryClient';
 import { getDefaultNetwork } from '@mysten/sui.js/client';
 
-export const DEFAULT_NETWORK =
-	import.meta.env.VITE_NETWORK || getDefaultNetwork()
-
 export const NetworkContext = createContext<
 	[Network | string, (network: Network | string) => void]
 >(['', () => null]);
@@ -32,7 +29,7 @@ export function useNetwork(): [string, (network: Network | string) => void] {
 			return networkParam.toUpperCase();
 		}
 
-		return networkParam ?? DEFAULT_NETWORK;
+		return networkParam ?? getDefaultNetwork();
 	}, [searchParams]);
 
 	const setNetwork = (network: Network | string) => {
