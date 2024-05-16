@@ -158,13 +158,6 @@ impl Migration {
         // context will also map to the same objects betwen runs.
         outputs.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
         foundries.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
-        let mut outputs: Vec<(OutputHeader, Output)> = outputs.into_iter().collect();
-        // We sort the outputs to make sure the order of outputs up to
-        // a certain milestone timestamp remains the same between runs.
-        //
-        // This guarantees that fresh ids created through the transaction
-        // context will also map to the same objects betwen runs.
-        outputs.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
         self.migrate_foundries(&foundries)?;
         self.migrate_outputs(&outputs)?;
         self.verify_ledger_state(&outputs)?;
