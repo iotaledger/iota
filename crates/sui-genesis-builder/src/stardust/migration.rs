@@ -1,3 +1,6 @@
+// Copyright 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! Contains the logic for the migration process.
 use move_core_types::{ident_str, language_storage::StructTag};
 use std::{
@@ -17,7 +20,7 @@ use sui_types::{
 use anyhow::Result;
 use fastcrypto::hash::HashFunction;
 use iota_sdk::types::block::output::{
-    AliasOutput, BasicOutput, FoundryOutput, NativeTokens, NftOutput, Output, TokenId,
+    AliasOutput, BasicOutput, FoundryOutput, NativeTokens, NftOutput, Output, OutputId, TokenId,
     TreasuryOutput,
 };
 use move_vm_runtime_v2::move_vm::MoveVM;
@@ -46,7 +49,7 @@ use sui_types::{
     MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID, SUI_SYSTEM_PACKAGE_ID,
 };
 
-use super::types::snapshot::OutputHeader;
+use super::{types::snapshot::OutputHeader, verification::verify_output};
 use crate::process_package;
 use crate::stardust::native_token::package_builder;
 use crate::stardust::native_token::package_data::NativeTokenPackageData;
@@ -89,14 +92,10 @@ impl Migration {
     }
 
     /// Create the packages, and associated objects representing foundry outputs.
-    fn migrate_foundries(
+    fn migrate_foundries<'a>(
         &mut self,
-        foundries: impl Iterator<Item = (OutputHeader, FoundryOutput)>,
+        foundries: impl IntoIterator<Item = &'a (OutputHeader, FoundryOutput)>,
     ) -> Result<()> {
-        let mut foundries: Vec<(OutputHeader, FoundryOutput)> = foundries.collect();
-        // We sort the outputs to make sure the order of outputs up to
-        // a certain milestone timestamp remains the same between runs.
-        foundries.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
         let compiled = foundries
             .into_iter()
             .map(|(_, output)| {
@@ -108,17 +107,10 @@ impl Migration {
     }
 
     /// Create objects for all outputs except for foundry outputs.
-    fn migrate_outputs(
+    fn migrate_outputs<'a>(
         &mut self,
-        outputs: impl Iterator<Item = (OutputHeader, Output)>,
+        outputs: impl IntoIterator<Item = &'a (OutputHeader, Output)>,
     ) -> Result<()> {
-        let mut outputs: Vec<(OutputHeader, Output)> = outputs.collect();
-        // We sort the outputs to make sure the order of outputs up to
-        // a certain milestone timestamp remains the same between runs.
-        //
-        // This guarantees that fresh ids created through the transaction
-        // context will also map to the same objects betwen runs.
-        outputs.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
         for (header, output) in outputs {
             match output {
                 Output::Alias(alias) => self.executor.create_alias_objects(alias)?,
@@ -142,15 +134,60 @@ impl Migration {
     /// * Create the snapshot file.
     pub fn run(
         mut self,
-        foundries: impl Iterator<Item = (OutputHeader, FoundryOutput)>,
-        outputs: impl Iterator<Item = (OutputHeader, Output)>,
+        outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
         writer: impl Write,
     ) -> Result<()> {
-        self.migrate_foundries(foundries)?;
-        self.migrate_outputs(outputs)?;
+        let (mut foundries, mut outputs) = outputs.into_iter().fold(
+            (Vec::new(), Vec::new()),
+            |(mut foundries, mut outputs), (header, output)| {
+                if let Output::Foundry(foundry) = output {
+                    foundries.push((header, foundry));
+                } else {
+                    outputs.push((header, output));
+                }
+                (foundries, outputs)
+            },
+        );
+        // We sort the outputs to make sure the order of outputs up to
+        // a certain milestone timestamp remains the same between runs.
+        //
+        // This guarantees that fresh ids created through the transaction
+        // context will also map to the same objects betwen runs.
+        outputs.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
+        foundries.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
+        let mut outputs: Vec<(OutputHeader, Output)> = outputs.into_iter().collect();
+        // We sort the outputs to make sure the order of outputs up to
+        // a certain milestone timestamp remains the same between runs.
+        //
+        // This guarantees that fresh ids created through the transaction
+        // context will also map to the same objects betwen runs.
+        outputs.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
+        self.migrate_foundries(&foundries)?;
+        self.migrate_outputs(&outputs)?;
+        self.verify_ledger_state(&outputs)?;
         let stardust_object_ledger = self.executor.store;
-        verify_ledger_state(&stardust_object_ledger)?;
         create_snapshot(stardust_object_ledger, writer)
+    }
+
+    /// Verify the ledger state represented by the objects in [`InMemoryStorage`].
+    pub fn verify_ledger_state<'a>(
+        &self,
+        outputs: impl IntoIterator<Item = &'a (OutputHeader, Output)>,
+    ) -> Result<()> {
+        for (header, output) in outputs {
+            let object_id = self
+                .executor
+                .outputs
+                .get(&header.output_id())
+                .ok_or_else(|| {
+                    anyhow::anyhow!("missing object_id for output {}", header.output_id())
+                })?;
+            let object = self.executor.store.get_object(object_id).ok_or_else(|| {
+                anyhow::anyhow!("missing object for output {}", header.output_id())
+            })?;
+            verify_output(object, header, output)?;
+        }
+        Ok(())
     }
 }
 
@@ -169,6 +206,7 @@ struct Executor {
     store: InMemoryStorage,
     move_vm: Arc<MoveVM>,
     metrics: Arc<LimitsMetrics>,
+    outputs: HashMap<OutputId, ObjectID>,
     /// Map the stardust token id [`TokenId`] to the [`ObjectID`] and of the
     /// coin minted by the foundry and its [`TypeOrigin`].
     native_tokens: HashMap<TokenId, (ObjectID, TypeOrigin)>,
@@ -219,6 +257,7 @@ impl Executor {
             store,
             move_vm,
             metrics,
+            outputs: Default::default(),
             native_tokens: Default::default(),
         })
     }
@@ -288,9 +327,9 @@ impl Executor {
     /// * For each native token, map the [`TokenId`] to the [`ObjectID`] of the
     ///   coin that holds its total supply.
     /// * Update the inner store with the created objects.
-    fn create_foundries(
+    fn create_foundries<'a>(
         &mut self,
-        foundries: impl Iterator<Item = (FoundryOutput, CompiledPackage)>,
+        foundries: impl Iterator<Item = (&'a FoundryOutput, CompiledPackage)>,
     ) -> Result<()> {
         for (foundry, pkg) in foundries {
             let modules = package_module_bytes(&pkg)?;
@@ -341,7 +380,7 @@ impl Executor {
         Ok(())
     }
 
-    fn create_alias_objects(&mut self, _alias: AliasOutput) -> Result<()> {
+    fn create_alias_objects(&mut self, _alias: &AliasOutput) -> Result<()> {
         todo!();
     }
 
@@ -473,8 +512,8 @@ impl Executor {
     /// crates/sui-framework/packages/stardust/basic_migration_graph.svg
     fn create_basic_objects(
         &mut self,
-        header: OutputHeader,
-        basic_output: BasicOutput,
+        header: &OutputHeader,
+        basic_output: &BasicOutput,
     ) -> Result<()> {
         let mut data = super::types::output::BasicOutput::new(header.clone(), &basic_output);
         let owner: SuiAddress = basic_output.address().to_string().parse()?;
@@ -495,22 +534,18 @@ impl Executor {
             }
             data.to_genesis_object(owner, &self.protocol_config, &self.tx_context, version)?
         };
+        self.outputs.insert(header.output_id(), object.id());
         self.store.insert_object(object);
         Ok(())
     }
 
-    fn create_nft_objects(&mut self, _nft: NftOutput) -> Result<()> {
+    fn create_nft_objects(&mut self, _nft: &NftOutput) -> Result<()> {
         todo!();
     }
 
-    fn create_treasury_objects(&mut self, _treasury: TreasuryOutput) -> Result<()> {
+    fn create_treasury_objects(&mut self, _treasury: &TreasuryOutput) -> Result<()> {
         todo!();
     }
-}
-
-/// Verify the ledger state represented by the objects in [`InMemoryStorage`].
-fn verify_ledger_state(_store: &InMemoryStorage) -> Result<()> {
-    todo!();
 }
 
 /// Serialize the objects stored in [`InMemoryStorage`] into a file using
