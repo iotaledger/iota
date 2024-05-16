@@ -16,5 +16,8 @@
 			"outputs": ["build/**", "dist/**", "storybook-static/**", ".next/**", "!.next/cache/**", "pkg/**"]
 		}
 	},
-	"globalEnv": ["VERCEL_ENV", "VITE_VERCEL_ANALYTICS_ID", "VITE_SENTRY_SAMPLE_RATE"]
+	"globalEnv": ["VERCEL_ENV", "VITE_VERCEL_ANALYTICS_ID", "VITE_SENTRY_SAMPLE_RATE"],
+	"globalDependencies": [
+		"sdk/.env"
+	]
 }
