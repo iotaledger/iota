@@ -5,7 +5,7 @@ import { SuiCustomRpc, SuiDevnet, SuiLocal, SuiMainnet, SuiTestnet } from '@myst
 import { Network } from '@mysten/sui.js/client';
 
 type LogoProps = {
-	network: Network;
+	network?: Network;
 };
 
 const networkLogos = {
@@ -17,7 +17,7 @@ const networkLogos = {
 };
 
 const Logo = ({ network }: LogoProps) => {
-	const LogoComponent = networkLogos[network] ?? networkLogos[Network.Custom];
+	const LogoComponent = network ? networkLogos[network] : networkLogos[Network.Custom];
 
 	return <LogoComponent className="h-7 w-walletLogo text-gray-90" />;
 };

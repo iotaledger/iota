@@ -3,13 +3,14 @@
 
 import { useNextMenuUrl } from '_components/menu/hooks';
 import { useAppSelector } from '_hooks';
+import { getCustomNetwork } from '_src/shared/api-env';
 import { FAQ_LINK, ToS_LINK } from '_src/shared/constants';
 import { formatAutoLock, useAutoLockMinutes } from '_src/ui/app/hooks/useAutoLockMinutes';
 import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { Link } from '_src/ui/app/shared/Link';
 import { Text } from '_src/ui/app/shared/text';
 import { ArrowUpRight12, Clipboard24, Domain24, LockLocked24, More24 } from '@mysten/icons';
-import { getNetwork } from '@mysten/sui.js/client';
+import { getNetwork, Network } from '@mysten/sui.js/client';
 import Browser from 'webextension-polyfill';
 
 import Loading from '../../loading';
@@ -21,7 +22,7 @@ function MenuList() {
 	const autoLockUrl = useNextMenuUrl(true, '/auto-lock');
 	const moreOptionsUrl = useNextMenuUrl(true, '/more-options');
 	const network = useAppSelector((state) => state.app.network);
-	const networkConfig = getNetwork(network);
+	const networkConfig = network === Network.Custom ? getCustomNetwork() : getNetwork(network);
 	const version = Browser.runtime.getManifest().version;
 	const autoLockInterval = useAutoLockMinutes();
 

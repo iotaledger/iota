@@ -2,10 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type QredoSerializedUiAccount } from '_src/background/accounts/QredoAccount';
-import {
-	type QredoAPI,
-	type TransactionInfoResponse,
-} from '_src/shared/qredo-api';
+import { type QredoAPI, type TransactionInfoResponse } from '_src/shared/qredo-api';
 import { type Network, type SuiClient } from '@mysten/sui.js/client';
 import {
 	IntentScope,
