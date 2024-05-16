@@ -49,7 +49,7 @@ have to be received via this object once extracted from <code>AliasOutput</code>
  This is the AliasID from Stardust.
 </dd>
 <dt>
-<code>legacy_state_controller: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<b>address</b>&gt;</code>
+<code>legacy_state_controller: <b>address</b></code>
 </dt>
 <dd>
  The last State Controller address assigned before the migration.
@@ -138,7 +138,7 @@ Destroy the <code><a href="alias.md#0x107a_alias_Alias">Alias</a></code> object,
 Get the Alias's <code>legacy_state_controller</code>.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="alias.md#0x107a_alias_legacy_state_controller">legacy_state_controller</a>(self: &<a href="alias.md#0x107a_alias_Alias">alias::Alias</a>): &<a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<b>address</b>&gt;
+<pre><code><b>public</b> <b>fun</b> <a href="alias.md#0x107a_alias_legacy_state_controller">legacy_state_controller</a>(self: &<a href="alias.md#0x107a_alias_Alias">alias::Alias</a>): &<b>address</b>
 </code></pre>
 
 
@@ -147,7 +147,7 @@ Get the Alias's <code>legacy_state_controller</code>.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="alias.md#0x107a_alias_legacy_state_controller">legacy_state_controller</a>(self: &<a href="alias.md#0x107a_alias_Alias">Alias</a>): &Option&lt;<b>address</b>&gt; {
+<pre><code><b>public</b> <b>fun</b> <a href="alias.md#0x107a_alias_legacy_state_controller">legacy_state_controller</a>(self: &<a href="alias.md#0x107a_alias_Alias">Alias</a>): &<b>address</b> {
     &self.legacy_state_controller
 }
 </code></pre>

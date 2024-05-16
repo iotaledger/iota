@@ -2,4 +2,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod timelock;
+pub mod timelocked_staked_sui;
 pub mod timelocked_staking;

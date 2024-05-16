@@ -18,7 +18,7 @@ mod timelock_tests;
 pub const TIMELOCK_MODULE_NAME: &IdentStr = ident_str!("timelock");
 pub const TIMELOCK_STRUCT_NAME: &IdentStr = ident_str!("TimeLock");
 
-// Rust version of the Move stardust::timelock::TimeLock type.
+/// Rust version of the Move stardust::timelock::TimeLock type.
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema, Eq, PartialEq)]
 pub struct TimeLock<T> {
     pub id: UID,

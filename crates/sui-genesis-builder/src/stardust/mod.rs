@@ -6,6 +6,8 @@
 //! them to the appropriate genesis objects.
 pub mod error;
 pub mod migration;
+#[cfg(test)]
+mod migration_tests;
 pub mod native_token;
 pub mod parse;
 pub mod types;

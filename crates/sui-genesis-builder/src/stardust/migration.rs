@@ -49,7 +49,10 @@ use sui_types::{
     MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID, SUI_SYSTEM_PACKAGE_ID,
 };
 
-use super::{types::snapshot::OutputHeader, verification::verify_output};
+use super::{
+    types::{snapshot::OutputHeader, stardust_to_sui_address_owner, Alias},
+    verification::verify_output,
+};
 use crate::process_package;
 use crate::stardust::native_token::package_builder;
 use crate::stardust::native_token::package_data::NativeTokenPackageData;
@@ -113,7 +116,7 @@ impl Migration {
     ) -> Result<()> {
         for (header, output) in outputs {
             match output {
-                Output::Alias(alias) => self.executor.create_alias_objects(alias)?,
+                Output::Alias(alias) => self.executor.create_alias_objects(header, alias)?,
                 Output::Basic(basic) => self.executor.create_basic_objects(header, basic)?,
                 Output::Nft(nft) => self.executor.create_nft_objects(nft)?,
                 Output::Treasury(treasury) => self.executor.create_treasury_objects(treasury)?,
@@ -251,6 +254,7 @@ impl Executor {
             )?;
         }
         let move_vm = Arc::new(new_move_vm(all_natives(silent), &protocol_config, None)?);
+
         Ok(Self {
             protocol_config,
             tx_context,
@@ -380,8 +384,72 @@ impl Executor {
         Ok(())
     }
 
-    fn create_alias_objects(&mut self, _alias: &AliasOutput) -> Result<()> {
-        todo!();
+    fn create_alias_objects(&mut self, header: &OutputHeader, alias: &AliasOutput) -> Result<()> {
+        // Take the Alias ID set in the output or, if its zeroized, compute it from the Output ID.
+        let alias_id = ObjectID::new(*alias.alias_id().or_from_output_id(&header.output_id()));
+        let move_alias = Alias::try_from_stardust(alias_id, &alias)?;
+
+        // TODO: We should ensure that no circular ownership exists.
+        let alias_output_owner = stardust_to_sui_address_owner(alias.governor_address())?;
+
+        let package_deps = InputObjects::new(self.load_packages(PACKAGE_DEPS).collect());
+        let version = package_deps.lamport_timestamp(&[]);
+        let move_alias_object = move_alias.to_genesis_object(
+            alias_output_owner,
+            &self.protocol_config,
+            &self.tx_context,
+            version,
+        )?;
+
+        let move_alias_object_ref = move_alias_object.compute_object_reference();
+        self.store.insert_object(move_alias_object);
+
+        let (bag, version) = self.create_bag(alias.native_tokens())?;
+        let move_alias_output = crate::stardust::types::AliasOutput::try_from_stardust(
+            self.tx_context.fresh_id(),
+            &alias,
+            bag,
+        )?;
+
+        // The bag will be wrapped into the alias output object, so
+        // by equating their versions we emulate a ptb.
+        let move_alias_output_object = move_alias_output.to_genesis_object(
+            alias_output_owner,
+            &self.protocol_config,
+            &self.tx_context,
+            version,
+        )?;
+        let move_alias_output_object_ref = move_alias_output_object.compute_object_reference();
+        self.store.insert_object(move_alias_output_object);
+
+        // Attach the Alias to the Alias Output as a dynamic object field via the attach_alias convenience method.
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+
+            let alias_output_arg =
+                builder.obj(ObjectArg::ImmOrOwnedObject(move_alias_output_object_ref))?;
+            let alias_arg = builder.obj(ObjectArg::ImmOrOwnedObject(move_alias_object_ref))?;
+            builder.programmable_move_call(
+                STARDUST_PACKAGE_ID,
+                ident_str!("alias_output").into(),
+                ident_str!("attach_alias").into(),
+                vec![],
+                vec![alias_output_arg, alias_arg],
+            );
+
+            builder.finish()
+        };
+
+        let input_objects = CheckedInputObjects::new_for_genesis(
+            self.load_input_objects([move_alias_object_ref, move_alias_output_object_ref])
+                .chain(self.load_packages(PACKAGE_DEPS))
+                .collect(),
+        );
+
+        let InnerTemporaryStore { written, .. } = self.execute_pt_unmetered(input_objects, pt)?;
+        self.store.finish(written);
+
+        Ok(())
     }
 
     /// Create a [`Bag`] of balances of native tokens.

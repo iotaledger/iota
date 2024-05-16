@@ -2,6 +2,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::balance::Balance;
 use crate::coin::Coin;
 use crate::coin::CoinMetadata;
 use crate::coin::TreasuryCap;
@@ -32,6 +33,8 @@ use crate::object::{Object, Owner};
 use crate::parse_sui_struct_tag;
 use crate::signature::GenericSignature;
 use crate::stardust::timelock;
+use crate::stardust::timelock::TimeLock;
+use crate::stardust::timelocked_staked_sui::TimelockedStakedSui;
 use crate::sui_serde::Readable;
 use crate::sui_serde::{to_sui_struct_tag_string, HexAccountAddress};
 use crate::transaction::Transaction;
@@ -186,6 +189,16 @@ impl MoveObjectType {
 
     pub fn staked_sui() -> Self {
         Self(MoveObjectType_::StakedSui)
+    }
+
+    pub fn timelocked_sui_balance() -> Self {
+        Self(MoveObjectType_::Other(TimeLock::<Balance>::type_(
+            Balance::type_(GAS::type_().into()).into(),
+        )))
+    }
+
+    pub fn timelocked_staked_sui() -> Self {
+        Self(MoveObjectType_::Other(TimelockedStakedSui::type_()))
     }
 
     pub fn address(&self) -> AccountAddress {
@@ -349,6 +362,15 @@ impl MoveObjectType {
                 false
             }
             MoveObjectType_::Other(s) => timelock::is_timelocked_balance(s),
+        }
+    }
+
+    pub fn is_timelocked_staked_sui(&self) -> bool {
+        match &self.0 {
+            MoveObjectType_::GasCoin | MoveObjectType_::StakedSui | MoveObjectType_::Coin(_) => {
+                false
+            }
+            MoveObjectType_::Other(s) => TimelockedStakedSui::is_timelocked_staked_sui(s),
         }
     }
 

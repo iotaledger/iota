@@ -62,7 +62,7 @@ module stardust::alias_tests {
 
         let alias = alias::create_for_testing(
             // legacy state controller
-            option::some(owner),
+            owner,
             // state index
             0,
             // state metadata
