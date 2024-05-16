@@ -10,7 +10,7 @@ use sui_types::{
     base_types::{ObjectRef, SequenceNumber},
     collection_types::Bag,
     move_package::TypeOrigin,
-    transaction::{Argument, InputObjects, ObjectArg},
+    transaction::{Argument, InputObjects, ObjectArg, ObjectReadResultKind},
     TypeTag,
 };
 
@@ -350,7 +350,8 @@ impl Executor {
         // TODO: We should ensure that no circular ownership exists.
         let alias_output_owner = stardust_to_sui_address_owner(alias.governor_address())?;
 
-        let version = 0.into();
+        let package_deps = InputObjects::new(self.load_packages(PACKAGE_DEPS).collect());
+        let version = package_deps.lamport_timestamp(&[]);
         let move_alias_object = move_alias.to_genesis_object(
             alias_output_owner,
             &self.protocol_config,
@@ -361,10 +362,12 @@ impl Executor {
         let move_alias_object_ref = move_alias_object.compute_object_reference();
         self.store.insert_object(move_alias_object);
 
-        let (bag, _) = self.create_bag(alias.native_tokens())?;
+        let (bag, version) = self.create_bag(alias.native_tokens())?;
         let move_alias_output =
             AliasOutput::try_from_stardust(self.tx_context.fresh_id(), &alias, bag)?;
 
+        // The bag will be wrapped into the alias output object, so
+        // by equating their versions we emulate a ptb.
         let move_alias_output_object = move_alias_output.to_genesis_object(
             alias_output_owner,
             &self.protocol_config,

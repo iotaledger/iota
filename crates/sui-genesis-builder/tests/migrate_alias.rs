@@ -1,4 +1,3 @@
-use fastcrypto::hash::{Blake2b256, HashFunction};
 use iota_sdk::types::block::{
     address::Ed25519Address,
     output::{
@@ -7,15 +6,11 @@ use iota_sdk::types::block::{
         AliasId, AliasOutput as StardustAlias, AliasOutputBuilder, Feature,
     },
 };
-use move_core_types::ident_str;
 use sui_genesis_builder::stardust::{
     migration::Migration,
-    types::{
-        snapshot::OutputHeader, Alias, AliasOutput, ALIAS_MODULE_NAME, ALIAS_OUTPUT_MODULE_NAME,
-        ALIAS_OUTPUT_STRUCT_NAME, ALIAS_STRUCT_NAME,
-    },
+    types::{snapshot::OutputHeader, Alias, AliasOutput},
 };
-use sui_types::{base_types::ObjectID, id::UID, object::Object};
+use sui_types::{base_types::ObjectID, object::Object};
 
 fn migrate_alias(
     header: OutputHeader,
@@ -51,6 +46,17 @@ fn migrate_alias(
             None => false,
         })
         .expect("alias object should be present in the migrated snapshot");
+
+    // Version is set to 1 when the alias is created based on the computed lamport timestamp.
+    // When the alias is attached to the alias output, the version should be incremented.
+    assert!(
+        alias_object.version().value() > 1,
+        "alias object version should have been incremented"
+    );
+    assert!(
+        alias_output_object.version().value() > 1,
+        "alias output object version should have been incremented"
+    );
 
     let alias_output: AliasOutput =
         bcs::from_bytes(alias_output_object.data.try_as_move().unwrap().contents()).unwrap();
