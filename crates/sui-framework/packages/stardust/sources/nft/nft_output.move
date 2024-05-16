@@ -85,6 +85,11 @@ module stardust::nft_output {
 
     // === Public-Package Functions ===
 
+    /// Utility function to attach an `Alias` to an `AliasOutput`.
+    public fun attach_nft(output: &mut NftOutput, nft: Nft) {
+        dynamic_object_field::add(&mut output.id, NFT_NAME, nft)
+    }
+
     /// Utility function to receive an `NftOutput` in other Stardust modules.
     /// Other modules in the stardust package can call this function to receive an `NftOutput` (alias).
     public(package) fun receive(parent: &mut UID, nft: Receiving<NftOutput>) : NftOutput {
@@ -92,11 +97,6 @@ module stardust::nft_output {
     }
 
     // === Test Functions ===
-
-    #[test_only]
-    public fun attach_nft(output: &mut NftOutput, nft: Nft) {
-        dynamic_object_field::add(&mut output.id, NFT_NAME, nft)
-    }
 
     #[test_only]
     public fun create_for_testing(

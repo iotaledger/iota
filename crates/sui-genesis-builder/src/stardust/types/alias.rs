@@ -1,4 +1,3 @@
-use fastcrypto::hash::{Blake2b256, HashFunction};
 use iota_sdk::types::block::output::AliasOutput as StardustAlias;
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
@@ -13,7 +12,7 @@ use sui_types::{
     STARDUST_PACKAGE_ID,
 };
 
-use super::{stardust_to_sui_address, stardust_to_sui_address_owner};
+use super::stardust_to_sui_address;
 
 pub const ALIAS_MODULE_NAME: &IdentStr = ident_str!("alias");
 pub const ALIAS_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("alias_output");

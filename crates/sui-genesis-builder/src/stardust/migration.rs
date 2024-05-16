@@ -10,7 +10,7 @@ use sui_types::{
     base_types::{ObjectRef, SequenceNumber},
     collection_types::Bag,
     move_package::TypeOrigin,
-    transaction::{Argument, InputObjects, ObjectArg, ObjectReadResultKind},
+    transaction::{Argument, InputObjects, ObjectArg},
     TypeTag,
 };
 
