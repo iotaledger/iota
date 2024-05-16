@@ -17,7 +17,11 @@ const networkLogos = {
 };
 
 const Logo = ({ network }: LogoProps) => {
-	const LogoComponent = network ? networkLogos[network] : networkLogos[Network.Custom];
+	let LogoComponent = networkLogos[Network.Custom];
+
+	if (network && networkLogos[network]) {
+		LogoComponent = networkLogos[network];
+	}
 
 	return <LogoComponent className="h-7 w-walletLogo text-gray-90" />;
 };
