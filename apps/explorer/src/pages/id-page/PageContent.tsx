@@ -12,7 +12,7 @@ import TransactionBlocksForAddress from '~/components/TransactionBlocksForAddres
 import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { OwnedCoins } from '~/components/OwnedCoins';
 import { OwnedObjects } from '~/components/OwnedObjects';
-import { LOCAL_STORAGE_SPLIT_PANE_KEYS, SplitPanes } from '~/ui/SplitPanes';
+import { LocalStorageSplitPaneKey, SplitPanes } from '~/ui/SplitPanes';
 import { useSuiClient } from '@mysten/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 
@@ -46,7 +46,7 @@ function OwnedObjectsSection({ address }: { address: string }) {
 				<ErrorBoundary>
 					{isMediumOrAbove ? (
 						<SplitPanes
-							autoSaveId={LOCAL_STORAGE_SPLIT_PANE_KEYS.ADDRESS_VIEW_HORIZONTAL}
+							autoSaveId={LocalStorageSplitPaneKey.AddressViewHorizontal}
 							dividerSize="none"
 							splitPanels={[leftPane, rightPane]}
 							direction="horizontal"
