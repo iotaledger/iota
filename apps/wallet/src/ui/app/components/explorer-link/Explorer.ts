@@ -6,7 +6,7 @@ import { getNetwork, Network } from '@mysten/sui.js/client';
 
 function getExplorerUrl(path: string, network: Network, customExplorer: string) {
 	const networkConfig = getNetwork(network);
-	const explorer = network == Network.Custom ? customExplorer : networkConfig?.explorer;
+	const explorer = network === Network.Custom ? customExplorer : networkConfig?.explorer;
 
 	const url = getUrlWithDeviceId(new URL(path, explorer));
 	if (explorer) {

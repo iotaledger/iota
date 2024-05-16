@@ -9,7 +9,6 @@ import {
 	Network,
 	type NetworkId,
 	getAllNetworks,
-	SuiClientOptions,
 } from '@mysten/sui.js/client';
 
 export { Network } from '@mysten/sui.js/client';

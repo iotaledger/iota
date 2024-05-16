@@ -3,7 +3,6 @@
 
 import { type QredoSerializedUiAccount } from '_src/background/accounts/QredoAccount';
 import {
-	type NetworkType,
 	type QredoAPI,
 	type TransactionInfoResponse,
 } from '_src/shared/qredo-api';

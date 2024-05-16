@@ -48,7 +48,7 @@ export function useExplorerLink(linkConfig: ExplorerLinkConfig) {
 
 	// fallback to localhost if customRPC is not set
 	const customExplorer =
-		network == Network.Custom ? getCustomNetwork().explorer : getNetwork(network).explorer;
+		network === Network.Custom ? getCustomNetwork().explorer : getNetwork(network).explorer;
 	return useMemo(() => {
 		if (!address) return null;
 		switch (type) {
