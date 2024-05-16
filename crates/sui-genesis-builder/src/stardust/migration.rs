@@ -1,7 +1,7 @@
 //! Contains the logic for the migration process.
 use move_core_types::{ident_str, language_storage::StructTag};
 use std::{
-    collections::HashMap,
+    collections::{BTreeSet, HashMap},
     io::{BufWriter, Write},
     sync::Arc,
 };
@@ -10,6 +10,7 @@ use sui_types::{
     base_types::{ObjectRef, SequenceNumber},
     collection_types::Bag,
     move_package::TypeOrigin,
+    object::Object,
     transaction::{Argument, InputObjects, ObjectArg},
     TypeTag,
 };
@@ -133,6 +134,20 @@ impl Migration {
         Ok(())
     }
 
+    fn objects(self) -> Vec<Object> {
+        self.executor
+            .store
+            .into_inner()
+            .into_values()
+            .filter(|object| {
+                !self
+                    .executor
+                    .system_packages_and_objects
+                    .contains(&object.id())
+            })
+            .collect()
+    }
+
     /// Run all stages of the migration.
     ///
     /// * Generate and build the foundry packages
@@ -148,7 +163,7 @@ impl Migration {
     ) -> Result<()> {
         self.migrate_foundries(foundries)?;
         self.migrate_outputs(outputs)?;
-        let stardust_object_ledger = self.executor.store;
+        let stardust_object_ledger = self.objects();
         verify_ledger_state(&stardust_object_ledger)?;
         create_snapshot(stardust_object_ledger, writer)
     }
@@ -166,7 +181,12 @@ fn generate_package(foundry: &FoundryOutput) -> Result<CompiledPackage> {
 struct Executor {
     protocol_config: ProtocolConfig,
     tx_context: TxContext,
+    /// Stores all the migration objects.
     store: InMemoryStorage,
+    /// Caches the system packages and init objects. Useful
+    /// for evicting them from the store before
+    /// creating the snapshot.
+    system_packages_and_objects: BTreeSet<ObjectID>,
     move_vm: Arc<MoveVM>,
     metrics: Arc<LimitsMetrics>,
     /// Map the stardust token id [`TokenId`] to the [`ObjectID`] and of the
@@ -214,10 +234,12 @@ impl Executor {
         }
         let move_vm = Arc::new(new_move_vm(all_natives(silent), &protocol_config, None)?);
 
+        let system_packages_and_objects = store.objects().keys().copied().collect();
         Ok(Self {
             protocol_config,
             tx_context,
             store,
+            system_packages_and_objects,
             move_vm,
             metrics,
             native_tokens: Default::default(),
@@ -571,21 +593,16 @@ impl Executor {
 }
 
 /// Verify the ledger state represented by the objects in [`InMemoryStorage`].
-fn verify_ledger_state(_store: &InMemoryStorage) -> Result<()> {
+fn verify_ledger_state(_store: &[Object]) -> Result<()> {
     // TODO: Implementation. Returns Ok for now so the migration can be tested.
     Ok(())
 }
 
 /// Serialize the objects stored in [`InMemoryStorage`] into a file using
 /// [`bcs`] encoding.
-fn create_snapshot(store: InMemoryStorage, writer: impl Write) -> Result<()> {
+fn create_snapshot(ledger: Vec<Object>, writer: impl Write) -> Result<()> {
     let mut writer = BufWriter::new(writer);
-    let objects = store
-        .into_inner()
-        .into_values()
-        .filter(|object| !object.is_system_package())
-        .collect::<Vec<_>>();
-    writer.write_all(&bcs::to_bytes(&objects)?)?;
+    writer.write_all(&bcs::to_bytes(&ledger)?)?;
     Ok(writer.flush()?)
 }
 
@@ -674,22 +691,15 @@ mod pt {
 
 #[cfg(test)]
 mod tests {
-    use sui_types::{inner_temporary_store::WrittenObjects, object::Object};
-
     use super::*;
     #[test]
     fn migration_create_and_deserialize_snapshot() {
         let mut persisted: Vec<u8> = Vec::new();
-        let mut store = InMemoryStorage::default();
-        let objects: WrittenObjects = (0..4)
-            .map(|_| {
-                let object = Object::new_gas_for_testing();
-                (object.id(), object)
-            })
-            .collect();
-        store.finish(objects.clone());
-        create_snapshot(store, &mut persisted).unwrap();
+        let objects = (0..4)
+            .map(|_| Object::new_gas_for_testing())
+            .collect::<Vec<_>>();
+        create_snapshot(objects.clone(), &mut persisted).unwrap();
         let snapshot_objects: Vec<Object> = bcs::from_bytes(&persisted).unwrap();
-        assert_eq!(objects.into_values().collect::<Vec<_>>(), snapshot_objects);
+        assert_eq!(objects, snapshot_objects);
     }
 }
