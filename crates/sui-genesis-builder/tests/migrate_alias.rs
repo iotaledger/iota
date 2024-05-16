@@ -7,16 +7,20 @@ use iota_sdk::types::block::{
         AliasId, AliasOutput as StardustAlias, AliasOutputBuilder, Feature,
     },
 };
+use move_core_types::ident_str;
 use sui_genesis_builder::stardust::{
     migration::Migration,
-    types::{snapshot::OutputHeader, Alias, AliasOutput},
+    types::{
+        snapshot::OutputHeader, Alias, AliasOutput, ALIAS_MODULE_NAME, ALIAS_OUTPUT_MODULE_NAME,
+        ALIAS_OUTPUT_STRUCT_NAME, ALIAS_STRUCT_NAME,
+    },
 };
 use sui_types::{base_types::ObjectID, id::UID, object::Object};
 
 fn migrate_alias(
     header: OutputHeader,
     stardust_alias: StardustAlias,
-) -> (ObjectID, Alias, ObjectID, AliasOutput) {
+) -> (ObjectID, Alias, AliasOutput) {
     let alias_id: AliasId = stardust_alias
         .alias_id()
         .or_from_output_id(&header.output_id())
@@ -35,7 +39,6 @@ fn migrate_alias(
 
     // Ensure the migrated objects exist under the expected identifiers.
     let alias_object_id = ObjectID::new(*alias_id);
-    let alias_output_object_id = ObjectID::new(Blake2b256::digest(*alias_id).into());
     let alias_object = migrated_objects
         .iter()
         .find(|obj| obj.id() == alias_object_id)
@@ -43,19 +46,18 @@ fn migrate_alias(
     assert_eq!(alias_object.struct_tag().unwrap(), Alias::tag(),);
     let alias_output_object = migrated_objects
         .iter()
-        .find(|obj| obj.id() == alias_output_object_id)
+        .find(|obj| match obj.struct_tag() {
+            Some(tag) => tag == AliasOutput::tag(),
+            None => false,
+        })
         .expect("alias object should be present in the migrated snapshot");
-    assert_eq!(
-        alias_output_object.struct_tag().unwrap(),
-        AliasOutput::tag(),
-    );
 
     let alias_output: AliasOutput =
         bcs::from_bytes(alias_output_object.data.try_as_move().unwrap().contents()).unwrap();
     let alias: Alias =
         bcs::from_bytes(alias_object.data.try_as_move().unwrap().contents()).unwrap();
 
-    (alias_object_id, alias, alias_output_object_id, alias_output)
+    (alias_object_id, alias, alias_output)
 }
 
 /// Test that the migrated alias objects in the snapshot contain the expected data.
@@ -86,12 +88,10 @@ fn test_alias_migration() {
         .finish()
         .unwrap();
 
-    let (alias_object_id, alias, alias_output_object_id, alias_output) =
-        migrate_alias(header, stardust_alias.clone());
+    let (alias_object_id, alias, alias_output) = migrate_alias(header, stardust_alias.clone());
     let expected_alias = Alias::try_from_stardust(alias_object_id, &stardust_alias).unwrap();
 
-    // Compare only ID and iota balance. The bag is tested separately.
-    assert_eq!(UID::new(alias_output_object_id), alias_output.id);
+    // Compare only the balance. The ID is newly generated and the bag is tested separately.
     assert_eq!(stardust_alias.amount(), alias_output.iota.value());
 
     assert_eq!(expected_alias, alias);

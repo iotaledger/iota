@@ -357,7 +357,7 @@ impl Executor {
         self.store.insert_object(move_alias_object);
 
         let move_alias_output = AliasOutput::try_from_stardust(
-            alias_id,
+            self.tx_context.fresh_id(),
             &alias,
             self.create_bag(alias.native_tokens())?,
         )?;

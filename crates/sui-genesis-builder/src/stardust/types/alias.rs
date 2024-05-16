@@ -157,19 +157,12 @@ impl AliasOutput {
 
     /// Creates the Move-based Alias Output model from a Stardust-based Alias Output.
     pub fn try_from_stardust(
-        alias_id: ObjectID,
+        object_id: ObjectID,
         alias: &StardustAlias,
         native_tokens: Bag,
     ) -> Result<Self, anyhow::Error> {
-        if alias_id.as_ref() == &[0; 32] {
-            anyhow::bail!("alias_id must be non-zeroed");
-        }
-
-        // We need an ID that is different from Alias ID to identify the Alias Output.
-        // Hashing Alias ID means the generated ID is consistent across runs of the genesis builder.
-        let move_alias_output_id = UID::new(ObjectID::new(Blake2b256::digest(alias_id).into()));
         Ok(AliasOutput {
-            id: move_alias_output_id.clone(),
+            id: UID::new(object_id),
             iota: Balance::new(alias.amount()),
             native_tokens,
         })
