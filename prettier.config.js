@@ -7,7 +7,7 @@ module.exports = {
 	singleQuote: true,
 	tabWidth: 2,
 	trailingComma: 'all',
-	useTabs: true,
+	useTabs: false,
 	plugins: ['@ianvs/prettier-plugin-sort-imports'],
 	importOrder: [
 		'<BUILT_IN_MODULES>',
