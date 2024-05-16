@@ -413,6 +413,8 @@ impl Executor {
             version,
         )?;
         let move_alias_output_object_ref = move_alias_output_object.compute_object_reference();
+        self.outputs
+            .insert(header.output_id(), move_alias_output_object.id());
         self.store.insert_object(move_alias_output_object);
 
         // Attach the Alias to the Alias Output as a dynamic object field via the attach_alias convenience method.
