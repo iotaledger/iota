@@ -40,16 +40,16 @@ export function PageLayout({ gradient, content, loading, isError }: PageLayoutPr
 		// Keep cached for 2 minutes:
 		staleTime: 2 * 60 * 1000,
 		retry: false,
-		enabled: network === Network.MAINNET,
+		enabled: network === Network.Mainnet,
 	});
 	const isGradientVisible = !!gradient;
 	const renderNetworkDegradeBanner =
-		outageOverride || (network === Network.MAINNET && data?.degraded);
+		outageOverride || (network === Network.Mainnet && data?.degraded);
 	const headerRef = useRef<HTMLElement | null>(null);
 	const [headerHeight] = useElementDimensions(headerRef, DEFAULT_HEADER_HEIGHT);
 
 	const networkDegradeBannerCopy =
-		network === Network.TESTNET
+		network === Network.Testnet
 			? 'Sui Explorer (Testnet) is currently under-going maintenance. Some data may be incorrect or missing.'
 			: "The explorer is running slower than usual. We're working to fix the issue and appreciate your patience.";
 
