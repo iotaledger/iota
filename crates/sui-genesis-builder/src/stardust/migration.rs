@@ -7,10 +7,10 @@ use std::{
 };
 use sui_types::{
     balance::Balance,
-    base_types::ObjectRef,
+    base_types::{ObjectRef, SequenceNumber},
     collection_types::Bag,
     move_package::TypeOrigin,
-    transaction::{Argument, ObjectArg},
+    transaction::{Argument, InputObjects, ObjectArg},
     TypeTag,
 };
 
@@ -346,7 +346,7 @@ impl Executor {
     }
 
     /// Create a [`Bag`] of balances of native tokens.
-    fn create_bag(&mut self, native_tokens: &NativeTokens) -> Result<Bag> {
+    fn create_bag(&mut self, native_tokens: &NativeTokens) -> Result<(Bag, SequenceNumber)> {
         let mut dependencies = Vec::with_capacity(native_tokens.len());
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -402,23 +402,21 @@ impl Executor {
         } = self.execute_pt_unmetered(checked_input_objects, pt)?;
         let bag_object = written
             .iter()
-            .filter_map(|(id, object)| (!input_objects.contains_key(id)).then_some(object.clone()))
-            .next()
+            .find_map(|(id, object)| (!input_objects.contains_key(id)).then_some(object.clone()))
             .expect("the bag should have been created");
         written.remove(&bag_object.id());
         // Save the modified coins
-        // TODO: we might want to check whether execution bumps the version
-        // in order to force the genesis version in the end.
         self.store.finish(written);
         // Return bag
-        Ok(bcs::from_bytes(
+        let bag = bcs::from_bytes(
             bag_object
                 .data
                 .try_as_move()
                 .expect("this should be a move object")
                 .contents(),
         )
-        .expect("this should be a valid Bag Move object"))
+        .expect("this should be a valid Bag Move object");
+        Ok((bag, bag_object.version()))
     }
 
     /// Create [`Coin`] objects representing native tokens in the ledger.
@@ -481,16 +479,21 @@ impl Executor {
         let mut data = super::types::output::BasicOutput::new(header.clone(), &basic_output);
         let owner: SuiAddress = basic_output.address().to_string().parse()?;
 
+        // The minimum version of the manually created objects
+        let package_deps = InputObjects::new(self.load_packages(PACKAGE_DEPS).collect());
+        let mut version = package_deps.lamport_timestamp(&[]);
         let object = if data.has_empty_bag() {
             if !basic_output.native_tokens().is_empty() {
                 self.create_native_token_coins(basic_output.native_tokens(), owner)?;
             }
-            data.into_genesis_coin_object(owner, &self.protocol_config, &self.tx_context)?
+            data.into_genesis_coin_object(owner, &self.protocol_config, &self.tx_context, version)?
         } else {
             if !basic_output.native_tokens().is_empty() {
-                data.native_tokens = self.create_bag(basic_output.native_tokens())?;
+                // The bag will be wrapped into the basic output object, so
+                // by equating their versions we emulate a ptb.
+                (data.native_tokens, version) = self.create_bag(basic_output.native_tokens())?;
             }
-            data.to_genesis_object(owner, &self.protocol_config, &self.tx_context)?
+            data.to_genesis_object(owner, &self.protocol_config, &self.tx_context, version)?
         };
         self.store.insert_object(object);
         Ok(())
