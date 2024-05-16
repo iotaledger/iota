@@ -3,7 +3,7 @@
 
 import { type AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
 import { getSuiClient } from '_src/shared/sui-client';
-import { getRecommendedNetwork, Network, type SuiClient } from '@mysten/sui.js/client';
+import { getDefaultNetwork, Network, type SuiClient } from '@mysten/sui.js/client';
 
 import type { BackgroundClient } from './background-client';
 import { BackgroundServiceSigner } from './background-client/BackgroundServiceSigner';
@@ -15,10 +15,10 @@ const accountTypesWithBackgroundSigner: AccountType[] = ['mnemonic-derived', 'im
 export default class ApiProvider {
 	private _apiFullNodeProvider?: SuiClient;
 	private _signerByAddress: Map<string, WalletSigner> = new Map();
-	network = getRecommendedNetwork();
+	network = getDefaultNetwork();
 	
 
-	public setNewJsonRpcProvider(network: Network = getRecommendedNetwork(), customRPC?: string | null) {
+	public setNewJsonRpcProvider(network: Network = getDefaultNetwork(), customRPC?: string | null) {
 		this.network = network;
 		this._apiFullNodeProvider = getSuiClient(
 			network === Network.Custom

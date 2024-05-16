@@ -9,7 +9,7 @@ import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 
 import { AppType } from './AppType';
-import { Network, getRecommendedNetwork, type NetworkConfiguration } from '@mysten/sui.js/client';
+import { Network, getDefaultNetwork, type NetworkConfiguration } from '@mysten/sui.js/client';
 
 type AppState = {
 	appType: AppType;
@@ -22,7 +22,7 @@ type AppState = {
 
 const initialState: AppState = {
 	appType: AppType.unknown,
-	network: getRecommendedNetwork(),
+	network: getDefaultNetwork(),
 	customRpc: null,
 	navVisible: true,
 	activeOrigin: null,

@@ -9,9 +9,10 @@ import { useSearchParams } from 'react-router-dom';
 import { Network } from './utils/api/DefaultRpcClient';
 import { growthbook } from './utils/growthbook';
 import { queryClient } from './utils/queryClient';
+import { getDefaultNetwork } from '@mysten/sui.js/client';
 
 export const DEFAULT_NETWORK =
-	import.meta.env.VITE_NETWORK || (import.meta.env.DEV ? Network.LOCAL : Network.MAINNET);
+	import.meta.env.VITE_NETWORK || getDefaultNetwork()
 
 export const NetworkContext = createContext<
 	[Network | string, (network: Network | string) => void]

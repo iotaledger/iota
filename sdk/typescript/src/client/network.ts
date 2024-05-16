@@ -51,8 +51,8 @@ export function getNetwork(network: NetworkId): NetworkConfiguration {
 	return requestedNetwork
 }
 
-export function getRecommendedNetwork(): Network {
-	return Network.Mainnet
+export function getDefaultNetwork(): Network {
+	return process.env.DEFAULT_NETWORK as Network || Network.Mainnet || Network.Testnet
 }
 
 

@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Network, getRecommendedNetwork } from '@mysten/sui.js/client';
+import { Network, getDefaultNetwork } from '@mysten/sui.js/client';
 import { NetworkEnvType } from '_src/shared/api-env';
 import { isValidUrl } from '_src/shared/utils';
 import mitt from 'mitt';
@@ -12,7 +12,7 @@ class NetworkEnv {
 
 	async getActiveNetwork(): Promise<NetworkEnvType> {
 		const { network, customRpc } = await Browser.storage.local.get({
-			network: getRecommendedNetwork(),
+			network: getDefaultNetwork(),
 			customRpc: null,
 		});
 		const adjCustomUrl = network === Network.Custom ? customRpc : null;

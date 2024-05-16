@@ -210,6 +210,7 @@ const commonConfig: () => Promise<Configuration> = async () => {
 				),
 				'process.env.WALLET_BETA': WALLET_BETA,
 				'process.env.APP_NAME': JSON.stringify(APP_NAME),
+				'process.env.DEFAULT_NETWORK': JSON.stringify(process.env.DEFAULT_NETWORK),
 				'process.env.IOTA_NETWORKS': JSON.stringify(process.env.IOTA_NETWORKS),
 			}),
 			new ProvidePlugin({

@@ -2,19 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { SentryHttpTransport } from '@mysten/core';
-import { SuiClient, SuiHTTPTransport, getNetwork, Network, NetworkId, getAllNetworks} from '@mysten/sui.js/client';
+import { SuiClient, SuiHTTPTransport, getNetwork, Network, NetworkId, getAllNetworks, SuiClientOptions } from '@mysten/sui.js/client';
 
-export { Network} from '@mysten/sui.js/client';
+export { Network } from '@mysten/sui.js/client';
 
 const supportedNetworks = getAllNetworks();
 
+// The Explorer always show the Custom RPC input so there is no need to confuse it more by having a Custom Network here
 delete supportedNetworks[Network.Custom]
 
-export const NetworkConfigs = Object.fromEntries(Object.values(supportedNetworks).map((network) => {
-	return [network.id, {
-		url: network.rpc
+export const NetworkConfigs = Object.fromEntries(Object.values(supportedNetworks).map(({ id, rpc }) => {
+	return [id, {
+		url: rpc
 	}]
-})) as Record<Network, { url: string }>
+})) as Record<Network, SuiClientOptions>
 
 const defaultClientMap: Map<NetworkId, SuiClient> = new Map();
 
@@ -29,7 +30,7 @@ export const createSuiClient = (network: NetworkId) => {
 
 	const client = new SuiClient({
 		transport:
-		supportedNetwork && network === Network.Mainnet
+			supportedNetwork && network === Network.Mainnet
 				? new SentryHttpTransport(networkUrl)
 				: new SuiHTTPTransport({ url: networkUrl }),
 	});
