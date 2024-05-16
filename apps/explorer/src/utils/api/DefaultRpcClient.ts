@@ -6,16 +6,9 @@ import { SuiClient, SuiHTTPTransport, getNetwork, Network, NetworkId, getAllNetw
 
 export { Network } from '@mysten/sui.js/client';
 
-const supportedNetworks = getAllNetworks();
-
-// The Explorer always show the Custom RPC input so there is no need to confuse it more by having a Custom Network here
-delete supportedNetworks[Network.Custom]
-
-export const NetworkConfigs = Object.fromEntries(Object.values(supportedNetworks).map(({ id, rpc }) => {
-	return [id, {
-		url: rpc
-	}]
-})) as Record<Network, SuiClientOptions>
+export const SupportedNetworks = getAllNetworks();
+// The Explorer always shows the Custom RPC input so there is no need to confuse it more by having a Custom Network here
+delete SupportedNetworks[Network.Custom]
 
 const defaultClientMap: Map<NetworkId, SuiClient> = new Map();
 
@@ -26,7 +19,7 @@ export const createSuiClient = (network: NetworkId) => {
 
 	const supportedNetwork = getNetwork(network);
 	// If network is not supported, we use assume we are using a custom RPC
-	const networkUrl = supportedNetwork?.rpc ?? network;
+	const networkUrl = supportedNetwork?.url ?? network;
 
 	const client = new SuiClient({
 		transport:

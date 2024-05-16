@@ -6,7 +6,7 @@ import { type Meta, type StoryObj } from '@storybook/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { CoinBalance, type CoinBalanceProps } from '../CoinBalance';
-import { Network, NetworkConfigs, createSuiClient } from '~/utils/api/DefaultRpcClient';
+import { Network, SupportedNetworks, createSuiClient } from '~/utils/api/DefaultRpcClient';
 
 export default {
 	component: CoinBalance,
@@ -14,7 +14,7 @@ export default {
 		(Story) => (
 			<QueryClientProvider client={new QueryClient()}>
 				<SuiClientProvider
-					networks={NetworkConfigs}
+					networks={SupportedNetworks}
 					defaultNetwork={Network.Local}
 					createClient={createSuiClient}
 				>

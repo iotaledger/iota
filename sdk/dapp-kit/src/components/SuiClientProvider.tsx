@@ -39,7 +39,7 @@ export type SuiClientProviderProps<T extends NetworkConfigs> = {
 );
 
 const DEFAULT_NETWORKS = {
-	localnet: { url: getNetwork(Network.Local).rpc },
+	localnet: { url: getNetwork(Network.Local).url },
 };
 
 const DEFAULT_CREATE_CLIENT = function createClient(

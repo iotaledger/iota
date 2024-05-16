@@ -17,7 +17,7 @@ export type ChainType = `${string}:${string}`;
 export interface NetworkConfiguration {
 	id: Network,
 	name: string,
-	rpc: string,
+	url: string,
 	explorer: string,
 	chain: ChainType,
 	faucet?: string
@@ -57,5 +57,5 @@ export function getDefaultNetwork(): Network {
 
 
 export function getFullnodeUrl(network: NetworkId): string{
-	return getNetwork(network).rpc
+	return getNetwork(network).url
 }

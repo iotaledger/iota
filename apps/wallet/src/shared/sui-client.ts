@@ -12,7 +12,7 @@ const SENTRY_MONITORED_ENVS = [Network.Custom];
 export function getSuiClient({ network, customRpcUrl }: NetworkEnvType): SuiClient {
 	const key = `${network}_${customRpcUrl}`;
 	if (!suiClientPerNetwork.has(key)) {
-		const connection = getNetwork(network)?.rpc ?? customRpcUrl;
+		const connection = getNetwork(network)?.url ?? customRpcUrl;
 		if (!connection) {
 			throw new Error(`API url not found for network ${network} ${customRpcUrl}`);
 		}

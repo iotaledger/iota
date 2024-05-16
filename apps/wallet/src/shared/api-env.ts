@@ -12,7 +12,7 @@ export function getCustomNetwork(rpc: string = ''): NetworkConfiguration{
 	return {
 		name: "Custom Network",
 		id: Network.Custom,
-		rpc,
+		url: rpc,
 		chain: 'sui:unknown',
 		explorer: "custom explorer"
 	}
