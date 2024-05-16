@@ -110,7 +110,11 @@ fn adjust_native_token_module(package_path: &Path, package: &NativeTokenPackageD
         .replace("$COIN_NAME", &package.module().coin_name)
         .replace("$COIN_DESCRIPTION", &package.module().coin_description)
         .replace("$ICON_URL", &icon_url)
-        .replace("$ALIAS", &package.module().alias_address.to_string());
+        .replace(
+            "$ALIAS",
+            // Remove the "0x" prefix
+            &package.module().alias_address.to_string().replace("0x", ""),
+        );
 
     fs::write(&new_move_file_path, new_contents)?;
 
