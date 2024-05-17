@@ -363,7 +363,7 @@ impl Executor {
         let move_alias_object_ref = move_alias_object.compute_object_reference();
         self.store.insert_object(move_alias_object);
 
-        let (bag, version) = self.create_bag(alias.native_tokens())?;
+        let (bag, version) = self.create_bag_with_pt(alias.native_tokens())?;
         let move_alias_output =
             AliasOutput::try_from_stardust(self.tx_context.fresh_id(), &alias, bag)?;
 
@@ -408,8 +408,11 @@ impl Executor {
         Ok(())
     }
 
-    /// Create a [`Bag`] of balances of native tokens.
-    fn create_bag(&mut self, native_tokens: &NativeTokens) -> Result<(Bag, SequenceNumber)> {
+    /// Create a [`Bag`] of balances of native tokens executing a programmable transaction block.
+    fn create_bag_with_pt(
+        &mut self,
+        native_tokens: &NativeTokens,
+    ) -> Result<(Bag, SequenceNumber)> {
         let mut dependencies = Vec::with_capacity(native_tokens.len());
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -555,7 +558,8 @@ impl Executor {
             if !basic_output.native_tokens().is_empty() {
                 // The bag will be wrapped into the basic output object, so
                 // by equating their versions we emulate a ptb.
-                (data.native_tokens, version) = self.create_bag(basic_output.native_tokens())?;
+                (data.native_tokens, version) =
+                    self.create_bag_with_pt(basic_output.native_tokens())?;
             }
             data.to_genesis_object(owner, &self.protocol_config, &self.tx_context, version)?
         };
