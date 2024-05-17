@@ -736,12 +736,12 @@ mod tests {
         )
     }
 
-    fn run_migration(outputs: impl Iterator<Item = (OutputHeader, Output)>) -> Vec<Object> {
+    fn run_migration(outputs: impl IntoIterator<Item = (OutputHeader, Output)>) -> Vec<Object> {
         let mut snapshot_buffer = Vec::new();
         let mut foundries = Vec::new();
         let mut outputs_without_foundries = Vec::new();
 
-        for (header, output) in outputs {
+        for (header, output) in outputs.into_iter() {
             match output {
                 Output::Foundry(foundry) => {
                     foundries.push((header, foundry));
@@ -850,6 +850,7 @@ mod tests {
         assert_eq!(expected_alias, alias);
     }
 
+    /// Test that an Alias with a zeroed ID is migrated to an Alias Object with its UID set to the hashed Output ID.
     #[test]
     fn test_alias_migration_with_zeroed_id() {
         let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
@@ -866,6 +867,9 @@ mod tests {
         migrate_alias(header, stardust_alias);
     }
 
+    /// Test that an Alias owned by another Alias can be received by the owning object.
+    ///
+    /// The PTB sends the extracted assets to the null address since it must be used in the transaction.
     #[test]
     fn test_alias_migration_with_alias_owner() {
         let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
@@ -891,14 +895,13 @@ mod tests {
                 .finish()
                 .unwrap();
 
-        let migrated_objects = run_migration(
-            [
-                (random_output_header(), stardust_alias1.into()),
-                (random_output_header(), stardust_alias2.into()),
-            ]
-            .into_iter(),
-        );
+        let migrated_objects = run_migration([
+            (random_output_header(), stardust_alias1.into()),
+            (random_output_header(), stardust_alias2.into()),
+        ]);
 
+        // Find the corresponding objects to the migrated aliases, uniquely identified by their amounts.
+        // Should be adapted to use the tags from issue 239 to make this much easier.
         let alias_output1_id = migrated_objects
             .iter()
             .find(|obj| {
@@ -926,7 +929,7 @@ mod tests {
                         .value()
                         == alias2_amount
             })
-            .expect("alias1 should exist")
+            .expect("alias2 should exist")
             .id();
 
         let mut executor = Executor::new(MIGRATION_PROTOCOL_VERSION.into()).unwrap();
@@ -970,7 +973,7 @@ mod tests {
             let receiving_alias2_arg = builder
                 .obj(ObjectArg::Receiving(alias_output2_object_ref))
                 .unwrap();
-            let received_alias_output = builder.programmable_move_call(
+            let received_alias_output2 = builder.programmable_move_call(
                 STARDUST_PACKAGE_ID,
                 ident_str!("address_unlock_condition").into(),
                 ident_str!("unlock_alias_address_owned_alias").into(),
@@ -993,12 +996,14 @@ mod tests {
             builder.transfer_arg(SuiAddress::default(), bag_arg);
             builder.transfer_arg(SuiAddress::default(), coin_arg);
 
+            // We have to use Alias Output as we cannot transfer it (since it lacks the `store` ability),
+            // so we extract its assets.
             let extracted_assets = builder.programmable_move_call(
                 STARDUST_PACKAGE_ID,
                 ALIAS_OUTPUT_MODULE_NAME.into(),
                 ident_str!("extract_assets").into(),
                 vec![],
-                vec![received_alias_output],
+                vec![received_alias_output2],
             );
             let Argument::Result(result_idx) = extracted_assets else {
                 panic!("expected Argument::Result");
