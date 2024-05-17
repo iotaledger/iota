@@ -84,6 +84,7 @@ pub const MIGRATION_PROTOCOL_VERSION: u64 = 42;
 /// objects serialized.
 pub struct Migration {
     executor: Executor,
+    created_objects: HashMap<OutputId, CreatedObjects>,
 }
 
 impl Migration {
@@ -91,7 +92,10 @@ impl Migration {
     /// and bootstraping the in-memory storage.
     pub fn new() -> Result<Self> {
         let executor = Executor::new(ProtocolVersion::new(MIGRATION_PROTOCOL_VERSION))?;
-        Ok(Self { executor })
+        Ok(Self {
+            executor,
+            created_objects: Default::default(),
+        })
     }
 
     /// Create the packages, and associated objects representing foundry outputs.
@@ -106,7 +110,9 @@ impl Migration {
                 Ok((header, output, pkg))
             })
             .collect::<Result<Vec<_>>>()?;
-        self.executor.create_foundries(compiled.into_iter())
+        self.created_objects
+            .extend(self.executor.create_foundries(compiled.into_iter())?);
+        Ok(())
     }
 
     /// Create objects for all outputs except for foundry outputs.
@@ -115,13 +121,13 @@ impl Migration {
         outputs: impl IntoIterator<Item = &'a (OutputHeader, Output)>,
     ) -> Result<()> {
         for (header, output) in outputs {
-            match output {
+            let created = match output {
                 Output::Alias(alias) => self.executor.create_alias_objects(header, alias)?,
                 Output::Basic(basic) => self.executor.create_basic_objects(header, basic)?,
                 Output::Nft(nft) => self.executor.create_nft_objects(nft)?,
-                Output::Treasury(_) => (),
-                Output::Foundry(_) => (),
+                Output::Treasury(_) | Output::Foundry(_) => continue,
             };
+            self.created_objects.insert(header.output_id(), created);
         }
         Ok(())
     }
@@ -188,7 +194,6 @@ impl Migration {
     ) -> Result<()> {
         for (header, output) in outputs {
             let objects = self
-                .executor
                 .created_objects
                 .get(&header.output_id())
                 .ok_or_else(|| {
@@ -272,7 +277,6 @@ struct Executor {
     system_packages_and_objects: BTreeSet<ObjectID>,
     move_vm: Arc<MoveVM>,
     metrics: Arc<LimitsMetrics>,
-    created_objects: HashMap<OutputId, CreatedObjects>,
     /// Map the stardust token id [`TokenId`] to the [`ObjectID`] and of the
     /// coin minted by the foundry and its [`TypeOrigin`].
     native_tokens: HashMap<TokenId, (ObjectID, TypeOrigin)>,
@@ -326,7 +330,6 @@ impl Executor {
             system_packages_and_objects,
             move_vm,
             metrics,
-            created_objects: Default::default(),
             native_tokens: Default::default(),
         })
     }
@@ -399,8 +402,10 @@ impl Executor {
     fn create_foundries<'a>(
         &mut self,
         foundries: impl Iterator<Item = (&'a OutputHeader, &'a FoundryOutput, CompiledPackage)>,
-    ) -> Result<()> {
+    ) -> Result<Vec<(OutputId, CreatedObjects)>> {
+        let mut res = Vec::new();
         for (header, foundry, pkg) in foundries {
+            let mut created_objects = CreatedObjects::default();
             let modules = package_module_bytes(&pkg)?;
             let deps = self.checked_system_packages();
             let pt = {
@@ -420,10 +425,7 @@ impl Executor {
             for object in written.values() {
                 if object.is_coin() {
                     minted_coin_id = Some(object.id());
-                    self.created_objects
-                        .entry(header.output_id())
-                        .or_default()
-                        .set_coin(object.id())?;
+                    created_objects.set_coin(object.id())?;
                 } else if object.is_package() {
                     coin_type_origin = Some(
                         object
@@ -434,10 +436,7 @@ impl Executor {
                             .type_origin_table()[0]
                             .clone(),
                     );
-                    self.created_objects
-                        .entry(header.output_id())
-                        .or_default()
-                        .set_package(object.id())?;
+                    created_objects.set_package(object.id())?;
                 }
             }
             let (minted_coin_id, coin_type_origin) = (
@@ -453,14 +452,20 @@ impl Executor {
                     .filter(|(_, object)| object.struct_tag() != Some(UpgradeCap::type_()))
                     .collect(),
             );
+            res.push((header.output_id(), created_objects));
         }
-        Ok(())
+        Ok(res)
     }
 
-    fn create_alias_objects(&mut self, header: &OutputHeader, alias: &AliasOutput) -> Result<()> {
+    fn create_alias_objects(
+        &mut self,
+        header: &OutputHeader,
+        alias: &AliasOutput,
+    ) -> Result<CreatedObjects> {
         // Take the Alias ID set in the output or, if its zeroized, compute it from the Output ID.
         let alias_id = ObjectID::new(*alias.alias_id().or_from_output_id(&header.output_id()));
         let move_alias = Alias::try_from_stardust(alias_id, &alias)?;
+        let mut created_objects = CreatedObjects::default();
 
         // TODO: We should ensure that no circular ownership exists.
         let alias_output_owner = stardust_to_sui_address_owner(alias.governor_address())?;
@@ -493,10 +498,7 @@ impl Executor {
             version,
         )?;
         let move_alias_output_object_ref = move_alias_output_object.compute_object_reference();
-        self.created_objects
-            .entry(header.output_id())
-            .or_default()
-            .set_output(move_alias_output_object.id())?;
+        created_objects.set_output(move_alias_output_object.id())?;
         self.store.insert_object(move_alias_output_object);
 
         // Attach the Alias to the Alias Output as a dynamic object field via the attach_alias convenience method.
@@ -526,7 +528,7 @@ impl Executor {
         let InnerTemporaryStore { written, .. } = self.execute_pt_unmetered(input_objects, pt)?;
         self.store.finish(written);
 
-        Ok(())
+        Ok(created_objects)
     }
 
     /// Create a [`Bag`] of balances of native tokens.
@@ -659,9 +661,10 @@ impl Executor {
         &mut self,
         header: &OutputHeader,
         basic_output: &BasicOutput,
-    ) -> Result<()> {
+    ) -> Result<CreatedObjects> {
         let mut data = super::types::output::BasicOutput::new(header.clone(), &basic_output);
         let owner: SuiAddress = basic_output.address().to_string().parse()?;
+        let mut created_objects = CreatedObjects::default();
 
         // The minimum version of the manually created objects
         let package_deps = InputObjects::new(self.load_packages(PACKAGE_DEPS).collect());
@@ -676,10 +679,7 @@ impl Executor {
                 &self.tx_context,
                 version,
             )?;
-            self.created_objects
-                .entry(header.output_id())
-                .or_default()
-                .set_coin(coin.id())?;
+            created_objects.set_coin(coin.id())?;
             coin
         } else {
             if !basic_output.native_tokens().is_empty() {
@@ -689,18 +689,15 @@ impl Executor {
             }
             let object =
                 data.to_genesis_object(owner, &self.protocol_config, &self.tx_context, version)?;
-            self.created_objects
-                .entry(header.output_id())
-                .or_default()
-                .set_output(object.id())?;
+            created_objects.set_output(object.id())?;
             object
         };
 
         self.store.insert_object(object);
-        Ok(())
+        Ok(created_objects)
     }
 
-    fn create_nft_objects(&mut self, _nft: &NftOutput) -> Result<()> {
+    fn create_nft_objects(&mut self, _nft: &NftOutput) -> Result<CreatedObjects> {
         todo!();
     }
 }
