@@ -197,6 +197,7 @@ impl FoundryLedgerData {
     fn new(minted_coin_id: ObjectID, foundry_package: &MovePackage) -> Self {
         Self {
             minted_coin_id,
+            // There must be only one type created in the foundry package.
             coin_type_origin: foundry_package.type_origin_table()[0].clone(),
             package_id: foundry_package.id(),
         }
