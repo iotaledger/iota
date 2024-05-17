@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// The purpose of a CoinManager is to allow access to all
-/// properties of a Coin on-chain from within a single frozen object
+/// properties of a Coin on-chain from within a single shared object
 /// This includes access to the total supply and metadata
+/// In addition a optional maximum supply can be set and a custom
+/// additional Metadata field can be added. 
 module sui::coin_manager {
 
     use sui::event;
