@@ -56,6 +56,43 @@ module sui::coin_manager_tests {
 
         scenario.end();
     }
+    
+    #[test]
+    fun test_coin_manager_helper() {
+        let sender = @0xA;
+        let mut scenario = test_scenario::begin(sender);
+        let witness = COIN_MANAGER_TESTS{};
+
+        // Create a `Coin`.
+        let (cmcap, mut wrapper) = coin_manager::create(
+            witness,
+            0, 
+            b"TEST",
+            b"TEST",
+            b"TEST",
+            option::none(),
+            scenario.ctx(),
+        );
+
+        assert!(wrapper.decimals() == 0, 0);
+
+        // We should start out with a Supply of 0.
+        assert!(wrapper.total_supply() == 0, 0);
+        
+        // Mint some coin!
+        cmcap.mint_and_transfer(&mut wrapper, 10, sender, scenario.ctx());
+        
+        // We should now have a Supply of 10.
+        assert!(wrapper.total_supply() == 10, 0);
+        
+        // No maximum supply set, so we can do this again!
+        cmcap.mint_and_transfer(&mut wrapper, 10, sender, scenario.ctx());
+
+        transfer::public_transfer(cmcap, scenario.ctx().sender());
+        transfer::public_share_object(wrapper);
+
+        scenario.end();
+    }
 
     #[test]
     #[expected_failure(abort_code = coin_manager::EMaximumSupplyReached)]

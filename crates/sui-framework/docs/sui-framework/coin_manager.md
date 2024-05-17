@@ -15,6 +15,7 @@ additional Metadata field can be added.
 -  [Struct `OwnershipRenounced`](#0x2_coin_manager_OwnershipRenounced)
 -  [Constants](#@Constants_0)
 -  [Function `new`](#0x2_coin_manager_new)
+-  [Function `create`](#0x2_coin_manager_create)
 -  [Function `add_additional_metadata`](#0x2_coin_manager_add_additional_metadata)
 -  [Function `replace_additional_metadata`](#0x2_coin_manager_replace_additional_metadata)
 -  [Function `additional_metadata`](#0x2_coin_manager_additional_metadata)
@@ -273,6 +274,50 @@ Wraps all important objects related to a <code>Coin</code> inside a shared objec
         },
         manager
     )
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="0x2_coin_manager_create"></a>
+
+## Function `create`
+
+Convenience wrapper to create a new <code>Coin</code> and instantly wrap the cap inside a <code><a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a></code>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_create">create</a>&lt;T: drop&gt;(witness: T, decimals: u8, symbol: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, name: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, description: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, icon_url: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="url.md#0x2_url_Url">url::Url</a>&gt;, ctx: &<b>mut</b> <a href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): (<a href="coin_manager.md#0x2_coin_manager_CoinManagerCap">coin_manager::CoinManagerCap</a>&lt;T&gt;, <a href="coin_manager.md#0x2_coin_manager_CoinManager">coin_manager::CoinManager</a>&lt;T&gt;)
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_create">create</a>&lt;T: drop&gt; (
+    witness: T,
+    decimals: u8,
+    symbol: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;,
+    name: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;,
+    description: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;,
+    icon_url: Option&lt;Url&gt;,
+    ctx: &<b>mut</b> TxContext
+): (<a href="coin_manager.md#0x2_coin_manager_CoinManagerCap">CoinManagerCap</a>&lt;T&gt;, <a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a>&lt;T&gt;) {
+
+    <b>let</b> (cap, meta) = <a href="coin.md#0x2_coin_create_currency">coin::create_currency</a>(
+        witness,
+        decimals,
+        symbol,
+        name,
+        description,
+        icon_url,
+        ctx
+    );
+
+    <a href="coin_manager.md#0x2_coin_manager_new">new</a>(cap, meta, ctx)
 }
 </code></pre>
 

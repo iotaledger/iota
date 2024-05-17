@@ -75,7 +75,31 @@ module sui::coin_manager {
             },
             manager
         )
-    }  
+    }
+
+    /// Convenience wrapper to create a new `Coin` and instantly wrap the cap inside a `CoinManager`
+    public fun create<T: drop> (
+        witness: T,
+        decimals: u8,
+        symbol: vector<u8>,
+        name: vector<u8>,
+        description: vector<u8>,
+        icon_url: Option<Url>,
+        ctx: &mut TxContext
+    ): (CoinManagerCap<T>, CoinManager<T>) {
+
+        let (cap, meta) = coin::create_currency(
+            witness,
+            decimals, 
+            symbol,
+            name,
+            description,
+            icon_url,
+            ctx
+        );
+
+        new(cap, meta, ctx)
+    }
 
     // Option to add a additional metadata object to the manager
     // Can contain whatever you need in terms of additional metadata as a object
