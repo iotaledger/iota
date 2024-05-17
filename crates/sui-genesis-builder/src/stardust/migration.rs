@@ -134,6 +134,11 @@ impl Migration {
         Ok(())
     }
 
+    /// The migration objects.
+    ///
+    /// The system packages and underlying `init` objects
+    /// are filtered out because they will be generated
+    /// in the genesis process.
     fn objects(self) -> Vec<Object> {
         self.executor
             .store
