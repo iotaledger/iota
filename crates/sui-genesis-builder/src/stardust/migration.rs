@@ -47,7 +47,7 @@ use sui_types::{
     MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID, SUI_SYSTEM_PACKAGE_ID,
 };
 
-use super::types::{snapshot::OutputHeader, stardust_to_sui_address, Alias, AliasOutput};
+use super::types::{snapshot::OutputHeader, stardust_to_sui_address_owner, Alias, AliasOutput};
 use crate::process_package;
 use crate::stardust::native_token::package_builder;
 use crate::stardust::native_token::package_data::NativeTokenPackageData;
@@ -375,9 +375,7 @@ impl Executor {
         let move_alias = Alias::try_from_stardust(alias_id, &alias)?;
 
         // TODO: We should ensure that no circular ownership exists.
-        let alias_output_owner = sui_types::object::Owner::AddressOwner(stardust_to_sui_address(
-            alias.governor_address(),
-        )?);
+        let alias_output_owner = stardust_to_sui_address_owner(alias.governor_address())?;
 
         let package_deps = InputObjects::new(self.load_packages(PACKAGE_DEPS).collect());
         let version = package_deps.lamport_timestamp(&[]);
