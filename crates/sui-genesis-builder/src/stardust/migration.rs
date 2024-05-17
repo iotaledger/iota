@@ -547,6 +547,7 @@ impl Executor {
             if !basic_output.native_tokens().is_empty() {
                 self.create_native_token_coins(basic_output.native_tokens(), owner)?;
             }
+            // Overwrite the default 0 UID of `Bag::default()`, since we won't be creating a new bag in this code path.
             data.native_tokens.id = UID::new(self.tx_context.fresh_id());
             data.into_genesis_coin_object(owner, &self.protocol_config, &self.tx_context, version)?
         } else {
