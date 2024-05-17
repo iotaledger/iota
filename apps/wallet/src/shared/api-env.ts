@@ -14,7 +14,7 @@ export type NetworkEnvType =
 
 export function getCustomNetwork(rpc: string = ''): NetworkConfiguration {
 	return {
-		name: 'Custom Network',
+		name: 'Custom RPC',
 		id: Network.Custom,
 		url: rpc,
 		chain: 'sui:unknown',
