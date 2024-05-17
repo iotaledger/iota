@@ -486,11 +486,6 @@ impl Executor {
     }
 
     /// Create [`Coin`] objects representing native tokens in the ledger.
-    ///
-    /// We set the [`ObjectID`] to the `hash(hash(OutputId) || TokenId)`
-    /// so that we avoid generation based on the [`TxContext`]. The latter
-    /// depends on the order of generation, and implies that the outputs
-    /// should be sorted to attain idempotence.
     fn create_native_token_coins(
         &mut self,
         native_tokens: &NativeTokens,
