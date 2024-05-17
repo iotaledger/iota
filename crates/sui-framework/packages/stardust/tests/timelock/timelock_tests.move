@@ -1,4 +1,4 @@
-// Copyright (c) Mysten Labs, Inc.
+// Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
@@ -12,7 +12,7 @@ module stardust::timelock_tests {
 
     #[test]
     fun test_lock_unlock_flow() {
-        // Set up a test enviroment.
+        // Set up a test environment.
         let sender = @0xA;
         let mut scenario = test_scenario::begin(sender);
 
@@ -58,7 +58,7 @@ module stardust::timelock_tests {
     #[test]
     #[expected_failure(abort_code = timelock::EExpireEpochIsPast)]
     fun test_expiration_time_is_passed() {
-        // Set up a test enviroment.
+        // Set up a test environment.
         let sender = @0xA;
         let mut scenario = test_scenario::begin(sender);
 
@@ -82,7 +82,7 @@ module stardust::timelock_tests {
     #[test]
     #[expected_failure(abort_code = timelock::ENotExpiredYet)]
     fun test_unlock_not_expired_object() {
-        // Set up a test enviroment.
+        // Set up a test environment.
         let sender = @0xA;
         let mut scenario = test_scenario::begin(sender);
 

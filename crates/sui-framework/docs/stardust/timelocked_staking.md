@@ -94,7 +94,7 @@ The non-entry version of <code>request_add_stake</code>, which returns the timel
 ) : TimelockedStakedSui {
     <b>assert</b>!(timelocked_stake.is_locked(ctx), <a href="timelocked_staking.md#0x107a_timelocked_staking_ETimeLockShouldNotBeExpired">ETimeLockShouldNotBeExpired</a>);
 
-    <b>let</b> (stake, expire_timestamp_ms) = <a href="timelock.md#0x107a_timelock_unpack">timelock::unpack</a>(timelocked_stake);
+    <b>let</b> (stake, expiration_timestamp_ms) = <a href="timelock.md#0x107a_timelock_unpack">timelock::unpack</a>(timelocked_stake);
 
     <b>let</b> staked_sui = <a href="../sui-system/sui_system.md#0x3_sui_system">sui_system</a>.<a href="timelocked_staking.md#0x107a_timelocked_staking_request_add_stake_non_entry">request_add_stake_non_entry</a>(
         stake.into_coin(ctx),
@@ -104,7 +104,7 @@ The non-entry version of <code>request_add_stake</code>, which returns the timel
 
     <a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui_create">timelocked_staked_sui::create</a>(
         staked_sui,
-        expire_timestamp_ms,
+        expiration_timestamp_ms,
         ctx
     )
 }
@@ -175,7 +175,7 @@ instead of transferring it to the sender.
     <a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui">timelocked_staked_sui</a>: TimelockedStakedSui,
     ctx: &<b>mut</b> TxContext,
 ) : (TimeLock&lt;Balance&lt;SUI&gt;&gt;, Balance&lt;SUI&gt;) {
-    <b>let</b> (staked_sui, expire_timestamp_ms) = <a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui">timelocked_staked_sui</a>.unpack();
+    <b>let</b> (staked_sui, expiration_timestamp_ms) = <a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui">timelocked_staked_sui</a>.unpack();
     <b>let</b> principal = staked_sui.staked_sui_amount();
 
     <b>let</b> <b>mut</b> withdraw_stake = <a href="../sui-system/sui_system.md#0x3_sui_system">sui_system</a>.<a href="timelocked_staking.md#0x107a_timelocked_staking_request_withdraw_stake_non_entry">request_withdraw_stake_non_entry</a>(staked_sui, ctx);
@@ -184,7 +184,7 @@ instead of transferring it to the sender.
     // In here, it splits the original staked <a href="../sui-framework/balance.md#0x2_balance">balance</a> <b>to</b> <a href="timelock.md#0x107a_timelock">timelock</a> it again.
     <b>let</b> principal = withdraw_stake.split(principal);
 
-    (<a href="timelock.md#0x107a_timelock_pack">timelock::pack</a>(principal, expire_timestamp_ms, ctx), withdraw_stake)
+    (<a href="timelock.md#0x107a_timelock_pack">timelock::pack</a>(principal, expiration_timestamp_ms, ctx), withdraw_stake)
 }
 </code></pre>
 

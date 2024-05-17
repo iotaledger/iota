@@ -10,7 +10,7 @@ title: Module `0x107a::timelocked_staked_sui`
 -  [Function `pool_id`](#0x107a_timelocked_staked_sui_pool_id)
 -  [Function `staked_sui_amount`](#0x107a_timelocked_staked_sui_staked_sui_amount)
 -  [Function `stake_activation_epoch`](#0x107a_timelocked_staked_sui_stake_activation_epoch)
--  [Function `expire_timestamp_ms`](#0x107a_timelocked_staked_sui_expire_timestamp_ms)
+-  [Function `expiration_timestamp_ms`](#0x107a_timelocked_staked_sui_expiration_timestamp_ms)
 -  [Function `split`](#0x107a_timelocked_staked_sui_split)
 -  [Function `split_staked_sui`](#0x107a_timelocked_staked_sui_split_staked_sui)
 -  [Function `join_staked_sui`](#0x107a_timelocked_staked_sui_join_staked_sui)
@@ -57,7 +57,7 @@ A self-custodial object holding the timelocked staked SUI tokens.
  A self-custodial object holding the staked SUI tokens.
 </dd>
 <dt>
-<code>expire_timestamp_ms: u64</code>
+<code>expiration_timestamp_ms: u64</code>
 </dt>
 <dd>
  This is the epoch time stamp of when the lock expires.
@@ -88,7 +88,7 @@ A self-custodial object holding the timelocked staked SUI tokens.
 Create a new instance of <code><a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui_TimelockedStakedSui">TimelockedStakedSui</a></code>.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui_create">create</a>(staked_sui: <a href="../sui-system/staking_pool.md#0x3_staking_pool_StakedSui">staking_pool::StakedSui</a>, expire_timestamp_ms: u64, ctx: &<b>mut</b> <a href="../sui-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui_TimelockedStakedSui">timelocked_staked_sui::TimelockedStakedSui</a>
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui_create">create</a>(staked_sui: <a href="../sui-system/staking_pool.md#0x3_staking_pool_StakedSui">staking_pool::StakedSui</a>, expiration_timestamp_ms: u64, ctx: &<b>mut</b> <a href="../sui-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui_TimelockedStakedSui">timelocked_staked_sui::TimelockedStakedSui</a>
 </code></pre>
 
 
@@ -99,13 +99,13 @@ Create a new instance of <code><a href="timelocked_staked_sui.md#0x107a_timelock
 
 <pre><code><b>public</b>(<a href="../sui-framework/package.md#0x2_package">package</a>) <b>fun</b> <a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui_create">create</a>(
     staked_sui: StakedSui,
-    expire_timestamp_ms: u64,
+    expiration_timestamp_ms: u64,
     ctx: &<b>mut</b> TxContext
 ): <a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui_TimelockedStakedSui">TimelockedStakedSui</a> {
     <a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui_TimelockedStakedSui">TimelockedStakedSui</a> {
         id: <a href="../sui-framework/object.md#0x2_object_new">object::new</a>(ctx),
         staked_sui,
-        expire_timestamp_ms
+        expiration_timestamp_ms
     }
 }
 </code></pre>
@@ -185,14 +185,14 @@ Function to get the stake activation epoch of a <code><a href="timelocked_staked
 
 </details>
 
-<a name="0x107a_timelocked_staked_sui_expire_timestamp_ms"></a>
+<a name="0x107a_timelocked_staked_sui_expiration_timestamp_ms"></a>
 
-## Function `expire_timestamp_ms`
+## Function `expiration_timestamp_ms`
 
-Function to get the expire timestamp of a <code><a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui_TimelockedStakedSui">TimelockedStakedSui</a></code>.
+Function to get the expiration timestamp of a <code><a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui_TimelockedStakedSui">TimelockedStakedSui</a></code>.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui_expire_timestamp_ms">expire_timestamp_ms</a>(self: &<a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui_TimelockedStakedSui">timelocked_staked_sui::TimelockedStakedSui</a>): u64
+<pre><code><b>public</b> <b>fun</b> <a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui_expiration_timestamp_ms">expiration_timestamp_ms</a>(self: &<a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui_TimelockedStakedSui">timelocked_staked_sui::TimelockedStakedSui</a>): u64
 </code></pre>
 
 
@@ -201,8 +201,8 @@ Function to get the expire timestamp of a <code><a href="timelocked_staked_sui.m
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui_expire_timestamp_ms">expire_timestamp_ms</a>(self: &<a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui_TimelockedStakedSui">TimelockedStakedSui</a>): u64 {
-    self.expire_timestamp_ms
+<pre><code><b>public</b> <b>fun</b> <a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui_expiration_timestamp_ms">expiration_timestamp_ms</a>(self: &<a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui_TimelockedStakedSui">TimelockedStakedSui</a>): u64 {
+    self.expiration_timestamp_ms
 }
 </code></pre>
 
@@ -234,7 +234,7 @@ All the other parameters of the <code><a href="timelocked_staked_sui.md#0x107a_t
     <a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui_TimelockedStakedSui">TimelockedStakedSui</a> {
         id: <a href="../sui-framework/object.md#0x2_object_new">object::new</a>(ctx),
         staked_sui: splitted_stake,
-        expire_timestamp_ms: self.expire_timestamp_ms,
+        expiration_timestamp_ms: self.expiration_timestamp_ms,
     }
 }
 </code></pre>
@@ -292,7 +292,7 @@ Aborts if some of the staking parameters are incompatible (pool id, stake activa
     <b>let</b> <a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui_TimelockedStakedSui">TimelockedStakedSui</a> {
         id,
         staked_sui,
-        expire_timestamp_ms: _,
+        expiration_timestamp_ms: _,
     } = other;
 
     id.delete();
@@ -323,7 +323,7 @@ Returns true if all the staking parameters of the staked sui except the principa
 
 <pre><code><b>public</b> <b>fun</b> <a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui_is_equal_staking_metadata">is_equal_staking_metadata</a>(self: &<a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui_TimelockedStakedSui">TimelockedStakedSui</a>, other: &<a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui_TimelockedStakedSui">TimelockedStakedSui</a>): bool {
     self.staked_sui.<a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui_is_equal_staking_metadata">is_equal_staking_metadata</a>(&other.staked_sui) &&
-    (self.expire_timestamp_ms == other.expire_timestamp_ms)
+    (self.expiration_timestamp_ms == other.expiration_timestamp_ms)
 }
 </code></pre>
 
@@ -351,12 +351,12 @@ An utility function to destroy a <code><a href="timelocked_staked_sui.md#0x107a_
     <b>let</b> <a href="timelocked_staked_sui.md#0x107a_timelocked_staked_sui_TimelockedStakedSui">TimelockedStakedSui</a> {
         id,
         staked_sui,
-        expire_timestamp_ms,
+        expiration_timestamp_ms,
     } = self;
 
     <a href="../sui-framework/object.md#0x2_object_delete">object::delete</a>(id);
 
-    (staked_sui, expire_timestamp_ms)
+    (staked_sui, expiration_timestamp_ms)
 }
 </code></pre>
 

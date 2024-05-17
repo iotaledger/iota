@@ -59,7 +59,7 @@ impl Alias {
         alias_id: ObjectID,
         alias: &StardustAlias,
     ) -> Result<Self, anyhow::Error> {
-        if alias_id.as_ref() == &[0; 32] {
+        if alias_id.as_ref() == [0; 32] {
             anyhow::bail!("alias_id must be non-zeroed");
         }
 

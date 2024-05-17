@@ -25,16 +25,16 @@ pub struct TimeLock<T> {
     /// The locked object.
     pub locked: T,
     /// This is the epoch time stamp of when the lock expires.
-    pub expire_timestamp_ms: u64,
+    pub expiration_timestamp_ms: u64,
 }
 
 impl<T> TimeLock<T> {
     /// Constructor.
-    pub fn new(id: UID, locked: T, expire_timestamp_ms: u64) -> Self {
+    pub fn new(id: UID, locked: T, expiration_timestamp_ms: u64) -> Self {
         Self {
             id,
             locked,
-            expire_timestamp_ms,
+            expiration_timestamp_ms,
         }
     }
 
@@ -58,9 +58,9 @@ impl<T> TimeLock<T> {
         &self.locked
     }
 
-    /// Get the TimeLock's `expire_timestamp_ms`.
-    pub fn expire_timestamp_ms(&self) -> u64 {
-        self.expire_timestamp_ms
+    /// Get the TimeLock's `expiration_timestamp_ms`.
+    pub fn expiration_timestamp_ms(&self) -> u64 {
+        self.expiration_timestamp_ms
     }
 }
 

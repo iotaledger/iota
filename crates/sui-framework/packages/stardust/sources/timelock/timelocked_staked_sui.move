@@ -1,4 +1,4 @@
-// Copyright (c) Mysten Labs, Inc.
+// Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module stardust::timelocked_staked_sui {
@@ -13,19 +13,19 @@ module stardust::timelocked_staked_sui {
         /// A self-custodial object holding the staked SUI tokens.
         staked_sui: StakedSui,
         /// This is the epoch time stamp of when the lock expires.
-        expire_timestamp_ms: u64,
+        expiration_timestamp_ms: u64,
     }
 
     /// Create a new instance of `TimelockedStakedSui`.
     public(package) fun create(
         staked_sui: StakedSui,
-        expire_timestamp_ms: u64,
+        expiration_timestamp_ms: u64,
         ctx: &mut TxContext
     ): TimelockedStakedSui {
         TimelockedStakedSui {
             id: object::new(ctx),
             staked_sui,
-            expire_timestamp_ms
+            expiration_timestamp_ms
         }
     }
 
@@ -43,9 +43,9 @@ module stardust::timelocked_staked_sui {
         self.staked_sui.stake_activation_epoch()
     }
 
-    /// Function to get the expire timestamp of a `TimelockedStakedSui`.
-    public fun expire_timestamp_ms(self: &TimelockedStakedSui): u64 {
-        self.expire_timestamp_ms
+    /// Function to get the expiration timestamp of a `TimelockedStakedSui`.
+    public fun expiration_timestamp_ms(self: &TimelockedStakedSui): u64 {
+        self.expiration_timestamp_ms
     }
 
     /// Split `TimelockedStakedSui` into two parts, one with principal `split_amount`,
@@ -57,7 +57,7 @@ module stardust::timelocked_staked_sui {
         TimelockedStakedSui {
             id: object::new(ctx),
             staked_sui: splitted_stake,
-            expire_timestamp_ms: self.expire_timestamp_ms,
+            expiration_timestamp_ms: self.expiration_timestamp_ms,
         }
     }
 
@@ -78,7 +78,7 @@ module stardust::timelocked_staked_sui {
         let TimelockedStakedSui {
             id,
             staked_sui,
-            expire_timestamp_ms: _,
+            expiration_timestamp_ms: _,
         } = other;
 
         id.delete();
@@ -92,7 +92,7 @@ module stardust::timelocked_staked_sui {
     /// Returns true if all the staking parameters of the staked sui except the principal are identical
     public fun is_equal_staking_metadata(self: &TimelockedStakedSui, other: &TimelockedStakedSui): bool {
         self.staked_sui.is_equal_staking_metadata(&other.staked_sui) &&
-        (self.expire_timestamp_ms == other.expire_timestamp_ms)
+        (self.expiration_timestamp_ms == other.expiration_timestamp_ms)
     }
 
     /// An utility function to destroy a `TimelockedStakedSui`.
@@ -100,12 +100,12 @@ module stardust::timelocked_staked_sui {
         let TimelockedStakedSui {
             id,
             staked_sui,
-            expire_timestamp_ms,
+            expiration_timestamp_ms,
         } = self;
 
         object::delete(id);
 
-        (staked_sui, expire_timestamp_ms)
+        (staked_sui, expiration_timestamp_ms)
     }
 
     /// An utility function to transfer a `TimelockedStakedSui`.

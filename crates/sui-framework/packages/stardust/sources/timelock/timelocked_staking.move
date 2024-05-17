@@ -1,4 +1,4 @@
-// Copyright (c) Mysten Labs, Inc.
+// Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module stardust::timelocked_staking {
@@ -33,7 +33,7 @@ module stardust::timelocked_staking {
     ) : TimelockedStakedSui {
         assert!(timelocked_stake.is_locked(ctx), ETimeLockShouldNotBeExpired);
 
-        let (stake, expire_timestamp_ms) = timelock::unpack(timelocked_stake);
+        let (stake, expiration_timestamp_ms) = timelock::unpack(timelocked_stake);
 
         let staked_sui = sui_system.request_add_stake_non_entry(
             stake.into_coin(ctx),
@@ -43,7 +43,7 @@ module stardust::timelocked_staking {
 
         timelocked_staked_sui::create(
             staked_sui,
-            expire_timestamp_ms,
+            expiration_timestamp_ms,
             ctx
         )
     }
@@ -74,7 +74,7 @@ module stardust::timelocked_staking {
         timelocked_staked_sui: TimelockedStakedSui,
         ctx: &mut TxContext,
     ) : (TimeLock<Balance<SUI>>, Balance<SUI>) {
-        let (staked_sui, expire_timestamp_ms) = timelocked_staked_sui.unpack();
+        let (staked_sui, expiration_timestamp_ms) = timelocked_staked_sui.unpack();
         let principal = staked_sui.staked_sui_amount();
 
         let mut withdraw_stake = sui_system.request_withdraw_stake_non_entry(staked_sui, ctx);
@@ -83,6 +83,6 @@ module stardust::timelocked_staking {
         // In here, it splits the original staked balance to timelock it again.
         let principal = withdraw_stake.split(principal);
 
-        (timelock::pack(principal, expire_timestamp_ms, ctx), withdraw_stake)
+        (timelock::pack(principal, expiration_timestamp_ms, ctx), withdraw_stake)
     }
 }

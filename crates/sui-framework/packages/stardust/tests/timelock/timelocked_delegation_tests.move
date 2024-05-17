@@ -1,4 +1,4 @@
-// Copyright (c) Mysten Labs, Inc.
+// Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
@@ -653,7 +653,7 @@ module stardust::timelocked_stake_tests {
         staker: address,
         validator: address,
         amount: u64,
-        expire_timestamp_ms: u64,
+        expiration_timestamp_ms: u64,
         scenario: &mut Scenario
     ) {
         scenario.next_tx(staker);
@@ -663,7 +663,7 @@ module stardust::timelocked_stake_tests {
 
         timelocked_staking::request_add_stake(
             &mut system_state,
-            timelock::lock(balance::create_for_testing(amount * MIST_PER_SUI), expire_timestamp_ms, ctx),
+            timelock::lock(balance::create_for_testing(amount * MIST_PER_SUI), expiration_timestamp_ms, ctx),
             validator,
             ctx);
         test_scenario::return_shared(system_state);

@@ -15,7 +15,7 @@ fn test_timelock_ser_deser_roundtrip() {
     assert_eq!(deserialized_timelock.id(), timelock.id());
     assert_eq!(deserialized_timelock.locked(), timelock.locked());
     assert_eq!(
-        deserialized_timelock.expire_timestamp_ms(),
-        timelock.expire_timestamp_ms()
+        deserialized_timelock.expiration_timestamp_ms(),
+        timelock.expiration_timestamp_ms()
     );
 }
