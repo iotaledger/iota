@@ -30,5 +30,5 @@
 		"DEFAULT_NETWORK",
 		"IOTA_NETWORKS"
 	],
-	"globalDotEnv": ["sdk/.env"]
+	"globalDotEnv": ["sdk/.env", "sdk/.env.defaults"]
 }

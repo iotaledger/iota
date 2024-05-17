@@ -45,7 +45,10 @@ const IS_PROD = process.env.NODE_ENV === 'production';
 const TS_CONFIG_FILE = resolve(TS_CONFIGS_ROOT, `tsconfig.${IS_DEV ? 'dev' : 'prod'}.json`);
 const APP_NAME = WALLET_BETA ? 'Sui Wallet (BETA)' : IS_DEV ? 'Sui Wallet (DEV)' : 'Sui Wallet';
 
-dotenv.config({ path: resolve(SDK_ROOT, '.env') });
+dotenv.config({ path: [
+	resolve(SDK_ROOT, '.env'),
+	resolve(SDK_ROOT, '.env.defaults')
+] });
 
 function loadTsConfig(tsConfigFilePath: string) {
 	return new Promise<string>((res, rej) => {

@@ -8,7 +8,12 @@ import dotenv from 'dotenv';
 import type { BuildOptions } from 'esbuild';
 import { build } from 'esbuild';
 
-dotenv.config({ path: path.join(__dirname, '..', '..', '..', '.env') });
+dotenv.config({
+	path: [
+		path.join(__dirname, '..', '..', '..', '.env.defaults'),
+		path.join(__dirname, '..', '..', '..', '.env'),
+	]
+});
 
 interface PackageJSON {
 	name?: string;
