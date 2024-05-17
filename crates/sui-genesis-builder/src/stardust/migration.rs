@@ -9,6 +9,7 @@ use sui_types::{
     balance::Balance,
     base_types::{ObjectRef, SequenceNumber},
     collection_types::Bag,
+    id::UID,
     move_package::TypeOrigin,
     transaction::{Argument, InputObjects, ObjectArg},
     TypeTag,
@@ -548,6 +549,7 @@ impl Executor {
             if !basic_output.native_tokens().is_empty() {
                 self.create_native_token_coins(basic_output.native_tokens(), owner)?;
             }
+            data.native_tokens.id = UID::new(self.tx_context.fresh_id());
             data.into_genesis_coin_object(owner, &self.protocol_config, &self.tx_context, version)?
         } else {
             if !basic_output.native_tokens().is_empty() {
