@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { NetworkId, getNetwork } from "../client";
+import type { NetworkId } from '../client/index.js';
+import { getNetwork } from '../client/index.js';
 
 export class FaucetRateLimitError extends Error {}
 
@@ -121,9 +122,9 @@ export async function getFaucetRequestStatus(input: {
 export function getFaucetHost(network: NetworkId): string {
 	const requestedNetwork = getNetwork(network);
 
-	if(!requestedNetwork.faucet) {
+	if (!requestedNetwork.faucet) {
 		throw new Error(`Unknown network: ${network}`);
 	}
 
-	return requestedNetwork.faucet
+	return requestedNetwork.faucet;
 }
