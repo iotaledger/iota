@@ -4,9 +4,9 @@
 //! The [`verification`] module contains the validation logic to make sure that the stardust outputs are correctly converted to the move objects.
 
 use iota_sdk::types::block::output::Output;
-use sui_types::object::Object;
+use sui_types::in_memory_storage::InMemoryStorage;
 
-use super::types::snapshot::OutputHeader;
+use super::{migration::CreatedObjects, types::snapshot::OutputHeader};
 
 pub mod alias;
 pub mod basic;
@@ -14,15 +14,17 @@ pub mod foundry;
 pub mod nft;
 
 pub fn verify_output(
-    object: &Object,
     header: &OutputHeader,
     output: &Output,
+    created_objects: &CreatedObjects,
+    storage: &InMemoryStorage,
 ) -> anyhow::Result<()> {
     match output {
-        Output::Alias(output) => alias::verify_alias_output(object, output),
-        Output::Basic(output) => basic::verify_basic_output(object, output),
-        Output::Foundry(output) => foundry::verify_foundry_output(object, output),
-        Output::Nft(output) => nft::verify_nft_output(object, output),
+        Output::Alias(output) => alias::verify_alias_output(output, created_objects, storage),
+        Output::Basic(output) => basic::verify_basic_output(output, created_objects, storage),
+        Output::Foundry(output) => foundry::verify_foundry_output(output, created_objects, storage),
+        Output::Nft(output) => nft::verify_nft_output(output, created_objects, storage),
+        // Treasury outputs aren't used since Stardust, so no need to verify anything here.
         Output::Treasury(_) => return Ok(()),
     }
     .map_err(|e| anyhow::anyhow!("error validating output {}: {}", header.output_id(), e))
