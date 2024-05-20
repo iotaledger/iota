@@ -6,10 +6,13 @@
 use iota_sdk::types::block::output::Output;
 use sui_types::in_memory_storage::InMemoryStorage;
 
-use super::{migration::CreatedObjects, types::snapshot::OutputHeader};
+use crate::stardust::types::snapshot::OutputHeader;
+
+use self::created_objects::CreatedObjects;
 
 pub mod alias;
 pub mod basic;
+pub mod created_objects;
 pub mod foundry;
 pub mod nft;
 

@@ -11,4 +11,3 @@ mod migration_tests;
 pub mod native_token;
 pub mod parse;
 pub mod types;
-pub mod verification;

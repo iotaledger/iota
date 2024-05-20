@@ -5,7 +5,7 @@ use anyhow::{anyhow, bail, ensure};
 use iota_sdk::types::block::output::BasicOutput;
 use sui_types::{base_types::SuiAddress, in_memory_storage::InMemoryStorage};
 
-use crate::stardust::migration::CreatedObjects;
+use super::created_objects::CreatedObjects;
 
 pub fn verify_basic_output(
     output: &BasicOutput,

@@ -1,11 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Contains the logic for the migration process.
 use move_core_types::{ident_str, language_storage::StructTag};
 use std::{
     collections::{BTreeSet, HashMap},
-    io::{BufWriter, Write},
     sync::Arc,
 };
 use sui_types::{
@@ -18,10 +16,9 @@ use sui_types::{
     TypeTag,
 };
 
-use anyhow::{anyhow, bail, Result};
-use fastcrypto::hash::HashFunction;
+use anyhow::Result;
 use iota_sdk::types::block::output::{
-    AliasOutput, BasicOutput, FoundryOutput, NativeTokens, NftOutput, Output, OutputId, TokenId,
+    AliasOutput, BasicOutput, FoundryOutput, NativeTokens, NftOutput, OutputId, TokenId,
 };
 use move_vm_runtime_v2::move_vm::MoveVM;
 use sui_adapter_v2::{
@@ -34,9 +31,6 @@ use sui_move_natives_v2::all_natives;
 use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use sui_types::{
     base_types::{ObjectID, SuiAddress, TxContext},
-    crypto::DefaultHash,
-    digests::TransactionDigest,
-    epoch_data::EpochData,
     execution_mode,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
@@ -49,13 +43,11 @@ use sui_types::{
     MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID, SUI_SYSTEM_PACKAGE_ID,
 };
 
-use super::{
-    types::{snapshot::OutputHeader, stardust_to_sui_address_owner, Alias},
-    verification::verify_output,
-};
-use crate::process_package;
-use crate::stardust::native_token::package_builder;
-use crate::stardust::native_token::package_data::NativeTokenPackageData;
+use crate::stardust::types::stardust_to_sui_address_owner;
+use crate::stardust::{migration::verification::created_objects::CreatedObjects, types::Alias};
+use crate::{process_package, stardust::types::snapshot::OutputHeader};
+
+use super::{create_migration_context, package_module_bytes};
 
 /// The dependencies of the generated packages for native tokens.
 pub const PACKAGE_DEPS: [ObjectID; 4] = [
@@ -65,215 +57,16 @@ pub const PACKAGE_DEPS: [ObjectID; 4] = [
     STARDUST_PACKAGE_ID,
 ];
 
-/// We fix the protocol version used in the migration.
-pub const MIGRATION_PROTOCOL_VERSION: u64 = 42;
-
-/// The orchestrator of the migration process.
-///
-/// It is constructed by an [`Iterator`] of stardust UTXOs, and holds an inner executor
-/// and in-memory object storage for their conversion into objects.
-///
-/// It guarantees the following:
-///
-/// * That foundry UTXOs are sorted by `(milestone_timestamp, output_id)`.
-/// * That the foundry packages and total supplies are created first
-/// * That all other outputs are created in a second iteration over the original UTXOs.
-/// * That the resulting ledger state is valid.
-///
-/// The migration process results in the generation of a snapshot file with the generated
-/// objects serialized.
-pub struct Migration {
-    executor: Executor,
-    created_objects: HashMap<OutputId, CreatedObjects>,
-}
-
-impl Migration {
-    /// Try to setup the migration process by creating the inner executor
-    /// and bootstraping the in-memory storage.
-    pub fn new() -> Result<Self> {
-        let executor = Executor::new(ProtocolVersion::new(MIGRATION_PROTOCOL_VERSION))?;
-        Ok(Self {
-            executor,
-            created_objects: Default::default(),
-        })
-    }
-
-    /// Create the packages, and associated objects representing foundry outputs.
-    fn migrate_foundries<'a>(
-        &mut self,
-        foundries: impl IntoIterator<Item = &'a (OutputHeader, FoundryOutput)>,
-    ) -> Result<()> {
-        let compiled = foundries
-            .into_iter()
-            .map(|(header, output)| {
-                let pkg = generate_package(&output)?;
-                Ok((header, output, pkg))
-            })
-            .collect::<Result<Vec<_>>>()?;
-        self.created_objects
-            .extend(self.executor.create_foundries(compiled.into_iter())?);
-        Ok(())
-    }
-
-    /// Create objects for all outputs except for foundry outputs.
-    fn migrate_outputs<'a>(
-        &mut self,
-        outputs: impl IntoIterator<Item = &'a (OutputHeader, Output)>,
-    ) -> Result<()> {
-        for (header, output) in outputs {
-            let created = match output {
-                Output::Alias(alias) => self.executor.create_alias_objects(header, alias)?,
-                Output::Basic(basic) => self.executor.create_basic_objects(header, basic)?,
-                Output::Nft(nft) => self.executor.create_nft_objects(nft)?,
-                Output::Treasury(_) | Output::Foundry(_) => continue,
-            };
-            self.created_objects.insert(header.output_id(), created);
-        }
-        Ok(())
-    }
-
-    /// The migration objects.
-    ///
-    /// The system packages and underlying `init` objects
-    /// are filtered out because they will be generated
-    /// in the genesis process.
-    fn objects(self) -> Vec<Object> {
-        self.executor
-            .store
-            .into_inner()
-            .into_values()
-            .filter(|object| {
-                !self
-                    .executor
-                    .system_packages_and_objects
-                    .contains(&object.id())
-            })
-            .collect()
-    }
-
-    /// Run all stages of the migration.
-    ///
-    /// * Generate and build the foundry packages
-    /// * Create the foundry packages, and associated objects.
-    /// * Create all other objects.
-    /// * Validate the resulting object-based ledger state.
-    /// * Create the snapshot file.
-    pub fn run(
-        mut self,
-        outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
-        writer: impl Write,
-    ) -> Result<()> {
-        let (mut foundries, mut outputs) = outputs.into_iter().fold(
-            (Vec::new(), Vec::new()),
-            |(mut foundries, mut outputs), (header, output)| {
-                if let Output::Foundry(foundry) = output {
-                    foundries.push((header, foundry));
-                } else {
-                    outputs.push((header, output));
-                }
-                (foundries, outputs)
-            },
-        );
-        // We sort the outputs to make sure the order of outputs up to
-        // a certain milestone timestamp remains the same between runs.
-        //
-        // This guarantees that fresh ids created through the transaction
-        // context will also map to the same objects betwen runs.
-        outputs.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
-        foundries.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
-        self.migrate_foundries(&foundries)?;
-        self.migrate_outputs(&outputs)?;
-        self.verify_ledger_state(&outputs)?;
-        create_snapshot(&self.objects(), writer)
-    }
-
-    /// Verify the ledger state represented by the objects in [`InMemoryStorage`].
-    pub fn verify_ledger_state<'a>(
-        &self,
-        outputs: impl IntoIterator<Item = &'a (OutputHeader, Output)>,
-    ) -> Result<()> {
-        for (header, output) in outputs {
-            let objects = self
-                .created_objects
-                .get(&header.output_id())
-                .ok_or_else(|| {
-                    anyhow::anyhow!("missing created objects for output {}", header.output_id())
-                })?;
-            verify_output(header, output, objects, &self.executor.store)?;
-        }
-        Ok(())
-    }
-}
-
-// Build a `CompiledPackage` from a given `FoundryOutput`.
-fn generate_package(foundry: &FoundryOutput) -> Result<CompiledPackage> {
-    let native_token_data = NativeTokenPackageData::try_from(foundry)?;
-    package_builder::build_and_compile(native_token_data)
-}
-
-/// Defines objects that may have been created by migrating an [`Output`].
-#[derive(Default)]
-pub struct CreatedObjects {
-    output: Option<ObjectID>,
-    coin: Option<ObjectID>,
-    package: Option<ObjectID>,
-}
-
-impl CreatedObjects {
-    pub fn output(&self) -> Result<&ObjectID> {
-        self.output
-            .as_ref()
-            .ok_or_else(|| anyhow!("no created output object"))
-    }
-
-    fn set_output(&mut self, id: ObjectID) -> Result<()> {
-        if let Some(id) = self.output {
-            bail!("output already set: {id}")
-        }
-        self.output.replace(id);
-        Ok(())
-    }
-
-    pub fn coin(&self) -> Result<&ObjectID> {
-        self.coin
-            .as_ref()
-            .ok_or_else(|| anyhow!("no created coin object"))
-    }
-
-    fn set_coin(&mut self, id: ObjectID) -> Result<()> {
-        if let Some(id) = self.coin {
-            bail!("coin already set: {id}")
-        }
-        self.coin.replace(id);
-        Ok(())
-    }
-
-    pub fn package(&self) -> Result<&ObjectID> {
-        self.package
-            .as_ref()
-            .ok_or_else(|| anyhow!("no created package object"))
-    }
-
-    fn set_package(&mut self, id: ObjectID) -> Result<()> {
-        if let Some(id) = self.package {
-            bail!("package already set: {id}")
-        }
-        self.package.replace(id);
-        Ok(())
-    }
-}
-
 /// Creates the objects that map to the stardust UTXO ledger.
 ///
 /// Internally uses an unmetered Move VM.
-struct Executor {
+pub(super) struct Executor {
     protocol_config: ProtocolConfig,
     tx_context: TxContext,
     /// Stores all the migration objects.
     store: InMemoryStorage,
-    /// Caches the system packages and init objects. Useful
-    /// for evicting them from the store before
-    /// creating the snapshot.
+    /// Caches the system packages and init objects. Useful for evicting
+    /// them from the store before creating the snapshot.
     system_packages_and_objects: BTreeSet<ObjectID>,
     move_vm: Arc<MoveVM>,
     metrics: Arc<LimitsMetrics>,
@@ -285,7 +78,7 @@ struct Executor {
 impl Executor {
     /// Setup the execution environment backed by an in-memory store that holds
     /// all the system packages.
-    fn new(protocol_version: ProtocolVersion) -> Result<Self> {
+    pub(super) fn new(protocol_version: ProtocolVersion) -> Result<Self> {
         let mut tx_context = create_migration_context();
         // Use a throwaway metrics registry for transaction execution.
         let metrics = Arc::new(LimitsMetrics::new(&prometheus::Registry::new()));
@@ -332,6 +125,23 @@ impl Executor {
             metrics,
             native_tokens: Default::default(),
         })
+    }
+
+    pub fn store(&self) -> &InMemoryStorage {
+        &self.store
+    }
+
+    /// The migration objects.
+    ///
+    /// The system packages and underlying `init` objects
+    /// are filtered out because they will be generated
+    /// in the genesis process.
+    pub(super) fn into_objects(self) -> Vec<Object> {
+        self.store
+            .into_inner()
+            .into_values()
+            .filter(|object| !self.system_packages_and_objects.contains(&object.id()))
+            .collect()
     }
 
     /// Load input objects from the store to be used as checked
@@ -399,7 +209,7 @@ impl Executor {
     /// * For each native token, map the [`TokenId`] to the [`ObjectID`] of the
     ///   coin that holds its total supply.
     /// * Update the inner store with the created objects.
-    fn create_foundries<'a>(
+    pub(super) fn create_foundries<'a>(
         &mut self,
         foundries: impl Iterator<Item = (&'a OutputHeader, &'a FoundryOutput, CompiledPackage)>,
     ) -> Result<Vec<(OutputId, CreatedObjects)>> {
@@ -457,7 +267,7 @@ impl Executor {
         Ok(res)
     }
 
-    fn create_alias_objects(
+    pub(super) fn create_alias_objects(
         &mut self,
         header: &OutputHeader,
         alias: &AliasOutput,
@@ -657,12 +467,13 @@ impl Executor {
 
     /// This implements the control flow in
     /// crates/sui-framework/packages/stardust/basic_migration_graph.svg
-    fn create_basic_objects(
+    pub(super) fn create_basic_objects(
         &mut self,
         header: &OutputHeader,
         basic_output: &BasicOutput,
     ) -> Result<CreatedObjects> {
-        let mut data = super::types::output::BasicOutput::new(header.clone(), &basic_output);
+        let mut data =
+            crate::stardust::types::output::BasicOutput::new(header.clone(), &basic_output);
         let owner: SuiAddress = basic_output.address().to_string().parse()?;
         let mut created_objects = CreatedObjects::default();
 
@@ -697,43 +508,9 @@ impl Executor {
         Ok(created_objects)
     }
 
-    fn create_nft_objects(&mut self, _nft: &NftOutput) -> Result<CreatedObjects> {
+    pub(super) fn create_nft_objects(&mut self, _nft: &NftOutput) -> Result<CreatedObjects> {
         todo!();
     }
-}
-
-/// Serialize the objects stored in [`InMemoryStorage`] into a file using
-/// [`bcs`] encoding.
-fn create_snapshot(ledger: &[Object], writer: impl Write) -> Result<()> {
-    let mut writer = BufWriter::new(writer);
-    writer.write_all(&bcs::to_bytes(&ledger)?)?;
-    Ok(writer.flush()?)
-}
-
-/// Get the bytes of all bytecode modules (not including direct or transitive
-/// dependencies) of [`CompiledPackage`].
-fn package_module_bytes(pkg: &CompiledPackage) -> Result<Vec<Vec<u8>>> {
-    pkg.get_modules()
-        .map(|module| {
-            let mut buf = Vec::new();
-            module.serialize(&mut buf)?;
-            Ok(buf)
-        })
-        .collect::<Result<_>>()
-}
-
-/// Create a [`TxContext]` that remains the same across invocations.
-fn create_migration_context() -> TxContext {
-    let mut hasher = DefaultHash::default();
-    hasher.update(b"stardust-migration");
-    let hash = hasher.finalize();
-    let stardust_migration_transaction_digest = TransactionDigest::new(hash.into());
-
-    TxContext::new(
-        &SuiAddress::default(),
-        &stardust_migration_transaction_digest,
-        &EpochData::new_genesis(0),
-    )
 }
 
 mod pt {
@@ -790,20 +567,5 @@ mod pt {
             vec![],
             vec![],
         )
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn migration_create_and_deserialize_snapshot() {
-        let mut persisted: Vec<u8> = Vec::new();
-        let objects = (0..4)
-            .map(|_| Object::new_gas_for_testing())
-            .collect::<Vec<_>>();
-        create_snapshot(&objects, &mut persisted).unwrap();
-        let snapshot_objects: Vec<Object> = bcs::from_bytes(&persisted).unwrap();
-        assert_eq!(objects, snapshot_objects);
     }
 }
