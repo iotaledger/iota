@@ -9,6 +9,7 @@ use sui_types::{
     balance::Balance,
     base_types::{ObjectRef, SequenceNumber},
     collection_types::Bag,
+    id::UID,
     move_package::{MovePackage, TypeOrigin},
     object::Object,
     transaction::{Argument, InputObjects, ObjectArg},
@@ -412,7 +413,7 @@ impl Executor {
         let move_alias_object_ref = move_alias_object.compute_object_reference();
         self.store.insert_object(move_alias_object);
 
-        let (bag, version) = self.create_bag(alias.native_tokens())?;
+        let (bag, version) = self.create_bag_with_pt(alias.native_tokens())?;
         let move_alias_output =
             AliasOutput::try_from_stardust(self.tx_context.fresh_id(), &alias, bag)?;
 
@@ -457,8 +458,11 @@ impl Executor {
         Ok(())
     }
 
-    /// Create a [`Bag`] of balances of native tokens.
-    fn create_bag(&mut self, native_tokens: &NativeTokens) -> Result<(Bag, SequenceNumber)> {
+    /// Create a [`Bag`] of balances of native tokens executing a programmable transaction block.
+    fn create_bag_with_pt(
+        &mut self,
+        native_tokens: &NativeTokens,
+    ) -> Result<(Bag, SequenceNumber)> {
         let mut object_deps = Vec::with_capacity(native_tokens.len());
         let mut foundry_package_deps = Vec::with_capacity(native_tokens.len());
         let pt = {
@@ -537,11 +541,6 @@ impl Executor {
     }
 
     /// Create [`Coin`] objects representing native tokens in the ledger.
-    ///
-    /// We set the [`ObjectID`] to the `hash(hash(OutputId) || TokenId)`
-    /// so that we avoid generation based on the [`TxContext`]. The latter
-    /// depends on the order of generation, and implies that the outputs
-    /// should be sorted to attain idempotence.
     fn create_native_token_coins(
         &mut self,
         native_tokens: &NativeTokens,
@@ -607,12 +606,15 @@ impl Executor {
             if !basic_output.native_tokens().is_empty() {
                 self.create_native_token_coins(basic_output.native_tokens(), owner)?;
             }
+            // Overwrite the default 0 UID of `Bag::default()`, since we won't be creating a new bag in this code path.
+            data.native_tokens.id = UID::new(self.tx_context.fresh_id());
             data.into_genesis_coin_object(owner, &self.protocol_config, &self.tx_context, version)?
         } else {
             if !basic_output.native_tokens().is_empty() {
                 // The bag will be wrapped into the basic output object, so
                 // by equating their versions we emulate a ptb.
-                (data.native_tokens, version) = self.create_bag(basic_output.native_tokens())?;
+                (data.native_tokens, version) =
+                    self.create_bag_with_pt(basic_output.native_tokens())?;
             }
             data.to_genesis_object(owner, &self.protocol_config, &self.tx_context, version)?
         };
