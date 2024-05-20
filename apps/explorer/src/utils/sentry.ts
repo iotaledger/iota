@@ -18,8 +18,8 @@ const SENTRY_SAMPLE_RATE = import.meta.env.VITE_SENTRY_SAMPLE_RATE
 Sentry.init({
 	enabled: SENTRY_ENABLED,
 	dsn: import.meta.env.PROD
-		? 'https://e4251274d1b141d7ba272103fa0f8d83@o1314142.ingest.sentry.io/6564988'
-		: 'https://5455656fe14848c0944fb4216dd5c483@o1314142.ingest.sentry.io/4504362510188544',
+		? import.meta.env.VITE_PROD_SENTRY_DSN
+		: import.meta.env.VITE_DEV_SENTRY_DSN,
 	environment: import.meta.env.VITE_VERCEL_ENV,
 	integrations: [
 		new Sentry.BrowserTracing({

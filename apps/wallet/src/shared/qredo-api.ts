@@ -1,6 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { type Network } from '@mysten/sui.js/client';
+
 import { toSearchQueryString } from './utils';
 
 export type QredoAPIErrorResponse = {
@@ -76,7 +78,7 @@ export type TransactionStatus =
 export type PostTransactionParams = {
 	messageWithIntent: string;
 	broadcast: boolean;
-	network: NetworkType;
+	network: Network;
 	from: string;
 };
 
@@ -100,7 +102,7 @@ export type TransactionInfoResponse = {
 };
 
 export type GetTransactionsParams = {
-	network?: NetworkType;
+	network?: Network;
 	/** Filter by address or part of address */
 	address?: string;
 	/** Qredo wallet id */

@@ -24,7 +24,7 @@ const TRANSACTIONS_LIMIT = 25;
 
 function Home() {
 	const [network] = useNetwork();
-	const isSuiTokenCardEnabled = network === Network.MAINNET;
+	const isSuiTokenCardEnabled = network === Network.Mainnet;
 	return (
 		<PageLayout
 			gradient={{

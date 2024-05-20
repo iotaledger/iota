@@ -15,5 +15,5 @@ export function useRecognizedPackages() {
 	const recognizedPackages = useFeatureValue('recognized-packages', DEFAULT_RECOGNIZED_PACKAGES);
 
 	// Our recognized package list is currently only available on mainnet
-	return network === Network.MAINNET ? recognizedPackages : DEFAULT_RECOGNIZED_PACKAGES;
+	return network === Network.Mainnet ? recognizedPackages : DEFAULT_RECOGNIZED_PACKAGES;
 }

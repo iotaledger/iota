@@ -4,9 +4,9 @@
 import { useAppDispatch, useAppSelector } from '_hooks';
 import { changeActiveNetwork } from '_redux/slices/app';
 import { ampli } from '_src/shared/analytics/ampli';
-import { API_ENV } from '_src/shared/api-env';
 import { isValidUrl } from '_src/shared/utils';
 import { InputWithAction } from '_src/ui/app/shared/InputWithAction';
+import { Network } from '@mysten/sui.js/client';
 import { Form, Formik } from 'formik';
 import { useCallback } from 'react';
 import { toast } from 'react-hot-toast';
@@ -25,7 +25,7 @@ const validation = Yup.object({
 export function CustomRPCInput() {
 	const placeholder = 'http://localhost:3000/';
 
-	const customRPC = useAppSelector(({ app }) => app.customRPC || '');
+	const customRpc = useAppSelector(({ app }) => app.customRpc || '');
 
 	const dispatch = useAppDispatch();
 
@@ -35,7 +35,7 @@ export function CustomRPCInput() {
 				await dispatch(
 					changeActiveNetwork({
 						network: {
-							env: API_ENV.customRPC,
+							network: Network.Custom,
 							customRpcUrl: rpcInput,
 						},
 						store: true,
@@ -53,7 +53,7 @@ export function CustomRPCInput() {
 
 	return (
 		<Formik
-			initialValues={{ rpcInput: customRPC }}
+			initialValues={{ rpcInput: customRpc }}
 			validationSchema={validation}
 			onSubmit={changeNetwork}
 			enableReinitialize={true}
