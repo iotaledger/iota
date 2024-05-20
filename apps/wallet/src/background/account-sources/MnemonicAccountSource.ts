@@ -64,7 +64,7 @@ export class MnemonicAccountSource extends AccountSource<
 		password: string;
 		entropyInput?: Uint8Array;
 	}) {
-		const entropy = entropyInput || getRandomEntropy();
+		const entropy = entropyInput || getRandomEntropy(256);
 		if (!validateEntropy(entropy)) {
 			throw new Error("Can't create Mnemonic account source, invalid entropy");
 		}

@@ -12,7 +12,7 @@ import { z } from 'zod';
 
 import Alert from '../alert';
 
-const RECOVERY_PHRASE_WORD_COUNT = 12;
+const RECOVERY_PHRASE_WORD_COUNT = 24;
 
 const formSchema = z.object({
 	recoveryPhrase: z
