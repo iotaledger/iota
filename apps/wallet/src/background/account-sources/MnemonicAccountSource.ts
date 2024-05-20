@@ -46,7 +46,7 @@ interface MnemonicAccountSourceSerializedUI extends AccountSourceSerializedUI {
 
 export function makeDerivationPath(index: number) {
 	// currently returns only Ed25519 path
-	return `m/44'/784'/${index}'/0'/0'`;
+	return `m/44'/4218'/${index}'/0'/0'`;
 }
 
 export function deriveKeypairFromSeed(mnemonicSeedHex: string, derivationPath: string) {

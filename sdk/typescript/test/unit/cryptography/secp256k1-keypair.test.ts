@@ -38,18 +38,18 @@ export const INVALID_SECP256K1_PUBLIC_KEY = Uint8Array.from(Array(PRIVATE_KEY_SI
 const TEST_CASES = [
 	[
 		'film crazy soon outside stand loop subway crumble thrive popular green nuclear struggle pistol arm wife phrase warfare march wheat nephew ask sunny firm',
-		'suiprivkey1qyqr6yvxdqkh32ep4pk9caqvphmk9epn6rhkczcrhaeermsyvwsg783y9am',
-		'0x9e8f732575cc5386f8df3c784cd3ed1b53ce538da79926b2ad54dcc1197d2532',
+		'suiprivkey1q8cy2ll8a0dmzzzwn9zavrug0qf47cyuj6k2r4r6rnjtpjhrdh52vallxwz',
+		'0x8520d58dde1ab268349b9a46e5124ae6fe7e4c61df4ca2bc9c97d3c4d07b0b55',
 	],
 	[
 		'require decline left thought grid priority false tiny gasp angle royal system attack beef setup reward aunt skill wasp tray vital bounce inflict level',
-		'suiprivkey1q8hexn5m2u36tx39ln5e22hfseadknp7d2qlkhe30ejy7fc6am5aqkqpqsj',
-		'0x9fd5a804ed6b46d36949ff7434247f0fd594673973ece24aede6b86a7b5dae01',
+		'suiprivkey1q9hm330d05jcxfvmztv046p8kclyaj39hk6elqghgpq4sz4x23hk2jtdnjf',
+		'0x3740d570eefba29dfc0fdd5829848902064e31ecd059ca05c401907fa8646f61',
 	],
 	[
 		'organ crash swim stick traffic remember army arctic mesh slice swear summer police vast chaos cradle squirrel hood useless evidence pet hub soap lake',
-		'suiprivkey1qxx6yf53jgxvsmccst8cuwnj0rx4k4uzvn9aalvag7ns0xf0g8j2x246jst',
-		'0x60287d7c38dee783c2ab1077216124011774be6b0764d62bd05f32c88979d5c5',
+		'suiprivkey1qx2dnch6363h7gdqqfkzmmlequzj4ul3x4fq6dzyajk7wc2c0jgcxdv2dvl',
+		'0x943b852c37fef403047e06ff5a2fa216557a4386212fb29554babdd3e1899da5',
 	],
 ];
 
@@ -149,13 +149,13 @@ describe('secp256k1-keypair', () => {
 
 	it('incorrect purpose node for secp256k1 derivation path', () => {
 		expect(() => {
-			Secp256k1Keypair.deriveKeypair(TEST_MNEMONIC, `m/44'/784'/0'/0'/0'`);
+			Secp256k1Keypair.deriveKeypair(TEST_MNEMONIC, `m/44'/4218'/0'/0'/0'`);
 		}).toThrow('Invalid derivation path');
 	});
 
 	it('incorrect hardened path for secp256k1 key derivation', () => {
 		expect(() => {
-			Secp256k1Keypair.deriveKeypair(TEST_MNEMONIC, `m/54'/784'/0'/0'/0'`);
+			Secp256k1Keypair.deriveKeypair(TEST_MNEMONIC, `m/54'/4218'/0'/0'/0'`);
 		}).toThrow('Invalid derivation path');
 	});
 

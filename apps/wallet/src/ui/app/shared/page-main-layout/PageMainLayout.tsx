@@ -29,7 +29,7 @@ export function PageMainLayout({
 	topNavMenuEnabled = false,
 	dappStatusEnabled = false,
 }: PageMainLayoutProps) {
-	const networkName = useAppSelector(({ app: { apiEnv } }) => apiEnv);
+	const network = useAppSelector(({ app: { network } }) => network);
 	const appType = useAppSelector((state) => state.app.appType);
 	const isFullScreen = appType === AppType.fullscreen;
 	const [titlePortalContainer, setTitlePortalContainer] = useState<HTMLDivElement | null>(null);
@@ -42,7 +42,7 @@ export function PageMainLayout({
 			)}
 		>
 			<Header
-				networkName={networkName}
+				network={network}
 				middleContent={dappStatusEnabled ? <DappStatus /> : <div ref={setTitlePortalContainer} />}
 				rightContent={topNavMenuEnabled ? <WalletSettingsButton /> : undefined}
 			/>

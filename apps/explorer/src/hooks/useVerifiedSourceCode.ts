@@ -17,9 +17,9 @@ type UseVerifiedSourceCodeResponse = {
 };
 
 const networksWithSourceCodeVerification: Network[] = [
-	Network.DEVNET,
-	Network.TESTNET,
-	Network.MAINNET,
+	Network.Devnet,
+	Network.Testnet,
+	Network.Mainnet,
 ];
 
 /**

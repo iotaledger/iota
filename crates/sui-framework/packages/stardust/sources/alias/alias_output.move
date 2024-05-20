@@ -1,3 +1,6 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 module stardust::alias_output {
 
     use sui::bag::Bag;
@@ -55,6 +58,11 @@ module stardust::alias_output {
         transfer::receive(parent, output)
     }
 
+    /// Utility function to attach an `Alias` to an `AliasOutput`.
+    public fun attach_alias(output: &mut AliasOutput, alias: Alias) {
+        dynamic_object_field::add(&mut output.id, ALIAS_NAME, alias)
+    }
+
     // === Private Functions ===
 
     /// Loads the `Alias` object from the dynamic object field.
@@ -75,10 +83,5 @@ module stardust::alias_output {
             iota,
             native_tokens,
         }
-    }
-
-    #[test_only]
-    public fun attach_alias(output: &mut AliasOutput, alias: Alias) {
-        dynamic_object_field::add(&mut output.id, ALIAS_NAME, alias)
     }
 }

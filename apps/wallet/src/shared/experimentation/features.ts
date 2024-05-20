@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-
-import { API_ENV } from '_src/shared/api-env';
 import { GrowthBook } from '@growthbook/growthbook';
+import { Network } from '@mysten/sui.js/client';
 import Browser from 'webextension-polyfill';
 
+// Copyright (c) Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
 export const growthbook = new GrowthBook({
 	// If you want to develop locally, you can set the API host to this:
 	// apiHost: 'http://localhost:3003',
@@ -31,11 +32,11 @@ export enum FEATURES {
 	DEEP_BOOK_CONFIGS = 'deep-book-configs',
 }
 
-export function setAttributes(network?: { apiEnv: API_ENV; customRPC?: string | null }) {
+export function setAttributes(network?: { network: Network; customRpc?: string | null }) {
 	const activeNetwork = network
-		? network.apiEnv === API_ENV.customRPC && network.customRPC
-			? network.customRPC
-			: network.apiEnv.toUpperCase()
+		? network.network === Network.Custom && network.customRpc
+			? network.customRpc
+			: network.network.toUpperCase()
 		: null;
 
 	growthbook.setAttributes({

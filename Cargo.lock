@@ -5217,6 +5217,7 @@ checksum = "290f1a1d9242c78d09ce40a5e87e7554ee637af1351968159f4952f028f75604"
 dependencies = [
  "ahash 0.8.11",
  "allocator-api2",
+ "serde",
 ]
 
 [[package]]
@@ -5811,6 +5812,9 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "serde_repr",
+ "url",
+ "zeroize",
 ]
 
 [[package]]
@@ -9889,6 +9893,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "rand_regex"
+version = "0.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b2a9fe2d7d9eeaf3279d1780452a5bbd26b31b27938787ef1c3e930d1e9cfbd"
+dependencies = [
+ "rand 0.8.5",
+ "regex-syntax 0.6.28",
+]
+
+[[package]]
 name = "rand_xorshift"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12706,6 +12720,7 @@ dependencies = [
  "bcs",
  "camino",
  "fastcrypto",
+ "fs_extra",
  "insta",
  "iota-sdk",
  "move-binary-format",
@@ -12714,7 +12729,11 @@ dependencies = [
  "packable",
  "prometheus",
  "rand 0.8.5",
+ "rand_regex",
+ "regex",
+ "schemars",
  "serde",
+ "serde_json",
  "serde_with",
  "serde_yaml 0.8.26",
  "shared-crypto",

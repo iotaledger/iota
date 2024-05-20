@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useIsWalletDefiEnabled } from '_app/hooks/useIsWalletDefiEnabled';
 import { useAppSelector } from '_hooks';
-import { API_ENV } from '_shared/api-env';
 import { Heading } from '_src/ui/app/shared/heading';
 import { Text } from '_src/ui/app/shared/text';
 import { useBalanceInUSD, useFormatCoin } from '@mysten/core';
+import { Network } from '@mysten/sui.js/client';
 import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
 import { useMemo } from 'react';
 
@@ -39,7 +39,7 @@ function WalletBalanceUsd({ amount: walletBalance }: { amount: bigint }) {
 }
 
 export function CoinBalance({ amount: walletBalance, type }: CoinProps) {
-	const { apiEnv } = useAppSelector((state) => state.app);
+	const network = useAppSelector((state) => state.app.network);
 	const [formatted, symbol] = useFormatCoin(walletBalance, type);
 
 	return (
@@ -53,7 +53,7 @@ export function CoinBalance({ amount: walletBalance, type }: CoinProps) {
 					{symbol}
 				</Heading>
 			</div>
-			<div>{apiEnv === API_ENV.mainnet ? <WalletBalanceUsd amount={walletBalance} /> : null}</div>
+			<div>{network === Network.Mainnet ? <WalletBalanceUsd amount={walletBalance} /> : null}</div>
 		</div>
 	);
 }

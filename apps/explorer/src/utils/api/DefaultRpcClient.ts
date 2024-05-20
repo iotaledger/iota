@@ -2,34 +2,35 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { SentryHttpTransport } from '@mysten/core';
-import { SuiClient, SuiHTTPTransport, getFullnodeUrl } from '@mysten/sui.js/client';
+import {
+	SuiClient,
+	SuiHTTPTransport,
+	getNetwork,
+	Network,
+	type NetworkId,
+	getAllNetworks,
+} from '@mysten/sui.js/client';
 
-export enum Network {
-	LOCAL = 'LOCAL',
-	DEVNET = 'DEVNET',
-	TESTNET = 'TESTNET',
-	MAINNET = 'MAINNET',
-}
+export { Network } from '@mysten/sui.js/client';
 
-export const NetworkConfigs: Record<Network, { url: string }> = {
-	[Network.LOCAL]: { url: getFullnodeUrl('localnet') },
-	[Network.DEVNET]: { url: 'https://sui-devnet.mystenlabs.com/json-rpc' },
-	[Network.TESTNET]: { url: 'https://sui-testnet.mystenlabs.com/json-rpc' },
-	[Network.MAINNET]: { url: 'https://sui-mainnet.mystenlabs.com/json-rpc' },
-};
+export const SupportedNetworks = getAllNetworks();
+// The Explorer always shows the Custom RPC input so there is no need to confuse it more by having a Custom Network here
+delete SupportedNetworks[Network.Custom];
 
-const defaultClientMap: Map<Network | string, SuiClient> = new Map();
+const defaultClientMap: Map<NetworkId, SuiClient> = new Map();
 
 // NOTE: This class should not be used directly in React components, prefer to use the useSuiClient() hook instead
-export const createSuiClient = (network: Network | string) => {
+export const createSuiClient = (network: NetworkId) => {
 	const existingClient = defaultClientMap.get(network);
 	if (existingClient) return existingClient;
 
-	const networkUrl = network in Network ? NetworkConfigs[network as Network].url : network;
+	const supportedNetwork = getNetwork(network);
+	// If network is not supported, we use assume we are using a custom RPC
+	const networkUrl = supportedNetwork?.url ?? network;
 
 	const client = new SuiClient({
 		transport:
-			network in Network && network === Network.MAINNET
+			supportedNetwork && network === Network.Mainnet
 				? new SentryHttpTransport(networkUrl)
 				: new SuiHTTPTransport({ url: networkUrl }),
 	});

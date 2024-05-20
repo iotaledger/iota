@@ -127,7 +127,7 @@ describe('Keypair', () => {
 	it('`toSuiAddress()` should return a valid sui address', async () => {
 		expect(k1.toSuiAddress()).toEqual(pk1.toSuiAddress());
 		expect(k1.toSuiAddress()).toEqual(
-			'0xafedf3bc60bd296aa6830d7c48ca44e0f7a32478ae4bd7b9a6ac1dc81ff7b29b',
+			'0xe6dcb252ab9a52298087003feaab88716515aff3965544ac24764665a0d79d6a',
 		);
 
 		expect(k2.toSuiAddress()).toEqual(pk2.toSuiAddress());

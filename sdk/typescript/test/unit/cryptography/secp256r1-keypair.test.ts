@@ -36,18 +36,18 @@ export const INVALID_SECP256R1_PUBLIC_KEY = Uint8Array.from(Array(PRIVATE_KEY_SI
 const TEST_CASES = [
 	[
 		'act wing dilemma glory episode region allow mad tourist humble muffin oblige',
-		'suiprivkey1qgj6vet4rstf2p00j860xctkg4fyqqq5hxgu4mm0eg60fq787ujnqs5wc8q',
-		'0x4a822457f1970468d38dae8e63fb60eefdaa497d74d781f581ea2d137ec36f3a',
+		'suiprivkey1qtt65ua2lhal76zg4cxd6umdqynv2rj2gzrntp5rwlnyj370jg3pwhxg9kc',
+		'0x779a63b28528210a5ec6c4af5a70382fa3f0c2d3f98dcbe4e3a4ae2f8c39cc9c',
 	],
 	[
 		'flag rebel cabbage captain minimum purpose long already valley horn enrich salt',
-		'suiprivkey1qgmgr6dza8slgxn0rcxcy47xeas9l565cc5q440ngdzr575rc2356gzlq7a',
-		'0xcd43ecb9dd32249ff5748f5e4d51855b01c9b1b8bbe7f8638bb8ab4cb463b920',
+		'suiprivkey1qtcjgmue7q8u4gtutfvfpx3zj3aa2r9pqssuusrltxfv68eqhzsgjyhk7e4',
+		'0x8b45523042933aa55f57e2ccc661304baed292529b6e67a0c9857c1f3f871806',
 	],
 	[
 		'area renew bar language pudding trial small host remind supreme cabbage era',
-		'suiprivkey1qt2gsye4dyn0lxey0ht6d5f2ada7ew9044a49y2f3mymy2uf0hr55jmfze3',
-		'0x0d9047b7e7b698cc09c955ea97b0c68c2be7fb3aebeb59edcc84b1fb87e0f28e',
+		'suiprivkey1qtxafg26qxeqy7f56gd2rvsup0a5kl4cre7nt2rtcrf0p3v5pwd4c595zjp',
+		'0x8528ef86150ec331928a8b3edb8adbe2fb523db8c84679aa57a931da6a4cdb25',
 	],
 ];
 
@@ -144,13 +144,13 @@ describe('secp256r1-keypair', () => {
 
 	it('incorrect purpose node for secp256r1 derivation path', () => {
 		expect(() => {
-			Secp256r1Keypair.deriveKeypair(TEST_CASES[0][0], `m/54'/784'/0'/0'/0'`);
+			Secp256r1Keypair.deriveKeypair(TEST_CASES[0][0], `m/54'/4218'/0'/0'/0'`);
 		}).toThrow('Invalid derivation path');
 	});
 
 	it('incorrect hardened path for secp256k1 key derivation', () => {
 		expect(() => {
-			Secp256r1Keypair.deriveKeypair(TEST_CASES[0][0], `m/44'/784'/0'/0'/0'`);
+			Secp256r1Keypair.deriveKeypair(TEST_CASES[0][0], `m/44'/4218'/0'/0'/0'`);
 		}).toThrow('Invalid derivation path');
 	});
 

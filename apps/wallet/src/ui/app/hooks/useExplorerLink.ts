@@ -1,6 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { getCustomNetwork } from '_src/shared/api-env';
+import { getNetwork, Network } from '@mysten/sui.js/client';
 import { useMemo } from 'react';
 
 import {
@@ -38,26 +40,26 @@ function useAddress(linkConfig: ExplorerLinkConfig) {
 export function useExplorerLink(linkConfig: ExplorerLinkConfig) {
 	const { type } = linkConfig;
 	const address = useAddress(linkConfig);
-	const selectedApiEnv = useAppSelector(({ app }) => app.apiEnv);
-	const customRPC = useAppSelector(({ app }) => app.customRPC);
+	const network = useAppSelector(({ app }) => app.network);
 	const objectID = type === ExplorerLinkType.object ? linkConfig.objectID : null;
 	const transactionID = type === ExplorerLinkType.transaction ? linkConfig.transactionID : null;
 	const validator = type === ExplorerLinkType.validator ? linkConfig.validator : null;
 	const moduleName = type === ExplorerLinkType.object ? linkConfig.moduleName : null;
 
 	// fallback to localhost if customRPC is not set
-	const customRPCUrl = customRPC || 'http://localhost:3000/';
+	const customExplorer =
+		network === Network.Custom ? getCustomNetwork().explorer : getNetwork(network).explorer;
 	return useMemo(() => {
 		if (!address) return null;
 		switch (type) {
 			case ExplorerLinkType.address:
-				return address && getAddressUrl(address, selectedApiEnv, customRPCUrl);
+				return address && getAddressUrl(address, network, customExplorer);
 			case ExplorerLinkType.object:
-				return objectID && getObjectUrl(objectID, selectedApiEnv, customRPCUrl, moduleName);
+				return objectID && getObjectUrl(objectID, network, customExplorer, moduleName);
 			case ExplorerLinkType.transaction:
-				return transactionID && getTransactionUrl(transactionID, selectedApiEnv, customRPCUrl);
+				return transactionID && getTransactionUrl(transactionID, network, customExplorer);
 			case ExplorerLinkType.validator:
-				return validator && getValidatorUrl(validator, selectedApiEnv, customRPCUrl);
+				return validator && getValidatorUrl(validator, network, customExplorer);
 		}
-	}, [type, address, selectedApiEnv, customRPCUrl, moduleName, objectID, transactionID, validator]);
+	}, [type, address, network, customExplorer, moduleName, objectID, transactionID, validator]);
 }

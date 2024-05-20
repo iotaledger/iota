@@ -13,7 +13,7 @@ import type { PublicKey } from '../../cryptography/publickey.js';
 import type { SignatureScheme } from '../../cryptography/signature-scheme.js';
 import { Secp256k1PublicKey } from './publickey.js';
 
-export const DEFAULT_SECP256K1_DERIVATION_PATH = "m/54'/784'/0'/0/0";
+export const DEFAULT_SECP256K1_DERIVATION_PATH = "m/54'/4218'/0'/0/0";
 
 /**
  * Secp256k1 Keypair data
@@ -133,8 +133,8 @@ export class Secp256k1Keypair extends Keypair {
 	 * Derive Secp256k1 keypair from mnemonics and path. The mnemonics must be normalized
 	 * and validated against the english wordlist.
 	 *
-	 * If path is none, it will default to m/54'/784'/0'/0/0, otherwise the path must
-	 * be compliant to BIP-32 in form m/54'/784'/{account_index}'/{change_index}/{address_index}.
+	 * If path is none, it will default to m/54'/4218'/0'/0/0, otherwise the path must
+	 * be compliant to BIP-32 in form m/54'/4218'/{account_index}'/{change_index}/{address_index}.
 	 */
 	static deriveKeypair(mnemonics: string, path?: string): Secp256k1Keypair {
 		if (path == null) {

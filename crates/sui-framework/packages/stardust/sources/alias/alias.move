@@ -1,3 +1,6 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 module stardust::alias {
 
     /// The persisted Alias object from Stardust, without tokens and assets.
@@ -9,7 +12,7 @@ module stardust::alias {
         id: UID,
 
         /// The last State Controller address assigned before the migration.
-        legacy_state_controller: Option<address>,
+        legacy_state_controller: address,
         /// A counter increased by 1 every time the alias was state transitioned.
         state_index: u32,
         /// State metadata that can be used to store additional information.
@@ -47,7 +50,7 @@ module stardust::alias {
     // === Public-Mutative Functions ===
 
     /// Get the Alias's `legacy_state_controller`.
-    public fun legacy_state_controller(self: &Alias): &Option<address> {
+    public fun legacy_state_controller(self: &Alias): &address {
         &self.legacy_state_controller
     }
 
@@ -92,7 +95,7 @@ module stardust::alias {
 
     #[test_only]
     public fun create_for_testing(
-        legacy_state_controller: Option<address>,
+        legacy_state_controller: address,
         state_index: u32,
         state_metadata: Option<vector<u8>>,
         sender: Option<address>,
