@@ -41,10 +41,10 @@ export function entropyToMnemonic(entropy: Uint8Array): string {
 
 /**
  * Generate random byte to be used as entropy for the mnemonic
- * @param strength defaults to 128 to generate 12-word mnemonic that now is the default for the wallet
+ * @param strength defaults to 256 to generate 24-word mnemonic that now is the default for the wallet
  * @returns
  */
-export function getRandomEntropy(strength: 128 | 256 = 128) {
+export function getRandomEntropy(strength: 128 | 256 = 256) {
 	return randomBytes(strength / 8);
 }
 
