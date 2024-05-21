@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Button } from '_app/shared/ButtonUI';
 import { normalizeMnemonics, validateMnemonics } from '_src/shared/utils/bip39';
 import { PasswordInput } from '_src/ui/app/shared/forms/controls/PasswordInput';
