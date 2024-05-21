@@ -61,12 +61,6 @@ const config = {
         },
       },
     ],
-    [
-      "docusaurus-plugin-includes",
-      {
-        postBuildDeletedFolders: ["../snippets"],
-      },
-    ],
     async function myPlugin(context, options) {
       return {
         name: "docusaurus-tailwindcss",
