@@ -10,8 +10,8 @@ import { build } from 'esbuild';
 
 dotenv.config({
 	path: [
-		path.join(__dirname, '..', '..', '..', '.env.defaults'),
 		path.join(__dirname, '..', '..', '..', '.env'),
+		path.join(__dirname, '..', '..', '..', '.env.defaults'),
 	],
 });
 
