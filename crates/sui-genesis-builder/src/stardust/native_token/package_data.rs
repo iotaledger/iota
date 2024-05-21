@@ -115,36 +115,40 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
             }
         })?;
 
-        let maximum_supply_u256 = output.token_scheme().as_simple().maximum_supply();
-        let maximum_supply_u64 = if maximum_supply_u256.bits() > 64 {
-            u64::MAX
-        } else {
-            maximum_supply_u256.as_u64()
+        let maximum_supply_u64 = {
+            let maximum_supply_u256 = output.token_scheme().as_simple().maximum_supply();
+            if maximum_supply_u256.bits() > 64 {
+                u64::MAX
+            } else {
+                maximum_supply_u256.as_u64()
+            }
         };
 
-        let minted_tokens_u256 = output.token_scheme().as_simple().minted_tokens();
-        let melted_tokens_u256 = output.token_scheme().as_simple().melted_tokens();
+        let circulating_supply_u64 = {
+            let minted_tokens_u256 = output.token_scheme().as_simple().minted_tokens();
+            let melted_tokens_u256 = output.token_scheme().as_simple().melted_tokens();
 
-        // Check if melted tokens is greater than minted tokens
-        if melted_tokens_u256 > minted_tokens_u256 {
-            return Err(StardustError::FoundryConversionError {
-                foundry_id: output.id(),
-                err: anyhow::anyhow!("Melted Tokens must not be greater than Minted Tokens"),
-            });
-        }
+            // Check if melted tokens is greater than minted tokens
+            if melted_tokens_u256 > minted_tokens_u256 {
+                return Err(StardustError::FoundryConversionError {
+                    foundry_id: output.id(),
+                    err: anyhow::anyhow!("Melted Tokens must not be greater than Minted Tokens"),
+                });
+            }
 
-        // The circulating supply (minted - melted) must not be greater than maximum supply.
-        let circulating_supply_u256 = minted_tokens_u256 - melted_tokens_u256;
-        if circulating_supply_u256 > U256::from(maximum_supply_u64) {
-            return Err(StardustError::FoundryConversionError {
-                foundry_id: output.id(),
-                err: anyhow::anyhow!(
-                    "The circulating supply must not be greater than the maximum supply"
-                ),
-            });
-        }
+            // The circulating supply (minted - melted) must not be greater than maximum supply.
+            let circulating_supply_u256 = minted_tokens_u256 - melted_tokens_u256;
+            if circulating_supply_u256 > U256::from(maximum_supply_u64) {
+                return Err(StardustError::FoundryConversionError {
+                    foundry_id: output.id(),
+                    err: anyhow::anyhow!(
+                        "The circulating supply must not be greater than the maximum supply"
+                    ),
+                });
+            }
 
-        let circulating_supply_u64 = circulating_supply_u256.as_u64();
+            circulating_supply_u256.as_u64()
+        };
 
         let native_token_data = NativeTokenPackageData {
             package_name: identifier.clone(),
