@@ -8,12 +8,11 @@ import Link from 'next/link'
 
 function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
 	const path = usePathname();
-    const DASHBOARD_HOME_ROUTE = '/dashboard/home'
 
     const isActive = (pathname: string) => path && (pathname === path || pathname.startsWith(path))
 
 	const routes: { title: string; path: string }[] = [
-		{ title: 'Home', path: DASHBOARD_HOME_ROUTE },
+		{ title: 'Home', path: '/dashboard/home' },
 		{ title: 'Assets', path: '/dashboard/assets' },
 		{ title: 'Staking', path: '/dashboard/staking' },
 		{ title: 'Apps', path: '/dashboard/apps' },
