@@ -35,6 +35,7 @@ use sui_types::messages_checkpoint::{
     VerifiedCheckpoint,
 };
 use sui_types::object::{Object, ObjectRead, PastObjectRead};
+use sui_types::stardust::timelocked_staked_sui::TimelockedStakedSui;
 use sui_types::storage::{BackingPackageStore, ObjectStore, WriteKind};
 use sui_types::sui_serde::BigInt;
 use sui_types::sui_system_state::SuiSystemState;
@@ -164,6 +165,10 @@ pub trait StateRead: Send + Sync {
 
     // governance_api
     async fn get_staked_sui(&self, owner: SuiAddress) -> StateReadResult<Vec<StakedSui>>;
+    async fn get_timelocked_staked_sui(
+        &self,
+        owner: SuiAddress,
+    ) -> StateReadResult<Vec<TimelockedStakedSui>>;
     fn get_system_state(&self) -> StateReadResult<SuiSystemState>;
     fn get_or_latest_committee(&self, epoch: Option<BigInt<u64>>) -> StateReadResult<Committee>;
 
@@ -424,6 +429,14 @@ impl StateRead for AuthorityState {
     async fn get_staked_sui(&self, owner: SuiAddress) -> StateReadResult<Vec<StakedSui>> {
         Ok(self
             .get_move_objects(owner, MoveObjectType::staked_sui())
+            .await?)
+    }
+    async fn get_timelocked_staked_sui(
+        &self,
+        owner: SuiAddress,
+    ) -> StateReadResult<Vec<TimelockedStakedSui>> {
+        Ok(self
+            .get_move_objects(owner, MoveObjectType::timelocked_staked_sui())
             .await?)
     }
     fn get_system_state(&self) -> StateReadResult<SuiSystemState> {

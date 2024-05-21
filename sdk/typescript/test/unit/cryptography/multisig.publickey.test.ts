@@ -249,7 +249,7 @@ describe('Publickey', () => {
 		tmp.set(bcs.ser('u16', 3).toBytes(), 1);
 		let i = 3;
 		for (const { publicKey, weight } of multiSigPublicKey.getPublicKeys()) {
-			const bytes = publicKey.toSuiBytes();
+			const bytes = publicKey.toSuiBytesForAddress();
 			tmp.set(bytes, i);
 			i += bytes.length;
 			tmp.set([weight], i++);
@@ -260,7 +260,7 @@ describe('Publickey', () => {
 
 		expect(multiSigPublicKey.toSuiAddress()).toEqual(multisigSuiAddress);
 		expect(multiSigPublicKey.toSuiAddress()).toEqual(
-			'0x8ee027fe556a3f6c0a23df64f090d2429fec0bb21f55594783476e81de2dec27',
+			'0xc365dd9d3ecbffe4f1b932b9ea7e98a6a37d2d07a1bae758fdbe502245a145c0',
 		);
 	});
 

@@ -1,14 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { type API_ENV } from '_src/shared/api-env';
+import { type Network } from '@mysten/sui.js/client';
 import { type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
 import Logo from '../../components/logo';
 
 type HeaderProps = {
-	networkName: API_ENV;
+	network: Network;
 	middleContent?: ReactNode;
 	rightContent?: ReactNode;
 };
@@ -17,12 +17,12 @@ type HeaderProps = {
  * General page header that can render arbitrary content where the content
  * located in the middle of the header is centered and has a capped width
  */
-export function Header({ networkName, middleContent, rightContent }: HeaderProps) {
+export function Header({ network, middleContent, rightContent }: HeaderProps) {
 	return (
 		<header className="grid grid-cols-header items-center gap-3 px-3 py-2">
 			<div>
 				<Link to="/" className="no-underline text-gray-90">
-					<Logo networkName={networkName} />
+					<Logo network={network} />
 				</Link>
 			</div>
 			{middleContent && <div className="col-start-2 overflow-hidden">{middleContent}</div>}

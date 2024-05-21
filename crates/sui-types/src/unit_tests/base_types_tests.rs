@@ -6,10 +6,12 @@
 
 use std::str::FromStr;
 
+use base_types_tests::timelock::TimeLock;
 use fastcrypto::encoding::Base58;
 use fastcrypto::traits::EncodeDecodeBase64;
 use move_binary_format::file_format;
 
+use crate::balance::Balance;
 use crate::crypto::bcs_signable_test::{Bar, Foo};
 use crate::crypto::{
     get_key_pair, get_key_pair_from_bytes, AccountKeyPair, AuthorityKeyPair, AuthoritySignature,
@@ -410,11 +412,14 @@ fn move_object_type_consistency() {
         assert_eq!(ty.module_id(), tag.module_id());
         // sanity check special cases
         assert!(!ty.is_gas_coin() || ty.is_coin());
+        assert!(!ty.is_timelocked_balance() || ty.is_timelock());
         let cases = [
             ty.is_coin(),
             ty.is_staked_sui(),
             ty.is_coin_metadata(),
             ty.is_dynamic_field(),
+            ty.is_timelock(),
+            ty.is_timelocked_staked_sui(),
         ];
         assert!(cases.into_iter().map(|is_ty| is_ty as u8).sum::<u8>() <= 1);
         ty
@@ -434,6 +439,18 @@ fn move_object_type_consistency() {
         TypeTag::U64,
     ));
     assert!(ty.is_dynamic_field());
+    let ty = assert_consistent(&TimeLock::<Balance>::type_(
+        Balance::type_(GAS::type_().into()).into(),
+    ));
+    assert_eq!(ty, MoveObjectType::timelocked_sui_balance());
+    assert!(ty.is_timelock());
+    assert!(ty.is_timelocked_balance());
+    let ty = assert_consistent(&TimeLock::<Coin>::type_(GasCoin::type_().into()));
+    assert!(ty.is_timelock());
+    assert!(!ty.is_timelocked_balance());
+    let ty = assert_consistent(&TimelockedStakedSui::type_());
+    assert_eq!(ty, MoveObjectType::timelocked_staked_sui());
+    assert!(ty.is_timelocked_staked_sui());
     assert_consistent(&UID::type_());
     assert_consistent(&ID::type_());
 }

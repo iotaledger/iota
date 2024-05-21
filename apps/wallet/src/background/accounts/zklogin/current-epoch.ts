@@ -12,7 +12,7 @@ type EpochCacheInfo = {
 };
 
 function epochCacheKey(network: NetworkEnvType) {
-	return `epoch_cache_${network.env}-${network.customRpcUrl}`;
+	return `epoch_cache_${network.network}-${network.customRpcUrl}`;
 }
 
 async function getCurrentEpochRequest(): Promise<EpochCacheInfo> {

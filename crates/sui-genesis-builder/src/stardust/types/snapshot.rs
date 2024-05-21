@@ -1,3 +1,6 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! Types representing blocks of data in a Stardust snapshot.
 use std::mem::size_of;
 
@@ -15,7 +18,7 @@ use packable::{
     Packable, PackableExt,
 };
 
-use super::error::StardustError;
+use crate::stardust::error::StardustError;
 
 /// The snapshot version supported currently
 const SNAPSHOT_VERSION: u8 = 2;
@@ -73,6 +76,24 @@ impl OutputHeader {
     /// The length of the output in bytes.
     pub fn length(&self) -> u32 {
         self.length
+    }
+
+    /// Creates a new OutputHeader for testing.
+    pub fn new_testing(
+        output_id_bytes: [u8; 32],
+        block_id_bytes: [u8; 32],
+        milestone_index: u32,
+        milestone_timestamp: u32,
+    ) -> OutputHeader {
+        use iota_sdk::types::block::payload::transaction::TransactionId;
+
+        OutputHeader {
+            output_id: OutputId::new(TransactionId::new(output_id_bytes), 0).unwrap(),
+            block_id: BlockId::new(block_id_bytes),
+            ms_index: MilestoneIndex::new(milestone_index),
+            ms_ts: milestone_timestamp,
+            length: 1,
+        }
     }
 }
 

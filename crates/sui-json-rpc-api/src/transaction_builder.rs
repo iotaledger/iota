@@ -249,4 +249,34 @@ pub trait TransactionBuilder {
         /// the gas budget, the transaction will fail if the gas cost exceed the budget
         gas_budget: BigInt<u64>,
     ) -> RpcResult<TransactionBlockBytes>;
+
+    /// Add timelocked stake to a validator's staking pool using multiple balances and amount.
+    #[method(name = "requestAddTimelockedStake")]
+    async fn request_add_timelocked_stake(
+        &self,
+        /// the transaction signer's Sui address
+        signer: SuiAddress,
+        /// TimeLock<Balance<SUI>> object to stake
+        locked_balance: ObjectID,
+        /// the validator's Sui address
+        validator: SuiAddress,
+        /// gas object to be used in this transaction
+        gas: ObjectID,
+        /// the gas budget, the transaction will fail if the gas cost exceed the budget
+        gas_budget: BigInt<u64>,
+    ) -> RpcResult<TransactionBlockBytes>;
+
+    /// Withdraw timelocked stake from a validator's staking pool.
+    #[method(name = "requestWithdrawTimelockedStake")]
+    async fn request_withdraw_timelocked_stake(
+        &self,
+        /// the transaction signer's Sui address
+        signer: SuiAddress,
+        /// TimelockedStakedSui object ID
+        timelocked_staked_sui: ObjectID,
+        /// gas object to be used in this transaction
+        gas: ObjectID,
+        /// the gas budget, the transaction will fail if the gas cost exceed the budget
+        gas_budget: BigInt<u64>,
+    ) -> RpcResult<TransactionBlockBytes>;
 }

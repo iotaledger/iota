@@ -5,10 +5,10 @@ use expect_test::expect;
 use reqwest::Client;
 use std::fs;
 use std::io::Read;
-#[cfg(target_os = "windows")]
-use std::os::windows::fs::FileExt;
 #[cfg(not(target_os = "windows"))]
 use std::os::unix::fs::FileExt;
+#[cfg(target_os = "windows")]
+use std::os::windows::fs::FileExt;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use sui::client_commands::{SuiClientCommandResult, SuiClientCommands};

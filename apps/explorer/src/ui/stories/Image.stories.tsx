@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 
 import { Image, type ImageProps } from '../image/Image';
-import { VISIBILITY } from '~/hooks/useImageMod';
+import { Visibility } from '~/hooks/useImageMod';
 
 import type { Meta, StoryObj } from '@storybook/react';
 
@@ -67,6 +67,6 @@ export const ModeratedBlurred: StoryObj<ImageProps> = {
 		src: 'https://upload.wikimedia.org/wikipedia/commons/4/4f/SIG_Pro_by_Augustas_Didzgalvis.jpg',
 		size: 'lg',
 		rounded: 'lg',
-		visibility: VISIBILITY.BLUR,
+		visibility: Visibility.Blur,
 	},
 };

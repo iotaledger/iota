@@ -17,12 +17,12 @@ const Sui = require('@mysten/ledgerjs-hw-app-sui').default;
 
 const getPublicKey = async () => {
 	const sui = new Sui(await Transport.create());
-	return await sui.getPublicKey("44'/784'/0'/0'/0'");
+	return await sui.getPublicKey("44'/4218'/0'/0'/0'");
 };
 
 const signTransaction = async () => {
 	const sui = new Sui(await Transport.create());
-	return await sui.signTransaction("44'/784'/0'/0'/0'", '<transaction contents>');
+	return await sui.signTransaction("44'/4218'/0'/0'/0'", '<transaction contents>');
 };
 
 const getVersion = async () => {
@@ -88,7 +88,7 @@ Gets the Sui address for a given BIP-32 path.
 #### Examples
 
 ```javascript
-const publicKey = await sui.getPublicKey("44'/784'/0'/0'/0'");
+const publicKey = await sui.getPublicKey("44'/4218'/0'/0'/0'");
 ```
 
 Returns
@@ -108,7 +108,7 @@ Sign a transaction with a given BIP-32 path.
 #### Examples
 
 ```javascript
-const publicKey = await sui.signTransaction("44'/784'/0'/0'/0'", '<transaction contents>');
+const publicKey = await sui.signTransaction("44'/4218'/0'/0'/0'", '<transaction contents>');
 ```
 
 Returns

@@ -15,10 +15,10 @@ import {
 	PanelResizeHandle,
 } from 'react-resizable-panels';
 
-export enum LOCAL_STORAGE_SPLIT_PANE_KEYS {
-	TRANSACTION_VIEW = 'splitPanes/transaction-view',
-	ADDRESS_VIEW_HORIZONTAL = 'splitPanes/address-view-horizontal',
-	ADDRESS_VIEW_VERTICAL = 'splitPanes/address-view-vertical',
+export enum LocalStorageSplitPaneKey {
+	TransactionView = 'splitPanes/transaction-view',
+	AddressViewHorizontal = 'splitPanes/address-view-horizontal',
+	AddressViewVertical = 'splitPanes/address-view-vertical',
 }
 
 const panelResizeHandleStyles = cva(['group/container z-10'], {

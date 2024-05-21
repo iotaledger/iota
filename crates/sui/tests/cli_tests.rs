@@ -3,12 +3,12 @@
 
 use std::collections::BTreeSet;
 use std::io::Read;
-use std::str::FromStr;
-use std::{fmt::Write, fs::read_dir, path::PathBuf, str, thread, time::Duration};
-#[cfg(target_os = "windows")]
-use std::os::windows::fs::FileExt;
 #[cfg(not(target_os = "windows"))]
 use std::os::unix::fs::FileExt;
+#[cfg(target_os = "windows")]
+use std::os::windows::fs::FileExt;
+use std::str::FromStr;
+use std::{fmt::Write, fs::read_dir, path::PathBuf, str, thread, time::Duration};
 
 use expect_test::expect;
 use move_package::BuildConfig as MoveBuildConfig;

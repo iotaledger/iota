@@ -2,6 +2,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::balance::Balance;
 use crate::coin::Coin;
 use crate::coin::CoinMetadata;
 use crate::coin::TreasuryCap;
@@ -31,6 +32,9 @@ use crate::multisig::MultiSigPublicKey;
 use crate::object::{Object, Owner};
 use crate::parse_sui_struct_tag;
 use crate::signature::GenericSignature;
+use crate::stardust::timelock;
+use crate::stardust::timelock::TimeLock;
+use crate::stardust::timelocked_staked_sui::TimelockedStakedSui;
 use crate::sui_serde::Readable;
 use crate::sui_serde::{to_sui_struct_tag_string, HexAccountAddress};
 use crate::transaction::Transaction;
@@ -187,6 +191,16 @@ impl MoveObjectType {
         Self(MoveObjectType_::StakedSui)
     }
 
+    pub fn timelocked_sui_balance() -> Self {
+        Self(MoveObjectType_::Other(TimeLock::<Balance>::type_(
+            Balance::type_(GAS::type_().into()).into(),
+        )))
+    }
+
+    pub fn timelocked_staked_sui() -> Self {
+        Self(MoveObjectType_::Other(TimelockedStakedSui::type_()))
+    }
+
     pub fn address(&self) -> AccountAddress {
         match &self.0 {
             MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => SUI_FRAMEWORK_ADDRESS,
@@ -330,6 +344,33 @@ impl MoveObjectType {
                 false
             }
             MoveObjectType_::Other(s) => DynamicFieldInfo::is_dynamic_field(s),
+        }
+    }
+
+    pub fn is_timelock(&self) -> bool {
+        match &self.0 {
+            MoveObjectType_::GasCoin | MoveObjectType_::StakedSui | MoveObjectType_::Coin(_) => {
+                false
+            }
+            MoveObjectType_::Other(s) => timelock::is_timelock(s),
+        }
+    }
+
+    pub fn is_timelocked_balance(&self) -> bool {
+        match &self.0 {
+            MoveObjectType_::GasCoin | MoveObjectType_::StakedSui | MoveObjectType_::Coin(_) => {
+                false
+            }
+            MoveObjectType_::Other(s) => timelock::is_timelocked_balance(s),
+        }
+    }
+
+    pub fn is_timelocked_staked_sui(&self) -> bool {
+        match &self.0 {
+            MoveObjectType_::GasCoin | MoveObjectType_::StakedSui | MoveObjectType_::Coin(_) => {
+                false
+            }
+            MoveObjectType_::Other(s) => TimelockedStakedSui::is_timelocked_staked_sui(s),
         }
     }
 
@@ -662,7 +703,7 @@ impl FromStr for SuiAddress {
 impl<T: SuiPublicKey> From<&T> for SuiAddress {
     fn from(pk: &T) -> Self {
         let mut hasher = DefaultHash::default();
-        hasher.update([T::SIGNATURE_SCHEME.flag()]);
+        T::SIGNATURE_SCHEME.update_hasher_with_flag(&mut hasher);
         hasher.update(pk);
         let g_arr = hasher.finalize();
         SuiAddress(g_arr.digest)
@@ -672,7 +713,7 @@ impl<T: SuiPublicKey> From<&T> for SuiAddress {
 impl From<&PublicKey> for SuiAddress {
     fn from(pk: &PublicKey) -> Self {
         let mut hasher = DefaultHash::default();
-        hasher.update([pk.flag()]);
+        pk.scheme().update_hasher_with_flag(&mut hasher);
         hasher.update(pk);
         let g_arr = hasher.finalize();
         SuiAddress(g_arr.digest)
@@ -693,7 +734,7 @@ impl From<&MultiSigPublicKey> for SuiAddress {
         hasher.update([SignatureScheme::MultiSig.flag()]);
         hasher.update(multisig_pk.threshold().to_le_bytes());
         multisig_pk.pubkeys().iter().for_each(|(pk, w)| {
-            hasher.update([pk.flag()]);
+            pk.scheme().update_hasher_with_flag(&mut hasher);
             hasher.update(pk.as_ref());
             hasher.update(w.to_le_bytes());
         });

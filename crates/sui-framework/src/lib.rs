@@ -110,7 +110,11 @@ impl BuiltInFramework {
         define_system_packages!([(
             STARDUST_PACKAGE_ID,
             "stardust",
-            [MOVE_STDLIB_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID]
+            [
+                MOVE_STDLIB_PACKAGE_ID,
+                SUI_FRAMEWORK_PACKAGE_ID,
+                SUI_SYSTEM_PACKAGE_ID
+            ]
         )])
         .iter()
     }

@@ -4,7 +4,7 @@
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 
-use sui_json_rpc_types::{DelegatedStake, SuiCommittee, ValidatorApys};
+use sui_json_rpc_types::{DelegatedStake, DelegatedTimelockedStake, SuiCommittee, ValidatorApys};
 use sui_open_rpc_macros::open_rpc;
 use sui_types::base_types::{ObjectID, SuiAddress};
 use sui_types::sui_serde::BigInt;
@@ -23,6 +23,20 @@ pub trait GovernanceReadApi {
     /// Return all [DelegatedStake].
     #[method(name = "getStakes")]
     async fn get_stakes(&self, owner: SuiAddress) -> RpcResult<Vec<DelegatedStake>>;
+
+    /// Return one or more [DelegatedTimelockedStake]. If a Stake was withdrawn its status will be Unstaked.
+    #[method(name = "getTimelockedStakesByIds")]
+    async fn get_timelocked_stakes_by_ids(
+        &self,
+        timelocked_staked_sui_ids: Vec<ObjectID>,
+    ) -> RpcResult<Vec<DelegatedTimelockedStake>>;
+
+    /// Return all [DelegatedTimelockedStake].
+    #[method(name = "getTimelockedStakes")]
+    async fn get_timelocked_stakes(
+        &self,
+        owner: SuiAddress,
+    ) -> RpcResult<Vec<DelegatedTimelockedStake>>;
 
     /// Return the committee information for the asked `epoch`.
     #[method(name = "getCommitteeInfo")]
