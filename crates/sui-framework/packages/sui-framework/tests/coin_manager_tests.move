@@ -35,7 +35,7 @@ module sui::coin_manager_tests {
         );
 
 
-        let (cmcap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
+        let (cmcap, metacap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
         
         assert!(wrapper.decimals() == 0, 0);
 
@@ -52,6 +52,7 @@ module sui::coin_manager_tests {
         cmcap.mint_and_transfer(&mut wrapper, 10, sender, scenario.ctx());
 
         transfer::public_transfer(cmcap, scenario.ctx().sender());
+        metacap.renounce_metadata_ownership(&mut wrapper);
         transfer::public_share_object(wrapper);
 
         scenario.end();
@@ -64,7 +65,7 @@ module sui::coin_manager_tests {
         let witness = COIN_MANAGER_TESTS{};
 
         // Create a `Coin`.
-        let (cmcap, mut wrapper) = coin_manager::create(
+        let (cmcap, metacap, mut wrapper) = coin_manager::create(
             witness,
             0, 
             b"TEST",
@@ -89,6 +90,7 @@ module sui::coin_manager_tests {
         cmcap.mint_and_transfer(&mut wrapper, 10, sender, scenario.ctx());
 
         transfer::public_transfer(cmcap, scenario.ctx().sender());
+        metacap.renounce_metadata_ownership(&mut wrapper);
         transfer::public_share_object(wrapper);
 
         scenario.end();
@@ -113,7 +115,7 @@ module sui::coin_manager_tests {
         );
 
 
-        let (cmcap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
+        let (cmcap, metacap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
         
         // We should start out with a Supply of 0.
         assert!(wrapper.total_supply() == 0, 0);
@@ -131,6 +133,8 @@ module sui::coin_manager_tests {
         cmcap.mint_and_transfer(&mut wrapper, 10, sender, scenario.ctx());
 
         transfer::public_transfer(cmcap, scenario.ctx().sender());
+        metacap.renounce_metadata_ownership(&mut wrapper);
+
         transfer::public_share_object(wrapper);
 
         scenario.end();
@@ -155,7 +159,7 @@ module sui::coin_manager_tests {
         );
 
 
-        let (cmcap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
+        let (cmcap, metacap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
         
         // Enforce a Max Supply
         cmcap.enforce_maximum_supply(&mut wrapper, 10);
@@ -164,6 +168,8 @@ module sui::coin_manager_tests {
         cmcap.enforce_maximum_supply(&mut wrapper, 20);
         
         transfer::public_transfer(cmcap, scenario.ctx().sender());
+        metacap.renounce_metadata_ownership(&mut wrapper);
+
         transfer::public_share_object(wrapper);
 
         scenario.end();
@@ -187,7 +193,7 @@ module sui::coin_manager_tests {
         );
 
 
-        let (cmcap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
+        let (cmcap, metacap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
         
         // We should start out with a Supply of 0.
         assert!(wrapper.total_supply() == 0, 0);
@@ -205,19 +211,24 @@ module sui::coin_manager_tests {
         assert!(wrapper.maximum_supply() == 10, 0);
 
         // The coin is not immutable right now, we still have a `CoinManagerCap`
-        assert!(!wrapper.is_immutable(), 1);
+        assert!(!wrapper.supply_is_immutable(), 1);
+        assert!(!wrapper.metadata_is_immutable(), 1);
         
         // Lets turn it immutable!
-        cmcap.renounce_ownership(&mut wrapper);
+        cmcap.renounce_treasury_ownership(&mut wrapper);
 
         // The coin should be immutable right now
-        assert!(wrapper.is_immutable(), 2);
+        assert!(wrapper.supply_is_immutable(), 2);
+        // But metadata should still be mutable
+        assert!(!wrapper.metadata_is_immutable(), 1);
         
         // We should now have a Max Supply of 5, due to renouncing of ownership.
         assert!(wrapper.maximum_supply() == 5, 3);
 
-        transfer::public_share_object(wrapper);
+        metacap.renounce_metadata_ownership(&mut wrapper);
+        assert!(wrapper.metadata_is_immutable(), 1);
 
+        transfer::public_share_object(wrapper);
         scenario.end();
     }
     
@@ -239,14 +250,14 @@ module sui::coin_manager_tests {
         );
 
 
-        let (cmcap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
+        let (cmcap, metacap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
 
         let bonus = BonusMetadata {
             website: url::new_unsafe(string(b"https://example.com")),
             is_amazing: false
         };
 
-        cmcap.add_additional_metadata(&mut wrapper, bonus);
+        metacap.add_additional_metadata(&mut wrapper, bonus);
 
         assert!(!wrapper.additional_metadata<COIN_MANAGER_TESTS, BonusMetadata>().is_amazing, 0);
         
@@ -255,13 +266,14 @@ module sui::coin_manager_tests {
             is_amazing: true
         };
 
-        let oldmeta = cmcap.replace_additional_metadata<COIN_MANAGER_TESTS, BonusMetadata, BonusMetadata>(&mut wrapper, bonus2);
+        let oldmeta = metacap.replace_additional_metadata<COIN_MANAGER_TESTS, BonusMetadata, BonusMetadata>(&mut wrapper, bonus2);
 
         let BonusMetadata { website: _, is_amazing: _ } = oldmeta;
         
         assert!(wrapper.additional_metadata<COIN_MANAGER_TESTS, BonusMetadata>().is_amazing, 0);
         
-        cmcap.renounce_ownership(&mut wrapper);
+        cmcap.renounce_treasury_ownership(&mut wrapper);
+        metacap.renounce_metadata_ownership(&mut wrapper);
         transfer::public_share_object(wrapper);
 
         scenario.end();

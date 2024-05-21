@@ -34,11 +34,17 @@ module sui::coin_manager {
         treasury_cap: TreasuryCap<T>,
         metadata: CoinMetadata<T>,
         maximum_supply: Option<u64>,
-        ownership_renounced: bool
+        supply_immutable: bool,
+        metadata_immutable: bool
     }
 
     /// Like `TreasuryCap`, but for dealing with `TreasuryCap` inside `CoinManager` objects
-    public struct CoinManagerCap<phantom T> has key, store {
+    public struct CoinManagerTreasuryCap<phantom T> has key, store {
+        id: UID
+    }
+    
+    /// Metadata has it's own Cap, independent of the supply. 
+    public struct CoinManagerMetadataCap<phantom T> has key, store {
         id: UID
     }
 
@@ -46,7 +52,11 @@ module sui::coin_manager {
         coin_name: std::ascii::String
     }
     
-    public struct OwnershipRenounced has copy, drop {
+    public struct TreasuryOwnershipRenounced has copy, drop {
+        coin_name: std::ascii::String
+    }
+    
+    public struct MetadataOwnershipRenounced has copy, drop {
         coin_name: std::ascii::String
     }
 
@@ -55,14 +65,15 @@ module sui::coin_manager {
         treasury_cap: TreasuryCap<T>,
         metadata: CoinMetadata<T>,
         ctx: &mut TxContext,
-    ): (CoinManagerCap<T>, CoinManager<T>) {
+    ): (CoinManagerTreasuryCap<T>, CoinManagerMetadataCap<T>, CoinManager<T>) {
 
         let manager = CoinManager {
             id: object::new(ctx),
             treasury_cap,
             metadata,
             maximum_supply: option::none(),
-            ownership_renounced: false
+            supply_immutable: false,
+            metadata_immutable: false
         };
 
         event::emit(CoinManaged {
@@ -70,7 +81,10 @@ module sui::coin_manager {
         });
 
         (   
-            CoinManagerCap<T> { 
+            CoinManagerTreasuryCap<T> { 
+                id: object::new(ctx) 
+            },
+            CoinManagerMetadataCap<T> { 
                 id: object::new(ctx) 
             },
             manager
@@ -86,7 +100,7 @@ module sui::coin_manager {
         description: vector<u8>,
         icon_url: Option<Url>,
         ctx: &mut TxContext
-    ): (CoinManagerCap<T>, CoinManager<T>) {
+    ): (CoinManagerTreasuryCap<T>, CoinManagerMetadataCap<T>, CoinManager<T>) {
 
         let (cap, meta) = coin::create_currency(
             witness,
@@ -104,7 +118,7 @@ module sui::coin_manager {
     // Option to add a additional metadata object to the manager
     // Can contain whatever you need in terms of additional metadata as a object
     public fun add_additional_metadata<T, Value: store>(
-        _: &CoinManagerCap<T>,
+        _: &CoinManagerMetadataCap<T>,
         manager: &mut CoinManager<T>,
         value: Value
     ) {
@@ -115,7 +129,7 @@ module sui::coin_manager {
     // Option to replace a additional metadata object to the manager
     // Can contain whatever you need in terms of additional metadata as a object
     public fun replace_additional_metadata<T, Value: store, OldValue: store>(
-        _: &CoinManagerCap<T>,
+        _: &CoinManagerMetadataCap<T>,
         manager: &mut CoinManager<T>,
         value: Value
     ): OldValue {
@@ -137,7 +151,7 @@ module sui::coin_manager {
     /// A one-time callable function to set a maximum mintable supply on a coin. 
     /// This can only be set once and is irrevertable. 
     public fun enforce_maximum_supply<T>(
-        _: &CoinManagerCap<T>, 
+        _: &CoinManagerTreasuryCap<T>, 
         manager: &mut CoinManager<T>, 
         maximum_supply: u64
     ) {
@@ -145,16 +159,16 @@ module sui::coin_manager {
         option::fill(&mut manager.maximum_supply, maximum_supply);
     }
 
-    /// A irreversible action renouncing manager ownership which can be called if you hold the `CoinManagerCap`.
+    /// A irreversible action renouncing supply ownership which can be called if you hold the `CoinManagerTreasuryCap`.
     /// This action provides `Coin` holders with some assurances if called, namely that there will
-    /// not be any new minting or changes to the metadata from this point onward. The maximum supply
+    /// not be any new minting or changes to the supply from this point onward. The maximum supply
     /// will be set to the current supply and will not be changed any more afterwards.
-    public fun renounce_ownership<T>(
-        cap: CoinManagerCap<T>,
+    public fun renounce_treasury_ownership<T>(
+        cap: CoinManagerTreasuryCap<T>,
         manager: &mut CoinManager<T>
     ) {
         // Deleting the Cap
-        let CoinManagerCap { id } = cap;
+        let CoinManagerTreasuryCap { id } = cap;
         object::delete(id);
 
         // Updating the maximum supply to the total supply
@@ -166,17 +180,43 @@ module sui::coin_manager {
         };
 
         // Setting ownership renounced to true
-        manager.ownership_renounced = true;
+        manager.supply_immutable = true;
 
-        event::emit(OwnershipRenounced {
+        event::emit(TreasuryOwnershipRenounced {
+            coin_name: type_name::into_string(type_name::get<T>())
+        });
+    }
+    
+    /// A irreversible action renouncing manager ownership which can be called if you hold the `CoinManagerTreasuryCap`.
+    /// This action provides `Coin` holders with some assurances if called, namely that there will
+    /// not be any new minting or changes to the metadata from this point onward. The maximum supply
+    /// will be set to the current supply and will not be changed any more afterwards.
+    public fun renounce_metadata_ownership<T>(
+        cap: CoinManagerMetadataCap<T>,
+        manager: &mut CoinManager<T>
+    ) {
+        // Deleting the Cap
+        let CoinManagerMetadataCap { id } = cap;
+        object::delete(id);
+
+        // Setting ownership renounced to true
+        manager.metadata_immutable = true;
+
+        event::emit(MetadataOwnershipRenounced {
             coin_name: type_name::into_string(type_name::get<T>())
         });
     }
 
-    /// Convenience function allowing users to query if the ownership of this `Coin` 
+    /// Convenience function allowing users to query if the ownership of the supply of this `Coin` 
     /// and thus the ability to mint new `Coin` has been renounced.
-    public fun is_immutable<T>(manager: &CoinManager<T>): bool {
-        manager.ownership_renounced
+    public fun supply_is_immutable<T>(manager: &CoinManager<T>): bool {
+        manager.supply_immutable
+    }
+    
+    /// Convenience function allowing users to query if the ownership of the metadata management
+    /// and thus the ability to change any of the metadata has been renounced.
+    public fun metadata_is_immutable<T>(manager: &CoinManager<T>): bool {
+        manager.metadata_immutable
     }
 
     // Get a read-only version of the metadata, available for everyone
@@ -213,7 +253,7 @@ module sui::coin_manager {
     /// Create a coin worth `value` and increase the total supply
     /// in `cap` accordingly.
     public fun mint<T>(
-        _: &CoinManagerCap<T>, 
+        _: &CoinManagerTreasuryCap<T>, 
         manager: &mut CoinManager<T>, 
         value: u64, 
         ctx: &mut TxContext
@@ -226,7 +266,7 @@ module sui::coin_manager {
     /// supply in `cap` accordingly.
     /// Aborts if `value` + `cap.total_supply` >= U64_MAX
     public fun mint_balance<T>(
-        _: &CoinManagerCap<T>, 
+        _: &CoinManagerTreasuryCap<T>, 
         manager: &mut CoinManager<T>, 
         value: u64
     ): Balance<T> {
@@ -237,7 +277,7 @@ module sui::coin_manager {
     /// Destroy the coin `c` and decrease the total supply in `cap`
     /// accordingly.
     public entry fun burn<T>(
-        _: &CoinManagerCap<T>, 
+        _: &CoinManagerTreasuryCap<T>, 
         manager: &mut CoinManager<T>, 
         c: Coin<T>
     ): u64 {
@@ -246,7 +286,7 @@ module sui::coin_manager {
 
     /// Mint `amount` of `Coin` and send it to `recipient`. Invokes `mint()`.
     public fun mint_and_transfer<T>(
-       _: &CoinManagerCap<T>,
+       _: &CoinManagerTreasuryCap<T>,
        manager: &mut CoinManager<T>, 
        amount: u64, 
        recipient: address, 
@@ -260,7 +300,7 @@ module sui::coin_manager {
 
     /// Update the `name` of the coin in the `CoinMetadata`.
     public fun update_name<T>(
-        _: &CoinManagerCap<T>,
+        _: &CoinManagerMetadataCap<T>,
         manager: &mut CoinManager<T>,
         name: string::String
     ) {
@@ -269,7 +309,7 @@ module sui::coin_manager {
 
     /// Update the `symbol` of the coin in the `CoinMetadata`.
     public fun update_symbol<T>(
-        _: &CoinManagerCap<T>,
+        _: &CoinManagerMetadataCap<T>,
         manager: &mut CoinManager<T>,
         symbol: ascii::String
     ) {
@@ -278,7 +318,7 @@ module sui::coin_manager {
 
     /// Update the `description` of the coin in the `CoinMetadata`.
     public fun update_description<T>(
-        _: &CoinManagerCap<T>,
+        _: &CoinManagerMetadataCap<T>,
         manager: &mut CoinManager<T>,
         description: string::String
     ) {
@@ -287,7 +327,7 @@ module sui::coin_manager {
 
     /// Update the `url` of the coin in the `CoinMetadata`
     public fun update_icon_url<T>(
-        _: &CoinManagerCap<T>,
+        _: &CoinManagerMetadataCap<T>,
         manager: &mut CoinManager<T>,
         url: ascii::String
     ) {
