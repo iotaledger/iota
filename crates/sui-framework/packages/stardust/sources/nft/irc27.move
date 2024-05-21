@@ -8,7 +8,7 @@ module stardust::irc27 {
 
     use sui::table::Table;
     use sui::url::Url;
-    use sui::vec_set::VecSet;
+    use sui::vec_map::VecMap;
 
     /// The IRC27 NFT metadata standard schema.
     public struct Irc27Metadata has store {
@@ -37,7 +37,7 @@ module stardust::irc27 {
         /// Royalty payment addresses mapped to the payout percentage.
         /// Contains a hash of the 32 bytes parsed from the BECH32 encoded IOTA address in the metadata, it is a legacy address.
         /// Royalties are not supported by the protocol and needed to be processed by an integrator.
-        royalties: Table<address, FixedPoint32>,
+        royalties: VecMap<address, FixedPoint32>,
 
         /// The human-readable name of the native token creator.
         issuer_name: Option<String>,
@@ -46,7 +46,7 @@ module stardust::irc27 {
         description: Option<String>,
 
         /// Additional attributes which follow [OpenSea Metadata standards](https://docs.opensea.io/docs/metadata-standards).
-        attributes: VecSet<String>,
+        attributes: VecMap<String, String>,
 
         /// Legacy non-standard metadata fields.
         non_standard_fields: Table<String, String>,
@@ -60,14 +60,12 @@ module stardust::irc27 {
             uri: _,
             name: _,
             collection_name: _,
-            royalties,
+            royalties: _,
             issuer_name: _,
             description: _,
             attributes: _,
             non_standard_fields,
         } = irc27;
-
-        royalties.drop();
 
         non_standard_fields.drop();
     }
@@ -98,7 +96,7 @@ module stardust::irc27 {
     }
 
     /// Get the metadata's `royalties`.
-    public fun royalties(irc27: &Irc27Metadata): &Table<address, FixedPoint32> {
+    public fun royalties(irc27: &Irc27Metadata): &VecMap<address, FixedPoint32> {
         &irc27.royalties
     }
 
@@ -113,7 +111,7 @@ module stardust::irc27 {
     }
 
     /// Get the metadata's `attributes`.
-    public fun attributes(irc27: &Irc27Metadata): &VecSet<String> {
+    public fun attributes(irc27: &Irc27Metadata): &VecMap<String, String> {
         &irc27.attributes
     }
 
@@ -129,10 +127,10 @@ module stardust::irc27 {
         uri: Url,
         name: String,
         collection_name: Option<String>,
-        royalties: Table<address, FixedPoint32>,
+        royalties: VecMap<address, FixedPoint32>,
         issuer_name: Option<String>,
         description: Option<String>,
-        attributes: VecSet<String>,
+        attributes: VecMap<String, String>,
         non_standard_fields: Table<String, String>,
     ): Irc27Metadata {
         Irc27Metadata {

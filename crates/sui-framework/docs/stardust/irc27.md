@@ -23,7 +23,7 @@ title: Module `0x107a::irc27`
 <b>use</b> <a href="../move-stdlib/string.md#0x1_string">0x1::string</a>;
 <b>use</b> <a href="../sui-framework/table.md#0x2_table">0x2::table</a>;
 <b>use</b> <a href="../sui-framework/url.md#0x2_url">0x2::url</a>;
-<b>use</b> <a href="../sui-framework/vec_set.md#0x2_vec_set">0x2::vec_set</a>;
+<b>use</b> <a href="../sui-framework/vec_map.md#0x2_vec_map">0x2::vec_map</a>;
 </code></pre>
 
 
@@ -83,7 +83,7 @@ The IRC27 NFT metadata standard schema.
  The human-readable collection name of the native token.
 </dd>
 <dt>
-<code>royalties: <a href="../sui-framework/table.md#0x2_table_Table">table::Table</a>&lt;<b>address</b>, <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">fixed_point32::FixedPoint32</a>&gt;</code>
+<code>royalties: <a href="../sui-framework/vec_map.md#0x2_vec_map_VecMap">vec_map::VecMap</a>&lt;<b>address</b>, <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">fixed_point32::FixedPoint32</a>&gt;</code>
 </dt>
 <dd>
  Royalty payment addresses mapped to the payout percentage.
@@ -103,7 +103,7 @@ The IRC27 NFT metadata standard schema.
  The human-readable description of the token.
 </dd>
 <dt>
-<code>attributes: <a href="../sui-framework/vec_set.md#0x2_vec_set_VecSet">vec_set::VecSet</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;</code>
+<code>attributes: <a href="../sui-framework/vec_map.md#0x2_vec_map_VecMap">vec_map::VecMap</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>, <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;</code>
 </dt>
 <dd>
  Additional attributes which follow [OpenSea Metadata standards](https://docs.opensea.io/docs/metadata-standards).
@@ -142,14 +142,12 @@ Permanently destroy a <code><a href="irc27.md#0x107a_irc27_Irc27Metadata">Irc27M
         uri: _,
         name: _,
         collection_name: _,
-        royalties,
+        royalties: _,
         issuer_name: _,
         description: _,
         attributes: _,
         non_standard_fields,
     } = <a href="irc27.md#0x107a_irc27">irc27</a>;
-
-    royalties.drop();
 
     non_standard_fields.drop();
 }
@@ -291,7 +289,7 @@ Get the metadata's <code>collection_name</code>.
 Get the metadata's <code>royalties</code>.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="irc27.md#0x107a_irc27_royalties">royalties</a>(<a href="irc27.md#0x107a_irc27">irc27</a>: &<a href="irc27.md#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</a>): &<a href="../sui-framework/table.md#0x2_table_Table">table::Table</a>&lt;<b>address</b>, <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">fixed_point32::FixedPoint32</a>&gt;
+<pre><code><b>public</b> <b>fun</b> <a href="irc27.md#0x107a_irc27_royalties">royalties</a>(<a href="irc27.md#0x107a_irc27">irc27</a>: &<a href="irc27.md#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</a>): &<a href="../sui-framework/vec_map.md#0x2_vec_map_VecMap">vec_map::VecMap</a>&lt;<b>address</b>, <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">fixed_point32::FixedPoint32</a>&gt;
 </code></pre>
 
 
@@ -300,7 +298,7 @@ Get the metadata's <code>royalties</code>.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="irc27.md#0x107a_irc27_royalties">royalties</a>(<a href="irc27.md#0x107a_irc27">irc27</a>: &<a href="irc27.md#0x107a_irc27_Irc27Metadata">Irc27Metadata</a>): &Table&lt;<b>address</b>, FixedPoint32&gt; {
+<pre><code><b>public</b> <b>fun</b> <a href="irc27.md#0x107a_irc27_royalties">royalties</a>(<a href="irc27.md#0x107a_irc27">irc27</a>: &<a href="irc27.md#0x107a_irc27_Irc27Metadata">Irc27Metadata</a>): &VecMap&lt;<b>address</b>, FixedPoint32&gt; {
     &<a href="irc27.md#0x107a_irc27">irc27</a>.royalties
 }
 </code></pre>
@@ -366,7 +364,7 @@ Get the metadata's <code>description</code>.
 Get the metadata's <code>attributes</code>.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="irc27.md#0x107a_irc27_attributes">attributes</a>(<a href="irc27.md#0x107a_irc27">irc27</a>: &<a href="irc27.md#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</a>): &<a href="../sui-framework/vec_set.md#0x2_vec_set_VecSet">vec_set::VecSet</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;
+<pre><code><b>public</b> <b>fun</b> <a href="irc27.md#0x107a_irc27_attributes">attributes</a>(<a href="irc27.md#0x107a_irc27">irc27</a>: &<a href="irc27.md#0x107a_irc27_Irc27Metadata">irc27::Irc27Metadata</a>): &<a href="../sui-framework/vec_map.md#0x2_vec_map_VecMap">vec_map::VecMap</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>, <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;
 </code></pre>
 
 
@@ -375,7 +373,7 @@ Get the metadata's <code>attributes</code>.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="irc27.md#0x107a_irc27_attributes">attributes</a>(<a href="irc27.md#0x107a_irc27">irc27</a>: &<a href="irc27.md#0x107a_irc27_Irc27Metadata">Irc27Metadata</a>): &VecSet&lt;String&gt; {
+<pre><code><b>public</b> <b>fun</b> <a href="irc27.md#0x107a_irc27_attributes">attributes</a>(<a href="irc27.md#0x107a_irc27">irc27</a>: &<a href="irc27.md#0x107a_irc27_Irc27Metadata">Irc27Metadata</a>): &VecMap&lt;String, String&gt; {
     &<a href="irc27.md#0x107a_irc27">irc27</a>.attributes
 }
 </code></pre>
