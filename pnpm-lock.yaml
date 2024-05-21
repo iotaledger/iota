@@ -819,15 +819,6 @@ importers:
       '@amplitude/analytics-types':
         specifier: ^0.20.0
         version: 0.20.0
-      '@babel/core':
-        specifier: ^7.22.9
-        version: 7.22.9
-      '@babel/preset-env':
-        specifier: ^7.22.9
-        version: 7.22.9(@babel/core@7.22.9)
-      '@babel/preset-typescript':
-        specifier: ^7.22.5
-        version: 7.22.5(@babel/core@7.22.9)
       '@playwright/test':
         specifier: ^1.36.1
         version: 1.36.1
@@ -860,7 +851,7 @@ importers:
         version: 7.1.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(typescript@5.3.3)
       '@storybook/react-webpack5':
         specifier: ^7.1.0
-        version: 7.1.0(@babel/core@7.22.9)(@swc/core@1.3.92(@swc/helpers@0.5.5))(@swc/helpers@0.5.5)(@types/webpack@5.28.1(@swc/core@1.3.92(@swc/helpers@0.5.5))(webpack-cli@5.0.1(webpack@5.79.0)))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(type-fest@3.13.1)(typescript@5.3.3)(webpack-cli@5.0.1(webpack@5.79.0))(webpack-hot-middleware@2.25.4)
+        version: 7.1.0(@babel/core@7.23.9)(@swc/core@1.3.92(@swc/helpers@0.5.5))(@swc/helpers@0.5.5)(@types/webpack@5.28.1(@swc/core@1.3.92(@swc/helpers@0.5.5))(webpack-cli@5.0.1(webpack@5.79.0)))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(type-fest@3.13.1)(typescript@5.3.3)(webpack-cli@5.0.1(webpack@5.79.0))(webpack-hot-middleware@2.25.4)
       '@storybook/theming':
         specifier: ^7.1.0
         version: 7.1.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -16643,6 +16634,11 @@ snapshots:
       '@babel/core': 7.22.9
       '@babel/helper-plugin-utils': 7.22.5
 
+  '@babel/plugin-syntax-flow@7.22.5(@babel/core@7.23.9)':
+    dependencies:
+      '@babel/core': 7.23.9
+      '@babel/helper-plugin-utils': 7.22.5
+
   '@babel/plugin-syntax-flow@7.23.3(@babel/core@7.23.9)':
     dependencies:
       '@babel/core': 7.23.9
@@ -16686,6 +16682,11 @@ snapshots:
   '@babel/plugin-syntax-jsx@7.22.5(@babel/core@7.22.9)':
     dependencies:
       '@babel/core': 7.22.9
+      '@babel/helper-plugin-utils': 7.22.5
+
+  '@babel/plugin-syntax-jsx@7.22.5(@babel/core@7.23.9)':
+    dependencies:
+      '@babel/core': 7.23.9
       '@babel/helper-plugin-utils': 7.22.5
 
   '@babel/plugin-syntax-jsx@7.23.3(@babel/core@7.23.9)':
@@ -16930,6 +16931,12 @@ snapshots:
       '@babel/helper-plugin-utils': 7.22.5
       '@babel/plugin-syntax-flow': 7.22.5(@babel/core@7.22.9)
 
+  '@babel/plugin-transform-flow-strip-types@7.22.5(@babel/core@7.23.9)':
+    dependencies:
+      '@babel/core': 7.23.9
+      '@babel/helper-plugin-utils': 7.22.5
+      '@babel/plugin-syntax-flow': 7.22.5(@babel/core@7.23.9)
+
   '@babel/plugin-transform-flow-strip-types@7.23.3(@babel/core@7.23.9)':
     dependencies:
       '@babel/core': 7.23.9
@@ -17135,6 +17142,11 @@ snapshots:
       '@babel/core': 7.22.9
       '@babel/helper-plugin-utils': 7.22.5
 
+  '@babel/plugin-transform-react-display-name@7.22.5(@babel/core@7.23.9)':
+    dependencies:
+      '@babel/core': 7.23.9
+      '@babel/helper-plugin-utils': 7.22.5
+
   '@babel/plugin-transform-react-display-name@7.23.3(@babel/core@7.23.9)':
     dependencies:
       '@babel/core': 7.23.9
@@ -17149,6 +17161,11 @@ snapshots:
     dependencies:
       '@babel/core': 7.22.9
       '@babel/plugin-transform-react-jsx': 7.22.5(@babel/core@7.22.9)
+
+  '@babel/plugin-transform-react-jsx-development@7.22.5(@babel/core@7.23.9)':
+    dependencies:
+      '@babel/core': 7.23.9
+      '@babel/plugin-transform-react-jsx': 7.22.5(@babel/core@7.23.9)
 
   '@babel/plugin-transform-react-jsx-self@7.22.5(@babel/core@7.22.9)':
     dependencies:
@@ -17169,6 +17186,15 @@ snapshots:
       '@babel/plugin-syntax-jsx': 7.22.5(@babel/core@7.22.9)
       '@babel/types': 7.22.5
 
+  '@babel/plugin-transform-react-jsx@7.22.5(@babel/core@7.23.9)':
+    dependencies:
+      '@babel/core': 7.23.9
+      '@babel/helper-annotate-as-pure': 7.22.5
+      '@babel/helper-module-imports': 7.22.5
+      '@babel/helper-plugin-utils': 7.22.5
+      '@babel/plugin-syntax-jsx': 7.22.5(@babel/core@7.23.9)
+      '@babel/types': 7.22.5
+
   '@babel/plugin-transform-react-jsx@7.23.4(@babel/core@7.23.9)':
     dependencies:
       '@babel/core': 7.23.9
@@ -17187,6 +17213,12 @@ snapshots:
   '@babel/plugin-transform-react-pure-annotations@7.22.5(@babel/core@7.22.9)':
     dependencies:
       '@babel/core': 7.22.9
+      '@babel/helper-annotate-as-pure': 7.22.5
+      '@babel/helper-plugin-utils': 7.22.5
+
+  '@babel/plugin-transform-react-pure-annotations@7.22.5(@babel/core@7.23.9)':
+    dependencies:
+      '@babel/core': 7.23.9
       '@babel/helper-annotate-as-pure': 7.22.5
       '@babel/helper-plugin-utils': 7.22.5
 
@@ -17381,6 +17413,13 @@ snapshots:
       '@babel/helper-validator-option': 7.22.5
       '@babel/plugin-transform-flow-strip-types': 7.22.5(@babel/core@7.22.9)
 
+  '@babel/preset-flow@7.22.5(@babel/core@7.23.9)':
+    dependencies:
+      '@babel/core': 7.23.9
+      '@babel/helper-plugin-utils': 7.22.5
+      '@babel/helper-validator-option': 7.22.5
+      '@babel/plugin-transform-flow-strip-types': 7.22.5(@babel/core@7.23.9)
+
   '@babel/preset-modules@0.1.5(@babel/core@7.22.9)':
     dependencies:
       '@babel/core': 7.22.9
@@ -17409,6 +17448,16 @@ snapshots:
       '@babel/plugin-transform-react-jsx': 7.22.5(@babel/core@7.22.9)
       '@babel/plugin-transform-react-jsx-development': 7.22.5(@babel/core@7.22.9)
       '@babel/plugin-transform-react-pure-annotations': 7.22.5(@babel/core@7.22.9)
+
+  '@babel/preset-react@7.22.5(@babel/core@7.23.9)':
+    dependencies:
+      '@babel/core': 7.23.9
+      '@babel/helper-plugin-utils': 7.22.5
+      '@babel/helper-validator-option': 7.22.5
+      '@babel/plugin-transform-react-display-name': 7.22.5(@babel/core@7.23.9)
+      '@babel/plugin-transform-react-jsx': 7.22.5(@babel/core@7.23.9)
+      '@babel/plugin-transform-react-jsx-development': 7.22.5(@babel/core@7.23.9)
+      '@babel/plugin-transform-react-pure-annotations': 7.22.5(@babel/core@7.23.9)
 
   '@babel/preset-typescript@7.22.5(@babel/core@7.22.9)':
     dependencies:
@@ -21611,10 +21660,10 @@ snapshots:
 
   '@storybook/postinstall@7.1.0': {}
 
-  '@storybook/preset-react-webpack@7.1.0(@babel/core@7.22.9)(@swc/core@1.3.92(@swc/helpers@0.5.5))(@types/webpack@5.28.1(@swc/core@1.3.92(@swc/helpers@0.5.5))(webpack-cli@5.0.1(webpack@5.79.0)))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(type-fest@3.13.1)(typescript@5.3.3)(webpack-cli@5.0.1(webpack@5.79.0))(webpack-hot-middleware@2.25.4)':
+  '@storybook/preset-react-webpack@7.1.0(@babel/core@7.23.9)(@swc/core@1.3.92(@swc/helpers@0.5.5))(@types/webpack@5.28.1(@swc/core@1.3.92(@swc/helpers@0.5.5))(webpack-cli@5.0.1(webpack@5.79.0)))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(type-fest@3.13.1)(typescript@5.3.3)(webpack-cli@5.0.1(webpack@5.79.0))(webpack-hot-middleware@2.25.4)':
     dependencies:
-      '@babel/preset-flow': 7.22.5(@babel/core@7.22.9)
-      '@babel/preset-react': 7.22.5(@babel/core@7.22.9)
+      '@babel/preset-flow': 7.22.5(@babel/core@7.23.9)
+      '@babel/preset-react': 7.22.5(@babel/core@7.23.9)
       '@pmmmwh/react-refresh-webpack-plugin': 0.5.10(@types/webpack@5.28.1(@swc/core@1.3.92(@swc/helpers@0.5.5))(webpack-cli@5.0.1(webpack@5.79.0)))(react-refresh@0.11.0)(type-fest@3.13.1)(webpack-hot-middleware@2.25.4)(webpack@5.79.0(@swc/core@1.3.92(@swc/helpers@0.5.5))(webpack-cli@5.0.1(webpack@5.79.0)))
       '@storybook/core-webpack': 7.1.0
       '@storybook/docs-tools': 7.1.0
@@ -21632,7 +21681,7 @@ snapshots:
       semver: 7.6.0
       webpack: 5.79.0(@swc/core@1.3.92(@swc/helpers@0.5.5))(webpack-cli@5.0.1(webpack@5.79.0))
     optionalDependencies:
-      '@babel/core': 7.22.9
+      '@babel/core': 7.23.9
       typescript: 5.3.3
     transitivePeerDependencies:
       - '@swc/core'
@@ -21729,16 +21778,16 @@ snapshots:
       - typescript
       - vite-plugin-glimmerx
 
-  '@storybook/react-webpack5@7.1.0(@babel/core@7.22.9)(@swc/core@1.3.92(@swc/helpers@0.5.5))(@swc/helpers@0.5.5)(@types/webpack@5.28.1(@swc/core@1.3.92(@swc/helpers@0.5.5))(webpack-cli@5.0.1(webpack@5.79.0)))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(type-fest@3.13.1)(typescript@5.3.3)(webpack-cli@5.0.1(webpack@5.79.0))(webpack-hot-middleware@2.25.4)':
+  '@storybook/react-webpack5@7.1.0(@babel/core@7.23.9)(@swc/core@1.3.92(@swc/helpers@0.5.5))(@swc/helpers@0.5.5)(@types/webpack@5.28.1(@swc/core@1.3.92(@swc/helpers@0.5.5))(webpack-cli@5.0.1(webpack@5.79.0)))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(type-fest@3.13.1)(typescript@5.3.3)(webpack-cli@5.0.1(webpack@5.79.0))(webpack-hot-middleware@2.25.4)':
     dependencies:
       '@storybook/builder-webpack5': 7.1.0(@swc/helpers@0.5.5)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(typescript@5.3.3)(webpack-cli@5.0.1(webpack@5.79.0))
-      '@storybook/preset-react-webpack': 7.1.0(@babel/core@7.22.9)(@swc/core@1.3.92(@swc/helpers@0.5.5))(@types/webpack@5.28.1(@swc/core@1.3.92(@swc/helpers@0.5.5))(webpack-cli@5.0.1(webpack@5.79.0)))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(type-fest@3.13.1)(typescript@5.3.3)(webpack-cli@5.0.1(webpack@5.79.0))(webpack-hot-middleware@2.25.4)
+      '@storybook/preset-react-webpack': 7.1.0(@babel/core@7.23.9)(@swc/core@1.3.92(@swc/helpers@0.5.5))(@types/webpack@5.28.1(@swc/core@1.3.92(@swc/helpers@0.5.5))(webpack-cli@5.0.1(webpack@5.79.0)))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(type-fest@3.13.1)(typescript@5.3.3)(webpack-cli@5.0.1(webpack@5.79.0))(webpack-hot-middleware@2.25.4)
       '@storybook/react': 7.1.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(typescript@5.3.3)
       '@types/node': 16.18.38
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
     optionalDependencies:
-      '@babel/core': 7.22.9
+      '@babel/core': 7.23.9
       typescript: 5.3.3
     transitivePeerDependencies:
       - '@swc/core'
