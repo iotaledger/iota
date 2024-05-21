@@ -1,11 +1,24 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use anyhow::Result;
+use iota_sdk::types::block::output::{
+    AliasOutput, BasicOutput, FoundryOutput, NativeTokens, NftOutput, OutputId, TokenId,
+};
 use move_core_types::{ident_str, language_storage::StructTag};
+use move_vm_runtime_v2::move_vm::MoveVM;
 use std::{
     collections::{BTreeSet, HashMap},
     sync::Arc,
 };
+use sui_adapter_v2::{
+    adapter::new_move_vm, gas_charger::GasCharger, programmable_transactions,
+    temporary_store::TemporaryStore,
+};
+use sui_framework::BuiltInFramework;
+use sui_move_build::CompiledPackage;
+use sui_move_natives_v2::all_natives;
+use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use sui_types::{
     balance::Balance,
     base_types::{ObjectRef, SequenceNumber},
@@ -16,20 +29,6 @@ use sui_types::{
     transaction::{Argument, InputObjects, ObjectArg},
     TypeTag,
 };
-
-use anyhow::Result;
-use iota_sdk::types::block::output::{
-    AliasOutput, BasicOutput, FoundryOutput, NativeTokens, NftOutput, OutputId, TokenId,
-};
-use move_vm_runtime_v2::move_vm::MoveVM;
-use sui_adapter_v2::{
-    adapter::new_move_vm, gas_charger::GasCharger, programmable_transactions,
-    temporary_store::TemporaryStore,
-};
-use sui_framework::BuiltInFramework;
-use sui_move_build::CompiledPackage;
-use sui_move_natives_v2::all_natives;
-use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use sui_types::{
     base_types::{ObjectID, SuiAddress, TxContext},
     execution_mode,
@@ -44,9 +43,13 @@ use sui_types::{
     MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID, SUI_SYSTEM_PACKAGE_ID,
 };
 
-use crate::stardust::types::stardust_to_sui_address_owner;
-use crate::stardust::{migration::verification::created_objects::CreatedObjects, types::Alias};
-use crate::{process_package, stardust::types::snapshot::OutputHeader};
+use crate::{
+    process_package,
+    stardust::{
+        migration::verification::created_objects::CreatedObjects,
+        types::{snapshot::OutputHeader, stardust_to_sui_address_owner, Alias},
+    },
+};
 
 use super::{create_migration_context, package_module_bytes};
 
