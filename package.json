@@ -8,6 +8,7 @@
 		"icons": "pnpm --filter ./apps/icons",
 		"explorer": "turbo --filter sui-explorer",
 		"wallet": "turbo --filter ./apps/wallet",
+		"wallet-dashboard": "turbo --filter ./apps/wallet-dashboard",
 		"sdk": "turbo --filter ./sdk/typescript",
 		"bcs": "turbo --filter ./sdk/bcs",
 		"changeset-version": "pnpm changeset version && pnpm --filter @mysten/sui.js codegen:version",
