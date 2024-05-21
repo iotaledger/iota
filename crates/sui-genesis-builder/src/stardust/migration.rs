@@ -523,7 +523,11 @@ impl Executor {
         } = self.execute_pt_unmetered(checked_input_objects, pt)?;
         let bag_object = written
             .iter()
-            .find_map(|(id, object)| (!input_objects.contains_key(id)).then_some(object.clone()))
+            .filter(|(id, _)| !input_objects.contains_key(id))
+            // We filter out the dynamic-field objects that are owned by the bag
+            // and we should be left with only the bag
+            .find_map(|(_, object)| (!object.is_child_object()).then_some(object))
+            .cloned()
             .expect("the bag should have been created");
         written.remove(&bag_object.id());
         // Save the modified coins
