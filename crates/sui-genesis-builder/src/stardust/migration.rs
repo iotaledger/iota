@@ -64,6 +64,8 @@ pub const PACKAGE_DEPS: [ObjectID; 4] = [
 /// We fix the protocol version used in the migration.
 pub const MIGRATION_PROTOCOL_VERSION: u64 = 42;
 
+const NATIVE_TOKEN_BAG_KEY_TYPE: &str = "0x01::ascii::String";
+
 /// The orchestrator of the migration process.
 ///
 /// It is constructed by an [`Iterator`] of stardust UTXOs, and holds an inner executor
@@ -708,7 +710,7 @@ mod pt {
         balance: Argument,
         token_type: String,
     ) -> Result<()> {
-        let key_type: StructTag = "0x01::ascii::String".parse()?;
+        let key_type: StructTag = NATIVE_TOKEN_BAG_KEY_TYPE.parse()?;
         let value_type = Balance::type_(token_type.parse::<TypeTag>()?);
         let token_name = builder.pure(token_type)?;
         builder.programmable_move_call(
