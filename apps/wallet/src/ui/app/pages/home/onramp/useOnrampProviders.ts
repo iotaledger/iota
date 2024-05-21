@@ -21,7 +21,6 @@ const MOONPAY_API_KEY =
 		? 'pk_live_iL2LFRM1wCc4EfBuxFJSVTkI8Xno4a'
 		: 'pk_test_RwNag1qi8jFoymVchhCSc5cYnqyPrVd5';
 
-// TODO listed to remove this
 const BACKEND_HOST = 'http://localhost:3003';
 
 const ONRAMP_PROVIDER: OnrampProvider[] = [
