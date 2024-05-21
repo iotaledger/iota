@@ -1,8 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{anyhow, bail, ensure};
-use iota_sdk::types::block::output::BasicOutput;
+use anyhow::{anyhow, bail, ensure, Result};
+use iota_sdk::{types::block::output::BasicOutput, U256};
 use sui_types::{base_types::SuiAddress, in_memory_storage::InMemoryStorage};
 
 use super::created_objects::CreatedObjects;
@@ -11,7 +11,7 @@ pub fn verify_basic_output(
     output: &BasicOutput,
     created_objects: &CreatedObjects,
     storage: &InMemoryStorage,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     // If the output contains only an address unlock condition then no object should be created, only a coin.
     if output.unlock_conditions().len() > 1 {
         let created_output = created_objects
@@ -190,12 +190,57 @@ pub fn verify_basic_output(
                     .ok_or_else(|| anyhow!("missing coin"))
             })?
             .as_coin_maybe()
-            .ok_or_else(|| anyhow::anyhow!("expected a coin"))?;
+            .ok_or_else(|| anyhow!("expected a coin"))?;
         ensure!(
             created_coin.value() == output.amount(),
             "coin amount mismatch: found {}, expected {}",
             created_coin.value(),
             output.amount()
+        );
+    }
+
+    // Validate native token coins
+    if !output.native_tokens().is_empty() {
+        let mut created_native_token_coins =
+            created_objects.native_token_coins().and_then(|ids| {
+                ids.iter()
+                    .map(|id| {
+                        storage
+                            .get_object(id)
+                            .ok_or_else(|| anyhow!("missing native token coin"))?
+                            .as_coin_maybe()
+                            .ok_or_else(|| anyhow!("expected a native token coin"))
+                    })
+                    .collect::<Result<Vec<_>, _>>()
+            })?;
+        ensure!(
+            output.native_tokens().len() == created_native_token_coins.len(),
+            "native token count mismatch: found {}, expected: {}",
+            output.native_tokens().len(),
+            created_native_token_coins.len(),
+        );
+
+        let token_max = U256::from(u64::MAX);
+        for native_token in output.native_tokens().iter() {
+            // The token amounts are capped at u64 max
+            let reduced_amount = native_token.amount().min(token_max).as_u64();
+            if let Some(idx) = created_native_token_coins
+                .iter()
+                .position(|coin| coin.value() == reduced_amount)
+            {
+                // Remove the coin so we don't find it again.
+                created_native_token_coins.remove(idx);
+            } else {
+                bail!(
+                    "native token coin was not created for token: {}",
+                    native_token.token_id()
+                );
+            }
+        }
+    } else {
+        ensure!(
+            created_objects.native_token_coins().is_err(),
+            "unexpected coins created for output without native tokens"
         );
     }
 

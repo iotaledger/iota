@@ -10,6 +10,7 @@ pub struct CreatedObjects {
     output: Option<ObjectID>,
     coin: Option<ObjectID>,
     package: Option<ObjectID>,
+    native_token_coins: Option<Vec<ObjectID>>,
 }
 
 impl CreatedObjects {
@@ -52,6 +53,20 @@ impl CreatedObjects {
             bail!("package already set: {id}")
         }
         self.package.replace(id);
+        Ok(())
+    }
+
+    pub fn native_token_coins(&self) -> Result<&[ObjectID]> {
+        self.native_token_coins
+            .as_deref()
+            .ok_or_else(|| anyhow!("no created native token coin objects"))
+    }
+
+    pub(crate) fn set_native_token_coins(&mut self, ids: Vec<ObjectID>) -> Result<()> {
+        if let Some(id) = &self.native_token_coins {
+            bail!("native token coins already set: {id:?}")
+        }
+        self.native_token_coins.replace(ids);
         Ok(())
     }
 }

@@ -297,7 +297,8 @@ impl Executor {
         let move_alias_object_ref = move_alias_object.compute_object_reference();
         self.store.insert_object(move_alias_object);
 
-        let (bag, version) = self.create_bag_with_pt(alias.native_tokens())?;
+        let (bag, version, coins) = self.create_bag_with_pt(alias.native_tokens())?;
+        created_objects.set_native_token_coins(coins)?;
         let move_alias_output = crate::stardust::types::AliasOutput::try_from_stardust(
             self.tx_context.fresh_id(),
             &alias,
@@ -350,7 +351,7 @@ impl Executor {
     fn create_bag_with_pt(
         &mut self,
         native_tokens: &NativeTokens,
-    ) -> Result<(Bag, SequenceNumber)> {
+    ) -> Result<(Bag, SequenceNumber, Vec<ObjectID>)> {
         let mut object_deps = Vec::with_capacity(native_tokens.len());
         let mut foundry_package_deps = Vec::with_capacity(native_tokens.len());
         let pt = {
@@ -418,6 +419,7 @@ impl Executor {
             .cloned()
             .expect("the bag should have been created");
         written.remove(&bag_object.id());
+        let coin_ids = written.keys().copied().collect();
         // Save the modified coins
         self.store.finish(written);
         // Return bag
@@ -429,7 +431,7 @@ impl Executor {
                 .contents(),
         )
         .expect("this should be a valid Bag Move object");
-        Ok((bag, bag_object.version()))
+        Ok((bag, bag_object.version(), coin_ids))
     }
 
     /// Create [`Coin`] objects representing native tokens in the ledger.
@@ -437,7 +439,7 @@ impl Executor {
         &mut self,
         native_tokens: &NativeTokens,
         owner: SuiAddress,
-    ) -> Result<()> {
+    ) -> Result<Vec<ObjectID>> {
         let mut object_deps = Vec::with_capacity(native_tokens.len());
         let mut foundry_package_deps = Vec::with_capacity(native_tokens.len());
         let pt = {
@@ -476,9 +478,11 @@ impl Executor {
         let InnerTemporaryStore { written, .. } =
             self.execute_pt_unmetered(checked_input_objects, pt)?;
 
+        let coin_ids = written.keys().copied().collect();
+
         // Save the modified coin
         self.store.finish(written);
-        Ok(())
+        Ok(coin_ids)
     }
 
     /// This implements the control flow in
@@ -498,7 +502,8 @@ impl Executor {
         let mut version = package_deps.lamport_timestamp(&[]);
         let object = if data.has_empty_bag() {
             if !basic_output.native_tokens().is_empty() {
-                self.create_native_token_coins(basic_output.native_tokens(), owner)?;
+                let coins = self.create_native_token_coins(basic_output.native_tokens(), owner)?;
+                created_objects.set_native_token_coins(coins)?;
             }
             // Overwrite the default 0 UID of `Bag::default()`, since we won't be creating a new bag in this code path.
             data.native_tokens.id = UID::new(self.tx_context.fresh_id());
@@ -512,10 +517,12 @@ impl Executor {
             coin
         } else {
             if !basic_output.native_tokens().is_empty() {
+                let coins;
                 // The bag will be wrapped into the basic output object, so
                 // by equating their versions we emulate a ptb.
-                (data.native_tokens, version) =
+                (data.native_tokens, version, coins) =
                     self.create_bag_with_pt(basic_output.native_tokens())?;
+                created_objects.set_native_token_coins(coins)?;
             }
             let object =
                 data.to_genesis_object(owner, &self.protocol_config, &self.tx_context, version)?;
@@ -689,7 +696,7 @@ mod tests {
         let native_token = NativeToken::new(foundry_id.into(), token_amount).unwrap();
 
         // Create the bag
-        let (bag, _) = executor
+        let (bag, _, _) = executor
             .create_bag_with_pt(&NativeTokens::from_vec(vec![native_token]).unwrap())
             .unwrap();
         assert!(executor.store.get_object(bag.id.object_id()).is_none());
