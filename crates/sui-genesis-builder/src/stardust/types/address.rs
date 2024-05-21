@@ -14,5 +14,5 @@ pub fn stardust_to_sui_address(stardust_address: impl Into<Address>) -> anyhow::
 pub fn stardust_to_sui_address_owner(
     stardust_address: impl Into<Address>,
 ) -> anyhow::Result<Owner> {
-    stardust_to_sui_address(stardust_address.into()).map(|address| Owner::AddressOwner(address))
+    stardust_to_sui_address(stardust_address.into()).map(Owner::AddressOwner)
 }
