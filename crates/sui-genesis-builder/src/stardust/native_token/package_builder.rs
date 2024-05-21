@@ -10,7 +10,7 @@ use fs_extra::dir::{copy, CopyOptions};
 use tempfile::tempdir;
 
 use crate::stardust::error::StardustError;
-use sui_move_build::{BuildConfig, CompiledPackage};
+use sui_move_build::{BuildConfig, CompiledPackage, SuiPackageHooks};
 
 use crate::stardust::native_token::package_data::NativeTokenPackageData;
 
@@ -39,6 +39,7 @@ pub fn build_and_compile(package: NativeTokenPackageData) -> Result<CompiledPack
     adjust_native_token_module(&package_path, &package)?;
 
     // Step 4: Compile the package
+    move_package::package_hooks::register_package_hooks(Box::new(SuiPackageHooks));
     let compiled_package = BuildConfig::default().build(package_path)?;
 
     // Clean up the temporary directory
