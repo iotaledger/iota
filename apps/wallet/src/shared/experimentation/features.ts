@@ -7,7 +7,7 @@ import Browser from 'webextension-polyfill';
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 export const growthbook = new GrowthBook({
-	apiHost: 'http://localhost:3003',
+	apiHost: process.env.APPS_BACKEND_URL,
 	clientKey: process.env.NODE_ENV === 'development' ? 'development' : 'production',
 	enableDevMode: process.env.NODE_ENV === 'development',
 });

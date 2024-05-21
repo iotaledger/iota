@@ -3,7 +3,7 @@
 
 import { useCallback } from 'react';
 
-const backendUrl = 'http://localhost:3003';
+const backendUrl = process.env.APPS_BACKEND_URL;
 
 export function useAppsBackend() {
 	const request = useCallback(

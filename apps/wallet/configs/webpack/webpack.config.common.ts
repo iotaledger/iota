@@ -193,7 +193,7 @@ const commonConfig: () => Promise<Configuration> = async () => {
 								...(IS_DEV
 									? {
 											key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2HTQu/66edl64fM/SKDnHJmCz9SIYqM/QK7NM3vD1LTE2UNXzHX5Clj8geuoWAYS6HE/aFcd//qPnAh8TnPgqTS3IX+IbZsY/+kcokxIEWHly3eKEHWB32tQsGdJx6tgDzx8TRkFZEcCCdE4pFqQO68W3I/+8AQPosdd5fsIoF6OGKZ/i29mpGkYJSmMroCN5zYCQqvpjTBIkiTkI9TTjxmBid77pHyG4TsHz0wda4KxHV9ZtzZQXB4vexTku/Isczdtif7pDqFEDCAqEkpiGPyKoIuqrxc75IfpzIGFsIylycBr0fZellSsl2M6FM34R99/vUrGj5iWcjNmhYvZ8QIDAQAB',
-									  }
+										}
 									: undefined),
 							};
 							return JSON.stringify(manifestJson, null, 4);
@@ -214,6 +214,7 @@ const commonConfig: () => Promise<Configuration> = async () => {
 				'process.env.APP_NAME': JSON.stringify(APP_NAME),
 				'process.env.DEFAULT_NETWORK': JSON.stringify(process.env.DEFAULT_NETWORK),
 				'process.env.IOTA_NETWORKS': JSON.stringify(process.env.IOTA_NETWORKS),
+				'process.env.APPS_BACKEND_URL': JSON.stringify(process.env.APPS_BACKEND_URL),
 			}),
 			new ProvidePlugin({
 				Buffer: ['buffer', 'Buffer'],
