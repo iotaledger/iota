@@ -681,20 +681,20 @@ mod pt {
         amount: u64,
     ) -> Result<Argument> {
         let foundry_coin_ref = builder.obj(ObjectArg::ImmOrOwnedObject(foundry_coin_ref))?;
-        let balance = builder.programmable_move_call(
+        let amount = builder.pure(amount)?;
+        let coin = builder.programmable_move_call(
             SUI_FRAMEWORK_PACKAGE_ID,
             ident_str!("coin").into(),
-            ident_str!("balance_mut").into(),
+            ident_str!("split").into(),
             vec![token_type_tag.clone()],
-            vec![foundry_coin_ref],
+            vec![foundry_coin_ref, amount],
         );
-        let amount = builder.pure(amount)?;
         Ok(builder.programmable_move_call(
             SUI_FRAMEWORK_PACKAGE_ID,
-            ident_str!("balance").into(),
-            ident_str!("split").into(),
+            ident_str!("coin").into(),
+            ident_str!("into_balance").into(),
             vec![token_type_tag],
-            vec![balance, amount],
+            vec![coin],
         ))
     }
 
