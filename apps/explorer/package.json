@@ -60,6 +60,7 @@
 		"class-variance-authority": "^0.7.0",
 		"clsx": "^2.0.0",
 		"cmdk": "^0.2.0",
+		"dotenv": "^16.4.5",
 		"d3-array": "^3.2.4",
 		"date-fns": "^2.30.0",
 		"framer-motion": "^10.12.22",

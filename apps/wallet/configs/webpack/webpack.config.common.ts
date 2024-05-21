@@ -215,6 +215,7 @@ const commonConfig: () => Promise<Configuration> = async () => {
 				'process.env.DEFAULT_NETWORK': JSON.stringify(process.env.DEFAULT_NETWORK),
 				'process.env.IOTA_NETWORKS': JSON.stringify(process.env.IOTA_NETWORKS),
 				'process.env.APPS_BACKEND_URL': JSON.stringify(process.env.APPS_BACKEND_URL),
+				'import.meta.env.VITE_APPS_BACKEND_URL': JSON.stringify(process.env.APPS_BACKEND_URL),
 			}),
 			new ProvidePlugin({
 				Buffer: ['buffer', 'Buffer'],
