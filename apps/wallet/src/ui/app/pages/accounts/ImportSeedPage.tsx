@@ -21,7 +21,7 @@ export function ImportSeedPage() {
 			<div className="mt-6 w-full grow">
 				<ImportSeedForm
 					onSubmit={() => {
-						navigate('/accounts/protect-account?accountType=imported');
+						navigate('');
 					}}
 				/>
 			</div>
