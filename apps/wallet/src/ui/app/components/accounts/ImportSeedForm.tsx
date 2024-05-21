@@ -21,8 +21,8 @@ export function ImportSeedForm({ onSubmit }: ImportSeedFormProps) {
 		mode: 'onTouched',
 		schema: formSchema,
 	});
-
 	const navigate = useNavigate();
+
 	return (
 		<Form className="flex flex-col h-full gap-2" form={form} onSubmit={onSubmit}>
 			<TextAreaField label="Enter Seed" name={''} rows={3} />
