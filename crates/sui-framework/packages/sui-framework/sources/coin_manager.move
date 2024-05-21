@@ -20,11 +20,13 @@ module sui::coin_manager {
     /// The error returned when the maximum supply reached.
     const EMaximumSupplyReached: u64 = 0;
 
-    // The error returned if a attempt is made to change the maximum supply after setting it
+    /// The error returned if a attempt is made to change the maximum supply after setting it
     const EMaximumSupplyAlreadySet: u64 = 1;
 
+    /// The error returned if additional metadata already exists and you try to overwrite
     const EAdditionalMetadataAlreadyExists: u64 = 2;
 
+    /// The error returned if you try to edit nonexisting additional metadata
     const EAdditionalMetadataDoesNotExist: u64 = 3;
 
 
@@ -43,19 +45,23 @@ module sui::coin_manager {
         id: UID
     }
     
-    /// Metadata has it's own Cap, independent of the supply. 
+    /// Metadata has it's own Cap, independent of the `TreasuryCap`
     public struct CoinManagerMetadataCap<phantom T> has key, store {
         id: UID
     }
 
+
+    /// Event triggered once `Coin` ownership is transfered to a new `CoinManager`
     public struct CoinManaged has copy, drop {
         coin_name: std::ascii::String
     }
     
+    /// Event triggered if the ownership of the treasury part of a `CoinManager` is renounced
     public struct TreasuryOwnershipRenounced has copy, drop {
         coin_name: std::ascii::String
     }
     
+    /// Event triggered if the ownership of the metadata part of a `CoinManager` is renounced
     public struct MetadataOwnershipRenounced has copy, drop {
         coin_name: std::ascii::String
     }
@@ -187,10 +193,9 @@ module sui::coin_manager {
         });
     }
     
-    /// A irreversible action renouncing manager ownership which can be called if you hold the `CoinManagerTreasuryCap`.
+    /// A irreversible action renouncing manager ownership which can be called if you hold the `CoinManagerMetadataCap`.
     /// This action provides `Coin` holders with some assurances if called, namely that there will
-    /// not be any new minting or changes to the metadata from this point onward. The maximum supply
-    /// will be set to the current supply and will not be changed any more afterwards.
+    /// not be any changes to the metadata from this point onward. 
     public fun renounce_metadata_ownership<T>(
         cap: CoinManagerMetadataCap<T>,
         manager: &mut CoinManager<T>

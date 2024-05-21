@@ -152,7 +152,7 @@ Like <code>TreasuryCap</code>, but for dealing with <code>TreasuryCap</code> ins
 
 ## Resource `CoinManagerMetadataCap`
 
-Metadata has it's own Cap, independent of the supply.
+Metadata has it's own Cap, independent of the <code>TreasuryCap</code>
 
 
 <pre><code><b>struct</b> <a href="coin_manager.md#0x2_coin_manager_CoinManagerMetadataCap">CoinManagerMetadataCap</a>&lt;T&gt; <b>has</b> store, key
@@ -180,6 +180,7 @@ Metadata has it's own Cap, independent of the supply.
 
 ## Struct `CoinManaged`
 
+Event triggered once <code>Coin</code> ownership is transfered to a new <code><a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a></code>
 
 
 <pre><code><b>struct</b> <a href="coin_manager.md#0x2_coin_manager_CoinManaged">CoinManaged</a> <b>has</b> <b>copy</b>, drop
@@ -207,6 +208,7 @@ Metadata has it's own Cap, independent of the supply.
 
 ## Struct `TreasuryOwnershipRenounced`
 
+Event triggered if the ownership of the treasury part of a <code><a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a></code> is renounced
 
 
 <pre><code><b>struct</b> <a href="coin_manager.md#0x2_coin_manager_TreasuryOwnershipRenounced">TreasuryOwnershipRenounced</a> <b>has</b> <b>copy</b>, drop
@@ -234,6 +236,7 @@ Metadata has it's own Cap, independent of the supply.
 
 ## Struct `MetadataOwnershipRenounced`
 
+Event triggered if the ownership of the metadata part of a <code><a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a></code> is renounced
 
 
 <pre><code><b>struct</b> <a href="coin_manager.md#0x2_coin_manager_MetadataOwnershipRenounced">MetadataOwnershipRenounced</a> <b>has</b> <b>copy</b>, drop
@@ -264,6 +267,7 @@ Metadata has it's own Cap, independent of the supply.
 
 <a name="0x2_coin_manager_EAdditionalMetadataAlreadyExists"></a>
 
+The error returned if additional metadata already exists and you try to overwrite
 
 
 <pre><code><b>const</b> <a href="coin_manager.md#0x2_coin_manager_EAdditionalMetadataAlreadyExists">EAdditionalMetadataAlreadyExists</a>: u64 = 2;
@@ -273,6 +277,7 @@ Metadata has it's own Cap, independent of the supply.
 
 <a name="0x2_coin_manager_EAdditionalMetadataDoesNotExist"></a>
 
+The error returned if you try to edit nonexisting additional metadata
 
 
 <pre><code><b>const</b> <a href="coin_manager.md#0x2_coin_manager_EAdditionalMetadataDoesNotExist">EAdditionalMetadataDoesNotExist</a>: u64 = 3;
@@ -282,6 +287,7 @@ Metadata has it's own Cap, independent of the supply.
 
 <a name="0x2_coin_manager_EMaximumSupplyAlreadySet"></a>
 
+The error returned if a attempt is made to change the maximum supply after setting it
 
 
 <pre><code><b>const</b> <a href="coin_manager.md#0x2_coin_manager_EMaximumSupplyAlreadySet">EMaximumSupplyAlreadySet</a>: u64 = 1;
@@ -565,10 +571,9 @@ will be set to the current supply and will not be changed any more afterwards.
 
 ## Function `renounce_metadata_ownership`
 
-A irreversible action renouncing manager ownership which can be called if you hold the <code><a href="coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">CoinManagerTreasuryCap</a></code>.
+A irreversible action renouncing manager ownership which can be called if you hold the <code><a href="coin_manager.md#0x2_coin_manager_CoinManagerMetadataCap">CoinManagerMetadataCap</a></code>.
 This action provides <code>Coin</code> holders with some assurances if called, namely that there will
-not be any new minting or changes to the metadata from this point onward. The maximum supply
-will be set to the current supply and will not be changed any more afterwards.
+not be any changes to the metadata from this point onward.
 
 
 <pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_renounce_metadata_ownership">renounce_metadata_ownership</a>&lt;T&gt;(cap: <a href="coin_manager.md#0x2_coin_manager_CoinManagerMetadataCap">coin_manager::CoinManagerMetadataCap</a>&lt;T&gt;, manager: &<b>mut</b> <a href="coin_manager.md#0x2_coin_manager_CoinManager">coin_manager::CoinManager</a>&lt;T&gt;)
