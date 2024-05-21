@@ -21,8 +21,7 @@ const MOONPAY_API_KEY =
 		? 'pk_live_iL2LFRM1wCc4EfBuxFJSVTkI8Xno4a'
 		: 'pk_test_RwNag1qi8jFoymVchhCSc5cYnqyPrVd5';
 
-const BACKEND_HOST =
-	process.env.NODE_ENV === 'production' ? 'https://apps-backend.sui.io' : 'http://localhost:3003';
+const BACKEND_HOST = process.env.APPS_BACKEND_URL;
 
 const ONRAMP_PROVIDER: OnrampProvider[] = [
 	{

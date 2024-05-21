@@ -7,9 +7,7 @@ import Browser from 'webextension-polyfill';
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 export const growthbook = new GrowthBook({
-	// If you want to develop locally, you can set the API host to this:
-	// apiHost: 'http://localhost:3003',
-	apiHost: 'https://apps-backend.sui.io',
+	apiHost: process.env.APPS_BACKEND_URL,
 	clientKey: process.env.NODE_ENV === 'development' ? 'development' : 'production',
 	enableDevMode: process.env.NODE_ENV === 'development',
 });
