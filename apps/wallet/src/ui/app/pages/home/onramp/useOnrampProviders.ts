@@ -101,7 +101,6 @@ const ONRAMP_PROVIDER: OnrampProvider[] = [
 				environment: process.env.NODE_ENV === 'production' ? 'PRODUCTION' : 'STAGING',
 			});
 
-			// TODO
 			const res = await fetch(`${BACKEND_HOST}/moonpay-url?${params}`);
 
 			const data = (await res.json()) as { url: string };
