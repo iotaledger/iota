@@ -1,4 +1,6 @@
-// eslint-disable-next-line header/header
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Button } from '_app/shared/ButtonUI';
 import { useZodForm } from '@mysten/core';
 import { type SubmitHandler } from 'react-hook-form';

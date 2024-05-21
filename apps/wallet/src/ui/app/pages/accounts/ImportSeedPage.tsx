@@ -1,4 +1,6 @@
-// eslint-disable-next-line header/header
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Text } from '_app/shared/text';
 import { useNavigate } from 'react-router-dom';
 
