@@ -8,7 +8,7 @@ use anyhow::Result;
 use iota_sdk::types::block::address::AliasAddress;
 use iota_sdk::types::block::output::feature::Irc30Metadata;
 use iota_sdk::types::block::output::{FoundryId, FoundryOutput};
-use iota_sdk::Url;
+use iota_sdk::{Url, U256};
 use rand::distributions::{Alphanumeric, DistString};
 use regex::Regex;
 
@@ -122,6 +122,37 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
             maximum_supply_u256.as_u64()
         };
 
+        let minted_tokens_u256 = output.token_scheme().as_simple().minted_tokens();
+        let melted_tokens_u256 = output.token_scheme().as_simple().melted_tokens();
+
+        // Minted Tokens + Melted Tokens must not be greater than Maximum Supply.
+        let total_tokens_u256 = minted_tokens_u256
+            .checked_add(melted_tokens_u256)
+            .ok_or_else(|| StardustError::FoundryConversionError {
+                foundry_id: output.id(),
+                err: anyhow::anyhow!("Overflow when adding Minted Tokens and Melted Tokens"),
+            })?;
+        if total_tokens_u256 > U256::from(maximum_supply_u64) {
+            return Err(StardustError::FoundryConversionError {
+                foundry_id: output.id(),
+                err: anyhow::anyhow!(
+                    "Minted Tokens + Melted Tokens must not be greater than Maximum Supply"
+                ),
+            });
+        }
+
+        // Check if melting tokens is greater than minted tokens
+        if melted_tokens_u256 > minted_tokens_u256 {
+            return Err(StardustError::FoundryConversionError {
+                foundry_id: output.id(),
+                err: anyhow::anyhow!("Melted Tokens must not be greater than Minted Tokens"),
+            });
+        }
+
+        let minted_tokens_u64 = minted_tokens_u256.as_u64();
+        let melted_tokens_u64 = melted_tokens_u256.as_u64();
+        let circulating_tokens = minted_tokens_u64 - melted_tokens_u64;
+
         let native_token_data = NativeTokenPackageData {
             package_name: identifier.clone(),
             module: NativeTokenModuleData {
@@ -130,8 +161,7 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
                 otw_name: identifier.clone().to_ascii_uppercase(),
                 decimals,
                 symbol: identifier,
-                circulating_tokens: output.token_scheme().as_simple().minted_tokens().as_u64()
-                    - output.token_scheme().as_simple().melted_tokens().as_u64(), // we know that "Melted Tokens must not be greater than Minted Tokens"
+                circulating_tokens,
                 maximum_supply: maximum_supply_u64,
                 coin_name: irc_30_metadata.name().to_owned(),
                 coin_description: irc_30_metadata.description().clone().unwrap_or_default(),
@@ -261,6 +291,120 @@ mod tests {
         assert!(package_builder::build_and_compile(native_token_data).is_ok());
 
         Ok(())
+    }
+
+    #[test]
+    fn test_foundry_output_with_max_supply_overflow_and_valid_circulating_supply() -> Result<()> {
+        let minted_tokens = U256::from(100_000_000);
+        let melted_tokens = U256::from(100_000);
+        let maximum_supply = U256::MAX;
+
+        // Step 1: Create a FoundryOutput with an IRC30Metadata feature
+        let token_scheme =
+            SimpleTokenScheme::new(minted_tokens, melted_tokens, maximum_supply).unwrap();
+
+        let irc_30_metadata = Irc30Metadata::new("Dogecoin", "DOGE", 0)
+            .with_description("Much wow")
+            .with_url(Url::parse("https://dogecoin.com").unwrap())
+            .with_logo_url(Url::parse("https://dogecoin.com/logo.png").unwrap())
+            .with_logo("0x54654");
+
+        let alias_id = AliasId::new([0; AliasId::LENGTH]);
+        let builder = FoundryOutputBuilder::new_with_amount(
+            100_000_000_000,
+            1,
+            TokenScheme::Simple(token_scheme),
+        )
+        .add_unlock_condition(ImmutableAliasAddressUnlockCondition::new(
+            AliasAddress::new(alias_id),
+        ))
+        .add_feature(Feature::Metadata(
+            MetadataFeature::new(irc_30_metadata).unwrap(),
+        ));
+        let output = builder.finish().unwrap();
+
+        // Step 2: Convert the FoundryOutput to NativeTokenPackageData
+        let native_token_data = NativeTokenPackageData::try_from(&output)?;
+        assert_eq!(
+            native_token_data.module().circulating_tokens,
+            minted_tokens.as_u64() - melted_tokens.as_u64()
+        );
+        assert_eq!(native_token_data.module().maximum_supply, u64::MAX);
+
+        // Step 3: Verify the conversion
+        assert!(package_builder::build_and_compile(native_token_data).is_ok());
+
+        Ok(())
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_foundry_output_with_max_supply_overflow_and_invalid_minted_tokens() {
+        let minted_tokens = U256::MAX;
+        let melted_tokens = U256::from(0);
+        let maximum_supply = U256::MAX;
+
+        // Step 1: Create a FoundryOutput with an IRC30Metadata feature
+        let token_scheme =
+            SimpleTokenScheme::new(minted_tokens, melted_tokens, maximum_supply).unwrap();
+
+        let irc_30_metadata = Irc30Metadata::new("Dogecoin", "DOGE", 0)
+            .with_description("Much wow")
+            .with_url(Url::parse("https://dogecoin.com").unwrap())
+            .with_logo_url(Url::parse("https://dogecoin.com/logo.png").unwrap())
+            .with_logo("0x54654");
+
+        let alias_id = AliasId::new([0; AliasId::LENGTH]);
+        let builder = FoundryOutputBuilder::new_with_amount(
+            100_000_000_000,
+            1,
+            TokenScheme::Simple(token_scheme),
+        )
+        .add_unlock_condition(ImmutableAliasAddressUnlockCondition::new(
+            AliasAddress::new(alias_id),
+        ))
+        .add_feature(Feature::Metadata(
+            MetadataFeature::new(irc_30_metadata).unwrap(),
+        ));
+        let output = builder.finish().unwrap();
+
+        // Step 2: Convert the FoundryOutput to NativeTokenPackageData. This should panic.
+        NativeTokenPackageData::try_from(&output).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_foundry_output_with_max_supply_overflow_and_invalid_melted_tokens() {
+        let minted_tokens = 0;
+        let melted_tokens = U256::MAX;
+        let maximum_supply = U256::MAX;
+
+        // Step 1: Create a FoundryOutput with an IRC30Metadata feature
+        let token_scheme =
+            SimpleTokenScheme::new(minted_tokens, melted_tokens, maximum_supply).unwrap();
+
+        let irc_30_metadata = Irc30Metadata::new("Dogecoin", "DOGE", 0)
+            .with_description("Much wow")
+            .with_url(Url::parse("https://dogecoin.com").unwrap())
+            .with_logo_url(Url::parse("https://dogecoin.com/logo.png").unwrap())
+            .with_logo("0x54654");
+
+        let alias_id = AliasId::new([0; AliasId::LENGTH]);
+        let builder = FoundryOutputBuilder::new_with_amount(
+            100_000_000_000,
+            1,
+            TokenScheme::Simple(token_scheme),
+        )
+        .add_unlock_condition(ImmutableAliasAddressUnlockCondition::new(
+            AliasAddress::new(alias_id),
+        ))
+        .add_feature(Feature::Metadata(
+            MetadataFeature::new(irc_30_metadata).unwrap(),
+        ));
+        let output = builder.finish().unwrap();
+
+        // Step 2: Convert the FoundryOutput to NativeTokenPackageData. This should panic.
+        NativeTokenPackageData::try_from(&output).unwrap();
     }
 
     #[test]
