@@ -27,7 +27,8 @@ tracing.workspace = true
 prometheus.workspace = true
 
 fs_extra = "1.3.0"
-iota-sdk = { version = "1.1.4", default-features = false, features = ["irc_30", "std"] }
+iota-sdk = { version = "1.1.4", default-features = false, features = ["irc_27", "irc_30", "std"] }
+num-rational = "0.4"
 packable = { version = "0.8.3", default-features = false, features = ["io"] }
 
 schemars.workspace = true

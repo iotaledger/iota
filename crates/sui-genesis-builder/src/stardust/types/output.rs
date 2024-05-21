@@ -56,6 +56,28 @@ impl TryFrom<&iota_sdk::types::block::output::BasicOutput> for ExpirationUnlockC
     }
 }
 
+impl TryFrom<&iota_sdk::types::block::output::NftOutput> for ExpirationUnlockCondition {
+    type Error = anyhow::Error;
+
+    fn try_from(output: &iota_sdk::types::block::output::NftOutput) -> Result<Self, Self::Error> {
+        let Some(address_unlock) = output.unlock_conditions().address() else {
+            anyhow::bail!("output does not have address unlock condition");
+        };
+        let Some(expiration) = output.unlock_conditions().expiration() else {
+            anyhow::bail!("output does not have expiration unlock condition");
+        };
+        let owner = address_unlock.address().to_string().parse()?;
+        let return_address = expiration.return_address().to_string().parse()?;
+        let unix_time = expiration.timestamp();
+
+        Ok(Self {
+            owner,
+            return_address,
+            unix_time,
+        })
+    }
+}
+
 /// Rust version of the stardust storage deposit return unlock condition.
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
