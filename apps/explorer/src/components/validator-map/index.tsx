@@ -141,7 +141,7 @@ export default function ValidatorMap({ minHeight }: Props) {
 							}
 						</NodeStat>
 
-						{network === Network.MAINNET && (
+						{network === Network.Mainnet && (
 							<NodeStat title="Nodes">
 								{isPending && <Placeholder width="60px" height="0.8em" />}
 								{(data?.nodeCount && numberFormatter.format(data?.nodeCount)) || '--'}

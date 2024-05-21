@@ -7,7 +7,7 @@ import { useIsMutating, useMutation, type UseMutationOptions } from '@tanstack/r
 import { useActiveAccount } from '../../hooks/useActiveAccount';
 
 type UseFaucetMutationOptions = Pick<UseMutationOptions, 'onError'> & {
-	host: string | null;
+	host?: string;
 	address?: string;
 };
 

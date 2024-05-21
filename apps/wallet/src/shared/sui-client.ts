@@ -2,25 +2,25 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import networkEnv from '_src/background/NetworkEnv';
-import { API_ENV, ENV_TO_API, type NetworkEnvType } from '_src/shared/api-env';
+import { type NetworkEnvType } from '_src/shared/api-env';
 import { SentryHttpTransport } from '@mysten/core';
-import { SuiClient, SuiHTTPTransport } from '@mysten/sui.js/client';
+import { getNetwork, Network, SuiClient, SuiHTTPTransport } from '@mysten/sui.js/client';
 
 const suiClientPerNetwork = new Map<string, SuiClient>();
-const SENTRY_MONITORED_ENVS = [API_ENV.mainnet];
+const SENTRY_MONITORED_ENVS = [Network.Custom];
 
-export function getSuiClient({ env, customRpcUrl }: NetworkEnvType): SuiClient {
-	const key = `${env}_${customRpcUrl}`;
+export function getSuiClient({ network, customRpcUrl }: NetworkEnvType): SuiClient {
+	const key = `${network}_${customRpcUrl}`;
 	if (!suiClientPerNetwork.has(key)) {
-		const connection = customRpcUrl ? customRpcUrl : ENV_TO_API[env];
+		const connection = getNetwork(network)?.url ?? customRpcUrl;
 		if (!connection) {
-			throw new Error(`API url not found for network env ${env} ${customRpcUrl}`);
+			throw new Error(`API url not found for network ${network} ${customRpcUrl}`);
 		}
 		suiClientPerNetwork.set(
 			key,
 			new SuiClient({
 				transport:
-					!customRpcUrl && SENTRY_MONITORED_ENVS.includes(env)
+					!customRpcUrl && SENTRY_MONITORED_ENVS.includes(network)
 						? new SentryHttpTransport(connection)
 						: new SuiHTTPTransport({ url: connection }),
 			}),

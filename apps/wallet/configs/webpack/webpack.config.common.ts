@@ -6,7 +6,7 @@ import { resolve } from 'path';
 import { randomBytes } from '@noble/hashes/utils';
 import SentryWebpackPlugin from '@sentry/webpack-plugin';
 import CopyPlugin from 'copy-webpack-plugin';
-import DotEnv from 'dotenv-webpack';
+import dotenv from 'dotenv';
 import gitRevSync from 'git-rev-sync';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
 import MiniCssExtractPlugin from 'mini-css-extract-plugin';
@@ -34,6 +34,7 @@ function generateDateVersion(patch: number) {
 const WALLET_BETA = process.env.WALLET_BETA === 'true';
 const PATCH_VERISON = Number(process.env.PATCH_VERSION) || 0;
 
+const SDK_ROOT = resolve(__dirname, '..', '..', '..', '..', 'sdk');
 const PROJECT_ROOT = resolve(__dirname, '..', '..');
 const CONFIGS_ROOT = resolve(PROJECT_ROOT, 'configs');
 const SRC_ROOT = resolve(PROJECT_ROOT, 'src');
@@ -43,6 +44,10 @@ const IS_DEV = process.env.NODE_ENV === 'development';
 const IS_PROD = process.env.NODE_ENV === 'production';
 const TS_CONFIG_FILE = resolve(TS_CONFIGS_ROOT, `tsconfig.${IS_DEV ? 'dev' : 'prod'}.json`);
 const APP_NAME = WALLET_BETA ? 'Sui Wallet (BETA)' : IS_DEV ? 'Sui Wallet (DEV)' : 'Sui Wallet';
+
+dotenv.config({
+	path: [resolve(SDK_ROOT, '.env'), resolve(SDK_ROOT, '.env.defaults')],
+});
 
 function loadTsConfig(tsConfigFilePath: string) {
 	return new Promise<string>((res, rej) => {
@@ -196,11 +201,6 @@ const commonConfig: () => Promise<Configuration> = async () => {
 					},
 				],
 			}),
-			new DotEnv({
-				path: resolve(CONFIGS_ROOT, 'environment', '.env'),
-				defaults: resolve(CONFIGS_ROOT, 'environment', '.env.defaults'),
-				expand: true,
-			}),
 			new DefinePlugin({
 				// This brakes bg service, js-sha3 checks if window is defined,
 				// but it's not defined in background service.
@@ -212,6 +212,8 @@ const commonConfig: () => Promise<Configuration> = async () => {
 				),
 				'process.env.WALLET_BETA': WALLET_BETA,
 				'process.env.APP_NAME': JSON.stringify(APP_NAME),
+				'process.env.DEFAULT_NETWORK': JSON.stringify(process.env.DEFAULT_NETWORK),
+				'process.env.IOTA_NETWORKS': JSON.stringify(process.env.IOTA_NETWORKS),
 			}),
 			new ProvidePlugin({
 				Buffer: ['buffer', 'Buffer'],

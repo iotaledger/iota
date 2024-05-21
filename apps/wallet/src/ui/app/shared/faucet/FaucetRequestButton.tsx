@@ -1,11 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { API_ENV_TO_INFO } from '_app/ApiProvider';
 import { Button, type ButtonProps } from '_app/shared/ButtonUI';
 import { useAppSelector } from '_hooks';
-import { API_ENV } from '_src/shared/api-env';
-import { FaucetRateLimitError, getFaucetHost } from '@mysten/sui.js/faucet';
+import { getCustomNetwork } from '_src/shared/api-env';
+import { getNetwork } from '@mysten/sui.js/client';
+import { FaucetRateLimitError } from '@mysten/sui.js/faucet';
 import { toast } from 'react-hot-toast';
 
 import FaucetMessageInfo from './FaucetMessageInfo';
@@ -17,19 +17,14 @@ export type FaucetRequestButtonProps = {
 	size?: ButtonProps['size'];
 };
 
-export const FAUCET_HOSTS = {
-	[API_ENV.local]: getFaucetHost('localnet'),
-	[API_ENV.devNet]: getFaucetHost('devnet'),
-	[API_ENV.testNet]: getFaucetHost('testnet'),
-};
-
 function FaucetRequestButton({ variant = 'primary', size = 'narrow' }: FaucetRequestButtonProps) {
-	const network = useAppSelector(({ app }) => app.apiEnv);
-	const networkName = API_ENV_TO_INFO[network].name.replace(/sui\s*/gi, '');
+	const network = useAppSelector(({ app }) => app.network);
+	const customRpc = useAppSelector(({ app }) => app.customRpc);
+	const networkConfig = customRpc ? getCustomNetwork(customRpc) : getNetwork(network);
 	const [isRateLimited, rateLimit] = useFaucetRateLimiter();
 
 	const mutation = useFaucetMutation({
-		host: network in FAUCET_HOSTS ? FAUCET_HOSTS[network as keyof typeof FAUCET_HOSTS] : null,
+		host: networkConfig?.faucet,
 		onError: (error) => {
 			if (error instanceof FaucetRateLimitError) {
 				rateLimit();
@@ -51,7 +46,7 @@ function FaucetRequestButton({ variant = 'primary', size = 'narrow' }: FaucetReq
 				});
 			}}
 			loading={mutation.isMutating}
-			text={`Request ${networkName} SUI Tokens`}
+			text={`Request ${networkConfig?.name} SUI Tokens`}
 		/>
 	) : null;
 }

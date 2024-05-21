@@ -16,18 +16,18 @@ const SUPPORTED_IMG_TYPES = [
 	'image/tiff',
 ];
 
-export enum VISIBILITY {
-	PASS = 'PASS',
-	BLUR = 'BLUR',
-	HIDE = 'HIDE',
+export enum Visibility {
+	Pass = 'pass',
+	Blur = 'blur',
+	Hide = 'hide',
 }
 
 type ImageModeration = {
-	visibility?: VISIBILITY;
+	visibility?: Visibility;
 };
 
 const placeholderData = {
-	visibility: VISIBILITY.PASS,
+	visibility: Visibility.Pass,
 };
 
 const isURL = (url?: string) => {

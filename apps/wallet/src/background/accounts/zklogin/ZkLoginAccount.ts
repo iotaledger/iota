@@ -30,10 +30,10 @@ import {
 	type PartialZkLoginSignature,
 } from './utils';
 
-type SerializedNetwork = `${NetworkEnvType['env']}_${NetworkEnvType['customRpcUrl']}`;
+type SerializedNetwork = `${NetworkEnvType['network']}_${NetworkEnvType['customRpcUrl']}`;
 
 function serializeNetwork(network: NetworkEnvType): SerializedNetwork {
-	return `${network.env}_${network.customRpcUrl}`;
+	return `${network.network}_${network.customRpcUrl}`;
 }
 
 type CredentialData = {
@@ -259,7 +259,7 @@ export class ZkLoginAccount
 		}
 		const { maxEpoch, network } = credentials;
 		return (
-			activeNetwork.env === network.env &&
+			activeNetwork.network === network.network &&
 			activeNetwork.customRpcUrl === network.customRpcUrl &&
 			currentEpoch <= maxEpoch
 		);

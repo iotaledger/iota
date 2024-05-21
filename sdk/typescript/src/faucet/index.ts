@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import type { NetworkId } from '../client/index.js';
+import { getNetwork } from '../client/index.js';
+
 export class FaucetRateLimitError extends Error {}
 
 type FaucetCoinInfo = {
@@ -116,15 +119,12 @@ export async function getFaucetRequestStatus(input: {
 	});
 }
 
-export function getFaucetHost(network: 'testnet' | 'devnet' | 'localnet') {
-	switch (network) {
-		case 'testnet':
-			return 'https://faucet.testnet.sui.io';
-		case 'devnet':
-			return 'https://faucet.devnet.sui.io';
-		case 'localnet':
-			return 'http://127.0.0.1:9123';
-		default:
-			throw new Error(`Unknown network: ${network}`);
+export function getFaucetHost(network: NetworkId): string {
+	const requestedNetwork = getNetwork(network);
+
+	if (!requestedNetwork.faucet) {
+		throw new Error(`Unknown network: ${network}`);
 	}
+
+	return requestedNetwork.faucet;
 }

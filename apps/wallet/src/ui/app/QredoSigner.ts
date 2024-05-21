@@ -2,13 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type QredoSerializedUiAccount } from '_src/background/accounts/QredoAccount';
-import { API_ENV, networkNames } from '_src/shared/api-env';
-import {
-	type NetworkType,
-	type QredoAPI,
-	type TransactionInfoResponse,
-} from '_src/shared/qredo-api';
-import { type SuiClient } from '@mysten/sui.js/client';
+import { type QredoAPI, type TransactionInfoResponse } from '_src/shared/qredo-api';
+import { type Network, type SuiClient } from '@mysten/sui.js/client';
 import {
 	IntentScope,
 	messageWithIntent,
@@ -27,28 +22,22 @@ const MAX_POLLING_TIMES = Math.ceil((60 * 1000 * 10) / POLLING_INTERVAL);
 function sleep() {
 	return new Promise((r) => setTimeout(r, POLLING_INTERVAL));
 }
-export const API_ENV_TO_QREDO_NETWORK: Partial<Record<API_ENV, NetworkType>> = {
-	[API_ENV.mainnet]: 'mainnet',
-	[API_ENV.testNet]: 'testnet',
-	[API_ENV.devNet]: 'devnet',
-};
+
 export class QredoSigner extends WalletSigner {
 	#qredoAccount: QredoSerializedUiAccount;
 	#qredoAPI: QredoAPI;
-	#network: NetworkType | null;
-	#apiEnv: API_ENV;
+	#network: Network;
 
 	constructor(
 		client: SuiClient,
 		account: QredoSerializedUiAccount,
 		qredoAPI: QredoAPI,
-		apiEnv: API_ENV,
+		network: Network,
 	) {
 		super(client);
 		this.#qredoAccount = account;
 		this.#qredoAPI = qredoAPI;
-		this.#apiEnv = apiEnv;
-		this.#network = API_ENV_TO_QREDO_NETWORK[apiEnv] || null;
+		this.#network = network;
 	}
 
 	async getAddress(): Promise<string> {
@@ -156,12 +145,12 @@ export class QredoSigner extends WalletSigner {
 	};
 
 	connect(client: SuiClient): WalletSigner {
-		return new QredoSigner(client, this.#qredoAccount, this.#qredoAPI, this.#apiEnv);
+		return new QredoSigner(client, this.#qredoAccount, this.#qredoAPI, this.#network);
 	}
 
 	async #createQredoTransaction(intent: Uint8Array, broadcast: boolean, clientIdentifier?: string) {
 		if (!this.#network) {
-			throw new Error(`Unsupported network ${networkNames[this.#apiEnv]}`);
+			throw new Error(`Unsupported network ${this.#network}`);
 		}
 		const qredoTransaction = await this.#qredoAPI.createTransaction({
 			messageWithIntent: toB64(intent),
