@@ -13,17 +13,17 @@ const TEST_CASES = [
 	{
 		rawPublicKey: 'UdGRWooy48vGTs0HBokIis5NK+DUjiWc9ENUlcfCCBE=',
 		suiPublicKey: 'AFHRkVqKMuPLxk7NBwaJCIrOTSvg1I4lnPRDVJXHwggR',
-		suiAddress: '0xd77a6cd55073e98d4029b1b0b8bd8d88f45f343dad2732fc9a7965094e635c55',
+		suiAddress: '0xd857c1a13dcb1eba0efbe12014c44cb319cfb4f19ac4850c82a55b30b430c00b',
 	},
 	{
 		rawPublicKey: '0PTAfQmNiabgbak9U/stWZzKc5nsRqokda2qnV2DTfg=',
 		suiPublicKey: 'AND0wH0JjYmm4G2pPVP7LVmcynOZ7EaqJHWtqp1dg034',
-		suiAddress: '0x7e8fd489c3d3cd9cc7cbcc577dc5d6de831e654edd9997d95c412d013e6eea23',
+		suiAddress: '0xa3ebb66759b5aef76a9c7d74e1e32c43b367330c71c8c570185ae6c87bbb9079',
 	},
 	{
 		rawPublicKey: '6L/l0uhGt//9cf6nLQ0+24Uv2qanX/R6tn7lWUJX1Xk=',
 		suiPublicKey: 'AOi/5dLoRrf//XH+py0NPtuFL9qmp1/0erZ+5VlCV9V5',
-		suiAddress: '0x3a1b4410ebe9c3386a429c349ba7929aafab739c277f97f32622b971972a14a2',
+		suiAddress: '0x752eea4b000d6e9ac22f60ebb71bfc122713552c1a015ae6fd6ec8acfa7b7ec3',
 	},
 ];
 

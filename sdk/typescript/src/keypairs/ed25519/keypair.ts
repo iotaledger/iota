@@ -9,7 +9,7 @@ import type { SignatureScheme } from '../../cryptography/signature-scheme.js';
 import { derivePath } from './ed25519-hd-key.js';
 import { Ed25519PublicKey } from './publickey.js';
 
-export const DEFAULT_ED25519_DERIVATION_PATH = "m/44'/784'/0'/0'/0'";
+export const DEFAULT_ED25519_DERIVATION_PATH = "m/44'/4218'/0'/0'/0'";
 
 /**
  * Ed25519 Keypair data. The publickey is the 32-byte public key and
@@ -120,8 +120,8 @@ export class Ed25519Keypair extends Keypair {
 	 * Derive Ed25519 keypair from mnemonics and path. The mnemonics must be normalized
 	 * and validated against the english wordlist.
 	 *
-	 * If path is none, it will default to m/44'/784'/0'/0'/0', otherwise the path must
-	 * be compliant to SLIP-0010 in form m/44'/784'/{account_index}'/{change_index}'/{address_index}'.
+	 * If path is none, it will default to m/44'/4218'/0'/0'/0', otherwise the path must
+	 * be compliant to SLIP-0010 in form m/44'/4218'/{account_index}'/{change_index}'/{address_index}'.
 	 */
 	static deriveKeypair(mnemonics: string, path?: string): Ed25519Keypair {
 		if (path == null) {
@@ -138,8 +138,8 @@ export class Ed25519Keypair extends Keypair {
 	/**
 	 * Derive Ed25519 keypair from mnemonicSeed and path.
 	 *
-	 * If path is none, it will default to m/44'/784'/0'/0'/0', otherwise the path must
-	 * be compliant to SLIP-0010 in form m/44'/784'/{account_index}'/{change_index}'/{address_index}'.
+	 * If path is none, it will default to m/44'/4218'/0'/0'/0', otherwise the path must
+	 * be compliant to SLIP-0010 in form m/44'/4218'/{account_index}'/{change_index}'/{address_index}'.
 	 */
 	static deriveKeypairFromSeed(seedHex: string, path?: string): Ed25519Keypair {
 		if (path == null) {

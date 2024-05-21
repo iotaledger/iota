@@ -8,6 +8,7 @@ title: Module `0x107a::alias_output`
 -  [Constants](#@Constants_0)
 -  [Function `extract_assets`](#0x107a_alias_output_extract_assets)
 -  [Function `receive`](#0x107a_alias_output_receive)
+-  [Function `attach_alias`](#0x107a_alias_output_attach_alias)
 -  [Function `load_alias`](#0x107a_alias_output_load_alias)
 
 
@@ -138,6 +139,31 @@ Other modules in the Stardust package can call this function to receive an <code
 
 <pre><code><b>public</b>(<a href="../sui-framework/package.md#0x2_package">package</a>) <b>fun</b> <a href="alias_output.md#0x107a_alias_output_receive">receive</a>(parent: &<b>mut</b> UID, output: Receiving&lt;<a href="alias_output.md#0x107a_alias_output_AliasOutput">AliasOutput</a>&gt;) : <a href="alias_output.md#0x107a_alias_output_AliasOutput">AliasOutput</a> {
     <a href="../sui-framework/transfer.md#0x2_transfer_receive">transfer::receive</a>(parent, output)
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="0x107a_alias_output_attach_alias"></a>
+
+## Function `attach_alias`
+
+Utility function to attach an <code>Alias</code> to an <code><a href="alias_output.md#0x107a_alias_output_AliasOutput">AliasOutput</a></code>.
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="alias_output.md#0x107a_alias_output_attach_alias">attach_alias</a>(output: &<b>mut</b> <a href="alias_output.md#0x107a_alias_output_AliasOutput">alias_output::AliasOutput</a>, <a href="alias.md#0x107a_alias">alias</a>: <a href="alias.md#0x107a_alias_Alias">alias::Alias</a>)
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="alias_output.md#0x107a_alias_output_attach_alias">attach_alias</a>(output: &<b>mut</b> <a href="alias_output.md#0x107a_alias_output_AliasOutput">AliasOutput</a>, <a href="alias.md#0x107a_alias">alias</a>: Alias) {
+    <a href="../sui-framework/dynamic_object_field.md#0x2_dynamic_object_field_add">dynamic_object_field::add</a>(&<b>mut</b> output.id, <a href="alias_output.md#0x107a_alias_output_ALIAS_NAME">ALIAS_NAME</a>, <a href="alias.md#0x107a_alias">alias</a>)
 }
 </code></pre>
 

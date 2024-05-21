@@ -41,8 +41,8 @@ async function init() {
 	}
 	store.dispatch(initAppType(getFromLocationSearch(window.location.search)));
 	await thunkExtras.background.init(store.dispatch);
-	const { apiEnv, customRPC } = store.getState().app;
-	setAttributes({ apiEnv, customRPC });
+	const { network, customRpc } = store.getState().app;
+	setAttributes({ network, customRpc });
 }
 
 function renderApp() {
@@ -61,7 +61,7 @@ function renderApp() {
 }
 
 function AppWrapper() {
-	const network = useAppSelector(({ app: { apiEnv, customRPC } }) => `${apiEnv}_${customRPC}`);
+	const network = useAppSelector(({ app: { network, customRpc } }) => `${network}_${customRpc}`);
 	const isFullscreen = useAppSelector((state) => state.app.appType === AppType.fullscreen);
 	return (
 		<GrowthBookProvider growthbook={growthbook}>
@@ -83,7 +83,7 @@ function AppWrapper() {
 							}}
 						>
 							<SuiClientProvider
-								networks={{ [walletApiProvider.apiEnv]: walletApiProvider.instance.fullNode }}
+								networks={{ [walletApiProvider.network]: walletApiProvider.instance.fullNode }}
 							>
 								<KioskClientProvider>
 									<AccountsFormProvider>

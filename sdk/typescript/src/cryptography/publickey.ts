@@ -9,6 +9,7 @@ import { bcs } from '../bcs/index.js';
 import { normalizeSuiAddress, SUI_ADDRESS_LENGTH } from '../utils/sui-types.js';
 import type { SerializedSignature } from './index.js';
 import { IntentScope, messageWithIntent } from './intent.js';
+import { SIGNATURE_SCHEME_TO_FLAG } from './signature-scheme.js';
 
 /**
  * Value to be converted into public key.
@@ -113,12 +114,33 @@ export abstract class PublicKey {
 	}
 
 	/**
+	 * Returns the bytes representation of the public key
+	 * prefixed with the signature scheme flag. If the
+	 * signature scheme is ED25519, no prefix is set.
+	 */
+	toSuiBytesForAddress(): Uint8Array {
+		const rawBytes = this.toRawBytes();
+		if (this.flag() === SIGNATURE_SCHEME_TO_FLAG['ED25519']) {
+			return rawBytes;
+		} else {
+			const suiBytes = new Uint8Array(rawBytes.length + 1);
+			suiBytes.set([this.flag()]);
+			suiBytes.set(rawBytes, 1);
+
+			return suiBytes;
+		}
+	}
+
+	/**
 	 * Return the Sui address associated with this Ed25519 public key
 	 */
 	toSuiAddress(): string {
 		// Each hex char represents half a byte, hence hex address doubles the length
 		return normalizeSuiAddress(
-			bytesToHex(blake2b(this.toSuiBytes(), { dkLen: 32 })).slice(0, SUI_ADDRESS_LENGTH * 2),
+			bytesToHex(blake2b(this.toSuiBytesForAddress(), { dkLen: 32 })).slice(
+				0,
+				SUI_ADDRESS_LENGTH * 2,
+			),
 		);
 	}
 

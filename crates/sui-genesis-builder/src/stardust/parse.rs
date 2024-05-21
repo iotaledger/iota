@@ -1,3 +1,6 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! Types and logic to parse a full Stardust snapshot.
 use std::io::{BufReader, Read};
 
@@ -5,7 +8,7 @@ use anyhow::Result;
 use iota_sdk::types::block::{output::Output, protocol::ProtocolParameters};
 use packable::{unpacker::IoUnpacker, Packable};
 
-use super::types::{FullSnapshotHeader, OutputHeader};
+use super::types::snapshot::{FullSnapshotHeader, OutputHeader};
 
 /// Parse a full-snapshot using a [`BufReader`] internally.
 pub struct FullSnapshotParser<R: Read> {

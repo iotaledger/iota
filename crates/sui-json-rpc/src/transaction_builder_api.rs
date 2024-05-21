@@ -314,6 +314,35 @@ impl TransactionBuilderServer for TransactionBuilderApi {
                 .await?,
         )?)
     }
+
+    async fn request_add_timelocked_stake(
+        &self,
+        signer: SuiAddress,
+        locked_balance: ObjectID,
+        validator: SuiAddress,
+        gas: ObjectID,
+        gas_budget: BigInt<u64>,
+    ) -> RpcResult<TransactionBlockBytes> {
+        Ok(TransactionBlockBytes::from_data(
+            self.0
+                .request_add_timelocked_stake(signer, locked_balance, validator, gas, *gas_budget)
+                .await?,
+        )?)
+    }
+
+    async fn request_withdraw_timelocked_stake(
+        &self,
+        signer: SuiAddress,
+        timelocked_staked_sui: ObjectID,
+        gas: ObjectID,
+        gas_budget: BigInt<u64>,
+    ) -> RpcResult<TransactionBlockBytes> {
+        Ok(TransactionBlockBytes::from_data(
+            self.0
+                .request_withdraw_timelocked_stake(signer, timelocked_staked_sui, gas, *gas_budget)
+                .await?,
+        )?)
+    }
 }
 
 impl SuiRpcModule for TransactionBuilderApi {

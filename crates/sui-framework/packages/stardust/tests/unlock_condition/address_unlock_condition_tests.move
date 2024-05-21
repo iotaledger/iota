@@ -1,3 +1,6 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 module stardust::address_unlock_condition_tests {
 
     use sui::bag;
@@ -51,7 +54,7 @@ module stardust::address_unlock_condition_tests {
 
         let alias = alias::create_for_testing(
             // legacy state controller
-            option::some(owner),
+            owner,
             // state index
             0,
             // state metadata
