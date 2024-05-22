@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { OrderArguments, PaginatedEvents, PaginationArguments } from '@mysten/sui.js/client';
-import { getFullnodeUrl, SuiClient } from '@mysten/sui.js/client';
+import { getNetwork, Network, SuiClient } from '@mysten/sui.js/client';
 import type {
 	TransactionArgument,
 	TransactionObjectInput,
@@ -46,7 +46,7 @@ export class DeepBookClient {
 	 * @param currentAddress (optional) address of the current user (default: DUMMY_ADDRESS)
 	 */
 	constructor(
-		public suiClient: SuiClient = new SuiClient({ url: getFullnodeUrl('testnet') }),
+		public suiClient: SuiClient = new SuiClient({ url: getNetwork(Network.Testnet).url }),
 		public accountCap: string | undefined = undefined,
 		public currentAddress: string = DUMMY_ADDRESS,
 		private clientOrderId: number = 0,

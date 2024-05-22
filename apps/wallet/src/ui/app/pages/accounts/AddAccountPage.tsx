@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Button } from '_app/shared/ButtonUI';
 import { Text } from '_app/shared/text';
 import Overlay from '_components/overlay';
@@ -167,6 +170,14 @@ export function AddAccountPage() {
 						onClick={() => {
 							ampli.clickedImportPrivateKey({ sourceFlow });
 						}}
+						disabled={createAccountsMutation.isPending}
+					/>
+					<Button
+						variant="outline"
+						size="tall"
+						text="Import Seed"
+						to="/accounts/import-seed"
+						onClick={() => {}}
 						disabled={createAccountsMutation.isPending}
 					/>
 				</Section>

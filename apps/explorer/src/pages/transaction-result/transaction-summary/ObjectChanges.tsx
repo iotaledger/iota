@@ -27,10 +27,10 @@ import { AddressLink, ObjectLink } from '~/ui/InternalLink';
 import { CollapsibleCard } from '~/ui/collapsible/CollapsibleCard';
 import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
 
-enum ItemLabels {
-	package = 'Package',
-	module = 'Module',
-	type = 'Type',
+enum ItemLabel {
+	Package = 'package',
+	Module = 'module',
+	Type = 'type',
 }
 
 const DEFAULT_ITEMS_TO_SHOW = 5;
@@ -41,7 +41,7 @@ function Item({
 	moduleName,
 	typeName,
 }: {
-	label: ItemLabels;
+	label: ItemLabel;
 	packageId?: string;
 	moduleName?: string;
 	typeName?: string;
@@ -50,18 +50,18 @@ function Item({
 		<div
 			className={clsx(
 				'flex justify-between gap-10',
-				label === ItemLabels.type ? 'items-start' : 'items-center',
+				label === ItemLabel.Type ? 'items-start' : 'items-center',
 			)}
 		>
 			<Text variant="pBody/medium" color="steel-dark">
 				{label}
 			</Text>
 
-			{label === ItemLabels.package && packageId && <ObjectLink objectId={packageId} />}
-			{label === ItemLabels.module && (
+			{label === ItemLabel.Package && packageId && <ObjectLink objectId={packageId} />}
+			{label === ItemLabel.Module && (
 				<ObjectLink objectId={`${packageId}?module=${moduleName}`} label={moduleName} />
 			)}
-			{label === ItemLabels.type && (
+			{label === ItemLabel.Type && (
 				<div className="break-all text-right">
 					<Text mono variant="pBody/medium" color="steel-darker">
 						{typeName}
@@ -116,7 +116,7 @@ function ObjectDetail({
 	const typeName = objectTypeSplit.slice(2).join(separator);
 	const { address, module, name } = parseStructTag(objectType);
 
-	const objectDetailLabels = [ItemLabels.package, ItemLabels.module, ItemLabels.type];
+	const objectDetailLabels = [ItemLabel.Package, ItemLabel.Module, ItemLabel.Type];
 
 	if (display?.data) return <ObjectDisplay display={display} objectId={objectId} />;
 
@@ -131,7 +131,7 @@ function ObjectDetail({
 				</div>
 			}
 			panelContent={
-				<div className="mt-2 flex flex-col gap-2">
+				<div className="mt-2 flex flex-col gap-2 capitalize">
 					{objectDetailLabels.map((label) => (
 						<Item
 							key={label}
@@ -164,11 +164,11 @@ function ObjectChangeEntries({ changeEntries, type, isDisplay }: ObjectChangeEnt
 					key={packageId}
 					panelContent={
 						<div className="mt-2 flex flex-col gap-2">
-							<Item label={ItemLabels.package} packageId={packageId} />
+							<Item label={ItemLabel.Package} packageId={packageId} />
 							{modules.map((moduleName, index) => (
 								<Item
 									key={index}
-									label={ItemLabels.module}
+									label={ItemLabel.Module}
 									moduleName={moduleName}
 									packageId={packageId}
 								/>

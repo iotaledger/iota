@@ -11,7 +11,6 @@ import Alert from '_components/alert';
 import LoadingIndicator from '_components/loading/LoadingIndicator';
 import { useAppSelector, useCoinsReFetchingConfig } from '_hooks';
 import { ampli } from '_src/shared/analytics/ampli';
-import { API_ENV } from '_src/shared/api-env';
 import {
 	DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
 	DELEGATED_STAKES_QUERY_STALE_TIME,
@@ -21,7 +20,7 @@ import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { useCoinMetadata, useGetDelegatedStake, useGetValidatorsApy } from '@mysten/core';
 import { useSuiClientQuery } from '@mysten/dapp-kit';
 import { ArrowLeft16, StakeAdd16, StakeRemove16 } from '@mysten/icons';
-import type { StakeObject } from '@mysten/sui.js/client';
+import { Network, type StakeObject } from '@mysten/sui.js/client';
 import { MIST_PER_SUI, SUI_TYPE_ARG } from '@mysten/sui.js/utils';
 import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
@@ -55,7 +54,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
 		refetchInterval: DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
 	});
 
-	const apiEnv = useAppSelector(({ app }) => app.apiEnv);
+	const network = useAppSelector(({ app }) => app.network);
 	const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
 	const { data: suiCoinBalance } = useSuiClientQuery(
 		'getBalance',
@@ -65,12 +64,12 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
 	const { data: metadata } = useCoinMetadata(SUI_TYPE_ARG);
 	// set minimum stake amount to 1 SUI
 	const showRequestMoreSuiToken = useMemo(() => {
-		if (!suiCoinBalance?.totalBalance || !metadata?.decimals || apiEnv === API_ENV.mainnet)
+		if (!suiCoinBalance?.totalBalance || !metadata?.decimals || network === Network.Mainnet)
 			return false;
 		const currentBalance = new BigNumber(suiCoinBalance.totalBalance);
 		const minStakeAmount = new BigNumber(MIN_NUMBER_SUI_TO_STAKE).shiftedBy(metadata.decimals);
 		return currentBalance.lt(minStakeAmount.toString());
-	}, [apiEnv, metadata?.decimals, suiCoinBalance?.totalBalance]);
+	}, [network, metadata?.decimals, suiCoinBalance?.totalBalance]);
 
 	const { data: rollingAverageApys } = useGetValidatorsApy();
 

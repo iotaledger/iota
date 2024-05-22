@@ -4,8 +4,16 @@
 import { execSync } from 'child_process';
 import { existsSync, promises as fs } from 'fs';
 import * as path from 'path';
+import dotenv from 'dotenv';
 import type { BuildOptions } from 'esbuild';
 import { build } from 'esbuild';
+
+dotenv.config({
+	path: [
+		path.join(__dirname, '..', '..', '..', '.env'),
+		path.join(__dirname, '..', '..', '..', '.env.defaults'),
+	],
+});
 
 interface PackageJSON {
 	name?: string;
@@ -48,6 +56,13 @@ async function clean() {
 	await createEmptyDir(path.join(process.cwd(), 'dist'));
 }
 
+async function embedIOTAEnvVars() {
+	return {
+		'process.env.DEFAULT_NETWORK': JSON.stringify(process.env['DEFAULT_NETWORK']),
+		'process.env.IOTA_NETWORKS': JSON.stringify(process.env['IOTA_NETWORKS']),
+	};
+}
+
 async function buildCJS(
 	entryPoints: string[],
 	{ sideEffects }: PackageJSON,
@@ -60,6 +75,7 @@ async function buildCJS(
 		entryPoints,
 		outdir: 'dist/cjs',
 		sourcemap: true,
+		define: await embedIOTAEnvVars(),
 		...buildOptions,
 	});
 	await buildTypes('tsconfig.json');
@@ -91,7 +107,7 @@ async function buildESM(
 		entryPoints,
 		outdir: 'dist/esm',
 		sourcemap: true,
-
+		define: await embedIOTAEnvVars(),
 		...buildOptions,
 	});
 	await buildTypes('tsconfig.esm.json');

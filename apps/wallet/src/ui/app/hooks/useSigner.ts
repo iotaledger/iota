@@ -24,7 +24,7 @@ export function useSigner(account: SerializedUIAccount | null): WalletSigner | n
 			? account.sourceID
 			: undefined,
 	);
-	const networkName = useAppSelector(({ app: { apiEnv } }) => apiEnv);
+	const network = useAppSelector(({ app: { network } }) => network);
 	if (!account) {
 		return null;
 	}
@@ -32,7 +32,7 @@ export function useSigner(account: SerializedUIAccount | null): WalletSigner | n
 		return new LedgerSigner(connectToLedger, account.derivationPath, api);
 	}
 	if (isQredoAccountSerializedUI(account)) {
-		return qredoAPI ? new QredoSigner(api, account, qredoAPI, networkName) : null;
+		return qredoAPI ? new QredoSigner(api, account, qredoAPI, network) : null;
 	}
 	return walletApiProvider.getSignerInstance(account, background);
 }

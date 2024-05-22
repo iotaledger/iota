@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { API_ENV_TO_INFO } from '_app/ApiProvider';
 import { useNextMenuUrl } from '_components/menu/hooks';
 import { useAppSelector } from '_hooks';
+import { getCustomNetwork } from '_src/shared/api-env';
 import { FAQ_LINK, ToS_LINK } from '_src/shared/constants';
 import { formatAutoLock, useAutoLockMinutes } from '_src/ui/app/hooks/useAutoLockMinutes';
 import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { Link } from '_src/ui/app/shared/Link';
 import { Text } from '_src/ui/app/shared/text';
 import { ArrowUpRight12, Clipboard24, Domain24, LockLocked24, More24 } from '@mysten/icons';
+import { getNetwork, Network } from '@mysten/sui.js/client';
 import Browser from 'webextension-polyfill';
 
 import Loading from '../../loading';
@@ -20,15 +21,20 @@ function MenuList() {
 	const networkUrl = useNextMenuUrl(true, '/network');
 	const autoLockUrl = useNextMenuUrl(true, '/auto-lock');
 	const moreOptionsUrl = useNextMenuUrl(true, '/more-options');
-	const apiEnv = useAppSelector((state) => state.app.apiEnv);
-	const networkName = API_ENV_TO_INFO[apiEnv].name;
+	const network = useAppSelector((state) => state.app.network);
+	const networkConfig = network === Network.Custom ? getCustomNetwork() : getNetwork(network);
 	const version = Browser.runtime.getManifest().version;
 	const autoLockInterval = useAutoLockMinutes();
 
 	return (
 		<MenuLayout title="Wallet Settings">
 			<div className="flex flex-col divide-y divide-x-0 divide-solid divide-gray-45">
-				<MenuListItem to={networkUrl} icon={<Domain24 />} title="Network" subtitle={networkName} />
+				<MenuListItem
+					to={networkUrl}
+					icon={<Domain24 />}
+					title="Network"
+					subtitle={networkConfig.name}
+				/>
 				<MenuListItem
 					to={autoLockUrl}
 					icon={<LockLocked24 />}

@@ -3,8 +3,8 @@
 
 import { useCallback } from 'react';
 
-const backendUrl =
-	process.env.NODE_ENV === 'development' ? 'http://localhost:3003' : 'https://apps-backend.sui.io';
+// @ts-ignore
+const backendUrl = import.meta.env.VITE_APPS_BACKEND_URL;
 
 export function useAppsBackend() {
 	const request = useCallback(
