@@ -12,11 +12,13 @@ additional Metadata field can be added.
 -  [Resource `CoinManager`](#0x2_coin_manager_CoinManager)
 -  [Resource `CoinManagerTreasuryCap`](#0x2_coin_manager_CoinManagerTreasuryCap)
 -  [Resource `CoinManagerMetadataCap`](#0x2_coin_manager_CoinManagerMetadataCap)
+-  [Struct `ImmutableCoinMetadata`](#0x2_coin_manager_ImmutableCoinMetadata)
 -  [Struct `CoinManaged`](#0x2_coin_manager_CoinManaged)
 -  [Struct `TreasuryOwnershipRenounced`](#0x2_coin_manager_TreasuryOwnershipRenounced)
 -  [Struct `MetadataOwnershipRenounced`](#0x2_coin_manager_MetadataOwnershipRenounced)
 -  [Constants](#@Constants_0)
 -  [Function `new`](#0x2_coin_manager_new)
+-  [Function `new_with_immutable_metadata`](#0x2_coin_manager_new_with_immutable_metadata)
 -  [Function `create`](#0x2_coin_manager_create)
 -  [Function `add_additional_metadata`](#0x2_coin_manager_add_additional_metadata)
 -  [Function `replace_additional_metadata`](#0x2_coin_manager_replace_additional_metadata)
@@ -27,6 +29,7 @@ additional Metadata field can be added.
 -  [Function `supply_is_immutable`](#0x2_coin_manager_supply_is_immutable)
 -  [Function `metadata_is_immutable`](#0x2_coin_manager_metadata_is_immutable)
 -  [Function `metadata`](#0x2_coin_manager_metadata)
+-  [Function `immutable_metadata`](#0x2_coin_manager_immutable_metadata)
 -  [Function `total_supply`](#0x2_coin_manager_total_supply)
 -  [Function `maximum_supply`](#0x2_coin_manager_maximum_supply)
 -  [Function `available_supply`](#0x2_coin_manager_available_supply)
@@ -89,31 +92,37 @@ Holds all related objects to a Coin in a convenient shared function
 <code>treasury_cap: <a href="coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</a>&lt;T&gt;</code>
 </dt>
 <dd>
-
+ The original TreasuryCap object as returned by <code>create_currency</code>
 </dd>
 <dt>
-<code>metadata: <a href="coin.md#0x2_coin_CoinMetadata">coin::CoinMetadata</a>&lt;T&gt;</code>
+<code>metadata: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="coin.md#0x2_coin_CoinMetadata">coin::CoinMetadata</a>&lt;T&gt;&gt;</code>
 </dt>
 <dd>
-
+ Metadata object, original one from the <code><a href="coin.md#0x2_coin">coin</a></code> module, if available
+</dd>
+<dt>
+<code>immutable_metadata: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="coin_manager.md#0x2_coin_manager_ImmutableCoinMetadata">coin_manager::ImmutableCoinMetadata</a>&lt;T&gt;&gt;</code>
+</dt>
+<dd>
+ Immutable Metadata object, only to be used as a last resort if the original metadata is frozen
 </dd>
 <dt>
 <code>maximum_supply: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;u64&gt;</code>
 </dt>
 <dd>
-
+ Optional maximum supply, if set you can't mint more as this number - can only be set once
 </dd>
 <dt>
 <code>supply_immutable: bool</code>
 </dt>
 <dd>
-
+ Flag indicating if the supply is considered immutable (TreasuryCap is exchanged for this)
 </dd>
 <dt>
 <code>metadata_immutable: bool</code>
 </dt>
 <dd>
-
+ Flag indicating if the metadata is considered immutable (MetadataCap is exchanged for this)
 </dd>
 </dl>
 
@@ -170,6 +179,62 @@ Metadata has it's own Cap, independent of the <code>TreasuryCap</code>
 </dt>
 <dd>
 
+</dd>
+</dl>
+
+
+</details>
+
+<a name="0x2_coin_manager_ImmutableCoinMetadata"></a>
+
+## Struct `ImmutableCoinMetadata`
+
+The immutable version of CoinMetadata, used in case of migrating from frozen objects
+to a <code><a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a></code> holding the metadata.
+
+
+<pre><code><b>struct</b> <a href="coin_manager.md#0x2_coin_manager_ImmutableCoinMetadata">ImmutableCoinMetadata</a>&lt;T&gt; <b>has</b> store
+</code></pre>
+
+
+
+<details>
+<summary>Fields</summary>
+
+
+<dl>
+<dt>
+<code>decimals: u8</code>
+</dt>
+<dd>
+ Number of decimal places the coin uses.
+ A coin with <code>value </code> N and <code>decimals</code> D should be shown as N / 10^D
+ E.g., a coin with <code>value</code> 7002 and decimals 3 should be displayed as 7.002
+ This is metadata for display usage only.
+</dd>
+<dt>
+<code>name: <a href="../move-stdlib/string.md#0x1_string_String">string::String</a></code>
+</dt>
+<dd>
+ Name for the token
+</dd>
+<dt>
+<code>symbol: <a href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</a></code>
+</dt>
+<dd>
+ Symbol for the token
+</dd>
+<dt>
+<code>description: <a href="../move-stdlib/string.md#0x1_string_String">string::String</a></code>
+</dt>
+<dd>
+ Description of the token
+</dd>
+<dt>
+<code>icon_url: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="url.md#0x2_url_Url">url::Url</a>&gt;</code>
+</dt>
+<dd>
+ URL for the token logo
 </dd>
 </dl>
 
@@ -305,6 +370,16 @@ The error returned when the maximum supply reached.
 
 
 
+<a name="0x2_coin_manager_ENoMutableMetadata"></a>
+
+The error returned if you try to edit immutable metadata
+
+
+<pre><code><b>const</b> <a href="coin_manager.md#0x2_coin_manager_ENoMutableMetadata">ENoMutableMetadata</a>: u64 = 4;
+</code></pre>
+
+
+
 <a name="0x2_coin_manager_new"></a>
 
 ## Function `new`
@@ -330,7 +405,8 @@ Wraps all important objects related to a <code>Coin</code> inside a shared objec
     <b>let</b> manager = <a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a> {
         id: <a href="object.md#0x2_object_new">object::new</a>(ctx),
         treasury_cap,
-        metadata,
+        metadata: <a href="../move-stdlib/option.md#0x1_option_some">option::some</a>(metadata),
+        immutable_metadata: <a href="../move-stdlib/option.md#0x1_option_none">option::none</a>(),
         maximum_supply: <a href="../move-stdlib/option.md#0x1_option_none">option::none</a>(),
         supply_immutable: <b>false</b>,
         metadata_immutable: <b>false</b>
@@ -345,6 +421,64 @@ Wraps all important objects related to a <code>Coin</code> inside a shared objec
             id: <a href="object.md#0x2_object_new">object::new</a>(ctx)
         },
         <a href="coin_manager.md#0x2_coin_manager_CoinManagerMetadataCap">CoinManagerMetadataCap</a>&lt;T&gt; {
+            id: <a href="object.md#0x2_object_new">object::new</a>(ctx)
+        },
+        manager
+    )
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="0x2_coin_manager_new_with_immutable_metadata"></a>
+
+## Function `new_with_immutable_metadata`
+
+This function allows the same as <code>new</code> but under the assumption the Metadata can not be transfered
+This would typically be the case with <code>Coin</code> instances where the metadata is already frozen.
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_new_with_immutable_metadata">new_with_immutable_metadata</a>&lt;T&gt;(treasury_cap: <a href="coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</a>&lt;T&gt;, metadata: &<a href="coin.md#0x2_coin_CoinMetadata">coin::CoinMetadata</a>&lt;T&gt;, ctx: &<b>mut</b> <a href="tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): (<a href="coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">coin_manager::CoinManagerTreasuryCap</a>&lt;T&gt;, <a href="coin_manager.md#0x2_coin_manager_CoinManager">coin_manager::CoinManager</a>&lt;T&gt;)
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_new_with_immutable_metadata">new_with_immutable_metadata</a>&lt;T&gt; (
+    treasury_cap: TreasuryCap&lt;T&gt;,
+    metadata: &CoinMetadata&lt;T&gt;,
+    ctx: &<b>mut</b> TxContext,
+): (<a href="coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">CoinManagerTreasuryCap</a>&lt;T&gt;, <a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a>&lt;T&gt;) {
+
+    <b>let</b> metacopy = <a href="coin_manager.md#0x2_coin_manager_ImmutableCoinMetadata">ImmutableCoinMetadata</a>&lt;T&gt; {
+        decimals: metadata.get_decimals(),
+        name: metadata.get_name(),
+        symbol: metadata.get_symbol(),
+        description: metadata.get_description(),
+        icon_url: metadata.get_icon_url()
+    };
+
+    <b>let</b> manager = <a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a> {
+        id: <a href="object.md#0x2_object_new">object::new</a>(ctx),
+        treasury_cap,
+        metadata: <a href="../move-stdlib/option.md#0x1_option_none">option::none</a>(),
+        immutable_metadata: <a href="../move-stdlib/option.md#0x1_option_some">option::some</a>(metacopy),
+        maximum_supply: <a href="../move-stdlib/option.md#0x1_option_none">option::none</a>(),
+        supply_immutable: <b>false</b>,
+        metadata_immutable: <b>true</b>
+    };
+
+    <a href="event.md#0x2_event_emit">event::emit</a>(<a href="coin_manager.md#0x2_coin_manager_CoinManaged">CoinManaged</a> {
+        coin_name: <a href="../move-stdlib/type_name.md#0x1_type_name_into_string">type_name::into_string</a>(<a href="../move-stdlib/type_name.md#0x1_type_name_get">type_name::get</a>&lt;T&gt;())
+    });
+
+    (
+        <a href="coin_manager.md#0x2_coin_manager_CoinManagerTreasuryCap">CoinManagerTreasuryCap</a>&lt;T&gt; {
             id: <a href="object.md#0x2_object_new">object::new</a>(ctx)
         },
         manager
@@ -650,7 +784,7 @@ and thus the ability to change any of the metadata has been renounced.
 
 
 <pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_metadata_is_immutable">metadata_is_immutable</a>&lt;T&gt;(manager: &<a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a>&lt;T&gt;): bool {
-    manager.metadata_immutable
+    manager.metadata_immutable || <a href="../move-stdlib/option.md#0x1_option_is_some">option::is_some</a>(&manager.immutable_metadata)
 }
 </code></pre>
 
@@ -674,7 +808,31 @@ and thus the ability to change any of the metadata has been renounced.
 
 
 <pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_metadata">metadata</a>&lt;T&gt;(manager: &<a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a>&lt;T&gt;): &CoinMetadata&lt;T&gt; {
-    &manager.metadata
+    <a href="../move-stdlib/option.md#0x1_option_borrow">option::borrow</a>(&manager.metadata)
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="0x2_coin_manager_immutable_metadata"></a>
+
+## Function `immutable_metadata`
+
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_immutable_metadata">immutable_metadata</a>&lt;T&gt;(manager: &<a href="coin_manager.md#0x2_coin_manager_CoinManager">coin_manager::CoinManager</a>&lt;T&gt;): &<a href="coin_manager.md#0x2_coin_manager_ImmutableCoinMetadata">coin_manager::ImmutableCoinMetadata</a>&lt;T&gt;
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_immutable_metadata">immutable_metadata</a>&lt;T&gt;(manager: &<a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a>&lt;T&gt;): &<a href="coin_manager.md#0x2_coin_manager_ImmutableCoinMetadata">ImmutableCoinMetadata</a>&lt;T&gt; {
+    <a href="../move-stdlib/option.md#0x1_option_borrow">option::borrow</a>(&manager.immutable_metadata)
 }
 </code></pre>
 
@@ -955,7 +1113,8 @@ Update the <code>name</code> of the coin in the <code>CoinMetadata</code>.
     manager: &<b>mut</b> <a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a>&lt;T&gt;,
     name: <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>
 ) {
-    <a href="coin.md#0x2_coin_update_name">coin::update_name</a>(&manager.treasury_cap, &<b>mut</b> manager.metadata, name)
+    <b>assert</b>!(manager.<a href="coin_manager.md#0x2_coin_manager_metadata_is_immutable">metadata_is_immutable</a>(), <a href="coin_manager.md#0x2_coin_manager_ENoMutableMetadata">ENoMutableMetadata</a>);
+    <a href="coin.md#0x2_coin_update_name">coin::update_name</a>(&manager.treasury_cap, <a href="../move-stdlib/option.md#0x1_option_borrow_mut">option::borrow_mut</a>(&<b>mut</b> manager.metadata), name)
 }
 </code></pre>
 
@@ -984,7 +1143,8 @@ Update the <code>symbol</code> of the coin in the <code>CoinMetadata</code>.
     manager: &<b>mut</b> <a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a>&lt;T&gt;,
     symbol: <a href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</a>
 ) {
-    <a href="coin.md#0x2_coin_update_symbol">coin::update_symbol</a>(&manager.treasury_cap, &<b>mut</b> manager.metadata, symbol)
+    <b>assert</b>!(manager.<a href="coin_manager.md#0x2_coin_manager_metadata_is_immutable">metadata_is_immutable</a>(), <a href="coin_manager.md#0x2_coin_manager_ENoMutableMetadata">ENoMutableMetadata</a>);
+    <a href="coin.md#0x2_coin_update_symbol">coin::update_symbol</a>(&manager.treasury_cap, <a href="../move-stdlib/option.md#0x1_option_borrow_mut">option::borrow_mut</a>(&<b>mut</b> manager.metadata), symbol)
 }
 </code></pre>
 
@@ -1013,7 +1173,8 @@ Update the <code>description</code> of the coin in the <code>CoinMetadata</code>
     manager: &<b>mut</b> <a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a>&lt;T&gt;,
     description: <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>
 ) {
-    <a href="coin.md#0x2_coin_update_description">coin::update_description</a>(&manager.treasury_cap, &<b>mut</b> manager.metadata, description)
+    <b>assert</b>!(manager.<a href="coin_manager.md#0x2_coin_manager_metadata_is_immutable">metadata_is_immutable</a>(), <a href="coin_manager.md#0x2_coin_manager_ENoMutableMetadata">ENoMutableMetadata</a>);
+    <a href="coin.md#0x2_coin_update_description">coin::update_description</a>(&manager.treasury_cap, <a href="../move-stdlib/option.md#0x1_option_borrow_mut">option::borrow_mut</a>(&<b>mut</b> manager.metadata), description)
 }
 </code></pre>
 
@@ -1042,7 +1203,8 @@ Update the <code><a href="url.md#0x2_url">url</a></code> of the coin in the <cod
     manager: &<b>mut</b> <a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a>&lt;T&gt;,
     <a href="url.md#0x2_url">url</a>: <a href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</a>
 ) {
-    <a href="coin.md#0x2_coin_update_icon_url">coin::update_icon_url</a>(&manager.treasury_cap, &<b>mut</b> manager.metadata, <a href="url.md#0x2_url">url</a>)
+    <b>assert</b>!(manager.<a href="coin_manager.md#0x2_coin_manager_metadata_is_immutable">metadata_is_immutable</a>(), <a href="coin_manager.md#0x2_coin_manager_ENoMutableMetadata">ENoMutableMetadata</a>);
+    <a href="coin.md#0x2_coin_update_icon_url">coin::update_icon_url</a>(&manager.treasury_cap, <a href="../move-stdlib/option.md#0x1_option_borrow_mut">option::borrow_mut</a>(&<b>mut</b> manager.metadata), <a href="url.md#0x2_url">url</a>)
 }
 </code></pre>
 
@@ -1066,7 +1228,11 @@ Update the <code><a href="url.md#0x2_url">url</a></code> of the coin in the <cod
 
 
 <pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_decimals">decimals</a>&lt;T&gt;(manager: &<a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a>&lt;T&gt;): u8 {
-    <a href="coin.md#0x2_coin_get_decimals">coin::get_decimals</a>(&manager.metadata)
+    <b>if</b>(<a href="../move-stdlib/option.md#0x1_option_is_some">option::is_some</a>(&manager.metadata)) {
+        <a href="coin.md#0x2_coin_get_decimals">coin::get_decimals</a>(<a href="../move-stdlib/option.md#0x1_option_borrow">option::borrow</a>(&manager.metadata))
+    } <b>else</b> {
+        <a href="../move-stdlib/option.md#0x1_option_borrow">option::borrow</a>(&manager.immutable_metadata).decimals
+    }
 }
 </code></pre>
 
@@ -1090,7 +1256,11 @@ Update the <code><a href="url.md#0x2_url">url</a></code> of the coin in the <cod
 
 
 <pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_name">name</a>&lt;T&gt;(manager: &<a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a>&lt;T&gt;): <a href="../move-stdlib/string.md#0x1_string_String">string::String</a> {
-    <a href="coin.md#0x2_coin_get_name">coin::get_name</a>(&manager.metadata)
+    <b>if</b>(<a href="../move-stdlib/option.md#0x1_option_is_some">option::is_some</a>(&manager.metadata)) {
+        <a href="coin.md#0x2_coin_get_name">coin::get_name</a>(<a href="../move-stdlib/option.md#0x1_option_borrow">option::borrow</a>(&manager.metadata))
+    } <b>else</b> {
+        <a href="../move-stdlib/option.md#0x1_option_borrow">option::borrow</a>(&manager.immutable_metadata).name
+    }
 }
 </code></pre>
 
@@ -1114,7 +1284,11 @@ Update the <code><a href="url.md#0x2_url">url</a></code> of the coin in the <cod
 
 
 <pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_symbol">symbol</a>&lt;T&gt;(manager: &<a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a>&lt;T&gt;): <a href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</a> {
-    <a href="coin.md#0x2_coin_get_symbol">coin::get_symbol</a>(&manager.metadata)
+    <b>if</b>(<a href="../move-stdlib/option.md#0x1_option_is_some">option::is_some</a>(&manager.metadata)) {
+        <a href="coin.md#0x2_coin_get_symbol">coin::get_symbol</a>(<a href="../move-stdlib/option.md#0x1_option_borrow">option::borrow</a>(&manager.metadata))
+    } <b>else</b> {
+        <a href="../move-stdlib/option.md#0x1_option_borrow">option::borrow</a>(&manager.immutable_metadata).symbol
+    }
 }
 </code></pre>
 
@@ -1138,7 +1312,11 @@ Update the <code><a href="url.md#0x2_url">url</a></code> of the coin in the <cod
 
 
 <pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_description">description</a>&lt;T&gt;(manager: &<a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a>&lt;T&gt;): <a href="../move-stdlib/string.md#0x1_string_String">string::String</a> {
-    <a href="coin.md#0x2_coin_get_description">coin::get_description</a>(&manager.metadata)
+    <b>if</b>(<a href="../move-stdlib/option.md#0x1_option_is_some">option::is_some</a>(&manager.metadata)) {
+        <a href="coin.md#0x2_coin_get_description">coin::get_description</a>(<a href="../move-stdlib/option.md#0x1_option_borrow">option::borrow</a>(&manager.metadata))
+    } <b>else</b> {
+        <a href="../move-stdlib/option.md#0x1_option_borrow">option::borrow</a>(&manager.immutable_metadata).description
+    }
 }
 </code></pre>
 
@@ -1162,7 +1340,11 @@ Update the <code><a href="url.md#0x2_url">url</a></code> of the coin in the <cod
 
 
 <pre><code><b>public</b> <b>fun</b> <a href="coin_manager.md#0x2_coin_manager_icon_url">icon_url</a>&lt;T&gt;(manager: &<a href="coin_manager.md#0x2_coin_manager_CoinManager">CoinManager</a>&lt;T&gt;): Option&lt;Url&gt; {
-    <a href="coin.md#0x2_coin_get_icon_url">coin::get_icon_url</a>(&manager.metadata)
+    <b>if</b>(<a href="../move-stdlib/option.md#0x1_option_is_some">option::is_some</a>(&manager.metadata)) {
+        <a href="coin.md#0x2_coin_get_icon_url">coin::get_icon_url</a>(<a href="../move-stdlib/option.md#0x1_option_borrow">option::borrow</a>(&manager.metadata))
+    } <b>else</b> {
+        <a href="../move-stdlib/option.md#0x1_option_borrow">option::borrow</a>(&manager.immutable_metadata).icon_url
+    }
 }
 </code></pre>
 

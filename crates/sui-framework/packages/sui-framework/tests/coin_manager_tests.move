@@ -5,7 +5,7 @@
 module sui::coin_manager_tests {
 
     use sui::coin_manager;
-    use sui::coin::{Self};
+    use sui::coin::{Self, CoinMetadata};
     use sui::test_scenario;
     use sui::url::{Self, Url};
     use std::ascii::{string};
@@ -275,6 +275,47 @@ module sui::coin_manager_tests {
         cmcap.renounce_treasury_ownership(&mut wrapper);
         metacap.renounce_metadata_ownership(&mut wrapper);
         transfer::public_share_object(wrapper);
+
+        scenario.end();
+    }
+    
+    #[test]
+    fun test_coin_manager_immutable() {
+        let sender = @0xA;
+        let mut scenario = test_scenario::begin(sender);
+        let witness = COIN_MANAGER_TESTS{};
+
+        // Create a `Coin`.
+        let (cap, meta) = coin::create_currency(
+            witness,
+            0, 
+            b"TEST",
+            b"TEST",
+            b"TEST",
+            option::none(),
+            scenario.ctx(),
+        );
+
+
+        transfer::public_freeze_object(meta);
+        test_scenario::next_tx(&mut scenario, sender);
+
+        let immeta = test_scenario::take_immutable<CoinMetadata<COIN_MANAGER_TESTS>>(&scenario);
+        let (cmcap, mut wrapper) = coin_manager::new_with_immutable_metadata(cap, &immeta, scenario.ctx());
+        
+        assert!(wrapper.metadata_is_immutable(), 0);
+        
+        assert!(wrapper.decimals() == 0, 0);
+
+        // We should start out with a Supply of 0.
+        assert!(wrapper.total_supply() == 0, 0);
+        
+        // Mint some coin!
+        cmcap.mint_and_transfer(&mut wrapper, 10, sender, scenario.ctx());
+
+        transfer::public_transfer(cmcap, scenario.ctx().sender());
+        transfer::public_share_object(wrapper);
+        test_scenario::return_immutable(immeta);
 
         scenario.end();
     }

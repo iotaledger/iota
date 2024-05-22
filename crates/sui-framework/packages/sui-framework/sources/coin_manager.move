@@ -29,14 +29,23 @@ module sui::coin_manager {
     /// The error returned if you try to edit nonexisting additional metadata
     const EAdditionalMetadataDoesNotExist: u64 = 3;
 
+    /// The error returned if you try to edit immutable metadata
+    const ENoMutableMetadata: u64 = 4;
 
     /// Holds all related objects to a Coin in a convenient shared function
     public struct CoinManager<phantom T> has key, store {
         id: UID,
+        /// The original TreasuryCap object as returned by `create_currency`
         treasury_cap: TreasuryCap<T>,
-        metadata: CoinMetadata<T>,
+        /// Metadata object, original one from the `coin` module, if available
+        metadata: Option<CoinMetadata<T>>,
+        /// Immutable Metadata object, only to be used as a last resort if the original metadata is frozen
+        immutable_metadata: Option<ImmutableCoinMetadata<T>>,
+        /// Optional maximum supply, if set you can't mint more as this number - can only be set once
         maximum_supply: Option<u64>,
+        /// Flag indicating if the supply is considered immutable (TreasuryCap is exchanged for this)
         supply_immutable: bool,
+        /// Flag indicating if the metadata is considered immutable (MetadataCap is exchanged for this)
         metadata_immutable: bool
     }
 
@@ -50,6 +59,23 @@ module sui::coin_manager {
         id: UID
     }
 
+    /// The immutable version of CoinMetadata, used in case of migrating from frozen objects
+    /// to a `CoinManager` holding the metadata.
+    public struct ImmutableCoinMetadata<phantom T> has store {
+        /// Number of decimal places the coin uses.
+        /// A coin with `value ` N and `decimals` D should be shown as N / 10^D
+        /// E.g., a coin with `value` 7002 and decimals 3 should be displayed as 7.002
+        /// This is metadata for display usage only.
+        decimals: u8,
+        /// Name for the token
+        name: string::String,
+        /// Symbol for the token
+        symbol: ascii::String,
+        /// Description of the token
+        description: string::String,
+        /// URL for the token logo
+        icon_url: Option<Url>
+    }
 
     /// Event triggered once `Coin` ownership is transfered to a new `CoinManager`
     public struct CoinManaged has copy, drop {
@@ -76,7 +102,8 @@ module sui::coin_manager {
         let manager = CoinManager {
             id: object::new(ctx),
             treasury_cap,
-            metadata,
+            metadata: option::some(metadata),
+            immutable_metadata: option::none(),
             maximum_supply: option::none(),
             supply_immutable: false,
             metadata_immutable: false
@@ -91,6 +118,44 @@ module sui::coin_manager {
                 id: object::new(ctx) 
             },
             CoinManagerMetadataCap<T> { 
+                id: object::new(ctx) 
+            },
+            manager
+        )
+    }
+
+    /// This function allows the same as `new` but under the assumption the Metadata can not be transfered
+    /// This would typically be the case with `Coin` instances where the metadata is already frozen.
+    public fun new_with_immutable_metadata<T> (
+        treasury_cap: TreasuryCap<T>,
+        metadata: &CoinMetadata<T>,
+        ctx: &mut TxContext,
+    ): (CoinManagerTreasuryCap<T>, CoinManager<T>) {
+
+        let metacopy = ImmutableCoinMetadata<T> {
+            decimals: metadata.get_decimals(),
+            name: metadata.get_name(),
+            symbol: metadata.get_symbol(),
+            description: metadata.get_description(),
+            icon_url: metadata.get_icon_url()
+        };
+
+        let manager = CoinManager {
+            id: object::new(ctx),
+            treasury_cap,
+            metadata: option::none(),
+            immutable_metadata: option::some(metacopy),
+            maximum_supply: option::none(),
+            supply_immutable: false,
+            metadata_immutable: true
+        };
+
+        event::emit(CoinManaged {
+            coin_name: type_name::into_string(type_name::get<T>())
+        });
+
+        (   
+            CoinManagerTreasuryCap<T> { 
                 id: object::new(ctx) 
             },
             manager
@@ -221,12 +286,17 @@ module sui::coin_manager {
     /// Convenience function allowing users to query if the ownership of the metadata management
     /// and thus the ability to change any of the metadata has been renounced.
     public fun metadata_is_immutable<T>(manager: &CoinManager<T>): bool {
-        manager.metadata_immutable
+        manager.metadata_immutable || option::is_some(&manager.immutable_metadata)
     }
 
     // Get a read-only version of the metadata, available for everyone
     public fun metadata<T>(manager: &CoinManager<T>): &CoinMetadata<T> {
-        &manager.metadata
+        option::borrow(&manager.metadata)
+    }
+    
+    // Get a read-only version of the read-only metadata, available for everyone
+    public fun immutable_metadata<T>(manager: &CoinManager<T>): &ImmutableCoinMetadata<T> {
+        option::borrow(&manager.immutable_metadata)
     }
 
     /// Get the total supply as a number
@@ -309,7 +379,8 @@ module sui::coin_manager {
         manager: &mut CoinManager<T>,
         name: string::String
     ) {
-        coin::update_name(&manager.treasury_cap, &mut manager.metadata, name)
+        assert!(manager.metadata_is_immutable(), ENoMutableMetadata);
+        coin::update_name(&manager.treasury_cap, option::borrow_mut(&mut manager.metadata), name)
     }
 
     /// Update the `symbol` of the coin in the `CoinMetadata`.
@@ -318,7 +389,8 @@ module sui::coin_manager {
         manager: &mut CoinManager<T>,
         symbol: ascii::String
     ) {
-        coin::update_symbol(&manager.treasury_cap, &mut manager.metadata, symbol)
+        assert!(manager.metadata_is_immutable(), ENoMutableMetadata);
+        coin::update_symbol(&manager.treasury_cap, option::borrow_mut(&mut manager.metadata), symbol)
     }
 
     /// Update the `description` of the coin in the `CoinMetadata`.
@@ -327,7 +399,8 @@ module sui::coin_manager {
         manager: &mut CoinManager<T>,
         description: string::String
     ) {
-        coin::update_description(&manager.treasury_cap, &mut manager.metadata, description)
+        assert!(manager.metadata_is_immutable(), ENoMutableMetadata);
+        coin::update_description(&manager.treasury_cap, option::borrow_mut(&mut manager.metadata), description)
     }
 
     /// Update the `url` of the coin in the `CoinMetadata`
@@ -336,28 +409,49 @@ module sui::coin_manager {
         manager: &mut CoinManager<T>,
         url: ascii::String
     ) {
-        coin::update_icon_url(&manager.treasury_cap, &mut manager.metadata, url)
+        assert!(manager.metadata_is_immutable(), ENoMutableMetadata);
+        coin::update_icon_url(&manager.treasury_cap, option::borrow_mut(&mut manager.metadata), url)
     }
     
     // === Convenience functions ===
 
     public fun decimals<T>(manager: &CoinManager<T>): u8 {
-        coin::get_decimals(&manager.metadata)
+        if(option::is_some(&manager.metadata)) {
+            coin::get_decimals(option::borrow(&manager.metadata))
+        } else {
+            option::borrow(&manager.immutable_metadata).decimals
+        }
     }
 
     public fun name<T>(manager: &CoinManager<T>): string::String {
-        coin::get_name(&manager.metadata)
+        if(option::is_some(&manager.metadata)) {
+            coin::get_name(option::borrow(&manager.metadata))
+        } else {
+            option::borrow(&manager.immutable_metadata).name
+        }
     }
 
     public fun symbol<T>(manager: &CoinManager<T>): ascii::String {
-        coin::get_symbol(&manager.metadata)
+        if(option::is_some(&manager.metadata)) {
+            coin::get_symbol(option::borrow(&manager.metadata))
+        } else {
+            option::borrow(&manager.immutable_metadata).symbol
+        }
     }
 
     public fun description<T>(manager: &CoinManager<T>): string::String {
-        coin::get_description(&manager.metadata)
+        if(option::is_some(&manager.metadata)) {
+            coin::get_description(option::borrow(&manager.metadata))
+        } else {
+            option::borrow(&manager.immutable_metadata).description
+        }
     }
 
     public fun icon_url<T>(manager: &CoinManager<T>): Option<Url> {
-        coin::get_icon_url(&manager.metadata)
+        if(option::is_some(&manager.metadata)) {
+            coin::get_icon_url(option::borrow(&manager.metadata))
+        } else {
+            option::borrow(&manager.immutable_metadata).icon_url
+        }
     }
 }
