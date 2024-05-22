@@ -33,7 +33,7 @@ export default function Home() {
       </div>
 
        {/* TODO: Go to the dashboard when the wallet is connected */}
-       <Link href={'/dashboard'}>
+       <Link href="/dashboard">
           <span>GO TO DASHBOARD</span>
         </Link>
 
