@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// A timelock implementation.
-module stardust::timelock {
+module timelock::timelock {
     /// Error code for when the expire timestamp of the lock is in the past.
     const EExpireEpochIsPast: u64 = 0;
 

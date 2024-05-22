@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module stardust::timelock_tests {
+module timelock::timelock_tests {
 
     use sui::balance;
     use sui::sui::SUI;
     use sui::test_scenario;
 
-    use stardust::timelock;
+    use timelock::timelock;
 
     #[test]
     fun test_lock_unlock_flow() {

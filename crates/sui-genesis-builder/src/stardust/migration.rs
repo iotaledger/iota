@@ -13,7 +13,7 @@ use sui_types::{
     move_package::{MovePackage, TypeOrigin},
     object::Object,
     transaction::{Argument, InputObjects, ObjectArg},
-    TypeTag,
+    TypeTag, TIMELOCK_PACKAGE_ID,
 };
 
 use anyhow::Result;
@@ -54,11 +54,12 @@ use crate::stardust::native_token::package_builder;
 use crate::stardust::native_token::package_data::NativeTokenPackageData;
 
 /// The dependencies of the generated packages for native tokens.
-pub const PACKAGE_DEPS: [ObjectID; 4] = [
+pub const PACKAGE_DEPS: [ObjectID; 5] = [
     MOVE_STDLIB_PACKAGE_ID,
     SUI_FRAMEWORK_PACKAGE_ID,
     SUI_SYSTEM_PACKAGE_ID,
     STARDUST_PACKAGE_ID,
+    TIMELOCK_PACKAGE_ID,
 ];
 
 /// We fix the protocol version used in the migration.

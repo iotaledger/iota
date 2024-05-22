@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{balance::Balance, base_types::ObjectID, id::UID, STARDUST_ADDRESS};
+use crate::{balance::Balance, base_types::ObjectID, id::UID, TIMELOCK_ADDRESS};
 use move_core_types::{
     //annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
@@ -12,7 +12,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[cfg(test)]
-#[path = "../unit_tests/stardust/timelock_tests.rs"]
+#[path = "../unit_tests/timelock/timelock_tests.rs"]
 mod timelock_tests;
 
 pub const TIMELOCK_MODULE_NAME: &IdentStr = ident_str!("timelock");
@@ -41,7 +41,7 @@ impl<T> TimeLock<T> {
     /// Get the TimeLock's `type`.
     pub fn type_(type_param: TypeTag) -> StructTag {
         StructTag {
-            address: STARDUST_ADDRESS,
+            address: TIMELOCK_ADDRESS,
             module: TIMELOCK_MODULE_NAME.to_owned(),
             name: TIMELOCK_STRUCT_NAME.to_owned(),
             type_params: vec![type_param],
@@ -81,7 +81,7 @@ where
 
 /// Is this other StructTag representing a TimeLock?
 pub fn is_timelock(other: &StructTag) -> bool {
-    other.address == STARDUST_ADDRESS
+    other.address == TIMELOCK_ADDRESS
         && other.module.as_ident_str() == TIMELOCK_MODULE_NAME
         && other.name.as_ident_str() == TIMELOCK_STRUCT_NAME
 }

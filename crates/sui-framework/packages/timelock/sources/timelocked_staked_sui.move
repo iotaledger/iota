@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module stardust::timelocked_staked_sui {
+module timelock::timelocked_staked_sui {
 
     use sui_system::staking_pool::StakedSui;
 

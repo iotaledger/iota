@@ -35,10 +35,10 @@ use sui_types::messages_checkpoint::{
     VerifiedCheckpoint,
 };
 use sui_types::object::{Object, ObjectRead, PastObjectRead};
-use sui_types::stardust::timelocked_staked_sui::TimelockedStakedSui;
 use sui_types::storage::{BackingPackageStore, ObjectStore, WriteKind};
 use sui_types::sui_serde::BigInt;
 use sui_types::sui_system_state::SuiSystemState;
+use sui_types::timelock::timelocked_staked_sui::TimelockedStakedSui;
 use sui_types::transaction::{Transaction, TransactionData, TransactionKind};
 use thiserror::Error;
 use tokio::task::JoinError;
