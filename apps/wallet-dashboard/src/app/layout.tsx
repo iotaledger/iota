@@ -21,6 +21,7 @@ export default function RootLayout({
 	children: React.ReactNode;
 }>) {
 	const [queryClient] = React.useState(() => new QueryClient());
+
 	const allNetworks = getAllNetworks();
 
 	return (
