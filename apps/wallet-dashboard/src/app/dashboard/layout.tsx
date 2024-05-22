@@ -1,16 +1,10 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-'use client'
 
-import { usePathname } from 'next/navigation';
 import React, { type PropsWithChildren } from 'react';
-import Link from 'next/link'
+import { RouteLink } from '../components';
 
 function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
-	const path = usePathname();
-
-    const isActive = (pathname: string) => path && (pathname === path || pathname.startsWith(path))
-
 	const routes: { title: string; path: string }[] = [
 		{ title: 'Home', path: '/dashboard/home' },
 		{ title: 'Assets', path: '/dashboard/assets' },
@@ -21,24 +15,12 @@ function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
 	];
 
     // TODO: check if the wallet is connected and if not redirect to the welcome screen
-
 	return (
 		<>
 			<section className="flex flex-row items-center justify-around mt-12">
                 {routes.map((route) => {
                     return (
-                        <Link
-                            href={route.path ?? ''}
-                            key={route.title}
-                        >
-                            <div
-                                className={`sidebar-item justify-between space-x-5 ${isActive(route.path) ? 'underline' : ''}`}
-                            >
-                                <div className="flex items-center justify-between space-x-5">
-                                    <span className="origin-left duration-300 flex-shrink-0">{route.title}</span>
-                                </div>
-                            </div>
-                        </Link>
+                        <RouteLink {...route} />
                     )
                 })}
 			</section>
