@@ -197,7 +197,6 @@ module stardust::timelocked_balance_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = timelocked_balance::EZeroValueSubBalance)]
     fun test_split_zero_value_from_timelocked_balances() {
         // Set up a test environment.
         let sender = @0xA;
@@ -211,6 +210,14 @@ module stardust::timelocked_balance_tests {
 
         // Split the timelock.
         let splitted = timelocked_balance::split(&mut original, 0, scenario.ctx());
+    
+        // Check the original timelock.
+        assert!(original.expiration_timestamp_ms() == 100, 1);
+        assert!(original.locked().value() == 10, 2);
+
+        // Check the splitted timelock.
+        assert!(splitted.expiration_timestamp_ms() == 100, 3);
+        assert!(splitted.locked().value() == 0, 4);
 
         // Cleanup.
         let (balance, _) = timelock::unpack(original);
@@ -223,7 +230,6 @@ module stardust::timelocked_balance_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = timelocked_balance::ENotEnoughToSplit)]
     fun test_split_same_value_from_timelocked_balances() {
         // Set up a test environment.
         let sender = @0xA;
@@ -238,6 +244,14 @@ module stardust::timelocked_balance_tests {
         // Split the timelock.
         let splitted = timelocked_balance::split(&mut original, 10, scenario.ctx());
 
+        // Check the original timelock.
+        assert!(original.expiration_timestamp_ms() == 100, 0);
+        assert!(original.locked().value() == 0, 1);
+
+        // Check the splitted timelock.
+        assert!(splitted.expiration_timestamp_ms() == 100, 2);
+        assert!(splitted.locked().value() == 10, 3);
+
         // Cleanup.
         let (balance, _) = timelock::unpack(original);
         balance::destroy_for_testing(balance);
@@ -249,7 +263,7 @@ module stardust::timelocked_balance_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = timelocked_balance::ENotEnoughToSplit)]
+    #[expected_failure(abort_code = balance::ENotEnough)]
     fun test_split_bigger_value_from_timelocked_balances() {
         // Set up a test environment.
         let sender = @0xA;
