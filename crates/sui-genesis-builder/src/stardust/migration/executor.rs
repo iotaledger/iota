@@ -41,28 +41,19 @@ use sui_types::{
     transaction::{
         CheckedInputObjects, Command, InputObjectKind, ObjectReadResult, ProgrammableTransaction,
     },
-    MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID, SUI_SYSTEM_PACKAGE_ID,
+    STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID,
 };
 
 use crate::{
     process_package,
     stardust::{
-        migration::verification::created_objects::CreatedObjects,
+        migration::{
+            create_migration_context, package_module_bytes,
+            verification::created_objects::CreatedObjects, PACKAGE_DEPS,
+        },
         types::{snapshot::OutputHeader, stardust_to_sui_address_owner, Alias},
     },
 };
-
-use super::{create_migration_context, package_module_bytes};
-
-/// The dependencies of the generated packages for native tokens.
-pub const PACKAGE_DEPS: [ObjectID; 4] = [
-    MOVE_STDLIB_PACKAGE_ID,
-    SUI_FRAMEWORK_PACKAGE_ID,
-    SUI_SYSTEM_PACKAGE_ID,
-    STARDUST_PACKAGE_ID,
-];
-
-const NATIVE_TOKEN_BAG_KEY_TYPE: &str = "0x01::ascii::String";
 
 /// Creates the objects that map to the stardust UTXO ledger.
 ///
@@ -71,7 +62,7 @@ pub(super) struct Executor {
     protocol_config: ProtocolConfig,
     tx_context: TxContext,
     /// Stores all the migration objects.
-    store: InMemoryStorage,
+    pub(super) store: InMemoryStorage,
     /// Caches the system packages and init objects. Useful for evicting
     /// them from the store before creating the snapshot.
     system_packages_and_objects: BTreeSet<ObjectID>,
@@ -79,7 +70,7 @@ pub(super) struct Executor {
     metrics: Arc<LimitsMetrics>,
     /// Map the stardust token id [`TokenId`] to the on-chain info of the
     /// published foundry objects.
-    native_tokens: HashMap<TokenId, FoundryLedgerData>,
+    pub(super) native_tokens: HashMap<TokenId, FoundryLedgerData>,
 }
 
 impl Executor {
@@ -153,7 +144,7 @@ impl Executor {
 
     /// Load input objects from the store to be used as checked
     /// input while executing a transaction
-    fn load_input_objects(
+    pub(crate) fn load_input_objects(
         &self,
         object_refs: impl IntoIterator<Item = ObjectRef> + 'static,
     ) -> impl Iterator<Item = ObjectReadResult> + '_ {
@@ -167,7 +158,7 @@ impl Executor {
 
     /// Load packages from the store to be used as checked
     /// input while executing a transaction
-    fn load_packages(
+    pub(crate) fn load_packages(
         &self,
         object_ids: impl IntoIterator<Item = ObjectID> + 'static,
     ) -> impl Iterator<Item = ObjectReadResult> + '_ {
@@ -183,7 +174,7 @@ impl Executor {
         CheckedInputObjects::new_for_genesis(self.load_packages(PACKAGE_DEPS).collect())
     }
 
-    fn execute_pt_unmetered(
+    pub(crate) fn execute_pt_unmetered(
         &mut self,
         input_objects: CheckedInputObjects,
         pt: ProgrammableTransaction,
@@ -349,7 +340,7 @@ impl Executor {
     }
 
     /// Create a [`Bag`] of balances of native tokens executing a programmable transaction block.
-    fn create_bag_with_pt(
+    pub(crate) fn create_bag_with_pt(
         &mut self,
         native_tokens: &NativeTokens,
     ) -> Result<(Bag, SequenceNumber, Vec<ObjectID>)> {
@@ -546,6 +537,8 @@ impl Executor {
 }
 
 mod pt {
+    use crate::stardust::migration::NATIVE_TOKEN_BAG_KEY_TYPE;
+
     use super::*;
 
     pub fn coin_balance_split(
@@ -604,7 +597,7 @@ mod pt {
 
 /// On-chain data about the objects created while
 /// publishing foundry packages
-struct FoundryLedgerData {
+pub(crate) struct FoundryLedgerData {
     minted_coin_id: ObjectID,
     coin_type_origin: TypeOrigin,
     package_id: ObjectID,
@@ -623,125 +616,5 @@ impl FoundryLedgerData {
             coin_type_origin: foundry_package.type_origin_table()[0].clone(),
             package_id: foundry_package.id(),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use iota_sdk::types::block::{
-        address::AliasAddress,
-        output::{
-            unlock_condition::ImmutableAliasAddressUnlockCondition, AliasId, FoundryOutputBuilder,
-            NativeToken, SimpleTokenScheme, UnlockCondition,
-        },
-    };
-    use sui_types::{
-        dynamic_field::{derive_dynamic_field_id, Field},
-        object::Owner,
-    };
-
-    use crate::stardust::native_token::{
-        package_builder,
-        package_data::{NativeTokenModuleData, NativeTokenPackageData},
-    };
-
-    use super::*;
-
-    #[test]
-    fn create_bag_with_pt() {
-        // Mock the foundry
-        let owner = AliasAddress::new(AliasId::new([0; AliasId::LENGTH]));
-        let supply = 1_000_000;
-        let token_scheme = SimpleTokenScheme::new(supply, 0, supply).unwrap();
-        let header = OutputHeader::new_testing(
-            rand::random(),
-            rand::random(),
-            rand::random(),
-            rand::random(),
-        );
-        let foundry = FoundryOutputBuilder::new_with_amount(1000, 1, token_scheme.into())
-            .with_unlock_conditions([UnlockCondition::from(
-                ImmutableAliasAddressUnlockCondition::new(owner),
-            )])
-            .finish_with_params(supply)
-            .unwrap();
-        let foundry_id = foundry.id();
-        let foundry_package_data = NativeTokenPackageData::new(
-            "wat",
-            NativeTokenModuleData::new(
-                foundry_id, "wat", "WAT", 0, "WAT", supply, supply, "wat", "wat", None, owner,
-            ),
-        );
-        let foundry_package = package_builder::build_and_compile(foundry_package_data).unwrap();
-
-        // Execution
-        let mut executor = Executor::new(ProtocolVersion::MAX).unwrap();
-        let object_count = executor.store.objects().len();
-        executor
-            .create_foundries([(&header, &foundry, foundry_package)])
-            .unwrap();
-        // Foundry package publication creates four objects
-        //
-        // * The package
-        // * Coin metadata
-        // * MaxSupplyPolicy
-        // * The total supply coin
-        assert_eq!(executor.store.objects().len() - object_count, 4);
-        assert!(executor.native_tokens.get(&foundry_id.into()).is_some());
-        let initial_supply_coin_object = executor
-            .store
-            .objects()
-            .values()
-            .find_map(|object| object.is_coin().then_some(object))
-            .expect("there should be only a single coin: the total supply of native tokens");
-        let coin_type_tag = initial_supply_coin_object.coin_type_maybe().unwrap();
-        let initial_supply_coin_data = initial_supply_coin_object.as_coin_maybe().unwrap();
-
-        // Mock the native token
-        let token_amount = 10_000;
-        let native_token = NativeToken::new(foundry_id.into(), token_amount).unwrap();
-
-        // Create the bag
-        let (bag, _, _) = executor
-            .create_bag_with_pt(&NativeTokens::from_vec(vec![native_token]).unwrap())
-            .unwrap();
-        assert!(executor.store.get_object(bag.id.object_id()).is_none());
-
-        // Verify the mutation of the foundry coin with the total supply
-        let mutated_supply_coin = executor
-            .store
-            .get_object(initial_supply_coin_data.id())
-            .unwrap()
-            .as_coin_maybe()
-            .unwrap();
-        assert_eq!(mutated_supply_coin.value(), supply - token_amount);
-
-        // Get the dynamic fields (df)
-        let tokens = executor
-            .store
-            .objects()
-            .values()
-            .filter_map(|object| object.is_child_object().then_some(object))
-            .collect::<Vec<_>>();
-        assert_eq!(tokens.len(), 1);
-        assert_eq!(
-            tokens[0].owner,
-            Owner::ObjectOwner((*bag.id.object_id()).into())
-        );
-        let token_as_df = tokens[0].to_rust::<Field<String, Balance>>().unwrap();
-        // Verify name
-        let expected_name = coin_type_tag.to_canonical_string(true);
-        assert_eq!(token_as_df.name, expected_name);
-        // Verify value
-        let expected_balance = Balance::new(token_amount);
-        assert_eq!(token_as_df.value, expected_balance);
-        // Verify df id
-        let expected_id = derive_dynamic_field_id(
-            *bag.id.object_id(),
-            &NATIVE_TOKEN_BAG_KEY_TYPE.parse().unwrap(),
-            &bcs::to_bytes(&expected_name).unwrap(),
-        )
-        .unwrap();
-        assert_eq!(*token_as_df.id.object_id(), expected_id);
     }
 }

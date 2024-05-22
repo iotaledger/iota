@@ -18,7 +18,7 @@ use sui_types::{
     object::{Object, OBJECT_START_VERSION},
     MOVE_STDLIB_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID, SUI_SYSTEM_PACKAGE_ID,
 };
-use sui_types::{DEEPBOOK_PACKAGE_ID, STARDUST_PACKAGE_ID};
+use sui_types::{DEEPBOOK_PACKAGE_ID, STARDUST_PACKAGE_ID, TIMELOCK_PACKAGE_ID};
 use tracing::error;
 
 /// Represents a system package in the framework, that's built from the source code inside
@@ -107,15 +107,22 @@ impl BuiltInFramework {
     // TODO: integrate to iter_system_packages when we make a new system-framework-snapshot
     // with the associated protocol bump:wq
     pub fn iter_stardust_packages() -> impl Iterator<Item = &'static SystemPackage> {
-        define_system_packages!([(
-            STARDUST_PACKAGE_ID,
-            "stardust",
-            [
-                MOVE_STDLIB_PACKAGE_ID,
-                SUI_FRAMEWORK_PACKAGE_ID,
-                SUI_SYSTEM_PACKAGE_ID
-            ]
-        )])
+        define_system_packages!([
+            (
+                STARDUST_PACKAGE_ID,
+                "stardust",
+                [MOVE_STDLIB_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID]
+            ),
+            (
+                TIMELOCK_PACKAGE_ID,
+                "timelock",
+                [
+                    MOVE_STDLIB_PACKAGE_ID,
+                    SUI_FRAMEWORK_PACKAGE_ID,
+                    SUI_SYSTEM_PACKAGE_ID
+                ]
+            )
+        ])
         .iter()
     }
 

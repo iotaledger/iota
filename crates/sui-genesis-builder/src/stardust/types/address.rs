@@ -14,13 +14,5 @@ pub fn stardust_to_sui_address(stardust_address: impl Into<Address>) -> anyhow::
 pub fn stardust_to_sui_address_owner(
     stardust_address: impl Into<Address>,
 ) -> anyhow::Result<Owner> {
-    let stardust_address = stardust_address.into();
-    match &stardust_address {
-        Address::Ed25519(_) => Ok(Owner::AddressOwner(stardust_to_sui_address(
-            stardust_address,
-        )?)),
-        Address::Alias(_) | Address::Nft(_) => Ok(Owner::ObjectOwner(stardust_to_sui_address(
-            stardust_address,
-        )?)),
-    }
+    stardust_to_sui_address(stardust_address.into()).map(|address| Owner::AddressOwner(address))
 }
