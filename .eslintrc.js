@@ -5,11 +5,11 @@ module.exports = {
 	plugins: ['@tanstack/query', 'unused-imports', 'prettier', 'header', 'require-extensions'],
 	extends: [
 		'eslint:recommended',
-		'react-app',
 		'plugin:@tanstack/eslint-plugin-query/recommended',
 		'prettier',
 		'plugin:prettier/recommended',
 		'plugin:import/typescript',
+		'plugin:@typescript-eslint/recommended',
 	],
 	settings: {
 		react: {
@@ -275,7 +275,7 @@ module.exports = {
 			},
 		},
 		{
-			files: ['/apps/apps-backend/**/*'],
+			files: ['apps/apps-backend/**/*'],
 			rules: {
 				'header/header': 'off',
 				'require-extensions/require-extensions': 'off',
@@ -290,6 +290,10 @@ module.exports = {
 				'@typescript-eslint/explicit-module-boundary-types': 'off',
 				'@typescript-eslint/no-explicit-any': 'off',
 			},
+		},
+		{
+			files: ['apps/wallet-dashboard/**/*'],
+			extends: "next/core-web-vitals"
 		},
 	],
 };
