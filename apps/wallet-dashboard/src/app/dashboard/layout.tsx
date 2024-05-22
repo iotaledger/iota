@@ -21,7 +21,7 @@ function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
 			<section className="flex flex-row items-center justify-around mt-12">
                 {routes.map((route) => {
                     return (
-                        <RouteLink {...route} />
+                        <RouteLink key={route.title} {...route} />
                     )
                 })}
 			</section>

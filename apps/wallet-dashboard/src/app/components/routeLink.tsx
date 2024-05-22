@@ -14,8 +14,7 @@ function RouteLink({ title, path }: IRouteLink): JSX.Element {
 
 	return (
         <Link
-            href={path ?? ''}
-            key={title}
+            href={path}
         >
             <div
                 className={`sidebar-item justify-between space-x-5 ${isActive ? 'underline' : ''}`}
