@@ -31,5 +31,5 @@ pub fn verify_output(
         // Treasury outputs aren't used since Stardust, so no need to verify anything here.
         Output::Treasury(_) => return Ok(()),
     }
-    .map_err(|e| anyhow::anyhow!("error validating output {}: {}", header.output_id(), e))
+    .map_err(|e| anyhow::anyhow!("error verifying output {}: {}", header.output_id(), e))
 }
