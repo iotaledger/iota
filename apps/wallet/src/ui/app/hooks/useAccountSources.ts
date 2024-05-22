@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type AccountSourceSerializedUI } from '_src/background/account-sources/AccountSource';
 import { useQuery } from '@tanstack/react-query';
 
@@ -10,7 +13,7 @@ export const accountSourcesQueryKey = ['background', 'client', 'account', 'sourc
 
 export function useAccountSources() {
 	const backgroundClient = useBackgroundClient();
-	return useQuery({
+	const res = useQuery({
 		queryKey: accountSourcesQueryKey,
 		queryFn: () => backgroundClient.getStoredEntities<AccountSourceSerializedUI>('accountSources'),
 		gcTime: 30 * 1000,
@@ -18,4 +21,6 @@ export function useAccountSources() {
 		refetchInterval: 30 * 1000,
 		meta: { skipPersistedCache: true },
 	});
+	console.log('useAccountSources', res);
+	return res;
 }

@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { createMessage, type Message } from '_src/shared/messaging/messages';
 import {
 	isMethodPayload,
@@ -19,10 +22,14 @@ import {
 } from './AccountSource';
 import { MnemonicAccountSource } from './MnemonicAccountSource';
 import { QredoAccountSource } from './QredoAccountSource';
+import { SeedAccountSource } from './SeedAccountSource';
 
 function toAccountSource(accountSource: AccountSourceSerialized) {
 	if (MnemonicAccountSource.isOfType(accountSource)) {
 		return new MnemonicAccountSource(accountSource.id);
+	}
+	if (SeedAccountSource.isOfType(accountSource)) {
+		return new SeedAccountSource(accountSource.id);
 	}
 	if (QredoAccountSource.isOfType(accountSource)) {
 		return new QredoAccountSource(accountSource.id);
@@ -53,17 +60,23 @@ export async function getAllSerializedUIAccountSources() {
 	);
 }
 
-async function createAccountSource({
-	type,
-	params: { password, entropy },
-}: MethodPayload<'createAccountSource'>['args']) {
+async function createAccountSource({ type, params }: MethodPayload<'createAccountSource'>['args']) {
 	switch (type) {
 		case 'mnemonic':
 			return (
 				await MnemonicAccountSource.save(
 					await MnemonicAccountSource.createNew({
-						password,
-						entropyInput: entropy ? toEntropy(entropy) : undefined,
+						password: params.password,
+						entropyInput: params.entropy ? toEntropy(params.entropy) : undefined,
+					}),
+				)
+			).toUISerialized();
+		case 'seed':
+			return (
+				await SeedAccountSource.save(
+					await SeedAccountSource.createNew({
+						password: params.password,
+						seed: params.seed,
 					}),
 				)
 			).toUISerialized();
