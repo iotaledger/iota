@@ -3,6 +3,7 @@
 
 import React, { type PropsWithChildren } from 'react';
 import { RouteLink } from '../components';
+import type { IRouteLink } from '../lib/interfaces';
 
 function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
 	const routes: { title: string; path: string }[] = [
