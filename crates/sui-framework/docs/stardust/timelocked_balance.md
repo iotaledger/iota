@@ -28,27 +28,7 @@ Utility functions for time-locked balance.
 For when trying to join two timelocks with different expiration time.
 
 
-<pre><code><b>const</b> <a href="timelocked_balance.md#0x107a_timelocked_balance_EDifferentExpirationTime">EDifferentExpirationTime</a>: u64 = 2;
-</code></pre>
-
-
-
-<a name="0x107a_timelocked_balance_ENotEnoughToSplit"></a>
-
-For when trying to split a timelocked balance with a value that is equal to or larger than the original locked value.
-
-
-<pre><code><b>const</b> <a href="timelocked_balance.md#0x107a_timelocked_balance_ENotEnoughToSplit">ENotEnoughToSplit</a>: u64 = 0;
-</code></pre>
-
-
-
-<a name="0x107a_timelocked_balance_EZeroValueSubBalance"></a>
-
-For when there is an attempt to extract a zero value from a time-locked balance.
-
-
-<pre><code><b>const</b> <a href="timelocked_balance.md#0x107a_timelocked_balance_EZeroValueSubBalance">EZeroValueSubBalance</a>: u64 = 1;
+<pre><code><b>const</b> <a href="timelocked_balance.md#0x107a_timelocked_balance_EDifferentExpirationTime">EDifferentExpirationTime</a>: u64 = 0;
 </code></pre>
 
 
@@ -138,10 +118,6 @@ Split a <code>TimeLock&lt;Balance&lt;T&gt;&gt;</code> and take a sub balance fro
 
 
 <pre><code><b>public</b> <b>fun</b> <a href="timelocked_balance.md#0x107a_timelocked_balance_split">split</a>&lt;T&gt;(self: &<b>mut</b> TimeLock&lt;Balance&lt;T&gt;&gt;, value: u64, ctx: &<b>mut</b> TxContext): TimeLock&lt;Balance&lt;T&gt;&gt; {
-    // Check the preconditions.
-    <b>assert</b>!(value &gt; 0, <a href="timelocked_balance.md#0x107a_timelocked_balance_EZeroValueSubBalance">EZeroValueSubBalance</a>);
-    <b>assert</b>!(self.locked().value() &gt; value, <a href="timelocked_balance.md#0x107a_timelocked_balance_ENotEnoughToSplit">ENotEnoughToSplit</a>);
-
     // Split the locked <a href="../sui-framework/balance.md#0x2_balance">balance</a>.
     <b>let</b> value = self.locked_mut().<a href="timelocked_balance.md#0x107a_timelocked_balance_split">split</a>(value);
 
