@@ -1,18 +1,25 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{anyhow, bail, ensure, Result};
-use iota_sdk::{types::block::output::BasicOutput, U256};
-use sui_types::{base_types::SuiAddress, in_memory_storage::InMemoryStorage};
+use anyhow::{anyhow, ensure, Result};
+use iota_sdk::types::block::output::BasicOutput;
+use sui_types::{balance::Balance, dynamic_field::Field, in_memory_storage::InMemoryStorage};
 
-use super::created_objects::CreatedObjects;
+use crate::stardust::migration::verification::{
+    created_objects::CreatedObjects,
+    util::{
+        verify_expiration_unlock_condition, verify_metadata_feature, verify_native_tokens,
+        verify_sender_feature, verify_storage_deposit_unlock_condition, verify_tag_feature,
+        verify_timelock_unlock_condition,
+    },
+};
 
 pub fn verify_basic_output(
     output: &BasicOutput,
     created_objects: &CreatedObjects,
     storage: &InMemoryStorage,
 ) -> Result<()> {
-    // If the output contains only an address unlock condition then no object should be created, only a coin.
+    // If the output has multiple unlock conditions, then a genesis object should have been created.
     if output.unlock_conditions().len() > 1 {
         let created_output = created_objects
             .output()
@@ -35,153 +42,64 @@ pub fn verify_basic_output(
         // Native Tokens
         ensure!(
             created_output.native_tokens.size == output.native_tokens().len() as u64,
-            "native tokens length mismatch: found {}, expected {}",
+            "native tokens bag length mismatch: found {}, expected {}",
             created_output.native_tokens.size,
             output.native_tokens().len()
         );
+        let created_native_token_fields = created_objects.native_tokens().and_then(|ids| {
+            ids.iter()
+                .map(|id| {
+                    let obj = storage
+                        .get_object(id)
+                        .ok_or_else(|| anyhow!("missing native token field for {id}"))?;
+                    obj.to_rust::<Field<String, Balance>>().ok_or_else(|| {
+                        anyhow!("expected a native token field, found {:?}", obj.type_())
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()
+        })?;
+        verify_native_tokens(output.native_tokens(), created_native_token_fields)?;
 
         // Storage Deposit Return Unlock Condition
-        if let Some(sdruc) = output.unlock_conditions().storage_deposit_return() {
-            let sui_return_address = sdruc.return_address().to_string().parse::<SuiAddress>()?;
-            if let Some(obj_sdruc) = created_output.storage_deposit_return {
-                ensure!(
-                    obj_sdruc.return_address == sui_return_address,
-                    "storage deposit return address mismatch: found {}, expected {}",
-                    obj_sdruc.return_address,
-                    sui_return_address
-                );
-                ensure!(
-                    obj_sdruc.return_amount == sdruc.amount(),
-                    "storage deposit return amount mismatch: found {}, expected {}",
-                    obj_sdruc.return_amount,
-                    sdruc.amount()
-                );
-            } else {
-                bail!("missing storage deposit return on object");
-            }
-        } else {
-            ensure!(
-                created_output.storage_deposit_return.is_none(),
-                "erroneous storage deposit return on object"
-            );
-        }
+        verify_storage_deposit_unlock_condition(
+            output.unlock_conditions().storage_deposit_return(),
+            created_output.storage_deposit_return.as_ref(),
+        )?;
 
         // Timelock Unlock Condition
-        if let Some(timelock) = output.unlock_conditions().timelock() {
-            if let Some(obj_timelock) = created_output.timelock {
-                ensure!(
-                    obj_timelock.unix_time == timelock.timestamp(),
-                    "timelock timestamp mismatch: found {}, expected {}",
-                    obj_timelock.unix_time,
-                    timelock.timestamp()
-                );
-            } else {
-                bail!("missing timelock on object");
-            }
-        } else {
-            ensure!(
-                created_output.timelock.is_none(),
-                "erroneous timelock on object"
-            );
-        }
+        verify_timelock_unlock_condition(
+            output.unlock_conditions().timelock(),
+            created_output.timelock.as_ref(),
+        )?;
 
         // Expiration Unlock Condition
-        if let Some(expiration) = output.unlock_conditions().expiration() {
-            if let Some(obj_expiration) = created_output.expiration {
-                let sui_address = output.address().to_string().parse::<SuiAddress>()?;
-                let sui_return_address = expiration
-                    .return_address()
-                    .to_string()
-                    .parse::<SuiAddress>()?;
-                ensure!(
-                    obj_expiration.owner == sui_address,
-                    "expiration owner mismatch: found {}, expected {}",
-                    obj_expiration.owner,
-                    sui_address
-                );
-                ensure!(
-                    obj_expiration.return_address == sui_return_address,
-                    "expiration return address mismatch: found {}, expected {}",
-                    obj_expiration.return_address,
-                    sui_return_address
-                );
-                ensure!(
-                    obj_expiration.unix_time == expiration.timestamp(),
-                    "expiration timestamp mismatch: found {}, expected {}",
-                    obj_expiration.unix_time,
-                    expiration.timestamp()
-                );
-            } else {
-                bail!("missing expiration on object");
-            }
-        } else {
-            ensure!(
-                created_output.expiration.is_none(),
-                "erroneous expiration on object"
-            );
-        }
+        verify_expiration_unlock_condition(
+            output.unlock_conditions().expiration(),
+            created_output.expiration.as_ref(),
+            output.address(),
+        )?;
 
         // Metadata Feature
-        if let Some(metadata) = output.features().metadata() {
-            if let Some(obj_metadata) = created_output.metadata {
-                ensure!(
-                    obj_metadata.as_slice() == metadata.data(),
-                    "metadata mismatch: found {:x?}, expected {:x?}",
-                    obj_metadata.as_slice(),
-                    metadata.data()
-                );
-            } else {
-                bail!("missing metadata on object");
-            }
-        } else {
-            ensure!(
-                created_output.metadata.is_none(),
-                "erroneous metadata on object"
-            );
-        }
+        verify_metadata_feature(
+            output.features().metadata(),
+            created_output.metadata.as_ref(),
+        )?;
 
         // Tag Feature
-        if let Some(tag) = output.features().tag() {
-            if let Some(obj_tag) = created_output.tag {
-                ensure!(
-                    obj_tag.as_slice() == tag.tag(),
-                    "tag mismatch: found {:x?}, expected {:x?}",
-                    obj_tag.as_slice(),
-                    tag.tag()
-                );
-            } else {
-                bail!("missing tag on object");
-            }
-        } else {
-            ensure!(created_output.tag.is_none(), "erroneous tag on object");
-        }
+        verify_tag_feature(output.features().tag(), created_output.tag.as_ref())?;
 
         // Sender Feature
-        if let Some(sender) = output.features().sender() {
-            let sui_sender_address = sender.address().to_string().parse::<SuiAddress>()?;
-            if let Some(obj_sender) = created_output.sender {
-                ensure!(
-                    obj_sender == sui_sender_address,
-                    "sender mismatch: found {}, expected {}",
-                    obj_sender,
-                    sui_sender_address
-                );
-            } else {
-                bail!("missing sender on object");
-            }
-        } else {
-            ensure!(
-                created_output.sender.is_none(),
-                "erroneous sender on object"
-            );
-        }
+        verify_sender_feature(output.features().sender(), created_output.sender)?;
+
+    // Otherwise the output contains only an address unlock condition and only a coin
+    // and possibly native tokens should have been created.
     } else {
         ensure!(
             created_objects.output().is_err(),
             "unexpected output object created for simple deposit"
         );
 
-        // Validate coin value.
+        // Coin value.
         let created_coin = created_objects
             .coin()
             .and_then(|id| {
@@ -197,51 +115,21 @@ pub fn verify_basic_output(
             created_coin.value(),
             output.amount()
         );
-    }
 
-    // Validate native token coins
-    if !output.native_tokens().is_empty() {
-        let mut created_native_token_coins =
-            created_objects.native_token_coins().and_then(|ids| {
-                ids.iter()
-                    .map(|id| {
-                        storage
-                            .get_object(id)
-                            .ok_or_else(|| anyhow!("missing native token coin"))?
-                            .as_coin_maybe()
-                            .ok_or_else(|| anyhow!("expected a native token coin"))
+        // Native Tokens
+        let created_native_token_coins = created_objects.native_tokens().and_then(|ids| {
+            ids.iter()
+                .map(|id| {
+                    let obj = storage
+                        .get_object(id)
+                        .ok_or_else(|| anyhow!("missing native token coin for {id}"))?;
+                    obj.as_coin_maybe().ok_or_else(|| {
+                        anyhow!("expected a native token coin, found {:?}", obj.type_())
                     })
-                    .collect::<Result<Vec<_>, _>>()
-            })?;
-        ensure!(
-            output.native_tokens().len() == created_native_token_coins.len(),
-            "native token count mismatch: found {}, expected: {}",
-            output.native_tokens().len(),
-            created_native_token_coins.len(),
-        );
-
-        let token_max = U256::from(u64::MAX);
-        for native_token in output.native_tokens().iter() {
-            // The token amounts are capped at u64 max
-            let reduced_amount = native_token.amount().min(token_max).as_u64();
-            if let Some(idx) = created_native_token_coins
-                .iter()
-                .position(|coin| coin.value() == reduced_amount)
-            {
-                // Remove the coin so we don't find it again.
-                created_native_token_coins.remove(idx);
-            } else {
-                bail!(
-                    "native token coin was not created for token: {}",
-                    native_token.token_id()
-                );
-            }
-        }
-    } else {
-        ensure!(
-            created_objects.native_token_coins().is_err(),
-            "unexpected coins created for output without native tokens"
-        );
+                })
+                .collect::<Result<Vec<_>, _>>()
+        })?;
+        verify_native_tokens(output.native_tokens(), created_native_token_coins)?;
     }
 
     ensure!(

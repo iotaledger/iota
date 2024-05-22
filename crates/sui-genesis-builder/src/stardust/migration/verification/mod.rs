@@ -15,6 +15,7 @@ pub mod basic;
 pub mod created_objects;
 pub mod foundry;
 pub mod nft;
+mod util;
 
 pub fn verify_output(
     header: &OutputHeader,

@@ -10,7 +10,7 @@ pub struct CreatedObjects {
     output: Option<ObjectID>,
     coin: Option<ObjectID>,
     package: Option<ObjectID>,
-    native_token_coins: Option<Vec<ObjectID>>,
+    native_tokens: Option<Vec<ObjectID>>,
 }
 
 impl CreatedObjects {
@@ -56,17 +56,17 @@ impl CreatedObjects {
         Ok(())
     }
 
-    pub fn native_token_coins(&self) -> Result<&[ObjectID]> {
-        self.native_token_coins
+    pub fn native_tokens(&self) -> Result<&[ObjectID]> {
+        self.native_tokens
             .as_deref()
-            .ok_or_else(|| anyhow!("no created native token coin objects"))
+            .ok_or_else(|| anyhow!("no created native token objects"))
     }
 
-    pub(crate) fn set_native_token_coins(&mut self, ids: Vec<ObjectID>) -> Result<()> {
-        if let Some(id) = &self.native_token_coins {
-            bail!("native token coins already set: {id:?}")
+    pub(crate) fn set_native_tokens(&mut self, ids: Vec<ObjectID>) -> Result<()> {
+        if let Some(id) = &self.native_tokens {
+            bail!("native tokens already set: {id:?}")
         }
-        self.native_token_coins.replace(ids);
+        self.native_tokens.replace(ids);
         Ok(())
     }
 }

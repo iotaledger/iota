@@ -23,6 +23,7 @@ use sui_types::{
     balance::Balance,
     base_types::{ObjectRef, SequenceNumber},
     collection_types::Bag,
+    dynamic_field::Field,
     id::UID,
     move_package::{MovePackage, TypeOrigin},
     object::Object,
@@ -297,8 +298,8 @@ impl Executor {
         let move_alias_object_ref = move_alias_object.compute_object_reference();
         self.store.insert_object(move_alias_object);
 
-        let (bag, version, coins) = self.create_bag_with_pt(alias.native_tokens())?;
-        created_objects.set_native_token_coins(coins)?;
+        let (bag, version, fields) = self.create_bag_with_pt(alias.native_tokens())?;
+        created_objects.set_native_tokens(fields)?;
         let move_alias_output = crate::stardust::types::AliasOutput::try_from_stardust(
             self.tx_context.fresh_id(),
             &alias,
@@ -412,14 +413,19 @@ impl Executor {
         } = self.execute_pt_unmetered(checked_input_objects, pt)?;
         let bag_object = written
             .iter()
-            .filter(|(id, _)| !input_objects.contains_key(id))
             // We filter out the dynamic-field objects that are owned by the bag
             // and we should be left with only the bag
-            .find_map(|(_, object)| (!object.is_child_object()).then_some(object))
-            .cloned()
-            .expect("the bag should have been created");
+            .find_map(|(id, object)| {
+                (!input_objects.contains_key(id) && !object.is_child_object()).then_some(id)
+            })
+            .copied()
+            .and_then(|id| written.remove(&id))
+            .ok_or_else(|| anyhow::anyhow!("the bag should have been created"))?;
         written.remove(&bag_object.id());
-        let coin_ids = written.keys().copied().collect();
+        let field_ids = written
+            .iter()
+            .filter_map(|(id, object)| object.to_rust::<Field<String, Balance>>().map(|_| *id))
+            .collect();
         // Save the modified coins
         self.store.finish(written);
         // Return bag
@@ -431,7 +437,7 @@ impl Executor {
                 .contents(),
         )
         .expect("this should be a valid Bag Move object");
-        Ok((bag, bag_object.version(), coin_ids))
+        Ok((bag, bag_object.version(), field_ids))
     }
 
     /// Create [`Coin`] objects representing native tokens in the ledger.
@@ -503,7 +509,7 @@ impl Executor {
         let object = if data.has_empty_bag() {
             if !basic_output.native_tokens().is_empty() {
                 let coins = self.create_native_token_coins(basic_output.native_tokens(), owner)?;
-                created_objects.set_native_token_coins(coins)?;
+                created_objects.set_native_tokens(coins)?;
             }
             // Overwrite the default 0 UID of `Bag::default()`, since we won't be creating a new bag in this code path.
             data.native_tokens.id = UID::new(self.tx_context.fresh_id());
@@ -517,12 +523,12 @@ impl Executor {
             coin
         } else {
             if !basic_output.native_tokens().is_empty() {
-                let coins;
+                let fields;
                 // The bag will be wrapped into the basic output object, so
                 // by equating their versions we emulate a ptb.
-                (data.native_tokens, version, coins) =
+                (data.native_tokens, version, fields) =
                     self.create_bag_with_pt(basic_output.native_tokens())?;
-                created_objects.set_native_token_coins(coins)?;
+                created_objects.set_native_tokens(fields)?;
             }
             let object =
                 data.to_genesis_object(owner, &self.protocol_config, &self.tx_context, version)?;
