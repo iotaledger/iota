@@ -742,20 +742,20 @@ mod tests {
         migration::{Executor, Migration, MIGRATION_PROTOCOL_VERSION},
         types::{snapshot::OutputHeader, Alias, AliasOutput, ALIAS_OUTPUT_MODULE_NAME},
     };
-    use iota_sdk::types::block::{
-        address::AliasAddress,
-        address::{Address, Ed25519Address},
-        output::{
-            feature::{IssuerFeature, MetadataFeature, SenderFeature},
-            unlock_condition::{
-                GovernorAddressUnlockCondition, StateControllerAddressUnlockCondition,
+    use iota_sdk::{
+        types::block::{
+            address::{Address, AliasAddress, Ed25519Address},
+            output::{
+                feature::{Irc30Metadata, IssuerFeature, MetadataFeature, SenderFeature},
+                unlock_condition::{
+                    GovernorAddressUnlockCondition, ImmutableAliasAddressUnlockCondition,
+                    StateControllerAddressUnlockCondition,
+                },
+                AliasId, AliasOutput as StardustAlias, AliasOutputBuilder, Feature,
+                FoundryOutputBuilder, NativeToken, SimpleTokenScheme, TokenScheme, UnlockCondition,
             },
-            AliasOutput as StardustAlias, AliasOutputBuilder, Feature,
         },
-        output::{
-            unlock_condition::ImmutableAliasAddressUnlockCondition, AliasId, FoundryOutputBuilder,
-            NativeToken, SimpleTokenScheme, UnlockCondition,
-        },
+        U256,
     };
     use sui_types::object::Object;
     use sui_types::{
@@ -787,8 +787,7 @@ mod tests {
         )
     }
 
-    fn run_migration(outputs: impl IntoIterator<Item = (OutputHeader, Output)>) -> Vec<Object> {
-        let mut snapshot_buffer = Vec::new();
+    fn run_migration(outputs: impl IntoIterator<Item = (OutputHeader, Output)>) -> Executor {
         let mut foundries = Vec::new();
         let mut outputs_without_foundries = Vec::new();
 
@@ -803,16 +802,18 @@ mod tests {
             }
         }
 
-        Migration::new()
-            .unwrap()
-            .run(
-                foundries.into_iter(),
-                outputs_without_foundries.into_iter(),
-                &mut snapshot_buffer,
-            )
+        let mut migration = Migration::new().unwrap();
+
+        migration.migrate_foundries(foundries.into_iter()).unwrap();
+        migration
+            .migrate_outputs(outputs_without_foundries.into_iter())
             .unwrap();
 
-        bcs::from_bytes(&snapshot_buffer).unwrap()
+        // Make the executor in the migration struct accessible.
+        let mut executor = Executor::new(ProtocolVersion::new(MIGRATION_PROTOCOL_VERSION)).unwrap();
+        std::mem::swap(&mut migration.executor, &mut executor);
+
+        executor
     }
 
     fn migrate_alias(
@@ -946,16 +947,18 @@ mod tests {
                 .finish()
                 .unwrap();
 
-        let migrated_objects = run_migration([
+        let mut executor = run_migration([
             (random_output_header(), stardust_alias1.into()),
             (random_output_header(), stardust_alias2.into()),
         ]);
 
         // Find the corresponding objects to the migrated aliases, uniquely identified by their amounts.
         // Should be adapted to use the tags from issue 239 to make this much easier.
-        let alias_output1_id = migrated_objects
+        let alias_output1_id = executor
+            .store
+            .objects()
             .iter()
-            .find(|obj| {
+            .find(|(_, obj)| {
                 obj.struct_tag()
                     .map(|tag| tag == AliasOutput::tag())
                     .unwrap_or(false)
@@ -966,11 +969,14 @@ mod tests {
                         == alias1_amount
             })
             .expect("alias1 should exist")
+            .1
             .id();
 
-        let alias_output2_id = migrated_objects
+        let alias_output2_id = executor
+            .store
+            .objects()
             .iter()
-            .find(|obj| {
+            .find(|(_, obj)| {
                 obj.struct_tag()
                     .map(|tag| tag == AliasOutput::tag())
                     .unwrap_or(false)
@@ -981,12 +987,8 @@ mod tests {
                         == alias2_amount
             })
             .expect("alias2 should exist")
+            .1
             .id();
-
-        let mut executor = Executor::new(MIGRATION_PROTOCOL_VERSION.into()).unwrap();
-        for object in migrated_objects {
-            executor.store.insert_object(object);
-        }
 
         let alias_output1_object_ref = executor
             .store
@@ -1183,5 +1185,165 @@ mod tests {
         )
         .unwrap();
         assert_eq!(*token_as_df.id.object_id(), expected_id);
+    }
+
+    pub fn create_foundry_entry(
+        iota_amount: u64,
+        token_scheme: SimpleTokenScheme,
+        irc_30_metadata: Irc30Metadata,
+        alias_id: AliasId,
+    ) -> (OutputHeader, FoundryOutput) {
+        let builder = FoundryOutputBuilder::new_with_amount(
+            iota_amount,
+            1,
+            TokenScheme::Simple(token_scheme),
+        )
+        .add_unlock_condition(ImmutableAliasAddressUnlockCondition::new(
+            AliasAddress::new(alias_id),
+        ))
+        .add_feature(Feature::Metadata(
+            MetadataFeature::new(irc_30_metadata).unwrap(),
+        ));
+        let foundry_output = builder.finish().unwrap();
+
+        (random_output_header(), foundry_output)
+    }
+
+    /// TODO
+    #[test]
+    fn test_alias_migration_with_native_tokens() {
+        let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+
+        let (foundry_header, foundry_output) = create_foundry_entry(
+            0,
+            SimpleTokenScheme::new(U256::from(100_000), U256::from(0), U256::from(100_000_000))
+                .unwrap(),
+            Irc30Metadata::new("Bullcoin", "Bull", 0),
+            AliasId::null(),
+        );
+        let native_token_id: TokenId = foundry_output.id().into();
+
+        let alias1_amount = 1_000_000;
+        let stardust_alias1 =
+            AliasOutputBuilder::new_with_amount(alias1_amount, AliasId::new(rand::random()))
+                .add_unlock_condition(StateControllerAddressUnlockCondition::new(random_address))
+                .add_unlock_condition(GovernorAddressUnlockCondition::new(random_address))
+                .add_native_token(NativeToken::new(native_token_id, 100).unwrap())
+                .finish()
+                .unwrap();
+
+        let mut executor = run_migration([
+            (random_output_header(), stardust_alias1.into()),
+            (foundry_header, foundry_output.into()),
+        ]);
+
+        // Find the corresponding objects to the migrated aliases, uniquely identified by their amounts.
+        // Should be adapted to use the tags from issue 239 to make this much easier.
+        let alias_output1_id = executor
+            .store
+            .objects()
+            .iter()
+            .find(|(_, obj)| {
+                obj.struct_tag()
+                    .map(|tag| tag == AliasOutput::tag())
+                    .unwrap_or(false)
+            })
+            .expect("alias1 should exist")
+            .1
+            .id();
+
+        let alias_output1_object_ref = executor
+            .store
+            .get_object(&alias_output1_id)
+            .unwrap()
+            .compute_object_reference();
+
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            let alias1_arg = builder
+                .obj(ObjectArg::ImmOrOwnedObject(alias_output1_object_ref))
+                .unwrap();
+
+            let extracted_assets = builder.programmable_move_call(
+                STARDUST_PACKAGE_ID,
+                ALIAS_OUTPUT_MODULE_NAME.into(),
+                ident_str!("extract_assets").into(),
+                vec![],
+                vec![alias1_arg],
+            );
+
+            let Argument::Result(result_idx) = extracted_assets else {
+                panic!("expected Argument::Result");
+            };
+            let balance_arg = Argument::NestedResult(result_idx, 0);
+            let bag_arg = Argument::NestedResult(result_idx, 1);
+            let alias1_arg = Argument::NestedResult(result_idx, 2);
+
+            let coin_arg = builder.programmable_move_call(
+                SUI_FRAMEWORK_PACKAGE_ID,
+                ident_str!("coin").into(),
+                ident_str!("from_balance").into(),
+                vec![
+                    TypeTag::from_str(&format!("{}::sui::SUI", SUI_FRAMEWORK_PACKAGE_ID)).unwrap(),
+                ],
+                vec![balance_arg],
+            );
+
+            builder.transfer_arg(SuiAddress::default(), coin_arg);
+            builder.transfer_arg(SuiAddress::default(), alias1_arg);
+
+            // Recreate the key under which the tokens are stored in the bag.
+            let foundry_ledger_data = executor.native_tokens.get(&native_token_id.into()).unwrap();
+            let token_type = format!(
+                "{}::{}::{}",
+                foundry_ledger_data.coin_type_origin.package,
+                foundry_ledger_data.coin_type_origin.module_name,
+                foundry_ledger_data.coin_type_origin.struct_name
+            );
+            let token_type_tag = token_type.parse::<TypeTag>().unwrap();
+
+            let token_type_arg = builder.pure(token_type.clone()).unwrap();
+            let balance_arg = builder.programmable_move_call(
+                SUI_FRAMEWORK_PACKAGE_ID,
+                ident_str!("bag").into(),
+                ident_str!("remove").into(),
+                vec![
+                    NATIVE_TOKEN_BAG_KEY_TYPE
+                        .parse()
+                        .expect("should be a valid struct tag"),
+                    Balance::type_(token_type_tag.clone()).into(),
+                ],
+                vec![bag_arg, token_type_arg],
+            );
+
+            let coin_arg = builder.programmable_move_call(
+                SUI_FRAMEWORK_PACKAGE_ID,
+                ident_str!("coin").into(),
+                ident_str!("from_balance").into(),
+                vec![token_type_tag],
+                vec![balance_arg],
+            );
+
+            // Destroying the bag only works if it's empty, hence asserting that it is in fact empty.
+            builder.programmable_move_call(
+                SUI_FRAMEWORK_PACKAGE_ID,
+                ident_str!("bag").into(),
+                ident_str!("destroy_empty").into(),
+                vec![],
+                vec![bag_arg],
+            );
+
+            builder.transfer_arg(SuiAddress::default(), coin_arg);
+
+            builder.finish()
+        };
+
+        let input_objects = CheckedInputObjects::new_for_genesis(
+            executor
+                .load_input_objects([alias_output1_object_ref])
+                .chain(executor.load_packages(PACKAGE_DEPS))
+                .collect(),
+        );
+        executor.execute_pt_unmetered(input_objects, pt).unwrap();
     }
 }
