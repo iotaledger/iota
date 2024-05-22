@@ -11,6 +11,7 @@ export const walletMutationKeys = {
 	signPersonalMessage: formMutationKeyFn('sign-personal-message'),
 	signTransactionBlock: formMutationKeyFn('sign-transaction-block'),
 	signAndExecuteTransactionBlock: formMutationKeyFn('sign-and-execute-transaction-block'),
+	deriveAddress: formMutationKeyFn('derive-address'),
 	switchAccount: formMutationKeyFn('switch-account'),
 };
 

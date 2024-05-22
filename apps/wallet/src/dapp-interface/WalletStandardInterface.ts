@@ -15,6 +15,8 @@ import {
 	type HasPermissionsResponse,
 } from '_payloads/permissions';
 import type {
+	DeriveAddressRequest,
+	DeriveAddressResponse,
 	ExecuteTransactionRequest,
 	ExecuteTransactionResponse,
 	SignTransactionRequest,
@@ -33,6 +35,7 @@ import { fromB64, toB64 } from '@mysten/sui.js/utils';
 import {
 	ReadonlyWalletAccount,
 	SUI_CHAINS,
+	SuiDeriveAddressMethod,
 	type StandardConnectFeature,
 	type StandardConnectMethod,
 	type StandardEventsFeature,
@@ -131,6 +134,10 @@ export class SuiWallet implements Wallet {
 			'sui:signPersonalMessage': {
 				version: '1.0.0',
 				signPersonalMessage: this.#signPersonalMessage,
+			},
+			'sui:deriveAddress': {
+				version: '1.0.0',
+				deriveAddress: this.#deriveAddress,
 			},
 			'qredo:connect': {
 				version: '0.0.1',
@@ -288,6 +295,20 @@ export class SuiWallet implements Wallet {
 			},
 		);
 	};
+
+	#deriveAddress: SuiDeriveAddressMethod = async ({ derivationPathIndex }) => {
+		return mapToPromise(
+			this.#send<DeriveAddressRequest, DeriveAddressResponse>({
+				type: 'derive-address-request',
+				derivationPathIndex,
+			}),
+			(response) => {
+				return {
+					address: response.address
+				};
+			},
+		);
+	}
 
 	#signPersonalMessage: SuiSignPersonalMessageMethod = async ({ message, account }) => {
 		return mapToPromise(

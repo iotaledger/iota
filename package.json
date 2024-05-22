@@ -10,6 +10,7 @@
 		"wallet": "turbo --filter ./apps/wallet --filter apps-backend",
 		"wallet-dashboard": "turbo --filter ./apps/wallet-dashboard",
 		"sdk": "turbo --filter ./sdk/typescript",
+		"dapp-kit": "turbo --filter ./sdk/dapp-kit",
 		"bcs": "turbo --filter ./sdk/bcs",
 		"changeset-version": "pnpm changeset version && pnpm --filter @mysten/sui.js codegen:version",
 		"prettier:check": "prettier -c --ignore-unknown .",

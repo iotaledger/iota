@@ -8,6 +8,7 @@ import type {
 	StandardConnectMethod,
 	StandardEventsFeature,
 	StandardEventsOnMethod,
+	SuiDeriveAddressMethod,
 	SuiFeatures,
 	SuiSignAndExecuteTransactionBlockMethod,
 	SuiSignPersonalMessageMethod,
@@ -100,6 +101,10 @@ function registerUnsafeBurnerWallet(suiClient: SuiClient) {
 					version: '1.0.0',
 					signAndExecuteTransactionBlock: this.#signAndExecuteTransactionBlock,
 				},
+				'sui:deriveAddress': {
+					version: '1.0.0',
+					deriveAddress: this.#deriveAddress,
+				},
 			};
 		}
 
@@ -138,6 +143,10 @@ function registerUnsafeBurnerWallet(suiClient: SuiClient) {
 				requestType: transactionInput.requestType,
 			});
 		};
+
+		#deriveAddress: SuiDeriveAddressMethod = async (_a) => {
+			throw new Error("Not implemented")
+		}
 	}
 
 	return walletsApi.register(new UnsafeBurnerWallet());

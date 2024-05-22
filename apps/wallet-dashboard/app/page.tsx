@@ -2,11 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 'use client';
 
-import { ConnectButton, useCurrentAccount, useCurrentWallet } from '@mysten/dapp-kit';
+import { ConnectButton, useCurrentAccount, useCurrentWallet, useDeriveAddress } from '@mysten/dapp-kit';
 
 export default function Home() {
 	const { connectionStatus } = useCurrentWallet();
 	const account = useCurrentAccount();
+	const derive = useDeriveAddress();
+
+	console.log(derive)
+
+	
 
 	return (
 		<main className="flex min-h-screen flex-col items-center space-y-8 p-24">

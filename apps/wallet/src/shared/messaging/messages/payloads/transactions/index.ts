@@ -3,3 +3,5 @@
 
 export * from './ExecuteTransactionRequest';
 export * from './ExecuteTransactionResponse';
+export * from './DeriveAddressRequest';
+export * from './DeriveAddressResponse';

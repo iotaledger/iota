@@ -21,6 +21,8 @@ import {
 	isSignTransactionRequest,
 	type ExecuteTransactionResponse,
 	type SignTransactionResponse,
+	isDeriveAddressRequest,
+	DeriveAddressResponse,
 } from '_payloads/transactions';
 import Permissions from '_src/background/Permissions';
 import Transactions from '_src/background/Transactions';
@@ -38,6 +40,9 @@ import { getAccountsStatusData } from '../accounts';
 import NetworkEnv from '../NetworkEnv';
 import { requestUserApproval } from '../qredo';
 import { Connection } from './Connection';
+import { getAccountSources } from '../account-sources';
+import { MnemonicAccount } from '../accounts/MnemonicAccount';
+import { MnemonicAccountSource } from '../account-sources/MnemonicAccountSource';
 
 export class ContentScriptConnection extends Connection {
 	public static readonly CHANNEL: PortChannelName = 'sui_content<->background';
@@ -54,6 +59,7 @@ export class ContentScriptConnection extends Connection {
 
 	protected async handleMessage(msg: Message) {
 		const { payload } = msg;
+		console.log(msg)
 		try {
 			if (isGetAccount(payload)) {
 				const { accounts } = await this.ensurePermissions(['viewAccount']);
@@ -151,6 +157,35 @@ export class ContentScriptConnection extends Connection {
 					throw new Error('This feature is not implemented yet.');
 				}
 				await requestUserApproval(payload.args, this, msg);
+			} else if (isDeriveAddressRequest(payload)) {
+				if (!payload.derivationPathIndex) {
+					throw new Error('Missing derivationPathIndex');
+				}
+				
+				// TODO: PERMISSIONS
+
+				// await this.ensurePermissions(
+				// 	['viewAccount'], 
+				// );
+					
+				// TODO: Think of another way to get access to the keypair
+				const sources = await getAccountSources();
+				const mnemonicAccount = sources[0] as MnemonicAccountSource; // TODO: What about QRedo accounts?
+
+				// TODO: Replace `derivationPathIndex` with a `accountIndex` and `addressIndex`
+				const acc = await mnemonicAccount.deriveAccount({
+					derivationPathIndex: payload.derivationPathIndex
+				})
+
+				this.send(
+					createMessage<DeriveAddressResponse>(
+						{
+							type: 'derive-address-response',
+							address: acc.address
+						},
+						msg.id,
+					),
+				);
 			} else {
 				throw new Error(`Unknown message, ${JSON.stringify(msg.payload)}`);
 			}
