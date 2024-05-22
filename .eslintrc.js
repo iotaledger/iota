@@ -217,7 +217,6 @@ module.exports = {
 		},
 		{
 			files: ['apps/wallet/src/**/*.test.*', 'apps/wallet/src/**/*.spec.*'],
-
 			rules: {
 				// Allow any casting in tests:
 				'@typescript-eslint/no-explicit-any': 'off',
@@ -276,19 +275,9 @@ module.exports = {
 		},
 		{
 			files: ['apps/apps-backend/**/*'],
-			rules: {
-				'header/header': 'off',
-				'require-extensions/require-extensions': 'off',
-			},
 			env: {
 				node: true,
 				jest: true,
-			},
-			rules: {
-				'@typescript-eslint/interface-name-prefix': 'off',
-				'@typescript-eslint/explicit-function-return-type': 'off',
-				'@typescript-eslint/explicit-module-boundary-types': 'off',
-				'@typescript-eslint/no-explicit-any': 'off',
 			},
 		},
 		{
