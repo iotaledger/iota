@@ -10,6 +10,7 @@ import type { IRouteLink } from '../lib/interfaces';
 
 function RouteLink({ title, path }: IRouteLink): JSX.Element {
 	const currentPath = usePathname();
+
     const isActive = currentPath && (path === currentPath || path.startsWith(currentPath))
 
 	return (
