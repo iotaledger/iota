@@ -9,15 +9,6 @@ import * as bip39 from '@scure/bip39';
 import { wordlist } from '@scure/bip39/wordlists/english';
 
 /**
- * Generate mnemonics as 24 words string using the english wordlist.
- *
- * @returns a 24 words string separated by spaces.
- */
-export function generateMnemonic(): string {
-	return bip39.generateMnemonic(wordlist, 256);
-}
-
-/**
  * Converts mnemonic to entropy (byte array) using the english wordlist.
  *
  * @param mnemonic 12-24 words

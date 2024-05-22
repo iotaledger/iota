@@ -63,7 +63,7 @@ export function ImportRecoveryPhraseForm({
 			className="flex flex-col justify-between relative h-full"
 			onSubmit={handleSubmit(onSubmit)}
 		>
-			<div className="grid grid-cols-2 gap-x-2 gap-y-2.5">
+			<div className="grid grid-cols-2 gap-x-2 gap-y-2.5 mb-4">
 				{recoveryPhrase.map((_, index) => {
 					const recoveryPhraseId = `recoveryPhrase.${index}` as const;
 					return (
