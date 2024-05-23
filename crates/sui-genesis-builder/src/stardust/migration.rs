@@ -758,7 +758,7 @@ mod tests {
         },
         U256,
     };
-    use sui_types::object::Object;
+    use sui_types::{coin::Coin, object::Object};
     use sui_types::{
         dynamic_field::{derive_dynamic_field_id, Field},
         object::Owner,
@@ -1219,17 +1219,18 @@ mod tests {
             0,
             SimpleTokenScheme::new(U256::from(100_000), U256::from(0), U256::from(100_000_000))
                 .unwrap(),
-            Irc30Metadata::new("Bullcoin", "Bull", 0),
+            Irc30Metadata::new("Rustcoin", "Rust", 0),
             AliasId::null(),
         );
         let native_token_id: TokenId = foundry_output.id().into();
 
         let alias1_amount = 1_000_000;
+        let native_token_amount = 100;
         let stardust_alias1 =
             AliasOutputBuilder::new_with_amount(alias1_amount, AliasId::new(rand::random()))
                 .add_unlock_condition(StateControllerAddressUnlockCondition::new(random_address))
                 .add_unlock_condition(GovernorAddressUnlockCondition::new(random_address))
-                .add_native_token(NativeToken::new(native_token_id, 100).unwrap())
+                .add_native_token(NativeToken::new(native_token_id, native_token_amount).unwrap())
                 .finish()
                 .unwrap();
 
@@ -1258,6 +1259,16 @@ mod tests {
             .get_object(&alias_output1_id)
             .unwrap()
             .compute_object_reference();
+
+        // Recreate the key under which the tokens are stored in the bag.
+        let foundry_ledger_data = executor.native_tokens.get(&native_token_id.into()).unwrap();
+        let token_type = format!(
+            "{}::{}::{}",
+            foundry_ledger_data.coin_type_origin.package,
+            foundry_ledger_data.coin_type_origin.module_name,
+            foundry_ledger_data.coin_type_origin.struct_name
+        );
+        let token_type_tag = token_type.parse::<TypeTag>().unwrap();
 
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -1293,16 +1304,6 @@ mod tests {
             builder.transfer_arg(SuiAddress::default(), coin_arg);
             builder.transfer_arg(SuiAddress::default(), alias1_arg);
 
-            // Recreate the key under which the tokens are stored in the bag.
-            let foundry_ledger_data = executor.native_tokens.get(&native_token_id.into()).unwrap();
-            let token_type = format!(
-                "{}::{}::{}",
-                foundry_ledger_data.coin_type_origin.package,
-                foundry_ledger_data.coin_type_origin.module_name,
-                foundry_ledger_data.coin_type_origin.struct_name
-            );
-            let token_type_tag = token_type.parse::<TypeTag>().unwrap();
-
             let token_type_arg = builder.pure(token_type.clone()).unwrap();
             let balance_arg = builder.programmable_move_call(
                 SUI_FRAMEWORK_PACKAGE_ID,
@@ -1321,7 +1322,7 @@ mod tests {
                 SUI_FRAMEWORK_PACKAGE_ID,
                 ident_str!("coin").into(),
                 ident_str!("from_balance").into(),
-                vec![token_type_tag],
+                vec![token_type_tag.clone()],
                 vec![balance_arg],
             );
 
@@ -1345,6 +1346,23 @@ mod tests {
                 .chain(executor.load_packages(PACKAGE_DEPS))
                 .collect(),
         );
-        executor.execute_pt_unmetered(input_objects, pt).unwrap();
+        let InnerTemporaryStore { written, .. } =
+            executor.execute_pt_unmetered(input_objects, pt).unwrap();
+
+        let coin_token_struct_tag = Coin::type_(token_type_tag);
+        let coin_token = written
+            .iter()
+            .find(|(_, obj)| {
+                obj.struct_tag()
+                    .map(|tag| tag == coin_token_struct_tag)
+                    .unwrap_or(false)
+            })
+            .expect("coin token object should exist")
+            .1;
+
+        assert_eq!(
+            coin_token.as_coin_maybe().unwrap().balance.value(),
+            native_token_amount
+        );
     }
 }
