@@ -21,18 +21,16 @@ const NOTIFICATION_TYPE_TO_COLOR = {
 };
 
 function Notification(props: { notification: Notification }): JSX.Element {
+    const clearNotification = useNotificationStore((state) => state.clearNotification);
+    const [transition, setTransition] = useState('opacity-100');
+
 	const { notification } = props;
+
 	const bgColor = NOTIFICATION_TYPE_TO_COLOR[notification.type];
-
-	const [css, setCss] = useState<string>(
-		`flex items-center justify-center text-center rounded-xl ${bgColor} mt-1 p-2 w-[300px] transition-opacity duration-[${ALERT_FADE_OUT_DURATION}] ease-in opacity-100`,
-	);
-
-	const clearNotification = useNotificationStore((state) => state.clearNotification);
 
 	useEffect(() => {
 		const fadeOutputTimeout = setTimeout(() => {
-			setCss((css) => `${css.replace('opacity-100', 'opacity-0')}`);
+			setTransition('opacity-0');
 		}, notification.duration - ALERT_FADE_OUT_DURATION);
 
 		const removeTimeout = setTimeout(() => {
@@ -45,7 +43,11 @@ function Notification(props: { notification: Notification }): JSX.Element {
 		};
 	}, [notification, clearNotification]);
 
-	return <div className={css}>{notification.message}</div>;
+	return (
+        <div className={`flex items-center justify-center text-center rounded-xl ${bgColor} mt-1 p-2 w-[300px] transition-opacity duration-[${ALERT_FADE_OUT_DURATION}] ease-in ${transition}`}>
+            {notification.message}
+        </div>
+    );
 }
 
 export default function Notifications(): JSX.Element {
