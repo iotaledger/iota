@@ -34,7 +34,7 @@ export function ImportSeedForm({ onSubmit }: ImportSeedFormProps) {
 
 	return (
 		<Form className="flex flex-col h-full gap-2" form={form} onSubmit={onSubmit}>
-			<TextAreaField label="Enter Seed" rows={3} {...register('seed')} />
+			<TextAreaField label="Enter Seed" rows={5} {...register('seed')} />
 			<div className="flex gap-2.5 mt-auto">
 				<Button variant="outline" size="tall" text="Cancel" onClick={() => navigate(-1)} />
 				<Button
