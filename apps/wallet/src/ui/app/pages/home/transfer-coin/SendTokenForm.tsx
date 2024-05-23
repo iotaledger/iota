@@ -9,9 +9,9 @@ import { AddressInput } from '_components/address-input';
 import Alert from '_components/alert';
 import Loading from '_components/loading';
 import { parseAmount } from '_helpers';
-import { useGetAllCoins } from '_hooks';
 import { GAS_SYMBOL } from '_src/ui/app/redux/slices/sui-objects/Coin';
 import { InputWithAction } from '_src/ui/app/shared/InputWithAction';
+import { useGetAllCoins } from '@mysten/core/src/hooks/useGetAllCoins';
 import {
 	CoinFormat,
 	isSuiNSName,
