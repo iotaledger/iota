@@ -58,7 +58,10 @@ module.exports = {
 		'header/header': [
 			2,
 			'line',
-			[' Copyright (c) Mysten Labs, Inc.', ' SPDX-License-Identifier: Apache-2.0'],
+			[
+				{ pattern: ' Copyright \\(c\\) (2024 IOTA Stiftung|Mysten Labs, Inc.)' },
+				' SPDX-License-Identifier: Apache-2.0',
+			],
 		],
 		'@typescript-eslint/no-unused-vars': [
 			'error',
@@ -282,7 +285,7 @@ module.exports = {
 		},
 		{
 			files: ['apps/wallet-dashboard/**/*'],
-			extends: "next/core-web-vitals"
+			extends: 'next/core-web-vitals',
 		},
 	],
 };
