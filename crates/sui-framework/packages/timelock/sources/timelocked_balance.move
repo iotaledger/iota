@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// Utility functions for time-locked balance.
-module stardust::timelocked_balance {
+module timelock::timelocked_balance {
 
     use sui::balance::Balance;
 
-    use stardust::timelock::{Self, TimeLock};
+    use timelock::timelock::{Self, TimeLock};
 
     /// For when trying to join two timelocks with different expiration time.
     const EDifferentExpirationTime: u64 = 0;

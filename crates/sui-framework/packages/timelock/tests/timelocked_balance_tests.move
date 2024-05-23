@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module stardust::timelocked_balance_tests {
+module timelock::timelocked_balance_tests {
 
     use sui::balance;
     use sui::sui::SUI;
     use sui::test_scenario;
 
-    use stardust::timelock;
-    use stardust::timelocked_balance;
+    use timelock::timelock;
+    use timelock::timelocked_balance;
 
     #[test]
     fun test_join_timelocked_balances() {

@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { entropyToSerialized, mnemonicToEntropy } from '_src/shared/utils/bip39';
 import { ImportRecoveryPhraseForm } from '_src/ui/app/components/accounts/ImportRecoveryPhraseForm';
 import { useRecoveryDataMutation } from '_src/ui/app/hooks/useRecoveryDataMutation';
@@ -32,7 +35,7 @@ export function RecoverPage() {
 					Forgot Password?
 				</Heading>
 				<Text variant="pBody" color="gray-90">
-					Enter your 12-word Recovery Phrase
+					Enter your 24-word Recovery Phrase
 				</Text>
 			</div>
 			<div className="grow">

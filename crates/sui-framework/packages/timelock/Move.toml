@@ -1,12 +1,13 @@
 [package]
-name = "Stardust"
+name = "TimeLock"
 version = "0.0.1"
-published-at = "0x107a"
+published-at = "0x10cf"
 edition = "2024.beta"
 
 [dependencies]
 MoveStdlib = { local = "../move-stdlib" }
 Sui = { local = "../sui-framework" }
+SuiSystem = { local = "../sui-system" }
 
 [addresses]
-stardust = "0x107a"
+timelock = "0x10cf"

@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Text } from '_app/shared/text';
 import { entropyToSerialized, mnemonicToEntropy } from '_src/shared/utils/bip39';
 import { useNavigate } from 'react-router-dom';
@@ -25,7 +28,7 @@ export function ImportPassphrasePage() {
 			<div className="mt-6 grow flex flex-col gap-3">
 				<div className="pl-2.5">
 					<Text variant="pBody" color="steel-darker" weight="semibold">
-						Enter your 12-word Recovery Phrase
+						Enter your 24-word Recovery Phrase
 					</Text>
 				</div>
 				<ImportRecoveryPhraseForm

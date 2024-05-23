@@ -34,7 +34,7 @@ use sui_types::gas_coin::GAS;
 use sui_types::id::UID;
 use sui_types::object::{Data, MoveObject, ObjectInner, Owner, OBJECT_START_VERSION};
 use sui_types::quorum_driver_types::ExecuteTransactionRequestType;
-use sui_types::stardust::timelock::TimeLock;
+use sui_types::timelock::timelock::TimeLock;
 use sui_types::utils::to_sender_signed_transaction;
 use sui_types::{parse_sui_struct_tag, SUI_FRAMEWORK_ADDRESS};
 use test_cluster::TestClusterBuilder;

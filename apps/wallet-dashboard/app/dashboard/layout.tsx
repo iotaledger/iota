@@ -1,8 +1,10 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+'use client';
 
+import { RouteLink } from '@/components/index';
 import React, { type PropsWithChildren } from 'react';
-import { RouteLink } from '../components';
+import { ConnectButton } from '@mysten/dapp-kit';
 
 function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
 	const routes = [
@@ -18,7 +20,9 @@ function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
 	return (
 		<>
 			<section className="flex flex-row items-center justify-around mt-12">
-                {routes.map((route) => {
+			<ConnectButton />
+
+							  {routes.map((route) => {
                     return (
                         <RouteLink key={route.title} {...route} />
                     )

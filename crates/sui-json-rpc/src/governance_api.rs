@@ -11,7 +11,7 @@ use cached::SizedCache;
 use itertools::Itertools;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::RpcModule;
-use sui_types::stardust::timelocked_staked_sui::TimelockedStakedSui;
+use sui_types::timelock::timelocked_staked_sui::TimelockedStakedSui;
 use tracing::{info, instrument};
 
 use mysten_metrics::spawn_monitored_task;

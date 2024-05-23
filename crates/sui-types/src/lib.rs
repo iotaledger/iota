@@ -71,10 +71,10 @@ pub mod programmable_transaction_builder;
 pub mod quorum_driver_types;
 pub mod randomness_state;
 pub mod signature;
-pub mod stardust;
 pub mod storage;
 pub mod sui_serde;
 pub mod sui_system_state;
+pub mod timelock;
 pub mod transaction;
 pub mod transfer;
 pub mod type_resolver;
@@ -110,6 +110,11 @@ pub const DEEPBOOK_PACKAGE_ID: ObjectID = ObjectID::from_address(DEEPBOOK_ADDRES
 /// Same as the ObjectID
 pub const STARDUST_ADDRESS: AccountAddress = stardust_addr();
 pub const STARDUST_PACKAGE_ID: ObjectID = ObjectID::from_address(STARDUST_ADDRESS);
+
+/// 0x10cf-- account address where Timelock modules are stored
+/// Same as the ObjectID
+pub const TIMELOCK_ADDRESS: AccountAddress = timelock_addr();
+pub const TIMELOCK_PACKAGE_ID: ObjectID = ObjectID::from_address(TIMELOCK_ADDRESS);
 
 /// 0xb-- account address where Bridge modules are stored
 /// Same as the ObjectID
@@ -155,6 +160,7 @@ pub fn is_system_package(addr: impl Into<AccountAddress>) -> bool {
             | SUI_SYSTEM_ADDRESS
             | DEEPBOOK_ADDRESS
             | STARDUST_ADDRESS
+            | TIMELOCK_ADDRESS
             | BRIDGE_ADDRESS
     )
 }
@@ -178,6 +184,14 @@ const fn stardust_addr() -> AccountAddress {
     let mut addr = [0u8; AccountAddress::LENGTH];
     addr[AccountAddress::LENGTH - 2] = 0x10;
     addr[AccountAddress::LENGTH - 1] = 0x7a;
+    AccountAddress::new(addr)
+}
+
+/// return 0x0...10cf
+const fn timelock_addr() -> AccountAddress {
+    let mut addr = [0u8; AccountAddress::LENGTH];
+    addr[AccountAddress::LENGTH - 2] = 0x10;
+    addr[AccountAddress::LENGTH - 1] = 0xcf;
     AccountAddress::new(addr)
 }
 
@@ -249,6 +263,7 @@ pub fn resolve_address(addr: &str) -> Option<AccountAddress> {
         "sui" => Some(SUI_FRAMEWORK_ADDRESS),
         "sui_system" => Some(SUI_SYSTEM_ADDRESS),
         "stardust" => Some(STARDUST_ADDRESS),
+        "timelock" => Some(TIMELOCK_ADDRESS),
         "bridge" => Some(BRIDGE_ADDRESS),
         _ => None,
     }
