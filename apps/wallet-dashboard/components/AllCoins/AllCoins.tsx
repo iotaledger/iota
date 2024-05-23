@@ -1,11 +1,10 @@
 import { useGetAllCoins } from '@mysten/core/src/hooks/useGetAllCoins';
 import { useCurrentAccount } from '@mysten/dapp-kit';
-
-const COIN_TYPE = '0x2::sui::SUI';
+import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
 
 export const AllCoins = () => {
 	const account = useCurrentAccount();
-	const { data } = useGetAllCoins(COIN_TYPE, account?.address);
+	const { data } = useGetAllCoins(SUI_TYPE_ARG, account?.address);
 
 	return (
 		<div>

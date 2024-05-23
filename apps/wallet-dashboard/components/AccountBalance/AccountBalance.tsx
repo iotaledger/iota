@@ -1,13 +1,12 @@
 import { useCurrentAccount } from '@mysten/dapp-kit';
+import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
 
 import { useBalance } from '../../hooks/useBalance';
-
-const COIN_TYPE = '0x2::sui::SUI';
 
 export const AccountBalance = () => {
 	const account = useCurrentAccount();
 
-	const { calculateBalance, getBalanceQuery } = useBalance(COIN_TYPE, account?.address);
+	const { calculateBalance, getBalanceQuery } = useBalance(SUI_TYPE_ARG, account?.address);
 
 	return (
 		<div>
