@@ -3,7 +3,7 @@
 
 import { type TransactionFilter } from '@mysten/sui.js/client';
 import { Heading, RadioGroup, RadioGroupItem } from '@mysten/ui';
-import { useReducer, useState } from 'react';
+import { type Dispatch, type SetStateAction, useReducer, useState } from 'react';
 
 import { genTableDataFromTxData } from '../transactions/TxCardUtils';
 import {
@@ -74,7 +74,7 @@ export function FiltersControl({
     setFilterValue,
 }: {
     filterValue: string;
-    setFilterValue: any;
+    setFilterValue: Dispatch<SetStateAction<ObjectFilterValue>>;
 }) {
     return (
         <RadioGroup

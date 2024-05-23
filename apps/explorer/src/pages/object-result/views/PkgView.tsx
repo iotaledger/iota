@@ -47,7 +47,7 @@ function PkgView({ data }: { data: DataType }) {
                 : txnData?.transaction?.data.sender,
     };
 
-    const checkIsPropertyType = (value: any) => ['number', 'string'].includes(typeof value);
+    const checkIsPropertyType = (value: unknown) => ['number', 'string'].includes(typeof value);
 
     const properties = Object.entries(viewedData.data?.contents)
         .filter(([key, _]) => key !== 'name')

@@ -9,6 +9,7 @@ export interface ButtonOrLinkProps
     extends Omit<Partial<LinkProps> & ComponentProps<'a'> & ComponentProps<'button'>, 'ref'> {}
 
 export const ButtonOrLink = forwardRef<HTMLAnchorElement | HTMLButtonElement, ButtonOrLinkProps>(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ({ href, to, ...props }, ref: any) => {
         // External link:
         if (href) {

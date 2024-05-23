@@ -13,6 +13,7 @@ interface Props {
     count?: number;
     disablePagination?: boolean;
     pagination: ReturnType<typeof usePaginationStack>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data?: PaginationResponse<any>;
     limit: number;
     onLimitChange(value: number): void;

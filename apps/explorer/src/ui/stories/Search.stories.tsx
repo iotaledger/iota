@@ -53,6 +53,7 @@ export const Default: StoryObj<SearchProps> = {
                     acc.push({ label: curr.label, results: filtered });
                 }
                 return acc;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
             }, [] as any);
             return filtered;
         }, [query]);

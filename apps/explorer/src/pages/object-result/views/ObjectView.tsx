@@ -90,7 +90,12 @@ function DescriptionCard({
     objectId,
 }: {
     name?: string | null;
-    display?: any;
+    display?:
+        | {
+              [key: string]: string;
+          }
+        | null
+        | undefined;
     objectType: string;
     objectId: string;
 }) {

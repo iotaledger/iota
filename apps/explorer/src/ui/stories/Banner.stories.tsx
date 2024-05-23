@@ -122,7 +122,20 @@ export const BannersWithBorder = {
     render: () => (
         <div className="flex flex-col gap-2">
             {variants.map((variant) => (
-                <Banner key={variant} border shadow variant={variant as any}>
+                <Banner
+                    key={variant}
+                    border
+                    shadow
+                    variant={
+                        variant as
+                            | 'positive'
+                            | 'warning'
+                            | 'error'
+                            | 'message'
+                            | 'neutralGrey'
+                            | 'neutralWhite'
+                    }
+                >
                     <div className="capitalize">{variant}</div>
                 </Banner>
             ))}

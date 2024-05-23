@@ -117,6 +117,7 @@ export function FieldsContent({ objectId }: { objectId: string }) {
 }
 
 export function TokenView({ data }: { data: SuiObjectResponse }) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-asserted-optional-chain
     const objectId = data.data?.objectId!;
 
     return (

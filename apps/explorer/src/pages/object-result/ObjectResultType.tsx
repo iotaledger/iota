@@ -3,7 +3,7 @@
 
 import { parseObjectType } from '../../utils/objectUtils';
 
-import type { SuiObjectResponse, ObjectOwner } from '@mysten/sui.js/client';
+import type { SuiObjectResponse, ObjectOwner, MoveStruct } from '@mysten/sui.js/client';
 
 export type DataType = {
     id: string;
@@ -17,9 +17,12 @@ export type DataType = {
     publisherAddress?: string;
     contract_id?: { bytes: string };
     data: {
-        contents: {
-            [key: string]: any;
-        };
+        contents:
+            | {
+                  [key: string]: unknown;
+              }
+            | MoveStruct
+            | undefined;
         owner?: { ObjectOwner: [] };
         tx_digest?: string | null;
     };
@@ -43,7 +46,7 @@ export function translate(o: SuiObjectResponse): DataType {
                 contents:
                     o.data?.content?.dataType === 'moveObject'
                         ? o.data?.content.fields
-                        : o.data.content?.disassembled!,
+                        : o.data.content?.disassembled,
                 tx_digest: o.data.previousTransaction,
             },
             display: o.data.display?.data || undefined,
