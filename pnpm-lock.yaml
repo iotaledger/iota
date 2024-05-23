@@ -822,15 +822,6 @@ importers:
       '@amplitude/analytics-types':
         specifier: ^0.20.0
         version: 0.20.0
-      '@babel/core':
-        specifier: ^7.22.9
-        version: 7.23.9
-      '@babel/preset-env':
-        specifier: ^7.22.9
-        version: 7.22.9(@babel/core@7.23.9)
-      '@babel/preset-typescript':
-        specifier: ^7.22.5
-        version: 7.22.5(@babel/core@7.23.9)
       '@playwright/test':
         specifier: ^1.36.1
         version: 1.36.1
