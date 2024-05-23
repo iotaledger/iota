@@ -3,17 +3,7 @@
 
 import { create } from 'zustand';
 
-function* indexGenerator(cap: number): Generator<number, number, number> {
-	let index = 0;
-	while (true) {
-		if (index >= cap) {
-			index = 0;
-			yield index;
-		} else {
-			yield index++;
-		}
-	}
-}
+import { indexGenerator } from '@/utils/indexGenerator';
 
 const indexGen = indexGenerator(200);
 

@@ -51,7 +51,7 @@ function Notification(props: { notification: Notification }): JSX.Element {
 export default function Notifications(): JSX.Element {
 	const notifications = useNotificationStore((state) => state.notifications);
 	return (
-		<div className="absolute top-1 right-1 z-50">
+		<div className="absolute top-1 right-2 z-50">
 			{notifications.map((notification) => (
 				<Notification key={`${notification.index}`} notification={notification} />
 			))}

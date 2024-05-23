@@ -21,6 +21,7 @@
       "@/app/*": ["./app/*"],
       "@/components/*": ["./components/*"],
       "@/stores/*": ["./stores/*"],
+      "@/utils/*": ["./utils/*"],
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
