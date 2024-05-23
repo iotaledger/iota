@@ -1210,7 +1210,7 @@ mod tests {
         (random_output_header(), foundry_output)
     }
 
-    /// TODO
+    /// Test that an Alias that owns Native Tokens can extract those tokens from the contained bag.
     #[test]
     fn test_alias_migration_with_native_tokens() {
         let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
