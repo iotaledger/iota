@@ -14,7 +14,7 @@ export enum NotificationType {
 	Info = 'info',
 }
 
-export type Notification = {
+export type NotificationData = {
 	index: number;
 	message: string;
 	type: NotificationType;
@@ -22,7 +22,7 @@ export type Notification = {
 };
 
 interface NotificationsState {
-	notifications: Notification[];
+	notifications: NotificationData[];
 	addNotification: (message: string, type?: NotificationType, duration?: number) => void;
 	clearNotification: (index: number) => void;
 }
@@ -37,7 +37,7 @@ export const useNotificationStore = create<NotificationsState>()((set) => ({
 		set((state) => {
 			const index = indexGen.next().value;
 
-			const newNotification: Notification = {
+			const newNotification: NotificationData = {
 				index,
 				message,
 				type,

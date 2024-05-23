@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 
 import {
-	Notification,
+	NotificationData,
 	NotificationType,
 	useNotificationStore,
 } from '@/stores/notificationStore';
@@ -20,7 +20,7 @@ const NOTIFICATION_TYPE_TO_COLOR = {
 	[NotificationType.Warning]: 'bg-yellow-500',
 };
 
-function Notification(props: { notification: Notification }): JSX.Element {
+function Notification(props: { notification: NotificationData }): JSX.Element {
     const clearNotification = useNotificationStore((state) => state.clearNotification);
     const [transition, setTransition] = useState('opacity-100');
 
