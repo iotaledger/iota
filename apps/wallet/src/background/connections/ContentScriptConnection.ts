@@ -158,8 +158,8 @@ export class ContentScriptConnection extends Connection {
 				}
 				await requestUserApproval(payload.args, this, msg);
 			} else if (isDeriveAddressRequest(payload)) {
-				if (!payload.derivationPathIndex) {
-					throw new Error('Missing derivationPathIndex');
+				if (!(payload.accountIndex >= 0)) {
+					throw new Error('Missing accountIndex');
 				}
 				
 				// TODO: PERMISSIONS
@@ -172,9 +172,9 @@ export class ContentScriptConnection extends Connection {
 				const sources = await getAccountSources();
 				const mnemonicAccount = sources[0] as MnemonicAccountSource; // TODO: What about QRedo accounts?
 
-				// TODO: Replace `derivationPathIndex` with a `accountIndex` and `addressIndex`
+				// TODO: Add `addressIndex`
 				const acc = await mnemonicAccount.deriveAccount({
-					derivationPathIndex: payload.derivationPathIndex
+					accountIndex: payload.accountIndex
 				})
 
 				this.send(

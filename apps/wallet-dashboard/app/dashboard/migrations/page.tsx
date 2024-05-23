@@ -3,15 +3,34 @@
 
 'use client'
 
-import { useDeriveAddress } from "@mysten/dapp-kit";
+import { useCurrentWallet, useDeriveAddress } from "@mysten/dapp-kit";
+import React from "react";
 
 function StakingDashboardPage(): JSX.Element {
+    const [address, setAddress] = React.useState('<Connect your Wallet>');
+    const [accountIndex, setAccountIndex] = React.useState('0');
     const derive = useDeriveAddress();
+    const { connectionStatus } = useCurrentWallet();
 
-	console.log(derive)
+    React.useEffect(() => {
+        if(connectionStatus === 'connected') {
+            derive.mutateAsync({
+                accountIndex: Number(accountIndex)
+            }).then(res => {
+                setAddress(res.address)
+            }).catch((err) => {
+                console.log(err);
+                setAddress('error')
+            })
+        }
+    }, [accountIndex, connectionStatus])
+
     return (
-        <div className="flex items-center justify-center pt-12">
+        <div className="flex flex-col items-center justify-center pt-12">
             <h1>MIGRATIONS</h1>
+            <p>The address with an account index of 0 should be the same as your first account.</p>
+            <input type="number" className="inline-block w-16" value={accountIndex} onChange={(e) => setAccountIndex(e.target.value)}></input>
+            <p>{address}</p>
         </div>
     )
 }

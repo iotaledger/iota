@@ -15,7 +15,7 @@ export type SuiDeriveAddressFeature = {
 export type SuiDeriveAddressMethod = (input: SuiDeriveAddressInput) => Promise<SuiDeriveAddressOutput>;
 
 export interface SuiDeriveAddressInput {
-	derivationPathIndex: number;
+	accountIndex: number;
 }
 
 export interface SuiDeriveAddressOutput {

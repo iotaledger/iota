@@ -47,9 +47,9 @@ interface MnemonicAccountSourceSerializedUI extends AccountSourceSerializedUI {
 	type: 'mnemonic';
 }
 
-export function makeDerivationPath(index: number) {
+export function makeDerivationPath(accountIndex: number) {
 	// currently returns only Ed25519 path
-	return `m/44'/4218'/${index}'/0'/0'`;
+	return `m/44'/4218'/${accountIndex}'/0'/0'`;
 }
 
 export function deriveKeypairFromSeed(mnemonicSeedHex: string, derivationPath: string) {
@@ -145,12 +145,12 @@ export class MnemonicAccountSource extends AccountSource<
 		accountSourcesEvents.emit('accountSourceStatusUpdated', { accountSourceID: this.id });
 	}
 
-	async deriveAccount({ derivationPathIndex }: { derivationPathIndex?: number } = {}): Promise<
+	async deriveAccount({ accountIndex }: { accountIndex?: number } = {}): Promise<
 		Omit<MnemonicSerializedAccount, 'id'>
 	> {
 		const derivationPath =
-			typeof derivationPathIndex !== 'undefined'
-				? makeDerivationPath(derivationPathIndex)
+			typeof accountIndex !== 'undefined'
+				? makeDerivationPath(accountIndex)
 				: await this.#getAvailableDerivationPath();
 		const keyPair = await this.deriveKeyPair(derivationPath);
 		return MnemonicAccount.createNew({ keyPair, derivationPath, sourceID: this.id });
@@ -215,6 +215,7 @@ export class MnemonicAccountSource extends AccountSource<
 		if (!derivationPath) {
 			throw new Error('Failed to find next available derivation path');
 		}
+		console.log(derivationPath)
 		return derivationPath;
 	}
 
