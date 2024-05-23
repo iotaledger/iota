@@ -41,7 +41,6 @@ import NetworkEnv from '../NetworkEnv';
 import { requestUserApproval } from '../qredo';
 import { Connection } from './Connection';
 import { getAccountSources } from '../account-sources';
-import { MnemonicAccount } from '../accounts/MnemonicAccount';
 import { MnemonicAccountSource } from '../account-sources/MnemonicAccountSource';
 
 export class ContentScriptConnection extends Connection {
@@ -163,10 +162,6 @@ export class ContentScriptConnection extends Connection {
 				}
 				
 				// TODO: PERMISSIONS
-
-				// await this.ensurePermissions(
-				// 	['viewAccount'], 
-				// );
 					
 				// TODO: Think of another way to get access to the keypair
 				const sources = await getAccountSources();
