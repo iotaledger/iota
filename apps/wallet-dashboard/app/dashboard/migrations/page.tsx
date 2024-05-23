@@ -1,6 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+'use client'
+
 import { useDeriveAddress } from "@mysten/dapp-kit";
 
 function StakingDashboardPage(): JSX.Element {
