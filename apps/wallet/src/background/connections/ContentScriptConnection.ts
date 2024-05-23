@@ -160,23 +160,27 @@ export class ContentScriptConnection extends Connection {
 				if (!(payload.accountIndex >= 0)) {
 					throw new Error('Missing accountIndex');
 				}
+
+				if (!(payload.addressIndex >= 0)) {
+					throw new Error('Missing addressIndex');
+				}
 				
 				// TODO: PERMISSIONS
 					
 				// TODO: Think of another way to get access to the keypair
 				const sources = await getAccountSources();
 				const mnemonicAccount = sources[0] as MnemonicAccountSource; // TODO: What about QRedo accounts?
-
-				// TODO: Add `addressIndex`
-				const acc = await mnemonicAccount.deriveAccount({
-					accountIndex: payload.accountIndex
+				
+				const account = await mnemonicAccount.deriveAccount({
+					accountIndex: payload.accountIndex,
+					addressIndex: payload.addressIndex
 				})
 
 				this.send(
 					createMessage<DeriveAddressResponse>(
 						{
 							type: 'derive-address-response',
-							address: acc.address
+							address: account.address
 						},
 						msg.id,
 					),

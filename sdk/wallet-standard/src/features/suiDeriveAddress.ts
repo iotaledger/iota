@@ -16,6 +16,7 @@ export type SuiDeriveAddressMethod = (input: SuiDeriveAddressInput) => Promise<S
 
 export interface SuiDeriveAddressInput {
 	accountIndex: number;
+	addressIndex: number;
 }
 
 export interface SuiDeriveAddressOutput {

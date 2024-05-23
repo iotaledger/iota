@@ -47,9 +47,9 @@ interface MnemonicAccountSourceSerializedUI extends AccountSourceSerializedUI {
 	type: 'mnemonic';
 }
 
-export function makeDerivationPath(accountIndex: number) {
+export function makeDerivationPath(accountIndex: number, addressIndex: number = 0) {
 	// currently returns only Ed25519 path
-	return `m/44'/4218'/${accountIndex}'/0'/0'`;
+	return `m/44'/4218'/${accountIndex}'/0'/${addressIndex}'`;
 }
 
 export function deriveKeypairFromSeed(mnemonicSeedHex: string, derivationPath: string) {
@@ -145,13 +145,13 @@ export class MnemonicAccountSource extends AccountSource<
 		accountSourcesEvents.emit('accountSourceStatusUpdated', { accountSourceID: this.id });
 	}
 
-	async deriveAccount({ accountIndex }: { accountIndex?: number } = {}): Promise<
+	async deriveAccount({ accountIndex, addressIndex }: { accountIndex?: number, addressIndex?: number } = {}): Promise<
 		Omit<MnemonicSerializedAccount, 'id'>
 	> {
 		const derivationPath =
 			typeof accountIndex !== 'undefined'
-				? makeDerivationPath(accountIndex)
-				: await this.#getAvailableDerivationPath();
+				? makeDerivationPath(accountIndex, addressIndex)
+				: await this.#getAvailableDerivationPath(addressIndex);
 		const keyPair = await this.deriveKeyPair(derivationPath);
 		return MnemonicAccount.createNew({ keyPair, derivationPath, sourceID: this.id });
 	}
@@ -196,7 +196,7 @@ export class MnemonicAccountSource extends AccountSource<
 		return true;
 	}
 
-	async #getAvailableDerivationPath() {
+	async #getAvailableDerivationPath(addressIndex?: number) {
 		const derivationPathMap: Record<string, boolean> = {};
 		for (const anAccount of await getAllAccounts({ sourceID: this.id })) {
 			if (anAccount instanceof MnemonicAccount && (await anAccount.sourceID) === this.id) {
@@ -207,7 +207,7 @@ export class MnemonicAccountSource extends AccountSource<
 		let derivationPath = '';
 		let temp;
 		do {
-			temp = makeDerivationPath(index++);
+			temp = makeDerivationPath(index++, addressIndex);
 			if (!derivationPathMap[temp]) {
 				derivationPath = temp;
 			}
@@ -215,7 +215,6 @@ export class MnemonicAccountSource extends AccountSource<
 		if (!derivationPath) {
 			throw new Error('Failed to find next available derivation path');
 		}
-		console.log(derivationPath)
 		return derivationPath;
 	}
 

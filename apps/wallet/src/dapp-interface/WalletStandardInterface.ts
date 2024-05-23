@@ -296,11 +296,12 @@ export class SuiWallet implements Wallet {
 		);
 	};
 
-	#deriveAddress: SuiDeriveAddressMethod = async ({ accountIndex }) => {
+	#deriveAddress: SuiDeriveAddressMethod = async ({ accountIndex, addressIndex }) => {
 		return mapToPromise(
 			this.#send<DeriveAddressRequest, DeriveAddressResponse>({
 				type: 'derive-address-request',
 				accountIndex,
+				addressIndex,
 			}),
 			(response) => {
 				return {
