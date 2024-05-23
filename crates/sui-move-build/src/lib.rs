@@ -48,7 +48,7 @@ use sui_types::{
     is_system_package,
     move_package::{FnInfo, FnInfoKey, FnInfoMap, MovePackage},
     DEEPBOOK_ADDRESS, MOVE_STDLIB_ADDRESS, STARDUST_ADDRESS, SUI_FRAMEWORK_ADDRESS,
-    SUI_SYSTEM_ADDRESS,
+    SUI_SYSTEM_ADDRESS, TIMELOCK_ADDRESS,
 };
 use sui_verifier::{default_verifier_config, verifier as sui_bytecode_verifier};
 
@@ -435,6 +435,12 @@ impl CompiledPackage {
     pub fn get_stardust_modules(&self) -> impl Iterator<Item = &CompiledModule> {
         self.get_modules_and_deps()
             .filter(|m| *m.self_id().address() == STARDUST_ADDRESS)
+    }
+
+    /// Get bytecode modules from Timelock that are used by this package
+    pub fn get_timelock_modules(&self) -> impl Iterator<Item = &CompiledModule> {
+        self.get_modules_and_deps()
+            .filter(|m| *m.self_id().address() == TIMELOCK_ADDRESS)
     }
 
     /// Generate layout schemas for all types declared by this package, as well as
