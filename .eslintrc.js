@@ -5,11 +5,11 @@ module.exports = {
 	plugins: ['@tanstack/query', 'unused-imports', 'prettier', 'header', 'require-extensions'],
 	extends: [
 		'eslint:recommended',
-		'react-app',
 		'plugin:@tanstack/eslint-plugin-query/recommended',
 		'prettier',
 		'plugin:prettier/recommended',
 		'plugin:import/typescript',
+		'plugin:@typescript-eslint/recommended',
 	],
 	settings: {
 		react: {
@@ -217,7 +217,6 @@ module.exports = {
 		},
 		{
 			files: ['apps/wallet/src/**/*.test.*', 'apps/wallet/src/**/*.spec.*'],
-
 			rules: {
 				// Allow any casting in tests:
 				'@typescript-eslint/no-explicit-any': 'off',
@@ -273,6 +272,17 @@ module.exports = {
 				'header/header': 'off',
 				'require-extensions/require-extensions': 'off',
 			},
+		},
+		{
+			files: ['apps/apps-backend/**/*'],
+			env: {
+				node: true,
+				jest: true,
+			},
+		},
+		{
+			files: ['apps/wallet-dashboard/**/*'],
+			extends: "next/core-web-vitals"
 		},
 	],
 };

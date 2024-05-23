@@ -132,7 +132,7 @@ The function extracts assets from a legacy NFT output.
         expiration_uc: <b>mut</b> expiration_uc
     } = output;
 
-    // If the output <b>has</b> a <a href="timelock.md#0x107a_timelock">timelock</a> unlock condition, then we need <b>to</b> check <b>if</b> the timelock_uc <b>has</b> expired.
+    // If the output <b>has</b> a timelock unlock condition, then we need <b>to</b> check <b>if</b> the timelock_uc <b>has</b> expired.
     <b>if</b> (timelock_uc.is_some()) {
         timelock_uc.extract().unlock(ctx);
     };

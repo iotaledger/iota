@@ -26,6 +26,7 @@ Move.lock
 !crates/sui-framework/packages/sui-system/Move.lock
 !crates/sui-framework/packages/deepbook/Move.lock
 !crates/sui-framework/packages/stardust/Move.lock
+!crates/sui-framework/packages/timelock/Move.lock
 .trace
 .coverage_map.mvcov
 
