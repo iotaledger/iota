@@ -1,3 +1,4 @@
+/* eslint-disable header/header */
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
@@ -94,7 +95,6 @@ export class SeedAccountSource extends AccountSource<SeedAccountSourceSerialized
 		const decryptedData: DataDecrypted = {
 			seed,
 		};
-		console.log('seed decryptedData', decryptedData);
 		return encrypt(password, decryptedData);
 	}
 
@@ -168,7 +168,7 @@ export class SeedAccountSource extends AccountSource<SeedAccountSourceSerialized
 	async verifyRecoveryData(seed: string) {
 		const newSeedHash = bytesToHex(sha256(seed));
 		if (newSeedHash !== (await this.sourceHash)) {
-			throw new Error("Wrong passphrase, doesn't match the existing one");
+			throw new Error("Wrong seed, doesn't match the existing one");
 		}
 		return true;
 	}

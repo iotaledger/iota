@@ -61,13 +61,15 @@ export async function getAllSerializedUIAccountSources() {
 }
 
 async function createAccountSource({ type, params }: MethodPayload<'createAccountSource'>['args']) {
+	const { password } = params;
 	switch (type) {
 		case 'mnemonic':
+			const entropy = params.entropy;
 			return (
 				await MnemonicAccountSource.save(
 					await MnemonicAccountSource.createNew({
-						password: params.password,
-						entropyInput: params.entropy ? toEntropy(params.entropy) : undefined,
+						password,
+						entropyInput: entropy ? toEntropy(entropy) : undefined,
 					}),
 				)
 			).toUISerialized();
@@ -75,7 +77,7 @@ async function createAccountSource({ type, params }: MethodPayload<'createAccoun
 			return (
 				await SeedAccountSource.save(
 					await SeedAccountSource.createNew({
-						password: params.password,
+						password,
 						seed: params.seed,
 					}),
 				)
@@ -163,6 +165,26 @@ export async function accountSourcesHandleUIMessage(msg: Message, uiConnection: 
 					type: 'method-payload',
 					method: 'getAccountSourceEntropyResponse',
 					args: { entropy: await accountSource.getEntropy(payload.args.password) },
+				},
+				msg.id,
+			),
+		);
+		return true;
+	}
+	if (isMethodPayload(payload, 'getAccountSourceSeed')) {
+		const accountSource = await getAccountSourceByID(payload.args.accountSourceID);
+		if (!accountSource) {
+			throw new Error('Account source not found');
+		}
+		if (!(accountSource instanceof SeedAccountSource)) {
+			throw new Error('Invalid account source type');
+		}
+		await uiConnection.send(
+			createMessage<MethodPayload<'getAccountSourceSeedResponse'>>(
+				{
+					type: 'method-payload',
+					method: 'getAccountSourceSeedResponse',
+					args: { seed: await accountSource.getSeed(payload.args.password) },
 				},
 				msg.id,
 			),

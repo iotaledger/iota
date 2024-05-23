@@ -162,12 +162,7 @@ export function AccountGroup({
 	const [accountsFormValues, setAccountsFormValues] = useAccountsFormContext();
 	const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
 	const { data: accountSources } = useAccountSources();
-	console.log("accountSources", JSON.stringify(accountSources));
 	const accountSource = accountSources?.find(({ id }) => id === accountSourceID);
-	console.log("resrere", (isMnemonicDerivedGroup || isSeedDerivedGroup) && accountSource);
-	console.log(isMnemonicDerivedGroup);
-	console.log(isSeedDerivedGroup);
-	console.log(accountSource);
 	return (
 		<>
 			<CollapsiblePrimitive.Root defaultOpen asChild>
@@ -229,6 +224,14 @@ export function AccountGroup({
 									size="tall"
 									text="Export Passphrase"
 									to={`../export/passphrase/${accountSource.id}`}
+								/>
+							) : null}
+							{isSeedDerivedGroup && accountSource ? (
+								<Button
+									variant="secondary"
+									size="tall"
+									text="Export Seed"
+									to={`../export/seed/${accountSource.id}`}
 								/>
 							) : null}
 						</div>

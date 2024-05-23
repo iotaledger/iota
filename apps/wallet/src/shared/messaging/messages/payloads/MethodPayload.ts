@@ -67,6 +67,8 @@ type MethodPayloads = {
 	storeLedgerAccountsPublicKeys: { publicKeysToStore: LedgerAccountsPublicKeys };
 	getAccountSourceEntropy: { accountSourceID: string; password?: string };
 	getAccountSourceEntropyResponse: { entropy: string };
+	getAccountSourceSeed: { accountSourceID: string; password?: string };
+	getAccountSourceSeedResponse: { seed: string };
 	clearWallet: {};
 	getAutoLockMinutes: {};
 	getAutoLockMinutesResponse: { minutes: number | null };

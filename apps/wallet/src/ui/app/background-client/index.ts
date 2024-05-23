@@ -506,6 +506,26 @@ export class BackgroundClient {
 		);
 	}
 
+	public getAccountSourceSeed(args: MethodPayload<'getAccountSourceSeed'>['args']) {
+		return lastValueFrom(
+			this.sendMessage(
+				createMessage<MethodPayload<'getAccountSourceSeed'>>({
+					type: 'method-payload',
+					method: 'getAccountSourceSeed',
+					args,
+				}),
+			).pipe(
+				take(1),
+				map(({ payload }) => {
+					if (isMethodPayload(payload, 'getAccountSourceSeedResponse')) {
+						return payload.args;
+					}
+					throw new Error('Unexpected response type');
+				}),
+			),
+		);
+	}
+
 	public getAutoLockMinutes() {
 		return lastValueFrom(
 			this.sendMessage(
