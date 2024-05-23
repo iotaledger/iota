@@ -37,7 +37,7 @@ type UseDeriveAddressMutationOptions = Omit<
 >;
 
 /**
- * Mutation hook for prompting the user to sign a transaction block.
+ * Mutation hook to derive an address given an account and address indexes
  */
 export function useDeriveAddress({
 	mutationKey,
