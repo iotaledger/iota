@@ -6,11 +6,11 @@ import { type SuiClient } from '@mysten/sui.js/client';
 import { useQuery } from '@tanstack/react-query';
 
 export function useGetAllEpochAddressMetrics(
-	...input: Parameters<SuiClient['getAllEpochAddressMetrics']>
+    ...input: Parameters<SuiClient['getAllEpochAddressMetrics']>
 ) {
-	const client = useSuiClient();
-	return useQuery({
-		queryKey: ['get', 'all', 'epoch', 'addresses', ...input],
-		queryFn: () => client.getAllEpochAddressMetrics(...input),
-	});
+    const client = useSuiClient();
+    return useQuery({
+        queryKey: ['get', 'all', 'epoch', 'addresses', ...input],
+        queryFn: () => client.getAllEpochAddressMetrics(...input),
+    });
 }
