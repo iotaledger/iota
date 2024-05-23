@@ -58,7 +58,6 @@ export class ContentScriptConnection extends Connection {
 
 	protected async handleMessage(msg: Message) {
 		const { payload } = msg;
-		console.log(msg)
 		try {
 			if (isGetAccount(payload)) {
 				const { accounts } = await this.ensurePermissions(['viewAccount']);
