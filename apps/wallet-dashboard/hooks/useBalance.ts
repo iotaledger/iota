@@ -4,40 +4,34 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCurrentAccount, useSuiClient } from '@mysten/dapp-kit';
+import { useSuiClient } from '@mysten/dapp-kit';
 import { CoinBalance } from '@mysten/sui.js/client';
 import { MIST_PER_SUI } from '@mysten/sui.js/utils';
-import { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 
-export function useBalance() {
-	const account = useCurrentAccount();
-	const suiClient = useSuiClient();
-	const [coinBalance, setCoinBalance] = useState<CoinBalance>();
-
-	useEffect(() => {
-		const fetchBalance = async () => {
-			if (account?.address) {
-				try {
-					const response = await suiClient.getBalance({ owner: account.address });
-					setCoinBalance(response);
-				} catch (error) {
-					console.error('Failed to fetch balance:', error);
-				}
-			}
-		};
-
-		fetchBalance();
-	}, [account, suiClient]);
+export function useBalance(coinType: string, address?: string | null) {
+	const rpc = useSuiClient();
+	const getBalanceQuery = useQuery<CoinBalance>({
+		queryKey: ['get-balance', address, coinType],
+		queryFn: async () => {
+			return rpc.getBalance({
+				owner: address!,
+				coinType,
+			});
+		},
+		enabled: !!address,
+	});
 
 	const calculateBalance = useMemo(() => {
-		if (coinBalance) {
-			return Number(coinBalance?.totalBalance) / Number(MIST_PER_SUI);
+		if (getBalanceQuery?.data?.totalBalance) {
+			return Number(getBalanceQuery.data.totalBalance) / Number(MIST_PER_SUI);
 		}
 		return 0;
-	}, [coinBalance]);
+	}, [getBalanceQuery?.data?.totalBalance]);
 
 	return {
-		coinBalance,
 		calculateBalance,
+		getBalanceQuery,
 	};
 }

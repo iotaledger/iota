@@ -4,13 +4,11 @@
 
 import { useCurrentAccount, useCurrentWallet } from '@mysten/dapp-kit';
 
-import { useBalance } from '../../../hooks/useBalance';
-import { useCoins } from '../../../hooks/useCoins';
+import { AccountBalance } from '@/components/AccountBalance/AccountBalance';
+import { AllCoins } from '@/components/AllCoins/AllCoins';
 
 function HomeDashboardPage(): JSX.Element {
 	const { connectionStatus } = useCurrentWallet();
-	const { calculateBalance } = useBalance();
-	const { coins } = useCoins();
 	const account = useCurrentAccount();
 
 	return (
@@ -20,17 +18,8 @@ function HomeDashboardPage(): JSX.Element {
 					<h1>Welcome</h1>
 					<p>Connection status: {connectionStatus}</p>
 					<div>Address: {account.address}</div>
-					<div>Balance: {calculateBalance} SUI</div>
-					<div>
-						Coins:{' '}
-						{coins?.data?.map((coin) => {
-							return (
-								<div key={coin.coinObjectId}>
-									{coin.balance} - {coin.coinObjectId}
-								</div>
-							);
-						})}
-					</div>
+					<AccountBalance />
+					<AllCoins />
 				</div>
 			) : (
 				<div>Connection status: {connectionStatus}</div>
