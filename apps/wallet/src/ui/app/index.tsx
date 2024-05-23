@@ -86,6 +86,7 @@ const App = () => {
 		dispatch(setNavVisibility(menuVisible));
 	}, [location, dispatch]);
 
+	// useInitialPageView();
 	const { data: accounts } = useAccounts();
 	const allLedgerWithoutPublicKey = useMemo(
 		() => accounts?.filter(isLedgerAccountSerializedUI).filter(({ publicKey }) => !publicKey) || [],

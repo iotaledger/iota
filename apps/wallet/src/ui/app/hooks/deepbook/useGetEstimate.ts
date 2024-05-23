@@ -9,7 +9,7 @@ import { useSuiClient } from '@mysten/dapp-kit';
 import { type DeepBookClient } from '@mysten/deepbook';
 import { type CoinStruct, type SuiClient } from '@mysten/sui.js/client';
 import { TransactionBlock } from '@mysten/sui.js/transactions';
-import * as Sentry from '@sentry/react';
+// import * as Sentry from '@sentry/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import BigNumber from 'bignumber.js';
 
@@ -337,7 +337,8 @@ export function useGetEstimate({
 				};
 			} catch (error) {
 				// sentryTransaction.setStatus('failed_precondition');
-				Sentry.captureException(error);
+				// Sentry.captureException(error);
+				console.error(error);
 				throw error;
 			} finally {
 				// sentryTransaction.finish();

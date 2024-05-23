@@ -15,7 +15,7 @@ import { Connections } from './connections';
 import NetworkEnv from './NetworkEnv';
 import Permissions from './Permissions';
 import * as Qredo from './qredo';
-import { initSentry } from './sentry';
+// import { initSentry } from './sentry';
 import Transactions from './Transactions';
 
 growthbook.loadFeatures().catch(() => {
