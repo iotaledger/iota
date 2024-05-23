@@ -12,7 +12,7 @@ use crate::governance::StakedSui;
 use crate::id::UID;
 use crate::object::Data;
 use crate::object::Object;
-use crate::STARDUST_ADDRESS;
+use crate::TIMELOCK_ADDRESS;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -33,7 +33,7 @@ impl TimelockedStakedSui {
     /// Get the TimeLock's `type`.
     pub fn type_() -> StructTag {
         StructTag {
-            address: STARDUST_ADDRESS,
+            address: TIMELOCK_ADDRESS,
             module: TIMELOCKED_STAKED_SUI_MODULE_NAME.to_owned(),
             name: TIMELOCKED_STAKED_SUI_STRUCT_NAME.to_owned(),
             type_params: vec![],
@@ -42,7 +42,7 @@ impl TimelockedStakedSui {
 
     /// Is this other StructTag representing a TimelockedStakedSui?
     pub fn is_timelocked_staked_sui(s: &StructTag) -> bool {
-        s.address == STARDUST_ADDRESS
+        s.address == TIMELOCK_ADDRESS
             && s.module.as_ident_str() == TIMELOCKED_STAKED_SUI_MODULE_NAME
             && s.name.as_ident_str() == TIMELOCKED_STAKED_SUI_STRUCT_NAME
             && s.type_params.is_empty()

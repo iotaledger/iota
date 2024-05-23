@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { entropyToSerialized, mnemonicToEntropy } from '_src/shared/utils/bip39';
 import { ImportRecoveryPhraseForm } from '_src/ui/app/components/accounts/ImportRecoveryPhraseForm';
 import Overlay from '_src/ui/app/components/overlay';
@@ -87,7 +90,7 @@ export function RecoverManyPage() {
 			>
 				<div className="flex flex-col flex-nowrap w-full h-full gap-4 text-center">
 					<Text variant="pBody" color="gray-90">
-						Enter your 12-word Recovery Phrase
+						Enter your 24-word Recovery Phrase
 					</Text>
 					<ImportRecoveryPhraseForm
 						submitButtonText="Recover"

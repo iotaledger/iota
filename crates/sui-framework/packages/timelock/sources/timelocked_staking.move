@@ -1,15 +1,15 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module stardust::timelocked_staking {
+module timelock::timelocked_staking {
 
     use sui::balance::{Self, Balance};
     use sui::sui::SUI;
 
     use sui_system::sui_system::{SuiSystemState};
 
-    use stardust::timelock::{Self, TimeLock};
-    use stardust::timelocked_staked_sui::{Self, TimelockedStakedSui};
+    use timelock::timelock::{Self, TimeLock};
+    use timelock::timelocked_staked_sui::{Self, TimelockedStakedSui};
 
     /// For when trying to stake an expired time-locked balance.
     const ETimeLockShouldNotBeExpired: u64 = 0;

@@ -19,9 +19,9 @@ use sui_types::{
     base_types::{MoveObjectType, ObjectID, SuiAddress},
     committee::EpochId,
     governance::StakedSui,
-    stardust::timelocked_staked_sui::TimelockedStakedSui,
     sui_serde::BigInt,
     sui_system_state::{sui_system_state_summary::SuiSystemStateSummary, PoolTokenExchangeRate},
+    timelock::timelocked_staked_sui::TimelockedStakedSui,
 };
 
 /// Maximum amount of staked objects for querying.

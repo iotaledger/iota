@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{balance::Balance, base_types::ObjectID, id::UID, stardust::timelock::TimeLock};
+use crate::{balance::Balance, base_types::ObjectID, id::UID, timelock::timelock::TimeLock};
 
 #[test]
 fn test_timelock_ser_deser_roundtrip() {

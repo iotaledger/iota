@@ -2,23 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module stardust::timelocked_stake_tests {
+module timelock::timelocked_stake_tests {
     use sui::balance;
-    use sui::test_scenario;
-    use stardust::timelock::{Self, TimeLock};
-    use stardust::timelocked_staked_sui::{Self, TimelockedStakedSui};
-    use stardust::timelocked_staking;
-    use sui_system::sui_system::SuiSystemState;
-    use sui_system::staking_pool::{Self, PoolTokenExchangeRate};
-    use sui_system::validator_set::{Self, ValidatorSet};
     use sui::balance::Balance;
     use sui::coin::Coin;
     use sui::sui::SUI;
+    use sui::table::Table;
+    use sui::test_scenario::{Self, Scenario};
     use sui::test_utils::assert_eq;
     use sui::test_utils;
-    use sui::table::Table;
-    use sui::test_scenario::{Scenario};
 
+    use sui_system::sui_system::SuiSystemState;
+    use sui_system::staking_pool::{Self, PoolTokenExchangeRate};
+    use sui_system::validator_set::{Self, ValidatorSet};
     use sui_system::governance_test_utils::{
         add_validator,
         add_validator_candidate,
@@ -32,6 +28,10 @@ module stardust::timelocked_stake_tests {
         total_sui_balance,
         unstake,
     };
+
+    use timelock::timelock::{Self, TimeLock};
+    use timelock::timelocked_staked_sui::{Self, TimelockedStakedSui};
+    use timelock::timelocked_staking;
 
     const VALIDATOR_ADDR_1: address = @0x1;
     const VALIDATOR_ADDR_2: address = @0x2;
