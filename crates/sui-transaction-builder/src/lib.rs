@@ -28,16 +28,16 @@ use sui_types::governance::{ADD_STAKE_MUL_COIN_FUN_NAME, WITHDRAW_STAKE_FUN_NAME
 use sui_types::move_package::MovePackage;
 use sui_types::object::{Object, Owner};
 use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::stardust::timelocked_staking::{
+use sui_types::sui_system_state::SUI_SYSTEM_MODULE_NAME;
+use sui_types::timelock::timelocked_staking::{
     ADD_TIMELOCKED_STAKE_FUN_NAME, TIMELOCKED_STAKING_MODULE_NAME,
     WITHDRAW_TIMELOCKED_STAKE_FUN_NAME,
 };
-use sui_types::sui_system_state::SUI_SYSTEM_MODULE_NAME;
 use sui_types::transaction::{
     Argument, CallArg, Command, InputObjectKind, ObjectArg, TransactionData, TransactionKind,
 };
 use sui_types::{
-    coin, fp_ensure, STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID, SUI_SYSTEM_PACKAGE_ID,
+    coin, fp_ensure, SUI_FRAMEWORK_PACKAGE_ID, SUI_SYSTEM_PACKAGE_ID, TIMELOCK_PACKAGE_ID,
 };
 
 #[async_trait]
@@ -812,7 +812,7 @@ impl TransactionBuilder {
                 builder.input(CallArg::Pure(bcs::to_bytes(&validator)?))?,
             ];
             builder.command(Command::move_call(
-                STARDUST_PACKAGE_ID,
+                TIMELOCK_PACKAGE_ID,
                 TIMELOCKED_STAKING_MODULE_NAME.to_owned(),
                 ADD_TIMELOCKED_STAKE_FUN_NAME.to_owned(),
                 vec![],
@@ -843,7 +843,7 @@ impl TransactionBuilder {
             .await?;
         TransactionData::new_move_call(
             signer,
-            STARDUST_PACKAGE_ID,
+            TIMELOCK_PACKAGE_ID,
             TIMELOCKED_STAKING_MODULE_NAME.to_owned(),
             WITHDRAW_TIMELOCKED_STAKE_FUN_NAME.to_owned(),
             vec![],

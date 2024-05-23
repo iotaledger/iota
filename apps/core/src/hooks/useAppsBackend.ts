@@ -3,6 +3,7 @@
 
 import { useCallback } from 'react';
 
+// @ts-ignore
 const backendUrl = import.meta.env.VITE_APPS_BACKEND_URL;
 
 export function useAppsBackend() {
