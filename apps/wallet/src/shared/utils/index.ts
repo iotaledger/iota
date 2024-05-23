@@ -20,14 +20,14 @@ export function openInNewTab() {
 }
 
 export function useSetGrowthbookAttributes() {
-	const { apiEnv, customRPC } = useAppSelector((state) => state.app);
+	const { network, customRpc } = useAppSelector((state) => state.app);
 	const growthBook = useGrowthBook();
 
 	useEffect(() => {
 		if (growthBook) {
-			setAttributes({ apiEnv, customRPC });
+			setAttributes({ network, customRpc });
 		}
-	}, [growthBook, apiEnv, customRPC]);
+	}, [growthBook, network, customRpc]);
 }
 
 export function isValidUrl(url: string | null) {

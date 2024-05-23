@@ -419,6 +419,7 @@ fn move_object_type_consistency() {
             ty.is_coin_metadata(),
             ty.is_dynamic_field(),
             ty.is_timelock(),
+            ty.is_timelocked_staked_sui(),
         ];
         assert!(cases.into_iter().map(|is_ty| is_ty as u8).sum::<u8>() <= 1);
         ty
@@ -439,13 +440,17 @@ fn move_object_type_consistency() {
     ));
     assert!(ty.is_dynamic_field());
     let ty = assert_consistent(&TimeLock::<Balance>::type_(
-        Balance::type_(TypeTag::U64).into(),
+        Balance::type_(GAS::type_().into()).into(),
     ));
+    assert_eq!(ty, MoveObjectType::timelocked_sui_balance());
     assert!(ty.is_timelock());
     assert!(ty.is_timelocked_balance());
-    let ty = assert_consistent(&TimeLock::<Coin>::type_(Coin::type_(TypeTag::U64).into()));
+    let ty = assert_consistent(&TimeLock::<Coin>::type_(GasCoin::type_().into()));
     assert!(ty.is_timelock());
     assert!(!ty.is_timelocked_balance());
+    let ty = assert_consistent(&TimelockedStakedSui::type_());
+    assert_eq!(ty, MoveObjectType::timelocked_staked_sui());
+    assert!(ty.is_timelocked_staked_sui());
     assert_consistent(&UID::type_());
     assert_consistent(&ID::type_());
 }

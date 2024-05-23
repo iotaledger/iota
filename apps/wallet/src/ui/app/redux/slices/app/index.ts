@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { DEFAULT_API_ENV, walletApiProvider } from '_app/ApiProvider';
+import { walletApiProvider } from '_app/ApiProvider';
 import type { RootState } from '_redux/RootReducer';
-import type { API_ENV, NetworkEnvType } from '_src/shared/api-env';
+import type { NetworkEnvType } from '_src/shared/api-env';
 import type { AppThunkConfig } from '_store/thunk-extras';
+import { getDefaultNetwork, type Network } from '@mysten/sui.js/client';
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 
@@ -12,17 +13,17 @@ import { AppType } from './AppType';
 
 type AppState = {
 	appType: AppType;
-	apiEnv: API_ENV;
+	network: Network;
+	customRpc: string | null;
 	navVisible: boolean;
-	customRPC?: string | null;
 	activeOrigin: string | null;
 	activeOriginFavIcon: string | null;
 };
 
 const initialState: AppState = {
 	appType: AppType.unknown,
-	apiEnv: DEFAULT_API_ENV,
-	customRPC: null,
+	network: getDefaultNetwork(),
+	customRpc: null,
 	navVisible: true,
 	activeOrigin: null,
 	activeOriginFavIcon: null,
@@ -36,7 +37,7 @@ export const changeActiveNetwork = createAsyncThunk<
 	if (store) {
 		await background.setActiveNetworkEnv(network);
 	}
-	walletApiProvider.setNewJsonRpcProvider(network.env, network.customRpcUrl);
+	walletApiProvider.setNewJsonRpcProvider(network.network, network.customRpcUrl);
 	await dispatch(slice.actions.setActiveNetwork(network));
 });
 
@@ -48,10 +49,10 @@ const slice = createSlice({
 		},
 		setActiveNetwork: (
 			state,
-			{ payload: { env, customRpcUrl } }: PayloadAction<NetworkEnvType>,
+			{ payload: { network, customRpcUrl } }: PayloadAction<NetworkEnvType>,
 		) => {
-			state.apiEnv = env;
-			state.customRPC = customRpcUrl;
+			state.network = network;
+			state.customRpc = customRpcUrl;
 		},
 		setNavVisibility: (state, { payload: isVisible }: PayloadAction<boolean>) => {
 			state.navVisible = isVisible;

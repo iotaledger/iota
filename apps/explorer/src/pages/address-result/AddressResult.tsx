@@ -14,7 +14,7 @@ import { TransactionsForAddress } from '~/components/transactions/TransactionsFo
 import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { Divider } from '~/ui/Divider';
 import { PageHeader } from '~/ui/PageHeader';
-import { LOCAL_STORAGE_SPLIT_PANE_KEYS, SplitPanes } from '~/ui/SplitPanes';
+import { LocalStorageSplitPaneKey, SplitPanes } from '~/ui/SplitPanes';
 import { TabHeader, TabsList, TabsTrigger } from '~/ui/Tabs';
 import { TotalStaked } from './TotalStaked';
 
@@ -62,7 +62,7 @@ function AddressResult({ address }: { address: string }) {
 				<ErrorBoundary>
 					{isMediumOrAbove ? (
 						<SplitPanes
-							autoSaveId={LOCAL_STORAGE_SPLIT_PANE_KEYS.ADDRESS_VIEW_HORIZONTAL}
+							autoSaveId={LocalStorageSplitPaneKey.AddressViewHorizontal}
 							dividerSize="none"
 							splitPanels={[leftPane, rightPane]}
 							direction="horizontal"
@@ -107,7 +107,7 @@ function AddressResult({ address }: { address: string }) {
 			{isMediumOrAbove ? (
 				<div className="h-300">
 					<SplitPanes
-						autoSaveId={LOCAL_STORAGE_SPLIT_PANE_KEYS.ADDRESS_VIEW_VERTICAL}
+						autoSaveId={LocalStorageSplitPaneKey.AddressViewVertical}
 						dividerSize="none"
 						splitPanels={[topPane, bottomPane]}
 						direction="vertical"

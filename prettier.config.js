@@ -18,6 +18,7 @@ module.exports = {
 		'',
 		'^[.]',
 	],
+	importOrderParserPlugins: ["typescript", "decorators-legacy"],
 	overrides: [
 		{
 			files: 'apps/explorer/**/*',

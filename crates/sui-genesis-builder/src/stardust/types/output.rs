@@ -8,7 +8,7 @@ use serde_with::serde_as;
 use sui_protocol_config::ProtocolConfig;
 use sui_types::{
     balance::Balance,
-    base_types::{ObjectID, SuiAddress, TxContext},
+    base_types::{ObjectID, SequenceNumber, SuiAddress, TxContext},
     coin::Coin,
     collection_types::Bag,
     gas_coin::GAS,
@@ -179,6 +179,7 @@ impl BasicOutput {
         owner: SuiAddress,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
+        version: SequenceNumber,
     ) -> Result<Object> {
         let move_object = unsafe {
             // Safety: we know from the definition of `BasicOutput` in the stardust package
@@ -186,7 +187,7 @@ impl BasicOutput {
             MoveObject::new_from_execution(
                 Self::type_().into(),
                 false,
-                0.into(),
+                version,
                 bcs::to_bytes(self)?,
                 protocol_config,
             )?
@@ -211,6 +212,7 @@ impl BasicOutput {
         owner: SuiAddress,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
+        version: SequenceNumber,
     ) -> Result<Object> {
         let coin = Coin::new(self.id, self.iota.value());
         let move_object = unsafe {
@@ -219,7 +221,7 @@ impl BasicOutput {
             MoveObject::new_from_execution(
                 GAS::type_().into(),
                 true,
-                0.into(),
+                version,
                 bcs::to_bytes(&coin)?,
                 protocol_config,
             )?

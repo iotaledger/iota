@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { getFullnodeUrl, isSuiClient, SuiClient } from '@mysten/sui.js/client';
+import { getNetwork, isSuiClient, Network, SuiClient } from '@mysten/sui.js/client';
 import type { SuiClientOptions } from '@mysten/sui.js/client';
 import { createContext, useMemo, useState } from 'react';
 
@@ -39,7 +39,7 @@ export type SuiClientProviderProps<T extends NetworkConfigs> = {
 );
 
 const DEFAULT_NETWORKS = {
-	localnet: { url: getFullnodeUrl('localnet') },
+	localnet: { url: getNetwork(Network.Local).url },
 };
 
 const DEFAULT_CREATE_CLIENT = function createClient(

@@ -38,9 +38,9 @@ export interface NetworkSelectProps {
 }
 
 enum NetworkState {
-	UNSELECTED = 'UNSELECTED',
-	PENDING = 'PENDING',
-	SELECTED = 'SELECTED',
+	Unselected = 'unselected',
+	Pending = 'pending',
+	Selected = 'selected',
 }
 
 interface SelectableNetworkProps extends ComponentProps<'div'> {
@@ -56,21 +56,21 @@ function SelectableNetwork({ state, children, onClick, ...props }: SelectableNet
 			onClick={onClick}
 			className={clsx(
 				'flex items-start gap-3 rounded-md px-1.25 py-2 text-body font-semibold hover:bg-gray-40 ui-active:bg-gray-40',
-				state !== NetworkState.UNSELECTED ? 'text-steel-darker' : 'text-steel-dark',
+				state !== NetworkState.Unselected ? 'text-steel-darker' : 'text-steel-dark',
 			)}
 			{...props}
 		>
 			<CheckIcon
 				className={clsx('flex-shrink-0', {
-					'text-success': state === NetworkState.SELECTED,
-					'text-steel': state === NetworkState.PENDING,
-					'text-gray-45': state === NetworkState.UNSELECTED,
+					'text-success': state === NetworkState.Selected,
+					'text-steel': state === NetworkState.Pending,
+					'text-gray-45': state === NetworkState.Unselected,
 				})}
 			/>
 			<div className="mt-px">
 				<Text
 					variant="body/semibold"
-					color={state === NetworkState.SELECTED ? 'steel-darker' : 'steel-dark'}
+					color={state === NetworkState.Selected ? 'steel-darker' : 'steel-dark'}
 				>
 					{children}
 				</Text>
@@ -164,7 +164,7 @@ function NetworkSelectPanel({ networks, onChange, value }: Omit<NetworkSelectPro
 				<SelectableNetwork
 					key={network.id}
 					state={
-						!customOpen && value === network.id ? NetworkState.SELECTED : NetworkState.UNSELECTED
+						!customOpen && value === network.id ? NetworkState.Selected : NetworkState.Unselected
 					}
 					onClick={() => {
 						onChange(network.id);
@@ -177,10 +177,10 @@ function NetworkSelectPanel({ networks, onChange, value }: Omit<NetworkSelectPro
 			<SelectableNetwork
 				state={
 					isCustomNetwork
-						? NetworkState.SELECTED
+						? NetworkState.Selected
 						: customOpen
-						? NetworkState.PENDING
-						: NetworkState.UNSELECTED
+						? NetworkState.Pending
+						: NetworkState.Unselected
 				}
 				onClick={() => setCustomOpen(true)}
 			>
