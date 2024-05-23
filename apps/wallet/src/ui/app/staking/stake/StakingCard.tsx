@@ -22,7 +22,7 @@ import { useSuiClientQuery } from '@mysten/dapp-kit';
 import { ArrowLeft16 } from '@mysten/icons';
 import type { StakeObject } from '@mysten/sui.js/client';
 import { MIST_PER_SUI, SUI_TYPE_ARG } from '@mysten/sui.js/utils';
-import * as Sentry from '@sentry/react';
+// import * as Sentry from '@sentry/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Formik } from 'formik';
 import type { FormikHelpers } from 'formik';
@@ -128,9 +128,9 @@ function StakingCard() {
 				throw new Error('Failed, missing required field');
 			}
 
-			const sentryTransaction = Sentry.startTransaction({
-				name: 'stake',
-			});
+			// const sentryTransaction = Sentry.startTransaction({
+			// 	name: 'stake',
+			// });
 			try {
 				const transactionBlock = createStakeTransaction(amount, validatorAddress);
 				return await signer.signAndExecuteTransactionBlock(
@@ -148,7 +148,7 @@ function StakingCard() {
 					clientIdentifier,
 				);
 			} finally {
-				sentryTransaction.finish();
+				// sentryTransaction.finish();
 			}
 		},
 		onSuccess: (_, { amount, validatorAddress }) => {
@@ -165,9 +165,9 @@ function StakingCard() {
 				throw new Error('Failed, missing required field.');
 			}
 
-			const sentryTransaction = Sentry.startTransaction({
-				name: 'stake',
-			});
+			// const sentryTransaction = Sentry.startTransaction({
+			// 	name: 'stake',
+			// });
 			try {
 				const transactionBlock = createUnstakeTransaction(stakedSuiId);
 				return await signer.signAndExecuteTransactionBlock(
@@ -184,9 +184,10 @@ function StakingCard() {
 					},
 					clientIdentifier,
 				);
-			} finally {
-				sentryTransaction.finish();
 			}
+			// finally {
+			// 	sentryTransaction.finish();
+			// }
 		},
 		onSuccess: () => {
 			ampli.unstakedSui({

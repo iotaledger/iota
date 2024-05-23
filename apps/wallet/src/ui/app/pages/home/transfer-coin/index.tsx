@@ -15,7 +15,7 @@ import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { QredoActionIgnoredByUser } from '_src/ui/app/QredoSigner';
 import { useCoinMetadata } from '@mysten/core';
 import { ArrowLeft16, ArrowRight16 } from '@mysten/icons';
-import * as Sentry from '@sentry/react';
+// import * as Sentry from '@sentry/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
@@ -55,9 +55,9 @@ function TransferCoinPage() {
 				throw new Error('Missing data');
 			}
 
-			const sentryTransaction = Sentry.startTransaction({
-				name: 'send-tokens',
-			});
+			// const sentryTransaction = Sentry.startTransaction({
+			// 	name: 'send-tokens',
+			// });
 			try {
 				return signer.signAndExecuteTransactionBlock(
 					{
@@ -72,12 +72,13 @@ function TransferCoinPage() {
 				);
 			} catch (error) {
 				if (!(error instanceof QredoActionIgnoredByUser)) {
-					sentryTransaction.setTag('failure', true);
+					// sentryTransaction.setTag('failure', true);
 				}
 				throw error;
-			} finally {
-				sentryTransaction.finish();
 			}
+			// finally {
+			// sentryTransaction.finish();
+			// }
 		},
 		onSuccess: (response) => {
 			queryClient.invalidateQueries({ queryKey: ['get-coins'] });
