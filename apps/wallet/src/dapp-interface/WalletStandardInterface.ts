@@ -34,8 +34,8 @@ import { isTransactionBlock } from '@mysten/sui.js/transactions';
 import { fromB64, toB64 } from '@mysten/sui.js/utils';
 import {
 	ReadonlyWalletAccount,
-	SUI_CHAINS,
 	SuiDeriveAddressMethod,
+	SUPPORTED_CHAINS,
 	type StandardConnectFeature,
 	type StandardConnectMethod,
 	type StandardEventsFeature,
@@ -103,7 +103,7 @@ export class SuiWallet implements Wallet {
 
 	get chains() {
 		// TODO: Extract chain from wallet:
-		return SUI_CHAINS;
+		return SUPPORTED_CHAINS;
 	}
 
 	get features(): StandardConnectFeature &

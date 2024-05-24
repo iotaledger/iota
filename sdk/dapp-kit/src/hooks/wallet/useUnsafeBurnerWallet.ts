@@ -15,7 +15,7 @@ import type {
 	SuiSignTransactionBlockMethod,
 	Wallet,
 } from '@mysten/wallet-standard';
-import { getWallets, ReadonlyWalletAccount, SUI_CHAINS } from '@mysten/wallet-standard';
+import { getWallets, ReadonlyWalletAccount, SUPPORTED_CHAINS } from '@mysten/wallet-standard';
 import { useEffect } from 'react';
 
 import { useSuiClient } from '../useSuiClient.js';
@@ -72,7 +72,7 @@ function registerUnsafeBurnerWallet(suiClient: SuiClient) {
 
 		// Return the Sui chains that your wallet supports.
 		get chains() {
-			return SUI_CHAINS;
+			return SUPPORTED_CHAINS;
 		}
 
 		get accounts() {
