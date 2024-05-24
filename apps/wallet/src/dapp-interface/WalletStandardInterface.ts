@@ -102,7 +102,6 @@ export class SuiWallet implements Wallet {
 	}
 
 	get chains() {
-		// TODO: Extract chain from wallet:
 		return SUPPORTED_CHAINS;
 	}
 
