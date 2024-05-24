@@ -42,7 +42,7 @@ pub struct FixedPoint32 {
 impl FixedPoint32 {
     /// Create a fixed-point value from a rational number specified by its
     /// numerator and denominator. Imported from Move std lib.
-    /// This will abort if the denominator is zero. It will also
+    /// This will panic if the denominator is zero. It will also
     /// abort if the numerator is nonzero and the ratio is not in the range
     /// 2^-32 .. 2^32-1. When specifying decimal fractions, be careful about
     /// rounding errors: if you round to display N digits after the decimal
@@ -81,8 +81,24 @@ impl TryFrom<f64> for FixedPoint32 {
 /// Rust version of the Move sui::url::Url type.
 #[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct Url {
-    pub url: String,
+    /// The underlying URL as a string.
+    /// 
+    /// # SAFETY
+    /// 
+    /// Note that this String is UTF-8 encoded while the URL type in Move is ascii-encoded.
+    /// Setting this field requires ensuring that the string consists of only ASCII characters.
+    url: String,
 }
+
+impl Url {
+    /// Creates a new `Url` ensuring that it only consists of ascii characters.
+    pub fn new(url: String) -> anyhow::Result<Self> {
+        if !url.is_ascii() {
+            anyhow::bail!("url `{url}` does not consist of only ascii characters")
+        }
+        Ok(Url { url })
+    }
+}  
 
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
@@ -134,6 +150,9 @@ impl TryFrom<StardustIrc27> for Irc27Metadata {
             version: irc27.version().to_string(),
             media_type: irc27.media_type().to_string(),
             uri: Url {
+                 // We are converting a `Url` to an ASCII string here (as the URL type in move is based on ASCII strings).
+                // The `ToString` implementation of the `Url` type percent-encodes any non-ascii characters
+                // and is therefore safe to do.
                 url: irc27.uri().to_string(),
             },
             name: irc27.name().to_string(),
