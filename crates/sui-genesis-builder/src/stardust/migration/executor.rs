@@ -271,7 +271,7 @@ impl Executor {
     ) -> Result<CreatedObjects> {
         // Take the Alias ID set in the output or, if its zeroized, compute it from the Output ID.
         let alias_id = ObjectID::new(*alias.alias_id().or_from_output_id(&header.output_id()));
-        let move_alias = Alias::try_from_stardust(alias_id, &alias)?;
+        let move_alias = Alias::try_from_stardust(alias_id, alias)?;
         let mut created_objects = CreatedObjects::default();
 
         // TODO: We should ensure that no circular ownership exists.
@@ -293,7 +293,7 @@ impl Executor {
         created_objects.set_native_tokens(fields)?;
         let move_alias_output = crate::stardust::types::AliasOutput::try_from_stardust(
             self.tx_context.fresh_id(),
-            &alias,
+            alias,
             bag,
         )?;
 
@@ -490,7 +490,7 @@ impl Executor {
         basic_output: &BasicOutput,
     ) -> Result<CreatedObjects> {
         let mut data =
-            crate::stardust::types::output::BasicOutput::new(header.clone(), &basic_output);
+            crate::stardust::types::output::BasicOutput::new(header.clone(), basic_output);
         let owner: SuiAddress = basic_output.address().to_string().parse()?;
         let mut created_objects = CreatedObjects::default();
 

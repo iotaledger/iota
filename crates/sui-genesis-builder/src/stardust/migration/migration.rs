@@ -130,7 +130,7 @@ impl Migration {
         let compiled = foundries
             .into_iter()
             .map(|(header, output)| {
-                let pkg = generate_package(&output)?;
+                let pkg = generate_package(output)?;
                 Ok((header, output, pkg))
             })
             .collect::<Result<Vec<_>>>()?;
