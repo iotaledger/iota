@@ -1,4 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export { default as RouteLink } from './routeLink';
+pub mod migration;
+#[cfg(test)]
+mod tests;
