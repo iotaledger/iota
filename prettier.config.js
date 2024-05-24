@@ -28,6 +28,13 @@ module.exports = {
             },
         },
         {
+            files: 'apps/wallet-dashboard/**/*',
+            options: {
+                plugins: ['prettier-plugin-tailwindcss'],
+                tailwindConfig: './apps/wallet-dashboard/tailwind.config.ts',
+            },
+        },
+        {
             files: 'sdk/**/*',
             options: {
                 proseWrap: 'always',
