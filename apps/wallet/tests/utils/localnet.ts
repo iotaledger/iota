@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import 'tsconfig-paths/register';
 
 import { requestSuiFromFaucetV0 } from '@mysten/sui.js/faucet';
@@ -13,7 +16,7 @@ export async function generateKeypairFromMnemonic(mnemonic: string) {
 }
 
 export async function generateKeypair() {
-	const mnemonic = bip39.generateMnemonic(wordlist);
+	const mnemonic = bip39.generateMnemonic(wordlist, 256);
 	const keypair = await generateKeypairFromMnemonic(mnemonic);
 	return { mnemonic, keypair };
 }
