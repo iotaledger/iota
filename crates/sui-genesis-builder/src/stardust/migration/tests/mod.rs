@@ -54,7 +54,7 @@ fn run_migration(outputs: impl IntoIterator<Item = (OutputHeader, Output)>) -> E
     migration.into_executor()
 }
 
-pub fn create_foundry(
+fn create_foundry(
     iota_amount: u64,
     token_scheme: SimpleTokenScheme,
     irc_30_metadata: Irc30Metadata,
