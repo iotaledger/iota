@@ -6,10 +6,7 @@ use crate::stardust::migration::migration::PACKAGE_DEPS;
 use crate::stardust::migration::tests::run_migration;
 use crate::stardust::migration::tests::{create_foundry, random_output_header};
 use crate::stardust::types::ALIAS_OUTPUT_MODULE_NAME;
-use crate::stardust::{
-    migration::migration::Migration,
-    types::{snapshot::OutputHeader, Alias, AliasOutput},
-};
+use crate::stardust::types::{snapshot::OutputHeader, Alias, AliasOutput};
 use iota_sdk::types::block::address::Address;
 use iota_sdk::types::block::output::feature::Irc30Metadata;
 use iota_sdk::types::block::output::{NativeToken, SimpleTokenScheme, TokenId};
@@ -33,9 +30,7 @@ use sui_types::inner_temporary_store::InnerTemporaryStore;
 use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
 use sui_types::transaction::{Argument, CheckedInputObjects, ObjectArg};
 use sui_types::TypeTag;
-use sui_types::{
-    base_types::ObjectID, object::Object, STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID,
-};
+use sui_types::{base_types::ObjectID, STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID};
 
 fn migrate_alias(
     header: OutputHeader,
@@ -45,13 +40,8 @@ fn migrate_alias(
         .alias_id()
         .or_from_output_id(&header.output_id())
         .to_owned();
-    let mut snapshot_buffer = Vec::new();
-    Migration::new()
-        .unwrap()
-        .run([(header, stardust_alias.into())], &mut snapshot_buffer)
-        .unwrap();
 
-    let migrated_objects: Vec<Object> = bcs::from_bytes(&snapshot_buffer).unwrap();
+    let migrated_objects = run_migration([(header, stardust_alias.into())]).into_objects();
 
     // Ensure the migrated objects exist under the expected identifiers.
     let alias_object_id = ObjectID::new(*alias_id);
