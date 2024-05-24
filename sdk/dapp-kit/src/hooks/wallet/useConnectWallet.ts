@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import type {
-	StandardConnectInput,
-	StandardConnectOutput,
-	WalletAccount,
-	WalletWithRequiredFeatures,
+import {
+	isSupportedChain,
+	type StandardConnectInput,
+	type StandardConnectOutput,
+	type WalletAccount,
+	type WalletWithRequiredFeatures,
 } from '@mysten/wallet-standard';
 import type { UseMutationOptions, UseMutationResult } from '@tanstack/react-query';
 import { useMutation } from '@tanstack/react-query';
@@ -50,8 +51,9 @@ export function useConnectWallet({
 				setConnectionStatus('connecting');
 
 				const connectResult = await wallet.features['standard:connect'].connect(connectArgs);
+				console.log(connectResult)
 				const connectedSuiAccounts = connectResult.accounts.filter((account) =>
-					account.chains.some((chain) => chain.split(':')[0] === 'sui'),
+					account.chains.some(isSupportedChain),
 				);
 				const selectedAccount = getSelectedAccount(connectedSuiAccounts, accountAddress);
 
