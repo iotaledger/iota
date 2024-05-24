@@ -16,7 +16,7 @@ interface ActivityTileProps {
 
 function ActivityTile({ action, timestamp, success, error }: ActivityTileProps): JSX.Element {
   return (
-    <div className='flex flex-row items-center space-x-4 rounded-md border border-solid border-gray-45'>
+    <div className='flex flex-row items-center space-x-4 rounded-md border border-solid border-gray-45 w-60 p-2'>
       <ActivityIcon
           transactionFailed={!success || !!error}
           action={action}
