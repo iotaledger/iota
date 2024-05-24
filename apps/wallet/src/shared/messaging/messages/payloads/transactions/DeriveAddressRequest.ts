@@ -7,7 +7,8 @@ import { type Payload } from '../Payload';
 export interface DeriveAddressRequest extends BasePayload {
 	type: 'derive-address-request';
 	accountIndex: number,
-	addressIndex: number
+	addressIndex: number,
+	address: string
 }
 
 export function isDeriveAddressRequest(payload: Payload): payload is DeriveAddressRequest {

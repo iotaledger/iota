@@ -144,7 +144,7 @@ function registerUnsafeBurnerWallet(suiClient: SuiClient) {
 			});
 		};
 
-		#deriveAddress: SuiDeriveAddressMethod = async (_a) => {
+		#deriveAddress: SuiDeriveAddressMethod = async (_) => {
 			throw new Error("Not implemented")
 		}
 	}

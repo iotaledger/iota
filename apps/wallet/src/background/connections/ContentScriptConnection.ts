@@ -36,11 +36,11 @@ import { type SignedTransaction } from '_src/ui/app/WalletSigner';
 import { type SuiTransactionBlockResponse } from '@mysten/sui.js/client';
 import type { Runtime } from 'webextension-polyfill';
 
-import { getAccountsStatusData } from '../accounts';
+import { getAccountsByAddress, getAccountsStatusData } from '../accounts';
 import NetworkEnv from '../NetworkEnv';
 import { requestUserApproval } from '../qredo';
 import { Connection } from './Connection';
-import { getAccountSources } from '../account-sources';
+import { getAccountSourceByID } from '../account-sources';
 import { MnemonicAccountSource } from '../account-sources/MnemonicAccountSource';
 
 export class ContentScriptConnection extends Connection {
@@ -163,14 +163,28 @@ export class ContentScriptConnection extends Connection {
 				if (!(payload.addressIndex >= 0)) {
 					throw new Error('Missing addressIndex');
 				}
-				
+
+				if (!payload.address) {
+					throw new Error('Missing address');
+				}
+
 				// TODO: PERMISSIONS
-					
-				// TODO: Think of another way to get access to the keypair
-				const sources = await getAccountSources();
-				const mnemonicAccount = sources[0] as MnemonicAccountSource; // TODO: What about QRedo accounts?
+
+				let [foundAccount] = await getAccountsByAddress(payload.address);
+
+				const accountSource = await getAccountSourceByID(await foundAccount.sourceID);
 				
-				const account = await mnemonicAccount.deriveAccount({
+				if (!accountSource) {
+					throw new Error('Missing sourceAccount');
+				}
+
+				if (accountSource.type !== 'mnemonic') {
+					throw new Error('Only mnemonic accounts are supported');
+				}
+
+				const mnemonicAccount = accountSource as MnemonicAccountSource;
+
+				const derivedAccount = await mnemonicAccount.deriveAccount({
 					accountIndex: payload.accountIndex,
 					addressIndex: payload.addressIndex
 				})
@@ -179,7 +193,7 @@ export class ContentScriptConnection extends Connection {
 					createMessage<DeriveAddressResponse>(
 						{
 							type: 'derive-address-response',
-							address: account.address
+							address: derivedAccount.address
 						},
 						msg.id,
 					),

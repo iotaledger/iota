@@ -20,7 +20,7 @@ import {
 import { MnemonicAccountSource } from './MnemonicAccountSource';
 import { QredoAccountSource } from './QredoAccountSource';
 
-function toAccountSource(accountSource: AccountSourceSerialized) {
+export function toAccountSource(accountSource: AccountSourceSerialized) {
 	if (MnemonicAccountSource.isOfType(accountSource)) {
 		return new MnemonicAccountSource(accountSource.id);
 	}

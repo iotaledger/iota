@@ -295,12 +295,13 @@ export class SuiWallet implements Wallet {
 		);
 	};
 
-	#deriveAddress: SuiDeriveAddressMethod = async ({ accountIndex, addressIndex }) => {
+	#deriveAddress: SuiDeriveAddressMethod = async ({ accountIndex, addressIndex, address }) => {
 		return mapToPromise(
 			this.#send<DeriveAddressRequest, DeriveAddressResponse>({
 				type: 'derive-address-request',
 				accountIndex,
 				addressIndex,
+				address
 			}),
 			(response) => {
 				return {
