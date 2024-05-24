@@ -11,6 +11,7 @@ anyhow.workspace = true
 bcs.workspace = true
 camino.workspace = true
 fastcrypto.workspace = true
+hex.workspace = true
 move-binary-format.workspace = true
 move-core-types.workspace = true
 move-vm-runtime-v2 = { path = "../../external-crates/move/move-execution/v2/crates/move-vm-runtime" }

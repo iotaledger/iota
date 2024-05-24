@@ -11,13 +11,11 @@ use sui_protocol_config::ProtocolConfig;
 use sui_types::{
     balance::Balance,
     base_types::{ObjectID, SequenceNumber, SuiAddress, TxContext},
-    collection_types::{Bag, Entry, Table, VecMap},
+    collection_types::{Bag, Entry, VecMap},
     id::UID,
     object::{Data, MoveObject, Object, Owner},
     STARDUST_PACKAGE_ID,
 };
-
-use crate::stardust::error::StardustError;
 
 use super::{
     output::{
@@ -187,6 +185,42 @@ impl TryFrom<StardustIrc27> for Irc27Metadata {
     }
 }
 
+impl Default for Irc27Metadata {
+    fn default() -> Self {
+        // The currently supported version per <https://github.com/iotaledger/tips/blob/main/tips/TIP-0027/tip-0027.md#nft-schema>.
+        let version = "v1.0".to_owned();
+        // Matches the media type of the URI below.
+        let media_type = "image/png".to_owned();
+        // A placeholder for NFTs without metadata from which we can extract a URI.
+        let uri = Url::new(
+            iota_sdk::Url::parse("https://opensea.io/static/images/placeholder.png")
+                .expect("should be a valid url")
+                .to_string(),
+        )
+        .expect("url should only contain ascii characters");
+        let name = "NFT".to_owned();
+
+        Self {
+            version,
+            media_type,
+            uri,
+            name,
+            collection_name: Default::default(),
+            royalties: VecMap {
+                contents: Vec::new(),
+            },
+            issuer_name: Default::default(),
+            description: Default::default(),
+            attributes: VecMap {
+                contents: Vec::new(),
+            },
+            non_standard_fields: VecMap {
+                contents: Vec::new(),
+            },
+        }
+    }
+}
+
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct Nft {
@@ -239,16 +273,7 @@ impl Nft {
             .issuer()
             .map(|issuer_feat| stardust_to_sui_address(issuer_feat.address()))
             .transpose()?;
-        let irc27: StardustIrc27 = serde_json::from_slice(
-            nft.immutable_features()
-                .metadata()
-                .ok_or(StardustError::NftImmutableMetadataNotFound)?
-                .data(),
-        )
-        .map_err(|e| StardustError::Irc27ConversionError {
-            nft_id: *nft.nft_id(),
-            err: e.into(),
-        })?;
+        let irc27: Irc27Metadata = Self::convert_immutable_metadata(nft)?;
 
         Ok(Nft {
             id: UID::new(nft_id),
@@ -256,8 +281,54 @@ impl Nft {
             metadata,
             tag,
             immutable_issuer,
-            immutable_metadata: irc27.try_into()?,
+            immutable_metadata: irc27,
         })
+    }
+
+    /// Converts the immutable metadata of the NFT into an [`Irc27Metadata`].
+    ///
+    /// - If the metadata is empty or non-existent returns the default `Irc27Metadata`.
+    /// - If the metadata can be parsed into [`StardustIrc27`] returns that converted into `Irc27Metadata`.
+    /// - If the metadata can be parsed into a JSON object returns the default
+    ///   `Irc27Metadata` with `non_standard_fields` set to the fields of the object.
+    /// - Otherwise, returns the default `Irc27Metadata` with `non_standard_fields`
+    ///   containing a `data` key with the hex-encoded metadata (without `0x` prefix).
+    fn convert_immutable_metadata(nft: &StardustNft) -> anyhow::Result<Irc27Metadata> {
+        let Some(metadata) = nft.immutable_features().metadata() else {
+            return Ok(Irc27Metadata::default());
+        };
+
+        if metadata.data().is_empty() {
+            return Ok(Irc27Metadata::default());
+        }
+
+        if let Ok(parsed_irc27_metadata) = serde_json::from_slice::<StardustIrc27>(metadata.data())
+        {
+            return Irc27Metadata::try_from(parsed_irc27_metadata);
+        }
+
+        if let Ok(serde_json::Value::Object(json_object)) =
+            serde_json::from_slice::<serde_json::Value>(metadata.data())
+        {
+            let mut irc_metadata = Irc27Metadata::default();
+
+            for (key, value) in json_object.into_iter() {
+                irc_metadata.non_standard_fields.contents.push(Entry {
+                    key,
+                    value: value.to_string(),
+                })
+            }
+
+            return Ok(irc_metadata);
+        }
+
+        let mut irc_metadata = Irc27Metadata::default();
+        let hex_encoded_metadata = hex::encode(metadata.data());
+        irc_metadata.non_standard_fields.contents.push(Entry {
+            key: "data".to_owned(),
+            value: hex_encoded_metadata,
+        });
+        Ok(irc_metadata)
     }
 
     pub fn to_genesis_object(

@@ -12721,6 +12721,7 @@ dependencies = [
  "camino",
  "fastcrypto",
  "fs_extra",
+ "hex",
  "insta",
  "iota-sdk",
  "move-binary-format",
