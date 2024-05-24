@@ -26,7 +26,7 @@ function StakingDashboardPage(): JSX.Element {
               <List data={HARCODED_STAKING_LIST} keysToShow={Object.keys(HARCODED_STAKING_LIST[0])} />
             </Box>
         </div>
-    )
+    );
 }
 
-export default StakingDashboardPage
+export default StakingDashboardPage;
