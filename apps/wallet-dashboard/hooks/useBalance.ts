@@ -7,20 +7,14 @@
 import { useSuiClient } from '@mysten/dapp-kit';
 import { CoinBalance } from '@mysten/sui.js/client';
 import { MIST_PER_SUI } from '@mysten/sui.js/utils';
-import { useQuery, UseQueryOptions } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 
 interface UseBalance extends CoinBalance {
     suiBalance: number;
 }
 
-type UseBalanceOptions = {
-    coinType: string;
-    address?: string;
-} & Omit<UseQueryOptions<UseBalance, Error>, 'queryKey' | 'queryFn' | 'enabled'>;
-
-export function useBalance(options: UseBalanceOptions) {
+export function useBalance(coinType: string, address?: string | null) {
     const client = useSuiClient();
-    const { coinType, address, ...queryOptions } = options;
 
     return useQuery<UseBalance>({
         queryKey: ['get-balance', address, coinType],
@@ -36,6 +30,5 @@ export function useBalance(options: UseBalanceOptions) {
             };
         },
         enabled: !!address,
-        ...queryOptions,
     });
 }

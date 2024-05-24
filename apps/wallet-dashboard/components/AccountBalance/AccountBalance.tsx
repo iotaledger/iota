@@ -9,10 +9,7 @@ import { useBalance } from '@/hooks';
 export const AccountBalance = () => {
     const account = useCurrentAccount();
 
-    const { data, isLoading } = useBalance({
-        coinType: SUI_TYPE_ARG,
-        address: account?.address,
-    });
+    const { data, isLoading } = useBalance(SUI_TYPE_ARG, account?.address);
 
     return (
         <div>
