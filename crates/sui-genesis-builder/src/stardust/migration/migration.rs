@@ -297,11 +297,6 @@ impl Executor {
     }
 
     #[cfg(test)]
-    pub(crate) fn store_mut(&mut self) -> &mut InMemoryStorage {
-        &mut self.store
-    }
-
-    #[cfg(test)]
     pub(crate) fn native_tokens(&mut self) -> &HashMap<TokenId, FoundryLedgerData> {
         &self.native_tokens
     }
