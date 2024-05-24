@@ -48,11 +48,7 @@ fn migrate_alias(
     let mut snapshot_buffer = Vec::new();
     Migration::new()
         .unwrap()
-        .run(
-            [].into_iter(),
-            [(header, stardust_alias.into())].into_iter(),
-            &mut snapshot_buffer,
-        )
+        .run([(header, stardust_alias.into())], &mut snapshot_buffer)
         .unwrap();
 
     let migrated_objects: Vec<Object> = bcs::from_bytes(&snapshot_buffer).unwrap();

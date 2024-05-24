@@ -13,7 +13,7 @@ use iota_sdk::types::block::output::Output;
 use iota_sdk::types::block::output::SimpleTokenScheme;
 use iota_sdk::types::block::output::TokenScheme;
 
-use crate::stardust::migration::migration::Executor;
+use crate::stardust::migration::executor::Executor;
 use crate::stardust::migration::migration::Migration;
 use crate::stardust::types::snapshot::OutputHeader;
 
@@ -30,27 +30,8 @@ fn random_output_header() -> OutputHeader {
 }
 
 fn run_migration(outputs: impl IntoIterator<Item = (OutputHeader, Output)>) -> Executor {
-    let mut foundries = Vec::new();
-    let mut outputs_without_foundries = Vec::new();
-
-    for (header, output) in outputs.into_iter() {
-        match output {
-            Output::Foundry(foundry) => {
-                foundries.push((header, foundry));
-            }
-            other => {
-                outputs_without_foundries.push((header, other));
-            }
-        }
-    }
-
     let mut migration = Migration::new().unwrap();
-
-    migration.migrate_foundries(foundries.into_iter()).unwrap();
-    migration
-        .migrate_outputs(outputs_without_foundries.into_iter())
-        .unwrap();
-
+    migration.run_migration(outputs).unwrap();
     migration.into_executor()
 }
 
