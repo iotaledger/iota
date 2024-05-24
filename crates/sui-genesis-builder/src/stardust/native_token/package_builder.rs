@@ -101,8 +101,8 @@ fn adjust_native_token_module(package_path: &Path, package: &NativeTokenPackageD
         .replace("$COIN_DECIMALS", &package.module().decimals.to_string())
         .replace("$COIN_SYMBOL", &package.module().symbol)
         .replace(
-            "$CIRCULATING_TOKENS",
-            &package.module().circulating_tokens.to_string(),
+            "$CIRCULATING_SUPPLY",
+            &package.module().circulating_supply.to_string(),
         )
         .replace(
             "$MAXIMUM_SUPPLY",

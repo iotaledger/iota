@@ -4,6 +4,7 @@
 //! The [`package_data`] module provides the [`NativeTokenPackageData`] struct, which encapsulates all the data necessary to build a Stardust native token package.
 
 use crate::stardust::error::StardustError;
+use crate::stardust::types::token_scheme::SimpleTokenSchemeU64;
 use anyhow::Result;
 use iota_sdk::types::block::address::AliasAddress;
 use iota_sdk::types::block::output::feature::Irc30Metadata;
@@ -47,7 +48,7 @@ pub struct NativeTokenModuleData {
     pub otw_name: String,
     pub decimals: u8,
     pub symbol: String,
-    pub circulating_tokens: u64,
+    pub circulating_supply: u64,
     pub maximum_supply: u64,
     pub coin_name: String,
     pub coin_description: String,
@@ -63,7 +64,7 @@ impl NativeTokenModuleData {
         otw_name: impl Into<String>,
         decimals: u8,
         symbol: impl Into<String>,
-        circulating_tokens: u64,
+        circulating_supply: u64,
         maximum_supply: u64,
         coin_name: impl Into<String>,
         coin_description: impl Into<String>,
@@ -76,7 +77,7 @@ impl NativeTokenModuleData {
             otw_name: otw_name.into(),
             decimals,
             symbol: symbol.into(),
-            circulating_tokens,
+            circulating_supply,
             maximum_supply,
             coin_name: coin_name.into(),
             coin_description: coin_description.into(),
@@ -115,40 +116,8 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
             }
         })?;
 
-        let maximum_supply_u64 = {
-            let maximum_supply_u256 = output.token_scheme().as_simple().maximum_supply();
-            if maximum_supply_u256.bits() > 64 {
-                u64::MAX
-            } else {
-                maximum_supply_u256.as_u64()
-            }
-        };
-
-        let circulating_supply_u64 = {
-            let minted_tokens_u256 = output.token_scheme().as_simple().minted_tokens();
-            let melted_tokens_u256 = output.token_scheme().as_simple().melted_tokens();
-
-            // Check if melted tokens is greater than minted tokens
-            if melted_tokens_u256 > minted_tokens_u256 {
-                return Err(StardustError::FoundryConversionError {
-                    foundry_id: output.id(),
-                    err: anyhow::anyhow!("Melted Tokens must not be greater than Minted Tokens"),
-                });
-            }
-
-            // The circulating supply (minted - melted) must not be greater than maximum supply.
-            let circulating_supply_u256 = minted_tokens_u256 - melted_tokens_u256;
-            if circulating_supply_u256 > U256::from(maximum_supply_u64) {
-                return Err(StardustError::FoundryConversionError {
-                    foundry_id: output.id(),
-                    err: anyhow::anyhow!(
-                        "The circulating supply must not be greater than the maximum supply"
-                    ),
-                });
-            }
-
-            circulating_supply_u256.as_u64()
-        };
+        let token_scheme_u64: SimpleTokenSchemeU64 =
+            output.token_scheme().as_simple().try_into()?;
 
         let native_token_data = NativeTokenPackageData {
             package_name: identifier.clone(),
@@ -158,8 +127,8 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
                 otw_name: identifier.clone().to_ascii_uppercase(),
                 decimals,
                 symbol: identifier,
-                circulating_tokens: circulating_supply_u64,
-                maximum_supply: maximum_supply_u64,
+                circulating_supply: token_scheme_u64.circulating_supply(),
+                maximum_supply: token_scheme_u64.maximum_supply(),
                 coin_name: irc_30_metadata.name().to_owned(),
                 coin_description: irc_30_metadata.description().clone().unwrap_or_default(),
                 icon_url: irc_30_metadata.url().clone(),
@@ -324,7 +293,7 @@ mod tests {
         // Step 2: Convert the FoundryOutput to NativeTokenPackageData
         let native_token_data = NativeTokenPackageData::try_from(&output)?;
         assert_eq!(
-            native_token_data.module().circulating_tokens,
+            native_token_data.module().circulating_supply,
             minted_tokens.sub(melted_tokens).as_u64()
         );
         assert_eq!(native_token_data.module().maximum_supply, u64::MAX);
