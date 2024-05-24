@@ -16,23 +16,23 @@ import '@mysten/dapp-kit/dist/index.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export default function RootLayout({
-	children,
+    children,
 }: Readonly<{
-	children: React.ReactNode;
+    children: React.ReactNode;
 }>) {
-	const [queryClient] = React.useState(() => new QueryClient());
+    const [queryClient] = React.useState(() => new QueryClient());
 
-	const allNetworks = getAllNetworks();
+    const allNetworks = getAllNetworks();
 
-	return (
-		<html lang="en">
-			<body className={inter.className}>
-				<QueryClientProvider client={queryClient}>
-					<SuiClientProvider networks={allNetworks} defaultNetwork="testnet">
-						<WalletProvider>{children}</WalletProvider>
-					</SuiClientProvider>
-				</QueryClientProvider>
-			</body>
-		</html>
-	);
+    return (
+        <html lang="en">
+            <body className={inter.className}>
+                <QueryClientProvider client={queryClient}>
+                    <SuiClientProvider networks={allNetworks} defaultNetwork="testnet">
+                        <WalletProvider>{children}</WalletProvider>
+                    </SuiClientProvider>
+                </QueryClientProvider>
+            </body>
+        </html>
+    );
 }
