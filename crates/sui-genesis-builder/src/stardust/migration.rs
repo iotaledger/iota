@@ -740,7 +740,7 @@ mod tests {
     use std::str::FromStr;
 
     use crate::stardust::{
-        migration::{Executor, Migration, MIGRATION_PROTOCOL_VERSION},
+        migration::{Executor, Migration},
         types::{snapshot::OutputHeader, Alias, AliasOutput, ALIAS_OUTPUT_MODULE_NAME},
     };
     use iota_sdk::{
@@ -758,7 +758,7 @@ mod tests {
         },
         U256,
     };
-    use sui_types::{coin::Coin, object::Object};
+    use sui_types::{coin::Coin, gas_coin::GAS, object::Object};
     use sui_types::{
         dynamic_field::{derive_dynamic_field_id, Field},
         object::Owner,
@@ -810,11 +810,7 @@ mod tests {
             .migrate_outputs(outputs_without_foundries.into_iter())
             .unwrap();
 
-        // Make the executor in the migration struct accessible.
-        let mut executor = Executor::new(ProtocolVersion::new(MIGRATION_PROTOCOL_VERSION)).unwrap();
-        std::mem::swap(&mut migration.executor, &mut executor);
-
-        executor
+        migration.executor
     }
 
     fn migrate_alias(
@@ -1244,14 +1240,13 @@ mod tests {
         let alias_output1_id = executor
             .store
             .objects()
-            .iter()
-            .find(|(_, obj)| {
+            .values()
+            .find(|obj| {
                 obj.struct_tag()
                     .map(|tag| tag == AliasOutput::tag())
                     .unwrap_or(false)
             })
             .expect("alias1 should exist")
-            .1
             .id();
 
         let alias_output1_object_ref = executor
@@ -1295,9 +1290,7 @@ mod tests {
                 SUI_FRAMEWORK_PACKAGE_ID,
                 ident_str!("coin").into(),
                 ident_str!("from_balance").into(),
-                vec![
-                    TypeTag::from_str(&format!("{}::sui::SUI", SUI_FRAMEWORK_PACKAGE_ID)).unwrap(),
-                ],
+                vec![GAS::type_tag()],
                 vec![balance_arg],
             );
 
@@ -1351,18 +1344,16 @@ mod tests {
 
         let coin_token_struct_tag = Coin::type_(token_type_tag);
         let coin_token = written
-            .iter()
-            .find(|(_, obj)| {
+            .values()
+            .find(|obj| {
                 obj.struct_tag()
                     .map(|tag| tag == coin_token_struct_tag)
                     .unwrap_or(false)
             })
-            .expect("coin token object should exist")
-            .1;
+            .map(|obj| obj.as_coin_maybe())
+            .flatten()
+            .expect("coin token object should exist");
 
-        assert_eq!(
-            coin_token.as_coin_maybe().unwrap().balance.value(),
-            native_token_amount
-        );
+        assert_eq!(coin_token.balance.value(), native_token_amount);
     }
 }
