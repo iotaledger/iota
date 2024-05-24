@@ -21,7 +21,7 @@ module.exports = {
     importOrderParserPlugins: ['typescript', 'decorators-legacy'],
     overrides: [
         {
-            files: 'apps/explorer/**/*',
+            files: ['apps/explorer/**/*', 'apps/wallet/**/*'],
             options: {
                 plugins: ['prettier-plugin-tailwindcss'],
                 tailwindConfig: './apps/explorer/tailwind.config.ts',
