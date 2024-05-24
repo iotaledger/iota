@@ -12,7 +12,6 @@ module stardust::nft_tests {
     use sui::balance::{Self, Balance};
     use sui::coin::{Self, Coin};
     use sui::sui::SUI;
-    use sui::table;
     use sui::test_scenario;
     use sui::url;
     use sui::vec_map;
@@ -60,8 +59,8 @@ module stardust::nft_tests {
         let mut attributes = vec_map::empty();
         attributes.insert(string::utf8(b"attribute"), string::utf8(b"value"));
 
-        let mut non_standard_fields = table::new(scenario.ctx());
-        non_standard_fields.add(string::utf8(b"field"), string::utf8(b"value"));
+        let mut non_standard_fields = vec_map::empty();
+        non_standard_fields.insert(string::utf8(b"field"), string::utf8(b"value"));
 
         let nft = nft::create_for_testing(
             option::some(sender),
@@ -117,8 +116,8 @@ module stardust::nft_tests {
         assert!(nft.immutable_metadata().attributes().size() == 1, 16);
         assert!(nft.immutable_metadata().attributes().contains(&string::utf8(b"attribute")), 17);
 
-        assert!(nft.immutable_metadata().non_standard_fields().length() == 1, 18);
-        assert!(nft.immutable_metadata().non_standard_fields()[string::utf8(b"field")] == string::utf8(b"value"), 19);
+        assert!(nft.immutable_metadata().non_standard_fields().size() == 1, 18);
+        assert!(nft.immutable_metadata().non_standard_fields().contains(&string::utf8(b"field")), 19);
 
         // Check the storage deposit return.
         scenario.next_tx(sender);

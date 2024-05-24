@@ -140,7 +140,7 @@ pub struct Irc27Metadata {
     pub attributes: VecMap<String, String>,
 
     /// Legacy non-standard metadata fields.
-    pub non_standard_fields: Table,
+    pub non_standard_fields: VecMap<String, String>,
 }
 
 impl TryFrom<StardustIrc27> for Irc27Metadata {
@@ -180,7 +180,9 @@ impl TryFrom<StardustIrc27> for Irc27Metadata {
                     })
                     .collect(),
             },
-            non_standard_fields: Default::default(),
+            non_standard_fields: VecMap {
+                contents: Vec::new(),
+            },
         })
     }
 }

@@ -6,7 +6,6 @@ module stardust::irc27 {
     use std::fixed_point32::FixedPoint32;
     use std::string::String;
 
-    use sui::table::Table;
     use sui::url::Url;
     use sui::vec_map::VecMap;
 
@@ -49,25 +48,7 @@ module stardust::irc27 {
         attributes: VecMap<String, String>,
 
         /// Legacy non-standard metadata fields.
-        non_standard_fields: Table<String, String>,
-    }
-
-    /// Permanently destroy a `Irc27Metadata` object.
-    public fun destroy(irc27: Irc27Metadata) {
-        let Irc27Metadata {
-            version: _,
-            media_type: _,
-            uri: _,
-            name: _,
-            collection_name: _,
-            royalties: _,
-            issuer_name: _,
-            description: _,
-            attributes: _,
-            non_standard_fields,
-        } = irc27;
-
-        non_standard_fields.drop();
+        non_standard_fields: VecMap<String, String>,
     }
 
     /// Get the metadata's `version`.
@@ -116,9 +97,25 @@ module stardust::irc27 {
     }
 
     /// Get the metadata's `non_standard_fields`.
-    public fun non_standard_fields(irc27: &Irc27Metadata): &Table<String, String> {
+    public fun non_standard_fields(irc27: &Irc27Metadata): &VecMap<String, String> {
         &irc27.non_standard_fields
     }
+
+    /// Permanently destroy a `Irc27Metadata` object.
+    public fun destroy(irc27: Irc27Metadata) {
+        let Irc27Metadata {
+            version: _,
+            media_type: _,
+            uri: _,
+            name: _,
+            collection_name: _,
+            royalties: _,
+            issuer_name: _,
+            description: _,
+            attributes: _,
+            non_standard_fields: _,
+        } = irc27;
+     }
 
     #[test_only]
     public fun create_for_testing(
@@ -131,7 +128,7 @@ module stardust::irc27 {
         issuer_name: Option<String>,
         description: Option<String>,
         attributes: VecMap<String, String>,
-        non_standard_fields: Table<String, String>,
+        non_standard_fields: VecMap<String, String>,
     ): Irc27Metadata {
         Irc27Metadata {
             version,
