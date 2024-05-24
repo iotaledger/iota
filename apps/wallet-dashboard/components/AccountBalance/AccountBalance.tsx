@@ -7,17 +7,17 @@ import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
 import { useBalance } from '@/hooks';
 
 export const AccountBalance = () => {
-	const account = useCurrentAccount();
+    const account = useCurrentAccount();
 
-	const { data, isLoading } = useBalance({
-		coinType: SUI_TYPE_ARG,
-		address: account?.address
-	});
+    const { data, isLoading } = useBalance({
+        coinType: SUI_TYPE_ARG,
+        address: account?.address,
+    });
 
-	return (
-		<div>
-			{isLoading && <p>Loading...</p>}
-			{!isLoading && <p>Balance: {data?.suiBalance}</p>}
-		</div>
-	);
+    return (
+        <div>
+            {isLoading && <p>Loading...</p>}
+            {!isLoading && <p>Balance: {data?.suiBalance}</p>}
+        </div>
+    );
 };

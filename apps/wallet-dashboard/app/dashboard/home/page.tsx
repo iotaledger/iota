@@ -18,11 +18,11 @@ function HomeDashboardPage(): JSX.Element {
                     <div>Address: {account.address}</div>
                 </div>
             ) : (
-              <>
-                  <div>Connection status: {connectionStatus}</div>
-                  <AccountBalance/>
-                  <AllCoins/>
-              </>
+                <>
+                    <div>Connection status: {connectionStatus}</div>
+                    <AccountBalance />
+                    <AllCoins />
+                </>
             )}
         </main>
     );
