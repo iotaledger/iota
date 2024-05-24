@@ -50,7 +50,7 @@ function StakingDashboardPage(): JSX.Element {
                 <ActivityTile {...activity} />
               )}
         </div>
-    )
+    );
 }
 
-export default StakingDashboardPage
+export default StakingDashboardPage;
