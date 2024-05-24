@@ -3,6 +3,7 @@
 'use client';
 
 import { useCurrentAccount, useCurrentWallet } from '@mysten/dapp-kit';
+import { AppList } from '@/components/AppList';
 
 function HomeDashboardPage(): JSX.Element {
     const { connectionStatus } = useCurrentWallet();
@@ -14,6 +15,7 @@ function HomeDashboardPage(): JSX.Element {
                     <h1>Welcome</h1>
                     <p>Connection status: {connectionStatus}</p>
                     <div>Address: {account.address}</div>
+                    <AppList />
                 </div>
             ) : (
                 <div>Connection status: {connectionStatus}</div>
