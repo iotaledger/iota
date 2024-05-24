@@ -39,7 +39,7 @@ function StakingDashboardPage(): JSX.Element {
             <input type="number" className="inline-block w-16" value={addressIndex} onChange={(e) => setAddressIndex(e.target.value)}></input>
             <p>{derivedAddress}</p>
         </div>
-    )
+    );
 }
 
-export default StakingDashboardPage
+export default StakingDashboardPage;
