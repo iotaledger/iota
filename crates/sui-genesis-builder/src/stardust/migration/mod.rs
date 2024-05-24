@@ -1,6 +1,10 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-pub mod migration;
+mod executor;
+mod migration;
 #[cfg(test)]
 mod tests;
+pub mod verification;
+
+pub use migration::*;

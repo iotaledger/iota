@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::stardust::migration::migration::Executor;
+use crate::stardust::migration::executor::Executor;
 use crate::stardust::migration::migration::{MIGRATION_PROTOCOL_VERSION, PACKAGE_DEPS};
 use crate::stardust::migration::tests::random_output_header;
 use crate::stardust::migration::tests::run_migration;
@@ -40,11 +40,7 @@ fn migrate_alias(
     let mut snapshot_buffer = Vec::new();
     Migration::new()
         .unwrap()
-        .run(
-            [].into_iter(),
-            [(header, stardust_alias.into())].into_iter(),
-            &mut snapshot_buffer,
-        )
+        .run([(header, stardust_alias.into())], &mut snapshot_buffer)
         .unwrap();
 
     let migrated_objects: Vec<Object> = bcs::from_bytes(&snapshot_buffer).unwrap();
