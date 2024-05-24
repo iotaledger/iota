@@ -12726,6 +12726,7 @@ dependencies = [
  "move-binary-format",
  "move-core-types",
  "move-vm-runtime-v2",
+ "num-rational",
  "packable",
  "prometheus",
  "rand 0.8.5",

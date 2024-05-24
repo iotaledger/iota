@@ -82,9 +82,9 @@ impl TryFrom<f64> for FixedPoint32 {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct Url {
     /// The underlying URL as a string.
-    /// 
+    ///
     /// # SAFETY
-    /// 
+    ///
     /// Note that this String is UTF-8 encoded while the URL type in Move is ascii-encoded.
     /// Setting this field requires ensuring that the string consists of only ASCII characters.
     url: String,
@@ -98,7 +98,7 @@ impl Url {
         }
         Ok(Url { url })
     }
-}  
+}
 
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
@@ -149,12 +149,11 @@ impl TryFrom<StardustIrc27> for Irc27Metadata {
         Ok(Self {
             version: irc27.version().to_string(),
             media_type: irc27.media_type().to_string(),
-            uri: Url {
-                 // We are converting a `Url` to an ASCII string here (as the URL type in move is based on ASCII strings).
-                // The `ToString` implementation of the `Url` type percent-encodes any non-ascii characters
-                // and is therefore safe to do.
-                url: irc27.uri().to_string(),
-            },
+            // We are converting a `Url` to an ASCII string here (as the URL type in move is based on ASCII strings).
+            // The `ToString` implementation of the `Url` ensures only ascii characters are returned
+            // and this conversion is therefore safe to do.
+            uri: Url::new(irc27.uri().to_string())
+                .expect("url should only contain ascii characters"),
             name: irc27.name().to_string(),
             collection_name: irc27.collection_name().clone(),
             royalties: VecMap {
