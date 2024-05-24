@@ -3,6 +3,8 @@
 
 mod executor;
 mod migration;
+#[cfg(test)]
+mod tests;
 pub mod verification;
 
 pub use migration::*;
