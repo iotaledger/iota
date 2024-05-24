@@ -195,7 +195,7 @@ fn test_alias_migration_with_alias_owner() {
 
     let mut executor = Executor::new(MIGRATION_PROTOCOL_VERSION.into()).unwrap();
     for object in migrated_objects {
-        executor.store.insert_object(object);
+        executor.store_mut().insert_object(object);
     }
 
     let alias_output1_object_ref = executor

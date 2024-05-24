@@ -62,7 +62,7 @@ pub(super) struct Executor {
     protocol_config: ProtocolConfig,
     tx_context: TxContext,
     /// Stores all the migration objects.
-    pub(super) store: InMemoryStorage,
+    store: InMemoryStorage,
     /// Caches the system packages and init objects. Useful for evicting
     /// them from the store before creating the snapshot.
     system_packages_and_objects: BTreeSet<ObjectID>,
@@ -70,7 +70,7 @@ pub(super) struct Executor {
     metrics: Arc<LimitsMetrics>,
     /// Map the stardust token id [`TokenId`] to the on-chain info of the
     /// published foundry objects.
-    pub(super) native_tokens: HashMap<TokenId, FoundryLedgerData>,
+    native_tokens: HashMap<TokenId, FoundryLedgerData>,
 }
 
 impl Executor {
@@ -533,6 +533,17 @@ impl Executor {
 
     pub(super) fn create_nft_objects(&mut self, _nft: &NftOutput) -> Result<CreatedObjects> {
         todo!();
+    }
+}
+
+#[cfg(test)]
+impl Executor {
+    pub(crate) fn store_mut(&mut self) -> &mut InMemoryStorage {
+        &mut self.store
+    }
+
+    pub(crate) fn native_tokens(&mut self) -> &HashMap<TokenId, FoundryLedgerData> {
+        &self.native_tokens
     }
 }
 

@@ -58,7 +58,7 @@ fn create_bag_with_pt() {
     // * MaxSupplyPolicy
     // * The total supply coin
     assert_eq!(executor.store().objects().len() - object_count, 4);
-    assert!(executor.native_tokens.get(&foundry_id.into()).is_some());
+    assert!(executor.native_tokens().get(&foundry_id.into()).is_some());
     let initial_supply_coin_object = executor
         .store()
         .objects()
