@@ -28,7 +28,7 @@ use sui_types::{
     move_package::{MovePackage, TypeOrigin},
     object::Object,
     transaction::{Argument, InputObjects, ObjectArg},
-    TypeTag,
+    TypeTag, STARDUST_ADDRESS,
 };
 use sui_types::{
     base_types::{ObjectID, SuiAddress, TxContext},
@@ -234,6 +234,14 @@ impl Executor {
                 if object.is_coin() {
                     minted_coin_id = Some(object.id());
                     created_objects.set_coin(object.id())?;
+                } else if object.type_().map_or(false, |t| t.is_coin_metadata()) {
+                    created_objects.set_coin_metadata(object.id())?
+                } else if object.type_().map_or(false, |t| {
+                    t.address() == STARDUST_ADDRESS
+                        && t.module().as_str() == "capped_coin"
+                        && t.name().as_str() == "MaxSupplyPolicy"
+                }) {
+                    created_objects.set_max_supply_policy(object.id())?
                 } else if object.is_package() {
                     foundry_package = Some(
                         object

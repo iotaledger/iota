@@ -24,10 +24,9 @@ pub(super) fn verify_native_tokens(
         created_native_tokens.len(),
     );
 
-    let token_max = U256::from(u64::MAX);
     for native_token in native_tokens.iter() {
         // The token amounts are capped at u64 max
-        let reduced_amount = native_token.amount().min(token_max).as_u64();
+        let reduced_amount = truncate_u256_to_u64(native_token.amount());
         if let Some(idx) = created_native_tokens
             .iter()
             .position(|coin| coin.value() == reduced_amount)
@@ -216,5 +215,13 @@ impl NativeTokenKind for Coin {
 impl<K> NativeTokenKind for Field<K, Balance> {
     fn value(&self) -> u64 {
         self.value.value()
+    }
+}
+
+pub fn truncate_u256_to_u64(value: U256) -> u64 {
+    if value.bits() > 64 {
+        u64::MAX
+    } else {
+        value.as_u64()
     }
 }
