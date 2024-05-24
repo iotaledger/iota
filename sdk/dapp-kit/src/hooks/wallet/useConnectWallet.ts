@@ -51,7 +51,6 @@ export function useConnectWallet({
 				setConnectionStatus('connecting');
 
 				const connectResult = await wallet.features['standard:connect'].connect(connectArgs);
-				console.log(connectResult)
 				const connectedSuiAccounts = connectResult.accounts.filter((account) =>
 					account.chains.some(isSupportedChain),
 				);
