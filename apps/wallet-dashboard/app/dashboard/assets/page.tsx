@@ -6,7 +6,7 @@ function AssetsDashboardPage(): JSX.Element {
         <div className="flex items-center justify-center pt-12">
             <h1>ASSETS</h1>
         </div>
-    )
+    );
 }
 
-export default AssetsDashboardPage
+export default AssetsDashboardPage;
