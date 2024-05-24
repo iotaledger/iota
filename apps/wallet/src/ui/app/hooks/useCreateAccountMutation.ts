@@ -94,7 +94,6 @@ export function useCreateAccountsMutation() {
 				type === 'import-seed' &&
 				validateAccountFormValues(type, accountsFormValues, password)
 			) {
-				console.log('import-seed');
 				const accountSource = await backgroundClient.createSeedAccountSource({
 					// validateAccountFormValues checks the password
 					password: password!,
@@ -112,7 +111,6 @@ export function useCreateAccountsMutation() {
 				type === 'seed-derived' &&
 				validateAccountFormValues(type, accountsFormValues, password)
 			) {
-				console.log('seed-derived');
 				createdAccounts = await backgroundClient.createAccounts({
 					type: 'seed-derived',
 					sourceID: accountsFormValues.sourceID,

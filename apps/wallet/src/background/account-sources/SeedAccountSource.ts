@@ -46,10 +46,6 @@ export function deriveKeypairFromSeed(seedHex: string, derivationPath: string) {
 
 export class SeedAccountSource extends AccountSource<SeedAccountSourceSerialized, DataDecrypted> {
 	static async createNew({ password, seed }: { password: string; seed: string }) {
-		// to do: add seed validation
-		// if (!validateSeed(seed)) {
-		// 	throw new Error("Can't create Seed account source, invalid seed");
-		// }
 		const dataSerialized: SeedAccountSourceSerialized = {
 			id: makeUniqueKey(),
 			type: 'seed',
