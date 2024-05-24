@@ -15,7 +15,7 @@ const nextConfig = {
                 destination: '/dashboard/home',
                 permanent: true,
             },
-        ]
+        ];
     },
 };
 
