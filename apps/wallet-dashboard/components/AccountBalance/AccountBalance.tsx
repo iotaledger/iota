@@ -1,17 +1,23 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useCurrentAccount } from '@mysten/dapp-kit';
 import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
 
-import { useBalance } from '../../hooks/useBalance';
+import { useBalance } from '@/hooks';
 
 export const AccountBalance = () => {
 	const account = useCurrentAccount();
 
-	const { calculateBalance, getBalanceQuery } = useBalance(SUI_TYPE_ARG, account?.address);
+	const { data, isLoading } = useBalance({
+		coinType: SUI_TYPE_ARG,
+		address: account?.address
+	});
 
 	return (
 		<div>
-			{getBalanceQuery?.isLoading && <p>Loading...</p>}
-			{!getBalanceQuery?.isLoading && <p>Balance: {calculateBalance}</p>}
+			{isLoading && <p>Loading...</p>}
+			{!isLoading && <p>Balance: {data?.suiBalance}</p>}
 		</div>
 	);
 };

@@ -4,8 +4,7 @@
 
 import { useCurrentAccount, useCurrentWallet } from '@mysten/dapp-kit';
 
-import { AccountBalance } from '@/components/AccountBalance/AccountBalance';
-import { AllCoins } from '@/components/AllCoins/AllCoins';
+import { AccountBalance, AllCoins } from '@/components';
 
 function HomeDashboardPage(): JSX.Element {
 	const { connectionStatus } = useCurrentWallet();

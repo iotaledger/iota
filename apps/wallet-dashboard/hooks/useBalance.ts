@@ -7,31 +7,35 @@
 import { useSuiClient } from '@mysten/dapp-kit';
 import { CoinBalance } from '@mysten/sui.js/client';
 import { MIST_PER_SUI } from '@mysten/sui.js/utils';
-import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useQuery, UseQueryOptions } from '@tanstack/react-query';
 
-export function useBalance(coinType: string, address?: string | null) {
-	const rpc = useSuiClient();
-	const getBalanceQuery = useQuery<CoinBalance>({
-		queryKey: ['get-balance', address, coinType],
-		queryFn: async () => {
-			return rpc.getBalance({
-				owner: address!,
-				coinType,
-			});
-		},
-		enabled: !!address,
-	});
+interface UseBalance extends CoinBalance {
+    suiBalance: number;
+}
 
-	const calculateBalance = useMemo(() => {
-		if (getBalanceQuery?.data?.totalBalance) {
-			return Number(getBalanceQuery.data.totalBalance) / Number(MIST_PER_SUI);
-		}
-		return 0;
-	}, [getBalanceQuery?.data?.totalBalance]);
+type UseBalanceOptions = {
+    coinType: string;
+    address?: string;
+} & Omit<UseQueryOptions<UseBalance, Error>, 'queryKey' | 'queryFn' | 'enabled'>;
 
-	return {
-		calculateBalance,
-		getBalanceQuery,
-	};
+export function useBalance(options: UseBalanceOptions) {
+    const client = useSuiClient();
+    const { coinType, address, ...queryOptions } = options;
+
+    return useQuery<UseBalance>({
+        queryKey: ['get-balance', address, coinType],
+        queryFn: async () => {
+            const data = await client.getBalance({
+                owner: address!,
+                coinType,
+            });
+
+            return {
+                suiBalance: Number(data.totalBalance) / Number(MIST_PER_SUI),
+                ...data,
+            };
+        },
+        enabled: !!address,
+        ...queryOptions,
+    });
 }
