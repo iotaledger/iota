@@ -17,7 +17,7 @@ use sui_types::{
     STARDUST_PACKAGE_ID,
 };
 
-use super::snapshot::OutputHeader;
+use super::{snapshot::OutputHeader, stardust_to_sui_address};
 
 pub const BASIC_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("basic_output");
 pub const BASIC_OUTPUT_STRUCT_NAME: &IdentStr = ident_str!("BasicOutput");
@@ -66,8 +66,8 @@ impl TryFrom<&iota_sdk::types::block::output::NftOutput> for ExpirationUnlockCon
         let Some(expiration) = output.unlock_conditions().expiration() else {
             anyhow::bail!("output does not have expiration unlock condition");
         };
-        let owner = address_unlock.address().to_string().parse()?;
-        let return_address = expiration.return_address().to_string().parse()?;
+        let owner = stardust_to_sui_address(address_unlock.address())?;
+        let return_address = stardust_to_sui_address(expiration.return_address())?;
         let unix_time = expiration.timestamp();
 
         Ok(Self {
