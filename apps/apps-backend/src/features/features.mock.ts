@@ -120,7 +120,7 @@ export const developmentFeatures = {
     'wallet-dapps': {
         defaultValue: [
             {
-                name: 'Sui Name Service (SuiNS222)',
+                name: 'Sui Name Service (SuiNS)',
                 description: 'Find your .sui name!',
                 link: 'https://suins.io/',
                 icon: 'https://raw.githubusercontent.com/SuiNSdapp/docs/main/SuiNS-small2.jpg',

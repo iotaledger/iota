@@ -27,9 +27,10 @@ export class FeaturesController {
 
     @Get('/apps')
     getAppsFeatures(@Query('network') network: string) {
-        const apps = developmentFeatures['wallet-dapps'].rules
-            .filter((rule) => rule.condition.network === network)
-            .reduce((acc, rule) => [...acc, ...rule.force], []);
+        const apps = developmentFeatures['wallet-dapps'].rules.reduce(
+            (acc, rule) => [...acc, ...rule.force],
+            [],
+        );
 
         return {
             status: 200,
