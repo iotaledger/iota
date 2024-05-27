@@ -116,26 +116,20 @@ export const DismissibleCenteredFullWidth: StoryObj<BannerProps> = {
     },
 };
 
-const variants = ['positive', 'warning', 'error', 'message', 'neutralGrey', 'neutralWhite'];
+const variants: ['positive', 'warning', 'error', 'message', 'neutralGrey', 'neutralWhite'] = [
+    'positive',
+    'warning',
+    'error',
+    'message',
+    'neutralGrey',
+    'neutralWhite',
+];
 
 export const BannersWithBorder = {
     render: () => (
         <div className="flex flex-col gap-2">
             {variants.map((variant) => (
-                <Banner
-                    key={variant}
-                    border
-                    shadow
-                    variant={
-                        variant as
-                            | 'positive'
-                            | 'warning'
-                            | 'error'
-                            | 'message'
-                            | 'neutralGrey'
-                            | 'neutralWhite'
-                    }
-                >
+                <Banner key={variant} border shadow variant={variant}>
                     <div className="capitalize">{variant}</div>
                 </Banner>
             ))}
