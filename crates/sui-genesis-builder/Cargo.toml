@@ -51,6 +51,7 @@ sui-simulator.workspace = true
 insta.workspace = true
 tempfile.workspace = true
 sui-types = { workspace = true, features = ["test-utils"] }
+prefix-hex = "0.7.1"
 
 [[example]]
 name = "parse_full_snapshot"

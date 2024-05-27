@@ -10,7 +10,6 @@ use iota_sdk::types::block::output::feature::Irc30Metadata;
 use iota_sdk::types::block::output::{FoundryId, FoundryOutput};
 use iota_sdk::Url;
 use rand::distributions::{Alphanumeric, DistString};
-use rand::Rng;
 use regex::Regex;
 
 /// The [`NativeTokenPackageData`] struct encapsulates all the data necessary to build a Stardust native token package.

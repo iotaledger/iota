@@ -30,7 +30,7 @@ fn random_output_header() -> OutputHeader {
 }
 
 fn run_migration(outputs: impl IntoIterator<Item = (OutputHeader, Output)>) -> Executor {
-    let mut migration = Migration::new().unwrap();
+    let mut migration = Migration::new(1).unwrap();
     migration.run_migration(outputs).unwrap();
     migration.into_executor()
 }
