@@ -20,16 +20,16 @@ function StakingDashboardPage(): JSX.Element {
 
     return (
         <div
-            className='flex flex-col items-center justify-center space-y-4 pt-12 h-full w-full'
+            className="flex flex-col items-center justify-center space-y-4 pt-12 h-full w-full"
         >
             <h1>Your Activity</h1>
-            <div className='relative w-1/3 overflow-auto h-[50vh]' ref={containerRef}>
+            <div className="relative w-1/3 overflow-auto h-[50vh]" ref={containerRef}>
                 {virtualItems.map((virtualItem) => {
                     const activity = MOCK_ACTIVITIES[virtualItem.index];
                     return (
                         <div
                             key={virtualItem.key}
-                            className='absolute w-full pr-4 pb-4'
+                            className="absolute w-full pr-4 pb-4"
                             style={{
                                 transform: `translateY(${virtualItem.start}px)`,
                                 height: `${virtualItem.size}px`,

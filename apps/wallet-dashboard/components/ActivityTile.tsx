@@ -14,12 +14,12 @@ interface ActivityTileProps {
 
 function ActivityTile({ activity: { action, state, timestamp } }: ActivityTileProps): JSX.Element {
   return (
-    <div className='flex flex-row items-center space-x-4 rounded-md border border-solid border-gray-45 p-4 w-full h-full'>
+    <div className="flex flex-row items-center space-x-4 rounded-md border border-solid border-gray-45 p-4 w-full h-full">
       <ActivityIcon
           state={state}
           action={action}
       />
-      <div className='flex flex-col space-y-2 h-full'>
+      <div className="flex flex-col space-y-2 h-full">
         <h2>{action}</h2>
         <span>{formatTimestamp(timestamp)}</span>
       </div>
