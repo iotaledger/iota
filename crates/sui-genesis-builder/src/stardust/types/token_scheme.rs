@@ -98,6 +98,7 @@ pub fn u256_to_bigdecimal(u256_value: U256) -> BigDecimal {
 mod tests {
     use std::convert::TryFrom;
     use std::ops::Div;
+    use std::str::FromStr;
 
     use iota_sdk::types::block::output::SimpleTokenScheme;
     use iota_sdk::U256;
@@ -226,5 +227,36 @@ mod tests {
         assert_eq!(token_scheme_u64.circulating_supply, 0);
         assert_eq!(token_scheme_u64.maximum_supply, 10000);
         assert_eq!(token_scheme_u64.token_adjustment_ratio, BigDecimal::from(1));
+    }
+
+    #[test]
+    fn test_u256_to_bigdecimal_zero() {
+        let value = U256::zero();
+        let result = u256_to_bigdecimal(value);
+        assert_eq!(result, BigDecimal::from(0));
+    }
+
+    #[test]
+    fn test_u256_to_bigdecimal_mid() {
+        let value = U256::from_dec_str("1234567890123456789012345678901234567890").unwrap();
+        let expected = BigDecimal::from_str("1234567890123456789012345678901234567890").unwrap();
+        let result = u256_to_bigdecimal(value);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_u256_to_bigdecimal_max() {
+        let value = U256::max_value();
+        let expected = BigInt::from_bytes_be(
+            num_bigint::Sign::Plus,
+            &[
+                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0xff, 0xff, 0xff,
+            ],
+        );
+        let expected = BigDecimal::from(expected);
+        let result = u256_to_bigdecimal(value);
+        assert_eq!(result, expected);
     }
 }
