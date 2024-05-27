@@ -46,12 +46,9 @@ use sui_types::{
 
 use crate::{
     process_package,
+    stardust::migration::verification::created_objects::CreatedObjects,
+    stardust::migration::{create_migration_context, package_module_bytes, PACKAGE_DEPS},
     stardust::types::{snapshot::OutputHeader, stardust_to_sui_address_owner, Nft},
-};
-
-use super::{
-    create_migration_context, package_module_bytes, verification::created_objects::CreatedObjects,
-    PACKAGE_DEPS,
 };
 
 /// Creates the objects that map to the stardust UTXO ledger.
