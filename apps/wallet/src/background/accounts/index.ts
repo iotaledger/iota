@@ -246,7 +246,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
         return true;
     }
     if (isMethodPayload(payload, 'createAccounts')) {
-        let newSerializedAccounts: Omit<SerializedAccount, 'id'>[] = [];
+        const newSerializedAccounts: Omit<SerializedAccount, 'id'>[] = [];
         const { type } = payload.args;
         if (type === 'mnemonic-derived') {
             const { sourceID } = payload.args;

@@ -43,8 +43,8 @@ function HiddenNftsPage() {
         return hiddenNfts
             ?.filter((nft) => nft.data && hiddenAssetIds.includes(nft?.data?.objectId))
             .sort((nftA, nftB) => {
-                let nameA = nftA.display?.name || '';
-                let nameB = nftB.display?.name || '';
+                const nameA = nftA.display?.name || '';
+                const nameB = nftB.display?.name || '';
 
                 if (nameA < nameB) {
                     return -1;

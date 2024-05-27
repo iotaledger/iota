@@ -58,7 +58,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
     const { data: suiCoinBalance } = useSuiClientQuery(
         'getBalance',
-        { coinType: SUI_TYPE_ARG, owner: accountAddress!! },
+        { coinType: SUI_TYPE_ARG, owner: accountAddress! },
         { refetchInterval, staleTime, enabled: !!accountAddress },
     );
     const { data: metadata } = useCoinMetadata(SUI_TYPE_ARG);
