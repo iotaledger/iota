@@ -32,7 +32,6 @@ import toast from 'react-hot-toast';
 
 const accountTypeToLabel: Record<AccountType, string> = {
 	'mnemonic-derived': 'Passphrase Derived',
-	qredo: 'Qredo',
 	imported: 'Imported',
 	ledger: 'Ledger',
 	zkLogin: 'zkLogin',

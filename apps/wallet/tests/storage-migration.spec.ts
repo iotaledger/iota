@@ -25,28 +25,6 @@ test('do storage migration', async ({ page, extensionUrl }) => {
 				},
 			],
 			last_account_index: 2,
-			'qredo-connections': [
-				{
-					accessToken: null,
-					accounts: [
-						{
-							address: '0x3268a405e608624af7c07c34044aee2f8b20da054f4e961192805d93f55f0f30',
-							chainID: '',
-							labels: [],
-							network: 'sui',
-							publicKey: '1byqnxoDcH/MVbLH8g9HP+9qsybgmm7uYgSBXBkg6y8=',
-							ready: true,
-							walletID: 'HSXrpMuDWiHmJdQjHMFcBBYRWi1Pyjkxh5EWsnpMY45d',
-						},
-					],
-					apiUrl: 'https://7ba211-api.qredo.net/connect/sui',
-					id: '7ed77b5e-963d-4104-a9d8-11e5133a76a1',
-					organization: '2VsyH0ml1s6o7AthXYb80gNMAMr',
-					origin: 'https://7ba211-test.qredo.net',
-					originFavIcon: 'https://7ba211-test.qredo.net/favicon.ico',
-					service: 'qredo-testing',
-				},
-			],
 			sui_Env: null,
 			sui_Env_RPC: null,
 			v: -1,

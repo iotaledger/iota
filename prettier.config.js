@@ -41,6 +41,13 @@ module.exports = {
             },
         },
         {
+            files: 'apps/wallet/**/*',
+            options: {
+                tabWidth: 2,
+                useTabs: true,
+            },
+        },
+        {
             files: 'external-crates/move/documentation/book/**/*',
             options: {
                 proseWrap: 'always',

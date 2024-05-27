@@ -15,7 +15,6 @@ export const defaultSortOrder: AccountType[] = [
 	'mnemonic-derived',
 	'imported',
 	'ledger',
-	'qredo',
 ];
 
 export function getAccountBackgroundByType(account: SerializedUIAccount) {
