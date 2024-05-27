@@ -25,168 +25,168 @@ import * as amplitude from '@amplitude/analytics-browser';
 export type Environment = 'production' | 'development';
 
 export const ApiKey: Record<Environment, string> = {
-	production: import.meta.env.VITE_AMPLI_PROD_API_KEY,
-	development: import.meta.env.VITE_AMPLI_DEV_API_KEY,
+    production: import.meta.env.VITE_AMPLI_PROD_API_KEY,
+    development: import.meta.env.VITE_AMPLI_DEV_API_KEY,
 };
 
 /**
  * Default Amplitude configuration options. Contains tracking plan information.
  */
 export const DefaultConfiguration: BrowserOptions = {
-	plan: {
-		version: '1',
-		branch: 'main',
-		source: 'web',
-		versionId: 'e04b8300-7375-4e37-a47e-7eb097e55c65',
-	},
-	...{
-		ingestionMetadata: {
-			sourceName: 'browser-typescript-ampli',
-			sourceVersion: '2.0.0',
-		},
-	},
+    plan: {
+        version: '1',
+        branch: 'main',
+        source: 'web',
+        versionId: 'e04b8300-7375-4e37-a47e-7eb097e55c65',
+    },
+    ...{
+        ingestionMetadata: {
+            sourceName: 'browser-typescript-ampli',
+            sourceVersion: '2.0.0',
+        },
+    },
 };
 
 export interface LoadOptionsBase {
-	disabled?: boolean;
+    disabled?: boolean;
 }
 
 export type LoadOptionsWithEnvironment = LoadOptionsBase & {
-	environment: Environment;
-	client?: { configuration?: BrowserOptions };
+    environment: Environment;
+    client?: { configuration?: BrowserOptions };
 };
 export type LoadOptionsWithApiKey = LoadOptionsBase & {
-	client: { apiKey: string; configuration?: BrowserOptions };
+    client: { apiKey: string; configuration?: BrowserOptions };
 };
 export type LoadOptionsWithClientInstance = LoadOptionsBase & {
-	client: { instance: BrowserClient };
+    client: { instance: BrowserClient };
 };
 
 export type LoadOptions =
-	| LoadOptionsWithEnvironment
-	| LoadOptionsWithApiKey
-	| LoadOptionsWithClientInstance;
+    | LoadOptionsWithEnvironment
+    | LoadOptionsWithApiKey
+    | LoadOptionsWithClientInstance;
 
 export interface IdentifyProperties {
-	/**
-	 * The Sui network that the user is currently interacting with.
-	 */
-	activeNetwork: string;
-	/**
-	 * The domain (e.g., suiexplorer.com) of a given page.
-	 */
-	pageDomain: string;
-	/**
-	 * The path (e.g., /validators) of a given page.
-	 */
-	pagePath: string;
-	/**
-	 * The full URL (e.g., suiexplorer.com/validators) of a given page.
-	 */
-	pageUrl: string;
+    /**
+     * The Sui network that the user is currently interacting with.
+     */
+    activeNetwork: string;
+    /**
+     * The domain (e.g., suiexplorer.com) of a given page.
+     */
+    pageDomain: string;
+    /**
+     * The path (e.g., /validators) of a given page.
+     */
+    pagePath: string;
+    /**
+     * The full URL (e.g., suiexplorer.com/validators) of a given page.
+     */
+    pageUrl: string;
 }
 
 export interface ActivatedTooltipProperties {
-	tooltipLabel: string;
+    tooltipLabel: string;
 }
 
 export interface ClickedCurrentEpochCardProperties {
-	/**
-	 * An epoch or period of time.
-	 *
-	 * | Rule | Value |
-	 * |---|---|
-	 * | Type | integer |
-	 */
-	epoch: number;
+    /**
+     * An epoch or period of time.
+     *
+     * | Rule | Value |
+     * |---|---|
+     * | Type | integer |
+     */
+    epoch: number;
 }
 
 export interface ClickedSearchResultProperties {
-	searchCategory: string;
-	searchQuery: string;
+    searchCategory: string;
+    searchQuery: string;
 }
 
 export interface ClickedValidatorRowProperties {
-	/**
-	 * The source flow where the user came from.
-	 */
-	sourceFlow: string;
-	/**
-	 * The address of a validator.
-	 */
-	validatorAddress: string;
-	/**
-	 * The name of a validator.
-	 */
-	validatorName: string;
+    /**
+     * The source flow where the user came from.
+     */
+    sourceFlow: string;
+    /**
+     * The address of a validator.
+     */
+    validatorAddress: string;
+    /**
+     * The name of a validator.
+     */
+    validatorName: string;
 }
 
 export interface CompletedSearchProperties {
-	searchQuery: string;
+    searchQuery: string;
 }
 
 export interface SwitchedNetworkProperties {
-	toNetwork: string;
+    toNetwork: string;
 }
 
 export class Identify implements BaseEvent {
-	event_type = amplitude.Types.SpecialEventType.IDENTIFY;
+    event_type = amplitude.Types.SpecialEventType.IDENTIFY;
 
-	constructor(public event_properties: IdentifyProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: IdentifyProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class ActivatedTooltip implements BaseEvent {
-	event_type = 'activated tooltip';
+    event_type = 'activated tooltip';
 
-	constructor(public event_properties: ActivatedTooltipProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: ActivatedTooltipProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class ClickedCurrentEpochCard implements BaseEvent {
-	event_type = 'clicked current epoch card';
+    event_type = 'clicked current epoch card';
 
-	constructor(public event_properties: ClickedCurrentEpochCardProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: ClickedCurrentEpochCardProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class ClickedSearchResult implements BaseEvent {
-	event_type = 'clicked search result';
+    event_type = 'clicked search result';
 
-	constructor(public event_properties: ClickedSearchResultProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: ClickedSearchResultProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class ClickedValidatorRow implements BaseEvent {
-	event_type = 'clicked validator row';
+    event_type = 'clicked validator row';
 
-	constructor(public event_properties: ClickedValidatorRowProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: ClickedValidatorRowProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class CompletedSearch implements BaseEvent {
-	event_type = 'completed search';
+    event_type = 'completed search';
 
-	constructor(public event_properties: CompletedSearchProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: CompletedSearchProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class OpenedSuiExplorer implements BaseEvent {
-	event_type = 'opened sui explorer';
+    event_type = 'opened sui explorer';
 }
 
 export class SwitchedNetwork implements BaseEvent {
-	event_type = 'switched network';
+    event_type = 'switched network';
 
-	constructor(public event_properties: SwitchedNetworkProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: SwitchedNetworkProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export type PromiseResult<T> = { promise: Promise<T | void> };
