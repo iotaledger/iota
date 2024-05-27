@@ -12,125 +12,126 @@ import useImage from '~/hooks/useImage';
 import { Visibility } from '~/hooks/useImageMod';
 
 const imageStyles = cva(null, {
-	variants: {
-		rounded: {
-			full: 'rounded-full',
-			'2xl': 'rounded-2xl',
-			lg: 'rounded-lg',
-			xl: 'rounded-xl',
-			md: 'rounded-md',
-			sm: 'rounded-sm',
-			none: 'rounded-none',
-		},
-		fit: {
-			cover: 'object-cover',
-			contain: 'object-contain',
-			fill: 'object-fill',
-			none: 'object-none',
-			scaleDown: 'object-scale-down',
-		},
-		size: {
-			sm: 'h-16 w-16',
-			md: 'h-24 w-24',
-			lg: 'h-32 w-32',
-			full: 'h-full w-full',
-		},
-		aspect: {
-			square: 'aspect-square',
-		},
-	},
-	defaultVariants: {
-		size: 'full',
-		rounded: 'none',
-		fit: 'cover',
-	},
+    variants: {
+        rounded: {
+            full: 'rounded-full',
+            '2xl': 'rounded-2xl',
+            lg: 'rounded-lg',
+            xl: 'rounded-xl',
+            md: 'rounded-md',
+            sm: 'rounded-sm',
+            none: 'rounded-none',
+        },
+        fit: {
+            cover: 'object-cover',
+            contain: 'object-contain',
+            fill: 'object-fill',
+            none: 'object-none',
+            scaleDown: 'object-scale-down',
+        },
+        size: {
+            sm: 'h-16 w-16',
+            md: 'h-24 w-24',
+            lg: 'h-32 w-32',
+            full: 'h-full w-full',
+        },
+        aspect: {
+            square: 'aspect-square',
+        },
+    },
+    defaultVariants: {
+        size: 'full',
+        rounded: 'none',
+        fit: 'cover',
+    },
 });
 
 type ImageStyleProps = VariantProps<typeof imageStyles>;
 
 export interface ImageProps extends ImageStyleProps, ImgHTMLAttributes<HTMLImageElement> {
-	onClick?: () => void;
-	moderate?: boolean;
-	src: string;
-	visibility?: Visibility;
-	fadeIn?: boolean;
+    onClick?: () => void;
+    moderate?: boolean;
+    src: string;
+    visibility?: Visibility;
+    fadeIn?: boolean;
 }
 
 function BaseImage({
-	status,
-	size,
-	rounded,
-	alt,
-	src,
-	srcSet,
-	fit,
-	visibility,
-	onClick,
-	fadeIn,
-	aspect,
-	...imgProps
+    status,
+    size,
+    rounded,
+    alt,
+    src,
+    srcSet,
+    fit,
+    visibility,
+    onClick,
+    fadeIn,
+    aspect,
+    ...imgProps
 }: ImageProps & { status: string }) {
-	const [scope, animate] = useAnimate();
-	const [isBlurred, setIsBlurred] = useState(false);
-	useEffect(() => {
-		if (visibility && visibility !== Visibility.Pass) {
-			setIsBlurred(true);
-		}
-	}, [visibility]);
+    const [scope, animate] = useAnimate();
+    const [isBlurred, setIsBlurred] = useState(false);
+    useEffect(() => {
+        if (visibility && visibility !== Visibility.Pass) {
+            setIsBlurred(true);
+        }
+    }, [visibility]);
 
-	const animateFadeIn = fadeIn && status === 'loaded';
+    const animateFadeIn = fadeIn && status === 'loaded';
 
-	useEffect(() => {
-		if (animateFadeIn) {
-			animate(scope.current, { opacity: 1 }, { duration: 0.3 });
-		}
-	}, [animate, animateFadeIn, scope]);
+    useEffect(() => {
+        if (animateFadeIn) {
+            animate(scope.current, { opacity: 1 }, { duration: 0.3 });
+        }
+    }, [animate, animateFadeIn, scope]);
 
-	return (
-		<div
-			ref={scope}
-			className={cx(
-				imageStyles({ size, rounded, aspect }),
-				'relative flex items-center justify-center bg-gray-40 text-gray-65',
-				animateFadeIn && 'opacity-0',
-			)}
-		>
-			{status === 'loading' ? (
-				<LoadingIndicator />
-			) : status === 'loaded' ? (
-				isBlurred && (
-					<div
-						className={clsx(
-							'absolute z-20 flex h-full w-full items-center justify-center rounded-md bg-gray-100/30 text-center text-white backdrop-blur-md',
-							visibility === Visibility.Hide && 'pointer-events-none cursor-not-allowed',
-						)}
-						onClick={() => setIsBlurred(!isBlurred)}
-					>
-						<EyeClose16 />
-					</div>
-				)
-			) : status === 'failed' ? (
-				<NftTypeImage24 />
-			) : null}
-			{status === 'loaded' && (
-				<img
-					alt={alt}
-					src={src}
-					srcSet={srcSet}
-					className={imageStyles({
-						rounded,
-						fit,
-						size,
-					})}
-					onClick={onClick}
-					{...imgProps}
-				/>
-			)}
-		</div>
-	);
+    return (
+        <div
+            ref={scope}
+            className={cx(
+                imageStyles({ size, rounded, aspect }),
+                'relative flex items-center justify-center bg-gray-40 text-gray-65',
+                animateFadeIn && 'opacity-0',
+            )}
+        >
+            {status === 'loading' ? (
+                <LoadingIndicator />
+            ) : status === 'loaded' ? (
+                isBlurred && (
+                    <div
+                        className={clsx(
+                            'absolute z-20 flex h-full w-full items-center justify-center rounded-md bg-gray-100/30 text-center text-white backdrop-blur-md',
+                            visibility === Visibility.Hide &&
+                                'pointer-events-none cursor-not-allowed',
+                        )}
+                        onClick={() => setIsBlurred(!isBlurred)}
+                    >
+                        <EyeClose16 />
+                    </div>
+                )
+            ) : status === 'failed' ? (
+                <NftTypeImage24 />
+            ) : null}
+            {status === 'loaded' && (
+                <img
+                    alt={alt}
+                    src={src}
+                    srcSet={srcSet}
+                    className={imageStyles({
+                        rounded,
+                        fit,
+                        size,
+                    })}
+                    onClick={onClick}
+                    {...imgProps}
+                />
+            )}
+        </div>
+    );
 }
 
 export function Image({ src, moderate = true, ...props }: ImageProps) {
-	const { status, url, moderation } = useImage({ src, moderate });
-	return <BaseImage visibility={moderation?.visibility} status={status} src={url} {...props} />;
+    const { status, url, moderation } = useImage({ src, moderate });
+    return <BaseImage visibility={moderation?.visibility} status={status} src={url} {...props} />;
 }

@@ -19,127 +19,127 @@ import { useQuery } from '@tanstack/react-query';
 const LEFT_RIGHT_PANEL_MIN_SIZE = 30;
 
 function OwnedObjectsSection({ address }: { address: string }) {
-	const isMediumOrAbove = useBreakpoint('md');
+    const isMediumOrAbove = useBreakpoint('md');
 
-	const leftPane = {
-		panel: (
-			<div className="mb-5 h-full md:h-coinsAndAssetsContainer">
-				<OwnedCoins id={address} />
-			</div>
-		),
-		minSize: LEFT_RIGHT_PANEL_MIN_SIZE,
-		defaultSize: LEFT_RIGHT_PANEL_MIN_SIZE,
-	};
+    const leftPane = {
+        panel: (
+            <div className="mb-5 h-full md:h-coinsAndAssetsContainer">
+                <OwnedCoins id={address} />
+            </div>
+        ),
+        minSize: LEFT_RIGHT_PANEL_MIN_SIZE,
+        defaultSize: LEFT_RIGHT_PANEL_MIN_SIZE,
+    };
 
-	const rightPane = {
-		panel: (
-			<div className="mb-5 h-full md:h-coinsAndAssetsContainer">
-				<OwnedObjects id={address} />
-			</div>
-		),
-		minSize: LEFT_RIGHT_PANEL_MIN_SIZE,
-	};
+    const rightPane = {
+        panel: (
+            <div className="mb-5 h-full md:h-coinsAndAssetsContainer">
+                <OwnedObjects id={address} />
+            </div>
+        ),
+        minSize: LEFT_RIGHT_PANEL_MIN_SIZE,
+    };
 
-	return (
-		<TabHeader title="Owned Objects" noGap>
-			<div className="flex h-full flex-col justify-between">
-				<ErrorBoundary>
-					{isMediumOrAbove ? (
-						<SplitPanes
-							autoSaveId={LocalStorageSplitPaneKey.AddressViewHorizontal}
-							dividerSize="none"
-							splitPanels={[leftPane, rightPane]}
-							direction="horizontal"
-						/>
-					) : (
-						<>
-							{leftPane.panel}
-							<div className="my-8">
-								<Divider />
-							</div>
-							{rightPane.panel}
-						</>
-					)}
-				</ErrorBoundary>
-			</div>
-		</TabHeader>
-	);
+    return (
+        <TabHeader title="Owned Objects" noGap>
+            <div className="flex h-full flex-col justify-between">
+                <ErrorBoundary>
+                    {isMediumOrAbove ? (
+                        <SplitPanes
+                            autoSaveId={LocalStorageSplitPaneKey.AddressViewHorizontal}
+                            dividerSize="none"
+                            splitPanels={[leftPane, rightPane]}
+                            direction="horizontal"
+                        />
+                    ) : (
+                        <>
+                            {leftPane.panel}
+                            <div className="my-8">
+                                <Divider />
+                            </div>
+                            {rightPane.panel}
+                        </>
+                    )}
+                </ErrorBoundary>
+            </div>
+        </TabHeader>
+    );
 }
 
 function TransactionsSection({ address, isObject }: { address: string; isObject: boolean }) {
-	const client = useSuiClient();
+    const client = useSuiClient();
 
-	const {
-		data: transactionsForAddressData,
-		isPending,
-		isError,
-	} = useQuery({
-		queryKey: ['transactions-for-address', address],
-		queryFn: () =>
-			client.queryTransactionBlocks({
-				filter: {
-					FromAndToAddress: {
-						from: address,
-						to: address,
-					},
-				},
-				order: 'descending',
-				limit: 100,
-				options: {
-					showEffects: true,
-					showInput: true,
-				},
-			}),
-		enabled: !isObject,
-	});
+    const {
+        data: transactionsForAddressData,
+        isPending,
+        isError,
+    } = useQuery({
+        queryKey: ['transactions-for-address', address],
+        queryFn: () =>
+            client.queryTransactionBlocks({
+                filter: {
+                    FromAndToAddress: {
+                        from: address,
+                        to: address,
+                    },
+                },
+                order: 'descending',
+                limit: 100,
+                options: {
+                    showEffects: true,
+                    showInput: true,
+                },
+            }),
+        enabled: !isObject,
+    });
 
-	return (
-		<ErrorBoundary>
-			{isObject ? (
-				<TransactionBlocksForAddress address={address} />
-			) : (
-				<TransactionsForAddressTable
-					data={transactionsForAddressData?.data ?? []}
-					isPending={isPending}
-					isError={isError}
-					address={address}
-				/>
-			)}
-		</ErrorBoundary>
-	);
+    return (
+        <ErrorBoundary>
+            {isObject ? (
+                <TransactionBlocksForAddress address={address} />
+            ) : (
+                <TransactionsForAddressTable
+                    data={transactionsForAddressData?.data ?? []}
+                    isPending={isPending}
+                    isError={isError}
+                    address={address}
+                />
+            )}
+        </ErrorBoundary>
+    );
 }
 
 export function PageContent({ address, error }: { address: string; error?: Error | null }) {
-	const { data } = useGetObject(address);
-	const isObject = !!data?.data;
+    const { data } = useGetObject(address);
+    const isObject = !!data?.data;
 
-	if (error) {
-		return (
-			<Banner variant="error" spacing="lg" fullWidth>
-				Data could not be extracted on the following specified address ID: {address}
-			</Banner>
-		);
-	}
+    if (error) {
+        return (
+            <Banner variant="error" spacing="lg" fullWidth>
+                Data could not be extracted on the following specified address ID: {address}
+            </Banner>
+        );
+    }
 
-	return (
-		<div>
-			<section>
-				<OwnedObjectsSection address={address} />
-			</section>
+    return (
+        <div>
+            <section>
+                <OwnedObjectsSection address={address} />
+            </section>
 
-			<Divider />
+            <Divider />
 
-			{isObject && (
-				<section className="mt-14">
-					<FieldsContent objectId={address} />
-				</section>
-			)}
+            {isObject && (
+                <section className="mt-14">
+                    <FieldsContent objectId={address} />
+                </section>
+            )}
 
-			<section className="mt-14">
-				<TabHeader title="Transaction Blocks">
-					<TransactionsSection address={address} isObject={isObject} />
-				</TabHeader>
-			</section>
-		</div>
-	);
+            <section className="mt-14">
+                <TabHeader title="Transaction Blocks">
+                    <TransactionsSection address={address} isObject={isObject} />
+                </TabHeader>
+            </section>
+        </div>
+    );
 }
