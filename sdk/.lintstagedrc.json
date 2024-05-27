@@ -1,0 +1,3 @@
+{
+    "*.{ts,js,mjs,tsx}": "eslint -c ./linting/.eslintrc.precommit.js --fix" 
+}
