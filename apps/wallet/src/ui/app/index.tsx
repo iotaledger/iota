@@ -20,7 +20,7 @@ import { useSuiLedgerClient } from './components/ledger/SuiLedgerClientProvider'
 import { useAccounts } from './hooks/useAccounts';
 import { useAutoLockMinutes } from './hooks/useAutoLockMinutes';
 import { useBackgroundClient } from './hooks/useBackgroundClient';
-import { useInitialPageView } from './hooks/useInitialPageView';
+// import { useInitialPageView } from './hooks/useInitialPageView';
 import { useStorageMigrationStatus } from './hooks/useStorageMigrationStatus';
 import { AccountsPage } from './pages/accounts/AccountsPage';
 import { AddAccountPage } from './pages/accounts/AddAccountPage';
@@ -86,7 +86,7 @@ const App = () => {
 		dispatch(setNavVisibility(menuVisible));
 	}, [location, dispatch]);
 
-	useInitialPageView();
+	// useInitialPageView();
 	const { data: accounts } = useAccounts();
 	const allLedgerWithoutPublicKey = useMemo(
 		() => accounts?.filter(isLedgerAccountSerializedUI).filter(({ publicKey }) => !publicKey) || [],

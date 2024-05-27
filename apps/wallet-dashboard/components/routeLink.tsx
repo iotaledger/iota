@@ -5,31 +5,29 @@
 
 import { usePathname } from 'next/navigation';
 import React from 'react';
-import Link from 'next/link'
+import Link from 'next/link';
 
 interface RouteLinkProps {
-    title: string
-    path: string
+    title: string;
+    path: string;
 }
 
 function RouteLink({ title, path }: RouteLinkProps): JSX.Element {
-	const currentPath = usePathname();
+    const currentPath = usePathname();
 
-    const isActive = currentPath && (path === currentPath || path.startsWith(currentPath))
+    const isActive = currentPath && (path === currentPath || path.startsWith(currentPath));
 
-	return (
-        <Link
-            href={path}
-        >
+    return (
+        <Link href={path}>
             <div
                 className={`sidebar-item justify-between space-x-5 ${isActive ? 'underline' : ''}`}
             >
                 <div className="flex items-center justify-between space-x-5">
-                    <span className="origin-left duration-300 flex-shrink-0">{title}</span>
+                    <span className="flex-shrink-0 origin-left duration-300">{title}</span>
                 </div>
             </div>
         </Link>
-    )
+    );
 }
 
 export default RouteLink;
