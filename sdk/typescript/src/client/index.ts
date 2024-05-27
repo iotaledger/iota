@@ -6,4 +6,3 @@ export * from './network.js';
 export * from './types/index.js';
 export * from './client.js';
 export * from './errors.js';
-export * from './apps-backend.js';
