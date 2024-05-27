@@ -24,8 +24,6 @@ const MOONPAY_API_KEY =
 
 const BACKEND_HOST = getAppsBackend();
 
-console.log(BACKEND_HOST)
-
 const ONRAMP_PROVIDER: OnrampProvider[] = [
 	{
 		key: 'banxa',
