@@ -51,7 +51,7 @@ use crate::{
             create_migration_context, package_module_bytes,
             verification::created_objects::CreatedObjects, PACKAGE_DEPS,
         },
-        types::{snapshot::OutputHeader, stardust_to_sui_address_owner, Alias},
+        types::{snapshot::OutputHeader, stardust_to_sui_address_owner, timelock, Alias},
     },
 };
 
@@ -526,6 +526,38 @@ impl Executor {
             created_objects.set_output(object.id())?;
             object
         };
+
+        self.store.insert_object(object);
+        Ok(created_objects)
+    }
+
+    /// Creates [`TimeLock<Balance<IOTA>>`] objects which represent vested rewards
+    /// that were created during the stardust upgrade on IOTA mainnet.
+    pub(super) fn create_timelock_object(
+        &mut self,
+        header: &OutputHeader,
+        basic_output: &BasicOutput,
+        target_milestone_timestamp: u32,
+    ) -> Result<CreatedObjects> {
+        let mut created_objects = CreatedObjects::default();
+
+        let owner: SuiAddress = basic_output.address().to_string().parse()?;
+
+        let package_deps = InputObjects::new(self.load_packages(PACKAGE_DEPS).collect());
+        let version = package_deps.lamport_timestamp(&[]);
+
+        let timelock =
+            timelock::try_from_stardust(header, basic_output, target_milestone_timestamp)?;
+
+        let object = timelock::to_genesis_object(
+            timelock,
+            owner,
+            &self.protocol_config,
+            &self.tx_context,
+            version,
+        )?;
+
+        created_objects.set_output(object.id())?;
 
         self.store.insert_object(object);
         Ok(created_objects)

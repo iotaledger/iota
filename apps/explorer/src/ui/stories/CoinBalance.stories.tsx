@@ -9,31 +9,31 @@ import { CoinBalance, type CoinBalanceProps } from '../CoinBalance';
 import { Network, SupportedNetworks, createSuiClient } from '~/utils/api/DefaultRpcClient';
 
 export default {
-	component: CoinBalance,
-	decorators: [
-		(Story) => (
-			<QueryClientProvider client={new QueryClient()}>
-				<SuiClientProvider
-					networks={SupportedNetworks}
-					defaultNetwork={Network.Local}
-					createClient={createSuiClient}
-				>
-					<Story />
-				</SuiClientProvider>
-			</QueryClientProvider>
-		),
-	],
+    component: CoinBalance,
+    decorators: [
+        (Story) => (
+            <QueryClientProvider client={new QueryClient()}>
+                <SuiClientProvider
+                    networks={SupportedNetworks}
+                    defaultNetwork={Network.Local}
+                    createClient={createSuiClient}
+                >
+                    <Story />
+                </SuiClientProvider>
+            </QueryClientProvider>
+        ),
+    ],
 } as Meta;
 
 export const Default: StoryObj<CoinBalanceProps> = {
-	args: {
-		amount: 1000,
-		coinType: '0x2::sui::SUI',
-	},
+    args: {
+        amount: 1000,
+        coinType: '0x2::sui::SUI',
+    },
 };
 
 export const WithoutSymbol: StoryObj<CoinBalanceProps> = {
-	args: {
-		amount: 10000,
-	},
+    args: {
+        amount: 10000,
+    },
 };
