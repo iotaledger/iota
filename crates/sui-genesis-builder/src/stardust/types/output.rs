@@ -183,7 +183,7 @@ impl BasicOutput {
     ) -> Result<Object> {
         let move_object = unsafe {
             // Safety: we know from the definition of `BasicOutput` in the stardust package
-            // that it has not public transfer (`store` ability is absent).
+            // that it is not publicly transferable (`store` ability is absent).
             MoveObject::new_from_execution(
                 Self::type_().into(),
                 false,
