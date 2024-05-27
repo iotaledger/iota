@@ -3,3 +3,5 @@
 
 export { default as RouteLink } from './routeLink';
 export { default as Notifications } from './notifications';
+export * from './AccountBalance/AccountBalance';
+export * from './AllCoins/AllCoins';
