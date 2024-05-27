@@ -190,7 +190,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_foundry_output_with_default_metadata() -> Result<()> {
+    fn foundry_output_with_default_metadata() -> Result<()> {
         // Step 1: Create a FoundryOutput with an IRC30Metadata feature
         let token_scheme = SimpleTokenScheme::new(
             U256::from(100_000_000),
@@ -225,7 +225,7 @@ mod tests {
     }
 
     #[test]
-    fn test_foundry_output_with_additional_metadata() -> Result<()> {
+    fn foundry_output_with_additional_metadata() -> Result<()> {
         // Step 1: Create a FoundryOutput with an IRC30Metadata feature
         let token_scheme = SimpleTokenScheme::new(
             U256::from(100_000_000),
@@ -264,7 +264,7 @@ mod tests {
     }
 
     #[test]
-    fn test_foundry_output_with_exceeding_max_supply() -> Result<()> {
+    fn foundry_output_with_exceeding_max_supply() -> Result<()> {
         let minted_tokens = U256::from(u64::MAX).add(1);
         let melted_tokens = U256::from(1);
         let maximum_supply = U256::MAX;
@@ -308,7 +308,7 @@ mod tests {
     }
 
     #[test]
-    fn test_foundry_output_with_exceeding_circulating_supply() -> Result<()> {
+    fn foundry_output_with_exceeding_circulating_supply() -> Result<()> {
         let minted_tokens = U256::from(u64::MAX).add(1);
         let melted_tokens = U256::from(0);
         let maximum_supply = U256::MAX;
@@ -350,21 +350,21 @@ mod tests {
     }
 
     #[test]
-    fn test_empty_identifier() {
+    fn empty_identifier() {
         let identifier = "".to_string();
         let result = derive_lowercase_identifier(&identifier).unwrap();
         assert_eq!(7, result.len());
     }
 
     #[test]
-    fn test_identifier_with_only_invalid_chars() {
+    fn identifier_with_only_invalid_chars() {
         let identifier = "!@#$%^".to_string();
         let result = derive_lowercase_identifier(&identifier).unwrap();
         assert_eq!(7, result.len());
     }
 
     #[test]
-    fn test_identifier_with_only_one_char() {
+    fn identifier_with_only_one_char() {
         let identifier = "a".to_string();
         assert_eq!(
             derive_lowercase_identifier(&identifier).unwrap(),
@@ -373,7 +373,7 @@ mod tests {
     }
 
     #[test]
-    fn test_identifier_with_whitespaces_and_ending_underscore() {
+    fn identifier_with_whitespaces_and_ending_underscore() {
         let identifier = " a bc-d e_".to_string();
         assert_eq!(
             derive_lowercase_identifier(&identifier).unwrap(),
@@ -382,7 +382,7 @@ mod tests {
     }
 
     #[test]
-    fn test_identifier_with_minus() {
+    fn identifier_with_minus() {
         let identifier = "hello-world".to_string();
         assert_eq!(
             derive_lowercase_identifier(&identifier).unwrap(),
@@ -391,7 +391,7 @@ mod tests {
     }
 
     #[test]
-    fn test_identifier_with_multiple_invalid_chars() {
+    fn identifier_with_multiple_invalid_chars() {
         let identifier = "#hello-move_world/token&".to_string();
         assert_eq!(
             derive_lowercase_identifier(&identifier).unwrap(),
@@ -399,7 +399,7 @@ mod tests {
         );
     }
     #[test]
-    fn test_valid_identifier() {
+    fn valid_identifier() {
         let identifier = "valid_identifier".to_string();
         assert_eq!(
             derive_lowercase_identifier(&identifier).unwrap(),

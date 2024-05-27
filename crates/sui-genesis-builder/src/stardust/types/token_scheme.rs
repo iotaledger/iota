@@ -116,7 +116,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_valid_conversion_within_u64_limits() {
+    fn valid_conversion_within_u64_limits() {
         let minted_tokens = U256::from(5000);
         let melted_tokens = U256::from(1000);
         let maximum_supply = U256::from(10000);
@@ -132,7 +132,7 @@ mod tests {
     }
 
     #[test]
-    fn test_maximum_supply_exceeds_u64() {
+    fn maximum_supply_exceeds_u64() {
         let minted_tokens = U256::from(5000);
         let melted_tokens = U256::from(1000);
         let maximum_supply = U256::from(u64::MAX) + U256::from(1);
@@ -148,7 +148,7 @@ mod tests {
     }
 
     #[test]
-    fn test_circulating_supply_ratio_calculation() {
+    fn circulating_supply_ratio_calculation() {
         let minted_tokens = U256::from(u64::MAX) * U256::from(10);
         let melted_tokens = U256::from(0);
         let maximum_supply = U256::MAX;
@@ -165,7 +165,7 @@ mod tests {
     }
 
     #[test]
-    fn test_circulating_verify_token_balance() {
+    fn circulating_verify_token_balance() {
         let minted_tokens = U256::from(u64::MAX as u128 + 1);
         let melted_tokens = U256::from(0);
         let maximum_supply = U256::from(u64::MAX as u128 + 1);
@@ -188,7 +188,7 @@ mod tests {
     }
 
     #[test]
-    fn test_circulating_supply_exceeds_u64_with_one_holder() {
+    fn circulating_supply_exceeds_u64_with_one_holder() {
         let minted_tokens = U256::from(u64::MAX) + U256::from(1);
         let melted_tokens = U256::from(0);
         let maximum_supply = U256::MAX;
@@ -209,7 +209,7 @@ mod tests {
     }
 
     #[test]
-    fn test_circulating_supply_exceeds_u64_with_two_equal_holders() {
+    fn circulating_supply_exceeds_u64_with_two_equal_holders() {
         let minted_tokens = U256::MAX;
         let melted_tokens = U256::from(0);
         let maximum_supply = U256::MAX;
@@ -247,7 +247,7 @@ mod tests {
     }
 
     #[test]
-    fn test_zero_minted_and_melted_tokens() {
+    fn zero_minted_and_melted_tokens() {
         let minted_tokens = U256::from(0);
         let melted_tokens = U256::from(0);
         let maximum_supply = U256::from(10000);
@@ -263,14 +263,14 @@ mod tests {
     }
 
     #[test]
-    fn test_u256_to_bigdecimal_zero() {
+    fn u256_to_bigdecimal_zero() {
         let value = U256::zero();
         let result = u256_to_bigdecimal(value);
         assert_eq!(result, BigDecimal::from(0));
     }
 
     #[test]
-    fn test_u256_to_bigdecimal_mid() {
+    fn u256_to_bigdecimal_mid() {
         let value = U256::from_dec_str("1234567890123456789012345678901234567890").unwrap();
         let expected = BigDecimal::from_str("1234567890123456789012345678901234567890").unwrap();
         let result = u256_to_bigdecimal(value);
@@ -278,7 +278,7 @@ mod tests {
     }
 
     #[test]
-    fn test_u256_to_bigdecimal_max() {
+    fn u256_to_bigdecimal_max() {
         let value = U256::max_value();
         let expected = BigInt::from_bytes_be(
             num_bigint::Sign::Plus,
