@@ -984,6 +984,9 @@ importers:
 
   apps/wallet-dashboard:
     dependencies:
+      '@mysten/core':
+        specifier: workspace:*
+        version: link:../core
       '@mysten/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
