@@ -19,6 +19,5 @@ export { useOwnedNFT } from './useOwnedNFT';
 export { useSortedCoinsByCategories } from './useSortedCoinsByCategories';
 export * from './useTransactionData';
 export * from './useActiveAddress';
-export * from './useGetAllCoins';
 export * from './useCoinsReFetchingConfig';
 export * from './deepbook';

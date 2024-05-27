@@ -9,6 +9,7 @@ use iota_sdk::types::block::address::AliasAddress;
 use iota_sdk::types::block::output::feature::Irc30Metadata;
 use iota_sdk::types::block::output::{FoundryId, FoundryOutput};
 use iota_sdk::Url;
+use rand::distributions::{Alphanumeric, DistString};
 use rand::Rng;
 use regex::Regex;
 
@@ -171,15 +172,8 @@ fn derive_lowercase_identifier(input: &str) -> Result<String, StardustError> {
             })
         }
     } else {
-        // Generate a new valid random identifier if still invalid
-        let mut rng = rand::thread_rng();
-        let gen = rand_regex::Regex::compile(VALID_IDENTIFIER_PATTERN, 100).unwrap();
-        let res: String = rng.sample(&gen);
-        if res.len() > 7 {
-            Ok(res[..7].to_string())
-        } else {
-            Ok(res)
-        }
+        // Generate a new valid random identifier if the identifier is empty.
+        Ok(Alphanumeric.sample_string(&mut rand::thread_rng(), 7))
     }
 }
 

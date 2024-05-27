@@ -10,16 +10,16 @@ import { MonitorNetworkModule } from './monitor-network/monitor-network.module';
 import { PricesModule } from './prices/prices.module';
 
 @Module({
-	imports: [
-		PricesModule,
-		FeaturesModule,
-		MonitorNetworkModule,
-		AnalyticsModule,
-		ConfigModule.forRoot({
-			isGlobal: true,
-			envFilePath: '.env',
-			expandVariables: true,
-		}),
-	],
+    imports: [
+        PricesModule,
+        FeaturesModule,
+        MonitorNetworkModule,
+        AnalyticsModule,
+        ConfigModule.forRoot({
+            isGlobal: true,
+            envFilePath: '.env',
+            expandVariables: true,
+        }),
+    ],
 })
 export class AppModule {}
