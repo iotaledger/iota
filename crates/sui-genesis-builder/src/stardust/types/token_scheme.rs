@@ -155,6 +155,29 @@ mod tests {
     }
 
     #[test]
+    fn test_circulating_verify_token_balance() {
+        let minted_tokens = U256::from(u64::MAX as u128 + 1);
+        let melted_tokens = U256::from(0);
+        let maximum_supply = U256::from(u64::MAX as u128 + 1);
+
+        let token_scheme =
+            SimpleTokenScheme::new(minted_tokens, melted_tokens, maximum_supply).unwrap();
+
+        let token_scheme_u64 = SimpleTokenSchemeU64::try_from(&token_scheme).unwrap();
+
+        assert_eq!(token_scheme_u64.circulating_supply, u64::MAX);
+        assert_eq!(token_scheme_u64.maximum_supply, u64::MAX);
+
+        // Verify that the adjusted balance multiplied by the token_adjustment_ratio is equal to the original balance.
+        assert_eq!(
+            (token_scheme_u64.circulating_supply() / token_scheme_u64.token_adjustment_ratio)
+                .to_u128()
+                .unwrap(),
+            minted_tokens.as_u128()
+        );
+    }
+
+    #[test]
     fn test_circulating_supply_exceeds_u64_with_one_holder() {
         let minted_tokens = U256::from(u64::MAX) + U256::from(1);
         let melted_tokens = U256::from(0);
