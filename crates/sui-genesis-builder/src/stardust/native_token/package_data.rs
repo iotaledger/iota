@@ -3,28 +3,32 @@
 
 //! The [`package_data`] module provides the [`NativeTokenPackageData`] struct, which encapsulates all the data necessary to build a Stardust native token package.
 
-use crate::stardust::error::StardustError;
-use crate::stardust::types::token_scheme::SimpleTokenSchemeU64;
 use anyhow::Result;
-use bigdecimal::BigDecimal;
 use iota_sdk::types::block::address::AliasAddress;
 use iota_sdk::types::block::output::feature::Irc30Metadata;
 use iota_sdk::types::block::output::{FoundryId, FoundryOutput};
-use iota_sdk::{Url, U256};
+use iota_sdk::Url;
 use rand::distributions::{Alphanumeric, DistString};
 use regex::Regex;
+
+use crate::stardust::error::StardustError;
+use crate::stardust::types::token_scheme::{SimpleTokenSchemeU64, TokenAdjustmentRatio};
 
 /// The [`NativeTokenPackageData`] struct encapsulates all the data necessary to build a Stardust native token package.
 #[derive(Debug)]
 pub struct NativeTokenPackageData {
     package_name: String,
     module: NativeTokenModuleData,
-    token_adjustment_ratio: BigDecimal,
+    token_adjustment_ratio: TokenAdjustmentRatio,
 }
 
 impl NativeTokenPackageData {
     /// Creates a new [`NativeTokenPackageData`] instance.
-    pub fn new(package_name: impl Into<String>, module: NativeTokenModuleData, token_adjustment_ratio: BigDecimal) -> Self {
+    pub fn new(
+        package_name: impl Into<String>,
+        module: NativeTokenModuleData,
+        token_adjustment_ratio: TokenAdjustmentRatio,
+    ) -> Self {
         Self {
             package_name: package_name.into(),
             module,
@@ -43,7 +47,7 @@ impl NativeTokenPackageData {
     }
 
     /// Returns the token adjustment ratio.
-    pub fn token_adjustment_ratio(&self) -> &BigDecimal {
+    pub fn token_adjustment_ratio(&self) -> &TokenAdjustmentRatio {
         &self.token_adjustment_ratio
     }
 }
@@ -183,7 +187,9 @@ fn derive_lowercase_identifier(input: &str) -> Result<String, StardustError> {
 
 #[cfg(test)]
 mod tests {
-    use crate::stardust::native_token::package_builder;
+    use bigdecimal::One;
+    use std::ops::{Add, Sub};
+
     use iota_sdk::types::block::address::AliasAddress;
     use iota_sdk::types::block::output::feature::MetadataFeature;
     use iota_sdk::types::block::output::unlock_condition::ImmutableAliasAddressUnlockCondition;
@@ -191,7 +197,8 @@ mod tests {
         AliasId, Feature, FoundryOutputBuilder, SimpleTokenScheme, TokenScheme,
     };
     use iota_sdk::U256;
-    use std::ops::{Add, Sub};
+
+    use crate::stardust::native_token::package_builder;
 
     use super::*;
 
@@ -270,7 +277,7 @@ mod tests {
     }
 
     #[test]
-    fn test_foundry_output_with_max_supply_overflow_and_valid_circulating_supply() -> Result<()> {
+    fn test_foundry_output_with_exceeding_max_supply() -> Result<()> {
         let minted_tokens = U256::from(u64::MAX).add(1);
         let melted_tokens = U256::from(1);
         let maximum_supply = U256::MAX;
@@ -314,7 +321,7 @@ mod tests {
     }
 
     #[test]
-    fn test_foundry_output_with_max_supply_overflow_and_invalid_circulating_supply() -> Result<()> {
+    fn test_foundry_output_with_exceeding_circulating_supply() -> Result<()> {
         let minted_tokens = U256::from(u64::MAX).add(1);
         let melted_tokens = U256::from(0);
         let maximum_supply = U256::MAX;
@@ -344,13 +351,16 @@ mod tests {
         let output = builder.finish().unwrap();
 
         // Step 2: Convert the FoundryOutput to NativeTokenPackageData.
-        if let Err(StardustError::FoundryConversionError { .. }) =
-            NativeTokenPackageData::try_from(&output)
-        {
-            Ok(())
-        } else {
-            panic!("Expected FoundryConversionError")
-        }
+        let native_token_data = NativeTokenPackageData::try_from(&output)?;
+
+        assert!(native_token_data.token_adjustment_ratio < TokenAdjustmentRatio::one());
+        assert_eq!(native_token_data.module().circulating_supply, u64::MAX);
+        assert_eq!(native_token_data.module().maximum_supply, u64::MAX);
+
+        // Step 3: Verify the conversion
+        assert!(package_builder::build_and_compile(native_token_data).is_ok());
+
+        Ok(())
     }
 
     #[test]

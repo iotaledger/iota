@@ -3,8 +3,15 @@
 
 //! Contains the logic for the migration process.
 
+use std::{
+    collections::HashMap,
+    io::{prelude::Write, BufWriter},
+};
+
 use anyhow::Result;
 use fastcrypto::hash::HashFunction;
+use iota_sdk::types::block::output::{FoundryOutput, Output, OutputId};
+
 use sui_move_build::CompiledPackage;
 use sui_protocol_config::ProtocolVersion;
 use sui_types::{
@@ -17,13 +24,7 @@ use sui_types::{
     TIMELOCK_PACKAGE_ID,
 };
 
-use std::{
-    collections::HashMap,
-    io::{prelude::Write, BufWriter},
-};
-
-use iota_sdk::types::block::output::{FoundryOutput, Output, OutputId};
-
+use crate::stardust::types::token_scheme::TokenAdjustmentRatio;
 use crate::stardust::{
     migration::{
         executor::Executor,
@@ -146,8 +147,8 @@ impl Migration {
         let compiled = foundries
             .into_iter()
             .map(|(header, output)| {
-                let pkg = generate_package(output)?;
-                Ok((header, output, pkg))
+                let (pkg, token_adjustment_ratio) = generate_package(output)?;
+                Ok((header, output, pkg, token_adjustment_ratio))
             })
             .collect::<Result<Vec<_>>>()?;
         self.output_objects_map
@@ -214,9 +215,13 @@ impl Migration {
 }
 
 // Build a `CompiledPackage` from a given `FoundryOutput`.
-fn generate_package(foundry: &FoundryOutput) -> Result<CompiledPackage> {
+fn generate_package(foundry: &FoundryOutput) -> Result<(CompiledPackage, TokenAdjustmentRatio)> {
     let native_token_data = NativeTokenPackageData::try_from(foundry)?;
-    crate::stardust::native_token::package_builder::build_and_compile(native_token_data)
+    let token_adjustment_ratio = native_token_data.token_adjustment_ratio().clone();
+    let compiled_package =
+        crate::stardust::native_token::package_builder::build_and_compile(native_token_data)?;
+
+    Ok((compiled_package, token_adjustment_ratio))
 }
 
 /// Serialize the objects stored in [`InMemoryStorage`] into a file using

@@ -9,6 +9,8 @@ use iota_sdk::U256;
 
 use crate::stardust::error::StardustError;
 
+pub type TokenAdjustmentRatio = BigDecimal;
+
 pub struct SimpleTokenSchemeU64 {
     // Circulating supply of tokens controlled by a foundry.
     circulating_supply: u64,
@@ -17,7 +19,7 @@ pub struct SimpleTokenSchemeU64 {
     // Ratio that the circulating supply was adjusted by.
     // Native token balances need to be multiplied by this ratio to account for the fact that the original circulating supply may exceed u64::MAX.
     // If the circulating supply is less than or equal to u64::MAX, this ratio is 1.
-    token_adjustment_ratio: BigDecimal,
+    token_adjustment_ratio: TokenAdjustmentRatio,
 }
 
 impl SimpleTokenSchemeU64 {
@@ -29,7 +31,7 @@ impl SimpleTokenSchemeU64 {
         self.maximum_supply
     }
 
-    pub fn token_adjustment_ratio(&self) -> &BigDecimal {
+    pub fn token_adjustment_ratio(&self) -> &TokenAdjustmentRatio {
         &self.token_adjustment_ratio
     }
 }
@@ -80,7 +82,7 @@ impl TryFrom<&SimpleTokenScheme> for SimpleTokenSchemeU64 {
     }
 }
 
-fn u256_to_bigdecimal(u256_value: U256) -> BigDecimal {
+pub fn u256_to_bigdecimal(u256_value: U256) -> BigDecimal {
     // Allocate a mutable array for the big-endian bytes
     let mut bytes = [0u8; 32];
     u256_value.to_big_endian(&mut bytes);
