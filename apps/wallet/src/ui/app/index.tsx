@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useAppDispatch, useAppSelector } from '_hooks';
 import { SwapPage } from '_pages/swap';
 import { FromAssets } from '_pages/swap/FromAssets';
@@ -17,7 +20,7 @@ import { useSuiLedgerClient } from './components/ledger/SuiLedgerClientProvider'
 import { useAccounts } from './hooks/useAccounts';
 import { useAutoLockMinutes } from './hooks/useAutoLockMinutes';
 import { useBackgroundClient } from './hooks/useBackgroundClient';
-import { useInitialPageView } from './hooks/useInitialPageView';
+// import { useInitialPageView } from './hooks/useInitialPageView';
 import { useStorageMigrationStatus } from './hooks/useStorageMigrationStatus';
 import { AccountsPage } from './pages/accounts/AccountsPage';
 import { AddAccountPage } from './pages/accounts/AddAccountPage';
@@ -33,6 +36,7 @@ import { ResetWarningPage } from './pages/accounts/forgot-password/ResetWarningP
 import { ImportLedgerAccountsPage } from './pages/accounts/ImportLedgerAccountsPage';
 import { ImportPassphrasePage } from './pages/accounts/ImportPassphrasePage';
 import { ImportPrivateKeyPage } from './pages/accounts/ImportPrivateKeyPage';
+import { ImportSeedPage } from './pages/accounts/ImportSeedPage';
 import { ManageAccountsPage } from './pages/accounts/manage/ManageAccountsPage';
 import { ProtectAccountPage } from './pages/accounts/ProtectAccountPage';
 import { WelcomePage } from './pages/accounts/WelcomePage';
@@ -82,7 +86,7 @@ const App = () => {
 		dispatch(setNavVisibility(menuVisible));
 	}, [location, dispatch]);
 
-	useInitialPageView();
+	// useInitialPageView();
 	const { data: accounts } = useAccounts();
 	const allLedgerWithoutPublicKey = useMemo(
 		() => accounts?.filter(isLedgerAccountSerializedUI).filter(({ publicKey }) => !publicKey) || [],
@@ -187,6 +191,7 @@ const App = () => {
 				<Route path="import-ledger-accounts" element={<ImportLedgerAccountsPage />} />
 				<Route path="import-passphrase" element={<ImportPassphrasePage />} />
 				<Route path="import-private-key" element={<ImportPrivateKeyPage />} />
+				<Route path="import-seed" element={<ImportSeedPage />} />
 				<Route path="manage" element={<ManageAccountsPage />} />
 				<Route path="protect-account" element={<ProtectAccountPage />} />
 				<Route path="backup/:accountSourceID" element={<BackupMnemonicPage />} />

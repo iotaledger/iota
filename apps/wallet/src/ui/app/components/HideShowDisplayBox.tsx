@@ -57,20 +57,20 @@ export function HideShowDisplayBox({
 		<div className="flex flex-col flex-nowrap items-stretch gap-2 bg-white border border-solid border-gray-60 rounded-lg overflow-hidden py-4 px-5">
 			<div className="break-all relative">
 				{valueHidden ? null : (
-					<div className="absolute top-0">
-						<Text variant="pBody" weight="medium" color="steel-darker">
-							{typeof value === 'string'
-								? value
-								: value.map((aValue, index) => (
-										<span key={index}>{(index > 0 ? ' ' : '') + aValue}</span>
-								  ))}
-						</Text>
-					</div>
+					<Text variant="pBody" weight="medium" color="steel-darker">
+						{typeof value === 'string'
+							? value
+							: value.map((aValue, index) => (
+									<span key={index}>{(index > 0 ? ' ' : '') + aValue}</span>
+							  ))}
+					</Text>
 				)}
-				<div className={cx('flex flex-col gap-1.5', valueHidden ? 'visible' : 'invisible')}>
+				<div className={cx('flex flex-col gap-1.5', valueHidden ? '' : 'hidden')}>
 					<div className="h-3.5 bg-gray-40 rounded-md" />
 					<div className="h-3.5 bg-gray-40 rounded-md" />
-					<div className="h-3.5 bg-gray-40 rounded-md w-1/2" />
+					<div className="h-3.5 bg-gray-40 rounded-md" />
+					<div className="h-3.5 bg-gray-40 rounded-md" />
+					<div className="h-4.5 bg-gray-40 rounded-md w-1/2" />
 				</div>
 			</div>
 			<div className="flex flex-row flex-nowrap items-center justify-between">

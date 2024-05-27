@@ -1,17 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { bytesToHex, hexToBytes, randomBytes } from '@noble/hashes/utils';
 import * as bip39 from '@scure/bip39';
 import { wordlist } from '@scure/bip39/wordlists/english';
-
-/**
- * Generate mnemonics as 12 words string using the english wordlist.
- *
- * @returns a 12 words string separated by spaces.
- */
-export function generateMnemonic(): string {
-	return bip39.generateMnemonic(wordlist);
-}
 
 /**
  * Converts mnemonic to entropy (byte array) using the english wordlist.
@@ -37,10 +32,10 @@ export function entropyToMnemonic(entropy: Uint8Array): string {
 
 /**
  * Generate random byte to be used as entropy for the mnemonic
- * @param strength defaults to 128 to generate 12-word mnemonic that now is the default for the wallet
+ * @param strength defaults to 256 to generate 24-word mnemonic that now is the default for the wallet
  * @returns
  */
-export function getRandomEntropy(strength: 128 | 256 = 128) {
+export function getRandomEntropy(strength: 128 | 256 = 256) {
 	return randomBytes(strength / 8);
 }
 
