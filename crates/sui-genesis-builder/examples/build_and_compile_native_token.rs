@@ -3,6 +3,7 @@
 
 //! Example demonstrating building and compiling two native token packages.
 
+use bigdecimal::One;
 use iota_sdk::types::block::address::AliasAddress;
 use iota_sdk::types::block::output::{AliasId, FoundryId};
 use iota_sdk::Url;
@@ -10,6 +11,7 @@ use sui_genesis_builder::stardust::native_token::package_builder;
 use sui_genesis_builder::stardust::native_token::package_data::{
     NativeTokenModuleData, NativeTokenPackageData,
 };
+use sui_genesis_builder::stardust::types::token_scheme::TokenAdjustmentRatio;
 
 fn main() -> anyhow::Result<()> {
     let native_token_a = NativeTokenPackageData::new(
@@ -27,6 +29,7 @@ fn main() -> anyhow::Result<()> {
             Some(Url::parse("https://raw.githubusercontent.com/dogecoin/dogecoin/master/share/pixmaps/dogecoin256.png").unwrap()),
             AliasAddress::new(AliasId::new([0; AliasId::LENGTH]))
         ),
+        TokenAdjustmentRatio::one(),
     );
 
     println!("DOGE token: {:?}", native_token_a);
@@ -52,6 +55,7 @@ fn main() -> anyhow::Result<()> {
             Option::None,
             AliasAddress::new(AliasId::new([1; AliasId::LENGTH])),
         ),
+        TokenAdjustmentRatio::one(),
     );
 
     println!("SMR token: {:?}", native_token_b);
