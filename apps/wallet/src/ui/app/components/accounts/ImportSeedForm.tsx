@@ -15,30 +15,30 @@ const formSchema = z.object({});
 type FormValues = z.infer<typeof formSchema>;
 
 type ImportSeedFormProps = {
-	onSubmit: SubmitHandler<FormValues>;
+    onSubmit: SubmitHandler<FormValues>;
 };
 
 export function ImportSeedForm({ onSubmit }: ImportSeedFormProps) {
-	const form = useZodForm({
-		mode: 'onTouched',
-		schema: formSchema,
-	});
-	const navigate = useNavigate();
+    const form = useZodForm({
+        mode: 'onTouched',
+        schema: formSchema,
+    });
+    const navigate = useNavigate();
 
-	return (
-		<Form className="flex flex-col h-full gap-2" form={form} onSubmit={onSubmit}>
-			<TextAreaField label="Enter Seed" name={''} rows={3} />
-			<div className="flex gap-2.5 mt-auto">
-				<Button variant="outline" size="tall" text="Cancel" onClick={() => navigate(-1)} />
-				<Button
-					type="submit"
-					disabled={true}
-					variant="primary"
-					size="tall"
-					loading={false}
-					text="Add Account"
-				/>
-			</div>
-		</Form>
-	);
+    return (
+        <Form className="flex h-full flex-col gap-2" form={form} onSubmit={onSubmit}>
+            <TextAreaField label="Enter Seed" name={''} rows={3} />
+            <div className="mt-auto flex gap-2.5">
+                <Button variant="outline" size="tall" text="Cancel" onClick={() => navigate(-1)} />
+                <Button
+                    type="submit"
+                    disabled={true}
+                    variant="primary"
+                    size="tall"
+                    loading={false}
+                    text="Add Account"
+                />
+            </div>
+        </Form>
+    );
 }

@@ -16,23 +16,23 @@ import { useBackgroundClient } from './useBackgroundClient';
 import { useQredoAPI } from './useQredoAPI';
 
 export function useSigner(account: SerializedUIAccount | null): WalletSigner | null {
-	const { connectToLedger } = useSuiLedgerClient();
-	const api = useSuiClient();
-	const background = useBackgroundClient();
-	const [qredoAPI] = useQredoAPI(
-		account && !account?.isLocked && isQredoAccountSerializedUI(account)
-			? account.sourceID
-			: undefined,
-	);
-	const network = useAppSelector(({ app: { network } }) => network);
-	if (!account) {
-		return null;
-	}
-	if (isLedgerAccountSerializedUI(account)) {
-		return new LedgerSigner(connectToLedger, account.derivationPath, api);
-	}
-	if (isQredoAccountSerializedUI(account)) {
-		return qredoAPI ? new QredoSigner(api, account, qredoAPI, network) : null;
-	}
-	return walletApiProvider.getSignerInstance(account, background);
+    const { connectToLedger } = useSuiLedgerClient();
+    const api = useSuiClient();
+    const background = useBackgroundClient();
+    const [qredoAPI] = useQredoAPI(
+        account && !account?.isLocked && isQredoAccountSerializedUI(account)
+            ? account.sourceID
+            : undefined,
+    );
+    const network = useAppSelector(({ app: { network } }) => network);
+    if (!account) {
+        return null;
+    }
+    if (isLedgerAccountSerializedUI(account)) {
+        return new LedgerSigner(connectToLedger, account.derivationPath, api);
+    }
+    if (isQredoAccountSerializedUI(account)) {
+        return qredoAPI ? new QredoSigner(api, account, qredoAPI, network) : null;
+    }
+    return walletApiProvider.getSignerInstance(account, background);
 }
