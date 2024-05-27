@@ -490,7 +490,7 @@ impl Executor {
         basic_output: &BasicOutput,
     ) -> Result<CreatedObjects> {
         let mut data =
-            crate::stardust::types::output::BasicOutput::new(header.clone(), basic_output);
+            crate::stardust::types::output::BasicOutput::new(header.clone(), basic_output)?;
         let owner: SuiAddress = basic_output.address().to_string().parse()?;
         let mut created_objects = CreatedObjects::default();
 

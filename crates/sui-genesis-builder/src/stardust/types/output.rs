@@ -1,6 +1,7 @@
 //! Rust types and logic for the Move counterparts in the `stardust` system package.
 
 use anyhow::Result;
+use iota_sdk::types::block::address::Address;
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -17,7 +18,7 @@ use sui_types::{
     STARDUST_PACKAGE_ID,
 };
 
-use super::snapshot::OutputHeader;
+use super::{snapshot::OutputHeader, stardust_to_sui_address};
 
 pub const BASIC_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("basic_output");
 pub const BASIC_OUTPUT_STRUCT_NAME: &IdentStr = ident_str!("BasicOutput");
@@ -34,19 +35,14 @@ pub struct ExpirationUnlockCondition {
     pub unix_time: u32,
 }
 
-impl TryFrom<&iota_sdk::types::block::output::BasicOutput> for ExpirationUnlockCondition {
-    type Error = anyhow::Error;
-
-    fn try_from(output: &iota_sdk::types::block::output::BasicOutput) -> Result<Self, Self::Error> {
-        let Some(address_unlock) = output.unlock_conditions().address() else {
-            anyhow::bail!("output does not have address unlock condition");
-        };
-        let Some(expiration) = output.unlock_conditions().expiration() else {
-            anyhow::bail!("output does not have expiration unlock condition");
-        };
-        let owner = address_unlock.address().to_string().parse()?;
-        let return_address = expiration.return_address().to_string().parse()?;
-        let unix_time = expiration.timestamp();
+impl ExpirationUnlockCondition {
+    pub(crate) fn new(
+        owner_address: &Address,
+        expiration_unlock_condition: &iota_sdk::types::block::output::unlock_condition::ExpirationUnlockCondition,
+    ) -> anyhow::Result<Self> {
+        let owner = stardust_to_sui_address(owner_address)?;
+        let return_address = stardust_to_sui_address(expiration_unlock_condition.return_address())?;
+        let unix_time = expiration_unlock_condition.timestamp();
 
         Ok(Self {
             owner,
@@ -136,17 +132,26 @@ pub struct BasicOutput {
 impl BasicOutput {
     /// Construct the basic output with an empty [`Bag`] through the [`OutputHeader`]
     /// and [`Output`][iota_sdk::types::block::output::BasicOutput].
-    pub fn new(header: OutputHeader, output: &iota_sdk::types::block::output::BasicOutput) -> Self {
+    pub fn new(
+        header: OutputHeader,
+        output: &iota_sdk::types::block::output::BasicOutput,
+    ) -> Result<Self> {
         let id = UID::new(ObjectID::new(header.output_id().hash()));
         let iota = Balance::new(output.amount());
         let native_tokens = Default::default();
         let unlock_conditions = output.unlock_conditions();
         let storage_deposit_return = unlock_conditions
             .storage_deposit_return()
-            .and_then(|unlock| unlock.try_into().ok());
+            .map(|unlock| unlock.try_into())
+            .transpose()?;
         let timelock = unlock_conditions.timelock().map(|unlock| unlock.into());
-        let expiration = output.try_into().ok();
-        BasicOutput {
+        let expiration = output
+            .unlock_conditions()
+            .expiration()
+            .map(|expiration| ExpirationUnlockCondition::new(output.address(), &expiration))
+            .transpose()?;
+
+        Ok(BasicOutput {
             id,
             iota,
             native_tokens,
@@ -156,7 +161,7 @@ impl BasicOutput {
             metadata: Default::default(),
             tag: Default::default(),
             sender: Default::default(),
-        }
+        })
     }
 
     pub fn type_() -> StructTag {
