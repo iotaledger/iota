@@ -72,7 +72,7 @@ export function Kiosk({ object, orientation, ...nftImageProps }: KioskProps) {
                                 >
                                     <NftImage
                                         {...nftImageProps}
-                                        src={display?.image_url!}
+                                        src={display?.image_url ?? null}
                                         animateHover={items.length <= 1}
                                         name="Kiosk"
                                     />

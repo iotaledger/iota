@@ -39,25 +39,27 @@ function KioskDetailsPage() {
                 ) : (
                     <>
                         <div className="mb-auto grid grid-cols-3 items-center justify-center gap-3">
-                            {items.map((item) => (
-                                <Link
-                                    to={`/nft-details?${new URLSearchParams({
-                                        objectId: item.data?.objectId!,
-                                    }).toString()}`}
-                                    key={item.data?.objectId}
-                                    className="no-underline"
-                                >
-                                    <ErrorBoundary>
-                                        <NFTDisplayCard
-                                            objectId={item.data?.objectId!}
-                                            size="md"
-                                            animateHover
-                                            borderRadius="xl"
-                                            isLocked={item?.isLocked}
-                                        />
-                                    </ErrorBoundary>
-                                </Link>
-                            ))}
+                            {items.map((item) =>
+                                item.data?.objectId ? (
+                                    <Link
+                                        to={`/nft-details?${new URLSearchParams({
+                                            objectId: item.data.objectId,
+                                        }).toString()}`}
+                                        key={item.data?.objectId}
+                                        className="no-underline"
+                                    >
+                                        <ErrorBoundary>
+                                            <NFTDisplayCard
+                                                objectId={item.data.objectId}
+                                                size="md"
+                                                animateHover
+                                                borderRadius="xl"
+                                                isLocked={item?.isLocked}
+                                            />
+                                        </ErrorBoundary>
+                                    </Link>
+                                ) : null,
+                            )}
                         </div>
                     </>
                 )}

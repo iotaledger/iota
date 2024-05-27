@@ -28,7 +28,7 @@ const allowedAccountTypes: CreateType[] = [
 type AllowedAccountTypes = (typeof allowedAccountTypes)[number];
 
 function isAllowedAccountType(accountType: string): accountType is AllowedAccountTypes {
-    return allowedAccountTypes.includes(accountType as any);
+    return (allowedAccountTypes as string[]).includes(accountType);
 }
 
 export function ProtectAccountPage() {

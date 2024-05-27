@@ -344,6 +344,8 @@ export function useGetEstimate({
             } catch (error) {
                 // sentryTransaction.setStatus('failed_precondition');
                 // Sentry.captureException(error);
+
+                // eslint-disable-next-line no-console
                 console.error(error);
                 throw error;
             } finally {

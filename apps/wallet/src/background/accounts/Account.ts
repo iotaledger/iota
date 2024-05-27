@@ -17,6 +17,11 @@ import {
     setEphemeralValue,
 } from '../session-ephemeral-values';
 import { accountsEvents } from './events';
+import { type MnemonicAccount } from './MnemonicAccount';
+import { type ImportedAccount } from './ImportedAccount';
+import { type LedgerAccount } from './LedgerAccount';
+import { type QredoAccount } from './QredoAccount';
+import { type ZkLoginAccount } from './zklogin/ZkLoginAccount';
 
 export type AccountType = 'mnemonic-derived' | 'imported' | 'ledger' | 'qredo' | 'zkLogin';
 
@@ -179,7 +184,11 @@ export interface SigningAccount {
     signData(data: Uint8Array): Promise<SerializedSignature>;
 }
 
-export function isSigningAccount(account: any): account is SigningAccount {
+export function isSigningAccount(
+    account: Partial<
+        MnemonicAccount | ImportedAccount | LedgerAccount | QredoAccount | ZkLoginAccount
+    >,
+): account is SigningAccount {
     return 'signData' in account && 'canSign' in account && account.canSign === true;
 }
 
@@ -188,7 +197,11 @@ export interface KeyPairExportableAccount {
     exportKeyPair(password: string): Promise<string>;
 }
 
-export function isKeyPairExportableAccount(account: any): account is KeyPairExportableAccount {
+export function isKeyPairExportableAccount(
+    account: Partial<
+        MnemonicAccount | ImportedAccount | LedgerAccount | QredoAccount | ZkLoginAccount
+    >,
+): account is KeyPairExportableAccount {
     return (
         'exportKeyPair' in account &&
         'exportableKeyPair' in account &&

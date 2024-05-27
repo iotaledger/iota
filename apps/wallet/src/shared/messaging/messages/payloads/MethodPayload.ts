@@ -19,7 +19,7 @@ export type PasswordRecoveryData = { type: 'mnemonic'; accountSourceID: string; 
 
 type MethodPayloads = {
     getStoredEntities: { type: UIAccessibleEntityType };
-    storedEntitiesResponse: { entities: any; type: UIAccessibleEntityType };
+    storedEntitiesResponse: { entities: unknown; type: UIAccessibleEntityType };
     createAccountSource: {
         type: 'mnemonic';
         params: {
