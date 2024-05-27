@@ -24,7 +24,6 @@ use sui_types::{
     TIMELOCK_PACKAGE_ID,
 };
 
-use crate::stardust::types::token_scheme::TokenAdjustmentRatio;
 use crate::stardust::{
     migration::{
         executor::Executor,
@@ -147,8 +146,8 @@ impl Migration {
         let compiled = foundries
             .into_iter()
             .map(|(header, output)| {
-                let (pkg, token_adjustment_ratio) = generate_package(output)?;
-                Ok((header, output, pkg, token_adjustment_ratio))
+                let pkg = generate_package(output)?;
+                Ok((header, output, pkg))
             })
             .collect::<Result<Vec<_>>>()?;
         self.output_objects_map
@@ -215,13 +214,9 @@ impl Migration {
 }
 
 // Build a `CompiledPackage` from a given `FoundryOutput`.
-fn generate_package(foundry: &FoundryOutput) -> Result<(CompiledPackage, TokenAdjustmentRatio)> {
+fn generate_package(foundry: &FoundryOutput) -> Result<CompiledPackage> {
     let native_token_data = NativeTokenPackageData::try_from(foundry)?;
-    let token_adjustment_ratio = native_token_data.token_adjustment_ratio().clone();
-    let compiled_package =
-        crate::stardust::native_token::package_builder::build_and_compile(native_token_data)?;
-
-    Ok((compiled_package, token_adjustment_ratio))
+    crate::stardust::native_token::package_builder::build_and_compile(native_token_data)
 }
 
 /// Serialize the objects stored in [`InMemoryStorage`] into a file using

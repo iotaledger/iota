@@ -3,7 +3,7 @@
 
 //! Types representing token schemes in Stardust.
 use bigdecimal::num_bigint::BigInt;
-use bigdecimal::{num_bigint, BigDecimal, ToPrimitive};
+use bigdecimal::{num_bigint, BigDecimal, One, ToPrimitive};
 use iota_sdk::types::block::output::SimpleTokenScheme;
 use iota_sdk::U256;
 
@@ -16,8 +16,8 @@ pub struct SimpleTokenSchemeU64 {
     circulating_supply: u64,
     // Maximum supply of tokens controlled by a foundry.
     maximum_supply: u64,
-    // Ratio that the circulating supply was adjusted by.
-    // Native token balances need to be multiplied by this ratio to account for the fact that the original circulating supply may exceed u64::MAX.
+    // Ratio that the original circulating supply (U256) was adjusted by.
+    // During migration, native token balances need to be multiplied by this ratio to account for that the original circulating supply may exceeded u64::MAX.
     // If the circulating supply is less than or equal to u64::MAX, this ratio is 1.
     token_adjustment_ratio: TokenAdjustmentRatio,
 }
@@ -36,32 +36,42 @@ impl SimpleTokenSchemeU64 {
     }
 }
 
+pub fn calculate_token_adjustment_ratio(
+    circulating_supply_u256: U256,
+) -> Result<TokenAdjustmentRatio, StardustError> {
+    if circulating_supply_u256 > U256::from(u64::MAX) {
+        let u64_max_bd = BigDecimal::from(u64::MAX);
+        let circulating_supply_256_bd = u256_to_bigdecimal(circulating_supply_u256);
+        Ok(u64_max_bd / &circulating_supply_256_bd)
+    } else {
+        Ok(BigDecimal::one())
+    }
+}
+
 impl TryFrom<&SimpleTokenScheme> for SimpleTokenSchemeU64 {
     type Error = StardustError;
     fn try_from(token_scheme: &SimpleTokenScheme) -> Result<Self, StardustError> {
         let (circulating_supply_u64, token_ratio) = {
             let minted_tokens_u256 = token_scheme.minted_tokens();
             let melted_tokens_u256 = token_scheme.melted_tokens();
+            let circulating_supply_u256 = minted_tokens_u256 - melted_tokens_u256;
 
             // Check if melted tokens is greater than minted tokens.
             if melted_tokens_u256 > minted_tokens_u256 {
                 return Err(StardustError::MeltingTokensMustNotBeGreaterThanMintedTokens);
             }
 
-            let circulating_supply_u256 = minted_tokens_u256 - melted_tokens_u256;
-            if circulating_supply_u256 > U256::from(u64::MAX) {
-                let u64_max_bd = BigDecimal::from(u64::MAX);
-                let circulating_supply_256_bd = u256_to_bigdecimal(circulating_supply_u256);
+            let ratio = calculate_token_adjustment_ratio(circulating_supply_u256)?;
 
-                let ratio = u64_max_bd / &circulating_supply_256_bd;
+            if circulating_supply_u256 > U256::from(u64::MAX) {
                 (
-                    (circulating_supply_256_bd * &ratio)
+                    (u256_to_bigdecimal(circulating_supply_u256) * &ratio)
                         .to_u64()
                         .expect("should be a valid u64"),
                     ratio,
                 )
             } else {
-                (circulating_supply_u256.as_u64(), BigDecimal::from(1))
+                (circulating_supply_u256.as_u64(), BigDecimal::one())
             }
         };
 

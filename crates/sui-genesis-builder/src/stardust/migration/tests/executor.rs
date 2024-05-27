@@ -22,7 +22,6 @@ use crate::stardust::migration::migration::NATIVE_TOKEN_BAG_KEY_TYPE;
 use crate::stardust::migration::tests::random_output_header;
 use crate::stardust::native_token::package_builder;
 use crate::stardust::native_token::package_data::{NativeTokenModuleData, NativeTokenPackageData};
-use crate::stardust::types::token_scheme::SimpleTokenSchemeU64;
 
 #[test]
 fn create_bag_with_pt() {
@@ -30,7 +29,6 @@ fn create_bag_with_pt() {
     let owner = AliasAddress::new(AliasId::new([0; AliasId::LENGTH]));
     let supply = 1_000_000;
     let token_scheme = SimpleTokenScheme::new(supply, 0, supply).unwrap();
-    let token_scheme_u64 = SimpleTokenSchemeU64::try_from(&token_scheme).unwrap();
     let header = random_output_header();
     let foundry = FoundryOutputBuilder::new_with_amount(1000, 1, token_scheme.into())
         .with_unlock_conditions([UnlockCondition::from(
@@ -44,7 +42,6 @@ fn create_bag_with_pt() {
         NativeTokenModuleData::new(
             foundry_id, "wat", "WAT", 0, "WAT", supply, supply, "wat", "wat", None, owner,
         ),
-        token_scheme_u64.token_adjustment_ratio().clone(),
     );
     let foundry_package = package_builder::build_and_compile(foundry_package_data).unwrap();
 
@@ -52,12 +49,7 @@ fn create_bag_with_pt() {
     let mut executor = Executor::new(ProtocolVersion::MAX).unwrap();
     let object_count = executor.store().objects().len();
     executor
-        .create_foundries([(
-            &header,
-            &foundry,
-            foundry_package,
-            token_scheme_u64.token_adjustment_ratio().clone(),
-        )])
+        .create_foundries([(&header, &foundry, foundry_package)])
         .unwrap();
     // Foundry package publication creates four objects
     //

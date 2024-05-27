@@ -12,27 +12,21 @@ use rand::distributions::{Alphanumeric, DistString};
 use regex::Regex;
 
 use crate::stardust::error::StardustError;
-use crate::stardust::types::token_scheme::{SimpleTokenSchemeU64, TokenAdjustmentRatio};
+use crate::stardust::types::token_scheme::SimpleTokenSchemeU64;
 
 /// The [`NativeTokenPackageData`] struct encapsulates all the data necessary to build a Stardust native token package.
 #[derive(Debug)]
 pub struct NativeTokenPackageData {
     package_name: String,
     module: NativeTokenModuleData,
-    token_adjustment_ratio: TokenAdjustmentRatio,
 }
 
 impl NativeTokenPackageData {
     /// Creates a new [`NativeTokenPackageData`] instance.
-    pub fn new(
-        package_name: impl Into<String>,
-        module: NativeTokenModuleData,
-        token_adjustment_ratio: TokenAdjustmentRatio,
-    ) -> Self {
+    pub fn new(package_name: impl Into<String>, module: NativeTokenModuleData) -> Self {
         Self {
             package_name: package_name.into(),
             module,
-            token_adjustment_ratio,
         }
     }
 
@@ -44,11 +38,6 @@ impl NativeTokenPackageData {
     /// Returns the native token module data.
     pub fn module(&self) -> &NativeTokenModuleData {
         &self.module
-    }
-
-    /// Returns the token adjustment ratio.
-    pub fn token_adjustment_ratio(&self) -> &TokenAdjustmentRatio {
-        &self.token_adjustment_ratio
     }
 }
 
@@ -146,7 +135,6 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
                 icon_url: irc_30_metadata.url().clone(),
                 alias_address: *output.alias_address(),
             },
-            token_adjustment_ratio: token_scheme_u64.token_adjustment_ratio().clone(),
         };
 
         Ok(native_token_data)
@@ -187,7 +175,6 @@ fn derive_lowercase_identifier(input: &str) -> Result<String, StardustError> {
 
 #[cfg(test)]
 mod tests {
-    use bigdecimal::One;
     use std::ops::{Add, Sub};
 
     use iota_sdk::types::block::address::AliasAddress;
@@ -353,7 +340,6 @@ mod tests {
         // Step 2: Convert the FoundryOutput to NativeTokenPackageData.
         let native_token_data = NativeTokenPackageData::try_from(&output)?;
 
-        assert!(native_token_data.token_adjustment_ratio < TokenAdjustmentRatio::one());
         assert_eq!(native_token_data.module().circulating_supply, u64::MAX);
         assert_eq!(native_token_data.module().maximum_supply, u64::MAX);
 

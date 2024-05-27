@@ -6,6 +6,7 @@ use bigdecimal::ToPrimitive;
 use iota_sdk::types::block::output::{
     AliasOutput, BasicOutput, FoundryOutput, NativeTokens, NftOutput, OutputId, TokenId,
 };
+use iota_sdk::U256;
 use move_core_types::{ident_str, language_storage::StructTag};
 use move_vm_runtime_v2::move_vm::MoveVM;
 use std::{
@@ -45,7 +46,8 @@ use sui_types::{
     STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID,
 };
 
-use crate::stardust::types::token_scheme::{u256_to_bigdecimal, TokenAdjustmentRatio};
+use crate::stardust::types::token_scheme;
+use crate::stardust::types::token_scheme::u256_to_bigdecimal;
 use crate::{
     process_package,
     stardust::{
@@ -214,17 +216,10 @@ impl Executor {
     /// * Update the inner store with the created objects.
     pub(super) fn create_foundries<'a>(
         &mut self,
-        foundries: impl IntoIterator<
-            Item = (
-                &'a OutputHeader,
-                &'a FoundryOutput,
-                CompiledPackage,
-                TokenAdjustmentRatio,
-            ),
-        >,
+        foundries: impl IntoIterator<Item = (&'a OutputHeader, &'a FoundryOutput, CompiledPackage)>,
     ) -> Result<Vec<(OutputId, CreatedObjects)>> {
         let mut res = Vec::new();
-        for (header, foundry, pkg, token_adjustment_ratio) in foundries {
+        for (header, foundry, pkg) in foundries {
             let mut created_objects = CreatedObjects::default();
             let modules = package_module_bytes(&pkg)?;
             let deps = self.checked_system_packages();
@@ -262,7 +257,11 @@ impl Executor {
             );
             self.native_tokens.insert(
                 foundry.token_id(),
-                FoundryLedgerData::new(minted_coin_id, foundry_package, token_adjustment_ratio),
+                FoundryLedgerData::new(
+                    minted_coin_id,
+                    foundry_package,
+                    foundry.token_scheme().as_simple().circulating_supply(),
+                ),
             );
             self.store.finish(
                 written
@@ -381,10 +380,19 @@ impl Executor {
                     foundry_ledger_data.coin_type_origin.module_name,
                     foundry_ledger_data.coin_type_origin.struct_name
                 );
-                let adjusted_amount = (u256_to_bigdecimal(token.amount())
-                    * &foundry_ledger_data.token_adjustment_ratio)
-                    .to_u64()
-                    .expect("should be a valid u64");
+
+                let original_amount = token.amount();
+                let adjusted_amount = if original_amount.bits() > 64 {
+                    let ratio = token_scheme::calculate_token_adjustment_ratio(
+                        foundry_ledger_data.circulating_supply,
+                    )?;
+                    (u256_to_bigdecimal(token.amount()) * ratio)
+                        .to_u64()
+                        .expect("should be a valid u64")
+                } else {
+                    original_amount.as_u64()
+                };
+
                 let balance = pt::coin_balance_split(
                     &mut builder,
                     object_ref,
@@ -468,10 +476,17 @@ impl Executor {
                 foundry_package_deps.push(foundry_ledger_data.package_id);
 
                 // Pay using that object
-                let adjusted_amount = (u256_to_bigdecimal(token.amount())
-                    * &foundry_ledger_data.token_adjustment_ratio)
-                    .to_u64()
-                    .expect("should be a valid u64");
+                let original_amount = token.amount();
+                let adjusted_amount = if original_amount.bits() > 64 {
+                    let ratio = token_scheme::calculate_token_adjustment_ratio(
+                        foundry_ledger_data.circulating_supply,
+                    )?;
+                    (u256_to_bigdecimal(token.amount()) * ratio)
+                        .to_u64()
+                        .expect("should be a valid u64")
+                } else {
+                    original_amount.as_u64()
+                };
                 builder.pay(vec![object_ref], vec![owner], vec![adjusted_amount])?;
             }
 
@@ -725,7 +740,7 @@ pub(crate) struct FoundryLedgerData {
     pub(crate) minted_coin_id: ObjectID,
     pub(crate) coin_type_origin: TypeOrigin,
     pub(crate) package_id: ObjectID,
-    pub(crate) token_adjustment_ratio: TokenAdjustmentRatio,
+    pub(crate) circulating_supply: U256,
 }
 
 impl FoundryLedgerData {
@@ -737,14 +752,14 @@ impl FoundryLedgerData {
     fn new(
         minted_coin_id: ObjectID,
         foundry_package: &MovePackage,
-        token_adjustment_ratio: TokenAdjustmentRatio,
+        circulating_supply: U256,
     ) -> Self {
         Self {
             minted_coin_id,
             // There must be only one type created in the foundry package.
             coin_type_origin: foundry_package.type_origin_table()[0].clone(),
             package_id: foundry_package.id(),
-            token_adjustment_ratio,
+            circulating_supply,
         }
     }
 }
