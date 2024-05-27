@@ -116,6 +116,62 @@ mod tests {
     use super::*;
 
     #[test]
+    fn calculate_token_adjustment_ratio_below_max() {
+        let circulating_supply_u256 = U256::from(1_000_000_u64);
+        let result = calculate_token_adjustment_ratio(circulating_supply_u256);
+        assert!(result.is_ok());
+        let expected_ratio = BigDecimal::one();
+        assert_eq!(result.unwrap(), expected_ratio);
+    }
+
+    #[test]
+    fn calculate_token_adjustment_ratio_at_max() {
+        let circulating_supply_u256 = U256::from(u64::MAX);
+        let result = calculate_token_adjustment_ratio(circulating_supply_u256);
+        assert!(result.is_ok());
+        let expected_ratio = BigDecimal::one();
+        assert_eq!(result.unwrap(), expected_ratio);
+    }
+
+    #[test]
+    fn calculate_token_adjustment_ratio_above_max() {
+        let circulating_supply_u256 = U256::from(u64::MAX) + U256::from(1_u64);
+        let result = calculate_token_adjustment_ratio(circulating_supply_u256);
+        assert!(result.is_ok());
+
+        let u64_max_bd = BigDecimal::from(u64::MAX);
+        let circulating_supply_256_bd = u256_to_bigdecimal(circulating_supply_u256);
+        let expected_ratio = u64_max_bd / circulating_supply_256_bd;
+
+        assert_eq!(result.unwrap(), expected_ratio);
+    }
+
+    #[test]
+    fn calculate_token_adjustment_ratio_large_value() {
+        let circulating_supply_u256 = U256::from_dec_str(
+            "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+        )
+        .unwrap();
+        let result = calculate_token_adjustment_ratio(circulating_supply_u256);
+        assert!(result.is_ok());
+
+        let u64_max_bd = BigDecimal::from(u64::MAX);
+        let circulating_supply_256_bd = u256_to_bigdecimal(circulating_supply_u256);
+        let expected_ratio = u64_max_bd / circulating_supply_256_bd;
+
+        assert_eq!(result.unwrap(), expected_ratio);
+    }
+
+    #[test]
+    fn calculate_token_adjustment_ratio_zero() {
+        let circulating_supply_u256 = U256::from(0);
+        let result = calculate_token_adjustment_ratio(circulating_supply_u256);
+        assert!(result.is_ok());
+        let expected_ratio = BigDecimal::one();
+        assert_eq!(result.unwrap(), expected_ratio);
+    }
+
+    #[test]
     fn valid_conversion_within_u64_limits() {
         let minted_tokens = U256::from(5000);
         let melted_tokens = U256::from(1000);
@@ -166,9 +222,9 @@ mod tests {
 
     #[test]
     fn circulating_verify_token_balance() {
-        let minted_tokens = U256::from(u64::MAX as u128 + 1);
+        let minted_tokens = U256::from(u64::MAX) + U256::from(1);
         let melted_tokens = U256::from(0);
-        let maximum_supply = U256::from(u64::MAX as u128 + 1);
+        let maximum_supply = U256::from(u64::MAX) + U256::from(1);
 
         let token_scheme =
             SimpleTokenScheme::new(minted_tokens, melted_tokens, maximum_supply).unwrap();
