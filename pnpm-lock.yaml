@@ -478,9 +478,6 @@ importers:
       autoprefixer:
         specifier: ^10.4.14
         version: 10.4.14(postcss@8.4.31)
-      dotenv:
-        specifier: ^16.4.5
-        version: 16.4.5
       happy-dom:
         specifier: ^10.5.1
         version: 10.5.1
