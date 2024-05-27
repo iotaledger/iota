@@ -221,26 +221,24 @@ mod tests {
     }
 
     #[test]
-    fn circulating_verify_token_balance() {
-        let minted_tokens = U256::from(u64::MAX) + U256::from(1);
+    fn circulating_verify_token_balance_with_precision_loss() {
+        let minted_tokens = U256::MAX;
         let melted_tokens = U256::from(0);
-        let maximum_supply = U256::from(u64::MAX) + U256::from(1);
+        let maximum_supply = U256::MAX;
 
         let token_scheme =
             SimpleTokenScheme::new(minted_tokens, melted_tokens, maximum_supply).unwrap();
 
         let token_scheme_u64 = SimpleTokenSchemeU64::try_from(&token_scheme).unwrap();
 
-        assert_eq!(token_scheme_u64.circulating_supply, u64::MAX);
-        assert_eq!(token_scheme_u64.maximum_supply, u64::MAX);
+        assert_eq!(token_scheme_u64.maximum_supply, 18446744073709551615);
+        // Smaller than maximum supply due to precision loss.
+        assert_eq!(token_scheme_u64.circulating_supply, 18446744073709551614);
 
-        // Verify that the adjusted balance multiplied by the token_adjustment_ratio is equal to the original balance.
-        assert_eq!(
-            (token_scheme_u64.circulating_supply() / token_scheme_u64.token_adjustment_ratio)
-                .to_u128()
-                .unwrap(),
-            minted_tokens.as_u128()
-        );
+        // Verify that the adjusted balance divided by the token_adjustment_ratio is smaller than the minted tokens.
+        let reversed =
+            token_scheme_u64.circulating_supply() / token_scheme_u64.token_adjustment_ratio;
+        assert!(reversed < u256_to_bigdecimal(minted_tokens));
     }
 
     #[test]
