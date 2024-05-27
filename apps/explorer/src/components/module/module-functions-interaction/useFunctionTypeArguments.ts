@@ -6,14 +6,16 @@ import { useMemo } from 'react';
 import type { SuiMoveAbilitySet } from '@mysten/sui.js/client';
 
 export function useFunctionTypeArguments(typeArguments: SuiMoveAbilitySet[]) {
-	return useMemo(
-		() =>
-			typeArguments.map(
-				(aTypeArgument, index) =>
-					`T${index}${
-						aTypeArgument.abilities.length ? `: ${aTypeArgument.abilities.join(' + ')}` : ''
-					}`,
-			),
-		[typeArguments],
-	);
+    return useMemo(
+        () =>
+            typeArguments.map(
+                (aTypeArgument, index) =>
+                    `T${index}${
+                        aTypeArgument.abilities.length
+                            ? `: ${aTypeArgument.abilities.join(' + ')}`
+                            : ''
+                    }`,
+            ),
+        [typeArguments],
+    );
 }
