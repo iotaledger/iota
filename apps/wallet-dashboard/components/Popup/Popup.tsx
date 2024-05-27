@@ -3,26 +3,24 @@
 
 import React from 'react';
 import { usePopup } from '@/hooks';
-import styles from './Popup.module.css';
 import { PopupManager } from '@/lib/interfaces';
 
 const Popup: React.FC = () => {
     const { popups, closePopup } = usePopup() as PopupManager;
 
-    if (popups.length === 0) return null;
-
     return (
         <>
             {popups.map((popup, index) => (
-                <div key={index} className={styles.overlay}>
-                    <div className={styles.popupWrapper}>
-                        <div className={styles.popupContainer}>
-                            <div className={styles.popup}>
-                                <button className={styles.closeButton} onClick={closePopup}>
-                                    X
-                                </button>
-                                {popup}
-                            </div>
+                <div
+                    key={index}
+                    className="fixed left-0 top-0 z-[1000] flex h-full w-full items-center justify-center bg-black/20"
+                >
+                    <div className="relative">
+                        <div className="absolute left-2/4 top-2/4 flex max-h-[80vh] min-w-[200px] -translate-x-2/4 -translate-y-2/4 flex-col gap-3 overflow-y-auto rounded-lg bg-white p-5 text-black">
+                            <button className="cursor-pointer self-end" onClick={closePopup}>
+                                X
+                            </button>
+                            {popup}
                         </div>
                     </div>
                 </div>
