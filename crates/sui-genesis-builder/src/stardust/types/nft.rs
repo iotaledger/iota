@@ -406,7 +406,8 @@ impl NftOutput {
             native_tokens,
             storage_deposit_return: unlock_conditions
                 .storage_deposit_return()
-                .and_then(|unlock| unlock.try_into().ok()),
+                .map(|unlock| unlock.try_into())
+                .transpose()?,
             timelock: unlock_conditions.timelock().map(|unlock| unlock.into()),
             expiration: nft.try_into().ok(),
         })
@@ -414,7 +415,7 @@ impl NftOutput {
 
     pub fn to_genesis_object(
         &self,
-        owner: Owner,
+        owner: SuiAddress,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
         version: SequenceNumber,
@@ -430,6 +431,14 @@ impl NftOutput {
                 bcs::to_bytes(&self)?,
                 protocol_config,
             )?
+        };
+
+        let owner = if self.expiration.is_some() {
+            Owner::Shared {
+                initial_shared_version: version,
+            }
+        } else {
+            Owner::AddressOwner(owner)
         };
 
         let move_nft_output_object = Object::new_from_genesis(

@@ -46,9 +46,15 @@ use sui_types::{
 
 use crate::{
     process_package,
-    stardust::migration::verification::created_objects::CreatedObjects,
-    stardust::migration::{create_migration_context, package_module_bytes, PACKAGE_DEPS},
-    stardust::types::{snapshot::OutputHeader, stardust_to_sui_address_owner, Nft},
+    stardust::{
+        migration::{
+            create_migration_context, package_module_bytes,
+            verification::created_objects::CreatedObjects, PACKAGE_DEPS,
+        },
+        types::{
+            snapshot::OutputHeader, stardust_to_sui_address, stardust_to_sui_address_owner, Nft,
+        },
+    },
 };
 
 /// Creates the objects that map to the stardust UTXO ledger.
@@ -539,6 +545,7 @@ impl Executor {
         let move_nft = Nft::try_from_stardust(nft_id, &nft)?;
 
         // TODO: We should ensure that no circular ownership exists.
+        let nft_output_owner_address = stardust_to_sui_address(nft.address())?;
         let nft_output_owner = stardust_to_sui_address_owner(nft.address())?;
 
         let package_deps = InputObjects::new(self.load_packages(PACKAGE_DEPS).collect());
@@ -564,7 +571,7 @@ impl Executor {
         // The bag will be wrapped into the nft output object, so
         // by equating their versions we emulate a ptb.
         let move_nft_output_object = move_nft_output.to_genesis_object(
-            nft_output_owner,
+            nft_output_owner_address,
             &self.protocol_config,
             &self.tx_context,
             version,
