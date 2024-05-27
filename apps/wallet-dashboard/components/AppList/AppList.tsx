@@ -3,7 +3,8 @@
 
 import { useAppsBackend } from '@mysten/core';
 import { useQuery } from '@tanstack/react-query';
-import { AppListItem } from '@/components/AppList/AppList.types';
+import { AppListItem } from './AppList.types';
+import { getDefaultNetwork } from '@mysten/sui.js/client';
 
 const AppListItem = (props: AppListItem) => {
     return (
@@ -33,7 +34,7 @@ export const AppList = () => {
         queryKey: ['apps'],
         queryFn: () =>
             request('api/features/apps', {
-                network: 'MAINNET',
+                network: getDefaultNetwork(),
             }),
     });
 
@@ -42,7 +43,6 @@ export const AppList = () => {
     }
 
     return (
-        // <div className={'-m-3 flex flex-wrap justify-between'}>
         <div className={'grid grid-cols-5 gap-4'}>
             {data?.apps?.map((app) => {
                 return (

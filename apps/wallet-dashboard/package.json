@@ -12,6 +12,7 @@
         "node": ">= v18.17.0"
     },
     "dependencies": {
+        "@mysten/core": "workspace:*",
         "@mysten/dapp-kit": "workspace:*",
         "@mysten/sui.js": "workspace:*",
         "@tanstack/react-query": "^5.0.0",

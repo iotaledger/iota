@@ -77,17 +77,13 @@ impl Migration {
         })
     }
 
-    /// Run all stages of the migration.
+    /// Run all stages of the migration except snapshot migration.
+    /// Factored out to faciliate testing.
     ///
-    /// * Generate and build the foundry packages
-    /// * Create the foundry packages, and associated objects.
-    /// * Create all other objects.
-    /// * Validate the resulting object-based ledger state.
-    /// * Create the snapshot file.
-    pub fn run(
-        mut self,
+    /// See also `Self::run`.
+    pub(crate) fn run_migration(
+        &mut self,
         outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
-        writer: impl Write,
     ) -> Result<()> {
         let (mut foundries, mut outputs) = outputs.into_iter().fold(
             (Vec::new(), Vec::new()),
@@ -110,6 +106,23 @@ impl Migration {
         self.migrate_foundries(&foundries)?;
         self.migrate_outputs(&outputs)?;
         self.verify_ledger_state(&outputs)?;
+
+        Ok(())
+    }
+
+    /// Run all stages of the migration.
+    ///
+    /// * Generate and build the foundry packages
+    /// * Create the foundry packages, and associated objects.
+    /// * Create all other objects.
+    /// * Validate the resulting object-based ledger state.
+    /// * Create the snapshot file.
+    pub fn run(
+        mut self,
+        outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
+        writer: impl Write,
+    ) -> Result<()> {
+        self.run_migration(outputs)?;
         create_snapshot(&self.into_objects(), writer)
     }
 
@@ -171,6 +184,13 @@ impl Migration {
             verify_output(header, output, objects, self.executor.store())?;
         }
         Ok(())
+    }
+
+    /// Consumes the `Migration` and returns the underlying `Executor` so tests can
+    /// continue to work in the same environment as the migration.
+    #[cfg(test)]
+    pub(super) fn into_executor(self) -> Executor {
+        self.executor
     }
 }
 
