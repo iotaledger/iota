@@ -29,7 +29,7 @@ impl SimpleTokenSchemeU64 {
         self.maximum_supply
     }
 
-    pub fn circulating_tokens_ratio(&self) -> &BigDecimal {
+    pub fn token_adjustment_ratio(&self) -> &BigDecimal {
         &self.token_adjustment_ratio
     }
 }

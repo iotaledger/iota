@@ -6,6 +6,7 @@
 use crate::stardust::error::StardustError;
 use crate::stardust::types::token_scheme::SimpleTokenSchemeU64;
 use anyhow::Result;
+use bigdecimal::BigDecimal;
 use iota_sdk::types::block::address::AliasAddress;
 use iota_sdk::types::block::output::feature::Irc30Metadata;
 use iota_sdk::types::block::output::{FoundryId, FoundryOutput};
@@ -18,14 +19,16 @@ use regex::Regex;
 pub struct NativeTokenPackageData {
     package_name: String,
     module: NativeTokenModuleData,
+    token_adjustment_ratio: BigDecimal,
 }
 
 impl NativeTokenPackageData {
     /// Creates a new [`NativeTokenPackageData`] instance.
-    pub fn new(package_name: impl Into<String>, module: NativeTokenModuleData) -> Self {
+    pub fn new(package_name: impl Into<String>, module: NativeTokenModuleData, token_adjustment_ratio: BigDecimal) -> Self {
         Self {
             package_name: package_name.into(),
             module,
+            token_adjustment_ratio,
         }
     }
 
@@ -37,6 +40,11 @@ impl NativeTokenPackageData {
     /// Returns the native token module data.
     pub fn module(&self) -> &NativeTokenModuleData {
         &self.module
+    }
+
+    /// Returns the token adjustment ratio.
+    pub fn token_adjustment_ratio(&self) -> &BigDecimal {
+        &self.token_adjustment_ratio
     }
 }
 
@@ -134,6 +142,7 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
                 icon_url: irc_30_metadata.url().clone(),
                 alias_address: *output.alias_address(),
             },
+            token_adjustment_ratio: token_scheme_u64.token_adjustment_ratio().clone(),
         };
 
         Ok(native_token_data)
