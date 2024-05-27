@@ -4,26 +4,24 @@
 'use client';
 
 import React from 'react';
-import formatDate from '../lib/utils/formatDate';
 import ActivityIcon from './ActivityIcon';
+import formatTimestamp from '@/lib/utils/time';
+import { Activity } from '@/lib/interfaces';
 
 interface ActivityTileProps {
-    action:  "Send" | "Receive" | "Transaction" | "Staked" | "Unstaked" | "Rewards" | "Swapped" | "Failed" | "PersonalMessage"
-    success: boolean
-    timestamp: number
-    error?: string
+  activity: Activity
 }
 
-function ActivityTile({ action, timestamp, success, error }: ActivityTileProps): JSX.Element {
+function ActivityTile({ activity: { action, state, timestamp } }: ActivityTileProps): JSX.Element {
   return (
     <div className='flex flex-row items-center space-x-4 rounded-md border border-solid border-gray-45 p-4 w-full h-full'>
       <ActivityIcon
-          transactionFailed={!success || !!error}
+          state={state}
           action={action}
       />
       <div className='flex flex-col space-y-2 h-full'>
         <h2>{action}</h2>
-        <span>{formatDate(timestamp)}</span>
+        <span>{formatTimestamp(timestamp)}</span>
       </div>
       <hr />
     </div>
