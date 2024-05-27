@@ -16,12 +16,12 @@ interface ActivityTileProps {
 
 function ActivityTile({ action, timestamp, success, error }: ActivityTileProps): JSX.Element {
   return (
-    <div className='flex flex-row items-center space-x-4 rounded-md border border-solid border-gray-45 w-60 p-2'>
+    <div className='flex flex-row items-center space-x-4 rounded-md border border-solid border-gray-45 p-4 w-full h-full'>
       <ActivityIcon
           transactionFailed={!success || !!error}
           action={action}
       />
-      <div className='flex flex-col space-y-2'>
+      <div className='flex flex-col space-y-2 h-full'>
         <h2>{action}</h2>
         <span>{formatDate(timestamp)}</span>
       </div>
