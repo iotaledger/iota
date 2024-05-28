@@ -1,15 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-    Account24,
-    ArrowRight16,
-    Info16,
-    Sui,
-    Swap16,
-    Unstaked,
-    WalletActionStake24,
-} from '@mysten/icons';
+import { Account24, ArrowRight16, Info16, Sui, Unstaked, WalletActionStake24 } from '@mysten/icons';
 import cl from 'clsx';
 
 import LoadingIndicator from '../loading/LoadingIndicator';
@@ -38,7 +30,6 @@ const icons = {
     ),
     Unstaked: <Unstaked className="text-heading3 text-gradient-blue-start" />,
     Rewards: <Sui className="text-body text-gradient-blue-start" />,
-    Swapped: <Swap16 className="text-heading6 text-gradient-blue-start" />,
     Failed: <Info16 className="text-heading6 text-issue-dark" />,
     Loading: <LoadingIndicator />,
     PersonalMessage: (
