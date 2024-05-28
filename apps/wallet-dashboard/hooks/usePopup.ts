@@ -4,6 +4,6 @@
 import { PopupContext, PopupManager } from '@/contexts';
 import { useContext } from 'react';
 
-export const usePopup = (): PopupManager => {
+export const usePopups = (): PopupManager => {
     return useContext(PopupContext);
 };

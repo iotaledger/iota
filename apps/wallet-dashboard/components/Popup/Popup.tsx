@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React from 'react';
-import { usePopup } from '@/hooks';
+import { usePopups } from '@/hooks';
 
 const Popup: React.FC = () => {
-    const { popups, closePopup } = usePopup();
+    const { popups, closePopup } = usePopups();
 
     return (
         <>
