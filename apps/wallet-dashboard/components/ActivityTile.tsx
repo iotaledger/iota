@@ -9,23 +9,20 @@ import formatTimestamp from '@/lib/utils/time';
 import { Activity } from '@/lib/interfaces';
 
 interface ActivityTileProps {
-  activity: Activity
+    activity: Activity;
 }
 
 function ActivityTile({ activity: { action, state, timestamp } }: ActivityTileProps): JSX.Element {
-  return (
-    <div className="flex flex-row items-center space-x-4 rounded-md border border-solid border-gray-45 p-4 w-full h-full">
-      <ActivityIcon
-          state={state}
-          action={action}
-      />
-      <div className="flex flex-col space-y-2 h-full">
-        <h2>{action}</h2>
-        <span>{formatTimestamp(timestamp)}</span>
-      </div>
-      <hr />
-    </div>
-  );
-};
+    return (
+        <div className="border-gray-45 flex h-full w-full flex-row items-center space-x-4 rounded-md border border-solid p-4">
+            <ActivityIcon state={state} action={action} />
+            <div className="flex h-full flex-col space-y-2">
+                <h2>{action}</h2>
+                <span>{formatTimestamp(timestamp)}</span>
+            </div>
+            <hr />
+        </div>
+    );
+}
 
 export default ActivityTile;
