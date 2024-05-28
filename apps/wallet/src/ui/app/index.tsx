@@ -45,7 +45,6 @@ import HomePage, {
     AppsPage,
     AssetsPage,
     CoinsSelectorPage,
-    KioskDetailsPage,
     NFTDetailsPage,
     NftTransferPage,
     OnrampPage,
@@ -174,7 +173,6 @@ const App = () => {
             <Route path="restricted" element={<RestrictedPage />} />
             <Route path="/*" element={<HomePage />}>
                 <Route path="apps/*" element={<AppsPage />} />
-                <Route path="kiosk" element={<KioskDetailsPage />} />
                 <Route path="nft-details" element={<NFTDetailsPage />} />
                 <Route path="nft-transfer/:nftId" element={<NftTransferPage />} />
                 <Route path="nfts/*" element={<AssetsPage />} />

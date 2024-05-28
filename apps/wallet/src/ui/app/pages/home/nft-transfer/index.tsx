@@ -13,9 +13,8 @@ import { TransferNFTForm } from './TransferNFTForm';
 
 function NftTransferPage() {
     const { nftId } = useParams();
-    const address = useActiveAddress();
     // verify that the nft is owned by the user and is transferable
-    const { data: ownedNFT, isPending: isNftLoading } = useOwnedNFT(nftId || '', address);
+    const { data: ownedNFT, isPending: isNftLoading } = useOwnedNFT(nftId || '');
     const navigate = useNavigate();
     const isGuardLoading = useUnlockedGuard();
     const isPending = isNftLoading || isGuardLoading;
