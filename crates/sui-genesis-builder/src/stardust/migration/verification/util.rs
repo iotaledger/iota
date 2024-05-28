@@ -203,6 +203,28 @@ pub(super) fn verify_sender_feature(
     Ok(())
 }
 
+pub(super) fn verify_issuer_feature(
+    original: Option<&sdk_output::feature::IssuerFeature>,
+    created: Option<SuiAddress>,
+) -> Result<()> {
+    if let Some(issuer) = original {
+        let sui_issuer_address = issuer.address().to_string().parse::<SuiAddress>()?;
+        if let Some(obj_issuer) = created {
+            ensure!(
+                obj_issuer == sui_issuer_address,
+                "issuer mismatch: found {}, expected {}",
+                obj_issuer,
+                sui_issuer_address
+            );
+        } else {
+            bail!("missing issuer on object");
+        }
+    } else {
+        ensure!(created.is_none(), "erroneous issuer on object");
+    }
+    Ok(())
+}
+
 pub(super) trait NativeTokenKind {
     fn value(&self) -> u64;
 }

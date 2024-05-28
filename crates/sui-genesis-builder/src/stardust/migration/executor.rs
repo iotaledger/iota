@@ -28,7 +28,7 @@ use sui_types::{
     move_package::{MovePackage, TypeOrigin},
     object::Object,
     transaction::{Argument, InputObjects, ObjectArg},
-    TypeTag,
+    TypeTag, STARDUST_ADDRESS,
 };
 use sui_types::{
     base_types::{ObjectID, SuiAddress, TxContext},
@@ -269,28 +269,31 @@ impl Executor {
         header: &OutputHeader,
         alias: &AliasOutput,
     ) -> Result<CreatedObjects> {
+        let mut created_objects = CreatedObjects::default();
+
         // Take the Alias ID set in the output or, if its zeroized, compute it from the Output ID.
         let alias_id = ObjectID::new(*alias.alias_id().or_from_output_id(&header.output_id()));
         let move_alias = Alias::try_from_stardust(alias_id, alias)?;
-        let mut created_objects = CreatedObjects::default();
 
         // TODO: We should ensure that no circular ownership exists.
         let alias_output_owner = stardust_to_sui_address_owner(alias.governor_address())?;
 
         let package_deps = InputObjects::new(self.load_packages(PACKAGE_DEPS).collect());
         let version = package_deps.lamport_timestamp(&[]);
+
         let move_alias_object = move_alias.to_genesis_object(
             alias_output_owner,
             &self.protocol_config,
             &self.tx_context,
             version,
         )?;
-
         let move_alias_object_ref = move_alias_object.compute_object_reference();
+
         self.store.insert_object(move_alias_object);
 
         let (bag, version, fields) = self.create_bag_with_pt(alias.native_tokens())?;
         created_objects.set_native_tokens(fields)?;
+
         let move_alias_output = crate::stardust::types::AliasOutput::try_from_stardust(
             self.tx_context.fresh_id(),
             alias,
@@ -306,6 +309,7 @@ impl Executor {
             version,
         )?;
         let move_alias_output_object_ref = move_alias_output_object.compute_object_reference();
+
         created_objects.set_output(move_alias_output_object.id())?;
         self.store.insert_object(move_alias_output_object);
 
@@ -316,6 +320,7 @@ impl Executor {
             let alias_output_arg =
                 builder.obj(ObjectArg::ImmOrOwnedObject(move_alias_output_object_ref))?;
             let alias_arg = builder.obj(ObjectArg::ImmOrOwnedObject(move_alias_object_ref))?;
+
             builder.programmable_move_call(
                 STARDUST_PACKAGE_ID,
                 ident_str!("alias_output").into(),
@@ -538,6 +543,10 @@ impl Executor {
 
 #[cfg(test)]
 impl Executor {
+    pub(crate) fn store_mut(&mut self) -> &mut InMemoryStorage {
+        &mut self.store
+    }
+
     pub(crate) fn native_tokens(&mut self) -> &HashMap<TokenId, FoundryLedgerData> {
         &self.native_tokens
     }
@@ -605,9 +614,9 @@ mod pt {
 /// On-chain data about the objects created while
 /// publishing foundry packages
 pub(crate) struct FoundryLedgerData {
-    pub(crate) minted_coin_id: ObjectID,
-    pub(crate) coin_type_origin: TypeOrigin,
-    pub(crate) package_id: ObjectID,
+    minted_coin_id: ObjectID,
+    coin_type_origin: TypeOrigin,
+    package_id: ObjectID,
 }
 
 impl FoundryLedgerData {

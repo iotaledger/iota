@@ -24,7 +24,9 @@ pub fn verify_output(
     storage: &InMemoryStorage,
 ) -> anyhow::Result<()> {
     match output {
-        Output::Alias(output) => alias::verify_alias_output(output, created_objects, storage),
+        Output::Alias(output) => {
+            alias::verify_alias_output(header, output, created_objects, storage)
+        }
         Output::Basic(output) => basic::verify_basic_output(output, created_objects, storage),
         Output::Foundry(output) => foundry::verify_foundry_output(output, created_objects, storage),
         Output::Nft(output) => nft::verify_nft_output(output, created_objects, storage),
