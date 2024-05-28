@@ -24,10 +24,7 @@ function StakingDashboardPage(): JSX.Element {
             <AmountBox title={HARCODED_STAKE_DATA.title} amount={HARCODED_STAKE_DATA.value} />
             <AmountBox title={HARCODED_REWARDS_DATA.title} amount={HARCODED_REWARDS_DATA.value} />
             <Box title={HARCODED_STAKING_LIST_TITLE}>
-                <List
-                    data={HARCODED_STAKING_LIST}
-                    keysToShow={Object.keys(HARCODED_STAKING_LIST[0])}
-                />
+                <List data={HARCODED_STAKING_LIST} />
             </Box>
         </div>
     );
