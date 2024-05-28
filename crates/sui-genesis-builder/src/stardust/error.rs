@@ -27,10 +27,6 @@ pub enum StardustError {
     FrameworkPackagesPathNotFound,
     #[error("failed to derive valid move identifier from symbol `{symbol}`, invalid identifier: `{identifier}`")]
     InvalidMoveIdentifierDerived { symbol: String, identifier: String },
-    #[error("Nft Output Immutable Metadata not found")]
-    NftImmutableMetadataNotFound,
-    #[error("cannot convert `Irc27Metadata` from Nft output with `NftId` {nft_id} to `NativeTokenPackageData`: {err}")]
-    Irc27ConversionError { nft_id: NftId, err: anyhow::Error },
 }
 
 impl From<Infallible> for StardustError {
