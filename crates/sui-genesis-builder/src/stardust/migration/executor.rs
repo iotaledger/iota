@@ -28,7 +28,7 @@ use sui_types::{
     move_package::{MovePackage, TypeOrigin},
     object::Object,
     transaction::{Argument, InputObjects, ObjectArg},
-    TypeTag, STARDUST_ADDRESS,
+    TypeTag,
 };
 use sui_types::{
     base_types::{ObjectID, SuiAddress, TxContext},
@@ -575,10 +575,6 @@ impl Executor {
 
 #[cfg(test)]
 impl Executor {
-    pub(crate) fn store_mut(&mut self) -> &mut InMemoryStorage {
-        &mut self.store
-    }
-
     pub(crate) fn native_tokens(&mut self) -> &HashMap<TokenId, FoundryLedgerData> {
         &self.native_tokens
     }
@@ -646,9 +642,9 @@ mod pt {
 /// On-chain data about the objects created while
 /// publishing foundry packages
 pub(crate) struct FoundryLedgerData {
-    minted_coin_id: ObjectID,
-    coin_type_origin: TypeOrigin,
-    package_id: ObjectID,
+    pub(crate) minted_coin_id: ObjectID,
+    pub(crate) coin_type_origin: TypeOrigin,
+    pub(crate) package_id: ObjectID,
 }
 
 impl FoundryLedgerData {
