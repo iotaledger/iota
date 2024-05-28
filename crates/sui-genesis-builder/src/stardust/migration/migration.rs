@@ -30,7 +30,7 @@ use crate::stardust::{
         verification::{created_objects::CreatedObjects, verify_output},
     },
     native_token::package_data::NativeTokenPackageData,
-    types::snapshot::OutputHeader,
+    types::{snapshot::OutputHeader, timelock},
 };
 
 /// We fix the protocol version used in the migration.
@@ -62,6 +62,8 @@ pub(crate) const NATIVE_TOKEN_BAG_KEY_TYPE: &str = "0x01::ascii::String";
 /// The migration process results in the generation of a snapshot file with the generated
 /// objects serialized.
 pub struct Migration {
+    target_milestone_timestamp_sec: u32,
+
     executor: Executor,
     output_objects_map: HashMap<OutputId, CreatedObjects>,
 }
@@ -69,25 +71,22 @@ pub struct Migration {
 impl Migration {
     /// Try to setup the migration process by creating the inner executor
     /// and bootstraping the in-memory storage.
-    pub fn new() -> Result<Self> {
+    pub fn new(target_milestone_timestamp_sec: u32) -> Result<Self> {
         let executor = Executor::new(ProtocolVersion::new(MIGRATION_PROTOCOL_VERSION))?;
         Ok(Self {
+            target_milestone_timestamp_sec,
             executor,
             output_objects_map: Default::default(),
         })
     }
 
-    /// Run all stages of the migration.
+    /// Run all stages of the migration except snapshot migration.
+    /// Factored out to faciliate testing.
     ///
-    /// * Generate and build the foundry packages
-    /// * Create the foundry packages, and associated objects.
-    /// * Create all other objects.
-    /// * Validate the resulting object-based ledger state.
-    /// * Create the snapshot file.
-    pub fn run(
-        mut self,
+    /// See also `Self::run`.
+    pub(crate) fn run_migration(
+        &mut self,
         outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
-        writer: impl Write,
     ) -> Result<()> {
         let (mut foundries, mut outputs) = outputs.into_iter().fold(
             (Vec::new(), Vec::new()),
@@ -110,6 +109,23 @@ impl Migration {
         self.migrate_foundries(&foundries)?;
         self.migrate_outputs(&outputs)?;
         self.verify_ledger_state(&outputs)?;
+
+        Ok(())
+    }
+
+    /// Run all stages of the migration.
+    ///
+    /// * Generate and build the foundry packages
+    /// * Create the foundry packages, and associated objects.
+    /// * Create all other objects.
+    /// * Validate the resulting object-based ledger state.
+    /// * Create the snapshot file.
+    pub fn run(
+        mut self,
+        outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
+        writer: impl Write,
+    ) -> Result<()> {
+        self.run_migration(outputs)?;
         create_snapshot(&self.into_objects(), writer)
     }
 
@@ -147,7 +163,24 @@ impl Migration {
         for (header, output) in outputs {
             let created = match output {
                 Output::Alias(alias) => self.executor.create_alias_objects(header, alias)?,
-                Output::Basic(basic) => self.executor.create_basic_objects(header, basic)?,
+                Output::Basic(basic) => {
+                    // All not expired vested rewards(basic outputs with the specific ID format) should be migrated
+                    // as TimeLock<Balance<IOTA>> objects.
+                    if timelock::is_vested_reward(header)
+                        && !timelock::is_vested_reward_expired(
+                            basic,
+                            self.target_milestone_timestamp_sec,
+                        )?
+                    {
+                        self.executor.create_timelock_object(
+                            header,
+                            basic,
+                            self.target_milestone_timestamp_sec,
+                        )?
+                    } else {
+                        self.executor.create_basic_objects(header, basic)?
+                    }
+                }
                 Output::Nft(nft) => self.executor.create_nft_objects(nft)?,
                 Output::Treasury(_) | Output::Foundry(_) => continue,
             };
@@ -171,6 +204,13 @@ impl Migration {
             verify_output(header, output, objects, self.executor.store())?;
         }
         Ok(())
+    }
+
+    /// Consumes the `Migration` and returns the underlying `Executor` so tests can
+    /// continue to work in the same environment as the migration.
+    #[cfg(test)]
+    pub(super) fn into_executor(self) -> Executor {
+        self.executor
     }
 }
 
