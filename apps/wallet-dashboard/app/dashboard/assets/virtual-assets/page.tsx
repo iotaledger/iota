@@ -6,16 +6,17 @@
 import { SuiObjectData } from '@mysten/sui.js/client';
 import React from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { Box } from '@/components/index';
 
 function VirtualAssetsPage(): JSX.Element {
     const containerRef = React.useRef(null);
     const virtualizer = useVirtualizer({
         count: VIRTUAL_ASSETS.length,
         getScrollElement: () => containerRef.current,
-        estimateSize: () => 60,
+        estimateSize: () => 130,
     });
-
     const virtualItems = virtualizer.getVirtualItems();
+
     return (
         <div className="flex h-full w-full flex-col items-center justify-center space-y-4">
             <h1>VIRTUAL ASSETS</h1>
@@ -32,19 +33,20 @@ function VirtualAssetsPage(): JSX.Element {
                         return (
                             <div
                                 key={virtualItem.key}
-                                className="absolute w-full pb-4 pr-4"
+                                className="absolute h-full w-full pb-4 pr-4"
                                 style={{
                                     position: 'absolute',
                                     top: 0,
                                     left: 0,
                                     width: '100%',
-                                    height: `${virtualItem.size}px`,
                                     transform: `translateY(${virtualItem.start}px)`,
                                 }}
                             >
-                                <p>Digest: {asset.digest}</p>
-                                <p>Object ID: {asset.objectId}</p>
-                                <p>Version: {asset.version}</p>
+                                <Box>
+                                    <p>Digest: {asset.digest}</p>
+                                    <p>Object ID: {asset.objectId}</p>
+                                    <p>Version: {asset.version}</p>
+                                </Box>
                             </div>
                         );
                     })}
