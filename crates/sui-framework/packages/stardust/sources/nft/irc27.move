@@ -27,10 +27,10 @@ module stardust::irc27 {
         /// URL pointing to the NFT file location.
         uri: Url,
 
-        /// The human-readable name of the native token.
+        /// Alphanumeric text string defining the human identifiable name for the NFT.
         name: String,
 
-        /// The human-readable collection name of the native token.
+        /// The human-readable collection name of the NFT.
         collection_name: Option<String>,
 
         /// Royalty payment addresses mapped to the payout percentage.
@@ -38,10 +38,10 @@ module stardust::irc27 {
         /// Royalties are not supported by the protocol and needed to be processed by an integrator.
         royalties: VecMap<address, FixedPoint32>,
 
-        /// The human-readable name of the native token creator.
+        /// The human-readable name of the NFT creator.
         issuer_name: Option<String>,
 
-        /// The human-readable description of the token.
+        /// The human-readable description of the NFT.
         description: Option<String>,
 
         /// Additional attributes which follow [OpenSea Metadata standards](https://docs.opensea.io/docs/metadata-standards).

@@ -73,13 +73,13 @@ The IRC27 NFT metadata standard schema.
 <code>name: <a href="../move-stdlib/string.md#0x1_string_String">string::String</a></code>
 </dt>
 <dd>
- The human-readable name of the native token.
+ Alphanumeric text string defining the human identifiable name for the NFT.
 </dd>
 <dt>
 <code>collection_name: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;</code>
 </dt>
 <dd>
- The human-readable collection name of the native token.
+ The human-readable collection name of the NFT.
 </dd>
 <dt>
 <code>royalties: <a href="../sui-framework/vec_map.md#0x2_vec_map_VecMap">vec_map::VecMap</a>&lt;<b>address</b>, <a href="../move-stdlib/fixed_point32.md#0x1_fixed_point32_FixedPoint32">fixed_point32::FixedPoint32</a>&gt;</code>
@@ -93,13 +93,13 @@ The IRC27 NFT metadata standard schema.
 <code>issuer_name: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;</code>
 </dt>
 <dd>
- The human-readable name of the native token creator.
+ The human-readable name of the NFT creator.
 </dd>
 <dt>
 <code>description: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;</code>
 </dt>
 <dd>
- The human-readable description of the token.
+ The human-readable description of the NFT.
 </dd>
 <dt>
 <code>attributes: <a href="../sui-framework/vec_map.md#0x2_vec_map_VecMap">vec_map::VecMap</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>, <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;</code>

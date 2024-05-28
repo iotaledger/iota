@@ -120,7 +120,7 @@ pub struct Irc27Metadata {
     /// Alphanumeric text string defining the human identifiable name for the NFT.
     pub name: String,
 
-    /// The human-readable collection name of the native token.
+    /// The human-readable collection name of the NFT.
     pub collection_name: Option<String>,
 
     /// Royalty payment addresses mapped to the payout percentage.
@@ -128,10 +128,10 @@ pub struct Irc27Metadata {
     /// Royalties are not supported by the protocol and needed to be processed by an integrator.
     pub royalties: VecMap<SuiAddress, FixedPoint32>,
 
-    /// The human-readable name of the native token creator.
+    /// The human-readable name of the NFT creator.
     pub issuer_name: Option<String>,
 
-    /// The human-readable description of the token.
+    /// The human-readable description of the NFT.
     pub description: Option<String>,
 
     /// Additional attributes which follow [OpenSea Metadata standards](https://docs.opensea.io/docs/metadata-standards).
