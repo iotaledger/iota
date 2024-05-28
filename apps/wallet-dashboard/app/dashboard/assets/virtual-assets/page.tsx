@@ -7,6 +7,7 @@ import { SuiObjectData } from '@mysten/sui.js/client';
 import React from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Box } from '@/components/index';
+import Image from 'next/image';
 
 function VirtualAssetsPage(): JSX.Element {
     const containerRef = React.useRef(null);
@@ -45,9 +46,23 @@ function VirtualAssetsPage(): JSX.Element {
                                 }}
                             >
                                 <Box>
-                                    <p>Digest: {asset.digest}</p>
-                                    <p>Object ID: {asset.objectId}</p>
-                                    <p>Version: {asset.version}</p>
+                                    <div className="flex gap-2">
+                                        {asset.display &&
+                                            asset.display.data &&
+                                            asset.display.data.image && (
+                                                <Image
+                                                    src={asset.display.data.image}
+                                                    alt={asset.display.data.name}
+                                                    width={80}
+                                                    height={40}
+                                                />
+                                            )}
+                                        <div>
+                                            <p>Digest: {asset.digest}</p>
+                                            <p>Object ID: {asset.objectId}</p>
+                                            <p>Version: {asset.version}</p>
+                                        </div>
+                                    </div>
                                 </Box>
                             </div>
                         );
@@ -63,41 +78,90 @@ const VIRTUAL_ASSETS: SuiObjectData[] = [
         digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51xy',
         objectId: '0x9303adf2c711dcc239rbd78c0d0666666df06e2b3a35837',
         version: '286606',
+        display: {
+            data: {
+                name: 'IOTA',
+                // Update next.config.js to include the image domain in the list of domains
+                image: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
+            },
+        },
     },
     {
         digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51xy',
         objectId: '0x9303adf2c711dcc239rbd78c0d0666666df06e2b3a35837',
         version: '286606',
+        display: {
+            data: {
+                name: 'IOTA',
+                image: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
+            },
+        },
     },
     {
         digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51xy',
         objectId: '0x9303adf2c711dcc239rbd78c0d0666666df06e2b3a35837',
         version: '286606',
+        display: {
+            data: {
+                name: 'IOTA',
+                image: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
+            },
+        },
     },
     {
         digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51xy',
         objectId: '0x9303adf2c711dcc239rbd78c0d0666666df06e2b3a35837',
         version: '286606',
+        display: {
+            data: {
+                name: 'IOTA',
+                image: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
+            },
+        },
     },
     {
         digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51xy',
         objectId: '0x9303adf2c711dcc239rbd78c0d0666666df06e2b3a35837',
         version: '286606',
+        display: {
+            data: {
+                name: 'IOTA',
+                image: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
+            },
+        },
     },
     {
         digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51xy',
         objectId: '0x9303adf2c711dcc239rbd78c0d0666666df06e2b3a35837',
         version: '286606',
+        display: {
+            data: {
+                name: 'IOTA',
+                image: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
+            },
+        },
     },
     {
         digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51xy',
         objectId: '0x9303adf2c711dcc239rbd78c0d0666666df06e2b3a35837',
         version: '286606',
+        display: {
+            data: {
+                name: 'IOTA',
+                image: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
+            },
+        },
     },
     {
         digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51xy',
         objectId: '0x9303adf2c711dcc239rbd78c0d0666666df06e2b3a35837',
         version: '286606',
+        display: {
+            data: {
+                name: 'IOTA',
+                image: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
+            },
+        },
     },
 ];
 
