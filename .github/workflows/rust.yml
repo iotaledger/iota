@@ -8,8 +8,8 @@ on:
       - 'testnet'
       - 'mainnet'
       - 'releases/sui-*-release'
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    pull_request:
+      types: [opened, synchronize, reopened, ready_for_review]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -330,12 +330,10 @@ jobs:
     runs-on: [ubuntu-latest]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
-      - run: rustup component add rustfmt
-      - name: rustfmt
-        uses: actions-rs/cargo@ae10961054e4aa8b4aa7dffede299aaf087aa33b # pin@v1.0.3
-        with:
-          command: fmt
-          args: --check
+      - name: Install latest nightly
+        run: rustup toolchain install nightly-2023-11-20 --component rustfmt # Pin nightly version
+      - name: Check Rust formatting
+        run: cargo +nightly-2023-11-20 fmt --check
 
   cargo-deny:
     name: cargo-deny (advisories, licenses, bans, ...)
