@@ -13,117 +13,118 @@ import TransactionBlocksForAddress from '~/components/TransactionBlocksForAddres
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
 
 function FieldsContainer({ children }: { children: ReactNode }) {
-	return (
-		<div className="mt-4 flex flex-col gap-5 rounded-xl border border-gray-45 bg-objectCard py-6 pl-6 pr-4">
-			{children}
-		</div>
-	);
+    return (
+        <div className="mt-4 flex flex-col gap-5 rounded-xl border border-gray-45 bg-objectCard py-6 pl-6 pr-4">
+            {children}
+        </div>
+    );
 }
 
 enum TabValue {
-	Fields = 'fields',
-	DynamicFields = 'dynamicFields',
+    Fields = 'fields',
+    DynamicFields = 'dynamicFields',
 }
 
 function useObjectFieldsCard(id: string) {
-	const { data: suiObjectResponseData, isPending, isError } = useGetObject(id);
+    const { data: suiObjectResponseData, isPending, isError } = useGetObject(id);
 
-	const objectType =
-		suiObjectResponseData?.data?.type ??
-		suiObjectResponseData?.data?.content?.dataType === 'package'
-			? suiObjectResponseData.data.type
-			: suiObjectResponseData?.data?.content?.type;
+    const objectType =
+        suiObjectResponseData?.data?.type ??
+        suiObjectResponseData?.data?.content?.dataType === 'package'
+            ? suiObjectResponseData.data.type
+            : suiObjectResponseData?.data?.content?.type;
 
-	const [packageId, moduleName, functionName] = objectType?.split('<')[0]?.split('::') || [];
+    const [packageId, moduleName, functionName] = objectType?.split('<')[0]?.split('::') || [];
 
-	// Get the normalized struct for the object
-	const {
-		data: normalizedStructData,
-		isPending: loadingNormalizedStruct,
-		isError: errorNormalizedMoveStruct,
-	} = useSuiClientQuery(
-		'getNormalizedMoveStruct',
-		{
-			package: packageId,
-			module: moduleName,
-			struct: functionName,
-		},
-		{
-			enabled: !!packageId && !!moduleName && !!functionName,
-		},
-	);
+    // Get the normalized struct for the object
+    const {
+        data: normalizedStructData,
+        isPending: loadingNormalizedStruct,
+        isError: errorNormalizedMoveStruct,
+    } = useSuiClientQuery(
+        'getNormalizedMoveStruct',
+        {
+            package: packageId,
+            module: moduleName,
+            struct: functionName,
+        },
+        {
+            enabled: !!packageId && !!moduleName && !!functionName,
+        },
+    );
 
-	return {
-		loading: isPending || loadingNormalizedStruct,
-		isError: isError || errorNormalizedMoveStruct,
-		normalizedStructData,
-		suiObjectResponseData,
-		objectType,
-	};
+    return {
+        loading: isPending || loadingNormalizedStruct,
+        isError: isError || errorNormalizedMoveStruct,
+        normalizedStructData,
+        suiObjectResponseData,
+        objectType,
+    };
 }
 
 export function FieldsContent({ objectId }: { objectId: string }) {
-	const {
-		normalizedStructData,
-		suiObjectResponseData,
-		objectType,
-		loading: objectFieldsCardLoading,
-		isError: objectFieldsCardError,
-	} = useObjectFieldsCard(objectId);
+    const {
+        normalizedStructData,
+        suiObjectResponseData,
+        objectType,
+        loading: objectFieldsCardLoading,
+        isError: objectFieldsCardError,
+    } = useObjectFieldsCard(objectId);
 
-	const fieldsCount = normalizedStructData?.fields.length;
+    const fieldsCount = normalizedStructData?.fields.length;
 
-	const [activeTab, setActiveTab] = useState<string>(TabValue.Fields);
+    const [activeTab, setActiveTab] = useState<string>(TabValue.Fields);
 
-	const { data: dynamicFieldsData } = useGetDynamicFields(objectId);
+    const { data: dynamicFieldsData } = useGetDynamicFields(objectId);
 
-	const renderDynamicFields = !!dynamicFieldsData?.pages?.[0].data.length;
+    const renderDynamicFields = !!dynamicFieldsData?.pages?.[0].data.length;
 
-	return (
-		<Tabs size="lg" value={activeTab} onValueChange={setActiveTab}>
-			<TabsList>
-				<TabsTrigger value={TabValue.Fields}>
-					<Heading variant="heading4/semibold">{fieldsCount} Fields</Heading>
-				</TabsTrigger>
+    return (
+        <Tabs size="lg" value={activeTab} onValueChange={setActiveTab}>
+            <TabsList>
+                <TabsTrigger value={TabValue.Fields}>
+                    <Heading variant="heading4/semibold">{fieldsCount} Fields</Heading>
+                </TabsTrigger>
 
-				{renderDynamicFields && (
-					<TabsTrigger value={TabValue.DynamicFields}>
-						<Heading variant="heading4/semibold">Dynamic Fields</Heading>
-					</TabsTrigger>
-				)}
-			</TabsList>
+                {renderDynamicFields && (
+                    <TabsTrigger value={TabValue.DynamicFields}>
+                        <Heading variant="heading4/semibold">Dynamic Fields</Heading>
+                    </TabsTrigger>
+                )}
+            </TabsList>
 
-			<TabsContent value={TabValue.Fields}>
-				<FieldsContainer>
-					<ObjectFieldsCard
-						objectType={objectType || ''}
-						normalizedStructData={normalizedStructData}
-						suiObjectResponseData={suiObjectResponseData}
-						loading={objectFieldsCardLoading}
-						error={objectFieldsCardError}
-						id={objectId}
-					/>
-				</FieldsContainer>
-			</TabsContent>
-			{renderDynamicFields && (
-				<TabsContent value={TabValue.DynamicFields}>
-					<FieldsContainer>
-						<DynamicFieldsCard id={objectId} />
-					</FieldsContainer>
-				</TabsContent>
-			)}
-		</Tabs>
-	);
+            <TabsContent value={TabValue.Fields}>
+                <FieldsContainer>
+                    <ObjectFieldsCard
+                        objectType={objectType || ''}
+                        normalizedStructData={normalizedStructData}
+                        suiObjectResponseData={suiObjectResponseData}
+                        loading={objectFieldsCardLoading}
+                        error={objectFieldsCardError}
+                        id={objectId}
+                    />
+                </FieldsContainer>
+            </TabsContent>
+            {renderDynamicFields && (
+                <TabsContent value={TabValue.DynamicFields}>
+                    <FieldsContainer>
+                        <DynamicFieldsCard id={objectId} />
+                    </FieldsContainer>
+                </TabsContent>
+            )}
+        </Tabs>
+    );
 }
 
 export function TokenView({ data }: { data: SuiObjectResponse }) {
-	const objectId = data.data?.objectId!;
+    // eslint-disable-next-line @typescript-eslint/no-non-null-asserted-optional-chain
+    const objectId = data.data?.objectId!;
 
-	return (
-		<div className="flex flex-col flex-nowrap gap-14">
-			<FieldsContent objectId={objectId} />
+    return (
+        <div className="flex flex-col flex-nowrap gap-14">
+            <FieldsContent objectId={objectId} />
 
-			<TransactionBlocksForAddress address={objectId} header="Transaction Blocks" />
-		</div>
-	);
+            <TransactionBlocksForAddress address={objectId} header="Transaction Blocks" />
+        </div>
+    );
 }
