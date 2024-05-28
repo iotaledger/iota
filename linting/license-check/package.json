@@ -1,5 +1,5 @@
 {
     "name": "eslint-plugin-license-check",
     "version": "1.0.0",
-    "main": "index.js"
+    "main": "plugin.js"
   }
