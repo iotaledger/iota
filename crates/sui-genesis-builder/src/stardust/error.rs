@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Error types pertaining to deserializing Stardust snapshots
-use iota_sdk::types::block::output::{FoundryId, NftId};
+use iota_sdk::types::block::output::FoundryId;
 use std::convert::Infallible;
 
 use packable::error::UnknownTagError;
