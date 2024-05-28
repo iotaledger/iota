@@ -409,7 +409,10 @@ impl NftOutput {
                 .map(|unlock| unlock.try_into())
                 .transpose()?,
             timelock: unlock_conditions.timelock().map(|unlock| unlock.into()),
-            expiration: nft.try_into().ok(),
+            expiration: unlock_conditions
+                .expiration()
+                .map(|expiration| ExpirationUnlockCondition::new(nft.address(), expiration))
+                .transpose()?,
         })
     }
 
