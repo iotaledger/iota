@@ -1,6 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+
+
 import { formatAddress } from '@mysten/sui.js/utils';
 import type { WalletAccount } from '@mysten/wallet-standard';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
@@ -16,6 +21,7 @@ import { ChevronIcon } from './icons/ChevronIcon.js';
 import { StyleMarker } from './styling/StyleMarker.js';
 import { Button } from './ui/Button.js';
 import { Text } from './ui/Text.js';
+import { useDisconnectAllWallet } from '../hooks/wallet/useDisconnectAllWallet.js';
 
 type AccountDropdownMenuProps = {
 	currentAccount: WalletAccount;
@@ -23,6 +29,7 @@ type AccountDropdownMenuProps = {
 
 export function AccountDropdownMenu({ currentAccount }: AccountDropdownMenuProps) {
 	const { mutate: disconnectWallet } = useDisconnectWallet();
+	const { mutate: disconnectAllWallet } = useDisconnectAllWallet();
 
 	const { data: domain } = useResolveSuiNSName(
 		currentAccount.label ? null : currentAccount.address,
@@ -30,6 +37,7 @@ export function AccountDropdownMenu({ currentAccount }: AccountDropdownMenuProps
 	const accounts = useAccounts();
 
 	return (
+		// eslint-disable-next-line prettier/prettier
 		<DropdownMenu.Root modal={false}>
 			<StyleMarker>
 				<DropdownMenu.Trigger asChild>
@@ -57,6 +65,12 @@ export function AccountDropdownMenu({ currentAccount }: AccountDropdownMenuProps
 							onSelect={() => disconnectWallet()}
 						>
 							Disconnect
+						</DropdownMenu.Item>
+						<DropdownMenu.Item
+							className={clsx(styles.menuItem)}
+							onSelect={() => disconnectAllWallet()}
+						>
+							Disconnect All
 						</DropdownMenu.Item>
 					</DropdownMenu.Content>
 				</StyleMarker>

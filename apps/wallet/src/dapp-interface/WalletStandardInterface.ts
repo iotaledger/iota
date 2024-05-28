@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { createMessage } from '_messages';
 import { WindowMessageStream } from '_messaging/WindowMessageStream';
 import type { BasePayload, Payload } from '_payloads';
@@ -13,6 +16,8 @@ import {
 	type AcquirePermissionsResponse,
 	type HasPermissionsRequest,
 	type HasPermissionsResponse,
+    type DisconnectAllRequest,
+    type DisconnectAllResponse,
 } from '_payloads/permissions';
 import type {
 	ExecuteTransactionRequest,
@@ -78,6 +83,13 @@ type QredoConnectFeature = {
 	};
 };
 
+type StandardDisconnectAllFeature = {
+    'standard:disconnectAll': {
+        version: string;
+        disconnect: (input: never) => Promise<null>;
+    };
+};
+
 export class SuiWallet implements Wallet {
 	readonly #events: Emitter<WalletEventsMap>;
 	readonly #version = '1.0.0' as const;
@@ -104,6 +116,7 @@ export class SuiWallet implements Wallet {
 	}
 
 	get features(): StandardConnectFeature &
+        StandardDisconnectAllFeature &
 		StandardEventsFeature &
 		SuiFeatures &
 		QredoConnectFeature {
@@ -111,6 +124,10 @@ export class SuiWallet implements Wallet {
 			'standard:connect': {
 				version: '1.0.0',
 				connect: this.#connect,
+			},
+			'standard:disconnectAll': {
+				version: '1.0.0',
+				disconnect: this.#disconnectAll,
 			},
 			'standard:events': {
 				version: '1.0.0',
@@ -221,6 +238,18 @@ export class SuiWallet implements Wallet {
 
 		return { accounts: this.accounts };
 	};
+
+    #disconnectAll: (input: { origin: string }) => Promise<null> = async (input) => {
+        await mapToPromise(
+            this.#send<DisconnectAllRequest, DisconnectAllResponse>({
+                type: 'disconnect-all-request',
+                origin: input.origin,
+            }),
+            (response) => response.result,
+        );
+
+        return null;
+    };
 
 	#signTransactionBlock: SuiSignTransactionBlockMethod = async ({
 		transactionBlock,

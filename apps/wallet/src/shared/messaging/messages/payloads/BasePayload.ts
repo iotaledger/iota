@@ -1,9 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import type { Payload } from './Payload';
 
 export type PayloadType =
+	| 'disconnect-all-request'
+	| 'disconnect-all-response'
 	| 'permission-request'
 	| 'permission-response'
 	| 'get-permission-requests'

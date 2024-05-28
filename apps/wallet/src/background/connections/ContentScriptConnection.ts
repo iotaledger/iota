@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { createMessage } from '_messages';
 import type { Message } from '_messages';
 import type { PortChannelName } from '_messaging/PortChannelName';
@@ -11,6 +14,7 @@ import type { SetNetworkPayload } from '_payloads/network';
 import {
 	isAcquirePermissionsRequest,
 	isHasPermissionRequest,
+    isDisconnectAllRequest,
 	type AcquirePermissionsResponse,
 	type HasPermissionsResponse,
 	type Permission,
@@ -77,6 +81,8 @@ export class ContentScriptConnection extends Connection {
 				if (permission) {
 					this.permissionReply(permission, msg.id);
 				}
+			} else if (isDisconnectAllRequest(payload)) {
+				await Permissions.delete(payload.origin, []);
 			} else if (isExecuteTransactionRequest(payload)) {
 				if (!payload.transaction.account) {
 					// make sure we don't execute transactions that doesn't have a specified account

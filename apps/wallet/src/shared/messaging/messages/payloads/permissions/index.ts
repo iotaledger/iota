@@ -10,3 +10,5 @@ export * from './HasPermissionsRequest';
 export * from './HasPermissionsResponse';
 export * from './AcquirePermissionsRequest';
 export * from './AcquirePermissionsResponse';
+export * from './DisconnectAllRequest';
+export * from './DisconnectAllResponse';
