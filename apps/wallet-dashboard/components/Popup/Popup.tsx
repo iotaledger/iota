@@ -3,10 +3,9 @@
 
 import React from 'react';
 import { usePopup } from '@/hooks';
-import { PopupManager } from '@/lib/interfaces';
 
 const Popup: React.FC = () => {
-    const { popups, closePopup } = usePopup() as PopupManager;
+    const { popups, closePopup } = usePopup();
 
     return (
         <>
