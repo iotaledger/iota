@@ -16,61 +16,61 @@ import { type Network, createSuiClient, SupportedNetworks } from '~/utils/api/De
 import { KioskClientProvider } from '@mysten/core/src/components/KioskClientProvider';
 
 const toastVariants: Partial<Record<ToastType, BannerProps['variant']>> = {
-	success: 'positive',
-	error: 'error',
+    success: 'positive',
+    error: 'error',
 };
 
 export function Layout() {
-	const [network, setNetwork] = useNetwork();
+    const [network, setNetwork] = useNetwork();
 
-	useCookieConsentBanner(persistableStorage, {
-		cookie_name: 'sui_explorer_cookie_consent',
-		onBeforeLoad: async () => {
-			await import('./cookieConsent.css');
-			document.body.classList.add('cookie-consent-theme');
-		},
-	});
+    useCookieConsentBanner(persistableStorage, {
+        cookie_name: 'sui_explorer_cookie_consent',
+        onBeforeLoad: async () => {
+            await import('./cookieConsent.css');
+            document.body.classList.add('cookie-consent-theme');
+        },
+    });
 
-	useInitialPageView(network);
+    useInitialPageView(network);
 
-	return (
-		// NOTE: We set a top-level key here to force the entire react tree to be re-created when the network changes:
-		<Fragment key={network}>
-			<ScrollRestoration />
-			<SuiClientProvider
-				networks={SupportedNetworks}
-				createClient={createSuiClient}
-				network={network as Network}
-				onNetworkChange={setNetwork}
-			>
-				<WalletProvider autoConnect enableUnsafeBurner={import.meta.env.DEV}>
-					<KioskClientProvider>
-						<NetworkContext.Provider value={[network, setNetwork]}>
-							<Outlet />
-							<Toaster
-								position="bottom-center"
-								gutter={8}
-								containerStyle={{
-									top: 40,
-									left: 40,
-									bottom: 40,
-									right: 40,
-								}}
-								toastOptions={{
-									duration: 4000,
-								}}
-							>
-								{(toast) => (
-									<Banner shadow border variant={toastVariants[toast.type]}>
-										{resolveValue(toast.message, toast)}
-									</Banner>
-								)}
-							</Toaster>
-							<ReactQueryDevtools />
-						</NetworkContext.Provider>
-					</KioskClientProvider>
-				</WalletProvider>
-			</SuiClientProvider>
-		</Fragment>
-	);
+    return (
+        // NOTE: We set a top-level key here to force the entire react tree to be re-created when the network changes:
+        <Fragment key={network}>
+            <ScrollRestoration />
+            <SuiClientProvider
+                networks={SupportedNetworks}
+                createClient={createSuiClient}
+                network={network as Network}
+                onNetworkChange={setNetwork}
+            >
+                <WalletProvider autoConnect enableUnsafeBurner={import.meta.env.DEV}>
+                    <KioskClientProvider>
+                        <NetworkContext.Provider value={[network, setNetwork]}>
+                            <Outlet />
+                            <Toaster
+                                position="bottom-center"
+                                gutter={8}
+                                containerStyle={{
+                                    top: 40,
+                                    left: 40,
+                                    bottom: 40,
+                                    right: 40,
+                                }}
+                                toastOptions={{
+                                    duration: 4000,
+                                }}
+                            >
+                                {(toast) => (
+                                    <Banner shadow border variant={toastVariants[toast.type]}>
+                                        {resolveValue(toast.message, toast)}
+                                    </Banner>
+                                )}
+                            </Toaster>
+                            <ReactQueryDevtools />
+                        </NetworkContext.Provider>
+                    </KioskClientProvider>
+                </WalletProvider>
+            </SuiClientProvider>
+        </Fragment>
+    );
 }

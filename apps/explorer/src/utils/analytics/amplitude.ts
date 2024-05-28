@@ -12,20 +12,20 @@ const IS_PROD_ENV = import.meta.env.PROD;
 export const persistableStorage = new PersistableStorage<UserSession>();
 
 export async function initAmplitude() {
-	ampli.load({
-		environment: IS_PROD_ENV ? 'production' : 'development',
-		// Flip this if you'd like to test Amplitude locally
-		disabled: !IS_PROD_ENV,
-		client: {
-			configuration: {
-				cookieStorage: persistableStorage,
-				logLevel: IS_PROD_ENV ? LogLevel.Warn : amplitude.Types.LogLevel.Debug,
-			},
-		},
-	});
+    ampli.load({
+        environment: IS_PROD_ENV ? 'production' : 'development',
+        // Flip this if you'd like to test Amplitude locally
+        disabled: !IS_PROD_ENV,
+        client: {
+            configuration: {
+                cookieStorage: persistableStorage,
+                logLevel: IS_PROD_ENV ? LogLevel.Warn : amplitude.Types.LogLevel.Debug,
+            },
+        },
+    });
 
-	window.addEventListener('pagehide', () => {
-		amplitude.setTransport(TransportType.SendBeacon);
-		amplitude.flush();
-	});
+    window.addEventListener('pagehide', () => {
+        amplitude.setTransport(TransportType.SendBeacon);
+        amplitude.flush();
+    });
 }
