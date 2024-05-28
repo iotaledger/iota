@@ -12,6 +12,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
 import '@mysten/dapp-kit/dist/index.css';
+import { Popup, PopupProvider } from '@/components/Popup';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -27,11 +28,14 @@ export default function RootLayout({
     return (
         <html lang="en">
             <body className={inter.className}>
-                <QueryClientProvider client={queryClient}>
-                    <SuiClientProvider networks={allNetworks} defaultNetwork="testnet">
-                        <WalletProvider>{children}</WalletProvider>
-                    </SuiClientProvider>
-                </QueryClientProvider>
+                <PopupProvider>
+                    <QueryClientProvider client={queryClient}>
+                        <SuiClientProvider networks={allNetworks} defaultNetwork="testnet">
+                            <WalletProvider>{children}</WalletProvider>
+                            <Popup />
+                        </SuiClientProvider>
+                    </QueryClientProvider>
+                </PopupProvider>
             </body>
         </html>
     );
