@@ -57,6 +57,7 @@ function VirtualAssetsPage(): JSX.Element {
         </div>
     );
 }
+
 const VIRTUAL_ASSETS: SuiObjectData[] = [
     {
         digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51xy',
