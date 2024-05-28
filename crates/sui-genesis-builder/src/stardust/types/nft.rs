@@ -117,7 +117,7 @@ pub struct Irc27Metadata {
     /// URL pointing to the NFT file location.
     pub uri: Url,
 
-    /// The human-readable name of the native token.
+    /// Alphanumeric text string defining the human identifiable name for the NFT.
     pub name: String,
 
     /// The human-readable collection name of the native token.
