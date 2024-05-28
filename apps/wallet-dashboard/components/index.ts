@@ -4,4 +4,5 @@
 export { default as RouteLink } from './routeLink';
 export * from './AccountBalance/AccountBalance';
 export * from './AllCoins/AllCoins';
+export * from './Popup';
 export * from './AppList';
