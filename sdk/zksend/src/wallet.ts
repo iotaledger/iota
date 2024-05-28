@@ -17,7 +17,7 @@ import type {
 	SuiSignTransactionBlockMethod,
 	Wallet,
 } from '@mysten/wallet-standard';
-import { getWallets, ReadonlyWalletAccount, SUI_MAINNET_CHAIN } from '@mysten/wallet-standard';
+import { getWallets, ReadonlyWalletAccount, SUPPORTED_CHAINS } from '@mysten/wallet-standard';
 import type { Emitter } from 'mitt';
 import mitt from 'mitt';
 
@@ -50,7 +50,7 @@ export class ZkSendWallet implements Wallet {
 	}
 
 	get chains() {
-		return [SUI_MAINNET_CHAIN] as const;
+		return SUPPORTED_CHAINS;
 	}
 
 	get accounts() {
@@ -148,7 +148,7 @@ export class ZkSendWallet implements Wallet {
 			this.#accounts = [
 				new ReadonlyWalletAccount({
 					address,
-					chains: [SUI_MAINNET_CHAIN],
+					chains: [SUPPORTED_CHAINS[0]],
 					features: ['sui:signTransactionBlock', 'sui:signPersonalMessage'],
 					// NOTE: zkSend doesn't support getting public keys, and zkLogin accounts don't have meaningful public keys anyway
 					publicKey: new Uint8Array(),
