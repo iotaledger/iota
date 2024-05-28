@@ -13,7 +13,7 @@ interface StakeDetailsPopupProps {
     };
 }
 
-const StakeDetailsPopup: React.FC<StakeDetailsPopupProps> = ({ stake }) => {
+function StakeDetailsPopup({ stake }: StakeDetailsPopupProps): JSX.Element {
     return (
         <div className="flex min-w-[300px] flex-col gap-2">
             <p>{stake.validator}</p>
@@ -25,6 +25,6 @@ const StakeDetailsPopup: React.FC<StakeDetailsPopupProps> = ({ stake }) => {
             </div>
         </div>
     );
-};
+}
 
 export default StakeDetailsPopup;

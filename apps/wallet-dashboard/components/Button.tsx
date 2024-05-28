@@ -9,7 +9,7 @@ interface ButtonProps {
     disabled?: boolean;
 }
 
-const Button: React.FC<ButtonProps> = ({ onClick, children, disabled = false }) => {
+function Button({ onClick, children, disabled }: ButtonProps): JSX.Element {
     return (
         <button
             onClick={onClick}
@@ -19,6 +19,6 @@ const Button: React.FC<ButtonProps> = ({ onClick, children, disabled = false }) 
             {children}
         </button>
     );
-};
+}
 
 export default Button;
