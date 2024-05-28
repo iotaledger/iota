@@ -19,22 +19,22 @@ function StakingDashboardPage(): JSX.Element {
     const virtualItems = virtualizer.getVirtualItems();
 
     return (
-        <div
-            className="flex flex-col items-center justify-center space-y-4 pt-12 h-full w-full"
-        >
+        <div className="flex h-full w-full flex-col items-center justify-center space-y-4 pt-12">
             <h1>Your Activity</h1>
-            <div className="relative w-1/3 overflow-auto h-[50vh]" ref={containerRef}> 
-                <div style={{
-                    height: `${virtualizer.getTotalSize()}px`,
-                    width: '100%',
-                    position: 'relative',
-                }}>
+            <div className="relative h-[50vh] w-1/3 overflow-auto" ref={containerRef}>
+                <div
+                    style={{
+                        height: `${virtualizer.getTotalSize()}px`,
+                        width: '100%',
+                        position: 'relative',
+                    }}
+                >
                     {virtualItems.map((virtualItem) => {
                         const activity = MOCK_ACTIVITIES[virtualItem.index];
                         return (
                             <div
                                 key={virtualItem.key}
-                                className="absolute w-full pr-4 pb-4"
+                                className="absolute w-full pb-4 pr-4"
                                 style={{
                                     position: 'absolute',
                                     top: 0,
