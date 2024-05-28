@@ -13,12 +13,12 @@ function List({ data, title }: ListProps): JSX.Element {
         <div className="flex flex-col gap-2">
             {title && <h2>{title}</h2>}
             <ul>
-                {data.map((item, index) => (
-                    <li key={index} className="flex gap-2">
-                        {Object.keys(item).map((key) => (
+                {data.map((item) => (
+                    <li key={item?.id as string} className="flex gap-2">
+                        {Object.entries(item).map(([key, value]) => (
                             <div key={key} className="flex">
                                 <div>{key}:</div>
-                                <div>{item[key]}</div>
+                                <div>{value}</div>
                             </div>
                         ))}
                     </li>
