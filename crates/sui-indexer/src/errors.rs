@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::error::FastCryptoError;
-use jsonrpsee::core::Error as RpcError;
-use jsonrpsee::types::error::CallError;
+use jsonrpsee::{core::Error as RpcError, types::error::CallError};
 use sui_json_rpc::name_service::NameServiceError;
+use sui_types::{
+    base_types::ObjectIDParseError,
+    error::{SuiError, SuiObjectResponseError, UserInputError},
+};
 use thiserror::Error;
-
-use sui_types::base_types::ObjectIDParseError;
-use sui_types::error::{SuiError, SuiObjectResponseError, UserInputError};
 
 #[derive(Debug, Error)]
 pub struct DataDownloadError {
@@ -34,7 +34,9 @@ pub enum IndexerError {
     #[error("Indexer failed to deserialize event from events table with error: `{0}`")]
     EventDeserializationError(String),
 
-    #[error("Fullnode returns unexpected responses, which may block indexers from proceeding, with error: `{0}`")]
+    #[error(
+        "Fullnode returns unexpected responses, which may block indexers from proceeding, with error: `{0}`"
+    )]
     UnexpectedFullnodeResponseError(String),
 
     #[error("Indexer failed to transform data with error: `{0}`")]

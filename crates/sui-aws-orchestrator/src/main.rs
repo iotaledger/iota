@@ -39,8 +39,9 @@ type BenchmarkType = NarwhalBenchmarkType;
 #[derive(Parser)]
 #[command(author, version, about = "Testbed orchestrator", long_about = None)]
 pub struct Opts {
-    /// The path to the settings file. This file contains basic information to deploy testbeds
-    /// and run benchmarks such as the url of the git repo, the commit to deploy, etc.
+    /// The path to the settings file. This file contains basic information to
+    /// deploy testbeds and run benchmarks such as the url of the git repo,
+    /// the commit to deploy, etc.
     #[clap(
         long,
         value_name = "FILE",
@@ -64,8 +65,8 @@ pub enum Operation {
 
     /// Run a benchmark on the specified testbed.
     Benchmark {
-        /// Percentage of shared vs owned objects; 0 means only owned objects and 100 means
-        /// only shared objects.
+        /// Percentage of shared vs owned objects; 0 means only owned objects
+        /// and 100 means only shared objects.
         #[clap(long, default_value = "0", global = true)]
         benchmark_type: String,
 
@@ -105,12 +106,14 @@ pub enum Operation {
         #[clap(long, action, default_value = "false", global = true)]
         log_processing: bool,
 
-        /// The number of instances running exclusively load generators. If set to zero the
-        /// orchestrator collocates one load generator with each node.
+        /// The number of instances running exclusively load generators. If set
+        /// to zero the orchestrator collocates one load generator with
+        /// each node.
         #[clap(long, value_name = "INT", default_value = "0", global = true)]
         dedicated_clients: usize,
 
-        /// Whether to forgo a grafana and prometheus instance and leave the testbed unmonitored.
+        /// Whether to forgo a grafana and prometheus instance and leave the
+        /// testbed unmonitored.
         #[clap(long, action, default_value = "false", global = true)]
         skip_monitoring: bool,
 
@@ -141,20 +144,22 @@ pub enum TestbedAction {
     /// Display the testbed status.
     Status,
 
-    /// Deploy the specified number of instances in all regions specified by in the setting file.
+    /// Deploy the specified number of instances in all regions specified by in
+    /// the setting file.
     Deploy {
         /// Number of instances to deploy.
         #[clap(long)]
         instances: usize,
 
-        /// The region where to deploy the instances. If this parameter is not specified, the
-        /// command deploys the specified number of instances in all regions listed in the
-        /// setting file.
+        /// The region where to deploy the instances. If this parameter is not
+        /// specified, the command deploys the specified number of
+        /// instances in all regions listed in the setting file.
         #[clap(long)]
         region: Option<String>,
     },
 
-    /// Start at most the specified number of instances per region on an existing testbed.
+    /// Start at most the specified number of instances per region on an
+    /// existing testbed.
     Start {
         /// Number of instances to deploy.
         #[clap(long, default_value = "200")]
@@ -187,7 +192,8 @@ pub enum Load {
         /// The initial load (in tx/s) to test and use a baseline.
         #[clap(long, value_name = "INT", default_value = "250")]
         starting_load: usize,
-        /// The maximum number of iterations before converging on a breaking point.
+        /// The maximum number of iterations before converging on a breaking
+        /// point.
         #[clap(long, value_name = "INT", default_value = "5")]
         max_iterations: usize,
     },

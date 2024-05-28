@@ -2,30 +2,34 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority_client::AuthorityAPI;
-use crate::epoch::committee_store::CommitteeStore;
-use mysten_metrics::histogram::{Histogram, HistogramVec};
-use prometheus::core::GenericCounter;
-use prometheus::{register_int_counter_vec_with_registry, IntCounterVec, Registry};
 use std::sync::Arc;
-use sui_types::crypto::AuthorityPublicKeyBytes;
-use sui_types::effects::{SignedTransactionEffects, TransactionEffectsAPI};
-use sui_types::messages_checkpoint::{
-    CertifiedCheckpointSummary, CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber,
+
+use mysten_metrics::histogram::{Histogram, HistogramVec};
+use prometheus::{
+    core::GenericCounter, register_int_counter_vec_with_registry, IntCounterVec, Registry,
 };
-use sui_types::messages_grpc::{
-    HandleCertificateResponseV2, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
-    TransactionInfoRequest, TransactionStatus, VerifiedObjectInfoResponse,
-};
-use sui_types::messages_safe_client::PlainTransactionInfoResponse;
-use sui_types::sui_system_state::SuiSystemState;
-use sui_types::{base_types::*, committee::*, fp_ensure};
 use sui_types::{
+    base_types::*,
+    committee::*,
+    crypto::AuthorityPublicKeyBytes,
+    effects::{SignedTransactionEffects, TransactionEffectsAPI},
     error::{SuiError, SuiResult},
+    fp_ensure,
+    messages_checkpoint::{
+        CertifiedCheckpointSummary, CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber,
+    },
+    messages_grpc::{
+        HandleCertificateResponseV2, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
+        TransactionInfoRequest, TransactionStatus, VerifiedObjectInfoResponse,
+    },
+    messages_safe_client::PlainTransactionInfoResponse,
+    sui_system_state::SuiSystemState,
     transaction::*,
 };
 use tap::TapFallible;
 use tracing::{debug, error};
+
+use crate::{authority_client::AuthorityAPI, epoch::committee_store::CommitteeStore};
 
 macro_rules! check_error {
     ($address:expr, $cond:expr, $msg:expr) => {

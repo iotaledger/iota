@@ -1,50 +1,58 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-/*
-Transaction Orchestrator is a Node component that utilizes Quorum Driver to
-submit transactions to validators for finality, and proactively executes
-finalized transactions locally, when possible.
-*/
-use crate::authority::AuthorityState;
-use crate::authority_aggregator::{AuthAggMetrics, AuthorityAggregator};
-use crate::authority_client::{AuthorityAPI, NetworkAuthorityClient};
-use crate::quorum_driver::reconfig_observer::{OnsiteReconfigObserver, ReconfigObserver};
-use crate::quorum_driver::{QuorumDriverHandler, QuorumDriverHandlerBuilder, QuorumDriverMetrics};
-use crate::safe_client::SafeClientMetricsBase;
-use futures::future::{select, Either, Future};
-use futures::FutureExt;
+use std::{path::Path, sync::Arc, time::Duration};
+
+use futures::{
+    future::{select, Either, Future},
+    FutureExt,
+};
 use mysten_common::sync::notify_read::NotifyRead;
-use mysten_metrics::histogram::{Histogram, HistogramVec};
-use mysten_metrics::{spawn_logged_monitored_task, spawn_monitored_task};
-use mysten_metrics::{TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX};
-use prometheus::core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge};
+use mysten_metrics::{
+    histogram::{Histogram, HistogramVec},
+    spawn_logged_monitored_task, spawn_monitored_task, TX_TYPE_SHARED_OBJ_TX,
+    TX_TYPE_SINGLE_WRITER_TX,
+};
 use prometheus::{
+    core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge},
     register_int_counter_vec_with_registry, register_int_counter_with_registry,
     register_int_gauge_vec_with_registry, register_int_gauge_with_registry, Registry,
 };
-use std::path::Path;
-use std::sync::Arc;
-use std::time::Duration;
 use sui_storage::write_path_pending_tx_log::WritePathPendingTransactionLog;
-use sui_types::base_types::TransactionDigest;
-use sui_types::effects::{TransactionEffectsAPI, VerifiedCertifiedTransactionEffects};
-use sui_types::error::{SuiError, SuiResult};
-use sui_types::executable_transaction::VerifiedExecutableTransaction;
-use sui_types::quorum_driver_types::{
-    ExecuteTransactionRequest, ExecuteTransactionRequestType, ExecuteTransactionResponse,
-    FinalizedEffects, QuorumDriverEffectsQueueResult, QuorumDriverError, QuorumDriverResponse,
-    QuorumDriverResult,
+use sui_types::{
+    base_types::TransactionDigest,
+    effects::{TransactionEffectsAPI, VerifiedCertifiedTransactionEffects},
+    error::{SuiError, SuiResult},
+    executable_transaction::VerifiedExecutableTransaction,
+    quorum_driver_types::{
+        ExecuteTransactionRequest, ExecuteTransactionRequestType, ExecuteTransactionResponse,
+        FinalizedEffects, QuorumDriverEffectsQueueResult, QuorumDriverError, QuorumDriverResponse,
+        QuorumDriverResult,
+    },
+    sui_system_state::SuiSystemState,
+    transaction::VerifiedTransaction,
 };
-use sui_types::sui_system_state::SuiSystemState;
-use tokio::sync::broadcast::error::RecvError;
-use tokio::sync::broadcast::Receiver;
-use tokio::task::JoinHandle;
-use tokio::time::timeout;
+use tokio::{
+    sync::broadcast::{error::RecvError, Receiver},
+    task::JoinHandle,
+    time::timeout,
+};
 use tracing::{debug, error, error_span, info, instrument, warn, Instrument};
 
-use sui_types::transaction::VerifiedTransaction;
+// Transaction Orchestrator is a Node component that utilizes Quorum Driver to
+// submit transactions to validators for finality, and proactively executes
+// finalized transactions locally, when possible.
+use crate::authority::AuthorityState;
+use crate::{
+    authority::authority_per_epoch_store::AuthorityPerEpochStore,
+    authority_aggregator::{AuthAggMetrics, AuthorityAggregator},
+    authority_client::{AuthorityAPI, NetworkAuthorityClient},
+    quorum_driver::{
+        reconfig_observer::{OnsiteReconfigObserver, ReconfigObserver},
+        QuorumDriverHandler, QuorumDriverHandlerBuilder, QuorumDriverMetrics,
+    },
+    safe_client::SafeClientMetricsBase,
+};
 
 // How long to wait for local execution (including parents) before a timeout
 // is returned to client.
@@ -158,8 +166,8 @@ where
         request: ExecuteTransactionRequest,
     ) -> Result<ExecuteTransactionResponse, QuorumDriverError> {
         // TODO check if tx is already executed on this node.
-        // Note: since EffectsCert is not stored today, we need to gather that from validators
-        // (and maybe store it for caching purposes)
+        // Note: since EffectsCert is not stored today, we need to gather that from
+        // validators (and maybe store it for caching purposes)
         let epoch_store = self.validator_state.load_epoch_store_one_call_per_task();
 
         let transaction = epoch_store
@@ -276,10 +284,11 @@ where
                 .submit_transaction_no_ticket(transaction.clone().into())
                 .await?;
         }
-        // It's possible that the transaction effects is already stored in DB at this point.
-        // So we also subscribe to that. If we hear from `effects_await` first, it means
-        // the ticket misses the previous notification, and we want to ask quorum driver
-        // to form a certificate for us again, to serve this request.
+        // It's possible that the transaction effects is already stored in DB at this
+        // point. So we also subscribe to that. If we hear from `effects_await`
+        // first, it means the ticket misses the previous notification, and we
+        // want to ask quorum driver to form a certificate for us again, to
+        // serve this request.
         let cache_reader = self.validator_state.get_cache_reader().clone();
         let qd = self.clone_quorum_driver();
         Ok(async move {
@@ -314,10 +323,10 @@ where
         // Every WaitForLocalExecution request will be attempted to execute twice,
         // one from the subscriber queue, one from the proactive execution before
         // returning results to clients. This is not insanely bad because:
-        // 1. it's possible that one attempt finishes before the other, so there's
-        //      zero extra work except DB checks
-        // 2. an up-to-date fullnode should have minimal overhead to sync parents
-        //      (for one extra time)
+        // 1. it's possible that one attempt finishes before the other, so there's zero
+        //    extra work except DB checks
+        // 2. an up-to-date fullnode should have minimal overhead to sync parents (for
+        //    one extra time)
         // 3. at the end of day, the tx will be executed at most once per lock guard.
         let tx_digest = transaction.digest();
         if validator_state.is_tx_already_executed(tx_digest)? {
@@ -407,9 +416,9 @@ where
                             // This should be impossible, since we verified the transaction
                             // before sending it to quorum driver.
                             error!(
-                                    ?err,
-                                    "Transaction signature failed to verify after quorum driver execution."
-                                );
+                                ?err,
+                                "Transaction signature failed to verify after quorum driver execution."
+                            );
                             continue;
                         }
                     };
@@ -508,7 +517,8 @@ where
                 // requires a migration.
                 let tx = tx.into_inner();
                 let tx_digest = *tx.digest();
-                // It's not impossible we fail to enqueue a task but that's not the end of world.
+                // It's not impossible we fail to enqueue a task but that's not the end of
+                // world.
                 if let Err(err) = quorum_driver.submit_transaction_no_ticket(tx).await {
                     warn!(
                         ?tx_digest,
@@ -521,7 +531,8 @@ where
                     }
                 }
             }
-            // Transactions will be cleaned up in loop_execute_finalized_tx_locally() after they
+            // Transactions will be cleaned up in
+            // loop_execute_finalized_tx_locally() after they
             // produce effects.
         });
     }

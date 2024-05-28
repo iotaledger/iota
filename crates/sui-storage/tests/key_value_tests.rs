@@ -1,33 +1,30 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::HashMap, sync::Arc};
+
 use async_trait::async_trait;
 use futures::FutureExt;
-use std::collections::HashMap;
-use std::sync::Arc;
+use sui_storage::{key_value_store::*, key_value_store_metrics::KeyValueStoreMetrics};
 use sui_test_transaction_builder::TestTransactionBuilder;
-use sui_types::base_types::{random_object_ref, ExecutionDigests, ObjectID, VersionNumber};
-use sui_types::committee::Committee;
-use sui_types::crypto::KeypairTraits;
-use sui_types::crypto::{get_key_pair, AccountKeyPair};
-use sui_types::digests::{
-    CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEventsDigest,
+use sui_types::{
+    base_types::{random_object_ref, ExecutionDigests, ObjectID, VersionNumber},
+    committee::Committee,
+    crypto::{get_key_pair, AccountKeyPair, KeypairTraits},
+    digests::{
+        CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEventsDigest,
+    },
+    effects::{TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    error::SuiResult,
+    event::Event,
+    messages_checkpoint::{
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
+        CheckpointSummary, SignedCheckpointSummary,
+    },
+    object::Object,
+    storage::ObjectKey,
+    transaction::Transaction,
 };
-use sui_types::effects::{
-    TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI, TransactionEvents,
-};
-use sui_types::error::SuiResult;
-use sui_types::event::Event;
-use sui_types::messages_checkpoint::{
-    CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber, CheckpointSummary,
-    SignedCheckpointSummary,
-};
-use sui_types::transaction::Transaction;
-
-use sui_storage::key_value_store::*;
-use sui_storage::key_value_store_metrics::KeyValueStoreMetrics;
-use sui_types::object::Object;
-use sui_types::storage::ObjectKey;
 
 fn random_tx() -> Transaction {
     let (sender, key): (_, AccountKeyPair) = get_key_pair();
@@ -426,19 +423,23 @@ async fn test_get_tx_from_fallback() {
 #[cfg(msim)]
 mod simtests {
 
-    use super::*;
+    use std::{
+        convert::Infallible,
+        net::SocketAddr,
+        sync::Mutex,
+        time::{Duration, Instant},
+    };
+
     use hyper::{
         service::{make_service_fn, service_fn},
         Body, Request, Response, Server,
     };
-    use std::convert::Infallible;
-    use std::net::SocketAddr;
-    use std::sync::Mutex;
-    use std::time::{Duration, Instant};
     use sui_macros::sim_test;
     use sui_simulator::configs::constant_latency_ms;
     use sui_storage::http_key_value_store::*;
     use tracing::info;
+
+    use super::*;
 
     async fn test_server(data: Arc<Mutex<HashMap<String, Vec<u8>>>>) {
         let handle = sui_simulator::runtime::Handle::current();
@@ -557,8 +558,8 @@ mod simtests {
             .await
             .unwrap();
 
-        // verify that the request took approximately one round trip despite fetching 4 items,
-        // i.e. test that pipelining or multiplexing is working.
+        // verify that the request took approximately one round trip despite fetching 4
+        // items, i.e. test that pipelining or multiplexing is working.
         assert!(start_time.elapsed() < Duration::from_millis(600));
 
         assert_eq!(

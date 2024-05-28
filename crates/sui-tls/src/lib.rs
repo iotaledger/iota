@@ -9,16 +9,15 @@ pub const SUI_VALIDATOR_SERVER_NAME: &str = "sui";
 
 pub use acceptor::{TlsAcceptor, TlsConnectionInfo};
 pub use certgen::SelfSignedCertificate;
-pub use verifier::{AllowAll, Allower, CertVerifier, HashSetAllow, ValidatorAllowlist};
-
 pub use rustls;
+pub use verifier::{AllowAll, Allower, CertVerifier, HashSetAllow, ValidatorAllowlist};
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use fastcrypto::ed25519::Ed25519KeyPair;
-    use fastcrypto::traits::KeyPair;
+    use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
     use rustls::server::ClientCertVerifier;
+
+    use super::*;
 
     #[test]
     fn verify_allowall() {
@@ -127,8 +126,7 @@ mod tests {
 
     #[tokio::test]
     async fn axum_acceptor() {
-        use fastcrypto::ed25519::Ed25519KeyPair;
-        use fastcrypto::traits::KeyPair;
+        use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
 
         let mut rng = rand::thread_rng();
         let client_keypair = Ed25519KeyPair::generate(&mut rng);
@@ -173,7 +171,8 @@ mod tests {
         // Client request is rejected because it isn't in the allowlist
         client.get(&server_url).send().await.unwrap_err();
 
-        // Insert the client's public key into the allowlist and verify the request is successful
+        // Insert the client's public key into the allowlist and verify the request is
+        // successful
         allowlist
             .inner_mut()
             .write()

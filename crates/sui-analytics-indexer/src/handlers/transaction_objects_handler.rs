@@ -2,16 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
-
 use sui_indexer::framework::Handler;
 use sui_rest_api::{CheckpointData, CheckpointTransaction};
-use sui_types::base_types::ObjectID;
-use sui_types::effects::TransactionEffects;
-use sui_types::transaction::TransactionDataAPI;
+use sui_types::{
+    base_types::ObjectID, effects::TransactionEffects, transaction::TransactionDataAPI,
+};
 
-use crate::handlers::{AnalyticsHandler, InputObjectTracker, ObjectStatusTracker};
-use crate::tables::TransactionObjectEntry;
-use crate::FileType;
+use crate::{
+    handlers::{AnalyticsHandler, InputObjectTracker, ObjectStatusTracker},
+    tables::TransactionObjectEntry,
+    FileType,
+};
 
 pub struct TransactionObjectsHandler {
     transaction_objects: Vec<TransactionObjectEntry>,

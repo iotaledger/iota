@@ -2,12 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use diesel::{Insertable, Queryable, Selectable};
-
-use crate::errors::IndexerError;
-use crate::schema::epochs;
-use crate::types::IndexedEpochInfo;
 use sui_json_rpc_types::{EndOfEpochInfo, EpochInfo};
 use sui_types::sui_system_state::sui_system_state_summary::SuiSystemStateSummary;
+
+use crate::{errors::IndexerError, schema::epochs, types::IndexedEpochInfo};
 
 #[derive(Queryable, Insertable, Debug, Clone, Default)]
 #[diesel(table_name = epochs)]

@@ -1,19 +1,28 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The [`package_data`] module provides the [`NativeTokenPackageData`] struct, which encapsulates all the data necessary to build a Stardust native token package.
+//! The [`package_data`] module provides the [`NativeTokenPackageData`] struct,
+//! which encapsulates all the data necessary to build a Stardust native token
+//! package.
 
-use crate::stardust::error::StardustError;
 use anyhow::Result;
-use iota_sdk::types::block::address::AliasAddress;
-use iota_sdk::types::block::output::feature::Irc30Metadata;
-use iota_sdk::types::block::output::{FoundryId, FoundryOutput};
-use iota_sdk::Url;
-use rand::distributions::{Alphanumeric, DistString};
-use rand::Rng;
+use iota_sdk::{
+    types::block::{
+        address::AliasAddress,
+        output::{feature::Irc30Metadata, FoundryId, FoundryOutput},
+    },
+    Url,
+};
+use rand::{
+    distributions::{Alphanumeric, DistString},
+    Rng,
+};
 use regex::Regex;
 
-/// The [`NativeTokenPackageData`] struct encapsulates all the data necessary to build a Stardust native token package.
+use crate::stardust::error::StardustError;
+
+/// The [`NativeTokenPackageData`] struct encapsulates all the data necessary to
+/// build a Stardust native token package.
 #[derive(Debug)]
 pub struct NativeTokenPackageData {
     package_name: String,
@@ -40,7 +49,8 @@ impl NativeTokenPackageData {
     }
 }
 
-/// The [`NativeTokenModuleData`] struct encapsulates all the data necessary to build a Stardust native token module.
+/// The [`NativeTokenModuleData`] struct encapsulates all the data necessary to
+/// build a Stardust native token module.
 #[derive(Debug)]
 pub struct NativeTokenModuleData {
     pub foundry_id: FoundryId,
@@ -106,7 +116,8 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
                 }
             })?;
 
-        // Derive a valid, lowercase move identifier from the symbol field in the irc30 metadata
+        // Derive a valid, lowercase move identifier from the symbol field in the irc30
+        // metadata
         let identifier = derive_lowercase_identifier(irc_30_metadata.symbol())?;
 
         let decimals = u8::try_from(*irc_30_metadata.decimals()).map_err(|e| {
@@ -132,7 +143,12 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
                 decimals,
                 symbol: identifier,
                 circulating_tokens: output.token_scheme().as_simple().minted_tokens().as_u64()
-                    - output.token_scheme().as_simple().melted_tokens().as_u64(), // we know that "Melted Tokens must not be greater than Minted Tokens"
+                    - output.token_scheme().as_simple().melted_tokens().as_u64(), /* we know that
+                                                                                   * "Melted Tokens
+                                                                                   * must not be
+                                                                                   * greater than
+                                                                                   * Minted Tokens"
+                                                                                   */
                 maximum_supply: maximum_supply_u64,
                 coin_name: irc_30_metadata.name().to_owned(),
                 coin_description: irc_30_metadata.description().clone().unwrap_or_default(),
@@ -179,16 +195,19 @@ fn derive_lowercase_identifier(input: &str) -> Result<String, StardustError> {
 
 #[cfg(test)]
 mod tests {
-    use crate::stardust::native_token::package_builder;
-    use iota_sdk::types::block::address::AliasAddress;
-    use iota_sdk::types::block::output::feature::MetadataFeature;
-    use iota_sdk::types::block::output::unlock_condition::ImmutableAliasAddressUnlockCondition;
-    use iota_sdk::types::block::output::{
-        AliasId, Feature, FoundryOutputBuilder, SimpleTokenScheme, TokenScheme,
+    use iota_sdk::{
+        types::block::{
+            address::AliasAddress,
+            output::{
+                feature::MetadataFeature, unlock_condition::ImmutableAliasAddressUnlockCondition,
+                AliasId, Feature, FoundryOutputBuilder, SimpleTokenScheme, TokenScheme,
+            },
+        },
+        U256,
     };
-    use iota_sdk::U256;
 
     use super::*;
+    use crate::stardust::native_token::package_builder;
 
     #[test]
     fn test_foundry_output_with_default_metadata() -> Result<()> {

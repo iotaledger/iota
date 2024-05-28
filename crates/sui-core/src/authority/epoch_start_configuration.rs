@@ -1,20 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::fmt;
+
 use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
-
-use std::fmt;
-use sui_types::authenticator_state::get_authenticator_state_obj_initial_shared_version;
-use sui_types::base_types::SequenceNumber;
-use sui_types::deny_list::get_deny_list_obj_initial_shared_version;
-use sui_types::epoch_data::EpochData;
-use sui_types::error::SuiResult;
-use sui_types::messages_checkpoint::{CheckpointDigest, CheckpointTimestamp};
-use sui_types::randomness_state::get_randomness_state_obj_initial_shared_version;
-use sui_types::storage::ObjectStore;
-use sui_types::sui_system_state::epoch_start_sui_system_state::{
-    EpochStartSystemState, EpochStartSystemStateTrait,
+use sui_types::{
+    authenticator_state::get_authenticator_state_obj_initial_shared_version,
+    base_types::SequenceNumber,
+    deny_list::get_deny_list_obj_initial_shared_version,
+    epoch_data::EpochData,
+    error::SuiResult,
+    messages_checkpoint::{CheckpointDigest, CheckpointTimestamp},
+    randomness_state::get_randomness_state_obj_initial_shared_version,
+    storage::ObjectStore,
+    sui_system_state::epoch_start_sui_system_state::{
+        EpochStartSystemState, EpochStartSystemStateTrait,
+    },
 };
 
 #[enum_dispatch]
@@ -86,8 +88,9 @@ pub struct EpochStartConfigurationV1 {
     system_state: EpochStartSystemState,
     /// epoch_digest is defined as following
     /// (1) For the genesis epoch it is set to 0
-    /// (2) For all other epochs it is a digest of the last checkpoint of a previous epoch
-    /// Note that this is in line with how epoch start timestamp is defined
+    /// (2) For all other epochs it is a digest of the last checkpoint of a
+    /// previous epoch Note that this is in line with how epoch start
+    /// timestamp is defined
     epoch_digest: CheckpointDigest,
 }
 
@@ -279,7 +282,8 @@ impl EpochFlag {
 
 impl fmt::Display for EpochFlag {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Important - implementation should return low cardinality values because this is used as metric key
+        // Important - implementation should return low cardinality values because this
+        // is used as metric key
         match self {
             EpochFlag::InMemoryCheckpointRoots => write!(f, "InMemoryCheckpointRoots"),
             EpochFlag::PerEpochFinalizedTransactions => write!(f, "PerEpochFinalizedTransactions"),

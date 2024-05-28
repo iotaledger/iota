@@ -1,19 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::ident_str;
-use move_core_types::identifier::IdentStr;
-use move_core_types::language_storage::StructTag;
+use std::{fmt, marker::PhantomData, str::FromStr};
+
+use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
-use std::fmt;
-use std::marker::PhantomData;
-use std::str::FromStr;
-use sui_types::base_types::{ObjectID, SuiAddress};
-use sui_types::collection_types::VecMap;
-use sui_types::dynamic_field::Field;
-use sui_types::id::{ID, UID};
-use sui_types::object::{MoveObject, Object};
-use sui_types::TypeTag;
+use sui_types::{
+    base_types::{ObjectID, SuiAddress},
+    collection_types::VecMap,
+    dynamic_field::Field,
+    id::{ID, UID},
+    object::{MoveObject, Object},
+    TypeTag,
+};
 
 const NAME_SERVICE_DOMAIN_MODULE: &IdentStr = ident_str!("domain");
 const NAME_SERVICE_DOMAIN_STRUCT: &IdentStr = ident_str!("Domain");

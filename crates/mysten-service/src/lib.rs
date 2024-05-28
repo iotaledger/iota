@@ -6,8 +6,7 @@ pub mod logging;
 pub mod metrics;
 mod service;
 
-pub use service::get_mysten_service;
-pub use service::serve;
+pub use service::{get_mysten_service, serve};
 
 pub const DEFAULT_PORT: u16 = 2024;
 

@@ -1,30 +1,31 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use expect_test::expect;
-use reqwest::Client;
-use std::fs;
-use std::io::Read;
 #[cfg(not(target_os = "windows"))]
 use std::os::unix::fs::FileExt;
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::FileExt;
-use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use std::{
+    fs,
+    io::Read,
+    path::PathBuf,
+    sync::{Arc, RwLock},
+};
+
+use expect_test::expect;
+use move_core_types::account_address::AccountAddress;
+use move_symbol_pool::Symbol;
+use reqwest::Client;
 use sui::client_commands::{SuiClientCommandResult, SuiClientCommands};
 use sui_json_rpc_types::{SuiTransactionBlockEffects, SuiTransactionBlockEffectsAPI};
 use sui_move_build::{BuildConfig, SuiPackageHooks};
-use sui_sdk::rpc_types::{
-    OwnedObjectRef, SuiObjectDataOptions, SuiObjectResponseQuery, SuiTransactionBlockEffectsV1,
+use sui_sdk::{
+    rpc_types::{
+        OwnedObjectRef, SuiObjectDataOptions, SuiObjectResponseQuery, SuiTransactionBlockEffectsV1,
+    },
+    types::{base_types::ObjectID, object::Owner, transaction::TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
+    wallet_context::WalletContext,
 };
-use sui_sdk::types::base_types::ObjectID;
-use sui_sdk::types::object::Owner;
-use sui_sdk::types::transaction::TEST_ONLY_GAS_UNIT_FOR_PUBLISH;
-use sui_sdk::wallet_context::WalletContext;
-use tokio::sync::oneshot;
-
-use move_core_types::account_address::AccountAddress;
-use move_symbol_pool::Symbol;
 use sui_source_validation_service::{
     host_port, initialize, serve, start_prometheus_server, verify_packages, watch_for_upgrades,
     AddressLookup, AppState, Branch, CloneCommand, Config, DirectorySource, ErrorResponse, Network,
@@ -32,6 +33,7 @@ use sui_source_validation_service::{
     SourceResponse, SourceServiceMetrics, METRICS_HOST_PORT, SUI_SOURCE_VALIDATION_VERSION_HEADER,
 };
 use test_cluster::TestClusterBuilder;
+use tokio::sync::oneshot;
 
 const LOCALNET_PORT: u16 = 9000;
 const TEST_FIXTURES_DIR: &str = "tests/fixture";

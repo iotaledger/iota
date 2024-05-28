@@ -7,17 +7,12 @@ mod read_store;
 mod shared_in_memory_store;
 mod write_store;
 
-use crate::base_types::{TransactionDigest, VersionNumber};
-use crate::committee::EpochId;
-use crate::error::SuiError;
-use crate::execution::{DynamicallyLoadedObjectMetadata, ExecutionResults};
-use crate::move_package::MovePackage;
-use crate::transaction::{SenderSignedData, TransactionDataAPI, TransactionKey};
-use crate::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber},
-    error::SuiResult,
-    object::Object,
+use std::{
+    collections::BTreeMap,
+    fmt::{Display, Formatter},
+    sync::Arc,
 };
+
 use itertools::Itertools;
 use move_binary_format::CompiledModule;
 use move_core_types::language_storage::ModuleId;
@@ -25,12 +20,18 @@ pub use object_store_trait::ObjectStore;
 pub use read_store::ReadStore;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-pub use shared_in_memory_store::SharedInMemoryStore;
-pub use shared_in_memory_store::SingleCheckpointSharedInMemoryStore;
-use std::collections::BTreeMap;
-use std::fmt::{Display, Formatter};
-use std::sync::Arc;
+pub use shared_in_memory_store::{SharedInMemoryStore, SingleCheckpointSharedInMemoryStore};
 pub use write_store::WriteStore;
+
+use crate::{
+    base_types::{ObjectID, ObjectRef, SequenceNumber, TransactionDigest, VersionNumber},
+    committee::EpochId,
+    error::{SuiError, SuiResult},
+    execution::{DynamicallyLoadedObjectMetadata, ExecutionResults},
+    move_package::MovePackage,
+    object::Object,
+    transaction::{SenderSignedData, TransactionDataAPI, TransactionKey},
+};
 
 /// A potential input to a transaction.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -79,7 +80,8 @@ pub enum WriteKind {
     Mutate,
     /// The object was created in this transaction
     Create,
-    /// The object was previously wrapped in another object, but has been restored to storage
+    /// The object was previously wrapped in another object, but has been
+    /// restored to storage
     Unwrap,
 }
 
@@ -90,29 +92,33 @@ pub enum DeleteKind {
     /// An object is not provided in the call input, but gets unwrapped
     /// from another object, and then gets deleted.
     UnwrapThenDelete,
-    /// An object is provided in the call input, and gets wrapped into another object.
+    /// An object is provided in the call input, and gets wrapped into another
+    /// object.
     Wrap,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub enum MarkerValue {
-    /// An object was received at the given version in the transaction and is no longer able
-    /// to be received at that version in subequent transactions.
+    /// An object was received at the given version in the transaction and is no
+    /// longer able to be received at that version in subequent
+    /// transactions.
     Received,
-    /// An owned object was deleted (or wrapped) at the given version, and is no longer able to be
-    /// accessed or used in subsequent transactions.
+    /// An owned object was deleted (or wrapped) at the given version, and is no
+    /// longer able to be accessed or used in subsequent transactions.
     OwnedDeleted,
-    /// A shared object was deleted by the transaction and is no longer able to be accessed or
-    /// used in subsequent transactions.
+    /// A shared object was deleted by the transaction and is no longer able to
+    /// be accessed or used in subsequent transactions.
     SharedDeleted(TransactionDigest),
 }
 
-/// DeleteKind together with the old sequence number prior to the deletion, if available.
-/// For normal deletion and wrap, we always will consult the object store to obtain the old sequence number.
-/// For UnwrapThenDelete however, in the old protocol where simplified_unwrap_then_delete is false,
-/// we will consult the object store to obtain the old sequence number, which latter will be put in
-/// modified_at_versions; in the new protocol where simplified_unwrap_then_delete is true,
-/// we will not consult the object store, and hence won't have the old sequence number.
+/// DeleteKind together with the old sequence number prior to the deletion, if
+/// available. For normal deletion and wrap, we always will consult the object
+/// store to obtain the old sequence number. For UnwrapThenDelete however, in
+/// the old protocol where simplified_unwrap_then_delete is false,
+/// we will consult the object store to obtain the old sequence number, which
+/// latter will be put in modified_at_versions; in the new protocol where
+/// simplified_unwrap_then_delete is true, we will not consult the object store,
+/// and hence won't have the old sequence number.
 #[derive(Debug)]
 pub enum DeleteKindWithOldVersion {
     Normal(SequenceNumber),
@@ -163,11 +169,12 @@ pub trait ChildObjectResolver {
         child_version_upper_bound: SequenceNumber,
     ) -> SuiResult<Option<Object>>;
 
-    /// `receiving_object_id` must have an `AddressOwner` ownership equal to `owner`.
-    /// `get_object_received_at_version` must be the exact version at which the object will be received,
-    /// and it cannot have been previously received at that version. NB: An object not existing at
-    /// that version, and not having valid access to the object will be treated exactly the same
-    /// and `Ok(None)` must be returned.
+    /// `receiving_object_id` must have an `AddressOwner` ownership equal to
+    /// `owner`. `get_object_received_at_version` must be the exact version
+    /// at which the object will be received, and it cannot have been
+    /// previously received at that version. NB: An object not existing at
+    /// that version, and not having valid access to the object will be treated
+    /// exactly the same and `Ok(None)` must be returned.
     fn get_object_received_at_version(
         &self,
         owner: &ObjectID,
@@ -177,7 +184,8 @@ pub trait ChildObjectResolver {
     ) -> SuiResult<Option<Object>>;
 }
 
-/// An abstraction of the (possibly distributed) store for objects, and (soon) events and transactions
+/// An abstraction of the (possibly distributed) store for objects, and (soon)
+/// events and transactions
 pub trait Storage {
     fn reset(&mut self);
 
@@ -262,9 +270,10 @@ pub fn load_package_object_from_object_store(
     Ok(package.map(PackageObject::new))
 }
 
-/// Returns Ok(<package object for each package id in `package_ids`>) if all package IDs in
-/// `package_id` were found. If any package in `package_ids` was not found it returns a list
-/// of any package ids that are unable to be found>).
+/// Returns Ok(<package object for each package id in `package_ids`>) if all
+/// package IDs in `package_id` were found. If any package in `package_ids` was
+/// not found it returns a list of any package ids that are unable to be
+/// found>).
 pub fn get_package_objects<'a>(
     store: &impl BackingPackageStore,
     package_ids: impl IntoIterator<Item = &'a ObjectID>,
@@ -468,8 +477,9 @@ impl From<Object> for ObjectOrTombstone {
     }
 }
 
-/// Fetch the `ObjectKey`s (IDs and versions) for non-shared input objects.  Includes owned,
-/// and immutable objects as well as the gas objects, but not move packages or shared objects.
+/// Fetch the `ObjectKey`s (IDs and versions) for non-shared input objects.
+/// Includes owned, and immutable objects as well as the gas objects, but not
+/// move packages or shared objects.
 pub fn transaction_input_object_keys(tx: &SenderSignedData) -> SuiResult<Vec<ObjectKey>> {
     use crate::transaction::InputObjectKind as I;
     Ok(tx

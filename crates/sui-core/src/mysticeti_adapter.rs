@@ -18,10 +18,11 @@ use crate::{
     consensus_adapter::SubmitToConsensus,
 };
 
-/// Basically a wrapper struct that reads from the LOCAL_MYSTICETI_CLIENT variable where the latest
-/// MysticetiClient is stored in order to communicate with Mysticeti. The LazyMysticetiClient is considered
-/// "lazy" only in the sense that we can't use it directly to submit to consensus unless the underlying
-/// local client is set first.
+/// Basically a wrapper struct that reads from the LOCAL_MYSTICETI_CLIENT
+/// variable where the latest MysticetiClient is stored in order to communicate
+/// with Mysticeti. The LazyMysticetiClient is considered "lazy" only in the
+/// sense that we can't use it directly to submit to consensus unless the
+/// underlying local client is set first.
 #[derive(Default, Clone)]
 pub struct LazyMysticetiClient {
     client: Arc<ArcSwapOption<TransactionClient>>,
@@ -40,8 +41,8 @@ impl LazyMysticetiClient {
             return client;
         }
 
-        // We expect this to get called during the SUI process start. After that at least one
-        // object will have initialised and won't need to call again.
+        // We expect this to get called during the SUI process start. After that at
+        // least one object will have initialised and won't need to call again.
         const MYSTICETI_START_TIMEOUT: Duration = Duration::from_secs(30);
         const LOAD_RETRY_TIMEOUT: Duration = Duration::from_millis(100);
         if let Ok(client) = timeout(MYSTICETI_START_TIMEOUT, async {
@@ -78,8 +79,8 @@ impl SubmitToConsensus for LazyMysticetiClient {
         _epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> SuiResult {
         // TODO(mysticeti): confirm comment is still true
-        // The retrieved TransactionClient can be from the past epoch. Submit would fail after
-        // Mysticeti shuts down, so there should be no correctness issue.
+        // The retrieved TransactionClient can be from the past epoch. Submit would fail
+        // after Mysticeti shuts down, so there should be no correctness issue.
         let client = self.get().await;
         let tx_bytes = bcs::to_bytes(&transaction).expect("Serialization should not fail.");
         client

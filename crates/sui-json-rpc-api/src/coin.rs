@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::proc_macros::rpc;
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use sui_json_rpc_types::{Balance, CoinPage, SuiCoinMetadata};
 use sui_open_rpc_macros::open_rpc;
-use sui_types::balance::Supply;
-use sui_types::base_types::{ObjectID, SuiAddress};
+use sui_types::{
+    balance::Supply,
+    base_types::{ObjectID, SuiAddress},
+};
 
 #[open_rpc(namespace = "suix", tag = "Coin Query API")]
 #[rpc(server, client, namespace = "suix")]
@@ -17,7 +18,9 @@ pub trait CoinReadApi {
         &self,
         /// the owner's Sui address
         owner: SuiAddress,
-        /// optional type name for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC), default to 0x2::sui::SUI if not specified.
+        /// optional type name for the coin (e.g.,
+        /// 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC), default to
+        /// 0x2::sui::SUI if not specified.
         coin_type: Option<String>,
         /// optional paging cursor
         cursor: Option<ObjectID>,
@@ -37,17 +40,21 @@ pub trait CoinReadApi {
         limit: Option<usize>,
     ) -> RpcResult<CoinPage>;
 
-    /// Return the total coin balance for one coin type, owned by the address owner.
+    /// Return the total coin balance for one coin type, owned by the address
+    /// owner.
     #[method(name = "getBalance")]
     async fn get_balance(
         &self,
         /// the owner's Sui address
         owner: SuiAddress,
-        /// optional type names for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC), default to 0x2::sui::SUI if not specified.
+        /// optional type names for the coin (e.g.,
+        /// 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC), default to
+        /// 0x2::sui::SUI if not specified.
         coin_type: Option<String>,
     ) -> RpcResult<Balance>;
 
-    /// Return the total coin balance for all coin type, owned by the address owner.
+    /// Return the total coin balance for all coin type, owned by the address
+    /// owner.
     #[method(name = "getAllBalances")]
     async fn get_all_balances(
         &self,
@@ -59,7 +66,8 @@ pub trait CoinReadApi {
     #[method(name = "getCoinMetadata")]
     async fn get_coin_metadata(
         &self,
-        /// type name for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC)
+        /// type name for the coin (e.g.,
+        /// 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC)
         coin_type: String,
     ) -> RpcResult<Option<SuiCoinMetadata>>;
 
@@ -67,7 +75,8 @@ pub trait CoinReadApi {
     #[method(name = "getTotalSupply")]
     async fn get_total_supply(
         &self,
-        /// type name for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC)
+        /// type name for the coin (e.g.,
+        /// 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC)
         coin_type: String,
     ) -> RpcResult<Supply>;
 }

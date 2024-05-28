@@ -2,26 +2,24 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
+
 use sui_config::genesis;
-use sui_types::base_types::ObjectRef;
-use sui_types::error::UserInputError;
-use sui_types::transaction::InputObjects;
-use sui_types::transaction::ObjectReadResult;
-use sui_types::transaction::ReceivingObjectReadResult;
-use sui_types::transaction::ReceivingObjects;
 use sui_types::{
-    base_types::{ObjectID, SequenceNumber, SuiAddress},
+    base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress},
     committee::{Committee, EpochId},
     digests::{ObjectDigest, TransactionDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
-    error::SuiResult,
+    error::{SuiResult, UserInputError},
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
         VerifiedCheckpoint,
     },
     object::Object,
     storage::{BackingStore, ChildObjectResolver, ParentSync},
-    transaction::{InputObjectKind, VerifiedTransaction},
+    transaction::{
+        InputObjectKind, InputObjects, ObjectReadResult, ReceivingObjectReadResult,
+        ReceivingObjects, VerifiedTransaction,
+    },
 };
 pub mod in_mem_store;
 
@@ -75,7 +73,7 @@ pub trait SimulatorStore:
     fn get_transaction_effects(&self, digest: &TransactionDigest) -> Option<TransactionEffects>;
 
     fn get_transaction_events(&self, digest: &TransactionEventsDigest)
-        -> Option<TransactionEvents>;
+    -> Option<TransactionEvents>;
 
     fn get_transaction_events_by_tx_digest(
         &self,
@@ -120,8 +118,9 @@ pub trait SimulatorStore:
 
     fn backing_store(&self) -> &dyn BackingStore;
 
-    // TODO: After we abstract object storage into the ExecutionCache trait, we can replace this with
-    // sui_core::TransactionInputLoad using an appropriate cache implementation.
+    // TODO: After we abstract object storage into the ExecutionCache trait, we can
+    // replace this with sui_core::TransactionInputLoad using an appropriate
+    // cache implementation.
     fn read_objects_for_synchronous_execution(
         &self,
         _tx_digest: &TransactionDigest,

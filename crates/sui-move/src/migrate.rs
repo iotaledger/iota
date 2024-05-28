@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::path::PathBuf;
+
 use clap::Parser;
 use move_cli::base::migrate;
 use move_package::BuildConfig as MoveBuildConfig;
-use std::path::PathBuf;
 
 #[derive(Parser)]
 #[group(id = "sui-move-migrate")]

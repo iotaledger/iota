@@ -1,16 +1,17 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::{BTreeSet, HashMap},
+    sync::Arc,
+};
+
 use anyhow::Result;
 use iota_sdk::types::block::output::{
     AliasOutput, BasicOutput, FoundryOutput, NativeTokens, NftOutput, OutputId, TokenId,
 };
 use move_core_types::{ident_str, language_storage::StructTag};
 use move_vm_runtime_v2::move_vm::MoveVM;
-use std::{
-    collections::{BTreeSet, HashMap},
-    sync::Arc,
-};
 use sui_adapter_v2::{
     adapter::new_move_vm, gas_charger::GasCharger, programmable_transactions,
     temporary_store::TemporaryStore,
@@ -21,27 +22,22 @@ use sui_move_natives_v2::all_natives;
 use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use sui_types::{
     balance::Balance,
-    base_types::{ObjectRef, SequenceNumber},
+    base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress, TxContext},
     collection_types::Bag,
     dynamic_field::Field,
-    id::UID,
-    move_package::{MovePackage, TypeOrigin},
-    object::Object,
-    transaction::{Argument, InputObjects, ObjectArg},
-    TypeTag,
-};
-use sui_types::{
-    base_types::{ObjectID, SuiAddress, TxContext},
     execution_mode,
+    id::UID,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
     metrics::LimitsMetrics,
-    move_package::UpgradeCap,
+    move_package::{MovePackage, TypeOrigin, UpgradeCap},
+    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
-        CheckedInputObjects, Command, InputObjectKind, ObjectReadResult, ProgrammableTransaction,
+        Argument, CheckedInputObjects, Command, InputObjectKind, InputObjects, ObjectArg,
+        ObjectReadResult, ProgrammableTransaction,
     },
-    STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID,
+    TypeTag, STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID,
 };
 
 use crate::{
@@ -81,18 +77,18 @@ impl Executor {
         // Use a throwaway metrics registry for transaction execution.
         let metrics = Arc::new(LimitsMetrics::new(&prometheus::Registry::new()));
         let mut store = InMemoryStorage::new(Vec::new());
-        // We don't know the chain ID here since we haven't yet created the genesis checkpoint.
-        // However since we know there are no chain specific protocol config options in genesis,
-        // we use Chain::Unknown here.
+        // We don't know the chain ID here since we haven't yet created the genesis
+        // checkpoint. However since we know there are no chain specific
+        // protocol config options in genesis, we use Chain::Unknown here.
         let protocol_config = ProtocolConfig::get_for_version(protocol_version, Chain::Unknown);
-        // Get the correct system packages for our protocol version. If we cannot find the snapshot
-        // that means that we must be at the latest version and we should use the latest version of the
-        // framework.
+        // Get the correct system packages for our protocol version. If we cannot find
+        // the snapshot that means that we must be at the latest version and we
+        // should use the latest version of the framework.
         let mut system_packages =
             sui_framework_snapshot::load_bytecode_snapshot(protocol_version.as_u64())
                 .unwrap_or_else(|_| BuiltInFramework::iter_system_packages().cloned().collect());
-        // TODO: Remove when we have bumped the protocol to include the stardust packages
-        // into the system packages.
+        // TODO: Remove when we have bumped the protocol to include the stardust
+        // packages into the system packages.
         //
         // See also: https://github.com/iotaledger/kinesis/pull/149
         system_packages.extend(BuiltInFramework::iter_stardust_packages().cloned());
@@ -269,7 +265,8 @@ impl Executor {
         header: &OutputHeader,
         alias: &AliasOutput,
     ) -> Result<CreatedObjects> {
-        // Take the Alias ID set in the output or, if its zeroized, compute it from the Output ID.
+        // Take the Alias ID set in the output or, if its zeroized, compute it from the
+        // Output ID.
         let alias_id = ObjectID::new(*alias.alias_id().or_from_output_id(&header.output_id()));
         let move_alias = Alias::try_from_stardust(alias_id, alias)?;
         let mut created_objects = CreatedObjects::default();
@@ -309,7 +306,8 @@ impl Executor {
         created_objects.set_output(move_alias_output_object.id())?;
         self.store.insert_object(move_alias_output_object);
 
-        // Attach the Alias to the Alias Output as a dynamic object field via the attach_alias convenience method.
+        // Attach the Alias to the Alias Output as a dynamic object field via the
+        // attach_alias convenience method.
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
 
@@ -339,7 +337,8 @@ impl Executor {
         Ok(created_objects)
     }
 
-    /// Create a [`Bag`] of balances of native tokens executing a programmable transaction block.
+    /// Create a [`Bag`] of balances of native tokens executing a programmable
+    /// transaction block.
     pub(crate) fn create_bag_with_pt(
         &mut self,
         native_tokens: &NativeTokens,
@@ -385,9 +384,9 @@ impl Executor {
             // The `Bag` object does not have the `drop` ability so we have to use it
             // in the transaction block. Therefore we transfer it to the `0x0` address.
             //
-            // Nevertheless, we only store the contents of the object, and thus the ownership
-            // metadata are irrelevant to us. This is a dummy transfer then to satisfy
-            // the VM.
+            // Nevertheless, we only store the contents of the object, and thus the
+            // ownership metadata are irrelevant to us. This is a dummy transfer
+            // then to satisfy the VM.
             builder.transfer_arg(Default::default(), bag);
             builder.finish()
         };
@@ -502,7 +501,8 @@ impl Executor {
                 let coins = self.create_native_token_coins(basic_output.native_tokens(), owner)?;
                 created_objects.set_native_tokens(coins)?;
             }
-            // Overwrite the default 0 UID of `Bag::default()`, since we won't be creating a new bag in this code path.
+            // Overwrite the default 0 UID of `Bag::default()`, since we won't be creating a
+            // new bag in this code path.
             data.native_tokens.id = UID::new(self.tx_context.fresh_id());
             let coin = data.into_genesis_coin_object(
                 owner,
@@ -531,8 +531,9 @@ impl Executor {
         Ok(created_objects)
     }
 
-    /// Creates [`TimeLock<Balance<IOTA>>`] objects which represent vested rewards
-    /// that were created during the stardust upgrade on IOTA mainnet.
+    /// Creates [`TimeLock<Balance<IOTA>>`] objects which represent vested
+    /// rewards that were created during the stardust upgrade on IOTA
+    /// mainnet.
     pub(super) fn create_timelock_object(
         &mut self,
         header: &OutputHeader,
@@ -576,9 +577,8 @@ impl Executor {
 }
 
 mod pt {
-    use crate::stardust::migration::NATIVE_TOKEN_BAG_KEY_TYPE;
-
     use super::*;
+    use crate::stardust::migration::NATIVE_TOKEN_BAG_KEY_TYPE;
 
     pub fn coin_balance_split(
         builder: &mut ProgrammableTransactionBuilder,
@@ -643,7 +643,8 @@ pub(crate) struct FoundryLedgerData {
 }
 
 impl FoundryLedgerData {
-    /// Store the minted coin `ObjectID` and derive data from the foundry package.
+    /// Store the minted coin `ObjectID` and derive data from the foundry
+    /// package.
     ///
     /// # Panic
     ///

@@ -3,15 +3,14 @@
 
 use move_binary_format::CompiledModule;
 use sui_protocol_config::ProtocolConfig;
-use sui_types::error::SuiResult;
-use sui_types::execution_config_utils::to_binary_config;
+use sui_types::{error::SuiResult, execution_config_utils::to_binary_config};
 
 pub trait Verifier {
     /// Run the bytecode verifier with a meter limit
     ///
-    /// This function only fails if the verification does not complete within the limit.  If the
-    /// modules fail to verify but verification completes within the meter limit, the function
-    /// succeeds.
+    /// This function only fails if the verification does not complete within
+    /// the limit.  If the modules fail to verify but verification completes
+    /// within the meter limit, the function succeeds.
     fn meter_compiled_modules(
         &mut self,
         protocol_config: &ProtocolConfig,
@@ -50,9 +49,10 @@ pub struct VerifierOverrides {
     pub max_per_mod_meter_units: Option<u128>,
 }
 
-/// When returning from `meter_compiled_modules_with_overrides` `VerifierMeteredValues`
-/// will report the actual value that the verifier used for the overrides, and the values
-/// that were overridden (the limits as known to the config).
+/// When returning from `meter_compiled_modules_with_overrides`
+/// `VerifierMeteredValues` will report the actual value that the verifier used
+/// for the overrides, and the values that were overridden (the limits as known
+/// to the config).
 pub struct VerifierMeteredValues {
     pub max_per_fun_meter_current: Option<u128>,
     pub max_per_mod_meter_current: Option<u128>,
