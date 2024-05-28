@@ -331,9 +331,9 @@ jobs:
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
       - name: Install latest nightly
-        run: rustup toolchain install nightly-2023-11-20 --component rustfmt # Pin nightly version
+        run: rustup toolchain install nightly --component rustfmt --allow-downgrade
       - name: Check Rust formatting
-        run: cargo +nightly-2023-11-20 fmt --check
+        run: cargo +nightly fmt --check
 
   cargo-deny:
     name: cargo-deny (advisories, licenses, bans, ...)
