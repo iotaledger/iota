@@ -15,6 +15,7 @@ function VirtualAssetsPage(): JSX.Element {
         getScrollElement: () => containerRef.current,
         estimateSize: () => 130,
     });
+
     const virtualItems = virtualizer.getVirtualItems();
 
     return (
@@ -33,12 +34,13 @@ function VirtualAssetsPage(): JSX.Element {
                         return (
                             <div
                                 key={virtualItem.key}
-                                className="absolute h-full w-full pb-4 pr-4"
+                                className="absolute w-full pb-4 pr-4"
                                 style={{
                                     position: 'absolute',
                                     top: 0,
                                     left: 0,
                                     width: '100%',
+                                    height: `${virtualItem.size}px`,
                                     transform: `translateY(${virtualItem.start}px)`,
                                 }}
                             >
