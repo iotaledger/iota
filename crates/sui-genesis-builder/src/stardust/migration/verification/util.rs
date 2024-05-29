@@ -1,20 +1,23 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{bail, ensure, Result};
+use std::collections::HashMap;
+
+use anyhow::{anyhow, bail, ensure, Result};
 use iota_sdk::{
     types::block::{
         address::Address,
-        output::{self as sdk_output, NativeTokens},
+        output::{self as sdk_output, NativeTokens, TokenId},
     },
     U256,
 };
 use sui_types::{balance::Balance, base_types::SuiAddress, coin::Coin, dynamic_field::Field};
 
-use crate::stardust::types::output as migration_output;
+use crate::stardust::{migration::executor::FoundryLedgerData, types::output as migration_output};
 
 pub(super) fn verify_native_tokens(
     native_tokens: &NativeTokens,
+    foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     mut created_native_tokens: Vec<impl NativeTokenKind>,
 ) -> Result<()> {
     ensure!(
@@ -25,8 +28,13 @@ pub(super) fn verify_native_tokens(
     );
 
     for native_token in native_tokens.iter() {
-        // The token amounts are capped at u64 max
-        let reduced_amount = truncate_u256_to_u64(native_token.amount());
+        let foundry_data = foundry_data
+            .get(native_token.token_id())
+            .ok_or_else(|| anyhow!("missing foundry data for token {}", native_token.token_id()))?;
+        // The token amounts are capped at u64 max, adjusted using the foundry data
+        let reduced_amount = foundry_data
+            .token_scheme_u64
+            .adjust_tokens(native_token.amount());
         if let Some(idx) = created_native_tokens
             .iter()
             .position(|coin| coin.value() == reduced_amount)

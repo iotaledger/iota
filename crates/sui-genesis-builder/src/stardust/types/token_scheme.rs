@@ -3,6 +3,7 @@
 
 //! Types representing token schemes in Stardust.
 use bigdecimal::num_bigint::BigInt;
+use bigdecimal::ToPrimitive;
 use bigdecimal::{num_bigint, BigDecimal};
 use iota_sdk::types::block::output::SimpleTokenScheme;
 use iota_sdk::U256;
@@ -34,6 +35,17 @@ impl SimpleTokenSchemeU64 {
     /// The ratio that the original circulating_supply (U256) was adjusted by in regards to the adjusted maximum supply (u64).
     pub fn token_adjustment_ratio(&self) -> &Option<BigDecimal> {
         &self.token_adjustment_ratio
+    }
+
+    /// Constrain U256 tokens to a u64 using the token adjustment ratio.
+    pub fn adjust_tokens(&self, tokens: U256) -> u64 {
+        if let Some(ratio) = self.token_adjustment_ratio() {
+            (u256_to_bigdecimal(tokens) * ratio)
+                .to_u64()
+                .expect("should be a valid u64")
+        } else {
+            tokens.as_u64()
+        }
     }
 }
 
@@ -84,7 +96,7 @@ impl TryFrom<&SimpleTokenScheme> for SimpleTokenSchemeU64 {
 }
 
 /// Converts a U256 to a BigDecimal.
-pub fn u256_to_bigdecimal(u256_value: U256) -> BigDecimal {
+fn u256_to_bigdecimal(u256_value: U256) -> BigDecimal {
     // Allocate a mutable array for the big-endian bytes
     let mut bytes = [0u8; 32];
     u256_value.to_big_endian(&mut bytes);

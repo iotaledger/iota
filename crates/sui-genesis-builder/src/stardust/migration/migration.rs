@@ -200,7 +200,13 @@ impl Migration {
                 .ok_or_else(|| {
                     anyhow::anyhow!("missing created objects for output {}", header.output_id())
                 })?;
-            verify_output(header, output, objects, self.executor.store())?;
+            verify_output(
+                header,
+                output,
+                objects,
+                self.executor.native_tokens(),
+                self.executor.store(),
+            )?;
         }
         Ok(())
     }

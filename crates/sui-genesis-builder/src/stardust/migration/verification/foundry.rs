@@ -1,8 +1,10 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::HashMap;
+
 use anyhow::{anyhow, ensure, Result};
-use iota_sdk::types::block::output::FoundryOutput;
+use iota_sdk::types::block::output::{FoundryOutput, TokenId};
 use move_core_types::language_storage::ModuleId;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -15,27 +17,38 @@ use sui_types::{
 };
 
 use crate::stardust::{
-    migration::verification::util::truncate_u256_to_u64,
+    migration::{
+        executor::FoundryLedgerData,
+        verification::{util::truncate_u256_to_u64, CreatedObjects},
+    },
     native_token::package_data::NativeTokenPackageData,
+    types::token_scheme::SimpleTokenSchemeU64,
 };
 
-use super::created_objects::CreatedObjects;
-
-pub fn verify_foundry_output(
+pub(super) fn verify_foundry_output(
     output: &FoundryOutput,
     created_objects: &CreatedObjects,
+    foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
 ) -> Result<()> {
+    let foundry_data = foundry_data
+        .get(&output.token_id())
+        .ok_or_else(|| anyhow!("missing foundry data"))?;
+
     // Minted coin value
-    let minted_coin = created_objects
-        .coin()
-        .and_then(|id| {
-            storage
-                .get_object(id)
-                .ok_or_else(|| anyhow!("missing coin"))
-        })?
+    let minted_coin_id = created_objects.coin()?;
+    let minted_coin = storage
+        .get_object(minted_coin_id)
+        .ok_or_else(|| anyhow!("missing coin"))?
         .as_coin_maybe()
         .ok_or_else(|| anyhow!("expected a coin"))?;
+
+    ensure!(
+        foundry_data.minted_coin_id == *minted_coin_id,
+        "coin ID mismatch: found {}, expected {}",
+        foundry_data.minted_coin_id,
+        minted_coin_id
+    );
 
     let circulating_supply =
         truncate_u256_to_u64(output.token_scheme().as_simple().circulating_supply());
@@ -47,16 +60,20 @@ pub fn verify_foundry_output(
     );
 
     // Package
-    let created_package = created_objects
-        .package()
-        .and_then(|id| {
-            storage
-                .get_object(id)
-                .ok_or_else(|| anyhow!("missing package"))
-        })?
+    let package_id = created_objects.package()?;
+    let created_package = storage
+        .get_object(package_id)
+        .ok_or_else(|| anyhow!("missing package"))?
         .data
         .try_as_package()
         .ok_or_else(|| anyhow!("expected a package"))?;
+
+    ensure!(
+        foundry_data.package_id == *package_id,
+        "foundry data package ID mismatch: found {}, expected {}",
+        foundry_data.package_id,
+        package_id
+    );
 
     let expected_package_data = NativeTokenPackageData::try_from(output)?;
 
@@ -81,6 +98,28 @@ pub fn verify_foundry_output(
         "package did not create expected OTW type `{}` within module `{}`",
         expected_package_data.module().otw_name,
         expected_package_data.module().module_name,
+    );
+    ensure!(
+        foundry_data.coin_type_origin.module_name == expected_package_data.module().module_name,
+        "foundry data module name mismatch: found {}, expected {}",
+        foundry_data.coin_type_origin.module_name,
+        expected_package_data.module().module_name
+    );
+    ensure!(
+        foundry_data.coin_type_origin.struct_name == expected_package_data.module().otw_name,
+        "foundry data OTW struct name mismatch: found {}, expected {}",
+        foundry_data.coin_type_origin.struct_name,
+        expected_package_data.module().otw_name
+    );
+
+    // Adjusted Token Scheme
+    let expected_token_scheme_u64 =
+        SimpleTokenSchemeU64::try_from(output.token_scheme().as_simple())?;
+    ensure!(
+        expected_token_scheme_u64 == foundry_data.token_scheme_u64,
+        "foundry data token scheme mismatch: found {:?}, expected: {:?}",
+        foundry_data.token_scheme_u64,
+        expected_token_scheme_u64
     );
 
     // Coin Metadata

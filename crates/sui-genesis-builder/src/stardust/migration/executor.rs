@@ -7,7 +7,6 @@ use std::{
 };
 
 use anyhow::Result;
-use bigdecimal::ToPrimitive;
 use iota_sdk::types::block::output::{
     AliasOutput, BasicOutput, FoundryOutput, NativeTokens, NftOutput, OutputId, TokenId,
 };
@@ -47,7 +46,6 @@ use sui_types::{
     STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID,
 };
 
-use crate::stardust::types::token_scheme::{u256_to_bigdecimal, SimpleTokenSchemeU64};
 use crate::{
     process_package,
     stardust::{
@@ -57,7 +55,7 @@ use crate::{
         },
         types::{
             snapshot::OutputHeader, stardust_to_sui_address, stardust_to_sui_address_owner,
-            timelock, Nft,
+            timelock, token_scheme::SimpleTokenSchemeU64, Nft,
         },
     },
 };
@@ -134,6 +132,10 @@ impl Executor {
 
     pub fn store(&self) -> &InMemoryStorage {
         &self.store
+    }
+
+    pub(crate) fn native_tokens(&self) -> &HashMap<TokenId, FoundryLedgerData> {
+        &self.native_tokens
     }
 
     /// The migration objects.
@@ -389,16 +391,9 @@ impl Executor {
                     foundry_ledger_data.coin_type_origin.struct_name
                 );
 
-                let adjusted_amount = if let Some(ratio) = &foundry_ledger_data
+                let adjusted_amount = foundry_ledger_data
                     .token_scheme_u64
-                    .token_adjustment_ratio()
-                {
-                    (u256_to_bigdecimal(token.amount()) * ratio)
-                        .to_u64()
-                        .expect("should be a valid u64")
-                } else {
-                    token.amount().as_u64()
-                };
+                    .adjust_tokens(token.amount());
 
                 let balance = pt::coin_balance_split(
                     &mut builder,
@@ -483,16 +478,9 @@ impl Executor {
                 foundry_package_deps.push(foundry_ledger_data.package_id);
 
                 // Pay using that object
-                let adjusted_amount = if let Some(ratio) = &foundry_ledger_data
+                let adjusted_amount = foundry_ledger_data
                     .token_scheme_u64
-                    .token_adjustment_ratio()
-                {
-                    (u256_to_bigdecimal(token.amount()) * ratio)
-                        .to_u64()
-                        .expect("should be a valid u64")
-                } else {
-                    token.amount().as_u64()
-                };
+                    .adjust_tokens(token.amount());
                 builder.pay(vec![object_ref], vec![owner], vec![adjusted_amount])?;
             }
 
@@ -671,13 +659,6 @@ impl Executor {
         self.store.finish(written);
 
         Ok(created_objects)
-    }
-}
-
-#[cfg(test)]
-impl Executor {
-    pub(crate) fn native_tokens(&mut self) -> &HashMap<TokenId, FoundryLedgerData> {
-        &self.native_tokens
     }
 }
 
