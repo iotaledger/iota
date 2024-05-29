@@ -1,28 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { getAppsBackend } from '@mysten/sui.js/client';
 import { useCallback } from 'react';
 
-export function getBackendUrl() {
-    if (
-        typeof import.meta !== 'undefined' &&
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        import.meta.env &&
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        import.meta.env.VITE_APPS_BACKEND_URL
-    ) {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        return import.meta.env.VITE_APPS_BACKEND_URL;
-    }
-
-    return process.env.NEXT_PUBLIC_APPS_BACKEND_URL;
-}
-
 export function useAppsBackend() {
-    const backendUrl = getBackendUrl();
+    const backendUrl = getAppsBackend();
 
     const request = useCallback(
         async <T>(
