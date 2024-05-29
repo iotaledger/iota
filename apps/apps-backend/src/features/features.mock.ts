@@ -1,6 +1,133 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { getDefaultNetwork, Network } from '@mysten/sui.js/client';
+
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+//[object Object]
+// SPDX-License-Identifier: Apache-2.0
+//[object Object]
+// SPDX-License-Identifier: Apache-2.0
+const walletDapps = [
+    {
+        name: 'SuiFrens',
+        description: 'Enter the world of SuiFrens.',
+        link: 'https://suifrens.com/',
+        icon: 'https://suifrens.com/icons/favicon.ico',
+        tags: ['Social'],
+    },
+    {
+        name: 'Sui Name Service (SuiNS)',
+        description: 'Find your .sui name!',
+        link: 'https://suins.io/',
+        icon: 'https://raw.githubusercontent.com/SuiNSdapp/docs/main/SuiNS-small2.jpg',
+        tags: ['Infra'],
+    },
+    {
+        name: 'Wormhole Connect',
+        description:
+            'Bridge tokens from any Wormhole supported chain into Sui and get dropped off with extra Sui to pay gas fees. Developers can also embed the Connect bridge directly into their own websites and Dapps.',
+        link: 'https://www.portalbridge.com/sui',
+        icon: 'https://www.portalbridge.com/favicon.ico',
+        tags: ['DeFi'],
+    },
+    {
+        name: 'Bullshark Quests',
+        description: 'Earn rewards through engaging with apps on Sui!',
+        link: 'https://quests.mystenlabs.com/',
+        icon: 'https://user-images.githubusercontent.com/122397493/251579441-3c84de97-fc6e-46d2-b561-cd7bbef7dac7.png',
+        tags: ['Social'],
+    },
+    {
+        name: 'Aftermath Finance',
+        description:
+            'The all-in-one DEX on Sui, featuring a fully on-chain perpetuals exchange, smart-order routing, liquid staking, and a novel spot AMM.',
+        link: 'https://aftermath.finance',
+        icon: 'https://github-production-user-asset-6210df.s3.amazonaws.com/122397493/289710788-57f6935c-f930-4668-aa01-86a1579e406a.png',
+        tags: ['DeFi', 'DEX', 'Infra'],
+    },
+    {
+        name: 'NAVI',
+        description: 'Native one stop liquidity protocol',
+        link: 'https://app.naviprotocol.io',
+        icon: 'https://www.naviprotocol.io/favicon.svg',
+        tags: ['DeFi'],
+    },
+    {
+        name: 'Kriya',
+        description:
+            '1-stop DeFi protocol on Sui. Native AMM for Swaps, Limit Orders powered by deepbook, strategy vaults and leveraged perps',
+        link: 'https://app.kriya.finance/',
+        icon: 'https://mysten-fe-assets.s3.us-west-2.amazonaws.com/wallet-dapps-assets/kriya_rounded_logo.png',
+        tags: ['DeFi'],
+    },
+    {
+        name: 'Scallop',
+        description: 'Next generation Money Market',
+        link: 'https://app.scallop.io/',
+        icon: 'https://app.scallop.io/images/logo-192.png',
+        tags: ['DeFi'],
+    },
+    {
+        name: 'Typus',
+        description: 'Real yield infrastructure',
+        link: 'https://typus.finance/',
+        icon: 'https://typus.finance/favicon.png',
+        tags: ['DeFi'],
+    },
+    {
+        name: 'Turbos',
+        description: 'Non-custodial and user-centric DEX on Sui.',
+        link: 'https://app.turbos.finance',
+        icon: 'https://i.ibb.co/RTKw0PZ/Turbos-400x400.png',
+        tags: ['DeFi'],
+    },
+    {
+        name: 'Cetus Protocol',
+        description: 'The pioneer concentrated liquidity DEX on Sui.',
+        link: 'https://app.cetus.zone/',
+        icon: 'https://i.ibb.co/TWdmdQz/cetus-icon.png',
+        tags: ['DeFi', 'DEX'],
+    },
+    {
+        name: 'FlowX Finance',
+        description: 'Ecosystem-focused native DEX & aggregator on the Sui Network.',
+        link: 'https://flowx.finance/swap',
+        icon: 'https://3458959336-files.gitbook.io/~/files/v0/b/gitbook-x-prod.appspot.com/o/spaces%2FpEOgAVtfjtpMXMM550M8%2Fuploads%2FiunglJ6f4i7xbVyrPZTD%2FFlowX%20Logo%20Black.png?alt=media&token=6dfa923c-41f6-4252-831f-ac6d1ddd1afe',
+        tags: ['DeFi', 'DEX'],
+    },
+    {
+        name: 'Bucket Protocol',
+        description: 'The first native stablecoin on Sui Network.',
+        link: 'https://app.bucketprotocol.io/',
+        icon: 'https://d3h53g0wjfwuec.cloudfront.net/bucket_avatar.png',
+        tags: ['DeFi'],
+    },
+    {
+        name: 'Aries Markets',
+        description: 'Aries Markets - All-in-one DeFi platform with an innovative money market.',
+        link: 'https://sui.ariesmarkets.xyz/',
+        icon: 'https://sui.ariesmarkets.xyz/favicon.png',
+        tags: ['DeFi'],
+    },
+    {
+        name: 'Clutchy',
+        description: 'Gaming and NFT marketplace for creators and communities',
+        link: 'https://clutchy.io/',
+        icon: 'https://clutchy.io/favicon.ico',
+        tags: ['Marketplace'],
+    },
+    {
+        name: 'Keepsake',
+        description: 'One of the first NFT Marketplaces on Sui Network.',
+        link: 'https://keepsake.gg/',
+        icon: 'https://keepsake.gg/assets/icon/Favicon.png',
+        tags: ['Marketplace'],
+    },
+];
+
 export const developmentFeatures = {
     'mainnet-selection': {
         defaultValue: true,
@@ -120,7 +247,7 @@ export const developmentFeatures = {
     'wallet-dapps': {
         defaultValue: [
             {
-                name: 'Sui Name Service (SuiNS222)',
+                name: 'Sui Name Service (SuiNS)',
                 description: 'Find your .sui name!',
                 link: 'https://suins.io/',
                 icon: 'https://raw.githubusercontent.com/SuiNSdapp/docs/main/SuiNS-small2.jpg',
@@ -133,148 +260,21 @@ export const developmentFeatures = {
                     platform: {
                         $in: ['ios', 'android'],
                     },
-                    network: 'MAINNET',
+                    network: getDefaultNetwork(),
                 },
-                force: [
-                    {
-                        name: 'SuiFrens',
-                        description: 'Enter the world of SuiFrens.',
-                        link: 'https://suifrens.com/',
-                        icon: 'https://suifrens.com/icons/favicon.ico',
-                        tags: ['Social'],
-                    },
-                    {
-                        name: 'Sui Name Service (SuiNS)',
-                        description: 'Find your .sui name!',
-                        link: 'https://suins.io/',
-                        icon: 'https://raw.githubusercontent.com/SuiNSdapp/docs/main/SuiNS-small2.jpg',
-                        tags: ['Infra'],
-                    },
-                    {
-                        name: 'Bullshark Quests',
-                        description: 'Earn rewards through engaging with apps on Sui!',
-                        link: 'https://quests.mystenlabs.com/',
-                        icon: 'https://user-images.githubusercontent.com/122397493/251579441-3c84de97-fc6e-46d2-b561-cd7bbef7dac7.png',
-                        tags: ['Social'],
-                    },
-                    {
-                        name: 'Aftermath Finance',
-                        description:
-                            'The all-in-one DEX on Sui, featuring a fully on-chain perpetuals exchange, smart-order routing, liquid staking, and a novel spot AMM.',
-                        link: 'https://aftermath.finance',
-                        icon: 'https://github-production-user-asset-6210df.s3.amazonaws.com/122397493/289710788-57f6935c-f930-4668-aa01-86a1579e406a.png',
-                        tags: ['DeFi', 'DEX', 'Infra'],
-                    },
-                    {
-                        name: 'NAVI',
-                        description: 'Native one stop liquidity protocol',
-                        link: 'https://app.naviprotocol.io',
-                        icon: 'https://www.naviprotocol.io/favicon.svg',
-                        tags: ['DeFi'],
-                    },
-                    {
-                        name: 'Kriya',
-                        description:
-                            '1-stop DeFi protocol on Sui. Native AMM for Swaps, Limit Orders powered by deepbook, strategy vaults and leveraged perps',
-                        link: 'https://app.kriya.finance/',
-                        icon: 'https://mysten-fe-assets.s3.us-west-2.amazonaws.com/wallet-dapps-assets/kriya_rounded_logo.png',
-                        tags: ['DeFi'],
-                    },
-                    {
-                        name: 'Scallop',
-                        description: 'Next generation Money Market',
-                        link: 'https://app.scallop.io/',
-                        icon: 'https://app.scallop.io/images/logo-192.png',
-                        tags: ['DeFi'],
-                    },
-                    {
-                        name: 'Typus',
-                        description: 'Real yield infrastructure',
-                        link: 'https://typus.finance/',
-                        icon: 'https://typus.finance/favicon.png',
-                        tags: ['DeFi'],
-                    },
-                    {
-                        name: 'Turbos',
-                        description: 'Non-custodial and user-centric DEX on Sui.',
-                        link: 'https://app.turbos.finance',
-                        icon: 'https://i.ibb.co/RTKw0PZ/Turbos-400x400.png',
-                        tags: ['DeFi'],
-                    },
-                    {
-                        name: 'Cetus Protocol',
-                        description: 'The pioneer concentrated liquidity DEX on Sui.',
-                        link: 'https://app.cetus.zone/',
-                        icon: 'https://i.ibb.co/TWdmdQz/cetus-icon.png',
-                        tags: ['DeFi', 'DEX'],
-                    },
-                    {
-                        name: 'FlowX Finance',
-                        description:
-                            'Ecosystem-focused native DEX & aggregator on the Sui Network.',
-                        link: 'https://flowx.finance/swap',
-                        icon: 'https://3458959336-files.gitbook.io/~/files/v0/b/gitbook-x-prod.appspot.com/o/spaces%2FpEOgAVtfjtpMXMM550M8%2Fuploads%2FiunglJ6f4i7xbVyrPZTD%2FFlowX%20Logo%20Black.png?alt=media&token=6dfa923c-41f6-4252-831f-ac6d1ddd1afe',
-                        tags: ['DeFi', 'DEX'],
-                    },
-                    {
-                        name: 'Bucket Protocol',
-                        description: 'The first native stablecoin on Sui Network.',
-                        link: 'https://app.bucketprotocol.io/',
-                        icon: 'https://d3h53g0wjfwuec.cloudfront.net/bucket_avatar.png',
-                        tags: ['DeFi'],
-                    },
-                ],
+                force: walletDapps,
             },
             {
                 condition: {
-                    network: 'MAINNET',
+                    network: getDefaultNetwork(),
                 },
-                force: [
-                    {
-                        name: 'SuiFrens',
-                        description: 'Enter the world of SuiFrens.',
-                        link: 'https://suifrens.com/',
-                        icon: 'https://suifrens.com/icons/favicon.ico',
-                        tags: ['Game'],
-                    },
-                    {
-                        name: 'Sui Name Service (SuiNS)',
-                        description: 'Find your .sui name!',
-                        link: 'https://suins.io/',
-                        icon: 'https://raw.githubusercontent.com/SuiNSdapp/docs/main/SuiNS-small2.jpg',
-                        tags: ['Infra'],
-                    },
-                    {
-                        name: 'Wormhole Connect',
-                        description:
-                            'Bridge tokens from any Wormhole supported chain into Sui and get dropped off with extra Sui to pay gas fees. Developers can also embed the Connect bridge directly into their own websites and Dapps.',
-                        link: 'https://www.portalbridge.com/sui',
-                        icon: 'https://www.portalbridge.com/favicon.ico',
-                        tags: ['DeFi'],
-                    },
-                    {
-                        name: 'Aries Markets',
-                        description:
-                            'Aries Markets - All-in-one DeFi platform with an innovative money market.',
-                        link: 'https://sui.ariesmarkets.xyz/',
-                        icon: 'https://sui.ariesmarkets.xyz/favicon.png',
-                        tags: ['DeFi'],
-                    },
-                    {
-                        name: 'Clutchy',
-                        description: 'Gaming and NFT marketplace for creators and communities',
-                        link: 'https://clutchy.io/',
-                        icon: 'https://clutchy.io/favicon.ico',
-                        tags: ['Marketplace'],
-                    },
-                    {
-                        name: 'Keepsake',
-                        description: 'One of the first NFT Marketplaces on Sui Network.',
-                        link: 'https://keepsake.gg/',
-                        icon: 'https://keepsake.gg/assets/icon/Favicon.png',
-                        tags: ['Marketplace'],
-                    },
-                ],
+                force: walletDapps,
+            },
+            {
+                condition: {
+                    network: Network.Testnet,
+                },
+                force: walletDapps,
             },
         ],
     },
