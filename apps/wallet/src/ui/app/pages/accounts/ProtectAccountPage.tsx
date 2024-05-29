@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Text } from '_app/shared/text';
 import { isMnemonicSerializedUiAccount } from '_src/background/accounts/MnemonicAccount';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -17,18 +20,18 @@ import { useCreateAccountsMutation, type CreateType } from '../../hooks/useCreat
 import { Heading } from '../../shared/heading';
 
 const allowedAccountTypes: CreateType[] = [
-    'new-mnemonic',
-    'import-mnemonic',
-    'mnemonic-derived',
-    'imported',
-    'ledger',
-    'qredo',
+	'new-mnemonic',
+	'import-mnemonic',
+	'mnemonic-derived',
+	'import-seed',
+	'imported',
+	'ledger',
 ];
 
 type AllowedAccountTypes = (typeof allowedAccountTypes)[number];
 
 function isAllowedAccountType(accountType: string): accountType is AllowedAccountTypes {
-    return (allowedAccountTypes as string[]).includes(accountType);
+	return allowedAccountTypes.includes(accountType as CreateType);
 }
 
 export function ProtectAccountPage() {
@@ -79,40 +82,38 @@ export function ProtectAccountPage() {
         return <Navigate to="/" replace />;
     }
 
-    return (
-        <div className="flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col items-center overflow-auto rounded-20 bg-sui-lightest px-6 py-10 shadow-wallet-content">
-            <Loading loading={showVerifyPasswordView === null}>
-                {showVerifyPasswordView ? (
-                    <VerifyPasswordModal
-                        open
-                        onClose={() => navigate(-1)}
-                        onVerify={(password) => createAccountCallback(password, accountType)}
-                    />
-                ) : (
-                    <>
-                        <Text variant="caption" color="steel-dark" weight="semibold">
-                            Wallet Setup
-                        </Text>
-                        <div className="mt-2.5 text-center">
-                            <Heading variant="heading1" color="gray-90" as="h1" weight="bold">
-                                Protect Account with a Password Lock
-                            </Heading>
-                        </div>
-                        <div className="mt-6 w-full grow">
-                            <ProtectAccountForm
-                                cancelButtonText="Back"
-                                submitButtonText="Create Wallet"
-                                onSubmit={async ({ password, autoLock }) => {
-                                    await autoLockMutation.mutateAsync({
-                                        minutes: autoLockDataToMinutes(autoLock),
-                                    });
-                                    await createAccountCallback(password.input, accountType);
-                                }}
-                            />
-                        </div>
-                    </>
-                )}
-            </Loading>
-        </div>
-    );
+	return (
+		<div className="rounded-20 shadow-wallet-content w-popup-width max-h-popup-height min-h-popup-minimum flex h-screen flex-col items-center overflow-auto bg-sui-lightest px-6 py-10">
+			<Loading loading={showVerifyPasswordView === null}>
+				{showVerifyPasswordView ? (
+					<VerifyPasswordModal
+						open
+						onClose={() => navigate(-1)}
+						onVerify={(password) => createAccountCallback(password, accountType)}
+					/>
+				) : (
+					<>
+						<Text variant="caption" color="steel-dark" weight="semibold">
+							Wallet Setup
+						</Text>
+						<div className="mt-2.5 text-center">
+							<Heading variant="heading1" color="gray-90" as="h1" weight="bold">
+								Protect Account with a Password Lock
+							</Heading>
+						</div>
+						<div className="mt-6 w-full grow">
+							<ProtectAccountForm
+								cancelButtonText="Back"
+								submitButtonText="Create Wallet"
+								onSubmit={async ({ password, autoLock }) => {
+									await autoLockMutation.mutateAsync({ minutes: autoLockDataToMinutes(autoLock) });
+									await createAccountCallback(password.input, accountType);
+								}}
+							/>
+						</div>
+					</>
+				)}
+			</Loading>
+		</div>
+	);
 }

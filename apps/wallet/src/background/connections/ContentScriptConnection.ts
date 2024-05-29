@@ -24,8 +24,6 @@ import {
 } from '_payloads/transactions';
 import Permissions from '_src/background/Permissions';
 import Transactions from '_src/background/Transactions';
-import { FEATURES, growthbook } from '_src/shared/experimentation/features';
-import { isQredoConnectPayload } from '_src/shared/messaging/messages/payloads/QredoConnect';
 import {
     isSignMessageRequest,
     type SignMessageRequest,
@@ -36,7 +34,6 @@ import type { Runtime } from 'webextension-polyfill';
 
 import { getAccountsStatusData } from '../accounts';
 import NetworkEnv from '../NetworkEnv';
-import { requestUserApproval } from '../qredo';
 import { Connection } from './Connection';
 
 export class ContentScriptConnection extends Connection {
@@ -52,122 +49,111 @@ export class ContentScriptConnection extends Connection {
         this.originFavIcon = port.sender?.tab?.favIconUrl;
     }
 
-    protected async handleMessage(msg: Message) {
-        const { payload } = msg;
-        try {
-            if (isGetAccount(payload)) {
-                const { accounts } = await this.ensurePermissions(['viewAccount']);
-                await this.sendAccounts(accounts, msg.id);
-            } else if (isHasPermissionRequest(payload)) {
-                this.send(
-                    createMessage<HasPermissionsResponse>(
-                        {
-                            type: 'has-permissions-response',
-                            result: await Permissions.hasPermissions(
-                                this.origin,
-                                payload.permissions,
-                            ),
-                        },
-                        msg.id,
-                    ),
-                );
-            } else if (isAcquirePermissionsRequest(payload)) {
-                const permission = await Permissions.startRequestPermissions(
-                    payload.permissions,
-                    this,
-                    msg.id,
-                );
-                if (permission) {
-                    this.permissionReply(permission, msg.id);
-                }
-            } else if (isExecuteTransactionRequest(payload)) {
-                if (!payload.transaction.account) {
-                    // make sure we don't execute transactions that doesn't have a specified account
-                    throw new Error('Missing account');
-                }
-                await this.ensurePermissions(
-                    ['viewAccount', 'suggestTransactions'],
-                    payload.transaction.account,
-                );
-                const result = await Transactions.executeOrSignTransaction(
-                    { tx: payload.transaction },
-                    this,
-                );
-                this.send(
-                    createMessage<ExecuteTransactionResponse>(
-                        {
-                            type: 'execute-transaction-response',
-                            result: result as SuiTransactionBlockResponse,
-                        },
-                        msg.id,
-                    ),
-                );
-            } else if (isSignTransactionRequest(payload)) {
-                if (!payload.transaction.account) {
-                    // make sure we don't execute transactions that doesn't have a specified account
-                    throw new Error('Missing account');
-                }
-                await this.ensurePermissions(
-                    ['viewAccount', 'suggestTransactions'],
-                    payload.transaction.account,
-                );
-                const result = await Transactions.executeOrSignTransaction(
-                    { sign: payload.transaction },
-                    this,
-                );
-                this.send(
-                    createMessage<SignTransactionResponse>(
-                        {
-                            type: 'sign-transaction-response',
-                            result: result as SignedTransaction,
-                        },
-                        msg.id,
-                    ),
-                );
-            } else if (isBasePayload(payload) && payload.type === 'get-network') {
-                this.send(
-                    createMessage<SetNetworkPayload>(
-                        {
-                            type: 'set-network',
-                            network: await NetworkEnv.getActiveNetwork(),
-                        },
-                        msg.id,
-                    ),
-                );
-            } else if (isSignMessageRequest(payload) && payload.args) {
-                await this.ensurePermissions(
-                    ['viewAccount', 'suggestTransactions'],
-                    payload.args.accountAddress,
-                );
-                const result = await Transactions.signMessage(payload.args, this);
-                this.send(
-                    createMessage<SignMessageRequest>(
-                        { type: 'sign-message-request', return: result },
-                        msg.id,
-                    ),
-                );
-            } else if (isQredoConnectPayload(payload, 'connect')) {
-                if (!growthbook.ready) {
-                    await growthbook.loadFeatures();
-                }
-                if (growthbook.isOff(FEATURES.WALLET_QREDO)) {
-                    throw new Error('This feature is not implemented yet.');
-                }
-                await requestUserApproval(payload.args, this, msg);
-            } else {
-                throw new Error(`Unknown message, ${JSON.stringify(msg.payload)}`);
-            }
-        } catch (e) {
-            this.sendError(
-                {
-                    error: true,
-                    code: -1,
-                    message: (e as Error).message,
-                },
-                msg.id,
-            );
-        }
-    }
+	protected async handleMessage(msg: Message) {
+		const { payload } = msg;
+		try {
+			if (isGetAccount(payload)) {
+				const { accounts } = await this.ensurePermissions(['viewAccount']);
+				await this.sendAccounts(accounts, msg.id);
+			} else if (isHasPermissionRequest(payload)) {
+				this.send(
+					createMessage<HasPermissionsResponse>(
+						{
+							type: 'has-permissions-response',
+							result: await Permissions.hasPermissions(this.origin, payload.permissions),
+						},
+						msg.id,
+					),
+				);
+			} else if (isAcquirePermissionsRequest(payload)) {
+				const permission = await Permissions.startRequestPermissions(
+					payload.permissions,
+					this,
+					msg.id,
+				);
+				if (permission) {
+					this.permissionReply(permission, msg.id);
+				}
+			} else if (isExecuteTransactionRequest(payload)) {
+				if (!payload.transaction.account) {
+					// make sure we don't execute transactions that doesn't have a specified account
+					throw new Error('Missing account');
+				}
+				await this.ensurePermissions(
+					['viewAccount', 'suggestTransactions'],
+					payload.transaction.account,
+				);
+				const result = await Transactions.executeOrSignTransaction(
+					{ tx: payload.transaction },
+					this,
+				);
+				this.send(
+					createMessage<ExecuteTransactionResponse>(
+						{
+							type: 'execute-transaction-response',
+							result: result as SuiTransactionBlockResponse,
+						},
+						msg.id,
+					),
+				);
+			} else if (isSignTransactionRequest(payload)) {
+				if (!payload.transaction.account) {
+					// make sure we don't execute transactions that doesn't have a specified account
+					throw new Error('Missing account');
+				}
+				await this.ensurePermissions(
+					['viewAccount', 'suggestTransactions'],
+					payload.transaction.account,
+				);
+				const result = await Transactions.executeOrSignTransaction(
+					{ sign: payload.transaction },
+					this,
+				);
+				this.send(
+					createMessage<SignTransactionResponse>(
+						{
+							type: 'sign-transaction-response',
+							result: result as SignedTransaction,
+						},
+						msg.id,
+					),
+				);
+			} else if (isBasePayload(payload) && payload.type === 'get-network') {
+				this.send(
+					createMessage<SetNetworkPayload>(
+						{
+							type: 'set-network',
+							network: await NetworkEnv.getActiveNetwork(),
+						},
+						msg.id,
+					),
+				);
+			} else if (isSignMessageRequest(payload) && payload.args) {
+				await this.ensurePermissions(
+					['viewAccount', 'suggestTransactions'],
+					payload.args.accountAddress,
+				);
+				const result = await Transactions.signMessage(payload.args, this);
+				this.send(
+					createMessage<SignMessageRequest>(
+						{ type: 'sign-message-request', return: result },
+						msg.id,
+					),
+				);
+			} else {
+				throw new Error(`Unknown message, ${JSON.stringify(msg.payload)}`);
+			}
+		} catch (e) {
+			this.sendError(
+				{
+					error: true,
+					code: -1,
+					message: (e as Error).message,
+				},
+				msg.id,
+			);
+		}
+	}
 
     public permissionReply(permission: Permission, msgID?: string) {
         if (permission.origin !== this.origin) {

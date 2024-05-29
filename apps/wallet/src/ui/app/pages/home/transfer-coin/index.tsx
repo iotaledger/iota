@@ -9,10 +9,8 @@ import Overlay from '_components/overlay';
 import { ampli } from '_src/shared/analytics/ampli';
 import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessages';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
-import { useQredoTransaction } from '_src/ui/app/hooks/useQredoTransaction';
 import { useSigner } from '_src/ui/app/hooks/useSigner';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
-import { QredoActionIgnoredByUser } from '_src/ui/app/QredoSigner';
 import { useCoinMetadata } from '@mysten/core';
 import { ArrowLeft16, ArrowRight16 } from '@mysten/icons';
 // import * as Sentry from '@sentry/react';
@@ -27,17 +25,16 @@ import type { SubmitProps } from './SendTokenForm';
 import { createTokenTransferTransaction } from './utils/transaction';
 
 function TransferCoinPage() {
-    const [searchParams] = useSearchParams();
-    const coinType = searchParams.get('type');
-    const [showTransactionPreview, setShowTransactionPreview] = useState<boolean>(false);
-    const [formData, setFormData] = useState<SubmitProps>();
-    const navigate = useNavigate();
-    const { data: coinMetadata } = useCoinMetadata(coinType);
-    const activeAccount = useActiveAccount();
-    const signer = useSigner(activeAccount);
-    const address = activeAccount?.address;
-    const queryClient = useQueryClient();
-    const { clientIdentifier, notificationModal } = useQredoTransaction();
+	const [searchParams] = useSearchParams();
+	const coinType = searchParams.get('type');
+	const [showTransactionPreview, setShowTransactionPreview] = useState<boolean>(false);
+	const [formData, setFormData] = useState<SubmitProps>();
+	const navigate = useNavigate();
+	const { data: coinMetadata } = useCoinMetadata(coinType);
+	const activeAccount = useActiveAccount();
+	const signer = useSigner(activeAccount);
+	const address = activeAccount?.address;
+	const queryClient = useQueryClient();
 
     const transaction = useMemo(() => {
         if (!coinType || !signer || !formData || !address) return null;
@@ -55,58 +52,45 @@ function TransferCoinPage() {
                 throw new Error('Missing data');
             }
 
-            // const sentryTransaction = Sentry.startTransaction({
-            // 	name: 'send-tokens',
-            // });
-            try {
-                return signer.signAndExecuteTransactionBlock(
-                    {
-                        transactionBlock: transaction,
-                        options: {
-                            showInput: true,
-                            showEffects: true,
-                            showEvents: true,
-                        },
-                    },
-                    clientIdentifier,
-                );
-            } catch (error) {
-                if (!(error instanceof QredoActionIgnoredByUser)) {
-                    // sentryTransaction.setTag('failure', true);
-                }
-                throw error;
-            }
-            // finally {
-            // sentryTransaction.finish();
-            // }
-        },
-        onSuccess: (response) => {
-            queryClient.invalidateQueries({ queryKey: ['get-coins'] });
-            queryClient.invalidateQueries({ queryKey: ['coin-balance'] });
+			// const sentryTransaction = Sentry.startTransaction({
+			// 	name: 'send-tokens',
+			// });
+			return signer.signAndExecuteTransactionBlock({
+				transactionBlock: transaction,
+				options: {
+					showInput: true,
+					showEffects: true,
+					showEvents: true,
+				},
+			});
+
+			// finally {
+			// sentryTransaction.finish();
+			// }
+		},
+		onSuccess: (response) => {
+			queryClient.invalidateQueries({ queryKey: ['get-coins'] });
+			queryClient.invalidateQueries({ queryKey: ['coin-balance'] });
 
             ampli.sentCoins({
                 coinType: coinType!,
             });
 
-            const receiptUrl = `/receipt?txdigest=${encodeURIComponent(
-                response.digest,
-            )}&from=transactions`;
-            return navigate(receiptUrl);
-        },
-        onError: (error) => {
-            if (error instanceof QredoActionIgnoredByUser) {
-                navigate('/');
-            } else {
-                toast.error(
-                    <div className="flex max-w-xs flex-col overflow-hidden">
-                        <small className="overflow-hidden text-ellipsis">
-                            {getSignerOperationErrorMessage(error)}
-                        </small>
-                    </div>,
-                );
-            }
-        },
-    });
+			const receiptUrl = `/receipt?txdigest=${encodeURIComponent(
+				response.digest,
+			)}&from=transactions`;
+			return navigate(receiptUrl);
+		},
+		onError: (error) => {
+			toast.error(
+				<div className="max-w-xs overflow-hidden flex flex-col">
+					<small className="text-ellipsis overflow-hidden">
+						{getSignerOperationErrorMessage(error)}
+					</small>
+				</div>,
+			);
+		},
+	});
 
     if (useUnlockedGuard()) {
         return null;
@@ -165,21 +149,20 @@ function TransferCoinPage() {
                             <ActiveCoinsCard activeCoinType={coinType} />
                         </div>
 
-                        <SendTokenForm
-                            onSubmit={(formData) => {
-                                setShowTransactionPreview(true);
-                                setFormData(formData);
-                            }}
-                            coinType={coinType}
-                            initialAmount={formData?.amount || ''}
-                            initialTo={formData?.to || ''}
-                        />
-                    </>
-                )}
-            </div>
-            {notificationModal}
-        </Overlay>
-    );
+						<SendTokenForm
+							onSubmit={(formData) => {
+								setShowTransactionPreview(true);
+								setFormData(formData);
+							}}
+							coinType={coinType}
+							initialAmount={formData?.amount || ''}
+							initialTo={formData?.to || ''}
+						/>
+					</>
+				)}
+			</div>
+		</Overlay>
+	);
 }
 
 export default TransferCoinPage;

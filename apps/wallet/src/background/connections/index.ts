@@ -7,7 +7,6 @@ import type { Permission } from '_payloads/permissions';
 import type { WalletStatusChange, WalletStatusChangePayload } from '_payloads/wallet-status-change';
 import type { NetworkEnvType } from '_src/shared/api-env';
 import { type UIAccessibleEntityType } from '_src/shared/messaging/messages/payloads/MethodPayload';
-import { type QredoConnectPayload } from '_src/shared/messaging/messages/payloads/QredoConnect';
 import Browser from 'webextension-polyfill';
 
 import type { Connection } from './Connection';
@@ -51,62 +50,39 @@ export class Connections {
         });
     }
 
-    public notifyContentScript(
-        notification:
-            | { event: 'permissionReply'; permission: Permission }
-            | {
-                  event: 'walletStatusChange';
-                  change: Omit<WalletStatusChange, 'accounts'>;
-              }
-            | {
-                  event: 'walletStatusChange';
-                  origin: string;
-                  change: WalletStatusChange;
-              }
-            | {
-                  event: 'qredoConnectResult';
-                  origin: string;
-                  allowed: boolean;
-              },
-        messageID?: string,
-    ) {
-        for (const aConnection of this.#connections) {
-            if (aConnection instanceof ContentScriptConnection) {
-                switch (notification.event) {
-                    case 'permissionReply':
-                        aConnection.permissionReply(notification.permission);
-                        break;
-                    case 'walletStatusChange':
-                        if (
-                            !('origin' in notification) ||
-                            aConnection.origin === notification.origin
-                        ) {
-                            aConnection.send(
-                                createMessage<WalletStatusChangePayload>({
-                                    type: 'wallet-status-changed',
-                                    ...notification.change,
-                                }),
-                            );
-                        }
-                        break;
-                    case 'qredoConnectResult':
-                        if (notification.origin === aConnection.origin) {
-                            aConnection.send(
-                                createMessage<QredoConnectPayload<'connectResponse'>>(
-                                    {
-                                        type: 'qredo-connect',
-                                        method: 'connectResponse',
-                                        args: { allowed: notification.allowed },
-                                    },
-                                    messageID,
-                                ),
-                            );
-                        }
-                        break;
-                }
-            }
-        }
-    }
+	public notifyContentScript(
+		notification:
+			| { event: 'permissionReply'; permission: Permission }
+			| {
+					event: 'walletStatusChange';
+					change: Omit<WalletStatusChange, 'accounts'>;
+			  }
+			| {
+					event: 'walletStatusChange';
+					origin: string;
+					change: WalletStatusChange;
+			  },
+	) {
+		for (const aConnection of this.#connections) {
+			if (aConnection instanceof ContentScriptConnection) {
+				switch (notification.event) {
+					case 'permissionReply':
+						aConnection.permissionReply(notification.permission);
+						break;
+					case 'walletStatusChange':
+						if (!('origin' in notification) || aConnection.origin === notification.origin) {
+							aConnection.send(
+								createMessage<WalletStatusChangePayload>({
+									type: 'wallet-status-changed',
+									...notification.change,
+								}),
+							);
+						}
+						break;
+				}
+			}
+		}
+	}
 
     public notifyUI(
         notification:

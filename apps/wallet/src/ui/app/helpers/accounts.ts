@@ -1,21 +1,27 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
 import { isMnemonicSerializedUiAccount } from '_src/background/accounts/MnemonicAccount';
+import { isSeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
 import { isZkLoginAccountSerializedUI } from '_src/background/accounts/zklogin/ZkLoginAccount';
 
 function getKey(account: SerializedUIAccount): string {
-    if (isMnemonicSerializedUiAccount(account)) return account.sourceID;
-    if (isZkLoginAccountSerializedUI(account)) return account.provider;
-    return account.type;
+	if (isMnemonicSerializedUiAccount(account)) return account.sourceID;
+	if (isSeedSerializedUiAccount(account)) return account.sourceID;
+	if (isZkLoginAccountSerializedUI(account)) return account.provider;
+	return account.type;
 }
 
 export const defaultSortOrder: AccountType[] = [
-    'zkLogin',
-    'mnemonic-derived',
-    'imported',
-    'ledger',
-    'qredo',
+	'zkLogin',
+	'mnemonic-derived',
+	'seed-derived',
+	'imported',
+	'ledger',
 ];
 
 export function getAccountBackgroundByType(account: SerializedUIAccount) {

@@ -33,9 +33,7 @@ import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import Alert from '../../components/alert';
 import { getSignerOperationErrorMessage } from '../../helpers/errorMessages';
 import { useActiveAccount } from '../../hooks/useActiveAccount';
-import { useQredoTransaction } from '../../hooks/useQredoTransaction';
 import { useSigner } from '../../hooks/useSigner';
-import { QredoActionIgnoredByUser } from '../../QredoSigner';
 import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
 import { getStakeSuiBySuiId } from '../getStakeSuiBySuiId';
 import StakeForm from './StakeForm';
@@ -110,9 +108,8 @@ function StakingCard() {
         return stakeData.stakedSuiId;
     }, [stakeData]);
 
-    const navigate = useNavigate();
-    const signer = useSigner(activeAccount);
-    const { clientIdentifier, notificationModal } = useQredoTransaction();
+	const navigate = useNavigate();
+	const signer = useSigner(activeAccount);
 
     const stakeToken = useMutation({
         mutationFn: async ({
@@ -128,36 +125,33 @@ function StakingCard() {
                 throw new Error('Failed, missing required field');
             }
 
-            // const sentryTransaction = Sentry.startTransaction({
-            // 	name: 'stake',
-            // });
-            try {
-                const transactionBlock = createStakeTransaction(amount, validatorAddress);
-                return await signer.signAndExecuteTransactionBlock(
-                    {
-                        transactionBlock,
-                        requestType: effectsOnlySharedTransactions
-                            ? 'WaitForEffectsCert'
-                            : 'WaitForLocalExecution',
-                        options: {
-                            showInput: true,
-                            showEffects: true,
-                            showEvents: true,
-                        },
-                    },
-                    clientIdentifier,
-                );
-            } finally {
-                // sentryTransaction.finish();
-            }
-        },
-        onSuccess: (_, { amount, validatorAddress }) => {
-            ampli.stakedSui({
-                stakedAmount: Number(amount / MIST_PER_SUI),
-                validatorAddress: validatorAddress,
-            });
-        },
-    });
+			// const sentryTransaction = Sentry.startTransaction({
+			// 	name: 'stake',
+			// });
+			try {
+				const transactionBlock = createStakeTransaction(amount, validatorAddress);
+				return await signer.signAndExecuteTransactionBlock({
+					transactionBlock,
+					requestType: effectsOnlySharedTransactions
+						? 'WaitForEffectsCert'
+						: 'WaitForLocalExecution',
+					options: {
+						showInput: true,
+						showEffects: true,
+						showEvents: true,
+					},
+				});
+			} finally {
+				// sentryTransaction.finish();
+			}
+		},
+		onSuccess: (_, { amount, validatorAddress }) => {
+			ampli.stakedSui({
+				stakedAmount: Number(amount / MIST_PER_SUI),
+				validatorAddress: validatorAddress,
+			});
+		},
+	});
 
     const unStakeToken = useMutation({
         mutationFn: async ({ stakedSuiId }: { stakedSuiId: string }) => {
@@ -165,38 +159,29 @@ function StakingCard() {
                 throw new Error('Failed, missing required field.');
             }
 
-            // const sentryTransaction = Sentry.startTransaction({
-            // 	name: 'stake',
-            // });
-            try {
-                const transactionBlock = createUnstakeTransaction(stakedSuiId);
-                return await signer.signAndExecuteTransactionBlock(
-                    {
-                        transactionBlock,
-                        requestType: effectsOnlySharedTransactions
-                            ? 'WaitForEffectsCert'
-                            : 'WaitForLocalExecution',
-                        options: {
-                            showInput: true,
-                            showEffects: true,
-                            showEvents: true,
-                        },
-                    },
-                    clientIdentifier,
-                );
-            } finally {
-                // its done hopefully
-            }
-            // finally {
-            // 	sentryTransaction.finish();
-            // }
-        },
-        onSuccess: () => {
-            ampli.unstakedSui({
-                validatorAddress: validatorAddress!,
-            });
-        },
-    });
+			// const sentryTransaction = Sentry.startTransaction({
+			// 	name: 'stake',
+			// });
+			const transactionBlock = createUnstakeTransaction(stakedSuiId);
+			return await signer.signAndExecuteTransactionBlock({
+				transactionBlock,
+				requestType: effectsOnlySharedTransactions ? 'WaitForEffectsCert' : 'WaitForLocalExecution',
+				options: {
+					showInput: true,
+					showEffects: true,
+					showEvents: true,
+				},
+			});
+			// finally {
+			// 	sentryTransaction.finish();
+			// }
+		},
+		onSuccess: () => {
+			ampli.unstakedSui({
+				validatorAddress: validatorAddress!,
+			});
+		},
+	});
 
     const onHandleSubmit = useCallback(
         async ({ amount }: FormValues, { resetForm }: FormikHelpers<FormValues>) => {
@@ -237,47 +222,43 @@ function StakingCard() {
                 ]);
                 resetForm();
 
-                navigate(
-                    `/receipt?${new URLSearchParams({
-                        txdigest: txDigest,
-                        from: 'tokens',
-                    }).toString()}`,
-                    response?.transaction
-                        ? {
-                              state: {
-                                  response,
-                              },
-                          }
-                        : undefined,
-                );
-            } catch (error) {
-                if (error instanceof QredoActionIgnoredByUser) {
-                    navigate('/');
-                } else {
-                    toast.error(
-                        <div className="flex max-w-xs flex-col overflow-hidden">
-                            <strong>{unstake ? 'Unstake' : 'Stake'} failed</strong>
-                            <small className="overflow-hidden text-ellipsis">
-                                {getSignerOperationErrorMessage(error)}
-                            </small>
-                        </div>,
-                    );
-                }
-            }
-        },
-        [
-            coinType,
-            validatorAddress,
-            coinDecimals,
-            unstake,
-            queryClient,
-            navigate,
-            stakeData,
-            stakeSuiIdParams,
-            unStakeToken,
-            stakeToken,
-        ],
-    );
+				navigate(
+					`/receipt?${new URLSearchParams({
+						txdigest: txDigest,
+						from: 'tokens',
+					}).toString()}`,
+					response?.transaction
+						? {
+								state: {
+									response,
+								},
+						  }
+						: undefined,
+				);
+			} catch (error) {
+				toast.error(
+					<div className="max-w-xs overflow-hidden flex flex-col">
+						<strong>{unstake ? 'Unstake' : 'Stake'} failed</strong>
+						<small className="text-ellipsis overflow-hidden">
+							{getSignerOperationErrorMessage(error)}
+						</small>
+					</div>,
+				);
+			}
+		},
+		[
+			coinType,
+			validatorAddress,
+			coinDecimals,
+			unstake,
+			queryClient,
+			navigate,
+			stakeData,
+			stakeSuiIdParams,
+			unStakeToken,
+			stakeToken,
+		],
+	);
 
     if (!coinType || !validatorAddress || (!validatorsisPending && !system)) {
         return <Navigate to="/" replace={true} />;
@@ -342,33 +323,30 @@ function StakingCard() {
                                 )}
                             </Content>
 
-                            <Menu stuckClass="staked-cta" className="mx-0 w-full px-0 pb-0">
-                                <Button
-                                    size="tall"
-                                    variant="secondary"
-                                    to="/stake"
-                                    disabled={isSubmitting}
-                                    before={<ArrowLeft16 />}
-                                    text="Back"
-                                />
-                                <Button
-                                    size="tall"
-                                    variant="primary"
-                                    onClick={submitForm}
-                                    disabled={
-                                        !isValid || isSubmitting || (unstake && !delegationId)
-                                    }
-                                    loading={isSubmitting}
-                                    text={unstake ? 'Unstake Now' : 'Stake Now'}
-                                />
-                            </Menu>
-                        </BottomMenuLayout>
-                    )}
-                </Formik>
-            </Loading>
-            {notificationModal}
-        </div>
-    );
+							<Menu stuckClass="staked-cta" className="w-full px-0 pb-0 mx-0">
+								<Button
+									size="tall"
+									variant="secondary"
+									to="/stake"
+									disabled={isSubmitting}
+									before={<ArrowLeft16 />}
+									text="Back"
+								/>
+								<Button
+									size="tall"
+									variant="primary"
+									onClick={submitForm}
+									disabled={!isValid || isSubmitting || (unstake && !delegationId)}
+									loading={isSubmitting}
+									text={unstake ? 'Unstake Now' : 'Stake Now'}
+								/>
+							</Menu>
+						</BottomMenuLayout>
+					)}
+				</Formik>
+			</Loading>
+		</div>
+	);
 }
 
 export default StakingCard;

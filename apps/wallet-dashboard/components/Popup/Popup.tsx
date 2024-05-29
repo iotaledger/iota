@@ -4,7 +4,7 @@
 import React from 'react';
 import { usePopups } from '@/hooks';
 
-const Popup: React.FC = () => {
+function Popup(): JSX.Element {
     const { popups, closePopup } = usePopups();
 
     return (
@@ -26,6 +26,6 @@ const Popup: React.FC = () => {
             ))}
         </>
     );
-};
+}
 
 export default Popup;

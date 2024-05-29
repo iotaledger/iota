@@ -4,13 +4,12 @@
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
 import { isZkLoginAccountSerializedUI } from '_src/background/accounts/zklogin/ZkLoginAccount';
 import {
-    LedgerLogo17,
-    LogoGoogle,
-    LogoQredo,
-    LogoTwitch,
-    SocialFacebook24,
-    SocialKakao24,
-    Sui,
+	LedgerLogo17,
+	LogoGoogle,
+	LogoTwitch,
+	SocialFacebook24,
+	SocialKakao24,
+	Sui,
 } from '@mysten/icons';
 
 function SuiIcon() {
@@ -37,14 +36,11 @@ function ProviderIcon({ provider }: { provider: string }) {
 }
 
 export function AccountIcon({ account }: { account: SerializedUIAccount }) {
-    if (isZkLoginAccountSerializedUI(account)) {
-        return <ProviderIcon provider={account.provider} />;
-    }
-    if (account.type === 'qredo') {
-        return <LogoQredo className="h-4 w-4" />;
-    }
-    if (account.type === 'ledger') {
-        return <LedgerLogo17 className="h-4 w-4" />;
-    }
-    return <SuiIcon />;
+	if (isZkLoginAccountSerializedUI(account)) {
+		return <ProviderIcon provider={account.provider} />;
+	}
+	if (account.type === 'ledger') {
+		return <LedgerLogo17 className="h-4 w-4" />;
+	}
+	return <SuiIcon />;
 }

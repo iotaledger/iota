@@ -17,17 +17,16 @@ export const growthbook = new GrowthBook({
  * https://docs.growthbook.io/app/features#feature-keys
  */
 export enum FEATURES {
-    USE_LOCAL_TXN_SERIALIZER = 'use-local-txn-serializer',
-    WALLET_DAPPS = 'wallet-dapps',
-    WALLET_BALANCE_REFETCH_INTERVAL = 'wallet-balance-refetch-interval',
-    WALLET_ACTIVITY_REFETCH_INTERVAL = 'wallet-activity-refetch-interval',
-    WALLET_EFFECTS_ONLY_SHARED_TRANSACTION = 'wallet-effects-only-shared-transaction',
-    WALLET_QREDO = 'wallet-qredo',
-    WALLET_APPS_BANNER_CONFIG = 'wallet-apps-banner-config',
-    WALLET_INTERSTITIAL_CONFIG = 'wallet-interstitial-config',
-    WALLET_DEFI = 'wallet-defi',
-    WALLET_FEE_ADDRESS = 'wallet-fee-address',
-    DEEP_BOOK_CONFIGS = 'deep-book-configs',
+	USE_LOCAL_TXN_SERIALIZER = 'use-local-txn-serializer',
+	WALLET_DAPPS = 'wallet-dapps',
+	WALLET_BALANCE_REFETCH_INTERVAL = 'wallet-balance-refetch-interval',
+	WALLET_ACTIVITY_REFETCH_INTERVAL = 'wallet-activity-refetch-interval',
+	WALLET_EFFECTS_ONLY_SHARED_TRANSACTION = 'wallet-effects-only-shared-transaction',
+	WALLET_APPS_BANNER_CONFIG = 'wallet-apps-banner-config',
+	WALLET_INTERSTITIAL_CONFIG = 'wallet-interstitial-config',
+	WALLET_DEFI = 'wallet-defi',
+	WALLET_FEE_ADDRESS = 'wallet-fee-address',
+	DEEP_BOOK_CONFIGS = 'deep-book-configs',
 }
 
 export function setAttributes(network?: { network: Network; customRpc?: string | null }) {
