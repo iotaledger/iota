@@ -151,7 +151,7 @@ impl BasicOutput {
         let expiration = output
             .unlock_conditions()
             .expiration()
-            .map(|expiration| ExpirationUnlockCondition::new(output.address(), &expiration))
+            .map(|expiration| ExpirationUnlockCondition::new(output.address(), expiration))
             .transpose()?;
 
         Ok(BasicOutput {

@@ -3,7 +3,7 @@
 
 //! Types representing token schemes in Stardust.
 use bigdecimal::num_bigint::BigInt;
-use bigdecimal::{num_bigint, BigDecimal, ToPrimitive};
+use bigdecimal::{num_bigint, BigDecimal};
 use iota_sdk::types::block::output::SimpleTokenScheme;
 use iota_sdk::U256;
 
@@ -102,6 +102,8 @@ mod tests {
 
     use iota_sdk::types::block::output::SimpleTokenScheme;
     use iota_sdk::U256;
+
+    use bigdecimal::ToPrimitive;
 
     use super::*;
 
