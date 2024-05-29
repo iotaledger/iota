@@ -2,7 +2,7 @@ name: External crates
 
 on:
   push:
-    branches: [main, extensions, devnet]
+    branches: [develop, extensions, devnet]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
