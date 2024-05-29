@@ -12,10 +12,9 @@ module stardust::nft_tests {
     use sui::balance::{Self, Balance};
     use sui::coin::{Self, Coin};
     use sui::sui::SUI;
-    use sui::table;
     use sui::test_scenario;
     use sui::url;
-    use sui::vec_set;
+    use sui::vec_map;
 
     use stardust::irc27;
     use stardust::nft_output;
@@ -54,14 +53,14 @@ module stardust::nft_tests {
         );
 
         // Create an Nft object.
-        let mut royalties = table::new(scenario.ctx());
-        royalties.add(sender, fixed_point32::create_from_rational(1, 2));
+        let mut royalties = vec_map::empty();
+        royalties.insert(sender, fixed_point32::create_from_rational(1, 2));
 
-        let mut attributes = vec_set::empty();
-        attributes.insert(string::utf8(b"attribute"));
+        let mut attributes = vec_map::empty();
+        attributes.insert(string::utf8(b"attribute"), string::utf8(b"value"));
 
-        let mut non_standard_fields = table::new(scenario.ctx());
-        non_standard_fields.add(string::utf8(b"field"), string::utf8(b"value"));
+        let mut non_standard_fields = vec_map::empty();
+        non_standard_fields.insert(string::utf8(b"field"), string::utf8(b"value"));
 
         let nft = nft::create_for_testing(
             option::some(sender),
@@ -110,15 +109,15 @@ module stardust::nft_tests {
         assert!(nft.immutable_metadata().uri() == url::new_unsafe(ascii::string(b"www.best-nft.com/nft.png")), 9);
         assert!(nft.immutable_metadata().name() == string::utf8(b"nft"), 10);
         assert!(nft.immutable_metadata().collection_name().contains(&string::utf8(b"collection")), 11);
-        assert!(nft.immutable_metadata().royalties().length() == 1, 12);
-        assert!(nft.immutable_metadata().royalties()[sender] == fixed_point32::create_from_rational(1, 2), 13);
+        assert!(nft.immutable_metadata().royalties().size() == 1, 12);
+        assert!(nft.immutable_metadata().royalties().get(&sender) == fixed_point32::create_from_rational(1, 2), 13);
         assert!(nft.immutable_metadata().issuer_name().contains(&string::utf8(b"issuer")), 14);
         assert!(nft.immutable_metadata().description().contains(&string::utf8(b"description")), 15);
         assert!(nft.immutable_metadata().attributes().size() == 1, 16);
         assert!(nft.immutable_metadata().attributes().contains(&string::utf8(b"attribute")), 17);
 
-        assert!(nft.immutable_metadata().non_standard_fields().length() == 1, 18);
-        assert!(nft.immutable_metadata().non_standard_fields()[string::utf8(b"field")] == string::utf8(b"value"), 19);
+        assert!(nft.immutable_metadata().non_standard_fields().size() == 1, 18);
+        assert!(nft.immutable_metadata().non_standard_fields().contains(&string::utf8(b"field")), 19);
 
         // Check the storage deposit return.
         scenario.next_tx(sender);
