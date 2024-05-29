@@ -5,6 +5,5 @@ import { useNotificationStore } from '@/stores/notificationStore';
 
 export function useNotifications() {
     const addNotification = useNotificationStore((state) => state.addNotification);
-
-    return addNotification;
+    return { addNotification };
 }
