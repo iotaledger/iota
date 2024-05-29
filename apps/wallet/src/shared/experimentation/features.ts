@@ -1,13 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 import { GrowthBook } from '@growthbook/growthbook';
-import { Network } from '@mysten/sui.js/client';
+import { Network, getAppsBackend } from '@mysten/sui.js/client';
 import Browser from 'webextension-polyfill';
 
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 export const growthbook = new GrowthBook({
-	apiHost: process.env.APPS_BACKEND_URL,
+	apiHost: getAppsBackend(),
 	clientKey: process.env.NODE_ENV === 'development' ? 'development' : 'production',
 	enableDevMode: process.env.NODE_ENV === 'development',
 });
@@ -22,7 +22,6 @@ export enum FEATURES {
 	WALLET_BALANCE_REFETCH_INTERVAL = 'wallet-balance-refetch-interval',
 	WALLET_ACTIVITY_REFETCH_INTERVAL = 'wallet-activity-refetch-interval',
 	WALLET_EFFECTS_ONLY_SHARED_TRANSACTION = 'wallet-effects-only-shared-transaction',
-	WALLET_QREDO = 'wallet-qredo',
 	WALLET_APPS_BANNER_CONFIG = 'wallet-apps-banner-config',
 	WALLET_INTERSTITIAL_CONFIG = 'wallet-interstitial-config',
 	WALLET_DEFI = 'wallet-defi',

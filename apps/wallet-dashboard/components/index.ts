@@ -11,3 +11,4 @@ export { default as Button } from './Button';
 export * from './AccountBalance/AccountBalance';
 export * from './AllCoins/AllCoins';
 export * from './Popup';
+export * from './AppList';

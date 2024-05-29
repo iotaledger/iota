@@ -104,13 +104,13 @@ export interface IdentifyProperties {
 
 export interface AddedAccountsProperties {
 	/**
-	 * The type of wallet account (e.g., Ledger, Qredo, etc.)
+	 * The type of wallet account (e.g., Ledger etc.)
 	 *
 	 * | Rule | Value |
 	 * |---|---|
-	 * | Enum Values | Ledger, Qredo, Derived, Imported, Zklogin |
+	 * | Enum Values | Ledger, Derived, Imported, Zklogin |
 	 */
-	accountType: 'Ledger' | 'Qredo' | 'Derived' | 'Imported' | 'Zklogin';
+	accountType: 'Ledger' | 'Derived' | 'Imported' | 'Zklogin';
 	/**
 	 * The number of accounts imported.
 	 *
