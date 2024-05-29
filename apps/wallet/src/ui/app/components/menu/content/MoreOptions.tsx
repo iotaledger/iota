@@ -3,7 +3,7 @@
 
 import { Button } from '_app/shared/ButtonUI';
 import { useNextMenuUrl } from '_components/menu/hooks';
-import { ampli } from '_src/shared/analytics/ampli';
+// import { ampli } from '_src/shared/analytics/ampli';
 import { persister } from '_src/ui/app/helpers/queryClient';
 import { useBackgroundClient } from '_src/ui/app/hooks/useBackgroundClient';
 import { ConfirmationModal } from '_src/ui/app/shared/ConfirmationModal';
@@ -20,7 +20,7 @@ export function MoreOptions() {
 	const logoutMutation = useMutation({
 		mutationKey: ['logout', 'clear wallet'],
 		mutationFn: async () => {
-			ampli.client.reset();
+			// ampli.client.reset();
 			queryClient.cancelQueries();
 			queryClient.clear();
 			await persister.removeClient();
