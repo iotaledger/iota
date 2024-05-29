@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
 import { getSuiClient } from '_src/shared/sui-client';
 import { getDefaultNetwork, Network, type SuiClient } from '@mysten/sui.js/client';
@@ -10,7 +13,12 @@ import { BackgroundServiceSigner } from './background-client/BackgroundServiceSi
 import { queryClient } from './helpers/queryClient';
 import { type WalletSigner } from './WalletSigner';
 
-const accountTypesWithBackgroundSigner: AccountType[] = ['mnemonic-derived', 'imported', 'zkLogin'];
+const accountTypesWithBackgroundSigner: AccountType[] = [
+	'mnemonic-derived',
+	'seed-derived',
+	'imported',
+	'zkLogin',
+];
 
 export default class ApiProvider {
 	private _apiFullNodeProvider?: SuiClient;
