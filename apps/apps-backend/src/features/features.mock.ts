@@ -1,6 +1,15 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { getDefaultNetwork, Network } from '@mysten/sui.js/client';
+
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+//[object Object]
+// SPDX-License-Identifier: Apache-2.0
+//[object Object]
+// SPDX-License-Identifier: Apache-2.0
 const walletDapps = [
     {
         name: 'SuiFrens',
@@ -251,13 +260,19 @@ export const developmentFeatures = {
                     platform: {
                         $in: ['ios', 'android'],
                     },
-                    network: 'MAINNET',
+                    network: getDefaultNetwork(),
                 },
                 force: walletDapps,
             },
             {
                 condition: {
-                    network: 'MAINNET',
+                    network: getDefaultNetwork(),
+                },
+                force: walletDapps,
+            },
+            {
+                condition: {
+                    network: Network.Testnet,
                 },
                 force: walletDapps,
             },
