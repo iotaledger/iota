@@ -14,12 +14,15 @@ import { useExportSeedMutation } from '../../hooks/useExportSeedMutation';
 export function ExportSeedPage() {
 	const { accountSourceID } = useParams();
 	const { data: allAccountSources, isPending } = useAccountSources();
-	const accountSource = allAccountSources?.find(({ id }) => id === accountSourceID) || null;
 	const navigate = useNavigate();
 	const exportMutation = useExportSeedMutation();
+	
+	const accountSource = allAccountSources?.find(({ id }) => id === accountSourceID) || null;
+	
 	if (!isPending && accountSource?.type !== 'seed') {
 		return <Navigate to="/accounts/manage" />;
 	}
+	
 	return (
 		<Overlay title="Export Seed" closeOverlay={() => navigate(-1)} showModal>
 			<Loading loading={isPending}>
