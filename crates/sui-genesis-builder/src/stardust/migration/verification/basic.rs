@@ -133,9 +133,11 @@ pub(super) fn verify_basic_output(
                     let obj = storage
                         .get_object(id)
                         .ok_or_else(|| anyhow!("missing native token coin for {id}"))?;
-                    obj.as_coin_maybe().ok_or_else(|| {
-                        anyhow!("expected a native token coin, found {:?}", obj.type_())
-                    })
+                    obj.coin_type_maybe()
+                        .zip(obj.as_coin_maybe())
+                        .ok_or_else(|| {
+                            anyhow!("expected a native token coin, found {:?}", obj.type_())
+                        })
                 })
                 .collect::<Result<Vec<_>, _>>()
         })?;

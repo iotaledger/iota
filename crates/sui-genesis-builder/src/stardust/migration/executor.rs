@@ -384,12 +384,7 @@ impl Executor {
                 object_deps.push(object_ref);
                 foundry_package_deps.push(foundry_ledger_data.package_id);
 
-                let token_type = format!(
-                    "{}::{}::{}",
-                    foundry_ledger_data.coin_type_origin.package,
-                    foundry_ledger_data.coin_type_origin.module_name,
-                    foundry_ledger_data.coin_type_origin.struct_name
-                );
+                let token_type = foundry_ledger_data.canonical_coin_type();
 
                 let adjusted_amount = foundry_ledger_data
                     .token_scheme_u64
@@ -748,5 +743,14 @@ impl FoundryLedgerData {
             package_id: foundry_package.id(),
             token_scheme_u64,
         }
+    }
+
+    pub(crate) fn canonical_coin_type(&self) -> String {
+        format!(
+            "{}::{}::{}",
+            self.coin_type_origin.package,
+            self.coin_type_origin.module_name,
+            self.coin_type_origin.struct_name
+        )
     }
 }

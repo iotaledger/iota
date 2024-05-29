@@ -11,15 +11,23 @@ use iota_sdk::{
     },
     U256,
 };
-use sui_types::{balance::Balance, base_types::SuiAddress, coin::Coin, dynamic_field::Field};
+use sui_types::{
+    balance::Balance, base_types::SuiAddress, coin::Coin, dynamic_field::Field, TypeTag,
+};
 
 use crate::stardust::{migration::executor::FoundryLedgerData, types::output as migration_output};
 
 pub(super) fn verify_native_tokens(
     native_tokens: &NativeTokens,
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
-    mut created_native_tokens: Vec<impl NativeTokenKind>,
+    created_native_tokens: impl IntoIterator<Item = impl NativeTokenKind>,
 ) -> Result<()> {
+    // Token types should be unique as the token ID is guaranteed unique within NativeTokens
+    let created_native_tokens = created_native_tokens
+        .into_iter()
+        .map(|nt| (nt.token_type(), nt.value()))
+        .collect::<HashMap<_, _>>();
+
     ensure!(
         native_tokens.len() == created_native_tokens.len(),
         "native token count mismatch: found {}, expected: {}",
@@ -31,19 +39,21 @@ pub(super) fn verify_native_tokens(
         let foundry_data = foundry_data
             .get(native_token.token_id())
             .ok_or_else(|| anyhow!("missing foundry data for token {}", native_token.token_id()))?;
+
+        let expected_token_type = foundry_data.canonical_coin_type();
         // The token amounts are capped at u64 max, adjusted using the foundry data
         let reduced_amount = foundry_data
             .token_scheme_u64
             .adjust_tokens(native_token.amount());
-        if let Some(idx) = created_native_tokens
-            .iter()
-            .position(|coin| coin.value() == reduced_amount)
-        {
-            // Remove the coin so we don't find it again.
-            created_native_tokens.remove(idx);
+
+        if let Some(created_value) = created_native_tokens.get(&expected_token_type) {
+            ensure!(
+                *created_value == reduced_amount,
+                "created token amount mismatch: found {created_value}, expected {reduced_amount}"
+            );
         } else {
             bail!(
-                "native token coin was not created for token: {}",
+                "native token object was not created for token: {}",
                 native_token.token_id()
             );
         }
@@ -211,16 +221,26 @@ pub(super) fn verify_sender_feature(
 }
 
 pub(super) trait NativeTokenKind {
+    fn token_type(&self) -> String;
+
     fn value(&self) -> u64;
 }
 
-impl NativeTokenKind for Coin {
+impl NativeTokenKind for (TypeTag, Coin) {
+    fn token_type(&self) -> String {
+        self.0.to_canonical_string(false)
+    }
+
     fn value(&self) -> u64 {
-        self.value()
+        self.1.value()
     }
 }
 
-impl<K> NativeTokenKind for Field<K, Balance> {
+impl NativeTokenKind for Field<String, Balance> {
+    fn token_type(&self) -> String {
+        self.name.clone()
+    }
+
     fn value(&self) -> u64 {
         self.value.value()
     }
