@@ -21,7 +21,6 @@ type StoredData = string | { v: 1 | 2; data: string };
 type V2DecryptedDataType = {
 	entropy: string;
 	importedKeypairs: LegacyExportedKeyPair[];
-	qredoTokens?: Record<string, string>;
 	mnemonicSeedHex?: string;
 };
 
@@ -30,7 +29,6 @@ const VAULT_KEY = 'vault';
 export class LegacyVault {
 	public readonly entropy: Uint8Array;
 	public readonly importedKeypairs: Keypair[];
-	public readonly qredoTokens: Map<string, string> = new Map();
 	public readonly mnemonicSeedHex: string;
 
 	public static async fromLegacyStorage(password: string) {
@@ -40,7 +38,6 @@ export class LegacyVault {
 		}
 		let entropy: Uint8Array | null = null;
 		let keypairs: Keypair[] = [];
-		let qredoTokens = new Map<string, string>();
 		let mnemonicSeedHex: string | null = null;
 		if (typeof data === 'string') {
 			entropy = mnemonicToEntropy(
@@ -52,14 +49,10 @@ export class LegacyVault {
 			const {
 				entropy: entropySerialized,
 				importedKeypairs,
-				qredoTokens: storedTokens,
 				mnemonicSeedHex: storedMnemonicSeedHex,
 			} = await decrypt<V2DecryptedDataType>(password, data.data);
 			entropy = toEntropy(entropySerialized);
 			keypairs = importedKeypairs.map((aKeyPair) => fromExportedKeypair(aKeyPair, true));
-			if (storedTokens) {
-				qredoTokens = new Map(Object.entries(storedTokens));
-			}
 			mnemonicSeedHex = storedMnemonicSeedHex || null;
 		} else {
 			throw new Error("Unknown data, provided data can't be used to create a Vault");
@@ -67,7 +60,7 @@ export class LegacyVault {
 		if (!validateEntropy(entropy)) {
 			throw new Error("Can't restore Vault, entropy is invalid.");
 		}
-		return new LegacyVault(entropy, keypairs, qredoTokens, mnemonicSeedHex);
+		return new LegacyVault(entropy, keypairs, mnemonicSeedHex);
 	}
 
 	public static async isInitialized() {
@@ -86,12 +79,10 @@ export class LegacyVault {
 	constructor(
 		entropy: Uint8Array,
 		importedKeypairs: Keypair[] = [],
-		qredoTokens: Map<string, string> = new Map(),
 		mnemonicSeedHex: string | null = null,
 	) {
 		this.entropy = entropy;
 		this.importedKeypairs = importedKeypairs;
-		this.qredoTokens = qredoTokens;
 		this.mnemonicSeedHex = mnemonicSeedHex || mnemonicToSeedHex(entropyToMnemonic(entropy));
 	}
 

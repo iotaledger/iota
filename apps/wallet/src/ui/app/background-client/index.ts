@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { createMessage } from '_messages';
 import type { Message } from '_messages';
 import { PortStream } from '_messaging/PortStream';
@@ -18,16 +21,13 @@ import { changeActiveNetwork, setActiveOrigin } from '_redux/slices/app';
 import { setPermissions } from '_redux/slices/permissions';
 import { setTransactionRequests } from '_redux/slices/transaction-requests';
 import { type MnemonicSerializedUiAccount } from '_src/background/accounts/MnemonicAccount';
+import { type SeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
 import type { NetworkEnvType } from '_src/shared/api-env';
 import {
 	isMethodPayload,
 	type MethodPayload,
 	type UIAccessibleEntityType,
 } from '_src/shared/messaging/messages/payloads/MethodPayload';
-import {
-	isQredoConnectPayload,
-	type QredoConnectPayload,
-} from '_src/shared/messaging/messages/payloads/QredoConnect';
 import { type SignedMessage, type SignedTransaction } from '_src/ui/app/WalletSigner';
 import type { AppDispatch } from '_store';
 import { type SuiTransactionBlockResponse } from '@mysten/sui.js/client';
@@ -226,78 +226,6 @@ export class BackgroundClient {
 		);
 	}
 
-	public fetchPendingQredoConnectRequest(requestID: string) {
-		return lastValueFrom(
-			this.sendMessage(
-				createMessage<QredoConnectPayload<'getPendingRequest'>>({
-					type: 'qredo-connect',
-					method: 'getPendingRequest',
-					args: { requestID },
-				}),
-			).pipe(
-				take(1),
-				map(({ payload }) => {
-					if (isQredoConnectPayload(payload, 'getPendingRequestResponse')) {
-						return payload.args.request;
-					}
-					throw new Error('Error unknown response for fetch pending qredo requests message');
-				}),
-			),
-		);
-	}
-
-	public getQredoConnectionInfo(qredoID: string, refreshAccessToken = false) {
-		return lastValueFrom(
-			this.sendMessage(
-				createMessage<QredoConnectPayload<'getQredoInfo'>>({
-					type: 'qredo-connect',
-					method: 'getQredoInfo',
-					args: { qredoID, refreshAccessToken },
-				}),
-			).pipe(
-				take(1),
-				map(({ payload }) => {
-					if (isQredoConnectPayload(payload, 'getQredoInfoResponse')) {
-						return payload.args;
-					}
-					throw new Error('Error unknown response for get qredo info message');
-				}),
-			),
-		);
-	}
-
-	public acceptQredoConnection(args: QredoConnectPayload<'acceptQredoConnection'>['args']) {
-		return lastValueFrom(
-			this.sendMessage(
-				createMessage<QredoConnectPayload<'acceptQredoConnection'>>({
-					type: 'qredo-connect',
-					method: 'acceptQredoConnection',
-					args,
-				}),
-			).pipe(
-				take(1),
-				map(({ payload }) => {
-					if (isQredoConnectPayload(payload, 'acceptQredoConnectionResponse')) {
-						return payload.args.accounts;
-					}
-					throw new Error('Error unknown response for accept qredo connection');
-				}),
-			),
-		);
-	}
-
-	public rejectQredoConnection(args: QredoConnectPayload<'rejectQredoConnection'>['args']) {
-		return lastValueFrom(
-			this.sendMessage(
-				createMessage<QredoConnectPayload<'rejectQredoConnection'>>({
-					type: 'qredo-connect',
-					method: 'rejectQredoConnection',
-					args,
-				}),
-			).pipe(take(1)),
-		);
-	}
-
 	public getStoredEntities<R>(type: UIAccessibleEntityType): Promise<R[]> {
 		return lastValueFrom(
 			this.sendMessage(
@@ -341,6 +269,31 @@ export class BackgroundClient {
 						);
 					}
 					return payload.args.accountSource as unknown as MnemonicSerializedUiAccount;
+				}),
+			),
+		);
+	}
+
+	public createSeedAccountSource(inputs: { password: string; seed: string }) {
+		return lastValueFrom(
+			this.sendMessage(
+				createMessage<MethodPayload<'createAccountSource'>>({
+					method: 'createAccountSource',
+					type: 'method-payload',
+					args: { type: 'seed', params: inputs },
+				}),
+			).pipe(
+				take(1),
+				map(({ payload }) => {
+					if (!isMethodPayload(payload, 'accountSourceCreationResponse')) {
+						throw new Error('Unknown response');
+					}
+					if ('seed' !== payload.args.accountSource.type) {
+						throw new Error(
+							`Unexpected account source type response ${payload.args.accountSource.type}`,
+						);
+					}
+					return payload.args.accountSource as unknown as SeedSerializedUiAccount;
 				}),
 			),
 		);
@@ -469,6 +422,26 @@ export class BackgroundClient {
 				take(1),
 				map(({ payload }) => {
 					if (isMethodPayload(payload, 'getAccountSourceEntropyResponse')) {
+						return payload.args;
+					}
+					throw new Error('Unexpected response type');
+				}),
+			),
+		);
+	}
+
+	public getAccountSourceSeed(args: MethodPayload<'getAccountSourceSeed'>['args']) {
+		return lastValueFrom(
+			this.sendMessage(
+				createMessage<MethodPayload<'getAccountSourceSeed'>>({
+					type: 'method-payload',
+					method: 'getAccountSourceSeed',
+					args,
+				}),
+			).pipe(
+				take(1),
+				map(({ payload }) => {
+					if (isMethodPayload(payload, 'getAccountSourceSeedResponse')) {
 						return payload.args;
 					}
 					throw new Error('Unexpected response type');
