@@ -10,7 +10,7 @@ use iota_sdk::U256;
 use crate::stardust::error::StardustError;
 
 /// This struct represents a conversion from a `SimpleTokenScheme` to a `SimpleTokenSchemeU64`.
-/// In case the original U256 values exceed u64::MAX, the `token_adjustment_ratio` is used to adjust the balances.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SimpleTokenSchemeU64 {
     // Maximum supply of tokens controlled by a foundry.
     maximum_supply: u64,
