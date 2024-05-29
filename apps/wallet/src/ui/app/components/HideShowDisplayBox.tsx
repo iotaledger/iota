@@ -69,7 +69,6 @@ export function HideShowDisplayBox({
 					<div className="h-3.5 bg-gray-40 rounded-md" />
 					<div className="h-3.5 bg-gray-40 rounded-md" />
 					<div className="h-3.5 bg-gray-40 rounded-md" />
-					<div className="h-3.5 bg-gray-40 rounded-md" />
 					<div className="h-4.5 bg-gray-40 rounded-md w-1/2" />
 				</div>
 			</div>

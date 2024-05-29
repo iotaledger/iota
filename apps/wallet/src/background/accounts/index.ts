@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { createMessage, type Message } from '_src/shared/messaging/messages';
 import {
 	isMethodPayload,
@@ -13,6 +16,7 @@ import Dexie from 'dexie';
 import { getAccountSourceByID } from '../account-sources';
 import { accountSourcesEvents } from '../account-sources/events';
 import { MnemonicAccountSource } from '../account-sources/MnemonicAccountSource';
+import { SeedAccountSource } from '../account-sources/SeedAccountSource';
 import { type UiConnection } from '../connections/UiConnection';
 import { backupDB, getDB } from '../db';
 import { LegacyVault } from '../legacy-accounts/LegacyVault';
@@ -28,11 +32,15 @@ import { ImportedAccount } from './ImportedAccount';
 import { LedgerAccount } from './LedgerAccount';
 import { MnemonicAccount } from './MnemonicAccount';
 import { QredoAccount } from './QredoAccount';
+import { SeedAccount } from './SeedAccount';
 import { ZkLoginAccount, type ZkLoginAccountSerialized } from './zklogin/ZkLoginAccount';
 
 function toAccount(account: SerializedAccount) {
 	if (MnemonicAccount.isOfType(account)) {
 		return new MnemonicAccount({ id: account.id, cachedData: account });
+	}
+	if (SeedAccount.isOfType(account)) {
+		return new SeedAccount({ id: account.id, cachedData: account });
 	}
 	if (ImportedAccount.isOfType(account)) {
 		return new ImportedAccount({ id: account.id, cachedData: account });
@@ -253,6 +261,16 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
 				throw new Error(`Account source ${sourceID} not found`);
 			}
 			if (!(accountSource instanceof MnemonicAccountSource)) {
+				throw new Error(`Invalid account source type`);
+			}
+			newSerializedAccounts.push(await accountSource.deriveAccount());
+		} else if (type === 'seed-derived') {
+			const { sourceID } = payload.args;
+			const accountSource = await getAccountSourceByID(payload.args.sourceID);
+			if (!accountSource) {
+				throw new Error(`Account source ${sourceID} not found`);
+			}
+			if (!(accountSource instanceof SeedAccountSource)) {
 				throw new Error(`Invalid account source type`);
 			}
 			newSerializedAccounts.push(await accountSource.deriveAccount());

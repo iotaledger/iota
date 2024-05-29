@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { ampli, type AddedAccountsProperties } from '_src/shared/analytics/ampli';
 import { useMutation } from '@tanstack/react-query';
 
@@ -23,7 +26,12 @@ function validateAccountFormValues<T extends CreateType>(
 	if (values.type !== createType) {
 		throw new Error('Account data values type mismatch');
 	}
-	if (values.type !== 'zkLogin' && values.type !== 'mnemonic-derived' && !password) {
+	if (
+		values.type !== 'zkLogin' &&
+		values.type !== 'mnemonic-derived' &&
+		values.type !== 'seed-derived' &&
+		!password
+	) {
 		throw new Error('Missing password');
 	}
 	return true;
@@ -34,6 +42,8 @@ const createTypeToAmpliAccount: Record<CreateType, AddedAccountsProperties['acco
 	'new-mnemonic': 'Derived',
 	'import-mnemonic': 'Derived',
 	'mnemonic-derived': 'Derived',
+	'import-seed': 'Derived',
+	'seed-derived': 'Derived',
 	imported: 'Imported',
 	ledger: 'Ledger',
 	qredo: 'Qredo',
@@ -78,6 +88,31 @@ export function useCreateAccountsMutation() {
 				}
 				createdAccounts = await backgroundClient.createAccounts({
 					type: 'mnemonic-derived',
+					sourceID: accountsFormValues.sourceID,
+				});
+			} else if (
+				type === 'import-seed' &&
+				validateAccountFormValues(type, accountsFormValues, password)
+			) {
+				const accountSource = await backgroundClient.createSeedAccountSource({
+					// validateAccountFormValues checks the password
+					password: password!,
+					seed: accountsFormValues.seed,
+				});
+				await backgroundClient.unlockAccountSourceOrAccount({
+					password,
+					id: accountSource.id,
+				});
+				createdAccounts = await backgroundClient.createAccounts({
+					type: 'seed-derived',
+					sourceID: accountSource.id,
+				});
+			} else if (
+				type === 'seed-derived' &&
+				validateAccountFormValues(type, accountsFormValues, password)
+			) {
+				createdAccounts = await backgroundClient.createAccounts({
+					type: 'seed-derived',
 					sourceID: accountsFormValues.sourceID,
 				});
 			} else if (

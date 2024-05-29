@@ -1,5 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
 import { type ZkLoginProvider } from '_src/background/accounts/zklogin/providers';
 import { isZkLoginAccountSerializedUI } from '_src/background/accounts/zklogin/ZkLoginAccount';
@@ -32,6 +36,7 @@ import toast from 'react-hot-toast';
 
 const accountTypeToLabel: Record<AccountType, string> = {
 	'mnemonic-derived': 'Passphrase Derived',
+	'seed-derived': 'Seed Derived',
 	qredo: 'Qredo',
 	imported: 'Imported',
 	ledger: 'Ledger',
@@ -153,6 +158,7 @@ export function AccountGroup({
 }) {
 	const createAccountMutation = useCreateAccountsMutation();
 	const isMnemonicDerivedGroup = type === 'mnemonic-derived';
+	const isSeedDerivedGroup = type === 'seed-derived';
 	const [accountsFormValues, setAccountsFormValues] = useAccountsFormContext();
 	const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
 	const { data: accountSources } = useAccountSources();
@@ -168,20 +174,20 @@ export function AccountGroup({
 								{getGroupTitle(accounts[0])}
 							</Heading>
 							<div className="h-px bg-gray-45 flex flex-1 flex-shrink-0" />
-							{isMnemonicDerivedGroup && accountSource ? (
+							{(isMnemonicDerivedGroup || isSeedDerivedGroup) && accountSource ? (
 								<ButtonOrLink
 									loading={createAccountMutation.isPending}
 									onClick={async (e) => {
 										// prevent the collapsible from closing when clicking the "new" button
 										e.stopPropagation();
 										setAccountsFormValues({
-											type: 'mnemonic-derived',
+											type,
 											sourceID: accountSource.id,
 										});
 										if (accountSource.isLocked) {
 											setPasswordModalVisible(true);
 										} else {
-											createAccountMutation.mutate({ type: 'mnemonic-derived' });
+											createAccountMutation.mutate({ type });
 										}
 									}}
 									className="items-center justify-center gap-0.5 cursor-pointer appearance-none uppercase flex bg-transparent border-0 outline-none text-hero hover:text-hero-darkest"
@@ -218,6 +224,14 @@ export function AccountGroup({
 									size="tall"
 									text="Export Passphrase"
 									to={`../export/passphrase/${accountSource.id}`}
+								/>
+							) : null}
+							{isSeedDerivedGroup && accountSource ? (
+								<Button
+									variant="secondary"
+									size="tall"
+									text="Export Seed"
+									to={`../export/seed/${accountSource.id}`}
 								/>
 							) : null}
 						</div>
