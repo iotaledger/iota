@@ -5,6 +5,9 @@ use crate::stardust::migration::migration::NATIVE_TOKEN_BAG_KEY_TYPE;
 use crate::stardust::migration::migration::PACKAGE_DEPS;
 use crate::stardust::migration::tests::run_migration;
 use crate::stardust::migration::tests::{create_foundry, random_output_header};
+use crate::stardust::types::stardust_to_sui_address;
+use crate::stardust::types::ALIAS_DYNAMIC_OBJECT_FIELD_KEY;
+use crate::stardust::types::ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE;
 use crate::stardust::types::ALIAS_OUTPUT_MODULE_NAME;
 use crate::stardust::types::{snapshot::OutputHeader, Alias, AliasOutput};
 use iota_sdk::types::block::address::Address;
@@ -25,8 +28,13 @@ use std::str::FromStr;
 use sui_types::balance::Balance;
 use sui_types::base_types::SuiAddress;
 use sui_types::coin::Coin;
+use sui_types::dynamic_field::derive_dynamic_field_id;
+use sui_types::dynamic_field::DynamicFieldInfo;
 use sui_types::gas_coin::GAS;
+use sui_types::id::UID;
 use sui_types::inner_temporary_store::InnerTemporaryStore;
+use sui_types::object::Object;
+use sui_types::object::Owner;
 use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
 use sui_types::transaction::{Argument, CheckedInputObjects, ObjectArg};
 use sui_types::TypeTag;
@@ -35,28 +43,38 @@ use sui_types::{base_types::ObjectID, STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE
 fn migrate_alias(
     header: OutputHeader,
     stardust_alias: StardustAlias,
-) -> (ObjectID, Alias, AliasOutput) {
+) -> (ObjectID, Alias, AliasOutput, Object, Object) {
+    let output_id = header.output_id();
     let alias_id: AliasId = stardust_alias
         .alias_id()
-        .or_from_output_id(&header.output_id())
+        .or_from_output_id(&output_id)
         .to_owned();
 
-    let migrated_objects = run_migration([(header, stardust_alias.into())]).into_objects();
+    let (executor, objects_map) = run_migration([(header, stardust_alias.into())]);
 
     // Ensure the migrated objects exist under the expected identifiers.
     let alias_object_id = ObjectID::new(*alias_id);
-    let alias_object = migrated_objects
+    let created_objects = objects_map
+        .get(&output_id)
+        .expect("alias output should have created objects");
+
+    let alias_object = executor
+        .store()
+        .objects()
         .iter()
-        .find(|obj| obj.id() == alias_object_id)
-        .expect("alias object should be present in the migrated snapshot");
-    assert_eq!(alias_object.struct_tag().unwrap(), Alias::tag(),);
-    let alias_output_object = migrated_objects
-        .iter()
-        .find(|obj| match obj.struct_tag() {
-            Some(tag) => tag == AliasOutput::tag(),
-            None => false,
-        })
-        .expect("alias object should be present in the migrated snapshot");
+        .find(|(id, _)| *id == &alias_object_id)
+        .expect("alias object should be present in the migrated snapshot")
+        .1;
+    assert_eq!(alias_object.struct_tag().unwrap(), Alias::tag());
+
+    let alias_output_object = executor
+        .store()
+        .get_object(created_objects.output().unwrap())
+        .unwrap();
+    assert_eq!(
+        alias_output_object.struct_tag().unwrap(),
+        AliasOutput::tag()
+    );
 
     // Version is set to 1 when the alias is created based on the computed lamport timestamp.
     // When the alias is attached to the alias output, the version should be incremented.
@@ -74,7 +92,13 @@ fn migrate_alias(
     let alias: Alias =
         bcs::from_bytes(alias_object.data.try_as_move().unwrap().contents()).unwrap();
 
-    (alias_object_id, alias, alias_output)
+    (
+        alias_object_id,
+        alias,
+        alias_output,
+        alias_object.clone(),
+        alias_output_object.clone(),
+    )
 }
 
 /// Test that the migrated alias objects in the snapshot contain the expected data.
@@ -100,13 +124,33 @@ fn alias_migration_with_full_features() {
         .finish()
         .unwrap();
 
-    let (alias_object_id, alias, alias_output) = migrate_alias(header, stardust_alias.clone());
+    let (alias_object_id, alias, alias_output, alias_object, alias_output_object) =
+        migrate_alias(header, stardust_alias.clone());
     let expected_alias = Alias::try_from_stardust(alias_object_id, &stardust_alias).unwrap();
 
-    // Compare only the balance. The ID is newly generated and the bag is tested separately.
+    // The bag is tested separately.
     assert_eq!(stardust_alias.amount(), alias_output.iota.value());
+    // The ID is newly generated, so we don't know the exact value, but it should not be zero.
+    assert_ne!(alias_output.id, UID::new(ObjectID::ZERO));
 
     assert_eq!(expected_alias, alias);
+
+    // The Alias Object should be in a dynamic object field.
+    let alias_owner = derive_dynamic_field_id(
+        alias_output_object.id(),
+        &TypeTag::from(DynamicFieldInfo::dynamic_object_field_wrapper(
+            // The key type of the dynamic object field.
+            TypeTag::from_str(ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE).unwrap(),
+        )),
+        &bcs::to_bytes(&ALIAS_DYNAMIC_OBJECT_FIELD_KEY.to_vec()).unwrap(),
+    )
+    .unwrap();
+
+    assert_eq!(alias_object.owner, Owner::ObjectOwner(alias_owner.into()));
+
+    let alias_output_owner =
+        Owner::AddressOwner(stardust_to_sui_address(stardust_alias.governor_address()).unwrap());
+    assert_eq!(alias_output_object.owner, alias_output_owner);
 }
 
 /// Test that an Alias with a zeroed ID is migrated to an Alias Object with its UID set to the hashed Output ID.
@@ -133,6 +177,7 @@ fn alias_migration_with_zeroed_id() {
 fn test_alias_migration_with_alias_owner() {
     let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
 
+    let alias1_header = random_output_header();
     let alias1_amount = 1_000_000;
     let stardust_alias1 =
         AliasOutputBuilder::new_with_amount(alias1_amount, AliasId::new(rand::random()))
@@ -141,6 +186,7 @@ fn test_alias_migration_with_alias_owner() {
             .finish()
             .unwrap();
 
+    let alias2_header = random_output_header();
     let alias2_amount = 2_000_000;
     // stardust_alias1 is the owner of stardust_alias2.
     let stardust_alias2 =
@@ -154,58 +200,27 @@ fn test_alias_migration_with_alias_owner() {
             .finish()
             .unwrap();
 
-    let mut executor = run_migration([
-        (random_output_header(), stardust_alias1.into()),
-        (random_output_header(), stardust_alias2.into()),
+    let (mut executor, objects_map) = run_migration([
+        (alias1_header.clone(), stardust_alias1.into()),
+        (alias2_header.clone(), stardust_alias2.into()),
     ]);
 
-    // Find the corresponding objects to the migrated aliases, uniquely identified by their amounts.
-    // Should be adapted to use the tags from issue 239 to make this much easier.
-    let alias_output1_id = executor
-        .store()
-        .objects()
-        .iter()
-        .find(|(_, obj)| {
-            obj.struct_tag()
-                .map(|tag| tag == AliasOutput::tag())
-                .unwrap_or(false)
-                && bcs::from_bytes::<AliasOutput>(obj.data.try_as_move().unwrap().contents())
-                    .unwrap()
-                    .iota
-                    .value()
-                    == alias1_amount
-        })
-        .expect("alias1 should exist")
-        .1
-        .id();
-
-    let alias_output2_id = executor
-        .store()
-        .objects()
-        .iter()
-        .find(|(_, obj)| {
-            obj.struct_tag()
-                .map(|tag| tag == AliasOutput::tag())
-                .unwrap_or(false)
-                && bcs::from_bytes::<AliasOutput>(obj.data.try_as_move().unwrap().contents())
-                    .unwrap()
-                    .iota
-                    .value()
-                    == alias2_amount
-        })
-        .expect("alias2 should exist")
-        .1
-        .id();
+    // Find the corresponding objects to the migrated aliases.
+    let alias1_created_objects = objects_map
+        .get(&alias1_header.output_id())
+        .expect("alias output should have created objects");
+    let alias2_created_objects = objects_map
+        .get(&alias2_header.output_id())
+        .expect("alias output should have created objects");
 
     let alias_output1_object_ref = executor
         .store()
-        .get_object(&alias_output1_id)
+        .get_object(alias1_created_objects.output().unwrap())
         .unwrap()
         .compute_object_reference();
-
     let alias_output2_object_ref = executor
         .store()
-        .get_object(&alias_output2_id)
+        .get_object(alias2_created_objects.output().unwrap())
         .unwrap()
         .compute_object_reference();
 
@@ -316,6 +331,7 @@ fn alias_migration_with_native_tokens() {
     );
     let native_token_id: TokenId = foundry_output.id().into();
 
+    let alias1_header = random_output_header();
     let alias1_amount = 1_000_000;
     let native_token_amount = 100;
     let stardust_alias1 =
@@ -326,28 +342,19 @@ fn alias_migration_with_native_tokens() {
             .finish()
             .unwrap();
 
-    let mut executor = run_migration([
-        (random_output_header(), stardust_alias1.into()),
+    let (mut executor, objects_map) = run_migration([
+        (alias1_header.clone(), stardust_alias1.into()),
         (foundry_header, foundry_output.into()),
     ]);
 
-    // Find the corresponding objects to the migrated aliases, uniquely identified by their amounts.
-    // Should be adapted to use the tags from issue 239 to make this much easier.
-    let alias_output1_id = executor
-        .store()
-        .objects()
-        .values()
-        .find(|obj| {
-            obj.struct_tag()
-                .map(|tag| tag == AliasOutput::tag())
-                .unwrap_or(false)
-        })
-        .expect("alias1 should exist")
-        .id();
+    // Find the corresponding objects to the migrated aliases.
+    let alias1_created_objects = objects_map
+        .get(&alias1_header.output_id())
+        .expect("alias output should have created objects");
 
     let alias_output1_object_ref = executor
         .store()
-        .get_object(&alias_output1_id)
+        .get_object(alias1_created_objects.output().unwrap())
         .unwrap()
         .compute_object_reference();
 
