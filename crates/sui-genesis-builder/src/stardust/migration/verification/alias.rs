@@ -7,12 +7,18 @@ use crate::stardust::migration::verification::created_objects::CreatedObjects;
 use crate::stardust::migration::verification::util::{
     verify_issuer_feature, verify_metadata_feature, verify_native_tokens, verify_sender_feature,
 };
-use crate::stardust::types::stardust_to_sui_address_owner;
 use crate::stardust::types::{snapshot::OutputHeader, Alias, AliasOutput};
+use crate::stardust::types::{
+    stardust_to_sui_address_owner, ALIAS_DYNAMIC_OBJECT_FIELD_KEY,
+    ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE,
+};
 use anyhow::{anyhow, ensure};
 use iota_sdk::types::block::output as stardust;
 use sui_types::base_types::SuiAddress;
+use sui_types::dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo};
 use sui_types::in_memory_storage::InMemoryStorage;
+use sui_types::object::Owner;
+use sui_types::TypeTag;
 use sui_types::{base_types::ObjectID, id::UID};
 
 pub fn verify_alias_output(
@@ -33,19 +39,33 @@ pub fn verify_alias_output(
         .get_object(&alias_id)
         .ok_or_else(|| anyhow!("missing alias object"))?;
 
-    // Owner
-    let expected_owner = stardust_to_sui_address_owner(output.governor_address())?;
+    // Alias Output Owner
+    let expected_alias_output_owner = stardust_to_sui_address_owner(output.governor_address())?;
     ensure!(
-        alias_output_obj.owner == expected_owner,
+        alias_output_obj.owner == expected_alias_output_owner,
         "alias output owner mismatch: found {}, expected {}",
         alias_output_obj.owner,
-        expected_owner
+        expected_alias_output_owner
     );
+
+    //  Alias Owner
+    let expected_alias_owner = Owner::ObjectOwner(
+        derive_dynamic_field_id(
+            alias_output_obj.id(),
+            &DynamicFieldInfo::dynamic_object_field_wrapper(
+                ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE.parse::<TypeTag>()?,
+            )
+            .into(),
+            &bcs::to_bytes(ALIAS_DYNAMIC_OBJECT_FIELD_KEY)?,
+        )?
+        .into(),
+    );
+
     ensure!(
-        alias_obj.owner == expected_owner,
+        alias_obj.owner == expected_alias_owner,
         "alias owner mismatch: found {}, expected {}",
         alias_obj.owner,
-        expected_owner
+        expected_alias_owner
     );
 
     let created_alias = alias_obj
