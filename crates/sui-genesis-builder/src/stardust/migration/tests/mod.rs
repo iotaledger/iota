@@ -39,6 +39,7 @@ use sui_types::{STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID};
 
 mod alias;
 mod executor;
+mod nft;
 
 fn random_output_header() -> OutputHeader {
     OutputHeader::new_testing(

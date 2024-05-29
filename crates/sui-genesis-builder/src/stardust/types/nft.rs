@@ -30,6 +30,8 @@ pub const NFT_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("nft_output");
 pub const NFT_OUTPUT_STRUCT_NAME: &IdentStr = ident_str!("NftOutput");
 pub const NFT_STRUCT_NAME: &IdentStr = ident_str!("Nft");
 pub const IRC27_STRUCT_NAME: &IdentStr = ident_str!("Irc27Metadata");
+pub const NFT_DYNAMIC_OBJECT_FIELD_KEY: &[u8] = b"nft";
+pub const NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE: &str = "vector<u8>";
 
 /// Rust version of the Move std::fixed_point32::FixedPoint32 type.
 #[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]
