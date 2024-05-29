@@ -88,9 +88,11 @@ pub struct Url {
     url: String,
 }
 
-impl Url {
+impl TryFrom<String> for Url {
+    type Error = anyhow::Error;
+
     /// Creates a new `Url` ensuring that it only consists of ascii characters.
-    pub fn new(url: String) -> anyhow::Result<Self> {
+    fn try_from(url: String) -> Result<Self, Self::Error> {
         if !url.is_ascii() {
             anyhow::bail!("url `{url}` does not consist of only ascii characters")
         }
@@ -150,7 +152,7 @@ impl TryFrom<StardustIrc27> for Irc27Metadata {
             // We are converting a `Url` to an ASCII string here (as the URL type in move is based on ASCII strings).
             // The `ToString` implementation of the `Url` ensures only ascii characters are returned
             // and this conversion is therefore safe to do.
-            uri: Url::new(irc27.uri().to_string())
+            uri: Url::try_from(irc27.uri().to_string())
                 .expect("url should only contain ascii characters"),
             name: irc27.name().to_string(),
             collection_name: irc27.collection_name().clone(),
@@ -192,7 +194,7 @@ impl Default for Irc27Metadata {
         // Matches the media type of the URI below.
         let media_type = "image/png".to_owned();
         // A placeholder for NFTs without metadata from which we can extract a URI.
-        let uri = Url::new(
+        let uri = Url::try_from(
             iota_sdk::Url::parse("https://opensea.io/static/images/placeholder.png")
                 .expect("should be a valid url")
                 .to_string(),
