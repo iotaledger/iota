@@ -13,12 +13,14 @@ interface StakeDetailsPopupProps {
     };
 }
 
-function StakeDetailsPopup({ stake }: StakeDetailsPopupProps): JSX.Element {
+function StakeDetailsPopup({
+    stake: { validator, stake, rewards },
+}: StakeDetailsPopupProps): JSX.Element {
     return (
         <div className="flex min-w-[300px] flex-col gap-2">
-            <p>{stake.validator}</p>
-            <p>Stake: {stake.stake}</p>
-            <p>Rewards: {stake.rewards}</p>
+            <p>{validator}</p>
+            <p>Stake: {stake}</p>
+            <p>Rewards: {rewards}</p>
             <div className="flex justify-between gap-2">
                 <Button onClick={() => console.log('Unstake')}>Unstake</Button>
                 <Button onClick={() => console.log('Stake more')}>Stake more</Button>
