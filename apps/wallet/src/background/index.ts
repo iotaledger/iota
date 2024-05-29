@@ -14,7 +14,6 @@ import Alarms, { autoLockAlarmName, cleanUpAlarmName } from './Alarms';
 import { Connections } from './connections';
 import NetworkEnv from './NetworkEnv';
 import Permissions from './Permissions';
-import * as Qredo from './qredo';
 // import { initSentry } from './sentry';
 import Transactions from './Transactions';
 
@@ -126,22 +125,5 @@ NetworkEnv.on('changed', async (network) => {
 	connections.notifyContentScript({
 		event: 'walletStatusChange',
 		change: { network },
-	});
-});
-
-Browser.windows.onRemoved.addListener(async (id) => {
-	await Qredo.handleOnWindowClosed(id);
-});
-
-Qredo.onQredoEvent('onConnectionResponse', ({ allowed, request }) => {
-	request.messageIDs.forEach((aMessageID) => {
-		connections.notifyContentScript(
-			{
-				event: 'qredoConnectResult',
-				origin: request.origin,
-				allowed,
-			},
-			aMessageID,
-		);
 	});
 });

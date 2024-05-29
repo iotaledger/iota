@@ -22,7 +22,6 @@ export enum FEATURES {
 	WALLET_BALANCE_REFETCH_INTERVAL = 'wallet-balance-refetch-interval',
 	WALLET_ACTIVITY_REFETCH_INTERVAL = 'wallet-activity-refetch-interval',
 	WALLET_EFFECTS_ONLY_SHARED_TRANSACTION = 'wallet-effects-only-shared-transaction',
-	WALLET_QREDO = 'wallet-qredo',
 	WALLET_APPS_BANNER_CONFIG = 'wallet-apps-banner-config',
 	WALLET_INTERSTITIAL_CONFIG = 'wallet-interstitial-config',
 	WALLET_DEFI = 'wallet-defi',

@@ -323,9 +323,6 @@ export const developmentFeatures = {
     'wallet-onramp-moonpay': {
         defaultValue: true,
     },
-    'wallet-qredo': {
-        defaultValue: true,
-    },
     'kiosk-marketplace-links': {
         defaultValue: [
             {
