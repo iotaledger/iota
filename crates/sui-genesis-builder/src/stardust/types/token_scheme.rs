@@ -46,6 +46,11 @@ impl TryFrom<&SimpleTokenScheme> for SimpleTokenSchemeU64 {
         let circulating_supply_u256 = token_scheme.circulating_supply();
 
         let (circulating_supply, maximum_supply, token_adjustment_ratio) = {
+            // Check if circulating supply is larger than maximum supply.
+            if circulating_supply_u256 > maximum_supply_u256 {
+                return Err(StardustError::CirculatingSupplyMustNotBeGreaterThanMaximumSupply);
+            }
+
             // Check if melted tokens is greater than minted tokens.
             if melted_tokens_u256 > minted_tokens_u256 {
                 return Err(StardustError::MeltingTokensMustNotBeGreaterThanMintedTokens);
@@ -59,14 +64,11 @@ impl TryFrom<&SimpleTokenScheme> for SimpleTokenSchemeU64 {
             };
 
             // Check if circulating supply can't be converted to u64, then create the ratio.
-            if circulating_supply_u256 > U256::from(maximum_supply_u64) {
+            if circulating_supply_u256.bits() > 64 {
                 (
-                    maximum_supply_u64,
-                    maximum_supply_u64,
-                    Some(
-                        BigDecimal::from(maximum_supply_u64)
-                            / u256_to_bigdecimal(circulating_supply_u256),
-                    ),
+                    u64::MAX,
+                    u64::MAX,
+                    Some(BigDecimal::from(u64::MAX) / u256_to_bigdecimal(circulating_supply_u256)),
                 )
             } else {
                 (circulating_supply_u256.as_u64(), maximum_supply_u64, None)

@@ -29,6 +29,8 @@ pub enum StardustError {
     InvalidMoveIdentifierDerived { symbol: String, identifier: String },
     #[error("melting tokens must not be greater than minted tokens")]
     MeltingTokensMustNotBeGreaterThanMintedTokens,
+    #[error("circulating supply must not be greater than maximum supply")]
+    CirculatingSupplyMustNotBeGreaterThanMaximumSupply,
 }
 
 impl From<Infallible> for StardustError {
