@@ -167,7 +167,6 @@ export function AddAccountPage() {
 						size="tall"
 						text="Import Seed"
 						to="/accounts/import-seed"
-						onClick={() => {}}
 						disabled={createAccountsMutation.isPending}
 					/>
 					<Button
