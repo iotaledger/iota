@@ -6,8 +6,8 @@
 
 import { createMessage, type Message } from '_src/shared/messaging/messages';
 import {
-    isMethodPayload,
-    type MethodPayload,
+	isMethodPayload,
+	type MethodPayload,
 } from '_src/shared/messaging/messages/payloads/MethodPayload';
 import { toEntropy } from '_src/shared/utils/bip39';
 
@@ -28,26 +28,26 @@ function toAccountSource(accountSource: AccountSourceSerialized) {
 }
 
 export async function getAccountSources(filter?: { type: AccountSourceType }) {
-    const db = await getDB();
-    return (
-        await (filter?.type
-            ? await db.accountSources.where('type').equals(filter.type).sortBy('createdAt')
-            : await db.accountSources.toCollection().sortBy('createdAt'))
-    ).map(toAccountSource);
+	const db = await getDB();
+	return (
+		await (filter?.type
+			? await db.accountSources.where('type').equals(filter.type).sortBy('createdAt')
+			: await db.accountSources.toCollection().sortBy('createdAt'))
+	).map(toAccountSource);
 }
 
 export async function getAccountSourceByID(id: string) {
-    const serializedAccountSource = await (await getDB()).accountSources.get(id);
-    if (!serializedAccountSource) {
-        return null;
-    }
-    return toAccountSource(serializedAccountSource);
+	const serializedAccountSource = await (await getDB()).accountSources.get(id);
+	if (!serializedAccountSource) {
+		return null;
+	}
+	return toAccountSource(serializedAccountSource);
 }
 
 export async function getAllSerializedUIAccountSources() {
-    return Promise.all(
-        (await getAccountSources()).map((anAccountSource) => anAccountSource.toUISerialized()),
-    );
+	return Promise.all(
+		(await getAccountSources()).map((anAccountSource) => anAccountSource.toUISerialized()),
+	);
 }
 
 async function createAccountSource({ type, params }: MethodPayload<'createAccountSource'>['args']) {
@@ -79,27 +79,27 @@ async function createAccountSource({ type, params }: MethodPayload<'createAccoun
 }
 
 export async function lockAllAccountSources() {
-    const allAccountSources = await getAccountSources();
-    for (const anAccountSource of allAccountSources) {
-        await anAccountSource.lock();
-    }
+	const allAccountSources = await getAccountSources();
+	for (const anAccountSource of allAccountSources) {
+		await anAccountSource.lock();
+	}
 }
 
 export async function accountSourcesHandleUIMessage(msg: Message, uiConnection: UiConnection) {
-    const { payload } = msg;
-    if (isMethodPayload(payload, 'createAccountSource')) {
-        await uiConnection.send(
-            createMessage<MethodPayload<'accountSourceCreationResponse'>>(
-                {
-                    method: 'accountSourceCreationResponse',
-                    type: 'method-payload',
-                    args: { accountSource: await createAccountSource(payload.args) },
-                },
-                msg.id,
-            ),
-        );
-        return true;
-    }
+	const { payload } = msg;
+	if (isMethodPayload(payload, 'createAccountSource')) {
+		await uiConnection.send(
+			createMessage<MethodPayload<'accountSourceCreationResponse'>>(
+				{
+					method: 'accountSourceCreationResponse',
+					type: 'method-payload',
+					args: { accountSource: await createAccountSource(payload.args) },
+				},
+				msg.id,
+			),
+		);
+		return true;
+	}
 
 	if (isMethodPayload(payload, 'unlockAccountSourceOrAccount')) {
 		const { id, password } = payload.args;

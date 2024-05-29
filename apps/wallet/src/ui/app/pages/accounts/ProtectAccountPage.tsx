@@ -35,55 +35,55 @@ function isAllowedAccountType(accountType: string): accountType is AllowedAccoun
 }
 
 export function ProtectAccountPage() {
-    const [searchParams] = useSearchParams();
-    const accountType = searchParams.get('accountType') || '';
-    const successRedirect = searchParams.get('successRedirect') || '/tokens';
-    const navigate = useNavigate();
-    const { data: accounts } = useAccounts();
-    const createMutation = useCreateAccountsMutation();
-    const hasPasswordAccounts = useMemo(
-        () => accounts && accounts.some(({ isPasswordUnlockable }) => isPasswordUnlockable),
-        [accounts],
-    );
-    const [showVerifyPasswordView, setShowVerifyPasswordView] = useState<boolean | null>(null);
-    useEffect(() => {
-        if (
-            typeof hasPasswordAccounts !== 'undefined' &&
-            !(createMutation.isSuccess || createMutation.isPending)
-        ) {
-            setShowVerifyPasswordView(hasPasswordAccounts);
-        }
-    }, [hasPasswordAccounts, createMutation.isSuccess, createMutation.isPending]);
-    const createAccountCallback = useCallback(
-        async (password: string, type: CreateType) => {
-            try {
-                const createdAccounts = await createMutation.mutateAsync({
-                    type,
-                    password,
-                });
-                if (type === 'new-mnemonic' && isMnemonicSerializedUiAccount(createdAccounts[0])) {
-                    navigate(`/accounts/backup/${createdAccounts[0].sourceID}`, {
-                        replace: true,
-                        state: {
-                            onboarding: true,
-                        },
-                    });
-                } else {
-                    navigate(successRedirect, { replace: true });
-                }
-            } catch (e) {
-                toast.error((e as Error).message ?? 'Failed to create account');
-            }
-        },
-        [createMutation, navigate, successRedirect],
-    );
-    const autoLockMutation = useAutoLockMinutesMutation();
-    if (!isAllowedAccountType(accountType)) {
-        return <Navigate to="/" replace />;
-    }
+	const [searchParams] = useSearchParams();
+	const accountType = searchParams.get('accountType') || '';
+	const successRedirect = searchParams.get('successRedirect') || '/tokens';
+	const navigate = useNavigate();
+	const { data: accounts } = useAccounts();
+	const createMutation = useCreateAccountsMutation();
+	const hasPasswordAccounts = useMemo(
+		() => accounts && accounts.some(({ isPasswordUnlockable }) => isPasswordUnlockable),
+		[accounts],
+	);
+	const [showVerifyPasswordView, setShowVerifyPasswordView] = useState<boolean | null>(null);
+	useEffect(() => {
+		if (
+			typeof hasPasswordAccounts !== 'undefined' &&
+			!(createMutation.isSuccess || createMutation.isPending)
+		) {
+			setShowVerifyPasswordView(hasPasswordAccounts);
+		}
+	}, [hasPasswordAccounts, createMutation.isSuccess, createMutation.isPending]);
+	const createAccountCallback = useCallback(
+		async (password: string, type: CreateType) => {
+			try {
+				const createdAccounts = await createMutation.mutateAsync({
+					type,
+					password,
+				});
+				if (type === 'new-mnemonic' && isMnemonicSerializedUiAccount(createdAccounts[0])) {
+					navigate(`/accounts/backup/${createdAccounts[0].sourceID}`, {
+						replace: true,
+						state: {
+							onboarding: true,
+						},
+					});
+				} else {
+					navigate(successRedirect, { replace: true });
+				}
+			} catch (e) {
+				toast.error((e as Error).message ?? 'Failed to create account');
+			}
+		},
+		[createMutation, navigate, successRedirect],
+	);
+	const autoLockMutation = useAutoLockMinutesMutation();
+	if (!isAllowedAccountType(accountType)) {
+		return <Navigate to="/" replace />;
+	}
 
 	return (
-		<div className="rounded-20 shadow-wallet-content w-popup-width max-h-popup-height min-h-popup-minimum flex h-screen flex-col items-center overflow-auto bg-sui-lightest px-6 py-10">
+		<div className="flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col items-center overflow-auto rounded-20 bg-sui-lightest px-6 py-10 shadow-wallet-content">
 			<Loading loading={showVerifyPasswordView === null}>
 				{showVerifyPasswordView ? (
 					<VerifyPasswordModal

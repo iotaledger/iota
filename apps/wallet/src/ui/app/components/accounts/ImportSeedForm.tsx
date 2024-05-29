@@ -18,7 +18,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 type ImportSeedFormProps = {
-    onSubmit: SubmitHandler<FormValues>;
+	onSubmit: SubmitHandler<FormValues>;
 };
 
 export function ImportSeedForm({ onSubmit }: ImportSeedFormProps) {

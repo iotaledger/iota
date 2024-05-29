@@ -33,9 +33,9 @@ export type PayloadType =
 	| 'method-payload';
 
 export interface BasePayload {
-    type: PayloadType;
+	type: PayloadType;
 }
 
 export function isBasePayload(payload: Payload): payload is BasePayload {
-    return 'type' in payload && typeof payload.type !== 'undefined';
+	return 'type' in payload && typeof payload.type !== 'undefined';
 }

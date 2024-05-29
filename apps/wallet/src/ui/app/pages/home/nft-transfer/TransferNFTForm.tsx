@@ -23,11 +23,11 @@ import { useTransferKioskItem } from './useTransferKioskItem';
 import { createValidationSchema } from './validation';
 
 export function TransferNFTForm({
-    objectId,
-    objectType,
+	objectId,
+	objectType,
 }: {
-    objectId: string;
-    objectType?: string | null;
+	objectId: string;
+	objectType?: string | null;
 }) {
 	const activeAddress = useActiveAddress();
 	const rpc = useSuiClient();
@@ -41,28 +41,28 @@ export function TransferNFTForm({
 	const transferKioskItem = useTransferKioskItem({ objectId, objectType });
 	const isContainedInKiosk = kiosk?.list.some((kioskItem) => kioskItem.data?.objectId === objectId);
 
-    const transferNFT = useMutation({
-        mutationFn: async (to: string) => {
-            if (!to || !signer) {
-                throw new Error('Missing data');
-            }
+	const transferNFT = useMutation({
+		mutationFn: async (to: string) => {
+			if (!to || !signer) {
+				throw new Error('Missing data');
+			}
 
-            if (suiNSEnabled && isSuiNSName(to)) {
-                const address = await rpc.resolveNameServiceAddress({
-                    name: to,
-                });
-                if (!address) {
-                    throw new Error('SuiNS name not found.');
-                }
-                to = address;
-            }
+			if (suiNSEnabled && isSuiNSName(to)) {
+				const address = await rpc.resolveNameServiceAddress({
+					name: to,
+				});
+				if (!address) {
+					throw new Error('SuiNS name not found.');
+				}
+				to = address;
+			}
 
 			if (isContainedInKiosk) {
 				return transferKioskItem.mutateAsync({ to });
 			}
 
-            const tx = new TransactionBlock();
-            tx.transferObjects([tx.object(objectId)], to);
+			const tx = new TransactionBlock();
+			tx.transferObjects([tx.object(objectId)], to);
 
 			return signer.signAndExecuteTransactionBlock({
 				transactionBlock: tx,
@@ -78,7 +78,7 @@ export function TransferNFTForm({
 			queryClient.invalidateQueries({ queryKey: ['get-kiosk-contents'] });
 			queryClient.invalidateQueries({ queryKey: ['get-owned-objects'] });
 
-            ampli.sentCollectible({ objectId });
+			ampli.sentCollectible({ objectId });
 
 			return navigate(
 				`/receipt?${new URLSearchParams({
@@ -89,8 +89,8 @@ export function TransferNFTForm({
 		},
 		onError: (error) => {
 			toast.error(
-				<div className="max-w-xs overflow-hidden flex flex-col">
-					<small className="text-ellipsis overflow-hidden">
+				<div className="flex max-w-xs flex-col overflow-hidden">
+					<small className="overflow-hidden text-ellipsis">
 						{getSignerOperationErrorMessage(error)}
 					</small>
 				</div>,
@@ -111,13 +111,13 @@ export function TransferNFTForm({
 				<Form autoComplete="off" className="h-full">
 					<BottomMenuLayout className="h-full">
 						<Content>
-							<div className="flex gap-2.5 flex-col">
+							<div className="flex flex-col gap-2.5">
 								<div className="px-2.5 tracking-wider">
 									<Text variant="caption" color="steel" weight="semibold">
 										Enter Recipient Address
 									</Text>
 								</div>
-								<div className="w-full flex relative items-center flex-col">
+								<div className="relative flex w-full flex-col items-center">
 									<Field
 										component={AddressInput}
 										allowNegative={false}
@@ -127,7 +127,7 @@ export function TransferNFTForm({
 								</div>
 							</div>
 						</Content>
-						<Menu stuckClass="sendCoin-cta" className="w-full px-0 pb-0 mx-0 gap-2.5">
+						<Menu stuckClass="sendCoin-cta" className="mx-0 w-full gap-2.5 px-0 pb-0">
 							<Button
 								type="submit"
 								variant="primary"

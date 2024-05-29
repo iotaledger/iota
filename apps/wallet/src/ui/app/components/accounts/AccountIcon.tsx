@@ -13,26 +13,26 @@ import {
 } from '@mysten/icons';
 
 function SuiIcon() {
-    return (
-        <div className="flex h-4 w-4 items-center justify-center rounded-full bg-steel p-1 text-white">
-            <Sui />
-        </div>
-    );
+	return (
+		<div className="flex h-4 w-4 items-center justify-center rounded-full bg-steel p-1 text-white">
+			<Sui />
+		</div>
+	);
 }
 
 function ProviderIcon({ provider }: { provider: string }) {
-    switch (provider) {
-        case 'google':
-            return <LogoGoogle className="h-4 w-4" />;
-        case 'twitch':
-            return <LogoTwitch className="h-4 w-4 text-twitch" />;
-        case 'facebook':
-            return <SocialFacebook24 className="h-4 w-4 text-facebook" />;
-        case 'kakao':
-            return <SocialKakao24 className="h-4 w-4" />;
-        default:
-            return <SuiIcon />;
-    }
+	switch (provider) {
+		case 'google':
+			return <LogoGoogle className="h-4 w-4" />;
+		case 'twitch':
+			return <LogoTwitch className="h-4 w-4 text-twitch" />;
+		case 'facebook':
+			return <SocialFacebook24 className="h-4 w-4 text-facebook" />;
+		case 'kakao':
+			return <SocialKakao24 className="h-4 w-4" />;
+		default:
+			return <SuiIcon />;
+	}
 }
 
 export function AccountIcon({ account }: { account: SerializedUIAccount }) {

@@ -21,7 +21,7 @@ import { GasFees } from './GasFees';
 import { TransactionDetails } from './TransactionDetails';
 
 export type TransactionRequestProps = {
-    txRequest: TransactionApprovalRequest;
+	txRequest: TransactionApprovalRequest;
 };
 
 // Some applications require *a lot* of transactions to interact with, and this
@@ -31,26 +31,26 @@ export type TransactionRequestProps = {
 const appOriginsToExcludeFromAnalytics = ['https://sui8192.ethoswallet.xyz'];
 
 export function TransactionRequest({ txRequest }: TransactionRequestProps) {
-    const addressForTransaction = txRequest.tx.account;
-    const { data: accountForTransaction } = useAccountByAddress(addressForTransaction);
-    const signer = useSigner(accountForTransaction);
-    const dispatch = useAppDispatch();
-    const transaction = useMemo(() => {
-        const tx = TransactionBlock.from(txRequest.tx.data);
-        if (addressForTransaction) {
-            tx.setSenderIfNotSet(addressForTransaction);
-        }
-        return tx;
-    }, [txRequest.tx.data, addressForTransaction]);
-    const { isPending, isError } = useTransactionData(addressForTransaction, transaction);
-    const [isConfirmationVisible, setConfirmationVisible] = useState(false);
+	const addressForTransaction = txRequest.tx.account;
+	const { data: accountForTransaction } = useAccountByAddress(addressForTransaction);
+	const signer = useSigner(accountForTransaction);
+	const dispatch = useAppDispatch();
+	const transaction = useMemo(() => {
+		const tx = TransactionBlock.from(txRequest.tx.data);
+		if (addressForTransaction) {
+			tx.setSenderIfNotSet(addressForTransaction);
+		}
+		return tx;
+	}, [txRequest.tx.data, addressForTransaction]);
+	const { isPending, isError } = useTransactionData(addressForTransaction, transaction);
+	const [isConfirmationVisible, setConfirmationVisible] = useState(false);
 
-    const {
-        data,
-        isError: isDryRunError,
-        isPending: isDryRunLoading,
-    } = useTransactionDryRun(addressForTransaction, transaction);
-    const recognizedPackagesList = useRecognizedPackages();
+	const {
+		data,
+		isError: isDryRunError,
+		isPending: isDryRunLoading,
+	} = useTransactionDryRun(addressForTransaction, transaction);
+	const recognizedPackagesList = useRecognizedPackages();
 
 	const summary = useTransactionSummary({
 		transaction: data,
@@ -103,7 +103,7 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 							summary={summary}
 						/>
 					</div>
-					<section className=" bg-white -mx-6">
+					<section className=" -mx-6 bg-white">
 						<div className="flex flex-col gap-4 p-6">
 							<GasFees sender={addressForTransaction} transaction={transaction} />
 							<TransactionDetails sender={addressForTransaction} transaction={transaction} />

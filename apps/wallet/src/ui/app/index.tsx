@@ -43,16 +43,16 @@ import { ProtectAccountPage } from './pages/accounts/ProtectAccountPage';
 import { WelcomePage } from './pages/accounts/WelcomePage';
 import { ApprovalRequestPage } from './pages/approval-request';
 import HomePage, {
-    AppsPage,
-    AssetsPage,
-    CoinsSelectorPage,
-    KioskDetailsPage,
-    NFTDetailsPage,
-    NftTransferPage,
-    OnrampPage,
-    ReceiptPage,
-    TransactionBlocksPage,
-    TransferCoinPage,
+	AppsPage,
+	AssetsPage,
+	CoinsSelectorPage,
+	KioskDetailsPage,
+	NFTDetailsPage,
+	NftTransferPage,
+	OnrampPage,
+	ReceiptPage,
+	TransactionBlocksPage,
+	TransferCoinPage,
 } from './pages/home';
 import TokenDetailsPage from './pages/home/tokens/TokenDetailsPage';
 import { RestrictedPage } from './pages/restricted';
@@ -62,103 +62,99 @@ import { AppType } from './redux/slices/app/AppType';
 import { Staking } from './staking/home';
 
 const HIDDEN_MENU_PATHS = [
-    '/nft-details',
-    '/nft-transfer',
-    '/receipt',
-    '/send',
-    '/send/select',
-    '/apps/disconnectapp',
+	'/nft-details',
+	'/nft-transfer',
+	'/receipt',
+	'/send',
+	'/send/select',
+	'/apps/disconnectapp',
 ];
 
 const notifyUserActiveInterval = 5 * 1000; // 5 seconds
 
 const App = () => {
-    const dispatch = useAppDispatch();
-    const isPopup = useAppSelector((state) => state.app.appType === AppType.popup);
-    useEffect(() => {
-        document.body.classList.remove('app-initializing');
-    }, [isPopup]);
-    const location = useLocation();
-    useEffect(() => {
-        const menuVisible = !HIDDEN_MENU_PATHS.some((aPath) => location.pathname.startsWith(aPath));
-        dispatch(setNavVisibility(menuVisible));
-    }, [location, dispatch]);
+	const dispatch = useAppDispatch();
+	const isPopup = useAppSelector((state) => state.app.appType === AppType.popup);
+	useEffect(() => {
+		document.body.classList.remove('app-initializing');
+	}, [isPopup]);
+	const location = useLocation();
+	useEffect(() => {
+		const menuVisible = !HIDDEN_MENU_PATHS.some((aPath) => location.pathname.startsWith(aPath));
+		dispatch(setNavVisibility(menuVisible));
+	}, [location, dispatch]);
 
-    // useInitialPageView();
-    const { data: accounts } = useAccounts();
-    const allLedgerWithoutPublicKey = useMemo(
-        () =>
-            accounts?.filter(isLedgerAccountSerializedUI).filter(({ publicKey }) => !publicKey) ||
-            [],
-        [accounts],
-    );
-    const backgroundClient = useBackgroundClient();
-    const { connectToLedger, suiLedgerClient } = useSuiLedgerClient();
-    useEffect(() => {
-        if (accounts?.length) {
-            // The user has accepted our terms of service after their primary
-            // account has been initialized (either by creating a new wallet
-            // or importing a previous account). This means we've gained
-            // consent and can persist device data to cookie storage
-            persistableStorage.persist();
-        }
-    }, [accounts]);
-    useEffect(() => {
-        // update ledger accounts without the public key
-        (async () => {
-            if (allLedgerWithoutPublicKey.length) {
-                try {
-                    if (!suiLedgerClient) {
-                        await connectToLedger();
-                        return;
-                    }
-                    const publicKeysToStore: LedgerAccountsPublicKeys = [];
-                    for (const { derivationPath, id } of allLedgerWithoutPublicKey) {
-                        if (derivationPath) {
-                            try {
-                                const { publicKey } = await suiLedgerClient.getPublicKey(
-                                    derivationPath,
-                                );
-                                publicKeysToStore.push({
-                                    accountID: id,
-                                    publicKey: toB64(publicKey),
-                                });
-                            } catch (e) {
-                                // do nothing
-                            }
-                        }
-                    }
-                    if (publicKeysToStore.length) {
-                        await backgroundClient.storeLedgerAccountsPublicKeys({ publicKeysToStore });
-                    }
-                } catch (e) {
-                    // do nothing
-                }
-            }
-        })();
-    }, [allLedgerWithoutPublicKey, suiLedgerClient, backgroundClient, connectToLedger]);
-    const { data } = useAutoLockMinutes();
-    const autoLockEnabled = !!data;
-    // use mouse move and key down events to detect user activity
-    // this is used to adjust the auto-lock timeout
-    useEffect(() => {
-        if (!autoLockEnabled) {
-            return;
-        }
-        const sendUpdateThrottled = throttle(
-            notifyUserActiveInterval,
-            () => {
-                backgroundClient.notifyUserActive();
-            },
-            { noTrailing: true },
-        );
-        document.addEventListener('mousemove', sendUpdateThrottled);
-        document.addEventListener('keydown', sendUpdateThrottled);
-        return () => {
-            document.removeEventListener('mousemove', sendUpdateThrottled);
-            document.removeEventListener('keydown', sendUpdateThrottled);
-        };
-    }, [backgroundClient, autoLockEnabled]);
+	// useInitialPageView();
+	const { data: accounts } = useAccounts();
+	const allLedgerWithoutPublicKey = useMemo(
+		() => accounts?.filter(isLedgerAccountSerializedUI).filter(({ publicKey }) => !publicKey) || [],
+		[accounts],
+	);
+	const backgroundClient = useBackgroundClient();
+	const { connectToLedger, suiLedgerClient } = useSuiLedgerClient();
+	useEffect(() => {
+		if (accounts?.length) {
+			// The user has accepted our terms of service after their primary
+			// account has been initialized (either by creating a new wallet
+			// or importing a previous account). This means we've gained
+			// consent and can persist device data to cookie storage
+			persistableStorage.persist();
+		}
+	}, [accounts]);
+	useEffect(() => {
+		// update ledger accounts without the public key
+		(async () => {
+			if (allLedgerWithoutPublicKey.length) {
+				try {
+					if (!suiLedgerClient) {
+						await connectToLedger();
+						return;
+					}
+					const publicKeysToStore: LedgerAccountsPublicKeys = [];
+					for (const { derivationPath, id } of allLedgerWithoutPublicKey) {
+						if (derivationPath) {
+							try {
+								const { publicKey } = await suiLedgerClient.getPublicKey(derivationPath);
+								publicKeysToStore.push({
+									accountID: id,
+									publicKey: toB64(publicKey),
+								});
+							} catch (e) {
+								// do nothing
+							}
+						}
+					}
+					if (publicKeysToStore.length) {
+						await backgroundClient.storeLedgerAccountsPublicKeys({ publicKeysToStore });
+					}
+				} catch (e) {
+					// do nothing
+				}
+			}
+		})();
+	}, [allLedgerWithoutPublicKey, suiLedgerClient, backgroundClient, connectToLedger]);
+	const { data } = useAutoLockMinutes();
+	const autoLockEnabled = !!data;
+	// use mouse move and key down events to detect user activity
+	// this is used to adjust the auto-lock timeout
+	useEffect(() => {
+		if (!autoLockEnabled) {
+			return;
+		}
+		const sendUpdateThrottled = throttle(
+			notifyUserActiveInterval,
+			() => {
+				backgroundClient.notifyUserActive();
+			},
+			{ noTrailing: true },
+		);
+		document.addEventListener('mousemove', sendUpdateThrottled);
+		document.addEventListener('keydown', sendUpdateThrottled);
+		return () => {
+			document.removeEventListener('mousemove', sendUpdateThrottled);
+			document.removeEventListener('keydown', sendUpdateThrottled);
+		};
+	}, [backgroundClient, autoLockEnabled]);
 
 	const storageMigration = useStorageMigrationStatus();
 	if (storageMigration.isPending || !storageMigration?.data) {

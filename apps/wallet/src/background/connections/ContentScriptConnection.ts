@@ -9,24 +9,24 @@ import { isGetAccount } from '_payloads/account/GetAccount';
 import type { GetAccountResponse } from '_payloads/account/GetAccountResponse';
 import type { SetNetworkPayload } from '_payloads/network';
 import {
-    isAcquirePermissionsRequest,
-    isHasPermissionRequest,
-    type AcquirePermissionsResponse,
-    type HasPermissionsResponse,
-    type Permission,
-    type PermissionType,
+	isAcquirePermissionsRequest,
+	isHasPermissionRequest,
+	type AcquirePermissionsResponse,
+	type HasPermissionsResponse,
+	type Permission,
+	type PermissionType,
 } from '_payloads/permissions';
 import {
-    isExecuteTransactionRequest,
-    isSignTransactionRequest,
-    type ExecuteTransactionResponse,
-    type SignTransactionResponse,
+	isExecuteTransactionRequest,
+	isSignTransactionRequest,
+	type ExecuteTransactionResponse,
+	type SignTransactionResponse,
 } from '_payloads/transactions';
 import Permissions from '_src/background/Permissions';
 import Transactions from '_src/background/Transactions';
 import {
-    isSignMessageRequest,
-    type SignMessageRequest,
+	isSignMessageRequest,
+	type SignMessageRequest,
 } from '_src/shared/messaging/messages/payloads/transactions/SignMessage';
 import { type SignedTransaction } from '_src/ui/app/WalletSigner';
 import { type SuiTransactionBlockResponse } from '@mysten/sui.js/client';
@@ -37,17 +37,17 @@ import NetworkEnv from '../NetworkEnv';
 import { Connection } from './Connection';
 
 export class ContentScriptConnection extends Connection {
-    public static readonly CHANNEL: PortChannelName = 'sui_content<->background';
-    public readonly origin: string;
-    public readonly pagelink?: string | undefined;
-    public readonly originFavIcon: string | undefined;
+	public static readonly CHANNEL: PortChannelName = 'sui_content<->background';
+	public readonly origin: string;
+	public readonly pagelink?: string | undefined;
+	public readonly originFavIcon: string | undefined;
 
-    constructor(port: Runtime.Port) {
-        super(port);
-        this.origin = this.getOrigin(port);
-        this.pagelink = this.getAppUrl(port);
-        this.originFavIcon = port.sender?.tab?.favIconUrl;
-    }
+	constructor(port: Runtime.Port) {
+		super(port);
+		this.origin = this.getOrigin(port);
+		this.pagelink = this.getAppUrl(port);
+		this.originFavIcon = port.sender?.tab?.favIconUrl;
+	}
 
 	protected async handleMessage(msg: Message) {
 		const { payload } = msg;
@@ -155,78 +155,78 @@ export class ContentScriptConnection extends Connection {
 		}
 	}
 
-    public permissionReply(permission: Permission, msgID?: string) {
-        if (permission.origin !== this.origin) {
-            return;
-        }
-        const requestMsgID = msgID || permission.requestMsgID;
-        if (permission.allowed) {
-            this.send(
-                createMessage<AcquirePermissionsResponse>(
-                    {
-                        type: 'acquire-permissions-response',
-                        result: !!permission.allowed,
-                    },
-                    requestMsgID,
-                ),
-            );
-        } else {
-            this.sendError(
-                {
-                    error: true,
-                    message: 'Permission rejected',
-                    code: -1,
-                },
-                requestMsgID,
-            );
-        }
-    }
+	public permissionReply(permission: Permission, msgID?: string) {
+		if (permission.origin !== this.origin) {
+			return;
+		}
+		const requestMsgID = msgID || permission.requestMsgID;
+		if (permission.allowed) {
+			this.send(
+				createMessage<AcquirePermissionsResponse>(
+					{
+						type: 'acquire-permissions-response',
+						result: !!permission.allowed,
+					},
+					requestMsgID,
+				),
+			);
+		} else {
+			this.sendError(
+				{
+					error: true,
+					message: 'Permission rejected',
+					code: -1,
+				},
+				requestMsgID,
+			);
+		}
+	}
 
-    private getOrigin(port: Runtime.Port) {
-        if (port.sender?.origin) {
-            return port.sender.origin;
-        }
-        if (port.sender?.url) {
-            return new URL(port.sender.url).origin;
-        }
-        throw new Error("[ContentScriptConnection] port doesn't include an origin");
-    }
+	private getOrigin(port: Runtime.Port) {
+		if (port.sender?.origin) {
+			return port.sender.origin;
+		}
+		if (port.sender?.url) {
+			return new URL(port.sender.url).origin;
+		}
+		throw new Error("[ContentScriptConnection] port doesn't include an origin");
+	}
 
-    // optional field for the app link.
-    private getAppUrl(port: Runtime.Port) {
-        if (port.sender?.url) {
-            return new URL(port.sender.url).href;
-        }
-        return undefined;
-    }
+	// optional field for the app link.
+	private getAppUrl(port: Runtime.Port) {
+		if (port.sender?.url) {
+			return new URL(port.sender.url).href;
+		}
+		return undefined;
+	}
 
-    private sendError<Error extends ErrorPayload>(error: Error, responseForID?: string) {
-        this.send(createMessage(error, responseForID));
-    }
+	private sendError<Error extends ErrorPayload>(error: Error, responseForID?: string) {
+		this.send(createMessage(error, responseForID));
+	}
 
-    private async sendAccounts(accounts: string[], responseForID?: string) {
-        this.send(
-            createMessage<GetAccountResponse>(
-                {
-                    type: 'get-account-response',
-                    accounts: await getAccountsStatusData(accounts),
-                },
-                responseForID,
-            ),
-        );
-    }
+	private async sendAccounts(accounts: string[], responseForID?: string) {
+		this.send(
+			createMessage<GetAccountResponse>(
+				{
+					type: 'get-account-response',
+					accounts: await getAccountsStatusData(accounts),
+				},
+				responseForID,
+			),
+		);
+	}
 
-    private async ensurePermissions(permissions: PermissionType[], account?: string) {
-        const existingPermission = await Permissions.getPermission(this.origin);
-        const allowed = await Permissions.hasPermissions(
-            this.origin,
-            permissions,
-            existingPermission,
-            account,
-        );
-        if (!allowed || !existingPermission) {
-            throw new Error("Operation not allowed, dapp doesn't have the required permissions");
-        }
-        return existingPermission;
-    }
+	private async ensurePermissions(permissions: PermissionType[], account?: string) {
+		const existingPermission = await Permissions.getPermission(this.origin);
+		const allowed = await Permissions.hasPermissions(
+			this.origin,
+			permissions,
+			existingPermission,
+			account,
+		);
+		if (!allowed || !existingPermission) {
+			throw new Error("Operation not allowed, dapp doesn't have the required permissions");
+		}
+		return existingPermission;
+	}
 }

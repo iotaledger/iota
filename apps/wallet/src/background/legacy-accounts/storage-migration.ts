@@ -27,84 +27,84 @@ const migrationDoneStorageKey = 'storage-migration-done';
 const storageActiveAccountKey = 'active_account';
 
 function getActiveAccountAddress() {
-    return getFromLocalStorage<string>(storageActiveAccountKey);
+	return getFromLocalStorage<string>(storageActiveAccountKey);
 }
 
 let statusCache: Status | null = null;
 
 export async function getStatus() {
-    if (statusCache) {
-        return statusCache;
-    }
-    const vaultInitialized = await LegacyVault.isInitialized();
-    if (!vaultInitialized) {
-        return (statusCache = 'ready');
-    }
-    const isMigrationDone = await getFromLocalStorage<boolean>(migrationDoneStorageKey);
-    if (isMigrationDone) {
-        return (statusCache = 'ready');
-    }
-    return (statusCache = 'required');
+	if (statusCache) {
+		return statusCache;
+	}
+	const vaultInitialized = await LegacyVault.isInitialized();
+	if (!vaultInitialized) {
+		return (statusCache = 'ready');
+	}
+	const isMigrationDone = await getFromLocalStorage<boolean>(migrationDoneStorageKey);
+	if (isMigrationDone) {
+		return (statusCache = 'ready');
+	}
+	return (statusCache = 'required');
 }
 
 export function clearStatus() {
-    statusCache = null;
+	statusCache = null;
 }
 
 async function makeMnemonicAccounts(password: string, vault: LegacyVault) {
-    const currentMnemonicIndex = (await getFromLocalStorage<number>('last_account_index', 0)) || 0;
-    const mnemonicSource = await MnemonicAccountSource.createNew({
-        password,
-        entropyInput: vault.entropy,
-    });
-    const mnemonicAccounts = [];
-    for (let i = 0; i <= currentMnemonicIndex; i++) {
-        const derivationPath = makeDerivationPath(i);
-        const keyPair = deriveKeypairFromSeed(vault.mnemonicSeedHex, derivationPath);
-        mnemonicAccounts.push(
-            MnemonicAccount.createNew({ keyPair, derivationPath, sourceID: mnemonicSource.id }),
-        );
-    }
-    return { mnemonicSource, mnemonicAccounts };
+	const currentMnemonicIndex = (await getFromLocalStorage<number>('last_account_index', 0)) || 0;
+	const mnemonicSource = await MnemonicAccountSource.createNew({
+		password,
+		entropyInput: vault.entropy,
+	});
+	const mnemonicAccounts = [];
+	for (let i = 0; i <= currentMnemonicIndex; i++) {
+		const derivationPath = makeDerivationPath(i);
+		const keyPair = deriveKeypairFromSeed(vault.mnemonicSeedHex, derivationPath);
+		mnemonicAccounts.push(
+			MnemonicAccount.createNew({ keyPair, derivationPath, sourceID: mnemonicSource.id }),
+		);
+	}
+	return { mnemonicSource, mnemonicAccounts };
 }
 
 async function makeImportedAccounts(password: string, vault: LegacyVault) {
-    return Promise.all(
-        vault.importedKeypairs.map((keyPair) =>
-            ImportedAccount.createNew({ password, keyPair: keyPair.getSecretKey() }),
-        ),
-    );
+	return Promise.all(
+		vault.importedKeypairs.map((keyPair) =>
+			ImportedAccount.createNew({ password, keyPair: keyPair.getSecretKey() }),
+		),
+	);
 }
 
 type LegacySerializedLedgerAccount = {
-    type: 'LEDGER';
-    address: string;
-    derivationPath: string;
-    publicKey: string | null;
+	type: 'LEDGER';
+	address: string;
+	derivationPath: string;
+	publicKey: string | null;
 };
 
 async function getSavedLedgerAccounts() {
-    const ledgerAccounts = await getFromLocalStorage<LegacySerializedLedgerAccount[]>(
-        'imported_ledger_accounts',
-        [],
-    );
-    return ledgerAccounts || [];
+	const ledgerAccounts = await getFromLocalStorage<LegacySerializedLedgerAccount[]>(
+		'imported_ledger_accounts',
+		[],
+	);
+	return ledgerAccounts || [];
 }
 
 async function makeLedgerAccounts(password: string) {
-    const ledgerAccounts = await getSavedLedgerAccounts();
-    return Promise.all(
-        ledgerAccounts.map(({ address, derivationPath, publicKey }) =>
-            LedgerAccount.createNew({ address, derivationPath, password, publicKey }),
-        ),
-    );
+	const ledgerAccounts = await getSavedLedgerAccounts();
+	return Promise.all(
+		ledgerAccounts.map(({ address, derivationPath, publicKey }) =>
+			LedgerAccount.createNew({ address, derivationPath, password, publicKey }),
+		),
+	);
 }
 
 function withID<T extends Omit<SerializedAccount, 'id'>>(anAccount: T) {
-    return {
-        ...anAccount,
-        id: makeUniqueKey(),
-    };
+	return {
+		...anAccount,
+		id: makeUniqueKey(),
+	};
 }
 
 export async function doMigration(password: string) {

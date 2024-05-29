@@ -6,8 +6,8 @@
 
 import { createMessage, type Message } from '_src/shared/messaging/messages';
 import {
-    isMethodPayload,
-    type MethodPayload,
+	isMethodPayload,
+	type MethodPayload,
 } from '_src/shared/messaging/messages/payloads/MethodPayload';
 import { type WalletStatusChange } from '_src/shared/messaging/messages/payloads/wallet-status-change';
 import { fromB64 } from '@mysten/sui.js/utils';
@@ -22,10 +22,10 @@ import { backupDB, getDB } from '../db';
 import { LegacyVault } from '../legacy-accounts/LegacyVault';
 import { makeUniqueKey } from '../storage-utils';
 import {
-    isKeyPairExportableAccount,
-    isPasswordUnLockable,
-    isSigningAccount,
-    type SerializedAccount,
+	isKeyPairExportableAccount,
+	isPasswordUnLockable,
+	isSigningAccount,
+	type SerializedAccount,
 } from './Account';
 import { accountsEvents } from './events';
 import { ImportedAccount } from './ImportedAccount';
@@ -54,58 +54,56 @@ function toAccount(account: SerializedAccount) {
 }
 
 export async function getAllAccounts(filter?: { sourceID: string }) {
-    const db = await getDB();
-    let accounts;
-    if (filter?.sourceID) {
-        accounts = await db.accounts.where('sourceID').equals(filter.sourceID).sortBy('createdAt');
-    } else {
-        accounts = await db.accounts.toCollection().sortBy('createdAt');
-    }
-    return accounts.map(toAccount);
+	const db = await getDB();
+	let accounts;
+	if (filter?.sourceID) {
+		accounts = await db.accounts.where('sourceID').equals(filter.sourceID).sortBy('createdAt');
+	} else {
+		accounts = await db.accounts.toCollection().sortBy('createdAt');
+	}
+	return accounts.map(toAccount);
 }
 
 export async function getAccountByID(id: string) {
-    const serializedAccount = await (await getDB()).accounts.get(id);
-    if (!serializedAccount) {
-        return null;
-    }
-    return toAccount(serializedAccount);
+	const serializedAccount = await (await getDB()).accounts.get(id);
+	if (!serializedAccount) {
+		return null;
+	}
+	return toAccount(serializedAccount);
 }
 
 export async function getAccountsByAddress(address: string) {
-    return (await (await getDB()).accounts.where('address').equals(address).toArray()).map(
-        toAccount,
-    );
+	return (await (await getDB()).accounts.where('address').equals(address).toArray()).map(toAccount);
 }
 
 export async function getAllSerializedUIAccounts() {
-    return Promise.all((await getAllAccounts()).map((anAccount) => anAccount.toUISerialized()));
+	return Promise.all((await getAllAccounts()).map((anAccount) => anAccount.toUISerialized()));
 }
 
 export async function isAccountsInitialized() {
-    return (await (await getDB()).accounts.count()) > 0;
+	return (await (await getDB()).accounts.count()) > 0;
 }
 
 export async function getAccountsStatusData(
-    accountsFilter?: string[],
+	accountsFilter?: string[],
 ): Promise<Required<WalletStatusChange>['accounts']> {
-    const allAccounts = await (await getDB()).accounts.toArray();
-    return allAccounts
-        .filter(({ address }) => !accountsFilter || accountsFilter.includes(address))
-        .map(({ address, publicKey, nickname }) => ({ address, publicKey, nickname }));
+	const allAccounts = await (await getDB()).accounts.toArray();
+	return allAccounts
+		.filter(({ address }) => !accountsFilter || accountsFilter.includes(address))
+		.map(({ address, publicKey, nickname }) => ({ address, publicKey, nickname }));
 }
 
 export async function changeActiveAccount(accountID: string) {
-    const db = await getDB();
-    return db.transaction('rw', db.accounts, async () => {
-        const newSelectedAccount = await db.accounts.get(accountID);
-        if (!newSelectedAccount) {
-            throw new Error(`Failed, account with id ${accountID} not found`);
-        }
-        await db.accounts.where('id').notEqual(accountID).modify({ selected: false });
-        await db.accounts.update(accountID, { selected: true });
-        accountsEvents.emit('activeAccountChanged', { accountID });
-    });
+	const db = await getDB();
+	return db.transaction('rw', db.accounts, async () => {
+		const newSelectedAccount = await db.accounts.get(accountID);
+		if (!newSelectedAccount) {
+			throw new Error(`Failed, account with id ${accountID} not found`);
+		}
+		await db.accounts.where('id').notEqual(accountID).modify({ selected: false });
+		await db.accounts.update(accountID, { selected: true });
+		accountsEvents.emit('activeAccountChanged', { accountID });
+	});
 }
 
 export async function addNewAccounts<T extends SerializedAccount>(accounts: Omit<T, 'id'>[]) {
@@ -147,10 +145,10 @@ export async function addNewAccounts<T extends SerializedAccount>(accounts: Omit
 }
 
 export async function lockAllAccounts() {
-    const allAccounts = await getAllAccounts();
-    for (const anAccount of allAccounts) {
-        await anAccount.lock();
-    }
+	const allAccounts = await getAllAccounts();
+	for (const anAccount of allAccounts) {
+		await anAccount.lock();
+	}
 }
 
 export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConnection) {

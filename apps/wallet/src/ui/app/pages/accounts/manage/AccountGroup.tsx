@@ -18,12 +18,12 @@ import { useBackgroundClient } from '_src/ui/app/hooks/useBackgroundClient';
 import { useCreateAccountsMutation } from '_src/ui/app/hooks/useCreateAccountMutation';
 import { Button } from '_src/ui/app/shared/ButtonUI';
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
 } from '_src/ui/app/shared/Dialog';
 import { Heading } from '_src/ui/app/shared/heading';
 import { Text } from '_src/ui/app/shared/text';
@@ -43,17 +43,17 @@ const accountTypeToLabel: Record<AccountType, string> = {
 };
 
 const providerToLabel: Record<ZkLoginProvider, string> = {
-    google: 'Google',
-    twitch: 'Twitch',
-    facebook: 'Facebook',
-    kakao: 'Kakao',
+	google: 'Google',
+	twitch: 'Twitch',
+	facebook: 'Facebook',
+	kakao: 'Kakao',
 };
 
 export function getGroupTitle(aGroupAccount: SerializedUIAccount) {
-    // TODO: revisit this logic for determining account provider
-    return isZkLoginAccountSerializedUI(aGroupAccount)
-        ? providerToLabel[aGroupAccount?.provider] ?? 'zkLogin'
-        : accountTypeToLabel[aGroupAccount?.type] || '';
+	// TODO: revisit this logic for determining account provider
+	return isZkLoginAccountSerializedUI(aGroupAccount)
+		? providerToLabel[aGroupAccount?.provider] ?? 'zkLogin'
+		: accountTypeToLabel[aGroupAccount?.type] || '';
 }
 
 // todo: we probbaly have some duplication here with the various FooterLink / ButtonOrLink
@@ -147,13 +147,13 @@ function AccountFooter({ accountID, showExport }: { accountID: string; showExpor
 }
 
 export function AccountGroup({
-    accounts,
-    type,
-    accountSourceID,
+	accounts,
+	type,
+	accountSourceID,
 }: {
-    accounts: SerializedUIAccount[];
-    type: AccountType;
-    accountSourceID?: string;
+	accounts: SerializedUIAccount[];
+	type: AccountType;
+	accountSourceID?: string;
 }) {
 	const createAccountMutation = useCreateAccountsMutation();
 	const isMnemonicDerivedGroup = type === 'mnemonic-derived';

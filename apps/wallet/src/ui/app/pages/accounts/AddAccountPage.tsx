@@ -8,8 +8,8 @@ import { Button } from '_app/shared/ButtonUI';
 import { Text } from '_app/shared/text';
 import Overlay from '_components/overlay';
 import {
-    zkLoginProviderDataMap,
-    type ZkLoginProvider,
+	zkLoginProviderDataMap,
+	type ZkLoginProvider,
 } from '_src/background/accounts/zklogin/providers';
 import { ampli } from '_src/shared/analytics/ampli';
 import { LedgerLogo17 as LedgerLogo } from '@mysten/icons';
@@ -28,15 +28,15 @@ import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation'
 import { AppType } from '../../redux/slices/app/AppType';
 
 async function openTabWithSearchParam(searchParam: string, searchParamValue: string) {
-    const currentURL = new URL(window.location.href);
-    const [currentHash, currentHashSearch] = currentURL.hash.split('?');
-    const urlSearchParams = new URLSearchParams(currentHashSearch);
-    urlSearchParams.set(searchParam, searchParamValue);
-    currentURL.hash = `${currentHash}?${urlSearchParams.toString()}`;
-    currentURL.searchParams.delete('type');
-    await Browser.tabs.create({
-        url: currentURL.href,
-    });
+	const currentURL = new URL(window.location.href);
+	const [currentHash, currentHashSearch] = currentURL.hash.split('?');
+	const urlSearchParams = new URLSearchParams(currentHashSearch);
+	urlSearchParams.set(searchParam, searchParamValue);
+	currentURL.hash = `${currentHash}?${urlSearchParams.toString()}`;
+	currentURL.searchParams.delete('type');
+	await Browser.tabs.create({
+		url: currentURL.href,
+	});
 }
 
 export function AddAccountPage() {
@@ -201,21 +201,21 @@ export function AddAccountPage() {
 }
 
 type SectionProps = {
-    title: string;
-    children: ReactNode;
+	title: string;
+	children: ReactNode;
 };
 
 function Section({ title, children }: SectionProps) {
-    return (
-        <section className="flex flex-col gap-3">
-            <div className="flex items-center gap-2">
-                <div className="grow border-0 border-t border-solid border-gray-40"></div>
-                <Text variant="caption" weight="semibold" color="steel">
-                    {title}
-                </Text>
-                <div className="grow border-0 border-t border-solid border-gray-40"></div>
-            </div>
-            {children}
-        </section>
-    );
+	return (
+		<section className="flex flex-col gap-3">
+			<div className="flex items-center gap-2">
+				<div className="grow border-0 border-t border-solid border-gray-40"></div>
+				<Text variant="caption" weight="semibold" color="steel">
+					{title}
+				</Text>
+				<div className="grow border-0 border-t border-solid border-gray-40"></div>
+			</div>
+			{children}
+		</section>
+	);
 }

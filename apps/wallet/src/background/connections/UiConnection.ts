@@ -20,9 +20,9 @@ import Tabs from '_src/background/Tabs';
 import Transactions from '_src/background/Transactions';
 import { growthbook } from '_src/shared/experimentation/features';
 import {
-    isMethodPayload,
-    type MethodPayload,
-    type UIAccessibleEntityType,
+	isMethodPayload,
+	type MethodPayload,
+	type UIAccessibleEntityType,
 } from '_src/shared/messaging/messages/payloads/MethodPayload';
 import { toEntropy } from '_src/shared/utils/bip39';
 import Dexie from 'dexie';
@@ -31,9 +31,9 @@ import Browser from 'webextension-polyfill';
 import type { Runtime } from 'webextension-polyfill';
 
 import {
-    accountSourcesHandleUIMessage,
-    getAccountSourceByID,
-    getAllSerializedUIAccountSources,
+	accountSourcesHandleUIMessage,
+	getAccountSourceByID,
+	getAllSerializedUIAccountSources,
 } from '../account-sources';
 import { accountSourcesEvents } from '../account-sources/events';
 import { MnemonicAccountSource } from '../account-sources/MnemonicAccountSource';
@@ -47,39 +47,39 @@ import NetworkEnv from '../NetworkEnv';
 import { Connection } from './Connection';
 
 export class UiConnection extends Connection {
-    public static readonly CHANNEL: PortChannelName = 'sui_ui<->background';
-    private uiAppInitialized: BehaviorSubject<boolean> = new BehaviorSubject(false);
+	public static readonly CHANNEL: PortChannelName = 'sui_ui<->background';
+	private uiAppInitialized: BehaviorSubject<boolean> = new BehaviorSubject(false);
 
-    constructor(port: Runtime.Port) {
-        super(port);
-        this.uiAppInitialized
-            .pipe(
-                filter((init) => init),
-                switchMap(() => Tabs.activeOrigin),
-                takeUntil(this.onDisconnect),
-            )
-            .subscribe(({ origin, favIcon }) => {
-                this.send(
-                    createMessage<UpdateActiveOrigin>({
-                        type: 'update-active-origin',
-                        origin,
-                        favIcon,
-                    }),
-                );
-            });
-    }
+	constructor(port: Runtime.Port) {
+		super(port);
+		this.uiAppInitialized
+			.pipe(
+				filter((init) => init),
+				switchMap(() => Tabs.activeOrigin),
+				takeUntil(this.onDisconnect),
+			)
+			.subscribe(({ origin, favIcon }) => {
+				this.send(
+					createMessage<UpdateActiveOrigin>({
+						type: 'update-active-origin',
+						origin,
+						favIcon,
+					}),
+				);
+			});
+	}
 
-    public async notifyEntitiesUpdated(entitiesType: UIAccessibleEntityType) {
-        this.send(
-            createMessage<MethodPayload<'entitiesUpdated'>>({
-                type: 'method-payload',
-                method: 'entitiesUpdated',
-                args: {
-                    type: entitiesType,
-                },
-            }),
-        );
-    }
+	public async notifyEntitiesUpdated(entitiesType: UIAccessibleEntityType) {
+		this.send(
+			createMessage<MethodPayload<'entitiesUpdated'>>({
+				type: 'method-payload',
+				method: 'entitiesUpdated',
+				args: {
+					type: entitiesType,
+				},
+			}),
+		);
+	}
 
 	protected async handleMessage(msg: Message) {
 		const { payload, id } = msg;
@@ -256,41 +256,41 @@ export class UiConnection extends Connection {
 		}
 	}
 
-    private sendPermissions(permissions: Permission[], requestID: string) {
-        this.send(
-            createMessage<PermissionRequests>(
-                {
-                    type: 'permission-request',
-                    permissions,
-                },
-                requestID,
-            ),
-        );
-    }
+	private sendPermissions(permissions: Permission[], requestID: string) {
+		this.send(
+			createMessage<PermissionRequests>(
+				{
+					type: 'permission-request',
+					permissions,
+				},
+				requestID,
+			),
+		);
+	}
 
-    private sendTransactionRequests(txRequests: ApprovalRequest[], requestID: string) {
-        this.send(
-            createMessage<GetTransactionRequestsResponse>(
-                {
-                    type: 'get-transaction-requests-response',
-                    txRequests,
-                },
-                requestID,
-            ),
-        );
-    }
+	private sendTransactionRequests(txRequests: ApprovalRequest[], requestID: string) {
+		this.send(
+			createMessage<GetTransactionRequestsResponse>(
+				{
+					type: 'get-transaction-requests-response',
+					txRequests,
+				},
+				requestID,
+			),
+		);
+	}
 
-    private getUISerializedEntities(type: UIAccessibleEntityType) {
-        switch (type) {
-            case 'accounts': {
-                return getAllSerializedUIAccounts();
-            }
-            case 'accountSources': {
-                return getAllSerializedUIAccountSources();
-            }
-            default: {
-                throw new Error(`Unknown entity type ${type}`);
-            }
-        }
-    }
+	private getUISerializedEntities(type: UIAccessibleEntityType) {
+		switch (type) {
+			case 'accounts': {
+				return getAllSerializedUIAccounts();
+			}
+			case 'accountSources': {
+				return getAllSerializedUIAccountSources();
+			}
+			default: {
+				throw new Error(`Unknown entity type ${type}`);
+			}
+		}
+	}
 }

@@ -8,17 +8,17 @@ import { ampli, type AddedAccountsProperties } from '_src/shared/analytics/ampli
 import { useMutation } from '@tanstack/react-query';
 
 import {
-    useAccountsFormContext,
-    type AccountsFormValues,
+	useAccountsFormContext,
+	type AccountsFormValues,
 } from '../components/accounts/AccountsFormContext';
 import { useBackgroundClient } from './useBackgroundClient';
 
 export type CreateType = NonNullable<AccountsFormValues>['type'];
 
 function validateAccountFormValues<T extends CreateType>(
-    createType: T,
-    values: AccountsFormValues,
-    password?: string,
+	createType: T,
+	values: AccountsFormValues,
+	password?: string,
 ): values is Extract<AccountsFormValues, { type: T }> {
 	if (!values) {
 		throw new Error('Missing account data values');

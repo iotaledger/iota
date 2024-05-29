@@ -3,14 +3,14 @@
 
 import { decrypt } from '_shared/cryptography/keystore';
 import {
-    entropyToMnemonic,
-    mnemonicToEntropy,
-    toEntropy,
-    validateEntropy,
+	entropyToMnemonic,
+	mnemonicToEntropy,
+	toEntropy,
+	validateEntropy,
 } from '_shared/utils/bip39';
 import {
-    fromExportedKeypair,
-    type LegacyExportedKeyPair,
+	fromExportedKeypair,
+	type LegacyExportedKeyPair,
 } from '_shared/utils/from-exported-keypair';
 import { mnemonicToSeedHex, type Keypair } from '@mysten/sui.js/cryptography';
 
@@ -63,18 +63,18 @@ export class LegacyVault {
 		return new LegacyVault(entropy, keypairs, mnemonicSeedHex);
 	}
 
-    public static async isInitialized() {
-        return !!(await getFromLocalStorage<StoredData>(VAULT_KEY));
-    }
+	public static async isInitialized() {
+		return !!(await getFromLocalStorage<StoredData>(VAULT_KEY));
+	}
 
-    public static async verifyPassword(password: string) {
-        try {
-            await LegacyVault.fromLegacyStorage(password);
-            return true;
-        } catch (e) {
-            return false;
-        }
-    }
+	public static async verifyPassword(password: string) {
+		try {
+			await LegacyVault.fromLegacyStorage(password);
+			return true;
+		} catch (e) {
+			return false;
+		}
+	}
 
 	constructor(
 		entropy: Uint8Array,
@@ -86,7 +86,7 @@ export class LegacyVault {
 		this.mnemonicSeedHex = mnemonicSeedHex || mnemonicToSeedHex(entropyToMnemonic(entropy));
 	}
 
-    public getMnemonic() {
-        return entropyToMnemonic(this.entropy);
-    }
+	public getMnemonic() {
+		return entropyToMnemonic(this.entropy);
+	}
 }

@@ -6,13 +6,13 @@
 
 import { type ZkLoginProvider } from '_src/background/accounts/zklogin/providers';
 import {
-    createContext,
-    useCallback,
-    useContext,
-    useMemo,
-    useRef,
-    type MutableRefObject,
-    type ReactNode,
+	createContext,
+	useCallback,
+	useContext,
+	useMemo,
+	useRef,
+	type MutableRefObject,
+	type ReactNode,
 } from 'react';
 
 export type AccountsFormValues =
@@ -30,27 +30,27 @@ export type AccountsFormValues =
 	| null;
 
 type AccountsFormContextType = [
-    MutableRefObject<AccountsFormValues>,
-    (values: AccountsFormValues) => void,
+	MutableRefObject<AccountsFormValues>,
+	(values: AccountsFormValues) => void,
 ];
 
 const AccountsFormContext = createContext<AccountsFormContextType | null>(null);
 
 export const AccountsFormProvider = ({ children }: { children: ReactNode }) => {
-    const valuesRef = useRef<AccountsFormValues>(null);
-    const setter = useCallback((values: AccountsFormValues) => {
-        valuesRef.current = values;
-    }, []);
-    const value = useMemo(() => [valuesRef, setter] as AccountsFormContextType, [setter]);
-    return <AccountsFormContext.Provider value={value}>{children}</AccountsFormContext.Provider>;
+	const valuesRef = useRef<AccountsFormValues>(null);
+	const setter = useCallback((values: AccountsFormValues) => {
+		valuesRef.current = values;
+	}, []);
+	const value = useMemo(() => [valuesRef, setter] as AccountsFormContextType, [setter]);
+	return <AccountsFormContext.Provider value={value}>{children}</AccountsFormContext.Provider>;
 };
 
 // a simple hook that allows form values to be shared between forms when setting up an account
 // for the first time, or when importing an existing account.
 export const useAccountsFormContext = () => {
-    const context = useContext(AccountsFormContext);
-    if (!context) {
-        throw new Error('useAccountsFormContext must be used within the AccountsFormProvider');
-    }
-    return context;
+	const context = useContext(AccountsFormContext);
+	if (!context) {
+		throw new Error('useAccountsFormContext must be used within the AccountsFormProvider');
+	}
+	return context;
 };

@@ -7,9 +7,9 @@ import Browser from 'webextension-polyfill';
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 export const growthbook = new GrowthBook({
-    apiHost: process.env.APPS_BACKEND_URL,
-    clientKey: process.env.NODE_ENV === 'development' ? 'development' : 'production',
-    enableDevMode: process.env.NODE_ENV === 'development',
+	apiHost: process.env.APPS_BACKEND_URL,
+	clientKey: process.env.NODE_ENV === 'development' ? 'development' : 'production',
+	enableDevMode: process.env.NODE_ENV === 'development',
 });
 
 /**
@@ -30,17 +30,17 @@ export enum FEATURES {
 }
 
 export function setAttributes(network?: { network: Network; customRpc?: string | null }) {
-    const activeNetwork = network
-        ? network.network === Network.Custom && network.customRpc
-            ? network.customRpc
-            : network.network.toUpperCase()
-        : null;
+	const activeNetwork = network
+		? network.network === Network.Custom && network.customRpc
+			? network.customRpc
+			: network.network.toUpperCase()
+		: null;
 
-    growthbook.setAttributes({
-        network: activeNetwork,
-        version: Browser.runtime.getManifest().version,
-        beta: process.env.WALLET_BETA || false,
-    });
+	growthbook.setAttributes({
+		network: activeNetwork,
+		version: Browser.runtime.getManifest().version,
+		beta: process.env.WALLET_BETA || false,
+	});
 }
 
 // Initialize growthbook to default attributes:

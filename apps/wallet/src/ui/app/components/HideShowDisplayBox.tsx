@@ -15,15 +15,15 @@ import { Text } from '../shared/text';
 const AUTO_HIDE_INTERVAL = 3 * 60 * 1000;
 
 export type HideShowDisplayBoxProps = {
-    value: string | string[];
-    hideCopy?: boolean;
-    copiedMessage?: string;
+	value: string | string[];
+	hideCopy?: boolean;
+	copiedMessage?: string;
 };
 
 export function HideShowDisplayBox({
-    value,
-    hideCopy = false,
-    copiedMessage,
+	value,
+	hideCopy = false,
+	copiedMessage,
 }: HideShowDisplayBoxProps) {
 	const [valueHidden, setValueHidden] = useState(true);
 	const copyCallback = useCopyToClipboard(
