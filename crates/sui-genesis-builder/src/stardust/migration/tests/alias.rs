@@ -157,10 +157,10 @@ fn test_alias_migration_with_alias_owner() {
     let stardust_alias2 =
         AliasOutputBuilder::new_with_amount(alias2_amount, AliasId::new(rand::random()))
             .add_unlock_condition(StateControllerAddressUnlockCondition::new(Address::from(
-                stardust_alias1.alias_id().clone(),
+                *stardust_alias1.alias_id(),
             )))
             .add_unlock_condition(GovernorAddressUnlockCondition::new(Address::from(
-                stardust_alias1.alias_id().clone(),
+                *stardust_alias1.alias_id(),
             )))
             .finish()
             .unwrap();
@@ -366,10 +366,7 @@ fn alias_migration_with_native_tokens() {
         .compute_object_reference();
 
     // Recreate the key under which the tokens are stored in the bag.
-    let foundry_ledger_data = executor
-        .native_tokens()
-        .get(&native_token_id.into())
-        .unwrap();
+    let foundry_ledger_data = executor.native_tokens().get(&native_token_id).unwrap();
     let token_type = format!(
         "{}::{}::{}",
         foundry_ledger_data.coin_type_origin.package,
@@ -464,8 +461,7 @@ fn alias_migration_with_native_tokens() {
                 .map(|tag| tag == coin_token_struct_tag)
                 .unwrap_or(false)
         })
-        .map(|obj| obj.as_coin_maybe())
-        .flatten()
+        .and_then(|obj| obj.as_coin_maybe())
         .expect("coin token object should exist");
 
     assert_eq!(coin_token.balance.value(), native_token_amount);

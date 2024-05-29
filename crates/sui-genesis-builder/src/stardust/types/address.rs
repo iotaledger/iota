@@ -1,3 +1,6 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use iota_sdk::types::block::address::Address;
 use sui_types::{base_types::SuiAddress, object::Owner};
 

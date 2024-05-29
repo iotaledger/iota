@@ -7,6 +7,7 @@ use std::{
 };
 
 use anyhow::Result;
+use bigdecimal::ToPrimitive;
 use iota_sdk::types::block::output::{
     AliasOutput, BasicOutput, FoundryOutput, NativeTokens, NftOutput, OutputId, TokenId,
 };
@@ -47,7 +48,12 @@ use crate::{
             create_migration_context, package_module_bytes,
             verification::created_objects::CreatedObjects, PACKAGE_DEPS,
         },
-        types::{snapshot::OutputHeader, stardust_to_sui_address_owner, timelock, Alias},
+        types::{
+            snapshot::OutputHeader,
+            stardust_to_sui_address, stardust_to_sui_address_owner, timelock,
+            token_scheme::{u256_to_bigdecimal, SimpleTokenSchemeU64},
+            Nft,
+        },
     },
 };
 
@@ -246,7 +252,11 @@ impl Executor {
             );
             self.native_tokens.insert(
                 foundry.token_id(),
-                FoundryLedgerData::new(minted_coin_id, foundry_package),
+                FoundryLedgerData::new(
+                    minted_coin_id,
+                    foundry_package,
+                    SimpleTokenSchemeU64::try_from(foundry.token_scheme().as_simple())?,
+                ),
             );
             self.store.finish(
                 written
@@ -268,7 +278,7 @@ impl Executor {
         // Take the Alias ID set in the output or, if its zeroized, compute it from the
         // Output ID.
         let alias_id = ObjectID::new(*alias.alias_id().or_from_output_id(&header.output_id()));
-        let move_alias = Alias::try_from_stardust(alias_id, alias)?;
+        let move_alias = crate::stardust::types::Alias::try_from_stardust(alias_id, alias)?;
         let mut created_objects = CreatedObjects::default();
 
         // TODO: We should ensure that no circular ownership exists.
@@ -349,10 +359,6 @@ impl Executor {
             let mut builder = ProgrammableTransactionBuilder::new();
             let bag = pt::bag_new(&mut builder);
             for token in native_tokens.iter() {
-                if token.amount().bits() > 64 {
-                    anyhow::bail!("unsupported number of tokens");
-                }
-
                 let Some(foundry_ledger_data) = self.native_tokens.get(token.token_id()) else {
                     anyhow::bail!("foundry for native token has not been published");
                 };
@@ -372,11 +378,23 @@ impl Executor {
                     foundry_ledger_data.coin_type_origin.module_name,
                     foundry_ledger_data.coin_type_origin.struct_name
                 );
+
+                let adjusted_amount = if let Some(ratio) = &foundry_ledger_data
+                    .token_scheme_u64
+                    .token_adjustment_ratio()
+                {
+                    (u256_to_bigdecimal(token.amount()) * ratio)
+                        .to_u64()
+                        .expect("should be a valid u64")
+                } else {
+                    token.amount().as_u64()
+                };
+
                 let balance = pt::coin_balance_split(
                     &mut builder,
                     object_ref,
                     token_type.parse()?,
-                    token.amount().as_u64(),
+                    adjusted_amount,
                 )?;
                 pt::bag_add(&mut builder, bag, balance, token_type)?;
             }
@@ -441,10 +459,6 @@ impl Executor {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             for token in native_tokens.iter() {
-                if token.amount().bits() > 64 {
-                    anyhow::bail!("unsupported number of tokens");
-                }
-
                 let Some(foundry_ledger_data) = self.native_tokens.get(token.token_id()) else {
                     anyhow::bail!("foundry for native token has not been published");
                 };
@@ -459,7 +473,17 @@ impl Executor {
                 foundry_package_deps.push(foundry_ledger_data.package_id);
 
                 // Pay using that object
-                builder.pay(vec![object_ref], vec![owner], vec![token.amount().as_u64()])?;
+                let adjusted_amount = if let Some(ratio) = &foundry_ledger_data
+                    .token_scheme_u64
+                    .token_adjustment_ratio()
+                {
+                    (u256_to_bigdecimal(token.amount()) * ratio)
+                        .to_u64()
+                        .expect("should be a valid u64")
+                } else {
+                    token.amount().as_u64()
+                };
+                builder.pay(vec![object_ref], vec![owner], vec![adjusted_amount])?;
             }
 
             builder.finish()
@@ -564,8 +588,83 @@ impl Executor {
         Ok(created_objects)
     }
 
-    pub(super) fn create_nft_objects(&mut self, _nft: &NftOutput) -> Result<CreatedObjects> {
-        todo!();
+    pub(super) fn create_nft_objects(
+        &mut self,
+        header: &OutputHeader,
+        nft: &NftOutput,
+    ) -> Result<CreatedObjects> {
+        let mut created_objects = CreatedObjects::default();
+
+        // Take the Nft ID set in the output or, if its zeroized, compute it from the
+        // Output ID.
+        let nft_id = ObjectID::new(*nft.nft_id().or_from_output_id(&header.output_id()));
+        let move_nft = Nft::try_from_stardust(nft_id, nft)?;
+
+        // TODO: We should ensure that no circular ownership exists.
+        let nft_output_owner_address = stardust_to_sui_address(nft.address())?;
+        let nft_output_owner = stardust_to_sui_address_owner(nft.address())?;
+
+        let package_deps = InputObjects::new(self.load_packages(PACKAGE_DEPS).collect());
+        let version = package_deps.lamport_timestamp(&[]);
+        let move_nft_object = move_nft.to_genesis_object(
+            nft_output_owner,
+            &self.protocol_config,
+            &self.tx_context,
+            version,
+        )?;
+
+        let move_nft_object_ref = move_nft_object.compute_object_reference();
+        self.store.insert_object(move_nft_object);
+
+        let (bag, version, fields) = self.create_bag_with_pt(nft.native_tokens())?;
+        created_objects.set_native_tokens(fields)?;
+        let move_nft_output = crate::stardust::types::NftOutput::try_from_stardust(
+            self.tx_context.fresh_id(),
+            nft,
+            bag,
+        )?;
+
+        // The bag will be wrapped into the nft output object, so
+        // by equating their versions we emulate a ptb.
+        let move_nft_output_object = move_nft_output.to_genesis_object(
+            nft_output_owner_address,
+            &self.protocol_config,
+            &self.tx_context,
+            version,
+        )?;
+        let move_nft_output_object_ref = move_nft_output_object.compute_object_reference();
+        created_objects.set_output(move_nft_output_object.id())?;
+        self.store.insert_object(move_nft_output_object);
+
+        // Attach the Nft to the Nft Output as a dynamic object field via the attach_nft
+        // convenience method.
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+
+            let nft_output_arg =
+                builder.obj(ObjectArg::ImmOrOwnedObject(move_nft_output_object_ref))?;
+            let nft_arg = builder.obj(ObjectArg::ImmOrOwnedObject(move_nft_object_ref))?;
+            builder.programmable_move_call(
+                STARDUST_PACKAGE_ID,
+                ident_str!("nft_output").into(),
+                ident_str!("attach_nft").into(),
+                vec![],
+                vec![nft_output_arg, nft_arg],
+            );
+
+            builder.finish()
+        };
+
+        let input_objects = CheckedInputObjects::new_for_genesis(
+            self.load_input_objects([move_nft_object_ref, move_nft_output_object_ref])
+                .chain(self.load_packages(PACKAGE_DEPS))
+                .collect(),
+        );
+
+        let InnerTemporaryStore { written, .. } = self.execute_pt_unmetered(input_objects, pt)?;
+        self.store.finish(written);
+
+        Ok(created_objects)
     }
 }
 
@@ -640,6 +739,7 @@ pub(crate) struct FoundryLedgerData {
     pub(crate) minted_coin_id: ObjectID,
     pub(crate) coin_type_origin: TypeOrigin,
     pub(crate) package_id: ObjectID,
+    pub(crate) token_scheme_u64: SimpleTokenSchemeU64,
 }
 
 impl FoundryLedgerData {
@@ -649,12 +749,17 @@ impl FoundryLedgerData {
     /// # Panic
     ///
     /// Panics if the package does not contain any [`TypeOrigin`].
-    fn new(minted_coin_id: ObjectID, foundry_package: &MovePackage) -> Self {
+    fn new(
+        minted_coin_id: ObjectID,
+        foundry_package: &MovePackage,
+        token_scheme_u64: SimpleTokenSchemeU64,
+    ) -> Self {
         Self {
             minted_coin_id,
             // There must be only one type created in the foundry package.
             coin_type_origin: foundry_package.type_origin_table()[0].clone(),
             package_id: foundry_package.id(),
+            token_scheme_u64,
         }
     }
 }

@@ -1,3 +1,6 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use iota_sdk::types::block::output::AliasOutput as StardustAlias;
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
