@@ -13,7 +13,7 @@ enum Steps {
     EnterAmount,
 }
 
-const HARCODED_VALIDATORS = ['Validator 1', 'Validator 2', 'Validator 3'];
+const HARDCODED_VALIDATORS = ['Validator 1', 'Validator 2', 'Validator 3'];
 
 function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
     const [step, setStep] = useState<Steps>(Steps.SelectValidaor);
@@ -44,7 +44,7 @@ function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
                 <div>
                     <h2>Select Validator</h2>
                     <div className="flex flex-col items-start gap-2">
-                        {HARCODED_VALIDATORS.map((validator) => (
+                        {HARDCODED_VALIDATORS.map((validator) => (
                             <Button
                                 key={validator}
                                 onClick={() => handleValidatorSelect(validator)}
