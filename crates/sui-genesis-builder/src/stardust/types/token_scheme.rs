@@ -16,19 +16,22 @@ pub struct SimpleTokenSchemeU64 {
     maximum_supply: u64,
     // Circulating supply of tokens controlled by a foundry.
     circulating_supply: u64,
-    // Ratio that the original circulating_supply (U256) was adjusted by.
+    // The ratio that the original circulating_supply (U256) was adjusted by in regards to the adjusted maximum supply (u64).
     // During migration, native token balances need to be multiplied by this ratio to account for that the original maximum supply may exceeded u64::MAX.
     // In case the original maximum supply was below u64::MAX, this value is None.
     token_adjustment_ratio: Option<BigDecimal>,
 }
 
 impl SimpleTokenSchemeU64 {
+    /// The maximum supply of tokens controlled by a foundry.
     pub fn maximum_supply(&self) -> u64 {
         self.maximum_supply
     }
+    /// The circulating supply of tokens controlled by a foundry.
     pub fn circulating_supply(&self) -> u64 {
         self.circulating_supply
     }
+    /// The ratio that the original circulating_supply (U256) was adjusted by in regards to the adjusted maximum supply (u64).
     pub fn token_adjustment_ratio(&self) -> &Option<BigDecimal> {
         &self.token_adjustment_ratio
     }
@@ -78,6 +81,7 @@ impl TryFrom<&SimpleTokenScheme> for SimpleTokenSchemeU64 {
     }
 }
 
+/// Converts a U256 to a BigDecimal.
 pub fn u256_to_bigdecimal(u256_value: U256) -> BigDecimal {
     // Allocate a mutable array for the big-endian bytes
     let mut bytes = [0u8; 32];
