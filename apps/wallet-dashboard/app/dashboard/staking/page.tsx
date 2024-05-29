@@ -2,9 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 'use client';
 
-import { AmountBox, Box, List } from '@/components/index';
+import { AmountBox, Box, List, StakeWizardPopup } from '@/components';
+import { usePopups } from '@/hooks';
 
 function StakingDashboardPage(): JSX.Element {
+    const { openPopup, closePopup } = usePopups();
+
     const HARCODED_STAKE_DATA = {
         title: 'Your Stake',
         value: '100 IOTA',
@@ -19,13 +22,24 @@ function StakingDashboardPage(): JSX.Element {
         { id: '1', validator: 'Validator 2', stake: '30 IOTA', rewards: '0.09 IOTA' },
         { id: '2', validator: 'Validator 3', stake: '20 IOTA', rewards: '0.06 IOTA' },
     ];
+
+    const handleNewStake = () => {
+        openPopup(<StakeWizardPopup onClose={closePopup} />);
+    };
+
     return (
-        <div className="flex items-center justify-center gap-4 pt-12">
-            <AmountBox title={HARCODED_STAKE_DATA.title} amount={HARCODED_STAKE_DATA.value} />
-            <AmountBox title={HARCODED_REWARDS_DATA.title} amount={HARCODED_REWARDS_DATA.value} />
-            <Box title={HARCODED_STAKING_LIST_TITLE}>
-                <List data={HARCODED_STAKING_LIST} />
-            </Box>
+        <div className="flex flex-col items-center justify-center gap-4 pt-12">
+            <button onClick={handleNewStake}>New Stake</button>
+            <div className="flex items-center justify-center gap-4">
+                <AmountBox title={HARCODED_STAKE_DATA.title} amount={HARCODED_STAKE_DATA.value} />
+                <AmountBox
+                    title={HARCODED_REWARDS_DATA.title}
+                    amount={HARCODED_REWARDS_DATA.value}
+                />
+                <Box title={HARCODED_STAKING_LIST_TITLE}>
+                    <List data={HARCODED_STAKING_LIST} />
+                </Box>
+            </div>
         </div>
     );
 }
