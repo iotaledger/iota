@@ -8,7 +8,7 @@ import ActivityIcon from './ActivityIcon';
 import formatTimestamp from '@/lib/utils/time';
 import { Activity } from '@/lib/interfaces';
 import { usePopups } from '@/hooks';
-import { ActivityDetailsPopup } from './Popup';
+import { ActivityDetailsPopup, Button } from '@/components';
 
 interface ActivityTileProps {
     activity: Activity;
@@ -28,7 +28,7 @@ function ActivityTile({ activity }: ActivityTileProps): JSX.Element {
                 <h2>{activity.action}</h2>
                 <span>{formatTimestamp(activity.timestamp)}</span>
             </div>
-            <button onClick={handleDetailsClick}>Details</button>
+            <Button onClick={handleDetailsClick}>Details</Button>
         </div>
     );
 }
