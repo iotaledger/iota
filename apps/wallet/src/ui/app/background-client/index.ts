@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { createMessage } from '_messages';
 import type { Message } from '_messages';
 import { PortStream } from '_messaging/PortStream';
@@ -18,6 +21,7 @@ import { changeActiveNetwork, setActiveOrigin } from '_redux/slices/app';
 import { setPermissions } from '_redux/slices/permissions';
 import { setTransactionRequests } from '_redux/slices/transaction-requests';
 import { type MnemonicSerializedUiAccount } from '_src/background/accounts/MnemonicAccount';
+import { type SeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
 import type { NetworkEnvType } from '_src/shared/api-env';
 import {
 	isMethodPayload,
@@ -346,6 +350,31 @@ export class BackgroundClient {
 		);
 	}
 
+	public createSeedAccountSource(inputs: { password: string; seed: string }) {
+		return lastValueFrom(
+			this.sendMessage(
+				createMessage<MethodPayload<'createAccountSource'>>({
+					method: 'createAccountSource',
+					type: 'method-payload',
+					args: { type: 'seed', params: inputs },
+				}),
+			).pipe(
+				take(1),
+				map(({ payload }) => {
+					if (!isMethodPayload(payload, 'accountSourceCreationResponse')) {
+						throw new Error('Unknown response');
+					}
+					if ('seed' !== payload.args.accountSource.type) {
+						throw new Error(
+							`Unexpected account source type response ${payload.args.accountSource.type}`,
+						);
+					}
+					return payload.args.accountSource as unknown as SeedSerializedUiAccount;
+				}),
+			),
+		);
+	}
+
 	public createAccounts(inputs: MethodPayload<'createAccounts'>['args']) {
 		return lastValueFrom(
 			this.sendMessage(
@@ -469,6 +498,26 @@ export class BackgroundClient {
 				take(1),
 				map(({ payload }) => {
 					if (isMethodPayload(payload, 'getAccountSourceEntropyResponse')) {
+						return payload.args;
+					}
+					throw new Error('Unexpected response type');
+				}),
+			),
+		);
+	}
+
+	public getAccountSourceSeed(args: MethodPayload<'getAccountSourceSeed'>['args']) {
+		return lastValueFrom(
+			this.sendMessage(
+				createMessage<MethodPayload<'getAccountSourceSeed'>>({
+					type: 'method-payload',
+					method: 'getAccountSourceSeed',
+					args,
+				}),
+			).pipe(
+				take(1),
+				map(({ payload }) => {
+					if (isMethodPayload(payload, 'getAccountSourceSeedResponse')) {
 						return payload.args;
 					}
 					throw new Error('Unexpected response type');
