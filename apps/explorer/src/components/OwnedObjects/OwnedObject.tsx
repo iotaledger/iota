@@ -9,22 +9,22 @@ import { parseObjectType } from '~/utils/objectUtils';
 import { trimStdLibPrefix } from '~/utils/stringUtils';
 
 type OwnedObjectTypes = {
-	obj: SuiObjectResponse;
+    obj: SuiObjectResponse;
 };
 
 export default function OwnedObject({ obj }: OwnedObjectTypes) {
-	const video = useResolveVideo(obj);
-	const displayMeta = obj.data?.display?.data;
+    const video = useResolveVideo(obj);
+    const displayMeta = obj.data?.display?.data;
 
-	return (
-		<ObjectDetails
-			noTypeRender
-			variant="small"
-			id={obj.data?.objectId}
-			type={trimStdLibPrefix(parseObjectType(obj))}
-			name={displayMeta?.name ?? displayMeta?.description ?? '--'}
-			image={displayMeta?.image_url}
-			video={video}
-		/>
-	);
+    return (
+        <ObjectDetails
+            noTypeRender
+            variant="small"
+            id={obj.data?.objectId}
+            type={trimStdLibPrefix(parseObjectType(obj))}
+            name={displayMeta?.name ?? displayMeta?.description ?? '--'}
+            image={displayMeta?.image_url}
+            video={video}
+        />
+    );
 }

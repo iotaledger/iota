@@ -9,15 +9,15 @@ import { Network } from '~/utils/api/DefaultRpcClient';
 
 // TODO: Use enhanced RPC locally by default
 export function useEnhancedRpcClient() {
-	const [network] = useNetwork();
-	const client = useSuiClient();
-	const enhancedRpc = useMemo(() => {
-		if (network === Network.Local) {
-			return new SuiClient({ url: 'http://localhost:9124' });
-		}
+    const [network] = useNetwork();
+    const client = useSuiClient();
+    const enhancedRpc = useMemo(() => {
+        if (network === Network.Local) {
+            return new SuiClient({ url: 'http://localhost:9124' });
+        }
 
-		return client;
-	}, [network, client]);
+        return client;
+    }, [network, client]);
 
-	return enhancedRpc;
+    return enhancedRpc;
 }
