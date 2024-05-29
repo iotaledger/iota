@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashMap;
+use std::str::FromStr;
 
 use iota_sdk::types::block::address::AliasAddress;
 use iota_sdk::types::block::output::feature::Irc30Metadata;
@@ -75,6 +76,144 @@ fn create_foundry(
     (random_output_header(), foundry_output)
 }
 
+/// Test that an Object owned by another Object (not to be confused with Owner::ObjectOwner)
+/// can be received by the owning object. This means aliases owned by aliases, aliases owned by NFTs, etc.
+///
+/// The PTB sends the extracted assets to the null address since they must be used in the transaction.
+fn object_migration_with_object_owner(
+    output_id_owner: OutputId,
+    output_id_owned: OutputId,
+    outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
+    extraction1_module_name: &IdentStr,
+    extraction2_module_name: &IdentStr,
+    unlock_condition_function: &IdentStr,
+) {
+    let (mut executor, objects_map) = run_migration(outputs);
+
+    // Find the corresponding objects to the migrated outputs.
+    let owner_created_objects = objects_map
+        .get(&output_id_owner)
+        .expect("owner output should have created objects");
+    let owned_created_objects = objects_map
+        .get(&output_id_owned)
+        .expect("owned output should have created objects");
+
+    let owner_output_object_ref = executor
+        .store()
+        .get_object(owner_created_objects.output().unwrap())
+        .unwrap()
+        .compute_object_reference();
+    let owned_output_object_ref = executor
+        .store()
+        .get_object(owned_created_objects.output().unwrap())
+        .unwrap()
+        .compute_object_reference();
+
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let owner_arg = builder
+            .obj(ObjectArg::ImmOrOwnedObject(owner_output_object_ref))
+            .unwrap();
+
+        let extracted_assets = builder.programmable_move_call(
+            STARDUST_PACKAGE_ID,
+            extraction1_module_name.into(),
+            ident_str!("extract_assets").into(),
+            vec![],
+            vec![owner_arg],
+        );
+
+        let Argument::Result(result_idx) = extracted_assets else {
+            panic!("expected Argument::Result");
+        };
+        let balance_arg = Argument::NestedResult(result_idx, 0);
+        let bag_arg = Argument::NestedResult(result_idx, 1);
+        let owned_arg = Argument::NestedResult(result_idx, 2);
+
+        let receiving_owned_arg = builder
+            .obj(ObjectArg::Receiving(owned_output_object_ref))
+            .unwrap();
+        let received_owned_output = builder.programmable_move_call(
+            STARDUST_PACKAGE_ID,
+            ident_str!("address_unlock_condition").into(),
+            unlock_condition_function.into(),
+            vec![],
+            vec![owned_arg, receiving_owned_arg],
+        );
+
+        let coin_arg = builder.programmable_move_call(
+            SUI_FRAMEWORK_PACKAGE_ID,
+            ident_str!("coin").into(),
+            ident_str!("from_balance").into(),
+            vec![TypeTag::from_str(&format!("{}::sui::SUI", SUI_FRAMEWORK_PACKAGE_ID)).unwrap()],
+            vec![balance_arg],
+        );
+
+        // Destroying the bag only works if it's empty, hence asserting that it is in fact empty.
+        builder.programmable_move_call(
+            SUI_FRAMEWORK_PACKAGE_ID,
+            ident_str!("bag").into(),
+            ident_str!("destroy_empty").into(),
+            vec![],
+            vec![bag_arg],
+        );
+
+        // Transfer the coin to the zero address since we have to move it somewhere.
+        builder.transfer_arg(SuiAddress::default(), coin_arg);
+
+        // We have to use extracted object as we cannot transfer it (since it lacks the `store` ability),
+        // so we extract its assets.
+        let extracted_assets = builder.programmable_move_call(
+            STARDUST_PACKAGE_ID,
+            extraction2_module_name.into(),
+            ident_str!("extract_assets").into(),
+            vec![],
+            vec![received_owned_output],
+        );
+        let Argument::Result(result_idx) = extracted_assets else {
+            panic!("expected Argument::Result");
+        };
+        let balance_arg = Argument::NestedResult(result_idx, 0);
+        let bag_arg = Argument::NestedResult(result_idx, 1);
+        let inner_owned_arg = Argument::NestedResult(result_idx, 2);
+
+        let coin_arg = builder.programmable_move_call(
+            SUI_FRAMEWORK_PACKAGE_ID,
+            ident_str!("coin").into(),
+            ident_str!("from_balance").into(),
+            vec![TypeTag::from_str(&format!("{}::sui::SUI", SUI_FRAMEWORK_PACKAGE_ID)).unwrap()],
+            vec![balance_arg],
+        );
+
+        // Destroying the bag only works if it's empty, hence asserting that it is in fact empty.
+        builder.programmable_move_call(
+            SUI_FRAMEWORK_PACKAGE_ID,
+            ident_str!("bag").into(),
+            ident_str!("destroy_empty").into(),
+            vec![],
+            vec![bag_arg],
+        );
+
+        // Transfer the coin to the zero address since we have to move it somewhere.
+        builder.transfer_arg(SuiAddress::default(), coin_arg);
+
+        // We have successfully extracted the owned objects which is what we want to test.
+        // Transfer to the zero address so the PTB doesn't fail.
+        builder.transfer_arg(SuiAddress::default(), owned_arg);
+        builder.transfer_arg(SuiAddress::default(), inner_owned_arg);
+
+        builder.finish()
+    };
+
+    let input_objects = CheckedInputObjects::new_for_genesis(
+        executor
+            .load_input_objects([owner_output_object_ref])
+            .chain(executor.load_packages(PACKAGE_DEPS))
+            .collect(),
+    );
+    executor.execute_pt_unmetered(input_objects, pt).unwrap();
+}
+
 /// Test that an Output that owns Native Tokens can extract those tokens from the contained bag.
 fn extract_native_token_from_bag(
     output_id: OutputId,
@@ -86,7 +225,7 @@ fn extract_native_token_from_bag(
 
     let (mut executor, objects_map) = run_migration(outputs);
 
-    // Find the corresponding objects to the migrated object.
+    // Find the corresponding objects to the migrated output.
     let output_created_objects = objects_map
         .get(&output_id)
         .expect("output should have created objects");
