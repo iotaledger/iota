@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 'use client';
 
-import { AmountBox, Box, List, StakeWizardPopup } from '@/components';
+import { AmountBox, Box, List, NewStakePopup } from '@/components';
 import { usePopups } from '@/hooks';
 
 function StakingDashboardPage(): JSX.Element {
@@ -24,7 +24,7 @@ function StakingDashboardPage(): JSX.Element {
     ];
 
     const handleNewStake = () => {
-        openPopup(<StakeWizardPopup onClose={closePopup} />);
+        openPopup(<NewStakePopup onClose={closePopup} />);
     };
 
     return (

@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 
-interface StakeWizardPopupProps {
+interface NewStakePopupProps {
     onClose: () => void;
 }
 
@@ -14,7 +14,7 @@ enum Steps {
 
 const HARCODED_VALIDATORS = ['Validator 1', 'Validator 2', 'Validator 3'];
 
-const StakeWizardPopup: React.FC<StakeWizardPopupProps> = ({ onClose }) => {
+const NewStakePopup: React.FC<NewStakePopupProps> = ({ onClose }) => {
     const [step, setStep] = useState<Steps>(Steps.SELECT_VALIDATOR);
     const [selectedValidator, setSelectedValidator] = useState<string | null>(null);
     const [amount, setAmount] = useState<string>('');
@@ -76,4 +76,4 @@ const StakeWizardPopup: React.FC<StakeWizardPopupProps> = ({ onClose }) => {
     );
 };
 
-export default StakeWizardPopup;
+export default NewStakePopup;
