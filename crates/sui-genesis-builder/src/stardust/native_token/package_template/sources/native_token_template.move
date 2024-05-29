@@ -28,7 +28,7 @@ module 0x0::$MODULE_NAME {
         );
 
         // Mint the tokens and transfer them to the publisher
-        let minted_coins = coin::mint(&mut treasury_cap, $CIRCULATING_TOKENS, ctx);
+        let minted_coins = coin::mint(&mut treasury_cap, $CIRCULATING_SUPPLY, ctx);
         transfer::public_transfer(minted_coins, ctx.sender());
 
         // Create the max supply policy
