@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type Serializable } from '_src/shared/cryptography/keystore';
 
 import { getDB } from '../db';
@@ -10,7 +13,7 @@ import {
 	setEphemeralValue,
 } from '../session-ephemeral-values';
 
-export type AccountSourceType = 'mnemonic' | 'qredo';
+export type AccountSourceType = 'mnemonic' | 'seed' | 'qredo';
 
 export abstract class AccountSource<
 	T extends AccountSourceSerialized = AccountSourceSerialized,

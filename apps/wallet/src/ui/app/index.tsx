@@ -27,6 +27,7 @@ import { AddAccountPage } from './pages/accounts/AddAccountPage';
 import { BackupMnemonicPage } from './pages/accounts/BackupMnemonicPage';
 import { ExportAccountPage } from './pages/accounts/ExportAccountPage';
 import { ExportPassphrasePage } from './pages/accounts/ExportPassphrasePage';
+import { ExportSeedPage } from './pages/accounts/ExportSeedPage';
 import { ForgotPasswordIndexPage } from './pages/accounts/forgot-password/ForgotPasswordIndexPage';
 import { ForgotPasswordPage } from './pages/accounts/forgot-password/ForgotPasswordPage';
 import { RecoverManyPage } from './pages/accounts/forgot-password/RecoverManyPage';
@@ -208,6 +209,7 @@ const App = () => {
 				</Route>
 				<Route path="export/:accountID" element={<ExportAccountPage />} />
 				<Route path="export/passphrase/:accountSourceID" element={<ExportPassphrasePage />} />
+				<Route path="export/seed/:accountSourceID" element={<ExportSeedPage />} />
 				<Route path="forgot-password" element={<ForgotPasswordPage />}>
 					<Route index element={<ForgotPasswordIndexPage />} />
 					<Route path="recover" element={<RecoverPage />} />

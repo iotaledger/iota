@@ -165,19 +165,18 @@ export function AddAccountPage() {
 					<Button
 						variant="outline"
 						size="tall"
-						text="Import Private Key"
-						to="/accounts/import-private-key"
-						onClick={() => {
-							ampli.clickedImportPrivateKey({ sourceFlow });
-						}}
+						text="Import Seed"
+						to="/accounts/import-seed"
 						disabled={createAccountsMutation.isPending}
 					/>
 					<Button
 						variant="outline"
 						size="tall"
-						text="Import Seed"
-						to="/accounts/import-seed"
-						onClick={() => {}}
+						text="Import Private Key"
+						to="/accounts/import-private-key"
+						onClick={() => {
+							ampli.clickedImportPrivateKey({ sourceFlow });
+						}}
 						disabled={createAccountsMutation.isPending}
 					/>
 				</Section>

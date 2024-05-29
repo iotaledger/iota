@@ -7,10 +7,13 @@ import { type SubmitHandler } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 
+import { seedValidation } from '../../helpers/validation/seedValidation';
 import { Form } from '../../shared/forms/Form';
 import { TextAreaField } from '../../shared/forms/TextAreaField';
 
-const formSchema = z.object({});
+const formSchema = z.object({
+	seed: seedValidation,
+});
 
 type FormValues = z.infer<typeof formSchema>;
 
@@ -23,19 +26,23 @@ export function ImportSeedForm({ onSubmit }: ImportSeedFormProps) {
 		mode: 'onTouched',
 		schema: formSchema,
 	});
+	const {
+		register,
+		formState: { isSubmitting, isValid },
+	} = form;
 	const navigate = useNavigate();
 
 	return (
 		<Form className="flex flex-col h-full gap-2" form={form} onSubmit={onSubmit}>
-			<TextAreaField label="Enter Seed" name={''} rows={3} />
+			<TextAreaField label="Enter Seed" rows={5} {...register('seed')} />
 			<div className="flex gap-2.5 mt-auto">
 				<Button variant="outline" size="tall" text="Cancel" onClick={() => navigate(-1)} />
 				<Button
 					type="submit"
-					disabled={true}
+					disabled={isSubmitting || !isValid}
 					variant="primary"
 					size="tall"
-					loading={false}
+					loading={isSubmitting}
 					text="Add Account"
 				/>
 			</div>

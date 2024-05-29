@@ -19,7 +19,7 @@ function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
     // TODO: check if the wallet is connected and if not redirect to the welcome screen
     return (
         <>
-            <section className="mt-12 flex flex-row items-center justify-around">
+            <section className="flex flex-row items-center justify-around pt-12">
                 <ConnectButton />
 
                 {routes.map((route) => {

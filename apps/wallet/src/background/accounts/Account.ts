@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type Serializable } from '_src/shared/cryptography/keystore';
 import {
 	toSerializedSignature,
@@ -18,7 +21,13 @@ import {
 } from '../session-ephemeral-values';
 import { accountsEvents } from './events';
 
-export type AccountType = 'mnemonic-derived' | 'imported' | 'ledger' | 'qredo' | 'zkLogin';
+export type AccountType =
+	| 'mnemonic-derived'
+	| 'seed-derived'
+	| 'imported'
+	| 'ledger'
+	| 'qredo'
+	| 'zkLogin';
 
 export abstract class Account<
 	T extends SerializedAccount = SerializedAccount,
@@ -106,7 +115,7 @@ export abstract class Account<
 
 	protected async onLocked(allowRead: boolean) {
 		// skip clearing last unlocked value to allow read access
-		// when possible (last unlocked withing time limits)
+		// when possible (last unlocked within time limits)
 		if (allowRead) {
 			return;
 		}

@@ -999,6 +999,9 @@ importers:
       '@mysten/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
+      '@mysten/icons':
+        specifier: workspace:*
+        version: link:../icons
       '@mysten/sui.js':
         specifier: workspace:*
         version: link:../../sdk/typescript

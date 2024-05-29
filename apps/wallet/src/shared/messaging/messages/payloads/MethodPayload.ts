@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type AccountSourceSerializedUI } from '_src/background/account-sources/AccountSource';
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
 import { type ZkLoginProvider } from '_src/background/accounts/zklogin/providers';
@@ -20,18 +23,27 @@ export type PasswordRecoveryData = { type: 'mnemonic'; accountSourceID: string; 
 type MethodPayloads = {
 	getStoredEntities: { type: UIAccessibleEntityType };
 	storedEntitiesResponse: { entities: any; type: UIAccessibleEntityType };
-	createAccountSource: {
-		type: 'mnemonic';
-		params: {
-			password: string;
-			entropy?: string;
-		};
-	};
+	createAccountSource:
+		| {
+				type: 'mnemonic';
+				params: {
+					password: string;
+					entropy?: string;
+				};
+		  }
+		| {
+				type: 'seed';
+				params: {
+					password: string;
+					seed: string;
+				};
+		  };
 	accountSourceCreationResponse: { accountSource: AccountSourceSerializedUI };
 	lockAccountSourceOrAccount: { id: string };
 	unlockAccountSourceOrAccount: { id: string; password?: string };
 	createAccounts:
 		| { type: 'mnemonic-derived'; sourceID: string }
+		| { type: 'seed-derived'; sourceID: string }
 		| { type: 'imported'; keyPair: string; password: string }
 		| {
 				type: 'ledger';
@@ -55,6 +67,8 @@ type MethodPayloads = {
 	storeLedgerAccountsPublicKeys: { publicKeysToStore: LedgerAccountsPublicKeys };
 	getAccountSourceEntropy: { accountSourceID: string; password?: string };
 	getAccountSourceEntropyResponse: { entropy: string };
+	getAccountSourceSeed: { accountSourceID: string; password?: string };
+	getAccountSourceSeedResponse: { seed: string };
 	clearWallet: {};
 	getAutoLockMinutes: {};
 	getAutoLockMinutesResponse: { minutes: number | null };
