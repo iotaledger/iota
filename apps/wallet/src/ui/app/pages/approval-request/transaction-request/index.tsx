@@ -8,7 +8,6 @@ import { type TransactionApprovalRequest } from '_payloads/transactions/Approval
 import { respondToTransactionRequest } from '_redux/slices/transaction-requests';
 import { ampli } from '_src/shared/analytics/ampli';
 import { useAccountByAddress } from '_src/ui/app/hooks/useAccountByAddress';
-import { useQredoTransaction } from '_src/ui/app/hooks/useQredoTransaction';
 import { useRecognizedPackages } from '_src/ui/app/hooks/useRecognizedPackages';
 import { useSigner } from '_src/ui/app/hooks/useSigner';
 import { PageMainLayoutTitle } from '_src/ui/app/shared/page-main-layout/PageMainLayoutTitle';
@@ -58,7 +57,6 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 		currentAddress: addressForTransaction,
 		recognizedPackagesList,
 	});
-	const { clientIdentifier, notificationModal } = useQredoTransaction(true);
 	if (!signer) {
 		return null;
 	}
@@ -80,7 +78,6 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 							approved,
 							txRequestID: txRequest.id,
 							signer,
-							clientIdentifier,
 						}),
 					);
 					if (!appOriginsToExcludeFromAnalytics.includes(txRequest.origin)) {
@@ -128,7 +125,6 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 							approved: isConfirmed,
 							txRequestID: txRequest.id,
 							signer,
-							clientIdentifier,
 						}),
 					);
 					ampli.respondedToTransactionRequest({
@@ -139,7 +135,6 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 					setConfirmationVisible(false);
 				}}
 			/>
-			{notificationModal}
 		</>
 	);
 }

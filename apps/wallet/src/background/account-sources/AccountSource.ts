@@ -13,7 +13,7 @@ import {
 	setEphemeralValue,
 } from '../session-ephemeral-values';
 
-export type AccountSourceType = 'mnemonic' | 'seed' | 'qredo';
+export type AccountSourceType = 'mnemonic' | 'seed';
 
 export abstract class AccountSource<
 	T extends AccountSourceSerialized = AccountSourceSerialized,

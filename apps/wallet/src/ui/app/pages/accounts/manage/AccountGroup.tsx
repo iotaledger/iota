@@ -37,7 +37,6 @@ import toast from 'react-hot-toast';
 const accountTypeToLabel: Record<AccountType, string> = {
 	'mnemonic-derived': 'Passphrase Derived',
 	'seed-derived': 'Seed Derived',
-	qredo: 'Qredo',
 	imported: 'Imported',
 	ledger: 'Ledger',
 	zkLogin: 'zkLogin',
@@ -64,7 +63,7 @@ const FooterLink = forwardRef<HTMLAnchorElement | HTMLButtonElement, ButtonOrLin
 		return (
 			<ButtonOrLink
 				ref={ref}
-				className="transition text-hero-darkest/40 hover:text-hero-darkest/50 no-underline uppercase outline-none border-none bg-transparent cursor-pointer"
+				className="cursor-pointer border-none bg-transparent uppercase text-hero-darkest/40 no-underline outline-none transition hover:text-hero-darkest/50"
 				to={to}
 				{...props}
 			>
@@ -91,8 +90,8 @@ function AccountFooter({ accountID, showExport }: { accountID: string; showExpor
 	});
 	return (
 		<>
-			<div className="flex flex-shrink-0 w-full">
-				<div className="flex gap-0.5 items-center whitespace-nowrap">
+			<div className="flex w-full flex-shrink-0">
+				<div className="flex items-center gap-0.5 whitespace-nowrap">
 					<NicknameDialog accountID={accountID} trigger={<FooterLink>Edit Nickname</FooterLink>} />
 					{showExport ? (
 						<FooterLink to={`/accounts/export/${accountID}`}>Export Private Key</FooterLink>
@@ -166,14 +165,14 @@ export function AccountGroup({
 	return (
 		<>
 			<CollapsiblePrimitive.Root defaultOpen asChild>
-				<div className="flex flex-col gap-4 w-full">
+				<div className="flex w-full flex-col gap-4">
 					<CollapsiblePrimitive.Trigger asChild>
-						<div className="flex gap-2 w-full items-center justify-center cursor-pointer flex-shrink-0 group [&>*]:select-none">
-							<ArrowBgFill16 className="h-4 w-4 group-data-[state=open]:rotate-90 text-hero-darkest/20" />
+						<div className="group flex w-full flex-shrink-0 cursor-pointer items-center justify-center gap-2 [&>*]:select-none">
+							<ArrowBgFill16 className="h-4 w-4 text-hero-darkest/20 group-data-[state=open]:rotate-90" />
 							<Heading variant="heading5" weight="semibold" color="steel-darker">
 								{getGroupTitle(accounts[0])}
 							</Heading>
-							<div className="h-px bg-gray-45 flex flex-1 flex-shrink-0" />
+							<div className="flex h-px flex-1 flex-shrink-0 bg-gray-45" />
 							{(isMnemonicDerivedGroup || isSeedDerivedGroup) && accountSource ? (
 								<ButtonOrLink
 									loading={createAccountMutation.isPending}
@@ -190,7 +189,7 @@ export function AccountGroup({
 											createAccountMutation.mutate({ type });
 										}
 									}}
-									className="items-center justify-center gap-0.5 cursor-pointer appearance-none uppercase flex bg-transparent border-0 outline-none text-hero hover:text-hero-darkest"
+									className="flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase text-hero outline-none hover:text-hero-darkest"
 								>
 									<Plus12 />
 									<Text variant="bodySmall" weight="semibold">
@@ -201,7 +200,7 @@ export function AccountGroup({
 						</div>
 					</CollapsiblePrimitive.Trigger>
 					<CollapsiblePrimitive.CollapsibleContent asChild>
-						<div className="flex flex-col gap-3 w-full flex-shrink-0">
+						<div className="flex w-full flex-shrink-0 flex-col gap-3">
 							{accounts.map((account) => {
 								return (
 									<AccountItem

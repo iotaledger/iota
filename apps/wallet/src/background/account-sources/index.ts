@@ -13,15 +13,8 @@ import { toEntropy } from '_src/shared/utils/bip39';
 
 import { type UiConnection } from '../connections/UiConnection';
 import { getDB } from '../db';
-import { type QredoConnectIdentity } from '../qredo/types';
-import { isSameQredoConnection } from '../qredo/utils';
-import {
-	type AccountSource,
-	type AccountSourceSerialized,
-	type AccountSourceType,
-} from './AccountSource';
+import { type AccountSourceSerialized, type AccountSourceType } from './AccountSource';
 import { MnemonicAccountSource } from './MnemonicAccountSource';
-import { QredoAccountSource } from './QredoAccountSource';
 import { SeedAccountSource } from './SeedAccountSource';
 
 function toAccountSource(accountSource: AccountSourceSerialized) {
@@ -30,9 +23,6 @@ function toAccountSource(accountSource: AccountSourceSerialized) {
 	}
 	if (SeedAccountSource.isOfType(accountSource)) {
 		return new SeedAccountSource(accountSource.id);
-	}
-	if (QredoAccountSource.isOfType(accountSource)) {
-		return new QredoAccountSource(accountSource.id);
 	}
 	throw new Error(`Unknown account source of type ${accountSource.type}`);
 }
@@ -86,26 +76,6 @@ async function createAccountSource({ type, params }: MethodPayload<'createAccoun
 			throw new Error(`Unknown Account source type ${type}`);
 		}
 	}
-}
-
-export async function getQredoAccountSource(filter: string | QredoConnectIdentity) {
-	let accountSource: AccountSource | null = null;
-	if (typeof filter === 'string') {
-		accountSource = await getAccountSourceByID(filter);
-	} else {
-		const accountSourceSerialized = (
-			await (await getDB()).accountSources.where('type').equals('qredo').toArray()
-		)
-			.filter(QredoAccountSource.isOfType)
-			.find((anAccountSource) => isSameQredoConnection(filter, anAccountSource));
-		accountSource = accountSourceSerialized
-			? new QredoAccountSource(accountSourceSerialized.id)
-			: null;
-	}
-	if (!accountSource || !(accountSource instanceof QredoAccountSource)) {
-		return null;
-	}
-	return accountSource;
 }
 
 export async function lockAllAccountSources() {

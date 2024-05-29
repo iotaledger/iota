@@ -21,10 +21,6 @@ import type {
 	SignTransactionResponse,
 } from '_payloads/transactions';
 import { getCustomNetwork, type NetworkEnvType } from '_src/shared/api-env';
-import {
-	isQredoConnectPayload,
-	type QredoConnectPayload,
-} from '_src/shared/messaging/messages/payloads/QredoConnect';
 import { type SignMessageRequest } from '_src/shared/messaging/messages/payloads/transactions/SignMessage';
 import { isWalletStatusChangePayload } from '_src/shared/messaging/messages/payloads/wallet-status-change';
 import { getNetwork, Network, type ChainType } from '@mysten/sui.js/client';
@@ -57,27 +53,6 @@ type WalletEventsMap = {
 // NOTE: Because this runs in a content script, we can't fetch the manifest.
 const name = process.env.APP_NAME || 'Sui Wallet';
 
-export type QredoConnectInput = {
-	service: string;
-	apiUrl: string;
-	token: string;
-} & (
-	| {
-			/** @deprecated renamed to workspace, please use that */
-			organization: string;
-	  }
-	| {
-			workspace: string;
-	  }
-);
-
-type QredoConnectFeature = {
-	'qredo:connect': {
-		version: '0.0.1';
-		qredoConnect: (input: QredoConnectInput) => Promise<void>;
-	};
-};
-
 export class SuiWallet implements Wallet {
 	readonly #events: Emitter<WalletEventsMap>;
 	readonly #version = '1.0.0' as const;
@@ -103,10 +78,7 @@ export class SuiWallet implements Wallet {
 		return SUPPORTED_CHAINS;
 	}
 
-	get features(): StandardConnectFeature &
-		StandardEventsFeature &
-		SuiFeatures &
-		QredoConnectFeature {
+	get features(): StandardConnectFeature & StandardEventsFeature & SuiFeatures {
 		return {
 			'standard:connect': {
 				version: '1.0.0',
@@ -131,10 +103,6 @@ export class SuiWallet implements Wallet {
 			'sui:signPersonalMessage': {
 				version: '1.0.0',
 				signPersonalMessage: this.#signPersonalMessage,
-			},
-			'qredo:connect': {
-				version: '0.0.1',
-				qredoConnect: this.#qredoConnect,
 			},
 		};
 	}
@@ -342,25 +310,6 @@ export class SuiWallet implements Wallet {
 		this.#activeChain =
 			network === Network.Custom ? getCustomNetwork().chain : getNetwork(network).chain;
 	}
-
-	#qredoConnect = async (input: QredoConnectInput): Promise<void> => {
-		const allowed = await mapToPromise(
-			this.#send<QredoConnectPayload<'connect'>, QredoConnectPayload<'connectResponse'>>({
-				type: 'qredo-connect',
-				method: 'connect',
-				args: { ...input },
-			}),
-			(response) => {
-				if (!isQredoConnectPayload(response, 'connectResponse')) {
-					throw new Error('Invalid qredo connect response');
-				}
-				return response.args.allowed;
-			},
-		);
-		if (!allowed) {
-			throw new Error('Rejected by user');
-		}
-	};
 
 	#send<RequestPayload extends Payload, ResponsePayload extends Payload | void = void>(
 		payload: RequestPayload,
