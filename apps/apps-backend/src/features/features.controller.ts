@@ -27,20 +27,22 @@ export class FeaturesController {
 
     @Get('/apps')
     getAppsFeatures(@Query('network') network: string) {
-        const apps = developmentFeatures['wallet-dapps'].rules.reduce(
-            (acc, rule) => {
-                const { force } = rule;
-                force.forEach((item) => {
-                    if (!acc.map[item.name]) {
-                        acc.result.push(item);
-                        acc.map[item.name] = true;
-                    }
-                });
+        const apps = developmentFeatures['wallet-dapps'].rules
+            .filter((rule) => rule.condition.network === network)
+            .reduce(
+                (acc, rule) => {
+                    const { force } = rule;
+                    force.forEach((item) => {
+                        if (!acc.map[item.name]) {
+                            acc.result.push(item);
+                            acc.map[item.name] = true;
+                        }
+                    });
 
-                return acc;
-            },
-            { result: [], map: {} },
-        );
+                    return acc;
+                },
+                { result: [], map: {} },
+            );
 
         return {
             status: 200,
