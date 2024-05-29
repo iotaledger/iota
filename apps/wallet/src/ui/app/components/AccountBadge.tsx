@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type AccountType } from '_src/background/accounts/Account';
 
 import { BadgeLabel } from './BadgeLabel';
@@ -13,6 +16,7 @@ const TYPE_TO_TEXT: Record<AccountType, string | null> = {
 	ledger: 'Ledger',
 	imported: 'Imported',
 	'mnemonic-derived': null,
+	'seed-derived': null,
 	zkLogin: 'zkLogin',
 };
 

@@ -1,18 +1,7 @@
-// Copyright (c) Mysten Labs, Inc.
+// Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// Modifications Copyright (c) 2024 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
-
-import {
-	entropyToMnemonic,
-	entropyToSerialized,
-	getRandomEntropy,
-	toEntropy,
-	validateEntropy,
-} from '_shared/utils/bip39';
 import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
-import { mnemonicToSeedHex } from '@mysten/sui.js/cryptography';
 import { Ed25519Keypair } from '@mysten/sui.js/keypairs/ed25519';
 import { sha256 } from '@noble/hashes/sha256';
 import { bytesToHex } from '@noble/hashes/utils';
@@ -20,7 +9,7 @@ import Dexie from 'dexie';
 
 import { getAccountSources } from '.';
 import { getAllAccounts } from '../accounts';
-import { MnemonicAccount, type MnemonicSerializedAccount } from '../accounts/MnemonicAccount';
+import { SeedAccount, type SeedSerializedAccount } from '../accounts/SeedAccount';
 import { setupAutoLockAlarm } from '../auto-lock-accounts';
 import { backupDB, getDB } from '../db';
 import { makeUniqueKey } from '../storage-utils';
@@ -33,67 +22,51 @@ import { accountSourcesEvents } from './events';
 import { makeDerivationPath } from './bipPath';
 
 type DataDecrypted = {
-	entropyHex: string;
-	mnemonicSeedHex: string;
+	seed: string;
 };
 
-interface MnemonicAccountSourceSerialized extends AccountSourceSerialized {
-	type: 'mnemonic';
+interface SeedAccountSourceSerialized extends AccountSourceSerialized {
+	type: 'seed';
 	encryptedData: string;
 	// hash of entropy to be used for comparing sources (even when locked)
 	sourceHash: string;
 }
 
-interface MnemonicAccountSourceSerializedUI extends AccountSourceSerializedUI {
-	type: 'mnemonic';
+interface SeedAccountSourceSerializedUI extends AccountSourceSerializedUI {
+	type: 'seed';
 }
 
-export function deriveKeypairFromSeed(mnemonicSeedHex: string, derivationPath: string) {
-	return Ed25519Keypair.deriveKeypairFromSeed(mnemonicSeedHex, derivationPath);
+export function deriveKeypairFromSeed(seedHex: string, derivationPath: string) {
+	return Ed25519Keypair.deriveKeypairFromSeed(seedHex, derivationPath);
 }
 
-export class MnemonicAccountSource extends AccountSource<
-	MnemonicAccountSourceSerialized,
-	DataDecrypted
-> {
-	static async createNew({
-		password,
-		entropyInput,
-	}: {
-		password: string;
-		entropyInput?: Uint8Array;
-	}) {
-		const entropy = entropyInput || getRandomEntropy();
-		if (!validateEntropy(entropy)) {
-			throw new Error("Can't create Mnemonic account source, invalid entropy");
-		}
-		const dataSerialized: MnemonicAccountSourceSerialized = {
+export class SeedAccountSource extends AccountSource<SeedAccountSourceSerialized, DataDecrypted> {
+	static async createNew({ password, seed }: { password: string; seed: string }) {
+		const dataSerialized: SeedAccountSourceSerialized = {
 			id: makeUniqueKey(),
-			type: 'mnemonic',
-			encryptedData: await MnemonicAccountSource.createEncryptedData(entropy, password),
-			sourceHash: bytesToHex(sha256(entropy)),
+			type: 'seed',
+			encryptedData: await SeedAccountSource.createEncryptedData(seed, password),
+			sourceHash: bytesToHex(sha256(seed)),
 			createdAt: Date.now(),
 		};
 		const allAccountSources = await getAccountSources();
 		for (const anAccountSource of allAccountSources) {
 			if (
-				anAccountSource instanceof MnemonicAccountSource &&
+				anAccountSource instanceof SeedAccountSource &&
 				(await anAccountSource.sourceHash) === dataSerialized.sourceHash
 			) {
-				throw new Error('Mnemonic account source already exists');
+				throw new Error('Seed account source already exists');
 			}
 		}
 		return dataSerialized;
 	}
 
-	static isOfType(
-		serialized: AccountSourceSerialized,
-	): serialized is MnemonicAccountSourceSerialized {
-		return serialized.type === 'mnemonic';
+	static isOfType(serialized: AccountSourceSerialized): serialized is SeedAccountSourceSerialized {
+		return serialized.type === 'seed';
 	}
 
 	static async save(
-		serialized: MnemonicAccountSourceSerialized,
+		serialized: SeedAccountSourceSerialized,
 		{
 			skipBackup = false,
 			skipEventEmit = false,
@@ -106,19 +79,18 @@ export class MnemonicAccountSource extends AccountSource<
 		if (!skipEventEmit) {
 			accountSourcesEvents.emit('accountSourcesChanged');
 		}
-		return new MnemonicAccountSource(serialized.id);
+		return new SeedAccountSource(serialized.id);
 	}
 
-	static createEncryptedData(entropy: Uint8Array, password: string) {
+	static createEncryptedData(seed: string, password: string) {
 		const decryptedData: DataDecrypted = {
-			entropyHex: entropyToSerialized(entropy),
-			mnemonicSeedHex: mnemonicToSeedHex(entropyToMnemonic(entropy)),
+			seed,
 		};
 		return encrypt(password, decryptedData);
 	}
 
 	constructor(id: string) {
-		super({ type: 'mnemonic', id });
+		super({ type: 'seed', id });
 	}
 
 	async isLocked() {
@@ -142,25 +114,25 @@ export class MnemonicAccountSource extends AccountSource<
 	}
 
 	async deriveAccount({ derivationPathIndex }: { derivationPathIndex?: number } = {}): Promise<
-		Omit<MnemonicSerializedAccount, 'id'>
+		Omit<SeedSerializedAccount, 'id'>
 	> {
 		const derivationPath =
 			typeof derivationPathIndex !== 'undefined'
 				? makeDerivationPath(derivationPathIndex)
 				: await this.#getAvailableDerivationPath();
 		const keyPair = await this.deriveKeyPair(derivationPath);
-		return MnemonicAccount.createNew({ keyPair, derivationPath, sourceID: this.id });
+		return SeedAccount.createNew({ keyPair, derivationPath, sourceID: this.id });
 	}
 
 	async deriveKeyPair(derivationPath: string) {
 		const data = await this.getEphemeralValue();
 		if (!data) {
-			throw new Error(`Mnemonic account source ${this.id} is locked`);
+			throw new Error(`Seed account source ${this.id} is locked`);
 		}
-		return deriveKeypairFromSeed(data.mnemonicSeedHex, derivationPath);
+		return deriveKeypairFromSeed(data.seed, derivationPath);
 	}
 
-	async toUISerialized(): Promise<MnemonicAccountSourceSerializedUI> {
+	async toUISerialized(): Promise<SeedAccountSourceSerializedUI> {
 		const { type } = await this.getStoredData();
 		return {
 			id: this.id,
@@ -169,25 +141,25 @@ export class MnemonicAccountSource extends AccountSource<
 		};
 	}
 
-	async getEntropy(password?: string) {
+	async getSeed(password?: string) {
 		let data = await this.getEphemeralValue();
 		if (password && !data) {
 			data = await this.#decryptStoredData(password);
 		}
 		if (!data) {
-			throw new Error(`Mnemonic account source ${this.id} is locked`);
+			throw new Error(`Seed account source ${this.id} is locked`);
 		}
-		return data.entropyHex;
+		return data.seed;
 	}
 
 	get sourceHash() {
 		return this.getStoredData().then(({ sourceHash }) => sourceHash);
 	}
 
-	async verifyRecoveryData(entropy: string) {
-		const newEntropyHash = bytesToHex(sha256(toEntropy(entropy)));
-		if (newEntropyHash !== (await this.sourceHash)) {
-			throw new Error("Wrong passphrase, doesn't match the existing one");
+	async verifyRecoveryData(seed: string) {
+		const newSeedHash = bytesToHex(sha256(seed));
+		if (newSeedHash !== (await this.sourceHash)) {
+			throw new Error("Wrong seed, doesn't match the existing one");
 		}
 		return true;
 	}
@@ -195,7 +167,7 @@ export class MnemonicAccountSource extends AccountSource<
 	async #getAvailableDerivationPath() {
 		const derivationPathMap: Record<string, boolean> = {};
 		for (const anAccount of await getAllAccounts({ sourceID: this.id })) {
-			if (anAccount instanceof MnemonicAccount && (await anAccount.sourceID) === this.id) {
+			if (anAccount instanceof SeedAccount && (await anAccount.sourceID) === this.id) {
 				derivationPathMap[await anAccount.derivationPath] = true;
 			}
 		}

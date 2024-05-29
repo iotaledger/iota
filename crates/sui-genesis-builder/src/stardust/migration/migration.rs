@@ -3,8 +3,15 @@
 
 //! Contains the logic for the migration process.
 
+use std::{
+    collections::HashMap,
+    io::{prelude::Write, BufWriter},
+};
+
 use anyhow::Result;
 use fastcrypto::hash::HashFunction;
+use iota_sdk::types::block::output::{FoundryOutput, Output, OutputId};
+
 use sui_move_build::CompiledPackage;
 use sui_protocol_config::ProtocolVersion;
 use sui_types::{
@@ -16,13 +23,6 @@ use sui_types::{
     MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID, SUI_SYSTEM_PACKAGE_ID,
     TIMELOCK_PACKAGE_ID,
 };
-
-use std::{
-    collections::HashMap,
-    io::{prelude::Write, BufWriter},
-};
-
-use iota_sdk::types::block::output::{FoundryOutput, Output, OutputId};
 
 use crate::stardust::{
     migration::{

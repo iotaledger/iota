@@ -1,16 +1,19 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::{BTreeSet, HashMap},
+    sync::Arc,
+};
+
 use anyhow::Result;
+use bigdecimal::ToPrimitive;
 use iota_sdk::types::block::output::{
     AliasOutput, BasicOutput, FoundryOutput, NativeTokens, NftOutput, OutputId, TokenId,
 };
 use move_core_types::{ident_str, language_storage::StructTag};
 use move_vm_runtime_v2::move_vm::MoveVM;
-use std::{
-    collections::{BTreeSet, HashMap},
-    sync::Arc,
-};
+
 use sui_adapter_v2::{
     adapter::new_move_vm, gas_charger::GasCharger, programmable_transactions,
     temporary_store::TemporaryStore,
@@ -44,6 +47,7 @@ use sui_types::{
     STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID,
 };
 
+use crate::stardust::types::token_scheme::{u256_to_bigdecimal, SimpleTokenSchemeU64};
 use crate::{
     process_package,
     stardust::{
@@ -253,7 +257,11 @@ impl Executor {
             );
             self.native_tokens.insert(
                 foundry.token_id(),
-                FoundryLedgerData::new(minted_coin_id, foundry_package),
+                FoundryLedgerData::new(
+                    minted_coin_id,
+                    foundry_package,
+                    SimpleTokenSchemeU64::try_from(foundry.token_scheme().as_simple())?,
+                ),
             );
             self.store.finish(
                 written
@@ -353,10 +361,6 @@ impl Executor {
             let mut builder = ProgrammableTransactionBuilder::new();
             let bag = pt::bag_new(&mut builder);
             for token in native_tokens.iter() {
-                if token.amount().bits() > 64 {
-                    anyhow::bail!("unsupported number of tokens");
-                }
-
                 let Some(foundry_ledger_data) = self.native_tokens.get(token.token_id()) else {
                     anyhow::bail!("foundry for native token has not been published");
                 };
@@ -376,11 +380,23 @@ impl Executor {
                     foundry_ledger_data.coin_type_origin.module_name,
                     foundry_ledger_data.coin_type_origin.struct_name
                 );
+
+                let adjusted_amount = if let Some(ratio) = &foundry_ledger_data
+                    .token_scheme_u64
+                    .token_adjustment_ratio()
+                {
+                    (u256_to_bigdecimal(token.amount()) * ratio)
+                        .to_u64()
+                        .expect("should be a valid u64")
+                } else {
+                    token.amount().as_u64()
+                };
+
                 let balance = pt::coin_balance_split(
                     &mut builder,
                     object_ref,
                     token_type.parse()?,
-                    token.amount().as_u64(),
+                    adjusted_amount,
                 )?;
                 pt::bag_add(&mut builder, bag, balance, token_type)?;
             }
@@ -445,10 +461,6 @@ impl Executor {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             for token in native_tokens.iter() {
-                if token.amount().bits() > 64 {
-                    anyhow::bail!("unsupported number of tokens");
-                }
-
                 let Some(foundry_ledger_data) = self.native_tokens.get(token.token_id()) else {
                     anyhow::bail!("foundry for native token has not been published");
                 };
@@ -463,7 +475,17 @@ impl Executor {
                 foundry_package_deps.push(foundry_ledger_data.package_id);
 
                 // Pay using that object
-                builder.pay(vec![object_ref], vec![owner], vec![token.amount().as_u64()])?;
+                let adjusted_amount = if let Some(ratio) = &foundry_ledger_data
+                    .token_scheme_u64
+                    .token_adjustment_ratio()
+                {
+                    (u256_to_bigdecimal(token.amount()) * ratio)
+                        .to_u64()
+                        .expect("should be a valid u64")
+                } else {
+                    token.amount().as_u64()
+                };
+                builder.pay(vec![object_ref], vec![owner], vec![adjusted_amount])?;
             }
 
             builder.finish()
@@ -716,6 +738,7 @@ pub(crate) struct FoundryLedgerData {
     pub(crate) minted_coin_id: ObjectID,
     pub(crate) coin_type_origin: TypeOrigin,
     pub(crate) package_id: ObjectID,
+    pub(crate) token_scheme_u64: SimpleTokenSchemeU64,
 }
 
 impl FoundryLedgerData {
@@ -724,12 +747,17 @@ impl FoundryLedgerData {
     /// # Panic
     ///
     /// Panics if the package does not contain any [`TypeOrigin`].
-    fn new(minted_coin_id: ObjectID, foundry_package: &MovePackage) -> Self {
+    fn new(
+        minted_coin_id: ObjectID,
+        foundry_package: &MovePackage,
+        token_scheme_u64: SimpleTokenSchemeU64,
+    ) -> Self {
         Self {
             minted_coin_id,
             // There must be only one type created in the foundry package.
             coin_type_origin: foundry_package.type_origin_table()[0].clone(),
             package_id: foundry_package.id(),
+            token_scheme_u64,
         }
     }
 }

@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Text } from '_app/shared/text';
 import { isMnemonicSerializedUiAccount } from '_src/background/accounts/MnemonicAccount';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -20,6 +23,7 @@ const allowedAccountTypes: CreateType[] = [
 	'new-mnemonic',
 	'import-mnemonic',
 	'mnemonic-derived',
+	'import-seed',
 	'imported',
 	'ledger',
 ];
@@ -27,7 +31,7 @@ const allowedAccountTypes: CreateType[] = [
 type AllowedAccountTypes = (typeof allowedAccountTypes)[number];
 
 function isAllowedAccountType(accountType: string): accountType is AllowedAccountTypes {
-	return allowedAccountTypes.includes(accountType as any);
+	return allowedAccountTypes.includes(accountType as CreateType);
 }
 
 export function ProtectAccountPage() {
@@ -79,7 +83,7 @@ export function ProtectAccountPage() {
 	}
 
 	return (
-		<div className="rounded-20 bg-sui-lightest shadow-wallet-content flex flex-col items-center px-6 py-10 overflow-auto w-popup-width max-h-popup-height min-h-popup-minimum h-screen">
+		<div className="rounded-20 shadow-wallet-content w-popup-width max-h-popup-height min-h-popup-minimum flex h-screen flex-col items-center overflow-auto bg-sui-lightest px-6 py-10">
 			<Loading loading={showVerifyPasswordView === null}>
 				{showVerifyPasswordView ? (
 					<VerifyPasswordModal
@@ -92,7 +96,7 @@ export function ProtectAccountPage() {
 						<Text variant="caption" color="steel-dark" weight="semibold">
 							Wallet Setup
 						</Text>
-						<div className="text-center mt-2.5">
+						<div className="mt-2.5 text-center">
 							<Heading variant="heading1" color="gray-90" as="h1" weight="bold">
 								Protect Account with a Password Lock
 							</Heading>

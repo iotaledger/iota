@@ -1,12 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import Dexie from 'dexie';
 
 import { accountSourcesEvents } from '../account-sources/events';
 import {
 	deriveKeypairFromSeed,
-	makeDerivationPath,
 	MnemonicAccountSource,
 } from '../account-sources/MnemonicAccountSource';
 import { type SerializedAccount } from '../accounts/Account';
@@ -17,6 +19,7 @@ import { MnemonicAccount } from '../accounts/MnemonicAccount';
 import { backupDB, getDB } from '../db';
 import { getFromLocalStorage, makeUniqueKey, setToLocalStorage } from '../storage-utils';
 import { LegacyVault } from './LegacyVault';
+import { makeDerivationPath } from '../account-sources/bipPath';
 
 export type Status = 'required' | 'inProgress' | 'ready';
 

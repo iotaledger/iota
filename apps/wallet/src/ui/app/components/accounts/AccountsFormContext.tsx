@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type ZkLoginProvider } from '_src/background/accounts/zklogin/providers';
 import {
 	createContext,
@@ -17,6 +20,8 @@ export type AccountsFormValues =
 	| { type: 'new-mnemonic' }
 	| { type: 'import-mnemonic'; entropy: string }
 	| { type: 'mnemonic-derived'; sourceID: string }
+	| { type: 'import-seed'; seed: string }
+	| { type: 'seed-derived'; sourceID: string }
 	| { type: 'imported'; keyPair: string }
 	| {
 			type: 'ledger';
