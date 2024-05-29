@@ -3,6 +3,7 @@
 
 import React from 'react';
 import { Activity } from '@/lib/interfaces';
+import formatTimestamp from '@/lib/utils/time';
 
 interface ActivityDetailsPopupProps {
     activity: Activity;
@@ -15,7 +16,7 @@ function ActivityDetailsPopup({ activity, onClose }: ActivityDetailsPopupProps):
             <h2>Transaction Details</h2>
             <p>Action: {activity.action}</p>
             <p>State: {activity.state}</p>
-            <p>Timestamp: {new Date(activity.timestamp).toLocaleString()}</p>
+            <p>Timestamp: {formatTimestamp(activity.timestamp)}</p>
         </div>
     );
 }
