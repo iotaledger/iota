@@ -1,18 +1,19 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::{BTreeSet, HashMap},
+    sync::Arc,
+};
+
 use anyhow::Result;
 use bigdecimal::ToPrimitive;
 use iota_sdk::types::block::output::{
     AliasOutput, BasicOutput, FoundryOutput, NativeTokens, NftOutput, OutputId, TokenId,
 };
-use iota_sdk::U256;
 use move_core_types::{ident_str, language_storage::StructTag};
 use move_vm_runtime_v2::move_vm::MoveVM;
-use std::{
-    collections::{BTreeSet, HashMap},
-    sync::Arc,
-};
+
 use sui_adapter_v2::{
     adapter::new_move_vm, gas_charger::GasCharger, programmable_transactions,
     temporary_store::TemporaryStore,
@@ -46,8 +47,7 @@ use sui_types::{
     STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID,
 };
 
-use crate::stardust::types::token_scheme;
-use crate::stardust::types::token_scheme::u256_to_bigdecimal;
+use crate::stardust::types::token_scheme::{u256_to_bigdecimal, SimpleTokenSchemeU64};
 use crate::{
     process_package,
     stardust::{
@@ -260,7 +260,7 @@ impl Executor {
                 FoundryLedgerData::new(
                     minted_coin_id,
                     foundry_package,
-                    foundry.token_scheme().as_simple().circulating_supply(),
+                    SimpleTokenSchemeU64::try_from(foundry.token_scheme().as_simple())?,
                 ),
             );
             self.store.finish(
@@ -381,16 +381,15 @@ impl Executor {
                     foundry_ledger_data.coin_type_origin.struct_name
                 );
 
-                let original_amount = token.amount();
-                let adjusted_amount = if original_amount.bits() > 64 {
-                    let ratio = token_scheme::calculate_token_adjustment_ratio(
-                        foundry_ledger_data.circulating_supply,
-                    )?;
+                let adjusted_amount = if let Some(ratio) = &foundry_ledger_data
+                    .token_scheme_u64
+                    .token_adjustment_ratio()
+                {
                     (u256_to_bigdecimal(token.amount()) * ratio)
                         .to_u64()
                         .expect("should be a valid u64")
                 } else {
-                    original_amount.as_u64()
+                    token.amount().as_u64()
                 };
 
                 let balance = pt::coin_balance_split(
@@ -476,16 +475,15 @@ impl Executor {
                 foundry_package_deps.push(foundry_ledger_data.package_id);
 
                 // Pay using that object
-                let original_amount = token.amount();
-                let adjusted_amount = if original_amount.bits() > 64 {
-                    let ratio = token_scheme::calculate_token_adjustment_ratio(
-                        foundry_ledger_data.circulating_supply,
-                    )?;
+                let adjusted_amount = if let Some(ratio) = &foundry_ledger_data
+                    .token_scheme_u64
+                    .token_adjustment_ratio()
+                {
                     (u256_to_bigdecimal(token.amount()) * ratio)
                         .to_u64()
                         .expect("should be a valid u64")
                 } else {
-                    original_amount.as_u64()
+                    token.amount().as_u64()
                 };
                 builder.pay(vec![object_ref], vec![owner], vec![adjusted_amount])?;
             }
@@ -740,7 +738,7 @@ pub(crate) struct FoundryLedgerData {
     pub(crate) minted_coin_id: ObjectID,
     pub(crate) coin_type_origin: TypeOrigin,
     pub(crate) package_id: ObjectID,
-    pub(crate) circulating_supply: U256,
+    pub(crate) token_scheme_u64: SimpleTokenSchemeU64,
 }
 
 impl FoundryLedgerData {
@@ -752,14 +750,14 @@ impl FoundryLedgerData {
     fn new(
         minted_coin_id: ObjectID,
         foundry_package: &MovePackage,
-        circulating_supply: U256,
+        token_scheme_u64: SimpleTokenSchemeU64,
     ) -> Self {
         Self {
             minted_coin_id,
             // There must be only one type created in the foundry package.
             coin_type_origin: foundry_package.type_origin_table()[0].clone(),
             package_id: foundry_package.id(),
-            circulating_supply,
+            token_scheme_u64,
         }
     }
 }
