@@ -303,7 +303,7 @@ impl Nft {
     /// - Otherwise, returns the default `Irc27Metadata` with
     ///   `non_standard_fields` containing a `data` key with the hex-encoded
     ///   metadata (without `0x` prefix).
-    fn convert_immutable_metadata(nft: &StardustNft) -> anyhow::Result<Irc27Metadata> {
+    pub(crate) fn convert_immutable_metadata(nft: &StardustNft) -> anyhow::Result<Irc27Metadata> {
         let Some(metadata) = nft.immutable_features().metadata() else {
             return Ok(Irc27Metadata::default());
         };
