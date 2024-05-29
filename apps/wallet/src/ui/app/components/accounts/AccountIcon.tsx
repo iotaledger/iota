@@ -6,7 +6,6 @@ import { isZkLoginAccountSerializedUI } from '_src/background/accounts/zklogin/Z
 import {
 	LedgerLogo17,
 	LogoGoogle,
-	LogoQredo,
 	LogoTwitch,
 	SocialFacebook24,
 	SocialKakao24,
@@ -39,9 +38,6 @@ function ProviderIcon({ provider }: { provider: string }) {
 export function AccountIcon({ account }: { account: SerializedUIAccount }) {
 	if (isZkLoginAccountSerializedUI(account)) {
 		return <ProviderIcon provider={account.provider} />;
-	}
-	if (account.type === 'qredo') {
-		return <LogoQredo className="h-4 w-4" />;
 	}
 	if (account.type === 'ledger') {
 		return <LedgerLogo17 className="h-4 w-4" />;

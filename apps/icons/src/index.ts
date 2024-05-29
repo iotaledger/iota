@@ -93,7 +93,6 @@ export { default as LockLocked16 } from './LockLocked16';
 export { default as LockLocked24 } from './LockLocked24';
 export { default as LockUnlocked16 } from './LockUnlocked16';
 export { default as LogoGoogle } from './LogoGoogle';
-export { default as LogoQredo } from './LogoQredo';
 export { default as LogoTwitch } from './LogoTwitch';
 export { default as Logout24 } from './Logout24';
 export { default as MediaPause16 } from './MediaPause16';
