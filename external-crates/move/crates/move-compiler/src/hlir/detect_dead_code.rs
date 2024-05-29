@@ -349,7 +349,7 @@ fn tail_block(context: &mut Context, seq: &VecDeque<T::SequenceItem>) -> Option<
     use T::SequenceItem_ as S;
     let last_exp = seq.iter().last();
     let stmt_flow = statement_block(
-        context, seq, // stmt_pos
+        context, seq,   // stmt_pos
         false, // skip_last
         true,
     );
@@ -508,7 +508,7 @@ fn value_block(context: &mut Context, seq: &VecDeque<T::SequenceItem>) -> Option
     use T::SequenceItem_ as S;
     let last_exp = seq.iter().last();
     let stmt_flow = statement_block(
-        context, seq, // stmt_pos
+        context, seq,   // stmt_pos
         false, // skip_last
         true,
     );
@@ -600,7 +600,7 @@ fn statement(context: &mut Context, e: &T::Exp) -> Option<ControlFlow> {
             }
         }
         E::Block((_, seq)) => statement_block(
-            context, seq, // stmt_pos
+            context, seq,  // stmt_pos
             true, // skip_last
             false,
         ),
@@ -691,7 +691,7 @@ fn statement_block(
     if stmt_pos && has_trailing_unit(seq) {
         let last = seq.iter().last();
         let result = statement_block(
-            context, seq, // stmt_pos
+            context, seq,   // stmt_pos
             false, // skip_last
             true,
         );
