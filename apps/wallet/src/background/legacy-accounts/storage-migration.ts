@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import Dexie from 'dexie';
 
 import { accountSourcesEvents } from '../account-sources/events';
@@ -8,15 +11,12 @@ import {
 	deriveKeypairFromSeed,
 	MnemonicAccountSource,
 } from '../account-sources/MnemonicAccountSource';
-import { QredoAccountSource } from '../account-sources/QredoAccountSource';
 import { type SerializedAccount } from '../accounts/Account';
 import { accountsEvents } from '../accounts/events';
 import { ImportedAccount } from '../accounts/ImportedAccount';
 import { LedgerAccount } from '../accounts/LedgerAccount';
 import { MnemonicAccount } from '../accounts/MnemonicAccount';
-import { type QredoSerializedAccount } from '../accounts/QredoAccount';
 import { backupDB, getDB } from '../db';
-import { type QredoConnection } from '../qredo/types';
 import { getFromLocalStorage, makeUniqueKey, setToLocalStorage } from '../storage-utils';
 import { LegacyVault } from './LegacyVault';
 import { makeDerivationPath } from '../account-sources/bipPath';
@@ -100,45 +100,6 @@ async function makeLedgerAccounts(password: string) {
 	);
 }
 
-async function getAllLegacyStoredQredoConnections() {
-	return (await getFromLocalStorage<QredoConnection[]>('qredo-connections', [])) || [];
-}
-
-async function makeQredoAccounts(password: string, vault: LegacyVault) {
-	const qredoSources = [];
-	const qredoAccounts: Omit<QredoSerializedAccount, 'id'>[] = [];
-	for (const aQredoConnection of await getAllLegacyStoredQredoConnections()) {
-		const refreshToken = vault.qredoTokens.get(aQredoConnection.id);
-		if (!refreshToken) {
-			throw new Error(
-				`Failed to load qredo account (${aQredoConnection.id}), refresh token not found`,
-			);
-		}
-		const aQredoSource = await QredoAccountSource.createNew({
-			password,
-			apiUrl: aQredoConnection.apiUrl,
-			organization: aQredoConnection.organization,
-			origin: aQredoConnection.origin,
-			service: aQredoConnection.service,
-			refreshToken,
-			originFavIcon: aQredoConnection.originFavIcon || '',
-		});
-		qredoSources.push(aQredoSource);
-		for (const aWallet of aQredoConnection.accounts) {
-			qredoAccounts.push({
-				...aWallet,
-				type: 'qredo',
-				lastUnlockedOn: null,
-				sourceID: aQredoSource.id,
-				selected: false,
-				nickname: null,
-				createdAt: Date.now(),
-			});
-		}
-	}
-	return { qredoSources, qredoAccounts };
-}
-
 function withID<T extends Omit<SerializedAccount, 'id'>>(anAccount: T) {
 	return {
 		...anAccount,
@@ -160,16 +121,11 @@ export async function doMigration(password: string) {
 			);
 			const importedAccounts = await makeImportedAccounts(password, legacyVault);
 			const ledgerAccounts = await makeLedgerAccounts(password);
-			const { qredoAccounts, qredoSources } = await makeQredoAccounts(password, legacyVault);
 			await db.transaction('rw', db.accounts, db.accountSources, async () => {
 				await MnemonicAccountSource.save(mnemonicSource, { skipBackup: true, skipEventEmit: true });
 				await db.accounts.bulkPut(mnemonicAccounts.map(withID));
 				await db.accounts.bulkPut(importedAccounts.map(withID));
 				await db.accounts.bulkPut(ledgerAccounts.map(withID));
-				for (const aQredoSource of qredoSources) {
-					await QredoAccountSource.save(aQredoSource, { skipBackup: true, skipEventEmit: true });
-				}
-				await db.accounts.bulkPut(qredoAccounts.map(withID));
 				if (currentActiveAccountAddress) {
 					const accountToSetSelected = await db.accounts.get({
 						address: currentActiveAccountAddress,

@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Copy16, EyeClose16, EyeOpen16 } from '@mysten/icons';
 import { cx } from 'class-variance-authority';
 import { useEffect, useState } from 'react';
@@ -54,8 +57,8 @@ export function HideShowDisplayBox({
 		};
 	}, [valueHidden]);
 	return (
-		<div className="flex flex-col flex-nowrap items-stretch gap-2 bg-white border border-solid border-gray-60 rounded-lg overflow-hidden py-4 px-5">
-			<div className="break-all relative">
+		<div className="flex flex-col flex-nowrap items-stretch gap-2 overflow-hidden rounded-lg border border-solid border-gray-60 bg-white px-5 py-4">
+			<div className="relative break-all">
 				{valueHidden ? null : (
 					<Text variant="pBody" weight="medium" color="steel-darker">
 						{typeof value === 'string'
@@ -66,10 +69,10 @@ export function HideShowDisplayBox({
 					</Text>
 				)}
 				<div className={cx('flex flex-col gap-1.5', valueHidden ? '' : 'hidden')}>
-					<div className="h-3.5 bg-gray-40 rounded-md" />
-					<div className="h-3.5 bg-gray-40 rounded-md" />
-					<div className="h-3.5 bg-gray-40 rounded-md" />
-					<div className="h-4.5 bg-gray-40 rounded-md w-1/2" />
+					<div className="h-3.5 rounded-md bg-gray-40" />
+					<div className="h-3.5 rounded-md bg-gray-40" />
+					<div className="h-3.5 rounded-md bg-gray-40" />
+					<div className="h-4.5 w-1/2 rounded-md bg-gray-40" />
 				</div>
 			</div>
 			<div className="flex flex-row flex-nowrap items-center justify-between">

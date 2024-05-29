@@ -13,7 +13,7 @@ import { persistableStorage } from '_src/shared/analytics/amplitude';
 import { type LedgerAccountsPublicKeys } from '_src/shared/messaging/messages/payloads/MethodPayload';
 import { toB64 } from '@mysten/sui.js/utils';
 import { useEffect, useMemo } from 'react';
-import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { throttle } from 'throttle-debounce';
 
 import { useSuiLedgerClient } from './components/ledger/SuiLedgerClientProvider';
@@ -55,13 +55,10 @@ import HomePage, {
 	TransferCoinPage,
 } from './pages/home';
 import TokenDetailsPage from './pages/home/tokens/TokenDetailsPage';
-import { QredoConnectInfoPage } from './pages/qredo-connect/QredoConnectInfoPage';
-import { SelectQredoAccountsPage } from './pages/qredo-connect/SelectQredoAccountsPage';
 import { RestrictedPage } from './pages/restricted';
 import SiteConnectPage from './pages/site-connect';
 import { StorageMigrationPage } from './pages/StorageMigrationPage';
 import { AppType } from './redux/slices/app/AppType';
-import { PageMainLayout } from './shared/page-main-layout/PageMainLayout';
 import { Staking } from './staking/home';
 
 const HIDDEN_MENU_PATHS = [
@@ -196,17 +193,6 @@ const App = () => {
 				<Route path="manage" element={<ManageAccountsPage />} />
 				<Route path="protect-account" element={<ProtectAccountPage />} />
 				<Route path="backup/:accountSourceID" element={<BackupMnemonicPage />} />
-				<Route
-					path="qredo-connect/*"
-					element={
-						<PageMainLayout>
-							<Outlet />
-						</PageMainLayout>
-					}
-				>
-					<Route path=":requestID" element={<QredoConnectInfoPage />} />
-					<Route path=":id/select" element={<SelectQredoAccountsPage />} />
-				</Route>
 				<Route path="export/:accountID" element={<ExportAccountPage />} />
 				<Route path="export/passphrase/:accountSourceID" element={<ExportPassphrasePage />} />
 				<Route path="export/seed/:accountSourceID" element={<ExportSeedPage />} />

@@ -31,7 +31,6 @@ import { accountsEvents } from './events';
 import { ImportedAccount } from './ImportedAccount';
 import { LedgerAccount } from './LedgerAccount';
 import { MnemonicAccount } from './MnemonicAccount';
-import { QredoAccount } from './QredoAccount';
 import { SeedAccount } from './SeedAccount';
 import { ZkLoginAccount, type ZkLoginAccountSerialized } from './zklogin/ZkLoginAccount';
 
@@ -47,9 +46,6 @@ function toAccount(account: SerializedAccount) {
 	}
 	if (LedgerAccount.isOfType(account)) {
 		return new LedgerAccount({ id: account.id, cachedData: account });
-	}
-	if (QredoAccount.isOfType(account)) {
-		return new QredoAccount({ id: account.id, cachedData: account });
 	}
 	if (ZkLoginAccount.isOfType(account)) {
 		return new ZkLoginAccount({ id: account.id, cachedData: account });
@@ -110,57 +106,14 @@ export async function changeActiveAccount(accountID: string) {
 	});
 }
 
-async function deleteQredoAccounts<T extends SerializedAccount>(accounts: Omit<T, 'id'>[]) {
-	const newAccountsQredoSourceIDs = new Set<string>();
-	const walletIDsSet = new Set<string>();
-	for (const aNewAccount of accounts) {
-		if (
-			aNewAccount.type === 'qredo' &&
-			'sourceID' in aNewAccount &&
-			typeof aNewAccount.sourceID === 'string' &&
-			'walletID' in aNewAccount &&
-			typeof aNewAccount.walletID === 'string'
-		) {
-			newAccountsQredoSourceIDs.add(aNewAccount.sourceID);
-			walletIDsSet.add(aNewAccount.walletID);
-		}
-	}
-	if (!newAccountsQredoSourceIDs.size) {
-		return 0;
-	}
-	return (await Dexie.waitFor(getDB())).accounts
-		.where('sourceID')
-		.anyOf(Array.from(newAccountsQredoSourceIDs.values()))
-		.filter(
-			(anExistingAccount) =>
-				anExistingAccount.type === 'qredo' &&
-				'walletID' in anExistingAccount &&
-				typeof anExistingAccount.walletID === 'string' &&
-				!walletIDsSet.has(anExistingAccount.walletID),
-		)
-		.delete();
-}
-
 export async function addNewAccounts<T extends SerializedAccount>(accounts: Omit<T, 'id'>[]) {
 	const db = await getDB();
 	const accountsCreated = await db.transaction('rw', db.accounts, async () => {
-		// delete all existing qredo accounts that have the same sourceID (come from the same connection)
-		// and not in the new accounts list
-		await deleteQredoAccounts(accounts);
 		const accountInstances = [];
 		for (const anAccountToAdd of accounts) {
 			let id = '';
 			const existingSameAddressAccounts = await getAccountsByAddress(anAccountToAdd.address);
 			for (const anExistingAccount of existingSameAddressAccounts) {
-				if (
-					anAccountToAdd.type === 'qredo' &&
-					anExistingAccount instanceof QredoAccount &&
-					'sourceID' in anAccountToAdd &&
-					anAccountToAdd.sourceID === (await Dexie.waitFor(anExistingAccount.sourceID))
-				) {
-					id = anExistingAccount.id;
-					continue;
-				}
 				if (
 					(await Dexie.waitFor(anExistingAccount.address)) === anAccountToAdd.address &&
 					anExistingAccount.type === anAccountToAdd.type
@@ -252,7 +205,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
 		return true;
 	}
 	if (isMethodPayload(payload, 'createAccounts')) {
-		let newSerializedAccounts: Omit<SerializedAccount, 'id'>[] = [];
+		const newSerializedAccounts: Omit<SerializedAccount, 'id'>[] = [];
 		const { type } = payload.args;
 		if (type === 'mnemonic-derived') {
 			const { sourceID } = payload.args;

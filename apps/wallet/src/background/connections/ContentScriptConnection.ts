@@ -24,8 +24,6 @@ import {
 } from '_payloads/transactions';
 import Permissions from '_src/background/Permissions';
 import Transactions from '_src/background/Transactions';
-import { FEATURES, growthbook } from '_src/shared/experimentation/features';
-import { isQredoConnectPayload } from '_src/shared/messaging/messages/payloads/QredoConnect';
 import {
 	isSignMessageRequest,
 	type SignMessageRequest,
@@ -36,7 +34,6 @@ import type { Runtime } from 'webextension-polyfill';
 
 import { getAccountsStatusData } from '../accounts';
 import NetworkEnv from '../NetworkEnv';
-import { requestUserApproval } from '../qredo';
 import { Connection } from './Connection';
 
 export class ContentScriptConnection extends Connection {
@@ -143,14 +140,6 @@ export class ContentScriptConnection extends Connection {
 						msg.id,
 					),
 				);
-			} else if (isQredoConnectPayload(payload, 'connect')) {
-				if (!growthbook.ready) {
-					await growthbook.loadFeatures();
-				}
-				if (growthbook.isOff(FEATURES.WALLET_QREDO)) {
-					throw new Error('This feature is not implemented yet.');
-				}
-				await requestUserApproval(payload.args, this, msg);
 			} else {
 				throw new Error(`Unknown message, ${JSON.stringify(msg.payload)}`);
 			}

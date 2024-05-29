@@ -46,7 +46,6 @@ const createTypeToAmpliAccount: Record<CreateType, AddedAccountsProperties['acco
 	'seed-derived': 'Derived',
 	imported: 'Imported',
 	ledger: 'Ledger',
-	qredo: 'Qredo',
 };
 
 export function useCreateAccountsMutation() {
@@ -130,15 +129,6 @@ export function useCreateAccountsMutation() {
 			) {
 				createdAccounts = await backgroundClient.createAccounts({
 					type: 'ledger',
-					accounts: accountsFormValues.accounts,
-					password: password!,
-				});
-			} else if (
-				type === 'qredo' &&
-				validateAccountFormValues(type, accountsFormValues, password)
-			) {
-				createdAccounts = await backgroundClient.acceptQredoConnection({
-					qredoID: accountsFormValues.qredoID,
 					accounts: accountsFormValues.accounts,
 					password: password!,
 				});
