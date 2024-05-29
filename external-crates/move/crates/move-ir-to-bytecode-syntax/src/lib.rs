@@ -109,7 +109,7 @@
 //! ```
 //! ## Commands
 //! ```text
-//!
+//! 
 //! builtin ∈ Builtin ::=
 //!   | create_account(e)         // type: 'addr -> unit'
 //!                               // creates new account at the specified address, failing if it already exists
@@ -150,7 +150,7 @@
 //! ```
 //!
 //! ## Imports
-//!```text
+//! ```text
 //! idecl ∈ Import ::=
 //!   | import addr.m_1 as m_2; // imports 'addr.m_1' with the alias 'm_2'
 //!   | import addr.m_1;        // imports 'addr.m_1' with the alias 'm_1'

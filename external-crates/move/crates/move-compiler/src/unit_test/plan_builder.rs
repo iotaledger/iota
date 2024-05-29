@@ -2,6 +2,16 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::BTreeMap;
+
+use move_core_types::{
+    account_address::AccountAddress as MoveAddress, language_storage::ModuleId,
+    runtime_value::MoveValue, u256::U256, vm_status::StatusCode,
+};
+use move_ir_types::location::Loc;
+use move_symbol_pool::Symbol;
+
+use super::MoveErrorType;
 use crate::{
     cfgir::ast as G,
     diag,
@@ -18,15 +28,6 @@ use crate::{
     },
     unit_test::{ExpectedFailure, ExpectedMoveError, ModuleTestPlan, TestCase},
 };
-use move_core_types::{
-    account_address::AccountAddress as MoveAddress, language_storage::ModuleId,
-    runtime_value::MoveValue, u256::U256, vm_status::StatusCode,
-};
-use move_ir_types::location::Loc;
-use move_symbol_pool::Symbol;
-use std::collections::BTreeMap;
-
-use super::MoveErrorType;
 
 struct Context<'env> {
     env: &'env mut CompilationEnv,
@@ -65,8 +66,8 @@ impl<'env> Context<'env> {
 // Test Plan Building
 //***************************************************************************
 
-// Constructs a test plan for each module in `prog`. This also validates the structure of the
-// attributes as the test plan is constructed.
+// Constructs a test plan for each module in `prog`. This also validates the
+// structure of the attributes as the test plan is constructed.
 pub fn construct_test_plan(
     compilation_env: &mut CompilationEnv,
     package_filter: Option<Symbol>,
@@ -310,7 +311,9 @@ fn parse_failure_attribute(
                 let invalid_attr_msg = format!(
                     "Invalid #[expected_failure(...)] attribute, expected 1 failure kind but found {}. Expected one of: {}",
                     expected_failure_kind_vec.len(),
-                    TestingAttribute::expected_failure_cases().to_vec().join(", ")
+                    TestingAttribute::expected_failure_cases()
+                        .to_vec()
+                        .join(", ")
                 );
                 context
                     .env

@@ -2,6 +2,17 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    convert::TryInto,
+    sync::Arc,
+};
+
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
+use move_symbol_pool::Symbol;
+use once_cell::sync::Lazy;
+
 use crate::{
     debug_display, debug_display_verbose, diag,
     editions::{FeatureGate, Flavor},
@@ -17,16 +28,6 @@ use crate::{
     sui_mode::ID_FIELD_NAME,
     typing::ast as T,
     FullyCompiledProgram,
-};
-
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
-use move_symbol_pool::Symbol;
-use once_cell::sync::Lazy;
-use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    convert::TryInto,
-    sync::Arc,
 };
 
 //**************************************************************************************************
@@ -760,15 +761,12 @@ fn tail(
                     block: loop_body,
                 },
             ));
-            if has_break {
-                Some(result)
-            } else {
-                None
-            }
+            if has_break { Some(result) } else { None }
         }
         e_ @ E::Loop { .. } => {
-            // A loop wthout a break has no concrete type for its binders, but since we'll never
-            // find a break we won't need binders anyway. We just treat it like a statement.
+            // A loop wthout a break has no concrete type for its binders, but since we'll
+            // never find a break we won't need binders anyway. We just treat it
+            // like a statement.
             statement(context, block, T::exp(in_type.clone(), sp(eloc, e_)));
             None
         }
@@ -862,7 +860,8 @@ fn value(
     use H::{Command_ as C, Statement_ as S, UnannotatedExp_ as HE};
     use T::UnannotatedExp_ as E;
 
-    // we pull outthese cases because it's easier to process them without destructuring `e` first.
+    // we pull outthese cases because it's easier to process them without
+    // destructuring `e` first.
     if is_statement(&e) {
         let result = if is_unit_statement(&e) {
             unit_exp(e.exp.loc)
@@ -898,7 +897,6 @@ fn value(
         // ---------------------------------------------------------------------------------------
         // Expansion-y things
         // These could likely be discharged during expansion instead.
-        //
         E::Builtin(bt, arguments) if matches!(&*bt, sp!(_, T::BuiltinFunction_::Assert(None))) => {
             use T::ExpListItem as TI;
             let [cond_item, code_item]: [TI; 2] = match arguments.exp.value {
@@ -1354,8 +1352,9 @@ fn value_list(
     e: T::Exp,
 ) -> Vec<H::Exp> {
     use T::UnannotatedExp_ as TE;
-    // The main difference is that less-optimized version does conversion and binding, then
-    // freezing; the optimized will inline freezing when possible to avoid some bndings.
+    // The main difference is that less-optimized version does conversion and
+    // binding, then freezing; the optimized will inline freezing when possible
+    // to avoid some bndings.
     if context
         .env
         .supports_feature(context.current_package, FeatureGate::Move2024Optimizations)
@@ -1400,13 +1399,14 @@ fn value_list_items_to_vec(
         "ICE exp_evaluation_order changed arity"
     );
 
-    // Because we previously froze subpoints of ExpLists as its own binding expression for that
-    // ExpList, we need to process this possible vector the same way.
+    // Because we previously froze subpoints of ExpLists as its own binding
+    // expression for that ExpList, we need to process this possible vector the
+    // same way.
 
     if let Some(expected_ty @ sp!(tloc, HT::Multiple(etys))) = ty {
-        // We have to check that the arity of the expected type matches because some ill-typed
-        // programs flow through this code. In those cases, the error has already been reported and
-        // we bail.
+        // We have to check that the arity of the expected type matches because some
+        // ill-typed programs flow through this code. In those cases, the error
+        // has already been reported and we bail.
         if etys.len() == tys.len() {
             let current_ty = sp(*tloc, HT::Multiple(tys));
             match needs_freeze(context, &current_ty, expected_ty) {
@@ -1669,7 +1669,8 @@ fn statement_block(context: &mut Context, block: &mut Block, seq: VecDeque<T::Se
     }
 }
 
-// Treat something like a value, and add a final `ignore_and_pop` at the end to consume that value.
+// Treat something like a value, and add a final `ignore_and_pop` at the end to
+// consume that value.
 fn value_statement(context: &mut Context, block: &mut Block, e: T::Exp) {
     let exp = value(context, block, None, e);
     make_ignore_and_pop(block, exp);
@@ -2040,8 +2041,8 @@ fn value_evaluation_order(
             exp
         };
         values.push(exp);
-        // If evaluating this expression introduces statements, all previous exps need to be bound
-        // to preserve left-to-right evaluation order
+        // If evaluating this expression introduces statements, all previous exps need
+        // to be bound to preserve left-to-right evaluation order
         let adds_to_result = !new_stmts.is_empty();
         needs_binding = needs_binding || adds_to_result;
         statements.push(new_stmts);
@@ -2058,8 +2059,8 @@ fn bind_exp(context: &mut Context, stmts: &mut Block, e: H::Exp) -> H::Exp {
     var_exp
 }
 
-// Takes binder(s), a block, and a value. If the value is defined, adds an assignment to the end
-// of the block to assign the binders to that value.
+// Takes binder(s), a block, and a value. If the value is defined, adds an
+// assignment to the end of the block to assign the binders to that value.
 // Returns the block and a flag indicating if that operation happened.
 fn bind_value_in_block(
     context: &mut Context,
@@ -2097,8 +2098,7 @@ fn bind_value_in_block(
 }
 
 fn make_binders(context: &mut Context, loc: Loc, ty: H::Type) -> (Vec<H::LValue>, H::Exp) {
-    use H::Type_ as T;
-    use H::UnannotatedExp_ as E;
+    use H::{Type_ as T, UnannotatedExp_ as E};
     match ty.value {
         T::Unit => (
             vec![],
@@ -2354,9 +2354,7 @@ fn needs_freeze(
     sp!(loc, actual): &H::Type,
     sp!(eloc, expected): &H::Type,
 ) -> Freeze {
-    use H::BaseType_ as BT;
-    use H::SingleType_ as ST;
-    use H::Type_ as T;
+    use H::{BaseType_ as BT, SingleType_ as ST, Type_ as T};
     match (actual, expected) {
         (T::Unit, T::Unit) => Freeze::NotNeeded,
         (T::Single(actual_type), T::Single(expected_type)) => {
@@ -2486,9 +2484,9 @@ fn gen_unused_warnings(
     structs: &UniqueMap<StructName, H::StructDefinition>,
 ) {
     if !is_source_module {
-        // generate warnings only for modules compiled in this pass rather than for all modules
-        // including pre-compiled libraries for which we do not have source code available and
-        // cannot be analyzed in this pass
+        // generate warnings only for modules compiled in this pass rather than for all
+        // modules including pre-compiled libraries for which we do not have
+        // source code available and cannot be analyzed in this pass
         return;
     }
     let is_sui_mode = context.env.package_config(context.current_package).flavor == Flavor::Sui;

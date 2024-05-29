@@ -2,8 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{diag, diagnostics::Diagnostic, parser::syntax::make_loc};
 use move_ir_types::location::*;
+
+use crate::{diag, diagnostics::Diagnostic, parser::syntax::make_loc};
 
 pub fn decode(loc: Loc, s: &str) -> Result<Vec<u8>, Box<Diagnostic>> {
     match hex::decode(s) {

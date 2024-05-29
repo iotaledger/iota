@@ -2,9 +2,10 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module defines the transfer functions for verifying consistency of each bytecode
-//! instruction, in particular, for the bytecode instructions that come in both generic and
-//! non-generic flavors. It also checks constraints on instructions like VecPack/VecUnpack.
+//! This module defines the transfer functions for verifying consistency of each
+//! bytecode instruction, in particular, for the bytecode instructions that come
+//! in both generic and non-generic flavors. It also checks constraints on
+//! instructions like VecPack/VecUnpack.
 
 use move_binary_format::{
     access::ModuleAccess,
@@ -154,7 +155,6 @@ impl<'a> InstructionConsistency<'a> {
         Ok(())
     }
 
-    //
     // Helpers for instructions that come in a generic and non generic form.
     // Verifies the generic form uses a generic member and the non generic form
     // a non generic one.
