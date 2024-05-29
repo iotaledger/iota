@@ -1,6 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import Image from 'next/image';
 import { useAppsBackend } from '@mysten/core';
 import { useQuery } from '@tanstack/react-query';
 import { AppListItem } from './AppList.types';
@@ -14,8 +15,15 @@ const AppListItem = (props: AppListItem) => {
             rel="noopener noreferrer"
             className={'flex flex-col items-center hover:opacity-70'}
         >
-            <div className="h-32 w-32 overflow-hidden rounded-md">
-                <img src={props.icon} alt="Description" className="h-full w-full object-cover" />
+            <div className="relative h-32 w-32 overflow-hidden rounded-md">
+                <Image
+                    loader={() => props.icon}
+                    src={props.icon}
+                    alt="Description"
+                    className="h-full w-full object-cover"
+                    layout={'fill'}
+                    objectFit={'contain'}
+                />
             </div>
             <h6 className={'mt-2 text-gray-900'}>{props.name}</h6>
             <p className={'mt-3 text-sm text-gray-700'}>{props.description}</p>
