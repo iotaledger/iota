@@ -102,7 +102,7 @@ export function AddAccountPage() {
 	]);
 	return (
 		<Overlay showModal title="Add Account" closeOverlay={() => navigate('/')}>
-			<div className="w-full flex flex-col gap-8">
+			<div className="flex w-full flex-col gap-8">
 				<div className="flex flex-col gap-3">
 					{showSocialSignInOptions && (
 						<ZkLoginButtons
@@ -125,7 +125,7 @@ export function AddAccountPage() {
 						variant="outline"
 						size="tall"
 						text="Set up Ledger"
-						before={<LedgerLogo className="text-gray-90 w-4 h-4" />}
+						before={<LedgerLogo className="h-4 w-4 text-gray-90" />}
 						onClick={async () => {
 							ampli.openedConnectLedgerFlow({ sourceFlow });
 							if (isPopup) {
@@ -165,19 +165,18 @@ export function AddAccountPage() {
 					<Button
 						variant="outline"
 						size="tall"
-						text="Import Private Key"
-						to="/accounts/import-private-key"
-						onClick={() => {
-							ampli.clickedImportPrivateKey({ sourceFlow });
-						}}
+						text="Import Seed"
+						to="/accounts/import-seed"
 						disabled={createAccountsMutation.isPending}
 					/>
 					<Button
 						variant="outline"
 						size="tall"
-						text="Import Seed"
-						to="/accounts/import-seed"
-						onClick={() => {}}
+						text="Import Private Key"
+						to="/accounts/import-private-key"
+						onClick={() => {
+							ampli.clickedImportPrivateKey({ sourceFlow });
+						}}
 						disabled={createAccountsMutation.isPending}
 					/>
 				</Section>

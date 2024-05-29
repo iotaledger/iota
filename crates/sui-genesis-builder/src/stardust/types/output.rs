@@ -1,3 +1,6 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! Rust types and logic for the Move counterparts in the `stardust` system package.
 
 use anyhow::Result;
@@ -148,7 +151,7 @@ impl BasicOutput {
         let expiration = output
             .unlock_conditions()
             .expiration()
-            .map(|expiration| ExpirationUnlockCondition::new(output.address(), &expiration))
+            .map(|expiration| ExpirationUnlockCondition::new(output.address(), expiration))
             .transpose()?;
 
         Ok(BasicOutput {

@@ -8,17 +8,6 @@ module.exports = {
     tabWidth: 4,
     trailingComma: 'all',
     useTabs: false,
-    plugins: ['@ianvs/prettier-plugin-sort-imports'],
-    importOrder: [
-        '<BUILT_IN_MODULES>',
-        '<THIRD_PARTY_MODULES>',
-        '',
-        '^@/(.*)$',
-        '^~/(.*)$',
-        '',
-        '^[.]',
-    ],
-    importOrderParserPlugins: ['typescript', 'decorators-legacy'],
     overrides: [
         {
             files: ['apps/explorer/**/*', 'apps/wallet/**/*'],
@@ -38,6 +27,13 @@ module.exports = {
             files: 'sdk/**/*',
             options: {
                 proseWrap: 'always',
+            },
+        },
+        {
+            files: 'apps/wallet/**/*',
+            options: {
+                tabWidth: 2,
+                useTabs: true,
             },
         },
         {
