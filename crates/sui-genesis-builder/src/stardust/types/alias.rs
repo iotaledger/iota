@@ -21,6 +21,8 @@ pub const ALIAS_MODULE_NAME: &IdentStr = ident_str!("alias");
 pub const ALIAS_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("alias_output");
 pub const ALIAS_OUTPUT_STRUCT_NAME: &IdentStr = ident_str!("AliasOutput");
 pub const ALIAS_STRUCT_NAME: &IdentStr = ident_str!("Alias");
+pub const ALIAS_DYNAMIC_OBJECT_FIELD_KEY: &[u8] = b"alias";
+pub const ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE: &str = "vector<u8>";
 
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
