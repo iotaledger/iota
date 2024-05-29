@@ -24,10 +24,6 @@ import {
 	type MethodPayload,
 	type UIAccessibleEntityType,
 } from '_src/shared/messaging/messages/payloads/MethodPayload';
-import {
-	isQredoConnectPayload,
-	type QredoConnectPayload,
-} from '_src/shared/messaging/messages/payloads/QredoConnect';
 import { toEntropy } from '_src/shared/utils/bip39';
 import Dexie from 'dexie';
 import { BehaviorSubject, filter, switchMap, takeUntil } from 'rxjs';
@@ -48,12 +44,6 @@ import { getAutoLockMinutes, notifyUserActive, setAutoLockMinutes } from '../aut
 import { backupDB, getDB, settingsKeys } from '../db';
 import { clearStatus, doMigration, getStatus } from '../legacy-accounts/storage-migration';
 import NetworkEnv from '../NetworkEnv';
-import {
-	acceptQredoConnection,
-	getUIQredoInfo,
-	getUIQredoPendingRequest,
-	rejectQredoConnection,
-} from '../qredo';
 import { Connection } from './Connection';
 
 export class UiConnection extends Connection {
@@ -136,49 +126,6 @@ export class UiConnection extends Connection {
 				);
 			} else if (isSetNetworkPayload(payload)) {
 				await NetworkEnv.setActiveNetwork(payload.network);
-				this.send(createMessage({ type: 'done' }, id));
-			} else if (isQredoConnectPayload(payload, 'getPendingRequest')) {
-				this.send(
-					createMessage<QredoConnectPayload<'getPendingRequestResponse'>>(
-						{
-							type: 'qredo-connect',
-							method: 'getPendingRequestResponse',
-							args: {
-								request: await getUIQredoPendingRequest(payload.args.requestID),
-							},
-						},
-						msg.id,
-					),
-				);
-			} else if (isQredoConnectPayload(payload, 'getQredoInfo')) {
-				this.send(
-					createMessage<QredoConnectPayload<'getQredoInfoResponse'>>(
-						{
-							type: 'qredo-connect',
-							method: 'getQredoInfoResponse',
-							args: {
-								qredoInfo: await getUIQredoInfo(
-									payload.args.qredoID,
-									payload.args.refreshAccessToken,
-								),
-							},
-						},
-						msg.id,
-					),
-				);
-			} else if (isQredoConnectPayload(payload, 'acceptQredoConnection')) {
-				this.send(
-					createMessage<QredoConnectPayload<'acceptQredoConnectionResponse'>>(
-						{
-							type: 'qredo-connect',
-							method: 'acceptQredoConnectionResponse',
-							args: { accounts: await acceptQredoConnection(payload.args) },
-						},
-						id,
-					),
-				);
-			} else if (isQredoConnectPayload(payload, 'rejectQredoConnection')) {
-				await rejectQredoConnection(payload.args);
 				this.send(createMessage({ type: 'done' }, id));
 			} else if (isMethodPayload(payload, 'getStoredEntities')) {
 				const entities = await this.getUISerializedEntities(payload.args.type);

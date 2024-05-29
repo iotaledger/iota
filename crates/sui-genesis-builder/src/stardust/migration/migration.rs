@@ -3,8 +3,15 @@
 
 //! Contains the logic for the migration process.
 
+use std::{
+    collections::HashMap,
+    io::{prelude::Write, BufWriter},
+};
+
 use anyhow::Result;
 use fastcrypto::hash::HashFunction;
+use iota_sdk::types::block::output::{FoundryOutput, Output, OutputId};
+
 use sui_move_build::CompiledPackage;
 use sui_protocol_config::ProtocolVersion;
 use sui_types::{
@@ -16,13 +23,6 @@ use sui_types::{
     MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID, SUI_SYSTEM_PACKAGE_ID,
     TIMELOCK_PACKAGE_ID,
 };
-
-use std::{
-    collections::HashMap,
-    io::{prelude::Write, BufWriter},
-};
-
-use iota_sdk::types::block::output::{FoundryOutput, Output, OutputId};
 
 use crate::stardust::{
     migration::{
@@ -163,6 +163,7 @@ impl Migration {
         for (header, output) in outputs {
             let created = match output {
                 Output::Alias(alias) => self.executor.create_alias_objects(header, alias)?,
+                Output::Nft(nft) => self.executor.create_nft_objects(header, nft)?,
                 Output::Basic(basic) => {
                     // All timelocked vested rewards(basic outputs with the specific ID format) should be migrated
                     // as TimeLock<Balance<IOTA>> objects.
@@ -180,7 +181,6 @@ impl Migration {
                         self.executor.create_basic_objects(header, basic)?
                     }
                 }
-                Output::Nft(nft) => self.executor.create_nft_objects(nft)?,
                 Output::Treasury(_) | Output::Foundry(_) => continue,
             };
             self.output_objects_map.insert(header.output_id(), created);

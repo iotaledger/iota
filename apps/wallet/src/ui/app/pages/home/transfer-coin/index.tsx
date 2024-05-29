@@ -9,10 +9,8 @@ import Overlay from '_components/overlay';
 import { ampli } from '_src/shared/analytics/ampli';
 import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessages';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
-import { useQredoTransaction } from '_src/ui/app/hooks/useQredoTransaction';
 import { useSigner } from '_src/ui/app/hooks/useSigner';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
-import { QredoActionIgnoredByUser } from '_src/ui/app/QredoSigner';
 import { useCoinMetadata } from '@mysten/core';
 import { ArrowLeft16, ArrowRight16 } from '@mysten/icons';
 // import * as Sentry from '@sentry/react';
@@ -37,7 +35,6 @@ function TransferCoinPage() {
 	const signer = useSigner(activeAccount);
 	const address = activeAccount?.address;
 	const queryClient = useQueryClient();
-	const { clientIdentifier, notificationModal } = useQredoTransaction();
 
 	const transaction = useMemo(() => {
 		if (!coinType || !signer || !formData || !address) return null;
@@ -58,24 +55,15 @@ function TransferCoinPage() {
 			// const sentryTransaction = Sentry.startTransaction({
 			// 	name: 'send-tokens',
 			// });
-			try {
-				return signer.signAndExecuteTransactionBlock(
-					{
-						transactionBlock: transaction,
-						options: {
-							showInput: true,
-							showEffects: true,
-							showEvents: true,
-						},
-					},
-					clientIdentifier,
-				);
-			} catch (error) {
-				if (!(error instanceof QredoActionIgnoredByUser)) {
-					// sentryTransaction.setTag('failure', true);
-				}
-				throw error;
-			}
+			return signer.signAndExecuteTransactionBlock({
+				transactionBlock: transaction,
+				options: {
+					showInput: true,
+					showEffects: true,
+					showEvents: true,
+				},
+			});
+
 			// finally {
 			// sentryTransaction.finish();
 			// }
@@ -94,17 +82,13 @@ function TransferCoinPage() {
 			return navigate(receiptUrl);
 		},
 		onError: (error) => {
-			if (error instanceof QredoActionIgnoredByUser) {
-				navigate('/');
-			} else {
-				toast.error(
-					<div className="max-w-xs overflow-hidden flex flex-col">
-						<small className="text-ellipsis overflow-hidden">
-							{getSignerOperationErrorMessage(error)}
-						</small>
-					</div>,
-				);
-			}
+			toast.error(
+				<div className="max-w-xs overflow-hidden flex flex-col">
+					<small className="text-ellipsis overflow-hidden">
+						{getSignerOperationErrorMessage(error)}
+					</small>
+				</div>,
+			);
 		},
 	});
 
@@ -177,7 +161,6 @@ function TransferCoinPage() {
 					</>
 				)}
 			</div>
-			{notificationModal}
 		</Overlay>
 	);
 }
