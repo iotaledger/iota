@@ -18,6 +18,7 @@ use sui_types::{
 #[rpc(server, client, namespace = "sui")]
 pub trait ReadApi {
     /// Return the transaction response object.
+    #[rustfmt::skip]
     #[method(name = "getTransactionBlock")]
     async fn get_transaction_block(
         &self,
@@ -30,6 +31,7 @@ pub trait ReadApi {
     /// Returns an ordered list of transaction responses
     /// The method will throw an error if the input contains any duplicate or
     /// the input size exceeds QUERY_MAX_RESULT_LIMIT
+    #[rustfmt::skip]
     #[method(name = "multiGetTransactionBlocks")]
     async fn multi_get_transaction_blocks(
         &self,
@@ -40,6 +42,7 @@ pub trait ReadApi {
     ) -> RpcResult<Vec<SuiTransactionBlockResponse>>;
 
     /// Return the object information for a specified object
+    #[rustfmt::skip]
     #[method(name = "getObject")]
     async fn get_object(
         &self,
@@ -50,6 +53,7 @@ pub trait ReadApi {
     ) -> RpcResult<SuiObjectResponse>;
 
     /// Return the object data for a list of objects
+    #[rustfmt::skip]
     #[method(name = "multiGetObjects")]
     async fn multi_get_objects(
         &self,
@@ -59,28 +63,27 @@ pub trait ReadApi {
         options: Option<SuiObjectDataOptions>,
     ) -> RpcResult<Vec<SuiObjectResponse>>;
 
-    /// Note there is no software-level guarantee/SLA that objects with past
-    /// versions can be retrieved by this API, even if the object and
-    /// version exists/existed. The result may vary across nodes depending
-    /// on their pruning policies. Return the object information for a
-    /// specified version
+    /// Note there is no software-level guarantee/SLA that objects with past versions
+    /// can be retrieved by this API, even if the object and version exists/existed.
+    /// The result may vary across nodes depending on their pruning policies.
+    /// Return the object information for a specified version
+    #[rustfmt::skip]
     #[method(name = "tryGetPastObject")]
     async fn try_get_past_object(
         &self,
         /// the ID of the queried object
         object_id: ObjectID,
-        /// the version of the queried object. If None, default to the latest
-        /// known version
+        /// the version of the queried object. If None, default to the latest known version
         version: SequenceNumber,
         /// options for specifying the content to be returned
         options: Option<SuiObjectDataOptions>,
     ) -> RpcResult<SuiPastObjectResponse>;
 
-    /// Note there is no software-level guarantee/SLA that objects with past
-    /// versions can be retrieved by this API, even if the object and
-    /// version exists/existed. The result may vary across nodes depending
-    /// on their pruning policies. Return the object information for a
-    /// specified version
+    /// Note there is no software-level guarantee/SLA that objects with past versions
+    /// can be retrieved by this API, even if the object and version exists/existed.
+    /// The result may vary across nodes depending on their pruning policies.
+    /// Return the object information for a specified version
+    #[rustfmt::skip]
     #[method(name = "tryMultiGetPastObjects")]
     async fn try_multi_get_past_objects(
         &self,
@@ -97,45 +100,40 @@ pub trait ReadApi {
     ) -> RpcResult<SuiLoadedChildObjectsResponse>;
 
     /// Return a checkpoint
+    #[rustfmt::skip]
     #[method(name = "getCheckpoint")]
     async fn get_checkpoint(
         &self,
-        /// Checkpoint identifier, can use either checkpoint digest, or
-        /// checkpoint sequence number as input.
+        /// Checkpoint identifier, can use either checkpoint digest, or checkpoint sequence number as input.
         id: CheckpointId,
     ) -> RpcResult<Checkpoint>;
 
     /// Return paginated list of checkpoints
+    #[rustfmt::skip]
     #[method(name = "getCheckpoints")]
     async fn get_checkpoints(
         &self,
-        /// An optional paging cursor. If provided, the query will start from
-        /// the next item after the specified cursor. Default to start from the
-        /// first item if not specified.
+        /// An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.
         cursor: Option<BigInt<u64>>,
-        /// Maximum item returned per page, default to
-        /// [QUERY_MAX_RESULT_LIMIT_CHECKPOINTS] if not specified.
+        /// Maximum item returned per page, default to [QUERY_MAX_RESULT_LIMIT_CHECKPOINTS] if not specified.
         limit: Option<usize>,
-        /// query result ordering, default to false (ascending order), oldest
-        /// record first.
+        /// query result ordering, default to false (ascending order), oldest record first.
         descending_order: bool,
     ) -> RpcResult<CheckpointPage>;
 
+    #[rustfmt::skip]
     #[method(name = "getCheckpoints", version <= "0.31")]
     async fn get_checkpoints_deprecated_limit(
         &self,
-        /// An optional paging cursor. If provided, the query will start from
-        /// the next item after the specified cursor. Default to start from the
-        /// first item if not specified.
+        /// An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.
         cursor: Option<BigInt<u64>>,
-        /// Maximum item returned per page, default to
-        /// [QUERY_MAX_RESULT_LIMIT_CHECKPOINTS] if not specified.
+        /// Maximum item returned per page, default to [QUERY_MAX_RESULT_LIMIT_CHECKPOINTS] if not specified.
         limit: Option<BigInt<u64>>,
-        /// query result ordering, default to false (ascending order), oldest
-        /// record first.
+        /// query result ordering, default to false (ascending order), oldest record first.
         descending_order: bool,
     ) -> RpcResult<CheckpointPage>;
 
+    /// #[rustfmt::skip]
     /// Return transaction events.
     #[method(name = "getEvents")]
     async fn get_events(
@@ -154,13 +152,12 @@ pub trait ReadApi {
     async fn get_latest_checkpoint_sequence_number(&self) -> RpcResult<BigInt<u64>>;
 
     /// Return the protocol config table for the given version number.
-    /// If the version number is not specified, If none is specified, the node
-    /// uses the version of the latest epoch it has processed.
+    /// If the version number is not specified, If none is specified, the node uses the version of the latest epoch it has processed.
+    #[rustfmt::skip]
     #[method(name = "getProtocolConfig")]
     async fn get_protocol_config(
         &self,
-        /// An optional protocol version specifier. If omitted, the latest
-        /// protocol config table for the node will be returned.
+        /// An optional protocol version specifier. If omitted, the latest protocol config table for the node will be returned.
         version: Option<BigInt<u64>>,
     ) -> RpcResult<ProtocolConfigResponse>;
 
