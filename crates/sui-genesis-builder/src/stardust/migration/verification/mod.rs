@@ -25,7 +25,7 @@ pub fn verify_output(
 ) -> anyhow::Result<()> {
     match output {
         Output::Alias(output) => {
-            alias::verify_alias_output(header, output, created_objects, storage)
+            alias::verify_alias_output(&header.output_id(), output, created_objects, storage)
         }
         Output::Basic(output) => basic::verify_basic_output(output, created_objects, storage),
         Output::Foundry(output) => foundry::verify_foundry_output(output, created_objects, storage),
