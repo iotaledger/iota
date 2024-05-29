@@ -6,7 +6,6 @@ import Dexie from 'dexie';
 import { accountSourcesEvents } from '../account-sources/events';
 import {
 	deriveKeypairFromSeed,
-	makeDerivationPath,
 	MnemonicAccountSource,
 } from '../account-sources/MnemonicAccountSource';
 import { QredoAccountSource } from '../account-sources/QredoAccountSource';
@@ -20,6 +19,7 @@ import { backupDB, getDB } from '../db';
 import { type QredoConnection } from '../qredo/types';
 import { getFromLocalStorage, makeUniqueKey, setToLocalStorage } from '../storage-utils';
 import { LegacyVault } from './LegacyVault';
+import { makeDerivationPath } from '../account-sources/bipPath';
 
 export type Status = 'required' | 'inProgress' | 'ready';
 

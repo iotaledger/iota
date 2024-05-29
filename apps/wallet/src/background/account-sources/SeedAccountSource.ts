@@ -19,6 +19,7 @@ import {
 	type AccountSourceSerializedUI,
 } from './AccountSource';
 import { accountSourcesEvents } from './events';
+import { makeDerivationPath } from './bipPath';
 
 type DataDecrypted = {
 	seed: string;
@@ -33,11 +34,6 @@ interface SeedAccountSourceSerialized extends AccountSourceSerialized {
 
 interface SeedAccountSourceSerializedUI extends AccountSourceSerializedUI {
 	type: 'seed';
-}
-
-export function makeDerivationPath(index: number) {
-	// currently returns only Ed25519 path
-	return `m/44'/4218'/${index}'/0'/0'`;
 }
 
 export function deriveKeypairFromSeed(seedHex: string, derivationPath: string) {
