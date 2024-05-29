@@ -147,6 +147,9 @@ The <code><a href="nft.md#0x107a_nft_Nft">Nft</a></code> module initializer.
         <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"version"),
         <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"media_type"),
         <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"collection_name"),
+
+        // The issuer of the <a href="nft.md#0x107a_nft_NFT">NFT</a>. Equivalent <b>to</b> IRC-27 `collectionId`.
+        <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"immutable_issuer"),
     ];
 
     <b>let</b> values = <a href="../move-stdlib/vector.md#0x1_vector">vector</a>[
@@ -160,6 +163,9 @@ The <code><a href="nft.md#0x107a_nft_Nft">Nft</a></code> module initializer.
         <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"{immutable_metadata.version}"),
         <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"{immutable_metadata.media_type}"),
         <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"{immutable_metadata.collection_name}"),
+
+        // The issuer of the <a href="nft.md#0x107a_nft_NFT">NFT</a>. Equivalent <b>to</b> IRC-27 `collectionId`.
+        <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"{immutable_issuer}"),
     ];
 
     <b>let</b> <b>mut</b> <a href="../sui-framework/display.md#0x2_display">display</a> = <a href="../sui-framework/display.md#0x2_display_new_with_fields">display::new_with_fields</a>&lt;<a href="nft.md#0x107a_nft_Nft">Nft</a>&gt;(

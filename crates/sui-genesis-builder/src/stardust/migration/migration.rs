@@ -163,6 +163,7 @@ impl Migration {
         for (header, output) in outputs {
             let created = match output {
                 Output::Alias(alias) => self.executor.create_alias_objects(header, alias)?,
+                Output::Nft(nft) => self.executor.create_nft_objects(header, nft)?,
                 Output::Basic(basic) => {
                     // All timelocked vested rewards(basic outputs with the specific ID format) should be migrated
                     // as TimeLock<Balance<IOTA>> objects.
@@ -180,7 +181,6 @@ impl Migration {
                         self.executor.create_basic_objects(header, basic)?
                     }
                 }
-                Output::Nft(nft) => self.executor.create_nft_objects(nft)?,
                 Output::Treasury(_) | Output::Foundry(_) => continue,
             };
             self.output_objects_map.insert(header.output_id(), created);

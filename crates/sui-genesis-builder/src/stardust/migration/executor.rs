@@ -51,7 +51,10 @@ use crate::{
             create_migration_context, package_module_bytes,
             verification::created_objects::CreatedObjects, PACKAGE_DEPS,
         },
-        types::{snapshot::OutputHeader, stardust_to_sui_address_owner, timelock, Alias},
+        types::{
+            snapshot::OutputHeader, stardust_to_sui_address, stardust_to_sui_address_owner,
+            timelock, Nft,
+        },
     },
 };
 
@@ -271,7 +274,7 @@ impl Executor {
     ) -> Result<CreatedObjects> {
         // Take the Alias ID set in the output or, if its zeroized, compute it from the Output ID.
         let alias_id = ObjectID::new(*alias.alias_id().or_from_output_id(&header.output_id()));
-        let move_alias = Alias::try_from_stardust(alias_id, alias)?;
+        let move_alias = crate::stardust::types::Alias::try_from_stardust(alias_id, alias)?;
         let mut created_objects = CreatedObjects::default();
 
         // TODO: We should ensure that no circular ownership exists.
@@ -563,8 +566,81 @@ impl Executor {
         Ok(created_objects)
     }
 
-    pub(super) fn create_nft_objects(&mut self, _nft: &NftOutput) -> Result<CreatedObjects> {
-        todo!();
+    pub(super) fn create_nft_objects(
+        &mut self,
+        header: &OutputHeader,
+        nft: &NftOutput,
+    ) -> Result<CreatedObjects> {
+        let mut created_objects = CreatedObjects::default();
+
+        // Take the Nft ID set in the output or, if its zeroized, compute it from the Output ID.
+        let nft_id = ObjectID::new(*nft.nft_id().or_from_output_id(&header.output_id()));
+        let move_nft = Nft::try_from_stardust(nft_id, &nft)?;
+
+        // TODO: We should ensure that no circular ownership exists.
+        let nft_output_owner_address = stardust_to_sui_address(nft.address())?;
+        let nft_output_owner = stardust_to_sui_address_owner(nft.address())?;
+
+        let package_deps = InputObjects::new(self.load_packages(PACKAGE_DEPS).collect());
+        let version = package_deps.lamport_timestamp(&[]);
+        let move_nft_object = move_nft.to_genesis_object(
+            nft_output_owner,
+            &self.protocol_config,
+            &self.tx_context,
+            version,
+        )?;
+
+        let move_nft_object_ref = move_nft_object.compute_object_reference();
+        self.store.insert_object(move_nft_object);
+
+        let (bag, version, fields) = self.create_bag_with_pt(nft.native_tokens())?;
+        created_objects.set_native_tokens(fields)?;
+        let move_nft_output = crate::stardust::types::NftOutput::try_from_stardust(
+            self.tx_context.fresh_id(),
+            &nft,
+            bag,
+        )?;
+
+        // The bag will be wrapped into the nft output object, so
+        // by equating their versions we emulate a ptb.
+        let move_nft_output_object = move_nft_output.to_genesis_object(
+            nft_output_owner_address,
+            &self.protocol_config,
+            &self.tx_context,
+            version,
+        )?;
+        let move_nft_output_object_ref = move_nft_output_object.compute_object_reference();
+        created_objects.set_output(move_nft_output_object.id())?;
+        self.store.insert_object(move_nft_output_object);
+
+        // Attach the Nft to the Nft Output as a dynamic object field via the attach_nft convenience method.
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+
+            let nft_output_arg =
+                builder.obj(ObjectArg::ImmOrOwnedObject(move_nft_output_object_ref))?;
+            let nft_arg = builder.obj(ObjectArg::ImmOrOwnedObject(move_nft_object_ref))?;
+            builder.programmable_move_call(
+                STARDUST_PACKAGE_ID,
+                ident_str!("nft_output").into(),
+                ident_str!("attach_nft").into(),
+                vec![],
+                vec![nft_output_arg, nft_arg],
+            );
+
+            builder.finish()
+        };
+
+        let input_objects = CheckedInputObjects::new_for_genesis(
+            self.load_input_objects([move_nft_object_ref, move_nft_output_object_ref])
+                .chain(self.load_packages(PACKAGE_DEPS))
+                .collect(),
+        );
+
+        let InnerTemporaryStore { written, .. } = self.execute_pt_unmetered(input_objects, pt)?;
+        self.store.finish(written);
+
+        Ok(created_objects)
     }
 }
 
