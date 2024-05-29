@@ -9,7 +9,7 @@ import { useBackgroundClient } from './useBackgroundClient';
 export function useExportSeedMutation() {
 	const backgroundClient = useBackgroundClient();
 	return useMutation({
-		mutationKey: ['export seed'],
+		mutationKey: ['export-seed'],
 		mutationFn: async (args: MethodPayload<'getAccountSourceSeed'>['args']) =>
 			(await backgroundClient.getAccountSourceSeed(args)).seed,
 	});
