@@ -2,29 +2,30 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React, { useState } from 'react';
+import { Button } from '@/components';
 
 interface NewStakePopupProps {
     onClose: () => void;
 }
 
 enum Steps {
-    SELECT_VALIDATOR,
-    ENTER_AMOUNT,
+    SelectValidaor,
+    EnterAmount,
 }
 
 const HARCODED_VALIDATORS = ['Validator 1', 'Validator 2', 'Validator 3'];
 
 function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
-    const [step, setStep] = useState<Steps>(Steps.SELECT_VALIDATOR);
+    const [step, setStep] = useState<Steps>(Steps.SelectValidaor);
     const [selectedValidator, setSelectedValidator] = useState<string | null>(null);
     const [amount, setAmount] = useState<string>('');
 
     const handleNext = () => {
-        setStep(Steps.ENTER_AMOUNT);
+        setStep(Steps.EnterAmount);
     };
 
     const handleBack = () => {
-        setStep(Steps.SELECT_VALIDATOR);
+        setStep(Steps.SelectValidaor);
     };
 
     const handleValidatorSelect = (validator: string) => {
@@ -39,22 +40,22 @@ function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
 
     return (
         <div className="flex min-w-[300px] flex-col gap-2">
-            {step === Steps.SELECT_VALIDATOR && (
+            {step === Steps.SelectValidaor && (
                 <div>
                     <h2>Select Validator</h2>
                     <div className="flex flex-col items-start gap-2">
                         {HARCODED_VALIDATORS.map((validator) => (
-                            <button
+                            <Button
                                 key={validator}
                                 onClick={() => handleValidatorSelect(validator)}
                             >
                                 {validator}
-                            </button>
+                            </Button>
                         ))}
                     </div>
                 </div>
             )}
-            {step === Steps.ENTER_AMOUNT && (
+            {step === Steps.EnterAmount && (
                 <div className="flex flex-col items-start gap-2">
                     <p>Selected Validator: {selectedValidator}</p>
                     <h2>Enter Amount</h2>
@@ -65,10 +66,10 @@ function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
                         placeholder="Enter amount to stake"
                     />
                     <div className="flex w-full justify-between gap-2">
-                        <button onClick={handleBack}>Back</button>
-                        <button onClick={handleStake} disabled={!amount}>
+                        <Button onClick={handleBack}>Back</Button>
+                        <Button onClick={handleStake} disabled={!amount}>
                             Stake
-                        </button>
+                        </Button>
                     </div>
                 </div>
             )}

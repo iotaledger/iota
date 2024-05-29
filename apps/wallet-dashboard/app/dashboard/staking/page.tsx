@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 'use client';
 
-import { AmountBox, Box, List, NewStakePopup } from '@/components';
+import { AmountBox, Box, List, NewStakePopup, StakeDetailsPopup } from '@/components';
 import { usePopups } from '@/hooks';
 
 function StakingDashboardPage(): JSX.Element {
@@ -23,21 +23,30 @@ function StakingDashboardPage(): JSX.Element {
         { id: '2', validator: 'Validator 3', stake: '20 IOTA', rewards: '0.06 IOTA' },
     ];
 
-    const handleNewStake = () => {
+    const viewStakeDetails = (stake: { [key: string]: React.ReactNode | string }) => {
+        openPopup(<StakeDetailsPopup stake={stake} />);
+    };
+
+    const addNewStake = () => {
         openPopup(<NewStakePopup onClose={closePopup} />);
     };
 
     return (
         <div className="flex flex-col items-center justify-center gap-4 pt-12">
-            <button onClick={handleNewStake}>New Stake</button>
+            <button onClick={addNewStake}>New Stake</button>
             <div className="flex items-center justify-center gap-4">
+                {' '}
                 <AmountBox title={HARCODED_STAKE_DATA.title} amount={HARCODED_STAKE_DATA.value} />
                 <AmountBox
                     title={HARCODED_REWARDS_DATA.title}
                     amount={HARCODED_REWARDS_DATA.value}
                 />
                 <Box title={HARCODED_STAKING_LIST_TITLE}>
-                    <List data={HARCODED_STAKING_LIST} />
+                    <List
+                        data={HARCODED_STAKING_LIST}
+                        onItemClick={viewStakeDetails}
+                        actionText="View Details"
+                    />
                 </Box>
             </div>
         </div>
