@@ -1,35 +1,35 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ActivityState } from '@/lib/interfaces';
+import { ActivityAction, ActivityState } from '@/lib/interfaces';
 import { Account24, ArrowRight16, Sui, Swap16, Unstaked, WalletActionStake24 } from '@mysten/icons';
 
 const icons = {
-    Send: (
+    [ActivityAction.Send]: (
         <ArrowRight16
             fill="currentColor"
             className="text-gradient-blue-start text-body -rotate-45"
         />
     ),
-    Receive: (
+    [ActivityAction.Receive]: (
         <ArrowRight16
             fill="currentColor"
             className="text-gradient-blue-start text-body rotate-135"
         />
     ),
-    Transaction: (
+    [ActivityAction.Transaction]: (
         <ArrowRight16
             fill="currentColor"
             className="text-gradient-blue-start text-body -rotate-45"
         />
     ),
-    Staked: (
+    [ActivityAction.Staked]: (
         <WalletActionStake24 className="text-gradient-blue-start text-heading2 bg-transparent" />
     ),
-    Unstaked: <Unstaked className="text-gradient-blue-start text-heading3" />,
-    Rewards: <Sui className="text-gradient-blue-start text-body" />,
-    Swapped: <Swap16 className="text-gradient-blue-start text-heading6" />,
-    PersonalMessage: (
+    [ActivityAction.Unstaked]: <Unstaked className="text-gradient-blue-start text-heading3" />,
+    [ActivityAction.Rewards]: <Sui className="text-gradient-blue-start text-body" />,
+    [ActivityAction.Swapped]: <Swap16 className="text-gradient-blue-start text-heading6" />,
+    [ActivityAction.PersonalMessage]: (
         <Account24 fill="currentColor" className="text-gradient-blue-start text-body" />
     ),
 };

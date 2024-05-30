@@ -4,17 +4,30 @@
 'use client';
 
 import ActivityTile from '@/components/ActivityTile';
-import { Activity, ActivityState } from '@/lib/interfaces';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import React from 'react';
+import React, { useMemo } from 'react';
+import { useCurrentAccount } from '@mysten/dapp-kit';
+import { useQueryTransactionsByAddress } from '@/hooks/useQueryTransactionsByAddress';
+import { txToActivity } from '@/lib/utils/activity';
 
-function StakingDashboardPage(): JSX.Element {
+function ActivityPage(): JSX.Element {
     const containerRef = React.useRef(null);
+    const currentAccount = useCurrentAccount();
+    const { data: txs, error } = useQueryTransactionsByAddress(currentAccount?.address);
+
+    const mapped = useMemo(() => {
+        return txs?.map((tx) => txToActivity(tx, currentAccount?.address)) || [];
+    }, [currentAccount?.address, txs]);
+
     const virtualizer = useVirtualizer({
-        count: MOCK_ACTIVITIES.length,
+        count: mapped?.length || 0,
         getScrollElement: () => containerRef.current,
         estimateSize: () => 100,
     });
+
+    if (error) {
+        return <div>{(error as Error)?.message}</div>;
+    }
 
     const virtualItems = virtualizer.getVirtualItems();
 
@@ -29,102 +42,30 @@ function StakingDashboardPage(): JSX.Element {
                         position: 'relative',
                     }}
                 >
-                    {virtualItems.map((virtualItem) => {
-                        const activity = MOCK_ACTIVITIES[virtualItem.index];
-                        return (
-                            <div
-                                key={virtualItem.key}
-                                className="absolute w-full pb-4 pr-4"
-                                style={{
-                                    position: 'absolute',
-                                    top: 0,
-                                    left: 0,
-                                    width: '100%',
-                                    height: `${virtualItem.size}px`,
-                                    transform: `translateY(${virtualItem.start}px)`,
-                                }}
-                            >
-                                <ActivityTile activity={activity} />
-                            </div>
-                        );
-                    })}
+                    {mapped &&
+                        virtualItems.map((virtualItem) => {
+                            const activity = mapped[virtualItem.index];
+                            return (
+                                <div
+                                    key={virtualItem.key}
+                                    className="absolute w-full pb-4 pr-4"
+                                    style={{
+                                        position: 'absolute',
+                                        top: 0,
+                                        left: 0,
+                                        width: '100%',
+                                        height: `${virtualItem.size}px`,
+                                        transform: `translateY(${virtualItem.start}px)`,
+                                    }}
+                                >
+                                    {activity && <ActivityTile activity={activity} />}
+                                </div>
+                            );
+                        })}
                 </div>
             </div>
         </div>
     );
 }
 
-const MOCK_ACTIVITIES: Activity[] = [
-    {
-        action: 'Send',
-        state: ActivityState.Successful,
-        timestamp: 1716538921485,
-    },
-    {
-        action: 'Transaction',
-        state: ActivityState.Successful,
-        timestamp: 1715868828552,
-    },
-    {
-        action: 'Send',
-        state: ActivityState.Successful,
-        timestamp: 1712186639729,
-    },
-    {
-        action: 'Rewards',
-        state: ActivityState.Successful,
-        timestamp: 1715868828552,
-    },
-    {
-        action: 'Receive',
-        state: ActivityState.Successful,
-        timestamp: 1712186639729,
-    },
-    {
-        action: 'Transaction',
-        state: ActivityState.Successful,
-        timestamp: 1715868828552,
-    },
-    {
-        action: 'Send',
-        state: ActivityState.Failed,
-        timestamp: 1712186639729,
-    },
-    {
-        action: 'Send',
-        state: ActivityState.Successful,
-        timestamp: 1716538921485,
-    },
-    {
-        action: 'Transaction',
-        state: ActivityState.Successful,
-        timestamp: 1715868828552,
-    },
-    {
-        action: 'Send',
-        state: ActivityState.Successful,
-        timestamp: 1712186639729,
-    },
-    {
-        action: 'Rewards',
-        state: ActivityState.Successful,
-        timestamp: 1715868828552,
-    },
-    {
-        action: 'Receive',
-        state: ActivityState.Successful,
-        timestamp: 1712186639729,
-    },
-    {
-        action: 'Transaction',
-        state: ActivityState.Successful,
-        timestamp: 1715868828552,
-    },
-    {
-        action: 'Send',
-        state: ActivityState.Failed,
-        timestamp: 1712186639729,
-    },
-];
-
-export default StakingDashboardPage;
+export default ActivityPage;

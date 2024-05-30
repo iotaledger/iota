@@ -18,7 +18,7 @@ function ActivityTile({ activity: { action, state, timestamp } }: ActivityTilePr
             <ActivityIcon state={state} action={action} />
             <div className="flex h-full flex-col space-y-2">
                 <h2>{action}</h2>
-                <span>{formatTimestamp(timestamp)}</span>
+                {timestamp && <span>{formatTimestamp(timestamp)}</span>}
             </div>
             <hr />
         </div>
