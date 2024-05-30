@@ -12,94 +12,97 @@ import { UnlockAccountButton } from '../accounts/UnlockAccountButton';
 import { DAppInfoCard } from '../DAppInfoCard';
 
 type UserApproveContainerProps = {
-	children: ReactNode | ReactNode[];
-	origin: string;
-	originFavIcon?: string;
-	rejectTitle: string;
-	approveTitle: string;
-	approveDisabled?: boolean;
-	approveLoading?: boolean;
-	onSubmit: (approved: boolean) => Promise<void>;
-	isWarning?: boolean;
-	addressHidden?: boolean;
-	address?: string | null;
-	scrollable?: boolean;
-	blended?: boolean;
-	permissions?: PermissionType[];
-	checkAccountLock?: boolean;
+    children: ReactNode | ReactNode[];
+    origin: string;
+    originFavIcon?: string;
+    rejectTitle: string;
+    approveTitle: string;
+    approveDisabled?: boolean;
+    approveLoading?: boolean;
+    onSubmit: (approved: boolean) => Promise<void>;
+    isWarning?: boolean;
+    addressHidden?: boolean;
+    address?: string | null;
+    scrollable?: boolean;
+    blended?: boolean;
+    permissions?: PermissionType[];
+    checkAccountLock?: boolean;
 };
 
 export function UserApproveContainer({
-	origin,
-	originFavIcon,
-	children,
-	rejectTitle,
-	approveTitle,
-	approveDisabled = false,
-	approveLoading = false,
-	onSubmit,
-	isWarning,
-	addressHidden = false,
-	address,
-	permissions,
-	checkAccountLock,
+    origin,
+    originFavIcon,
+    children,
+    rejectTitle,
+    approveTitle,
+    approveDisabled = false,
+    approveLoading = false,
+    onSubmit,
+    isWarning,
+    addressHidden = false,
+    address,
+    permissions,
+    checkAccountLock,
 }: UserApproveContainerProps) {
-	const [submitting, setSubmitting] = useState(false);
-	const handleOnResponse = useCallback(
-		async (allowed: boolean) => {
-			setSubmitting(true);
-			await onSubmit(allowed);
-			setSubmitting(false);
-		},
-		[onSubmit],
-	);
-	const { data: selectedAccount } = useAccountByAddress(address);
-	const parsedOrigin = useMemo(() => new URL(origin), [origin]);
-	return (
-		<div className="flex h-full flex-1 flex-col flex-nowrap">
-			<div className="flex flex-1 flex-col pb-0">
-				<DAppInfoCard
-					name={parsedOrigin.host}
-					url={origin}
-					permissions={permissions}
-					iconUrl={originFavIcon}
-					connectedAddress={!addressHidden && address ? address : undefined}
-				/>
-				<div className="flex flex-1 flex-col bg-hero-darkest/5 px-6">{children}</div>
-			</div>
-			<div className="sticky bottom-0">
-				<div
-					className={cn('flex items-center gap-2.5 bg-hero-darkest/5 px-5 py-4 backdrop-blur-lg', {
-						'flex-row-reverse': isWarning,
-					})}
-				>
-					{!checkAccountLock || !selectedAccount?.isLocked ? (
-						<>
-							<Button
-								size="tall"
-								variant="secondary"
-								onClick={() => {
-									handleOnResponse(false);
-								}}
-								disabled={submitting}
-								text={rejectTitle}
-							/>
-							<Button
-								size="tall"
-								variant={isWarning ? 'secondary' : 'primary'}
-								onClick={() => {
-									handleOnResponse(true);
-								}}
-								disabled={approveDisabled}
-								loading={submitting || approveLoading}
-								text={approveTitle}
-							/>
-						</>
-					) : (
-						<UnlockAccountButton account={selectedAccount} title="Unlock to Approve" />
-					)}
-				</div>
-			</div>
-		</div>
-	);
+    const [submitting, setSubmitting] = useState(false);
+    const handleOnResponse = useCallback(
+        async (allowed: boolean) => {
+            setSubmitting(true);
+            await onSubmit(allowed);
+            setSubmitting(false);
+        },
+        [onSubmit],
+    );
+    const { data: selectedAccount } = useAccountByAddress(address);
+    const parsedOrigin = useMemo(() => new URL(origin), [origin]);
+    return (
+        <div className="flex h-full flex-1 flex-col flex-nowrap">
+            <div className="flex flex-1 flex-col pb-0">
+                <DAppInfoCard
+                    name={parsedOrigin.host}
+                    url={origin}
+                    permissions={permissions}
+                    iconUrl={originFavIcon}
+                    connectedAddress={!addressHidden && address ? address : undefined}
+                />
+                <div className="flex flex-1 flex-col bg-hero-darkest/5 px-6">{children}</div>
+            </div>
+            <div className="sticky bottom-0">
+                <div
+                    className={cn(
+                        'flex items-center gap-2.5 bg-hero-darkest/5 px-5 py-4 backdrop-blur-lg',
+                        {
+                            'flex-row-reverse': isWarning,
+                        },
+                    )}
+                >
+                    {!checkAccountLock || !selectedAccount?.isLocked ? (
+                        <>
+                            <Button
+                                size="tall"
+                                variant="secondary"
+                                onClick={() => {
+                                    handleOnResponse(false);
+                                }}
+                                disabled={submitting}
+                                text={rejectTitle}
+                            />
+                            <Button
+                                size="tall"
+                                variant={isWarning ? 'secondary' : 'primary'}
+                                onClick={() => {
+                                    handleOnResponse(true);
+                                }}
+                                disabled={approveDisabled}
+                                loading={submitting || approveLoading}
+                                text={approveTitle}
+                            />
+                        </>
+                    ) : (
+                        <UnlockAccountButton account={selectedAccount} title="Unlock to Approve" />
+                    )}
+                </div>
+            </div>
+        </div>
+    );
 }

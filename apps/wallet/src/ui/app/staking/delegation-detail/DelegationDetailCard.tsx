@@ -12,9 +12,9 @@ import LoadingIndicator from '_components/loading/LoadingIndicator';
 import { useAppSelector, useCoinsReFetchingConfig } from '_hooks';
 import { ampli } from '_src/shared/analytics/ampli';
 import {
-	DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
-	DELEGATED_STAKES_QUERY_STALE_TIME,
-	MIN_NUMBER_SUI_TO_STAKE,
+    DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
+    DELEGATED_STAKES_QUERY_STALE_TIME,
+    MIN_NUMBER_SUI_TO_STAKE,
 } from '_src/shared/constants';
 import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { useCoinMetadata, useGetDelegatedStake, useGetValidatorsApy } from '@mysten/core';
@@ -31,230 +31,260 @@ import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
 import { StakeAmount } from '../home/StakeAmount';
 
 type DelegationDetailCardProps = {
-	validatorAddress: string;
-	stakedId: string;
+    validatorAddress: string;
+    stakedId: string;
 };
 
 export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationDetailCardProps) {
-	const {
-		data: system,
-		isPending: loadingValidators,
-		isError: errorValidators,
-	} = useSuiClientQuery('getLatestSuiSystemState');
+    const {
+        data: system,
+        isPending: loadingValidators,
+        isError: errorValidators,
+    } = useSuiClientQuery('getLatestSuiSystemState');
 
-	const accountAddress = useActiveAddress();
+    const accountAddress = useActiveAddress();
 
-	const {
-		data: allDelegation,
-		isPending,
-		isError,
-	} = useGetDelegatedStake({
-		address: accountAddress || '',
-		staleTime: DELEGATED_STAKES_QUERY_STALE_TIME,
-		refetchInterval: DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
-	});
+    const {
+        data: allDelegation,
+        isPending,
+        isError,
+    } = useGetDelegatedStake({
+        address: accountAddress || '',
+        staleTime: DELEGATED_STAKES_QUERY_STALE_TIME,
+        refetchInterval: DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
+    });
 
-	const network = useAppSelector(({ app }) => app.network);
-	const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
-	const { data: suiCoinBalance } = useSuiClientQuery(
-		'getBalance',
-		{ coinType: SUI_TYPE_ARG, owner: accountAddress! },
-		{ refetchInterval, staleTime, enabled: !!accountAddress },
-	);
-	const { data: metadata } = useCoinMetadata(SUI_TYPE_ARG);
-	// set minimum stake amount to 1 SUI
-	const showRequestMoreSuiToken = useMemo(() => {
-		if (!suiCoinBalance?.totalBalance || !metadata?.decimals || network === Network.Mainnet)
-			return false;
-		const currentBalance = new BigNumber(suiCoinBalance.totalBalance);
-		const minStakeAmount = new BigNumber(MIN_NUMBER_SUI_TO_STAKE).shiftedBy(metadata.decimals);
-		return currentBalance.lt(minStakeAmount.toString());
-	}, [network, metadata?.decimals, suiCoinBalance?.totalBalance]);
+    const network = useAppSelector(({ app }) => app.network);
+    const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
+    const { data: suiCoinBalance } = useSuiClientQuery(
+        'getBalance',
+        { coinType: SUI_TYPE_ARG, owner: accountAddress! },
+        { refetchInterval, staleTime, enabled: !!accountAddress },
+    );
+    const { data: metadata } = useCoinMetadata(SUI_TYPE_ARG);
+    // set minimum stake amount to 1 SUI
+    const showRequestMoreSuiToken = useMemo(() => {
+        if (!suiCoinBalance?.totalBalance || !metadata?.decimals || network === Network.Mainnet)
+            return false;
+        const currentBalance = new BigNumber(suiCoinBalance.totalBalance);
+        const minStakeAmount = new BigNumber(MIN_NUMBER_SUI_TO_STAKE).shiftedBy(metadata.decimals);
+        return currentBalance.lt(minStakeAmount.toString());
+    }, [network, metadata?.decimals, suiCoinBalance?.totalBalance]);
 
-	const { data: rollingAverageApys } = useGetValidatorsApy();
+    const { data: rollingAverageApys } = useGetValidatorsApy();
 
-	const validatorData = useMemo(() => {
-		if (!system) return null;
-		return system.activeValidators.find((av) => av.suiAddress === validatorAddress);
-	}, [validatorAddress, system]);
+    const validatorData = useMemo(() => {
+        if (!system) return null;
+        return system.activeValidators.find((av) => av.suiAddress === validatorAddress);
+    }, [validatorAddress, system]);
 
-	const delegationData = useMemo(() => {
-		return allDelegation ? getDelegationDataByStakeId(allDelegation, stakedId) : null;
-	}, [allDelegation, stakedId]);
+    const delegationData = useMemo(() => {
+        return allDelegation ? getDelegationDataByStakeId(allDelegation, stakedId) : null;
+    }, [allDelegation, stakedId]);
 
-	const totalStake = BigInt(delegationData?.principal || 0n);
+    const totalStake = BigInt(delegationData?.principal || 0n);
 
-	const suiEarned = BigInt(
-		(delegationData as Extract<StakeObject, { estimatedReward: string }>)?.estimatedReward || 0n,
-	);
-	const { apy, isApyApproxZero } = rollingAverageApys?.[validatorAddress] ?? {
-		apy: 0,
-	};
+    const suiEarned = BigInt(
+        (delegationData as Extract<StakeObject, { estimatedReward: string }>)?.estimatedReward ||
+            0n,
+    );
+    const { apy, isApyApproxZero } = rollingAverageApys?.[validatorAddress] ?? {
+        apy: 0,
+    };
 
-	const delegationId = delegationData?.status === 'Active' && delegationData?.stakedSuiId;
+    const delegationId = delegationData?.status === 'Active' && delegationData?.stakedSuiId;
 
-	const stakeByValidatorAddress = `/stake/new?${new URLSearchParams({
-		address: validatorAddress,
-		staked: stakedId,
-	}).toString()}`;
+    const stakeByValidatorAddress = `/stake/new?${new URLSearchParams({
+        address: validatorAddress,
+        staked: stakedId,
+    }).toString()}`;
 
-	// check if the validator is in the active validator list, if not, is inactive validator
-	const hasInactiveValidatorDelegation = !system?.activeValidators?.find(
-		({ stakingPoolId }) => stakingPoolId === validatorData?.stakingPoolId,
-	);
+    // check if the validator is in the active validator list, if not, is inactive validator
+    const hasInactiveValidatorDelegation = !system?.activeValidators?.find(
+        ({ stakingPoolId }) => stakingPoolId === validatorData?.stakingPoolId,
+    );
 
-	const commission = validatorData ? Number(validatorData.commissionRate) / 100 : 0;
+    const commission = validatorData ? Number(validatorData.commissionRate) / 100 : 0;
 
-	if (isPending || loadingValidators) {
-		return (
-			<div className="flex h-full w-full items-center justify-center p-2">
-				<LoadingIndicator />
-			</div>
-		);
-	}
+    if (isPending || loadingValidators) {
+        return (
+            <div className="flex h-full w-full items-center justify-center p-2">
+                <LoadingIndicator />
+            </div>
+        );
+    }
 
-	if (isError || errorValidators) {
-		return (
-			<div className="p-2">
-				<Alert>
-					<div className="mb-1 font-semibold">Something went wrong</div>
-				</Alert>
-			</div>
-		);
-	}
+    if (isError || errorValidators) {
+        return (
+            <div className="p-2">
+                <Alert>
+                    <div className="mb-1 font-semibold">Something went wrong</div>
+                </Alert>
+            </div>
+        );
+    }
 
-	return (
-		<div className="flex h-full flex-grow flex-col flex-nowrap">
-			<BottomMenuLayout>
-				<Content>
-					<div className="flex w-full flex-col items-center justify-center">
-						{hasInactiveValidatorDelegation ? (
-							<div className="mb-3">
-								<Alert>
-									Unstake SUI from this inactive validator and stake on an active validator to start
-									earning rewards again.
-								</Alert>
-							</div>
-						) : null}
-						<div className="flex w-full">
-							<Card
-								header={
-									<div className="grid w-full grid-cols-2 divide-x divide-y-0 divide-solid divide-gray-45">
-										<CardItem title="Your Stake">
-											<StakeAmount balance={totalStake} variant="heading5" />
-										</CardItem>
+    return (
+        <div className="flex h-full flex-grow flex-col flex-nowrap">
+            <BottomMenuLayout>
+                <Content>
+                    <div className="flex w-full flex-col items-center justify-center">
+                        {hasInactiveValidatorDelegation ? (
+                            <div className="mb-3">
+                                <Alert>
+                                    Unstake SUI from this inactive validator and stake on an active
+                                    validator to start earning rewards again.
+                                </Alert>
+                            </div>
+                        ) : null}
+                        <div className="flex w-full">
+                            <Card
+                                header={
+                                    <div className="grid w-full grid-cols-2 divide-x divide-y-0 divide-solid divide-gray-45">
+                                        <CardItem title="Your Stake">
+                                            <StakeAmount balance={totalStake} variant="heading5" />
+                                        </CardItem>
 
-										<CardItem title="Earned">
-											<StakeAmount balance={suiEarned} variant="heading5" isEarnedRewards />
-										</CardItem>
-									</div>
-								}
-								padding="none"
-							>
-								<div className="flex divide-x divide-y-0 divide-solid divide-gray-45">
-									<CardItem
-										title={
-											<div className="flex items-start gap-1 text-steel-darker">
-												APY
-												<div className="text-steel">
-													<IconTooltip tip="Annual Percentage Yield" placement="top" />
-												</div>
-											</div>
-										}
-									>
-										<div className="flex items-baseline gap-0.5">
-											<Heading variant="heading4" weight="semibold" color="gray-90" leading="none">
-												{isApyApproxZero ? '~' : ''}
-												{apy}
-											</Heading>
+                                        <CardItem title="Earned">
+                                            <StakeAmount
+                                                balance={suiEarned}
+                                                variant="heading5"
+                                                isEarnedRewards
+                                            />
+                                        </CardItem>
+                                    </div>
+                                }
+                                padding="none"
+                            >
+                                <div className="flex divide-x divide-y-0 divide-solid divide-gray-45">
+                                    <CardItem
+                                        title={
+                                            <div className="flex items-start gap-1 text-steel-darker">
+                                                APY
+                                                <div className="text-steel">
+                                                    <IconTooltip
+                                                        tip="Annual Percentage Yield"
+                                                        placement="top"
+                                                    />
+                                                </div>
+                                            </div>
+                                        }
+                                    >
+                                        <div className="flex items-baseline gap-0.5">
+                                            <Heading
+                                                variant="heading4"
+                                                weight="semibold"
+                                                color="gray-90"
+                                                leading="none"
+                                            >
+                                                {isApyApproxZero ? '~' : ''}
+                                                {apy}
+                                            </Heading>
 
-											<Text variant="subtitleSmall" weight="medium" color="steel-dark">
-												%
-											</Text>
-										</div>
-									</CardItem>
+                                            <Text
+                                                variant="subtitleSmall"
+                                                weight="medium"
+                                                color="steel-dark"
+                                            >
+                                                %
+                                            </Text>
+                                        </div>
+                                    </CardItem>
 
-									<CardItem
-										title={
-											<div className="flex gap-1 text-steel-darker">
-												Commission
-												<div className="text-steel">
-													<IconTooltip tip="Validator commission" placement="top" />
-												</div>
-											</div>
-										}
-									>
-										<div className="flex items-baseline gap-0.5">
-											<Heading variant="heading4" weight="semibold" color="gray-90" leading="none">
-												{commission}
-											</Heading>
+                                    <CardItem
+                                        title={
+                                            <div className="flex gap-1 text-steel-darker">
+                                                Commission
+                                                <div className="text-steel">
+                                                    <IconTooltip
+                                                        tip="Validator commission"
+                                                        placement="top"
+                                                    />
+                                                </div>
+                                            </div>
+                                        }
+                                    >
+                                        <div className="flex items-baseline gap-0.5">
+                                            <Heading
+                                                variant="heading4"
+                                                weight="semibold"
+                                                color="gray-90"
+                                                leading="none"
+                                            >
+                                                {commission}
+                                            </Heading>
 
-											<Text variant="subtitleSmall" weight="medium" color="steel-dark">
-												%
-											</Text>
-										</div>
-									</CardItem>
-								</div>
-							</Card>
-						</div>
-						<div className="my-3.75 flex w-full gap-2.5">
-							{!hasInactiveValidatorDelegation ? (
-								<Button
-									size="tall"
-									variant="outline"
-									to={stakeByValidatorAddress}
-									before={<StakeAdd16 />}
-									text="Stake SUI"
-									onClick={() => {
-										ampli.clickedStakeSui({
-											isCurrentlyStaking: true,
-											sourceFlow: 'Delegation detail card',
-										});
-									}}
-									disabled={showRequestMoreSuiToken}
-								/>
-							) : null}
+                                            <Text
+                                                variant="subtitleSmall"
+                                                weight="medium"
+                                                color="steel-dark"
+                                            >
+                                                %
+                                            </Text>
+                                        </div>
+                                    </CardItem>
+                                </div>
+                            </Card>
+                        </div>
+                        <div className="my-3.75 flex w-full gap-2.5">
+                            {!hasInactiveValidatorDelegation ? (
+                                <Button
+                                    size="tall"
+                                    variant="outline"
+                                    to={stakeByValidatorAddress}
+                                    before={<StakeAdd16 />}
+                                    text="Stake SUI"
+                                    onClick={() => {
+                                        ampli.clickedStakeSui({
+                                            isCurrentlyStaking: true,
+                                            sourceFlow: 'Delegation detail card',
+                                        });
+                                    }}
+                                    disabled={showRequestMoreSuiToken}
+                                />
+                            ) : null}
 
-							{Boolean(totalStake) && delegationId && (
-								<Button
-									data-testid="unstake-button"
-									size="tall"
-									variant="outline"
-									to={stakeByValidatorAddress + '&unstake=true'}
-									onClick={() => {
-										ampli.clickedUnstakeSui({
-											stakedAmount: Number(totalStake / MIST_PER_SUI),
-											validatorAddress,
-										});
-									}}
-									text="Unstake SUI"
-									before={<StakeRemove16 />}
-								/>
-							)}
-						</div>
-					</div>
-				</Content>
+                            {Boolean(totalStake) && delegationId && (
+                                <Button
+                                    data-testid="unstake-button"
+                                    size="tall"
+                                    variant="outline"
+                                    to={stakeByValidatorAddress + '&unstake=true'}
+                                    onClick={() => {
+                                        ampli.clickedUnstakeSui({
+                                            stakedAmount: Number(totalStake / MIST_PER_SUI),
+                                            validatorAddress,
+                                        });
+                                    }}
+                                    text="Unstake SUI"
+                                    before={<StakeRemove16 />}
+                                />
+                            )}
+                        </div>
+                    </div>
+                </Content>
 
-				{/* show faucet request button on devnet or testnet whenever there is only one coin  */}
-				{showRequestMoreSuiToken ? (
-					<div className="flex flex-col items-center gap-4">
-						<div className="w-8/12 text-center">
-							<Text variant="pSubtitle" weight="medium" color="steel-darker">
-								You need a minimum of {MIN_NUMBER_SUI_TO_STAKE} SUI to continue staking.
-							</Text>
-						</div>
-						<FaucetRequestButton size="tall" />
-					</div>
-				) : (
-					<Button
-						size="tall"
-						variant="secondary"
-						to="/stake"
-						before={<ArrowLeft16 />}
-						text="Back"
-					/>
-				)}
-			</BottomMenuLayout>
-		</div>
-	);
+                {/* show faucet request button on devnet or testnet whenever there is only one coin  */}
+                {showRequestMoreSuiToken ? (
+                    <div className="flex flex-col items-center gap-4">
+                        <div className="w-8/12 text-center">
+                            <Text variant="pSubtitle" weight="medium" color="steel-darker">
+                                You need a minimum of {MIN_NUMBER_SUI_TO_STAKE} SUI to continue
+                                staking.
+                            </Text>
+                        </div>
+                        <FaucetRequestButton size="tall" />
+                    </div>
+                ) : (
+                    <Button
+                        size="tall"
+                        variant="secondary"
+                        to="/stake"
+                        before={<ArrowLeft16 />}
+                        text="Back"
+                    />
+                )}
+            </BottomMenuLayout>
+        </div>
+    );
 }

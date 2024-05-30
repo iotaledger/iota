@@ -12,15 +12,15 @@ import { type WalletSigner } from '../WalletSigner';
 import { useBackgroundClient } from './useBackgroundClient';
 
 export function useSigner(account: SerializedUIAccount | null): WalletSigner | null {
-	const { connectToLedger } = useSuiLedgerClient();
-	const api = useSuiClient();
-	const background = useBackgroundClient();
+    const { connectToLedger } = useSuiLedgerClient();
+    const api = useSuiClient();
+    const background = useBackgroundClient();
 
-	if (!account) {
-		return null;
-	}
-	if (isLedgerAccountSerializedUI(account)) {
-		return new LedgerSigner(connectToLedger, account.derivationPath, api);
-	}
-	return walletApiProvider.getSignerInstance(account, background);
+    if (!account) {
+        return null;
+    }
+    if (isLedgerAccountSerializedUI(account)) {
+        return new LedgerSigner(connectToLedger, account.derivationPath, api);
+    }
+    return walletApiProvider.getSignerInstance(account, background);
 }

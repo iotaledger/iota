@@ -16,66 +16,66 @@ import { SuiApp, type DAppEntry } from './SuiApp';
 import { SuiAppEmpty } from './SuiAppEmpty';
 
 function AppsPlayGround() {
-	const ecosystemApps = useFeature<DAppEntry[]>(FEATURES.WALLET_DAPPS).value;
-	const { tagName } = useParams();
+    const ecosystemApps = useFeature<DAppEntry[]>(FEATURES.WALLET_DAPPS).value;
+    const { tagName } = useParams();
 
-	const filteredEcosystemApps = useMemo(() => {
-		if (!ecosystemApps) {
-			return [];
-		} else if (tagName) {
-			return ecosystemApps.filter((app) => app.tags.includes(tagName));
-		}
-		return ecosystemApps;
-	}, [ecosystemApps, tagName]);
+    const filteredEcosystemApps = useMemo(() => {
+        if (!ecosystemApps) {
+            return [];
+        } else if (tagName) {
+            return ecosystemApps.filter((app) => app.tags.includes(tagName));
+        }
+        return ecosystemApps;
+    }, [ecosystemApps, tagName]);
 
-	const allPermissions = useAppSelector(permissionsSelectors.selectAll);
-	const linkToPermissionID = useMemo(() => {
-		const map = new Map<string, string>();
-		for (const aPermission of allPermissions) {
-			map.set(prepareLinkToCompare(aPermission.origin), aPermission.id);
-			if (aPermission.pagelink) {
-				map.set(prepareLinkToCompare(aPermission.pagelink), aPermission.id);
-			}
-		}
-		return map;
-	}, [allPermissions]);
+    const allPermissions = useAppSelector(permissionsSelectors.selectAll);
+    const linkToPermissionID = useMemo(() => {
+        const map = new Map<string, string>();
+        for (const aPermission of allPermissions) {
+            map.set(prepareLinkToCompare(aPermission.origin), aPermission.id);
+            if (aPermission.pagelink) {
+                map.set(prepareLinkToCompare(aPermission.pagelink), aPermission.id);
+            }
+        }
+        return map;
+    }, [allPermissions]);
 
-	return (
-		<>
-			<div className="mb-4 flex justify-center">
-				<Heading variant="heading6" color="gray-90" weight="semibold">
-					Sui Apps
-				</Heading>
-			</div>
+    return (
+        <>
+            <div className="mb-4 flex justify-center">
+                <Heading variant="heading6" color="gray-90" weight="semibold">
+                    Sui Apps
+                </Heading>
+            </div>
 
-			<AppsPageBanner />
+            <AppsPageBanner />
 
-			{filteredEcosystemApps?.length ? (
-				<div className="rounded-xl bg-gray-40 p-4">
-					<Text variant="pBodySmall" color="gray-75" weight="normal">
-						Apps below are actively curated but do not indicate any endorsement or relationship with
-						Sui Wallet. Please DYOR.
-					</Text>
-				</div>
-			) : null}
+            {filteredEcosystemApps?.length ? (
+                <div className="rounded-xl bg-gray-40 p-4">
+                    <Text variant="pBodySmall" color="gray-75" weight="normal">
+                        Apps below are actively curated but do not indicate any endorsement or
+                        relationship with Sui Wallet. Please DYOR.
+                    </Text>
+                </div>
+            ) : null}
 
-			{filteredEcosystemApps?.length ? (
-				<div className="mt-2 flex flex-col divide-x-0 divide-y divide-solid divide-gray-45">
-					{filteredEcosystemApps.map((app) => (
-						<SuiApp
-							key={app.link}
-							{...app}
-							permissionID={linkToPermissionID.get(prepareLinkToCompare(app.link))}
-							displayType="full"
-							openAppSite
-						/>
-					))}
-				</div>
-			) : (
-				<SuiAppEmpty displayType="full" />
-			)}
-		</>
-	);
+            {filteredEcosystemApps?.length ? (
+                <div className="mt-2 flex flex-col divide-x-0 divide-y divide-solid divide-gray-45">
+                    {filteredEcosystemApps.map((app) => (
+                        <SuiApp
+                            key={app.link}
+                            {...app}
+                            permissionID={linkToPermissionID.get(prepareLinkToCompare(app.link))}
+                            displayType="full"
+                            openAppSite
+                        />
+                    ))}
+                </div>
+            ) : (
+                <SuiAppEmpty displayType="full" />
+            )}
+        </>
+    );
 }
 
 export default AppsPlayGround;

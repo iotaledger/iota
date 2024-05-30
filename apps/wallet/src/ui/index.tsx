@@ -36,88 +36,89 @@ import './styles/global.scss';
 import 'bootstrap-icons/font/bootstrap-icons.scss';
 
 async function init() {
-	if (process.env.NODE_ENV === 'development') {
-		Object.defineProperty(window, 'store', { value: store });
-	}
-	store.dispatch(initAppType(getFromLocationSearch(window.location.search)));
-	await thunkExtras.background.init(store.dispatch);
-	const { network, customRpc } = store.getState().app;
-	setAttributes({ network, customRpc });
+    if (process.env.NODE_ENV === 'development') {
+        Object.defineProperty(window, 'store', { value: store });
+    }
+    store.dispatch(initAppType(getFromLocationSearch(window.location.search)));
+    await thunkExtras.background.init(store.dispatch);
+    const { network, customRpc } = store.getState().app;
+    setAttributes({ network, customRpc });
 }
 
 function renderApp() {
-	const rootDom = document.getElementById('root');
-	if (!rootDom) {
-		throw new Error('Root element not found');
-	}
-	const root = createRoot(rootDom);
-	root.render(
-		<StrictMode>
-			<Provider store={store}>
-				<AppWrapper />
-			</Provider>
-		</StrictMode>,
-	);
+    const rootDom = document.getElementById('root');
+    if (!rootDom) {
+        throw new Error('Root element not found');
+    }
+    const root = createRoot(rootDom);
+    root.render(
+        <StrictMode>
+            <Provider store={store}>
+                <AppWrapper />
+            </Provider>
+        </StrictMode>,
+    );
 }
 
 function AppWrapper() {
-	const network = useAppSelector(({ app: { network, customRpc } }) => `${network}_${customRpc}`);
-	const isFullscreen = useAppSelector((state) => state.app.appType === AppType.fullscreen);
-	return (
-		<GrowthBookProvider growthbook={growthbook}>
-			<HashRouter>
-				<SuiLedgerClientProvider>
-					{/*
-					 * NOTE: We set a key here to force the entire react tree to be re-created when the network changes so that
-					 * the RPC client instance (api.instance.fullNode) is updated correctly. In the future, we should look into
-					 * making the API provider instance a reactive value and moving it out of the redux-thunk middleware
-					 */}
-					<Fragment key={network}>
-						<PersistQueryClientProvider
-							client={queryClient}
-							persistOptions={{
-								persister,
-								dehydrateOptions: {
-									shouldDehydrateQuery: ({ meta }) => !meta?.skipPersistedCache,
-								},
-							}}
-						>
-							<SuiClientProvider
-								networks={{
-									[walletApiProvider.network]: walletApiProvider.instance.fullNode,
-								}}
-							>
-								<KioskClientProvider>
-									<AccountsFormProvider>
-										<UnlockAccountProvider>
-											<div
-												className={cn(
-													'relative flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col flex-nowrap items-center justify-center overflow-hidden',
-													isFullscreen && 'rounded-xl shadow-lg',
-												)}
-											>
-												<ErrorBoundary>
-													<App />
-													<ZkLoginAccountWarningModal />
-												</ErrorBoundary>
-												<div id="overlay-portal-container"></div>
-												<div id="toaster-portal-container"></div>
-											</div>
-										</UnlockAccountProvider>
-									</AccountsFormProvider>
-								</KioskClientProvider>
-							</SuiClientProvider>
-						</PersistQueryClientProvider>
-					</Fragment>
-				</SuiLedgerClientProvider>
-			</HashRouter>
-		</GrowthBookProvider>
-	);
+    const network = useAppSelector(({ app: { network, customRpc } }) => `${network}_${customRpc}`);
+    const isFullscreen = useAppSelector((state) => state.app.appType === AppType.fullscreen);
+    return (
+        <GrowthBookProvider growthbook={growthbook}>
+            <HashRouter>
+                <SuiLedgerClientProvider>
+                    {/*
+                     * NOTE: We set a key here to force the entire react tree to be re-created when the network changes so that
+                     * the RPC client instance (api.instance.fullNode) is updated correctly. In the future, we should look into
+                     * making the API provider instance a reactive value and moving it out of the redux-thunk middleware
+                     */}
+                    <Fragment key={network}>
+                        <PersistQueryClientProvider
+                            client={queryClient}
+                            persistOptions={{
+                                persister,
+                                dehydrateOptions: {
+                                    shouldDehydrateQuery: ({ meta }) => !meta?.skipPersistedCache,
+                                },
+                            }}
+                        >
+                            <SuiClientProvider
+                                networks={{
+                                    [walletApiProvider.network]:
+                                        walletApiProvider.instance.fullNode,
+                                }}
+                            >
+                                <KioskClientProvider>
+                                    <AccountsFormProvider>
+                                        <UnlockAccountProvider>
+                                            <div
+                                                className={cn(
+                                                    'relative flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col flex-nowrap items-center justify-center overflow-hidden',
+                                                    isFullscreen && 'rounded-xl shadow-lg',
+                                                )}
+                                            >
+                                                <ErrorBoundary>
+                                                    <App />
+                                                    <ZkLoginAccountWarningModal />
+                                                </ErrorBoundary>
+                                                <div id="overlay-portal-container"></div>
+                                                <div id="toaster-portal-container"></div>
+                                            </div>
+                                        </UnlockAccountProvider>
+                                    </AccountsFormProvider>
+                                </KioskClientProvider>
+                            </SuiClientProvider>
+                        </PersistQueryClientProvider>
+                    </Fragment>
+                </SuiLedgerClientProvider>
+            </HashRouter>
+        </GrowthBookProvider>
+    );
 }
 
 (async () => {
-	await init();
-	// initSentry();
-	// initAmplitude();
-	renderApp();
+    await init();
+    // initSentry();
+    // initAmplitude();
+    renderApp();
 })();
