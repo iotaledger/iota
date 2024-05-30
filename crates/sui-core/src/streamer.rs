@@ -1,26 +1,25 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::subscription_handler::{SubscriptionMetrics, EVENT_DISPATCH_BUFFER_SIZE};
+use std::{collections::BTreeMap, fmt::Debug, sync::Arc};
+
 use futures::Stream;
-use mysten_metrics::metered_channel::Sender;
-use mysten_metrics::spawn_monitored_task;
+use mysten_metrics::{metered_channel::Sender, spawn_monitored_task};
 use parking_lot::RwLock;
 use prometheus::Registry;
-use std::collections::BTreeMap;
-use std::fmt::Debug;
-use std::sync::Arc;
 use sui_json_rpc_types::Filter;
-use sui_types::base_types::ObjectID;
-use sui_types::error::SuiError;
+use sui_types::{base_types::ObjectID, error::SuiError};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::{debug, warn};
 
+use crate::subscription_handler::{SubscriptionMetrics, EVENT_DISPATCH_BUFFER_SIZE};
+
 type Subscribers<T, F> = Arc<RwLock<BTreeMap<String, (tokio::sync::mpsc::Sender<T>, F)>>>;
 
-/// The Streamer splits a mpsc channel into multiple mpsc channels using the subscriber's `Filter<T>` object.
-/// Data will be sent to the subscribers in parallel and the subscription will be dropped if it received a send error.
+/// The Streamer splits a mpsc channel into multiple mpsc channels using the
+/// subscriber's `Filter<T>` object. Data will be sent to the subscribers in
+/// parallel and the subscription will be dropped if it received a send error.
 pub struct Streamer<T, S, F: Filter<T>> {
     streamer_queue: Sender<T>,
     subscribers: Subscribers<S, F>,
@@ -41,8 +40,8 @@ where
         let gauge = if let Some(metrics) = mysten_metrics::get_metrics() {
             metrics.channels.with_label_values(&[&channel_label])
         } else {
-            // We call init_metrics very early when starting a node. Therefore when this happens,
-            // it's probably in a test.
+            // We call init_metrics very early when starting a node. Therefore when this
+            // happens, it's probably in a test.
             mysten_metrics::init_metrics(&Registry::default());
             mysten_metrics::get_metrics()
                 .unwrap()
@@ -107,8 +106,9 @@ where
                             subscription_id = id,
                             "Error when streaming data, removing subscriber. Error: {e}"
                         );
-                        // It does not matter what the error is - channel full or closed, we remove the subscriber.
-                        // In the case of a full channel, this nudges the subscriber to catch up separately and not
+                        // It does not matter what the error is - channel full or closed, we remove
+                        // the subscriber. In the case of a full channel,
+                        // this nudges the subscriber to catch up separately and not
                         // miss any data.
                         to_remove.push(id.clone());
                         failure_counter.inc();

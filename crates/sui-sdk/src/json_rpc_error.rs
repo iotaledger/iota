@@ -8,7 +8,8 @@ use thiserror::Error;
 pub struct Error {
     pub code: i32,
     pub message: String,
-    // TODO: as this SDK is specialized for the Sui JSON RPC implementation, we should define structured representation for the data field if applicable
+    // TODO: as this SDK is specialized for the Sui JSON RPC implementation, we should define
+    // structured representation for the data field if applicable
     pub data: Option<serde_json::Value>,
 }
 
@@ -51,8 +52,9 @@ impl Error {
 
 impl From<jsonrpsee::core::Error> for Error {
     fn from(err: jsonrpsee::core::Error) -> Self {
-        // The following code relies on jsonrpsee's From<Error> for ErrorObjectOwned implementation
-        // It converts any variant that is not Error::Call into an ErrorObject with UNKNOWN_ERROR_CODE
+        // The following code relies on jsonrpsee's From<Error> for ErrorObjectOwned
+        // implementation It converts any variant that is not Error::Call into
+        // an ErrorObject with UNKNOWN_ERROR_CODE
         let error_object_owned: ErrorObjectOwned = err.into();
         Error {
             code: error_object_owned.code(),

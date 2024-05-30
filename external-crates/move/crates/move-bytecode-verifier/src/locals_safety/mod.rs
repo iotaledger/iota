@@ -2,17 +2,12 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module defines the transfer functions for verifying local safety of a procedure body.
-//! It is concerned with the assignment state of a local variable at the time of usage, which is
-//! a control flow sensitive check.
+//! This module defines the transfer functions for verifying local safety of a
+//! procedure body. It is concerned with the assignment state of a local
+//! variable at the time of usage, which is a control flow sensitive check.
 
 mod abstract_state;
 
-use crate::{
-    absint::{AbstractInterpreter, TransferFunctions},
-    locals_safety::abstract_state::{RET_PER_LOCAL_COST, STEP_BASE_COST},
-    meter::{Meter, Scope},
-};
 use abstract_state::{AbstractState, LocalState};
 use move_binary_format::{
     binary_views::{BinaryIndexedView, FunctionView},
@@ -20,6 +15,12 @@ use move_binary_format::{
     file_format::{Bytecode, CodeOffset},
 };
 use move_core_types::vm_status::StatusCode;
+
+use crate::{
+    absint::{AbstractInterpreter, TransferFunctions},
+    locals_safety::abstract_state::{RET_PER_LOCAL_COST, STEP_BASE_COST},
+    meter::{Meter, Scope},
+};
 
 pub(crate) fn verify<'a>(
     resolver: &BinaryIndexedView,
@@ -42,21 +43,21 @@ fn execute_inner(
             LocalState::MaybeAvailable | LocalState::Available
                 if !state.local_abilities(*idx).has_drop() =>
             {
-                return Err(state.error(StatusCode::STLOC_UNSAFE_TO_DESTROY_ERROR, offset))
+                return Err(state.error(StatusCode::STLOC_UNSAFE_TO_DESTROY_ERROR, offset));
             }
             _ => state.set_available(*idx),
         },
 
         Bytecode::MoveLoc(idx) => match state.local_state(*idx) {
             LocalState::MaybeAvailable | LocalState::Unavailable => {
-                return Err(state.error(StatusCode::MOVELOC_UNAVAILABLE_ERROR, offset))
+                return Err(state.error(StatusCode::MOVELOC_UNAVAILABLE_ERROR, offset));
             }
             LocalState::Available => state.set_unavailable(*idx),
         },
 
         Bytecode::CopyLoc(idx) => match state.local_state(*idx) {
             LocalState::MaybeAvailable | LocalState::Unavailable => {
-                return Err(state.error(StatusCode::COPYLOC_UNAVAILABLE_ERROR, offset))
+                return Err(state.error(StatusCode::COPYLOC_UNAVAILABLE_ERROR, offset));
             }
             LocalState::Available => (),
         },
@@ -64,7 +65,7 @@ fn execute_inner(
         Bytecode::MutBorrowLoc(idx) | Bytecode::ImmBorrowLoc(idx) => {
             match state.local_state(*idx) {
                 LocalState::Unavailable | LocalState::MaybeAvailable => {
-                    return Err(state.error(StatusCode::BORROWLOC_UNAVAILABLE_ERROR, offset))
+                    return Err(state.error(StatusCode::BORROWLOC_UNAVAILABLE_ERROR, offset));
                 }
                 LocalState::Available => (),
             }
@@ -82,7 +83,7 @@ fn execute_inner(
                     {
                         return Err(
                             state.error(StatusCode::UNSAFE_RET_UNUSED_VALUES_WITHOUT_DROP, offset)
-                        )
+                        );
                     }
                     _ => (),
                 }

@@ -1,18 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::indexer_reader::IndexerReader;
 use async_trait::async_trait;
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::RpcModule;
-use sui_json_rpc::coin_api::{parse_to_struct_tag, parse_to_type_tag};
-use sui_json_rpc::SuiRpcModule;
+use jsonrpsee::{core::RpcResult, RpcModule};
+use sui_json_rpc::{
+    coin_api::{parse_to_struct_tag, parse_to_type_tag},
+    SuiRpcModule,
+};
 use sui_json_rpc_api::{cap_page_limit, CoinReadApiServer};
 use sui_json_rpc_types::{Balance, CoinPage, Page, SuiCoinMetadata};
 use sui_open_rpc::Module;
-use sui_types::balance::Supply;
-use sui_types::base_types::{ObjectID, SuiAddress};
-use sui_types::gas_coin::{GAS, TOTAL_SUPPLY_MIST};
+use sui_types::{
+    balance::Supply,
+    base_types::{ObjectID, SuiAddress},
+    gas_coin::{GAS, TOTAL_SUPPLY_MIST},
+};
+
+use crate::indexer_reader::IndexerReader;
 
 pub(crate) struct CoinReadApi {
     inner: IndexerReader,
@@ -44,7 +48,8 @@ impl CoinReadApiServer for CoinReadApi {
 
         let cursor = match cursor {
             Some(c) => c,
-            // If cursor is not specified, we need to start from the beginning of the coin type, which is the minimal possible ObjectID.
+            // If cursor is not specified, we need to start from the beginning of the coin type,
+            // which is the minimal possible ObjectID.
             None => ObjectID::ZERO,
         };
         let mut results = self
@@ -75,7 +80,8 @@ impl CoinReadApiServer for CoinReadApi {
 
         let cursor = match cursor {
             Some(c) => c,
-            // If cursor is not specified, we need to start from the beginning of the coin type, which is the minimal possible ObjectID.
+            // If cursor is not specified, we need to start from the beginning of the coin type,
+            // which is the minimal possible ObjectID.
             None => ObjectID::ZERO,
         };
         let mut results = self

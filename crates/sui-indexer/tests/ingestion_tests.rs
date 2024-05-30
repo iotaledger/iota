@@ -3,22 +3,19 @@
 
 #[cfg(feature = "pg_integration")]
 mod ingestion_tests {
-    use diesel::ExpressionMethods;
-    use diesel::{QueryDsl, RunQueryDsl};
+    use std::{net::SocketAddr, sync::Arc, time::Duration};
+
+    use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
     use simulacrum::Simulacrum;
-    use std::net::SocketAddr;
-    use std::sync::Arc;
-    use std::time::Duration;
-    use sui_indexer::db::get_pg_pool_connection;
-    use sui_indexer::errors::Context;
-    use sui_indexer::errors::IndexerError;
-    use sui_indexer::models::transactions::StoredTransaction;
-    use sui_indexer::schema::transactions;
-    use sui_indexer::store::{indexer_store::IndexerStore, PgIndexerStore};
-    use sui_indexer::test_utils::{start_test_indexer, ReaderWriterConfig};
-    use sui_types::base_types::SuiAddress;
-    use sui_types::effects::TransactionEffectsAPI;
-    use sui_types::storage::ReadStore;
+    use sui_indexer::{
+        db::get_pg_pool_connection,
+        errors::{Context, IndexerError},
+        models::transactions::StoredTransaction,
+        schema::transactions,
+        store::{indexer_store::IndexerStore, PgIndexerStore},
+        test_utils::{start_test_indexer, ReaderWriterConfig},
+    };
+    use sui_types::{base_types::SuiAddress, effects::TransactionEffectsAPI, storage::ReadStore};
     use tokio::task::JoinHandle;
 
     macro_rules! read_only_blocking {
@@ -35,7 +32,8 @@ mod ingestion_tests {
     const DEFAULT_SERVER_PORT: u16 = 3000;
     const DEFAULT_DB_URL: &str = "postgres://postgres:postgrespw@localhost:5432/sui_indexer";
 
-    /// Set up a test indexer fetching from a REST endpoint served by the given Simulacrum.
+    /// Set up a test indexer fetching from a REST endpoint served by the given
+    /// Simulacrum.
     async fn set_up(
         sim: Arc<Simulacrum>,
     ) -> (
@@ -69,7 +67,8 @@ mod ingestion_tests {
         (server_handle, pg_store, pg_handle)
     }
 
-    /// Wait for the indexer to catch up to the given checkpoint sequence number.
+    /// Wait for the indexer to catch up to the given checkpoint sequence
+    /// number.
     async fn wait_for_checkpoint(
         pg_store: &PgIndexerStore,
         checkpoint_sequence_number: u64,

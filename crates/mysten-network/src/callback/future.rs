@@ -1,14 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use super::ResponseHandler;
-use http::Response;
-use pin_project_lite::pin_project;
 use std::{
     future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
+
+use http::Response;
+use pin_project_lite::pin_project;
+
+use super::ResponseHandler;
 
 pin_project! {
     /// Response future for [`Callback`].

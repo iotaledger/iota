@@ -9,10 +9,12 @@ use move_core_types::account_address::AccountAddress;
 use serde::de::DeserializeOwned;
 use sui_json_rpc_types::DevInspectArgs;
 use sui_sdk::SuiClient;
-use sui_types::transaction::{TransactionData, TransactionKind};
-use sui_types::{gas_coin::GAS, transaction::TransactionDataAPI, TypeTag};
+use sui_types::{
+    gas_coin::GAS,
+    transaction::{TransactionData, TransactionDataAPI, TransactionKind},
+    TypeTag,
+};
 
-use super::suins_registration::NameService;
 use super::{
     address::Address,
     available_range::AvailableRange,
@@ -30,26 +32,32 @@ use super::{
     owner::Owner,
     protocol_config::ProtocolConfigs,
     sui_address::SuiAddress,
-    suins_registration::Domain,
+    suins_registration::{Domain, NameService},
     transaction_block::{self, TransactionBlock, TransactionBlockFilter},
     transaction_metadata::TransactionMetadata,
     type_filter::ExactTypeFilter,
 };
-use crate::consistency::{consistent_range, CheckpointViewedAt};
-use crate::data::QueryExecutor;
-use crate::types::base64::Base64 as GraphQLBase64;
-use crate::types::zklogin_verify_signature::verify_zklogin_signature;
-use crate::types::zklogin_verify_signature::ZkLoginIntentScope;
-use crate::types::zklogin_verify_signature::ZkLoginVerifyResult;
-use crate::{config::ServiceConfig, data::Db, error::Error, mutation::Mutation};
+use crate::{
+    config::ServiceConfig,
+    consistency::{consistent_range, CheckpointViewedAt},
+    data::{Db, QueryExecutor},
+    error::Error,
+    mutation::Mutation,
+    types::{
+        base64::Base64 as GraphQLBase64,
+        zklogin_verify_signature::{
+            verify_zklogin_signature, ZkLoginIntentScope, ZkLoginVerifyResult,
+        },
+    },
+};
 
 pub(crate) struct Query;
 pub(crate) type SuiGraphQLSchema = async_graphql::Schema<Query, Mutation, EmptySubscription>;
 
 #[Object]
 impl Query {
-    /// First four bytes of the network's genesis checkpoint digest (uniquely identifies the
-    /// network).
+    /// First four bytes of the network's genesis checkpoint digest (uniquely
+    /// identifies the network).
     async fn chain_identifier(&self, ctx: &Context<'_>) -> Result<String> {
         Ok(ChainIdentifier::query(ctx.data_unchecked())
             .await
@@ -195,8 +203,8 @@ impl Query {
         }))
     }
 
-    /// The object corresponding to the given address at the (optionally) given version.
-    /// When no version is given, the latest version is returned.
+    /// The object corresponding to the given address at the (optionally) given
+    /// version. When no version is given, the latest version is returned.
     async fn object(
         &self,
         ctx: &Context<'_>,
@@ -236,8 +244,8 @@ impl Query {
         }))
     }
 
-    /// Fetch a structured representation of a concrete type, including its layout information.
-    /// Fails if the type is malformed.
+    /// Fetch a structured representation of a concrete type, including its
+    /// layout information. Fails if the type is malformed.
     async fn type_(&self, type_: String) -> Result<MoveType> {
         Ok(MoveType::new(
             TypeTag::from_str(&type_)
@@ -255,8 +263,8 @@ impl Query {
             .extend()
     }
 
-    /// Fetch checkpoint information by sequence number or digest (defaults to the latest available
-    /// checkpoint).
+    /// Fetch checkpoint information by sequence number or digest (defaults to
+    /// the latest available checkpoint).
     async fn checkpoint(
         &self,
         ctx: &Context<'_>,
@@ -284,8 +292,9 @@ impl Query {
 
     /// The coin objects that exist in the network.
     ///
-    /// The type field is a string of the inner type of the coin by which to filter (e.g.
-    /// `0x2::sui::SUI`). If no type is provided, it will default to `0x2::sui::SUI`.
+    /// The type field is a string of the inner type of the coin by which to
+    /// filter (e.g. `0x2::sui::SUI`). If no type is provided, it will
+    /// default to `0x2::sui::SUI`.
     async fn coins(
         &self,
         ctx: &Context<'_>,
@@ -303,7 +312,8 @@ impl Query {
             ctx.data_unchecked(),
             page,
             coin,
-            /* owner */ None,
+            // owner
+            None,
             Some(checkpoint_viewed_at),
         )
         .await
@@ -325,7 +335,8 @@ impl Query {
         Checkpoint::paginate(
             ctx.data_unchecked(),
             page,
-            /* epoch */ None,
+            // epoch
+            None,
             Some(checkpoint_viewed_at),
         )
         .await
@@ -401,8 +412,8 @@ impl Query {
         .extend()
     }
 
-    /// Fetch the protocol config by protocol version (defaults to the latest protocol
-    /// version known to the GraphQL service).
+    /// Fetch the protocol config by protocol version (defaults to the latest
+    /// protocol version known to the GraphQL service).
     async fn protocol_config(
         &self,
         ctx: &Context<'_>,
@@ -443,17 +454,20 @@ impl Query {
             .extend()
     }
 
-    /// Verify a zkLogin signature based on the provided transaction or personal message
-    /// based on current epoch, chain id, and latest JWKs fetched on-chain. If the
-    /// signature is valid, the function returns a `ZkLoginVerifyResult` with success as
-    /// true and an empty list of errors. If the signature is invalid, the function returns
+    /// Verify a zkLogin signature based on the provided transaction or personal
+    /// message based on current epoch, chain id, and latest JWKs fetched
+    /// on-chain. If the signature is valid, the function returns a
+    /// `ZkLoginVerifyResult` with success as true and an empty list of
+    /// errors. If the signature is invalid, the function returns
     /// a `ZkLoginVerifyResult` with success as false with a list of errors.
     ///
-    /// - `bytes` is either the personal message in raw bytes or transaction data bytes in
-    ///    BCS-encoded and then Base64-encoded.
+    /// - `bytes` is either the personal message in raw bytes or transaction
+    ///   data bytes in BCS-encoded and then Base64-encoded.
     /// - `signature` is a serialized zkLogin signature that is Base64-encoded.
-    /// - `intentScope` is an enum that specifies the intent scope to be used to parse bytes.
-    /// - `author` is the address of the signer of the transaction or personal msg.
+    /// - `intentScope` is an enum that specifies the intent scope to be used to
+    ///   parse bytes.
+    /// - `author` is the address of the signer of the transaction or personal
+    ///   msg.
     async fn verify_zklogin_signature(
         &self,
         ctx: &Context<'_>,

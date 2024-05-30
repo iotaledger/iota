@@ -1,17 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::operations::Operations;
-use crate::types::{
-    Block, BlockHash, BlockIdentifier, BlockResponse, Transaction, TransactionIdentifier,
-};
-use crate::Error;
-use async_trait::async_trait;
 use std::sync::Arc;
+
+use async_trait::async_trait;
 use sui_json_rpc_types::SuiTransactionBlockResponseOptions;
-use sui_sdk::rpc_types::Checkpoint;
-use sui_sdk::SuiClient;
+use sui_sdk::{rpc_types::Checkpoint, SuiClient};
 use sui_types::messages_checkpoint::CheckpointSequenceNumber;
+
+use crate::{
+    operations::Operations,
+    types::{Block, BlockHash, BlockIdentifier, BlockResponse, Transaction, TransactionIdentifier},
+    Error,
+};
 
 #[cfg(test)]
 #[path = "unit_tests/balance_changing_tx_tests.rs"]

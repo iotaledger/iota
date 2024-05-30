@@ -3,10 +3,8 @@
 
 use sui_types::messages_checkpoint::CheckpointSequenceNumber;
 
+use super::{fetcher::CheckpointFetcher, Handler};
 use crate::metrics::IndexerMetrics;
-
-use super::fetcher::CheckpointFetcher;
-use super::Handler;
 
 pub struct IndexerBuilder {
     rest_url: Option<String>,
@@ -63,8 +61,8 @@ impl IndexerBuilder {
                     .with_label_values(&["checkpoint_tx_downloading"]),
             );
 
-        // experimental rest api route is found at `/rest` on the same interface as the jsonrpc
-        // service
+        // experimental rest api route is found at `/rest` on the same interface as the
+        // jsonrpc service
         let rest_api_url = format!("{}/rest", self.rest_url.unwrap());
         let fetcher = CheckpointFetcher::new(
             sui_rest_api::Client::new(rest_api_url),

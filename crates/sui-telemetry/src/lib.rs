@@ -1,10 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
+
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
-use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
 use sui_core::authority::AuthorityState;
 use tracing::trace;
 

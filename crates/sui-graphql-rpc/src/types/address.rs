@@ -1,6 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use async_graphql::{connection::Connection, *};
+
 use super::{
     balance::{self, Balance},
     coin::Coin,
@@ -14,17 +16,17 @@ use super::{
     transaction_block::{self, TransactionBlock, TransactionBlockFilter},
     type_filter::ExactTypeFilter,
 };
-use async_graphql::{connection::Connection, *};
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub(crate) struct Address {
     pub address: SuiAddress,
-    /// The checkpoint sequence number at which this was viewed at, or None if the data was
-    /// requested at the latest checkpoint.
+    /// The checkpoint sequence number at which this was viewed at, or None if
+    /// the data was requested at the latest checkpoint.
     pub checkpoint_viewed_at: Option<u64>,
 }
 
-/// The possible relationship types for a transaction block: sign, sent, received, or paid.
+/// The possible relationship types for a transaction block: sign, sent,
+/// received, or paid.
 #[derive(Enum, Copy, Clone, Eq, PartialEq)]
 pub(crate) enum AddressTransactionBlockRelationship {
     /// Transactions this address has signed either as a sender or as a sponsor.
@@ -33,7 +35,8 @@ pub(crate) enum AddressTransactionBlockRelationship {
     Recv,
 }
 
-/// The 32-byte address that is an account address (corresponding to a public key).
+/// The 32-byte address that is an account address (corresponding to a public
+/// key).
 #[Object]
 impl Address {
     pub(crate) async fn address(&self) -> SuiAddress {
@@ -55,8 +58,8 @@ impl Address {
             .await
     }
 
-    /// Total balance of all coins with marker type owned by this address. If type is not supplied,
-    /// it defaults to `0x2::sui::SUI`.
+    /// Total balance of all coins with marker type owned by this address. If
+    /// type is not supplied, it defaults to `0x2::sui::SUI`.
     pub(crate) async fn balance(
         &self,
         ctx: &Context<'_>,
@@ -81,7 +84,8 @@ impl Address {
 
     /// The coin objects for this address.
     ///
-    ///`type` is a filter on the coin's type parameter, defaulting to `0x2::sui::SUI`.
+    /// `type` is a filter on the coin's type parameter, defaulting to
+    /// `0x2::sui::SUI`.
     pub(crate) async fn coins(
         &self,
         ctx: &Context<'_>,
@@ -110,7 +114,8 @@ impl Address {
             .await
     }
 
-    /// The domain explicitly configured as the default domain pointing to this address.
+    /// The domain explicitly configured as the default domain pointing to this
+    /// address.
     pub(crate) async fn default_suins_name(
         &self,
         ctx: &Context<'_>,
@@ -119,8 +124,8 @@ impl Address {
         OwnerImpl::from(self).default_suins_name(ctx, format).await
     }
 
-    /// The SuinsRegistration NFTs owned by this address. These grant the owner the capability to
-    /// manage the associated domain.
+    /// The SuinsRegistration NFTs owned by this address. These grant the owner
+    /// the capability to manage the associated domain.
     pub(crate) async fn suins_registrations(
         &self,
         ctx: &Context<'_>,
@@ -134,8 +139,9 @@ impl Address {
             .await
     }
 
-    /// Similar behavior to the `transactionBlocks` in Query but supporting the additional
-    /// `AddressTransactionBlockRelationship` filter, which defaults to `SIGN`.
+    /// Similar behavior to the `transactionBlocks` in Query but supporting the
+    /// additional `AddressTransactionBlockRelationship` filter, which
+    /// defaults to `SIGN`.
     async fn transaction_blocks(
         &self,
         ctx: &Context<'_>,

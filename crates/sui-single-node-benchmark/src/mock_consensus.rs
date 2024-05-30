@@ -1,18 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{mem, sync::Arc};
+
 use prometheus::IntCounter;
-use std::mem;
-use std::sync::Arc;
-use sui_core::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use sui_core::authority::AuthorityState;
-use sui_core::checkpoints::CheckpointServiceNoop;
-use sui_core::consensus_adapter::SubmitToConsensus;
-use sui_core::consensus_handler::SequencedConsensusTransaction;
-use sui_types::error::SuiResult;
-use sui_types::messages_consensus::ConsensusTransaction;
-use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
+use sui_core::{
+    authority::{authority_per_epoch_store::AuthorityPerEpochStore, AuthorityState},
+    checkpoints::CheckpointServiceNoop,
+    consensus_adapter::SubmitToConsensus,
+    consensus_handler::SequencedConsensusTransaction,
+};
+use sui_types::{error::SuiResult, messages_consensus::ConsensusTransaction};
+use tokio::{sync::mpsc, task::JoinHandle};
 
 pub(crate) struct MockConsensusClient {
     tx_sender: mpsc::Sender<ConsensusTransaction>,

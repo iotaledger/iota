@@ -2,6 +2,8 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use std::path::PathBuf;
+
 use criterion::{measurement::Measurement, Criterion};
 use move_binary_format::CompiledModule;
 use move_compiler::Compiler;
@@ -14,7 +16,6 @@ use move_vm_runtime::move_vm::MoveVM;
 use move_vm_test_utils::BlankStorage;
 use move_vm_types::gas::UnmeteredGasMeter;
 use once_cell::sync::Lazy;
-use std::path::PathBuf;
 
 static MOVE_BENCH_SRC_PATH: Lazy<PathBuf> = Lazy::new(|| {
     vec![env!("CARGO_MANIFEST_DIR"), "src", "bench.move"]
@@ -22,7 +23,8 @@ static MOVE_BENCH_SRC_PATH: Lazy<PathBuf> = Lazy::new(|| {
         .collect()
 });
 
-/// Entry point for the bench, provide a function name to invoke in Module Bench in bench.move.
+/// Entry point for the bench, provide a function name to invoke in Module Bench
+/// in bench.move.
 pub fn bench<M: Measurement + 'static>(c: &mut Criterion<M>, fun: &str) {
     let modules = compile_modules();
     let move_vm = MoveVM::new(move_stdlib::natives::all_natives(

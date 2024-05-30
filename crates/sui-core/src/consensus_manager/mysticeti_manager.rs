@@ -46,7 +46,8 @@ pub struct MysticetiManager {
 
 impl MysticetiManager {
     /// NOTE: Mysticeti protocol key uses Ed25519 instead of BLS.
-    /// But for security, the protocol keypair must be different from the network keypair.
+    /// But for security, the protocol keypair must be different from the
+    /// network keypair.
     pub fn new(
         protocol_keypair: ed25519::Ed25519KeyPair,
         network_keypair: ed25519::Ed25519KeyPair,
@@ -125,8 +126,8 @@ impl ConsensusManagerTrait for MysticetiManager {
 
         let registry = Registry::new_custom(Some("consensus".to_string()), None).unwrap();
 
-        // TODO: that should be replaced by a metered channel. We can discuss if unbounded approach
-        // is the one we want to go with.
+        // TODO: that should be replaced by a metered channel. We can discuss if
+        // unbounded approach is the one we want to go with.
         #[allow(clippy::disallowed_methods)]
         let (commit_sender, commit_receiver) = unbounded_channel();
 
@@ -180,7 +181,8 @@ impl ConsensusManagerTrait for MysticetiManager {
             return;
         };
 
-        // swap with empty to ensure there is no other reference to authority and we can safely do Arc unwrap
+        // swap with empty to ensure there is no other reference to authority and we can
+        // safely do Arc unwrap
         let r = self.authority.swap(None).unwrap();
         let Ok((authority, registry_id)) = Arc::try_unwrap(r) else {
             panic!("Failed to retrieve the mysticeti authority");

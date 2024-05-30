@@ -1,26 +1,31 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use crate::consensus_handler::ConsensusHandlerInitializer;
-use crate::consensus_manager::{
-    ConsensusManagerMetrics, ConsensusManagerTrait, Running, RunningLockGuard,
-};
-use crate::consensus_validator::SuiTxValidator;
+use std::{path::PathBuf, sync::Arc};
+
 use async_trait::async_trait;
 use fastcrypto::traits::KeyPair;
 use mysten_metrics::RegistryService;
 use narwhal_config::{Parameters, WorkerId};
 use narwhal_network::client::NetworkClient;
-use narwhal_node::primary_node::PrimaryNode;
-use narwhal_node::worker_node::WorkerNodes;
-use narwhal_node::{CertificateStoreCacheMetrics, NodeStorage};
-use std::path::PathBuf;
-use std::sync::Arc;
+use narwhal_node::{
+    primary_node::PrimaryNode, worker_node::WorkerNodes, CertificateStoreCacheMetrics, NodeStorage,
+};
 use sui_config::NodeConfig;
-use sui_types::committee::EpochId;
-use sui_types::crypto::{AuthorityKeyPair, NetworkKeyPair};
-use sui_types::sui_system_state::epoch_start_sui_system_state::EpochStartSystemStateTrait;
+use sui_types::{
+    committee::EpochId,
+    crypto::{AuthorityKeyPair, NetworkKeyPair},
+    sui_system_state::epoch_start_sui_system_state::EpochStartSystemStateTrait,
+};
 use tokio::sync::Mutex;
+
+use crate::{
+    authority::authority_per_epoch_store::AuthorityPerEpochStore,
+    consensus_handler::ConsensusHandlerInitializer,
+    consensus_manager::{
+        ConsensusManagerMetrics, ConsensusManagerTrait, Running, RunningLockGuard,
+    },
+    consensus_validator::SuiTxValidator,
+};
 
 #[cfg(test)]
 #[path = "../unit_tests/narwhal_manager_tests.rs"]
@@ -87,10 +92,10 @@ impl ConsensusManagerTrait for NarwhalManager {
     // Note: After a binary is updated with the new protocol version and the node
     // is restarted, the protocol config does not take effect until we have a quorum
     // of validators have updated the binary. Because of this the protocol upgrade
-    // will happen in the following epoch after quorum is reached. In this case NarwhalManager
-    // is not recreated which is why we pass protocol config in at start and not at creation.
-    // To ensure correct behavior an updated protocol config must be passed in at the
-    // start of EACH epoch.
+    // will happen in the following epoch after quorum is reached. In this case
+    // NarwhalManager is not recreated which is why we pass protocol config in
+    // at start and not at creation. To ensure correct behavior an updated
+    // protocol config must be passed in at the start of EACH epoch.
     async fn start(
         &self,
         config: &NodeConfig,
@@ -207,7 +212,8 @@ impl ConsensusManagerTrait for NarwhalManager {
         self.metrics.start_worker_retries.set(worker_retries as i64);
     }
 
-    // Shuts down whole Narwhal (primary & worker(s)) and waits until nodes have shutdown.
+    // Shuts down whole Narwhal (primary & worker(s)) and waits until nodes have
+    // shutdown.
     async fn shutdown(&self) {
         let Some(_guard) = RunningLockGuard::acquire_shutdown(&self.metrics, &self.running).await
         else {

@@ -7,8 +7,7 @@ use sui_analytics_indexer::{
     analytics_metrics::AnalyticsMetrics, errors::AnalyticsIndexerError, make_analytics_processor,
     AnalyticsIndexerConfig,
 };
-use sui_indexer::framework::IndexerBuilder;
-use sui_indexer::metrics::IndexerMetrics;
+use sui_indexer::{framework::IndexerBuilder, metrics::IndexerMetrics};
 use tracing::info;
 
 #[tokio::main]

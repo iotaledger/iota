@@ -11,18 +11,17 @@ use serde::{Deserialize, Serialize};
 use sui_swarm_config::genesis_config::GenesisConfig;
 use sui_types::{base_types::SuiAddress, multiaddr::Multiaddr};
 
+use super::{ProtocolCommands, ProtocolMetrics};
 use crate::{
     benchmark::{BenchmarkParameters, BenchmarkType},
     client::Instance,
     settings::Settings,
 };
 
-use super::{ProtocolCommands, ProtocolMetrics};
-
 #[derive(Serialize, Deserialize, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SuiBenchmarkType {
-    /// Percentage of shared vs owned objects; 0 means only owned objects and 100 means
-    /// only shared objects.
+    /// Percentage of shared vs owned objects; 0 means only owned objects and
+    /// 100 means only shared objects.
     shared_objects_ratio: u16,
 }
 
@@ -108,8 +107,8 @@ impl ProtocolCommands<SuiBenchmarkType> for SuiProtocol {
         //     .map(|i| {
         //         (
         //             i,
-        //             "tail -f --pid=$(pidof sui) -f /dev/null; tail -100 node.log".to_string(),
-        //         )
+        //             "tail -f --pid=$(pidof sui) -f /dev/null; tail -100
+        // node.log".to_string(),         )
         //     })
         //     .collect()
         vec![]
@@ -220,8 +219,8 @@ impl SuiProtocol {
         }
     }
 
-    /// Creates the network addresses in multi address format for the instances. It returns the
-    /// Instance and the corresponding address.
+    /// Creates the network addresses in multi address format for the instances.
+    /// It returns the Instance and the corresponding address.
     pub fn resolve_network_addresses(
         instances: impl IntoIterator<Item = Instance>,
     ) -> Vec<(Instance, Multiaddr)> {

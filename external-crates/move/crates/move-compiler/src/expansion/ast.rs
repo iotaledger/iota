@@ -2,6 +2,11 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::VecDeque, fmt, hash::Hash};
+
+use move_ir_types::location::*;
+use move_symbol_pool::Symbol;
+
 use crate::{
     diagnostics::WarningFilters,
     parser::ast::{
@@ -14,9 +19,6 @@ use crate::{
         unique_set::UniqueSet, *,
     },
 };
-use move_ir_types::location::*;
-use move_symbol_pool::Symbol;
-use std::{collections::VecDeque, fmt, hash::Hash};
 
 //**************************************************************************************************
 // Program
@@ -46,8 +48,8 @@ pub enum ImplicitUseFunKind {
     UseAlias { used: bool },
 }
 
-// These are only candidates as we have not yet checked if they have the proper signature for a
-// use fun declaration
+// These are only candidates as we have not yet checked if they have the proper
+// signature for a use fun declaration
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImplicitUseFunCandidate {
     pub loc: Loc,
@@ -342,14 +344,16 @@ pub enum Exp_ {
     Name(ModuleAccess, Option<Vec<Type>>),
     Call(
         ModuleAccess,
-        /* is_macro */ Option<Loc>,
+        // is_macro
+        Option<Loc>,
         Option<Vec<Type>>,
         Spanned<Vec<Exp>>,
     ),
     MethodCall(
         Box<ExpDotted>,
         Name,
-        /* is_macro */ Option<Loc>,
+        // is_macro
+        Option<Loc>,
         Option<Vec<Type>>,
         Spanned<Vec<Exp>>,
     ),

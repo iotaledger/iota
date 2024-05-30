@@ -13,8 +13,7 @@ use crate::{
         SyntaxMethods, Type,
     },
     parser::ast::{ConstantName, FunctionName, StructName},
-    shared::unique_map::UniqueMap,
-    shared::*,
+    shared::{unique_map::UniqueMap, *},
     typing::ast::{self as T},
     FullyCompiledProgram,
 };

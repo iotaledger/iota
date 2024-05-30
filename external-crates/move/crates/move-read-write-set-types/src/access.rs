@@ -2,8 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
+
+use serde::{Deserialize, Serialize};
 
 /// An access to local or global state
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]

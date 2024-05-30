@@ -1,41 +1,47 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use crate::authority::authority_store_tables::AuthorityPerpetualTables;
-use crate::authority::epoch_start_configuration::EpochStartConfiguration;
-use crate::authority::{AuthorityState, AuthorityStore};
-use crate::checkpoints::CheckpointStore;
-use crate::epoch::committee_store::CommitteeStore;
-use crate::epoch::epoch_metrics::EpochMetrics;
-use crate::execution_cache::ExecutionCache;
-use crate::module_cache_metrics::ResolverMetrics;
-use crate::signature_verifier::SignatureVerifierMetrics;
+use std::{path::PathBuf, sync::Arc};
+
 use fastcrypto::traits::KeyPair;
 use prometheus::Registry;
-use std::path::PathBuf;
-use std::sync::Arc;
 use sui_archival::reader::ArchiveReaderBalancer;
-use sui_config::certificate_deny_config::CertificateDenyConfig;
-use sui_config::genesis::Genesis;
-use sui_config::node::{AuthorityOverloadConfig, StateDebugDumpConfig};
-use sui_config::node::{
-    AuthorityStorePruningConfig, DBCheckpointConfig, ExpensiveSafetyCheckConfig,
+use sui_config::{
+    certificate_deny_config::CertificateDenyConfig,
+    genesis::Genesis,
+    node::{
+        AuthorityOverloadConfig, AuthorityStorePruningConfig, DBCheckpointConfig,
+        ExpensiveSafetyCheckConfig, StateDebugDumpConfig,
+    },
+    transaction_deny_config::TransactionDenyConfig,
 };
-use sui_config::transaction_deny_config::TransactionDenyConfig;
 use sui_macros::nondeterministic;
 use sui_protocol_config::{ProtocolConfig, SupportedProtocolVersions};
 use sui_storage::IndexStore;
-use sui_swarm_config::genesis_config::AccountConfig;
-use sui_swarm_config::network_config::NetworkConfig;
-use sui_types::base_types::{AuthorityName, ObjectID};
-use sui_types::crypto::AuthorityKeyPair;
-use sui_types::digests::ChainIdentifier;
-use sui_types::executable_transaction::VerifiedExecutableTransaction;
-use sui_types::object::Object;
-use sui_types::sui_system_state::SuiSystemStateTrait;
-use sui_types::transaction::VerifiedTransaction;
+use sui_swarm_config::{genesis_config::AccountConfig, network_config::NetworkConfig};
+use sui_types::{
+    base_types::{AuthorityName, ObjectID},
+    crypto::AuthorityKeyPair,
+    digests::ChainIdentifier,
+    executable_transaction::VerifiedExecutableTransaction,
+    object::Object,
+    sui_system_state::SuiSystemStateTrait,
+    transaction::VerifiedTransaction,
+};
 use tempfile::tempdir;
+
+use crate::{
+    authority::{
+        authority_per_epoch_store::AuthorityPerEpochStore,
+        authority_store_tables::AuthorityPerpetualTables,
+        epoch_start_configuration::EpochStartConfiguration, AuthorityState, AuthorityStore,
+    },
+    checkpoints::CheckpointStore,
+    epoch::{committee_store::CommitteeStore, epoch_metrics::EpochMetrics},
+    execution_cache::ExecutionCache,
+    module_cache_metrics::ResolverMetrics,
+    signature_verifier::SignatureVerifierMetrics,
+};
 
 #[derive(Default, Clone)]
 pub struct TestAuthorityBuilder<'a> {
@@ -51,7 +57,8 @@ pub struct TestAuthorityBuilder<'a> {
     expensive_safety_checks: Option<ExpensiveSafetyCheckConfig>,
     disable_indexer: bool,
     accounts: Vec<AccountConfig>,
-    /// By default, we don't insert the genesis checkpoint, which isn't needed by most tests.
+    /// By default, we don't insert the genesis checkpoint, which isn't needed
+    /// by most tests.
     insert_genesis_checkpoint: bool,
     authority_overload_config: Option<AuthorityOverloadConfig>,
 }
@@ -92,12 +99,14 @@ impl<'a> TestAuthorityBuilder<'a> {
     }
 
     pub fn with_reference_gas_price(mut self, reference_gas_price: u64) -> Self {
-        // If genesis is already set then setting rgp is meaningless since it will be overwritten.
+        // If genesis is already set then setting rgp is meaningless since it will be
+        // overwritten.
         assert!(self.genesis.is_none());
-        assert!(self
-            .reference_gas_price
-            .replace(reference_gas_price)
-            .is_none());
+        assert!(
+            self.reference_gas_price
+                .replace(reference_gas_price)
+                .is_none()
+        );
         self
     }
 
@@ -195,8 +204,8 @@ impl<'a> TestAuthorityBuilder<'a> {
         let signature_verifier_metrics = SignatureVerifierMetrics::new(&registry);
         // `_guard` must be declared here so it is not dropped before
         // `AuthorityPerEpochStore::new` is called
-        // Force disable random beacon for tests using this builder, because it doesn't set up the
-        // RandomnessManager.
+        // Force disable random beacon for tests using this builder, because it doesn't
+        // set up the RandomnessManager.
         let _guard = if let Some(mut config) = self.protocol_config {
             config.set_random_beacon_for_testing(false);
             ProtocolConfig::apply_overrides_for_testing(move |_, _| config.clone())
@@ -295,9 +304,10 @@ impl<'a> TestAuthorityBuilder<'a> {
             ArchiveReaderBalancer::default(),
         )
         .await;
-        // For any type of local testing that does not actually spawn a node, the checkpoint executor
-        // won't be started, which means we won't actually execute the genesis transaction. In that case,
-        // the genesis objects (e.g. all the genesis test coins) won't be accessible. Executing it
+        // For any type of local testing that does not actually spawn a node, the
+        // checkpoint executor won't be started, which means we won't actually
+        // execute the genesis transaction. In that case, the genesis objects
+        // (e.g. all the genesis test coins) won't be accessible. Executing it
         // explicitly makes sure all genesis objects are ready for use.
         state
             .try_execute_immediately(
@@ -312,10 +322,10 @@ impl<'a> TestAuthorityBuilder<'a> {
             .await
             .unwrap();
 
-        // We want to insert these objects directly instead of relying on genesis because
-        // genesis process would set the previous transaction field for these objects, which would
-        // change their object digest. This makes it difficult to write tests that want to use
-        // these objects directly.
+        // We want to insert these objects directly instead of relying on genesis
+        // because genesis process would set the previous transaction field for
+        // these objects, which would change their object digest. This makes it
+        // difficult to write tests that want to use these objects directly.
         // TODO: we should probably have a better way to do this.
         if let Some(starting_objects) = self.starting_objects {
             state

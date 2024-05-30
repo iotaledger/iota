@@ -122,8 +122,8 @@ impl<'a> LimitsVerifier<'a> {
             const PARAM_SIZE_WEIGHT: usize = 4;
             let mut size = 0;
             for t in ty.preorder_traversal() {
-                // Notice that the preorder traversal will iterate all type instantiations, so we
-                // why we can ignore them below.
+                // Notice that the preorder traversal will iterate all type instantiations, so
+                // we why we can ignore them below.
                 match t {
                     SignatureToken::Struct(..) | SignatureToken::StructInstantiation(..) => {
                         size += STRUCT_SIZE_WEIGHT
