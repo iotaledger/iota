@@ -522,13 +522,11 @@ impl Executor {
         // The minimum version of the manually created objects
         let package_deps = InputObjects::new(self.load_packages(PACKAGE_DEPS).collect());
         let mut version = package_deps.lamport_timestamp(&[]);
-        let object = if data.has_empty_bag() {
+        let object = if data.is_simple_coin() {
             if !basic_output.native_tokens().is_empty() {
                 let coins = self.create_native_token_coins(basic_output.native_tokens(), owner)?;
                 created_objects.set_native_tokens(coins)?;
             }
-            // Overwrite the default 0 UID of `Bag::default()`, since we won't be creating a new bag in this code path.
-            data.native_tokens.id = UID::new(self.tx_context.fresh_id());
             let coin = data.into_genesis_coin_object(
                 owner,
                 &self.protocol_config,
@@ -545,6 +543,10 @@ impl Executor {
                 (data.native_tokens, version, fields) =
                     self.create_bag_with_pt(basic_output.native_tokens())?;
                 created_objects.set_native_tokens(fields)?;
+            } else {
+                // Overwrite the default 0 UID of `Bag::default()`, since we won't
+                // be creating a new bag in this code path.
+                data.native_tokens.id = UID::new(self.tx_context.fresh_id());
             }
             let object =
                 data.to_genesis_object(owner, &self.protocol_config, &self.tx_context, version)?;
