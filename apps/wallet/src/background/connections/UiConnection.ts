@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { createMessage } from '_messages';
 import type { Message } from '_messages';
 import type { PortChannelName } from '_messaging/PortChannelName';
@@ -45,6 +48,7 @@ import { backupDB, getDB, settingsKeys } from '../db';
 import { clearStatus, doMigration, getStatus } from '../legacy-accounts/storage-migration';
 import NetworkEnv from '../NetworkEnv';
 import { Connection } from './Connection';
+import { SeedAccountSource } from '../account-sources/SeedAccountSource';
 
 export class UiConnection extends Connection {
     public static readonly CHANNEL: PortChannelName = 'sui_ui<->background';
@@ -198,15 +202,23 @@ export class UiConnection extends Connection {
                 if (!recoveryData.length) {
                     throw new Error('Missing recovery data');
                 }
-                for (const { accountSourceID, entropy } of recoveryData) {
+                for (const data of recoveryData) {
+                    const { accountSourceID, type } = data;
                     const accountSource = await getAccountSourceByID(accountSourceID);
                     if (!accountSource) {
                         throw new Error('Account source not found');
                     }
-                    if (!(accountSource instanceof MnemonicAccountSource)) {
+                    if (
+                        !(accountSource instanceof MnemonicAccountSource) &&
+                        !(accountSource instanceof SeedAccountSource)
+                    ) {
                         throw new Error('Invalid account source type');
                     }
-                    await accountSource.verifyRecoveryData(entropy);
+                    if (type === 'mnemonic') {
+                        await accountSource.verifyRecoveryData(data.entropy);
+                    } else {
+                        await accountSource.verifyRecoveryData(data.seed);
+                    }
                 }
                 const db = await getDB();
                 const zkLoginType: AccountType = 'zkLogin';
@@ -223,15 +235,24 @@ export class UiConnection extends Connection {
                                 !accountSourceIDs.includes(anAccount.sourceID),
                         )
                         .delete();
-                    for (const { accountSourceID, entropy } of recoveryData) {
-                        await db.accountSources.update(accountSourceID, {
-                            encryptedData: await Dexie.waitFor(
-                                MnemonicAccountSource.createEncryptedData(
-                                    toEntropy(entropy),
-                                    password,
+                    for (const data of recoveryData) {
+                        const { accountSourceID, type } = data;
+                        if (type === 'mnemonic') {
+                            await db.accountSources.update(accountSourceID, {
+                                encryptedData: await Dexie.waitFor(
+                                    MnemonicAccountSource.createEncryptedData(
+                                        toEntropy(data.entropy),
+                                        password,
+                                    ),
                                 ),
-                            ),
-                        });
+                            });
+                        } else {
+                            await db.accountSources.update(accountSourceID, {
+                                encryptedData: await Dexie.waitFor(
+                                    SeedAccountSource.createEncryptedData(data.seed, password),
+                                ),
+                            });
+                        }
                     }
                 });
                 await backupDB();

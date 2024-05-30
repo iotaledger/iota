@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Button } from '_src/ui/app/shared/ButtonUI';
 import {
     Dialog,
@@ -66,8 +69,8 @@ export function PasswordModalDialog({
     const backgroundService = useBackgroundClient();
     const [formID] = useState(() => uuidV4());
     const { data: allAccountsSources } = useAccountSources();
-    const hasMnemonicAccountsSources =
-        allAccountsSources?.some(({ type }) => type === 'mnemonic') || false;
+    const hasAccountsSources =
+        allAccountsSources?.some(({ type }) => type === 'mnemonic' || type === 'seed') || false;
     return (
         <Dialog open={open}>
             <DialogContent onPointerDownOutside={(e) => e.preventDefault()}>
@@ -126,7 +129,7 @@ export function PasswordModalDialog({
                                 text={confirmText}
                             />
                         </div>
-                        {showForgotPassword && hasMnemonicAccountsSources ? (
+                        {showForgotPassword && hasAccountsSources ? (
                             <Link
                                 color="steelDark"
                                 weight="medium"

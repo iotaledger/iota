@@ -19,22 +19,23 @@ import { Button } from '../../../shared/ButtonUI';
 import { Heading } from '../../../shared/heading';
 import { Text } from '../../../shared/text';
 import { useForgotPasswordContext } from './ForgotPasswordPage';
+import { ImportSeedForm } from '_src/ui/app/components/accounts/ImportSeedForm';
 
 export function RecoverManyPage() {
     const allAccountSources = useAccountSources();
     const accountGroups = useAccountGroups();
     const navigate = useNavigate();
+    const mnemonicAccountSource = allAccountSources.data?.find(({ type }) => type === 'mnemonic');
+    const seedAccountSource = allAccountSources.data?.find(({ type }) => type === 'seed');
     useEffect(() => {
-        if (
-            !allAccountSources.isPending &&
-            !allAccountSources.data?.find(({ type }) => type === 'mnemonic')
-        ) {
+        if (!allAccountSources.isPending && !mnemonicAccountSource && !seedAccountSource) {
             navigate('/', { replace: true });
         }
-    }, [allAccountSources.isPending, allAccountSources.data, navigate]);
+    }, [allAccountSources.isPending, mnemonicAccountSource, seedAccountSource, navigate]);
     const { value } = useForgotPasswordContext();
     const addRecoveryDataMutation = useRecoveryDataMutation();
     const [recoverInfo, setRecoverInfo] = useState<{
+        type: 'mnemonic' | 'seed';
         title: string;
         accountSourceID: string;
     } | null>(null);
@@ -63,7 +64,37 @@ export function RecoverManyPage() {
                                     accounts={accounts}
                                     showRecover={!recoveryData}
                                     onRecover={() => {
-                                        setRecoverInfo({ title, accountSourceID: sourceID });
+                                        setRecoverInfo({
+                                            title,
+                                            accountSourceID: sourceID,
+                                            type: 'mnemonic',
+                                        });
+                                    }}
+                                    recoverDone={!!recoveryData}
+                                />
+                            );
+                        },
+                    )}
+                </div>
+                <div className="flex grow flex-col gap-8 self-stretch overflow-y-auto overflow-x-hidden rounded-lg bg-hero-darkest/5 px-4 py-6">
+                    {Object.entries(accountGroups['seed-derived']).map(
+                        ([sourceID, accounts], index) => {
+                            const recoveryData = value.find(
+                                ({ accountSourceID }) => accountSourceID === sourceID,
+                            );
+                            const title = `Seed ${index + 1}`;
+                            return (
+                                <RecoverAccountsGroup
+                                    key={sourceID}
+                                    title={title}
+                                    accounts={accounts}
+                                    showRecover={!recoveryData}
+                                    onRecover={() => {
+                                        setRecoverInfo({
+                                            title,
+                                            accountSourceID: sourceID,
+                                            type: 'seed',
+                                        });
                                     }}
                                     recoverDone={!!recoveryData}
                                 />
@@ -94,29 +125,53 @@ export function RecoverManyPage() {
                 background="bg-sui-lightest"
             >
                 <div className="flex h-full w-full flex-col flex-nowrap gap-4 text-center">
-                    <Text variant="pBody" color="gray-90">
-                        Enter your 24-word Recovery Phrase
-                    </Text>
-                    <ImportRecoveryPhraseForm
-                        submitButtonText="Recover"
-                        onSubmit={async ({ recoveryPhrase }) => {
-                            if (!recoverInfo) {
-                                return;
-                            }
-                            try {
-                                await addRecoveryDataMutation.mutateAsync({
-                                    type: 'mnemonic',
-                                    entropy: entropyToSerialized(
-                                        mnemonicToEntropy(recoveryPhrase.join(' ')),
-                                    ),
-                                    accountSourceID: recoverInfo.accountSourceID,
-                                });
-                                setRecoverInfo(null);
-                            } catch (e) {
-                                toast.error((e as Error)?.message || 'Something went wrong');
-                            }
-                        }}
-                    />
+                    {recoverInfo?.type === 'mnemonic' ? (
+                        <>
+                            <Text variant="pBody" color="gray-90">
+                                Enter your 24-word Recovery Phrase
+                            </Text>
+                            <ImportRecoveryPhraseForm
+                                submitButtonText="Recover"
+                                onSubmit={async ({ recoveryPhrase }) => {
+                                    if (!recoverInfo) {
+                                        return;
+                                    }
+                                    try {
+                                        await addRecoveryDataMutation.mutateAsync({
+                                            type: 'mnemonic',
+                                            entropy: entropyToSerialized(
+                                                mnemonicToEntropy(recoveryPhrase.join(' ')),
+                                            ),
+                                            accountSourceID: recoverInfo.accountSourceID,
+                                        });
+                                        setRecoverInfo(null);
+                                    } catch (e) {
+                                        toast.error(
+                                            (e as Error)?.message || 'Something went wrong',
+                                        );
+                                    }
+                                }}
+                            />
+                        </>
+                    ) : (
+                        <ImportSeedForm
+                            onSubmit={async ({ seed }) => {
+                                if (!recoverInfo) {
+                                    return;
+                                }
+                                try {
+                                    await addRecoveryDataMutation.mutateAsync({
+                                        type: 'seed',
+                                        accountSourceID: recoverInfo.accountSourceID,
+                                        seed,
+                                    });
+                                    navigate('../warning');
+                                } catch (e) {
+                                    toast.error((e as Error)?.message || 'Something went wrong');
+                                }
+                            }}
+                        />
+                    )}
                 </div>
             </Overlay>
         </>

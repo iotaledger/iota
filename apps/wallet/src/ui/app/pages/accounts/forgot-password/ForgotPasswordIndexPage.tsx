@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -10,7 +13,8 @@ export function ForgotPasswordIndexPage() {
     const allAccountSources = useAccountSources();
     const navigate = useNavigate();
     const totalRecoverable =
-        allAccountSources.data?.filter(({ type }) => type === 'mnemonic').length || 0;
+        allAccountSources.data?.filter(({ type }) => type === 'mnemonic' || type === 'seed')
+            .length || 0;
     useEffect(() => {
         if (allAccountSources.isPending) {
             return;
