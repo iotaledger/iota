@@ -19,7 +19,6 @@ interface StakeDetailsPopupProps {
 function StakeDetailsPopup({
     stake: { validator, stake, rewards, stakeActiveEpoch, stakeRequestEpoch, status },
 }: StakeDetailsPopupProps): JSX.Element {
-    console.log('StakeDetailsPopup', stake);
     return (
         <div className="flex min-w-[300px] flex-col gap-2">
             <p>{validator}</p>
