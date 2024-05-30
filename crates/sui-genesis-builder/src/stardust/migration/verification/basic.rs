@@ -9,8 +9,8 @@ use crate::stardust::migration::verification::{
     created_objects::CreatedObjects,
     util::{
         verify_expiration_unlock_condition, verify_metadata_feature, verify_native_tokens,
-        verify_sender_feature, verify_storage_deposit_unlock_condition, verify_tag_feature,
-        verify_timelock_unlock_condition,
+        verify_parent, verify_sender_feature, verify_storage_deposit_unlock_condition,
+        verify_tag_feature, verify_timelock_unlock_condition,
     },
 };
 
@@ -136,6 +136,8 @@ pub fn verify_basic_output(
         created_objects.package().is_err(),
         "unexpected package found"
     );
+
+    verify_parent(output.address(), storage)?;
 
     Ok(())
 }
