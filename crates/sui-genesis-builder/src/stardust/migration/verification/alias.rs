@@ -7,9 +7,9 @@ use sui_types::in_memory_storage::InMemoryStorage;
 use super::created_objects::CreatedObjects;
 
 pub fn verify_alias_output(
-    output: &AliasOutput,
-    created_objects: &CreatedObjects,
-    storage: &InMemoryStorage,
+    _output: &AliasOutput,
+    _created_objects: &CreatedObjects,
+    _storage: &InMemoryStorage,
 ) -> anyhow::Result<()> {
     // TODO: Implementation. Returns Ok for now so the migration can be tested.
     Ok(())
