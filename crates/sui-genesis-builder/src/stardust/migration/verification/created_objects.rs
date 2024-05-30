@@ -86,10 +86,8 @@ impl CreatedObjects {
         Ok(())
     }
 
-    pub fn native_tokens(&self) -> Result<&[ObjectID]> {
-        self.native_tokens
-            .as_deref()
-            .ok_or_else(|| anyhow!("no created native token objects"))
+    pub fn native_tokens(&self) -> Option<&[ObjectID]> {
+        self.native_tokens.as_deref()
     }
 
     pub(crate) fn set_native_tokens(&mut self, ids: Vec<ObjectID>) -> Result<()> {

@@ -53,8 +53,9 @@ pub(super) fn verify_basic_output(
             created_output.native_tokens.size,
             output.native_tokens().len()
         );
-        let created_native_token_fields = created_objects.native_tokens().and_then(|ids| {
-            ids.iter()
+        if let Some(ids) = created_objects.native_tokens() {
+            let created_native_token_fields = ids
+                .iter()
                 .map(|id| {
                     let obj = storage
                         .get_object(id)
@@ -63,13 +64,13 @@ pub(super) fn verify_basic_output(
                         anyhow!("expected a native token field, found {:?}", obj.type_())
                     })
                 })
-                .collect::<Result<Vec<_>, _>>()
-        })?;
-        verify_native_tokens(
-            output.native_tokens(),
-            foundry_data,
-            created_native_token_fields,
-        )?;
+                .collect::<Result<Vec<_>, _>>()?;
+            verify_native_tokens(
+                output.native_tokens(),
+                foundry_data,
+                created_native_token_fields,
+            )?;
+        };
 
         // Storage Deposit Return Unlock Condition
         verify_storage_deposit_unlock_condition(
@@ -128,7 +129,7 @@ pub(super) fn verify_basic_output(
         );
 
         // Native Tokens
-        let created_native_token_coins = created_objects.native_tokens().and_then(|ids| {
+        if let Some(created_native_token_coins) = created_objects.native_tokens().map(|ids| {
             ids.iter()
                 .map(|id| {
                     let obj = storage
@@ -141,12 +142,13 @@ pub(super) fn verify_basic_output(
                         })
                 })
                 .collect::<Result<Vec<_>, _>>()
-        })?;
-        verify_native_tokens(
-            output.native_tokens(),
-            foundry_data,
-            created_native_token_coins,
-        )?;
+        }) {
+            verify_native_tokens(
+                output.native_tokens(),
+                foundry_data,
+                created_native_token_coins?,
+            )?;
+        };
     }
 
     ensure!(

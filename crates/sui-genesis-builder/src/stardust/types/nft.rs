@@ -273,7 +273,7 @@ impl Nft {
             .features()
             .metadata()
             .map(|metadata_feat| metadata_feat.data().to_vec());
-        let tag: Option<Vec<u8>> = nft.features().tag().map(|tag_feat| tag_feat.pack_to_vec());
+        let tag: Option<Vec<u8>> = nft.features().tag().map(|tag_feat| tag_feat.tag().to_vec());
         let immutable_issuer: Option<SuiAddress> = nft
             .immutable_features()
             .issuer()

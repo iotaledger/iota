@@ -61,8 +61,9 @@ pub fn verify_nft_output(
         created_output.native_tokens.size,
         output.native_tokens().len()
     );
-    let created_native_token_fields = created_objects.native_tokens().and_then(|ids| {
-        ids.iter()
+    if let Some(ids) = created_objects.native_tokens() {
+        let created_native_token_fields = ids
+            .iter()
             .map(|id| {
                 let obj = storage
                     .get_object(id)
@@ -71,9 +72,9 @@ pub fn verify_nft_output(
                     anyhow!("expected a native token field, found {:?}", obj.type_())
                 })
             })
-            .collect::<Result<Vec<_>, _>>()
-    })?;
-    verify_native_tokens(output.native_tokens(), created_native_token_fields)?;
+            .collect::<Result<Vec<_>, _>>()?;
+        verify_native_tokens(output.native_tokens(), created_native_token_fields)?;
+    };
 
     // Storage Deposit Return Unlock Condition
     verify_storage_deposit_unlock_condition(
