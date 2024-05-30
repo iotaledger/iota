@@ -12,119 +12,119 @@ import { WebsocketClient } from './rpc-websocket-client.js';
 export type HttpHeaders = { [header: string]: string };
 
 interface SuiHTTPTransportOptions {
-	fetch?: typeof fetch;
-	WebSocketConstructor?: typeof WebSocket;
-	url: string;
-	rpc?: {
-		headers?: HttpHeaders;
-		url?: string;
-	};
-	websocket?: WebsocketClientOptions & {
-		url?: string;
-	};
+    fetch?: typeof fetch;
+    WebSocketConstructor?: typeof WebSocket;
+    url: string;
+    rpc?: {
+        headers?: HttpHeaders;
+        url?: string;
+    };
+    websocket?: WebsocketClientOptions & {
+        url?: string;
+    };
 }
 
 export interface SuiTransportRequestOptions {
-	method: string;
-	params: unknown[];
+    method: string;
+    params: unknown[];
 }
 
 // eslint-disable-next-line @typescript-eslint/ban-types
 
 export interface SuiTransportSubscribeOptions<T> {
-	method: string;
-	unsubscribe: string;
-	params: unknown[];
-	onMessage: (event: T) => void;
+    method: string;
+    unsubscribe: string;
+    params: unknown[];
+    onMessage: (event: T) => void;
 }
 
 export interface SuiTransport {
-	request<T = unknown>(input: SuiTransportRequestOptions): Promise<T>;
-	subscribe<T = unknown>(input: SuiTransportSubscribeOptions<T>): Promise<() => Promise<boolean>>;
+    request<T = unknown>(input: SuiTransportRequestOptions): Promise<T>;
+    subscribe<T = unknown>(input: SuiTransportSubscribeOptions<T>): Promise<() => Promise<boolean>>;
 }
 
 export class SuiHTTPTransport implements SuiTransport {
-	#requestId = 0;
-	#options: SuiHTTPTransportOptions;
-	#websocketClient?: WebsocketClient;
+    #requestId = 0;
+    #options: SuiHTTPTransportOptions;
+    #websocketClient?: WebsocketClient;
 
-	constructor(options: SuiHTTPTransportOptions) {
-		this.#options = options;
-	}
+    constructor(options: SuiHTTPTransportOptions) {
+        this.#options = options;
+    }
 
-	fetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
-		const fetch = this.#options.fetch ?? globalThis.fetch;
+    fetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
+        const fetch = this.#options.fetch ?? globalThis.fetch;
 
-		if (!this.fetch) {
-			throw new Error(
-				'The current environment does not support fetch, you can provide a fetch implementation in the options for SuiHTTPTransport.',
-			);
-		}
+        if (!this.fetch) {
+            throw new Error(
+                'The current environment does not support fetch, you can provide a fetch implementation in the options for SuiHTTPTransport.',
+            );
+        }
 
-		return fetch(input, init);
-	}
+        return fetch(input, init);
+    }
 
-	#getWebsocketClient(): WebsocketClient {
-		if (!this.#websocketClient) {
-			const WebSocketConstructor = this.#options.WebSocketConstructor ?? globalThis.WebSocket;
-			if (!WebSocketConstructor) {
-				throw new Error(
-					'The current environment does not support WebSocket, you can provide a WebSocketConstructor in the options for SuiHTTPTransport.',
-				);
-			}
+    #getWebsocketClient(): WebsocketClient {
+        if (!this.#websocketClient) {
+            const WebSocketConstructor = this.#options.WebSocketConstructor ?? globalThis.WebSocket;
+            if (!WebSocketConstructor) {
+                throw new Error(
+                    'The current environment does not support WebSocket, you can provide a WebSocketConstructor in the options for SuiHTTPTransport.',
+                );
+            }
 
-			this.#websocketClient = new WebsocketClient(
-				this.#options.websocket?.url ?? this.#options.url,
-				{
-					WebSocketConstructor,
-					...this.#options.websocket,
-				},
-			);
-		}
+            this.#websocketClient = new WebsocketClient(
+                this.#options.websocket?.url ?? this.#options.url,
+                {
+                    WebSocketConstructor,
+                    ...this.#options.websocket,
+                },
+            );
+        }
 
-		return this.#websocketClient;
-	}
+        return this.#websocketClient;
+    }
 
-	async request<T>(input: SuiTransportRequestOptions): Promise<T> {
-		this.#requestId += 1;
+    async request<T>(input: SuiTransportRequestOptions): Promise<T> {
+        this.#requestId += 1;
 
-		const res = await this.fetch(this.#options.rpc?.url ?? this.#options.url, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'Client-Sdk-Type': 'typescript',
-				'Client-Sdk-Version': PACKAGE_VERSION,
-				'Client-Target-Api-Version': TARGETED_RPC_VERSION,
-				...this.#options.rpc?.headers,
-			},
-			body: JSON.stringify({
-				jsonrpc: '2.0',
-				id: this.#requestId,
-				method: input.method,
-				params: input.params,
-			}),
-		});
+        const res = await this.fetch(this.#options.rpc?.url ?? this.#options.url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Client-Sdk-Type': 'typescript',
+                'Client-Sdk-Version': PACKAGE_VERSION,
+                'Client-Target-Api-Version': TARGETED_RPC_VERSION,
+                ...this.#options.rpc?.headers,
+            },
+            body: JSON.stringify({
+                jsonrpc: '2.0',
+                id: this.#requestId,
+                method: input.method,
+                params: input.params,
+            }),
+        });
 
-		if (!res.ok) {
-			throw new SuiHTTPStatusError(
-				`Unexpected status code: ${res.status}`,
-				res.status,
-				res.statusText,
-			);
-		}
+        if (!res.ok) {
+            throw new SuiHTTPStatusError(
+                `Unexpected status code: ${res.status}`,
+                res.status,
+                res.statusText,
+            );
+        }
 
-		const data = await res.json();
+        const data = await res.json();
 
-		if ('error' in data && data.error != null) {
-			throw new JsonRpcError(data.error.message, data.error.code);
-		}
+        if ('error' in data && data.error != null) {
+            throw new JsonRpcError(data.error.message, data.error.code);
+        }
 
-		return data.result;
-	}
+        return data.result;
+    }
 
-	async subscribe<T>(input: SuiTransportSubscribeOptions<T>): Promise<() => Promise<boolean>> {
-		const unsubscribe = await this.#getWebsocketClient().subscribe(input);
+    async subscribe<T>(input: SuiTransportSubscribeOptions<T>): Promise<() => Promise<boolean>> {
+        const unsubscribe = await this.#getWebsocketClient().subscribe(input);
 
-		return async () => !!(await unsubscribe());
-	}
+        return async () => !!(await unsubscribe());
+    }
 }
