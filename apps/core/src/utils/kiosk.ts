@@ -32,5 +32,6 @@ export function getKioskIdFromOwnerCap(object: SuiObjectResponse | SuiObjectData
                   cap?: { fields: { for: string } };
               })
             : null;
+    // eslint-disable-next-line @typescript-eslint/no-non-null-asserted-optional-chain
     return fields?.for ?? fields?.kiosk ?? fields?.cap?.fields.for!;
 }
