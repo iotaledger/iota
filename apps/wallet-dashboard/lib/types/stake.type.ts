@@ -7,6 +7,8 @@ export type Stake =
           validator: string;
           stake: string;
           rewards: string;
+          stakeActiveEpoch: string;
+          stakeRequestEpoch: string;
           status: 'Pending';
       }
     | {
@@ -24,5 +26,7 @@ export type Stake =
           validator: string;
           stake: string;
           rewards: string;
+          stakeActiveEpoch: string;
+          stakeRequestEpoch: string;
           status: 'Unstaked';
       };

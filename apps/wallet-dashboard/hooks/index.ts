@@ -3,3 +3,4 @@
 
 export * from './useBalance';
 export * from './usePopup';
+export * from './useStakingData';
