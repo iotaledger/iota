@@ -4,14 +4,14 @@
 import { useFeatureValue } from '@growthbook/growthbook-react';
 
 type BuyNLargeConfig = {
-	enabled: boolean;
-	objectType: string;
-	sheetTitle: string;
-	sheetDescription: string;
-	homeDescription: string;
-	homeImage: string;
+    enabled: boolean;
+    objectType: string;
+    sheetTitle: string;
+    sheetDescription: string;
+    homeDescription: string;
+    homeImage: string;
 };
 
 export function useConfig() {
-	return useFeatureValue<BuyNLargeConfig | null>('buynlarge', null);
+    return useFeatureValue<BuyNLargeConfig | null>('buynlarge', null);
 }

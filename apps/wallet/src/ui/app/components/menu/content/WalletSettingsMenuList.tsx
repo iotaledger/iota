@@ -18,61 +18,61 @@ import { MenuLayout } from './MenuLayout';
 import MenuListItem from './MenuListItem';
 
 function MenuList() {
-	const networkUrl = useNextMenuUrl(true, '/network');
-	const autoLockUrl = useNextMenuUrl(true, '/auto-lock');
-	const moreOptionsUrl = useNextMenuUrl(true, '/more-options');
-	const network = useAppSelector((state) => state.app.network);
-	const networkConfig = network === Network.Custom ? getCustomNetwork() : getNetwork(network);
-	const version = Browser.runtime.getManifest().version;
-	const autoLockInterval = useAutoLockMinutes();
+    const networkUrl = useNextMenuUrl(true, '/network');
+    const autoLockUrl = useNextMenuUrl(true, '/auto-lock');
+    const moreOptionsUrl = useNextMenuUrl(true, '/more-options');
+    const network = useAppSelector((state) => state.app.network);
+    const networkConfig = network === Network.Custom ? getCustomNetwork() : getNetwork(network);
+    const version = Browser.runtime.getManifest().version;
+    const autoLockInterval = useAutoLockMinutes();
 
-	return (
-		<MenuLayout title="Wallet Settings">
-			<div className="flex flex-col divide-x-0 divide-y divide-solid divide-gray-45">
-				<MenuListItem
-					to={networkUrl}
-					icon={<Domain24 />}
-					title="Network"
-					subtitle={networkConfig.name}
-				/>
-				<MenuListItem
-					to={autoLockUrl}
-					icon={<LockLocked24 />}
-					title="Auto-lock Accounts"
-					subtitle={
-						<Loading loading={autoLockInterval?.isPending}>
-							{autoLockInterval.data === null ? 'Not set up' : null}
-							{typeof autoLockInterval.data === 'number'
-								? formatAutoLock(autoLockInterval.data)
-								: null}
-						</Loading>
-					}
-				/>
-				<MenuListItem icon={<Clipboard24 />} title="FAQ" href={FAQ_LINK} />
-				<MenuListItem
-					icon={<More24 className="text-steel-darker" />}
-					title="More options"
-					to={moreOptionsUrl}
-				/>
-			</div>
-			<div className="flex-1" />
-			<div className="mt-2.5 flex flex-col items-stretch">
-				<FaucetRequestButton variant="outline" />
-			</div>
-			<div className="mt-3.75 flex flex-col items-center justify-center gap-3.75 px-2.5 no-underline">
-				<Link
-					href={ToS_LINK}
-					text="Terms of service"
-					after={<ArrowUpRight12 />}
-					color="steelDark"
-					weight="semibold"
-				/>
-				<Text variant="bodySmall" weight="medium" color="steel">
-					On Sui Wallet version v{version}
-				</Text>
-			</div>
-		</MenuLayout>
-	);
+    return (
+        <MenuLayout title="Wallet Settings">
+            <div className="flex flex-col divide-x-0 divide-y divide-solid divide-gray-45">
+                <MenuListItem
+                    to={networkUrl}
+                    icon={<Domain24 />}
+                    title="Network"
+                    subtitle={networkConfig.name}
+                />
+                <MenuListItem
+                    to={autoLockUrl}
+                    icon={<LockLocked24 />}
+                    title="Auto-lock Accounts"
+                    subtitle={
+                        <Loading loading={autoLockInterval?.isPending}>
+                            {autoLockInterval.data === null ? 'Not set up' : null}
+                            {typeof autoLockInterval.data === 'number'
+                                ? formatAutoLock(autoLockInterval.data)
+                                : null}
+                        </Loading>
+                    }
+                />
+                <MenuListItem icon={<Clipboard24 />} title="FAQ" href={FAQ_LINK} />
+                <MenuListItem
+                    icon={<More24 className="text-steel-darker" />}
+                    title="More options"
+                    to={moreOptionsUrl}
+                />
+            </div>
+            <div className="flex-1" />
+            <div className="mt-2.5 flex flex-col items-stretch">
+                <FaucetRequestButton variant="outline" />
+            </div>
+            <div className="mt-3.75 flex flex-col items-center justify-center gap-3.75 px-2.5 no-underline">
+                <Link
+                    href={ToS_LINK}
+                    text="Terms of service"
+                    after={<ArrowUpRight12 />}
+                    color="steelDark"
+                    weight="semibold"
+                />
+                <Text variant="bodySmall" weight="medium" color="steel">
+                    On Sui Wallet version v{version}
+                </Text>
+            </div>
+        </MenuLayout>
+    );
 }
 
 export default MenuList;

@@ -5,10 +5,10 @@ import { useDeepBookContext } from '_shared/deepBook/context';
 import { useQuery } from '@tanstack/react-query';
 
 export function useDeepbookPools() {
-	const deepBookClient = useDeepBookContext().client;
+    const deepBookClient = useDeepBookContext().client;
 
-	return useQuery({
-		queryKey: [DEEPBOOK_KEY, 'get-all-pools'],
-		queryFn: () => deepBookClient.getAllPools({}),
-	});
+    return useQuery({
+        queryKey: [DEEPBOOK_KEY, 'get-all-pools'],
+        queryFn: () => deepBookClient.getAllPools({}),
+    });
 }
