@@ -3,14 +3,13 @@
 
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useCallback } from 'react';
 import { VirtualList, ActivityTile } from '@/components';
 import { Activity, ActivityState } from '@/lib/interfaces';
 
 function StakingDashboardPage(): JSX.Element {
-    const virtualItem = useMemo(
-        // eslint-disable-next-line react/display-name
-        () => (activity: Activity) => <ActivityTile key={activity.timestamp} activity={activity} />,
+    const virtualItem = useCallback(
+        (activity: Activity) => <ActivityTile key={activity.timestamp} activity={activity} />,
         [],
     );
 

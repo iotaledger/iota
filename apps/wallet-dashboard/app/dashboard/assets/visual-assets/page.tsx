@@ -3,16 +3,16 @@
 
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useCallback } from 'react';
 import { SuiObjectData } from '@mysten/sui.js/client';
 import { VisualAssetCard, VirtualList } from '@/components/index';
 
 function VisualAssetsPage(): JSX.Element {
-    const virtualItem = useMemo(
-        // eslint-disable-next-line react/display-name
-        () => (asset: SuiObjectData) => <VisualAssetCard key={asset.objectId} asset={asset} />,
+    const virtualItem = useCallback(
+        (asset: SuiObjectData) => <VisualAssetCard key={asset.objectId} asset={asset} />,
         [],
     );
+
     return (
         <div className="flex h-full w-full flex-col items-center justify-center space-y-4">
             <h1>VISUAL ASSETS</h1>
