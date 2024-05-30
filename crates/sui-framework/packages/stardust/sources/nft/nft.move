@@ -49,6 +49,9 @@ module stardust::nft {
             string::utf8(b"version"),
             string::utf8(b"media_type"),
             string::utf8(b"collection_name"),
+
+            // The issuer of the NFT. Equivalent to IRC-27 `collectionId`.
+            string::utf8(b"immutable_issuer"),
         ];
 
         let values = vector[
@@ -62,6 +65,9 @@ module stardust::nft {
             string::utf8(b"{immutable_metadata.version}"),
             string::utf8(b"{immutable_metadata.media_type}"),
             string::utf8(b"{immutable_metadata.collection_name}"),
+
+            // The issuer of the NFT. Equivalent to IRC-27 `collectionId`.
+            string::utf8(b"{immutable_issuer}"),
         ];
 
         let mut display = display::new_with_fields<Nft>(

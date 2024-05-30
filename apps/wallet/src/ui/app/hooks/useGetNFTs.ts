@@ -54,8 +54,7 @@ export function useGetNFTs(address?: string | null) {
                 (asset) => asset.data?.objectId && !hiddenAssetIds.includes(asset.data?.objectId),
             )
             .reduce((acc, curr) => {
-                if (hasDisplayData(curr))
-                    acc.visual.push(curr.data as SuiObjectData);
+                if (hasDisplayData(curr)) acc.visual.push(curr.data as SuiObjectData);
                 if (!hasDisplayData(curr)) acc.other.push(curr.data as SuiObjectData);
                 if (curr.data?.objectId && hiddenAssetIds.includes(curr.data?.objectId))
                     acc.hidden.push(curr.data as SuiObjectData);

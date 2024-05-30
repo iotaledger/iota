@@ -101,8 +101,8 @@ fn adjust_native_token_module(package_path: &Path, package: &NativeTokenPackageD
         .replace("$COIN_DECIMALS", &package.module().decimals.to_string())
         .replace("$COIN_SYMBOL", &package.module().symbol)
         .replace(
-            "$CIRCULATING_TOKENS",
-            &package.module().circulating_tokens.to_string(),
+            "$CIRCULATING_SUPPLY",
+            &package.module().circulating_supply.to_string(),
         )
         .replace(
             "$MAXIMUM_SUPPLY",
@@ -131,7 +131,7 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
-    fn test_copy_template_dir_success() {
+    fn copy_template_dir_success() {
         // Set up a temporary directory as the environment for the test
         let tmp_dir = tempdir().unwrap();
         let test_package_path = tmp_dir.path().join("package_template");

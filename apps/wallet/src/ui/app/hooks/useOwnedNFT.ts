@@ -9,6 +9,6 @@ export function useOwnedNFT(nftObjectId: string | null) {
 
     return {
         ...objectResult,
-        data: objectResult.data?.data as SuiObjectData | null
-    }
+        data: objectResult.data?.data as SuiObjectData | null,
+    };
 }

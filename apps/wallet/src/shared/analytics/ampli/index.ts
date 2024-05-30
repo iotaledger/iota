@@ -104,13 +104,13 @@ export interface IdentifyProperties {
 
 export interface AddedAccountsProperties {
     /**
-     * The type of wallet account (e.g., Ledger, Qredo, etc.)
+     * The type of wallet account (e.g., Ledger etc.)
      *
      * | Rule | Value |
      * |---|---|
-     * | Enum Values | Ledger, Qredo, Derived, Imported, Zklogin |
+     * | Enum Values | Ledger, Derived, Imported, Zklogin |
      */
-    accountType: 'Ledger' | 'Qredo' | 'Derived' | 'Imported' | 'Zklogin';
+    accountType: 'Ledger' | 'Derived' | 'Imported' | 'Zklogin';
     /**
      * The number of accounts imported.
      *
@@ -428,13 +428,6 @@ export interface UnstakedSuiProperties {
     validatorAddress: string;
 }
 
-export interface VisitedFiatOnRampProperties {
-    /**
-     * The name of the fiat on-ramp provider.
-     */
-    providerName: string;
-}
-
 export class Identify implements BaseEvent {
     event_type = amplitude.Types.SpecialEventType.IDENTIFY;
 
@@ -697,14 +690,6 @@ export class UnstakedSui implements BaseEvent {
 
 export class ViewedLedgerTutorial implements BaseEvent {
     event_type = 'viewed ledger tutorial';
-}
-
-export class VisitedFiatOnRamp implements BaseEvent {
-    event_type = 'visited fiat on-ramp';
-
-    constructor(public event_properties: VisitedFiatOnRampProperties) {
-        this.event_properties = event_properties;
-    }
 }
 
 export type PromiseResult<T> = { promise: Promise<T | void> };
@@ -1457,25 +1442,6 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new ViewedLedgerTutorial(), options);
-  }
-
-  /**
-   * visited fiat on-ramp
-   *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/visited%20fiat%20on-ramp)
-   *
-   * When users visit a fiat on-ramp from the wallet.
-   *
-   * Owner: Jon Shek
-   *
-   * @param properties The event's properties (e.g. providerName)
-   * @param options Amplitude event options.
-   */
-  visitedFiatOnRamp(
-    properties: VisitedFiatOnRampProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new VisitedFiatOnRamp(properties), options);
   }
 }
 

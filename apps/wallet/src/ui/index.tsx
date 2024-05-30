@@ -87,7 +87,7 @@ function AppWrapper() {
                                         walletApiProvider.instance.fullNode,
                                 }}
                             >
-                                 <AccountsFormProvider>
+                                <AccountsFormProvider>
                                     <UnlockAccountProvider>
                                         <div
                                             className={cn(
