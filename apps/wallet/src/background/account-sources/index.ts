@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { createMessage, type Message } from '_src/shared/messaging/messages';
 import {
     isMethodPayload,
@@ -10,22 +13,16 @@ import { toEntropy } from '_src/shared/utils/bip39';
 
 import { type UiConnection } from '../connections/UiConnection';
 import { getDB } from '../db';
-import { type QredoConnectIdentity } from '../qredo/types';
-import { isSameQredoConnection } from '../qredo/utils';
-import {
-    type AccountSource,
-    type AccountSourceSerialized,
-    type AccountSourceType,
-} from './AccountSource';
+import { type AccountSourceSerialized, type AccountSourceType } from './AccountSource';
 import { MnemonicAccountSource } from './MnemonicAccountSource';
-import { QredoAccountSource } from './QredoAccountSource';
+import { SeedAccountSource } from './SeedAccountSource';
 
 function toAccountSource(accountSource: AccountSourceSerialized) {
     if (MnemonicAccountSource.isOfType(accountSource)) {
         return new MnemonicAccountSource(accountSource.id);
     }
-    if (QredoAccountSource.isOfType(accountSource)) {
-        return new QredoAccountSource(accountSource.id);
+    if (SeedAccountSource.isOfType(accountSource)) {
+        return new SeedAccountSource(accountSource.id);
     }
     throw new Error(`Unknown account source of type ${accountSource.type}`);
 }
@@ -53,12 +50,11 @@ export async function getAllSerializedUIAccountSources() {
     );
 }
 
-async function createAccountSource({
-    type,
-    params: { password, entropy },
-}: MethodPayload<'createAccountSource'>['args']) {
+async function createAccountSource({ type, params }: MethodPayload<'createAccountSource'>['args']) {
+    const { password } = params;
     switch (type) {
         case 'mnemonic':
+            const entropy = params.entropy;
             return (
                 await MnemonicAccountSource.save(
                     await MnemonicAccountSource.createNew({
@@ -67,30 +63,19 @@ async function createAccountSource({
                     }),
                 )
             ).toUISerialized();
+        case 'seed':
+            return (
+                await SeedAccountSource.save(
+                    await SeedAccountSource.createNew({
+                        password,
+                        seed: params.seed,
+                    }),
+                )
+            ).toUISerialized();
         default: {
             throw new Error(`Unknown Account source type ${type}`);
         }
     }
-}
-
-export async function getQredoAccountSource(filter: string | QredoConnectIdentity) {
-    let accountSource: AccountSource | null = null;
-    if (typeof filter === 'string') {
-        accountSource = await getAccountSourceByID(filter);
-    } else {
-        const accountSourceSerialized = (
-            await (await getDB()).accountSources.where('type').equals('qredo').toArray()
-        )
-            .filter(QredoAccountSource.isOfType)
-            .find((anAccountSource) => isSameQredoConnection(filter, anAccountSource));
-        accountSource = accountSourceSerialized
-            ? new QredoAccountSource(accountSourceSerialized.id)
-            : null;
-    }
-    if (!accountSource || !(accountSource instanceof QredoAccountSource)) {
-        return null;
-    }
-    return accountSource;
 }
 
 export async function lockAllAccountSources() {
@@ -150,6 +135,26 @@ export async function accountSourcesHandleUIMessage(msg: Message, uiConnection: 
                     type: 'method-payload',
                     method: 'getAccountSourceEntropyResponse',
                     args: { entropy: await accountSource.getEntropy(payload.args.password) },
+                },
+                msg.id,
+            ),
+        );
+        return true;
+    }
+    if (isMethodPayload(payload, 'getAccountSourceSeed')) {
+        const accountSource = await getAccountSourceByID(payload.args.accountSourceID);
+        if (!accountSource) {
+            throw new Error('Account source not found');
+        }
+        if (!(accountSource instanceof SeedAccountSource)) {
+            throw new Error('Invalid account source type');
+        }
+        await uiConnection.send(
+            createMessage<MethodPayload<'getAccountSourceSeedResponse'>>(
+                {
+                    type: 'method-payload',
+                    method: 'getAccountSourceSeedResponse',
+                    args: { seed: await accountSource.getSeed(payload.args.password) },
                 },
                 msg.id,
             ),

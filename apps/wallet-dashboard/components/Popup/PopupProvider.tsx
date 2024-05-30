@@ -8,7 +8,7 @@ interface PopupProviderProps {
     children: ReactNode;
 }
 
-const PopupProvider: React.FC<PopupProviderProps> = ({ children }) => {
+function PopupProvider({ children }: PopupProviderProps): JSX.Element {
     const [popups, setPopups] = useState<ReactNode[]>([]);
 
     const openPopup = (content: ReactNode) => {
@@ -24,6 +24,6 @@ const PopupProvider: React.FC<PopupProviderProps> = ({ children }) => {
             {children}
         </PopupContext.Provider>
     );
-};
+}
 
 export default PopupProvider;

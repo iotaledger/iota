@@ -17,6 +17,10 @@ const nextConfig = {
             },
         ];
     },
+    images: {
+        // Remove this domain when fetching data
+        domains: ['d315pvdvxi2gex.cloudfront.net'],
+    },
 };
 
 export default nextConfig;

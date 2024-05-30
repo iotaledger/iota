@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type Serializable } from '_src/shared/cryptography/keystore';
 import {
     toSerializedSignature,
@@ -17,13 +20,8 @@ import {
     setEphemeralValue,
 } from '../session-ephemeral-values';
 import { accountsEvents } from './events';
-import { type MnemonicAccount } from './MnemonicAccount';
-import { type ImportedAccount } from './ImportedAccount';
-import { type LedgerAccount } from './LedgerAccount';
-import { type QredoAccount } from './QredoAccount';
-import { type ZkLoginAccount } from './zklogin/ZkLoginAccount';
 
-export type AccountType = 'mnemonic-derived' | 'imported' | 'ledger' | 'qredo' | 'zkLogin';
+export type AccountType = 'mnemonic-derived' | 'seed-derived' | 'imported' | 'ledger' | 'zkLogin';
 
 export abstract class Account<
     T extends SerializedAccount = SerializedAccount,
@@ -42,7 +40,7 @@ export abstract class Account<
         }
     }
 
-    abstract lock(allowRead: boolean): Promise<void>;
+    abstract lock(allowRead?: boolean): Promise<void>;
     /**
      * Indicates if the account is unlocked and allows write actions (eg. signing)
      */
@@ -111,7 +109,7 @@ export abstract class Account<
 
     protected async onLocked(allowRead: boolean) {
         // skip clearing last unlocked value to allow read access
-        // when possible (last unlocked withing time limits)
+        // when possible (last unlocked within time limits)
         if (allowRead) {
             return;
         }
@@ -184,12 +182,14 @@ export interface SigningAccount {
     signData(data: Uint8Array): Promise<SerializedSignature>;
 }
 
-export function isSigningAccount(
-    account: Partial<
-        MnemonicAccount | ImportedAccount | LedgerAccount | QredoAccount | ZkLoginAccount
-    >,
-): account is SigningAccount {
-    return 'signData' in account && 'canSign' in account && account.canSign === true;
+export function isSigningAccount(account: unknown): account is SigningAccount {
+    return !!(
+        account &&
+        typeof account === 'object' &&
+        'canSign' in account &&
+        'unlockType' in account &&
+        account.canSign === true
+    );
 }
 
 export interface KeyPairExportableAccount {
@@ -197,12 +197,10 @@ export interface KeyPairExportableAccount {
     exportKeyPair(password: string): Promise<string>;
 }
 
-export function isKeyPairExportableAccount(
-    account: Partial<
-        MnemonicAccount | ImportedAccount | LedgerAccount | QredoAccount | ZkLoginAccount
-    >,
-): account is KeyPairExportableAccount {
-    return (
+export function isKeyPairExportableAccount(account: unknown): account is KeyPairExportableAccount {
+    return !!(
+        account &&
+        typeof account === 'object' &&
         'exportKeyPair' in account &&
         'exportableKeyPair' in account &&
         account.exportableKeyPair === true

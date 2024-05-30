@@ -9,10 +9,8 @@ import { ampli } from '_src/shared/analytics/ampli';
 import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessages';
 import { useActiveAddress } from '_src/ui/app/hooks';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
-import { useQredoTransaction } from '_src/ui/app/hooks/useQredoTransaction';
 import { useSigner } from '_src/ui/app/hooks/useSigner';
-import { QredoActionIgnoredByUser } from '_src/ui/app/QredoSigner';
-import { isSuiNSName, useGetKioskContents, useSuiNSEnabled } from '@mysten/core';
+import { isSuiNSName, useSuiNSEnabled } from '@mysten/core';
 import { useSuiClient } from '@mysten/dapp-kit';
 import { ArrowRight16 } from '@mysten/icons';
 import { TransactionBlock } from '@mysten/sui.js/transactions';
@@ -21,7 +19,6 @@ import { Field, Form, Formik } from 'formik';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
-import { useTransferKioskItem } from './useTransferKioskItem';
 import { createValidationSchema } from './validation';
 
 export function TransferNFTForm({
@@ -44,12 +41,6 @@ export function TransferNFTForm({
     const signer = useSigner(activeAccount);
     const queryClient = useQueryClient();
     const navigate = useNavigate();
-    const { clientIdentifier, notificationModal } = useQredoTransaction();
-    const { data: kiosk } = useGetKioskContents(activeAddress);
-    const transferKioskItem = useTransferKioskItem({ objectId, objectType });
-    const isContainedInKiosk = kiosk?.list.some(
-        (kioskItem) => kioskItem.data?.objectId === objectId,
-    );
 
     const transferNFT = useMutation({
         mutationFn: async (to: string) => {
@@ -67,28 +58,20 @@ export function TransferNFTForm({
                 to = address;
             }
 
-            if (isContainedInKiosk) {
-                return transferKioskItem.mutateAsync({ to, clientIdentifier });
-            }
-
             const tx = new TransactionBlock();
             tx.transferObjects([tx.object(objectId)], to);
 
-            return signer.signAndExecuteTransactionBlock(
-                {
-                    transactionBlock: tx,
-                    options: {
-                        showInput: true,
-                        showEffects: true,
-                        showEvents: true,
-                    },
+            return signer.signAndExecuteTransactionBlock({
+                transactionBlock: tx,
+                options: {
+                    showInput: true,
+                    showEffects: true,
+                    showEvents: true,
                 },
-                clientIdentifier,
-            );
+            });
         },
         onSuccess: (response) => {
             queryClient.invalidateQueries({ queryKey: ['object', objectId] });
-            queryClient.invalidateQueries({ queryKey: ['get-kiosk-contents'] });
             queryClient.invalidateQueries({ queryKey: ['get-owned-objects'] });
 
             ampli.sentCollectible({ objectId });
@@ -101,17 +84,13 @@ export function TransferNFTForm({
             );
         },
         onError: (error) => {
-            if (error instanceof QredoActionIgnoredByUser) {
-                navigate('/');
-            } else {
-                toast.error(
-                    <div className="flex max-w-xs flex-col overflow-hidden">
-                        <small className="overflow-hidden text-ellipsis">
-                            {getSignerOperationErrorMessage(error)}
-                        </small>
-                    </div>,
-                );
-            }
+            toast.error(
+                <div className="flex max-w-xs flex-col overflow-hidden">
+                    <small className="overflow-hidden text-ellipsis">
+                        {getSignerOperationErrorMessage(error)}
+                    </small>
+                </div>,
+            );
         },
     });
 
@@ -156,7 +135,6 @@ export function TransferNFTForm({
                             />
                         </Menu>
                     </BottomMenuLayout>
-                    {notificationModal}
                 </Form>
             )}
         </Formik>

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 'use client';
 
-import { RouteLink } from '@/components/index';
+import { Notifications, RouteLink } from '@/components/index';
 import React, { type PropsWithChildren } from 'react';
 import { ConnectButton } from '@mysten/dapp-kit';
 
@@ -19,7 +19,8 @@ function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
     // TODO: check if the wallet is connected and if not redirect to the welcome screen
     return (
         <>
-            <section className="mt-12 flex flex-row items-center justify-around">
+            <section className="flex flex-row items-center justify-around pt-12">
+                <Notifications />
                 <ConnectButton />
 
                 {routes.map((route) => {
