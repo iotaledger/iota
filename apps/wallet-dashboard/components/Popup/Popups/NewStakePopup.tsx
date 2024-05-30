@@ -2,21 +2,21 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React, { useState } from 'react';
-import { Button } from '@/components';
+import { Button, Input } from '@/components';
 
 interface NewStakePopupProps {
     onClose: () => void;
 }
 
 enum Steps {
-    SelectValidaor,
+    SelectValidator,
     EnterAmount,
 }
 
 const HARDCODED_VALIDATORS = ['Validator 1', 'Validator 2', 'Validator 3'];
 
 function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
-    const [step, setStep] = useState<Steps>(Steps.SelectValidaor);
+    const [step, setStep] = useState<Steps>(Steps.SelectValidator);
     const [selectedValidator, setSelectedValidator] = useState<string | null>(null);
     const [amount, setAmount] = useState<string>('');
 
@@ -25,7 +25,7 @@ function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
     };
 
     const handleBack = () => {
-        setStep(Steps.SelectValidaor);
+        setStep(Steps.SelectValidator);
     };
 
     const handleValidatorSelect = (validator: string) => {
@@ -40,7 +40,7 @@ function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
 
     return (
         <div className="flex min-w-[300px] flex-col gap-2">
-            {step === Steps.SelectValidaor && (
+            {step === Steps.SelectValidator && (
                 <div>
                     <h2>Select Validator</h2>
                     <div className="flex flex-col items-start gap-2">
@@ -59,8 +59,7 @@ function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
                 <div className="flex flex-col items-start gap-2">
                     <p>Selected Validator: {selectedValidator}</p>
                     <h2>Enter Amount</h2>
-                    <input
-                        type="text"
+                    <Input
                         value={amount}
                         onChange={(e) => setAmount(e.target.value)}
                         placeholder="Enter amount to stake"
