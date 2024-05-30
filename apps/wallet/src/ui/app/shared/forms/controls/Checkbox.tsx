@@ -7,28 +7,28 @@ import { forwardRef } from 'react';
 import type { ComponentProps, ReactNode } from 'react';
 
 type CheckboxProps = {
-	label: ReactNode;
+    label: ReactNode;
 } & Omit<ComponentProps<typeof RadixCheckbox.Root>, 'className' | 'ref' | 'id'>;
 
 export const Checkbox = forwardRef<HTMLButtonElement, CheckboxProps>(
-	({ label, ...props }, forwardedRef) => (
-		<div className="flex items-center gap-2 pl-2.5">
-			<RadixCheckbox.Root
-				className="group peer m-0 appearance-none border-0 bg-transparent p-0"
-				ref={forwardedRef}
-				id={props.name}
-				{...props}
-			>
-				<div className="flex h-5 w-5 items-center justify-center rounded border border-solid border-steel bg-white disabled:border-hero-darkest/10 group-data-[state=checked]:border-0 group-data-[state=checked]:bg-success">
-					<Check12 className="text-body font-semibold text-hero-darkest/10 group-data-[state=checked]:text-white" />
-				</div>
-			</RadixCheckbox.Root>
-			<label
-				className="text-body font-medium text-steel-dark peer-disabled:text-gray-60 peer-data-[state=checked]:text-steel-darker"
-				htmlFor={props.name}
-			>
-				{label}
-			</label>
-		</div>
-	),
+    ({ label, ...props }, forwardedRef) => (
+        <div className="flex items-center gap-2 pl-2.5">
+            <RadixCheckbox.Root
+                className="group peer m-0 appearance-none border-0 bg-transparent p-0"
+                ref={forwardedRef}
+                id={props.name}
+                {...props}
+            >
+                <div className="flex h-5 w-5 items-center justify-center rounded border border-solid border-steel bg-white disabled:border-hero-darkest/10 group-data-[state=checked]:border-0 group-data-[state=checked]:bg-success">
+                    <Check12 className="text-body font-semibold text-hero-darkest/10 group-data-[state=checked]:text-white" />
+                </div>
+            </RadixCheckbox.Root>
+            <label
+                className="text-body font-medium text-steel-dark peer-disabled:text-gray-60 peer-data-[state=checked]:text-steel-darker"
+                htmlFor={props.name}
+            >
+                {label}
+            </label>
+        </div>
+    ),
 );
