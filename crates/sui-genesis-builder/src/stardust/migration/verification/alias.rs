@@ -10,12 +10,15 @@ use crate::stardust::migration::{
     executor::FoundryLedgerData, verification::created_objects::CreatedObjects,
 };
 
+use super::util::verify_parent;
+
 pub(super) fn verify_alias_output(
-    _output: &AliasOutput,
+    output: &AliasOutput,
     _created_objects: &CreatedObjects,
     _foundry_data: &HashMap<TokenId, FoundryLedgerData>,
-    _storage: &InMemoryStorage,
+    storage: &InMemoryStorage,
 ) -> anyhow::Result<()> {
     // TODO: Implementation. Returns Ok for now so the migration can be tested.
+    verify_parent(output.governor_address(), storage)?;
     Ok(())
 }

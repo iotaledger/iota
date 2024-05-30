@@ -19,7 +19,10 @@ use sui_types::{
 use crate::stardust::{
     migration::{
         executor::FoundryLedgerData,
-        verification::{util::truncate_u256_to_u64, CreatedObjects},
+        verification::{
+            util::{truncate_u256_to_u64, verify_parent},
+            CreatedObjects,
+        },
     },
     native_token::package_data::NativeTokenPackageData,
     types::token_scheme::SimpleTokenSchemeU64,
@@ -206,6 +209,15 @@ pub(super) fn verify_foundry_output(
         alias_address,
         max_supply_policy_obj.owner
     );
+
+    verify_parent(
+        output
+            .unlock_conditions()
+            .immutable_alias_address()
+            .expect("foundry outputs always have an immutable alias address")
+            .address(),
+        storage,
+    )?;
 
     Ok(())
 }

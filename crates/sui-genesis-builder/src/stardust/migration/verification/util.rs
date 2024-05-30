@@ -12,10 +12,18 @@ use iota_sdk::{
     U256,
 };
 use sui_types::{
-    balance::Balance, base_types::SuiAddress, coin::Coin, dynamic_field::Field, TypeTag,
+    balance::Balance,
+    base_types::{ObjectID, SuiAddress},
+    coin::Coin,
+    dynamic_field::Field,
+    in_memory_storage::InMemoryStorage,
+    TypeTag,
 };
 
-use crate::stardust::{migration::executor::FoundryLedgerData, types::output as migration_output};
+use crate::stardust::{
+    migration::executor::FoundryLedgerData,
+    types::{output as migration_output, Alias, Nft},
+};
 
 pub(super) fn verify_native_tokens(
     native_tokens: &NativeTokens,
@@ -216,6 +224,36 @@ pub(super) fn verify_sender_feature(
         }
     } else {
         ensure!(created.is_none(), "erroneous sender on object");
+    }
+    Ok(())
+}
+
+// Checks whether an object exists for this address and whether it is the expected alias or nft object.
+// We do not expect an object for Ed25519 addresses.
+pub(super) fn verify_parent(address: &Address, storage: &InMemoryStorage) -> Result<()> {
+    let object_id = ObjectID::from(address.to_string().parse::<SuiAddress>()?);
+    let parent = storage.get_object(&object_id);
+    match address {
+        Address::Alias(address) => {
+            if let Some(parent_obj) = parent {
+                parent_obj
+                    .to_rust::<Alias>()
+                    .ok_or_else(|| anyhow!("invalid alias object for {address}"))?;
+            }
+        }
+        Address::Nft(address) => {
+            if let Some(parent_obj) = parent {
+                parent_obj
+                    .to_rust::<Nft>()
+                    .ok_or_else(|| anyhow!("invalid nft object for {address}"))?;
+            }
+        }
+        Address::Ed25519(address) => {
+            ensure!(
+                parent.is_none(),
+                "unexpected parent found for ed25519 address {address}",
+            );
+        }
     }
     Ok(())
 }
