@@ -1,5 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 import { Heading } from '_src/ui/app/shared/heading';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { type AnchorHTMLAttributes, type ElementType, type ReactNode } from 'react';

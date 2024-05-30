@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { decodeSuiPrivateKey, encodeSuiPrivateKey } from '@mysten/sui.js/cryptography/keypair';
 import { hexToBytes } from '@noble/hashes/utils';
 import { z } from 'zod';

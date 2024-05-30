@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 // import { Transaction } from '@mysten/sui.js';
 import { UserApproveContainer } from '_components/user-approve-container';
 import { useAppDispatch, useTransactionData, useTransactionDryRun } from '_hooks';

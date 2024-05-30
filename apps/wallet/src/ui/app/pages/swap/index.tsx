@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useActiveAccount } from '_app/hooks/useActiveAccount';
 import { useRecognizedPackages } from '_app/hooks/useRecognizedPackages';
 import { useSigner } from '_app/hooks/useSigner';

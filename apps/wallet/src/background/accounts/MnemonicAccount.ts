@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { fromExportedKeypair } from '_src/shared/utils/from-exported-keypair';
 import { type Keypair } from '@mysten/sui.js/cryptography';
 

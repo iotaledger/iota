@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { expect, test } from './fixtures';
 import { createWallet, importWallet } from './utils/auth';
 import { generateKeypair } from './utils/localnet';

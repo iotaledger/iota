@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { ValidatorLogo } from '_app/staking/validators/ValidatorLogo';
 import { TxnAmount } from '_components/receipt-card/TxnAmount';
 import { Text } from '_src/ui/app/shared/text';

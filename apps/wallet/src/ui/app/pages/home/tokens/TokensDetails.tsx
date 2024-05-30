@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useIsWalletDefiEnabled } from '_app/hooks/useIsWalletDefiEnabled';
 import { LargeButton } from '_app/shared/LargeButton';
 import { Text } from '_app/shared/text';

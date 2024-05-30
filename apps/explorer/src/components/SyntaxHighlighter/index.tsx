@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useOnScreen } from '@mysten/core';
 import { useRef, useEffect, useState } from 'react';
 import Highlight, { defaultProps } from 'prism-react-renderer';

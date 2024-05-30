@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import * as amplitude from '@amplitude/analytics-browser';
 import { LogLevel, TransportType, type UserSession } from '@amplitude/analytics-types';
 import { PersistableStorage } from '@mysten/core';

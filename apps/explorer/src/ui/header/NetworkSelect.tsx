@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 /**
  * This is an App UI Component, which is responsible for network selection.
  * It's as context un-aware as it reasonably can be, being a controlled component.

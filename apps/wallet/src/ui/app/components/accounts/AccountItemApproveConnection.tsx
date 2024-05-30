@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { AccountIcon } from '_components/accounts/AccountIcon';
 import { LockUnlockButton } from '_components/accounts/LockUnlockButton';
 import { useUnlockAccount } from '_components/accounts/UnlockAccountContext';

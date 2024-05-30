@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useEffect, useState } from 'react';
 
 const FAUCET_RATE_LIMIT_EXPIRY_TIME_KEY = 'faucet_rate_limit_expiry_time';

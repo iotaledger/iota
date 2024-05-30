@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { CoinItem } from '_components/active-coins-card/CoinItem';
 import { ampli } from '_src/shared/analytics/ampli';
 import { type CoinBalance } from '@mysten/sui.js/client';

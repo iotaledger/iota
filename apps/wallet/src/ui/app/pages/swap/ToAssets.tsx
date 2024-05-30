@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import Overlay from '_components/overlay';
 import { useActiveAddress, useCoinsReFetchingConfig } from '_hooks';
 import { TokenRow } from '_pages/home/tokens/TokensDetails';

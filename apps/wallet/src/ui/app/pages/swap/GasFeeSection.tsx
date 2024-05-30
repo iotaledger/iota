@@ -1,5 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 import { Text } from '_app/shared/text';
 import { DescriptionItem } from '_pages/approval-request/transaction-request/DescriptionList';
 import { DEFAULT_WALLET_FEE_ADDRESS, WALLET_FEES_PERCENTAGE } from '_pages/swap/constants';

@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { cva, type VariantProps } from 'class-variance-authority';
 
 const appEmptyStyle = cva(['flex gap-3 p-3.75 h-28'], {

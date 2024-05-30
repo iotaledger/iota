@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { TransactionBlock } from '@mysten/sui.js/transactions';
 import { SUI_SYSTEM_STATE_OBJECT_ID } from '@mysten/sui.js/utils';
 

@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 import { useSigner } from '_src/ui/app/hooks/useSigner';
 import { useFeatureValue } from '@growthbook/growthbook-react';

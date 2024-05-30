@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { ActiveCoinsCard } from '_components/active-coins-card';
 import Overlay from '_components/overlay';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';

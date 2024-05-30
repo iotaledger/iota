@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { growthbook } from '_src/shared/experimentation/features';
 import { getSentryConfig } from '_src/shared/sentry-config';
 import * as Sentry from '@sentry/browser';

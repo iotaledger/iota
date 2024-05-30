@@ -1,5 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 import { GrowthBook } from '@growthbook/growthbook';
 import { Network, getAppsBackend } from '@mysten/sui.js/client';
 import Browser from 'webextension-polyfill';

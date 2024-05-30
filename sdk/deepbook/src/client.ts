@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import type { OrderArguments, PaginatedEvents, PaginationArguments } from '@mysten/sui.js/client';
 import { getNetwork, Network, SuiClient } from '@mysten/sui.js/client';
 import type {

@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { formatAmount, formatDate } from '@mysten/core';
 import { useSuiClientQuery } from '@mysten/dapp-kit';
 import { Heading, Text, LoadingIndicator } from '@mysten/ui';

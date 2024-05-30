@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type SuiWallet } from '_src/dapp-interface/WalletStandardInterface';
 import { TransactionBlock } from '@mysten/sui.js/transactions';
 import { getWallets, ReadonlyWalletAccount, type Wallet } from '@mysten/wallet-standard';

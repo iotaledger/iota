@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Text } from '_app/shared/text';
 import { ChevronDown12 } from '@mysten/icons';
 import * as SelectPrimitive from '@radix-ui/react-select';

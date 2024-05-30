@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { ErrorBoundary } from '_components/error-boundary';
 import { MenuContent } from '_components/menu';
 import { Navigation } from '_components/navigation';

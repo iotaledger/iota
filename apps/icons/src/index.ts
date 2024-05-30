@@ -1,5 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 export { default as Svg3D32 } from './3D32';
 export { default as Nft16 } from './Nft16';
 export { default as Nft132 } from './Nft132';

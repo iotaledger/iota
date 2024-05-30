@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { createSuiAddressValidation } from '_components/address-input/validation';
 import { type SuiClient } from '@mysten/sui.js/client';
 import * as Yup from 'yup';

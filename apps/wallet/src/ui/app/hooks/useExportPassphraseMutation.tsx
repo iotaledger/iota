@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type MethodPayload } from '_src/shared/messaging/messages/payloads/MethodPayload';
 import { entropyToMnemonic, toEntropy } from '_src/shared/utils/bip39';
 import { useMutation } from '@tanstack/react-query';

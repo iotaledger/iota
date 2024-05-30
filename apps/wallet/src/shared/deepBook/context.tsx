@@ -1,5 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 import { useDeepBookConfigs } from '_app/hooks/deepbook/useDeepBookConfigs';
 import { useActiveAccount } from '_app/hooks/useActiveAccount';
 import { DEFAULT_WALLET_FEE_ADDRESS, type Coins } from '_pages/swap/constants';

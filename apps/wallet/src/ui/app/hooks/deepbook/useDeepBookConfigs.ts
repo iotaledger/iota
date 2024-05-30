@@ -1,5 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 import { Coins } from '_pages/swap/constants';
 import { FEATURES } from '_shared/experimentation/features';
 import { useFeatureValue } from '@growthbook/growthbook-react';

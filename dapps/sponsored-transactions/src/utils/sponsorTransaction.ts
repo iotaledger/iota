@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { SuiObjectRef } from '@mysten/sui.js/client';
 import { getFaucetHost, requestSuiFromFaucetV1 } from '@mysten/sui.js/faucet';
 import { Ed25519Keypair } from '@mysten/sui.js/keypairs/ed25519';

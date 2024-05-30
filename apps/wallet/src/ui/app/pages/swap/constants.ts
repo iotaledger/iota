@@ -1,5 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 export const DEEPBOOK_KEY = 'deepbook';
 export const SUI_CONVERSION_RATE = 6;
 export const USDC_CONVERSION_RATE = 9;

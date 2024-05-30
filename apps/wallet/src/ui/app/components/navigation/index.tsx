@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useAppSelector } from '_hooks';
 import { getNavIsVisible } from '_redux/slices/app';
 import { Activity32, Apps32, Nft132, Tokens32 } from '@mysten/icons';

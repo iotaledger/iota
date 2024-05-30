@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Text, Toggle } from '@mysten/ui';
 import * as RadixDropdownMenu from '@radix-ui/react-dropdown-menu';
 import { type ReactNode } from 'react';

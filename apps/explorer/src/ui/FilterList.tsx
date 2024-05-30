@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 // TODO: This component really shouldn't use the `Tabs` component, it should just use radix,
 // and should define it's own styles since the concerns here are pretty different.
 

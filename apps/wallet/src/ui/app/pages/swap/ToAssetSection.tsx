@@ -1,5 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 import { useRecognizedCoins } from '_app/hooks/deepbook';
 import { Button } from '_app/shared/ButtonUI';
 import { InputWithActionButton } from '_app/shared/InputWithAction';

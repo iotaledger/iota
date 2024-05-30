@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { getTotalGasUsed } from '@mysten/core';
 import { X12, Dot12 } from '@mysten/icons';
 import { type SuiClient, type SuiTransactionBlockResponse } from '@mysten/sui.js/client';

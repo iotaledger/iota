@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import networkEnv from '_src/background/NetworkEnv';
 import { getFromSessionStorage, setToSessionStorage } from '_src/background/storage-utils';
 import { type NetworkEnvType } from '_src/shared/api-env';
