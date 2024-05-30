@@ -58,8 +58,8 @@ function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
             {step === Steps.EnterAmount && (
                 <div className="flex flex-col items-start gap-2">
                     <p>Selected Validator: {selectedValidator}</p>
-                    <h2>Enter Amount</h2>
                     <Input
+                        label="Amount"
                         value={amount}
                         onChange={(e) => setAmount(e.target.value)}
                         placeholder="Enter amount to stake"
