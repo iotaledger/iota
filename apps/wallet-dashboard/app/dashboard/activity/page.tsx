@@ -3,13 +3,15 @@
 
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { VirtualList, ActivityTile } from '@/components';
 import { Activity, ActivityState } from '@/lib/interfaces';
 
 function StakingDashboardPage(): JSX.Element {
-    const virtualItem = (activity: Activity) => (
-        <ActivityTile key={activity.timestamp} activity={activity} />
+    const virtualItem = useMemo(
+        // eslint-disable-next-line react/display-name
+        () => (activity: Activity) => <ActivityTile key={activity.timestamp} activity={activity} />,
+        [],
     );
 
     return (
@@ -19,7 +21,7 @@ function StakingDashboardPage(): JSX.Element {
                 <VirtualList
                     items={MOCK_ACTIVITIES}
                     estimateSize={() => 100}
-                    renderVirtualItem={virtualItem}
+                    render={virtualItem}
                 />
             </div>
         </div>
