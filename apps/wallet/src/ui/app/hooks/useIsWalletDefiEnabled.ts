@@ -7,8 +7,8 @@ import { useFeature } from '@growthbook/growthbook-react';
 import { Network } from '@mysten/sui.js/client';
 
 export function useIsWalletDefiEnabled() {
-	const isDefiWalletEnabled = useFeature<boolean>(FEATURES.WALLET_DEFI).value;
-	const { network } = useAppSelector((state) => state.app);
+    const isDefiWalletEnabled = useFeature<boolean>(FEATURES.WALLET_DEFI).value;
+    const { network } = useAppSelector((state) => state.app);
 
-	return network === Network.Mainnet && isDefiWalletEnabled;
+    return network === Network.Mainnet && isDefiWalletEnabled;
 }
