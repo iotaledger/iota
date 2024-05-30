@@ -14,8 +14,8 @@
     "dependencies": {
         "@mysten/core": "workspace:*",
         "@mysten/dapp-kit": "workspace:*",
-        "@mysten/sui.js": "workspace:*",
         "@mysten/icons": "workspace:*",
+        "@mysten/sui.js": "workspace:*",
         "@tanstack/react-query": "^5.0.0",
         "@tanstack/react-virtual": "^3.5.0",
         "next": "14.2.3",
