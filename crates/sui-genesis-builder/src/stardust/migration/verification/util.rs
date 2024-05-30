@@ -41,7 +41,7 @@ pub(super) fn verify_native_tokens(
             .ok_or_else(|| anyhow!("missing foundry data for token {}", native_token.token_id()))?;
 
         let expected_token_type = foundry_data.canonical_coin_type();
-        // The token amounts are capped at u64 max, adjusted using the foundry data
+        // The token amounts are scaled so that the total circulating supply does not exceed `u64::MAX`
         let reduced_amount = foundry_data
             .token_scheme_u64
             .adjust_tokens(native_token.amount());
