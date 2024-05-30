@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::fuzz::TransactionKindMutator;
 use rand::seq::SliceRandom;
 use sui_types::transaction::{Command, TransactionKind};
 use tracing::info;
+
+use crate::fuzz::TransactionKindMutator;
 
 pub struct ShuffleCommandInputs {
     pub rng: rand::rngs::StdRng,

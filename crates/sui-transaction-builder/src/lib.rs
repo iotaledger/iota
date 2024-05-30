@@ -1,43 +1,43 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
-use std::result::Result;
-use std::str::FromStr;
-use std::sync::Arc;
+use std::{collections::BTreeMap, result::Result, str::FromStr, sync::Arc};
 
 use anyhow::{anyhow, bail, ensure, Ok};
 use async_trait::async_trait;
 use futures::future::join_all;
-use move_binary_format::binary_config::BinaryConfig;
-use move_binary_format::binary_views::BinaryIndexedView;
-use move_binary_format::file_format::SignatureToken;
-use move_core_types::identifier::Identifier;
-use move_core_types::language_storage::{StructTag, TypeTag};
-
+use move_binary_format::{
+    binary_config::BinaryConfig, binary_views::BinaryIndexedView, file_format::SignatureToken,
+};
+use move_core_types::{
+    identifier::Identifier,
+    language_storage::{StructTag, TypeTag},
+};
 use sui_json::{is_receiving_argument, resolve_move_function_args, ResolvedCallArg, SuiJsonValue};
 use sui_json_rpc_types::{
     RPCTransactionRequestParams, SuiData, SuiObjectDataOptions, SuiObjectResponse, SuiRawData,
     SuiTypeTag,
 };
 use sui_protocol_config::ProtocolConfig;
-use sui_types::base_types::{ObjectID, ObjectInfo, ObjectRef, ObjectType, SuiAddress};
-use sui_types::error::UserInputError;
-use sui_types::gas_coin::GasCoin;
-use sui_types::governance::{ADD_STAKE_MUL_COIN_FUN_NAME, WITHDRAW_STAKE_FUN_NAME};
-use sui_types::move_package::MovePackage;
-use sui_types::object::{Object, Owner};
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::sui_system_state::SUI_SYSTEM_MODULE_NAME;
-use sui_types::timelock::timelocked_staking::{
-    ADD_TIMELOCKED_STAKE_FUN_NAME, TIMELOCKED_STAKING_MODULE_NAME,
-    WITHDRAW_TIMELOCKED_STAKE_FUN_NAME,
-};
-use sui_types::transaction::{
-    Argument, CallArg, Command, InputObjectKind, ObjectArg, TransactionData, TransactionKind,
-};
 use sui_types::{
-    coin, fp_ensure, SUI_FRAMEWORK_PACKAGE_ID, SUI_SYSTEM_PACKAGE_ID, TIMELOCK_PACKAGE_ID,
+    base_types::{ObjectID, ObjectInfo, ObjectRef, ObjectType, SuiAddress},
+    coin,
+    error::UserInputError,
+    fp_ensure,
+    gas_coin::GasCoin,
+    governance::{ADD_STAKE_MUL_COIN_FUN_NAME, WITHDRAW_STAKE_FUN_NAME},
+    move_package::MovePackage,
+    object::{Object, Owner},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    sui_system_state::SUI_SYSTEM_MODULE_NAME,
+    timelock::timelocked_staking::{
+        ADD_TIMELOCKED_STAKE_FUN_NAME, TIMELOCKED_STAKING_MODULE_NAME,
+        WITHDRAW_TIMELOCKED_STAKE_FUN_NAME,
+    },
+    transaction::{
+        Argument, CallArg, Command, InputObjectKind, ObjectArg, TransactionData, TransactionKind,
+    },
+    SUI_FRAMEWORK_PACKAGE_ID, SUI_SYSTEM_PACKAGE_ID, TIMELOCK_PACKAGE_ID,
 };
 
 #[async_trait]
@@ -74,7 +74,9 @@ impl TransactionBuilder {
         gas_price: u64,
     ) -> Result<ObjectRef, anyhow::Error> {
         if budget < gas_price {
-            bail!("Gas budget {budget} is less than the reference gas price {gas_price}. The gas budget must be at least the current reference gas price of {gas_price}.")
+            bail!(
+                "Gas budget {budget} is less than the reference gas price {gas_price}. The gas budget must be at least the current reference gas price of {gas_price}."
+            )
         }
         if let Some(gas) = input_gas {
             self.get_object_ref(gas).await
@@ -99,7 +101,9 @@ impl TransactionBuilder {
                     return Ok(obj.object_ref());
                 }
             }
-            Err(anyhow!("Cannot find gas coin for signer address [{signer}] with amount sufficient for the required gas amount [{budget}]."))
+            Err(anyhow!(
+                "Cannot find gas coin for signer address [{signer}] with amount sufficient for the required gas amount [{budget}]."
+            ))
         }
     }
 
@@ -164,7 +168,9 @@ impl TransactionBuilder {
     ) -> anyhow::Result<TransactionData> {
         if let Some(gas) = gas {
             if input_coins.contains(&gas) {
-                return Err(anyhow!("Gas coin is in input coins of Pay transaction, use PaySui transaction instead!"));
+                return Err(anyhow!(
+                    "Gas coin is in input coins of Pay transaction, use PaySui transaction instead!"
+                ));
             }
         }
 
@@ -207,7 +213,8 @@ impl TransactionBuilder {
             .await
             .into_iter()
             .collect::<anyhow::Result<Vec<ObjectRef>>>()?;
-        // [0] is safe because input_coins is non-empty and coins are of same length as input_coins.
+        // [0] is safe because input_coins is non-empty and coins are of same length as
+        // input_coins.
         let gas_object_ref = coin_refs.remove(0);
         let gas_price = self.0.get_reference_gas_price().await?;
         TransactionData::new_pay_sui(
@@ -242,7 +249,8 @@ impl TransactionBuilder {
             .await
             .into_iter()
             .collect::<anyhow::Result<Vec<ObjectRef>>>()?;
-        // [0] is safe because input_coins is non-empty and coins are of same length as input_coins.
+        // [0] is safe because input_coins is non-empty and coins are of same length as
+        // input_coins.
         let gas_object_ref = coin_refs.remove(0);
         let gas_price = self.0.get_reference_gas_price().await?;
         Ok(TransactionData::new_pay_all_sui(
@@ -432,7 +440,8 @@ impl TransactionBuilder {
                             self.get_object_arg(
                                 id,
                                 &mut objects,
-                                /* is_mutable_ref */ false,
+                                // is_mutable_ref
+                                false,
                                 &view,
                                 &expected_type,
                             )

@@ -1,7 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::object_runtime::LocalProtocolConfig;
+use std::{
+    collections::{btree_map, BTreeMap},
+    sync::Arc,
+};
+
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
     annotated_value as A, effects::Op, runtime_value as R, vm_status::StatusCode,
@@ -9,10 +13,6 @@ use move_core_types::{
 use move_vm_types::{
     loaded_data::runtime_types::Type,
     values::{GlobalValue, StructRef, Value},
-};
-use std::{
-    collections::{btree_map, BTreeMap},
-    sync::Arc,
 };
 use sui_protocol_config::{check_limit_by_meter, LimitThresholdCrossed};
 use sui_types::{
@@ -24,6 +24,7 @@ use sui_types::{
 };
 
 use super::get_all_uids;
+use crate::object_runtime::LocalProtocolConfig;
 pub(super) struct ChildObject {
     pub(super) owner: ObjectID,
     pub(super) ty: Type,
@@ -58,8 +59,8 @@ struct Inner<'a> {
     metrics: Arc<LimitsMetrics>,
 }
 
-// maintains the runtime GlobalValues for child objects and manages the fetching of objects
-// from storage, through the `ChildObjectResolver`
+// maintains the runtime GlobalValues for child objects and manages the fetching
+// of objects from storage, through the `ChildObjectResolver`
 pub(super) struct ObjectStore<'a> {
     // contains object resolver and object cache
     // kept as a separate struct to deal with lifetime issues where the `store` is accessed
@@ -107,8 +108,8 @@ impl<'a> Inner<'a> {
                         format!("A new parent {parent} should not have a child object {child}."),
                     ));
                 }
-                // guard against bugs in `read_child_object`: if it returns a child object such that
-                // C.parent != parent, we raise an invariant violation
+                // guard against bugs in `read_child_object`: if it returns a child object such
+                // that C.parent != parent, we raise an invariant violation
                 match &object.owner {
                     Owner::ObjectOwner(id) => {
                         if ObjectID::from(*id) != parent {
@@ -132,7 +133,7 @@ impl<'a> Inner<'a> {
                                 "Mismatched object type for {child}. \
                                 Expected a Move object but found a Move package"
                             ),
-                        ))
+                        ));
                     }
                     Data::Move(_) => Some(object),
                 }
@@ -184,7 +185,7 @@ impl<'a> Inner<'a> {
                     child_ty.clone(),
                     child_move_type,
                     GlobalValue::none(),
-                )))
+                )));
             }
             Some(obj) => obj,
         };
@@ -208,7 +209,7 @@ impl<'a> Inner<'a> {
                 Err(e) => {
                     return Err(PartialVMError::new(StatusCode::STORAGE_ERROR).with_message(
                         format!("Object {child} did not deserialize to a struct Value. Error: {e}"),
-                    ))
+                    ));
                 }
             };
         // Find all UIDs inside of the value and update the object parent maps

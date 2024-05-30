@@ -1,16 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::Result;
-use move_binary_format::CompiledModule;
-use move_compiler::editions::Edition;
-use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 use std::{
     collections::BTreeMap,
     env, fs,
     path::{Path, PathBuf},
 };
 
+use anyhow::Result;
+use move_binary_format::CompiledModule;
+use move_compiler::editions::Edition;
+use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 use sui_move_build::{BuildConfig, SuiPackageHooks};
 
 const DOCS_DIR: &str = "docs";
@@ -220,8 +220,8 @@ fn build_packages_with_move_config(
     serialize_modules_to_file(timelock, &out_dir.join(timelock_dir)).unwrap();
     // write out generated docs
     if write_docs {
-        // Remove the old docs directory -- in case there was a module that was deleted (could
-        // happen during development).
+        // Remove the old docs directory -- in case there was a module that was deleted
+        // (could happen during development).
         if Path::new(DOCS_DIR).exists() {
             std::fs::remove_dir_all(DOCS_DIR).unwrap();
         }
@@ -260,16 +260,17 @@ fn build_packages_with_move_config(
     }
 }
 
-/// Post process the generated docs so that they are in a format that can be consumed by
-/// docusaurus.
-/// * Flatten out the tree-like structure of the docs directory that we generate for a package into
-///   a flat list of packages;
-/// * Deduplicate packages (since multiple packages could share dependencies); and
+/// Post process the generated docs so that they are in a format that can be
+/// consumed by docusaurus.
+/// * Flatten out the tree-like structure of the docs directory that we generate
+///   for a package into a flat list of packages;
+/// * Deduplicate packages (since multiple packages could share dependencies);
+///   and
 /// * Write out the package docs in a flat directory structure.
 fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap<String, String>) {
-    // Turn on multi-line mode so that `.` matches newlines, consume from the start of the file to
-    // beginning of the heading, then capture the heading and replace with the yaml tag for docusaurus. E.g.,
-    // ```
+    // Turn on multi-line mode so that `.` matches newlines, consume from the start
+    // of the file to beginning of the heading, then capture the heading and
+    // replace with the yaml tag for docusaurus. E.g., ```
     // -<a name="0x2_display"></a>
     // -
     // -# Module `0x2::display`

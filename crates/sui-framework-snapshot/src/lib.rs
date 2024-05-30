@@ -1,13 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::BTreeMap, fs, io::Read, path::PathBuf};
+
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
-use std::{fs, io::Read, path::PathBuf};
 use sui_framework::SystemPackage;
-use sui_types::base_types::ObjectID;
 use sui_types::{
-    DEEPBOOK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID, SUI_SYSTEM_PACKAGE_ID,
+    base_types::ObjectID, DEEPBOOK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID,
+    SUI_SYSTEM_PACKAGE_ID,
 };
 
 pub type SnapshotManifest = BTreeMap<u64, SingleSnapshot>;
@@ -16,7 +16,8 @@ pub type SnapshotManifest = BTreeMap<u64, SingleSnapshot>;
 pub struct SingleSnapshot {
     /// Git revision that this snapshot is taken on.
     git_revision: String,
-    /// List of file names (also identical to object ID) of the bytecode package files.
+    /// List of file names (also identical to object ID) of the bytecode package
+    /// files.
     package_ids: Vec<ObjectID>,
 }
 

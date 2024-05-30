@@ -1,25 +1,30 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::PathBuf;
-use std::str::FromStr;
+use std::{path::PathBuf, str::FromStr};
 
 use shared_crypto::intent::Intent;
-use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
-use sui_json_rpc_types::{ObjectChange, SuiExecutionStatus};
+use sui_json_rpc_types::{ObjectChange, SuiExecutionStatus, SuiTransactionBlockEffectsAPI};
 use sui_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use sui_move_build::BuildConfig;
-use sui_sdk::rpc_types::SuiTransactionBlockResponseOptions;
-use sui_sdk::types::base_types::{ObjectID, SuiAddress};
-use sui_sdk::types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_sdk::types::quorum_driver_types::ExecuteTransactionRequestType;
-use sui_sdk::types::transaction::{CallArg, ObjectArg, Transaction, TransactionData};
-use sui_sdk::types::Identifier;
-use sui_sdk::{SuiClient, SuiClientBuilder};
-use sui_types::base_types::{ObjectRef, SequenceNumber};
-use sui_types::{parse_sui_type_tag, TypeTag};
+use sui_sdk::{
+    rpc_types::SuiTransactionBlockResponseOptions,
+    types::{
+        base_types::{ObjectID, SuiAddress},
+        programmable_transaction_builder::ProgrammableTransactionBuilder,
+        quorum_driver_types::ExecuteTransactionRequestType,
+        transaction::{CallArg, ObjectArg, Transaction, TransactionData},
+        Identifier,
+    },
+    SuiClient, SuiClientBuilder,
+};
+use sui_types::{
+    base_types::{ObjectRef, SequenceNumber},
+    parse_sui_type_tag, TypeTag,
+};
 
-// Integration tests for SUI Oracle, these test can be run manually on local or remote testnet.
+// Integration tests for SUI Oracle, these test can be run manually on local or
+// remote testnet.
 #[ignore]
 #[tokio::test]
 async fn test_publish_primitive() {

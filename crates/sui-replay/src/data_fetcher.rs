@@ -1,38 +1,36 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::types::ReplayEngineError;
-use crate::types::EPOCH_CHANGE_STRUCT_TAG;
+use std::{collections::BTreeMap, num::NonZeroUsize, str::FromStr};
+
 use async_trait::async_trait;
 use futures::future::join_all;
 use lru::LruCache;
 use move_core_types::parser::parse_struct_tag;
 use parking_lot::RwLock;
 use rand::Rng;
-use std::collections::BTreeMap;
-use std::num::NonZeroUsize;
-use std::str::FromStr;
 use sui_core::authority::NodeStateDump;
 use sui_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
-use sui_json_rpc_types::EventFilter;
-use sui_json_rpc_types::SuiEvent;
-use sui_json_rpc_types::SuiGetPastObjectRequest;
-use sui_json_rpc_types::SuiObjectData;
-use sui_json_rpc_types::SuiObjectDataOptions;
-use sui_json_rpc_types::SuiObjectResponse;
-use sui_json_rpc_types::SuiPastObjectResponse;
-use sui_json_rpc_types::SuiTransactionBlockResponse;
-use sui_json_rpc_types::SuiTransactionBlockResponseOptions;
+use sui_json_rpc_types::{
+    EventFilter, SuiEvent, SuiGetPastObjectRequest, SuiObjectData, SuiObjectDataOptions,
+    SuiObjectResponse, SuiPastObjectResponse, SuiTransactionBlockResponse,
+    SuiTransactionBlockResponseOptions,
+};
 use sui_sdk::SuiClient;
-use sui_types::base_types::{ObjectID, SequenceNumber, VersionNumber};
-use sui_types::digests::TransactionDigest;
-use sui_types::object::Object;
-use sui_types::transaction::SenderSignedData;
-use sui_types::transaction::TransactionDataAPI;
-use sui_types::transaction::{EndOfEpochTransactionKind, TransactionKind};
+use sui_types::{
+    base_types::{ObjectID, SequenceNumber, VersionNumber},
+    digests::TransactionDigest,
+    object::Object,
+    transaction::{
+        EndOfEpochTransactionKind, SenderSignedData, TransactionDataAPI, TransactionKind,
+    },
+};
 use tracing::error;
 
-/// This trait defines the interfaces for fetching data from some local or remote store
+use crate::types::{ReplayEngineError, EPOCH_CHANGE_STRUCT_TAG};
+
+/// This trait defines the interfaces for fetching data from some local or
+/// remote store
 #[async_trait]
 pub(crate) trait DataFetcher {
     #![allow(implied_bounds_entailment)]
@@ -440,7 +438,10 @@ impl DataFetcher for RemoteFetcher {
         {
             Ok(objs) => objs,
             Err(e) => {
-                error!("Error getting dynamic fields loaded objects: {}. This RPC server might not support this feature yet", e);
+                error!(
+                    "Error getting dynamic fields loaded objects: {}. This RPC server might not support this feature yet",
+                    e
+                );
                 return Err(ReplayEngineError::UnableToGetDynamicFieldLoadedObjects {
                     rpc_err: e.to_string(),
                 });

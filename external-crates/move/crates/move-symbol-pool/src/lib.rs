@@ -24,10 +24,10 @@
 mod pool;
 pub mod symbol;
 
-use once_cell::sync::Lazy;
-use pool::Pool;
 use std::sync::Mutex;
 
+use once_cell::sync::Lazy;
+use pool::Pool;
 pub use symbol::Symbol;
 
 static_symbols!(
@@ -100,8 +100,9 @@ pub(crate) static SYMBOL_POOL: Lazy<Mutex<Pool>> = Lazy::new(|| Mutex::new(Pool:
 
 #[cfg(test)]
 mod tests {
-    use crate::{Pool, Symbol, SYMBOL_POOL};
     use std::mem::replace;
+
+    use crate::{Pool, Symbol, SYMBOL_POOL};
 
     #[test]
     fn test_serialization() {

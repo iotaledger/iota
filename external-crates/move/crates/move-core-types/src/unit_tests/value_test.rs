@@ -2,6 +2,8 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use serde_json::json;
+
 use crate::{
     account_address::AccountAddress,
     annotated_value as A, ident_str,
@@ -9,7 +11,6 @@ use crate::{
     language_storage::{StructTag, TypeTag},
     runtime_value as R,
 };
-use serde_json::json;
 
 #[test]
 fn struct_deserialization() {

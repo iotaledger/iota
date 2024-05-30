@@ -1,18 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::programmable_transactions::context::load_type_from_struct;
-use crate::programmable_transactions::linkage_view::LinkageView;
-use move_core_types::account_address::AccountAddress;
-use move_core_types::annotated_value as A;
-use move_core_types::language_storage::StructTag;
-use move_core_types::resolver::ResourceResolver;
+use move_core_types::{
+    account_address::AccountAddress, annotated_value as A, language_storage::StructTag,
+    resolver::ResourceResolver,
+};
 use move_vm_runtime::move_vm::MoveVM;
-use sui_types::base_types::ObjectID;
-use sui_types::error::SuiResult;
-use sui_types::execution::TypeLayoutStore;
-use sui_types::storage::{BackingPackageStore, PackageObject};
-use sui_types::{error::SuiError, type_resolver::LayoutResolver};
+use sui_types::{
+    base_types::ObjectID,
+    error::{SuiError, SuiResult},
+    execution::TypeLayoutStore,
+    storage::{BackingPackageStore, PackageObject},
+    type_resolver::LayoutResolver,
+};
+
+use crate::programmable_transactions::{context::load_type_from_struct, linkage_view::LinkageView};
 
 /// Retrieve a `MoveStructLayout` from a `Type`.
 /// Invocation into the `Session` to leverage the `LinkageView` implementation
@@ -22,8 +24,9 @@ pub struct TypeLayoutResolver<'state, 'vm> {
     linkage_view: LinkageView<'state>,
 }
 
-/// Implements SuiResolver traits by providing null implementations for module and resource
-/// resolution and delegating backing package resolution to the trait object.
+/// Implements SuiResolver traits by providing null implementations for module
+/// and resource resolution and delegating backing package resolution to the
+/// trait object.
 struct NullSuiResolver<'state>(Box<dyn TypeLayoutStore + 'state>);
 
 impl<'state, 'vm> TypeLayoutResolver<'state, 'vm> {

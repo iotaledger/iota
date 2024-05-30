@@ -2,13 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
-use axum::extract::State;
-use axum::routing::get;
-use mysten_service::get_mysten_service;
-use mysten_service::metrics::start_basic_prometheus_server;
-use mysten_service::package_name;
-use mysten_service::package_version;
-use mysten_service::serve;
+use axum::{extract::State, routing::get};
+use mysten_service::{
+    get_mysten_service, metrics::start_basic_prometheus_server, package_name, package_version,
+    serve,
+};
 use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
 use tracing::debug;
 

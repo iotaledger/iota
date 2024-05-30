@@ -1,22 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::Result;
-use fastcrypto::encoding::{Base64, Encoding};
-
 use std::path::Path;
 
-use crate::handlers::{get_move_struct, AnalyticsHandler};
-use crate::package_store::{LocalDBPackageStore, PackageCache};
-use crate::tables::EventEntry;
-use crate::FileType;
+use anyhow::Result;
+use fastcrypto::encoding::{Base64, Encoding};
 use sui_indexer::framework::Handler;
 use sui_json_rpc_types::SuiMoveStruct;
 use sui_package_resolver::Resolver;
 use sui_rest_api::CheckpointData;
-use sui_types::digests::TransactionDigest;
-use sui_types::effects::TransactionEvents;
-use sui_types::event::Event;
+use sui_types::{digests::TransactionDigest, effects::TransactionEvents, event::Event};
+
+use crate::{
+    handlers::{get_move_struct, AnalyticsHandler},
+    package_store::{LocalDBPackageStore, PackageCache},
+    tables::EventEntry,
+    FileType,
+};
 
 pub struct EventHandler {
     events: Vec<EventEntry>,

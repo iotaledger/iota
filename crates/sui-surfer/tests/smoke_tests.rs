@@ -1,8 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::PathBuf;
-use std::time::Duration;
+use std::{path::PathBuf, time::Duration};
+
 use sui_macros::sim_test;
 use sui_surfer::default_surf_strategy::DefaultSurfStrategy;
 

@@ -70,8 +70,9 @@ impl CheckpointFetcher {
         let checkpoint = self.client.get_latest_checkpoint().await?;
         self.highest_known_checkpoint =
             std::cmp::max(self.highest_known_checkpoint, *checkpoint.sequence_number());
-        // NOTE: this metric is used to monitor delta between the highest known checkpoint on FN and in DB,
-        // there is an alert based on the delta of these two metrics.
+        // NOTE: this metric is used to monitor delta between the highest known
+        // checkpoint on FN and in DB, there is an alert based on the delta of
+        // these two metrics.
         self.metrics
             .latest_fullnode_checkpoint_sequence_number
             .set(self.highest_known_checkpoint as i64);

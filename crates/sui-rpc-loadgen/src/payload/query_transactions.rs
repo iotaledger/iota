@@ -2,11 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
-
-use crate::payload::validation::cross_validate_entities;
-use crate::payload::{
-    AddressQueryType, ProcessPayload, QueryTransactionBlocks, RpcCommandProcessor, SignerInfo,
-};
 use async_trait::async_trait;
 use futures::future::join_all;
 use sui_json_rpc_types::{
@@ -16,6 +11,11 @@ use sui_json_rpc_types::{
 use sui_sdk::SuiClient;
 use sui_types::base_types::TransactionDigest;
 use tracing::log::warn;
+
+use crate::payload::{
+    validation::cross_validate_entities, AddressQueryType, ProcessPayload, QueryTransactionBlocks,
+    RpcCommandProcessor, SignerInfo,
+};
 
 #[async_trait]
 impl<'a> ProcessPayload<'a, &'a QueryTransactionBlocks> for RpcCommandProcessor {
@@ -73,7 +73,10 @@ impl<'a> ProcessPayload<'a, &'a QueryTransactionBlocks> for RpcCommandProcessor 
                     ) {
                         (Some(first_cursor), Some(second_cursor)) => {
                             if first_cursor != second_cursor {
-                                warn!("Cursors are not the same, received {} vs {}. Selecting the first cursor to continue", first_cursor, second_cursor);
+                                warn!(
+                                    "Cursors are not the same, received {} vs {}. Selecting the first cursor to continue",
+                                    first_cursor, second_cursor
+                                );
                             }
                             Some(first_cursor)
                         }

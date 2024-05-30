@@ -4,25 +4,27 @@
 // Copyright (c) The Diem Core Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::account_universe::AccountCurrent;
-use crate::{
-    account_universe::{AUTransactionGen, AccountPairGen, AccountTriple, AccountUniverse},
-    executor::{ExecutionResult, Executor},
-};
+use std::sync::Arc;
+
 use once_cell::sync::Lazy;
 use proptest::prelude::*;
 use proptest_derive::Arbitrary;
-use std::sync::Arc;
 use sui_protocol_config::ProtocolConfig;
-use sui_types::base_types::ObjectRef;
-use sui_types::execution_status::{ExecutionFailureStatus, ExecutionStatus};
 use sui_types::{
-    base_types::SuiAddress,
+    base_types::{ObjectRef, SuiAddress},
     error::{SuiError, UserInputError},
+    execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{GasData, Transaction, TransactionData, TransactionKind},
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
+};
+
+use crate::{
+    account_universe::{
+        AUTransactionGen, AccountCurrent, AccountPairGen, AccountTriple, AccountUniverse,
+    },
+    executor::{ExecutionResult, Executor},
 };
 
 const GAS_UNIT_PRICE: u64 = 2;
@@ -46,8 +48,8 @@ pub struct P2PTransferGenGoodGas {
     amount: u64,
 }
 
-/// Represents a peer-to-peer transaction performed in the account universe with the gas budget
-/// randomly selected.
+/// Represents a peer-to-peer transaction performed in the account universe with
+/// the gas budget randomly selected.
 #[derive(Arbitrary, Clone, Debug)]
 #[proptest(params = "(u64, u64)")]
 pub struct P2PTransferGenRandomGas {
@@ -58,8 +60,8 @@ pub struct P2PTransferGenRandomGas {
     gas: u64,
 }
 
-/// Represents a peer-to-peer transaction performed in the account universe with the gas budget
-/// and gas price randomly selected.
+/// Represents a peer-to-peer transaction performed in the account universe with
+/// the gas budget and gas price randomly selected.
 #[derive(Arbitrary, Clone, Debug)]
 #[proptest(params = "(u64, u64)")]
 pub struct P2PTransferGenRandomGasRandomPrice {
@@ -80,8 +82,8 @@ pub struct P2PTransferGenGasPriceInRange {
     gas_price: u64,
 }
 
-/// Represents a peer-to-peer transaction performed in the account universe with the gas budget,
-/// gas price and number of gas coins randomly selected.
+/// Represents a peer-to-peer transaction performed in the account universe with
+/// the gas budget, gas price and number of gas coins randomly selected.
 #[derive(Arbitrary, Clone, Debug)]
 #[proptest(params = "(u64, u64)")]
 pub struct P2PTransferGenRandGasRandPriceRandCoins {
@@ -95,8 +97,9 @@ pub struct P2PTransferGenRandGasRandPriceRandCoins {
     #[proptest(strategy = "gas_coins_selection_strategy()")]
     gas_coins: u32,
 }
-/// Represents a peer-to-peer transaction performed in the account universe with the gas budget
-/// and gas price randomly selected and sponsorship state also randomly selected.
+/// Represents a peer-to-peer transaction performed in the account universe with
+/// the gas budget and gas price randomly selected and sponsorship state also
+/// randomly selected.
 #[derive(Arbitrary, Clone, Debug)]
 #[proptest(params = "(u64, u64)")]
 pub struct P2PTransferGenRandomGasRandomPriceRandomSponsorship {
@@ -335,7 +338,8 @@ impl AUTransactionGen for P2PTransferGenRandGasRandPriceRandCoins {
     }
 }
 
-// Encapsulates information needed to determine the result of a transaction execution.
+// Encapsulates information needed to determine the result of a transaction
+// execution.
 #[derive(Debug)]
 struct RunInfo {
     enough_max_gas: bool,
@@ -502,12 +506,12 @@ impl AUTransactionGen for P2PTransferGenRandomGasRandomPriceRandomSponsorship {
             } => Err(SuiError::UserInputError {
                 error: UserInputError::IncorrectUserSignature {
                     error: format!(
-                               "Object {} is owned by account address {}, but given owner/signer address is {}",
-                               gas_object.id(),
-                                   sender_address,
-                                   payer.initial_data.account.address,
-                           )
-                }
+                        "Object {} is owned by account address {}, but given owner/signer address is {}",
+                        gas_object.id(),
+                        sender_address,
+                        payer.initial_data.account.address,
+                    ),
+                },
             }),
             RunInfo {
                 enough_max_gas: true,
@@ -538,18 +542,18 @@ impl AUTransactionGen for P2PTransferGenRandomGasRandomPriceRandomSponsorship {
 
 impl P2PTransferGenRandomGasRandomPriceRandomSponsorship {
     fn fix_balance_and_gas_coins(&self, sender: &mut AccountCurrent, success: bool) {
-        // collect all the coins smashed and update the balance of the one true gas coin.
-        // Gas objects are all coming from genesis which implies there is no rebate.
-        // In making things simple that does not really exercise an important aspect
-        // of the gas logic
+        // collect all the coins smashed and update the balance of the one true gas
+        // coin. Gas objects are all coming from genesis which implies there is
+        // no rebate. In making things simple that does not really exercise an
+        // important aspect of the gas logic
         let mut smash_balance = 0;
         for _ in 1..self.gas_coins {
             sender.current_coins.pop().expect("coin must exist");
             smash_balance += sender.current_balances.pop().expect("balance must exist");
         }
         *sender.current_balances.last_mut().unwrap() += smash_balance;
-        // Fine to cast to u64 at this point, since otherwise enough_max_gas would be false
-        // since sender_balance is a u64.
+        // Fine to cast to u64 at this point, since otherwise enough_max_gas would be
+        // false since sender_balance is a u64.
         if success {
             *sender.current_balances.last_mut().unwrap() -=
                 self.amount + p2p_success_gas(self.gas_price);

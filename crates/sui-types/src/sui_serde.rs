@@ -1,25 +1,27 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fmt;
-use std::fmt::Write;
-use std::fmt::{Debug, Display, Formatter};
-use std::marker::PhantomData;
-use std::ops::Deref;
-use std::str::FromStr;
+use std::{
+    fmt,
+    fmt::{Debug, Display, Formatter, Write},
+    marker::PhantomData,
+    ops::Deref,
+    str::FromStr,
+};
 
 use fastcrypto::encoding::Hex;
-use move_core_types::account_address::AccountAddress;
-use move_core_types::language_storage::{StructTag, TypeTag};
+use move_core_types::{
+    account_address::AccountAddress,
+    language_storage::{StructTag, TypeTag},
+};
 use schemars::JsonSchema;
-use serde;
-use serde::de::{Deserializer, Error};
-use serde::ser::{Error as SerError, Serializer};
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
-use serde_with::DisplayFromStr;
-use serde_with::{Bytes, DeserializeAs, SerializeAs};
-
+use serde::{
+    self,
+    de::{Deserializer, Error},
+    ser::{Error as SerError, Serializer},
+    Deserialize, Serialize,
+};
+use serde_with::{serde_as, Bytes, DeserializeAs, DisplayFromStr, SerializeAs};
 use sui_protocol_config::ProtocolVersion;
 
 use crate::{
@@ -46,9 +48,10 @@ where
     S::Error::custom(format!("byte serialization failed, cause by: {:?}", e))
 }
 
-/// Use with serde_as to control serde for human-readable serialization and deserialization
-/// `H` : serde_as SerializeAs/DeserializeAs delegation for human readable in/output
-/// `R` : serde_as SerializeAs/DeserializeAs delegation for non-human readable in/output
+/// Use with serde_as to control serde for human-readable serialization and
+/// deserialization `H` : serde_as SerializeAs/DeserializeAs delegation for
+/// human readable in/output `R` : serde_as SerializeAs/DeserializeAs delegation
+/// for non-human readable in/output
 ///
 /// # Example:
 ///

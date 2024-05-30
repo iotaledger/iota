@@ -1,8 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority::authority_store_types::{ObjectContentDigest, StoreData, StoreObject};
-use crate::checkpoints::{CheckpointStore, CheckpointWatermark};
+use std::{
+    cmp::{max, min},
+    collections::{BTreeSet, HashMap},
+    sync::{Arc, Mutex},
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
+
 use anyhow::anyhow;
 use mysten_metrics::{monitored_scope, spawn_monitored_task};
 use once_cell::sync::Lazy;
@@ -11,31 +16,28 @@ use prometheus::{
     Registry,
 };
 use rocksdb::LiveFile;
-use std::cmp::{max, min};
-use std::collections::{BTreeSet, HashMap};
-use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
-use std::{sync::Arc, time::Duration};
 use sui_archival::reader::ArchiveReaderBalancer;
 use sui_config::node::AuthorityStorePruningConfig;
 use sui_storage::mutex_table::RwLockTable;
-use sui_types::base_types::SequenceNumber;
-use sui_types::effects::TransactionEffects;
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::message_envelope::Message;
-use sui_types::messages_checkpoint::{
-    CheckpointContents, CheckpointDigest, CheckpointSequenceNumber,
-};
 use sui_types::{
-    base_types::{ObjectID, VersionNumber},
+    base_types::{ObjectID, SequenceNumber, VersionNumber},
+    effects::{TransactionEffects, TransactionEffectsAPI},
+    message_envelope::Message,
+    messages_checkpoint::{CheckpointContents, CheckpointDigest, CheckpointSequenceNumber},
     storage::ObjectKey,
 };
-use tokio::sync::oneshot::{self, Sender};
-use tokio::time::Instant;
+use tokio::{
+    sync::oneshot::{self, Sender},
+    time::Instant,
+};
 use tracing::{debug, error, info, warn};
 use typed_store::{Map, TypedStoreError};
 
 use super::authority_store_tables::AuthorityPerpetualTables;
+use crate::{
+    authority::authority_store_types::{ObjectContentDigest, StoreData, StoreObject},
+    checkpoints::{CheckpointStore, CheckpointWatermark},
+};
 
 static PERIODIC_PRUNING_TABLES: Lazy<BTreeSet<String>> = Lazy::new(|| {
     [
@@ -189,11 +191,14 @@ impl AuthorityStorePruner {
             wb.schedule_delete_range(&perpetual_db.objects, &start_range, &end_range)?;
         }
 
-        // When enable_pruning_tombstones is enabled, instead of using range deletes, we need to do a scan of all the keys
-        // for the deleted objects and then do point deletes to delete all the existing keys. This is because to improve read
-        // performance, we set `ignore_range_deletions` on all read options, and using range delete to delete tombstones
-        // may leak object (imagine a tombstone is compacted away, but earlier version is still not). Using point deletes
-        // guarantees that all earlier versions are deleted in the database.
+        // When enable_pruning_tombstones is enabled, instead of using range deletes, we
+        // need to do a scan of all the keys for the deleted objects and then do
+        // point deletes to delete all the existing keys. This is because to improve
+        // read performance, we set `ignore_range_deletions` on all read
+        // options, and using range delete to delete tombstones may leak object
+        // (imagine a tombstone is compacted away, but earlier version is still not).
+        // Using point deletes guarantees that all earlier versions are deleted
+        // in the database.
         if !object_tombstones_to_prune.is_empty() {
             let mut object_keys_to_delete = vec![];
             for ObjectKey(object_id, seq_number) in object_tombstones_to_prune {
@@ -300,7 +305,8 @@ impl AuthorityStorePruner {
         Ok(())
     }
 
-    /// Prunes old data based on effects from all checkpoints from epochs eligible for pruning
+    /// Prunes old data based on effects from all checkpoints from epochs
+    /// eligible for pruning
     pub async fn prune_objects_for_eligible_epochs(
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         checkpoint_store: &Arc<CheckpointStore>,
@@ -386,7 +392,8 @@ impl AuthorityStorePruner {
         .await
     }
 
-    /// Prunes old object versions based on effects from all checkpoints from epochs eligible for pruning
+    /// Prunes old object versions based on effects from all checkpoints from
+    /// epochs eligible for pruning
     pub async fn prune_for_eligible_epochs(
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         checkpoint_store: &Arc<CheckpointStore>,
@@ -418,9 +425,10 @@ impl AuthorityStorePruner {
             };
             let checkpoint = ckpt.into_inner();
             // Skipping because  checkpoint's epoch or checkpoint number is too new.
-            // We have to respect the highest executed checkpoint watermark (including the watermark itself)
-            // because there might be parts of the system that still require access to old object versions
-            // (i.e. state accumulator).
+            // We have to respect the highest executed checkpoint watermark (including the
+            // watermark itself) because there might be parts of the system that
+            // still require access to old object versions (i.e. state
+            // accumulator).
             if (current_epoch < checkpoint.epoch() + num_epochs_to_retain)
                 || (*checkpoint.sequence_number() >= max_eligible_checkpoint)
             {
@@ -670,7 +678,10 @@ impl AuthorityStorePruner {
     ) -> Self {
         if pruning_config.num_epochs_to_retain > 0 && pruning_config.num_epochs_to_retain < u64::MAX
         {
-            warn!("Using objects pruner with num_epochs_to_retain = {} can lead to performance issues", pruning_config.num_epochs_to_retain);
+            warn!(
+                "Using objects pruner with num_epochs_to_retain = {} can lead to performance issues",
+                pruning_config.num_epochs_to_retain
+            );
             if is_validator {
                 warn!("Resetting to aggressive pruner.");
                 pruning_config.num_epochs_to_retain = 0;
@@ -702,33 +713,32 @@ impl AuthorityStorePruner {
 
 #[cfg(test)]
 mod tests {
-    use more_asserts as ma;
-    use std::path::Path;
-    use std::time::Duration;
-    use std::{collections::HashSet, sync::Arc};
-    use tracing::log::info;
+    use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 
-    use crate::authority::authority_store_pruner::AuthorityStorePruningMetrics;
-    use crate::authority::authority_store_tables::AuthorityPerpetualTables;
-    use crate::authority::authority_store_types::{
-        get_store_object_pair, ObjectContentDigest, StoreData, StoreObject, StoreObjectPair,
-        StoreObjectWrapper,
-    };
+    use more_asserts as ma;
     use prometheus::Registry;
     use sui_storage::mutex_table::RwLockTable;
-    use sui_types::base_types::ObjectDigest;
-    use sui_types::effects::TransactionEffects;
-    use sui_types::effects::TransactionEffectsAPI;
     use sui_types::{
-        base_types::{ObjectID, SequenceNumber},
+        base_types::{ObjectDigest, ObjectID, SequenceNumber},
+        effects::{TransactionEffects, TransactionEffectsAPI},
         object::Object,
         storage::ObjectKey,
     };
-    use typed_store::rocks::util::reference_count_merge_operator;
-    use typed_store::rocks::{DBMap, MetricConf, ReadWriteOptions};
-    use typed_store::Map;
+    use tracing::log::info;
+    use typed_store::{
+        rocks::{util::reference_count_merge_operator, DBMap, MetricConf, ReadWriteOptions},
+        Map,
+    };
 
     use super::AuthorityStorePruner;
+    use crate::authority::{
+        authority_store_pruner::AuthorityStorePruningMetrics,
+        authority_store_tables::AuthorityPerpetualTables,
+        authority_store_types::{
+            get_store_object_pair, ObjectContentDigest, StoreData, StoreObject, StoreObjectPair,
+            StoreObjectWrapper,
+        },
+    };
 
     fn get_keys_after_pruning(path: &Path) -> anyhow::Result<HashSet<ObjectKey>> {
         let perpetual_db_path = path.join(Path::new("perpetual"));
@@ -1025,30 +1035,25 @@ mod tests {
 #[cfg(not(target_os = "macos"))]
 #[cfg(not(target_env = "msvc"))]
 mod pprof_tests {
-    use crate::authority::authority_store_pruner::tests;
-
     use std::sync::Arc;
-    use tracing::log::{error, info};
 
-    use crate::authority::authority_store_pruner::tests::lock_table;
-    use crate::authority::authority_store_pruner::AuthorityStorePruningMetrics;
-    use crate::authority::authority_store_tables::AuthorityPerpetualTables;
-    use crate::authority::authority_store_types::{get_store_object_pair, StoreObjectWrapper};
     use pprof::Symbol;
     use prometheus::Registry;
-    use sui_types::base_types::ObjectDigest;
-    use sui_types::base_types::VersionNumber;
-    use sui_types::effects::TransactionEffects;
-    use sui_types::effects::TransactionEffectsAPI;
     use sui_types::{
-        base_types::{ObjectID, SequenceNumber},
+        base_types::{ObjectDigest, ObjectID, SequenceNumber, VersionNumber},
+        effects::{TransactionEffects, TransactionEffectsAPI},
         object::Object,
         storage::ObjectKey,
     };
-    use typed_store::rocks::DBMap;
-    use typed_store::Map;
+    use tracing::log::{error, info};
+    use typed_store::{rocks::DBMap, Map};
 
     use super::AuthorityStorePruner;
+    use crate::authority::{
+        authority_store_pruner::{tests, tests::lock_table, AuthorityStorePruningMetrics},
+        authority_store_tables::AuthorityPerpetualTables,
+        authority_store_types::{get_store_object_pair, StoreObjectWrapper},
+    };
 
     fn insert_keys(
         objects: &DBMap<ObjectKey, StoreObjectWrapper>,
@@ -1105,12 +1110,13 @@ mod pprof_tests {
     }
 
     #[tokio::test]
-    async fn ensure_no_tombstone_fragmentation_in_stack_frame_with_ignore_tombstones(
-    ) -> Result<(), anyhow::Error> {
-        // This test writes a bunch of objects to objects table, invokes pruning on it and
-        // then does a bunch of get(). We open the db with `ignore_range_delete` set to true (default mode).
-        // We then record a cpu profile of the `get()` calls and do not find any range fragmentation stack frame
-        // in it.
+    async fn ensure_no_tombstone_fragmentation_in_stack_frame_with_ignore_tombstones()
+    -> Result<(), anyhow::Error> {
+        // This test writes a bunch of objects to objects table, invokes pruning on it
+        // and then does a bunch of get(). We open the db with
+        // `ignore_range_delete` set to true (default mode). We then record a
+        // cpu profile of the `get()` calls and do not find any range fragmentation
+        // stack frame in it.
         let registry = Registry::default();
         let metrics = AuthorityStorePruningMetrics::new(&registry);
         let primary_path = tempfile::tempdir()?.into_path();
@@ -1132,21 +1138,23 @@ mod pprof_tests {
             .unwrap();
         read_keys(&perpetual_db.objects, 1000)?;
         if let Ok(report) = guard.report().build() {
-            assert!(!report.data.keys().any(|f| f
-                .frames
-                .iter()
-                .any(|vs| is_rocksdb_range_tombstone_frame(vs))));
+            assert!(!report.data.keys().any(|f| {
+                f.frames
+                    .iter()
+                    .any(|vs| is_rocksdb_range_tombstone_frame(vs))
+            }));
         }
         Ok(())
     }
 
     #[tokio::test]
-    async fn ensure_no_tombstone_fragmentation_in_stack_frame_after_flush(
-    ) -> Result<(), anyhow::Error> {
-        // This test writes a bunch of objects to objects table, invokes pruning on it and
-        // then does a bunch of get(). We open the db with `ignore_range_delete` set to true (default mode).
-        // We then record a cpu profile of the `get()` calls and do not find any range fragmentation stack frame
-        // in it.
+    async fn ensure_no_tombstone_fragmentation_in_stack_frame_after_flush()
+    -> Result<(), anyhow::Error> {
+        // This test writes a bunch of objects to objects table, invokes pruning on it
+        // and then does a bunch of get(). We open the db with
+        // `ignore_range_delete` set to true (default mode). We then record a
+        // cpu profile of the `get()` calls and do not find any range fragmentation
+        // stack frame in it.
         let primary_path = tempfile::tempdir()?.into_path();
         let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&primary_path, None));
         let effects = insert_keys(&perpetual_db.objects)?;
@@ -1173,10 +1181,11 @@ mod pprof_tests {
             .unwrap();
         read_keys(&perpetual_db.objects, 1000)?;
         if let Ok(report) = guard.report().build() {
-            assert!(!report.data.keys().any(|f| f
-                .frames
-                .iter()
-                .any(|vs| is_rocksdb_range_tombstone_frame(vs))));
+            assert!(!report.data.keys().any(|f| {
+                f.frames
+                    .iter()
+                    .any(|vs| is_rocksdb_range_tombstone_frame(vs))
+            }));
         }
         Ok(())
     }

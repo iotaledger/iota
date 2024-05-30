@@ -12,9 +12,9 @@
 //     let handle = std::thread::spawn(|| {
 //         BuildConfig::default()
 //             .compile_package(
-//                 Path::new("./tests/thread_safety_package_test_sources/Package1"),
-//                 &mut std::io::stdout(),
-//             )
+//
+// Path::new("./tests/thread_safety_package_test_sources/Package1"),
+// &mut std::io::stdout(),             )
 //             .unwrap()
 //     });
 

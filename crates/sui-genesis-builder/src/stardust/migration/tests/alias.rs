@@ -1,36 +1,41 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::stardust::migration::migration::NATIVE_TOKEN_BAG_KEY_TYPE;
-use crate::stardust::migration::migration::PACKAGE_DEPS;
-use crate::stardust::migration::tests::run_migration;
-use crate::stardust::migration::tests::{create_foundry, random_output_header};
-use crate::stardust::types::ALIAS_OUTPUT_MODULE_NAME;
-use crate::stardust::types::{snapshot::OutputHeader, Alias, AliasOutput};
-use iota_sdk::types::block::address::Address;
-use iota_sdk::types::block::output::feature::Irc30Metadata;
-use iota_sdk::types::block::output::{NativeToken, SimpleTokenScheme, TokenId};
-use iota_sdk::types::block::{
-    address::Ed25519Address,
-    output::{
-        feature::{IssuerFeature, MetadataFeature, SenderFeature},
-        unlock_condition::{GovernorAddressUnlockCondition, StateControllerAddressUnlockCondition},
-        AliasId, AliasOutput as StardustAlias, AliasOutputBuilder, Feature,
-    },
-};
-use iota_sdk::U256;
-use move_core_types::ident_str;
-use move_core_types::language_storage::StructTag;
 use std::str::FromStr;
-use sui_types::balance::Balance;
-use sui_types::base_types::SuiAddress;
-use sui_types::coin::Coin;
-use sui_types::gas_coin::GAS;
-use sui_types::inner_temporary_store::InnerTemporaryStore;
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::transaction::{Argument, CheckedInputObjects, ObjectArg};
-use sui_types::TypeTag;
-use sui_types::{base_types::ObjectID, STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID};
+
+use iota_sdk::{
+    types::block::{
+        address::{Address, Ed25519Address},
+        output::{
+            feature::{Irc30Metadata, IssuerFeature, MetadataFeature, SenderFeature},
+            unlock_condition::{
+                GovernorAddressUnlockCondition, StateControllerAddressUnlockCondition,
+            },
+            AliasId, AliasOutput as StardustAlias, AliasOutputBuilder, Feature, NativeToken,
+            SimpleTokenScheme, TokenId,
+        },
+    },
+    U256,
+};
+use move_core_types::{ident_str, language_storage::StructTag};
+use sui_types::{
+    balance::Balance,
+    base_types::{ObjectID, SuiAddress},
+    coin::Coin,
+    gas_coin::GAS,
+    inner_temporary_store::InnerTemporaryStore,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::{Argument, CheckedInputObjects, ObjectArg},
+    TypeTag, STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID,
+};
+
+use crate::stardust::{
+    migration::{
+        migration::{NATIVE_TOKEN_BAG_KEY_TYPE, PACKAGE_DEPS},
+        tests::{create_foundry, random_output_header, run_migration},
+    },
+    types::{snapshot::OutputHeader, Alias, AliasOutput, ALIAS_OUTPUT_MODULE_NAME},
+};
 
 fn migrate_alias(
     header: OutputHeader,
@@ -58,8 +63,9 @@ fn migrate_alias(
         })
         .expect("alias object should be present in the migrated snapshot");
 
-    // Version is set to 1 when the alias is created based on the computed lamport timestamp.
-    // When the alias is attached to the alias output, the version should be incremented.
+    // Version is set to 1 when the alias is created based on the computed lamport
+    // timestamp. When the alias is attached to the alias output, the version
+    // should be incremented.
     assert!(
         alias_object.version().value() > 1,
         "alias object version should have been incremented"
@@ -77,7 +83,8 @@ fn migrate_alias(
     (alias_object_id, alias, alias_output)
 }
 
-/// Test that the migrated alias objects in the snapshot contain the expected data.
+/// Test that the migrated alias objects in the snapshot contain the expected
+/// data.
 #[test]
 fn alias_migration_with_full_features() {
     let alias_id = AliasId::new(rand::random());
@@ -103,13 +110,15 @@ fn alias_migration_with_full_features() {
     let (alias_object_id, alias, alias_output) = migrate_alias(header, stardust_alias.clone());
     let expected_alias = Alias::try_from_stardust(alias_object_id, &stardust_alias).unwrap();
 
-    // Compare only the balance. The ID is newly generated and the bag is tested separately.
+    // Compare only the balance. The ID is newly generated and the bag is tested
+    // separately.
     assert_eq!(stardust_alias.amount(), alias_output.iota.value());
 
     assert_eq!(expected_alias, alias);
 }
 
-/// Test that an Alias with a zeroed ID is migrated to an Alias Object with its UID set to the hashed Output ID.
+/// Test that an Alias with a zeroed ID is migrated to an Alias Object with its
+/// UID set to the hashed Output ID.
 #[test]
 fn alias_migration_with_zeroed_id() {
     let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
@@ -126,9 +135,11 @@ fn alias_migration_with_zeroed_id() {
     migrate_alias(header, stardust_alias);
 }
 
-/// Test that an Alias owned by another Alias can be received by the owning object.
+/// Test that an Alias owned by another Alias can be received by the owning
+/// object.
 ///
-/// The PTB sends the extracted assets to the null address since it must be used in the transaction.
+/// The PTB sends the extracted assets to the null address since it must be used
+/// in the transaction.
 #[test]
 fn test_alias_migration_with_alias_owner() {
     let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
@@ -159,8 +170,9 @@ fn test_alias_migration_with_alias_owner() {
         (random_output_header(), stardust_alias2.into()),
     ]);
 
-    // Find the corresponding objects to the migrated aliases, uniquely identified by their amounts.
-    // Should be adapted to use the tags from issue 239 to make this much easier.
+    // Find the corresponding objects to the migrated aliases, uniquely identified
+    // by their amounts. Should be adapted to use the tags from issue 239 to
+    // make this much easier.
     let alias_output1_id = executor
         .store()
         .objects()
@@ -256,8 +268,8 @@ fn test_alias_migration_with_alias_owner() {
         builder.transfer_arg(SuiAddress::default(), bag_arg);
         builder.transfer_arg(SuiAddress::default(), coin_arg);
 
-        // We have to use Alias Output as we cannot transfer it (since it lacks the `store` ability),
-        // so we extract its assets.
+        // We have to use Alias Output as we cannot transfer it (since it lacks the
+        // `store` ability), so we extract its assets.
         let extracted_assets = builder.programmable_move_call(
             STARDUST_PACKAGE_ID,
             ALIAS_OUTPUT_MODULE_NAME.into(),
@@ -302,7 +314,8 @@ fn test_alias_migration_with_alias_owner() {
     executor.execute_pt_unmetered(input_objects, pt).unwrap();
 }
 
-/// Test that an Alias that owns Native Tokens can extract those tokens from the contained bag.
+/// Test that an Alias that owns Native Tokens can extract those tokens from the
+/// contained bag.
 #[test]
 fn alias_migration_with_native_tokens() {
     let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
@@ -331,8 +344,9 @@ fn alias_migration_with_native_tokens() {
         (foundry_header, foundry_output.into()),
     ]);
 
-    // Find the corresponding objects to the migrated aliases, uniquely identified by their amounts.
-    // Should be adapted to use the tags from issue 239 to make this much easier.
+    // Find the corresponding objects to the migrated aliases, uniquely identified
+    // by their amounts. Should be adapted to use the tags from issue 239 to
+    // make this much easier.
     let alias_output1_id = executor
         .store()
         .objects()
@@ -415,7 +429,8 @@ fn alias_migration_with_native_tokens() {
             vec![balance_arg],
         );
 
-        // Destroying the bag only works if it's empty, hence asserting that it is in fact empty.
+        // Destroying the bag only works if it's empty, hence asserting that it is in
+        // fact empty.
         builder.programmable_move_call(
             SUI_FRAMEWORK_PACKAGE_ID,
             ident_str!("bag").into(),

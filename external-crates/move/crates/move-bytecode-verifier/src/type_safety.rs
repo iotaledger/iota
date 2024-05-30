@@ -2,12 +2,12 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module defines the transfer functions for verifying type safety of a procedure body.
-//! It does not utilize control flow, but does check each block independently
+//! This module defines the transfer functions for verifying type safety of a
+//! procedure body. It does not utilize control flow, but does check each block
+//! independently
 
 use std::num::NonZeroU64;
 
-use crate::meter::{Meter, Scope};
 use move_abstract_stack::AbstractStack;
 use move_binary_format::{
     binary_views::{BinaryIndexedView, FunctionView},
@@ -21,6 +21,8 @@ use move_binary_format::{
     safe_unwrap_err,
 };
 use move_core_types::vm_status::StatusCode;
+
+use crate::meter::{Meter, Scope};
 
 struct Locals<'a> {
     param_count: usize,
@@ -327,8 +329,8 @@ fn unpack(
 ) -> PartialVMResult<()> {
     let struct_type = materialize_type(struct_def.struct_handle, type_args);
 
-    // Pop an abstract value from the stack and check if its type is equal to the one
-    // declared.
+    // Pop an abstract value from the stack and check if its type is equal to the
+    // one declared.
     let arg = safe_unwrap_err!(verifier.stack.pop());
     if arg != struct_type {
         return Err(verifier.error(StatusCode::UNPACK_TYPE_MISMATCH_ERROR, offset));
@@ -669,7 +671,7 @@ fn verify_instr(
                 _ => {
                     return Err(
                         verifier.error(StatusCode::WRITEREF_NO_MUTABLE_REFERENCE_ERROR, offset)
-                    )
+                    );
                 }
             };
             if !verifier.abilities(&ref_inner_signature)?.has_drop() {
@@ -936,7 +938,6 @@ fn verify_instr(
     Ok(())
 }
 
-//
 // Helpers functions for types
 //
 
@@ -976,12 +977,13 @@ fn instantiate(token: &SignatureToken, subst: &Signature) -> SignatureToken {
                     .map(|ty| instantiate(ty, subst))
                     .collect(),
             )))
-        },
+        }
         Reference(ty) => Reference(Box::new(instantiate(ty, subst))),
         MutableReference(ty) => MutableReference(Box::new(instantiate(ty, subst))),
         TypeParameter(idx) => {
-            // Assume that the caller has previously parsed and verified the structure of the
-            // file and that this guarantees that type parameter indices are always in bounds.
+            // Assume that the caller has previously parsed and verified the structure of
+            // the file and that this guarantees that type parameter indices are
+            // always in bounds.
             debug_assert!((*idx as usize) < subst.len());
             subst.0[*idx as usize].clone()
         }

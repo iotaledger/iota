@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
-use sui_types::base_types::{ObjectID, SequenceNumber};
-use sui_types::full_checkpoint_content::CheckpointData;
-use sui_types::messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber};
-use sui_types::object::Object;
+use sui_types::{
+    base_types::{ObjectID, SequenceNumber},
+    full_checkpoint_content::CheckpointData,
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber},
+    object::Object,
+};
 
 #[derive(Clone)]
 pub struct Client {
