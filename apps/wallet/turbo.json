@@ -1,9 +1,9 @@
 {
-	"extends": ["//"],
-	"pipeline": {
-		"build:prod": {
-			"dependsOn": ["^build"],
-			"outputs": ["dist/**"]
-		}
-	}
+    "extends": ["//"],
+    "pipeline": {
+        "build:prod": {
+            "dependsOn": ["^build"],
+            "outputs": ["dist/**"]
+        }
+    }
 }
