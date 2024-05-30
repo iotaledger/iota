@@ -1,22 +1,24 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use async_trait::async_trait;
-use std::path::Path;
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
+use async_trait::async_trait;
 use move_core_types::account_address::AccountAddress;
 use sui_package_resolver::{
     error::Error as PackageResolverError, Package, PackageStore, PackageStoreWithLruCache, Result,
 };
 use sui_rest_api::Client;
-use sui_types::base_types::{ObjectID, SequenceNumber};
-use sui_types::object::Object;
+use sui_types::{
+    base_types::{ObjectID, SequenceNumber},
+    object::Object,
+};
 use thiserror::Error;
-use typed_store::rocks::{DBMap, MetricConf};
-use typed_store::traits::TableSummary;
-use typed_store::traits::TypedStoreDebug;
-use typed_store::{Map, TypedStoreError};
+use typed_store::{
+    rocks::{DBMap, MetricConf},
+    traits::{TableSummary, TypedStoreDebug},
+    Map, TypedStoreError,
+};
 use typed_store_derive::DBMapUtils;
 
 const STORE: &str = "RocksDB";
@@ -62,10 +64,10 @@ impl PackageStoreTables {
     }
 }
 
-/// Store which keeps package objects in a local rocksdb store. It is expected that this store is
-/// kept updated with latest version of package objects while iterating over checkpoints. If the
-/// local db is missing (or gets deleted), packages are fetched from a full node and local store is
-/// updated
+/// Store which keeps package objects in a local rocksdb store. It is expected
+/// that this store is kept updated with latest version of package objects while
+/// iterating over checkpoints. If the local db is missing (or gets deleted),
+/// packages are fetched from a full node and local store is updated
 #[derive(Clone)]
 pub struct LocalDBPackageStore {
     package_store_tables: Arc<PackageStoreTables>,

@@ -2,10 +2,8 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    data_cache::TransactionDataCache, native_extensions::NativeContextExtensions,
-    runtime::VMRuntime,
-};
+use std::{borrow::Borrow, sync::Arc};
+
 use move_binary_format::{
     errors::*,
     file_format::{AbilitySet, LocalIndex},
@@ -24,7 +22,11 @@ use move_vm_types::{
     gas::GasMeter,
     loaded_data::runtime_types::{CachedStructIndex, StructType, Type},
 };
-use std::{borrow::Borrow, sync::Arc};
+
+use crate::{
+    data_cache::TransactionDataCache, native_extensions::NativeContextExtensions,
+    runtime::VMRuntime,
+};
 
 pub struct Session<'r, 'l, S> {
     pub(crate) runtime: &'l VMRuntime,
@@ -44,31 +46,34 @@ pub struct SerializedReturnValues {
 }
 
 impl<'r, 'l, S: MoveResolver> Session<'r, 'l, S> {
-    /// Execute a Move function with the given arguments. This is mainly designed for an external
-    /// environment to invoke system logic written in Move.
+    /// Execute a Move function with the given arguments. This is mainly
+    /// designed for an external environment to invoke system logic written
+    /// in Move.
     ///
-    /// NOTE: There are NO checks on the `args` except that they can deserialize into the provided
-    /// types.
-    /// The ability to deserialize `args` into arbitrary types is *very* powerful, e.g. it can
-    /// used to manufacture `signer`'s or `Coin`'s from raw bytes. It is the responsibility of the
-    /// caller (e.g. adapter) to ensure that this power is used responsibly/securely for its
+    /// NOTE: There are NO checks on the `args` except that they can deserialize
+    /// into the provided types.
+    /// The ability to deserialize `args` into arbitrary types is *very*
+    /// powerful, e.g. it can used to manufacture `signer`'s or `Coin`'s
+    /// from raw bytes. It is the responsibility of the caller (e.g.
+    /// adapter) to ensure that this power is used responsibly/securely for its
     /// use-case.
     ///
     /// The caller MUST ensure
     ///   - All types and modules referred to by the type arguments exist.
     ///   - The signature is valid for the rules of the adapter
     ///
-    /// The Move VM MUST return an invariant violation if the caller fails to follow any of the
-    /// rules above.
+    /// The Move VM MUST return an invariant violation if the caller fails to
+    /// follow any of the rules above.
     ///
     /// The VM will check that the function is marked as an 'entry' function.
     ///
-    /// Currently if any other error occurs during execution, the Move VM will simply propagate that
-    /// error back to the outer environment without handling/translating it. This behavior may be
-    /// revised in the future.
+    /// Currently if any other error occurs during execution, the Move VM will
+    /// simply propagate that error back to the outer environment without
+    /// handling/translating it. This behavior may be revised in the future.
     ///
-    /// In case an invariant violation occurs, the whole Session should be considered corrupted and
-    /// one shall not proceed with effect generation.
+    /// In case an invariant violation occurs, the whole Session should be
+    /// considered corrupted and one shall not proceed with effect
+    /// generation.
     pub fn execute_entry_function(
         &mut self,
         module: &ModuleId,
@@ -124,15 +129,18 @@ impl<'r, 'l, S: MoveResolver> Session<'r, 'l, S> {
 
     /// Publish the given module.
     ///
-    /// The Move VM MUST return a user error, i.e., an error that's not an invariant violation, if
+    /// The Move VM MUST return a user error, i.e., an error that's not an
+    /// invariant violation, if
     ///   - The module fails to deserialize or verify.
     ///   - The sender address does not match that of the module.
     ///
     /// The Move VM should not be able to produce other user errors.
-    /// Besides, no user input should cause the Move VM to return an invariant violation.
+    /// Besides, no user input should cause the Move VM to return an invariant
+    /// violation.
     ///
-    /// In case an invariant violation occurs, the whole Session should be considered corrupted and
-    /// one shall not proceed with effect generation.
+    /// In case an invariant violation occurs, the whole Session should be
+    /// considered corrupted and one shall not proceed with effect
+    /// generation.
     pub fn publish_module(
         &mut self,
         module: Vec<u8>,
@@ -144,16 +152,19 @@ impl<'r, 'l, S: MoveResolver> Session<'r, 'l, S> {
 
     /// Publish a series of modules.
     ///
-    /// The Move VM MUST return a user error, i.e., an error that's not an invariant violation, if
-    /// any module fails to deserialize or verify (see the full list of  failing conditions in the
-    /// `publish_module` API). The publishing of the module series is an all-or-nothing action:
+    /// The Move VM MUST return a user error, i.e., an error that's not an
+    /// invariant violation, if any module fails to deserialize or verify
+    /// (see the full list of  failing conditions in the `publish_module`
+    /// API). The publishing of the module series is an all-or-nothing action:
     /// either all modules are published to the data store or none is.
     ///
-    /// Similar to the `publish_module` API, the Move VM should not be able to produce other user
-    /// errors. Besides, no user input should cause the Move VM to return an invariant violation.
+    /// Similar to the `publish_module` API, the Move VM should not be able to
+    /// produce other user errors. Besides, no user input should cause the
+    /// Move VM to return an invariant violation.
     ///
-    /// In case an invariant violation occurs, the whole Session should be considered corrupted and
-    /// one shall not proceed with effect generation.
+    /// In case an invariant violation occurs, the whole Session should be
+    /// considered corrupted and one shall not proceed with effect
+    /// generation.
     pub fn publish_module_bundle(
         &mut self,
         modules: Vec<Vec<u8>>,
@@ -170,9 +181,11 @@ impl<'r, 'l, S: MoveResolver> Session<'r, 'l, S> {
 
     /// Finish up the session and produce the side effects.
     ///
-    /// This function should always succeed with no user errors returned, barring invariant violations.
+    /// This function should always succeed with no user errors returned,
+    /// barring invariant violations.
     ///
-    /// This MUST NOT be called if there is a previous invocation that failed with an invariant violation.
+    /// This MUST NOT be called if there is a previous invocation that failed
+    /// with an invariant violation.
     pub fn finish(self) -> (VMResult<(ChangeSet, Vec<Event>)>, S) {
         let (res, remote) = self.data_cache.into_effects();
         (res.map_err(|e| e.finish(Location::Undefined)), remote)
@@ -182,7 +195,8 @@ impl<'r, 'l, S: MoveResolver> Session<'r, 'l, S> {
         self.runtime.loader().vm_config()
     }
 
-    /// Same like `finish`, but also extracts the native context extensions from the session.
+    /// Same like `finish`, but also extracts the native context extensions from
+    /// the session.
     pub fn finish_with_extensions(
         self,
     ) -> (
@@ -218,9 +232,10 @@ impl<'r, 'l, S: MoveResolver> Session<'r, 'l, S> {
         Ok(instantiation)
     }
 
-    /// Load a struct by its name to get the global index that it is referenced by within the
-    /// loader, and the loaded struct information.  This operation also ensures the defining module
-    /// is loaded from the data store and will fail if the type does not exist in that module.
+    /// Load a struct by its name to get the global index that it is referenced
+    /// by within the loader, and the loaded struct information.  This
+    /// operation also ensures the defining module is loaded from the data
+    /// store and will fail if the type does not exist in that module.
     pub fn load_struct(
         &self,
         module_id: &ModuleId,

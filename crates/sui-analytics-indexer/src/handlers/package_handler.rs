@@ -5,12 +5,9 @@ use anyhow::Result;
 use fastcrypto::encoding::{Base64, Encoding};
 use sui_indexer::framework::Handler;
 use sui_rest_api::CheckpointData;
-use sui_types::full_checkpoint_content::CheckpointTransaction;
-use sui_types::object::Object;
+use sui_types::{full_checkpoint_content::CheckpointTransaction, object::Object};
 
-use crate::handlers::AnalyticsHandler;
-use crate::tables::MovePackageEntry;
-use crate::FileType;
+use crate::{handlers::AnalyticsHandler, tables::MovePackageEntry, FileType};
 
 pub struct PackageHandler {
     packages: Vec<MovePackageEntry>,

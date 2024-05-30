@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{TestCaseImpl, TestContext};
 use async_trait::async_trait;
 use sui_json_rpc_types::{
     SuiExecutionStatus, SuiTransactionBlockEffectsAPI, SuiTransactionBlockResponseOptions,
@@ -11,6 +10,8 @@ use sui_types::{
     base_types::TransactionDigest, quorum_driver_types::ExecuteTransactionRequestType,
 };
 use tracing::info;
+
+use crate::{TestCaseImpl, TestContext};
 
 pub struct FullNodeExecuteTransactionTest;
 

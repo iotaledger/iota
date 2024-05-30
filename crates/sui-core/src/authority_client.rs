@@ -2,25 +2,26 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::BTreeMap, time::Duration};
+
 use anyhow::anyhow;
 use async_trait::async_trait;
 use mysten_network::config::Config;
-use std::collections::BTreeMap;
-use std::time::Duration;
-use sui_network::{api::ValidatorClient, tonic};
-use sui_types::base_types::AuthorityName;
-use sui_types::committee::CommitteeWithNetworkMetadata;
-use sui_types::messages_checkpoint::{
-    CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
-};
-use sui_types::multiaddr::Multiaddr;
-use sui_types::sui_system_state::SuiSystemState;
-use sui_types::{error::SuiError, transaction::*};
-
-use sui_network::tonic::transport::Channel;
-use sui_types::messages_grpc::{
-    HandleCertificateResponseV2, HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
-    SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse,
+use sui_network::{api::ValidatorClient, tonic, tonic::transport::Channel};
+use sui_types::{
+    base_types::AuthorityName,
+    committee::CommitteeWithNetworkMetadata,
+    error::SuiError,
+    messages_checkpoint::{
+        CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
+    },
+    messages_grpc::{
+        HandleCertificateResponseV2, HandleTransactionResponse, ObjectInfoRequest,
+        ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse,
+    },
+    multiaddr::Multiaddr,
+    sui_system_state::SuiSystemState,
+    transaction::*,
 };
 
 #[async_trait]

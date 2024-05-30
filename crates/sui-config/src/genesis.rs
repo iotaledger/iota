@@ -1,33 +1,35 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{Context, Result};
-use fastcrypto::encoding::{Base64, Encoding};
-use fastcrypto::hash::HashFunction;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{fs, path::Path};
-use sui_types::authenticator_state::{get_authenticator_state, AuthenticatorStateInner};
-use sui_types::base_types::{ObjectID, SuiAddress};
-use sui_types::clock::Clock;
-use sui_types::committee::CommitteeWithNetworkMetadata;
-use sui_types::crypto::DefaultHash;
-use sui_types::deny_list::{get_coin_deny_list, PerTypeDenyList};
-use sui_types::effects::{TransactionEffects, TransactionEvents};
-use sui_types::gas_coin::TOTAL_SUPPLY_MIST;
-use sui_types::messages_checkpoint::{
-    CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, VerifiedCheckpoint,
+
+use anyhow::{Context, Result};
+use fastcrypto::{
+    encoding::{Base64, Encoding},
+    hash::HashFunction,
 };
-use sui_types::storage::ObjectStore;
-use sui_types::sui_system_state::{
-    get_sui_system_state, get_sui_system_state_wrapper, SuiSystemState, SuiSystemStateTrait,
-    SuiSystemStateWrapper, SuiValidatorGenesis,
-};
-use sui_types::transaction::Transaction;
-use sui_types::SUI_RANDOMNESS_STATE_OBJECT_ID;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sui_types::{
-    committee::{Committee, EpochId, ProtocolVersion},
+    authenticator_state::{get_authenticator_state, AuthenticatorStateInner},
+    base_types::{ObjectID, SuiAddress},
+    clock::Clock,
+    committee::{Committee, CommitteeWithNetworkMetadata, EpochId, ProtocolVersion},
+    crypto::DefaultHash,
+    deny_list::{get_coin_deny_list, PerTypeDenyList},
+    effects::{TransactionEffects, TransactionEvents},
     error::SuiResult,
+    gas_coin::TOTAL_SUPPLY_MIST,
+    messages_checkpoint::{
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, VerifiedCheckpoint,
+    },
     object::Object,
+    storage::ObjectStore,
+    sui_system_state::{
+        get_sui_system_state, get_sui_system_state_wrapper, SuiSystemState, SuiSystemStateTrait,
+        SuiSystemStateWrapper, SuiValidatorGenesis,
+    },
+    transaction::Transaction,
+    SUI_RANDOMNESS_STATE_OBJECT_ID,
 };
 use tracing::trace;
 
@@ -51,7 +53,8 @@ pub struct UnsignedGenesis {
     pub objects: Vec<Object>,
 }
 
-// Hand implement PartialEq in order to get around the fact that AuthSigs don't impl Eq
+// Hand implement PartialEq in order to get around the fact that AuthSigs don't
+// impl Eq
 impl PartialEq for Genesis {
     fn eq(&self, other: &Self) -> bool {
         self.checkpoint.data() == other.checkpoint.data()
@@ -488,7 +491,9 @@ impl TokenDistributionSchedule {
         }
 
         if total_mist != TOTAL_SUPPLY_MIST {
-            panic!("TokenDistributionSchedule adds up to {total_mist} and not expected {TOTAL_SUPPLY_MIST}");
+            panic!(
+                "TokenDistributionSchedule adds up to {total_mist} and not expected {TOTAL_SUPPLY_MIST}"
+            );
         }
     }
 
@@ -503,8 +508,8 @@ impl TokenDistributionSchedule {
         let mut validators: HashMap<SuiAddress, u64> =
             validators.into_iter().map(|a| (a, 0)).collect();
 
-        // Check that all allocations are for valid validators, while summing up all allocations
-        // for each validator
+        // Check that all allocations are for valid validators, while summing up all
+        // allocations for each validator
         for allocation in &self.allocations {
             if let Some(staked_with_validator) = &allocation.staked_with_validator {
                 *validators
@@ -514,12 +519,14 @@ impl TokenDistributionSchedule {
             }
         }
 
-        // Check that all validators have sufficient stake allocated to ensure they meet the
-        // minimum stake threshold
+        // Check that all validators have sufficient stake allocated to ensure they meet
+        // the minimum stake threshold
         let minimum_required_stake = sui_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_MIST;
         for (validator, stake) in validators {
             if stake < minimum_required_stake {
-                panic!("validator {validator} has '{stake}' stake and does not meet the minimum required stake threshold of '{minimum_required_stake}'");
+                panic!(
+                    "validator {validator} has '{stake}' stake and does not meet the minimum required stake threshold of '{minimum_required_stake}'"
+                );
             }
         }
     }
@@ -553,9 +560,11 @@ impl TokenDistributionSchedule {
 
     /// Helper to read a TokenDistributionSchedule from a csv file.
     ///
-    /// The file is encoded such that the final entry in the CSV file is used to denote the
-    /// allocation to the stake subsidy fund. It must be in the following format:
-    /// `0x0000000000000000000000000000000000000000000000000000000000000000,<amount to stake subsidy fund>,`
+    /// The file is encoded such that the final entry in the CSV file is used to
+    /// denote the allocation to the stake subsidy fund. It must be in the
+    /// following format:
+    /// `0x0000000000000000000000000000000000000000000000000000000000000000,
+    /// <amount to stake subsidy fund>,`
     ///
     /// All entries in a token distribution schedule must add up to 10B Sui.
     pub fn from_csv<R: std::io::Read>(reader: R) -> Result<Self> {
@@ -612,7 +621,8 @@ pub struct TokenAllocation {
     pub recipient_address: SuiAddress,
     pub amount_mist: u64,
 
-    /// Indicates if this allocation should be staked at genesis and with which validator
+    /// Indicates if this allocation should be staked at genesis and with which
+    /// validator
     pub staked_with_validator: Option<SuiAddress>,
 }
 

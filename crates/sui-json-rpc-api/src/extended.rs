@@ -1,9 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::proc_macros::rpc;
-
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use sui_json_rpc_types::{
     CheckpointedObjectID, EpochInfo, EpochPage, QueryObjectsPage, SuiObjectResponseQuery,
 };
@@ -14,6 +12,7 @@ use sui_types::sui_serde::BigInt;
 #[rpc(server, client, namespace = "suix")]
 pub trait ExtendedApi {
     /// Return a list of epoch info
+    #[rustfmt::skip]
     #[method(name = "getEpochs")]
     async fn get_epochs(
         &self,
@@ -30,6 +29,7 @@ pub trait ExtendedApi {
     async fn get_current_epoch(&self) -> RpcResult<EpochInfo>;
 
     /// Return the list of queried objects. Note that this is an enhanced full node only api.
+    #[rustfmt::skip]
     #[method(name = "queryObjects")]
     async fn query_objects(
         &self,

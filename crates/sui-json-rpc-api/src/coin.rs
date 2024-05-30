@@ -1,17 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::proc_macros::rpc;
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use sui_json_rpc_types::{Balance, CoinPage, SuiCoinMetadata};
 use sui_open_rpc_macros::open_rpc;
-use sui_types::balance::Supply;
-use sui_types::base_types::{ObjectID, SuiAddress};
+use sui_types::{
+    balance::Supply,
+    base_types::{ObjectID, SuiAddress},
+};
 
 #[open_rpc(namespace = "suix", tag = "Coin Query API")]
 #[rpc(server, client, namespace = "suix")]
 pub trait CoinReadApi {
     /// Return all Coin<`coin_type`> objects owned by an address.
+    #[rustfmt::skip]
     #[method(name = "getCoins")]
     async fn get_coins(
         &self,
@@ -26,6 +28,7 @@ pub trait CoinReadApi {
     ) -> RpcResult<CoinPage>;
 
     /// Return all Coin objects owned by an address.
+    #[rustfmt::skip]
     #[method(name = "getAllCoins")]
     async fn get_all_coins(
         &self,
@@ -38,6 +41,7 @@ pub trait CoinReadApi {
     ) -> RpcResult<CoinPage>;
 
     /// Return the total coin balance for one coin type, owned by the address owner.
+    #[rustfmt::skip]
     #[method(name = "getBalance")]
     async fn get_balance(
         &self,
@@ -48,6 +52,7 @@ pub trait CoinReadApi {
     ) -> RpcResult<Balance>;
 
     /// Return the total coin balance for all coin type, owned by the address owner.
+    #[rustfmt::skip]
     #[method(name = "getAllBalances")]
     async fn get_all_balances(
         &self,
@@ -56,6 +61,7 @@ pub trait CoinReadApi {
     ) -> RpcResult<Vec<Balance>>;
 
     /// Return metadata(e.g., symbol, decimals) for a coin
+    #[rustfmt::skip]
     #[method(name = "getCoinMetadata")]
     async fn get_coin_metadata(
         &self,
@@ -64,6 +70,7 @@ pub trait CoinReadApi {
     ) -> RpcResult<Option<SuiCoinMetadata>>;
 
     /// Return total supply for a coin
+    #[rustfmt::skip]
     #[method(name = "getTotalSupply")]
     async fn get_total_supply(
         &self,

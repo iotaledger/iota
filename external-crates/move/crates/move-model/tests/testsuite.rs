@@ -2,6 +2,8 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use std::path::Path;
+
 use codespan_reporting::{diagnostic::Severity, term::termcolor::Buffer};
 use move_binary_format::{
     access::ModuleAccess,
@@ -11,7 +13,6 @@ use move_command_line_common::testing::EXP_EXT;
 use move_compiler::{diagnostics::WarningFilters, shared::PackagePaths};
 use move_model::{run_bytecode_model_builder, run_model_builder};
 use move_prover_test_utils::baseline_test::verify_or_update_baseline;
-use std::path::Path;
 
 fn test_runner(path: &Path) -> datatest_stable::Result<()> {
     let targets = vec![PackagePaths {

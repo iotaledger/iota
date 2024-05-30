@@ -1,23 +1,24 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::proc_macros::rpc;
-
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use sui_json_rpc_types::{
-    Checkpoint, CheckpointId, CheckpointPage, SuiEvent, SuiGetPastObjectRequest,
-    SuiObjectDataOptions, SuiObjectResponse, SuiPastObjectResponse, SuiTransactionBlockResponse,
+    Checkpoint, CheckpointId, CheckpointPage, ProtocolConfigResponse, SuiEvent,
+    SuiGetPastObjectRequest, SuiLoadedChildObjectsResponse, SuiObjectDataOptions,
+    SuiObjectResponse, SuiPastObjectResponse, SuiTransactionBlockResponse,
     SuiTransactionBlockResponseOptions,
 };
-use sui_json_rpc_types::{ProtocolConfigResponse, SuiLoadedChildObjectsResponse};
 use sui_open_rpc_macros::open_rpc;
-use sui_types::base_types::{ObjectID, SequenceNumber, TransactionDigest};
-use sui_types::sui_serde::BigInt;
+use sui_types::{
+    base_types::{ObjectID, SequenceNumber, TransactionDigest},
+    sui_serde::BigInt,
+};
 
 #[open_rpc(namespace = "sui", tag = "Read API")]
 #[rpc(server, client, namespace = "sui")]
 pub trait ReadApi {
     /// Return the transaction response object.
+    #[rustfmt::skip]
     #[method(name = "getTransactionBlock")]
     async fn get_transaction_block(
         &self,
@@ -30,6 +31,7 @@ pub trait ReadApi {
     /// Returns an ordered list of transaction responses
     /// The method will throw an error if the input contains any duplicate or
     /// the input size exceeds QUERY_MAX_RESULT_LIMIT
+    #[rustfmt::skip]
     #[method(name = "multiGetTransactionBlocks")]
     async fn multi_get_transaction_blocks(
         &self,
@@ -40,6 +42,7 @@ pub trait ReadApi {
     ) -> RpcResult<Vec<SuiTransactionBlockResponse>>;
 
     /// Return the object information for a specified object
+    #[rustfmt::skip]
     #[method(name = "getObject")]
     async fn get_object(
         &self,
@@ -50,6 +53,7 @@ pub trait ReadApi {
     ) -> RpcResult<SuiObjectResponse>;
 
     /// Return the object data for a list of objects
+    #[rustfmt::skip]
     #[method(name = "multiGetObjects")]
     async fn multi_get_objects(
         &self,
@@ -63,6 +67,7 @@ pub trait ReadApi {
     /// can be retrieved by this API, even if the object and version exists/existed.
     /// The result may vary across nodes depending on their pruning policies.
     /// Return the object information for a specified version
+    #[rustfmt::skip]
     #[method(name = "tryGetPastObject")]
     async fn try_get_past_object(
         &self,
@@ -78,6 +83,7 @@ pub trait ReadApi {
     /// can be retrieved by this API, even if the object and version exists/existed.
     /// The result may vary across nodes depending on their pruning policies.
     /// Return the object information for a specified version
+    #[rustfmt::skip]
     #[method(name = "tryMultiGetPastObjects")]
     async fn try_multi_get_past_objects(
         &self,
@@ -94,6 +100,7 @@ pub trait ReadApi {
     ) -> RpcResult<SuiLoadedChildObjectsResponse>;
 
     /// Return a checkpoint
+    #[rustfmt::skip]
     #[method(name = "getCheckpoint")]
     async fn get_checkpoint(
         &self,
@@ -102,6 +109,7 @@ pub trait ReadApi {
     ) -> RpcResult<Checkpoint>;
 
     /// Return paginated list of checkpoints
+    #[rustfmt::skip]
     #[method(name = "getCheckpoints")]
     async fn get_checkpoints(
         &self,
@@ -113,6 +121,7 @@ pub trait ReadApi {
         descending_order: bool,
     ) -> RpcResult<CheckpointPage>;
 
+    #[rustfmt::skip]
     #[method(name = "getCheckpoints", version <= "0.31")]
     async fn get_checkpoints_deprecated_limit(
         &self,
@@ -124,6 +133,7 @@ pub trait ReadApi {
         descending_order: bool,
     ) -> RpcResult<CheckpointPage>;
 
+    /// #[rustfmt::skip]
     /// Return transaction events.
     #[method(name = "getEvents")]
     async fn get_events(
@@ -136,12 +146,14 @@ pub trait ReadApi {
     #[method(name = "getTotalTransactionBlocks")]
     async fn get_total_transaction_blocks(&self) -> RpcResult<BigInt<u64>>;
 
-    /// Return the sequence number of the latest checkpoint that has been executed
+    /// Return the sequence number of the latest checkpoint that has been
+    /// executed
     #[method(name = "getLatestCheckpointSequenceNumber")]
     async fn get_latest_checkpoint_sequence_number(&self) -> RpcResult<BigInt<u64>>;
 
     /// Return the protocol config table for the given version number.
     /// If the version number is not specified, If none is specified, the node uses the version of the latest epoch it has processed.
+    #[rustfmt::skip]
     #[method(name = "getProtocolConfig")]
     async fn get_protocol_config(
         &self,

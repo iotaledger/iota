@@ -2,22 +2,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::encoding::Base64;
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::proc_macros::rpc;
-
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use sui_json::SuiJsonValue;
 use sui_json_rpc_types::{
     RPCTransactionRequestParams, SuiTransactionBlockBuilderMode, SuiTypeTag, TransactionBlockBytes,
 };
 use sui_open_rpc_macros::open_rpc;
-use sui_types::base_types::{ObjectID, SuiAddress};
-use sui_types::sui_serde::BigInt;
+use sui_types::{
+    base_types::{ObjectID, SuiAddress},
+    sui_serde::BigInt,
+};
 
 #[open_rpc(namespace = "unsafe", tag = "Transaction Builder API")]
 #[rpc(server, client, namespace = "unsafe")]
 pub trait TransactionBuilder {
     /// Create an unsigned transaction to transfer an object from one address to another. The object's type
     /// must allow public transfers
+    #[rustfmt::skip]
     #[method(name = "transferObject")]
     async fn transfer_object(
         &self,
@@ -34,6 +35,7 @@ pub trait TransactionBuilder {
     ) -> RpcResult<TransactionBlockBytes>;
 
     /// Create an unsigned transaction to send SUI coin object to a Sui address. The SUI object is also used as the gas object.
+    #[rustfmt::skip]
     #[method(name = "transferSui")]
     async fn transfer_sui(
         &self,
@@ -53,6 +55,7 @@ pub trait TransactionBuilder {
     /// The object specified in the `gas` field will be used to pay the gas fee for the transaction.
     /// The gas object can not appear in `input_coins`. If the gas object is not specified, the RPC server
     /// will auto-select one.
+    #[rustfmt::skip]
     #[method(name = "pay")]
     async fn pay(
         &self,
@@ -79,6 +82,7 @@ pub trait TransactionBuilder {
     /// input coin, then use the first input coin as the gas coin object.
     /// 3. the balance of the first input coin after tx is sum(input_coins) - sum(amounts) - actual_gas_cost
     /// 4. all other input coints other than the first one are deleted.
+    #[rustfmt::skip]
     #[method(name = "paySui")]
     async fn pay_sui(
         &self,
@@ -101,6 +105,7 @@ pub trait TransactionBuilder {
     /// 2. transfer the updated first coin to the recipient and also use this first coin as gas coin object.
     /// 3. the balance of the first input coin after tx is sum(input_coins) - actual_gas_cost.
     /// 4. all other input coins other than the first are deleted.
+    #[rustfmt::skip]
     #[method(name = "payAllSui")]
     async fn pay_all_sui(
         &self,
@@ -115,6 +120,7 @@ pub trait TransactionBuilder {
     ) -> RpcResult<TransactionBlockBytes>;
 
     /// Create an unsigned transaction to execute a Move call on the network, by calling the specified function in the module of a given package.
+    #[rustfmt::skip]
     #[method(name = "moveCall")]
     async fn move_call(
         &self,
@@ -139,6 +145,7 @@ pub trait TransactionBuilder {
     ) -> RpcResult<TransactionBlockBytes>;
 
     /// Create an unsigned transaction to publish a Move package.
+    #[rustfmt::skip]
     #[method(name = "publish")]
     async fn publish(
         &self,
@@ -154,7 +161,9 @@ pub trait TransactionBuilder {
         gas_budget: BigInt<u64>,
     ) -> RpcResult<TransactionBlockBytes>;
 
-    /// Create an unsigned transaction to split a coin object into multiple coins.
+    /// Create an unsigned transaction to split a coin object into multiple
+    /// coins.
+    #[rustfmt::skip]
     #[method(name = "splitCoin")]
     async fn split_coin(
         &self,
@@ -171,6 +180,7 @@ pub trait TransactionBuilder {
     ) -> RpcResult<TransactionBlockBytes>;
 
     /// Create an unsigned transaction to split a coin object into multiple equal-size coins.
+    #[rustfmt::skip]
     #[method(name = "splitCoinEqual")]
     async fn split_coin_equal(
         &self,
@@ -187,6 +197,7 @@ pub trait TransactionBuilder {
     ) -> RpcResult<TransactionBlockBytes>;
 
     /// Create an unsigned transaction to merge multiple coins into one coin.
+    #[rustfmt::skip]
     #[method(name = "mergeCoins")]
     async fn merge_coin(
         &self,
@@ -203,6 +214,7 @@ pub trait TransactionBuilder {
     ) -> RpcResult<TransactionBlockBytes>;
 
     /// Create an unsigned batched transaction.
+    #[rustfmt::skip]
     #[method(name = "batchTransaction")]
     async fn batch_transaction(
         &self,
@@ -219,6 +231,7 @@ pub trait TransactionBuilder {
     ) -> RpcResult<TransactionBlockBytes>;
 
     /// Add stake to a validator's staking pool using multiple coins and amount.
+    #[rustfmt::skip]
     #[method(name = "requestAddStake")]
     async fn request_add_stake(
         &self,
@@ -237,6 +250,7 @@ pub trait TransactionBuilder {
     ) -> RpcResult<TransactionBlockBytes>;
 
     /// Withdraw stake from a validator's staking pool.
+    #[rustfmt::skip]
     #[method(name = "requestWithdrawStake")]
     async fn request_withdraw_stake(
         &self,
@@ -251,6 +265,7 @@ pub trait TransactionBuilder {
     ) -> RpcResult<TransactionBlockBytes>;
 
     /// Add timelocked stake to a validator's staking pool using multiple balances and amount.
+    #[rustfmt::skip]
     #[method(name = "requestAddTimelockedStake")]
     async fn request_add_timelocked_stake(
         &self,
@@ -267,6 +282,7 @@ pub trait TransactionBuilder {
     ) -> RpcResult<TransactionBlockBytes>;
 
     /// Withdraw timelocked stake from a validator's staking pool.
+    #[rustfmt::skip]
     #[method(name = "requestWithdrawTimelockedStake")]
     async fn request_withdraw_timelocked_stake(
         &self,

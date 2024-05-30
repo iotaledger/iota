@@ -1,18 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::Result;
-use chrono::Utc;
-use chrono::{DateTime, Duration, Local, NaiveDateTime};
-use colored::Colorize;
-use reqwest;
-use reqwest::header::HeaderMap;
-use reqwest::header::ACCEPT;
-use reqwest::header::AUTHORIZATION;
-use serde_json::Value as JsonValue;
 use std::env;
 
-/// Fetch incidents from the API using the given parameters until {limit} incidents have been received.
+use anyhow::Result;
+use chrono::{DateTime, Duration, Local, NaiveDateTime, Utc};
+use colored::Colorize;
+use reqwest::{
+    self,
+    header::{HeaderMap, ACCEPT, AUTHORIZATION},
+};
+use serde_json::Value as JsonValue;
+
+/// Fetch incidents from the API using the given parameters until {limit}
+/// incidents have been received.
 async fn fetch_incidents(
     limit: usize,
     start_time: DateTime<Local>,

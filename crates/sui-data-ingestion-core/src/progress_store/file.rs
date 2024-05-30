@@ -1,12 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::progress_store::ProgressStore;
+use std::path::PathBuf;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::{Number, Value};
-use std::path::PathBuf;
 use sui_types::messages_checkpoint::CheckpointSequenceNumber;
+
+use crate::progress_store::ProgressStore;
 
 pub struct FileProgressStore {
     path: PathBuf,

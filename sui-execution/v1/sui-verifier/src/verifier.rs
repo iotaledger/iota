@@ -4,14 +4,13 @@
 //! This module contains the public APIs supported by the bytecode verifier.
 
 use move_binary_format::file_format::CompiledModule;
+use move_bytecode_verifier::meter::{DummyMeter, Meter};
 use sui_types::{error::ExecutionError, move_package::FnInfoMap};
 
 use crate::{
     entry_points_verifier, global_storage_access_verifier, id_leak_verifier,
     one_time_witness_verifier, private_generics, struct_with_key_verifier,
 };
-use move_bytecode_verifier::meter::DummyMeter;
-use move_bytecode_verifier::meter::Meter;
 
 /// Helper for a "canonical" verification of a module.
 pub fn sui_verify_module_metered(
@@ -27,8 +26,8 @@ pub fn sui_verify_module_metered(
     one_time_witness_verifier::verify_module(module, fn_info_map)
 }
 
-/// Runs the Sui verifier and checks if the error counts as a Sui verifier timeout
-/// NOTE: this function only check if the verifier error is a timeout
+/// Runs the Sui verifier and checks if the error counts as a Sui verifier
+/// timeout NOTE: this function only check if the verifier error is a timeout
 /// All other errors are ignored
 pub fn sui_verify_module_metered_check_timeout_only(
     module: &CompiledModule,

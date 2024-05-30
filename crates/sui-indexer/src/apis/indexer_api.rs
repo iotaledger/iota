@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::indexer_reader::IndexerReader;
-use crate::IndexerError;
 use async_trait::async_trait;
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::types::SubscriptionEmptyError;
-use jsonrpsee::types::SubscriptionResult;
-use jsonrpsee::{RpcModule, SubscriptionSink};
-use sui_json_rpc::name_service::{Domain, NameRecord, NameServiceConfig};
-use sui_json_rpc::SuiRpcModule;
+use jsonrpsee::{
+    core::RpcResult,
+    types::{SubscriptionEmptyError, SubscriptionResult},
+    RpcModule, SubscriptionSink,
+};
+use sui_json_rpc::{
+    name_service::{Domain, NameRecord, NameServiceConfig},
+    SuiRpcModule,
+};
 use sui_json_rpc_api::{cap_page_limit, IndexerApiServer};
 use sui_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, ObjectsPage, Page, SuiObjectResponse,
@@ -17,13 +18,17 @@ use sui_json_rpc_types::{
     TransactionFilter,
 };
 use sui_open_rpc::Module;
-use sui_types::base_types::{ObjectID, SuiAddress};
-use sui_types::digests::TransactionDigest;
-use sui_types::dynamic_field::{DynamicFieldName, Field};
-use sui_types::error::SuiObjectResponseError;
-use sui_types::event::EventID;
-use sui_types::object::ObjectRead;
-use sui_types::TypeTag;
+use sui_types::{
+    base_types::{ObjectID, SuiAddress},
+    digests::TransactionDigest,
+    dynamic_field::{DynamicFieldName, Field},
+    error::SuiObjectResponseError,
+    event::EventID,
+    object::ObjectRead,
+    TypeTag,
+};
+
+use crate::{indexer_reader::IndexerReader, IndexerError};
 
 pub(crate) struct IndexerApi {
     inner: IndexerReader,
@@ -333,7 +338,7 @@ impl IndexerApiServer for IndexerApi {
                     data: vec![],
                     next_cursor: None,
                     has_next_page: false,
-                })
+                });
             }
         };
 

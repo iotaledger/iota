@@ -7,26 +7,27 @@ use std::{
     time::Duration,
 };
 
-use crate::authority::test_authority_builder::TestAuthorityBuilder;
-use crate::{authority::AuthorityState, authority_client::AuthorityAPI};
 use async_trait::async_trait;
 use mysten_metrics::spawn_monitored_task;
 use sui_config::genesis::Genesis;
-use sui_types::error::SuiResult;
-use sui_types::messages_grpc::{
-    HandleCertificateResponseV2, HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
-    SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse,
-};
-use sui_types::sui_system_state::SuiSystemState;
 use sui_types::{
     crypto::AuthorityKeyPair,
-    error::SuiError,
-    messages_checkpoint::{CheckpointRequest, CheckpointResponse},
+    effects::{TransactionEffectsAPI, TransactionEvents},
+    error::{SuiError, SuiResult},
+    messages_checkpoint::{
+        CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
+    },
+    messages_grpc::{
+        HandleCertificateResponseV2, HandleTransactionResponse, ObjectInfoRequest,
+        ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse,
+    },
+    sui_system_state::SuiSystemState,
     transaction::{CertifiedTransaction, Transaction, VerifiedTransaction},
 };
-use sui_types::{
-    effects::{TransactionEffectsAPI, TransactionEvents},
-    messages_checkpoint::{CheckpointRequestV2, CheckpointResponseV2},
+
+use crate::{
+    authority::{test_authority_builder::TestAuthorityBuilder, AuthorityState},
+    authority_client::AuthorityAPI,
 };
 
 #[derive(Clone, Copy, Default)]
@@ -152,9 +153,10 @@ impl LocalAuthorityClient {
         }
     }
 
-    // One difference between this implementation and actual certificate execution, is that
-    // this assumes shared object locks have already been acquired and tries to execute shared
-    // object transactions as well as owned object transactions.
+    // One difference between this implementation and actual certificate execution,
+    // is that this assumes shared object locks have already been acquired and
+    // tries to execute shared object transactions as well as owned object
+    // transactions.
     async fn handle_certificate(
         state: Arc<AuthorityState>,
         certificate: CertifiedTransaction,
@@ -165,8 +167,8 @@ impl LocalAuthorityClient {
                 error: "Mock error before handle_confirmation_transaction".to_owned(),
             });
         }
-        // Check existing effects before verifying the cert to allow querying certs finalized
-        // from previous epochs.
+        // Check existing effects before verifying the cert to allow querying certs
+        // finalized from previous epochs.
         let tx_digest = *certificate.digest();
         let epoch_store = state.epoch_store_for_testing();
         let signed_effects = match state
@@ -178,7 +180,7 @@ impl LocalAuthorityClient {
                     .signature_verifier
                     .verify_cert(certificate)
                     .await?;
-                //let certificate = certificate.verify(epoch_store.committee())?;
+                // let certificate = certificate.verify(epoch_store.committee())?;
                 state.enqueue_certificates_for_execution(vec![certificate.clone()], &epoch_store);
                 let effects = state.notify_read_effects(&certificate).await?;
                 state.sign_effects(effects, &epoch_store)?

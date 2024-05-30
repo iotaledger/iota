@@ -3,11 +3,12 @@
 
 mod init;
 
+use std::path::PathBuf;
+
 use anyhow::Result;
 use clap::Parser;
 pub use init::bootstrap_service;
 use init::ServiceLanguage;
-use std::path::PathBuf;
 
 #[derive(Parser, Debug, Clone)]
 pub struct ServiceArgs {

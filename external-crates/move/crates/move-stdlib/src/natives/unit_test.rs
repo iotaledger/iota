@@ -2,7 +2,8 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::natives::helpers::make_module_natives;
+use std::{collections::VecDeque, sync::Arc};
+
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::{
     account_address::AccountAddress,
@@ -16,14 +17,16 @@ use move_vm_types::{
     loaded_data::runtime_types::Type, natives::function::NativeResult, pop_arg, values::Value,
 };
 use smallvec::smallvec;
-use std::{collections::VecDeque, sync::Arc};
 
-/***************************************************************************************************
- * native fun create_signers_for_testing
- *
- *   gas cost: base_cost + unit_cost * num_of_signers
- *
- **************************************************************************************************/
+use crate::natives::helpers::make_module_natives;
+
+/// ****************************************************************************
+/// ********************* native fun create_signers_for_testing
+///
+///   gas cost: base_cost + unit_cost * num_of_signers
+///
+/// ****************************************************************************
+/// *******************
 fn to_le_bytes(i: u64) -> [u8; AccountAddress::LENGTH] {
     let bytes = i.to_le_bytes();
     let mut result = [0u8; AccountAddress::LENGTH];
@@ -93,9 +96,10 @@ pub fn make_native_poison(gas_params: PoisonGasParameters) -> NativeFunction {
     )
 }
 
-/***************************************************************************************************
- * module
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* module
+/// ****************************************************************************
+/// *******************
 #[derive(Debug, Clone)]
 pub struct GasParameters {
     pub create_signers_for_testing: CreateSignersForTestingGasParameters,

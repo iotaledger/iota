@@ -1,12 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use async_trait::async_trait;
 use std::sync::Arc;
+
+use async_trait::async_trait;
 use sui_types::sui_system_state::{SuiSystemState, SuiSystemStateTrait};
 use tokio::sync::broadcast::error::RecvError;
 use tracing::{info, warn};
 
+use super::QuorumDriver;
 use crate::{
     authority_aggregator::{AuthAggMetrics, AuthorityAggregator},
     authority_client::{AuthorityAPI, NetworkAuthorityClient},
@@ -14,8 +16,6 @@ use crate::{
     execution_cache::ExecutionCacheRead,
     safe_client::SafeClientMetricsBase,
 };
-
-use super::QuorumDriver;
 
 #[async_trait]
 pub trait ReconfigObserver<A: Clone> {

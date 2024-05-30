@@ -1,57 +1,55 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{anyhow, bail, Result};
-use move_core_types::ident_str;
 use std::{
     collections::{BTreeMap, HashSet},
     fmt::{self, Debug, Display, Formatter, Write},
     fs,
     path::PathBuf,
 };
-use sui_genesis_builder::validator_info::GenesisValidatorInfo;
 
-use sui_types::{
-    base_types::{ObjectID, ObjectRef, SuiAddress},
-    crypto::{AuthorityPublicKey, NetworkPublicKey, Signable, DEFAULT_EPOCH_ID},
-    multiaddr::Multiaddr,
-    object::Owner,
-    sui_system_state::{
-        sui_system_state_inner_v1::{UnverifiedValidatorOperationCapV1, ValidatorV1},
-        sui_system_state_summary::{SuiSystemStateSummary, SuiValidatorSummary},
-    },
-    SUI_SYSTEM_PACKAGE_ID,
-};
-use tap::tap::TapOptional;
-
-use crate::fire_drill::get_gas_obj_ref;
+use anyhow::{anyhow, bail, Result};
 use clap::*;
 use colored::Colorize;
-use fastcrypto::traits::ToFromBytes;
 use fastcrypto::{
     encoding::{Base64, Encoding},
-    traits::KeyPair,
+    traits::{KeyPair, ToFromBytes},
 };
+use move_core_types::ident_str;
 use serde::Serialize;
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
+use sui_genesis_builder::validator_info::GenesisValidatorInfo;
 use sui_json_rpc_types::{
     SuiObjectDataOptions, SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
 };
-use sui_keys::keystore::AccountKeystore;
 use sui_keys::{
     key_derive::generate_new_key,
     keypair_file::{
         read_authority_keypair_from_file, read_keypair_from_file, read_network_keypair_from_file,
         write_authority_keypair_to_file, write_keypair_to_file,
     },
+    keystore::AccountKeystore,
 };
-use sui_sdk::wallet_context::WalletContext;
-use sui_sdk::SuiClient;
-use sui_types::crypto::{
-    generate_proof_of_possession, get_authority_key_pair, AuthorityPublicKeyBytes,
+use sui_sdk::{wallet_context::WalletContext, SuiClient};
+use sui_types::{
+    base_types::{ObjectID, ObjectRef, SuiAddress},
+    crypto::{
+        generate_proof_of_possession, get_authority_key_pair, AuthorityKeyPair, AuthorityPublicKey,
+        AuthorityPublicKeyBytes, NetworkKeyPair, NetworkPublicKey, Signable, SignatureScheme,
+        SuiKeyPair, DEFAULT_EPOCH_ID,
+    },
+    multiaddr::Multiaddr,
+    object::Owner,
+    sui_system_state::{
+        sui_system_state_inner_v1::{UnverifiedValidatorOperationCapV1, ValidatorV1},
+        sui_system_state_summary::{SuiSystemStateSummary, SuiValidatorSummary},
+    },
+    transaction::{CallArg, ObjectArg, Transaction, TransactionData},
+    SUI_SYSTEM_PACKAGE_ID,
 };
-use sui_types::crypto::{AuthorityKeyPair, NetworkKeyPair, SignatureScheme, SuiKeyPair};
-use sui_types::transaction::{CallArg, ObjectArg, Transaction, TransactionData};
+use tap::tap::TapOptional;
+
+use crate::fire_drill::get_gas_obj_ref;
 
 #[path = "unit_tests/validator_tests.rs"]
 #[cfg(test)]
@@ -108,9 +106,10 @@ pub enum SuiValidatorCommand {
     /// Update gas price that is used to calculate Reference Gas Price
     #[clap(name = "update-gas-price")]
     UpdateGasPrice {
-        /// Optional when sender is the validator itself and it holds the Cap object.
-        /// Required when sender is not the validator itself.
-        /// Validator's OperationCap ID can be found by using the `display-metadata` subcommand.
+        /// Optional when sender is the validator itself and it holds the Cap
+        /// object. Required when sender is not the validator itself.
+        /// Validator's OperationCap ID can be found by using the
+        /// `display-metadata` subcommand.
         #[clap(name = "operation-cap-id", long)]
         operation_cap_id: Option<ObjectID>,
         #[clap(name = "gas-price")]
@@ -122,9 +121,10 @@ pub enum SuiValidatorCommand {
     /// Report or un-report a validator.
     #[clap(name = "report-validator")]
     ReportValidator {
-        /// Optional when sender is reporter validator itself and it holds the Cap object.
-        /// Required when sender is not the reporter validator itself.
-        /// Validator's OperationCap ID can be found by using the `display-metadata` subcommand.
+        /// Optional when sender is reporter validator itself and it holds the
+        /// Cap object. Required when sender is not the reporter
+        /// validator itself. Validator's OperationCap ID can be found
+        /// by using the `display-metadata` subcommand.
         #[clap(name = "operation-cap-id", long)]
         operation_cap_id: Option<ObjectID>,
         /// The Sui Address of the validator is being reported or un-reported
@@ -138,7 +138,8 @@ pub enum SuiValidatorCommand {
         gas_budget: Option<u64>,
     },
     /// Serialize the payload that is used to generate Proof of Possession.
-    /// This is useful to take the payload offline for an Authority protocol keypair to sign.
+    /// This is useful to take the payload offline for an Authority protocol
+    /// keypair to sign.
     #[clap(name = "serialize-payload-pop")]
     SerializePayloadForPoP {
         /// Authority account address encoded in hex with 0x prefix.
@@ -148,12 +149,14 @@ pub enum SuiValidatorCommand {
         #[clap(name = "protocol-public-key", long)]
         protocol_public_key: AuthorityPublicKeyBytes,
     },
-    /// Print out the serialized data of a transaction that sets the gas price quote for a validator.
+    /// Print out the serialized data of a transaction that sets the gas price
+    /// quote for a validator.
     DisplayGasPriceUpdateRawTxn {
         /// Address of the transaction sender.
         #[clap(name = "sender-address", long)]
         sender_address: SuiAddress,
-        /// Object ID of a validator's OperationCap, used for setting gas price and reportng validators.
+        /// Object ID of a validator's OperationCap, used for setting gas price
+        /// and reportng validators.
         #[clap(name = "operation-cap-id", long)]
         operation_cap_id: ObjectID,
         /// Gas price to be set to.
@@ -487,8 +490,9 @@ async fn get_cap_object_ref(
         let (status, summary) = get_validator_summary(&sui_client, validator_address)
             .await?
             .ok_or_else(|| anyhow::anyhow!("{} is not a validator.", validator_address))?;
-        // TODO we should allow validator to perform this operation even though the Cap is not at hand.
-        // But for now we need to make sure the cap is owned by the sender.
+        // TODO we should allow validator to perform this operation even though the Cap
+        // is not at hand. But for now we need to make sure the cap is owned by
+        // the sender.
         let cap_object_id = summary.operation_cap_id;
         let resp = sui_client
             .read_api()
@@ -697,7 +701,8 @@ impl Display for SuiValidatorCommandResponse {
 pub fn write_transaction_response(
     response: &SuiTransactionBlockResponse,
 ) -> Result<String, fmt::Error> {
-    // we requested with for full_content, so the following content should be available.
+    // we requested with for full_content, so the following content should be
+    // available.
     let success = response.status_ok().unwrap();
     let lines = vec![
         String::from("----- Transaction Digest ----"),
@@ -833,7 +838,8 @@ async fn get_pending_candidate_summary(
         )
         .await?;
     for resp in resps {
-        // We always expect an objectId from the response as one of data/error should be included.
+        // We always expect an objectId from the response as one of data/error should be
+        // included.
         let object_id = resp.object_id()?;
         let bcs = resp.move_object_bcs().ok_or_else(|| {
             anyhow::anyhow!(
@@ -884,7 +890,8 @@ pub enum MetadataUpdate {
         #[clap(name = "worker-key-path")]
         file: PathBuf,
     },
-    /// Update Protocol Public Key and Proof and Possession. Effectuate from next epoch.
+    /// Update Protocol Public Key and Proof and Possession. Effectuate from
+    /// next epoch.
     ProtocolPubKey {
         #[clap(name = "protocol-key-path")]
         file: PathBuf,
@@ -1035,5 +1042,8 @@ async fn check_status(
     if allowed_status.contains(&status) {
         return Ok(status);
     }
-    bail!("Validator {validator_address} is {:?}, this operation is not supported in this tool or prohibited.", status)
+    bail!(
+        "Validator {validator_address} is {:?}, this operation is not supported in this tool or prohibited.",
+        status
+    )
 }

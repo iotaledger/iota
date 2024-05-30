@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use super::base64::Base64;
 use async_graphql::*;
+
+use super::base64::Base64;
 
 /// The credentials related fields associated with a validator.
 #[derive(Clone, Debug, PartialEq, Eq, SimpleObject)]

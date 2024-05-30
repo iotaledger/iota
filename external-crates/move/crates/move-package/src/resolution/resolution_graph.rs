@@ -2,28 +2,34 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{bail, Context, Result};
-use move_command_line_common::files::{
-    extension_equals, find_filenames, find_move_filenames, FileHash, MOVE_COMPILED_EXTENSION,
-};
-use move_compiler::command_line::DEFAULT_OUTPUT_DIR;
-use move_compiler::{diagnostics::WarningFilters, shared::PackageConfig};
-use move_core_types::account_address::AccountAddress;
-use move_symbol_pool::Symbol;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
     io::Write,
     path::{Path, PathBuf},
 };
+
+use anyhow::{bail, Context, Result};
+use move_command_line_common::files::{
+    extension_equals, find_filenames, find_move_filenames, FileHash, MOVE_COMPILED_EXTENSION,
+};
+use move_compiler::{
+    command_line::DEFAULT_OUTPUT_DIR, diagnostics::WarningFilters, shared::PackageConfig,
+};
+use move_core_types::account_address::AccountAddress;
+use move_symbol_pool::Symbol;
 use treeline::Tree;
 
-use crate::package_hooks::{custom_resolve_pkg_id, PackageIdentifier};
-use crate::source_package::parsed_manifest as PM;
+use super::{
+    dependency_cache::DependencyCache, dependency_graph as DG, digest::compute_digest, local_path,
+    resolving_table::ResolvingTable,
+};
 use crate::{
+    package_hooks::{custom_resolve_pkg_id, PackageIdentifier},
     source_package::{
         layout::SourcePackageLayout,
         manifest_parser::parse_move_manifest_from_file,
+        parsed_manifest as PM,
         parsed_manifest::{
             FileName, NamedAddress, PackageDigest, PackageName, SourceManifest, SubstOrRename,
         },
@@ -31,21 +37,17 @@ use crate::{
     BuildConfig,
 };
 
-use super::{
-    dependency_cache::DependencyCache, dependency_graph as DG, digest::compute_digest, local_path,
-    resolving_table::ResolvingTable,
-};
-
-/// The graph after resolution in which all named addresses have been assigned a value.
+/// The graph after resolution in which all named addresses have been assigned a
+/// value.
 ///
 /// Named addresses can be assigned values in a couple different ways:
-/// 1. They can be assigned a value in the declaring package. In this case the value of that
-///    named address will always be that value.
-/// 2. Can be left unassigned in the declaring package. In this case it can receive its value
-///    through unification across the package graph.
+/// 1. They can be assigned a value in the declaring package. In this case the
+///    value of that named address will always be that value.
+/// 2. Can be left unassigned in the declaring package. In this case it can
+///    receive its value through unification across the package graph.
 ///
-/// Named addresses can also be renamed in a package and will be re-exported under thes new names in
-/// this case.
+/// Named addresses can also be renamed in a package and will be re-exported
+/// under thes new names in this case.
 #[derive(Debug, Clone)]
 pub struct ResolvedGraph {
     pub graph: DG::DependencyGraph,
@@ -70,7 +72,8 @@ pub struct Package {
     pub renaming: Renaming,
     /// The mapping of addresses that are in scope for this package.
     pub resolved_table: ResolvedTable,
-    /// The digest of the contents of all source files and manifest under the package root
+    /// The digest of the contents of all source files and manifest under the
+    /// package root
     pub source_digest: PackageDigest,
 }
 
@@ -90,8 +93,8 @@ impl ResolvedGraph {
             DG::DependencyMode::Always
         };
 
-        // Resolve transitive dependencies in reverse topological order so that a package's
-        // dependencies get resolved before it does.
+        // Resolve transitive dependencies in reverse topological order so that a
+        // package's dependencies get resolved before it does.
         for pkg_id in graph.topological_order().into_iter().rev() {
             // Skip dev-mode packages if not in dev-mode.
             if !(build_options.dev_mode || graph.always_deps.contains(&pkg_id)) {
@@ -227,8 +230,8 @@ impl ResolvedGraph {
             }
         }
 
-        // Now that all address unification has happened, individual package resolution tables can
-        // be unified.
+        // Now that all address unification has happened, individual package resolution
+        // tables can be unified.
         for pkg in package_table.values_mut() {
             pkg.finalize_address_resolution(&resolving_table)
                 .with_context(|| {
@@ -261,7 +264,8 @@ impl ResolvedGraph {
         self.package_table.get(&name).unwrap()
     }
 
-    /// Return the names of packages in this resolution graph in topological order.
+    /// Return the names of packages in this resolution graph in topological
+    /// order.
     pub fn topological_order(&self) -> Vec<PackageName> {
         let mut order = self.graph.topological_order();
         if !self.build_options.dev_mode {

@@ -43,7 +43,8 @@ fn test_publish_module_with_custom_max_binary_format_version() {
         .unwrap();
     }
 
-    // Should reject the module with newer version with max binary format version being set to VERSION_MAX - 1
+    // Should reject the module with newer version with max binary format version
+    // being set to VERSION_MAX - 1
     {
         let storage = InMemoryStorage::new();
         let mut vm_config = VMConfig::default();

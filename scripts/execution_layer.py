@@ -512,11 +512,11 @@ def generate_lib(output_file: TextIO):
         )
 
     try:
-        result = subprocess.run(['rustfmt'], input=rust_code, text=True, capture_output=True, check=True)
+        result = subprocess.run(['cargo', '+nightly', 'fmt'], input=rust_code, text=True, capture_output=True, check=True)
         formatted_code = result.stdout
         output_file.write(formatted_code)
     except subprocess.CalledProcessError as e:
-        print(f"rustfmt failed with error code {e.returncode}")
+        print(f"cargo fmt failed with error code {e.returncode}")
         print("stderr:", e.stderr)
     except Exception as e:
         print(f"An error occurred: {e}")

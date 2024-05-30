@@ -13,7 +13,8 @@ fn main() -> Result<()> {
     let natives = all_natives(addr, GasParameters::zeros())
         .into_iter()
         .chain(nursery_natives(
-            /* silent */ false,
+            // silent
+            false,
             addr,
             NurseryGasParameters::zeros(),
         ))
