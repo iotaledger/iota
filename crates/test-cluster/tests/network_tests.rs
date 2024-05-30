@@ -54,8 +54,8 @@ async fn test_package_override() {
         let address_idx = test_module.self_handle().address.0 as usize;
         test_module.address_identifiers[address_idx] = SUI_SYSTEM_ADDRESS;
 
-        // Add the dummy module to the rest of the sui-frameworks.  We can't replace the framework
-        // entirely because we will call into it for genesis.
+        // Add the dummy module to the rest of the sui-frameworks.  We can't replace the
+        // framework entirely because we will call into it for genesis.
         framework_modules.push(test_module);
 
         let package_override = Object::new_package_for_testing(

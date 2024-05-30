@@ -1,11 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::PathBuf;
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::HashSet, path::PathBuf, sync::Arc};
 
 use move_binary_format::CompiledModule;
+use move_bytecode_verifier_v2::meter::Scope;
 use move_vm_config::verifier::VerifierConfig;
+use move_vm_runtime_v2::move_vm::MoveVM;
+use sui_adapter_v2::{
+    adapter::{new_move_vm, run_metered_move_bytecode_verifier},
+    execution_engine::{execute_genesis_state_update, execute_transaction_to_effects},
+    type_layout_resolver::TypeLayoutResolver,
+};
+use sui_move_natives_v2::all_natives;
 use sui_protocol_config::ProtocolConfig;
 use sui_types::{
     base_types::{ObjectRef, SuiAddress, TxContext},
@@ -18,24 +25,16 @@ use sui_types::{
     gas::SuiGasStatus,
     inner_temporary_store::InnerTemporaryStore,
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
+    storage::BackingStore,
     transaction::{CheckedInputObjects, ProgrammableTransaction, TransactionKind},
     type_resolver::LayoutResolver,
 };
-
-use move_bytecode_verifier_v2::meter::Scope;
-use move_vm_runtime_v2::move_vm::MoveVM;
-use sui_adapter_v2::adapter::{new_move_vm, run_metered_move_bytecode_verifier};
-use sui_adapter_v2::execution_engine::{
-    execute_genesis_state_update, execute_transaction_to_effects,
-};
-use sui_adapter_v2::type_layout_resolver::TypeLayoutResolver;
-use sui_move_natives_v2::all_natives;
-use sui_types::storage::BackingStore;
 use sui_verifier_v2::{default_verifier_config, meter::SuiVerifierMeter};
 
-use crate::executor;
-use crate::verifier;
-use crate::verifier::{VerifierMeteredValues, VerifierOverrides};
+use crate::{
+    executor, verifier,
+    verifier::{VerifierMeteredValues, VerifierOverrides},
+};
 
 pub(crate) struct Executor(Arc<MoveVM>);
 

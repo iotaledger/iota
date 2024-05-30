@@ -1,12 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::sp;
-
 use super::{
     error::{Span, Spanned},
     token::{Lexeme, Token as T},
 };
+use crate::sp;
 
 pub struct Lexer<'l, I: Iterator<Item = &'l str>> {
     pub buf: &'l str,
@@ -29,8 +28,8 @@ impl<'l, I: Iterator<Item = &'l str>> Lexer<'l, I> {
         })
     }
 
-    /// Returns the next character in the current shell token, along with the byte offset it ends
-    /// at, or None if the current shell token is empty.
+    /// Returns the next character in the current shell token, along with the
+    /// byte offset it ends at, or None if the current shell token is empty.
     fn next_char_boundary(&self) -> Option<(usize, char)> {
         let mut chars = self.buf.char_indices();
         let (_, c) = chars.next()?;
@@ -38,8 +37,8 @@ impl<'l, I: Iterator<Item = &'l str>> Lexer<'l, I> {
         Some((ix, c))
     }
 
-    /// Repeatedly consume whitespace, stopping only if you hit a non-whitespace character, or the
-    /// end of the shell token stream.
+    /// Repeatedly consume whitespace, stopping only if you hit a non-whitespace
+    /// character, or the end of the shell token stream.
     fn eat_whitespace(&mut self) {
         loop {
             if let Some((ix, c)) = self.next_char_boundary() {
@@ -58,8 +57,9 @@ impl<'l, I: Iterator<Item = &'l str>> Lexer<'l, I> {
         }
     }
 
-    /// Checks whether the current shell token starts with the prefix `patt`, and consumes it if so,
-    /// returning a spanned slice of the consumed prefix.
+    /// Checks whether the current shell token starts with the prefix `patt`,
+    /// and consumes it if so, returning a spanned slice of the consumed
+    /// prefix.
     fn eat_prefix(&mut self, patt: &str) -> Option<Spanned<&'l str>> {
         let start = self.offset;
 
@@ -79,9 +79,10 @@ impl<'l, I: Iterator<Item = &'l str>> Lexer<'l, I> {
         Some(Spanned { span, value })
     }
 
-    /// Checks whether the current shell token starts with at least one character that satisfies
-    /// `pred`. Consumes all such characters from the front of the shell token, returning a spanned
-    /// slice of the consumed prefix.
+    /// Checks whether the current shell token starts with at least one
+    /// character that satisfies `pred`. Consumes all such characters from
+    /// the front of the shell token, returning a spanned slice of the
+    /// consumed prefix.
     fn eat_while(&mut self, pred: impl FnMut(char) -> bool) -> Option<Spanned<&'l str>> {
         let start = self.offset;
 
@@ -102,8 +103,8 @@ impl<'l, I: Iterator<Item = &'l str>> Lexer<'l, I> {
         Some(Spanned { span, value })
     }
 
-    /// Consume the whole next shell token (assumes the current shell token has already been
-    /// consumed).
+    /// Consume the whole next shell token (assumes the current shell token has
+    /// already been consumed).
     fn eat_token(&mut self) -> Option<Spanned<&'l str>> {
         debug_assert!(self.buf.is_empty());
         let start = self.offset + 1;
@@ -117,7 +118,8 @@ impl<'l, I: Iterator<Item = &'l str>> Lexer<'l, I> {
         Some(Spanned { span, value })
     }
 
-    /// Look at the next character in the current shell token without consuming it, if it exists.
+    /// Look at the next character in the current shell token without consuming
+    /// it, if it exists.
     fn peek(&self) -> Option<Spanned<&'l str>> {
         let start = self.offset;
         let Some((ix, _)) = self.next_char_boundary() else {
@@ -132,7 +134,8 @@ impl<'l, I: Iterator<Item = &'l str>> Lexer<'l, I> {
         Some(Spanned { span, value })
     }
 
-    /// Consume the next character in the current shell token, assuming there is one.
+    /// Consume the next character in the current shell token, assuming there is
+    /// one.
     fn bump(&mut self) {
         if let Some((ix, _)) = self.next_char_boundary() {
             self.buf = &self.buf[ix..];
@@ -140,12 +143,13 @@ impl<'l, I: Iterator<Item = &'l str>> Lexer<'l, I> {
         }
     }
 
-    /// Tokenize a string at the prefix of the current shell token. `start` is the spanned slice
-    /// containing the initial quote character, which also specifies the terminating quote
-    /// character.
+    /// Tokenize a string at the prefix of the current shell token. `start` is
+    /// the spanned slice containing the initial quote character, which also
+    /// specifies the terminating quote character.
     ///
-    /// A string that is not terminated in the same shell token it was started in is tokenized as an
-    /// `UnfinishedString`, even if it would have been terminated in a following shell token.
+    /// A string that is not terminated in the same shell token it was started
+    /// in is tokenized as an `UnfinishedString`, even if it would have been
+    /// terminated in a following shell token.
     fn string(&mut self, start: Spanned<&'l str>) -> Spanned<Lexeme<'l>> {
         self.bump();
         let sp!(sp, quote) = start;
@@ -181,16 +185,16 @@ impl<'l, I: Iterator<Item = &'l str>> Lexer<'l, I> {
         content.widen(end).map(|src| Lexeme(T::String, src))
     }
 
-    /// Signal that `c` is an unexpected token, and trigger the lexer's error flag, to prevent
-    /// further iteration.
+    /// Signal that `c` is an unexpected token, and trigger the lexer's error
+    /// flag, to prevent further iteration.
     fn unexpected(&mut self, c: Spanned<&'l str>) -> Spanned<Lexeme<'l>> {
         let error = c.map(|src| Lexeme(T::Unexpected, src));
         self.done = Some(error);
         error
     }
 
-    /// Signal that the lexer has experienced an unexpected, early end-of-file, and trigger the
-    /// lexer's error flag, to prevent further iteration.
+    /// Signal that the lexer has experienced an unexpected, early end-of-file,
+    /// and trigger the lexer's error flag, to prevent further iteration.
     fn done(&mut self, token: T) -> Spanned<Lexeme<'l>> {
         let error = self.offset().wrap(Lexeme(token, ""));
         self.done = Some(error);

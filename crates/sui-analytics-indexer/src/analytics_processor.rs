@@ -1,32 +1,29 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fs;
-use std::ops::Range;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::{
+    fs,
+    ops::Range,
+    path::PathBuf,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
-use anyhow::Context;
-use anyhow::Result;
-use object_store::path::Path;
-use object_store::DynObjectStore;
+use anyhow::{Context, Result};
+use object_store::{path::Path, DynObjectStore};
 use serde::Serialize;
-use tokio::sync::{mpsc, oneshot};
-use tracing::{error, info};
-
 use sui_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use sui_indexer::framework::Handler;
 use sui_rest_api::CheckpointData;
 use sui_storage::object_store::util::{copy_file, path_to_filesystem};
 use sui_types::messages_checkpoint::CheckpointSequenceNumber;
+use tokio::sync::{mpsc, oneshot};
+use tracing::{error, info};
 
-use crate::analytics_metrics::AnalyticsMetrics;
-use crate::handlers::AnalyticsHandler;
-use crate::writers::AnalyticsWriter;
 use crate::{
-    join_paths, AnalyticsIndexerConfig, FileMetadata, MaxCheckpointReader, ParquetSchema,
-    EPOCH_DIR_PREFIX,
+    analytics_metrics::AnalyticsMetrics, handlers::AnalyticsHandler, join_paths,
+    writers::AnalyticsWriter, AnalyticsIndexerConfig, FileMetadata, MaxCheckpointReader,
+    ParquetSchema, EPOCH_DIR_PREFIX,
 };
 
 pub struct AnalyticsProcessor<S: Serialize + ParquetSchema> {

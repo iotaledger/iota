@@ -14,8 +14,8 @@ use tempfile::TempDir;
 use crate::metrics::test_metrics;
 use crate::metrics::Metrics;
 
-/// Context contains per-epoch configuration and metrics shared by all components
-/// of this authority.
+/// Context contains per-epoch configuration and metrics shared by all
+/// components of this authority.
 #[derive(Clone)]
 pub(crate) struct Context {
     /// Index of this authority in the committee.

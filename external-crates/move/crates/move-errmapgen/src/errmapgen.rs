@@ -2,6 +2,8 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{convert::TryFrom, rc::Rc};
+
 use anyhow::{bail, Result};
 use move_command_line_common::files::MOVE_ERROR_DESC_EXTENSION;
 use move_core_types::{
@@ -16,7 +18,6 @@ use move_model::{
     symbol::Symbol,
 };
 use serde::{Deserialize, Serialize};
-use std::{convert::TryFrom, rc::Rc};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ErrmapOptions {

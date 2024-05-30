@@ -1,6 +1,39 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::{Arc, RwLock},
+};
+
+use anyhow::{anyhow, Result};
+use cached::{proc_macro::cached, SizedCache};
+use diesel::{
+    dsl::sql, r2d2::ConnectionManager, sql_types::Bool, ExpressionMethods, OptionalExtension,
+    PgConnection, QueryDsl, RunQueryDsl, TextExpressionMethods,
+};
+use fastcrypto::encoding::{Encoding, Hex};
+use itertools::{any, Itertools};
+use move_core_types::{annotated_value::MoveStructLayout, language_storage::StructTag};
+use sui_json_rpc_types::{
+    Balance, CheckpointId, Coin as SuiCoin, DisplayFieldsResponse, EpochInfo, EventFilter,
+    SuiCoinMetadata, SuiEvent, SuiObjectDataFilter, SuiTransactionBlockEffects,
+    SuiTransactionBlockEffectsAPI, SuiTransactionBlockResponse, TransactionFilter,
+};
+use sui_types::{
+    balance::Supply,
+    base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress, VersionNumber},
+    coin::{CoinMetadata, TreasuryCap},
+    committee::EpochId,
+    digests::{ObjectDigest, TransactionDigest},
+    dynamic_field::{DynamicFieldInfo, DynamicFieldName},
+    event::EventID,
+    is_system_package,
+    move_package::MovePackage,
+    object::{MoveObject, Object, ObjectRead},
+    sui_system_state::{sui_system_state_summary::SuiSystemStateSummary, SuiSystemStateTrait},
+};
+
 use crate::{
     db::{PgConnectionConfig, PgConnectionPoolConfig, PgPoolConnection},
     errors::IndexerError,
@@ -19,45 +52,6 @@ use crate::{
     },
     types::{IndexerResult, OwnerType},
 };
-use anyhow::{anyhow, Result};
-use cached::proc_macro::cached;
-use cached::SizedCache;
-use diesel::{
-    dsl::sql, r2d2::ConnectionManager, sql_types::Bool, ExpressionMethods, OptionalExtension,
-    PgConnection, QueryDsl, RunQueryDsl, TextExpressionMethods,
-};
-use fastcrypto::encoding::Encoding;
-use fastcrypto::encoding::Hex;
-use itertools::{any, Itertools};
-use move_core_types::annotated_value::MoveStructLayout;
-use move_core_types::language_storage::StructTag;
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::{Arc, RwLock},
-};
-use sui_json_rpc_types::DisplayFieldsResponse;
-use sui_json_rpc_types::{
-    Balance, Coin as SuiCoin, SuiCoinMetadata, SuiTransactionBlockEffects,
-    SuiTransactionBlockEffectsAPI,
-};
-use sui_json_rpc_types::{
-    CheckpointId, EpochInfo, EventFilter, SuiEvent, SuiObjectDataFilter,
-    SuiTransactionBlockResponse, TransactionFilter,
-};
-use sui_types::{
-    balance::Supply, coin::TreasuryCap, dynamic_field::DynamicFieldName, object::MoveObject,
-};
-use sui_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress, VersionNumber},
-    committee::EpochId,
-    digests::{ObjectDigest, TransactionDigest},
-    dynamic_field::DynamicFieldInfo,
-    is_system_package,
-    move_package::MovePackage,
-    object::{Object, ObjectRead},
-    sui_system_state::{sui_system_state_summary::SuiSystemStateSummary, SuiSystemStateTrait},
-};
-use sui_types::{coin::CoinMetadata, event::EventID};
 
 pub const TX_SEQUENCE_NUMBER_STR: &str = "tx_sequence_number";
 pub const TRANSACTION_DIGEST_STR: &str = "transaction_digest";
@@ -186,9 +180,10 @@ thread_local! {
 /// This is done by either:
 /// - Checking that we are not inside a tokio runtime context
 /// Or:
-/// - If we are inside a tokio runtime context, ensure that the call went through
-/// `IndexerReader::spawn_blocking` which properly moves the blocking call to a blocking thread
-/// pool.
+/// - If we are inside a tokio runtime context, ensure that the call went
+///   through
+/// `IndexerReader::spawn_blocking` which properly moves the blocking call to a
+/// blocking thread pool.
 fn blocking_call_is_ok_or_panic() {
     if tokio::runtime::Handle::try_current().is_ok()
         && !CALLED_FROM_BLOCKING_POOL.with(|in_blocking_pool| *in_blocking_pool.borrow())
@@ -416,11 +411,12 @@ impl IndexerReader {
         Ok(system_state)
     }
 
-    /// Retrieve the system state data for the given epoch. If no epoch is given,
-    /// it will retrieve the latest epoch's data and return the system state.
-    /// System state of the an epoch is written at the end of the epoch, so system state
-    /// of the current epoch is empty until the epoch ends. You can call
-    /// `get_latest_sui_system_state` for current epoch instead.
+    /// Retrieve the system state data for the given epoch. If no epoch is
+    /// given, it will retrieve the latest epoch's data and return the
+    /// system state. System state of the an epoch is written at the end of
+    /// the epoch, so system state of the current epoch is empty until the
+    /// epoch ends. You can call `get_latest_sui_system_state` for current
+    /// epoch instead.
     pub fn get_epoch_sui_system_state(
         &self,
         epoch: Option<EpochId>,
@@ -823,7 +819,7 @@ impl IndexerReader {
                     cursor_tx_seq,
                     limit,
                     is_descending,
-                )
+                );
             }
             // FIXME: sanitize module & function
             Some(TransactionFilter::MoveFunction {
@@ -968,11 +964,7 @@ impl IndexerReader {
 
         let query = format!(
             "SELECT {TX_SEQUENCE_NUMBER_STR} FROM {} WHERE {} {} ORDER BY {TX_SEQUENCE_NUMBER_STR} {} LIMIT {}",
-            table_name,
-            main_where_clause,
-            cursor_clause,
-            order_str,
-            limit,
+            table_name, main_where_clause, cursor_clause, order_str, limit,
         );
 
         tracing::debug!("query transaction blocks: {}", query);
@@ -1134,9 +1126,15 @@ impl IndexerReader {
         let query = if let EventFilter::Sender(sender) = &filter {
             // Need to remove ambiguities for tx_sequence_number column
             let cursor_clause = if descending_order {
-                format!("(e.{TX_SEQUENCE_NUMBER_STR} < {} OR (e.{TX_SEQUENCE_NUMBER_STR} = {} AND e.{EVENT_SEQUENCE_NUMBER_STR} < {}))", tx_seq, tx_seq, event_seq)
+                format!(
+                    "(e.{TX_SEQUENCE_NUMBER_STR} < {} OR (e.{TX_SEQUENCE_NUMBER_STR} = {} AND e.{EVENT_SEQUENCE_NUMBER_STR} < {}))",
+                    tx_seq, tx_seq, event_seq
+                )
             } else {
-                format!("(e.{TX_SEQUENCE_NUMBER_STR} > {} OR (e.{TX_SEQUENCE_NUMBER_STR} = {} AND e.{EVENT_SEQUENCE_NUMBER_STR} > {}))", tx_seq, tx_seq, event_seq)
+                format!(
+                    "(e.{TX_SEQUENCE_NUMBER_STR} > {} OR (e.{TX_SEQUENCE_NUMBER_STR} = {} AND e.{EVENT_SEQUENCE_NUMBER_STR} > {}))",
+                    tx_seq, tx_seq, event_seq
+                )
             };
             let order_clause = if descending_order {
                 format!("e.{TX_SEQUENCE_NUMBER_STR} DESC, e.{EVENT_SEQUENCE_NUMBER_STR} DESC")
@@ -1201,9 +1199,15 @@ impl IndexerReader {
             };
 
             let cursor_clause = if descending_order {
-                format!("AND ({TX_SEQUENCE_NUMBER_STR} < {} OR ({TX_SEQUENCE_NUMBER_STR} = {} AND {EVENT_SEQUENCE_NUMBER_STR} < {}))", tx_seq, tx_seq, event_seq)
+                format!(
+                    "AND ({TX_SEQUENCE_NUMBER_STR} < {} OR ({TX_SEQUENCE_NUMBER_STR} = {} AND {EVENT_SEQUENCE_NUMBER_STR} < {}))",
+                    tx_seq, tx_seq, event_seq
+                )
             } else {
-                format!("AND ({TX_SEQUENCE_NUMBER_STR} > {} OR ({TX_SEQUENCE_NUMBER_STR} = {} AND {EVENT_SEQUENCE_NUMBER_STR} > {}))", tx_seq, tx_seq, event_seq)
+                format!(
+                    "AND ({TX_SEQUENCE_NUMBER_STR} > {} OR ({TX_SEQUENCE_NUMBER_STR} = {} AND {EVENT_SEQUENCE_NUMBER_STR} > {}))",
+                    tx_seq, tx_seq, event_seq
+                )
             };
             let order_clause = if descending_order {
                 format!("{TX_SEQUENCE_NUMBER_STR} DESC, {EVENT_SEQUENCE_NUMBER_STR} DESC")
@@ -1669,7 +1673,8 @@ impl move_bytecode_utils::module_cache::GetModule for IndexerReader {
     ) -> Result<Option<Self::Item>, Self::Error> {
         let package_id = ObjectID::from(*id.address());
         let module_name = id.name().to_string();
-        // TODO: we need a cache here for deserialized module and take care of package upgrades
+        // TODO: we need a cache here for deserialized module and take care of package
+        // upgrades
         self.get_package(&package_id)?
             .and_then(|package| package.serialized_module_map().get(&module_name).cloned())
             .map(|bytes| move_binary_format::CompiledModule::deserialize_with_defaults(&bytes))
@@ -1713,10 +1718,12 @@ fn get_single_obj_id_from_package_publish(
         if obj_ids_with_type.len() == 1 {
             Ok(Some(obj_ids_with_type[0]))
         } else if obj_ids_with_type.is_empty() {
-            // The package exists but no such object is created in that transaction. Or maybe it is wrapped and we don't know yet.
+            // The package exists but no such object is created in that transaction. Or
+            // maybe it is wrapped and we don't know yet.
             Ok(None)
         } else {
-            // We expect there to be only one object of this type created by the package but more than one is found.
+            // We expect there to be only one object of this type created by the package but
+            // more than one is found.
             tracing::error!(
                 "There are more than one objects found for type {}",
                 obj_type

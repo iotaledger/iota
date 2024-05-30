@@ -1,22 +1,54 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::config::{
-    ConnectionConfig, ServiceConfig, Version, MAX_CONCURRENT_REQUESTS,
-    RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD,
+use std::{
+    any::Any,
+    convert::Infallible,
+    net::{SocketAddr, TcpStream},
+    sync::{
+        atomic::{AtomicU64, Ordering::Relaxed},
+        Arc,
+    },
+    time::Instant,
 };
-use crate::consistency::CheckpointViewedAt;
-use crate::context_data::package_cache::DbPackageStore;
-use crate::data::Db;
-use crate::metrics::Metrics;
-use crate::mutation::Mutation;
-use crate::types::checkpoint::Checkpoint;
-use crate::types::move_object::IMoveObject;
-use crate::types::object::IObject;
-use crate::types::owner::IOwner;
+
+use async_graphql::{
+    dataloader::DataLoader,
+    extensions::{ApolloTracing, ExtensionFactory, Tracing},
+    EmptySubscription, Schema, SchemaBuilder, ServerError,
+};
+use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
+use axum::{
+    extract::{connect_info::IntoMakeServiceWithConnectInfo, ConnectInfo, FromRef, State},
+    headers::Header,
+    http::{HeaderMap, StatusCode},
+    middleware::{self},
+    response::IntoResponse,
+    routing::{post, MethodRouter, Route},
+    Router,
+};
+use http::{HeaderValue, Method, Request};
+use hyper::{server::conn::AddrIncoming as HyperAddrIncoming, Body, Server as HyperServer};
+use mysten_metrics::spawn_monitored_task;
+use mysten_network::callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler};
+use sui_graphql_rpc_headers::{LIMITS_HEADER, VERSION_HEADER};
+use sui_package_resolver::{PackageStoreWithLruCache, Resolver};
+use sui_sdk::SuiClientBuilder;
+use tokio::{join, sync::OnceCell};
+use tokio_util::sync::CancellationToken;
+use tower::{Layer, Service};
+use tower_http::cors::{AllowOrigin, CorsLayer};
+use tracing::{error, info, warn};
+use uuid::Uuid;
+
 use crate::{
-    config::ServerConfig,
-    context_data::db_data_provider::PgManager,
+    config::{
+        ConnectionConfig, ServerConfig, ServiceConfig, Version, MAX_CONCURRENT_REQUESTS,
+        RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD,
+    },
+    consistency::CheckpointViewedAt,
+    context_data::{db_data_provider::PgManager, package_cache::DbPackageStore},
+    data::Db,
     error::Error,
     extensions::{
         feature_gate::FeatureGate,
@@ -24,43 +56,17 @@ use crate::{
         query_limits_checker::{QueryLimitsChecker, ShowUsage},
         timeout::Timeout,
     },
+    metrics::Metrics,
+    mutation::Mutation,
     server::version::{check_version_middleware, set_version_middleware},
-    types::query::{Query, SuiGraphQLSchema},
+    types::{
+        checkpoint::Checkpoint,
+        move_object::IMoveObject,
+        object::IObject,
+        owner::IOwner,
+        query::{Query, SuiGraphQLSchema},
+    },
 };
-use async_graphql::dataloader::DataLoader;
-use async_graphql::extensions::ApolloTracing;
-use async_graphql::extensions::Tracing;
-use async_graphql::{extensions::ExtensionFactory, Schema, SchemaBuilder};
-use async_graphql::{EmptySubscription, ServerError};
-use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
-use axum::extract::FromRef;
-use axum::extract::{connect_info::IntoMakeServiceWithConnectInfo, ConnectInfo, State};
-use axum::http::{HeaderMap, StatusCode};
-use axum::middleware::{self};
-use axum::response::IntoResponse;
-use axum::routing::{post, MethodRouter, Route};
-use axum::{headers::Header, Router};
-use http::{HeaderValue, Method, Request};
-use hyper::server::conn::AddrIncoming as HyperAddrIncoming;
-use hyper::Body;
-use hyper::Server as HyperServer;
-use mysten_metrics::spawn_monitored_task;
-use mysten_network::callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler};
-use std::convert::Infallible;
-use std::net::TcpStream;
-use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
-use std::sync::Arc;
-use std::{any::Any, net::SocketAddr, time::Instant};
-use sui_graphql_rpc_headers::{LIMITS_HEADER, VERSION_HEADER};
-use sui_package_resolver::{PackageStoreWithLruCache, Resolver};
-use sui_sdk::SuiClientBuilder;
-use tokio::join;
-use tokio::sync::OnceCell;
-use tokio_util::sync::CancellationToken;
-use tower::{Layer, Service};
-use tower_http::cors::{AllowOrigin, CorsLayer};
-use tracing::{error, info, warn};
-use uuid::Uuid;
 
 pub(crate) struct Server {
     pub server: HyperServer<HyperAddrIncoming, IntoMakeServiceWithConnectInfo<Router, SocketAddr>>,
@@ -71,14 +77,15 @@ pub(crate) struct Server {
 }
 
 impl Server {
-    /// Start the GraphQL service and any background tasks it is dependent on. When a cancellation
-    /// signal is received, the method waits for all tasks to complete before returning.
+    /// Start the GraphQL service and any background tasks it is dependent on.
+    /// When a cancellation signal is received, the method waits for all
+    /// tasks to complete before returning.
     pub async fn run(self) -> Result<(), Error> {
         get_or_init_server_start_time().await;
 
-        // A handle that spawns a background task to periodically update the `CheckpointViewedAt`,
-        // which is the u64 high watermark of checkpoints that the service is guaranteed to produce
-        // a consistent result for.
+        // A handle that spawns a background task to periodically update the
+        // `CheckpointViewedAt`, which is the u64 high watermark of checkpoints
+        // that the service is guaranteed to produce a consistent result for.
         let watermark_task = {
             let metrics = self.state.metrics.clone();
             let sleep_ms = self.state.service.background_tasks.watermark_update_ms;
@@ -110,8 +117,9 @@ impl Server {
             })
         };
 
-        // Wait for both tasks to complete. This ensures that the service doesn't fully shut down
-        // until both the background task and the server have completed their shutdown processes.
+        // Wait for both tasks to complete. This ensures that the service doesn't fully
+        // shut down until both the background task and the server have
+        // completed their shutdown processes.
         let _ = join!(watermark_task, server_task);
 
         Ok(())
@@ -134,8 +142,8 @@ pub(crate) struct AppState {
     pub version: Version,
 }
 
-/// The high checkpoint watermark stamped on each GraphQL request. This is used to ensure
-/// cross-query consistency.
+/// The high checkpoint watermark stamped on each GraphQL request. This is used
+/// to ensure cross-query consistency.
 #[derive(Clone)]
 pub(crate) struct CheckpointWatermark(pub Arc<AtomicU64>);
 
@@ -200,8 +208,8 @@ impl ServerBuilder {
         self.schema.finish()
     }
 
-    /// Prepares the components of the server to be run. Finalizes the graphql schema, and expects
-    /// the `Db` and `Router` to have been initialized.
+    /// Prepares the components of the server to be run. Finalizes the graphql
+    /// schema, and expects the `Db` and `Router` to have been initialized.
     fn build_components(
         self,
     ) -> (
@@ -323,8 +331,8 @@ impl ServerBuilder {
         })
     }
 
-    /// Instantiate a `ServerBuilder` from a `ServerConfig`, typically called when building the
-    /// graphql service for production usage.
+    /// Instantiate a `ServerBuilder` from a `ServerConfig`, typically called
+    /// when building the graphql service for production usage.
     pub async fn from_config(
         config: &ServerConfig,
         version: &Version,
@@ -396,7 +404,9 @@ impl ServerBuilder {
                     .map_err(|e| Error::Internal(format!("Failed to create SuiClient: {}", e)))?,
             )
         } else {
-            warn!("No fullnode url found in config. `dryRunTransactionBlock` and `executeTransactionBlock` will not work");
+            warn!(
+                "No fullnode url found in config. `dryRunTransactionBlock` and `executeTransactionBlock` will not work"
+            );
             None
         };
 
@@ -453,8 +463,9 @@ pub fn export_schema() -> String {
     schema_builder().finish().sdl()
 }
 
-/// Entry point for graphql requests. Each request is stamped with a unique ID, a `ShowUsage` flag
-/// if set in the request headers, and the high checkpoint watermark as set by the background task.
+/// Entry point for graphql requests. Each request is stamped with a unique ID,
+/// a `ShowUsage` flag if set in the request headers, and the high checkpoint
+/// watermark as set by the background task.
 async fn graphql_handler(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     schema: axum::Extension<SuiGraphQLSchema>,
@@ -468,18 +479,20 @@ async fn graphql_handler(
         req.data.insert(ShowUsage)
     }
     // Capture the IP address of the client
-    // Note: if a load balancer is used it must be configured to forward the client IP address
+    // Note: if a load balancer is used it must be configured to forward the client
+    // IP address
     req.data.insert(addr);
 
-    let checkpoint_viewed_at = watermark.0 .0.load(Relaxed);
+    let checkpoint_viewed_at = watermark.0.0.load(Relaxed);
 
-    // This wrapping is done to delineate the watermark from potentially other u64 types.
+    // This wrapping is done to delineate the watermark from potentially other u64
+    // types.
     req.data.insert(CheckpointViewedAt(checkpoint_viewed_at));
 
     let result = schema.execute(req).await;
 
-    // If there are errors, insert them as an extention so that the Metrics callback handler can
-    // pull it out later.
+    // If there are errors, insert them as an extention so that the Metrics callback
+    // handler can pull it out later.
     let mut extensions = axum::http::Extensions::new();
     if result.is_err() {
         extensions.insert(GraphqlErrors(std::sync::Arc::new(result.errors.clone())));
@@ -521,8 +534,8 @@ impl ResponseHandler for MetricsCallbackHandler {
     fn on_error<E>(self, _error: &E) {
         // Do nothing if the whole service errored
         //
-        // in Axum this isn't possible since all services are required to have an error type of
-        // Infallible
+        // in Axum this isn't possible since all services are required to have
+        // an error type of Infallible
     }
 }
 
@@ -565,7 +578,8 @@ async fn get_or_init_server_start_time() -> &'static Instant {
     ONCE.get_or_init(|| async move { Instant::now() }).await
 }
 
-/// Starts an infinite loop that periodically updates the `checkpoint_viewed_at` high watermark.
+/// Starts an infinite loop that periodically updates the `checkpoint_viewed_at`
+/// high watermark.
 pub(crate) async fn update_watermark(
     db: &Db,
     checkpoint_viewed_at: CheckpointWatermark,
@@ -599,23 +613,24 @@ pub(crate) async fn update_watermark(
 }
 
 pub mod tests {
-    use super::*;
-    use crate::{
-        config::{ConnectionConfig, Limits, ServiceConfig, Version},
-        context_data::db_data_provider::PgManager,
-        extensions::query_limits_checker::QueryLimitsChecker,
-        extensions::timeout::Timeout,
-    };
+    use std::{sync::Arc, time::Duration};
+
     use async_graphql::{
         extensions::{Extension, ExtensionContext, NextExecute},
         Response,
     };
-    use std::sync::Arc;
-    use std::time::Duration;
     use uuid::Uuid;
 
-    /// Prepares a schema for tests dealing with extensions. Returns a `ServerBuilder` that can be
-    /// further extended with `context_data` and `extension` for testing.
+    use super::*;
+    use crate::{
+        config::{ConnectionConfig, Limits, ServiceConfig, Version},
+        context_data::db_data_provider::PgManager,
+        extensions::{query_limits_checker::QueryLimitsChecker, timeout::Timeout},
+    };
+
+    /// Prepares a schema for tests dealing with extensions. Returns a
+    /// `ServerBuilder` that can be further extended with `context_data` and
+    /// `extension` for testing.
     fn prep_schema(
         connection_config: Option<ConnectionConfig>,
         service_config: Option<ServiceConfig>,

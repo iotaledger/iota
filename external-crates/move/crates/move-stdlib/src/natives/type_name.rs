@@ -1,6 +1,8 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::VecDeque, sync::Arc};
+
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::gas_algebra::{InternalGas, InternalGasPerByte, NumBytes};
 use move_vm_runtime::{
@@ -12,9 +14,7 @@ use move_vm_types::{
     natives::function::NativeResult,
     values::{Struct, Value},
 };
-
 use smallvec::smallvec;
-use std::{collections::VecDeque, sync::Arc};
 
 #[derive(Debug, Clone)]
 pub struct GetGasParameters {

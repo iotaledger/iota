@@ -139,8 +139,10 @@ fn invalid_struct_with_actuals_in_field() {
     let mut m = basic_test_module();
     match &mut m.struct_defs[0].field_information {
         StructFieldInformation::Declared(ref mut fields) => {
-            fields[0].signature.0 =
-                StructInstantiation(Box::new((StructHandleIndex::new(0), vec![TypeParameter(0)])));
+            fields[0].signature.0 = StructInstantiation(Box::new((
+                StructHandleIndex::new(0),
+                vec![TypeParameter(0)],
+            )));
             assert_eq!(
                 BoundsChecker::verify_module(&m).unwrap_err().major_status(),
                 StatusCode::NUMBER_OF_TYPE_ARGUMENTS_MISMATCH
@@ -389,10 +391,11 @@ proptest! {
     }
 }
 
-/// Ensure that valid modules that don't have any members (e.g. function args, struct fields) pass
-/// bounds checks.
+/// Ensure that valid modules that don't have any members (e.g. function args,
+/// struct fields) pass bounds checks.
 ///
-/// There are some potentially tricky edge cases around ranges that are captured here.
+/// There are some potentially tricky edge cases around ranges that are captured
+/// here.
 #[test]
 fn valid_bounds_no_members() {
     let mut gen = CompiledModuleStrategyGen::new(20);

@@ -1,18 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::MoveTypeTagTrait;
-use crate::{base_types::ObjectID, SUI_FRAMEWORK_ADDRESS};
-use move_core_types::account_address::AccountAddress;
-use move_core_types::language_storage::TypeTag;
 use move_core_types::{
+    account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
     identifier::IdentStr,
-    language_storage::StructTag,
+    language_storage::{StructTag, TypeTag},
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+use crate::{base_types::ObjectID, MoveTypeTagTrait, SUI_FRAMEWORK_ADDRESS};
 
 pub const OBJECT_MODULE_NAME_STR: &str = "object";
 pub const OBJECT_MODULE_NAME: &IdentStr = ident_str!(OBJECT_MODULE_NAME_STR);

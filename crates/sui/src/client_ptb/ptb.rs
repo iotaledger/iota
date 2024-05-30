@@ -1,26 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    client_commands::SuiClientCommandResult,
-    client_ptb::{
-        ast::{ParsedProgram, Program},
-        builder::PTBBuilder,
-        displays::Pretty,
-        error::{build_error_reports, PTBError},
-        token::{Lexeme, Token},
-    },
-    sp,
-};
+use std::collections::BTreeSet;
 
-use super::{ast::ProgramMetadata, lexer::Lexer, parser::ProgramParser};
-use crate::serialize_or_execute;
 use anyhow::{anyhow, Error};
 use clap::{arg, Args, ValueHint};
 use move_core_types::account_address::AccountAddress;
 use serde::Serialize;
 use shared_crypto::intent::Intent;
-use std::collections::BTreeSet;
 use sui_json_rpc_types::{
     SuiExecutionStatus, SuiTransactionBlockEffectsAPI, SuiTransactionBlockResponseOptions,
 };
@@ -33,6 +20,19 @@ use sui_types::{
     transaction::{
         ProgrammableTransaction, SenderSignedData, Transaction, TransactionData, TransactionDataAPI,
     },
+};
+
+use super::{ast::ProgramMetadata, lexer::Lexer, parser::ProgramParser};
+use crate::{
+    client_commands::SuiClientCommandResult,
+    client_ptb::{
+        ast::{ParsedProgram, Program},
+        builder::PTBBuilder,
+        displays::Pretty,
+        error::{build_error_reports, PTBError},
+        token::{Lexeme, Token},
+    },
+    serialize_or_execute, sp,
 };
 
 #[derive(Clone, Debug, Args)]
@@ -55,7 +55,8 @@ pub struct Summary {
 }
 
 impl PTB {
-    /// Parses and executes the PTB with the sender as the current active address
+    /// Parses and executes the PTB with the sender as the current active
+    /// address
     pub async fn execute(self, context: &mut WalletContext) -> Result<(), Error> {
         if self.args.is_empty() {
             ptb_description().print_help().unwrap();
@@ -261,10 +262,10 @@ impl PTB {
     }
 }
 
-/// Convert a vector of shell tokens into a single string, with each shell token separated by a
-/// space with each command starting on a new line.
-/// NB: we add a space to the end of the source string to ensure that for unexpected EOF
-/// errors we have a location to point to.
+/// Convert a vector of shell tokens into a single string, with each shell token
+/// separated by a space with each command starting on a new line.
+/// NB: we add a space to the end of the source string to ensure that for
+/// unexpected EOF errors we have a location to point to.
 pub fn to_source_string(strings: Vec<String>) -> String {
     let mut strings = strings.into_iter();
     let mut string = String::new();

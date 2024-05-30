@@ -1,40 +1,38 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use crate::authority::authority_store::{ExecutionLockWriteGuard, SuiLockResult};
-use crate::authority::epoch_start_configuration::EpochFlag;
-use crate::authority::{
-    authority_notify_read::EffectsNotifyRead, epoch_start_configuration::EpochStartConfiguration,
-};
-use crate::transaction_outputs::TransactionOutputs;
-use async_trait::async_trait;
+use std::{collections::HashSet, path::Path, sync::Arc};
 
+use async_trait::async_trait;
 use futures::{future::BoxFuture, FutureExt};
 use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
-use std::collections::HashSet;
-use std::path::Path;
-use std::sync::Arc;
 use sui_protocol_config::ProtocolVersion;
-use sui_types::base_types::VerifiedExecutionData;
-use sui_types::digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest};
-use sui_types::effects::{TransactionEffects, TransactionEvents};
-use sui_types::error::{SuiError, SuiResult, UserInputError};
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
-use sui_types::object::Object;
-use sui_types::storage::{
-    error::{Error as StorageError, Result as StorageResult},
-    BackingPackageStore, ChildObjectResolver, MarkerValue, ObjectKey, ObjectOrTombstone,
-    ObjectStore, PackageObject, ParentSync,
-};
-use sui_types::sui_system_state::SuiSystemState;
-use sui_types::transaction::{VerifiedSignedTransaction, VerifiedTransaction};
 use sui_types::{
-    base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber},
-    object::Owner,
-    storage::InputKey,
+    base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
+    digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
+    effects::{TransactionEffects, TransactionEvents},
+    error::{SuiError, SuiResult, UserInputError},
+    messages_checkpoint::CheckpointSequenceNumber,
+    object::{Object, Owner},
+    storage::{
+        error::{Error as StorageError, Result as StorageResult},
+        BackingPackageStore, ChildObjectResolver, InputKey, MarkerValue, ObjectKey,
+        ObjectOrTombstone, ObjectStore, PackageObject, ParentSync,
+    },
+    sui_system_state::SuiSystemState,
+    transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
 use tracing::instrument;
+
+use crate::{
+    authority::{
+        authority_notify_read::EffectsNotifyRead,
+        authority_per_epoch_store::AuthorityPerEpochStore,
+        authority_store::{ExecutionLockWriteGuard, SuiLockResult},
+        epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
+    },
+    transaction_outputs::TransactionOutputs,
+};
 
 pub(crate) mod cached_version_map;
 pub mod passthrough_cache;
@@ -63,9 +61,10 @@ impl ExecutionCacheMetrics {
 pub type ExecutionCache = PassthroughCache;
 
 pub trait ExecutionCacheCommit: Send + Sync {
-    /// Durably commit the transaction outputs of the given transaction to the database.
-    /// Will be called by CheckpointExecutor to ensure that transaction outputs are
-    /// written durably before marking a checkpoint as finalized.
+    /// Durably commit the transaction outputs of the given transaction to the
+    /// database. Will be called by CheckpointExecutor to ensure that
+    /// transaction outputs are written durably before marking a checkpoint
+    /// as finalized.
     fn commit_transaction_outputs(
         &self,
         epoch: EpochId,
@@ -104,7 +103,7 @@ pub trait ExecutionCacheRead: Send + Sync {
     ) -> SuiResult<Option<Object>>;
 
     fn multi_get_objects_by_key(&self, object_keys: &[ObjectKey])
-        -> SuiResult<Vec<Option<Object>>>;
+    -> SuiResult<Vec<Option<Object>>>;
 
     fn object_exists_by_key(
         &self,
@@ -117,10 +116,11 @@ pub trait ExecutionCacheRead: Send + Sync {
     /// Load a list of objects from the store by object reference.
     /// If they exist in the store, they are returned directly.
     /// If any object missing, we try to figure out the best error to return.
-    /// If the object we are asking is currently locked at a future version, we know this
-    /// transaction is out-of-date and we return a ObjectVersionUnavailableForConsumption,
-    /// which indicates this is not retriable.
-    /// Otherwise, we return a ObjectNotFound error, which indicates this is retriable.
+    /// If the object we are asking is currently locked at a future version, we
+    /// know this transaction is out-of-date and we return a
+    /// ObjectVersionUnavailableForConsumption, which indicates this is not
+    /// retriable. Otherwise, we return a ObjectNotFound error, which
+    /// indicates this is retriable.
     fn multi_get_objects_with_more_accurate_error_return(
         &self,
         object_refs: &[ObjectRef],
@@ -155,9 +155,11 @@ pub trait ExecutionCacheRead: Send + Sync {
         Ok(result)
     }
 
-    /// Used by transaction manager to determine if input objects are ready. Distinct from multi_get_object_by_key
-    /// because it also consults markers to handle the case where an object will never become available (e.g.
-    /// because it has been received by some other transaction already).
+    /// Used by transaction manager to determine if input objects are ready.
+    /// Distinct from multi_get_object_by_key because it also consults
+    /// markers to handle the case where an object will never become available
+    /// (e.g. because it has been received by some other transaction
+    /// already).
     fn multi_input_objects_available(
         &self,
         keys: &[InputKey],
@@ -184,10 +186,11 @@ pub trait ExecutionCacheRead: Send + Sync {
                 versioned_results.push((*idx, true))
             } else if receiving_objects.contains(input_key) {
                 // There could be a more recent version of this object, and the object at the
-                // specified version could have already been pruned. In such a case `has_key` will
-                // be false, but since this is a receiving object we should mark it as available if
-                // we can determine that an object with a version greater than or equal to the
-                // specified version exists or was deleted. We will then let mark it as available
+                // specified version could have already been pruned. In such a case `has_key`
+                // will be false, but since this is a receiving object we should
+                // mark it as available if we can determine that an object with
+                // a version greater than or equal to the specified version
+                // exists or was deleted. We will then let mark it as available
                 // to let the transaction through so it can fail at execution.
                 let is_available = self
                     .get_object(&input_key.id())?
@@ -207,8 +210,9 @@ pub trait ExecutionCacheRead: Send + Sync {
                 )?
                 .is_some()
             {
-                // If the object is an already deleted shared object, mark it as available if the
-                // version for that object is in the shared deleted marker table.
+                // If the object is an already deleted shared object, mark it as available if
+                // the version for that object is in the shared deleted marker
+                // table.
                 versioned_results.push((*idx, true));
             } else {
                 versioned_results.push((*idx, false));
@@ -236,10 +240,11 @@ pub trait ExecutionCacheRead: Send + Sync {
         Ok(results.into_iter().map(|(_, result)| result).collect())
     }
 
-    /// Return the object with version less then or eq to the provided seq number.
-    /// This is used by indexer to find the correct version of dynamic field child object.
-    /// We do not store the version of the child object, but because of lamport timestamp,
-    /// we know the child must have version number less then or eq to the parent.
+    /// Return the object with version less then or eq to the provided seq
+    /// number. This is used by indexer to find the correct version of
+    /// dynamic field child object. We do not store the version of the child
+    /// object, but because of lamport timestamp, we know the child must
+    /// have version number less then or eq to the parent.
     fn find_object_lt_or_eq_version(
         &self,
         object_id: ObjectID,
@@ -248,7 +253,8 @@ pub trait ExecutionCacheRead: Send + Sync {
 
     fn get_lock(&self, obj_ref: ObjectRef, epoch_store: &AuthorityPerEpochStore) -> SuiLockResult;
 
-    // This method is considered "private" - only used by multi_get_objects_with_more_accurate_error_return
+    // This method is considered "private" - only used by
+    // multi_get_objects_with_more_accurate_error_return
     fn _get_latest_lock_for_object_id(&self, object_id: ObjectID) -> SuiResult<ObjectRef>;
 
     fn check_owned_object_locks_exist(&self, owned_object_refs: &[ObjectRef]) -> SuiResult;
@@ -416,7 +422,8 @@ pub trait ExecutionCacheRead: Send + Sync {
         epoch_id: EpochId,
     ) -> SuiResult<Option<(SequenceNumber, MarkerValue)>>;
 
-    /// If the shared object was deleted, return deletion info for the current live version
+    /// If the shared object was deleted, return deletion info for the current
+    /// live version
     fn get_last_shared_object_deletion_info(
         &self,
         object_id: &ObjectID,
@@ -428,7 +435,8 @@ pub trait ExecutionCacheRead: Send + Sync {
         }
     }
 
-    /// If the shared object was deleted, return deletion info for the specified version.
+    /// If the shared object was deleted, return deletion info for the specified
+    /// version.
     fn get_deleted_shared_object_previous_tx_digest(
         &self,
         object_id: &ObjectID,
@@ -471,21 +479,24 @@ pub trait ExecutionCacheRead: Send + Sync {
 pub trait ExecutionCacheWrite: Send + Sync {
     /// Write the output of a transaction.
     ///
-    /// Because of the child object consistency rule (readers that observe parents must observe all
-    /// children of that parent, up to the parent's version bound), implementations of this method
-    /// must not write any top-level (address-owned or shared) objects before they have written all
+    /// Because of the child object consistency rule (readers that observe
+    /// parents must observe all children of that parent, up to the parent's
+    /// version bound), implementations of this method must not write any
+    /// top-level (address-owned or shared) objects before they have written all
     /// of the object-owned objects (i.e. child objects) in the `objects` list.
     ///
-    /// In the future, we may modify this method to expose finer-grained information about
-    /// parent/child relationships. (This may be especially necessary for distributed object
-    /// storage, but is unlikely to be an issue before we tackle that problem).
+    /// In the future, we may modify this method to expose finer-grained
+    /// information about parent/child relationships. (This may be
+    /// especially necessary for distributed object storage, but is unlikely
+    /// to be an issue before we tackle that problem).
     ///
-    /// This function may evict the mutable input objects (and successfully received objects) of
-    /// transaction from the cache, since they cannot be read by any other transaction.
+    /// This function may evict the mutable input objects (and successfully
+    /// received objects) of transaction from the cache, since they cannot
+    /// be read by any other transaction.
     ///
-    /// Any write performed by this method immediately notifies any waiter that has previously
-    /// called notify_read_objects_for_execution or notify_read_objects_for_signing for the object
-    /// in question.
+    /// Any write performed by this method immediately notifies any waiter that
+    /// has previously called notify_read_objects_for_execution or
+    /// notify_read_objects_for_signing for the object in question.
     fn write_transaction_outputs(
         &self,
         epoch_id: EpochId,
@@ -502,8 +513,8 @@ pub trait ExecutionCacheWrite: Send + Sync {
 }
 
 pub trait CheckpointCache: Send + Sync {
-    // TODO: In addition to the deprecated methods below, this will eventually include access
-    // to the CheckpointStore
+    // TODO: In addition to the deprecated methods below, this will eventually
+    // include access to the CheckpointStore
 
     // DEPRECATED METHODS
     fn deprecated_get_transaction_checkpoint(
@@ -545,8 +556,9 @@ pub trait ExecutionCacheReconfigAPI: Send + Sync {
 
     fn checkpoint_db(&self, path: &Path) -> SuiResult;
 
-    /// This is a temporary method to be used when we enable simplified_unwrap_then_delete.
-    /// It re-accumulates state hash for the new epoch if simplified_unwrap_then_delete is enabled.
+    /// This is a temporary method to be used when we enable
+    /// simplified_unwrap_then_delete. It re-accumulates state hash for the
+    /// new epoch if simplified_unwrap_then_delete is enabled.
     fn maybe_reaccumulate_state_hash(
         &self,
         cur_epoch_store: &AuthorityPerEpochStore,
@@ -554,9 +566,10 @@ pub trait ExecutionCacheReconfigAPI: Send + Sync {
     );
 }
 
-// StateSyncAPI is for writing any data that was not the result of transaction execution,
-// but that arrived via state sync. The fact that it came via state sync implies that it
-// is certified output, and can be immediately persisted to the store.
+// StateSyncAPI is for writing any data that was not the result of transaction
+// execution, but that arrived via state sync. The fact that it came via state
+// sync implies that it is certified output, and can be immediately persisted to
+// the store.
 pub trait StateSyncAPI: Send + Sync {
     fn insert_transaction_and_effects(
         &self,
@@ -570,8 +583,10 @@ pub trait StateSyncAPI: Send + Sync {
     ) -> SuiResult;
 }
 
-// TODO: Remove EffectsNotifyRead trait and just use ExecutionCacheRead directly everywhere.
-/// This wrapper is used so that we don't have to disambiguate traits at every callsite.
+// TODO: Remove EffectsNotifyRead trait and just use ExecutionCacheRead directly
+// everywhere.
+/// This wrapper is used so that we don't have to disambiguate traits at every
+/// callsite.
 pub struct NotifyReadWrapper<T>(Arc<T>);
 
 impl<T> Clone for NotifyReadWrapper<T> {
@@ -663,9 +678,11 @@ macro_rules! implement_storage_traits {
 
                 // Check for:
                 // * Invalid access -- treat as the object does not exist. Or;
-                // * If we've already received the object at the version -- then treat it as though it doesn't exist.
-                // These two cases must remain indisguishable to the caller otherwise we risk forks in
-                // transaction replay due to possible reordering of transactions during replay.
+                // * If we've already received the object at the version -- then treat it as
+                //   though it doesn't exist.
+                // These two cases must remain indisguishable to the caller otherwise we risk
+                // forks in transaction replay due to possible reordering of
+                // transactions during replay.
                 if recv_object.owner != Owner::AddressOwner((*owner).into())
                     || self.have_received_object_at_version(
                         receiving_object_id,
@@ -700,7 +717,8 @@ macro_rules! implement_storage_traits {
     };
 }
 
-// Implement traits for a cache implementation that always go directly to the store.
+// Implement traits for a cache implementation that always go directly to the
+// store.
 macro_rules! implement_passthrough_traits {
     ($implementor: ident) => {
         impl CheckpointCache for $implementor {

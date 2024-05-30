@@ -1,24 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use clap::{ArgGroup, Parser};
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::broadcast;
-use tokio::time::sleep;
-use tracing::{error, info};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
+use clap::{ArgGroup, Parser};
 use mysten_common::sync::async_once_cell::AsyncOnceCell;
-use sui_config::node::RunWithRange;
-use sui_config::{Config, NodeConfig};
+use sui_config::{node::RunWithRange, Config, NodeConfig};
 use sui_core::runtime::SuiRuntimes;
 use sui_node::metrics;
 use sui_protocol_config::SupportedProtocolVersions;
 use sui_telemetry::send_telemetry_event;
-use sui_types::committee::EpochId;
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
-use sui_types::multiaddr::Multiaddr;
+use sui_types::{
+    committee::EpochId, messages_checkpoint::CheckpointSequenceNumber, multiaddr::Multiaddr,
+};
+use tokio::{sync::broadcast, time::sleep};
+use tracing::{error, info};
 
 const GIT_REVISION: &str = {
     if let Some(revision) = option_env!("GIT_REVISION") {
@@ -57,8 +53,9 @@ struct Args {
 }
 
 fn main() {
-    // Ensure that a validator never calls get_for_min_version/get_for_max_version_UNSAFE.
-    // TODO: re-enable after we figure out how to eliminate crashes in prod because of this.
+    // Ensure that a validator never calls
+    // get_for_min_version/get_for_max_version_UNSAFE. TODO: re-enable after we
+    // figure out how to eliminate crashes in prod because of this.
     // ProtocolConfig::poison_get_for_min_version();
 
     move_vm_profiler::gas_profiler_feature_enabled! {
@@ -75,8 +72,8 @@ fn main() {
 
     // match run_with_range args
     // this means that we always modify the config used to start the node
-    // for run_with_range. i.e if this is set in the config, it is ignored. only the cli args
-    // enable/disable run_with_range
+    // for run_with_range. i.e if this is set in the config, it is ignored. only the
+    // cli args enable/disable run_with_range
     match (args.run_with_range_epoch, args.run_with_range_checkpoint) {
         (None, Some(checkpoint)) => {
             config.run_with_range = Some(RunWithRange::Checkpoint(checkpoint))
@@ -122,8 +119,8 @@ fn main() {
 
     let admin_interface_port = config.admin_interface_port;
 
-    // Run node in a separate runtime so that admin/monitoring functions continue to work
-    // if it deadlocks.
+    // Run node in a separate runtime so that admin/monitoring functions continue to
+    // work if it deadlocks.
     let node_once_cell = Arc::new(AsyncOnceCell::<Arc<sui_node::SuiNode>>::new());
     let node_once_cell_clone = node_once_cell.clone();
     let rpc_runtime = runtimes.json_rpc.handle().clone();

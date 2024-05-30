@@ -2,14 +2,14 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module implements a checker for verifying that basic blocks in the bytecode instruction
-//! sequence of a function use the evaluation stack in a balanced manner. Every basic block,
-//! except those that end in Ret (return to caller) opcode, must leave the stack height the
-//! same as at the beginning of the block. A basic block that ends in Ret opcode must increase
-//! the stack height by the number of values returned by the function as indicated in its
-//! signature. Additionally, the stack height must not dip below that at the beginning of the
-//! block for any basic block.
-use crate::meter::Meter;
+//! This module implements a checker for verifying that basic blocks in the
+//! bytecode instruction sequence of a function use the evaluation stack in a
+//! balanced manner. Every basic block, except those that end in Ret (return to
+//! caller) opcode, must leave the stack height the same as at the beginning of
+//! the block. A basic block that ends in Ret opcode must increase
+//! the stack height by the number of values returned by the function as
+//! indicated in its signature. Additionally, the stack height must not dip
+//! below that at the beginning of the block for any basic block.
 use move_binary_format::{
     binary_views::{BinaryIndexedView, FunctionView},
     control_flow_graph::{BlockId, ControlFlowGraph},
@@ -18,6 +18,8 @@ use move_binary_format::{
 };
 use move_core_types::vm_status::StatusCode;
 use move_vm_config::verifier::VerifierConfig;
+
+use crate::meter::Meter;
 
 pub(crate) struct StackUsageVerifier<'a> {
     resolver: &'a BinaryIndexedView<'a>,

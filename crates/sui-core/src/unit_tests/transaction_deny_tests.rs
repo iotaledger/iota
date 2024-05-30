@@ -1,34 +1,44 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority::authority_test_utils::{
-    publish_package_on_single_authority, upgrade_package_on_single_authority,
-};
-use crate::authority::test_authority_builder::TestAuthorityBuilder;
-use crate::authority::AuthorityState;
-use crate::test_utils::make_transfer_sui_transaction;
-use fastcrypto::ed25519::Ed25519KeyPair;
-use fastcrypto::traits::KeyPair;
+use std::{path::PathBuf, sync::Arc};
+
+use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
 use move_core_types::ident_str;
-use std::path::PathBuf;
-use std::sync::Arc;
-use sui_config::certificate_deny_config::CertificateDenyConfigBuilder;
-use sui_config::transaction_deny_config::{TransactionDenyConfig, TransactionDenyConfigBuilder};
-use sui_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
-use sui_swarm_config::network_config::NetworkConfig;
-use sui_test_transaction_builder::TestTransactionBuilder;
-use sui_types::base_types::{ObjectID, ObjectRef, SuiAddress};
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::error::{SuiError, SuiResult, UserInputError};
-use sui_types::execution_status::{ExecutionFailureStatus, ExecutionStatus};
-use sui_types::messages_grpc::HandleTransactionResponse;
-use sui_types::transaction::{
-    CallArg, CertifiedTransaction, Transaction, TransactionData, VerifiedCertificate,
-    VerifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+use sui_config::{
+    certificate_deny_config::CertificateDenyConfigBuilder,
+    transaction_deny_config::{TransactionDenyConfig, TransactionDenyConfigBuilder},
 };
-use sui_types::utils::get_zklogin_user_address;
-use sui_types::utils::{
-    make_zklogin_tx, to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers,
+use sui_swarm_config::{
+    genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT},
+    network_config::NetworkConfig,
+};
+use sui_test_transaction_builder::TestTransactionBuilder;
+use sui_types::{
+    base_types::{ObjectID, ObjectRef, SuiAddress},
+    effects::TransactionEffectsAPI,
+    error::{SuiError, SuiResult, UserInputError},
+    execution_status::{ExecutionFailureStatus, ExecutionStatus},
+    messages_grpc::HandleTransactionResponse,
+    transaction::{
+        CallArg, CertifiedTransaction, Transaction, TransactionData, VerifiedCertificate,
+        VerifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+    },
+    utils::{
+        get_zklogin_user_address, make_zklogin_tx, to_sender_signed_transaction,
+        to_sender_signed_transaction_with_multi_signers,
+    },
+};
+
+use crate::{
+    authority::{
+        authority_test_utils::{
+            publish_package_on_single_authority, upgrade_package_on_single_authority,
+        },
+        test_authority_builder::TestAuthorityBuilder,
+        AuthorityState,
+    },
+    test_utils::make_transfer_sui_transaction,
 };
 
 const ACCOUNT_NUM: usize = 5;
@@ -202,10 +212,12 @@ async fn test_zklogin_transaction_disabled() {
 
 #[tokio::test]
 async fn test_object_denied() {
-    // We need to create the authority state once to get one of the gas coin object IDs.
+    // We need to create the authority state once to get one of the gas coin object
+    // IDs.
     let (network_config, state) = setup_test(TransactionDenyConfigBuilder::new().build()).await;
     let accounts = get_accounts_and_coins(&network_config, &state);
-    // Re-create the state such that we could specify a gas coin object to be denied.
+    // Re-create the state such that we could specify a gas coin object to be
+    // denied.
     let obj_ref = accounts[0].2[0];
     let state = reload_state_with_new_deny_config(
         &network_config,
@@ -220,7 +232,8 @@ async fn test_object_denied() {
 
 #[tokio::test]
 async fn test_signer_denied() {
-    // We need to create the authority state once to get one of the account addresses.
+    // We need to create the authority state once to get one of the account
+    // addresses.
     let (network_config, state) = setup_test(TransactionDenyConfigBuilder::new().build()).await;
     let accounts = get_accounts_and_coins(&network_config, &state);
 
@@ -288,7 +301,8 @@ async fn test_package_denied() {
     let accounts = get_accounts_and_coins(&network_config, &state);
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     // Publish 3 packages, where b depends on c, and a depends on b.
-    // Also upgrade c to c', and upgrade b to b' (which will start using c' instead of c as dependency).
+    // Also upgrade c to c', and upgrade b to b' (which will start using c' instead
+    // of c as dependency).
     let (package_c, cap_c) = publish_package_on_single_authority(
         path.join("src/unit_tests/data/package_deny/c"),
         accounts[0].0,
@@ -414,7 +428,8 @@ async fn test_package_denied() {
     .await;
     assert_denied(&result);
 
-    // Upgrade a using c' as dependency will succeed since it no longer depends on c.
+    // Upgrade a using c' as dependency will succeed since it no longer depends on
+    // c.
     let result = upgrade_package_on_single_authority(
         path.join("src/unit_tests/data/package_deny/a"),
         accounts[0].0,

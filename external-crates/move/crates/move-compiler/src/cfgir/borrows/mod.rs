@@ -4,6 +4,11 @@
 
 mod state;
 
+use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
+
+use move_proc_macros::growing_stack;
+use state::{Value, *};
+
 use super::absint::*;
 use crate::{
     diag,
@@ -15,9 +20,6 @@ use crate::{
     parser::ast::BinOp_,
     shared::{unique_map::UniqueMap, CompilationEnv},
 };
-use move_proc_macros::growing_stack;
-use state::{Value, *};
-use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
 //**************************************************************************************************
 // Entry and trait bindings

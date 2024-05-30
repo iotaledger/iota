@@ -1,21 +1,25 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::signature_verifier::*;
-use crate::test_utils::{make_cert_with_large_committee, make_dummy_tx};
+use std::sync::Arc;
+
 use fastcrypto::traits::KeyPair;
 use futures::future::join_all;
 use prometheus::Registry;
 use rand::{thread_rng, Rng};
-use std::sync::Arc;
 use sui_macros::sim_test;
-use sui_types::committee::Committee;
-use sui_types::crypto::{get_key_pair, AccountKeyPair, AuthorityKeyPair};
-use sui_types::gas::GasCostSummary;
-use sui_types::messages_checkpoint::{
-    CheckpointContents, CheckpointSummary, SignedCheckpointSummary,
+use sui_types::{
+    committee::Committee,
+    crypto::{get_key_pair, AccountKeyPair, AuthorityKeyPair},
+    gas::GasCostSummary,
+    messages_checkpoint::{CheckpointContents, CheckpointSummary, SignedCheckpointSummary},
+    transaction::CertifiedTransaction,
 };
-use sui_types::transaction::CertifiedTransaction;
+
+use crate::{
+    signature_verifier::*,
+    test_utils::{make_cert_with_large_committee, make_dummy_tx},
+};
 
 // TODO consolidate with `gen_certs` in batch_verification_bench.rs
 fn gen_certs(
@@ -86,8 +90,8 @@ async fn test_batch_verify() {
     }
 
     let (other_sender, other_sender_sec): (_, AccountKeyPair) = get_key_pair();
-    // this test is a bit much for the current implementation - it was originally written to verify
-    // a bisecting fall back approach.
+    // this test is a bit much for the current implementation - it was originally
+    // written to verify a bisecting fall back approach.
     for i in 0..16 {
         let (receiver, _): (_, AccountKeyPair) = get_key_pair();
         let mut certs = certs.clone();

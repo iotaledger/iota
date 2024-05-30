@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use prometheus::Registry;
-use sui_core::authority_aggregator::AuthAggMetrics;
-use sui_core::quorum_driver::reconfig_observer::OnsiteReconfigObserver;
-use sui_core::quorum_driver::reconfig_observer::ReconfigObserver;
-use sui_core::safe_client::SafeClientMetricsBase;
+use sui_core::{
+    authority_aggregator::AuthAggMetrics,
+    quorum_driver::reconfig_observer::{OnsiteReconfigObserver, ReconfigObserver},
+    safe_client::SafeClientMetricsBase,
+};
+use sui_macros::sim_test;
 use test_cluster::TestClusterBuilder;
 use tracing::info;
-
-use sui_macros::sim_test;
 
 #[sim_test]
 async fn test_onsite_reconfig_observer_basic() {
@@ -55,7 +55,8 @@ async fn test_onsite_reconfig_observer_basic() {
         fullnode.with(|node| node.clone_authority_aggregator().unwrap().committee.epoch),
         1
     );
-    // The observer thread is not managed by simtest, and hence we must abort it manually to make sure
-    // it stops running first. Otherwise it may lead to unexpected channel close issue.
+    // The observer thread is not managed by simtest, and hence we must abort it
+    // manually to make sure it stops running first. Otherwise it may lead to
+    // unexpected channel close issue.
     observer_handle.abort();
 }

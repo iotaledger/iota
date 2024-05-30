@@ -1,55 +1,55 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto::hash::MultisetHash;
-use fastcrypto::traits::KeyPair;
+use std::{
+    collections::{BTreeMap, HashMap},
+    path::PathBuf,
+    sync::Arc,
+    time::Duration,
+};
+
+use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use futures::future::join_all;
-use move_core_types::account_address::AccountAddress;
-use move_core_types::ident_str;
+use move_core_types::{account_address::AccountAddress, ident_str};
 use prometheus::Registry;
 use shared_crypto::intent::{Intent, IntentScope};
-use std::collections::{BTreeMap, HashMap};
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::Duration;
-use sui_config::genesis::Genesis;
-use sui_config::local_ip_utils;
-use sui_config::node::AuthorityOverloadConfig;
+use sui_config::{genesis::Genesis, local_ip_utils, node::AuthorityOverloadConfig};
 use sui_framework::BuiltInFramework;
 use sui_genesis_builder::validator_info::ValidatorInfo;
 use sui_macros::nondeterministic;
 use sui_move_build::{BuildConfig, CompiledPackage, SuiPackageHooks};
 use sui_protocol_config::ProtocolConfig;
-use sui_types::base_types::{random_object_ref, ObjectID};
-use sui_types::crypto::{
-    generate_proof_of_possession, get_key_pair, AccountKeyPair, AuthorityPublicKeyBytes,
-    NetworkKeyPair, SuiKeyPair,
-};
-use sui_types::crypto::{AuthorityKeyPair, Signer};
-use sui_types::effects::{SignedTransactionEffects, TestEffectsBuilder};
-use sui_types::error::SuiError;
-use sui_types::transaction::ObjectArg;
-use sui_types::transaction::{
-    CallArg, SignedTransaction, Transaction, TransactionData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-};
-use sui_types::utils::create_fake_transaction;
-use sui_types::utils::to_sender_signed_transaction;
 use sui_types::{
-    base_types::{AuthorityName, ExecutionDigests, ObjectRef, SuiAddress, TransactionDigest},
+    base_types::{
+        random_object_ref, AuthorityName, ExecutionDigests, ObjectID, ObjectRef, SuiAddress,
+        TransactionDigest,
+    },
     committee::Committee,
-    crypto::{AuthoritySignInfo, AuthoritySignature},
+    crypto::{
+        generate_proof_of_possession, get_key_pair, AccountKeyPair, AuthorityKeyPair,
+        AuthorityPublicKeyBytes, AuthoritySignInfo, AuthoritySignature, NetworkKeyPair, Signer,
+        SuiKeyPair,
+    },
+    effects::{SignedTransactionEffects, TestEffectsBuilder},
+    error::SuiError,
     message_envelope::Message,
     object::Object,
-    transaction::CertifiedTransaction,
+    transaction::{
+        CallArg, CertifiedTransaction, ObjectArg, SignedTransaction, Transaction, TransactionData,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+    },
+    utils::{create_fake_transaction, to_sender_signed_transaction},
 };
 use tokio::time::timeout;
 use tracing::{info, warn};
 
-use crate::authority::{test_authority_builder::TestAuthorityBuilder, AuthorityState};
-use crate::authority_aggregator::{AuthorityAggregator, TimeoutConfig};
-use crate::epoch::committee_store::CommitteeStore;
-use crate::state_accumulator::StateAccumulator;
-use crate::test_authority_clients::LocalAuthorityClient;
+use crate::{
+    authority::{test_authority_builder::TestAuthorityBuilder, AuthorityState},
+    authority_aggregator::{AuthorityAggregator, TimeoutConfig},
+    epoch::committee_store::CommitteeStore,
+    state_accumulator::StateAccumulator,
+    test_authority_clients::LocalAuthorityClient,
+};
 
 const WAIT_FOR_TX_TIMEOUT: Duration = Duration::from_secs(15);
 
@@ -74,11 +74,13 @@ pub async fn send_and_confirm_transaction(
             .verify_authenticated(&committee, &Default::default())
             .unwrap();
 
-    // Submit the confirmation. *Now* execution actually happens, and it should fail when we try to look up our dummy module.
-    // we unfortunately don't get a very descriptive error message, but we can at least see that something went wrong inside the VM
+    // Submit the confirmation. *Now* execution actually happens, and it should fail
+    // when we try to look up our dummy module. we unfortunately don't get a
+    // very descriptive error message, but we can at least see that something went
+    // wrong inside the VM
     //
-    // We also check the incremental effects of the transaction on the live object set against StateAccumulator
-    // for testing and regression detection
+    // We also check the incremental effects of the transaction on the live object
+    // set against StateAccumulator for testing and regression detection
     let state_acc = StateAccumulator::new(authority.get_execution_cache().clone());
     let include_wrapped_tombstone = !authority
         .epoch_store_for_testing()
@@ -101,8 +103,8 @@ pub async fn send_and_confirm_transaction(
     Ok((certificate.into_inner(), result.into_inner()))
 }
 
-// note: clippy is confused about this being dead - it appears to only be used in cfg(test), but
-// adding #[cfg(test)] causes other targets to fail
+// note: clippy is confused about this being dead - it appears to only be used
+// in cfg(test), but adding #[cfg(test)] causes other targets to fail
 #[allow(dead_code)]
 pub(crate) fn init_state_parameters_from_rng<R>(rng: &mut R) -> (Genesis, AuthorityKeyPair)
 where

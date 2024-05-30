@@ -1,17 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use axum::extract::State;
-use axum::{Extension, Json};
+use axum::{extract::State, Extension, Json};
 use axum_extra::extract::WithRejection;
+use sui_json_rpc_types::SuiTransactionBlockResponseOptions;
 use tracing::debug;
 
-use crate::types::{
-    BlockRequest, BlockResponse, BlockTransactionRequest, BlockTransactionResponse, Transaction,
-    TransactionIdentifier,
+use crate::{
+    types::{
+        BlockRequest, BlockResponse, BlockTransactionRequest, BlockTransactionResponse,
+        Transaction, TransactionIdentifier,
+    },
+    Error, OnlineServerContext, SuiEnv,
 };
-use crate::{Error, OnlineServerContext, SuiEnv};
-use sui_json_rpc_types::SuiTransactionBlockResponseOptions;
 
 /// This module implements the [Rosetta Block API](https://www.rosetta-api.org/docs/BlockApi.html)
 

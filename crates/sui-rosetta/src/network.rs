@@ -1,25 +1,27 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use axum::extract::State;
-use axum::{Extension, Json};
+use axum::{extract::State, Extension, Json};
 use axum_extra::extract::WithRejection;
+use fastcrypto::encoding::Hex;
 use serde_json::json;
 use strum::IntoEnumIterator;
-
-use fastcrypto::encoding::Hex;
 use sui_types::base_types::ObjectID;
 
-use crate::errors::{Error, ErrorType};
-use crate::types::{
-    Allow, Case, NetworkIdentifier, NetworkListResponse, NetworkOptionsResponse, NetworkRequest,
-    NetworkStatusResponse, OperationStatus, OperationType, Peer, SyncStatus, Version,
+use crate::{
+    errors::{Error, ErrorType},
+    types::{
+        Allow, Case, NetworkIdentifier, NetworkListResponse, NetworkOptionsResponse,
+        NetworkRequest, NetworkStatusResponse, OperationStatus, OperationType, Peer, SyncStatus,
+        Version,
+    },
+    OnlineServerContext, SuiEnv,
 };
-use crate::{OnlineServerContext, SuiEnv};
 
 /// This module implements the [Rosetta Network API](https://www.rosetta-api.org/docs/NetworkApi.html)
 
-/// This endpoint returns a list of NetworkIdentifiers that the Rosetta server supports.
+/// This endpoint returns a list of NetworkIdentifiers that the Rosetta server
+/// supports.
 ///
 /// [Rosetta API Spec](https://www.rosetta-api.org/docs/NetworkApi.html#networklist)
 pub async fn list(Extension(env): Extension<SuiEnv>) -> Result<NetworkListResponse, Error> {
@@ -82,7 +84,8 @@ pub async fn status(
     })
 }
 
-/// This endpoint returns the version information and allowed network-specific types for a NetworkIdentifier.
+/// This endpoint returns the version information and allowed network-specific
+/// types for a NetworkIdentifier.
 ///
 /// [Rosetta API Spec](https://www.rosetta-api.org/docs/NetworkApi.html#networkoptions)
 pub async fn options(

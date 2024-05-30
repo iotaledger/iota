@@ -4,19 +4,29 @@
 
 use std::sync::Arc;
 
+use move_core_types::ident_str;
+use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use sui_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress},
+    base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress, TransactionDigest},
+    committee::EpochId,
     crypto::{get_key_pair, AccountKeyPair},
-    effects::TransactionEffects,
-    execution_status::{CommandArgumentError, ExecutionFailureStatus},
+    effects::{TransactionEffects, TransactionEffectsAPI},
+    error::{ExecutionError, SuiError},
+    execution_status::{
+        CommandArgumentError, ExecutionFailureStatus,
+        ExecutionFailureStatus::{InputObjectDeleted, SharedObjectOperationNotAllowed},
+    },
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{ProgrammableTransaction, Transaction, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
+    transaction::{
+        ObjectArg, ProgrammableTransaction, Transaction, VerifiedCertificate,
+        TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+    },
 };
 
-use crate::authority::authority_test_utils::execute_sequenced_certificate_to_effects;
 use crate::{
     authority::{
+        authority_test_utils::execute_sequenced_certificate_to_effects,
         authority_tests::{
             build_programmable_transaction, certify_shared_obj_transaction_no_execution,
             enqueue_all_and_execute_all, execute_programmable_transaction,
@@ -27,16 +37,6 @@ use crate::{
     },
     move_call,
 };
-use move_core_types::ident_str;
-use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use sui_types::base_types::TransactionDigest;
-use sui_types::committee::EpochId;
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::error::{ExecutionError, SuiError};
-use sui_types::execution_status::ExecutionFailureStatus::{
-    InputObjectDeleted, SharedObjectOperationNotAllowed,
-};
-use sui_types::transaction::{ObjectArg, VerifiedCertificate};
 
 pub struct TestRunner {
     pub sender: SuiAddress,
@@ -735,7 +735,8 @@ async fn test_delete_shared_object_immut_mut_mut_interleave() {
         *effects.transaction_digest(),
     );
 
-    // Try to delete again with the object passed as mutable and make sure we get `InputObjectDeleted`.
+    // Try to delete again with the object passed as mutable and make sure we get
+    // `InputObjectDeleted`.
     let (effects, _) = user1
         .execute_sequenced_certificate_to_effects(cert_immut2)
         .await
@@ -964,8 +965,9 @@ async fn test_shifting_mutate_and_deletes_multiple_objects() {
         (shared_obj.0, shared_obj.1)
     };
 
-    // Test that in the presence of multiple shared objects one of which may be deleted, that we
-    // track versions, notifications, transaction dependencies, and execute correctly.
+    // Test that in the presence of multiple shared objects one of which may be
+    // deleted, that we track versions, notifications, transaction dependencies,
+    // and execute correctly.
 
     // Tx_i^j = Transaction i on shared object So_j
     // R = Read, M = Write/Mutate, _ = not present
@@ -1375,8 +1377,8 @@ async fn test_mutate_interleaved_read_only_enqueued_after_delete() {
         // The gas coin gets mutated
         assert_eq!(effects.mutated().len(), 1);
 
-        // NB: the tx dependency is still on the first mutation tx and not on the intervening read
-        // of the SO.
+        // NB: the tx dependency is still on the first mutation tx and not on the
+        // intervening read of the SO.
         assert!(effects.dependencies().contains(first_mutate_digest));
     }
 }
@@ -1459,9 +1461,10 @@ async fn test_delete_with_shared_after_mutate_enqueued() {
         .await
         .unwrap();
 
-    // create an execution order where the second mutation on an already deleted shared object
-    // expects a higher version because of higher versioned additional input
-    // expected input seq numbers (4, 6) (7) (15, 7_deleted) (16_deleted)
+    // create an execution order where the second mutation on an already deleted
+    // shared object expects a higher version because of higher versioned
+    // additional input expected input seq numbers (4, 6) (7) (15, 7_deleted)
+    // (16_deleted)
     let res = user_1
         .enqueue_all_and_execute_all(vec![
             delete_cert,
@@ -1476,9 +1479,11 @@ async fn test_delete_with_shared_after_mutate_enqueued() {
     assert!(delete_effects.status().is_ok());
     let deleted_obj_ver = delete_effects.deleted()[0].1;
 
-    assert!(user_1
-        .object_exists_in_marker_table(&shared_obj_id, &deleted_obj_ver, 0)
-        .is_some());
+    assert!(
+        user_1
+            .object_exists_in_marker_table(&shared_obj_id, &deleted_obj_ver, 0)
+            .is_some()
+    );
 
     let mutate_effects = res.get(1).unwrap();
     assert!(mutate_effects.status().is_ok());
@@ -1694,8 +1699,8 @@ async fn test_certs_fail_after_delete() {
 
     let mutate_cert_result = user_1.certify_shared_obj_transaction(mutate_obj_tx).await;
 
-    // In same epoch, so can still certify this transaction even though it uses a deleted shared
-    // object.
+    // In same epoch, so can still certify this transaction even though it uses a
+    // deleted shared object.
     assert!(mutate_cert_result.is_ok());
 }
 
