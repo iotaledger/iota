@@ -10,25 +10,25 @@ const suiClientPerNetwork = new Map<string, SuiClient>();
 const SENTRY_MONITORED_ENVS = [Network.Custom];
 
 export function getSuiClient({ network, customRpcUrl }: NetworkEnvType): SuiClient {
-	const key = `${network}_${customRpcUrl}`;
-	if (!suiClientPerNetwork.has(key)) {
-		const connection = getNetwork(network)?.url ?? customRpcUrl;
-		if (!connection) {
-			throw new Error(`API url not found for network ${network} ${customRpcUrl}`);
-		}
-		suiClientPerNetwork.set(
-			key,
-			new SuiClient({
-				transport:
-					!customRpcUrl && SENTRY_MONITORED_ENVS.includes(network)
-						? new SentryHttpTransport(connection)
-						: new SuiHTTPTransport({ url: connection }),
-			}),
-		);
-	}
-	return suiClientPerNetwork.get(key)!;
+    const key = `${network}_${customRpcUrl}`;
+    if (!suiClientPerNetwork.has(key)) {
+        const connection = getNetwork(network)?.url ?? customRpcUrl;
+        if (!connection) {
+            throw new Error(`API url not found for network ${network} ${customRpcUrl}`);
+        }
+        suiClientPerNetwork.set(
+            key,
+            new SuiClient({
+                transport:
+                    !customRpcUrl && SENTRY_MONITORED_ENVS.includes(network)
+                        ? new SentryHttpTransport(connection)
+                        : new SuiHTTPTransport({ url: connection }),
+            }),
+        );
+    }
+    return suiClientPerNetwork.get(key)!;
 }
 
 export async function getActiveNetworkSuiClient(): Promise<SuiClient> {
-	return getSuiClient(await networkEnv.getActiveNetwork());
+    return getSuiClient(await networkEnv.getActiveNetwork());
 }
