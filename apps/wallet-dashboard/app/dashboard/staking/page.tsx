@@ -1,44 +1,68 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 'use client';
 
-import { AmountBox, Box, List, Popup, StakeDetailsPopup } from '@/components/index';
+import { AmountBox, StakeCard, StakeDetailsPopup } from '@/components/index';
 import { usePopups } from '@/hooks';
+import { useGetDelegatedStake } from '@mysten/core';
+import { useCurrentAccount } from '@mysten/dapp-kit';
+
+// Unit used to convert stake and rewards from raw values. This is temporary and will be removed once we have the correct conversion factor.
+const HARDCODED_CONVERSION_UNIT = 1000000000;
 
 function StakingDashboardPage(): JSX.Element {
+    const account = useCurrentAccount();
     const { openPopup } = usePopups();
+    const { data: stakeData } = useGetDelegatedStake({
+        address: account?.address || '',
+    });
 
-    const HARCODED_STAKE_DATA = {
-        title: 'Your Stake',
-        value: '100 IOTA',
-    };
-    const HARCODED_REWARDS_DATA = {
-        title: 'Earned',
-        value: '0.297 IOTA',
-    };
-    const HARCODED_STAKING_LIST_TITLE = 'List of stakes';
-    const HARCODED_STAKING_LIST = [
-        { id: '0', validator: 'Validator 1', stake: '50 IOTA', rewards: '0.15 IOTA' },
-        { id: '1', validator: 'Validator 2', stake: '30 IOTA', rewards: '0.09 IOTA' },
-        { id: '2', validator: 'Validator 3', stake: '20 IOTA', rewards: '0.06 IOTA' },
-    ];
+    const totalStake =
+        stakeData?.reduce((sum, validator) => {
+            return (
+                sum +
+                validator.stakes.reduce((stakeSum, stake) => stakeSum + Number(stake.principal), 0)
+            );
+        }, 0) ?? 0;
+    const totalRewards =
+        stakeData?.reduce((sum, validator) => {
+            return (
+                sum +
+                validator.stakes.reduce(
+                    (rewardSum, stake) => rewardSum + Number(stake.estimatedReward),
+                    0,
+                )
+            );
+        }, 0) ?? 0;
+    const totalStakeConverted = totalStake / HARDCODED_CONVERSION_UNIT;
+    const totalRewardsConverted = totalRewards / HARDCODED_CONVERSION_UNIT;
+    const stakingList = stakeData?.flatMap((validator, index) =>
+        validator.stakes.map((stake, stakeIndex) => ({
+            id: `${index}-${stakeIndex}`,
+            validator: validator.validatorAddress,
+            stake: `${Number(stake.principal) / HARDCODED_CONVERSION_UNIT}`,
+            rewards: `${Number(stake.estimatedReward) / HARDCODED_CONVERSION_UNIT}`,
+            stakeActiveEpoch: stake.stakeActiveEpoch,
+            stakeRequestEpoch: stake.stakeRequestEpoch,
+            status: stake.status,
+        })),
+    );
 
     const handleOpenPopup = (stake) => {
         openPopup(<StakeDetailsPopup stake={stake} />);
     };
 
     return (
-        <div className="flex items-center justify-center gap-4 pt-12">
-            <AmountBox title={HARCODED_STAKE_DATA.title} amount={HARCODED_STAKE_DATA.value} />
-            <AmountBox title={HARCODED_REWARDS_DATA.title} amount={HARCODED_REWARDS_DATA.value} />
-            <Box title={HARCODED_STAKING_LIST_TITLE}>
-                <List
-                    data={HARCODED_STAKING_LIST}
-                    onItemClick={handleOpenPopup}
-                    actionText="View Details"
-                />
-            </Box>
-            <Popup />
+        <div className="flex flex-col items-center justify-center gap-4 pt-12">
+            <AmountBox title="Currently staked" amount={`${totalStakeConverted}`} />
+            <AmountBox title="Earned" amount={`${totalRewardsConverted}`} />
+            <div className="flex flex-col items-center gap-4">
+                <h1>List of stakes</h1>
+                {stakingList?.map((stake) => (
+                    <StakeCard key={stake.id} stake={stake} onDetailsClick={handleOpenPopup} />
+                ))}
+            </div>
         </div>
     );
 }
