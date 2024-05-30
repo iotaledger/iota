@@ -33,9 +33,7 @@ import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import Alert from '../../components/alert';
 import { getSignerOperationErrorMessage } from '../../helpers/errorMessages';
 import { useActiveAccount } from '../../hooks/useActiveAccount';
-import { useQredoTransaction } from '../../hooks/useQredoTransaction';
 import { useSigner } from '../../hooks/useSigner';
-import { QredoActionIgnoredByUser } from '../../QredoSigner';
 import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
 import { getStakeSuiBySuiId } from '../getStakeSuiBySuiId';
 import StakeForm from './StakeForm';
@@ -112,7 +110,6 @@ function StakingCard() {
 
 	const navigate = useNavigate();
 	const signer = useSigner(activeAccount);
-	const { clientIdentifier, notificationModal } = useQredoTransaction();
 
 	const stakeToken = useMutation({
 		mutationFn: async ({
@@ -133,20 +130,17 @@ function StakingCard() {
 			// });
 			try {
 				const transactionBlock = createStakeTransaction(amount, validatorAddress);
-				return await signer.signAndExecuteTransactionBlock(
-					{
-						transactionBlock,
-						requestType: effectsOnlySharedTransactions
-							? 'WaitForEffectsCert'
-							: 'WaitForLocalExecution',
-						options: {
-							showInput: true,
-							showEffects: true,
-							showEvents: true,
-						},
+				return await signer.signAndExecuteTransactionBlock({
+					transactionBlock,
+					requestType: effectsOnlySharedTransactions
+						? 'WaitForEffectsCert'
+						: 'WaitForLocalExecution',
+					options: {
+						showInput: true,
+						showEffects: true,
+						showEvents: true,
 					},
-					clientIdentifier,
-				);
+				});
 			} finally {
 				// sentryTransaction.finish();
 			}
@@ -168,23 +162,16 @@ function StakingCard() {
 			// const sentryTransaction = Sentry.startTransaction({
 			// 	name: 'stake',
 			// });
-			try {
-				const transactionBlock = createUnstakeTransaction(stakedSuiId);
-				return await signer.signAndExecuteTransactionBlock(
-					{
-						transactionBlock,
-						requestType: effectsOnlySharedTransactions
-							? 'WaitForEffectsCert'
-							: 'WaitForLocalExecution',
-						options: {
-							showInput: true,
-							showEffects: true,
-							showEvents: true,
-						},
-					},
-					clientIdentifier,
-				);
-			}
+			const transactionBlock = createUnstakeTransaction(stakedSuiId);
+			return await signer.signAndExecuteTransactionBlock({
+				transactionBlock,
+				requestType: effectsOnlySharedTransactions ? 'WaitForEffectsCert' : 'WaitForLocalExecution',
+				options: {
+					showInput: true,
+					showEffects: true,
+					showEvents: true,
+				},
+			});
 			// finally {
 			// 	sentryTransaction.finish();
 			// }
@@ -249,18 +236,14 @@ function StakingCard() {
 						: undefined,
 				);
 			} catch (error) {
-				if (error instanceof QredoActionIgnoredByUser) {
-					navigate('/');
-				} else {
-					toast.error(
-						<div className="max-w-xs overflow-hidden flex flex-col">
-							<strong>{unstake ? 'Unstake' : 'Stake'} failed</strong>
-							<small className="text-ellipsis overflow-hidden">
-								{getSignerOperationErrorMessage(error)}
-							</small>
-						</div>,
-					);
-				}
+				toast.error(
+					<div className="max-w-xs overflow-hidden flex flex-col">
+						<strong>{unstake ? 'Unstake' : 'Stake'} failed</strong>
+						<small className="text-ellipsis overflow-hidden">
+							{getSignerOperationErrorMessage(error)}
+						</small>
+					</div>,
+				);
 			}
 		},
 		[
@@ -354,7 +337,6 @@ function StakingCard() {
 					)}
 				</Formik>
 			</Loading>
-			{notificationModal}
 		</div>
 	);
 }

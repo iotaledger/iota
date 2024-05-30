@@ -8,7 +8,6 @@ import { useMemo } from 'react';
 import { UserApproveContainer } from '../../components/user-approve-container';
 import { useAppDispatch } from '../../hooks';
 import { useAccountByAddress } from '../../hooks/useAccountByAddress';
-import { useQredoTransaction } from '../../hooks/useQredoTransaction';
 import { useSigner } from '../../hooks/useSigner';
 import { respondToTransactionRequest } from '../../redux/slices/transaction-requests';
 import { Heading } from '../../shared/heading';
@@ -24,7 +23,6 @@ export function SignMessageRequest({ request }: SignMessageRequestProps) {
 	const { data: account } = useAccountByAddress(request.tx.accountAddress);
 	const signer = useSigner(account);
 	const dispatch = useAppDispatch();
-	const { clientIdentifier, notificationModal } = useQredoTransaction(true);
 
 	return (
 		<UserApproveContainer
@@ -42,7 +40,6 @@ export function SignMessageRequest({ request }: SignMessageRequestProps) {
 						txRequestID: request.id,
 						approved,
 						signer,
-						clientIdentifier,
 					}),
 				);
 			}}
@@ -64,7 +61,6 @@ export function SignMessageRequest({ request }: SignMessageRequestProps) {
 					</Text>
 				</div>
 			</div>
-			{notificationModal}
 		</UserApproveContainer>
 	);
 }

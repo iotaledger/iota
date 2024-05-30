@@ -28,10 +28,6 @@ import {
 	type MethodPayload,
 	type UIAccessibleEntityType,
 } from '_src/shared/messaging/messages/payloads/MethodPayload';
-import {
-	isQredoConnectPayload,
-	type QredoConnectPayload,
-} from '_src/shared/messaging/messages/payloads/QredoConnect';
 import { type SignedMessage, type SignedTransaction } from '_src/ui/app/WalletSigner';
 import type { AppDispatch } from '_store';
 import { type SuiTransactionBlockResponse } from '@mysten/sui.js/client';
@@ -227,78 +223,6 @@ export class BackgroundClient {
 					throw new Error('Error unknown response for export account message');
 				}),
 			),
-		);
-	}
-
-	public fetchPendingQredoConnectRequest(requestID: string) {
-		return lastValueFrom(
-			this.sendMessage(
-				createMessage<QredoConnectPayload<'getPendingRequest'>>({
-					type: 'qredo-connect',
-					method: 'getPendingRequest',
-					args: { requestID },
-				}),
-			).pipe(
-				take(1),
-				map(({ payload }) => {
-					if (isQredoConnectPayload(payload, 'getPendingRequestResponse')) {
-						return payload.args.request;
-					}
-					throw new Error('Error unknown response for fetch pending qredo requests message');
-				}),
-			),
-		);
-	}
-
-	public getQredoConnectionInfo(qredoID: string, refreshAccessToken = false) {
-		return lastValueFrom(
-			this.sendMessage(
-				createMessage<QredoConnectPayload<'getQredoInfo'>>({
-					type: 'qredo-connect',
-					method: 'getQredoInfo',
-					args: { qredoID, refreshAccessToken },
-				}),
-			).pipe(
-				take(1),
-				map(({ payload }) => {
-					if (isQredoConnectPayload(payload, 'getQredoInfoResponse')) {
-						return payload.args;
-					}
-					throw new Error('Error unknown response for get qredo info message');
-				}),
-			),
-		);
-	}
-
-	public acceptQredoConnection(args: QredoConnectPayload<'acceptQredoConnection'>['args']) {
-		return lastValueFrom(
-			this.sendMessage(
-				createMessage<QredoConnectPayload<'acceptQredoConnection'>>({
-					type: 'qredo-connect',
-					method: 'acceptQredoConnection',
-					args,
-				}),
-			).pipe(
-				take(1),
-				map(({ payload }) => {
-					if (isQredoConnectPayload(payload, 'acceptQredoConnectionResponse')) {
-						return payload.args.accounts;
-					}
-					throw new Error('Error unknown response for accept qredo connection');
-				}),
-			),
-		);
-	}
-
-	public rejectQredoConnection(args: QredoConnectPayload<'rejectQredoConnection'>['args']) {
-		return lastValueFrom(
-			this.sendMessage(
-				createMessage<QredoConnectPayload<'rejectQredoConnection'>>({
-					type: 'qredo-connect',
-					method: 'rejectQredoConnection',
-					args,
-				}),
-			).pipe(take(1)),
 		);
 	}
 

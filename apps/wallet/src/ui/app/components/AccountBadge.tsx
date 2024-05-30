@@ -15,7 +15,6 @@ type AccountBadgeProps = {
 const TYPE_TO_TEXT: Record<AccountType, string | null> = {
 	ledger: 'Ledger',
 	imported: 'Imported',
-	qredo: 'Qredo',
 	'mnemonic-derived': null,
 	'seed-derived': null,
 	zkLogin: 'zkLogin',

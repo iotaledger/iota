@@ -33,9 +33,9 @@ export function ImportSeedForm({ onSubmit }: ImportSeedFormProps) {
 	const navigate = useNavigate();
 
 	return (
-		<Form className="flex flex-col h-full gap-2" form={form} onSubmit={onSubmit}>
+		<Form className="flex h-full flex-col gap-2" form={form} onSubmit={onSubmit}>
 			<TextAreaField label="Enter Seed" rows={5} {...register('seed')} />
-			<div className="flex gap-2.5 mt-auto">
+			<div className="mt-auto flex gap-2.5">
 				<Button variant="outline" size="tall" text="Cancel" onClick={() => navigate(-1)} />
 				<Button
 					type="submit"

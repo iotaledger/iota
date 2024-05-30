@@ -5,7 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type ZkLoginProvider } from '_src/background/accounts/zklogin/providers';
-import { type Wallet } from '_src/shared/qredo-api';
 import {
 	createContext,
 	useCallback,
@@ -28,7 +27,6 @@ export type AccountsFormValues =
 			type: 'ledger';
 			accounts: { publicKey: string; derivationPath: string; address: string }[];
 	  }
-	| { type: 'qredo'; accounts: Wallet[]; qredoID: string }
 	| null;
 
 type AccountsFormContextType = [
