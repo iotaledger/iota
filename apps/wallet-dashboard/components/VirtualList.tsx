@@ -9,14 +9,10 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 interface VirtualListProps<T> {
     items: T[];
     estimateSize: () => number;
-    renderVirtualItem: (item: T) => React.ReactNode;
+    render: (item: T) => void;
 }
 
-function VirtualList<T>({
-    items,
-    estimateSize,
-    renderVirtualItem,
-}: VirtualListProps<T>): JSX.Element {
+function VirtualList<T>({ items, estimateSize, render: render }: VirtualListProps<T>): JSX.Element {
     const containerRef = React.useRef<HTMLDivElement | null>(null);
     const virtualizer = useVirtualizer({
         count: items.length,
@@ -48,7 +44,7 @@ function VirtualList<T>({
                             transform: `translateY(${virtualItem.start}px)`,
                         }}
                     >
-                        {renderVirtualItem(items[virtualItem.index])}
+                        {render(items[virtualItem.index])}
                     </div>
                 ))}
             </div>
