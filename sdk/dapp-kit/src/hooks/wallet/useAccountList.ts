@@ -13,12 +13,14 @@ export function useAccountList(): UseQueryResult<string[], Error> {
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
     return useQuery({
-        queryKey: ['account-list', currentWallet],
+        queryKey: ['account-list'],
         queryFn: async () => {
             try {
                 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
                 // @ts-ignore
-                await currentWallet.features['standard:accountList']?.get();
+                const e = await currentWallet.features['standard:accountList']?.get();
+                console.log('--- e', e);
+                return e;
             } catch (error) {
                 console.error(
                     'Failed to disconnect the application from the current wallet.',

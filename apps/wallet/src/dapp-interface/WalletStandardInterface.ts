@@ -50,8 +50,8 @@ import mitt, { type Emitter } from 'mitt';
 import { filter, map, type Observable } from 'rxjs';
 
 import { mapToPromise } from './utils';
-import { AccountListRequest } from "_payloads/account/AccountListRequest";
-import { AccountListResponse } from "_payloads/account/AccountListResponse";
+import { type AccountListRequest } from '_payloads/account/AccountListRequest';
+import { type AccountListResponse } from '_payloads/account/AccountListResponse';
 
 type WalletEventsMap = {
     [E in keyof StandardEventsListeners]: Parameters<StandardEventsListeners[E]>[0];
@@ -236,13 +236,19 @@ export class SuiWallet implements Wallet {
         return null;
     };
 
-    #getAccountList: () => Promise<string[]> = async () => {
-        return mapToPromise(
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    #getAccountList = async () => {
+        await mapToPromise(
             this.#send<AccountListRequest, AccountListResponse>({
                 type: 'account-list-request',
             }),
-            (response) => response.result,
+            (response) => {
+                return response;
+            },
         );
+
+        return ['fasdfas'];
     };
 
     #signTransactionBlock: SuiSignTransactionBlockMethod = async ({

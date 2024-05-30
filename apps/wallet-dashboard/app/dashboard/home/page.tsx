@@ -4,14 +4,43 @@
 
 import { useCurrentAccount, useCurrentWallet, useAccountList } from '@mysten/dapp-kit';
 import { AccountBalance, AllCoins } from '@/components';
+import { useQuery } from '@tanstack/react-query';
 
 function HomeDashboardPage(): JSX.Element {
     const { connectionStatus } = useCurrentWallet();
     const account = useCurrentAccount();
     const { data: accounts } = useAccountList();
-    console.log('--- ', accounts);
-    const handleGetAccounts = () => {
-        console.log('--- handle get accounts');
+    console.log('--- accounts', accounts);
+    const { currentWallet } = useCurrentWallet();
+    const { data: accountsFull } = useQuery({
+        queryKey: ['account-list-full'],
+        queryFn: async () => {
+            try {
+                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                // @ts-ignore
+                const e = await currentWallet.features['standard:accountList']?.get();
+                return e;
+            } catch (error) {
+                console.error(
+                    'Failed to disconnect the application from the current wallet.',
+                    error,
+                );
+            }
+            return [''];
+        },
+        enabled: !!currentWallet,
+    });
+
+    const handleGetAccounts = async () => {
+        console.log('--- t');
+        try {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+            const e = await currentWallet.features['standard:accountList']?.get();
+            console.log('--- ', e);
+        } catch (e) {
+            console.log('--- err', e);
+        }
     };
 
     return (

@@ -85,7 +85,8 @@ export class ContentScriptConnection extends Connection {
             } else if (isDisconnectAllRequest(payload)) {
                 await Permissions.delete(payload.origin, []);
             } else if (isAccountListRequest(payload)) {
-                return ['fff'];
+                const { accounts } = await this.ensurePermissions(['viewAccount']);
+                return accounts;
             } else if (isExecuteTransactionRequest(payload)) {
                 if (!payload.transaction.account) {
                     // make sure we don't execute transactions that doesn't have a specified account
