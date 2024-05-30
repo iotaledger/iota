@@ -6,8 +6,8 @@ use async_graphql_axum::GraphQLResponse;
 use sui_indexer::errors::IndexerError;
 use sui_json_rpc::name_service::NameServiceError;
 
-/// Error codes for the `extensions.code` field of a GraphQL error that originates from outside
-/// GraphQL.
+/// Error codes for the `extensions.code` field of a GraphQL error that
+/// originates from outside GraphQL.
 /// `<https://www.apollographql.com/docs/apollo-server/data/errors/#built-in-error-codes>`
 pub(crate) mod code {
     pub const BAD_REQUEST: &str = "BAD_REQUEST";
@@ -19,10 +19,11 @@ pub(crate) mod code {
 
 /// Create a GraphQL Response containing an Error.
 ///
-/// Most errors produced by the service will automatically be wrapped in a `GraphQLResponse`,
-/// because they will originate from within the GraphQL implementation.  This function is intended
-/// for errors that originated from outside of GraphQL (such as in middleware), but that need to be
-/// ingested by GraphQL clients.
+/// Most errors produced by the service will automatically be wrapped in a
+/// `GraphQLResponse`, because they will originate from within the GraphQL
+/// implementation.  This function is intended for errors that originated from
+/// outside of GraphQL (such as in middleware), but that need to be ingested by
+/// GraphQL clients.
 pub(crate) fn graphql_error_response(code: &str, message: impl Into<String>) -> GraphQLResponse {
     let error = graphql_error(code, message);
     Response::from_errors(error.into()).into()
@@ -30,7 +31,8 @@ pub(crate) fn graphql_error_response(code: &str, message: impl Into<String>) -> 
 
 /// Create a generic GraphQL Server Error.
 ///
-/// This error has no path, source, or locations, just a message and an error code.
+/// This error has no path, source, or locations, just a message and an error
+/// code.
 pub(crate) fn graphql_error(code: &str, message: impl Into<String>) -> ServerError {
     let mut ext = ErrorExtensionValues::default();
     ext.set("code", code);

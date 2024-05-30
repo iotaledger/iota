@@ -74,8 +74,8 @@ fn move_check_testsuite(path: &Path) -> datatest_stable::Result<()> {
 }
 
 fn testsuite(path: &Path, mut config: PackageConfig, lint: bool) -> datatest_stable::Result<()> {
-    // A test is marked that it should also be compiled in test mode by having a `path.unit_test`
-    // file.
+    // A test is marked that it should also be compiled in test mode by having a
+    // `path.unit_test` file.
     if path.with_extension(TEST_EXT).exists() {
         let test_exp_path = format!(
             "{}.unit_test.{}",
@@ -101,8 +101,8 @@ fn testsuite(path: &Path, mut config: PackageConfig, lint: bool) -> datatest_sta
         )?;
     }
 
-    // A test is marked that it should also be compiled in migration mode by having a
-    // `path.migration` file.
+    // A test is marked that it should also be compiled in migration mode by having
+    // a `path.migration` file.
     if path.with_extension(MIGRATION_EXT).exists() {
         let migration_exp_path = format!(
             "{}.{}.{}",
@@ -131,7 +131,8 @@ fn testsuite(path: &Path, mut config: PackageConfig, lint: bool) -> datatest_sta
         )?;
     }
 
-    // A cross-module unused case that should run without unused warnings suppression
+    // A cross-module unused case that should run without unused warnings
+    // suppression
     if path.with_extension(UNUSED_EXT).exists() {
         let unused_exp_path = format!(
             "{}.unused.{}",

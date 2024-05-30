@@ -1,8 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::key_derive::{derive_key_pair_from_path, generate_new_key};
-use crate::random_names::{random_name, random_names};
+use std::{
+    collections::{BTreeMap, HashSet},
+    fmt::{Display, Formatter, Write},
+    fs,
+    fs::File,
+    io::BufReader,
+    path::{Path, PathBuf},
+};
+
 use anyhow::{anyhow, bail, ensure, Context};
 use bip32::DerivationPath;
 use bip39::{Language, Mnemonic, Seed};
@@ -10,17 +17,17 @@ use rand::{rngs::StdRng, SeedableRng};
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use shared_crypto::intent::{Intent, IntentMessage};
-use std::collections::{BTreeMap, HashSet};
-use std::fmt::Write;
-use std::fmt::{Display, Formatter};
-use std::fs;
-use std::fs::File;
-use std::io::BufReader;
-use std::path::{Path, PathBuf};
-use sui_types::base_types::SuiAddress;
-use sui_types::crypto::get_key_pair_from_rng;
-use sui_types::crypto::{
-    enum_dispatch, EncodeDecodeBase64, PublicKey, Signature, SignatureScheme, SuiKeyPair,
+use sui_types::{
+    base_types::SuiAddress,
+    crypto::{
+        enum_dispatch, get_key_pair_from_rng, EncodeDecodeBase64, PublicKey, Signature,
+        SignatureScheme, SuiKeyPair,
+    },
+};
+
+use crate::{
+    key_derive::{derive_key_pair_from_path, generate_new_key},
+    random_names::{random_name, random_names},
 };
 
 #[derive(Serialize, Deserialize)]
@@ -233,7 +240,8 @@ impl AccountKeystore for FileBasedKeystore {
         Ok(())
     }
 
-    /// Return an array of `Alias`, consisting of every alias and its corresponding public key.
+    /// Return an array of `Alias`, consisting of every alias and its
+    /// corresponding public key.
     fn aliases(&self) -> Vec<&Alias> {
         self.aliases.values().collect()
     }
@@ -242,7 +250,8 @@ impl AccountKeystore for FileBasedKeystore {
         self.aliases.iter().collect::<Vec<_>>()
     }
 
-    /// Return an array of `Alias`, consisting of every alias and its corresponding public key.
+    /// Return an array of `Alias`, consisting of every alias and its
+    /// corresponding public key.
     fn aliases_mut(&mut self) -> Vec<&mut Alias> {
         self.aliases.values_mut().collect()
     }
@@ -251,8 +260,8 @@ impl AccountKeystore for FileBasedKeystore {
         self.keys.values().map(|key| key.public()).collect()
     }
 
-    /// This function returns an error if the provided alias already exists. If the alias
-    /// has not already been used, then it returns the alias.
+    /// This function returns an error if the provided alias already exists. If
+    /// the alias has not already been used, then it returns the alias.
     /// If no alias has been passed, it will generate a new alias.
     fn create_alias(&self, alias: Option<String>) -> Result<String, anyhow::Error> {
         match alias {
@@ -543,8 +552,8 @@ impl AccountKeystore for InMemKeystore {
             .map(|x| x.0)
     }
 
-    /// This function returns an error if the provided alias already exists. If the alias
-    /// has not already been used, then it returns the alias.
+    /// This function returns an error if the provided alias already exists. If
+    /// the alias has not already been used, then it returns the alias.
     /// If no alias has been passed, it will generate a new alias.
     fn create_alias(&self, alias: Option<String>) -> Result<String, anyhow::Error> {
         match alias {

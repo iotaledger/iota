@@ -1,25 +1,24 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority::epoch_start_configuration::EpochStartConfigTrait;
-use crate::authority::AuthorityPerEpochStore;
-use crate::execution_cache::ExecutionCacheRead;
 use std::collections::HashMap;
-use sui_types::crypto::RandomnessRound;
-use sui_types::effects::{TransactionEffects, TransactionEffectsAPI};
-use sui_types::executable_transaction::VerifiedExecutableTransaction;
-use sui_types::storage::{
-    transaction_input_object_keys, transaction_receiving_object_keys, ObjectKey,
-};
-use sui_types::transaction::{
-    SenderSignedData, SharedInputObject, TransactionDataAPI, TransactionKey,
-};
+
 use sui_types::{
     base_types::{ObjectID, SequenceNumber},
+    crypto::RandomnessRound,
+    effects::{TransactionEffects, TransactionEffectsAPI},
     error::SuiResult,
+    executable_transaction::VerifiedExecutableTransaction,
+    storage::{transaction_input_object_keys, transaction_receiving_object_keys, ObjectKey},
+    transaction::{SenderSignedData, SharedInputObject, TransactionDataAPI, TransactionKey},
     SUI_RANDOMNESS_STATE_OBJECT_ID,
 };
 use tracing::{debug, trace};
+
+use crate::{
+    authority::{epoch_start_configuration::EpochStartConfigTrait, AuthorityPerEpochStore},
+    execution_cache::ExecutionCacheRead,
+};
 
 pub struct SharedObjVerManager {}
 
@@ -47,15 +46,19 @@ impl SharedObjVerManager {
         )
         .await?;
         let mut assigned_versions = Vec::new();
-        // We must update randomness object version first before processing any transaction,
-        // so that all reads are using the next version.
-        // TODO: Add a test that actually check this, i.e. if we change the order, some test should fail.
+        // We must update randomness object version first before processing any
+        // transaction, so that all reads are using the next version.
+        // TODO: Add a test that actually check this, i.e. if we change the order, some
+        // test should fail.
         if let Some(round) = randomness_round {
             // If we're generating randomness, update the randomness state object version.
             let version = shared_input_next_versions
                 .get_mut(&SUI_RANDOMNESS_STATE_OBJECT_ID)
                 .expect("randomness state object must have been added in get_or_init_versions()");
-            debug!("assigning shared object versions for randomness: epoch {}, round {round:?} -> version {version:?}", epoch_store.epoch());
+            debug!(
+                "assigning shared object versions for randomness: epoch {}, round {round:?} -> version {version:?}",
+                epoch_store.epoch()
+            );
             assigned_versions.push((
                 TransactionKey::RandomnessRound(epoch_store.epoch(), round),
                 vec![(SUI_RANDOMNESS_STATE_OBJECT_ID, *version)],
@@ -83,11 +86,12 @@ impl SharedObjVerManager {
         cache_reader: &dyn ExecutionCacheRead,
     ) -> SuiResult<AssignedTxAndVersions> {
         // We don't care about the results since we can use effects to assign versions.
-        // But we must call it to make sure whenever a shared object is touched the first time
-        // during an epoch, either through consensus or through checkpoint executor,
-        // its next version must be initialized. This is because we initialize the next version
-        // of a shared object in an epoch by reading the current version from the object store.
-        // This must be done before we mutate it the first time, otherwise we would be initializing
+        // But we must call it to make sure whenever a shared object is touched the
+        // first time during an epoch, either through consensus or through
+        // checkpoint executor, its next version must be initialized. This is
+        // because we initialize the next version of a shared object in an epoch
+        // by reading the current version from the object store. This must be
+        // done before we mutate it the first time, otherwise we would be initializing
         // it with the wrong version.
         let _ = get_or_init_versions(
             certs_and_effects.iter().map(|(cert, _)| cert.data()),
@@ -205,25 +209,29 @@ fn assign_versions_for_certificate(
 
 #[cfg(test)]
 mod tests {
-    use crate::authority::epoch_start_configuration::EpochStartConfigTrait;
-    use crate::authority::shared_object_version_manager::{
-        ConsensusSharedObjVerAssignment, SharedObjVerManager,
-    };
-    use crate::authority::test_authority_builder::TestAuthorityBuilder;
-    use shared_crypto::intent::Intent;
     use std::collections::{BTreeMap, HashMap};
+
+    use shared_crypto::intent::Intent;
     use sui_test_transaction_builder::TestTransactionBuilder;
-    use sui_types::base_types::{ObjectID, SequenceNumber, SuiAddress};
-    use sui_types::crypto::RandomnessRound;
-    use sui_types::digests::ObjectDigest;
-    use sui_types::effects::TestEffectsBuilder;
-    use sui_types::executable_transaction::{
-        CertificateProof, ExecutableTransaction, VerifiedExecutableTransaction,
+    use sui_types::{
+        base_types::{ObjectID, SequenceNumber, SuiAddress},
+        crypto::RandomnessRound,
+        digests::ObjectDigest,
+        effects::TestEffectsBuilder,
+        executable_transaction::{
+            CertificateProof, ExecutableTransaction, VerifiedExecutableTransaction,
+        },
+        object::{Object, Owner},
+        programmable_transaction_builder::ProgrammableTransactionBuilder,
+        transaction::{ObjectArg, SenderSignedData, TransactionKey},
+        SUI_RANDOMNESS_STATE_OBJECT_ID,
     };
-    use sui_types::object::{Object, Owner};
-    use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-    use sui_types::transaction::{ObjectArg, SenderSignedData, TransactionKey};
-    use sui_types::SUI_RANDOMNESS_STATE_OBJECT_ID;
+
+    use crate::authority::{
+        epoch_start_configuration::EpochStartConfigTrait,
+        shared_object_version_manager::{ConsensusSharedObjVerAssignment, SharedObjVerManager},
+        test_authority_builder::TestAuthorityBuilder,
+    };
 
     #[tokio::test]
     async fn test_assign_versions_from_consensus_basic() {
@@ -258,21 +266,23 @@ mod tests {
         )
         .await
         .unwrap();
-        // Check that the shared object's next version is always initialized in the epoch store.
+        // Check that the shared object's next version is always initialized in the
+        // epoch store.
         assert_eq!(
             epoch_store.get_next_object_version(&id).unwrap(),
             init_shared_version
         );
-        // Check that the final version of the shared object is the lamport version of the last
-        // transaction.
+        // Check that the final version of the shared object is the lamport version of
+        // the last transaction.
         assert_eq!(
             shared_input_next_versions,
             HashMap::from([(id, SequenceNumber::from_u64(12))])
         );
         // Check that the version assignment for each transaction is correct.
-        // For a transaction that uses the shared object with mutable=false, it won't update the version
-        // using lamport version, hence the next transaction will use the same version number.
-        // In the following case, certs[2] has the same assignment as certs[1] for this reason.
+        // For a transaction that uses the shared object with mutable=false, it won't
+        // update the version using lamport version, hence the next transaction
+        // will use the same version number. In the following case, certs[2] has
+        // the same assignment as certs[1] for this reason.
         assert_eq!(
             assigned_versions,
             vec![
@@ -296,7 +306,8 @@ mod tests {
             generate_shared_obj_tx_with_gas_version(
                 SUI_RANDOMNESS_STATE_OBJECT_ID,
                 randomness_obj_version,
-                // This can only be false since it's not allowed to use randomness object with mutable=true.
+                // This can only be false since it's not allowed to use randomness object with
+                // mutable=true.
                 false,
                 3,
             ),
@@ -340,12 +351,14 @@ mod tests {
                 ),
                 (
                     certs[0].key(),
-                    // It is critical that the randomness object version is updated before the assignment.
+                    // It is critical that the randomness object version is updated before the
+                    // assignment.
                     vec![(SUI_RANDOMNESS_STATE_OBJECT_ID, next_randomness_obj_version)]
                 ),
                 (
                     certs[1].key(),
-                    // It is critical that the randomness object version is updated before the assignment.
+                    // It is critical that the randomness object version is updated before the
+                    // assignment.
                     vec![(SUI_RANDOMNESS_STATE_OBJECT_ID, next_randomness_obj_version)]
                 ),
             ]
@@ -397,7 +410,8 @@ mod tests {
         )
         .await
         .unwrap();
-        // Check that the shared object's next version is always initialized in the epoch store.
+        // Check that the shared object's next version is always initialized in the
+        // epoch store.
         assert_eq!(
             epoch_store.get_next_object_version(&id).unwrap(),
             init_shared_version
@@ -413,9 +427,10 @@ mod tests {
         );
     }
 
-    /// Generate a transaction that uses a shared object as specified in the parameters.
-    /// Also uses a gas object with specified version.
-    /// The version of the gas object is used to manipulate the lamport version of this transaction.
+    /// Generate a transaction that uses a shared object as specified in the
+    /// parameters. Also uses a gas object with specified version.
+    /// The version of the gas object is used to manipulate the lamport version
+    /// of this transaction.
     fn generate_shared_obj_tx_with_gas_version(
         shared_object_id: ObjectID,
         shared_object_init_version: SequenceNumber,

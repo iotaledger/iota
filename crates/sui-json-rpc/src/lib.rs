@@ -1,32 +1,28 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::env;
-use std::net::SocketAddr;
-use std::str::FromStr;
-
-use hyper::header::HeaderName;
-use hyper::header::HeaderValue;
-use hyper::Body;
-use hyper::Method;
-use hyper::Request;
-use jsonrpsee::RpcModule;
-use prometheus::Registry;
-use tokio::runtime::Handle;
-use tower_http::cors::{AllowOrigin, CorsLayer};
-use tower_http::trace::TraceLayer;
-use tracing::info;
+use std::{env, net::SocketAddr, str::FromStr};
 
 pub use balance_changes::*;
+use hyper::{
+    header::{HeaderName, HeaderValue},
+    Body, Method, Request,
+};
+use jsonrpsee::RpcModule;
 pub use object_changes::*;
+use prometheus::Registry;
 use sui_json_rpc_api::{
     CLIENT_SDK_TYPE_HEADER, CLIENT_SDK_VERSION_HEADER, CLIENT_TARGET_API_VERSION_HEADER,
 };
 use sui_open_rpc::{Module, Project};
+use tokio::runtime::Handle;
+use tower_http::{
+    cors::{AllowOrigin, CorsLayer},
+    trace::TraceLayer,
+};
+use tracing::info;
 
-use crate::error::Error;
-use crate::metrics::MetricsLogger;
-use crate::routing_layer::RpcRouter;
+use crate::{error::Error, metrics::MetricsLogger, routing_layer::RpcRouter};
 
 pub mod authority_state;
 pub mod axum_router;

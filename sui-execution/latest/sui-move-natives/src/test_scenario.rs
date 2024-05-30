@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    get_nth_struct_field, legacy_test_cost,
-    object_runtime::{ObjectRuntime, RuntimeResults},
+use std::{
+    borrow::Borrow,
+    collections::{BTreeMap, BTreeSet, VecDeque},
 };
+
 use indexmap::{IndexMap, IndexSet};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
@@ -22,14 +23,15 @@ use move_vm_types::{
     values::{self, StructRef, Value},
 };
 use smallvec::smallvec;
-use std::{
-    borrow::Borrow,
-    collections::{BTreeMap, BTreeSet, VecDeque},
-};
 use sui_types::{
     base_types::{ObjectID, SequenceNumber, SuiAddress},
     id::UID,
     object::Owner,
+};
+
+use crate::{
+    get_nth_struct_field, legacy_test_cost,
+    object_runtime::{ObjectRuntime, RuntimeResults},
 };
 
 const E_COULD_NOT_GENERATE_EFFECTS: u64 = 0;
@@ -38,8 +40,8 @@ const E_OBJECT_NOT_FOUND_CODE: u64 = 4;
 
 type Set<K> = IndexSet<K>;
 
-// This function updates the inventories based on the transfers and deletes that occurred in the
-// transaction
+// This function updates the inventories based on the transfers and deletes that
+// occurred in the transaction
 // native fun end_transaction(): TransactionResult;
 pub fn end_transaction(
     context: &mut NativeContext,
@@ -91,8 +93,10 @@ pub fn end_transaction(
     // cleanup inventories
     // we will remove all changed objects
     // - deleted objects need to be removed to mark deletions
-    // - written objects are removed and later replaced to mark new values and new owners
-    // - child objects will not be reflected in transfers, but need to be no longer retrievable
+    // - written objects are removed and later replaced to mark new values and new
+    //   owners
+    // - child objects will not be reflected in transfers, but need to be no longer
+    //   retrievable
     for id in deleted_object_ids
         .iter()
         .chain(writes.keys())
@@ -111,7 +115,8 @@ pub fn end_transaction(
         }
         inventories.taken.remove(id);
     }
-    // handle transfers, inserting transferred/written objects into their respective inventory
+    // handle transfers, inserting transferred/written objects into their respective
+    // inventory
     let mut created = vec![];
     let mut written = vec![];
     for (id, (owner, ty, value)) in writes {
@@ -157,7 +162,8 @@ pub fn end_transaction(
     // deletions already handled above, but we drop the delete kind for the effects
     let mut deleted = vec![];
     for id in deleted_object_ids {
-        // Mark as "incorrect" if a imm object was deleted. Allow shared objects to be deleted though.
+        // Mark as "incorrect" if a imm object was deleted. Allow shared objects to be
+        // deleted though.
         incorrect_shared_or_imm_handling = incorrect_shared_or_imm_handling
             || taken_shared_or_imm
                 .get(&id)
@@ -555,7 +561,7 @@ fn pop_id(args: &mut VecDeque<Value>) -> PartialVMResult<ObjectID> {
         None => {
             return Err(PartialVMError::new(
                 StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR,
-            ))
+            ));
         }
         Some(v) => v,
     };
@@ -688,7 +694,8 @@ fn find_all_wrapped_objects<'a>(
 fn visit_structs<FVisitTypes>(move_value: &MoveValue, mut visit_with_types: FVisitTypes)
 where
     for<'a> FVisitTypes: FnMut(
-        /* value depth */ usize,
+        // value depth
+        usize,
         &StructTag,
         &'a Vec<(Identifier, MoveValue)>,
     ) -> &'a [(Identifier, MoveValue)],
@@ -702,7 +709,8 @@ fn visit_structs_impl<FVisitTypes>(
     depth: usize,
 ) where
     for<'a> FVisitTypes: FnMut(
-        /* value depth */ usize,
+        // value depth
+        usize,
         &StructTag,
         &'a Vec<(Identifier, MoveValue)>,
     ) -> &'a [(Identifier, MoveValue)],

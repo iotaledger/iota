@@ -6,7 +6,8 @@
 //! It aims at providing a similar SDK functionality like the one existing for
 //! [TypeScript](https://github.com/MystenLabs/sui/tree/main/sdk/typescript/).
 //! Sui Rust SDK builds on top of the [JSON RPC API](https://docs.sui.io/sui-jsonrpc)
-//! and therefore many of the return types are the ones specified in [sui_types].
+//! and therefore many of the return types are the ones specified in
+//! [sui_types].
 //!
 //! The API is split in several parts corresponding to different functionalities
 //! as following:
@@ -17,7 +18,10 @@
 //! block and submit it to the fullnode(s)
 //! * [ReadApi] - provides functions for retrieving data about different
 //! objects and transactions
-//! * <a href="../sui_transaction_builder/struct.TransactionBuilder.html" title="struct sui_transaction_builder::TransactionBuilder">TransactionBuilder</a> - provides functions for building transactions
+//! * <a href="../sui_transaction_builder/struct.TransactionBuilder.html"
+//!   title="struct
+//!   sui_transaction_builder::TransactionBuilder">TransactionBuilder</a> -
+//!   provides functions for building transactions
 //!
 //! # Usage
 //! The main way to interact with the API is through the [SuiClientBuilder],
@@ -43,7 +47,6 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), anyhow::Error> {
-//!
 //!     let sui = SuiClientBuilder::default()
 //!         .build("http://127.0.0.1:9000") // provide the Sui network URL
 //!         .await?;
@@ -61,7 +64,6 @@
 //!     let sui_testnet = SuiClientBuilder::default().build_testnet().await?;
 //!     println!("Sui testnet version: {:?}", sui_testnet.api_version());
 //!     Ok(())
-//!
 //! }
 //! ```
 //!
@@ -70,19 +72,21 @@
 //! For detailed examples, please check the APIs docs and the examples folder
 //! in the [main repository](https://github.com/MystenLabs/sui/tree/main/crates/sui-sdk/examples).
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{
+    fmt::{Debug, Formatter},
+    sync::Arc,
+    time::Duration,
+};
 
 use async_trait::async_trait;
-use jsonrpsee::core::client::ClientT;
-use jsonrpsee::http_client::{HeaderMap, HeaderValue, HttpClient, HttpClientBuilder};
-use jsonrpsee::rpc_params;
-use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
-use serde_json::Value;
-
+use jsonrpsee::{
+    core::client::ClientT,
+    http_client::{HeaderMap, HeaderValue, HttpClient, HttpClientBuilder},
+    rpc_params,
+    ws_client::{WsClient, WsClientBuilder},
+};
 use move_core_types::language_storage::StructTag;
+use serde_json::Value;
 pub use sui_json as json;
 use sui_json_rpc_api::{
     CLIENT_SDK_TYPE_HEADER, CLIENT_SDK_VERSION_HEADER, CLIENT_TARGET_API_VERSION_HEADER,
@@ -96,8 +100,10 @@ use sui_transaction_builder::{DataReader, TransactionBuilder};
 pub use sui_types as types;
 use sui_types::base_types::{ObjectID, ObjectInfo, SuiAddress};
 
-use crate::apis::{CoinReadApi, EventApi, GovernanceApi, QuorumDriverApi, ReadApi};
-use crate::error::{Error, SuiRpcResult};
+use crate::{
+    apis::{CoinReadApi, EventApi, GovernanceApi, QuorumDriverApi, ReadApi},
+    error::{Error, SuiRpcResult},
+};
 
 pub mod apis;
 pub mod error;
@@ -177,7 +183,8 @@ impl SuiClientBuilder {
         self
     }
 
-    /// Returns a [SuiClient] object connected to the Sui network running at the URI provided.
+    /// Returns a [SuiClient] object connected to the Sui network running at the
+    /// URI provided.
     ///
     /// # Examples
     ///
@@ -266,9 +273,7 @@ impl SuiClientBuilder {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let sui = SuiClientBuilder::default()
-    ///         .build_localnet()
-    ///         .await?;
+    ///     let sui = SuiClientBuilder::default().build_localnet().await?;
     ///
     ///     println!("Sui local version: {:?}", sui.api_version());
     ///     Ok(())
@@ -278,7 +283,8 @@ impl SuiClientBuilder {
         self.build(SUI_LOCAL_NETWORK_URL).await
     }
 
-    /// Returns a [SuiClient] object that is ready to interact with the Sui devnet.
+    /// Returns a [SuiClient] object that is ready to interact with the Sui
+    /// devnet.
     ///
     /// For connecting to a custom URI, use the `build` function instead..
     ///
@@ -289,9 +295,7 @@ impl SuiClientBuilder {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let sui = SuiClientBuilder::default()
-    ///         .build_devnet()
-    ///         .await?;
+    ///     let sui = SuiClientBuilder::default().build_devnet().await?;
     ///
     ///     println!("{:?}", sui.api_version());
     ///     Ok(())
@@ -301,7 +305,8 @@ impl SuiClientBuilder {
         self.build(SUI_DEVNET_URL).await
     }
 
-    /// Returns a [SuiClient] object that is ready to interact with the Sui testnet.
+    /// Returns a [SuiClient] object that is ready to interact with the Sui
+    /// testnet.
     ///
     /// For connecting to a custom URI, use the `build` function instead.
     ///
@@ -312,9 +317,7 @@ impl SuiClientBuilder {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let sui = SuiClientBuilder::default()
-    ///         .build_testnet()
-    ///         .await?;
+    ///     let sui = SuiClientBuilder::default().build_testnet().await?;
     ///
     ///     println!("{:?}", sui.api_version());
     ///     Ok(())
@@ -371,7 +374,8 @@ impl SuiClientBuilder {
     }
 }
 
-/// SuiClient is the basic type that provides all the necessary abstractions for interacting with the Sui network.
+/// SuiClient is the basic type that provides all the necessary abstractions for
+/// interacting with the Sui network.
 ///
 /// # Usage
 ///
@@ -380,15 +384,15 @@ impl SuiClientBuilder {
 /// # Examples
 ///
 /// ```rust,no_run
-/// use sui_sdk::types::base_types::SuiAddress;
-/// use sui_sdk::SuiClientBuilder;
 /// use std::str::FromStr;
+///
+/// use sui_sdk::{types::base_types::SuiAddress, SuiClientBuilder};
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), anyhow::Error> {
 ///     let sui = SuiClientBuilder::default()
-///      .build("http://127.0.0.1:9000")
-///      .await?;
+///         .build("http://127.0.0.1:9000")
+///         .await?;
 ///
 ///     println!("{:?}", sui.available_rpc_methods());
 ///     println!("{:?}", sui.available_subscriptions());
@@ -396,9 +400,9 @@ impl SuiClientBuilder {
 ///
 ///     let address = SuiAddress::from_str("0x0000....0000")?;
 ///     let owned_objects = sui
-///        .read_api()
-///        .get_owned_objects(address, None, None, None)
-///        .await?;
+///         .read_api()
+///         .get_owned_objects(address, None, None, None)
+///         .await?;
 ///
 ///     println!("{:?}", owned_objects);
 ///
@@ -432,7 +436,8 @@ impl Debug for RpcClient {
     }
 }
 
-/// ServerInfo contains all the useful information regarding the API version, the available RPC calls, and subscriptions.
+/// ServerInfo contains all the useful information regarding the API version,
+/// the available RPC calls, and subscriptions.
 struct ServerInfo {
     rpc_methods: Vec<String>,
     subscriptions: Vec<String>,
@@ -440,12 +445,14 @@ struct ServerInfo {
 }
 
 impl SuiClient {
-    /// Returns a list of RPC methods supported by the node the client is connected to.
+    /// Returns a list of RPC methods supported by the node the client is
+    /// connected to.
     pub fn available_rpc_methods(&self) -> &Vec<String> {
         &self.api.info.rpc_methods
     }
 
-    /// Returns a list of streaming/subscription APIs supported by the node the client is connected to.
+    /// Returns a list of streaming/subscription APIs supported by the node the
+    /// client is connected to.
     pub fn available_subscriptions(&self) -> &Vec<String> {
         &self.api.info.subscriptions
     }
@@ -453,12 +460,14 @@ impl SuiClient {
     /// Returns the API version information as a string.
     ///
     /// The format of this string is `<major>.<minor>.<patch>`, e.g., `1.6.0`,
-    /// and it is retrieved from the OpenRPC specification via the discover service method.
+    /// and it is retrieved from the OpenRPC specification via the discover
+    /// service method.
     pub fn api_version(&self) -> &str {
         &self.api.info.version
     }
 
-    /// Verifies if the API version matches the server version and returns an error if they do not match.
+    /// Verifies if the API version matches the server version and returns an
+    /// error if they do not match.
     pub fn check_api_version(&self) -> SuiRpcResult<()> {
         let server_version = self.api_version();
         let client_version = env!("CARGO_PKG_VERSION");

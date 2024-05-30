@@ -16,12 +16,13 @@ pub enum Severity {
     Bug = 3,
 }
 
-/// A an optional prefix to distinguish between different types of warnings (internal vs. possibly
-/// multiple externally provided ones).
+/// A an optional prefix to distinguish between different types of warnings
+/// (internal vs. possibly multiple externally provided ones).
 pub type ExternalPrefix = Option<&'static str>;
 /// The name for a well-known filter.
 pub type WellKnownFilterName = &'static str;
-/// The ID for a diagnostic, consisting of an optional prefix, a category, and a code.
+/// The ID for a diagnostic, consisting of an optional prefix, a category, and a
+/// code.
 pub type DiagnosticsID = (ExternalPrefix, u8, u8);
 
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
@@ -59,13 +60,15 @@ pub(crate) trait DiagnosticCode: Copy {
 pub enum WarningFilter {
     /// Filters all warnings
     All(ExternalPrefix),
-    /// Filters all warnings of a specific category. Only known filters have names.
+    /// Filters all warnings of a specific category. Only known filters have
+    /// names.
     Category {
         prefix: ExternalPrefix,
         category: u8,
         name: Option<WellKnownFilterName>,
     },
-    /// Filters a single warning, as defined by codes below. Only known filters have names.
+    /// Filters a single warning, as defined by codes below. Only known filters
+    /// have names.
     Code {
         prefix: ExternalPrefix,
         category: u8,

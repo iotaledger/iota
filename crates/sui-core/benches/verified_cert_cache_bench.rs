@@ -1,9 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use criterion::*;
-
-use criterion::Criterion;
+use criterion::{Criterion, *};
 use sui_core::signature_verifier::{SignatureVerifierMetrics, VerifiedDigestCache};
 use sui_types::digests::CertificateDigest;
 

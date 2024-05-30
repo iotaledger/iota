@@ -1,12 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::{BTreeMap, HashMap};
+
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
-use std::collections::{BTreeMap, HashMap};
 use sui_config::genesis;
-use sui_types::storage::{get_module, load_package_object_from_object_store, PackageObject};
 use sui_types::{
     base_types::{AuthorityName, ObjectID, SequenceNumber, SuiAddress},
     committee::{Committee, EpochId},
@@ -19,7 +19,10 @@ use sui_types::{
         VerifiedCheckpoint,
     },
     object::{Object, Owner},
-    storage::{BackingPackageStore, ChildObjectResolver, ObjectStore, ParentSync},
+    storage::{
+        get_module, load_package_object_from_object_store, BackingPackageStore,
+        ChildObjectResolver, ObjectStore, PackageObject, ParentSync,
+    },
     transaction::VerifiedTransaction,
 };
 

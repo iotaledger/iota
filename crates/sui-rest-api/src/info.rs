@@ -3,11 +3,11 @@
 
 use std::borrow::Cow;
 
-use crate::{accept::AcceptFormat, response::ResponseContent};
-use crate::{RestService, Result};
 use axum::extract::State;
 use sui_types::digests::ChainIdentifier;
 use tap::Pipe;
+
+use crate::{accept::AcceptFormat, response::ResponseContent, RestService, Result};
 
 pub async fn node_info(
     accept: AcceptFormat,
@@ -40,5 +40,5 @@ pub struct NodeInfo {
     pub timestamp_ms: u64,
     pub oldest_checkpoint_height: u64,
     pub software_version: Cow<'static, str>,
-    //TODO include current protocol version
+    // TODO include current protocol version
 }

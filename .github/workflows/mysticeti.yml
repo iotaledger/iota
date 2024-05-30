@@ -139,8 +139,8 @@ jobs:
         with:
           crate: cargo-hakari
           locked: true
-      - name: Install rustfmt
-        run: rustup component add rustfmt
+      - name: Install nightly rustfmt
+        run: rustup toolchain install nightly --component rustfmt --allow-downgrade
       - name: sui-execution
         run: |
           ./scripts/execution_layer.py generate-lib

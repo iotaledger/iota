@@ -1,22 +1,26 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::{hash_map::Entry, BTreeMap, HashMap},
+    hash::Hash,
+    sync::Arc,
+};
+
 use serde::Serialize;
 use shared_crypto::intent::Intent;
-use std::collections::hash_map::Entry;
-use std::collections::{BTreeMap, HashMap};
-use std::hash::Hash;
-use std::sync::Arc;
-use sui_types::base_types::AuthorityName;
-use sui_types::base_types::ConciseableName;
-use sui_types::committee::{Committee, CommitteeTrait, StakeUnit};
-use sui_types::crypto::{AuthorityQuorumSignInfo, AuthoritySignInfo, AuthoritySignInfoTrait};
-use sui_types::error::SuiError;
-use sui_types::message_envelope::{Envelope, Message};
+use sui_types::{
+    base_types::{AuthorityName, ConciseableName},
+    committee::{Committee, CommitteeTrait, StakeUnit},
+    crypto::{AuthorityQuorumSignInfo, AuthoritySignInfo, AuthoritySignInfoTrait},
+    error::SuiError,
+    message_envelope::{Envelope, Message},
+};
 use tracing::warn;
 
-/// StakeAggregator allows us to keep track of the total stake of a set of validators.
-/// STRENGTH indicates whether we want a strong quorum (2f+1) or a weak quorum (f+1).
+/// StakeAggregator allows us to keep track of the total stake of a set of
+/// validators. STRENGTH indicates whether we want a strong quorum (2f+1) or a
+/// weak quorum (f+1).
 #[derive(Debug)]
 pub struct StakeAggregator<S, const STRENGTH: bool> {
     data: HashMap<AuthorityName, S>,
@@ -24,10 +28,11 @@ pub struct StakeAggregator<S, const STRENGTH: bool> {
     committee: Arc<Committee>,
 }
 
-/// StakeAggregator is a utility data structure that allows us to aggregate a list of validator
-/// signatures over time. A committee is used to determine whether we have reached sufficient
-/// quorum (defined based on `STRENGTH`). The generic implementation does not require `S` to be
-/// an actual signature, but just an indication that a specific validator has voted. A specialized
+/// StakeAggregator is a utility data structure that allows us to aggregate a
+/// list of validator signatures over time. A committee is used to determine
+/// whether we have reached sufficient quorum (defined based on `STRENGTH`). The
+/// generic implementation does not require `S` to be an actual signature, but
+/// just an indication that a specific validator has voted. A specialized
 /// implementation for `AuthoritySignInfo` is followed below.
 impl<S: Clone + Eq, const STRENGTH: bool> StakeAggregator<S, STRENGTH> {
     pub fn new(committee: Arc<Committee>) -> Self {
@@ -50,10 +55,11 @@ impl<S: Clone + Eq, const STRENGTH: bool> StakeAggregator<S, STRENGTH> {
     }
 
     /// A generic version of inserting arbitrary type of V (e.g. void type).
-    /// If V is AuthoritySignInfo, the `insert` function should be used instead since it does extra
-    /// checks and aggregations in the end.
+    /// If V is AuthoritySignInfo, the `insert` function should be used instead
+    /// since it does extra checks and aggregations in the end.
     /// Returns Map authority -> S, without aggregating it.
-    /// If you want to get an aggregated signature instead, use `StakeAggregator::insert`
+    /// If you want to get an aggregated signature instead, use
+    /// `StakeAggregator::insert`
     pub fn insert_generic(
         &mut self,
         authority: AuthorityName,
@@ -116,9 +122,10 @@ impl<S: Clone + Eq, const STRENGTH: bool> StakeAggregator<S, STRENGTH> {
 }
 
 impl<const STRENGTH: bool> StakeAggregator<AuthoritySignInfo, STRENGTH> {
-    /// Insert an authority signature. This is the primary way to use the aggregator and a few
-    /// dedicated checks are performed to make sure things work.
-    /// If quorum is reached, we return AuthorityQuorumSignInfo directly.
+    /// Insert an authority signature. This is the primary way to use the
+    /// aggregator and a few dedicated checks are performed to make sure
+    /// things work. If quorum is reached, we return AuthorityQuorumSignInfo
+    /// directly.
     pub fn insert<T: Message + Serialize>(
         &mut self,
         envelope: Envelope<T, AuthoritySignInfo>,
@@ -144,18 +151,21 @@ impl<const STRENGTH: bool> StakeAggregator<AuthoritySignInfo, STRENGTH> {
                             Intent::sui_app(T::SCOPE),
                             self.committee(),
                         ) {
-                            // In the happy path, the aggregated signature verifies ok and no need to verify
-                            // individual.
+                            // In the happy path, the aggregated signature verifies ok and no need
+                            // to verify individual.
                             Ok(_) => InsertResult::QuorumReached(aggregated),
                             Err(_) => {
-                                // If the aggregated signature fails to verify, fallback to iterating through
-                                // all signatures and verify individually. Decrement total votes and continue
+                                // If the aggregated signature fails to verify, fallback to
+                                // iterating through all signatures
+                                // and verify individually. Decrement total votes and continue
                                 // to find new authority for signature to reach the quorum.
                                 //
-                                // TODO(joyqvq): It is possible for the aggregated signature to fail every time
-                                // when the latest one single signature fails to verify repeatedly, and trigger
-                                // this for loop to run. This can be optimized by caching single sig verification
-                                // result only verify the net new ones.
+                                // TODO(joyqvq): It is possible for the aggregated signature to fail
+                                // every time when the latest one
+                                // single signature fails to verify repeatedly, and trigger
+                                // this for loop to run. This can be optimized by caching single sig
+                                // verification result only verify
+                                // the net new ones.
                                 let mut bad_votes = 0;
                                 let mut bad_authorities = vec![];
                                 for (name, sig) in &self.data.clone() {
@@ -164,9 +174,12 @@ impl<const STRENGTH: bool> StakeAggregator<AuthoritySignInfo, STRENGTH> {
                                         Intent::sui_app(T::SCOPE),
                                         self.committee(),
                                     ) {
-                                        // TODO(joyqvq): Currently, the aggregator cannot do much with an authority that
-                                        // always returns an invalid signature other than saving to errors in state. It
-                                        // is possible to add the authority to a denylist or  punish the byzantine authority.
+                                        // TODO(joyqvq): Currently, the aggregator cannot do much
+                                        // with an authority that
+                                        // always returns an invalid signature other than saving to
+                                        // errors in state. It
+                                        // is possible to add the authority to a denylist or  punish
+                                        // the byzantine authority.
                                         warn!(name=?name.concise(), "Bad stake from validator: {:?}", err);
                                         self.data.remove(name);
                                         let votes = self.committee.weight(name);
@@ -215,10 +228,11 @@ impl<CertT> InsertResult<CertT> {
     }
 }
 
-/// MultiStakeAggregator is a utility data structure that tracks the stake accumulation of
-/// potentially multiple different values (usually due to byzantine/corrupted responses). Each
-/// value is tracked using a StakeAggregator and determine whether it has reached a quorum.
-/// Once quorum is reached, the aggregated signature is returned.
+/// MultiStakeAggregator is a utility data structure that tracks the stake
+/// accumulation of potentially multiple different values (usually due to
+/// byzantine/corrupted responses). Each value is tracked using a
+/// StakeAggregator and determine whether it has reached a quorum. Once quorum
+/// is reached, the aggregated signature is returned.
 #[derive(Debug)]
 pub struct MultiStakeAggregator<K, V, const STRENGTH: bool> {
     committee: Arc<Committee>,
@@ -261,8 +275,8 @@ where
             let mut new_entry = StakeAggregator::new(self.committee.clone());
             let result = new_entry.insert(envelope.clone());
             if !matches!(result, InsertResult::Failed { .. }) {
-                // This is very important: ensure that if the insert fails, we don't even add the
-                // new entry to the map.
+                // This is very important: ensure that if the insert fails, we don't even add
+                // the new entry to the map.
                 self.stake_maps.insert(k, (envelope.into_data(), new_entry));
             }
             result
@@ -306,14 +320,16 @@ where
             .unwrap_or_default()
     }
 
-    /// If true, there isn't enough uncommitted stake to reach quorum for any value
+    /// If true, there isn't enough uncommitted stake to reach quorum for any
+    /// value
     pub fn quorum_unreachable(&self) -> bool {
         self.uncommitted_stake() + self.plurality_stake() < self.committee.threshold::<STRENGTH>()
     }
 }
 
-/// Like MultiStakeAggregator, but for counting votes for a generic value instead of an envelope, in
-/// scenarios where byzantine validators may submit multiple votes for different values.
+/// Like MultiStakeAggregator, but for counting votes for a generic value
+/// instead of an envelope, in scenarios where byzantine validators may submit
+/// multiple votes for different values.
 pub struct GenericMultiStakeAggregator<K, const STRENGTH: bool> {
     committee: Arc<Committee>,
     stake_maps: HashMap<K, StakeAggregator<(), STRENGTH>>,
@@ -373,13 +389,15 @@ fn test_votes_per_authority() {
     let mut agg: GenericMultiStakeAggregator<&str, true> =
         GenericMultiStakeAggregator::new(Arc::new(committee));
 
-    // 1. Inserting an `authority` and a `key`, and then checking the number of votes for that `authority`.
+    // 1. Inserting an `authority` and a `key`, and then checking the number of
+    //    votes for that `authority`.
     let key1: &str = "key1";
     let authority1 = authorities[0];
     agg.insert(authority1, key1);
     assert_eq!(agg.votes_for_authority(authority1), 1);
 
-    // 2. Inserting the same `authority` and `key` pair multiple times to ensure votes aren't incremented incorrectly.
+    // 2. Inserting the same `authority` and `key` pair multiple times to ensure
+    //    votes aren't incremented incorrectly.
     agg.insert(authority1, key1);
     agg.insert(authority1, key1);
     assert_eq!(agg.votes_for_authority(authority1), 1);
@@ -394,7 +412,8 @@ fn test_votes_per_authority() {
     assert_eq!(agg.votes_for_authority(authority2), 1);
     assert_eq!(agg.votes_for_authority(authority1), 1);
 
-    // 5. Verifying that inserting different keys for the same authority increments the vote count.
+    // 5. Verifying that inserting different keys for the same authority increments
+    //    the vote count.
     let key3: &str = "key3";
     agg.insert(authority1, key3);
     assert_eq!(agg.votes_for_authority(authority1), 2);

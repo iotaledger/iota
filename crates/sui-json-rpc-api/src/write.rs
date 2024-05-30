@@ -2,17 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::encoding::Base64;
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::proc_macros::rpc;
-
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use sui_json_rpc_types::{
     DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, SuiTransactionBlockResponse,
     SuiTransactionBlockResponseOptions,
 };
 use sui_open_rpc_macros::open_rpc;
-use sui_types::base_types::SuiAddress;
-use sui_types::quorum_driver_types::ExecuteTransactionRequestType;
-use sui_types::sui_serde::BigInt;
+use sui_types::{
+    base_types::SuiAddress, quorum_driver_types::ExecuteTransactionRequestType, sui_serde::BigInt,
+};
 
 #[open_rpc(namespace = "sui", tag = "Write API")]
 #[rpc(server, client, namespace = "sui")]
@@ -27,6 +25,7 @@ pub trait WriteApi {
     ///     However if the node fails to execute the transaction locally in a timely manner,
     ///     a bool type in the response is set to false to indicated the case.
     /// request_type is default to be `WaitForEffectsCert` unless options.show_events or options.show_effects is true
+    #[rustfmt::skip]
     #[method(name = "executeTransactionBlock")]
     async fn execute_transaction_block(
         &self,
@@ -43,6 +42,7 @@ pub trait WriteApi {
     /// Runs the transaction in dev-inspect mode. Which allows for nearly any
     /// transaction (or Move call) with any arguments. Detailed results are
     /// provided, including both the transaction effects and any return values.
+    #[rustfmt::skip]
     #[method(name = "devInspectTransactionBlock")]
     async fn dev_inspect_transaction_block(
         &self,

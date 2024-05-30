@@ -1,7 +1,5 @@
-// Copyright (c) 2024 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
-
-//! Rust types and logic for the Move counterparts in the `stardust` system package.
+//! Rust types and logic for the Move counterparts in the `stardust` system
+//! package.
 
 use anyhow::Result;
 use iota_sdk::types::block::address::Address;
@@ -32,9 +30,11 @@ pub const BASIC_OUTPUT_STRUCT_NAME: &IdentStr = ident_str!("BasicOutput");
 pub struct ExpirationUnlockCondition {
     /// The address who owns the output before the timestamp has passed.
     pub owner: SuiAddress,
-    /// The address that is allowed to spend the locked funds after the timestamp has passed.
+    /// The address that is allowed to spend the locked funds after the
+    /// timestamp has passed.
     pub return_address: SuiAddress,
-    /// Before this unix time, Address Unlock Condition is allowed to unlock the output, after that only the address defined in Return Address.
+    /// Before this unix time, Address Unlock Condition is allowed to unlock the
+    /// output, after that only the address defined in Return Address.
     pub unix_time: u32,
 }
 
@@ -59,9 +59,11 @@ impl ExpirationUnlockCondition {
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
 pub struct StorageDepositReturnUnlockCondition {
-    /// The address to which the consuming transaction should deposit the amount defined in Return Amount.
+    /// The address to which the consuming transaction should deposit the amount
+    /// defined in Return Amount.
     pub return_address: SuiAddress,
-    /// The amount of IOTA coins the consuming transaction should deposit to the address defined in Return Address.
+    /// The amount of IOTA coins the consuming transaction should deposit to the
+    /// address defined in Return Address.
     pub return_amount: u64,
 }
 
@@ -86,7 +88,8 @@ impl TryFrom<&iota_sdk::types::block::output::unlock_condition::StorageDepositRe
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
 pub struct TimelockUnlockCondition {
-    /// The unix time (seconds since Unix epoch) starting from which the output can be consumed.
+    /// The unix time (seconds since Unix epoch) starting from which the output
+    /// can be consumed.
     pub unix_time: u32,
 }
 
@@ -112,8 +115,9 @@ pub struct BasicOutput {
     /// The amount of IOTA coins held by the output.
     pub iota: Balance,
 
-    /// The `Bag` holds native tokens, key-ed by the stringified type of the asset.
-    /// Example: key: "0xabcded::soon::SOON", value: Balance<0xabcded::soon::SOON>.
+    /// The `Bag` holds native tokens, key-ed by the stringified type of the
+    /// asset. Example: key: "0xabcded::soon::SOON", value:
+    /// Balance<0xabcded::soon::SOON>.
     pub native_tokens: Bag,
 
     /// The storage deposit return unlock condition.
@@ -123,7 +127,8 @@ pub struct BasicOutput {
     /// The expiration unlock condition.
     pub expiration: Option<ExpirationUnlockCondition>,
 
-    // Possible features, they have no effect and only here to hold data until the object is deleted.
+    // Possible features, they have no effect and only here to hold data until the object is
+    // deleted.
     /// The metadata feature.
     pub metadata: Option<Vec<u8>>,
     /// The tag feature.
@@ -133,7 +138,8 @@ pub struct BasicOutput {
 }
 
 impl BasicOutput {
-    /// Construct the basic output with an empty [`Bag`] through the [`OutputHeader`]
+    /// Construct the basic output with an empty [`Bag`] through the
+    /// [`OutputHeader`]
     /// and [`Output`][iota_sdk::types::block::output::BasicOutput].
     pub fn new(
         header: OutputHeader,

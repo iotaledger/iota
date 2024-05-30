@@ -12,6 +12,8 @@
 //! 2. Written into a mutable reference
 //! 3. Added to a vector
 //! 4. Passed to a function cal::;
+use std::{collections::BTreeMap, error::Error, num::NonZeroU64};
+
 use move_abstract_stack::AbstractStack;
 use move_binary_format::{
     binary_views::{BinaryIndexedView, FunctionView},
@@ -28,19 +30,17 @@ use move_bytecode_verifier::{
 use move_core_types::{
     account_address::AccountAddress, ident_str, identifier::IdentStr, vm_status::StatusCode,
 };
-use std::{collections::BTreeMap, error::Error, num::NonZeroU64};
+#[cfg(msim)]
+use sui_types::{
+    authenticator_state::AUTHENTICATOR_STATE_MODULE_NAME, coin::COIN_MODULE_NAME,
+    randomness_state::RANDOMNESS_MODULE_NAME,
+};
 use sui_types::{
     clock::CLOCK_MODULE_NAME,
     error::{ExecutionError, VMMVerifierErrorSubStatusCode},
     id::OBJECT_MODULE_NAME,
     sui_system_state::SUI_SYSTEM_MODULE_NAME,
     SUI_FRAMEWORK_ADDRESS, SUI_SYSTEM_ADDRESS,
-};
-
-#[cfg(msim)]
-use sui_types::{
-    authenticator_state::AUTHENTICATOR_STATE_MODULE_NAME, coin::COIN_MODULE_NAME,
-    randomness_state::RANDOMNESS_MODULE_NAME,
 };
 
 use crate::{
@@ -84,10 +84,11 @@ const SUI_CLOCK_CREATE: FunctionIdent = (
     ident_str!("create"),
 );
 
-// Note: the authenticator/randomness objects should never exist when v0 execution is being used.
-// However, object_deletion_tests.rs forcibly sets the execution version to 0, so we need
-// to handle this case. Since that test only runs in the simulator we can special case it with
-// cfg(msim) so that we don't risk breaking release builds.
+// Note: the authenticator/randomness objects should never exist when v0
+// execution is being used. However, object_deletion_tests.rs forcibly sets the
+// execution version to 0, so we need to handle this case. Since that test only
+// runs in the simulator we can special case it with cfg(msim) so that we don't
+// risk breaking release builds.
 #[cfg(msim)]
 const SUI_AUTHENTICATOR_STATE_CREATE: FunctionIdent = (
     &SUI_FRAMEWORK_ADDRESS,
@@ -296,8 +297,8 @@ impl<'a> TransferFunctions for IDLeakAnalysis<'a> {
     ) -> Result<(), PartialVMError> {
         execute_inner(self, state, bytecode, index, meter)?;
         // invariant: the stack should be empty at the end of the block
-        // If it is not, something is wrong with the implementation, so throw an invariant
-        // violation
+        // If it is not, something is wrong with the implementation, so throw an
+        // invariant violation
         if index == last_index && !self.stack.is_empty() {
             let msg = "Invalid stack transitions. Non-zero stack size at the end of the block"
                 .to_string();
@@ -353,8 +354,9 @@ fn pack(
     verifier: &mut IDLeakAnalysis,
     struct_def: &StructDefinition,
 ) -> Result<(), PartialVMError> {
-    // When packing, an object whose struct type has key ability must have the first field as
-    // "id". That fields must come from one of the functions that creates a new UID.
+    // When packing, an object whose struct type has key ability must have the first
+    // field as "id". That fields must come from one of the functions that
+    // creates a new UID.
     let handle = verifier
         .binary_view
         .struct_handle_at(struct_def.struct_handle);

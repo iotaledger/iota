@@ -2,8 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use super::*;
 use std::{collections::BTreeMap, fmt::Debug, iter::IntoIterator};
+
+use super::*;
 
 //**************************************************************************************************
 // UniqueMap

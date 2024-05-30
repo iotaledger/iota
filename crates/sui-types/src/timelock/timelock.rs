@@ -1,15 +1,16 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{balance::Balance, base_types::ObjectID, id::UID, TIMELOCK_ADDRESS};
 use move_core_types::{
-    //annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
+    // annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
     identifier::IdentStr,
     language_storage::{StructTag, TypeTag},
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+use crate::{balance::Balance, base_types::ObjectID, id::UID, TIMELOCK_ADDRESS};
 
 #[cfg(test)]
 #[path = "../unit_tests/timelock/timelock_tests.rs"]

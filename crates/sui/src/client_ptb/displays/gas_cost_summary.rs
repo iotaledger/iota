@@ -1,9 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::client_ptb::displays::Pretty;
 use std::fmt::{Display, Formatter};
+
 use sui_types::gas::GasCostSummary;
+
+use crate::client_ptb::displays::Pretty;
 
 impl<'a> Display for Pretty<'a, GasCostSummary> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

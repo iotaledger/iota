@@ -1,28 +1,30 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use move_binary_format::binary_config::BinaryConfig;
-use move_binary_format::compatibility::Compatibility;
-use move_binary_format::file_format::{Ability, AbilitySet};
-use move_binary_format::CompiledModule;
+use std::fmt::Formatter;
+
+use move_binary_format::{
+    binary_config::BinaryConfig,
+    compatibility::Compatibility,
+    file_format::{Ability, AbilitySet},
+    CompiledModule,
+};
 use move_core_types::gas_algebra::InternalGas;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use std::fmt::Formatter;
-use sui_types::base_types::ObjectRef;
-use sui_types::storage::ObjectStore;
 use sui_types::{
-    base_types::ObjectID,
+    base_types::{ObjectID, ObjectRef},
     digests::TransactionDigest,
     move_package::MovePackage,
     object::{Object, OBJECT_START_VERSION},
-    MOVE_STDLIB_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID, SUI_SYSTEM_PACKAGE_ID,
+    storage::ObjectStore,
+    DEEPBOOK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID,
+    SUI_SYSTEM_PACKAGE_ID, TIMELOCK_PACKAGE_ID,
 };
-use sui_types::{DEEPBOOK_PACKAGE_ID, STARDUST_PACKAGE_ID, TIMELOCK_PACKAGE_ID};
 use tracing::error;
 
-/// Represents a system package in the framework, that's built from the source code inside
-/// sui-framework.
+/// Represents a system package in the framework, that's built from the source
+/// code inside sui-framework.
 #[derive(Clone, Serialize, PartialEq, Eq, Deserialize)]
 pub struct SystemPackage {
     pub id: ObjectID,
@@ -104,8 +106,8 @@ macro_rules! define_system_packages {
 pub struct BuiltInFramework;
 impl BuiltInFramework {
     /// Dedicated method to iterate on `stardust` packages.
-    // TODO: integrate to iter_system_packages when we make a new system-framework-snapshot
-    // with the associated protocol bump:wq
+    // TODO: integrate to iter_system_packages when we make a new
+    // system-framework-snapshot with the associated protocol bump:wq
     pub fn iter_stardust_packages() -> impl Iterator<Item = &'static SystemPackage> {
         define_system_packages!([
             (
@@ -127,9 +129,10 @@ impl BuiltInFramework {
     }
 
     pub fn iter_system_packages() -> impl Iterator<Item = &'static SystemPackage> {
-        // All system packages in the current build should be registered here, and this is the only
-        // place we need to worry about if any of them changes.
-        // TODO: Is it possible to derive dependencies from the bytecode instead of manually specifying them?
+        // All system packages in the current build should be registered here, and this
+        // is the only place we need to worry about if any of them changes.
+        // TODO: Is it possible to derive dependencies from the bytecode instead of
+        // manually specifying them?
         define_system_packages!([
             (MOVE_STDLIB_PACKAGE_ID, "move-stdlib", []),
             (
@@ -174,17 +177,18 @@ pub fn legacy_test_cost() -> InternalGas {
     InternalGas::new(0)
 }
 
-/// Check whether the framework defined by `modules` is compatible with the framework that is
-/// already on-chain (i.e. stored in `object_store`) at `id`.
+/// Check whether the framework defined by `modules` is compatible with the
+/// framework that is already on-chain (i.e. stored in `object_store`) at `id`.
 ///
-/// - Returns `None` if the current package at `id` cannot be loaded, or the compatibility check
-///   fails (This is grounds not to upgrade).
-/// - Panics if the object at `id` can be loaded but is not a package -- this is an invariant
-///   violation.
-/// - Returns the digest of the current framework (and version) if it is equivalent to the new
-///   framework (indicates support for a protocol upgrade without a framework upgrade).
-/// - Returns the digest of the new framework (and version) if it is compatible (indicates
-///   support for a protocol upgrade with a framework upgrade).
+/// - Returns `None` if the current package at `id` cannot be loaded, or the
+///   compatibility check fails (This is grounds not to upgrade).
+/// - Panics if the object at `id` can be loaded but is not a package -- this is
+///   an invariant violation.
+/// - Returns the digest of the current framework (and version) if it is
+///   equivalent to the new framework (indicates support for a protocol upgrade
+///   without a framework upgrade).
+/// - Returns the digest of the new framework (and version) if it is compatible
+///   (indicates support for a protocol upgrade with a framework upgrade).
 pub async fn compare_system_package<S: ObjectStore>(
     object_store: &S,
     id: &ObjectID,
@@ -200,12 +204,14 @@ pub async fn compare_system_package<S: ObjectStore>(
             return Some(
                 Object::new_system_package(
                     modules,
-                    // note: execution_engine assumes any system package with version OBJECT_START_VERSION is freshly created
-                    // rather than upgraded
+                    // note: execution_engine assumes any system package with version
+                    // OBJECT_START_VERSION is freshly created rather than
+                    // upgraded
                     OBJECT_START_VERSION,
                     dependencies,
-                    // Genesis is fine here, we only use it to calculate an object ref that we can use
-                    // for all validators to commit to the same bytes in the update
+                    // Genesis is fine here, we only use it to calculate an object ref that we can
+                    // use for all validators to commit to the same bytes in
+                    // the update
                     TransactionDigest::genesis_marker(),
                 )
                 .compute_object_reference(),

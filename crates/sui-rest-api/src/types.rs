@@ -5,19 +5,15 @@ use std::collections::BTreeMap;
 
 use fastcrypto::encoding::Base64;
 pub use fastcrypto::traits::KeyPair as KeypairTraits;
-use serde::Deserialize;
-use serde::Serialize;
-use serde_with::serde_as;
-use serde_with::DisplayFromStr;
-use sui_types::base_types::ObjectID;
-use sui_types::base_types::ObjectType;
-use sui_types::digests::ObjectDigest;
-use sui_types::digests::TransactionDigest;
-use sui_types::move_package::TypeOrigin;
-use sui_types::move_package::UpgradeInfo;
-use sui_types::object::Object;
-use sui_types::object::Owner;
-use sui_types::sui_serde::BigInt;
+use serde::{Deserialize, Serialize};
+use serde_with::{serde_as, DisplayFromStr};
+use sui_types::{
+    base_types::{ObjectID, ObjectType},
+    digests::{ObjectDigest, TransactionDigest},
+    move_package::{TypeOrigin, UpgradeInfo},
+    object::{Object, Owner},
+    sui_serde::BigInt,
+};
 
 #[serde_as]
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
@@ -31,8 +27,9 @@ pub struct JsonObject {
     // Default to be None because otherwise it will be repeated for the getOwnedObjects endpoint
     /// The owner of this object.
     pub owner: Owner,
-    /// The digest of the transaction that created or last mutated this object. Default to be None unless
-    /// SuiObjectDataOptions.showPreviousTransaction is set to true
+    /// The digest of the transaction that created or last mutated this object.
+    /// Default to be None unless SuiObjectDataOptions.
+    /// showPreviousTransaction is set to true
     pub previous_transaction: TransactionDigest,
     /// The amount of SUI we would rebate if this object gets deleted.
     /// This number is re-calculated each time the object is mutated based on
@@ -62,8 +59,8 @@ pub struct JsonPackage {
     #[serde_as(as = "BTreeMap<_, Base64>")]
     module_map: BTreeMap<String, Vec<u8>>,
 
-    /// Maps struct/module to a package version where it was first defined, stored as a vector for
-    /// simple serialization and deserialization.
+    /// Maps struct/module to a package version where it was first defined,
+    /// stored as a vector for simple serialization and deserialization.
     type_origin_table: Vec<TypeOrigin>,
 
     // For each dependency, maps original package ID to the info about the (upgraded) dependency
@@ -75,8 +72,9 @@ pub struct JsonPackage {
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 pub struct JsonMoveObject {
-    /// DEPRECATED this field is no longer used to determine whether a tx can transfer this
-    /// object. Instead, it is always calculated from the objects type when loaded in execution
+    /// DEPRECATED this field is no longer used to determine whether a tx can
+    /// transfer this object. Instead, it is always calculated from the
+    /// objects type when loaded in execution
     has_public_transfer: bool,
 
     // TODO Do we want to spend the effort to render this?
@@ -139,8 +137,11 @@ pub const X_SUI_OLDEST_CHECKPOINT_HEIGHT: &str = "x-sui-oldest-checkpoint-height
 /// Current epoch of the chain
 pub const X_SUI_EPOCH: &str = "x-sui-epoch";
 
-/// Cursor to be used for endpoints that support cursor-based pagination. Pass this to the start field of the endpoint on the next call to get the next page of results.
+/// Cursor to be used for endpoints that support cursor-based pagination. Pass
+/// this to the start field of the endpoint on the next call to get the next
+/// page of results.
 pub const X_SUI_CURSOR: &str = "x-sui-cursor";
 
-/// Current timestamp of the chain - represented as number of milliseconds from the Unix epoch
+/// Current timestamp of the chain - represented as number of milliseconds from
+/// the Unix epoch
 pub const X_SUI_TIMESTAMP_MS: &str = "x-sui-timestamp-ms";

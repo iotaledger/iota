@@ -2,15 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 use std::fmt::Display;
 
-use crate::consensus_types::AuthorityIndex;
 use consensus_core::BlockAPI;
 use fastcrypto::hash::Hash;
 use narwhal_types::{BatchAPI, CertificateAPI, ConsensusOutputDigest, HeaderAPI};
 use sui_types::{digests::ConsensusCommitDigest, messages_consensus::ConsensusTransaction};
 
+use crate::consensus_types::AuthorityIndex;
+
 /// A list of tuples of:
-/// (certificate origin authority index, all transactions corresponding to the certificate).
-/// For each transaction, returns the serialized transaction and the deserialized transaction.
+/// (certificate origin authority index, all transactions corresponding to the
+/// certificate). For each transaction, returns the serialized transaction and
+/// the deserialized transaction.
 type ConsensusOutputTransactions<'a> = Vec<(AuthorityIndex, Vec<(&'a [u8], ConsensusTransaction)>)>;
 
 pub(crate) trait ConsensusOutputAPI: Display {
@@ -95,8 +97,9 @@ impl ConsensusOutputAPI for narwhal_types::ConsensusOutput {
     }
 
     fn consensus_digest(&self) -> ConsensusCommitDigest {
-        // We port ConsensusOutputDigest, a narwhal space object, into ConsensusCommitDigest, a sui-core space object.
-        // We assume they always have the same format.
+        // We port ConsensusOutputDigest, a narwhal space object, into
+        // ConsensusCommitDigest, a sui-core space object. We assume they always
+        // have the same format.
         static_assertions::assert_eq_size!(ConsensusCommitDigest, ConsensusOutputDigest);
         ConsensusCommitDigest::new(self.digest().into_inner())
     }

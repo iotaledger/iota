@@ -14,9 +14,10 @@ async fn cluster_test() {
 #[tokio::test]
 async fn test_sui_cluster() {
     use reqwest::StatusCode;
-    use sui_cluster_test::cluster::Cluster;
-    use sui_cluster_test::cluster::LocalNewCluster;
-    use sui_cluster_test::config::Env;
+    use sui_cluster_test::{
+        cluster::{Cluster, LocalNewCluster},
+        config::Env,
+    };
     use sui_graphql_rpc::client::simple_client::SimpleClient;
     use tokio::time::sleep;
     let fullnode_rpc_port: u16 = 9020;

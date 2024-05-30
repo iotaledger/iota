@@ -1,31 +1,21 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeSet;
-use std::io::Read;
 #[cfg(not(target_os = "windows"))]
 use std::os::unix::fs::FileExt;
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::FileExt;
-use std::str::FromStr;
-use std::{fmt::Write, fs::read_dir, path::PathBuf, str, thread, time::Duration};
+use std::{
+    collections::BTreeSet, fmt::Write, fs::read_dir, io::Read, path::PathBuf, str, str::FromStr,
+    thread, time::Duration,
+};
 
 use expect_test::expect;
 use move_package::BuildConfig as MoveBuildConfig;
 use serde_json::json;
-use sui::key_identity::{get_identity_address, KeyIdentity};
-use sui_test_transaction_builder::batch_make_transfer_transactions;
-use sui_types::object::Owner;
-use sui_types::transaction::{
-    TEST_ONLY_GAS_UNIT_FOR_GENERIC, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
-    TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN,
-    TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-};
-use tokio::time::sleep;
-
-use sui::client_commands::SwitchResponse;
 use sui::{
-    client_commands::{SuiClientCommandResult, SuiClientCommands},
+    client_commands::{SuiClientCommandResult, SuiClientCommands, SwitchResponse},
+    key_identity::{get_identity_address, KeyIdentity},
     sui_commands::SuiCommand,
 };
 use sui_config::{
@@ -41,17 +31,29 @@ use sui_json_rpc_types::{
 use sui_keys::keystore::AccountKeystore;
 use sui_macros::sim_test;
 use sui_move_build::{BuildConfig, SuiPackageHooks};
-use sui_sdk::sui_client_config::SuiClientConfig;
-use sui_sdk::wallet_context::WalletContext;
-use sui_swarm_config::genesis_config::{AccountConfig, GenesisConfig};
-use sui_swarm_config::network_config::NetworkConfig;
-use sui_types::base_types::SuiAddress;
-use sui_types::crypto::{
-    Ed25519SuiSignature, Secp256k1SuiSignature, SignatureScheme, SuiKeyPair, SuiSignatureInner,
+use sui_sdk::{sui_client_config::SuiClientConfig, wallet_context::WalletContext};
+use sui_swarm_config::{
+    genesis_config::{AccountConfig, GenesisConfig},
+    network_config::NetworkConfig,
 };
-use sui_types::error::SuiObjectResponseError;
-use sui_types::{base_types::ObjectID, crypto::get_key_pair, gas_coin::GasCoin};
+use sui_test_transaction_builder::batch_make_transfer_transactions;
+use sui_types::{
+    base_types::{ObjectID, SuiAddress},
+    crypto::{
+        get_key_pair, Ed25519SuiSignature, Secp256k1SuiSignature, SignatureScheme, SuiKeyPair,
+        SuiSignatureInner,
+    },
+    error::SuiObjectResponseError,
+    gas_coin::GasCoin,
+    object::Owner,
+    transaction::{
+        TEST_ONLY_GAS_UNIT_FOR_GENERIC, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+        TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+    },
+};
 use test_cluster::TestClusterBuilder;
+use tokio::time::sleep;
 
 const TEST_DATA_DIR: &str = "tests/data/";
 
@@ -713,11 +715,13 @@ async fn test_move_call_args_linter_command() -> Result<(), anyhow::Error> {
     let err_string = format!("{} ", resp.err().unwrap());
     assert!(err_string.contains("Gas price 1 under reference gas price"));
 
-    // FIXME: uncomment once we figure out what is going on with `resolve_and_type_check`
-    // let err_string = format!("{} ", resp.err().unwrap());
-    // let framework_addr = SUI_FRAMEWORK_ADDRESS.to_hex_literal();
-    // let package_addr = package.to_hex_literal();
-    // assert!(err_string.contains(&format!("Expected argument of type {package_addr}::object_basics::Object, but found type {framework_addr}::coin::Coin<{framework_addr}::sui::SUI>")));
+    // FIXME: uncomment once we figure out what is going on with
+    // `resolve_and_type_check` let err_string = format!("{} ",
+    // resp.err().unwrap()); let framework_addr =
+    // SUI_FRAMEWORK_ADDRESS.to_hex_literal(); let package_addr =
+    // package.to_hex_literal(); assert!(err_string.contains(&format!("Expected
+    // argument of type {package_addr}::object_basics::Object, but found type
+    // {framework_addr}::coin::Coin<{framework_addr}::sui::SUI>")));
 
     // Try a proper transfer
     let args = vec![
@@ -1335,8 +1339,8 @@ async fn test_receive_argument_by_mut_ref() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
-async fn test_package_publish_command_with_unpublished_dependency_succeeds(
-) -> Result<(), anyhow::Error> {
+async fn test_package_publish_command_with_unpublished_dependency_succeeds()
+-> Result<(), anyhow::Error> {
     let with_unpublished_dependencies = true; // Value under test, results in successful response.
 
     let mut test_cluster = TestClusterBuilder::new().build().await;
@@ -1404,8 +1408,8 @@ async fn test_package_publish_command_with_unpublished_dependency_succeeds(
 }
 
 #[sim_test]
-async fn test_package_publish_command_with_unpublished_dependency_fails(
-) -> Result<(), anyhow::Error> {
+async fn test_package_publish_command_with_unpublished_dependency_fails()
+-> Result<(), anyhow::Error> {
     let with_unpublished_dependencies = false; // Value under test, results in error response.
 
     let mut test_cluster = TestClusterBuilder::new().build().await;
@@ -1710,8 +1714,9 @@ async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
         .find(|refe| matches!(refe.owner, Owner::AddressOwner(_)))
         .unwrap();
 
-    // Hacky for now: we need to add the correct `published-at` field to the Move toml file.
-    // In the future once we have automated address management replace this logic!
+    // Hacky for now: we need to add the correct `published-at` field to the Move
+    // toml file. In the future once we have automated address management
+    // replace this logic!
     let tmp_dir = tempfile::tempdir().unwrap();
     fs_extra::dir::copy(
         &package_path,

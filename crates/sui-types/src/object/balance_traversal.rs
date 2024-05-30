@@ -16,8 +16,8 @@ pub(crate) struct BalanceTraversal {
     balances: BTreeMap<TypeTag, u64>,
 }
 
-/// Helper traversal to accumulate the values of all u64s visited. Used by `BalanceTraversal` to
-/// get the value of a `Balance` struct's field.
+/// Helper traversal to accumulate the values of all u64s visited. Used by
+/// `BalanceTraversal` to get the value of a `Balance` struct's field.
 #[derive(Default)]
 struct Accumulator {
     total: u64,
@@ -58,7 +58,8 @@ impl Traversal for Accumulator {
     }
 }
 
-/// Returns `Some(T)` if the struct is a `sui::balance::Balance<T>`, and `None` otherwise.
+/// Returns `Some(T)` if the struct is a `sui::balance::Balance<T>`, and `None`
+/// otherwise.
 fn is_balance(s: &StructTag) -> Option<TypeTag> {
     (Balance::is_balance(s) && s.type_params.len() == 1).then(|| s.type_params[0].clone())
 }
@@ -67,14 +68,13 @@ fn is_balance(s: &StructTag) -> Option<TypeTag> {
 mod tests {
     use std::str::FromStr;
 
-    use crate::id::UID;
-
-    use super::*;
-
     use move_core_types::{
         account_address::AccountAddress, annotated_value as A, identifier::Identifier,
         language_storage::StructTag,
     };
+
+    use super::*;
+    use crate::id::UID;
 
     #[test]
     fn test_traverse_balance() {

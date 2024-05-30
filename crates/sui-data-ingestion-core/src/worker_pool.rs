@@ -1,17 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::executor::MAX_CHECKPOINTS_IN_PROGRESS;
-use crate::Worker;
+use std::{
+    collections::{BTreeSet, HashMap, VecDeque},
+    sync::Arc,
+    time::Instant,
+};
+
 use mysten_metrics::spawn_monitored_task;
-use std::collections::{BTreeSet, HashMap, VecDeque};
-use std::sync::Arc;
-use std::time::Instant;
-use sui_types::full_checkpoint_content::CheckpointData;
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
-use tokio::sync::mpsc;
-use tokio::sync::oneshot;
+use sui_types::{
+    full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
+};
+use tokio::sync::{mpsc, oneshot};
 use tracing::info;
+
+use crate::{executor::MAX_CHECKPOINTS_IN_PROGRESS, Worker};
 
 pub struct WorkerPool<W: Worker> {
     pub task_name: String,
