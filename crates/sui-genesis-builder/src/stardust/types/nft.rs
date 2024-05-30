@@ -4,7 +4,6 @@ use iota_sdk::types::block::output::{
 };
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use num_rational::Ratio;
-use packable::PackableExt;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use sui_protocol_config::ProtocolConfig;
