@@ -3,22 +3,16 @@
 
 import React from 'react';
 import { Button } from '@/components/index';
-
-interface StakeDetailsPopupProps {
-    stake: {
-        id: string;
-        validator: string;
-        stake: string;
-        rewards: string;
-        stakeActiveEpoch: string;
-        stakeRequestEpoch: string;
-        status: string;
-    };
-}
+import { Stake } from '@/lib/interfaces';
 
 function StakeDetailsPopup({
-    stake: { validator, stake, rewards, stakeActiveEpoch, stakeRequestEpoch, status },
-}: StakeDetailsPopupProps): JSX.Element {
+    validator,
+    stake,
+    rewards,
+    stakeActiveEpoch,
+    stakeRequestEpoch,
+    status,
+}: Stake): JSX.Element {
     return (
         <div className="flex min-w-[300px] flex-col gap-2">
             <p>{validator}</p>

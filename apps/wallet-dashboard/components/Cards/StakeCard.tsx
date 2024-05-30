@@ -3,15 +3,10 @@
 
 import React from 'react';
 import { Box, Button } from '@/components/index';
+import { Stake } from '@/lib/interfaces';
 
 interface StakeCardProps {
-    stake: {
-        id: string;
-        validator: string;
-        stake: string;
-        rewards: string;
-        status: string;
-    };
+    stake: Stake;
     onDetailsClick: (stake: {
         id: string;
         validator: string;

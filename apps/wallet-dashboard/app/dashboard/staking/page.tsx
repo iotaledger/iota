@@ -50,7 +50,7 @@ function StakingDashboardPage(): JSX.Element {
     );
 
     const handleOpenPopup = (stake) => {
-        openPopup(<StakeDetailsPopup stake={stake} />);
+        openPopup(<StakeDetailsPopup {...stake} />);
     };
 
     return (
