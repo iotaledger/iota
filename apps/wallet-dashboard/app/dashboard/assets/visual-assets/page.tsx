@@ -3,16 +3,23 @@
 
 'use client';
 
-import { SuiObjectData } from '@mysten/sui.js/client';
 import React from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Box } from '@/components/index';
 import Image from 'next/image';
+import { useCurrentAccount } from '@mysten/dapp-kit';
+import { hasDisplayData, useGetOwnedObjects } from '@mysten/core';
 
 function VisualAssetsPage(): JSX.Element {
+    const account = useCurrentAccount();
+    const { data } = useGetOwnedObjects(account?.address);
+    const visualAssets =
+        data?.pages
+            .flatMap((page) => page.data)
+            .filter((asset) => asset.data?.objectId && hasDisplayData(asset)) ?? [];
     const containerRef = React.useRef(null);
     const virtualizer = useVirtualizer({
-        count: HARCODED_VISUAL_ASSETS.length,
+        count: visualAssets.length,
         getScrollElement: () => containerRef.current,
         estimateSize: () => 130,
     });
@@ -31,7 +38,7 @@ function VisualAssetsPage(): JSX.Element {
                     }}
                 >
                     {virtualItems.map((virtualItem) => {
-                        const asset = HARCODED_VISUAL_ASSETS[virtualItem.index];
+                        const asset = visualAssets[virtualItem.index];
                         return (
                             <div
                                 key={virtualItem.key}
@@ -47,20 +54,20 @@ function VisualAssetsPage(): JSX.Element {
                             >
                                 <Box>
                                     <div className="flex gap-2">
-                                        {asset.display &&
-                                            asset.display.data &&
-                                            asset.display.data.image && (
+                                        {asset.data?.display &&
+                                            asset.data?.display.data &&
+                                            asset.data?.display.data.image && (
                                                 <Image
-                                                    src={asset.display.data.image}
-                                                    alt={asset.display.data.name}
+                                                    src={asset.data?.display.data.image}
+                                                    alt={asset.data?.display.data.name}
                                                     width={80}
                                                     height={40}
                                                 />
                                             )}
                                         <div>
-                                            <p>Digest: {asset.digest}</p>
-                                            <p>Object ID: {asset.objectId}</p>
-                                            <p>Version: {asset.version}</p>
+                                            <p>Digest: {asset.data?.digest}</p>
+                                            <p>Object ID: {asset.data?.objectId}</p>
+                                            <p>Version: {asset.data?.version}</p>
                                         </div>
                                     </div>
                                 </Box>
@@ -72,97 +79,5 @@ function VisualAssetsPage(): JSX.Element {
         </div>
     );
 }
-
-const HARCODED_VISUAL_ASSETS: SuiObjectData[] = [
-    {
-        digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51xy',
-        objectId: '0x9303adf2c711dcc239rbd78c0d0666666df06e2b3a35837',
-        version: '286606',
-        display: {
-            data: {
-                name: 'IOTA',
-                // Update next.config.js to include the image domain in the list of domains
-                image: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
-            },
-        },
-    },
-    {
-        digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51xy',
-        objectId: '0x9303adf2c711dcc239rbd78c0d0666666df06e2b3a35837',
-        version: '286606',
-        display: {
-            data: {
-                name: 'IOTA',
-                image: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
-            },
-        },
-    },
-    {
-        digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51xy',
-        objectId: '0x9303adf2c711dcc239rbd78c0d0666666df06e2b3a35837',
-        version: '286606',
-        display: {
-            data: {
-                name: 'IOTA',
-                image: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
-            },
-        },
-    },
-    {
-        digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51xy',
-        objectId: '0x9303adf2c711dcc239rbd78c0d0666666df06e2b3a35837',
-        version: '286606',
-        display: {
-            data: {
-                name: 'IOTA',
-                image: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
-            },
-        },
-    },
-    {
-        digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51xy',
-        objectId: '0x9303adf2c711dcc239rbd78c0d0666666df06e2b3a35837',
-        version: '286606',
-        display: {
-            data: {
-                name: 'IOTA',
-                image: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
-            },
-        },
-    },
-    {
-        digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51xy',
-        objectId: '0x9303adf2c711dcc239rbd78c0d0666666df06e2b3a35837',
-        version: '286606',
-        display: {
-            data: {
-                name: 'IOTA',
-                image: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
-            },
-        },
-    },
-    {
-        digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51xy',
-        objectId: '0x9303adf2c711dcc239rbd78c0d0666666df06e2b3a35837',
-        version: '286606',
-        display: {
-            data: {
-                name: 'IOTA',
-                image: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
-            },
-        },
-    },
-    {
-        digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51xy',
-        objectId: '0x9303adf2c711dcc239rbd78c0d0666666df06e2b3a35837',
-        version: '286606',
-        display: {
-            data: {
-                name: 'IOTA',
-                image: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
-            },
-        },
-    },
-];
 
 export default VisualAssetsPage;
