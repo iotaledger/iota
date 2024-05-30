@@ -80,8 +80,8 @@ export function ImportLedgerAccountsPage() {
 	let summaryCardBody: JSX.Element | null = null;
 	if (areLedgerAccountsLoading) {
 		summaryCardBody = (
-			<div className="w-full h-full flex flex-col justify-center items-center gap-2">
-				<SpinnerIcon className="animate-spin text-steel w-4 h-4" />
+			<div className="flex h-full w-full flex-col items-center justify-center gap-2">
+				<SpinnerIcon className="h-4 w-4 animate-spin text-steel" />
 				<Text variant="pBodySmall" color="steel-darker">
 					Looking for accounts
 				</Text>
@@ -89,8 +89,8 @@ export function ImportLedgerAccountsPage() {
 		);
 	} else if (areAllAccountsImported) {
 		summaryCardBody = (
-			<div className="w-full h-full flex flex-col justify-center items-center gap-2">
-				<ThumbUpIcon className="text-steel w-8 h-8" />
+			<div className="flex h-full w-full flex-col items-center justify-center gap-2">
+				<ThumbUpIcon className="h-8 w-8 text-steel" />
 				<Text variant="pBodySmall" color="steel-darker">
 					All Ledger accounts have been imported.
 				</Text>
@@ -99,7 +99,7 @@ export function ImportLedgerAccountsPage() {
 	} else if (!encounteredDerviceAccountsError) {
 		const selectedLedgerAddresses = selectedLedgerAccounts.map(({ address }) => address);
 		summaryCardBody = (
-			<div className="max-h-[272px] -mr-2 mt-1 pr-2 overflow-auto custom-scrollbar">
+			<div className="custom-scrollbar -mr-2 mt-1 max-h-[272px] overflow-auto pr-2">
 				<LedgerAccountList
 					accounts={ledgerAccounts.map((ledgerAccount) => ({
 						...ledgerAccount,
@@ -119,16 +119,16 @@ export function ImportLedgerAccountsPage() {
 				navigate(-1);
 			}}
 		>
-			<div className="w-full h-full flex flex-col gap-5">
-				<div className="h-full max-h-[368px] bg-white flex flex-col border border-solid border-gray-45 rounded-2xl">
-					<div className="text-center bg-gray-40 py-2.5 rounded-t-2xl">
+			<div className="flex h-full w-full flex-col gap-5">
+				<div className="flex h-full max-h-[368px] flex-col rounded-2xl border border-solid border-gray-45 bg-white">
+					<div className="rounded-t-2xl bg-gray-40 py-2.5 text-center">
 						<Text variant="captionSmall" weight="bold" color="steel-darker" truncate>
 							{areAllAccountsImported ? 'Ledger Accounts ' : 'Connect Ledger Accounts'}
 						</Text>
 					</div>
 					<div className="grow px-4 py-2">{summaryCardBody}</div>
-					<div className="w-full rounded-b-2xl border-x-0 border-b-0 border-t border-solid border-gray-40 text-center pt-3 pb-4">
-						<div className="w-fit ml-auto mr-auto">
+					<div className="w-full rounded-b-2xl border-x-0 border-b-0 border-t border-solid border-gray-40 pb-4 pt-3 text-center">
+						<div className="ml-auto mr-auto w-fit">
 							<Link
 								text="Select All Accounts"
 								color="heroDark"
@@ -143,7 +143,7 @@ export function ImportLedgerAccountsPage() {
 						</div>
 					</div>
 				</div>
-				<div className="flex items-end flex-1">
+				<div className="flex flex-1 items-end">
 					<Button
 						variant="primary"
 						size="tall"

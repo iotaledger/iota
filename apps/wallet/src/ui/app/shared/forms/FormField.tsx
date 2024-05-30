@@ -18,7 +18,7 @@ export function FormField({ children, name, label }: FormFieldProps) {
 	const state = getFieldState(name, formState);
 
 	return (
-		<div className="flex flex-col gap-2.5 w-full">
+		<div className="flex w-full flex-col gap-2.5">
 			{label ? <FormLabel label={label}>{children}</FormLabel> : children}
 			{state.error && <Alert>{state.error.message}</Alert>}
 		</div>

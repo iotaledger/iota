@@ -58,7 +58,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
 	const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
 	const { data: suiCoinBalance } = useSuiClientQuery(
 		'getBalance',
-		{ coinType: SUI_TYPE_ARG, owner: accountAddress!! },
+		{ coinType: SUI_TYPE_ARG, owner: accountAddress! },
 		{ refetchInterval, staleTime, enabled: !!accountAddress },
 	);
 	const { data: metadata } = useCoinMetadata(SUI_TYPE_ARG);
@@ -107,7 +107,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
 
 	if (isPending || loadingValidators) {
 		return (
-			<div className="p-2 w-full flex justify-center items-center h-full">
+			<div className="flex h-full w-full items-center justify-center p-2">
 				<LoadingIndicator />
 			</div>
 		);
@@ -124,10 +124,10 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
 	}
 
 	return (
-		<div className="flex flex-col flex-nowrap flex-grow h-full">
+		<div className="flex h-full flex-grow flex-col flex-nowrap">
 			<BottomMenuLayout>
 				<Content>
-					<div className="justify-center w-full flex flex-col items-center">
+					<div className="flex w-full flex-col items-center justify-center">
 						{hasInactiveValidatorDelegation ? (
 							<div className="mb-3">
 								<Alert>
@@ -136,10 +136,10 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
 								</Alert>
 							</div>
 						) : null}
-						<div className="w-full flex">
+						<div className="flex w-full">
 							<Card
 								header={
-									<div className="grid grid-cols-2 divide-x divide-solid divide-gray-45 divide-y-0 w-full">
+									<div className="grid w-full grid-cols-2 divide-x divide-y-0 divide-solid divide-gray-45">
 										<CardItem title="Your Stake">
 											<StakeAmount balance={totalStake} variant="heading5" />
 										</CardItem>
@@ -151,10 +151,10 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
 								}
 								padding="none"
 							>
-								<div className="divide-x flex divide-solid divide-gray-45 divide-y-0">
+								<div className="flex divide-x divide-y-0 divide-solid divide-gray-45">
 									<CardItem
 										title={
-											<div className="flex text-steel-darker gap-1 items-start">
+											<div className="flex items-start gap-1 text-steel-darker">
 												APY
 												<div className="text-steel">
 													<IconTooltip tip="Annual Percentage Yield" placement="top" />
@@ -162,7 +162,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
 											</div>
 										}
 									>
-										<div className="flex gap-0.5 items-baseline">
+										<div className="flex items-baseline gap-0.5">
 											<Heading variant="heading4" weight="semibold" color="gray-90" leading="none">
 												{isApyApproxZero ? '~' : ''}
 												{apy}
@@ -176,7 +176,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
 
 									<CardItem
 										title={
-											<div className="flex text-steel-darker gap-1">
+											<div className="flex gap-1 text-steel-darker">
 												Commission
 												<div className="text-steel">
 													<IconTooltip tip="Validator commission" placement="top" />
@@ -184,7 +184,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
 											</div>
 										}
 									>
-										<div className="flex gap-0.5 items-baseline">
+										<div className="flex items-baseline gap-0.5">
 											<Heading variant="heading4" weight="semibold" color="gray-90" leading="none">
 												{commission}
 											</Heading>
@@ -197,7 +197,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
 								</div>
 							</Card>
 						</div>
-						<div className="flex gap-2.5 w-full my-3.75">
+						<div className="my-3.75 flex w-full gap-2.5">
 							{!hasInactiveValidatorDelegation ? (
 								<Button
 									size="tall"
@@ -237,7 +237,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
 
 				{/* show faucet request button on devnet or testnet whenever there is only one coin  */}
 				{showRequestMoreSuiToken ? (
-					<div className="flex flex-col gap-4 items-center">
+					<div className="flex flex-col items-center gap-4">
 						<div className="w-8/12 text-center">
 							<Text variant="pSubtitle" weight="medium" color="steel-darker">
 								You need a minimum of {MIN_NUMBER_SUI_TO_STAKE} SUI to continue staking.

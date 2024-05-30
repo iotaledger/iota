@@ -42,7 +42,7 @@ function FromAssetsComponent() {
 	return (
 		<Overlay showModal title="Select a Coin" closeOverlay={() => navigate(-1)}>
 			<Loading loading={isPending}>
-				<div className="flex flex-shrink-0 justify-start flex-col w-full">
+				<div className="flex w-full flex-shrink-0 flex-col justify-start">
 					{renderedRecognizedCoins?.map((coinBalance, index) => {
 						return (
 							<Fragment key={coinBalance.coinType}>
@@ -50,12 +50,14 @@ function FromAssetsComponent() {
 									coinBalance={coinBalance}
 									onClick={() => {
 										navigate(
-											`/swap?${new URLSearchParams({ type: coinBalance.coinType }).toString()}`,
+											`/swap?${new URLSearchParams({
+												type: coinBalance.coinType,
+											}).toString()}`,
 										);
 									}}
 								/>
 
-								{index !== recognized.length - 1 && <div className="bg-gray-45 h-px w-full" />}
+								{index !== recognized.length - 1 && <div className="h-px w-full bg-gray-45" />}
 							</Fragment>
 						);
 					})}

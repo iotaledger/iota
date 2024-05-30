@@ -34,7 +34,7 @@ export function DelegatedAPY({ stakedValidators }: DelegatedAPYProps) {
 
 	if (isPending) {
 		return (
-			<div className="p-2 w-full flex justify-center items-center h-full">
+			<div className="flex h-full w-full items-center justify-center p-2">
 				<LoadingIndicator />
 			</div>
 		);
@@ -43,7 +43,7 @@ export function DelegatedAPY({ stakedValidators }: DelegatedAPYProps) {
 	if (!averageNetworkAPY) return null;
 
 	return (
-		<div className="flex gap-0.5 items-center">
+		<div className="flex items-center gap-0.5">
 			{averageNetworkAPY !== null ? (
 				<>
 					<Text variant="body" weight="semibold" color="steel-dark">
@@ -52,7 +52,7 @@ export function DelegatedAPY({ stakedValidators }: DelegatedAPYProps) {
 					<Text variant="subtitle" weight="medium" color="steel-darker">
 						% APY
 					</Text>
-					<div className="text-steel items-baseline text-body flex">
+					<div className="flex items-baseline text-body text-steel">
 						<IconTooltip
 							tip="The average APY of all validators you are currently staking your SUI on."
 							placement="top"

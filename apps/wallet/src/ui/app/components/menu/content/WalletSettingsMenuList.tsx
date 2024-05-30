@@ -28,7 +28,7 @@ function MenuList() {
 
 	return (
 		<MenuLayout title="Wallet Settings">
-			<div className="flex flex-col divide-y divide-x-0 divide-solid divide-gray-45">
+			<div className="flex flex-col divide-x-0 divide-y divide-solid divide-gray-45">
 				<MenuListItem
 					to={networkUrl}
 					icon={<Domain24 />}
@@ -56,10 +56,10 @@ function MenuList() {
 				/>
 			</div>
 			<div className="flex-1" />
-			<div className="flex flex-col items-stretch mt-2.5">
+			<div className="mt-2.5 flex flex-col items-stretch">
 				<FaucetRequestButton variant="outline" />
 			</div>
-			<div className="px-2.5 flex flex-col items-center justify-center no-underline gap-3.75 mt-3.75">
+			<div className="mt-3.75 flex flex-col items-center justify-center gap-3.75 px-2.5 no-underline">
 				<Link
 					href={ToS_LINK}
 					text="Terms of service"

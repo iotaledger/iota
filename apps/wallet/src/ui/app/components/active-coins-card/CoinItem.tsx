@@ -26,9 +26,9 @@ export function CoinItem({
 	const [formatted, symbol, { data: coinMeta }] = useFormatCoin(balance, coinType);
 
 	return (
-		<div className="flex gap-2.5 w-full py-3 pl-1.5 pr-2 justify-center items-center rounded hover:bg-sui/10">
+		<div className="flex w-full items-center justify-center gap-2.5 rounded py-3 pl-1.5 pr-2 hover:bg-sui/10">
 			<CoinIcon coinType={coinType} size={isActive ? 'sm' : 'md'} />
-			<div className="flex flex-1 gap-1.5 justify-between items-center">
+			<div className="flex flex-1 items-center justify-between gap-1.5">
 				<div className="max-w-token-width">
 					<Text variant="body" color="gray-90" weight="semibold" truncate>
 						{coinMeta?.name || symbol} {isActive ? 'available' : ''}
@@ -51,7 +51,7 @@ export function CoinItem({
 
 				{centerAction}
 
-				<div className="flex flex-row justify-center items-center">
+				<div className="flex flex-row items-center justify-center">
 					{isActive ? (
 						<Text variant="body" color="steel-darker" weight="medium">
 							{formatted}

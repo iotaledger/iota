@@ -162,7 +162,7 @@ export function StakeCard({
 				earnColor={isEarning}
 				earningRewardEpoch={Number(epochBeforeRewards)}
 			>
-				<div className="flex mb-1">
+				<div className="mb-1 flex">
 					<ValidatorLogo
 						validatorAddress={validatorAddress}
 						size="subtitle"
@@ -171,7 +171,7 @@ export function StakeCard({
 						activeEpoch={delegationObject.stakeRequestEpoch}
 					/>
 
-					<div className="text-steel text-pBody opacity-0 group-hover:opacity-100">
+					<div className="text-pBody text-steel opacity-0 group-hover:opacity-100">
 						<IconTooltip
 							tip="Object containing the delegated staked SUI tokens, owned by each delegator"
 							placement="top"

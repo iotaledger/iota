@@ -34,12 +34,13 @@ export function RecoverManyPage() {
 	}, [allAccountSources.isPending, allAccountSources.data, navigate]);
 	const { value } = useForgotPasswordContext();
 	const addRecoveryDataMutation = useRecoveryDataMutation();
-	const [recoverInfo, setRecoverInfo] = useState<{ title: string; accountSourceID: string } | null>(
-		null,
-	);
+	const [recoverInfo, setRecoverInfo] = useState<{
+		title: string;
+		accountSourceID: string;
+	} | null>(null);
 	return (
 		<>
-			<div className="flex flex-col items-center h-full gap-6">
+			<div className="flex h-full flex-col items-center gap-6">
 				<div className="flex flex-col items-center gap-2 text-center">
 					<Heading variant="heading1" color="gray-90" as="h1" weight="bold">
 						Forgot Password?
@@ -48,7 +49,7 @@ export function RecoverManyPage() {
 						Please complete the recovery process for the accounts below
 					</Text>
 				</div>
-				<div className="flex flex-col grow self-stretch overflow-x-hidden overflow-y-auto gap-8 px-4 py-6 rounded-lg bg-hero-darkest/5">
+				<div className="flex grow flex-col gap-8 self-stretch overflow-y-auto overflow-x-hidden rounded-lg bg-hero-darkest/5 px-4 py-6">
 					{Object.entries(accountGroups['mnemonic-derived']).map(([sourceID, accounts], index) => {
 						const recoveryData = value.find(({ accountSourceID }) => accountSourceID === sourceID);
 						const title = `Passphrase ${index + 1}`;
@@ -66,7 +67,7 @@ export function RecoverManyPage() {
 						);
 					})}
 				</div>
-				<div className="flex flex-nowrap gap-2.5 w-full">
+				<div className="flex w-full flex-nowrap gap-2.5">
 					<Button variant="outline" size="tall" text="Cancel" to="/" />
 					<Button
 						variant="primary"
@@ -88,7 +89,7 @@ export function RecoverManyPage() {
 				}}
 				background="bg-sui-lightest"
 			>
-				<div className="flex flex-col flex-nowrap w-full h-full gap-4 text-center">
+				<div className="flex h-full w-full flex-col flex-nowrap gap-4 text-center">
 					<Text variant="pBody" color="gray-90">
 						Enter your 24-word Recovery Phrase
 					</Text>

@@ -42,7 +42,7 @@ function AppsPlayGround() {
 
 	return (
 		<>
-			<div className="flex justify-center mb-4">
+			<div className="mb-4 flex justify-center">
 				<Heading variant="heading6" color="gray-90" weight="semibold">
 					Sui Apps
 				</Heading>
@@ -51,7 +51,7 @@ function AppsPlayGround() {
 			<AppsPageBanner />
 
 			{filteredEcosystemApps?.length ? (
-				<div className="p-4 bg-gray-40 rounded-xl">
+				<div className="rounded-xl bg-gray-40 p-4">
 					<Text variant="pBodySmall" color="gray-75" weight="normal">
 						Apps below are actively curated but do not indicate any endorsement or relationship with
 						Sui Wallet. Please DYOR.
@@ -60,7 +60,7 @@ function AppsPlayGround() {
 			) : null}
 
 			{filteredEcosystemApps?.length ? (
-				<div className="flex flex-col divide-y divide-gray-45 divide-solid divide-x-0 mt-2">
+				<div className="mt-2 flex flex-col divide-x-0 divide-y divide-solid divide-gray-45">
 					{filteredEcosystemApps.map((app) => (
 						<SuiApp
 							key={app.link}

@@ -44,11 +44,11 @@ export function UnStakeForm({
 			<Card
 				titleDivider
 				header={
-					<div className="px-4 py-3 w-full flex bg-white justify-between">
+					<div className="flex w-full justify-between bg-white px-4 py-3">
 						<Text variant="body" weight="medium" color="steel-darker">
 							Current Epoch Ends
 						</Text>
-						<div className="flex gap-0.5 ml-auto">
+						<div className="ml-auto flex gap-0.5">
 							{currentEpochEndTime > 0 ? (
 								<CountDownTimer
 									timestamp={currentEpochEndTime}
@@ -66,11 +66,11 @@ export function UnStakeForm({
 					</div>
 				}
 				footer={
-					<div className="flex gap-0.5 justify-between w-full">
+					<div className="flex w-full justify-between gap-0.5">
 						<Text variant="pBodySmall" weight="medium" color="steel-darker">
 							Total unstaked SUI
 						</Text>
-						<div className="flex gap-0.5 ml-auto">
+						<div className="ml-auto flex gap-0.5">
 							<Heading variant="heading4" weight="semibold" color="steel-darker" leading="none">
 								{totalSui}
 							</Heading>
@@ -81,8 +81,8 @@ export function UnStakeForm({
 					</div>
 				}
 			>
-				<div className="pb-3.75 flex flex-col  w-full gap-2">
-					<div className="flex gap-0.5 justify-between w-full">
+				<div className="flex w-full flex-col  gap-2 pb-3.75">
+					<div className="flex w-full justify-between gap-0.5">
 						<Text variant="body" weight="medium" color="steel-darker">
 							Your Stake
 						</Text>
@@ -90,7 +90,7 @@ export function UnStakeForm({
 							{tokenBalance} {GAS_SYMBOL}
 						</Text>
 					</div>
-					<div className="flex gap-0.5 justify-between w-full">
+					<div className="flex w-full justify-between gap-0.5">
 						<Text variant="body" weight="medium" color="steel-darker">
 							Staking Rewards Earned
 						</Text>
@@ -102,7 +102,7 @@ export function UnStakeForm({
 			</Card>
 			<div className="mt-4">
 				<Card variant="gray">
-					<div className=" w-full flex justify-between">
+					<div className=" flex w-full justify-between">
 						<Text variant="body" weight="medium" color="steel-darker">
 							Gas Fees
 						</Text>

@@ -32,11 +32,11 @@ export function Collapsible({
 
 	return (
 		<CollapsiblePrimitive.Root
-			className="flex flex-shrink-0 justify-start flex-col w-full gap-3"
+			className="flex w-full flex-shrink-0 flex-col justify-start gap-3"
 			open={isOpen ?? open}
 			onOpenChange={handleOpenChange}
 		>
-			<CollapsiblePrimitive.Trigger className="flex items-center gap-2 w-full bg-transparent border-none p-0 cursor-pointer group">
+			<CollapsiblePrimitive.Trigger className="group flex w-full cursor-pointer items-center gap-2 border-none bg-transparent p-0">
 				<div
 					className={cn('text-captionSmall font-semibold uppercase group-hover:text-hero', {
 						'text-steel': shade === 'lighter',
@@ -46,13 +46,13 @@ export function Collapsible({
 					{title}
 				</div>
 				<div
-					className={cn('h-px group-hover:bg-hero flex-1', {
+					className={cn('h-px flex-1 group-hover:bg-hero', {
 						'bg-steel': shade === 'darker',
 						'bg-gray-45 group-hover:bg-steel': shade === 'lighter',
 					})}
 				/>
 				<div
-					className={cn('group-hover:text-hero inline-flex', {
+					className={cn('inline-flex group-hover:text-hero', {
 						'text-steel': shade === 'darker',
 						'text-gray-45': shade === 'lighter',
 					})}

@@ -14,7 +14,7 @@ export const Default: StoryObj<typeof Header> = {};
 export const Full: StoryObj<typeof Header> = {
 	args: {
 		middleContent: (
-			<div className="text-ellipsis whitespace-nowrap overflow-hidden">Connected to some dapp</div>
+			<div className="overflow-hidden text-ellipsis whitespace-nowrap">Connected to some dapp</div>
 		),
 		rightContent: <div>Menu</div>,
 	},
@@ -23,7 +23,7 @@ export const Full: StoryObj<typeof Header> = {
 export const WithMiddleContentOnly: StoryObj<typeof Header> = {
 	args: {
 		middleContent: (
-			<div className="text-ellipsis whitespace-nowrap overflow-hidden">Connected to some dapp</div>
+			<div className="overflow-hidden text-ellipsis whitespace-nowrap">Connected to some dapp</div>
 		),
 	},
 };

@@ -72,7 +72,7 @@ function ConnectedDapps() {
 				</Text>
 			</div>
 
-			<div className="grid gap-3.75 grid-cols-2">
+			<div className="grid grid-cols-2 gap-3.75">
 				{connectedApps.length ? (
 					connectedApps.map((app) => <SuiApp key={app.permissionID} {...app} displayType="card" />)
 				) : (

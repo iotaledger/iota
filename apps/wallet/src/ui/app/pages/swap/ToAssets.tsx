@@ -48,11 +48,11 @@ export function ToAssets({
 }) {
 	return (
 		<Overlay showModal={isOpen} title="Select a Coin" closeOverlay={onClose}>
-			<div className="flex flex-shrink-0 justify-start flex-col w-full">
+			<div className="flex w-full flex-shrink-0 flex-col justify-start">
 				{recognizedCoins.map((coinType, index) => (
 					<Fragment key={coinType}>
 						<ToAsset coinType={coinType} onClick={onRowClick} />
-						{index !== recognizedCoins.length - 1 && <div className="bg-gray-45 h-px w-full" />}
+						{index !== recognizedCoins.length - 1 && <div className="h-px w-full bg-gray-45" />}
 					</Fragment>
 				))}
 			</div>

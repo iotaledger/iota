@@ -71,7 +71,7 @@ export function NicknameDialog({ accountID, trigger }: NicknameDialogProps) {
 						<span className="sr-only">Enter your account password to unlock your account</span>
 					</DialogDescription>
 				</DialogHeader>
-				<Form className="flex flex-col gap-6 h-full" form={form} onSubmit={onSubmit}>
+				<Form className="flex h-full flex-col gap-6" form={form} onSubmit={onSubmit}>
 					<TextField label="Personalize account with a nickname." {...register('nickname')} />
 					<div className="flex gap-2.5">
 						<Button variant="outline" size="tall" text="Cancel" onClick={() => setOpen(false)} />

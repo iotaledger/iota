@@ -24,6 +24,7 @@ test('zkLogin with google', async ({ page, extensionUrl, context }) => {
 	await page.goto(extensionUrl);
 	const [bg] = context.serviceWorkers();
 	await bg.evaluate(() => {
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		(globalThis as any).chrome.identity.launchWebAuthFlow = (
 			_: { url: string },
 			callback: (a: string) => void,

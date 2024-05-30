@@ -23,7 +23,7 @@ export function MaxSlippage({ onOpen }: { onOpen: () => void }) {
 	return (
 		<DescriptionItem
 			title={
-				<div className="flex gap-1 items-center">
+				<div className="flex items-center gap-1">
 					<Text variant="bodySmall">Max Slippage Tolerance</Text>
 					<div>
 						<IconTooltip tip={MAX_SLIPPAGE_COPY} />
@@ -31,7 +31,7 @@ export function MaxSlippage({ onOpen }: { onOpen: () => void }) {
 				</div>
 			}
 		>
-			<div className="flex gap-1 items-center">
+			<div className="flex items-center gap-1">
 				<Text variant="bodySmall" color="hero-dark">
 					{allowedMaxSlippagePercentage}%
 				</Text>
@@ -54,11 +54,11 @@ export function MaxSlippageModal({ isOpen, onClose }: { onClose: () => void; isO
 
 	return (
 		<Overlay showModal={isOpen} title="Max Slippage Tolerance" closeOverlay={onClose}>
-			<div className="flex flex-col w-full h-full">
+			<div className="flex h-full w-full flex-col">
 				<BottomMenuLayout>
 					<Content>
 						<div>
-							<div className="ml-3 mb-2.5">
+							<div className="mb-2.5 ml-3">
 								<Text variant="caption" weight="semibold" color="steel">
 									your max slippage tolerance
 								</Text>
@@ -82,7 +82,7 @@ export function MaxSlippageModal({ isOpen, onClose }: { onClose: () => void; isO
 						</div>
 					</Content>
 
-					<Menu stuckClass="sendCoin-cta" className="w-full px-0 pb-0 mx-0 gap-2.5">
+					<Menu stuckClass="sendCoin-cta" className="mx-0 w-full gap-2.5 px-0 pb-0">
 						<Button type="submit" variant="primary" size="tall" text="Save" onClick={onClose} />
 					</Menu>
 				</BottomMenuLayout>

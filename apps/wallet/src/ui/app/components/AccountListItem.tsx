@@ -26,12 +26,12 @@ export function AccountListItem({ account, onAccountSelected }: AccountItemProps
 	return (
 		<li>
 			<button
-				className="appearance-none bg-transparent border-0 w-full flex p-2.5 items-center gap-2.5 rounded-md hover:bg-sui/10 cursor-pointer focus-visible:ring-1 group transition-colors text-left"
+				className="group flex w-full cursor-pointer appearance-none items-center gap-2.5 rounded-md border-0 bg-transparent p-2.5 text-left transition-colors hover:bg-sui/10 focus-visible:ring-1"
 				onClick={() => {
 					onAccountSelected(account);
 				}}
 			>
-				<div className="flex items-center gap-2 flex-1 min-w-0">
+				<div className="flex min-w-0 flex-1 items-center gap-2">
 					<div className="min-w-0">
 						<Text color="steel-darker" variant="bodySmall" truncate mono>
 							{domainName ?? formatAddress(address)}
@@ -41,7 +41,7 @@ export function AccountListItem({ account, onAccountSelected }: AccountItemProps
 				</div>
 				{selected ? <Check12 className="text-success" /> : null}
 				<Copy12
-					className="text-gray-60 group-hover:text-steel transition-colors hover:!text-hero-dark"
+					className="text-gray-60 transition-colors hover:!text-hero-dark group-hover:text-steel"
 					onClick={copy}
 				/>
 			</button>

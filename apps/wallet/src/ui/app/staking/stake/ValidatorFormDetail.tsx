@@ -93,7 +93,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
 
 	if (isPending || loadingValidators) {
 		return (
-			<div className="p-2 w-full flex justify-center items-center h-full">
+			<div className="flex h-full w-full items-center justify-center p-2">
 				<LoadingIndicator />
 			</div>
 		);
@@ -117,7 +117,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
 				<Card
 					titleDivider
 					header={
-						<div className="flex py-2.5 px-3.75 gap-2 items-center">
+						<div className="flex items-center gap-2 px-3.75 py-2.5">
 							<ValidatorLogo validatorAddress={validatorAddress} iconSize="sm" size="body" />
 						</div>
 					}
@@ -134,8 +134,8 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
 					}
 				>
 					<div className="flex flex-col gap-3.5">
-						<div className="flex gap-2 items-center justify-between">
-							<div className="flex gap-1 items-center text-steel">
+						<div className="flex items-center justify-between gap-2">
+							<div className="flex items-center gap-1 text-steel">
 								<Text variant="body" weight="medium" color="steel-darker">
 									Staking APY
 								</Text>
@@ -149,8 +149,8 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
 								{formatPercentageDisplay(apy, '--', isApyApproxZero)}
 							</Text>
 						</div>
-						<div className="flex gap-2 items-center justify-between">
-							<div className="flex gap-1 items-center text-steel">
+						<div className="flex items-center justify-between gap-2">
+							<div className="flex items-center gap-1 text-steel">
 								<Text variant="body" weight="medium" color="steel-darker">
 									Stake Share
 								</Text>
@@ -166,8 +166,8 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
 						</div>
 
 						{!unstake && (
-							<div className="flex gap-2 items-center justify-between mb-3.5">
-								<div className="flex gap-1 items-center text-steel">
+							<div className="mb-3.5 flex items-center justify-between gap-2">
+								<div className="flex items-center gap-1 text-steel">
 									<Text variant="body" weight="medium" color="steel-darker">
 										Total Staked
 									</Text>

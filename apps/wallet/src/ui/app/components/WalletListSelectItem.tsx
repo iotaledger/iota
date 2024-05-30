@@ -82,12 +82,12 @@ export function WalletListSelectItem({
 				<CheckFill16
 					className={cx(
 						selected ? 'text-success' : 'text-gray-50',
-						'transition text-base font-bold',
+						'text-base font-bold transition',
 					)}
 				/>
 			) : null}
 			{isDisconnect && selected ? (
-				<XFill16 className="text-issue-dark text-base font-bold" />
+				<XFill16 className="text-base font-bold text-issue-dark" />
 			) : null}
 			<Text mono variant="body" weight="semibold">
 				{formatAddress(address)}
@@ -100,7 +100,7 @@ export function WalletListSelectItem({
 				</div>
 			) : null}
 			{isSelect && isNew ? (
-				<div className="flex-1 flex justify-end">
+				<div className="flex flex-1 justify-end">
 					<Text variant="subtitleSmall" color="steel">
 						NEW
 					</Text>

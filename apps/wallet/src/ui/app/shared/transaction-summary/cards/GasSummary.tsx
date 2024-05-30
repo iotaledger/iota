@@ -16,13 +16,13 @@ export function GasSummary({ gasSummary }: { gasSummary?: GasSummaryType }) {
 	if (!gasSummary) return null;
 
 	return (
-		<div className="bg-white relative flex flex-col shadow-card-soft rounded-2xl">
-			<div className="bg-gray-40 rounded-t-2xl py-2.5 px-4">
+		<div className="relative flex flex-col rounded-2xl bg-white shadow-card-soft">
+			<div className="rounded-t-2xl bg-gray-40 px-4 py-2.5">
 				<Text color="steel-darker" variant="captionSmall" weight="semibold">
 					Gas Fees
 				</Text>
 			</div>
-			<div className="flex flex-col items-center gap-2 w-full px-4 py-3">
+			<div className="flex w-full flex-col items-center gap-2 px-4 py-3">
 				<div className="flex w-full items-center justify-start">
 					{address === gasSummary?.owner && (
 						<div className="mr-auto">

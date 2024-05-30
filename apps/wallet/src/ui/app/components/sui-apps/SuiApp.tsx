@@ -29,12 +29,12 @@ function CardView({ name, link, icon }: CardViewProp) {
 	const appUrl = getDAppUrl(link);
 	const originLabel = appUrl.hostname;
 	return (
-		<div className="bg-white flex flex-col p-3.75 box-border w-full rounded-2xl border border-gray-45 border-solid h-32 hover:bg-sui/10 hover:border-sui/30">
-			<div className="flex mb-1">
+		<div className="box-border flex h-32 w-full flex-col rounded-2xl border border-solid border-gray-45 bg-white p-3.75 hover:border-sui/30 hover:bg-sui/10">
+			<div className="mb-1 flex">
 				<ImageIcon src={icon || null} label={name} fallback={name} size="lg" rounded="lg" />
 			</div>
 
-			<div className="flex flex-col gap-1 justify-start item-start">
+			<div className="item-start flex flex-col justify-start gap-1">
 				<div className="line-clamp-2 break-all">
 					<Text variant="body" weight="semibold" color="gray-90">
 						{name}
@@ -57,9 +57,9 @@ type ListViewProp = {
 
 function ListView({ name, icon, description, tags }: ListViewProp) {
 	return (
-		<div className="bg-white flex py-3.5 px-1.25 gap-3 item-center box-border rounded hover:bg-sui/10">
+		<div className="item-center box-border flex gap-3 rounded bg-white px-1.25 py-3.5 hover:bg-sui/10">
 			<ImageIcon src={icon || null} label={name} fallback={name} size="xxl" rounded="lg" />
-			<div className="flex flex-col gap-1 justify-center">
+			<div className="flex flex-col justify-center gap-1">
 				<Text variant="body" weight="semibold" color="sui-dark">
 					{name}
 				</Text>
@@ -67,10 +67,10 @@ function ListView({ name, icon, description, tags }: ListViewProp) {
 					{description}
 				</Text>
 				{tags?.length && (
-					<div className="flex flex-wrap gap-1 mt-0.5">
+					<div className="mt-0.5 flex flex-wrap gap-1">
 						{tags?.map((tag) => (
 							<div
-								className="flex item-center justify-center px-1.5 py-0.5 border border-solid border-steel rounded"
+								className="item-center flex justify-center rounded border border-solid border-steel px-1.5 py-0.5"
 								key={tag}
 							>
 								<Text variant="captionSmall" weight="medium" color="steel-dark">
@@ -131,7 +131,7 @@ export function SuiApp({
 	if (permissionID && !openAppSite) {
 		return (
 			<div
-				className="bg-transparent cursor-pointer text-left w-full"
+				className="w-full cursor-pointer bg-transparent text-left"
 				onClick={() => setShowDisconnectApp(true)}
 				role="button"
 			>

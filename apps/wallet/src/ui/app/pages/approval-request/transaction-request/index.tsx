@@ -103,7 +103,7 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 							summary={summary}
 						/>
 					</div>
-					<section className=" bg-white -mx-6">
+					<section className=" -mx-6 bg-white">
 						<div className="flex flex-col gap-4 p-6">
 							<GasFees sender={addressForTransaction} transaction={transaction} />
 							<TransactionDetails sender={addressForTransaction} transaction={transaction} />

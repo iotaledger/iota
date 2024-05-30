@@ -83,7 +83,7 @@ export function ProtectAccountPage() {
 	}
 
 	return (
-		<div className="rounded-20 shadow-wallet-content w-popup-width max-h-popup-height min-h-popup-minimum flex h-screen flex-col items-center overflow-auto bg-sui-lightest px-6 py-10">
+		<div className="flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col items-center overflow-auto rounded-20 bg-sui-lightest px-6 py-10 shadow-wallet-content">
 			<Loading loading={showVerifyPasswordView === null}>
 				{showVerifyPasswordView ? (
 					<VerifyPasswordModal

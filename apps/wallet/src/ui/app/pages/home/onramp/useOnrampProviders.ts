@@ -10,6 +10,7 @@ import Banxa from './icons/Banxa.svg';
 import MoonPay from './icons/MoonPay.svg';
 import Transak from './icons/Transak.svg';
 import { type OnrampProvider } from './types';
+import { getAppsBackend } from '@mysten/sui.js/client';
 
 const TRANSAK_API_KEY =
 	process.env.NODE_ENV === 'production'
@@ -21,7 +22,7 @@ const MOONPAY_API_KEY =
 		? 'pk_live_iL2LFRM1wCc4EfBuxFJSVTkI8Xno4a'
 		: 'pk_test_RwNag1qi8jFoymVchhCSc5cYnqyPrVd5';
 
-const BACKEND_HOST = process.env.APPS_BACKEND_URL;
+const BACKEND_HOST = getAppsBackend();
 
 const ONRAMP_PROVIDER: OnrampProvider[] = [
 	{

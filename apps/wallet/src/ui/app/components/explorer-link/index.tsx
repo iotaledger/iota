@@ -46,7 +46,7 @@ export function AddressLink({ address }: { address: string }) {
 		<ExplorerLink
 			type={ExplorerLinkType.address}
 			address={address}
-			className="text-hero-dark no-underline inline-block"
+			className="inline-block text-hero-dark no-underline"
 		>
 			<Text variant="subtitle" weight="semibold" truncate mono>
 				{formatAddress(address)}

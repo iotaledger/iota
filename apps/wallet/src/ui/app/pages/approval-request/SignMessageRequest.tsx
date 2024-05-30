@@ -54,8 +54,8 @@ export function SignMessageRequest({ request }: SignMessageRequestProps) {
 					Message You Are Signing
 				</Heading>
 			</div>
-			<div className="flex flex-col flex-nowrap items-stretch border border-solid border-gray-50 rounded-15 overflow-y-auto overflow-x-hidden bg-white shadow-card-soft">
-				<div className="p-5 break-words">
+			<div className="flex flex-col flex-nowrap items-stretch overflow-y-auto overflow-x-hidden rounded-15 border border-solid border-gray-50 bg-white shadow-card-soft">
+				<div className="break-words p-5">
 					<Text variant="pBodySmall" weight="medium" color="steel-darker" mono={type === 'base64'}>
 						{message}
 					</Text>

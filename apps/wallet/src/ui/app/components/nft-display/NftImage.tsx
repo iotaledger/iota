@@ -86,11 +86,11 @@ export function NftImage({
 						autoPlay
 						muted
 						controls
-						className="h-full w-full rounded-md overflow-hidden object-cover"
+						className="h-full w-full overflow-hidden rounded-md object-cover"
 						src={video}
 					/>
 				) : (
-					<div className="pointer-events-none absolute bottom-2 right-2 z-10 flex items-center justify-center rounded-full opacity-80 text-black">
+					<div className="pointer-events-none absolute bottom-2 right-2 z-10 flex items-center justify-center rounded-full text-black opacity-80">
 						<MediaPlay16 className="h-8 w-8" />
 					</div>
 				)
@@ -99,11 +99,11 @@ export function NftImage({
 					className={cl(
 						imgCls,
 						'flex flex-col flex-nowrap items-center justify-center',
-						'select-none uppercase text-steel-dark gap-2 bg-placeholderGradient01',
+						'select-none gap-2 bg-placeholderGradient01 uppercase text-steel-dark',
 					)}
 					title={title}
 				>
-					<Image32 className="text-steel text-3xl h-6 w-6" />
+					<Image32 className="h-6 w-6 text-3xl text-steel" />
 					{showLabel ? <span className="text-captionSmall font-medium">No media</span> : null}
 				</div>
 			) : (
@@ -116,7 +116,7 @@ export function NftImage({
 				/>
 			)}
 			{isLocked ? (
-				<div className="right-1.5 bottom-1.5 flex items-center justify-center absolute h-6 w-6 bg-gray-100 text-white rounded-md">
+				<div className="absolute bottom-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-md bg-gray-100 text-white">
 					<LockLocked16 className="h-3.5 w-3.5" />
 				</div>
 			) : null}

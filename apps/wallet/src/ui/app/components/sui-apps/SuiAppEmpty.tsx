@@ -20,18 +20,18 @@ export interface SuiAppEmptyProps extends VariantProps<typeof appEmptyStyle> {}
 export function SuiAppEmpty({ ...styleProps }: SuiAppEmptyProps) {
 	return (
 		<div className={appEmptyStyle(styleProps)}>
-			<div className="bg-gray-40 w-10 h-10 rounded-full"></div>
-			<div className="flex flex-col gap-2.5 flex-1">
+			<div className="h-10 w-10 rounded-full bg-gray-40"></div>
+			<div className="flex flex-1 flex-col gap-2.5">
 				{styleProps.displayType === 'full' ? (
 					<>
-						<div className="bg-gray-40 rounded h-3.5 w-2/5"></div>
-						<div className="bg-gray-40 rounded h-3.5 w-full"></div>
-						<div className="bg-gray-40 rounded h-3.5 w-1/4"></div>
+						<div className="h-3.5 w-2/5 rounded bg-gray-40"></div>
+						<div className="h-3.5 w-full rounded bg-gray-40"></div>
+						<div className="h-3.5 w-1/4 rounded bg-gray-40"></div>
 					</>
 				) : (
 					<div className="flex gap-2">
-						<div className="bg-gray-40 rounded h-3.5 w-1/4"></div>
-						<div className="bg-gray-40 rounded h-3.5 w-3/5"></div>
+						<div className="h-3.5 w-1/4 rounded bg-gray-40"></div>
+						<div className="h-3.5 w-3/5 rounded bg-gray-40"></div>
 					</div>
 				)}
 			</div>

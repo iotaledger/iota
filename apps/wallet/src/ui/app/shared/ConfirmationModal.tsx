@@ -54,7 +54,7 @@ export function ConfirmationModal({
 					</div>
 				) : null}
 				<DialogFooter>
-					<div className="flex flex-row self-stretch gap-3">
+					<div className="flex flex-row gap-3 self-stretch">
 						<Button
 							variant={cancelStyle}
 							size="tall"

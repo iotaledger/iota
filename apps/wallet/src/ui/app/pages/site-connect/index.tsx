@@ -132,7 +132,7 @@ function SiteConnectPage() {
 									selectedAccountIDs={accountsToConnect.map((account) => account.id)}
 									accounts={unlockedAccounts ?? []}
 									onChange={(value) => {
-										setAccountsToConnect(value.map((id) => accounts?.find((a) => a.id === id)!));
+										setAccountsToConnect(value.map((id) => accounts.find((a) => a.id === id)!));
 									}}
 								/>
 							) : (

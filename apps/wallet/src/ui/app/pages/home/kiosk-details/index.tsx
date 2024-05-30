@@ -38,26 +38,28 @@ function KioskDetailsPage() {
 					</div>
 				) : (
 					<>
-						<div className="grid grid-cols-3 gap-3 items-center justify-center mb-auto">
-							{items.map((item) => (
-								<Link
-									to={`/nft-details?${new URLSearchParams({
-										objectId: item.data?.objectId!,
-									}).toString()}`}
-									key={item.data?.objectId}
-									className="no-underline"
-								>
-									<ErrorBoundary>
-										<NFTDisplayCard
-											objectId={item.data?.objectId!}
-											size="md"
-											animateHover
-											borderRadius="xl"
-											isLocked={item?.isLocked}
-										/>
-									</ErrorBoundary>
-								</Link>
-							))}
+						<div className="mb-auto grid grid-cols-3 items-center justify-center gap-3">
+							{items.map((item) =>
+								item.data?.objectId ? (
+									<Link
+										to={`/nft-details?${new URLSearchParams({
+											objectId: item.data.objectId,
+										}).toString()}`}
+										key={item.data?.objectId}
+										className="no-underline"
+									>
+										<ErrorBoundary>
+											<NFTDisplayCard
+												objectId={item.data.objectId}
+												size="md"
+												animateHover
+												borderRadius="xl"
+												isLocked={item?.isLocked}
+											/>
+										</ErrorBoundary>
+									</Link>
+								) : null,
+							)}
 						</div>
 					</>
 				)}
@@ -68,7 +70,7 @@ function KioskDetailsPage() {
 							label="Kiosk ID"
 							value={
 								<ExplorerLink
-									className="text-hero-dark no-underline font-mono"
+									className="font-mono text-hero-dark no-underline"
 									objectID={kioskId!}
 									type={ExplorerLinkType.object}
 								>

@@ -19,7 +19,7 @@ function TransactionBlocksPage() {
 		return <Navigate to="/transactions" replace />;
 	}
 	return (
-		<div className="flex flex-col flex-nowrap h-full overflow-x-visible">
+		<div className="flex h-full flex-col flex-nowrap overflow-x-visible">
 			<PageTitle title="Your Activity" />
 			<div className="-mx-5 mt-5 flex-grow divide-x-0 divide-y divide-solid divide-gray-45 overflow-y-auto px-5">
 				<CompletedTransactions />

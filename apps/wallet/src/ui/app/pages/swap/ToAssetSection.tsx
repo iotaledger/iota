@@ -87,7 +87,7 @@ export function ToAssetSection({
 	return (
 		<div
 			className={clsx(
-				'flex flex-col border border-hero-darkest/20 rounded-xl p-5 gap-4 border-solid',
+				'flex flex-col gap-4 rounded-xl border border-solid border-hero-darkest/20 p-5',
 				{ 'bg-sui-primaryBlue2023/10': isValid },
 			)}
 		>

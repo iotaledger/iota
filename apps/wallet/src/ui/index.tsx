@@ -83,15 +83,17 @@ function AppWrapper() {
 							}}
 						>
 							<SuiClientProvider
-								networks={{ [walletApiProvider.network]: walletApiProvider.instance.fullNode }}
+								networks={{
+									[walletApiProvider.network]: walletApiProvider.instance.fullNode,
+								}}
 							>
 								<KioskClientProvider>
 									<AccountsFormProvider>
 										<UnlockAccountProvider>
 											<div
 												className={cn(
-													'relative flex flex-col flex-nowrap items-center justify-center w-popup-width min-h-popup-minimum max-h-popup-height h-screen overflow-hidden',
-													isFullscreen && 'shadow-lg rounded-xl',
+													'relative flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col flex-nowrap items-center justify-center overflow-hidden',
+													isFullscreen && 'rounded-xl shadow-lg',
 												)}
 											>
 												<ErrorBoundary>

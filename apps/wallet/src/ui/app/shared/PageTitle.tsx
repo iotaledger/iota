@@ -27,7 +27,7 @@ function PageTitle({ title = '', back, after }: PageTitleProps) {
 			  }
 			: undefined;
 	return (
-		<div className="flex items-center relative gap-5 w-full">
+		<div className="relative flex w-full items-center gap-5">
 			{after && !back ? <div className="basis-8" /> : null}
 			{back ? (
 				<div className="flex h-8 items-center">
@@ -40,7 +40,7 @@ function PageTitle({ title = '', back, after }: PageTitleProps) {
 					/>
 				</div>
 			) : null}
-			<div className="flex items-center justify-center flex-1 overflow-hidden">
+			<div className="flex flex-1 items-center justify-center overflow-hidden">
 				<Heading as="h6" variant="heading6" color="gray-90" truncate>
 					{title}
 				</Heading>

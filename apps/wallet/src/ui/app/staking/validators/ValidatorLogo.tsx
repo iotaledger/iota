@@ -51,7 +51,7 @@ export function ValidatorLogo({
 	const isAtRisk = data?.atRiskValidators.some((item) => item[0] === validatorAddress);
 
 	if (isPending) {
-		return <div className="flex justify-center items-center">...</div>;
+		return <div className="flex items-center justify-center">...</div>;
 	}
 	// for inactive validators, show the epoch number
 	const fallBackText = activeEpoch
@@ -62,7 +62,7 @@ export function ValidatorLogo({
 	return (
 		<div
 			className={cl(
-				'w-full flex justify-start font-semibold',
+				'flex w-full justify-start font-semibold',
 				stacked ? 'flex-col items-start' : 'flex-row items-center',
 				isTitle ? 'gap-2.5' : 'gap-2',
 			)}

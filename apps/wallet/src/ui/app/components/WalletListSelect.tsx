@@ -44,7 +44,7 @@ export function WalletListSelect({
 			body={
 				<ul
 					className={cx(
-						'flex flex-col items-stretch flex-1 p-0 m-0 self-stretch list-none',
+						'm-0 flex flex-1 list-none flex-col items-stretch self-stretch p-0',
 						disabled ? 'opacity-70' : '',
 					)}
 				>
@@ -82,7 +82,7 @@ export function WalletListSelect({
 			}
 			footer={
 				mode === 'select' ? (
-					<div className="flex flex-row flex-nowrap self-stretch justify-between">
+					<div className="flex flex-row flex-nowrap justify-between self-stretch">
 						<div>
 							{filteredAccounts.length > 1 ? (
 								<Link

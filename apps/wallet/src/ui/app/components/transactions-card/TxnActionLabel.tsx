@@ -17,7 +17,7 @@ export function TxnTypeLabel({ address, moveCallFnName, isTransfer, isSender }: 
 	const content = isTransfer ? formatAddress(address) : moveCallFnName?.replace(/_/g, ' ');
 
 	return content ? (
-		<div className="flex gap-1 break-all capitalize mt-1">
+		<div className="mt-1 flex gap-1 break-all capitalize">
 			<Text color="steel-darker" weight="semibold" variant="subtitle">
 				{label}:
 			</Text>

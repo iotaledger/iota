@@ -40,7 +40,7 @@ function NftsPage() {
 		}
 	}, [isIntersecting, fetchNextPage, hasNextPage, isFetchingNextPage]);
 
-	const handleFilterChange = async (tag: any) => {
+	const handleFilterChange = async (tag: { name: string; link: string }) => {
 		await setToSessionStorage<string>('NFTS_PAGE_NAVIGATION', tag.link);
 	};
 	const { filterType } = useParams();

@@ -371,14 +371,14 @@ export function SwapPageContent() {
 
 	return (
 		<Overlay showModal title="Swap" closeOverlay={() => navigate('/')}>
-			<div className="flex flex-col h-full w-full">
+			<div className="flex h-full w-full flex-col">
 				<Loading loading={isPending}>
 					<BottomMenuLayout>
 						<Content>
 							<Form form={form} onSubmit={handleOnsubmit}>
 								<div
 									className={clsx(
-										'flex flex-col border border-hero-darkest/20 rounded-xl p-5 border-solid',
+										'flex flex-col rounded-xl border border-solid border-hero-darkest/20 p-5',
 										isValid && 'bg-gradients-graph-cards',
 									)}
 								>
@@ -427,7 +427,7 @@ export function SwapPageContent() {
 								</div>
 
 								<ButtonOrLink
-									className="group flex my-4 gap-3 items-center w-full bg-transparent border-none cursor-pointer"
+									className="group my-4 flex w-full cursor-pointer items-center gap-3 border-none bg-transparent"
 									onClick={() => {
 										navigate(
 											`/swap?${new URLSearchParams({
@@ -437,11 +437,11 @@ export function SwapPageContent() {
 										reset();
 									}}
 								>
-									<div className="bg-gray-45 h-px w-full group-hover:bg-hero-dark" />
+									<div className="h-px w-full bg-gray-45 group-hover:bg-hero-dark" />
 									<div className="h-3 w-3">
 										<ArrowDown12 className="text-steel group-hover:text-hero-dark" />
 									</div>
-									<div className="bg-gray-45 h-px w-full group-hover:bg-hero-dark" />
+									<div className="h-px w-full bg-gray-45 group-hover:bg-hero-dark" />
 								</ButtonOrLink>
 
 								<ToAssetSection
@@ -477,7 +477,7 @@ export function SwapPageContent() {
 							</Form>
 						</Content>
 
-						<Menu stuckClass="sendCoin-cta" className="w-full px-0 pb-0 mx-0 gap-2.5">
+						<Menu stuckClass="sendCoin-cta" className="mx-0 w-full gap-2.5 px-0 pb-0">
 							<Button
 								onClick={handleSubmit(handleOnsubmit)}
 								type="submit"

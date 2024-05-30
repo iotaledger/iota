@@ -19,11 +19,11 @@ export function Navigation() {
 		cl(st.link, { [st.active]: isActive });
 	return (
 		<nav
-			className={cl('border-b-0 rounded-tl-md rounded-tr-md shrink-0', st.container, {
+			className={cl('shrink-0 rounded-tl-md rounded-tr-md border-b-0', st.container, {
 				[st.hidden]: !isVisible,
 			})}
 		>
-			<div id="sui-apps-filters" className="flex whitespace-nowrap w-full justify-center"></div>
+			<div id="sui-apps-filters" className="flex w-full justify-center whitespace-nowrap"></div>
 			<div className={st.navMenu}>
 				<NavLink
 					data-testid="nav-tokens"
@@ -31,7 +31,7 @@ export function Navigation() {
 					className={makeLinkClsNoDisabled}
 					title="Home"
 				>
-					<Tokens32 className="w-8 h-8" />
+					<Tokens32 className="h-8 w-8" />
 					<span className={st.title}>Home</span>
 				</NavLink>
 				<NavLink
@@ -44,7 +44,7 @@ export function Navigation() {
 						}
 					}}
 				>
-					<Nft132 className="w-8 h-8" />
+					<Nft132 className="h-8 w-8" />
 					<span className={st.title}>Assets</span>
 				</NavLink>
 				<NavLink
@@ -57,7 +57,7 @@ export function Navigation() {
 						}
 					}}
 				>
-					<Apps32 className="w-8 h-8" />
+					<Apps32 className="h-8 w-8" />
 					<span className={st.title}>Apps</span>
 				</NavLink>
 				<NavLink
@@ -71,7 +71,7 @@ export function Navigation() {
 						}
 					}}
 				>
-					<Activity32 className="w-8 h-8" />
+					<Activity32 className="h-8 w-8" />
 					<span className={st.title}>Activity</span>
 				</NavLink>
 			</div>

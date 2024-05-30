@@ -24,7 +24,7 @@ export function ExportPassphrasePage() {
 		<Overlay title="Export Passphrase" closeOverlay={() => navigate(-1)} showModal>
 			<Loading loading={isPending}>
 				{exportMutation.data ? (
-					<div className="flex flex-col gap-3 min-w-0">
+					<div className="flex min-w-0 flex-col gap-3">
 						<Alert>
 							<div className="break-normal">Do not share your Passphrase!</div>
 							<div className="break-normal">
@@ -37,7 +37,10 @@ export function ExportPassphrasePage() {
 					<VerifyPasswordModal
 						open
 						onVerify={async (password) => {
-							await exportMutation.mutateAsync({ password, accountSourceID: accountSource!.id });
+							await exportMutation.mutateAsync({
+								password,
+								accountSourceID: accountSource!.id,
+							});
 						}}
 						onClose={() => navigate(-1)}
 					/>

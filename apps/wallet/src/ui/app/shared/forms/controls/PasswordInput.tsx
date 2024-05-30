@@ -17,7 +17,7 @@ export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
 		const IconComponent = passwordShown ? EyeOpen16 : EyeClose16;
 
 		return (
-			<div className="flex w-full relative items-center">
+			<div className="relative flex w-full items-center">
 				<Input
 					{...props}
 					type={passwordShown ? 'text' : 'password'}
@@ -26,10 +26,10 @@ export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
 				/>
 				<ButtonOrLink
 					tabIndex={-1}
-					className="flex appearance-none bg-transparent border-none cursor-pointer absolute right-3 text-gray-60 peer-focus:text-steel"
+					className="absolute right-3 flex cursor-pointer appearance-none border-none bg-transparent text-gray-60 peer-focus:text-steel"
 					onClick={() => setPasswordShown((prevState) => !prevState)}
 				>
-					<IconComponent className="w-4 h-4" />
+					<IconComponent className="h-4 w-4" />
 				</ButtonOrLink>
 			</div>
 		);

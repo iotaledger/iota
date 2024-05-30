@@ -25,13 +25,13 @@ export function SummaryCard({
 	return (
 		<div
 			className={clsx(
-				'bg-white border border-solid rounded-2xl overflow-hidden',
+				'overflow-hidden rounded-2xl border border-solid bg-white',
 				expanded ? 'border-gray-45' : 'border-gray-40',
 			)}
 		>
 			<button
 				onClick={() => setExpanded((expanded) => !expanded)}
-				className="bg-gray-40 px-4 py-2 flex items-center w-full cursor-pointer border-none relative gap-1.5 text-left"
+				className="relative flex w-full cursor-pointer items-center gap-1.5 border-none bg-gray-40 px-4 py-2 text-left"
 			>
 				<div className="flex-1">
 					<Text variant="captionSmall" weight="semibold" color="steel-darker">
@@ -41,7 +41,7 @@ export function SummaryCard({
 
 				{badge}
 
-				<div className="text-steel flex items-center justify-center">
+				<div className="flex items-center justify-center text-steel">
 					{expanded ? <ChevronDown16 /> : <ChevronRight16 />}
 				</div>
 			</button>

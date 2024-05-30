@@ -11,7 +11,7 @@ function Decorator({ disabled, children }: { disabled?: boolean; children: React
 	return (
 		<div
 			className={clsx(
-				'text-heading2 bg-transparent text-center flex justify-center',
+				'flex justify-center bg-transparent text-center text-heading2',
 				disabled ? 'text-steel' : 'text-hero-dark group-hover:text-hero',
 			)}
 		>
@@ -54,20 +54,20 @@ export const LargeButton = forwardRef(
 				ref={ref}
 				{...otherProps}
 				className={clsx(
-					'group border border-solid border-transparent flex rounded-md items-center py-2 px-8 justify-between no-underline',
-					disabled ? 'bg-hero-darkest/5 pointer-events-none' : 'bg-white/80 hover:border-sui/10',
+					'group flex items-center justify-between rounded-md border border-solid border-transparent px-8 py-2 no-underline',
+					disabled ? 'pointer-events-none bg-hero-darkest/5' : 'bg-white/80 hover:border-sui/10',
 					primary ? '!bg-sui-primaryBlue2023' : '',
 					spacing === 'sm' && '!p-3',
 					className,
 				)}
 			>
 				{loading && (
-					<div className="p-2 w-full flex justify-center items-center h-full">
+					<div className="flex h-full w-full items-center justify-center p-2">
 						<LoadingIndicator />
 					</div>
 				)}
 				{!loading && (
-					<div className={clsx('flex items-center w-full gap-2.5', center && 'justify-center')}>
+					<div className={clsx('flex w-full items-center gap-2.5', center && 'justify-center')}>
 						{before && <Decorator disabled={disabled}>{before}</Decorator>}
 						<div className="flex flex-col">
 							{top && <Decorator disabled={disabled}>{top}</Decorator>}

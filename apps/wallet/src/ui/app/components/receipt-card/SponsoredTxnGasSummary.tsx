@@ -16,11 +16,11 @@ export function SponsoredTxnGasSummary({ totalGas, sponsor }: SponsoredTxnGasSum
 	const [sponsorTotalAmount, sponsorTotalAmountSymbol] = useFormatCoin(totalGas, GAS_TYPE_ARG);
 
 	return (
-		<div className="flex flex-col w-full gap-3.5 border-t border-solid border-steel/20 border-x-0 border-b-0 py-3.5 first:pt-0">
+		<div className="flex w-full flex-col gap-3.5 border-x-0 border-b-0 border-t border-solid border-steel/20 py-3.5 first:pt-0">
 			<Text variant="body" weight="medium" color="steel">
 				Gas Fees
 			</Text>
-			<div className="flex justify-between items-center w-full">
+			<div className="flex w-full items-center justify-between">
 				<Text variant="body" weight="medium" color="steel-darker">
 					You Paid
 				</Text>
@@ -28,7 +28,7 @@ export function SponsoredTxnGasSummary({ totalGas, sponsor }: SponsoredTxnGasSum
 					0 {GAS_SYMBOL}
 				</Text>
 			</div>
-			<div className="flex justify-between items-center w-full">
+			<div className="flex w-full items-center justify-between">
 				<Text variant="body" weight="medium" color="steel-darker">
 					Paid by Sponsor
 				</Text>
@@ -36,7 +36,7 @@ export function SponsoredTxnGasSummary({ totalGas, sponsor }: SponsoredTxnGasSum
 					{sponsorTotalAmount} {sponsorTotalAmountSymbol}
 				</Text>
 			</div>
-			<div className="flex justify-between items-center w-full">
+			<div className="flex w-full items-center justify-between">
 				<Text variant="body" weight="medium" color="steel-darker">
 					Sponsor
 				</Text>

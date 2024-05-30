@@ -44,7 +44,7 @@ export function AccountsList() {
 	return (
 		<div
 			className={cn(
-				'flex flex-col rounded-xl p-4 gap-5 border border-solid border-hero/10 w-full select-none',
+				'flex w-full select-none flex-col gap-5 rounded-xl border border-solid border-hero/10 p-4',
 				getAccountBackgroundByType(activeAccount),
 			)}
 		>

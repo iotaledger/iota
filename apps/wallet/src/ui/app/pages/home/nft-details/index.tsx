@@ -189,7 +189,7 @@ function NFTDetailsPage() {
 									) : null}
 
 									{isContainedInKiosk && kioskItem?.isLocked ? (
-										<div className="flex flex-col gap-2 mb-3">
+										<div className="mb-3 flex flex-col gap-2">
 											<Button
 												after={<ArrowUpRight12 />}
 												variant="outline"

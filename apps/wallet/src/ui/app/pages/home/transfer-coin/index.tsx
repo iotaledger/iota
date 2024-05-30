@@ -83,8 +83,8 @@ function TransferCoinPage() {
 		},
 		onError: (error) => {
 			toast.error(
-				<div className="max-w-xs overflow-hidden flex flex-col">
-					<small className="text-ellipsis overflow-hidden">
+				<div className="flex max-w-xs flex-col overflow-hidden">
+					<small className="overflow-hidden text-ellipsis">
 						{getSignerOperationErrorMessage(error)}
 					</small>
 				</div>,
@@ -106,7 +106,7 @@ function TransferCoinPage() {
 			title={showTransactionPreview ? 'Review & Send' : 'Send Coins'}
 			closeOverlay={() => navigate('/')}
 		>
-			<div className="flex flex-col w-full h-full">
+			<div className="flex h-full w-full flex-col">
 				{showTransactionPreview && formData ? (
 					<BottomMenuLayout>
 						<Content>
@@ -118,7 +118,7 @@ function TransferCoinPage() {
 								gasBudget={formData.gasBudgetEst}
 							/>
 						</Content>
-						<Menu stuckClass="sendCoin-cta" className="w-full px-0 pb-0 mx-0 gap-2.5">
+						<Menu stuckClass="sendCoin-cta" className="mx-0 w-full gap-2.5 px-0 pb-0">
 							<Button
 								type="button"
 								variant="secondary"

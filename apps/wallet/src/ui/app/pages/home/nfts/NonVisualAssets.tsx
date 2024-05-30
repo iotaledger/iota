@@ -9,9 +9,9 @@ import { formatAddress, parseStructTag } from '@mysten/sui.js/utils';
 
 export default function NonVisualAssets({ items }: { items: SuiObjectData[] }) {
 	return (
-		<div className="flex flex-col items-center gap-4 w-full flex-1">
+		<div className="flex w-full flex-1 flex-col items-center gap-4">
 			{items?.length ? (
-				<div className="flex flex-col flex-wrap w-full divide-y divide-solid divide-gray-40 divide-x-0 gap-3">
+				<div className="flex w-full flex-col flex-wrap gap-3 divide-x-0 divide-y divide-solid divide-gray-40">
 					{items.map((item) => {
 						const { address, module, name } = parseStructTag(item.type!);
 						return (
@@ -24,7 +24,7 @@ export default function NonVisualAssets({ items }: { items: SuiObjectData[] }) {
 									<Text variant="pBody">{formatAddress(item.objectId!)}</Text>
 								</ExplorerLink>
 
-								<div className="break-all col-span-2">
+								<div className="col-span-2 break-all">
 									<Text
 										variant="pBodySmall"
 										weight="normal"

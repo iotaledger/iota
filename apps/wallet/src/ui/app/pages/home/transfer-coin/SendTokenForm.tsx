@@ -125,7 +125,7 @@ function GasBudgetEstimation({
 	}, [formattedGas, setFieldValue, values.amount]);
 
 	return (
-		<div className="px-2 my-2 flex w-full gap-2 justify-between">
+		<div className="my-2 flex w-full justify-between gap-2 px-2">
 			<div className="flex gap-1">
 				<Text variant="body" color="gray-80" weight="medium">
 					Estimated Gas Fees
@@ -239,8 +239,8 @@ export function SendTokenForm({
 						<BottomMenuLayout>
 							<Content>
 								<Form autoComplete="off" noValidate>
-									<div className="w-full flex flex-col flex-grow">
-										<div className="px-2 mb-2.5">
+									<div className="flex w-full flex-grow flex-col">
+										<div className="mb-2.5 px-2">
 											<Text variant="caption" color="steel" weight="semibold">
 												Select Coin Amount to Send
 											</Text>
@@ -279,19 +279,19 @@ export function SendTokenForm({
 
 									{coins ? <GasBudgetEstimation coinDecimals={coinDecimals} coins={coins} /> : null}
 
-									<div className="w-full flex gap-2.5 flex-col mt-7.5">
+									<div className="mt-7.5 flex w-full flex-col gap-2.5">
 										<div className="px-2 tracking-wider">
 											<Text variant="caption" color="steel" weight="semibold">
 												Enter Recipient Address
 											</Text>
 										</div>
-										<div className="w-full flex relative items-center flex-col">
+										<div className="relative flex w-full flex-col items-center">
 											<Field component={AddressInput} name="to" placeholder="Enter Address" />
 										</div>
 									</div>
 								</Form>
 							</Content>
-							<Menu stuckClass="sendCoin-cta" className="w-full px-0 pb-0 mx-0 gap-2.5">
+							<Menu stuckClass="sendCoin-cta" className="mx-0 w-full gap-2.5 px-0 pb-0">
 								<Button
 									type="submit"
 									onClick={submitForm}

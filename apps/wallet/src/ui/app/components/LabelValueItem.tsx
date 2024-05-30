@@ -55,7 +55,7 @@ export function LabelValueItem({
 			</div>
 			<div
 				className={cl('max-w-[60%] break-words text-end', {
-					'pr-px line-clamp-3 hover:line-clamp-none': multiline,
+					'line-clamp-3 pr-px hover:line-clamp-none': multiline,
 				})}
 			>
 				{href && display ? (

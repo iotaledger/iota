@@ -15,7 +15,7 @@ export function ObjectChangeDisplay({ change }: { change: SuiObjectChangeWithDis
 
 	if (!display) return null;
 	return (
-		<div className="relative group w-32 cursor-pointer whitespace-nowrap min-w-min">
+		<div className="group relative w-32 min-w-min cursor-pointer whitespace-nowrap">
 			<NftImage
 				size="md"
 				name={display.name ?? ''}
@@ -23,7 +23,7 @@ export function ObjectChangeDisplay({ change }: { change: SuiObjectChangeWithDis
 				src={display.image_url ?? ''}
 			/>
 			{objectId && (
-				<div className="absolute bottom-2 full left-1/2 transition-opacity group-hover:opacity-100 opacity-0 -translate-x-1/2 justify-center rounded-lg bg-white/90 px-2 py-1">
+				<div className="full absolute bottom-2 left-1/2 -translate-x-1/2 justify-center rounded-lg bg-white/90 px-2 py-1 opacity-0 transition-opacity group-hover:opacity-100">
 					<ExplorerLink
 						type={ExplorerLinkType.object}
 						objectID={objectId}

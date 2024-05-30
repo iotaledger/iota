@@ -12,7 +12,7 @@ type LoadingProps = {
 
 const Loading = ({ loading, children, ...indicatorProps }: LoadingProps) => {
 	return loading ? (
-		<div className="flex justify-center items-center h-full">
+		<div className="flex h-full items-center justify-center">
 			<LoadingIndicator {...indicatorProps} />
 		</div>
 	) : (

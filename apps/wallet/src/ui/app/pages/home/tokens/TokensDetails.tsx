@@ -61,7 +61,7 @@ function PinButton({ unpin, onClick }: { unpin?: boolean; onClick: () => void })
 	return (
 		<button
 			type="button"
-			className="border-none bg-transparent text-transparent group-hover/coin:text-steel hover:!text-hero cursor-pointer"
+			className="cursor-pointer border-none bg-transparent text-transparent hover:!text-hero group-hover/coin:text-steel"
 			aria-label={unpin ? 'Unpin Coin' : 'Pin Coin'}
 			onClick={(e) => {
 				e.preventDefault();
@@ -90,7 +90,7 @@ function TokenRowButton({
 			to={to}
 			key={coinBalance.coinType}
 			onClick={onClick}
-			className="no-underline text-subtitle font-medium text-steel hover:font-semibold hover:text-hero"
+			className="text-subtitle font-medium text-steel no-underline hover:font-semibold hover:text-hero"
 		>
 			{children}
 		</ButtonOrLink>
@@ -122,14 +122,14 @@ export function TokenRow({
 	return (
 		<Tag
 			className={clsx(
-				'group flex py-3 pl-1.5 pr-2 rounded hover:bg-sui/10 items-center bg-transparent border-transparent',
+				'group flex items-center rounded border-transparent bg-transparent py-3 pl-1.5 pr-2 hover:bg-sui/10',
 				onClick && 'hover:cursor-pointer',
 			)}
 			onClick={onClick}
 		>
 			<div className="flex gap-2.5">
 				<CoinIcon coinType={coinType} size="md" />
-				<div className="flex flex-col gap-1 items-start">
+				<div className="flex flex-col items-start gap-1">
 					<Text variant="body" color="gray-90" weight="semibold" truncate>
 						{coinMeta?.name || symbol}
 					</Text>
@@ -143,7 +143,7 @@ export function TokenRow({
 					)}
 
 					{renderActions ? (
-						<div className="group-hover:flex hidden gap-2.5 items-center">
+						<div className="hidden items-center gap-2.5 group-hover:flex">
 							<TokenRowButton
 								coinBalance={coinBalance}
 								to={`/send?${params.toString()}`}
@@ -173,7 +173,7 @@ export function TokenRow({
 							)}
 						</div>
 					) : (
-						<div className="flex gap-1 items-center">
+						<div className="flex items-center gap-1">
 							<Text variant="subtitleSmall" weight="semibold" color="gray-90">
 								{symbol}
 							</Text>
@@ -404,7 +404,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
 	return (
 		<>
 			{isMainnet && data?.degraded && (
-				<div className="rounded-2xl bg-warning-light border border-solid border-warning-dark/20 text-warning-dark flex items-center py-2 px-3 mb-4">
+				<div className="mb-4 flex items-center rounded-2xl border border-solid border-warning-dark/20 bg-warning-light px-3 py-2 text-warning-dark">
 					<Info12 className="shrink-0" />
 					<div className="ml-2">
 						<Text variant="pBodySmall" weight="medium">
@@ -419,12 +419,12 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
 				{coinType && <PageTitle title={coinSymbol} back="/tokens" />}
 
 				<div
-					className="flex flex-col h-full flex-1 flex-grow items-center gap-8"
+					className="flex h-full flex-1 flex-grow flex-col items-center gap-8"
 					data-testid="coin-page"
 				>
 					<AccountsList />
 					<BuyNLargeHomePanel />
-					<div className="flex flex-col w-full">
+					<div className="flex w-full flex-col">
 						<PortfolioName
 							name={activeAccount.nickname ?? domainName ?? formatAddress(activeAccountAddress)}
 						/>
@@ -433,17 +433,17 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
 								<div
 									data-testid="coin-balance"
 									className={clsx(
-										'rounded-2xl py-5 px-4 flex flex-col w-full gap-3 items-center mt-4',
+										'mt-4 flex w-full flex-col items-center gap-3 rounded-2xl px-4 py-5',
 										isDefiWalletEnabled ? 'bg-gradients-graph-cards' : 'bg-hero/5',
 									)}
 								>
-									<div className="flex flex-col gap-1 items-center">
+									<div className="flex flex-col items-center gap-1">
 										<CoinBalance amount={tokenBalance} type={activeCoinType} />
 									</div>
 
 									{!accountHasSui ? (
 										<div className="flex flex-col gap-5">
-											<div className="flex flex-col flex-nowrap justify-center items-center text-center px-2.5">
+											<div className="flex flex-col flex-nowrap items-center justify-center px-2.5 text-center">
 												<Text variant="pBodySmall" color="gray-80" weight="normal">
 													{isMainnet
 														? 'Buy SUI to get started'
@@ -460,7 +460,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
 											</div>
 										</Alert>
 									) : null}
-									<div className="grid grid-cols-3 gap-3 w-full">
+									<div className="grid w-full grid-cols-3 gap-3">
 										{isMainnet ? (
 											<LargeButton
 												spacing="sm"

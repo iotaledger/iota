@@ -98,11 +98,11 @@ export function AddressInput({
 		<>
 			<div
 				className={cx(
-					'flex h-max w-full rounded-2lg bg-white border border-solid box-border focus-within:border-steel transition-all overflow-hidden',
+					'box-border flex h-max w-full overflow-hidden rounded-2lg border border-solid bg-white transition-all focus-within:border-steel',
 					hasWarningOrError ? 'border-issue' : 'border-gray-45',
 				)}
 			>
-				<div className="min-h-[42px] w-full flex items-center pl-3 py-2">
+				<div className="flex min-h-[42px] w-full items-center py-2 pl-3">
 					<TextareaAutosize
 						data-testid="address-input"
 						maxRows={3}
@@ -113,7 +113,7 @@ export function AddressInput({
 						onChange={handleOnChange}
 						onBlur={field.onBlur}
 						className={cx(
-							'w-full text-bodySmall leading-100 font-medium font-mono bg-white placeholder:text-steel-dark placeholder:font-normal placeholder:font-mono border-none resize-none',
+							'w-full resize-none border-none bg-white font-mono text-bodySmall font-medium leading-100 placeholder:font-mono placeholder:font-normal placeholder:text-steel-dark',
 							hasWarningOrError ? 'text-issue' : 'text-gray-90',
 						)}
 						name={name}
@@ -122,7 +122,7 @@ export function AddressInput({
 
 				<div
 					onClick={clearAddress}
-					className="flex bg-gray-40 items-center justify-center w-11 right-0 max-w-[20%] ml-4 cursor-pointer"
+					className="right-0 ml-4 flex w-11 max-w-[20%] cursor-pointer items-center justify-center bg-gray-40"
 				>
 					{meta.touched && field.value ? (
 						<X12 className="h-3 w-3 text-steel-darker" />

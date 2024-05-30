@@ -28,7 +28,7 @@ export const AllButton: StoryObj<typeof Button> = {
 		] as const;
 		const sizes = ['tall', 'narrow', 'xs'] as const;
 		return (
-			<div className="grid gap-4 grid-cols-2">
+			<div className="grid grid-cols-2 gap-4">
 				{sizes.map((size) =>
 					variants.map((variant) => (
 						<div className="flex flex-col gap-2" key={variant + size}>

@@ -38,7 +38,7 @@ export function LedgerAccountRow({ isSelected, address }: LedgerAccountRowProps)
 	return (
 		<div className="flex items-center gap-3">
 			<CheckFill16
-				className={cl('w-4 h-4', {
+				className={cl('h-4 w-4', {
 					'text-gray-50': !isSelected,
 					'text-success': isSelected,
 				})}

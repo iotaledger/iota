@@ -36,7 +36,7 @@ export function ImportPrivateKeyForm({ onSubmit }: ImportPrivateKeyFormProps) {
 	const privateKey = watch('privateKey');
 	const isHexadecimal = isValid && !privateKey.startsWith('suiprivkey');
 	return (
-		<Form className="flex flex-col h-full gap-2" form={form} onSubmit={onSubmit}>
+		<Form className="flex h-full flex-col gap-2" form={form} onSubmit={onSubmit}>
 			<TextAreaField label="Enter Private Key" rows={4} {...register('privateKey')} />
 			{isHexadecimal ? (
 				<Alert mode="warning">
@@ -44,7 +44,7 @@ export function ImportPrivateKeyForm({ onSubmit }: ImportPrivateKeyFormProps) {
 					private key that starts with "suiprivkey" instead
 				</Alert>
 			) : null}
-			<div className="flex gap-2.5 mt-auto">
+			<div className="mt-auto flex gap-2.5">
 				<Button variant="outline" size="tall" text="Cancel" onClick={() => navigate(-1)} />
 				<Button
 					type="submit"

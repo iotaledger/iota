@@ -74,8 +74,8 @@ export function BackupMnemonicPage() {
 					icon={isOnboardingFlow ? 'success' : undefined}
 					title={isOnboardingFlow ? 'Wallet Created Successfully!' : 'Backup Recovery Phrase'}
 				>
-					<div className="flex flex-col flex-nowrap flex-grow h-full w-full">
-						<div className="flex flex-col flex-nowrap flex-grow mb-5">
+					<div className="flex h-full w-full flex-grow flex-col flex-nowrap">
+						<div className="mb-5 flex flex-grow flex-col flex-nowrap">
 							<div className="mb-1 mt-7.5 text-center">
 								<Text variant="caption" color="steel-darker" weight="bold">
 									Recovery phrase
@@ -95,7 +95,7 @@ export function BackupMnemonicPage() {
 									</Alert>
 								)}
 							</Loading>
-							<div className="mt-3.75 mb-1 text-center">
+							<div className="mb-1 mt-3.75 text-center">
 								<Text variant="caption" color="steel-dark" weight="semibold">
 									Warning
 								</Text>
@@ -108,8 +108,8 @@ export function BackupMnemonicPage() {
 							</div>
 							<div className="flex-1" />
 							{isOnboardingFlow ? (
-								<div className="w-full text-left flex mt-5 mb-">
-									<label className="flex items-center justify-center h-5 mb-0 mr-5 text-sui-dark gap-1.25 relative cursor-pointer">
+								<div className="mb- mt-5 flex w-full text-left">
+									<label className="relative mb-0 mr-5 flex h-5 cursor-pointer items-center justify-center gap-1.25 text-sui-dark">
 										<input
 											type="checkbox"
 											name="agree"
@@ -117,8 +117,8 @@ export function BackupMnemonicPage() {
 											className="peer/agree invisible ml-2"
 											onChange={() => setPasswordCopied(!passwordCopied)}
 										/>
-										<span className="absolute top-0 left-0 h-5 w-5 bg-white peer-checked/agree:bg-success peer-checked/agree:shadow-none border-gray-50 border rounded shadow-button flex justify-center items-center">
-											<Check12 className="text-white text-body font-semibold" />
+										<span className="absolute left-0 top-0 flex h-5 w-5 items-center justify-center rounded border border-gray-50 bg-white shadow-button peer-checked/agree:bg-success peer-checked/agree:shadow-none">
+											<Check12 className="text-body font-semibold text-white" />
 										</span>
 
 										<Text variant="bodySmall" color="steel-dark" weight="normal">
@@ -135,7 +135,7 @@ export function BackupMnemonicPage() {
 							disabled={!passwordCopied && isOnboardingFlow}
 							to="/"
 							text="Open Sui Wallet"
-							after={<ArrowLeft16 className="text-pBodySmall font-normal rotate-135" />}
+							after={<ArrowLeft16 className="rotate-135 text-pBodySmall font-normal" />}
 						/>
 					</div>
 				</CardLayout>

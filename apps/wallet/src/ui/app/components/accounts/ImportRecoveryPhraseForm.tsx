@@ -60,14 +60,14 @@ export function ImportRecoveryPhraseForm({
 
 	return (
 		<form
-			className="flex flex-col justify-between relative h-full"
+			className="relative flex h-full flex-col justify-between"
 			onSubmit={handleSubmit(onSubmit)}
 		>
-			<div className="grid grid-cols-2 gap-x-2 gap-y-2.5 mb-4">
+			<div className="mb-4 grid grid-cols-2 gap-x-2 gap-y-2.5">
 				{recoveryPhrase.map((_, index) => {
 					const recoveryPhraseId = `recoveryPhrase.${index}` as const;
 					return (
-						<label key={index} className="flex flex-col gap-1.5 items-center">
+						<label key={index} className="flex flex-col items-center gap-1.5">
 							<Text variant="captionSmall" weight="medium" color="steel-darker">
 								{index + 1}
 							</Text>
@@ -109,7 +109,7 @@ export function ImportRecoveryPhraseForm({
 					);
 				})}
 			</div>
-			<div className="flex flex-col gap-2.5 pt-3 bg-sui-lightest sticky -bottom-7.5 px-6 pb-7.5 -mx-6 -mb-7.5">
+			<div className="sticky -bottom-7.5 -mx-6 -mb-7.5 flex flex-col gap-2.5 bg-sui-lightest px-6 pb-7.5 pt-3">
 				{touchedFields.recoveryPhrase && errors.recoveryPhrase && (
 					<Alert>{errors.recoveryPhrase.message}</Alert>
 				)}

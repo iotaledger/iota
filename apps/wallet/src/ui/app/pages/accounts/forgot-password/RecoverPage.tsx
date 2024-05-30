@@ -29,7 +29,7 @@ export function RecoverPage() {
 		return null;
 	}
 	return (
-		<div className="flex flex-col items-center flex-1 gap-6">
+		<div className="flex flex-1 flex-col items-center gap-6">
 			<div className="flex flex-col items-center gap-2">
 				<Heading variant="heading1" color="gray-90" as="h1" weight="bold">
 					Forgot Password?

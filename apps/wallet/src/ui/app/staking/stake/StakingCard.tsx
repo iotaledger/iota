@@ -237,9 +237,9 @@ function StakingCard() {
 				);
 			} catch (error) {
 				toast.error(
-					<div className="max-w-xs overflow-hidden flex flex-col">
+					<div className="flex max-w-xs flex-col overflow-hidden">
 						<strong>{unstake ? 'Unstake' : 'Stake'} failed</strong>
-						<small className="text-ellipsis overflow-hidden">
+						<small className="overflow-hidden text-ellipsis">
 							{getSignerOperationErrorMessage(error)}
 						</small>
 					</div>,
@@ -264,7 +264,7 @@ function StakingCard() {
 		return <Navigate to="/" replace={true} />;
 	}
 	return (
-		<div className="flex flex-col flex-nowrap flex-grow w-full">
+		<div className="flex w-full flex-grow flex-col flex-nowrap">
 			<Loading loading={isPending || validatorsisPending || loadingSuiBalances}>
 				<Formik
 					initialValues={initialValues}
@@ -303,7 +303,7 @@ function StakingCard() {
 								) : null}
 
 								{!unstake && (
-									<div className="flex-1 mt-7.5">
+									<div className="mt-7.5 flex-1">
 										<Collapsible title="Staking Rewards" defaultOpen>
 											<Text variant="pSubtitle" color="steel-dark" weight="normal">
 												Staked SUI starts counting as validator’s stake at the end of the Epoch in
@@ -315,7 +315,7 @@ function StakingCard() {
 								)}
 							</Content>
 
-							<Menu stuckClass="staked-cta" className="w-full px-0 pb-0 mx-0">
+							<Menu stuckClass="staked-cta" className="mx-0 w-full px-0 pb-0">
 								<Button
 									size="tall"
 									variant="secondary"

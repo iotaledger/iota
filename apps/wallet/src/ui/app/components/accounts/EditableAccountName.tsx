@@ -13,7 +13,7 @@ type InputProps = Omit<ComponentProps<'input'>, 'className'>;
 
 export const Input = forwardRef<HTMLInputElement, InputProps>((props, forwardedRef) => (
 	<input
-		className="transition peer items-center border-none outline-none bg-transparent hover:text-hero rounded-sm text-pBody text-steel-darker font-semibold p-0 focus:bg-transparent"
+		className="peer items-center rounded-sm border-none bg-transparent p-0 text-pBody font-semibold text-steel-darker outline-none transition hover:text-hero focus:bg-transparent"
 		ref={forwardedRef}
 		{...props}
 	/>

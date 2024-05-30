@@ -63,7 +63,9 @@ export function SelectValidatorCard() {
 	);
 	const validatorList = useMemo(() => {
 		const sortedAsc = validatorsRandomOrder.map((validator) => {
-			const { apy, isApyApproxZero } = rollingAverageApys?.[validator.suiAddress] ?? { apy: null };
+			const { apy, isApyApproxZero } = rollingAverageApys?.[validator.suiAddress] ?? {
+				apy: null,
+			};
 			return {
 				name: validator.name,
 				address: validator.suiAddress,
@@ -94,7 +96,7 @@ export function SelectValidatorCard() {
 
 	if (isPending) {
 		return (
-			<div className="p-2 w-full flex justify-center items-center h-full">
+			<div className="flex h-full w-full items-center justify-center p-2">
 				<LoadingIndicator />
 			</div>
 		);
@@ -111,19 +113,19 @@ export function SelectValidatorCard() {
 	}
 
 	return (
-		<div className="flex flex-col w-full h-full -my-5">
-			<Content className="flex flex-col w-full items-center">
-				<div className="flex flex-col w-full items-center -top-5 bg-white sticky pt-5 pb-2.5 z-50 mt-0">
-					<div className="flex items-start w-full mb-2">
+		<div className="-my-5 flex h-full w-full flex-col">
+			<Content className="flex w-full flex-col items-center">
+				<div className="sticky -top-5 z-50 mt-0 flex w-full flex-col items-center bg-white pb-2.5 pt-5">
+					<div className="mb-2 flex w-full items-start">
 						<Text variant="subtitle" weight="medium" color="steel-darker">
 							Sort by:
 						</Text>
-						<div className="flex items-center ml-2 gap-1.5">
+						<div className="ml-2 flex items-center gap-1.5">
 							{Object.entries(sortKeys).map(([key, value]) => {
 								return (
 									<button
 										key={key}
-										className="bg-transparent border-0 p-0 flex gap-1 cursor-pointer"
+										className="flex cursor-pointer gap-1 border-0 bg-transparent p-0"
 										onClick={() => handleSortByKey(key as SortKeys)}
 									>
 										<Text
@@ -146,18 +148,18 @@ export function SelectValidatorCard() {
 							})}
 						</div>
 					</div>
-					<div className="flex items-start w-full">
+					<div className="flex w-full items-start">
 						<Text variant="subtitle" weight="medium" color="steel-darker">
 							Select a validator to start staking SUI.
 						</Text>
 					</div>
 				</div>
-				<div className="flex items-start flex-col w-full mt-1 flex-1">
+				<div className="mt-1 flex w-full flex-1 flex-col items-start">
 					{data &&
 						validatorList.map((validator) => (
 							<div
 								data-testid="validator-list-item"
-								className="cursor-pointer w-full relative"
+								className="relative w-full cursor-pointer"
 								key={validator.address}
 								onClick={() => selectValidator(validator)}
 							>
@@ -175,7 +177,7 @@ export function SelectValidatorCard() {
 				</div>
 			</Content>
 			{selectedValidator && (
-				<Menu stuckClass="staked-cta" className="w-full px-0 pb-5 mx-0 -bottom-5">
+				<Menu stuckClass="staked-cta" className="-bottom-5 mx-0 w-full px-0 pb-5">
 					<Button
 						data-testid="select-validator-cta"
 						size="tall"

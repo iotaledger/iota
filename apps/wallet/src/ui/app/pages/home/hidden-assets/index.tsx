@@ -43,8 +43,8 @@ function HiddenNftsPage() {
 		return hiddenNfts
 			?.filter((nft) => nft.data && hiddenAssetIds.includes(nft?.data?.objectId))
 			.sort((nftA, nftB) => {
-				let nameA = nftA.display?.name || '';
-				let nameB = nftB.display?.name || '';
+				const nameA = nftA.display?.name || '';
+				const nameB = nftB.display?.name || '';
 
 				if (nameA < nameB) {
 					return -1;
@@ -76,11 +76,11 @@ function HiddenNftsPage() {
 					</Alert>
 				) : null}
 				{filteredAndSortedNfts?.length ? (
-					<div className="flex flex-col w-full divide-y divide-solid divide-gray-40 divide-x-0 gap-2">
+					<div className="flex w-full flex-col gap-2 divide-x-0 divide-y divide-solid divide-gray-40">
 						{filteredAndSortedNfts.map((nft) => {
 							const { objectId, type } = nft.data!;
 							return (
-								<div className="flex justify-between items-center pt-2 pr-1" key={objectId}>
+								<div className="flex items-center justify-between pr-1 pt-2" key={objectId}>
 									<Link
 										to={
 											isKioskOwnerToken(kioskClient.network, nft.data)
@@ -97,7 +97,7 @@ function HiddenNftsPage() {
 												collectibleType: type!,
 											});
 										}}
-										className="no-underline relative truncate"
+										className="relative truncate no-underline"
 									>
 										<ErrorBoundary>
 											<NFTDisplayCard objectId={objectId} size="xs" orientation="horizontal" />

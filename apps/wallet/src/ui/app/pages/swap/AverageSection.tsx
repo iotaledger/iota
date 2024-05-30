@@ -31,7 +31,7 @@ export function AverageSection({
 	const quoteCoinSymbol = quoteCoinMetadata.data?.symbol;
 
 	return (
-		<div className="flex flex-col border border-hero-darkest/20 rounded-xl px-5 py-3 gap-4 border-solid">
+		<div className="flex flex-col gap-4 rounded-xl border border-solid border-hero-darkest/20 px-5 py-3">
 			<DescriptionItem title={<Text variant="bodySmall">Estimated Rate</Text>}>
 				<Text variant="bodySmall" weight="medium" color="steel-darker">
 					1 {isAsk ? baseCoinSymbol : quoteCoinSymbol} &#x2248;{' '}

@@ -18,8 +18,8 @@ export function useGetTxnRecipientAddress({ txn, address }: Props) {
 	//     return coins;
 	// }, [events, address]);
 
-	const transaction = txn.transaction?.data.transaction!;
-	const amountByRecipient = getAmount(transaction, txn.effects!, events);
+	const transaction = txn.transaction?.data.transaction;
+	const amountByRecipient = !transaction ? null : getAmount(transaction, txn.effects!, events);
 
 	const recipientAddress = useMemo(() => {
 		const transferObjectRecipientAddress =

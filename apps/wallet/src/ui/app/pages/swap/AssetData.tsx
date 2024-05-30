@@ -25,13 +25,13 @@ export function AssetData({
 	return (
 		<DescriptionItem
 			title={
-				<div className="flex gap-1 items-center">
+				<div className="flex items-center gap-1">
 					<CoinIcon coinType={coinType} size="sm" />
 					<ButtonOrLink
 						disabled={disabled}
 						onClick={onClick}
 						to={to}
-						className="flex gap-1 items-center no-underline outline-none border-transparent bg-transparent p-0"
+						className="flex items-center gap-1 border-transparent bg-transparent p-0 no-underline outline-none"
 					>
 						<Heading variant="heading6" weight="semibold" color="hero-dark">
 							{symbol}

@@ -20,7 +20,7 @@ type ReceiptCardProps = {
 
 function TransactionStatus({ success, timestamp }: { success: boolean; timestamp?: string }) {
 	return (
-		<div className="flex flex-col gap-3 items-center justify-center mb-4">
+		<div className="mb-4 flex flex-col items-center justify-center gap-3">
 			<StatusIcon status={success} />
 			<span data-testid="transaction-status" className="sr-only">
 				{success ? 'Transaction Success' : 'Transaction Failed'}
@@ -48,12 +48,12 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
 	// todo: re-using the existing staking cards for now
 	if (stakedTxn || unstakeTxn)
 		return (
-			<div className="block relative w-full h-full">
+			<div className="relative block h-full w-full">
 				<TransactionStatus
 					success={summary?.status === 'success'}
 					timestamp={txn.timestampMs ?? undefined}
 				/>
-				<section className="-mx-5 bg-sui/10 min-h-full">
+				<section className="-mx-5 min-h-full bg-sui/10">
 					<div className="px-5 py-10">
 						<div className="flex flex-col gap-4">
 							{stakedTxn ? <StakeTxnCard event={stakedTxn} /> : null}
@@ -70,7 +70,7 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
 		);
 
 	return (
-		<div className="block relative w-full h-full">
+		<div className="relative block h-full w-full">
 			<TransactionStatus
 				success={summary.status === 'success'}
 				timestamp={txn.timestampMs ?? undefined}

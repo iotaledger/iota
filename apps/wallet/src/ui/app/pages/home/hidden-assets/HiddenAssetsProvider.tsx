@@ -66,12 +66,12 @@ export const HiddenAssetsProvider = ({ children }: { children: ReactNode }) => {
 				toast.custom(
 					(t) => (
 						<div
-							className="flex items-center justify-between gap-2 bg-white w-full shadow-notification border-solid border-gray-45 rounded-full px-3 py-2"
+							className="flex w-full items-center justify-between gap-2 rounded-full border-solid border-gray-45 bg-white px-3 py-2 shadow-notification"
 							style={{
 								animation: 'fade-in-up 200ms ease-in-out',
 							}}
 						>
-							<div className="flex gap-2 items-center">
+							<div className="flex items-center gap-2">
 								<Check12 className="text-gray-90" />
 								<div
 									onClick={() => {
@@ -146,12 +146,12 @@ export const HiddenAssetsProvider = ({ children }: { children: ReactNode }) => {
 				toast.custom(
 					(t) => (
 						<div
-							className="flex items-center justify-between gap-2 bg-white w-full shadow-notification border-solid border-gray-45 rounded-full px-3 py-2"
+							className="flex w-full items-center justify-between gap-2 rounded-full border-solid border-gray-45 bg-white px-3 py-2 shadow-notification"
 							style={{
 								animation: 'fade-in-up 200ms ease-in-out',
 							}}
 						>
-							<div className="flex gap-1 items-center">
+							<div className="flex items-center gap-1">
 								<Check12 className="text-gray-90" />
 								<div
 									onClick={() => {

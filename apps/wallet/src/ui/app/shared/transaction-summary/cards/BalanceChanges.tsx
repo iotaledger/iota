@@ -39,14 +39,14 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }) {
 						</Text>
 						{unRecognizedToken && (
 							<Alert mode="warning" spacing="sm" showIcon={false}>
-								<div className="item-center leading-none max-w-[70px] overflow-hidden truncate whitespace-nowrap text-captionSmallExtra font-medium uppercase tracking-wider">
+								<div className="item-center max-w-[70px] overflow-hidden truncate whitespace-nowrap text-captionSmallExtra font-medium uppercase leading-none tracking-wider">
 									Unrecognized
 								</div>
 							</Alert>
 						)}
 					</div>
 				</div>
-				<div className="flex justify-end w-full text-right">
+				<div className="flex w-full justify-end text-right">
 					<Text variant="pBody" weight="medium" color={isPositive ? 'success-dark' : 'issue-dark'}>
 						{isPositive ? '+' : ''}
 						{formatted} {symbol}

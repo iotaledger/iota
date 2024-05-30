@@ -29,7 +29,7 @@ export function UnStakeTxnCard({ event }: UnStakeTxnCardProps) {
 
 	return (
 		<Card>
-			<div className="flex flex-col divide-y divide-solid divide-gray-40 divide-x-0">
+			<div className="flex flex-col divide-x-0 divide-y divide-solid divide-gray-40">
 				{validatorAddress && (
 					<div className="mb-3.5 w-full">
 						<ValidatorLogo
@@ -42,28 +42,28 @@ export function UnStakeTxnCard({ event }: UnStakeTxnCardProps) {
 				)}
 				{totalAmount && <TxnAmount amount={totalAmount} coinType={SUI_TYPE_ARG} label="Total" />}
 
-				<div className="flex justify-between w-full py-3.5">
-					<div className="flex gap-1 items-baseline text-steel">
+				<div className="flex w-full justify-between py-3.5">
+					<div className="flex items-baseline gap-1 text-steel">
 						<Text variant="body" weight="medium" color="steel-darker">
 							Your SUI Stake
 						</Text>
 					</div>
 
-					<div className="flex gap-1 items-baseline text-steel">
+					<div className="flex items-baseline gap-1 text-steel">
 						<Text variant="body" weight="medium" color="steel-darker">
 							{formatPrinciple} {symbol}
 						</Text>
 					</div>
 				</div>
 
-				<div className="flex justify-between w-full py-3.5">
-					<div className="flex gap-1 items-baseline text-steel">
+				<div className="flex w-full justify-between py-3.5">
+					<div className="flex items-baseline gap-1 text-steel">
 						<Text variant="body" weight="medium" color="steel-darker">
 							Staking Rewards Earned
 						</Text>
 					</div>
 
-					<div className="flex gap-1 items-baseline text-steel">
+					<div className="flex items-baseline gap-1 text-steel">
 						<Text variant="body" weight="medium" color="steel-darker">
 							{formatRewards} {symbol}
 						</Text>

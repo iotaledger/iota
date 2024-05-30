@@ -44,10 +44,10 @@ export function BuyNLargeHomePanel() {
 						sourceScreen: 'HomePanel',
 					});
 				}}
-				className="bg-[#2249E3] flex flex-row items-center rounded-xl px-4 py-3 gap-4 w-full"
+				className="flex w-full flex-row items-center gap-4 rounded-xl bg-[#2249E3] px-4 py-3"
 			>
-				<div className="w-8 h-8">
-					<img src={config.homeImage} alt="" className="w-full h-full object-contain" />
+				<div className="h-8 w-8">
+					<img src={config.homeImage} alt="" className="h-full w-full object-contain" />
 				</div>
 
 				<div className="flex-1">
@@ -60,7 +60,7 @@ export function BuyNLargeHomePanel() {
 					<button
 						type="button"
 						aria-label="Close"
-						className="bg-transparent p-0 m-0 border-none"
+						className="m-0 border-none bg-transparent p-0"
 						onClick={(e) => {
 							e.preventDefault();
 							e.stopPropagation();

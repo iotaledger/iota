@@ -14,7 +14,7 @@ export function MenuLayout({ children, ...pageTitleProps }: MenuLayoutProps) {
 			<div className="sticky top-0 bg-white py-4">
 				<PageTitle {...pageTitleProps} />
 			</div>
-			<div className="flex flex-col justify-items-stretch flex-1 px-2.5">{children}</div>
+			<div className="flex flex-1 flex-col justify-items-stretch px-2.5">{children}</div>
 		</>
 	);
 }

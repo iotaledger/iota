@@ -325,7 +325,9 @@ export function useGetEstimate({
 					await queryClient.invalidateQueries({ queryKey: ['get-owned-objects'] });
 				}
 
-				const dryRunResponse = await signer!.dryRunTransactionBlock({ transactionBlock: txn });
+				const dryRunResponse = await signer!.dryRunTransactionBlock({
+					transactionBlock: txn,
+				});
 
 				if (dryRunResponse.balanceChanges.length < NUMBER_EXPECTED_BALANCE_CHANGES) {
 					throw new Error('Not enough balance. Please lower swap amount');
@@ -338,6 +340,8 @@ export function useGetEstimate({
 			} catch (error) {
 				// sentryTransaction.setStatus('failed_precondition');
 				// Sentry.captureException(error);
+
+				// eslint-disable-next-line no-console
 				console.error(error);
 				throw error;
 			} finally {

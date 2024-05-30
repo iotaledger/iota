@@ -27,7 +27,7 @@ export function DelegationDetail() {
 
 	if (isPending) {
 		return (
-			<div className="p-2 w-full flex justify-center items-center h-full">
+			<div className="flex h-full w-full items-center justify-center p-2">
 				<LoadingIndicator />
 			</div>
 		);
@@ -38,7 +38,7 @@ export function DelegationDetail() {
 		<Overlay
 			showModal
 			title={
-				<div className="flex items-center max-w-full px-4">
+				<div className="flex max-w-full items-center px-4">
 					<ValidatorLogo
 						validatorAddress={validatorAddressParams}
 						isTitle

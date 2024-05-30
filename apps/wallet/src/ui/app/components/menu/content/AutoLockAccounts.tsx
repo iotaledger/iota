@@ -42,7 +42,7 @@ export function AutoLockAccounts() {
 		>
 			<Loading loading={autoLock.isPending}>
 				<Form
-					className="flex flex-col h-full pt-5"
+					className="flex h-full flex-col pt-5"
 					form={form}
 					onSubmit={async (data) => {
 						await setAutoLockMutation.mutateAsync(

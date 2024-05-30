@@ -25,18 +25,18 @@ export function AccountItemApproveConnection({ account, selected, disabled, show
 	return (
 		<div
 			className={clsx(
-				'group rounded-xl px-4 py-3 border border-solid border-hero/10 cursor-pointer',
+				'group cursor-pointer rounded-xl border border-solid border-hero/10 px-4 py-3',
 				'flex items-center justify-start gap-3',
-				selected ? 'shadow-card-soft bg-white/80' : 'bg-white/40 hover:bg-white/60',
-				disabled ? '!bg-hero-darkest/10 border-transparent' : 'hover:shadow',
+				selected ? 'bg-white/80 shadow-card-soft' : 'bg-white/40 hover:bg-white/60',
+				disabled ? 'border-transparent !bg-hero-darkest/10' : 'hover:shadow',
 			)}
 		>
 			<AccountIcon account={account} />
 
-			<div className="flex flex-col gap-1 overflow-hidden items-start">
+			<div className="flex flex-col items-start gap-1 overflow-hidden">
 				<div
 					className={clsx(
-						'truncate font-sans font-semibold text-body group-hover:text-steel-darker',
+						'truncate font-sans text-body font-semibold group-hover:text-steel-darker',
 						selected ? 'text-steel-darker' : 'text-steel-dark',
 						disabled && '!text-steel-darker',
 					)}
@@ -74,7 +74,7 @@ export function AccountItemApproveConnection({ account, selected, disabled, show
 				) : null}
 
 				<div
-					className={clsx(`flex items-center justify-center ml-auto text-hero/10`, {
+					className={clsx(`ml-auto flex items-center justify-center text-hero/10`, {
 						'text-success': selected,
 					})}
 				>

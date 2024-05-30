@@ -60,7 +60,7 @@ export default function Alert({
 	return (
 		<div className={alertStyles({ noBorder, rounded, mode, spacing })}>
 			{(showIcon && mode && modeToIcon[mode]) || null}
-			<div className="break-words flex-1 text-left">{children}</div>
+			<div className="flex-1 break-words text-left">{children}</div>
 		</div>
 	);
 }

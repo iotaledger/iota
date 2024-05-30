@@ -37,7 +37,7 @@ export function GasFeeSection({
 	const [gas, symbol] = useFormatCoin(totalGas, GAS_TYPE_ARG);
 
 	return (
-		<div className="flex flex-col border border-hero-darkest/20 rounded-xl px-5 py-3 gap-2 border-solid">
+		<div className="flex flex-col gap-2 rounded-xl border border-solid border-hero-darkest/20 px-5 py-3">
 			<DescriptionItem
 				title={
 					<Text variant="bodySmall" weight="medium" color="steel-dark">
@@ -52,7 +52,7 @@ export function GasFeeSection({
 				</Text>
 			</DescriptionItem>
 
-			<div className="bg-gray-40 h-px w-full" />
+			<div className="h-px w-full bg-gray-40" />
 
 			<DescriptionItem
 				title={

@@ -99,7 +99,7 @@ export function ProtectAccountForm({
 		return unsubscribe;
 	}, [watch, trigger, getValues]);
 	return (
-		<Form className="flex flex-col gap-6 h-full" form={form} onSubmit={onSubmit}>
+		<Form className="flex h-full flex-col gap-6" form={form} onSubmit={onSubmit}>
 			<TextField
 				autoFocus
 				type="password"
@@ -118,7 +118,7 @@ export function ProtectAccountForm({
 					<CheckboxField
 						name="acceptedTos"
 						label={
-							<div className="text-bodySmall whitespace-nowrap">
+							<div className="whitespace-nowrap text-bodySmall">
 								I read and agreed to the{' '}
 								<span className="inline-block">
 									<Link

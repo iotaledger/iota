@@ -39,12 +39,12 @@ export default function VisualAssets({ items }: { items: SuiObjectData[] }) {
 						});
 					}}
 					key={object.objectId}
-					className="no-underline relative"
+					className="relative no-underline"
 				>
 					<div className="group">
-						<div className="w-full h-full justify-center z-10 absolute pointer-events-auto text-gray-60 transition-colors duration-200 p-0">
+						<div className="pointer-events-auto absolute z-10 h-full w-full justify-center p-0 text-gray-60 transition-colors duration-200">
 							{!isKioskOwnerToken(kioskClient.network, object) && object.type !== objectType ? (
-								<div className="absolute top-2 right-3 rounded-md h-8 w-8 opacity-0 group-hover:opacity-100">
+								<div className="absolute right-3 top-2 h-8 w-8 rounded-md opacity-0 group-hover:opacity-100">
 									<Button
 										variant="hidden"
 										size="icon"

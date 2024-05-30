@@ -84,7 +84,7 @@ export function ValidatorsCard() {
 
 	if (isPending) {
 		return (
-			<div className="p-2 w-full flex justify-center items-center h-full">
+			<div className="flex h-full w-full items-center justify-center p-2">
 				<LoadingIndicator />
 			</div>
 		);
@@ -92,7 +92,7 @@ export function ValidatorsCard() {
 
 	if (isError) {
 		return (
-			<div className="p-2 w-full flex justify-center items-center h-full mb-2">
+			<div className="mb-2 flex h-full w-full items-center justify-center p-2">
 				<Alert>
 					<strong>{error?.message}</strong>
 				</Alert>
@@ -101,7 +101,7 @@ export function ValidatorsCard() {
 	}
 
 	return (
-		<div className="flex flex-col flex-nowrap h-full w-full">
+		<div className="flex h-full w-full flex-col flex-nowrap">
 			<BottomMenuLayout>
 				<Content>
 					<div className="mb-4">
@@ -113,7 +113,7 @@ export function ValidatorsCard() {
 								</Alert>
 							</div>
 						) : null}
-						<div className="grid grid-cols-2 gap-2.5 mb-4">
+						<div className="mb-4 grid grid-cols-2 gap-2.5">
 							{system &&
 								delegations
 									?.filter(({ inactiveValidator }) => inactiveValidator)
@@ -129,7 +129,7 @@ export function ValidatorsCard() {
 						<Card
 							padding="none"
 							header={
-								<div className="py-2.5 flex px-3.75 justify-center w-full">
+								<div className="flex w-full justify-center px-3.75 py-2.5">
 									<Text variant="captionSmall" weight="semibold" color="steel-darker">
 										Staking on {numberOfValidators}
 										{numberOfValidators > 1 ? ' Validators' : ' Validator'}
@@ -137,7 +137,7 @@ export function ValidatorsCard() {
 								</div>
 							}
 						>
-							<div className="flex divide-x divide-solid divide-gray-45 divide-y-0">
+							<div className="flex divide-x divide-y-0 divide-solid divide-gray-45">
 								<CardItem title="Your Stake">
 									<StakeAmount balance={totalStake} variant="heading5" />
 								</CardItem>
@@ -147,7 +147,7 @@ export function ValidatorsCard() {
 							</div>
 						</Card>
 
-						<div className="grid grid-cols-2 gap-2.5 mt-4">
+						<div className="mt-4 grid grid-cols-2 gap-2.5">
 							{system &&
 								delegations
 									?.filter(({ inactiveValidator }) => !inactiveValidator)
@@ -161,7 +161,7 @@ export function ValidatorsCard() {
 						</div>
 					</div>
 				</Content>
-				<Menu stuckClass="staked-cta" className="w-full px-0 pb-0 mx-0">
+				<Menu stuckClass="staked-cta" className="mx-0 w-full px-0 pb-0">
 					<Button
 						size="tall"
 						variant="secondary"

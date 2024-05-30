@@ -90,25 +90,25 @@ export function NFTDisplayCard({
 					/>
 				)}
 				{wideView && (
-					<div className="flex flex-col gap-1 flex-1 min-w-0 ml-1">
+					<div className="ml-1 flex min-w-0 flex-1 flex-col gap-1">
 						<Heading variant="heading6" color="gray-90" truncate>
 							{nftName}
 						</Heading>
-						<div className="text-gray-75 text-body font-medium">
+						<div className="text-body font-medium text-gray-75">
 							{nftImageUrl ? (
 								`${fileExtensionType.name} ${fileExtensionType.type}`
 							) : (
-								<span className="uppercase font-normal text-bodySmall">NO MEDIA</span>
+								<span className="text-bodySmall font-normal uppercase">NO MEDIA</span>
 							)}
 						</div>
 					</div>
 				)}
 
 				{orientation === 'horizontal' ? (
-					<div className="flex-1 text-steel-dark overflow-hidden max-w-full ml-2">{nftName}</div>
+					<div className="ml-2 max-w-full flex-1 overflow-hidden text-steel-dark">{nftName}</div>
 				) : !isOwnerToken && !hideLabel ? (
-					<div className="w-10/12 absolute bottom-2 bg-white/90 rounded-lg left-1/2 -translate-x-1/2 flex items-center justify-center opacity-0 group-hover:opacity-100">
-						<div className="mt-0.5 px-2 py-1 overflow-hidden">
+					<div className="absolute bottom-2 left-1/2 flex w-10/12 -translate-x-1/2 items-center justify-center rounded-lg bg-white/90 opacity-0 group-hover:opacity-100">
+						<div className="mt-0.5 overflow-hidden px-2 py-1">
 							<Text variant="subtitleSmall" weight="semibold" mono color="steel-darker" truncate>
 								{nftName}
 							</Text>

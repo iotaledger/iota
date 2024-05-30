@@ -66,11 +66,11 @@ export const AccountItem = forwardRef<HTMLDivElement, AccountItemProps>(
 			<div
 				ref={ref}
 				className={cn(
-					'flex flex-col px-4 py-3 rounded-xl gap-3 border border-solid border-hero/10 cursor-pointer bg-white/40 group',
-					'hover:bg-white/80 hover:border-hero/20',
-					{ 'bg-white/80 shadow-card-soft cursor-auto': selected },
+					'group flex cursor-pointer flex-col gap-3 rounded-xl border border-solid border-hero/10 bg-white/40 px-4 py-3',
+					'hover:border-hero/20 hover:bg-white/80',
+					{ 'cursor-auto bg-white/80 shadow-card-soft': selected },
 					{ 'bg-white/80': isActiveAccount },
-					{ '!bg-hero/10 border-none hover:bg-white/40 shadow-none': disabled },
+					{ 'border-none !bg-hero/10 shadow-none hover:bg-white/40': disabled },
 					{
 						[getAccountBackgroundByType(account)]: background === 'gradient',
 					},
@@ -78,8 +78,8 @@ export const AccountItem = forwardRef<HTMLDivElement, AccountItemProps>(
 				{...props}
 			>
 				<div className="flex items-center justify-start gap-3">
-					<div className="self-start mt-0.5">{icon}</div>
-					<div className="flex flex-col gap-1 overflow-hidden items-start">
+					<div className="mt-0.5 self-start">{icon}</div>
+					<div className="flex flex-col items-start gap-1 overflow-hidden">
 						{!isActiveAccount && !editable ? (
 							<Text variant="pBody" weight="semibold" color="steel-darker" truncate>
 								{accountName}
@@ -87,15 +87,15 @@ export const AccountItem = forwardRef<HTMLDivElement, AccountItemProps>(
 						) : (
 							<EditableAccountName accountID={account.id} name={accountName} />
 						)}
-						<div className="text-steel-dark flex gap-1.5 leading-none">
+						<div className="flex gap-1.5 leading-none text-steel-dark">
 							<Text variant="subtitle" weight="semibold" truncate>
 								{formatAddress(account.address)}
 							</Text>
-							<div className="opacity-0 group-hover:opacity-100 flex gap-1 duration-100">
+							<div className="flex gap-1 opacity-0 duration-100 group-hover:opacity-100">
 								{hideCopy ? null : (
 									<IconButton
 										variant="transparent"
-										icon={<Copy12 className="w-2.5 h-2.5" />}
+										icon={<Copy12 className="h-2.5 w-2.5" />}
 										onClick={copyAddress}
 									/>
 								)}
@@ -104,7 +104,7 @@ export const AccountItem = forwardRef<HTMLDivElement, AccountItemProps>(
 										variant="transparent"
 										title="View on Explorer"
 										href={explorerHref}
-										icon={<ArrowUpRight12 className="w-2.5 h-2.5" />}
+										icon={<ArrowUpRight12 className="h-2.5 w-2.5" />}
 										onClick={(e) => e.stopPropagation()}
 									/>
 								)}

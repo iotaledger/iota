@@ -21,7 +21,7 @@ function NftTransferPage() {
 	const isPending = isNftLoading || isGuardLoading;
 	return (
 		<Overlay showModal={true} title="Send NFT" closeOverlay={() => navigate('/nfts')}>
-			<div className="flex w-full flex-col h-full">
+			<div className="flex h-full w-full flex-col">
 				<Loading loading={isPending}>
 					{ownedNFT &&
 					nftId &&

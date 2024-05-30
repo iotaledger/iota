@@ -17,7 +17,7 @@ const permissionTypeToTxt: Record<PermissionType, string> = {
 
 export function DAppPermissionsList({ permissions }: DAppPermissionsListProps) {
 	return (
-		<ul className="list-none m-0 p-0 flex flex-col gap-3">
+		<ul className="m-0 flex list-none flex-col gap-3 p-0">
 			{permissions.map((aPermission) => (
 				<li key={aPermission} className="flex flex-row flex-nowrap items-center gap-2">
 					<CheckFill12 className="text-steel" />

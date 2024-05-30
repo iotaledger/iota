@@ -37,12 +37,12 @@ export function DAppInfoCard({
 	const { unlockAccount, lockAccount, isPending, accountToUnlock } = useUnlockAccount();
 
 	return (
-		<div className="bg-white p-6 flex flex-col gap-5">
+		<div className="flex flex-col gap-5 bg-white p-6">
 			<div className="flex flex-row flex-nowrap items-center gap-3.75 py-3">
-				<div className="flex items-stretch h-15 w-15 overflow-hidden bg-steel/20 shrink-0 grow-0 rounded-2xl">
+				<div className="flex h-15 w-15 shrink-0 grow-0 items-stretch overflow-hidden rounded-2xl bg-steel/20">
 					{iconUrl ? <img className="flex-1" src={iconUrl} alt={name} /> : null}
 				</div>
-				<div className="flex flex-col items-start flex-nowrap gap-1 overflow-hidden">
+				<div className="flex flex-col flex-nowrap items-start gap-1 overflow-hidden">
 					<div className="max-w-full overflow-hidden">
 						<Heading variant="heading4" weight="semibold" color="gray-100" truncate>
 							{name}

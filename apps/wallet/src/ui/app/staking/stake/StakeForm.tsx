@@ -62,7 +62,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
 
 	return (
 		<Form className="flex flex-1 flex-col flex-nowrap items-center" autoComplete="off">
-			<div className="flex flex-col justify-between items-center mb-3 mt-3.5 w-full gap-1.5">
+			<div className="mb-3 mt-3.5 flex w-full flex-col items-center justify-between gap-1.5">
 				<Text variant="caption" color="gray-85" weight="semibold">
 					Enter the amount of SUI to stake
 				</Text>
@@ -74,20 +74,20 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
 				variant="gray"
 				titleDivider
 				header={
-					<div className="p-2.5 w-full flex bg-white">
+					<div className="flex w-full bg-white p-2.5">
 						<Field
 							data-testid="stake-amount-input"
 							component={NumberInput}
 							allowNegative={false}
 							name="amount"
-							className="w-full border-none text-hero-dark text-heading4 font-semibold bg-white placeholder:text-gray-70 placeholder:font-semibold"
+							className="w-full border-none bg-white text-heading4 font-semibold text-hero-dark placeholder:font-semibold placeholder:text-gray-70"
 							decimals
 							suffix={` ${symbol}`}
 							autoFocus
 						/>
 						{!HIDE_MAX ? (
 							<button
-								className="bg-white border border-solid border-gray-60 hover:border-steel-dark rounded-2xl h-6 w-11 flex justify-center items-center cursor-pointer text-steel-darker hover:text-steel-darker text-bodySmall font-medium disabled:opacity-50 disabled:cursor-auto"
+								className="flex h-6 w-11 cursor-pointer items-center justify-center rounded-2xl border border-solid border-gray-60 bg-white text-bodySmall font-medium text-steel-darker hover:border-steel-dark hover:text-steel-darker disabled:cursor-auto disabled:opacity-50"
 								onClick={setMaxToken}
 								disabled={queryResult.isPending}
 								type="button"
@@ -98,7 +98,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
 					</div>
 				}
 				footer={
-					<div className="py-px flex justify-between w-full">
+					<div className="flex w-full justify-between py-px">
 						<Text variant="body" weight="medium" color="steel-darker">
 							Gas Fees
 						</Text>
@@ -108,7 +108,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
 					</div>
 				}
 			>
-				<div className="pb-3.75 flex justify-between w-full">
+				<div className="flex w-full justify-between pb-3.75">
 					<Text variant="body" weight="medium" color="steel-darker">
 						Staking Rewards Start
 					</Text>
@@ -127,13 +127,13 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
 						</Text>
 					)}
 				</div>
-				<div className="pb-3.75 flex justify-between item-center w-full">
+				<div className="item-center flex w-full justify-between pb-3.75">
 					<div className="flex-1">
 						<Text variant="pBody" weight="medium" color="steel-darker">
 							Staking Rewards Redeemable
 						</Text>
 					</div>
-					<div className="flex-1 flex justify-end gap-1 items-center">
+					<div className="flex flex-1 items-center justify-end gap-1">
 						{timeBeforeStakeRewardsRedeemable > 0 ? (
 							<CountDownTimer
 								timestamp={timeBeforeStakeRewardsRedeemable}

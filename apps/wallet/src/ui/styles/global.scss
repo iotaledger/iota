@@ -19,7 +19,7 @@
 	}
 
 	.custom-scrollbar::-webkit-scrollbar-thumb {
-		@apply bg-gray-50 rounded-full;
+		@apply rounded-full bg-gray-50;
 	}
 }
 
@@ -35,7 +35,7 @@ body {
 	background-color: v.use(v.$colors-background-color);
 	color: black;
 	scroll-behavior: smooth;
-	@apply antialiased font-sans;
+	@apply font-sans antialiased;
 }
 
 /* TODO: Remove after we enable CSS Reset */

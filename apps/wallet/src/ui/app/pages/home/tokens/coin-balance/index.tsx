@@ -43,7 +43,7 @@ export function CoinBalance({ amount: walletBalance, type }: CoinProps) {
 	const [formatted, symbol] = useFormatCoin(walletBalance, type);
 
 	return (
-		<div className="flex flex-col gap-1 items-center justify-center">
+		<div className="flex flex-col items-center justify-center gap-1">
 			<div className="flex items-center justify-center gap-2">
 				<Heading leading="none" variant="heading1" weight="bold" color="gray-90">
 					{formatted}

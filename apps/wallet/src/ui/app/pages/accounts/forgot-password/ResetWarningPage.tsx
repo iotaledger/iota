@@ -34,7 +34,7 @@ export function ResetWarningPage() {
 		return <Navigate to="../reset" replace />;
 	}
 	return (
-		<div className="flex flex-col items-center overflow-auto w-full h-full">
+		<div className="flex h-full w-full flex-col items-center overflow-auto">
 			<div className="flex flex-col items-center gap-2 text-center">
 				<Heading variant="heading1" color="gray-90" as="h1" weight="bold">
 					Reset Password
@@ -44,7 +44,7 @@ export function ResetWarningPage() {
 					reset process. You will need to connect/import them again.
 				</Text>
 			</div>
-			<div className="flex flex-col flex-1 overflow-auto mt-5 mb-10 bg-hero-darkest/5 w-full px-4 py-6 gap-8 rounded-lg">
+			<div className="mb-10 mt-5 flex w-full flex-1 flex-col gap-8 overflow-auto rounded-lg bg-hero-darkest/5 px-4 py-6">
 				{accountGroupsToRemove.map(([sourceID, accounts]) => (
 					<RecoverAccountsGroup
 						key={sourceID}

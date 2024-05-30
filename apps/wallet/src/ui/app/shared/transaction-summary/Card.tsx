@@ -27,7 +27,7 @@ type CardProps = Props & AnchorHTMLAttributes<HTMLAnchorElement>;
 
 export const SummaryCardFooter = ({ children }: { children: ReactNode }) => {
 	return (
-		<div className="-mb-4.5 -mx-4.5 px-4 py-2 rounded-b-2xl flex justify-between items-center bg-sui/10 ">
+		<div className="-mx-4.5 -mb-4.5 flex items-center justify-between rounded-b-2xl bg-sui/10 px-4 py-2 ">
 			{children}
 		</div>
 	);
@@ -38,7 +38,7 @@ export function Card({ as = 'div', heading, children, after, footer = null, ...p
 	return (
 		<Component className={cardStyles({ as })} {...props}>
 			{heading && (
-				<div className="flex items-center justify-between mb-4 last-of-type:mb-0">
+				<div className="mb-4 flex items-center justify-between last-of-type:mb-0">
 					<Heading variant="heading6" color="steel-darker">
 						{heading}
 					</Heading>

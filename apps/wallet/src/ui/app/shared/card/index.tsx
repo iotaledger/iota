@@ -34,15 +34,15 @@ export function Card({ header, footer, children, ...styleProps }: CardProps) {
 	return (
 		<div
 			className={
-				'rounded-2xl border border-solid border-gray-45 box-border overflow-hidden flex flex-col outline-1 w-full'
+				'box-border flex w-full flex-col overflow-hidden rounded-2xl border border-solid border-gray-45 outline-1'
 			}
 		>
-			{header && <div className="bg-gray-40 flex items-center justify-center">{header}</div>}
+			{header && <div className="flex items-center justify-center bg-gray-40">{header}</div>}
 			<div className={cardContentStyle(styleProps)}>
 				{children}
 				{footer && (
-					<div className={'flex flex-col pt-0 justify-center w-full'}>
-						{children && <span className="h-px bg-gray-45 w-full px-4 mb-3.5"></span>}
+					<div className={'flex w-full flex-col justify-center pt-0'}>
+						{children && <span className="mb-3.5 h-px w-full bg-gray-45 px-4"></span>}
 						<div className="flex justify-between">{footer}</div>
 					</div>
 				)}

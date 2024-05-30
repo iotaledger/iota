@@ -52,9 +52,9 @@ export function StakeTxnCard({ event }: StakeTxnCardProps) {
 
 	return (
 		<Card>
-			<div className="flex flex-col divide-y divide-solid divide-gray-40 divide-x-0">
+			<div className="flex flex-col divide-x-0 divide-y divide-solid divide-gray-40">
 				{validatorAddress && (
-					<div className="mb-3.5 w-full divide-y divide-gray-40 divide-solid">
+					<div className="mb-3.5 w-full divide-y divide-solid divide-gray-40">
 						<ValidatorLogo
 							validatorAddress={validatorAddress}
 							showAddress
@@ -66,8 +66,8 @@ export function StakeTxnCard({ event }: StakeTxnCardProps) {
 				)}
 				{stakedAmount && <TxnAmount amount={stakedAmount} coinType={SUI_TYPE_ARG} label="Stake" />}
 				<div className="flex flex-col">
-					<div className="flex justify-between w-full py-3.5">
-						<div className="flex gap-1 items-baseline justify-center text-steel">
+					<div className="flex w-full justify-between py-3.5">
+						<div className="flex items-baseline justify-center gap-1 text-steel">
 							<Text variant="body" weight="medium" color="steel-darker">
 								APY
 							</Text>
@@ -79,8 +79,8 @@ export function StakeTxnCard({ event }: StakeTxnCardProps) {
 					</div>
 				</div>
 				<div className="flex flex-col">
-					<div className="flex justify-between w-full py-3.5">
-						<div className="flex gap-1 items-baseline text-steel">
+					<div className="flex w-full justify-between py-3.5">
+						<div className="flex items-baseline gap-1 text-steel">
 							<Text variant="body" weight="medium" color="steel-darker">
 								{timeBeforeStakeRewardsStarts > 0
 									? 'Staking Rewards Start'
@@ -103,13 +103,13 @@ export function StakeTxnCard({ event }: StakeTxnCardProps) {
 							</Text>
 						)}
 					</div>
-					<div className="flex justify-between w-full">
-						<div className="flex gap-1 flex-1 items-baseline text-steel">
+					<div className="flex w-full justify-between">
+						<div className="flex flex-1 items-baseline gap-1 text-steel">
 							<Text variant="pBody" weight="medium" color="steel-darker">
 								Staking Rewards Redeemable
 							</Text>
 						</div>
-						<div className="flex-1 flex justify-end gap-1 items-center">
+						<div className="flex flex-1 items-center justify-end gap-1">
 							{timeBeforeStakeRewardsRedeemable > 0 ? (
 								<CountDownTimer
 									timestamp={timeBeforeStakeRewardsRedeemable}

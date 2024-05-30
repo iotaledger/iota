@@ -53,9 +53,9 @@ export function TransactionCard({
 			to={`/receipt?${new URLSearchParams({
 				txdigest: txn.digest,
 			}).toString()}`}
-			className="flex items-center w-full flex-col gap-2 py-4 no-underline"
+			className="flex w-full flex-col items-center gap-2 py-4 no-underline"
 		>
-			<div className="flex items-start w-full justify-between gap-3">
+			<div className="flex w-full items-start justify-between gap-3">
 				<div className="w-7.5">
 					<TxnIcon
 						txnFailed={executionStatus !== 'success' || !!error}
@@ -63,10 +63,10 @@ export function TransactionCard({
 						variant={getLabel(txn, address)}
 					/>
 				</div>
-				<div className="flex flex-col w-full gap-1.5">
+				<div className="flex w-full flex-col gap-1.5">
 					{error ? (
 						<div className="flex w-full justify-between">
-							<div className="flex flex-col w-full gap-1.5">
+							<div className="flex w-full flex-col gap-1.5">
 								<Text color="gray-90" weight="medium">
 									Transaction Failed
 								</Text>
@@ -82,7 +82,7 @@ export function TransactionCard({
 					) : (
 						<>
 							<div className="flex w-full justify-between">
-								<div className="flex gap-1 align-middle items-baseline">
+								<div className="flex items-baseline gap-1 align-middle">
 									<Text color="gray-90" weight="semibold">
 										{summary?.label}
 									</Text>

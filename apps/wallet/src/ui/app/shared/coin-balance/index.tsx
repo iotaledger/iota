@@ -15,7 +15,7 @@ export function CoinBalance({ amount, coinType }: CoinBalanceProps) {
 	const [formatted, symbol] = useFormatCoin(amount, coinType || SUI_TYPE_ARG);
 
 	return Math.abs(Number(amount)) > 0 ? (
-		<div className="flex gap-0.5 align-baseline flex-nowrap items-baseline">
+		<div className="flex flex-nowrap items-baseline gap-0.5 align-baseline">
 			<Text variant="body" weight="semibold" color="gray-90">
 				{formatted}
 			</Text>

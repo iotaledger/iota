@@ -11,11 +11,11 @@ export function TotalAmount({ amount, coinType }: { amount?: string; coinType?: 
 	if (!amount) return null;
 	return (
 		<Card>
-			<div className="flex justify-between items-center">
+			<div className="flex items-center justify-between">
 				<Text color="steel-darker" variant="pBody">
 					Total Amount
 				</Text>
-				<div className="flex gap-0.5 items-center">
+				<div className="flex items-center gap-0.5">
 					<Heading color="steel-darker" variant="heading2">
 						{formatted}
 					</Heading>

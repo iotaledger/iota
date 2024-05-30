@@ -43,7 +43,7 @@ function MenuContent() {
 	}
 
 	return (
-		<div className="absolute flex flex-col justify-items-stretch inset-0 bg-white pb-8 px-2.5 z-50 rounded-t-xl overflow-y-auto">
+		<div className="absolute inset-0 z-50 flex flex-col justify-items-stretch overflow-y-auto rounded-t-xl bg-white px-2.5 pb-8">
 			<ErrorBoundary>
 				<MainLocationContext.Provider value={mainLocation}>
 					<Routes location={menuUrl || ''}>

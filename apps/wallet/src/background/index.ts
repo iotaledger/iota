@@ -83,7 +83,9 @@ accountsEvents.on('accountsChanged', async () => {
 	connections.notifyUI({ event: 'storedEntitiesUpdated', type: 'accounts' });
 	await Permissions.ensurePermissionAccountsUpdated(
 		await Promise.all(
-			(await getAllAccounts()).map(async (anAccount) => ({ address: await anAccount.address })),
+			(await getAllAccounts()).map(async (anAccount) => ({
+				address: await anAccount.address,
+			})),
 		),
 	);
 });

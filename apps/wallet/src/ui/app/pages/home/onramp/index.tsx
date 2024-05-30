@@ -52,7 +52,7 @@ export function Onramp() {
 				navigate('/tokens');
 			}}
 		>
-			<div className="w-full flex flex-col gap-5">
+			<div className="flex w-full flex-col gap-5">
 				{preferredProvider && (
 					<Text variant="body" weight="medium" color="steel-darker">
 						Continue checkout out with one of our partners:{' '}
@@ -62,10 +62,10 @@ export function Onramp() {
 					onClick={() => {
 						mutate();
 					}}
-					className="w-full p-4 bg-sui/10 rounded-2xl flex flex-col gap-2.5 cursor-pointer border boder-solid border-hero/20 hover:border-hero/40"
+					className="boder-solid flex w-full cursor-pointer flex-col gap-2.5 rounded-2xl border border-hero/20 bg-sui/10 p-4 hover:border-hero/40"
 				>
 					<span className="flex w-full">
-						<preferredProvider.icon className="mr-auto w-10 h-10" />
+						<preferredProvider.icon className="mr-auto h-10 w-10" />
 					</span>
 
 					<Heading variant="heading6" weight="semibold" color="hero-dark">
@@ -84,10 +84,10 @@ export function Onramp() {
 						return (
 							<button
 								key={provider.key}
-								className="flex gap-3 flex-1 items-center bg-transparent border border-solid border-gray-45 cursor-pointer rounded-4lg p-3.5 hover:border-gray-60"
+								className="flex flex-1 cursor-pointer items-center gap-3 rounded-4lg border border-solid border-gray-45 bg-transparent p-3.5 hover:border-gray-60"
 								onClick={() => setPreferredProvider(provider.key)}
 							>
-								<provider.icon className="w-8 h-8" />
+								<provider.icon className="h-8 w-8" />
 								<Text variant="body" weight="semibold" color="gray-90">
 									{provider.name}
 								</Text>

@@ -72,7 +72,7 @@ function DisconnectApp({
 	}
 	return (
 		<Overlay showModal setShowModal={setShowDisconnectApp} title="Connection Active">
-			<div className="flex flex-col flex-nowrap items-stretch flex-1 gap-3.75">
+			<div className="flex flex-1 flex-col flex-nowrap items-stretch gap-3.75">
 				<DAppInfoCard name={name} iconUrl={icon} url={link} />
 				<SummaryCard
 					header="Permissions given"
@@ -97,7 +97,7 @@ function DisconnectApp({
 						}
 					/>
 				)}
-				<div className="sticky flex items-end flex-1 -bottom-5 bg-white pt-1 pb-5">
+				<div className="sticky -bottom-5 flex flex-1 items-end bg-white pb-5 pt-1">
 					<Button
 						size="tall"
 						variant="warning"

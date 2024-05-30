@@ -25,7 +25,7 @@ export function TokenLink({ coinBalance, centerAction, subtitle }: Props) {
 				})
 			}
 			key={coinBalance.coinType}
-			className="no-underline w-full group/coin"
+			className="group/coin w-full no-underline"
 		>
 			<CoinItem
 				coinType={coinBalance.coinType}

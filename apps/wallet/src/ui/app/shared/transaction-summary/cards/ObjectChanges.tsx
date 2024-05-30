@@ -46,8 +46,8 @@ export function ObjectDetail({
 		<Disclosure>
 			{({ open }) => (
 				<div className="flex flex-col gap-1">
-					<div className="grid grid-cols-2 overflow-auto cursor-pointer">
-						<Disclosure.Button className="flex items-center cursor-pointer border-none bg-transparent ouline-none p-0 gap-1 text-steel-dark hover:text-steel-darker select-none">
+					<div className="grid cursor-pointer grid-cols-2 overflow-auto">
+						<Disclosure.Button className="ouline-none flex cursor-pointer select-none items-center gap-1 border-none bg-transparent p-0 text-steel-dark hover:text-steel-darker">
 							<Text variant="pBody" weight="medium">
 								Object
 							</Text>
@@ -73,7 +73,7 @@ export function ObjectDetail({
 					</div>
 					<Disclosure.Panel>
 						<div className="flex flex-col gap-1">
-							<div className="grid grid-cols-2 overflow-auto relative">
+							<div className="relative grid grid-cols-2 overflow-auto">
 								<Text variant="pBody" weight="medium" color="steel-dark">
 									Package
 								</Text>
@@ -81,7 +81,7 @@ export function ObjectDetail({
 									<ExplorerLink
 										type={ExplorerLinkType.object}
 										objectID={packageId}
-										className="text-hero-dark text-captionSmall no-underline justify-self-end overflow-auto"
+										className="justify-self-end overflow-auto text-captionSmall text-hero-dark no-underline"
 									>
 										<Text variant="pBody" weight="medium" truncate mono>
 											{packageId}
@@ -98,7 +98,7 @@ export function ObjectDetail({
 										type={ExplorerLinkType.object}
 										objectID={packageId}
 										moduleName={moduleName}
-										className="text-hero-dark no-underline justify-self-end overflow-auto"
+										className="justify-self-end overflow-auto text-hero-dark no-underline"
 									>
 										<Text variant="pBody" weight="medium" truncate mono>
 											{moduleName}
@@ -115,7 +115,7 @@ export function ObjectDetail({
 										type={ExplorerLinkType.object}
 										objectID={packageId}
 										moduleName={moduleName}
-										className="text-hero-dark no-underline justify-self-end overflow-auto"
+										className="justify-self-end overflow-auto text-hero-dark no-underline"
 									>
 										<Text variant="pBody" weight="medium" truncate mono>
 											{typeName}
@@ -149,7 +149,7 @@ export function ObjectChangeEntry({ changes, type }: ObjectChangeEntryProps) {
 						<Disclosure defaultOpen>
 							{({ open }) => (
 								<div className={cx({ 'gap-4': open }, 'flex flex-col pb-3')}>
-									<Disclosure.Button as="div" className="flex w-full flex-col gap-2 cursor-pointer">
+									<Disclosure.Button as="div" className="flex w-full cursor-pointer flex-col gap-2">
 										<div className="flex w-full items-center gap-2">
 											<Text
 												variant="body"
@@ -158,11 +158,11 @@ export function ObjectChangeEntry({ changes, type }: ObjectChangeEntryProps) {
 											>
 												{getObjectChangeLabel(type)}
 											</Text>
-											<div className="h-px bg-gray-40 w-full" />
+											<div className="h-px w-full bg-gray-40" />
 											<ChevronDown expanded={open} />
 										</div>
 									</Disclosure.Button>
-									<Disclosure.Panel as="div" className="gap-4 flex flex-col">
+									<Disclosure.Panel as="div" className="flex flex-col gap-4">
 										<>
 											{!!changes.changesWithDisplay.length && (
 												<div className="flex gap-2 overflow-y-auto">

@@ -22,7 +22,7 @@ export function StakeAmount({ balance, variant, isEarnedRewards }: StakeAmountPr
 	const colorSymbol = variant === 'heading5' ? 'steel' : 'steel-darker';
 
 	return (
-		<div className="flex gap-0.5 align-baseline flex-nowrap items-baseline">
+		<div className="flex flex-nowrap items-baseline gap-0.5 align-baseline">
 			{variant === 'heading5' ? (
 				<Heading
 					variant="heading5"

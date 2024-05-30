@@ -20,16 +20,16 @@ export function ValidatorListItem({ selected, value, validatorAddress }: Validat
 				<div
 					className={cx(
 						selected ? 'bg-sui/10' : '',
-						'flex justify-between w-full hover:bg-sui/10 py-3.5 px-2 rounded-lg group items-center gap-1',
+						'group flex w-full items-center justify-between gap-1 rounded-lg px-2 py-3.5 hover:bg-sui/10',
 					)}
 					role="button"
 				>
-					<div className="flex gap-2.5 items-center justify-start">
-						<div className="relative flex gap-0.5 w-full">
+					<div className="flex items-center justify-start gap-2.5">
+						<div className="relative flex w-full gap-0.5">
 							{selected && (
 								<CheckFill16
 									fill="fillCurrent"
-									className="text-success text-heading6 absolute translate-x-4 -translate-y-1 rounded-full bg-white"
+									className="absolute -translate-y-1 translate-x-4 rounded-full bg-white text-heading6 text-success"
 								/>
 							)}
 							<ValidatorLogo
@@ -41,7 +41,7 @@ export function ValidatorListItem({ selected, value, validatorAddress }: Validat
 							/>
 						</div>
 					</div>
-					<div className="flex gap-0.5 items-center">
+					<div className="flex items-center gap-0.5">
 						<div className="flex gap-0.5 leading-none">
 							<Text variant="body" weight="semibold" color="steel-darker">
 								{value}
@@ -49,7 +49,7 @@ export function ValidatorListItem({ selected, value, validatorAddress }: Validat
 							<div
 								className={cx(
 									selected ? '!opacity-100' : '',
-									'text-steel items-baseline text-subtitle h-3 flex opacity-0 group-hover:opacity-100',
+									'flex h-3 items-baseline text-subtitle text-steel opacity-0 group-hover:opacity-100',
 								)}
 							></div>
 						</div>

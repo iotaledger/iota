@@ -7,7 +7,7 @@ import { Link, type LinkProps } from '../../shared/Link';
 
 const FooterLink = forwardRef((props: LinkProps & { icon?: React.ReactNode }, forwardedRef) => {
 	return (
-		<div className="flex gap-1 uppercase bg-none rounded-sm  hover:bg-white/60 p-1 items-center justify-center">
+		<div className="flex items-center justify-center gap-1 rounded-sm  bg-none p-1 uppercase hover:bg-white/60">
 			<Link before={props.icon} weight="semibold" size="captionSmall" {...props} />
 		</div>
 	);

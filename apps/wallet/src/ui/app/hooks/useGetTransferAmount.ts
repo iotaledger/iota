@@ -17,16 +17,16 @@ export function useGetTransferAmount({
 	// const { coins } = getEventsSummary(events!, activeAddress);
 
 	const suiTransfer = useMemo(() => {
-		const txdetails = txn.transaction?.data.transaction!;
-		return getAmount(txdetails, effects!, events!)?.map(
-			({ amount, coinType, recipientAddress }) => {
-				return {
-					amount: amount || 0,
-					coinType: coinType || SUI_TYPE_ARG,
-					receiverAddress: recipientAddress,
-				};
-			},
-		);
+		const txdetails = txn.transaction?.data.transaction;
+		return !txdetails
+			? []
+			: getAmount(txdetails, effects!, events!)?.map(({ amount, coinType, recipientAddress }) => {
+					return {
+						amount: amount || 0,
+						coinType: coinType || SUI_TYPE_ARG,
+						receiverAddress: recipientAddress,
+					};
+			  });
 	}, [txn, effects, events]);
 
 	// MUSTFIX(chris)

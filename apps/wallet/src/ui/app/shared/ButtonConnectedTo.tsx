@@ -47,7 +47,7 @@ export const ButtonConnectedTo = forwardRef<HTMLButtonElement, ButtonConnectedTo
 					className={cx(
 						'flex',
 						bgOnHover === 'grey'
-							? 'text-steel group-hover:text-inherit group-focus:text-inherit group-active::text-inherit'
+							? 'group-active::text-inherit text-steel group-hover:text-inherit group-focus:text-inherit'
 							: null,
 					)}
 				>

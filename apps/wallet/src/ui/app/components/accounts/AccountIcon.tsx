@@ -14,7 +14,7 @@ import {
 
 function SuiIcon() {
 	return (
-		<div className="bg-steel rounded-full text-white h-4 w-4 flex items-center justify-center p-1">
+		<div className="flex h-4 w-4 items-center justify-center rounded-full bg-steel p-1 text-white">
 			<Sui />
 		</div>
 	);

@@ -66,7 +66,7 @@ export function PasswordInputDialog({
 		>
 			{({ isSubmitting, isValid }) => (
 				<Form
-					className={classNames('flex flex-col flex-nowrap items-center flex-1 gap-7.5', {
+					className={classNames('flex flex-1 flex-col flex-nowrap items-center gap-7.5', {
 						'bg-white': background,
 						'px-5 pt-10': spacing,
 					})}
@@ -76,12 +76,12 @@ export function PasswordInputDialog({
 							{title}
 						</Heading>
 					</div>
-					<div className="self-stretch flex-1">
+					<div className="flex-1 self-stretch">
 						<FieldLabel txt="Enter Wallet Password to Continue">
 							<PasswordInputField name="password" />
 							<ErrorMessage render={(error) => <Alert>{error}</Alert>} name="password" />
 						</FieldLabel>
-						<div className="text-center mt-4">
+						<div className="mt-4 text-center">
 							<Text variant="pBodySmall" color="steel-dark" weight="normal">
 								This is the password you currently use to lock and unlock your Sui wallet.
 							</Text>

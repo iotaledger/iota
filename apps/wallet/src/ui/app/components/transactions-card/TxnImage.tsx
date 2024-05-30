@@ -11,7 +11,7 @@ export function TxnImage({ id, actionLabel }: { id: string; actionLabel?: string
 	const { data: nftMeta } = useGetNFTMeta(id);
 
 	return nftMeta?.imageUrl ? (
-		<div className={cx(actionLabel ? 'py-3.5 first:pt-0 flex gap-2 flex-col' : '')}>
+		<div className={cx(actionLabel ? 'flex flex-col gap-2 py-3.5 first:pt-0' : '')}>
 			{actionLabel ? (
 				<Text variant="body" weight="medium" color="steel-darker">
 					{actionLabel}
@@ -19,7 +19,7 @@ export function TxnImage({ id, actionLabel }: { id: string; actionLabel?: string
 			) : null}
 			<div className="flex w-full gap-2">
 				<NftImage borderRadius="sm" size="xs" name={nftMeta.name} src={nftMeta.imageUrl} />
-				<div className="flex flex-col gap-1 justify-center break-all w-56">
+				<div className="flex w-56 flex-col justify-center gap-1 break-all">
 					{nftMeta.name && (
 						<Text color="gray-90" weight="semibold" variant="subtitleSmall" truncate>
 							{nftMeta.name}

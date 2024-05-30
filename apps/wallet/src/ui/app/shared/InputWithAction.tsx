@@ -81,7 +81,7 @@ export function InputWithAction({
 
 	return (
 		<>
-			<div className="flex flex-row flex-nowrap items-center relative">
+			<div className="relative flex flex-row flex-nowrap items-center">
 				{type === 'numberInput' ? (
 					<NumberInput
 						className={styles({ rounded })}
@@ -101,7 +101,7 @@ export function InputWithAction({
 						className={styles({ rounded })}
 					/>
 				)}
-				<div className="flex items-center justify-end absolute right-0 max-w-[20%] mx-3 overflow-hidden">
+				<div className="absolute right-0 mx-3 flex max-w-[20%] items-center justify-end overflow-hidden">
 					<Pill
 						text={actionText}
 						type={actionType}
@@ -218,7 +218,7 @@ export const InputWithActionButton = forwardRef<HTMLInputElement, InputWithActio
 						autoFocus
 						type={type}
 						className={clsx(
-							'bg-transparent z-10 border-none p-0 text-heading5 text-steel-darker font-semibold h-6 caret-hero',
+							'z-10 h-6 border-none bg-transparent p-0 text-heading5 font-semibold text-steel-darker caret-hero',
 							loading && 'text-transparent',
 						)}
 						disabled={disabled}
@@ -245,12 +245,12 @@ export const InputWithActionButton = forwardRef<HTMLInputElement, InputWithActio
 						>
 							{prefixContent}
 							<span className="invisible max-w-full text-heading5">{value}</span>
-							<span className="ml-2 font-medium text-body text-steel">{suffix}</span>
+							<span className="ml-2 text-body font-medium text-steel">{suffix}</span>
 						</div>
 					)}
 
 					{(onActionClicked || info) && (
-						<div className="z-10 flex gap-2 items-center justify-end absolute mx-2 right-0 overflow-hidden">
+						<div className="absolute right-0 z-10 mx-2 flex items-center justify-end gap-2 overflow-hidden">
 							{info}
 							{onActionClicked && (
 								<Pill

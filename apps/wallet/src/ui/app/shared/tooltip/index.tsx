@@ -97,7 +97,7 @@ export function Tooltip({ tip, children, noFullWidth, placement = 'top' }: Toolt
 				<AnimatePresence>
 					{open ? (
 						<motion.div
-							className="pointer-events-none left-0 top-0 z-[99999] text-subtitleSmall font-semibold text-white leading-130"
+							className="pointer-events-none left-0 top-0 z-[99999] text-subtitleSmall font-semibold leading-130 text-white"
 							initial={{
 								opacity: 0,
 								scale: 0,

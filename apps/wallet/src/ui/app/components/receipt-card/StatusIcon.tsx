@@ -8,19 +8,19 @@ export function StatusIcon({ status }: { status: boolean }) {
 	return (
 		<div
 			className={cl(
-				'rounded-full w-12 h-12 border-dotted  border-2 flex items-center justify-center p-1',
+				'flex h-12 w-12 items-center  justify-center rounded-full border-2 border-dotted p-1',
 				status ? 'border-success' : 'border-issue',
 			)}
 		>
 			<div
 				className={cl(
-					'rounded-full h-8 w-8 flex items-center justify-center',
+					'flex h-8 w-8 items-center justify-center rounded-full',
 					status ? 'bg-success' : 'bg-issue',
 				)}
 			>
 				<ThumbUpFill32
 					fill="currentColor"
-					className={cl('text-white text-2xl', !status && 'rotate-180')}
+					className={cl('text-2xl text-white', !status && 'rotate-180')}
 				/>
 			</div>
 		</div>

@@ -13,7 +13,7 @@ export function ImportSeedPage() {
 	const [, setAccountsFormValues] = useAccountsFormContext();
 
 	return (
-		<div className="rounded-20 shadow-wallet-content flex h-full w-full flex-col items-center bg-sui-lightest px-6 py-10">
+		<div className="flex h-full w-full flex-col items-center rounded-20 bg-sui-lightest px-6 py-10 shadow-wallet-content">
 			<Text variant="caption" color="steel-dark" weight="semibold">
 				Wallet Setup
 			</Text>

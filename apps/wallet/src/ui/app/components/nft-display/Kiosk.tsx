@@ -49,7 +49,7 @@ export function Kiosk({ object, orientation, ...nftImageProps }: KioskProps) {
 	if (isPending) return null;
 
 	return (
-		<div className="relative hover:bg-transparent group rounded-xl transform-gpu overflow-visible w-36 h-36">
+		<div className="group relative h-36 w-36 transform-gpu overflow-visible rounded-xl hover:bg-transparent">
 			<div className="absolute z-0">
 				{itemsWithDisplay.length === 0 ? (
 					<NftImage animateHover src={null} name="Kiosk" {...nftImageProps} />
@@ -68,7 +68,7 @@ export function Kiosk({ object, orientation, ...nftImageProps }: KioskProps) {
 								<div className={`${idx === 0 && showCardStackAnimation ? clipPath : ''} ${timing}`}>
 									<NftImage
 										{...nftImageProps}
-										src={display?.image_url!}
+										src={display?.image_url ?? null}
 										animateHover={items.length <= 1}
 										name="Kiosk"
 									/>
@@ -82,19 +82,21 @@ export function Kiosk({ object, orientation, ...nftImageProps }: KioskProps) {
 				<div
 					className={cl(
 						timing,
-						{ 'group-hover:-translate-x-0.5 group-hover:scale-95': showCardStackAnimation },
-						'bottom-1.5 absolute gap-3 flex items-center justify-end w-full overflow-hidden px-2',
+						{
+							'group-hover:-translate-x-0.5 group-hover:scale-95': showCardStackAnimation,
+						},
+						'absolute bottom-1.5 flex w-full items-center justify-end gap-3 overflow-hidden px-2',
 					)}
 				>
 					{displayName ? (
-						<div className="flex items-center justify-center group-hover:opacity-100 opacity-0 px-2 py-1.5 bg-white/90 rounded-md overflow-hidden">
+						<div className="flex items-center justify-center overflow-hidden rounded-md bg-white/90 px-2 py-1.5 opacity-0 group-hover:opacity-100">
 							<Text variant="subtitleSmall" weight="semibold" mono color="steel-darker" truncate>
 								{displayName}
 							</Text>
 						</div>
 					) : null}
 
-					<div className="flex-shrink-0 flex items-center justify-center h-6 w-6 bg-gray-100 text-white rounded-md">
+					<div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-gray-100 text-white">
 						<Text variant="subtitle" weight="medium">
 							{kiosk?.items.length}
 						</Text>

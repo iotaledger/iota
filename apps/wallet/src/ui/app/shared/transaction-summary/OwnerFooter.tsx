@@ -38,7 +38,7 @@ export function OwnerFooter({ owner, ownerType }: { owner?: string; ownerType?: 
 						type={ExplorerLinkType.address}
 						title={owner}
 						address={owner}
-						className="text-hero-dark text-body font-medium no-underline font-mono"
+						className="font-mono text-body font-medium text-hero-dark no-underline"
 					>
 						{display}
 					</ExplorerLink>

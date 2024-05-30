@@ -15,11 +15,11 @@ type LedgerAccountListProps = {
 
 export function LedgerAccountList({ accounts, onAccountClick }: LedgerAccountListProps) {
 	return (
-		<ul className="list-none m-0 p-0">
+		<ul className="m-0 list-none p-0">
 			{accounts.map((account) => (
-				<li className="pt-2 pb-2 first:pt-1" key={account.address}>
+				<li className="pb-2 pt-2 first:pt-1" key={account.address}>
 					<button
-						className="w-full appearance-none border-0 p-0 bg-transparent cursor-pointer"
+						className="w-full cursor-pointer appearance-none border-0 bg-transparent p-0"
 						onClick={() => {
 							onAccountClick(account);
 						}}

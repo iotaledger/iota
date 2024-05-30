@@ -35,11 +35,11 @@ export function ExplorerLinkCard({ digest, timestamp }: { digest?: string; times
 	if (!shouldShowExplorerLink) return null;
 	return (
 		<Card as="a" href={explorerHref!} target="_blank">
-			<div className="flex items-center justify-center gap-1 tracking-wider w-full">
+			<div className="flex w-full items-center justify-center gap-1 tracking-wider">
 				<Text variant="captionSmall" weight="semibold">
 					View on Explorer
 				</Text>
-				<ArrowUpRight12 className="text-steel text-pSubtitle" />
+				<ArrowUpRight12 className="text-pSubtitle text-steel" />
 			</div>
 		</Card>
 	);

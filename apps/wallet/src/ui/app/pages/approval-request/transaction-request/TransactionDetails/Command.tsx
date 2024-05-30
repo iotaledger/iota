@@ -99,12 +99,12 @@ export function Command({ command }: CommandProps) {
 		<div>
 			<button
 				onClick={() => setExpanded((expanded) => !expanded)}
-				className="flex items-center gap-2 w-full bg-transparent border-none p-0"
+				className="flex w-full items-center gap-2 border-none bg-transparent p-0"
 			>
 				<Text variant="body" weight="semibold" color="steel-darker">
 					{command.kind}
 				</Text>
-				<div className="h-px bg-gray-40 flex-1" />
+				<div className="h-px flex-1 bg-gray-40" />
 				<div className="text-steel">{expanded ? <ChevronDown12 /> : <ChevronRight12 />}</div>
 			</button>
 
