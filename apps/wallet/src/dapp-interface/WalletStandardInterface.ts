@@ -50,6 +50,8 @@ import mitt, { type Emitter } from 'mitt';
 import { filter, map, type Observable } from 'rxjs';
 
 import { mapToPromise } from './utils';
+import { AccountListRequest } from "_payloads/account/AccountListRequest";
+import { AccountListResponse } from "_payloads/account/AccountListResponse";
 
 type WalletEventsMap = {
     [E in keyof StandardEventsListeners]: Parameters<StandardEventsListeners[E]>[0];
@@ -62,6 +64,13 @@ type StandardDisconnectAllFeature = {
     'standard:disconnectAll': {
         version: string;
         disconnect: (input: never) => Promise<null>;
+    };
+};
+
+type StandardAccountListFeature = {
+    'standard:accountList': {
+        version: string;
+        get: () => Promise<string[]>;
     };
 };
 
@@ -90,15 +99,24 @@ export class SuiWallet implements Wallet {
         return SUPPORTED_CHAINS;
     }
 
-    get features(): StandardConnectFeature & StandardEventsFeature & SuiFeatures {
+    get features(): StandardConnectFeature &
+        StandardEventsFeature &
+        SuiFeatures &
+        StandardDisconnectAllFeature &
+        StandardAccountListFeature {
         return {
             'standard:connect': {
                 version: '1.0.0',
                 connect: this.#connect,
             },
+
             'standard:disconnectAll': {
                 version: '1.0.0',
                 disconnect: this.#disconnectAll,
+            },
+            'standard:accountList': {
+                version: '1.0.0',
+                get: this.#getAccountList,
             },
             'standard:events': {
                 version: '1.0.0',
@@ -216,6 +234,15 @@ export class SuiWallet implements Wallet {
         );
 
         return null;
+    };
+
+    #getAccountList: () => Promise<string[]> = async () => {
+        return mapToPromise(
+            this.#send<AccountListRequest, AccountListResponse>({
+                type: 'account-list-request',
+            }),
+            (response) => response.result,
+        );
     };
 
     #signTransactionBlock: SuiSignTransactionBlockMethod = async ({
