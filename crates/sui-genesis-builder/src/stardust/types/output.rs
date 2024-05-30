@@ -176,7 +176,8 @@ impl BasicOutput {
         }
     }
 
-    pub fn has_empty_bag(&self) -> bool {
+    /// Infer whether this object can resolve into a simple coin.
+    pub fn is_simple_coin(&self) -> bool {
         !(self.expiration.is_some()
             || self.storage_deposit_return.is_some()
             || self.timelock.is_some())

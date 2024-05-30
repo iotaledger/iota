@@ -9,23 +9,23 @@ import { Navigate, useParams } from 'react-router-dom';
 import { CompletedTransactions } from './CompletedTransactions';
 
 function TransactionBlocksPage() {
-	const activeAccount = useActiveAccount();
-	const { status } = useParams();
-	const isPendingTransactions = status === 'pending';
-	if (useUnlockedGuard()) {
-		return null;
-	}
-	if (activeAccount && isPendingTransactions) {
-		return <Navigate to="/transactions" replace />;
-	}
-	return (
-		<div className="flex flex-col flex-nowrap h-full overflow-x-visible">
-			<PageTitle title="Your Activity" />
-			<div className="-mx-5 mt-5 flex-grow divide-x-0 divide-y divide-solid divide-gray-45 overflow-y-auto px-5">
-				<CompletedTransactions />
-			</div>
-		</div>
-	);
+    const activeAccount = useActiveAccount();
+    const { status } = useParams();
+    const isPendingTransactions = status === 'pending';
+    if (useUnlockedGuard()) {
+        return null;
+    }
+    if (activeAccount && isPendingTransactions) {
+        return <Navigate to="/transactions" replace />;
+    }
+    return (
+        <div className="flex h-full flex-col flex-nowrap overflow-x-visible">
+            <PageTitle title="Your Activity" />
+            <div className="-mx-5 mt-5 flex-grow divide-x-0 divide-y divide-solid divide-gray-45 overflow-y-auto px-5">
+                <CompletedTransactions />
+            </div>
+        </div>
+    );
 }
 
 export default TransactionBlocksPage;

@@ -10,10 +10,17 @@ module.exports = {
     useTabs: false,
     overrides: [
         {
-            files: ['apps/explorer/**/*', 'apps/wallet/**/*'],
+            files: 'apps/explorer/**/*',
             options: {
                 plugins: ['prettier-plugin-tailwindcss'],
                 tailwindConfig: './apps/explorer/tailwind.config.ts',
+            },
+        },
+        {
+            files: 'apps/wallet/**/*',
+            options: {
+                plugins: ['prettier-plugin-tailwindcss'],
+                tailwindConfig: './apps/wallet/tailwind.config.ts',
             },
         },
         {
@@ -27,13 +34,6 @@ module.exports = {
             files: 'sdk/**/*',
             options: {
                 proseWrap: 'always',
-            },
-        },
-        {
-            files: 'apps/wallet/**/*',
-            options: {
-                tabWidth: 2,
-                useTabs: true,
             },
         },
         {
