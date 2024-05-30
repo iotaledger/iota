@@ -3,17 +3,11 @@
 
 import React from 'react';
 import { Box, Button } from '@/components/index';
-import { Stake } from '@/lib/interfaces';
+import { Stake } from '@/lib/types';
 
 interface StakeCardProps {
     stake: Stake;
-    onDetailsClick: (stake: {
-        id: string;
-        validator: string;
-        stake: string;
-        rewards: string;
-        status: string;
-    }) => void;
+    onDetailsClick: (stake: Stake) => void;
 }
 
 function StakeCard({ stake, onDetailsClick }: StakeCardProps): JSX.Element {

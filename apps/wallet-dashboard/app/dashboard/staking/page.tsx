@@ -5,6 +5,7 @@
 
 import { AmountBox, StakeCard, StakeDetailsPopup } from '@/components/index';
 import { usePopups } from '@/hooks';
+import { Stake } from '@/lib/types';
 import { useGetDelegatedStake } from '@mysten/core';
 import { useCurrentAccount } from '@mysten/dapp-kit';
 
@@ -30,7 +31,10 @@ function StakingDashboardPage(): JSX.Element {
             return (
                 sum +
                 validator.stakes.reduce(
-                    (rewardSum, stake) => rewardSum + Number(stake.estimatedReward),
+                    (rewardSum, stake) =>
+                        stake.status === 'Active'
+                            ? rewardSum + Number(stake.estimatedReward)
+                            : rewardSum,
                     0,
                 )
             );
@@ -42,14 +46,17 @@ function StakingDashboardPage(): JSX.Element {
             id: `${index}-${stakeIndex}`,
             validator: validator.validatorAddress,
             stake: `${Number(stake.principal) / HARDCODED_CONVERSION_UNIT}`,
-            rewards: `${Number(stake.estimatedReward) / HARDCODED_CONVERSION_UNIT}`,
+            rewards:
+                stake.status === 'Active'
+                    ? `${Number(stake.estimatedReward) / HARDCODED_CONVERSION_UNIT}`
+                    : '0',
             stakeActiveEpoch: stake.stakeActiveEpoch,
             stakeRequestEpoch: stake.stakeRequestEpoch,
             status: stake.status,
         })),
     );
 
-    const handleOpenPopup = (stake) => {
+    const handleOpenPopup = (stake: Stake) => {
         openPopup(<StakeDetailsPopup {...stake} />);
     };
 
