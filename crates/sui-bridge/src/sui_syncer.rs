@@ -1,22 +1,24 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! The SuiSyncer module is responsible for synchronizing Events emitted on Sui blockchain from
-//! concerned bridge packages.
+//! The SuiSyncer module is responsible for synchronizing Events emitted on Sui
+//! blockchain from concerned bridge packages.
+
+use std::{collections::HashMap, sync::Arc};
+
+use mysten_metrics::spawn_logged_monitored_task;
+use sui_json_rpc_types::SuiEvent;
+use sui_types::{event::EventID, Identifier};
+use tokio::{
+    task::JoinHandle,
+    time::{self, Duration},
+};
 
 use crate::{
     error::BridgeResult,
     retry_with_max_elapsed_time,
     sui_client::{SuiClient, SuiClientInner},
     sui_transaction_builder::get_bridge_package_id,
-};
-use mysten_metrics::spawn_logged_monitored_task;
-use std::{collections::HashMap, sync::Arc};
-use sui_json_rpc_types::SuiEvent;
-use sui_types::{event::EventID, Identifier};
-use tokio::{
-    task::JoinHandle,
-    time::{self, Duration},
 };
 
 // TODO: use the right package id
@@ -100,10 +102,11 @@ where
 
             let len = events.data.len();
             if len != 0 {
-                // Note: it's extremely critical to make sure the SuiEvents we send via this channel
-                // are complete per transaction level. Namely, we should never send a partial list
-                // of events for a transaction. Otherwise, we may end up missing events.
-                // See `sui_client.query_events_by_module` for how this is implemented.
+                // Note: it's extremely critical to make sure the SuiEvents we send via this
+                // channel are complete per transaction level. Namely, we should
+                // never send a partial list of events for a transaction.
+                // Otherwise, we may end up missing events. See `sui_client.
+                // query_events_by_module` for how this is implemented.
                 events_sender
                     .send((module.clone(), events.data))
                     .await
@@ -119,13 +122,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    use crate::{sui_client::SuiClient, sui_mock_client::SuiMockClient};
     use prometheus::Registry;
     use sui_json_rpc_types::EventPage;
     use sui_types::{digests::TransactionDigest, event::EventID, Identifier};
     use tokio::time::timeout;
+
+    use super::*;
+    use crate::{sui_client::SuiClient, sui_mock_client::SuiMockClient};
 
     #[tokio::test]
     async fn test_sui_syncer_basic() -> anyhow::Result<()> {

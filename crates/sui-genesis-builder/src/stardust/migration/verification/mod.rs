@@ -1,14 +1,14 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The [`verification`] module contains the validation logic to make sure that the stardust outputs are correctly converted to the move objects.
+//! The [`verification`] module contains the validation logic to make sure that
+//! the stardust outputs are correctly converted to the move objects.
 
 use iota_sdk::types::block::output::Output;
 use sui_types::in_memory_storage::InMemoryStorage;
 
-use crate::stardust::types::snapshot::OutputHeader;
-
 use self::created_objects::CreatedObjects;
+use crate::stardust::types::snapshot::OutputHeader;
 
 pub mod alias;
 pub mod basic;

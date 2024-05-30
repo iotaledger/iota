@@ -1,13 +1,14 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use super::{channel, channel_with_total};
 use futures::{
     task::{noop_waker, Context, Poll},
     FutureExt,
 };
 use prometheus::{IntCounter, IntGauge};
 use tokio::sync::mpsc::error::TrySendError;
+
+use super::{channel, channel_with_total};
 
 #[tokio::test]
 async fn test_send() {

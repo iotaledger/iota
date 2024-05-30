@@ -1,28 +1,30 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use async_trait::async_trait;
-use diesel::ExpressionMethods;
-use diesel::OptionalExtension;
-use diesel::{QueryDsl, RunQueryDsl};
 use std::sync::{Arc, Mutex};
 
-use move_core_types::account_address::AccountAddress;
-use move_core_types::language_storage::ModuleId;
-use move_core_types::resolver::ModuleResolver;
+use async_trait::async_trait;
+use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
+use move_core_types::{
+    account_address::AccountAddress, language_storage::ModuleId, resolver::ModuleResolver,
+};
 use sui_package_resolver::{error::Error as PackageResolverError, Package, PackageStore};
-use sui_types::base_types::{ObjectID, SequenceNumber};
-use sui_types::move_package::MovePackage;
-use sui_types::object::Object;
+use sui_types::{
+    base_types::{ObjectID, SequenceNumber},
+    move_package::MovePackage,
+    object::Object,
+};
 
-use crate::db::PgConnectionPool;
-use crate::errors::{Context, IndexerError};
-use crate::handlers::tx_processor::IndexingPackageBuffer;
-use crate::metrics::IndexerMetrics;
-use crate::models::packages::StoredPackage;
-use crate::schema::{objects, packages};
-use crate::store::diesel_macro::read_only_blocking;
-use crate::types::IndexedPackage;
+use crate::{
+    db::PgConnectionPool,
+    errors::{Context, IndexerError},
+    handlers::tx_processor::IndexingPackageBuffer,
+    metrics::IndexerMetrics,
+    models::packages::StoredPackage,
+    schema::{objects, packages},
+    store::diesel_macro::read_only_blocking,
+    types::IndexedPackage,
+};
 
 /// A package resolver that reads packages from the database.
 pub struct IndexerStorePackageModuleResolver {
@@ -42,8 +44,9 @@ impl ModuleResolver for IndexerStorePackageModuleResolver {
         let package_id = ObjectID::from(*id.address()).to_vec();
         let module_name = id.name().to_string();
 
-        // Note: this implementation is potentially vulnerable to package upgrade race conditions
-        // for framework packages because they reuse the same package IDs.
+        // Note: this implementation is potentially vulnerable to package upgrade race
+        // conditions for framework packages because they reuse the same package
+        // IDs.
         let stored_package: StoredPackage = read_only_blocking!(&self.cp, |conn| {
             packages::dsl::packages
                 .filter(packages::dsl::package_id.eq(package_id))

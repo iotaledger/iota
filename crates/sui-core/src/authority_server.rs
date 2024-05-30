@@ -2,44 +2,47 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{io, sync::Arc};
+
 use anyhow::Result;
 use async_trait::async_trait;
-use mysten_metrics::histogram::Histogram as MystenHistogram;
-use mysten_metrics::spawn_monitored_task;
+use mysten_metrics::{histogram::Histogram as MystenHistogram, spawn_monitored_task};
 use narwhal_worker::LazyNarwhalClient;
 use prometheus::{
     register_int_counter_vec_with_registry, register_int_counter_with_registry, IntCounter,
     IntCounterVec, Registry,
 };
-use std::{io, sync::Arc};
 use sui_network::{
     api::{Validator, ValidatorServer},
     tonic,
 };
-use sui_types::effects::TransactionEvents;
-use sui_types::messages_consensus::ConsensusTransaction;
-use sui_types::messages_grpc::{
-    HandleCertificateResponseV2, HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
-    SubmitCertificateResponse, SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse,
-};
-use sui_types::multiaddr::Multiaddr;
-use sui_types::sui_system_state::SuiSystemState;
-use sui_types::{effects::TransactionEffectsAPI, message_envelope::Message};
-use sui_types::{error::*, transaction::*};
 use sui_types::{
+    effects::{TransactionEffectsAPI, TransactionEvents},
+    error::*,
     fp_ensure,
+    message_envelope::Message,
     messages_checkpoint::{
         CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
     },
+    messages_consensus::ConsensusTransaction,
+    messages_grpc::{
+        HandleCertificateResponseV2, HandleTransactionResponse, ObjectInfoRequest,
+        ObjectInfoResponse, SubmitCertificateResponse, SystemStateRequest, TransactionInfoRequest,
+        TransactionInfoResponse,
+    },
+    multiaddr::Multiaddr,
+    sui_system_state::SuiSystemState,
+    transaction::*,
 };
 use tap::TapFallible;
 use tokio::task::JoinHandle;
 use tracing::{error_span, info, Instrument};
 
-use crate::consensus_adapter::ConnectionMonitorStatusForTests;
 use crate::{
     authority::AuthorityState,
-    consensus_adapter::{ConsensusAdapter, ConsensusAdapterMetrics},
+    consensus_adapter::{
+        ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
+    },
 };
 
 #[cfg(test)]
@@ -313,13 +316,14 @@ impl ValidatorService {
             .into());
         }
 
-        // When authority is overloaded and decide to reject this tx, we still lock the object
-        // and ask the client to retry in the future. This is because without locking, the
-        // input objects can be locked by a different tx in the future, however, the input objects
-        // may already be locked by this tx in other validators. This can cause non of the txes
-        // to have enough quorum to form a certificate, causing the objects to be locked for
-        // the entire epoch. By doing locking but pushback, retrying transaction will have
-        // higher chance to succeed.
+        // When authority is overloaded and decide to reject this tx, we still lock the
+        // object and ask the client to retry in the future. This is because
+        // without locking, the input objects can be locked by a different tx in
+        // the future, however, the input objects may already be locked by this
+        // tx in other validators. This can cause non of the txes to have enough
+        // quorum to form a certificate, causing the objects to be locked for
+        // the entire epoch. By doing locking but pushback, retrying transaction will
+        // have higher chance to succeed.
         let mut validator_pushback_error = None;
         let overload_check_res = state.check_system_overload(
             &consensus_adapter,
@@ -364,8 +368,8 @@ impl ValidatorService {
             })?;
 
         if let Some(error) = validator_pushback_error {
-            // TODO: right now, we still sign the txn, but just don't return it. We can also skip signing
-            // to save more CPU.
+            // TODO: right now, we still sign the txn, but just don't return it. We can also
+            // skip signing to save more CPU.
             return Err(error.into());
         }
         Ok(tonic::Response::new(info))
@@ -466,9 +470,10 @@ impl ValidatorService {
             }
 
             // 3) All certificates are sent to consensus (at least by some authorities)
-            // For shared objects this will wait until either timeout or we have heard back from consensus.
-            // For owned objects this will return without waiting for certificate to be sequenced
-            // First do quick dirty non-async check
+            // For shared objects this will wait until either timeout or we have heard back
+            // from consensus. For owned objects this will return without
+            // waiting for certificate to be sequenced First do quick dirty
+            // non-async check
             if !epoch_store.is_tx_cert_consensus_message_processed(&certificate)? {
                 let _metrics_guard = if shared_object_tx {
                     Some(self.metrics.consensus_latency.start_timer())
@@ -484,8 +489,9 @@ impl ValidatorService {
                     Some(&reconfiguration_lock),
                     &epoch_store,
                 )?;
-                // Do not wait for the result, because the transaction might have already executed.
-                // Instead, check or wait for the existence of certificate effects below.
+                // Do not wait for the result, because the transaction might
+                // have already executed. Instead, check or wait
+                // for the existence of certificate effects below.
             }
             drop(reconfiguration_lock);
             certificate
@@ -501,7 +507,8 @@ impl ValidatorService {
             return Ok(None);
         }
 
-        // 4) Execute the certificate if it contains only owned object transactions, or wait for
+        // 4) Execute the certificate if it contains only owned object transactions, or
+        //    wait for
         // the execution results if it contains shared objects.
         let effects = self
             .state
@@ -528,8 +535,9 @@ impl Validator for ValidatorService {
     ) -> Result<tonic::Response<HandleTransactionResponse>, tonic::Status> {
         let validator_service = self.clone();
 
-        // Spawns a task which handles the transaction. The task will unconditionally continue
-        // processing in the event that the client connection is dropped.
+        // Spawns a task which handles the transaction. The task will unconditionally
+        // continue processing in the event that the client connection is
+        // dropped.
         spawn_monitored_task!(validator_service.handle_transaction(request))
             .await
             .unwrap()
@@ -539,7 +547,8 @@ impl Validator for ValidatorService {
         &self,
         request: tonic::Request<CertifiedTransaction>,
     ) -> Result<tonic::Response<SubmitCertificateResponse>, tonic::Status> {
-        // The call to digest() assumes the transaction is valid, so we need to verify it first.
+        // The call to digest() assumes the transaction is valid, so we need to verify
+        // it first.
         request.get_ref().verify_user_input()?;
 
         let span = error_span!("submit_certificate", tx_digest = ?request.get_ref().digest());
@@ -553,7 +562,8 @@ impl Validator for ValidatorService {
         &self,
         request: tonic::Request<CertifiedTransaction>,
     ) -> Result<tonic::Response<HandleCertificateResponseV2>, tonic::Status> {
-        // The call to digest() assumes the transaction is valid, so we need to verify it first.
+        // The call to digest() assumes the transaction is valid, so we need to verify
+        // it first.
         request.get_ref().verify_user_input()?;
 
         let span = error_span!("handle_certificate", tx_digest = ?request.get_ref().digest());

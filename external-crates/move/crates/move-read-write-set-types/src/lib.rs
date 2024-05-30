@@ -4,18 +4,18 @@
 
 mod access;
 
-pub use access::Access;
+use std::{
+    collections::btree_map::BTreeMap,
+    fmt::{self, Formatter},
+};
 
+pub use access::Access;
 use move_binary_format::normalized::Type;
 use move_core_types::{
     account_address::AccountAddress,
     language_storage::{ResourceKey, TypeTag},
 };
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::btree_map::BTreeMap,
-    fmt::{self, Formatter},
-};
 
 /// Offset of an access path: either a field, vector index, or global key
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -24,7 +24,8 @@ pub enum Offset {
     Field(usize),
     /// Unknown index into a vector
     VectorIndex,
-    /// A type index into global storage. Only follows a field or vector index of type address
+    /// A type index into global storage. Only follows a field or vector index
+    /// of type address
     Global(Type),
 }
 

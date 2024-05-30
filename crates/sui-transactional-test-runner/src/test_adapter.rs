@@ -1,18 +1,27 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module contains the transactional test runner instantiation for the Sui adapter
+//! This module contains the transactional test runner instantiation for the Sui
+//! adapter
 
-use crate::simulator_persisted_store::PersistedStore;
-use crate::{args::*, programmable_transaction_test_parser::parser::ParsedCommand};
-use crate::{TransactionalAdapter, ValidatorWithFullnode};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt::{self, Write},
+    hash::{Hash, Hasher},
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
+
 use anyhow::{anyhow, bail};
 use async_trait::async_trait;
 use bimap::btree::BiBTreeMap;
 use criterion::Criterion;
-use fastcrypto::ed25519::Ed25519KeyPair;
-use fastcrypto::encoding::{Base64, Encoding};
-use fastcrypto::traits::ToFromBytes;
+use fastcrypto::{
+    ed25519::Ed25519KeyPair,
+    encoding::{Base64, Encoding},
+    traits::ToFromBytes,
+};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_command_line_common::{
@@ -23,37 +32,28 @@ use move_compiler::{
     shared::{NumberFormat, NumericalAddress, PackageConfig, PackagePaths},
     Flags, FullyCompiledProgram,
 };
-use move_core_types::ident_str;
 use move_core_types::{
     account_address::AccountAddress,
+    ident_str,
     identifier::IdentStr,
     language_storage::{ModuleId, TypeTag},
 };
 use move_symbol_pool::Symbol;
-use move_transactional_test_runner::framework::MaybeNamedCompiledModule;
 use move_transactional_test_runner::{
-    framework::{compile_any, store_modules, CompiledState, MoveTestAdapter},
+    framework::{
+        compile_any, store_modules, CompiledState, MaybeNamedCompiledModule, MoveTestAdapter,
+    },
     tasks::{InitCommand, RunCommand, SyntaxChoice, TaskInput},
 };
 use move_vm_runtime::session::SerializedReturnValues;
 use once_cell::sync::Lazy;
 use rand::{rngs::StdRng, Rng, SeedableRng};
-use std::fmt::{self, Write};
-use std::hash::Hash;
-use std::hash::Hasher;
-use std::path::PathBuf;
-use std::time::Duration;
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::Path,
-    sync::Arc,
-};
-use sui_core::authority::test_authority_builder::TestAuthorityBuilder;
-use sui_core::authority::AuthorityState;
+use sui_core::authority::{test_authority_builder::TestAuthorityBuilder, AuthorityState};
 use sui_framework::DEFAULT_FRAMEWORK_PATH;
-use sui_graphql_rpc::config::ConnectionConfig;
-use sui_graphql_rpc::test_infra::cluster::ExecutorCluster;
-use sui_graphql_rpc::test_infra::cluster::{serve_executor, SnapshotLagConfig};
+use sui_graphql_rpc::{
+    config::ConnectionConfig,
+    test_infra::cluster::{serve_executor, ExecutorCluster, SnapshotLagConfig},
+};
 use sui_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
 use sui_json_rpc_types::{DevInspectResults, SuiExecutionStatus, SuiTransactionBlockEffectsAPI};
 use sui_protocol_config::{Chain, ProtocolConfig};
@@ -61,41 +61,39 @@ use sui_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
 use sui_swarm_config::genesis_config::AccountConfig;
-use sui_types::base_types::{SequenceNumber, VersionNumber};
-use sui_types::crypto::{get_authority_key_pair, RandomnessRound};
-use sui_types::digests::{ConsensusCommitDigest, TransactionDigest, TransactionEventsDigest};
-use sui_types::effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents};
-use sui_types::messages_checkpoint::{
-    CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,
-};
-use sui_types::object::bounded_visitor::BoundedVisitor;
-use sui_types::storage::ObjectStore;
-use sui_types::storage::ReadStore;
-use sui_types::transaction::Command;
-use sui_types::transaction::ProgrammableTransaction;
-use sui_types::MOVE_STDLIB_PACKAGE_ID;
-use sui_types::SUI_SYSTEM_ADDRESS;
 use sui_types::{
-    base_types::{ObjectID, ObjectRef, SuiAddress, SUI_ADDRESS_LENGTH},
-    crypto::{get_key_pair_from_rng, AccountKeyPair},
+    base_types::{
+        ObjectID, ObjectRef, SequenceNumber, SuiAddress, VersionNumber, SUI_ADDRESS_LENGTH,
+    },
+    crypto::{get_authority_key_pair, get_key_pair_from_rng, AccountKeyPair, RandomnessRound},
+    digests::{ConsensusCommitDigest, TransactionDigest, TransactionEventsDigest},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     event::Event,
-    object::{self, Object},
-    transaction::{Transaction, TransactionData, TransactionDataAPI, VerifiedTransaction},
-    MOVE_STDLIB_ADDRESS, SUI_CLOCK_OBJECT_ID, SUI_FRAMEWORK_ADDRESS, SUI_SYSTEM_STATE_OBJECT_ID,
-};
-use sui_types::{execution_status::ExecutionStatus, transaction::TransactionKind};
-use sui_types::{gas::GasCostSummary, object::GAS_VALUE_FOR_TESTING};
-use sui_types::{
+    execution_status::ExecutionStatus,
+    gas::GasCostSummary,
+    messages_checkpoint::{
+        CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,
+    },
     move_package::MovePackage,
-    transaction::{Argument, CallArg},
+    object::{self, bounded_visitor::BoundedVisitor, Object, GAS_VALUE_FOR_TESTING},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    storage::{ObjectStore, ReadStore},
+    transaction::{
+        Argument, CallArg, Command, ProgrammableTransaction, Transaction, TransactionData,
+        TransactionDataAPI, TransactionKind, VerifiedTransaction,
+    },
+    utils::to_sender_signed_transaction,
+    DEEPBOOK_ADDRESS, DEEPBOOK_PACKAGE_ID, MOVE_STDLIB_ADDRESS, MOVE_STDLIB_PACKAGE_ID,
+    SUI_CLOCK_OBJECT_ID, SUI_DENY_LIST_OBJECT_ID, SUI_FRAMEWORK_ADDRESS, SUI_FRAMEWORK_PACKAGE_ID,
+    SUI_RANDOMNESS_STATE_OBJECT_ID, SUI_SYSTEM_ADDRESS, SUI_SYSTEM_PACKAGE_ID,
+    SUI_SYSTEM_STATE_OBJECT_ID,
 };
-use sui_types::{
-    programmable_transaction_builder::ProgrammableTransactionBuilder, SUI_FRAMEWORK_PACKAGE_ID,
-};
-use sui_types::{utils::to_sender_signed_transaction, SUI_SYSTEM_PACKAGE_ID};
-use sui_types::{DEEPBOOK_ADDRESS, SUI_DENY_LIST_OBJECT_ID};
-use sui_types::{DEEPBOOK_PACKAGE_ID, SUI_RANDOMNESS_STATE_OBJECT_ID};
 use tempfile::NamedTempFile;
+
+use crate::{
+    args::*, programmable_transaction_test_parser::parser::ParsedCommand,
+    simulator_persisted_store::PersistedStore, TransactionalAdapter, ValidatorWithFullnode,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum FakeID {
@@ -128,7 +126,8 @@ const DEFAULT_CHAIN_START_TIMESTAMP: u64 = 0;
 
 pub struct SuiTestAdapter {
     pub(crate) compiled_state: CompiledState,
-    /// For upgrades: maps an upgraded package name to the original package name.
+    /// For upgrades: maps an upgraded package name to the original package
+    /// name.
     package_upgrade_mapping: BTreeMap<Symbol, Symbol>,
     accounts: BTreeMap<String, TestAccount>,
     default_account: TestAccount,
@@ -406,8 +405,8 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
             })
             .collect::<Result<_, _>>()?;
         let gas_price = gas_price.unwrap_or(self.gas_price);
-        // we are assuming that all packages depend on Move Stdlib and Sui Framework, so these
-        // don't have to be provided explicitly as parameters
+        // we are assuming that all packages depend on Move Stdlib and Sui Framework, so
+        // these don't have to be provided explicitly as parameters
         dependencies.extend([MOVE_STDLIB_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID]);
         let data = |sender, gas| {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -527,9 +526,7 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
                     Ok(obj) => obj,
                 }
             }};
-            ($fake_id:ident) => {{
-                get_obj!($fake_id, None)
-            }};
+            ($fake_id:ident) => {{ get_obj!($fake_id, None) }};
         }
         match command {
             SuiSubcommand::ForceObjectSnapshotCatchup(ForceObjectSnapshotCatchup {
@@ -813,11 +810,13 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
                     before
                 };
 
-                // Override address mappings for compilation when upgrading. Each dependency is set to its
-                // original address (if that dependency had been upgraded previously). This ensures upgraded
-                // dependencies are resolved during compilation--without this workaround, the compiler will
-                // find multiple definitions of the same module). We persist the original package name and
-                // addresses, which we restore before performing an upgrade transaction below.
+                // Override address mappings for compilation when upgrading. Each dependency is
+                // set to its original address (if that dependency had been
+                // upgraded previously). This ensures upgraded dependencies are
+                // resolved during compilation--without this workaround, the compiler will
+                // find multiple definitions of the same module). We persist the original
+                // package name and addresses, which we restore before
+                // performing an upgrade transaction below.
                 let mut original_package_addrs = vec![];
                 for dep in dependencies.iter() {
                     let named_address_mapping = &mut self.compiled_state.named_address_mapping;
@@ -949,7 +948,8 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
                 let digest = MovePackage::compute_digest_for_modules_and_deps(
                     module_bytes.iter(),
                     &dependencies,
-                    /* hash_modules */ true,
+                    // hash_modules
+                    true,
                 )
                 .to_vec();
                 let staged = StagedPackage {
@@ -1077,8 +1077,8 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
                     });
                 }
 
-                // Run the tx for real after the benchmark, so that its effects are persisted and
-                // available to subsequent commands
+                // Run the tx for real after the benchmark, so that its effects are persisted
+                // and available to subsequent commands
                 self.call_function(
                     &module_id,
                     name.as_ident_str(),
@@ -1094,23 +1094,26 @@ impl<'a> MoveTestAdapter<'a> for SuiTestAdapter {
         }
     }
 
-    /// Process the error string such that it's less dependent on specific addresses or object IDs. Instead, they are
-    /// replaced by the account names or fake IDs as much as possible. This reduces the effort of updating tests
-    /// when something changed.
+    /// Process the error string such that it's less dependent on specific
+    /// addresses or object IDs. Instead, they are replaced by the account
+    /// names or fake IDs as much as possible. This reduces the effort of
+    /// updating tests when something changed.
     async fn process_error(&self, error: anyhow::Error) -> anyhow::Error {
         let mut err = error.to_string();
         for (name, account) in &self.accounts {
             let addr = account.address.to_string();
             let replace = format!("@{}", name);
             err = err.replace(&addr, &replace);
-            // Also match without 0x since different error messages may use different format.
+            // Also match without 0x since different error messages may use different
+            // format.
             err = err.replace(&addr[2..], &replace);
         }
         for (id, fake_id) in &self.object_enumeration {
             let id = id.to_string();
             let replace = format!("object({})", fake_id);
             err = err.replace(&id, &replace);
-            // Also match without 0x since different error messages may use different format.
+            // Also match without 0x since different error messages may use different
+            // format.
             err = err.replace(&id[2..], &replace);
         }
         anyhow!(err)
@@ -1272,7 +1275,8 @@ impl<'a> SuiTestAdapter {
         let digest: Vec<u8> = MovePackage::compute_digest_for_modules_and_deps(
             &modules_bytes,
             &dependencies,
-            /* hash_modules */ true,
+            // hash_modules
+            true,
         )
         .into();
         let digest_arg = builder.pure(digest).unwrap();
@@ -1426,7 +1430,8 @@ impl<'a> SuiTestAdapter {
         let mut wrapped_ids: Vec<_> = effects.wrapped().iter().map(|(id, _, _)| *id).collect();
         let gas_summary = effects.gas_cost_summary();
 
-        // make sure objects that have previously not been in storage get assigned a fake id.
+        // make sure objects that have previously not been in storage get assigned a
+        // fake id.
         let mut might_need_fake_id: Vec<_> = created_ids
             .iter()
             .chain(unwrapped_ids.iter())
@@ -1439,8 +1444,8 @@ impl<'a> SuiTestAdapter {
             self.enumerate_fake(id);
         }
 
-        // Treat unwrapped objects as writes (even though sometimes this is the first time we can
-        // refer to them at their id in storage).
+        // Treat unwrapped objects as writes (even though sometimes this is the first
+        // time we can refer to them at their id in storage).
 
         // sort by fake id
         created_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
@@ -1505,7 +1510,8 @@ impl<'a> SuiTestAdapter {
         let mut wrapped_ids: Vec<_> = effects.wrapped().iter().map(|o| o.object_id).collect();
         let gas_summary = effects.gas_cost_summary();
 
-        // make sure objects that have previously not been in storage get assigned a fake id.
+        // make sure objects that have previously not been in storage get assigned a
+        // fake id.
         let mut might_need_fake_id: Vec<_> = created_ids
             .iter()
             .chain(unwrapped_ids.iter())
@@ -1518,8 +1524,8 @@ impl<'a> SuiTestAdapter {
             self.enumerate_fake(id);
         }
 
-        // Treat unwrapped objects as writes (even though sometimes this is the first time we can
-        // refer to them at their id in storage).
+        // Treat unwrapped objects as writes (even though sometimes this is the first
+        // time we can refer to them at their id in storage).
 
         // sort by fake id
         created_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
@@ -1565,8 +1571,8 @@ impl<'a> SuiTestAdapter {
         }
     }
 
-    // stable way of sorting objects by type. Does not however, produce a stable sorting
-    // between objects of the same type
+    // stable way of sorting objects by type. Does not however, produce a stable
+    // sorting between objects of the same type
     fn get_object_sorting_key(&self, id: &ObjectID) -> String {
         match &self.get_object(id, None).unwrap().data {
             object::Data::Move(obj) => self.stabilize_str(format!("{}", obj.type_())),
@@ -1661,11 +1667,7 @@ impl<'a> SuiTestAdapter {
         out.push('\n');
         write!(out, "gas summary: {}", gas_summary).unwrap();
 
-        if out.is_empty() {
-            None
-        } else {
-            Some(out)
-        }
+        if out.is_empty() { None } else { Some(out) }
     }
 
     fn list_events(&self, events: &[Event], summarize: bool) -> String {
@@ -1781,8 +1783,8 @@ impl<'a> SuiTestAdapter {
                 Ok(id)
             })
             .collect::<Result<_, _>>()?;
-        // we are assuming that all packages depend on Move Stdlib and Sui Framework, so these
-        // don't have to be provided explicitly as parameters
+        // we are assuming that all packages depend on Move Stdlib and Sui Framework, so
+        // these don't have to be provided explicitly as parameters
         if include_std {
             dependencies.extend([MOVE_STDLIB_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID]);
         }
@@ -1846,8 +1848,9 @@ static NAMED_ADDRESSES: Lazy<BTreeMap<String, NumericalAddress>> = Lazy::new(|| 
 });
 
 pub static PRE_COMPILED: Lazy<FullyCompiledProgram> = Lazy::new(|| {
-    // TODO invoke package system? Or otherwise pull the versions for these packages as per their
-    // actual Move.toml files. They way they are treated here is odd, too, though.
+    // TODO invoke package system? Or otherwise pull the versions for these packages
+    // as per their actual Move.toml files. They way they are treated here is
+    // odd, too, though.
     let sui_files: &Path = Path::new(DEFAULT_FRAMEWORK_PATH);
     let sui_system_sources = {
         let mut buf = sui_files.to_path_buf();
@@ -1969,8 +1972,8 @@ async fn init_val_fullnode_executor(
         test_account
     };
 
-    // For each named Sui account without an address value, create an account with an address
-    // and a gas object
+    // For each named Sui account without an address value, create an account with
+    // an address and a gas object
     for n in account_names {
         let test_account = mk_account();
         account_objects.insert(n.clone(), test_account.gas);
@@ -2066,7 +2069,8 @@ async fn init_sim_executor(
         });
     }
 
-    // Create the simulator with the specific account configs, which also crates objects
+    // Create the simulator with the specific account configs, which also crates
+    // objects
 
     let (sim, read_replica) = PersistedStore::new_sim_replica_with_protocol_version_and_accounts(
         rng,
@@ -2182,7 +2186,8 @@ async fn update_named_address_mapping(
         .map(|(idx, addr)| (format!("validator_{idx}"), *addr))
         .collect();
 
-    // For mappings where the address is specified, populate the named address mapping
+    // For mappings where the address is specified, populate the named address
+    // mapping
     let additional_mapping = additional_mapping
         .into_iter()
         .chain(accounts.iter().map(|(n, test_account)| {

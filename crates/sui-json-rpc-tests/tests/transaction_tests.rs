@@ -1,18 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use sui_json_rpc_types::SuiTransactionBlockResponseQuery;
-use sui_json_rpc_types::TransactionFilter;
+use sui_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClient};
 use sui_json_rpc_types::{
     SuiObjectDataOptions, SuiObjectResponseQuery, SuiTransactionBlockResponse,
-    SuiTransactionBlockResponseOptions, TransactionBlockBytes,
+    SuiTransactionBlockResponseOptions, SuiTransactionBlockResponseQuery, TransactionBlockBytes,
+    TransactionFilter,
 };
 use sui_macros::sim_test;
-use sui_types::quorum_driver_types::ExecuteTransactionRequestType;
-use sui_types::transaction::SenderSignedData;
+use sui_types::{
+    quorum_driver_types::ExecuteTransactionRequestType, transaction::SenderSignedData,
+};
 use test_cluster::TestClusterBuilder;
-
-use sui_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClient};
 
 #[sim_test]
 async fn test_get_transaction_block() -> Result<(), anyhow::Error> {
@@ -67,19 +66,19 @@ async fn test_get_transaction_block() -> Result<(), anyhow::Error> {
         tx_responses.push(response);
     }
 
-    // TODO(chris): re-enable after rewriting get_transactions_in_range_deprecated with query_transactions
-    // test get_transaction_batch
+    // TODO(chris): re-enable after rewriting get_transactions_in_range_deprecated
+    // with query_transactions test get_transaction_batch
     // let batch_responses: Vec<SuiTransactionBlockResponse> = http_client
-    //     .multi_get_transaction_blocks(tx, Some(SuiTransactionBlockResponseOptions::new()))
-    //     .await?;
+    //     .multi_get_transaction_blocks(tx,
+    // Some(SuiTransactionBlockResponseOptions::new()))     .await?;
 
     // assert_eq!(5, batch_responses.len());
 
     // for r in batch_responses.iter().skip(1) {
     //     assert!(tx_responses
     //         .iter()
-    //         .any(|resp| matches!(resp, SuiTransactionBlockResponse {digest, ..} if *digest == r.digest)))
-    // }
+    //         .any(|resp| matches!(resp, SuiTransactionBlockResponse {digest, ..}
+    // if *digest == r.digest))) }
 
     // // test get_transaction
     // for tx_digest in tx {

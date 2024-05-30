@@ -1,27 +1,29 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use super::config::{ClusterTestOpt, Env};
+use std::{net::SocketAddr, path::Path};
+
 use async_trait::async_trait;
-use std::net::SocketAddr;
-use std::path::Path;
-use sui_config::Config;
-use sui_config::{PersistedConfig, SUI_KEYSTORE_FILENAME, SUI_NETWORK_CONFIG};
-use sui_graphql_rpc::config::ConnectionConfig;
-use sui_graphql_rpc::test_infra::cluster::start_graphql_server_with_fn_rpc;
+use sui_config::{Config, PersistedConfig, SUI_KEYSTORE_FILENAME, SUI_NETWORK_CONFIG};
+use sui_graphql_rpc::{
+    config::ConnectionConfig, test_infra::cluster::start_graphql_server_with_fn_rpc,
+};
 use sui_indexer::test_utils::{start_test_indexer, ReaderWriterConfig};
 use sui_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
-use sui_sdk::sui_client_config::{SuiClientConfig, SuiEnv};
-use sui_sdk::wallet_context::WalletContext;
+use sui_sdk::{
+    sui_client_config::{SuiClientConfig, SuiEnv},
+    wallet_context::WalletContext,
+};
 use sui_swarm::memory::Swarm;
-use sui_swarm_config::genesis_config::GenesisConfig;
-use sui_swarm_config::network_config::NetworkConfig;
-use sui_types::base_types::SuiAddress;
-use sui_types::crypto::KeypairTraits;
-use sui_types::crypto::SuiKeyPair;
-use sui_types::crypto::{get_key_pair, AccountKeyPair};
+use sui_swarm_config::{genesis_config::GenesisConfig, network_config::NetworkConfig};
+use sui_types::{
+    base_types::SuiAddress,
+    crypto::{get_key_pair, AccountKeyPair, KeypairTraits, SuiKeyPair},
+};
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::info;
+
+use super::config::{ClusterTestOpt, Env};
 
 const DEVNET_FAUCET_ADDR: &str = "https://faucet.devnet.sui.io:443";
 const STAGING_FAUCET_ADDR: &str = "https://faucet.staging.sui.io:443";
@@ -253,7 +255,8 @@ impl Cluster for LocalNewCluster {
             start_graphql_server_with_fn_rpc(
                 graphql_connection_config.clone(),
                 Some(fullnode_url.clone()),
-                /* cancellation_token */ None,
+                // cancellation_token
+                None,
             )
             .await;
         }

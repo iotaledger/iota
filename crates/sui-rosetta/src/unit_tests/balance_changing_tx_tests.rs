@@ -1,40 +1,49 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::operations::Operations;
-use crate::types::{ConstructionMetadata, OperationStatus, OperationType};
+use std::{
+    collections::{BTreeMap, HashMap},
+    path::PathBuf,
+    str::FromStr,
+};
+
 use anyhow::anyhow;
 use move_core_types::identifier::Identifier;
 use rand::seq::{IteratorRandom, SliceRandom};
 use serde_json::json;
 use shared_crypto::intent::Intent;
 use signature::rand_core::OsRng;
-use std::collections::{BTreeMap, HashMap};
-use std::path::PathBuf;
-use std::str::FromStr;
-use sui_json_rpc_types::SuiTransactionBlockResponseOptions;
 use sui_json_rpc_types::{
     ObjectChange, SuiObjectDataOptions, SuiObjectRef, SuiObjectResponseQuery,
+    SuiTransactionBlockResponseOptions,
 };
-use sui_keys::keystore::AccountKeystore;
-use sui_keys::keystore::Keystore;
+use sui_keys::keystore::{AccountKeystore, Keystore};
 use sui_move_build::BuildConfig;
-use sui_sdk::rpc_types::{
-    OwnedObjectRef, SuiData, SuiExecutionStatus, SuiTransactionBlockEffectsAPI,
-    SuiTransactionBlockResponse,
+use sui_sdk::{
+    rpc_types::{
+        OwnedObjectRef, SuiData, SuiExecutionStatus, SuiTransactionBlockEffectsAPI,
+        SuiTransactionBlockResponse,
+    },
+    SuiClient,
 };
-use sui_sdk::SuiClient;
-use sui_types::base_types::{ObjectID, ObjectRef, SuiAddress};
-use sui_types::gas_coin::GasCoin;
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::quorum_driver_types::ExecuteTransactionRequestType;
-use sui_types::transaction::{
-    CallArg, InputObjectKind, ObjectArg, ProgrammableTransaction, Transaction, TransactionData,
-    TransactionDataAPI, TransactionKind, TEST_ONLY_GAS_UNIT_FOR_GENERIC,
-    TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN,
-    TEST_ONLY_GAS_UNIT_FOR_STAKING, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+use sui_types::{
+    base_types::{ObjectID, ObjectRef, SuiAddress},
+    gas_coin::GasCoin,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    quorum_driver_types::ExecuteTransactionRequestType,
+    transaction::{
+        CallArg, InputObjectKind, ObjectArg, ProgrammableTransaction, Transaction, TransactionData,
+        TransactionDataAPI, TransactionKind, TEST_ONLY_GAS_UNIT_FOR_GENERIC,
+        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN,
+        TEST_ONLY_GAS_UNIT_FOR_STAKING, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+    },
 };
 use test_cluster::TestClusterBuilder;
+
+use crate::{
+    operations::Operations,
+    types::{ConstructionMetadata, OperationStatus, OperationType},
+};
 
 #[tokio::test]
 async fn test_transfer_sui() {
@@ -663,7 +672,8 @@ fn find_module_object(changes: &[ObjectChange], object_type_name: &str) -> Owned
 }
 
 // Record current Sui balance of an address then execute the transaction,
-// and compare the balance change reported by the event against the actual balance change.
+// and compare the balance change reported by the event against the actual
+// balance change.
 async fn test_transaction(
     client: &SuiClient,
     keystore: &Keystore,
@@ -795,8 +805,10 @@ async fn get_random_sui(
                     .with_owner()
                     .with_previous_transaction(),
             )),
-            /* cursor */ None,
-            /* limit */ None,
+            // cursor
+            None,
+            // limit
+            None,
         )
         .await
         .unwrap()
@@ -834,8 +846,10 @@ async fn get_balance(client: &SuiClient, address: SuiAddress) -> u64 {
                     .with_owner()
                     .with_previous_transaction(),
             )),
-            /* cursor */ None,
-            /* limit */ None,
+            // cursor
+            None,
+            // limit
+            None,
         )
         .await
         .unwrap()

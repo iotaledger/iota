@@ -1,28 +1,31 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use super::balance::{self, Balance};
-use super::base64::Base64;
-use super::big_int::BigInt;
-use super::coin::Coin;
-use super::display::DisplayEntry;
-use super::dynamic_field::{DynamicField, DynamicFieldName};
-use super::move_object::{MoveObject, MoveObjectImpl};
-use super::move_value::MoveValue;
-use super::object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus};
-use super::owner::OwnerImpl;
-use super::stake::StakedSui;
-use super::sui_address::SuiAddress;
-use super::suins_registration::{DomainFormat, SuinsRegistration};
-use super::transaction_block::{self, TransactionBlock, TransactionBlockFilter};
-use super::type_filter::ExactTypeFilter;
-use crate::data::Db;
-use crate::error::Error;
-use async_graphql::connection::Connection;
-use async_graphql::*;
-use sui_types::coin::{CoinMetadata as NativeCoinMetadata, TreasuryCap};
-use sui_types::gas_coin::{GAS, TOTAL_SUPPLY_SUI};
-use sui_types::TypeTag;
+use async_graphql::{connection::Connection, *};
+use sui_types::{
+    coin::{CoinMetadata as NativeCoinMetadata, TreasuryCap},
+    gas_coin::{GAS, TOTAL_SUPPLY_SUI},
+    TypeTag,
+};
+
+use super::{
+    balance::{self, Balance},
+    base64::Base64,
+    big_int::BigInt,
+    coin::Coin,
+    display::DisplayEntry,
+    dynamic_field::{DynamicField, DynamicFieldName},
+    move_object::{MoveObject, MoveObjectImpl},
+    move_value::MoveValue,
+    object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
+    owner::OwnerImpl,
+    stake::StakedSui,
+    sui_address::SuiAddress,
+    suins_registration::{DomainFormat, SuinsRegistration},
+    transaction_block::{self, TransactionBlock, TransactionBlockFilter},
+    type_filter::ExactTypeFilter,
+};
+use crate::{data::Db, error::Error};
 
 pub(crate) struct CoinMetadata {
     pub super_: MoveObject,
@@ -56,8 +59,8 @@ impl CoinMetadata {
             .await
     }
 
-    /// Total balance of all coins with marker type owned by this object. If type is not supplied,
-    /// it defaults to `0x2::sui::SUI`.
+    /// Total balance of all coins with marker type owned by this object. If
+    /// type is not supplied, it defaults to `0x2::sui::SUI`.
     pub(crate) async fn balance(
         &self,
         ctx: &Context<'_>,
@@ -84,7 +87,8 @@ impl CoinMetadata {
 
     /// The coin objects for this object.
     ///
-    ///`type` is a filter on the coin's type parameter, defaulting to `0x2::sui::SUI`.
+    /// `type` is a filter on the coin's type parameter, defaulting to
+    /// `0x2::sui::SUI`.
     pub(crate) async fn coins(
         &self,
         ctx: &Context<'_>,
@@ -113,7 +117,8 @@ impl CoinMetadata {
             .await
     }
 
-    /// The domain explicitly configured as the default domain pointing to this object.
+    /// The domain explicitly configured as the default domain pointing to this
+    /// object.
     pub(crate) async fn default_suins_name(
         &self,
         ctx: &Context<'_>,
@@ -124,8 +129,8 @@ impl CoinMetadata {
             .await
     }
 
-    /// The SuinsRegistration NFTs owned by this object. These grant the owner the capability to
-    /// manage the associated domain.
+    /// The SuinsRegistration NFTs owned by this object. These grant the owner
+    /// the capability to manage the associated domain.
     pub(crate) async fn suins_registrations(
         &self,
         ctx: &Context<'_>,
@@ -143,18 +148,21 @@ impl CoinMetadata {
         ObjectImpl(&self.super_.super_).version().await
     }
 
-    /// The current status of the object as read from the off-chain store. The possible states are:
-    /// NOT_INDEXED, the object is loaded from serialized data, such as the contents of a genesis or
-    /// system package upgrade transaction. LIVE, the version returned is the most recent for the
-    /// object, and it is not deleted or wrapped at that version. HISTORICAL, the object was
-    /// referenced at a specific version or checkpoint, so is fetched from historical tables and may
-    /// not be the latest version of the object. WRAPPED_OR_DELETED, the object is deleted or
-    /// wrapped and only partial information can be loaded."
+    /// The current status of the object as read from the off-chain store. The
+    /// possible states are: NOT_INDEXED, the object is loaded from
+    /// serialized data, such as the contents of a genesis or system package
+    /// upgrade transaction. LIVE, the version returned is the most recent for
+    /// the object, and it is not deleted or wrapped at that version.
+    /// HISTORICAL, the object was referenced at a specific version or
+    /// checkpoint, so is fetched from historical tables and may not be the
+    /// latest version of the object. WRAPPED_OR_DELETED, the object is deleted
+    /// or wrapped and only partial information can be loaded."
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_.super_).status().await
     }
 
-    /// 32-byte hash that identifies the object's contents, encoded as a Base58 string.
+    /// 32-byte hash that identifies the object's contents, encoded as a Base58
+    /// string.
     pub(crate) async fn digest(&self) -> Option<String> {
         ObjectImpl(&self.super_.super_).digest().await
     }
@@ -174,8 +182,9 @@ impl CoinMetadata {
             .await
     }
 
-    /// The amount of SUI we would rebate if this object gets deleted or mutated. This number is
-    /// recalculated based on the present storage gas price.
+    /// The amount of SUI we would rebate if this object gets deleted or
+    /// mutated. This number is recalculated based on the present storage
+    /// gas price.
     pub(crate) async fn storage_rebate(&self) -> Option<BigInt> {
         ObjectImpl(&self.super_.super_).storage_rebate().await
     }
@@ -200,33 +209,34 @@ impl CoinMetadata {
         ObjectImpl(&self.super_.super_).bcs().await
     }
 
-    /// Displays the contents of the Move object in a JSON string and through GraphQL types. Also
-    /// provides the flat representation of the type signature, and the BCS of the corresponding
-    /// data.
+    /// Displays the contents of the Move object in a JSON string and through
+    /// GraphQL types. Also provides the flat representation of the type
+    /// signature, and the BCS of the corresponding data.
     pub(crate) async fn contents(&self) -> Option<MoveValue> {
         MoveObjectImpl(&self.super_).contents().await
     }
 
-    /// Determines whether a transaction can transfer this object, using the TransferObjects
-    /// transaction command or `sui::transfer::public_transfer`, both of which require the object to
+    /// Determines whether a transaction can transfer this object, using the
+    /// TransferObjects transaction command or
+    /// `sui::transfer::public_transfer`, both of which require the object to
     /// have the `key` and `store` abilities.
     pub(crate) async fn has_public_transfer(&self, ctx: &Context<'_>) -> Result<bool> {
         MoveObjectImpl(&self.super_).has_public_transfer(ctx).await
     }
 
-    /// The set of named templates defined on-chain for the type of this object, to be handled
-    /// off-chain. The server substitutes data from the object into these templates to generate a
-    /// display string per template.
+    /// The set of named templates defined on-chain for the type of this object,
+    /// to be handled off-chain. The server substitutes data from the object
+    /// into these templates to generate a display string per template.
     pub(crate) async fn display(&self, ctx: &Context<'_>) -> Result<Option<Vec<DisplayEntry>>> {
         ObjectImpl(&self.super_.super_).display(ctx).await
     }
 
-    /// Access a dynamic field on an object using its name. Names are arbitrary Move values whose
-    /// type have `copy`, `drop`, and `store`, and are specified using their type, and their BCS
-    /// contents, Base64 encoded.
+    /// Access a dynamic field on an object using its name. Names are arbitrary
+    /// Move values whose type have `copy`, `drop`, and `store`, and are
+    /// specified using their type, and their BCS contents, Base64 encoded.
     ///
-    /// Dynamic fields on wrapped objects can be accessed by using the same API under the Owner
-    /// type.
+    /// Dynamic fields on wrapped objects can be accessed by using the same API
+    /// under the Owner type.
     pub(crate) async fn dynamic_field(
         &self,
         ctx: &Context<'_>,
@@ -237,13 +247,14 @@ impl CoinMetadata {
             .await
     }
 
-    /// Access a dynamic object field on an object using its name. Names are arbitrary Move values
-    /// whose type have `copy`, `drop`, and `store`, and are specified using their type, and their
-    /// BCS contents, Base64 encoded. The value of a dynamic object field can also be accessed
+    /// Access a dynamic object field on an object using its name. Names are
+    /// arbitrary Move values whose type have `copy`, `drop`, and `store`,
+    /// and are specified using their type, and their BCS contents, Base64
+    /// encoded. The value of a dynamic object field can also be accessed
     /// off-chain directly via its address (e.g. using `Query.object`).
     ///
-    /// Dynamic fields on wrapped objects can be accessed by using the same API under the Owner
-    /// type.
+    /// Dynamic fields on wrapped objects can be accessed by using the same API
+    /// under the Owner type.
     pub(crate) async fn dynamic_object_field(
         &self,
         ctx: &Context<'_>,
@@ -256,8 +267,8 @@ impl CoinMetadata {
 
     /// The dynamic fields and dynamic object fields on an object.
     ///
-    /// Dynamic fields on wrapped objects can be accessed by using the same API under the Owner
-    /// type.
+    /// Dynamic fields on wrapped objects can be accessed by using the same API
+    /// under the Owner type.
     pub(crate) async fn dynamic_fields(
         &self,
         ctx: &Context<'_>,
@@ -318,11 +329,12 @@ impl CoinMetadata {
 }
 
 impl CoinMetadata {
-    /// Read a `CoinMetadata` from the `db` for the coin whose inner type is `coin_type`.
+    /// Read a `CoinMetadata` from the `db` for the coin whose inner type is
+    /// `coin_type`.
     pub(crate) async fn query(db: &Db, coin_type: TypeTag) -> Result<Option<CoinMetadata>, Error> {
         let TypeTag::Struct(coin_struct) = coin_type else {
-            // If the type supplied is not metadata, we know it's not a valid coin type, so there
-            // won't be CoinMetadata for it.
+            // If the type supplied is not metadata, we know it's not a valid coin type, so
+            // there won't be CoinMetadata for it.
             return Ok(None);
         };
 
@@ -353,8 +365,8 @@ impl CoinMetadata {
         coin_type: TypeTag,
     ) -> Result<Option<u64>, Error> {
         let TypeTag::Struct(coin_struct) = coin_type else {
-            // If the type supplied is not metadata, we know it's not a valid coin type, so there
-            // won't be CoinMetadata for it.
+            // If the type supplied is not metadata, we know it's not a valid coin type, so
+            // there won't be CoinMetadata for it.
             return Ok(None);
         };
 

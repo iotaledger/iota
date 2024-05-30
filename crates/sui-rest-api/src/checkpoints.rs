@@ -2,14 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::extract::{Path, State};
-use sui_types::{full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointDigest};
 use sui_types::{
-    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber},
+    full_checkpoint_content::CheckpointData,
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointDigest, CheckpointSequenceNumber},
     storage::ReadStore,
 };
 use tap::Pipe;
 
-use crate::{accept::AcceptFormat, response::Bcs, response::ResponseContent, Result};
+use crate::{
+    accept::AcceptFormat,
+    response::{Bcs, ResponseContent},
+    Result,
+};
 
 pub const GET_LATEST_CHECKPOINT_PATH: &str = "/checkpoints";
 pub const GET_CHECKPOINT_PATH: &str = "/checkpoints/:checkpoint";

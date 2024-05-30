@@ -1,29 +1,35 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::path::PathBuf;
+
 use move_core_types::ident_str;
 use shared_crypto::intent::{Intent, IntentMessage};
-use std::path::PathBuf;
 use sui_genesis_builder::validator_info::GenesisValidatorMetadata;
 use sui_move_build::{BuildConfig, CompiledPackage};
-use sui_sdk::rpc_types::{
-    get_new_package_obj_from_response, SuiTransactionBlockEffectsAPI, SuiTransactionBlockResponse,
+use sui_sdk::{
+    rpc_types::{
+        get_new_package_obj_from_response, SuiTransactionBlockEffectsAPI,
+        SuiTransactionBlockResponse,
+    },
+    wallet_context::WalletContext,
 };
-use sui_sdk::wallet_context::WalletContext;
-use sui_types::base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress};
-use sui_types::crypto::{get_key_pair, AccountKeyPair, Signature, Signer};
-use sui_types::digests::TransactionDigest;
-use sui_types::multisig::{BitmapUnit, MultiSig, MultiSigPublicKey};
-use sui_types::multisig_legacy::{MultiSigLegacy, MultiSigPublicKeyLegacy};
-use sui_types::object::Owner;
-use sui_types::signature::GenericSignature;
-use sui_types::sui_system_state::SUI_SYSTEM_MODULE_NAME;
-use sui_types::transaction::{
-    CallArg, ObjectArg, ProgrammableTransaction, Transaction, TransactionData,
-    DEFAULT_VALIDATOR_GAS_PRICE, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
-    TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+use sui_types::{
+    base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress},
+    crypto::{get_key_pair, AccountKeyPair, Signature, Signer},
+    digests::TransactionDigest,
+    multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
+    multisig_legacy::{MultiSigLegacy, MultiSigPublicKeyLegacy},
+    object::Owner,
+    signature::GenericSignature,
+    sui_system_state::SUI_SYSTEM_MODULE_NAME,
+    transaction::{
+        CallArg, ObjectArg, ProgrammableTransaction, Transaction, TransactionData,
+        DEFAULT_VALIDATOR_GAS_PRICE, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+    },
+    TypeTag, SUI_SYSTEM_PACKAGE_ID,
 };
-use sui_types::{TypeTag, SUI_SYSTEM_PACKAGE_ID};
 
 pub struct TestTransactionBuilder {
     test_data: TestTransactionData,
@@ -404,7 +410,8 @@ struct MoveData {
 
 pub enum PublishData {
     /// Path to source code directory and with_unpublished_deps.
-    /// with_unpublished_deps indicates whether to publish unpublished dependencies in the same transaction or not.
+    /// with_unpublished_deps indicates whether to publish unpublished
+    /// dependencies in the same transaction or not.
     Source(PathBuf, bool),
     ModuleBytes(Vec<Vec<u8>>),
     CompiledPackage(CompiledPackage),
@@ -420,15 +427,16 @@ struct TransferSuiData {
     recipient: SuiAddress,
 }
 
-/// A helper function to make Transactions with controlled accounts in WalletContext.
-/// Particularly, the wallet needs to own gas objects for transactions.
-/// However, if this function is called multiple times without any "sync" actions
-/// on gas object management, txns may fail and objects may be locked.
+/// A helper function to make Transactions with controlled accounts in
+/// WalletContext. Particularly, the wallet needs to own gas objects for
+/// transactions. However, if this function is called multiple times without any
+/// "sync" actions on gas object management, txns may fail and objects may be
+/// locked.
 ///
-/// The param is called `max_txn_num` because it does not always return the exact
-/// same amount of Transactions, for example when there are not enough gas objects
-/// controlled by the WalletContext. Caller should rely on the return value to
-/// check the count.
+/// The param is called `max_txn_num` because it does not always return the
+/// exact same amount of Transactions, for example when there are not enough gas
+/// objects controlled by the WalletContext. Caller should rely on the return
+/// value to check the count.
 pub async fn batch_make_transfer_transactions(
     context: &WalletContext,
     max_txn_num: usize,
@@ -523,7 +531,8 @@ pub async fn publish_package(context: &WalletContext, path: PathBuf) -> ObjectRe
     get_new_package_obj_from_response(&resp).unwrap()
 }
 
-/// Executes a transaction to publish the `basics` package and returns the package object ref.
+/// Executes a transaction to publish the `basics` package and returns the
+/// package object ref.
 pub async fn publish_basics_package(context: &WalletContext) -> ObjectRef {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let gas_price = context.get_reference_gas_price().await.unwrap();
@@ -536,8 +545,8 @@ pub async fn publish_basics_package(context: &WalletContext) -> ObjectRef {
     get_new_package_obj_from_response(&resp).unwrap()
 }
 
-/// Executes a transaction to publish the `basics` package and another one to create a counter.
-/// Returns the package object ref and the counter object ref.
+/// Executes a transaction to publish the `basics` package and another one to
+/// create a counter. Returns the package object ref and the counter object ref.
 pub async fn publish_basics_package_and_make_counter(
     context: &WalletContext,
 ) -> (ObjectRef, ObjectRef) {
@@ -592,8 +601,8 @@ pub async fn increment_counter(
     context.execute_transaction_must_succeed(txn).await
 }
 
-/// Executes a transaction to publish the `nfts` package and returns the package id, id of the gas
-/// object used, and the digest of the transaction.
+/// Executes a transaction to publish the `nfts` package and returns the package
+/// id, id of the gas object used, and the digest of the transaction.
 pub async fn publish_nfts_package(
     context: &WalletContext,
 ) -> (ObjectID, ObjectID, TransactionDigest) {
@@ -610,9 +619,9 @@ pub async fn publish_nfts_package(
     (package_id, gas_id, resp.digest)
 }
 
-/// Pre-requisite: `publish_nfts_package` must be called before this function.  Executes a
-/// transaction to create an NFT and returns the sender address, the object id of the NFT, and the
-/// digest of the transaction.
+/// Pre-requisite: `publish_nfts_package` must be called before this function.
+/// Executes a transaction to create an NFT and returns the sender address, the
+/// object id of the NFT, and the digest of the transaction.
 pub async fn create_devnet_nft(
     context: &WalletContext,
     package_id: ObjectID,

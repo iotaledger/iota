@@ -1,25 +1,26 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::sui_client_config::SuiClientConfig;
-use crate::SuiClient;
+use std::{collections::BTreeSet, path::Path, sync::Arc};
+
 use anyhow::anyhow;
 use colored::Colorize;
 use shared_crypto::intent::Intent;
-use std::collections::BTreeSet;
-use std::path::Path;
-use std::sync::Arc;
 use sui_config::{Config, PersistedConfig};
 use sui_json_rpc_types::{
     SuiObjectData, SuiObjectDataFilter, SuiObjectDataOptions, SuiObjectResponse,
     SuiObjectResponseQuery, SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
 };
 use sui_keys::keystore::AccountKeystore;
-use sui_types::base_types::{ObjectID, ObjectRef, SuiAddress};
-use sui_types::gas_coin::GasCoin;
-use sui_types::transaction::{Transaction, TransactionData, TransactionDataAPI};
+use sui_types::{
+    base_types::{ObjectID, ObjectRef, SuiAddress},
+    gas_coin::GasCoin,
+    transaction::{Transaction, TransactionData, TransactionDataAPI},
+};
 use tokio::sync::RwLock;
 use tracing::warn;
+
+use crate::{sui_client_config::SuiClientConfig, SuiClient};
 
 pub struct WalletContext {
     pub config: PersistedConfig<SuiClientConfig>,
@@ -225,7 +226,8 @@ impl WalletContext {
     }
 
     /// Given an address, return one gas object owned by this address.
-    /// The actual implementation just returns the first one returned by the read api.
+    /// The actual implementation just returns the first one returned by the
+    /// read api.
     pub async fn get_one_gas_object_owned_by_address(
         &self,
         address: SuiAddress,
@@ -255,7 +257,8 @@ impl WalletContext {
         Ok(None)
     }
 
-    /// Returns all the account addresses managed by the wallet and their owned gas objects.
+    /// Returns all the account addresses managed by the wallet and their owned
+    /// gas objects.
     pub async fn get_all_accounts_and_gas_objects(
         &self,
     ) -> anyhow::Result<Vec<(SuiAddress, Vec<ObjectRef>)>> {
@@ -289,8 +292,9 @@ impl WalletContext {
         Transaction::from_data(data.clone(), vec![sig])
     }
 
-    /// Execute a transaction and wait for it to be locally executed on the fullnode.
-    /// Also expects the effects status to be ExecutionStatus::Success.
+    /// Execute a transaction and wait for it to be locally executed on the
+    /// fullnode. Also expects the effects status to be
+    /// ExecutionStatus::Success.
     pub async fn execute_transaction_must_succeed(
         &self,
         tx: Transaction,
@@ -305,9 +309,10 @@ impl WalletContext {
         response
     }
 
-    /// Execute a transaction and wait for it to be locally executed on the fullnode.
-    /// The transaction execution is not guaranteed to succeed and may fail. This is usually only
-    /// needed in non-test environment or the caller is explicitly testing some failure behavior.
+    /// Execute a transaction and wait for it to be locally executed on the
+    /// fullnode. The transaction execution is not guaranteed to succeed and
+    /// may fail. This is usually only needed in non-test environment or the
+    /// caller is explicitly testing some failure behavior.
     pub async fn execute_transaction_may_fail(
         &self,
         tx: Transaction,

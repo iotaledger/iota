@@ -1,24 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use crate::metrics::{
-    DefaultMetricsCallbackProvider, MetricsCallbackProvider, MetricsHandler,
-    GRPC_ENDPOINT_PATH_HEADER,
+use std::{
+    convert::Infallible,
+    net::SocketAddr,
+    task::{Context, Poll},
 };
-use crate::{
-    config::Config,
-    multiaddr::{parse_dns, parse_ip4, parse_ip6, Multiaddr, Protocol},
-};
+
 use eyre::{eyre, Result};
 use futures::FutureExt;
-use std::task::{Context, Poll};
-use std::{convert::Infallible, net::SocketAddr};
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio_stream::wrappers::TcpListenerStream;
-use tonic::codegen::http::HeaderValue;
 use tonic::{
     body::BoxBody,
     codegen::{
-        http::{Request, Response},
+        http::{HeaderValue, Request, Response},
         BoxFuture,
     },
     server::NamedService,
@@ -31,10 +26,21 @@ use tower::{
     util::Either,
     Layer, Service, ServiceBuilder,
 };
-use tower_http::classify::{GrpcErrorsAsFailures, SharedClassifier};
-use tower_http::propagate_header::PropagateHeaderLayer;
-use tower_http::set_header::SetRequestHeaderLayer;
-use tower_http::trace::{DefaultMakeSpan, DefaultOnBodyChunk, DefaultOnEos, TraceLayer};
+use tower_http::{
+    classify::{GrpcErrorsAsFailures, SharedClassifier},
+    propagate_header::PropagateHeaderLayer,
+    set_header::SetRequestHeaderLayer,
+    trace::{DefaultMakeSpan, DefaultOnBodyChunk, DefaultOnEos, TraceLayer},
+};
+
+use crate::{
+    config::Config,
+    metrics::{
+        DefaultMetricsCallbackProvider, MetricsCallbackProvider, MetricsHandler,
+        GRPC_ENDPOINT_PATH_HEADER,
+    },
+    multiaddr::{parse_dns, parse_ip4, parse_ip6, Multiaddr, Protocol},
+};
 
 pub struct ServerBuilder<M: MetricsCallbackProvider = DefaultMetricsCallbackProvider> {
     router: Router<WrapperService<M>>,
@@ -272,15 +278,16 @@ fn update_tcp_port_in_multiaddr(addr: &Multiaddr, port: u16) -> Multiaddr {
 
 #[cfg(test)]
 mod test {
-    use crate::config::Config;
-    use crate::metrics::MetricsCallbackProvider;
-    use crate::Multiaddr;
-    use std::ops::Deref;
-    use std::sync::{Arc, Mutex};
-    use std::time::Duration;
+    use std::{
+        ops::Deref,
+        sync::{Arc, Mutex},
+        time::Duration,
+    };
+
     use tonic::Code;
-    use tonic_health::pb::health_client::HealthClient;
-    use tonic_health::pb::HealthCheckRequest;
+    use tonic_health::pb::{health_client::HealthClient, HealthCheckRequest};
+
+    use crate::{config::Config, metrics::MetricsCallbackProvider, Multiaddr};
 
     #[test]
     fn document_multiaddr_limitation_for_unix_protocol() {
@@ -460,8 +467,8 @@ mod test {
     #[cfg(unix)]
     #[tokio::test]
     async fn unix() {
-        // Note that this only works when constructing a multiaddr by hand and not via the
-        // human-readable format
+        // Note that this only works when constructing a multiaddr by hand and not via
+        // the human-readable format
         let path = "unix-domain-socket";
         let address = Multiaddr::new_internal(multiaddr::multiaddr!(Unix(path), Http));
         test_multiaddr(address).await;

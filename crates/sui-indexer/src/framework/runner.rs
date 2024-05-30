@@ -1,10 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use super::{fetcher::CheckpointDownloadData, interface::Handler};
 use crate::metrics::IndexerMetrics;
-
-use super::fetcher::CheckpointDownloadData;
-use super::interface::Handler;
 
 // Limit indexing parallelism on big checkpoints to avoid OOM,
 // by limiting the total size of batch checkpoints to ~50MB.
@@ -25,7 +23,7 @@ where
     tracing::info!("Indexer runner is starting with {batch_size}");
     let mut chunks: futures::stream::ReadyChunks<S> = stream.ready_chunks(batch_size);
     while let Some(checkpoints) = chunks.next().await {
-        //TODO create tracing spans for processing
+        // TODO create tracing spans for processing
         let mut cp_batch = vec![];
         let mut cp_batch_total_size = 0;
         for checkpoint in checkpoints.iter() {

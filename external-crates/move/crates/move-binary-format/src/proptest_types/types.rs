@@ -2,6 +2,16 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::BTreeSet;
+
+use proptest::{
+    collection::{vec, SizeRange},
+    option,
+    prelude::*,
+    sample::Index as PropIndex,
+    std_facade::hash_set::HashSet,
+};
+
 use crate::{
     file_format::{
         AbilitySet, FieldDefinition, IdentifierIndex, ModuleHandleIndex, SignatureToken,
@@ -14,14 +24,6 @@ use crate::{
         signature::{AbilitySetGen, SignatureTokenGen},
     },
 };
-use proptest::{
-    collection::{vec, SizeRange},
-    option,
-    prelude::*,
-    sample::Index as PropIndex,
-    std_facade::hash_set::HashSet,
-};
-use std::collections::BTreeSet;
 
 #[derive(Debug)]
 struct TypeSignatureIndex(u16);

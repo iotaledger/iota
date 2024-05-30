@@ -1,10 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use inquire::Select;
 use std::collections::BTreeMap;
+
+use inquire::Select;
 use sui_config::genesis::UnsignedGenesis;
-use sui_types::sui_system_state::SuiValidatorGenesis;
 use sui_types::{
     base_types::ObjectID,
     coin::CoinMetadata,
@@ -12,6 +12,7 @@ use sui_types::{
     governance::StakedSui,
     move_package::MovePackage,
     object::{MoveObject, Owner},
+    sui_system_state::SuiValidatorGenesis,
 };
 
 const STR_ALL: &str = "All";

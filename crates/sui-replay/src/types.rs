@@ -1,22 +1,25 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::fmt::Debug;
+
 use jsonrpsee::core::Error as JsonRpseeError;
 use move_binary_format::CompiledModule;
-use move_core_types::account_address::AccountAddress;
-use move_core_types::language_storage::{ModuleId, StructTag};
-use serde::Deserialize;
-use serde::Serialize;
-use std::fmt::Debug;
-use sui_json_rpc_types::SuiEvent;
-use sui_json_rpc_types::SuiTransactionBlockEffects;
+use move_core_types::{
+    account_address::AccountAddress,
+    language_storage::{ModuleId, StructTag},
+};
+use serde::{Deserialize, Serialize};
+use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockEffects};
 use sui_protocol_config::{Chain, ProtocolVersion};
 use sui_sdk::error::Error as SuiRpcError;
-use sui_types::base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress, VersionNumber};
-use sui_types::digests::{ObjectDigest, TransactionDigest};
-use sui_types::error::{SuiError, SuiObjectResponseError, SuiResult, UserInputError};
-use sui_types::object::Object;
-use sui_types::transaction::{InputObjectKind, SenderSignedData, TransactionKind};
+use sui_types::{
+    base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress, VersionNumber},
+    digests::{ObjectDigest, TransactionDigest},
+    error::{SuiError, SuiObjectResponseError, SuiResult, UserInputError},
+    object::Object,
+    transaction::{InputObjectKind, SenderSignedData, TransactionKind},
+};
 use thiserror::Error;
 use tokio::time::Duration;
 use tracing::{error, warn};

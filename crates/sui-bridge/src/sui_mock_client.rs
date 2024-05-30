@@ -3,23 +3,28 @@
 
 //! A mock implementation of Sui JSON-RPC client.
 
-use crate::error::{BridgeError, BridgeResult};
-use async_trait::async_trait;
-use std::collections::{HashMap, VecDeque};
-use std::sync::{Arc, Mutex};
-use sui_json_rpc_types::SuiTransactionBlockResponse;
-use sui_json_rpc_types::{EventFilter, EventPage, SuiEvent};
-use sui_types::base_types::ObjectID;
-use sui_types::base_types::ObjectRef;
-use sui_types::digests::TransactionDigest;
-use sui_types::event::EventID;
-use sui_types::gas_coin::GasCoin;
-use sui_types::object::Owner;
-use sui_types::transaction::Transaction;
-use sui_types::Identifier;
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::{Arc, Mutex},
+};
 
-use crate::sui_client::SuiClientInner;
-use crate::types::{BridgeAction, BridgeActionDigest, BridgeActionStatus, MoveTypeBridgeCommittee};
+use async_trait::async_trait;
+use sui_json_rpc_types::{EventFilter, EventPage, SuiEvent, SuiTransactionBlockResponse};
+use sui_types::{
+    base_types::{ObjectID, ObjectRef},
+    digests::TransactionDigest,
+    event::EventID,
+    gas_coin::GasCoin,
+    object::Owner,
+    transaction::Transaction,
+    Identifier,
+};
+
+use crate::{
+    error::{BridgeError, BridgeResult},
+    sui_client::SuiClientInner,
+    types::{BridgeAction, BridgeActionDigest, BridgeActionStatus, MoveTypeBridgeCommittee},
+};
 
 /// Mock client used in test environments.
 #[allow(clippy::type_complexity)]

@@ -1,5 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+use std::collections::HashMap;
+
 use axum::{routing::get, Extension, Router};
 use config::{AuthorityIdentifier, WorkerId};
 use mysten_metrics::{metrics, spawn_logged_monitored_task};
@@ -9,7 +11,6 @@ use prometheus::{
     register_int_counter_with_registry, register_int_gauge_with_registry, Counter, Histogram,
     IntCounter, IntGauge, Registry,
 };
-use std::collections::HashMap;
 use tokio::task::JoinHandle;
 
 const METRICS_ROUTE: &str = "/metrics";

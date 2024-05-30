@@ -25,8 +25,8 @@ pub const ALIAS_STRUCT_NAME: &IdentStr = ident_str!("Alias");
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct Alias {
-    /// The ID of the Alias = hash of the Output ID that created the Alias Output in Stardust.
-    /// This is the AliasID from Stardust.
+    /// The ID of the Alias = hash of the Output ID that created the Alias
+    /// Output in Stardust. This is the AliasID from Stardust.
     pub id: UID,
 
     /// The last State Controller address assigned before the migration.
@@ -142,8 +142,9 @@ pub struct AliasOutput {
 
     /// The amount of IOTA coins held by the output.
     pub iota: Balance,
-    /// The `Bag` holds native tokens, key-ed by the stringified type of the asset.
-    /// Example: key: "0xabcded::soon::SOON", value: Balance<0xabcded::soon::SOON>.
+    /// The `Bag` holds native tokens, key-ed by the stringified type of the
+    /// asset. Example: key: "0xabcded::soon::SOON", value:
+    /// Balance<0xabcded::soon::SOON>.
     pub native_tokens: Bag,
 }
 
@@ -157,7 +158,8 @@ impl AliasOutput {
         }
     }
 
-    /// Creates the Move-based Alias Output model from a Stardust-based Alias Output.
+    /// Creates the Move-based Alias Output model from a Stardust-based Alias
+    /// Output.
     pub fn try_from_stardust(
         object_id: ObjectID,
         alias: &StardustAlias,

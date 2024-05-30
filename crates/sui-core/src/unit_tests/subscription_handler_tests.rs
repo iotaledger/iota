@@ -1,24 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::account_address::AccountAddress;
-use move_core_types::identifier::Identifier;
-
 use move_core_types::{
+    account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
+    identifier::Identifier,
     language_storage::StructTag,
 };
-
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sui_json_rpc_types::SuiMoveStruct;
-
-use sui_types::base_types::ObjectID;
-use sui_types::gas_coin::GasCoin;
-use sui_types::object::bounded_visitor::BoundedVisitor;
-use sui_types::{MOVE_STDLIB_ADDRESS, SUI_FRAMEWORK_ADDRESS};
+use sui_types::{
+    base_types::ObjectID, gas_coin::GasCoin, object::bounded_visitor::BoundedVisitor,
+    MOVE_STDLIB_ADDRESS, SUI_FRAMEWORK_ADDRESS,
+};
 
 #[test]
 fn test_to_json_value() {

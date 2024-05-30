@@ -1,50 +1,57 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::Context;
-use anyhow::{anyhow, Result};
-use async_trait::async_trait;
-use futures::future::try_join_all;
-use futures::future::BoxFuture;
-use futures::FutureExt;
-use futures::{stream::FuturesUnordered, StreamExt};
-use indicatif::ProgressBar;
-use indicatif::ProgressStyle;
-use prometheus::register_histogram_vec_with_registry;
-use prometheus::IntCounterVec;
-use prometheus::Registry;
-use prometheus::{register_counter_vec_with_registry, register_gauge_vec_with_registry};
-use prometheus::{register_int_counter_vec_with_registry, CounterVec};
-use prometheus::{register_int_gauge_with_registry, GaugeVec};
-use prometheus::{HistogramVec, IntGauge};
-use rand::seq::SliceRandom;
-use tokio::sync::mpsc::{channel, Sender};
-use tokio::sync::OnceCell;
-use tokio_util::sync::CancellationToken;
+use std::{
+    collections::{BTreeMap, VecDeque},
+    fmt::{Debug, Formatter},
+    future::Future,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 
-use crate::drivers::driver::Driver;
-use crate::drivers::HistogramWrapper;
-use crate::system_state_observer::SystemStateObserver;
-use crate::workloads::payload::Payload;
-use crate::workloads::{GroupID, WorkloadInfo};
-use crate::{ExecutionEffects, ValidatorProxy};
-use std::collections::{BTreeMap, VecDeque};
-use std::fmt::{Debug, Formatter};
-use std::future::Future;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
-use sui_types::committee::Committee;
-use sui_types::quorum_driver_types::QuorumDriverError;
-use sui_types::transaction::{Transaction, TransactionDataAPI};
+use anyhow::{anyhow, Context, Result};
+use async_trait::async_trait;
+use futures::{
+    future::{try_join_all, BoxFuture},
+    stream::FuturesUnordered,
+    FutureExt, StreamExt,
+};
+use indicatif::{ProgressBar, ProgressStyle};
+use prometheus::{
+    register_counter_vec_with_registry, register_gauge_vec_with_registry,
+    register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
+    register_int_gauge_with_registry, CounterVec, GaugeVec, HistogramVec, IntCounterVec, IntGauge,
+    Registry,
+};
+use rand::seq::SliceRandom;
+use sui_types::{
+    committee::Committee,
+    quorum_driver_types::QuorumDriverError,
+    transaction::{Transaction, TransactionDataAPI},
+};
 use sysinfo::{CpuExt, System, SystemExt};
-use tokio::sync::Barrier;
-use tokio::task::{JoinHandle, JoinSet};
-use tokio::{time, time::Instant};
+use tokio::{
+    sync::{
+        mpsc::{channel, Sender},
+        Barrier, OnceCell,
+    },
+    task::{JoinHandle, JoinSet},
+    time,
+    time::Instant,
+};
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 
-use super::Interval;
-use super::{BenchmarkStats, StressStats};
+use super::{BenchmarkStats, Interval, StressStats};
+use crate::{
+    drivers::{driver::Driver, HistogramWrapper},
+    system_state_observer::SystemStateObserver,
+    workloads::{payload::Payload, GroupID, WorkloadInfo},
+    ExecutionEffects, ValidatorProxy,
+};
 pub struct BenchMetrics {
     pub benchmark_duration: IntGauge,
     pub num_success: IntCounterVec,
@@ -293,7 +300,8 @@ async fn ctrl_c() -> std::io::Result<()> {
     tokio::signal::ctrl_c().await
 }
 
-// TODO: if more use is made of tokio::signal we should just add support for it to the sim.
+// TODO: if more use is made of tokio::signal we should just add support for it
+// to the sim.
 #[cfg(msim)]
 async fn ctrl_c() -> std::io::Result<()> {
     futures::future::pending().await
@@ -316,8 +324,9 @@ impl Driver<(BenchmarkStats, StressStats)> for BenchDriver {
         let (tx, mut rx) = channel(100);
         let (stress_stat_tx, mut stress_stat_rx) = channel(100);
 
-        // All the benchmark workers that are grouped by GroupID. The group is order in group id order
-        // ascending. This is important as benchmark groups should be executed in order to follow the input settings.
+        // All the benchmark workers that are grouped by GroupID. The group is order in
+        // group id order ascending. This is important as benchmark groups
+        // should be executed in order to follow the input settings.
         let mut bench_workers = VecDeque::new();
 
         let mut worker_id = 0;
@@ -353,7 +362,8 @@ impl Driver<(BenchmarkStats, StressStats)> for BenchDriver {
         let total_benchmark_progress = Arc::new(create_progress_bar(total_benchmark_run_interval));
         let total_benchmark_gas_used = Arc::new(AtomicU64::new(0));
 
-        // Spin up the scheduler task to orchestrate running the workers for each benchmark group.
+        // Spin up the scheduler task to orchestrate running the workers for each
+        // benchmark group.
         let scheduler = spawn_workers_scheduler(
             bench_workers,
             self.token.clone(),
@@ -393,8 +403,8 @@ impl Driver<(BenchmarkStats, StressStats)> for BenchDriver {
                 },
             ) = rx.recv().await
             {
-                // We use the special id as signal to clear up the stat collection map since that means
-                // that new benchmark group workers have spun up.
+                // We use the special id as signal to clear up the stat collection map since
+                // that means that new benchmark group workers have spun up.
                 if id == usize::MAX {
                     stat_collection.clear();
                     continue;
@@ -417,7 +427,8 @@ impl Driver<(BenchmarkStats, StressStats)> for BenchDriver {
                 for (_, v) in stat_collection.iter() {
                     let duration = v.bench_stats.duration.as_secs() as f32;
 
-                    // no reason to do any measurements when duration is zero as this will output NaN
+                    // no reason to do any measurements when duration is zero as this will output
+                    // NaN
                     if duration == 0.0 {
                         continue;
                     }
@@ -442,7 +453,21 @@ impl Driver<(BenchmarkStats, StressStats)> for BenchDriver {
                 };
                 counter += 1;
                 if counter % num_workers == 0 {
-                    stat = format!("TPS = {}, CPS = {}, latency_ms(min/p50/p99/max) = {}/{}/{}/{}, num_success_tx = {}, num_error_tx = {}, num_success_cmds = {}, no_gas = {}, submitted = {}, in_flight = {}", total_qps, total_cps, latency_histogram.min(), latency_histogram.value_at_quantile(0.5), latency_histogram.value_at_quantile(0.99), latency_histogram.max(), num_success_txes, num_error_txes, num_success_cmds, num_no_gas, num_submitted, num_in_flight);
+                    stat = format!(
+                        "TPS = {}, CPS = {}, latency_ms(min/p50/p99/max) = {}/{}/{}/{}, num_success_tx = {}, num_error_tx = {}, num_success_cmds = {}, no_gas = {}, submitted = {}, in_flight = {}",
+                        total_qps,
+                        total_cps,
+                        latency_histogram.min(),
+                        latency_histogram.value_at_quantile(0.5),
+                        latency_histogram.value_at_quantile(0.99),
+                        latency_histogram.max(),
+                        num_success_txes,
+                        num_error_txes,
+                        num_success_cmds,
+                        num_no_gas,
+                        num_submitted,
+                        num_in_flight
+                    );
                     if show_progress {
                         eprintln!("{}", stat);
                     }
@@ -508,11 +533,12 @@ impl Driver<(BenchmarkStats, StressStats)> for BenchDriver {
     }
 }
 
-/// The workers scheduler is orchestrating the bench workers to run according to their group. Each
-/// group is running for a specific period/interval. Once finished then the next group of bench workers
-/// is picked up to run. The worker groups are cycled , so once the last group is run then we start
-/// again from the beginning. That allows running benchmarks with repeatable patterns across the whole
-/// benchmark duration.
+/// The workers scheduler is orchestrating the bench workers to run according to
+/// their group. Each group is running for a specific period/interval. Once
+/// finished then the next group of bench workers is picked up to run. The
+/// worker groups are cycled , so once the last group is run then we start again
+/// from the beginning. That allows running benchmarks with repeatable patterns
+/// across the whole benchmark duration.
 async fn spawn_workers_scheduler(
     mut bench_workers: VecDeque<Vec<BenchWorker>>,
     cancellation_token: CancellationToken,
@@ -673,7 +699,8 @@ async fn run_bench_worker(
     total_benchmark_start_time: Instant,
     total_benchmark_gas_used: Arc<AtomicU64>,
 ) -> Option<BenchWorker> {
-    // Waiting until all the tasks have been spawn , so we can coordinate the traffic and timing.
+    // Waiting until all the tasks have been spawn , so we can coordinate the
+    // traffic and timing.
     barrier.wait().await;
     debug!("Run {:?}", worker);
     let group_benchmark_start_time = Instant::now();
@@ -786,7 +813,8 @@ async fn run_bench_worker(
         }
     };
 
-    // Updates the progress bars. if any of the progress bars are finished then true is returned. False otherwise.
+    // Updates the progress bars. if any of the progress bars are finished then true
+    // is returned. False otherwise.
     let update_progress = |increment_by_value: u64| {
         let group_gas_used = group_gas_used.load(Ordering::SeqCst);
         let total_benchmark_gas_used = total_benchmark_gas_used.load(Ordering::SeqCst);
@@ -996,8 +1024,9 @@ async fn run_bench_worker(
     Some(worker)
 }
 
-/// Creates a new progress bar based on the provided duration. The method is agnostic to the actual
-/// usage - weather we want to track the overall benchmark duration or an individual benchmark run.
+/// Creates a new progress bar based on the provided duration. The method is
+/// agnostic to the actual usage - weather we want to track the overall
+/// benchmark duration or an individual benchmark run.
 fn create_progress_bar(duration: Interval) -> ProgressBar {
     fn new_progress_bar(len: u64) -> ProgressBar {
         if cfg!(msim) {

@@ -2,9 +2,10 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{loaded_data::runtime_types::Type, values::*, views::*};
 use move_binary_format::errors::*;
 use move_core_types::{account_address::AccountAddress, u256::U256};
+
+use crate::{loaded_data::runtime_types::Type, values::*, views::*};
 
 #[test]
 fn locals() -> PartialVMResult<()> {

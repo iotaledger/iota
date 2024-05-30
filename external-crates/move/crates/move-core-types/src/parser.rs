@@ -2,14 +2,16 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use std::iter::Peekable;
+
+use anyhow::{bail, format_err, Result};
+
 use crate::{
     account_address::AccountAddress,
     identifier::{self, Identifier},
     language_storage::{StructTag, TypeTag},
     transaction_argument::TransactionArgument,
 };
-use anyhow::{bail, format_err, Result};
-use std::iter::Peekable;
 
 #[derive(Eq, PartialEq, Debug)]
 enum Token {

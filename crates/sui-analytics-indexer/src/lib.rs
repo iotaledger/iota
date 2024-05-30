@@ -1,52 +1,47 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::ops::Range;
-use std::path::PathBuf;
+use std::{ops::Range, path::PathBuf};
 
 use anyhow::{anyhow, Result};
 use arrow_array::{Array, Int32Array};
 use clap::*;
-use gcp_bigquery_client::model::query_request::QueryRequest;
-use gcp_bigquery_client::Client;
-use num_enum::IntoPrimitive;
-use num_enum::TryFromPrimitive;
+use gcp_bigquery_client::{model::query_request::QueryRequest, Client};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use object_store::path::Path;
 use serde::{Deserialize, Serialize};
 use snowflake_api::{QueryResult, SnowflakeApi};
 use strum_macros::EnumIter;
-use tracing::info;
-
 use sui_config::object_storage_config::ObjectStoreConfig;
 use sui_indexer::framework::Handler;
 use sui_rest_api::CheckpointData;
 use sui_storage::object_store::util::{
     find_all_dirs_with_epoch_prefix, find_all_files_with_epoch_prefix,
 };
-use sui_types::base_types::EpochId;
-use sui_types::dynamic_field::DynamicFieldType;
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
-
-use crate::analytics_metrics::AnalyticsMetrics;
-use crate::analytics_processor::AnalyticsProcessor;
-use crate::handlers::checkpoint_handler::CheckpointHandler;
-use crate::handlers::df_handler::DynamicFieldHandler;
-use crate::handlers::event_handler::EventHandler;
-use crate::handlers::move_call_handler::MoveCallHandler;
-use crate::handlers::object_handler::ObjectHandler;
-use crate::handlers::package_handler::PackageHandler;
-use crate::handlers::transaction_handler::TransactionHandler;
-use crate::handlers::transaction_objects_handler::TransactionObjectsHandler;
-use crate::handlers::wrapped_object_handler::WrappedObjectHandler;
-use crate::handlers::AnalyticsHandler;
-use crate::tables::{
-    CheckpointEntry, DynamicFieldEntry, EventEntry, InputObjectKind, MoveCallEntry,
-    MovePackageEntry, ObjectEntry, ObjectStatus, OwnerType, TransactionEntry,
-    TransactionObjectEntry, WrappedObjectEntry,
+use sui_types::{
+    base_types::EpochId, dynamic_field::DynamicFieldType,
+    messages_checkpoint::CheckpointSequenceNumber,
 };
-use crate::writers::csv_writer::CSVWriter;
-use crate::writers::parquet_writer::ParquetWriter;
-use crate::writers::AnalyticsWriter;
+use tracing::info;
+
+use crate::{
+    analytics_metrics::AnalyticsMetrics,
+    analytics_processor::AnalyticsProcessor,
+    handlers::{
+        checkpoint_handler::CheckpointHandler, df_handler::DynamicFieldHandler,
+        event_handler::EventHandler, move_call_handler::MoveCallHandler,
+        object_handler::ObjectHandler, package_handler::PackageHandler,
+        transaction_handler::TransactionHandler,
+        transaction_objects_handler::TransactionObjectsHandler,
+        wrapped_object_handler::WrappedObjectHandler, AnalyticsHandler,
+    },
+    tables::{
+        CheckpointEntry, DynamicFieldEntry, EventEntry, InputObjectKind, MoveCallEntry,
+        MovePackageEntry, ObjectEntry, ObjectStatus, OwnerType, TransactionEntry,
+        TransactionObjectEntry, WrappedObjectEntry,
+    },
+    writers::{csv_writer::CSVWriter, parquet_writer::ParquetWriter, AnalyticsWriter},
+};
 
 pub mod analytics_metrics;
 pub mod analytics_processor;

@@ -1,27 +1,32 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::command::Component;
-use crate::mock_account::{batch_create_account_and_gas, Account};
-use crate::mock_storage::InMemoryObjectStore;
-use crate::single_node::SingleValidator;
-use crate::tx_generator::{RootObjectCreateTxGenerator, TxGenerator};
-use crate::workload::Workload;
-use futures::stream::FuturesUnordered;
-use futures::StreamExt;
-use std::collections::{BTreeMap, HashMap};
-use std::ops::Deref;
-use std::sync::Arc;
+use std::{
+    collections::{BTreeMap, HashMap},
+    ops::Deref,
+    sync::Arc,
+};
+
+use futures::{stream::FuturesUnordered, StreamExt};
 use sui_config::node::RunWithRange;
 use sui_test_transaction_builder::PublishData;
-use sui_types::base_types::{ObjectID, ObjectRef, SuiAddress};
-use sui_types::effects::{TransactionEffects, TransactionEffectsAPI};
-use sui_types::messages_grpc::HandleTransactionResponse;
-use sui_types::mock_checkpoint_builder::ValidatorKeypairProvider;
-use sui_types::transaction::{
-    CertifiedTransaction, SignedTransaction, Transaction, VerifiedTransaction,
+use sui_types::{
+    base_types::{ObjectID, ObjectRef, SuiAddress},
+    effects::{TransactionEffects, TransactionEffectsAPI},
+    messages_grpc::HandleTransactionResponse,
+    mock_checkpoint_builder::ValidatorKeypairProvider,
+    transaction::{CertifiedTransaction, SignedTransaction, Transaction, VerifiedTransaction},
 };
 use tracing::info;
+
+use crate::{
+    command::Component,
+    mock_account::{batch_create_account_and_gas, Account},
+    mock_storage::InMemoryObjectStore,
+    single_node::SingleValidator,
+    tx_generator::{RootObjectCreateTxGenerator, TxGenerator},
+    workload::Workload,
+};
 
 pub struct BenchmarkContext {
     validator: SingleValidator,
@@ -87,8 +92,9 @@ impl BenchmarkContext {
         package
     }
 
-    /// In order to benchmark transactions that can read dynamic fields, we must first create
-    /// a root object with dynamic fields for each account address.
+    /// In order to benchmark transactions that can read dynamic fields, we must
+    /// first create a root object with dynamic fields for each account
+    /// address.
     pub(crate) async fn preparing_dynamic_fields(
         &mut self,
         move_package: ObjectID,
@@ -275,8 +281,8 @@ impl BenchmarkContext {
         );
     }
 
-    /// Print out a sample transaction and its effects so that we can get a rough idea
-    /// what we are measuring.
+    /// Print out a sample transaction and its effects so that we can get a
+    /// rough idea what we are measuring.
     async fn execute_sample_transaction(&self, sample_transaction: Transaction) {
         info!("Sample transaction: {:?}", sample_transaction.data());
         let effects = self
