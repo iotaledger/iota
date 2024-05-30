@@ -8,47 +8,47 @@ import { DescriptionItem } from '_pages/approval-request/transaction-request/Des
 import { ChevronDown16 } from '@mysten/icons';
 
 export function AssetData({
-	tokenBalance,
-	coinType,
-	symbol,
-	to,
-	onClick,
-	disabled,
+    tokenBalance,
+    coinType,
+    symbol,
+    to,
+    onClick,
+    disabled,
 }: {
-	tokenBalance: string;
-	coinType: string;
-	symbol: string;
-	to?: string;
-	onClick?: () => void;
-	disabled?: boolean;
+    tokenBalance: string;
+    coinType: string;
+    symbol: string;
+    to?: string;
+    onClick?: () => void;
+    disabled?: boolean;
 }) {
-	return (
-		<DescriptionItem
-			title={
-				<div className="flex gap-1 items-center">
-					<CoinIcon coinType={coinType} size="sm" />
-					<ButtonOrLink
-						disabled={disabled}
-						onClick={onClick}
-						to={to}
-						className="flex gap-1 items-center no-underline outline-none border-transparent bg-transparent p-0"
-					>
-						<Heading variant="heading6" weight="semibold" color="hero-dark">
-							{symbol}
-						</Heading>
-						{!disabled && <ChevronDown16 className="h-4 w-4 text-hero-dark" />}
-					</ButtonOrLink>
-				</div>
-			}
-		>
-			{!!tokenBalance && (
-				<div className="flex gap-1">
-					<div className="text-bodySmall font-medium text-hero-darkest/40">Balance</div>{' '}
-					<Text variant="bodySmall" weight="medium" color="steel-darker">
-						{tokenBalance} {symbol}
-					</Text>
-				</div>
-			)}
-		</DescriptionItem>
-	);
+    return (
+        <DescriptionItem
+            title={
+                <div className="flex items-center gap-1">
+                    <CoinIcon coinType={coinType} size="sm" />
+                    <ButtonOrLink
+                        disabled={disabled}
+                        onClick={onClick}
+                        to={to}
+                        className="flex items-center gap-1 border-transparent bg-transparent p-0 no-underline outline-none"
+                    >
+                        <Heading variant="heading6" weight="semibold" color="hero-dark">
+                            {symbol}
+                        </Heading>
+                        {!disabled && <ChevronDown16 className="h-4 w-4 text-hero-dark" />}
+                    </ButtonOrLink>
+                </div>
+            }
+        >
+            {!!tokenBalance && (
+                <div className="flex gap-1">
+                    <div className="text-bodySmall font-medium text-hero-darkest/40">Balance</div>{' '}
+                    <Text variant="bodySmall" weight="medium" color="steel-darker">
+                        {tokenBalance} {symbol}
+                    </Text>
+                </div>
+            )}
+        </DescriptionItem>
+    );
 }
