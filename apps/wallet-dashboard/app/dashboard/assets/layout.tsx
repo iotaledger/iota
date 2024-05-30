@@ -7,7 +7,7 @@ import React, { type PropsWithChildren } from 'react';
 
 function AssetsLayout({ children }: PropsWithChildren): JSX.Element {
     const routes = [
-        { title: 'Virtual Assets', path: '/dashboard/assets/virtual-assets' },
+        { title: 'Visual Assets', path: '/dashboard/assets/visual-assets' },
         { title: 'Everything Else', path: '/dashboard/assets/everything-else' },
     ];
 
