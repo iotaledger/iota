@@ -1,12 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-    isSupportedChain,
-    type StandardConnectInput,
-    type StandardConnectOutput,
-    type WalletAccount,
-    type WalletWithRequiredFeatures,
+import { isSupportedChain } from '@mysten/wallet-standard';
+import type {
+    StandardConnectInput,
+    StandardConnectOutput,
+    WalletAccount,
+    WalletWithRequiredFeatures,
 } from '@mysten/wallet-standard';
 import type { UseMutationOptions, UseMutationResult } from '@tanstack/react-query';
 import { useMutation } from '@tanstack/react-query';
