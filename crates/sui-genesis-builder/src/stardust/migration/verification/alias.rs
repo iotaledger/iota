@@ -33,13 +33,13 @@ use crate::stardust::{
 };
 
 pub(super) fn verify_alias_output(
-    output_id: &stardust::OutputId,
+    output_id: stardust::OutputId,
     output: &stardust::AliasOutput,
     created_objects: &CreatedObjects,
     foundry_data: &HashMap<stardust::TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
 ) -> anyhow::Result<()> {
-    let alias_id = ObjectID::new(*output.alias_id_non_null(output_id));
+    let alias_id = ObjectID::new(*output.alias_id_non_null(&output_id));
 
     let alias_output_obj = created_objects.output().and_then(|id| {
         storage

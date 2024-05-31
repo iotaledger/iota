@@ -28,7 +28,7 @@ pub(crate) fn verify_output(
 ) -> anyhow::Result<()> {
     match output {
         Output::Alias(output) => alias::verify_alias_output(
-            &header.output_id(),
+            header.output_id(),
             output,
             created_objects,
             foundry_data,
