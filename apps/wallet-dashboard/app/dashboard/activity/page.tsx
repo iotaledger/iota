@@ -3,14 +3,13 @@
 
 'use client';
 
-import React, { useCallback } from 'react';
+import React from 'react';
 import { VirtualList, ActivityTile } from '@/components';
 import { Activity, ActivityState } from '@/lib/interfaces';
 
 function StakingDashboardPage(): JSX.Element {
-    const virtualItem = useCallback(
-        (activity: Activity) => <ActivityTile key={activity.timestamp} activity={activity} />,
-        [],
+    const virtualItem = (activity: Activity) => (
+        <ActivityTile key={activity.timestamp} activity={activity} />
     );
 
     return (
