@@ -134,7 +134,7 @@ export async function getOwnedKiosks(
     // get kioskIds from the OwnerCaps.
     const kioskIdList = data?.map((x: SuiObjectResponse) => {
         const fields = x.data?.content?.dataType === 'moveObject' ? x.data.content.fields : null;
-        // @ts-ignore-next-line TODO: should i remove ts ignore here?
+        // @ts-expect-error TODO: should i remove ts ignore here?
         return (fields?.cap ? fields?.cap?.fields?.for : fields?.for) as string;
         // return (fields as { for: string })?.for;
     });

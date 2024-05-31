@@ -18,11 +18,11 @@ import { expect } from 'vitest';
 import type { KioskClient } from '../../src/index.js';
 import { KioskTransaction } from '../../src/index.js';
 
-//@ts-ignore-next-line
+//@ts-expect-error env not found on meta
 const DEFAULT_FAUCET_URL = import.meta.env.VITE_FAUCET_URL ?? getFaucetHost('localnet');
-//@ts-ignore-next-line
+//@ts-expect-error env not found on meta
 const DEFAULT_FULLNODE_URL = import.meta.env.VITE_FULLNODE_URL ?? getFullnodeUrl('localnet');
-//@ts-ignore-next-line
+//@ts-expect-error env not found on meta
 const SUI_BIN = import.meta.env.VITE_SUI_BIN ?? 'cargo run --bin sui';
 
 export class TestToolbox {
@@ -175,19 +175,19 @@ export async function createPersonalKiosk(toolbox: TestToolbox, kioskClient: Kio
 function getCreatedObjectIdByType(res: SuiTransactionBlockResponse, type: string): string {
     return res.objectChanges?.filter(
         (x) => x.type === 'created' && x.objectType.endsWith(type),
-        //@ts-ignore-next-line
+        //@ts-expect-error Silence the error here
     )[0].objectId;
 }
 
 export async function getPublisherObject(toolbox: TestToolbox): Promise<string> {
-    let res = await toolbox.client.getOwnedObjects({
+    const res = await toolbox.client.getOwnedObjects({
         filter: {
             StructType: '0x2::package::Publisher',
         },
         owner: toolbox.address(),
     });
 
-    let publisherObj = res.data[0].data?.objectId;
+    const publisherObj = res.data[0].data?.objectId;
     expect(publisherObj).not.toBeUndefined();
 
     return publisherObj ?? '';

@@ -259,7 +259,7 @@ export function parseTransferPolicyCapObject(
 ): TransferPolicyCap | undefined {
     const type = (item?.data?.content as { type: string })?.type;
 
-    //@ts-ignore-next-line
+    //@ts-expect-error Silencing error here
     const policy = item?.data?.content?.fields?.policy_id as string;
 
     if (!type.includes(TRANSFER_POLICY_CAP_TYPE)) return undefined;
@@ -269,6 +269,7 @@ export function parseTransferPolicyCapObject(
 
     return {
         policyId: policy,
+        // eslint-disable-next-line @typescript-eslint/no-non-null-asserted-optional-chain
         policyCapId: item.data?.objectId!,
         type: objectType,
     };

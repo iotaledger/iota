@@ -55,7 +55,7 @@ export async function queryTransferPolicy(
             return {
                 id: policy?.objectId,
                 type: `${TRANSFER_POLICY_TYPE}<${type}>`,
-                owner: policy?.owner!,
+                owner: policy?.owner,
                 rules: parsed.rules,
                 balance: parsed.balance,
             } as TransferPolicy;
