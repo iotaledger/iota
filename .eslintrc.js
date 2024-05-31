@@ -84,6 +84,7 @@ module.exports = {
                 '@typescript-eslint/consistent-type-imports': ['error'],
                 'import/consistent-type-specifier-style': ['error', 'prefer-top-level'],
                 'import/no-cycle': ['error'],
+                '@typescript-eslint/no-explicit-any': 'off',
             },
         },
         {
