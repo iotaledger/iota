@@ -3,7 +3,7 @@
 
 import { normalizeSuiAddress } from '@mysten/sui.js/utils';
 import classnames from 'clsx';
-import { FormEvent, useState } from 'react';
+import { ChangeEvent, FormEvent, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 export default function FindKiosk() {
@@ -24,7 +24,7 @@ export default function FindKiosk() {
     const viewingSearchKiosk = searchKiosk === id;
     const isObjectIdInput = (val: string | undefined) => val?.length === 66 || val?.length === 64;
 
-    const onInput = (e: any) => {
+    const onInput = (e: ChangeEvent<HTMLInputElement>) => {
         setSearchKioskId(e.target.value);
     };
 

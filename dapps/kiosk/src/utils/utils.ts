@@ -13,7 +13,7 @@ export const parseObjectDisplays = (
     return data.reduce<Record<string, Record<string, string> | undefined>>(
         (acc, item: SuiObjectResponse) => {
             const display = item.data?.display?.data;
-            const id = item.data?.objectId!;
+            const id = item.data?.objectId;
             acc[id] = display || undefined;
             return acc;
         },

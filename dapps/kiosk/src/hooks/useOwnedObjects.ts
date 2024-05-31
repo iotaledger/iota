@@ -40,7 +40,7 @@ export function useOwnedObjects({
 
             // Simple mapping to OwnedObject style.
             return data.map((item) => ({
-                display: displays[item.data?.objectId!] || {},
+                display: (item.data?.objectId && displays[item.data?.objectId]) || {},
                 type:
                     item.data?.type ??
                     (item?.data?.content?.dataType === 'package'

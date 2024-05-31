@@ -28,8 +28,10 @@ export function DisplayObject({ item, listing = null, children }: DisplayObject)
                     src={item.display.image_url}
                     className="object-cover aspect-auto h-full w-full mx-auto"
                     alt="The display of the object"
-                    // @ts-ignore-next-line simple way to just default on error. Not recommended for production.
-                    onError={(e) => (e.target.src = DEFAULT_IMAGE)}
+                    onError={(e) => {
+                        const image = e.target as HTMLImageElement;
+                        image.src = DEFAULT_IMAGE;
+                    }}
                 ></img>
             </div>
 

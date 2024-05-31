@@ -26,13 +26,13 @@ export default function MultiSigCombineSignatureGenerator() {
     // Perform generation of multisig address
     const onSubmit = (data: FieldValues) => {
         // handle MultiSig Pubkeys, Weights, and Threshold
-        let pks: { publicKey: PublicKey; weight: number }[] = [];
-        let sigs: SerializedSignature[] = [];
-        data.pubKeys.forEach((item: any) => {
-            const pk = publicKeyFromSuiBytes(item.pubKey);
-            pks.push({ publicKey: pk, weight: item.weight });
+        const pks: { publicKey: PublicKey; weight: number }[] = [];
+        const sigs: SerializedSignature[] = [];
+        data.pubKeys.forEach((item: Record<string, unknown>) => {
+            const pk = publicKeyFromSuiBytes(item.pubKey as string);
+            pks.push({ publicKey: pk, weight: item.weight as number });
             if (item.signature) {
-                sigs.push(item.signature);
+                sigs.push(item.signature as string);
             }
         });
         const multiSigPublicKey = MultiSigPublicKey.fromPublicKeys({

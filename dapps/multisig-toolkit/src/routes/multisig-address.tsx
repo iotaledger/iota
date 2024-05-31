@@ -30,10 +30,10 @@ export default function MultiSigAddressGenerator() {
 
     // Perform generation of multisig address
     const onSubmit = (data: FieldValues) => {
-        let pks: { publicKey: PublicKey; weight: number }[] = [];
-        data.pubKeys.forEach((item: any) => {
-            const pk = publicKeyFromSuiBytes(item.pubKey);
-            pks.push({ publicKey: pk, weight: item.weight });
+        const pks: { publicKey: PublicKey; weight: number }[] = [];
+        data.pubKeys.forEach((item: Record<string, unknown>) => {
+            const pk = publicKeyFromSuiBytes(item.pubKey as string);
+            pks.push({ publicKey: pk, weight: item.weight as number });
         });
         const multiSigPublicKey = MultiSigPublicKey.fromPublicKeys({
             threshold: data.threshold,
