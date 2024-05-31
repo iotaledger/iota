@@ -150,6 +150,7 @@ interface SignOptions extends BuildOptions {
 }
 
 export function isTransactionBlock(obj: unknown): obj is TransactionBlock {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return !!obj && typeof obj === 'object' && (obj as any)[TRANSACTION_BRAND] === true;
 }
 
@@ -359,6 +360,7 @@ export class TransactionBlock {
     }
 
     #normalizeTransactionArgument(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         arg: TransactionArgument | SerializedBcs<any>,
     ): TransactionArgument {
         if (isSerializedBcs(arg)) {
@@ -372,6 +374,7 @@ export class TransactionBlock {
 
     splitCoins(
         coin: TransactionObjectArgument | string,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         amounts: (TransactionArgument | SerializedBcs<any> | number | string | bigint)[],
     ) {
         return this.add(
@@ -431,6 +434,7 @@ export class TransactionBlock {
         typeArguments,
         target,
     }: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         arguments?: (TransactionArgument | SerializedBcs<any>)[];
         typeArguments?: string[];
         target: `${string}::${string}::${string}`;
@@ -445,6 +449,7 @@ export class TransactionBlock {
     }
     transferObjects(
         objects: (TransactionObjectArgument | string)[],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         address: TransactionArgument | SerializedBcs<any> | string,
     ) {
         return this.add(

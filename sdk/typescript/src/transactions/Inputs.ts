@@ -40,6 +40,7 @@ export type ObjectCallArg = Infer<typeof ObjectCallArg>;
 export const BuilderCallArg = union([PureCallArg, ObjectCallArg]);
 export type BuilderCallArg = Infer<typeof BuilderCallArg>;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function Pure(data: Uint8Array | SerializedBcs<any>, type?: string): PureCallArg;
 /** @deprecated pass SerializedBcs values instead */
 function Pure(data: unknown, type?: string): PureCallArg;

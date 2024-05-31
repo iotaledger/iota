@@ -6,7 +6,7 @@ import * as path from 'node:path';
 import { format } from 'prettier';
 import ts from 'typescript';
 
-/** @ts-ignore */
+// @ts-expect-error for prettier config declaration file
 import prettierConfig from '../../../prettier.config.js';
 import type {
     OpenRpcMethod,

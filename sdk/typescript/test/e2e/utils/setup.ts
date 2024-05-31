@@ -82,6 +82,7 @@ export async function setupWithFundedAddress(
         // overall timeout in 60 seconds
         timeout: 1000 * 60,
         // skip retry if we hit the rate-limit error
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         retryIf: (error: any) => !(error instanceof FaucetRateLimitError),
         logger: (msg) => console.warn('Retrying requesting from faucet: ' + msg),
     });

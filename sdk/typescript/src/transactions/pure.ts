@@ -17,6 +17,7 @@ export function createPure(
          * The pure value, serialized to BCS. If this is a Uint8Array, then the value
          * is assumed to be raw bytes, and will be used directly.
          */
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         value: SerializedBcs<any, any> | Uint8Array,
     ): TransactionBlockInput;
     /**

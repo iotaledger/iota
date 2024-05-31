@@ -26,6 +26,7 @@ import { normalizeSuiObjectId } from '../utils/sui-types.js';
 import { Inputs } from './Inputs.js';
 import { create } from './utils.js';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const option = <T extends Struct<any, any>>(some: T) =>
     union([object({ None: union([literal(true), literal(null)]) }), object({ Some: some })]);
 

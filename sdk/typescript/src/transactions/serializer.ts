@@ -40,6 +40,7 @@ const RESOLVED_STD_OPTION = {
     name: STD_OPTION_STRUCT_NAME,
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const isSameStruct = (a: any, b: any) =>
     a.address === b.address && a.module === b.module && a.name === b.name;
 

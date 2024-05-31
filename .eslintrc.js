@@ -255,6 +255,7 @@ module.exports = {
                 'no-restricted-globals': ['off'],
                 '@typescript-eslint/ban-types': ['error'],
                 '@typescript-eslint/no-explicit-any': 'off',
+                '@typescript-eslint/no-non-null-asserted-optional-chain': 'off',
             },
         },
         {

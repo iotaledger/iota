@@ -56,6 +56,7 @@ export type ObjectArg =
  */
 export type PureArg = { Pure: ArrayLike<number> };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function isPureArg(arg: any): arg is PureArg {
     return (arg as PureArg).Pure !== undefined;
 }
@@ -154,6 +155,7 @@ function unsafe_u64(options?: BcsTypeOptions<number>) {
         });
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function optionEnum<T extends BcsType<any, any>>(type: T) {
     return bcs.enum('Option', {
         None: null,
