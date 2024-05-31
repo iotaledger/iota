@@ -28,14 +28,28 @@ use crate::stardust::{
 pub(super) fn verify_native_tokens(
     native_tokens: &NativeTokens,
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
-    created_native_tokens: impl IntoIterator<Item = impl NativeTokenKind>,
+    created_native_tokens: Option<&[ObjectID]>,
+    storage: &InMemoryStorage,
 ) -> Result<()> {
     // Token types should be unique as the token ID is guaranteed unique within
     // NativeTokens
     let created_native_tokens = created_native_tokens
-        .into_iter()
-        .map(|nt| (nt.token_type(), nt.value()))
-        .collect::<HashMap<_, _>>();
+        .map(|object_ids| {
+            object_ids
+                .iter()
+                .map(|id| {
+                    let obj = storage
+                        .get_object(id)
+                        .ok_or_else(|| anyhow!("missing native token field for {id}"))?;
+                    obj.to_rust::<Field<String, Balance>>()
+                        .map(|nt| (nt.token_type(), nt.value()))
+                        .ok_or_else(|| {
+                            anyhow!("expected a native token field, found {:?}", obj.type_())
+                        })
+                })
+                .collect::<Result<HashMap<String, u64>, _>>()
+        })
+        .unwrap_or(Ok(HashMap::new()))?;
 
     ensure!(
         native_tokens.len() == created_native_tokens.len(),

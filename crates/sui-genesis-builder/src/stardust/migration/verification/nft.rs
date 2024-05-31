@@ -25,26 +25,24 @@ pub fn verify_nft_output(
     output_id: OutputId,
     output: &NftOutput,
     created_objects: &CreatedObjects,
-    _foundry_data: &HashMap<TokenId, FoundryLedgerData>,
+    foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
 ) -> anyhow::Result<()> {
-    verify_parent(output.address(), storage)?;
-
     let created_output = created_objects
         .output()
         .and_then(|id| {
             storage
                 .get_object(id)
-                .ok_or_else(|| anyhow!("missing object"))
+                .ok_or_else(|| anyhow!("missing nft output object for {output_id}"))
         })?
         .to_rust::<crate::stardust::types::NftOutput>()
-        .ok_or_else(|| anyhow!("invalid nft output object"))?;
+        .ok_or_else(|| anyhow!("invalid nft output object for {output_id}"))?;
 
     let nft = storage
         .get_object(&ObjectID::new(*output.nft_id_non_null(&output_id)))
-        .ok_or_else(|| anyhow!("missing object"))?
+        .ok_or_else(|| anyhow!("missing nft object for {output_id}"))?
         .to_rust::<crate::stardust::types::Nft>()
-        .ok_or_else(|| anyhow!("invalid nft object"))?;
+        .ok_or_else(|| anyhow!("invalid nft object for {output_id}"))?;
 
     // Amount
     ensure!(
@@ -55,26 +53,12 @@ pub fn verify_nft_output(
     );
 
     // Native Tokens
-    ensure!(
-        created_output.native_tokens.size == output.native_tokens().len() as u64,
-        "native tokens bag length mismatch: found {}, expected {}",
-        created_output.native_tokens.size,
-        output.native_tokens().len()
-    );
-    if let Some(ids) = created_objects.native_tokens() {
-        let created_native_token_fields = ids
-            .iter()
-            .map(|id| {
-                let obj = storage
-                    .get_object(id)
-                    .ok_or_else(|| anyhow!("missing native token field for {id}"))?;
-                obj.to_rust::<Field<String, Balance>>().ok_or_else(|| {
-                    anyhow!("expected a native token field, found {:?}", obj.type_())
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        verify_native_tokens(output.native_tokens(), created_native_token_fields)?;
-    };
+    verify_native_tokens(
+        output.native_tokens(),
+        foundry_data,
+        created_objects.native_tokens(),
+        storage,
+    )?;
 
     // Storage Deposit Return Unlock Condition
     verify_storage_deposit_unlock_condition(
@@ -119,6 +103,8 @@ pub fn verify_nft_output(
         created_objects.package().is_err(),
         "unexpected package found"
     );
+
+    verify_parent(output.address(), storage)?;
 
     Ok(())
 }
