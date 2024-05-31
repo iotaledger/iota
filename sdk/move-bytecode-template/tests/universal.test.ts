@@ -12,22 +12,22 @@ describe('move-binary-template', () => {
     });
 
     it('should de / ser', () => {
-        let bytes = pokemonBytes();
-        let de = template.deserialize(bytes);
-        let ser = template.serialize(de);
+        const bytes = pokemonBytes();
+        const de = template.deserialize(bytes);
+        const ser = template.serialize(de);
 
         expect(ser).toEqual(bytes);
     });
 
     it('should update identifiers', () => {
-        let patched = template.update_identifiers(pokemonBytes(), {
+        const patched = template.update_identifiers(pokemonBytes(), {
             Stats: 'PokeStats',
             pokemon_v1: 'capymon',
             new: 'capy_new',
             speed: 'capy_speed',
         });
 
-        let de = template.deserialize(patched);
+        const de = template.deserialize(patched);
 
         expect(de.identifiers.includes('PokeStats')).toBeTruthy();
         expect(de.identifiers.includes('capymon')).toBeTruthy();
@@ -36,7 +36,6 @@ describe('move-binary-template', () => {
     });
 
     it('should update constants', () => {
-        let constants = template.get_constants(coinTemplateBytes());
         let updatedConsts;
 
         // Update `6u8` to `3u8`
