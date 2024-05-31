@@ -1,50 +1,55 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
+
 use anyhow::anyhow;
 use arc_swap::Guard;
 use async_trait::async_trait;
+#[cfg(test)]
+use mockall::automock;
 use move_core_types::language_storage::TypeTag;
-use std::collections::{BTreeMap, HashMap};
-use std::sync::Arc;
-use sui_core::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use sui_core::authority::AuthorityState;
-use sui_core::execution_cache::ExecutionCacheRead;
-use sui_core::subscription_handler::SubscriptionHandler;
+use sui_core::{
+    authority::{authority_per_epoch_store::AuthorityPerEpochStore, AuthorityState},
+    execution_cache::ExecutionCacheRead,
+    subscription_handler::SubscriptionHandler,
+};
 use sui_json_rpc_types::{
     Coin as SuiCoin, DevInspectResults, DryRunTransactionBlockResponse, EventFilter, SuiEvent,
     SuiObjectDataFilter, TransactionFilter,
 };
-use sui_storage::indexes::TotalBalance;
-use sui_storage::key_value_store::{
-    KVStoreCheckpointData, KVStoreTransactionData, TransactionKeyValueStore,
-    TransactionKeyValueStoreTrait,
+use sui_storage::{
+    indexes::TotalBalance,
+    key_value_store::{
+        KVStoreCheckpointData, KVStoreTransactionData, TransactionKeyValueStore,
+        TransactionKeyValueStoreTrait,
+    },
 };
-use sui_types::base_types::{
-    MoveObjectType, ObjectID, ObjectInfo, ObjectRef, SequenceNumber, SuiAddress,
+use sui_types::{
+    base_types::{MoveObjectType, ObjectID, ObjectInfo, ObjectRef, SequenceNumber, SuiAddress},
+    committee::{Committee, EpochId},
+    digests::{ChainIdentifier, TransactionDigest, TransactionEventsDigest},
+    dynamic_field::DynamicFieldInfo,
+    effects::TransactionEffects,
+    error::{SuiError, UserInputError},
+    event::EventID,
+    governance::StakedSui,
+    messages_checkpoint::{
+        CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
+        VerifiedCheckpoint,
+    },
+    object::{Object, ObjectRead, PastObjectRead},
+    storage::{BackingPackageStore, ObjectStore, WriteKind},
+    sui_serde::BigInt,
+    sui_system_state::SuiSystemState,
+    timelock::timelocked_staked_sui::TimelockedStakedSui,
+    transaction::{Transaction, TransactionData, TransactionKind},
 };
-use sui_types::committee::{Committee, EpochId};
-use sui_types::digests::{ChainIdentifier, TransactionDigest, TransactionEventsDigest};
-use sui_types::dynamic_field::DynamicFieldInfo;
-use sui_types::effects::TransactionEffects;
-use sui_types::error::{SuiError, UserInputError};
-use sui_types::event::EventID;
-use sui_types::governance::StakedSui;
-use sui_types::messages_checkpoint::{
-    CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
-    VerifiedCheckpoint,
-};
-use sui_types::object::{Object, ObjectRead, PastObjectRead};
-use sui_types::storage::{BackingPackageStore, ObjectStore, WriteKind};
-use sui_types::sui_serde::BigInt;
-use sui_types::sui_system_state::SuiSystemState;
-use sui_types::timelock::timelocked_staked_sui::TimelockedStakedSui;
-use sui_types::transaction::{Transaction, TransactionData, TransactionKind};
 use thiserror::Error;
 use tokio::task::JoinError;
-
-#[cfg(test)]
-use mockall::automock;
 
 use crate::ObjectProvider;
 
@@ -583,8 +588,9 @@ impl StateRead for AuthorityState {
     }
 }
 
-/// This implementation allows `S` to be a dynamically sized type (DST) that implements ObjectProvider
-/// Valid as `S` is referenced only, and memory management is handled by `Arc`
+/// This implementation allows `S` to be a dynamically sized type (DST) that
+/// implements ObjectProvider Valid as `S` is referenced only, and memory
+/// management is handled by `Arc`
 #[async_trait]
 impl<S: ?Sized + StateRead> ObjectProvider for Arc<S> {
     type Error = StateReadError;
@@ -660,9 +666,10 @@ pub enum StateReadClientError {
 }
 
 /// `StateReadError` is the error type for callers to work with.
-/// It captures all possible errors that can occur while reading state, classifying them into two categories.
-/// Unless `StateReadError` is the final error state before returning to caller, the app may still want error context.
-/// This context is preserved in `Internal` and `Client` variants.
+/// It captures all possible errors that can occur while reading state,
+/// classifying them into two categories. Unless `StateReadError` is the final
+/// error state before returning to caller, the app may still want error
+/// context. This context is preserved in `Internal` and `Client` variants.
 #[derive(Debug, Error)]
 pub enum StateReadError {
     // sui_json_rpc::Error will do the final conversion to generic error message

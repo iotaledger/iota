@@ -16,16 +16,16 @@ import { getFullnodeUrl } from '@mysten/sui.js/client';
 const queryClient = new QueryClient();
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
-	<React.StrictMode>
-		<QueryClientProvider client={queryClient}>
-			<SuiClientProvider
-				defaultNetwork="testnet"
-				networks={{ testnet: { url: getFullnodeUrl('testnet') } }}
-			>
-				<WalletProvider enableUnsafeBurner>
-					<App />
-				</WalletProvider>
-			</SuiClientProvider>
-		</QueryClientProvider>
-	</React.StrictMode>,
+    <React.StrictMode>
+        <QueryClientProvider client={queryClient}>
+            <SuiClientProvider
+                defaultNetwork="testnet"
+                networks={{ testnet: { url: getFullnodeUrl('testnet') } }}
+            >
+                <WalletProvider enableUnsafeBurner>
+                    <App />
+                </WalletProvider>
+            </SuiClientProvider>
+        </QueryClientProvider>
+    </React.StrictMode>,
 );

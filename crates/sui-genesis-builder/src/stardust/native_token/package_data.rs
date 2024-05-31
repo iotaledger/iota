@@ -1,20 +1,25 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The [`package_data`] module provides the [`NativeTokenPackageData`] struct, which encapsulates all the data necessary to build a Stardust native token package.
+//! The [`package_data`] module provides the [`NativeTokenPackageData`] struct,
+//! which encapsulates all the data necessary to build a Stardust native token
+//! package.
 
 use anyhow::Result;
-use iota_sdk::types::block::address::AliasAddress;
-use iota_sdk::types::block::output::feature::Irc30Metadata;
-use iota_sdk::types::block::output::{FoundryId, FoundryOutput};
-use iota_sdk::Url;
+use iota_sdk::{
+    types::block::{
+        address::AliasAddress,
+        output::{feature::Irc30Metadata, FoundryId, FoundryOutput},
+    },
+    Url,
+};
 use rand::distributions::{Alphanumeric, DistString};
 use regex::Regex;
 
-use crate::stardust::error::StardustError;
-use crate::stardust::types::token_scheme::SimpleTokenSchemeU64;
+use crate::stardust::{error::StardustError, types::token_scheme::SimpleTokenSchemeU64};
 
-/// The [`NativeTokenPackageData`] struct encapsulates all the data necessary to build a Stardust native token package.
+/// The [`NativeTokenPackageData`] struct encapsulates all the data necessary to
+/// build a Stardust native token package.
 #[derive(Debug)]
 pub struct NativeTokenPackageData {
     package_name: String,
@@ -41,7 +46,8 @@ impl NativeTokenPackageData {
     }
 }
 
-/// The [`NativeTokenModuleData`] struct encapsulates all the data necessary to build a Stardust native token module.
+/// The [`NativeTokenModuleData`] struct encapsulates all the data necessary to
+/// build a Stardust native token module.
 #[derive(Debug)]
 pub struct NativeTokenModuleData {
     pub foundry_id: FoundryId,
@@ -107,7 +113,8 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
                 }
             })?;
 
-        // Derive a valid, lowercase move identifier from the symbol field in the irc30 metadata
+        // Derive a valid, lowercase move identifier from the symbol field in the irc30
+        // metadata
         let identifier = derive_lowercase_identifier(irc_30_metadata.symbol())?;
 
         let decimals = u8::try_from(*irc_30_metadata.decimals()).map_err(|e| {
@@ -177,17 +184,19 @@ fn derive_lowercase_identifier(input: &str) -> Result<String, StardustError> {
 mod tests {
     use std::ops::{Add, Sub};
 
-    use iota_sdk::types::block::address::AliasAddress;
-    use iota_sdk::types::block::output::feature::MetadataFeature;
-    use iota_sdk::types::block::output::unlock_condition::ImmutableAliasAddressUnlockCondition;
-    use iota_sdk::types::block::output::{
-        AliasId, Feature, FoundryOutputBuilder, SimpleTokenScheme, TokenScheme,
+    use iota_sdk::{
+        types::block::{
+            address::AliasAddress,
+            output::{
+                feature::MetadataFeature, unlock_condition::ImmutableAliasAddressUnlockCondition,
+                AliasId, Feature, FoundryOutputBuilder, SimpleTokenScheme, TokenScheme,
+            },
+        },
+        U256,
     };
-    use iota_sdk::U256;
-
-    use crate::stardust::native_token::package_builder;
 
     use super::*;
+    use crate::stardust::native_token::package_builder;
 
     #[test]
     fn foundry_output_with_default_metadata() -> Result<()> {

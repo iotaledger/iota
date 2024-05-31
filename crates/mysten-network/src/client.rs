@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use eyre::{eyre, Context, Result};
+use tonic::transport::{Channel, Endpoint, Uri};
+
 use crate::{
     config::Config,
     multiaddr::{parse_dns, parse_ip4, parse_ip6, Multiaddr, Protocol},
 };
-use eyre::{eyre, Context, Result};
-use tonic::transport::{Channel, Endpoint, Uri};
 
 pub async fn connect(address: &Multiaddr) -> Result<Channel> {
     let channel = endpoint_from_multiaddr(address)?.connect().await?;

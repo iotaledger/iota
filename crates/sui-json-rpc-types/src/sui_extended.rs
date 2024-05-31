@@ -6,17 +6,15 @@ use std::collections::BTreeMap;
 use fastcrypto::traits::ToFromBytes;
 use move_core_types::identifier::Identifier;
 use schemars::JsonSchema;
-use serde::Deserialize;
-use serde::Serialize;
-use serde_with::serde_as;
-use serde_with::DisplayFromStr;
-
-use sui_types::base_types::AuthorityName;
-use sui_types::base_types::{EpochId, ObjectID};
-use sui_types::committee::Committee;
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
-use sui_types::sui_serde::BigInt;
-use sui_types::sui_system_state::sui_system_state_summary::SuiValidatorSummary;
+use serde::{Deserialize, Serialize};
+use serde_with::{serde_as, DisplayFromStr};
+use sui_types::{
+    base_types::{AuthorityName, EpochId, ObjectID},
+    committee::Committee,
+    messages_checkpoint::CheckpointSequenceNumber,
+    sui_serde::BigInt,
+    sui_system_state::sui_system_state_summary::SuiValidatorSummary,
+};
 
 use crate::Page;
 

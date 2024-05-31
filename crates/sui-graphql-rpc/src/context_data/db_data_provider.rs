@@ -1,14 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    config::{DEFAULT_REQUEST_TIMEOUT_MS, DEFAULT_SERVER_DB_POOL_SIZE},
-    error::Error,
-    types::{address::Address, sui_address::SuiAddress, validator::Validator},
-};
 use std::{collections::BTreeMap, time::Duration};
-use sui_indexer::db::PgConnectionPoolConfig;
-use sui_indexer::{apis::GovernanceReadApi, indexer_reader::IndexerReader};
+
+use sui_indexer::{
+    apis::GovernanceReadApi, db::PgConnectionPoolConfig, indexer_reader::IndexerReader,
+};
 use sui_json_rpc_types::Stake as RpcStakedSui;
 use sui_types::{
     base_types::SuiAddress as NativeSuiAddress,
@@ -16,6 +13,12 @@ use sui_types::{
     sui_system_state::sui_system_state_summary::{
         SuiSystemStateSummary as NativeSuiSystemStateSummary, SuiValidatorSummary,
     },
+};
+
+use crate::{
+    config::{DEFAULT_REQUEST_TIMEOUT_MS, DEFAULT_SERVER_DB_POOL_SIZE},
+    error::Error,
+    types::{address::Address, sui_address::SuiAddress, validator::Validator},
 };
 
 pub(crate) struct PgManager {
@@ -27,7 +30,8 @@ impl PgManager {
         Self { inner }
     }
 
-    /// Create a new underlying reader, which is used by this type as well as other data providers.
+    /// Create a new underlying reader, which is used by this type as well as
+    /// other data providers.
     pub(crate) fn reader(db_url: impl Into<String>) -> Result<IndexerReader, Error> {
         Self::reader_with_config(
             db_url,
@@ -85,8 +89,9 @@ impl PgManager {
         }
     }
 
-    /// Make a request to the RPC for its representations of the staked sui we parsed out of the
-    /// object.  Used to implement fields that are implemented in JSON-RPC but not GraphQL (yet).
+    /// Make a request to the RPC for its representations of the staked sui we
+    /// parsed out of the object.  Used to implement fields that are
+    /// implemented in JSON-RPC but not GraphQL (yet).
     pub(crate) async fn fetch_rpc_staked_sui(
         &self,
         stake: NativeStakedSui,
@@ -114,9 +119,10 @@ impl PgManager {
     }
 }
 
-/// `checkpoint_viewed_at` represents the checkpoint sequence number at which the set of
-/// `SuiValidatorSummary` was queried for. Each `Validator` will inherit this checkpoint, so that
-/// when viewing the `Validator`'s state, it will be as if it was read at the same checkpoint.
+/// `checkpoint_viewed_at` represents the checkpoint sequence number at which
+/// the set of `SuiValidatorSummary` was queried for. Each `Validator` will
+/// inherit this checkpoint, so that when viewing the `Validator`'s state, it
+/// will be as if it was read at the same checkpoint.
 pub(crate) fn convert_to_validators(
     validators: Vec<SuiValidatorSummary>,
     system_state: Option<NativeSuiSystemStateSummary>,

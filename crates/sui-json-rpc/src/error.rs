@@ -1,21 +1,27 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::BTreeMap;
+
 use fastcrypto::error::FastCryptoError;
 use hyper::header::InvalidHeaderValue;
 use itertools::Itertools;
-use jsonrpsee::core::Error as RpcError;
-use jsonrpsee::types::error::{CallError, INTERNAL_ERROR_CODE};
-use jsonrpsee::types::ErrorObject;
-use std::collections::BTreeMap;
+use jsonrpsee::{
+    core::Error as RpcError,
+    types::{
+        error::{CallError, INTERNAL_ERROR_CODE},
+        ErrorObject,
+    },
+};
 use sui_json_rpc_api::{TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSIENT_ERROR_CODE};
-use sui_types::error::{SuiError, SuiObjectResponseError, UserInputError};
-use sui_types::quorum_driver_types::QuorumDriverError;
+use sui_types::{
+    error::{SuiError, SuiObjectResponseError, UserInputError},
+    quorum_driver_types::QuorumDriverError,
+};
 use thiserror::Error;
 use tokio::task::JoinError;
 
-use crate::authority_state::StateReadError;
-use crate::name_service::NameServiceError;
+use crate::{authority_state::StateReadError, name_service::NameServiceError};
 
 pub type RpcInterimResult<T = ()> = Result<T, Error>;
 
@@ -134,7 +140,8 @@ impl From<Error> for RpcError {
                 match err {
                     QuorumDriverError::InvalidUserSignature(err) => {
                         let inner_error_str = match err {
-                            // TODO(wlmyng): update SuiError display trait to render UserInputError with display
+                            // TODO(wlmyng): update SuiError display trait to render UserInputError
+                            // with display
                             SuiError::UserInputError { error } => error.to_string(),
                             _ => err.to_string(),
                         };
@@ -168,10 +175,9 @@ impl From<Error> for RpcError {
                         retried_tx_success,
                     } => {
                         let error_message = format!(
-                        "Failed to sign transaction by a quorum of validators because of locked objects. Retried a conflicting transaction {:?}, success: {:?}",
-                        retried_tx,
-                        retried_tx_success
-                    );
+                            "Failed to sign transaction by a quorum of validators because of locked objects. Retried a conflicting transaction {:?}, success: {:?}",
+                            retried_tx, retried_tx_success
+                        );
 
                         let new_map = conflicting_txes
                             .into_iter()
@@ -193,7 +199,8 @@ impl From<Error> for RpcError {
                     QuorumDriverError::NonRecoverableTransactionError { errors } => {
                         let new_errors: Vec<String> = errors
                             .into_iter()
-                            // sort by total stake, descending, so users see the most prominent one first
+                            // sort by total stake, descending, so users see the most prominent one
+                            // first
                             .sorted_by(|(_, a, _), (_, b, _)| b.cmp(a))
                             .filter_map(|(err, _, _)| {
                                 match &err {
@@ -225,7 +232,10 @@ impl From<Error> for RpcError {
                         );
 
                         let error_list = new_errors.join(", ");
-                        let error_msg = format!("Transaction execution failed due to issues with transaction inputs, please review the errors and try again: {}.", error_list);
+                        let error_msg = format!(
+                            "Transaction execution failed due to issues with transaction inputs, please review the errors and try again: {}.",
+                            error_list
+                        );
 
                         let error_object = ErrorObject::owned(
                             TRANSACTION_EXECUTION_CLIENT_ERROR_CODE,
@@ -269,7 +279,9 @@ pub enum SuiRpcInputError {
     #[error("{0}")]
     GenericInvalid(String),
 
-    #[error("request_type` must set to `None` or `WaitForLocalExecution` if effects is required in the response")]
+    #[error(
+        "request_type` must set to `None` or `WaitForLocalExecution` if effects is required in the response"
+    )]
     InvalidExecuteTransactionRequestType,
 
     #[error("Unsupported protocol version requested. Min supported: {0}, max supported: {1}")]
@@ -302,18 +314,16 @@ impl From<SuiRpcInputError> for RpcError {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use expect_test::expect;
     use jsonrpsee::types::ErrorObjectOwned;
-    use sui_types::base_types::AuthorityName;
-    use sui_types::base_types::ObjectID;
-    use sui_types::base_types::ObjectRef;
-    use sui_types::base_types::SequenceNumber;
-    use sui_types::committee::StakeUnit;
-    use sui_types::crypto::AuthorityPublicKey;
-    use sui_types::crypto::AuthorityPublicKeyBytes;
-    use sui_types::digests::ObjectDigest;
-    use sui_types::digests::TransactionDigest;
+    use sui_types::{
+        base_types::{AuthorityName, ObjectID, ObjectRef, SequenceNumber},
+        committee::StakeUnit,
+        crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes},
+        digests::{ObjectDigest, TransactionDigest},
+    };
+
+    use super::*;
 
     fn test_object_ref() -> ObjectRef {
         (
@@ -399,7 +409,9 @@ mod tests {
             let error_object: ErrorObjectOwned = rpc_error.into();
             let expected_code = expect!["-32002"];
             expected_code.assert_eq(&error_object.code().to_string());
-            let expected_message = expect!["Failed to sign transaction by a quorum of validators because of locked objects. Retried a conflicting transaction Some(TransactionDigest(11111111111111111111111111111111)), success: Some(true)"];
+            let expected_message = expect![
+                "Failed to sign transaction by a quorum of validators because of locked objects. Retried a conflicting transaction Some(TransactionDigest(11111111111111111111111111111111)), success: Some(true)"
+            ];
             expected_message.assert_eq(error_object.message());
             let expected_data = expect![[
                 r#"{"11111111111111111111111111111111":[["0x0000000000000000000000000000000000000000000000000000000000000000",0,"11111111111111111111111111111111"]]}"#
@@ -440,8 +452,9 @@ mod tests {
             let error_object: ErrorObjectOwned = rpc_error.into();
             let expected_code = expect!["-32002"];
             expected_code.assert_eq(&error_object.code().to_string());
-            let expected_message =
-                expect!["Transaction execution failed due to issues with transaction inputs, please review the errors and try again: Balance of gas object 10 is lower than the needed amount: 100., Object (0x0000000000000000000000000000000000000000000000000000000000000000, SequenceNumber(0), o#11111111111111111111111111111111) is not available for consumption, its current version: SequenceNumber(10).."];
+            let expected_message = expect![
+                "Transaction execution failed due to issues with transaction inputs, please review the errors and try again: Balance of gas object 10 is lower than the needed amount: 100., Object (0x0000000000000000000000000000000000000000000000000000000000000000, SequenceNumber(0), o#11111111111111111111111111111111) is not available for consumption, its current version: SequenceNumber(10).."
+            ];
             expected_message.assert_eq(error_object.message());
         }
 
@@ -472,8 +485,9 @@ mod tests {
             let error_object: ErrorObjectOwned = rpc_error.into();
             let expected_code = expect!["-32002"];
             expected_code.assert_eq(&error_object.code().to_string());
-            let expected_message =
-                expect!["Transaction execution failed due to issues with transaction inputs, please review the errors and try again: Could not find the referenced object 0x0000000000000000000000000000000000000000000000000000000000000000 at version None.."];
+            let expected_message = expect![
+                "Transaction execution failed due to issues with transaction inputs, please review the errors and try again: Could not find the referenced object 0x0000000000000000000000000000000000000000000000000000000000000000 at version None.."
+            ];
             expected_message.assert_eq(error_object.message());
         }
 
@@ -503,7 +517,9 @@ mod tests {
             let error_object: ErrorObjectOwned = rpc_error.into();
             let expected_code = expect!["-32050"];
             expected_code.assert_eq(&error_object.code().to_string());
-            let expected_message = expect!["Transaction is not processed because 10 of validators by stake are overloaded with certificates pending execution."];
+            let expected_message = expect![
+                "Transaction is not processed because 10 of validators by stake are overloaded with certificates pending execution."
+            ];
             expected_message.assert_eq(error_object.message());
         }
     }

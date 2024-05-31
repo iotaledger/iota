@@ -1,60 +1,69 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    num::NonZeroUsize,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
+
 use futures::{future::join_all, StreamExt};
-use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
-use jsonrpsee::ws_client::WsClient;
-use jsonrpsee::ws_client::WsClientBuilder;
+use jsonrpsee::{
+    http_client::{HttpClient, HttpClientBuilder},
+    ws_client::{WsClient, WsClientBuilder},
+};
 use rand::{distributions::*, rngs::OsRng, seq::SliceRandom};
-use std::collections::HashMap;
-use std::net::SocketAddr;
-use std::num::NonZeroUsize;
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
-use sui_config::node::{AuthorityOverloadConfig, DBCheckpointConfig, RunWithRange};
-use sui_config::{Config, SUI_CLIENT_CONFIG, SUI_NETWORK_CONFIG};
-use sui_config::{NodeConfig, PersistedConfig, SUI_KEYSTORE_FILENAME};
-use sui_core::authority_aggregator::AuthorityAggregator;
-use sui_core::authority_client::NetworkAuthorityClient;
+use sui_config::{
+    node::{AuthorityOverloadConfig, DBCheckpointConfig, RunWithRange},
+    Config, NodeConfig, PersistedConfig, SUI_CLIENT_CONFIG, SUI_KEYSTORE_FILENAME,
+    SUI_NETWORK_CONFIG,
+};
+use sui_core::{
+    authority_aggregator::AuthorityAggregator, authority_client::NetworkAuthorityClient,
+};
 use sui_json_rpc_types::{
     SuiTransactionBlockEffectsAPI, SuiTransactionBlockResponse, TransactionFilter,
 };
 use sui_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use sui_node::SuiNodeHandle;
 use sui_protocol_config::{ProtocolVersion, SupportedProtocolVersions};
-use sui_sdk::sui_client_config::{SuiClientConfig, SuiEnv};
-use sui_sdk::wallet_context::WalletContext;
-use sui_sdk::{SuiClient, SuiClientBuilder};
+use sui_sdk::{
+    sui_client_config::{SuiClientConfig, SuiEnv},
+    wallet_context::WalletContext,
+    SuiClient, SuiClientBuilder,
+};
 use sui_swarm::memory::{Swarm, SwarmBuilder};
-use sui_swarm_config::genesis_config::{
-    AccountConfig, GenesisConfig, ValidatorGenesisConfig, DEFAULT_GAS_AMOUNT,
+use sui_swarm_config::{
+    genesis_config::{AccountConfig, GenesisConfig, ValidatorGenesisConfig, DEFAULT_GAS_AMOUNT},
+    network_config::NetworkConfig,
+    network_config_builder::{ProtocolVersionsConfig, SupportedProtocolVersionsCallback},
+    node_config_builder::{FullnodeConfigBuilder, ValidatorConfigBuilder},
 };
-use sui_swarm_config::network_config::NetworkConfig;
-use sui_swarm_config::network_config_builder::{
-    ProtocolVersionsConfig, SupportedProtocolVersionsCallback,
-};
-use sui_swarm_config::node_config_builder::{FullnodeConfigBuilder, ValidatorConfigBuilder};
 use sui_test_transaction_builder::TestTransactionBuilder;
-use sui_types::base_types::ConciseableName;
-use sui_types::base_types::{AuthorityName, ObjectID, ObjectRef, SuiAddress};
-use sui_types::committee::CommitteeTrait;
-use sui_types::committee::{Committee, EpochId};
-use sui_types::crypto::KeypairTraits;
-use sui_types::crypto::SuiKeyPair;
-use sui_types::effects::{TransactionEffects, TransactionEvents};
-use sui_types::error::SuiResult;
-use sui_types::governance::MIN_VALIDATOR_JOINING_STAKE_MIST;
-use sui_types::message_envelope::Message;
-use sui_types::object::Object;
-use sui_types::sui_system_state::epoch_start_sui_system_state::EpochStartSystemStateTrait;
-use sui_types::sui_system_state::SuiSystemState;
-use sui_types::sui_system_state::SuiSystemStateTrait;
-use sui_types::transaction::{
-    CertifiedTransaction, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
+use sui_types::{
+    base_types::{AuthorityName, ConciseableName, ObjectID, ObjectRef, SuiAddress},
+    committee::{Committee, CommitteeTrait, EpochId},
+    crypto::{KeypairTraits, SuiKeyPair},
+    effects::{TransactionEffects, TransactionEvents},
+    error::SuiResult,
+    governance::MIN_VALIDATOR_JOINING_STAKE_MIST,
+    message_envelope::Message,
+    object::Object,
+    sui_system_state::{
+        epoch_start_sui_system_state::EpochStartSystemStateTrait, SuiSystemState,
+        SuiSystemStateTrait,
+    },
+    transaction::{
+        CertifiedTransaction, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
+    },
 };
-use tokio::time::{timeout, Instant};
-use tokio::{task::JoinHandle, time::sleep};
+use tokio::{
+    task::JoinHandle,
+    time::{sleep, timeout, Instant},
+};
 use tracing::{error, info};
 
 const NUM_VALIDATOR: usize = 4;
@@ -254,12 +263,13 @@ impl TestCluster {
             .unwrap()
     }
 
-    /// To detect whether the network has reached such state, we use the fullnode as the
-    /// source of truth, since a fullnode only does epoch transition when the network has
-    /// done so.
+    /// To detect whether the network has reached such state, we use the
+    /// fullnode as the source of truth, since a fullnode only does epoch
+    /// transition when the network has done so.
     /// If target_epoch is specified, wait until the cluster reaches that epoch.
     /// If target_epoch is None, wait until the cluster reaches the next epoch.
-    /// Note that this function does not guarantee that every node is at the target epoch.
+    /// Note that this function does not guarantee that every node is at the
+    /// target epoch.
     pub async fn wait_for_epoch(&self, target_epoch: Option<EpochId>) -> SuiSystemState {
         self.wait_for_epoch_with_timeout(target_epoch, Duration::from_secs(60))
             .await
@@ -361,8 +371,9 @@ impl TestCluster {
         .expect("Timed out waiting for cluster to target protocol version")
     }
 
-    /// Ask 2f+1 validators to close epoch actively, and wait for the entire network to reach the next
-    /// epoch. This requires waiting for both the fullnode and all validators to reach the next epoch.
+    /// Ask 2f+1 validators to close epoch actively, and wait for the entire
+    /// network to reach the next epoch. This requires waiting for both the
+    /// fullnode and all validators to reach the next epoch.
     pub async fn trigger_reconfiguration(&self) {
         info!("Starting reconfiguration");
         let start = Instant::now();
@@ -432,10 +443,10 @@ impl TestCluster {
             .expect("timed out waiting for reconfiguration to complete");
     }
 
-    /// Upgrade the network protocol version, by restarting every validator with a new
-    /// supported versions.
-    /// Note that we don't restart the fullnode here, and it is assumed that the fulnode supports
-    /// the entire version range.
+    /// Upgrade the network protocol version, by restarting every validator with
+    /// a new supported versions.
+    /// Note that we don't restart the fullnode here, and it is assumed that the
+    /// fulnode supports the entire version range.
     pub async fn update_validator_supported_versions(
         &mut self,
         new_supported_versions: SupportedProtocolVersions,
@@ -541,22 +552,24 @@ impl TestCluster {
         self.execute_transaction(tx).await
     }
 
-    /// Execute a transaction on the network and wait for it to be executed on the rpc fullnode.
-    /// Also expects the effects status to be ExecutionStatus::Success.
-    /// This function is recommended for transaction execution since it most resembles the
-    /// production path.
+    /// Execute a transaction on the network and wait for it to be executed on
+    /// the rpc fullnode. Also expects the effects status to be
+    /// ExecutionStatus::Success. This function is recommended for
+    /// transaction execution since it most resembles the production path.
     pub async fn execute_transaction(&self, tx: Transaction) -> SuiTransactionBlockResponse {
         self.wallet.execute_transaction_must_succeed(tx).await
     }
 
-    /// Different from `execute_transaction` which returns RPC effects types, this function
-    /// returns raw effects, events and extra objects returned by the validators,
-    /// aggregated manually (without authority aggregator).
-    /// It also does not check whether the transaction is executed successfully.
-    /// In order to keep the fullnode up-to-date so that latter queries can read consistent
-    /// results, it calls execute_transaction_may_fail again which goes through fullnode.
-    /// This is less efficient and verbose, but can be used if more details are needed
-    /// from the execution results, and if the transaction is expected to fail.
+    /// Different from `execute_transaction` which returns RPC effects types,
+    /// this function returns raw effects, events and extra objects returned
+    /// by the validators, aggregated manually (without authority
+    /// aggregator). It also does not check whether the transaction is
+    /// executed successfully. In order to keep the fullnode up-to-date so
+    /// that latter queries can read consistent results, it calls
+    /// execute_transaction_may_fail again which goes through fullnode. This
+    /// is less efficient and verbose, but can be used if more details are
+    /// needed from the execution results, and if the transaction is
+    /// expected to fail.
     pub async fn execute_transaction_return_raw_effects(
         &self,
         tx: Transaction,
@@ -582,11 +595,12 @@ impl TestCluster {
         Ok(agg.process_transaction(tx).await?.into_cert_for_testing())
     }
 
-    /// Execute a transaction on specified list of validators, and bypassing authority aggregator.
-    /// This allows us to obtain the return value directly from validators, so that we can access more
-    /// information directly such as the original effects, events and extra objects returned.
-    /// This also allows us to control which validator to send certificates to, which is useful in
-    /// some tests.
+    /// Execute a transaction on specified list of validators, and bypassing
+    /// authority aggregator. This allows us to obtain the return value
+    /// directly from validators, so that we can access more information
+    /// directly such as the original effects, events and extra objects
+    /// returned. This also allows us to control which validator to send
+    /// certificates to, which is useful in some tests.
     pub async fn submit_transaction_to_validators(
         &self,
         tx: Transaction,
@@ -940,8 +954,8 @@ impl TestClusterBuilder {
 
     pub async fn build(mut self) -> TestCluster {
         // All test clusters receive a continuous stream of random JWKs.
-        // If we later use zklogin authenticated transactions in tests we will need to supply
-        // valid JWKs as well.
+        // If we later use zklogin authenticated transactions in tests we will need to
+        // supply valid JWKs as well.
         #[cfg(msim)]
         if !self.default_jwks {
             sui_node::set_jwk_injector(Arc::new(|_authority, provider| {

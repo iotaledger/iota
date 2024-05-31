@@ -7,13 +7,11 @@ use std::{
 };
 
 use anyhow::Result;
-use bigdecimal::ToPrimitive;
 use iota_sdk::types::block::output::{
     AliasOutput, BasicOutput, FoundryOutput, NativeTokens, NftOutput, OutputId, TokenId,
 };
 use move_core_types::{ident_str, language_storage::StructTag};
 use move_vm_runtime_v2::move_vm::MoveVM;
-
 use sui_adapter_v2::{
     adapter::new_move_vm, gas_charger::GasCharger, programmable_transactions,
     temporary_store::TemporaryStore,
@@ -24,30 +22,24 @@ use sui_move_natives_v2::all_natives;
 use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use sui_types::{
     balance::Balance,
-    base_types::{ObjectRef, SequenceNumber},
+    base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress, TxContext},
     collection_types::Bag,
     dynamic_field::Field,
-    id::UID,
-    move_package::{MovePackage, TypeOrigin},
-    object::Object,
-    transaction::{Argument, InputObjects, ObjectArg},
-    TypeTag,
-};
-use sui_types::{
-    base_types::{ObjectID, SuiAddress, TxContext},
     execution_mode,
+    id::UID,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
     metrics::LimitsMetrics,
-    move_package::UpgradeCap,
+    move_package::{MovePackage, TypeOrigin, UpgradeCap},
+    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
-        CheckedInputObjects, Command, InputObjectKind, ObjectReadResult, ProgrammableTransaction,
+        Argument, CheckedInputObjects, Command, InputObjectKind, InputObjects, ObjectArg,
+        ObjectReadResult, ProgrammableTransaction,
     },
-    STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID,
+    TypeTag, STARDUST_ADDRESS, STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID,
 };
 
-use crate::stardust::types::token_scheme::{u256_to_bigdecimal, SimpleTokenSchemeU64};
 use crate::{
     process_package,
     stardust::{
@@ -57,7 +49,7 @@ use crate::{
         },
         types::{
             snapshot::OutputHeader, stardust_to_sui_address, stardust_to_sui_address_owner,
-            timelock, Nft,
+            timelock, token_scheme::SimpleTokenSchemeU64, Nft,
         },
     },
 };
@@ -88,18 +80,18 @@ impl Executor {
         // Use a throwaway metrics registry for transaction execution.
         let metrics = Arc::new(LimitsMetrics::new(&prometheus::Registry::new()));
         let mut store = InMemoryStorage::new(Vec::new());
-        // We don't know the chain ID here since we haven't yet created the genesis checkpoint.
-        // However since we know there are no chain specific protocol config options in genesis,
-        // we use Chain::Unknown here.
+        // We don't know the chain ID here since we haven't yet created the genesis
+        // checkpoint. However since we know there are no chain specific
+        // protocol config options in genesis, we use Chain::Unknown here.
         let protocol_config = ProtocolConfig::get_for_version(protocol_version, Chain::Unknown);
-        // Get the correct system packages for our protocol version. If we cannot find the snapshot
-        // that means that we must be at the latest version and we should use the latest version of the
-        // framework.
+        // Get the correct system packages for our protocol version. If we cannot find
+        // the snapshot that means that we must be at the latest version and we
+        // should use the latest version of the framework.
         let mut system_packages =
             sui_framework_snapshot::load_bytecode_snapshot(protocol_version.as_u64())
                 .unwrap_or_else(|_| BuiltInFramework::iter_system_packages().cloned().collect());
-        // TODO: Remove when we have bumped the protocol to include the stardust packages
-        // into the system packages.
+        // TODO: Remove when we have bumped the protocol to include the stardust
+        // packages into the system packages.
         //
         // See also: https://github.com/iotaledger/kinesis/pull/149
         system_packages.extend(BuiltInFramework::iter_stardust_packages().cloned());
@@ -134,6 +126,10 @@ impl Executor {
 
     pub fn store(&self) -> &InMemoryStorage {
         &self.store
+    }
+
+    pub(crate) fn native_tokens(&self) -> &HashMap<TokenId, FoundryLedgerData> {
+        &self.native_tokens
     }
 
     /// The migration objects.
@@ -241,6 +237,14 @@ impl Executor {
                 if object.is_coin() {
                     minted_coin_id = Some(object.id());
                     created_objects.set_coin(object.id())?;
+                } else if object.type_().map_or(false, |t| t.is_coin_metadata()) {
+                    created_objects.set_coin_metadata(object.id())?
+                } else if object.type_().map_or(false, |t| {
+                    t.address() == STARDUST_ADDRESS
+                        && t.module().as_str() == "capped_coin"
+                        && t.name().as_str() == "MaxSupplyPolicy"
+                }) {
+                    created_objects.set_max_supply_policy(object.id())?
                 } else if object.is_package() {
                     foundry_package = Some(
                         object
@@ -280,7 +284,8 @@ impl Executor {
         header: &OutputHeader,
         alias: &AliasOutput,
     ) -> Result<CreatedObjects> {
-        // Take the Alias ID set in the output or, if its zeroized, compute it from the Output ID.
+        // Take the Alias ID set in the output or, if its zeroized, compute it from the
+        // Output ID.
         let alias_id = ObjectID::new(*alias.alias_id().or_from_output_id(&header.output_id()));
         let move_alias = crate::stardust::types::Alias::try_from_stardust(alias_id, alias)?;
         let mut created_objects = CreatedObjects::default();
@@ -320,7 +325,8 @@ impl Executor {
         created_objects.set_output(move_alias_output_object.id())?;
         self.store.insert_object(move_alias_output_object);
 
-        // Attach the Alias to the Alias Output as a dynamic object field via the attach_alias convenience method.
+        // Attach the Alias to the Alias Output as a dynamic object field via the
+        // attach_alias convenience method.
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
 
@@ -350,7 +356,8 @@ impl Executor {
         Ok(created_objects)
     }
 
-    /// Create a [`Bag`] of balances of native tokens executing a programmable transaction block.
+    /// Create a [`Bag`] of balances of native tokens executing a programmable
+    /// transaction block.
     pub(crate) fn create_bag_with_pt(
         &mut self,
         native_tokens: &NativeTokens,
@@ -374,23 +381,11 @@ impl Executor {
                 object_deps.push(object_ref);
                 foundry_package_deps.push(foundry_ledger_data.package_id);
 
-                let token_type = format!(
-                    "{}::{}::{}",
-                    foundry_ledger_data.coin_type_origin.package,
-                    foundry_ledger_data.coin_type_origin.module_name,
-                    foundry_ledger_data.coin_type_origin.struct_name
-                );
+                let token_type = foundry_ledger_data.canonical_coin_type();
 
-                let adjusted_amount = if let Some(ratio) = &foundry_ledger_data
+                let adjusted_amount = foundry_ledger_data
                     .token_scheme_u64
-                    .token_adjustment_ratio()
-                {
-                    (u256_to_bigdecimal(token.amount()) * ratio)
-                        .to_u64()
-                        .expect("should be a valid u64")
-                } else {
-                    token.amount().as_u64()
-                };
+                    .adjust_tokens(token.amount());
 
                 let balance = pt::coin_balance_split(
                     &mut builder,
@@ -404,9 +399,9 @@ impl Executor {
             // The `Bag` object does not have the `drop` ability so we have to use it
             // in the transaction block. Therefore we transfer it to the `0x0` address.
             //
-            // Nevertheless, we only store the contents of the object, and thus the ownership
-            // metadata are irrelevant to us. This is a dummy transfer then to satisfy
-            // the VM.
+            // Nevertheless, we only store the contents of the object, and thus the
+            // ownership metadata are irrelevant to us. This is a dummy transfer
+            // then to satisfy the VM.
             builder.transfer_arg(Default::default(), bag);
             builder.finish()
         };
@@ -475,16 +470,9 @@ impl Executor {
                 foundry_package_deps.push(foundry_ledger_data.package_id);
 
                 // Pay using that object
-                let adjusted_amount = if let Some(ratio) = &foundry_ledger_data
+                let adjusted_amount = foundry_ledger_data
                     .token_scheme_u64
-                    .token_adjustment_ratio()
-                {
-                    (u256_to_bigdecimal(token.amount()) * ratio)
-                        .to_u64()
-                        .expect("should be a valid u64")
-                } else {
-                    token.amount().as_u64()
-                };
+                    .adjust_tokens(token.amount());
                 builder.pay(vec![object_ref], vec![owner], vec![adjusted_amount])?;
             }
 
@@ -558,8 +546,9 @@ impl Executor {
         Ok(created_objects)
     }
 
-    /// Creates [`TimeLock<Balance<IOTA>>`] objects which represent vested rewards
-    /// that were created during the stardust upgrade on IOTA mainnet.
+    /// Creates [`TimeLock<Balance<IOTA>>`] objects which represent vested
+    /// rewards that were created during the stardust upgrade on IOTA
+    /// mainnet.
     pub(super) fn create_timelock_object(
         &mut self,
         header: &OutputHeader,
@@ -597,9 +586,10 @@ impl Executor {
     ) -> Result<CreatedObjects> {
         let mut created_objects = CreatedObjects::default();
 
-        // Take the Nft ID set in the output or, if its zeroized, compute it from the Output ID.
+        // Take the Nft ID set in the output or, if its zeroized, compute it from the
+        // Output ID.
         let nft_id = ObjectID::new(*nft.nft_id().or_from_output_id(&header.output_id()));
-        let move_nft = Nft::try_from_stardust(nft_id, &nft)?;
+        let move_nft = Nft::try_from_stardust(nft_id, nft)?;
 
         // TODO: We should ensure that no circular ownership exists.
         let nft_output_owner_address = stardust_to_sui_address(nft.address())?;
@@ -621,7 +611,7 @@ impl Executor {
         created_objects.set_native_tokens(fields)?;
         let move_nft_output = crate::stardust::types::NftOutput::try_from_stardust(
             self.tx_context.fresh_id(),
-            &nft,
+            nft,
             bag,
         )?;
 
@@ -637,7 +627,8 @@ impl Executor {
         created_objects.set_output(move_nft_output_object.id())?;
         self.store.insert_object(move_nft_output_object);
 
-        // Attach the Nft to the Nft Output as a dynamic object field via the attach_nft convenience method.
+        // Attach the Nft to the Nft Output as a dynamic object field via the attach_nft
+        // convenience method.
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
 
@@ -668,17 +659,9 @@ impl Executor {
     }
 }
 
-#[cfg(test)]
-impl Executor {
-    pub(crate) fn native_tokens(&mut self) -> &HashMap<TokenId, FoundryLedgerData> {
-        &self.native_tokens
-    }
-}
-
 mod pt {
-    use crate::stardust::migration::NATIVE_TOKEN_BAG_KEY_TYPE;
-
     use super::*;
+    use crate::stardust::migration::NATIVE_TOKEN_BAG_KEY_TYPE;
 
     pub fn coin_balance_split(
         builder: &mut ProgrammableTransactionBuilder,
@@ -744,7 +727,8 @@ pub(crate) struct FoundryLedgerData {
 }
 
 impl FoundryLedgerData {
-    /// Store the minted coin `ObjectID` and derive data from the foundry package.
+    /// Store the minted coin `ObjectID` and derive data from the foundry
+    /// package.
     ///
     /// # Panic
     ///
@@ -761,5 +745,14 @@ impl FoundryLedgerData {
             package_id: foundry_package.id(),
             token_scheme_u64,
         }
+    }
+
+    pub(crate) fn canonical_coin_type(&self) -> String {
+        format!(
+            "{}::{}::{}",
+            self.coin_type_origin.package,
+            self.coin_type_origin.module_name,
+            self.coin_type_origin.struct_name
+        )
     }
 }

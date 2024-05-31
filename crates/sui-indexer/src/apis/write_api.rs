@@ -3,10 +3,7 @@
 
 use async_trait::async_trait;
 use fastcrypto::encoding::Base64;
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::http_client::HttpClient;
-use jsonrpsee::RpcModule;
-
+use jsonrpsee::{core::RpcResult, http_client::HttpClient, RpcModule};
 use sui_json_rpc::SuiRpcModule;
 use sui_json_rpc_api::{WriteApiClient, WriteApiServer};
 use sui_json_rpc_types::{
@@ -14,9 +11,9 @@ use sui_json_rpc_types::{
     SuiTransactionBlockResponseOptions,
 };
 use sui_open_rpc::Module;
-use sui_types::base_types::SuiAddress;
-use sui_types::quorum_driver_types::ExecuteTransactionRequestType;
-use sui_types::sui_serde::BigInt;
+use sui_types::{
+    base_types::SuiAddress, quorum_driver_types::ExecuteTransactionRequestType, sui_serde::BigInt,
+};
 
 use crate::types::SuiTransactionBlockResponseWithOptions;
 

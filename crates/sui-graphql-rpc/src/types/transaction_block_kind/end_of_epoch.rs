@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use async_graphql::connection::{Connection, CursorType, Edge};
-use async_graphql::*;
-use move_binary_format::errors::PartialVMResult;
-use move_binary_format::CompiledModule;
+use async_graphql::{
+    connection::{Connection, CursorType, Edge},
+    *,
+};
+use move_binary_format::{errors::PartialVMResult, CompiledModule};
 use sui_types::{
     digests::TransactionDigest,
     object::Object as NativeObject,
@@ -15,14 +16,17 @@ use sui_types::{
     },
 };
 
-use crate::consistency::ConsistentIndexCursor;
-use crate::types::cursor::{JsonCursor, Page};
-use crate::types::sui_address::SuiAddress;
 use crate::{
+    consistency::ConsistentIndexCursor,
     error::Error,
     types::{
-        big_int::BigInt, date_time::DateTime, epoch::Epoch, move_package::MovePackage,
+        big_int::BigInt,
+        cursor::{JsonCursor, Page},
+        date_time::DateTime,
+        epoch::Epoch,
+        move_package::MovePackage,
         object::Object,
+        sui_address::SuiAddress,
     },
 };
 
@@ -81,12 +85,14 @@ pub(crate) struct CoinDenyListStateCreateTransaction {
 pub(crate) type CTxn = JsonCursor<ConsistentIndexCursor>;
 pub(crate) type CPackage = JsonCursor<ConsistentIndexCursor>;
 
-/// System transaction that supersedes `ChangeEpochTransaction` as the new way to run transactions
-/// at the end of an epoch. Behaves similarly to `ChangeEpochTransaction` but can accommodate other
-/// optional transactions to run at the end of the epoch.
+/// System transaction that supersedes `ChangeEpochTransaction` as the new way
+/// to run transactions at the end of an epoch. Behaves similarly to
+/// `ChangeEpochTransaction` but can accommodate other optional transactions to
+/// run at the end of the epoch.
 #[Object]
 impl EndOfEpochTransaction {
-    /// The list of system transactions that are allowed to run at the end of the epoch.
+    /// The list of system transactions that are allowed to run at the end of
+    /// the epoch.
     async fn transactions(
         &self,
         ctx: &Context<'_>,
@@ -116,9 +122,10 @@ impl EndOfEpochTransaction {
     }
 }
 
-/// A system transaction that updates epoch information on-chain (increments the current epoch).
-/// Executed by the system once per epoch, without using gas. Epoch change transactions cannot be
-/// submitted by users, because validators will refuse to sign them.
+/// A system transaction that updates epoch information on-chain (increments the
+/// current epoch). Executed by the system once per epoch, without using gas.
+/// Epoch change transactions cannot be submitted by users, because validators
+/// will refuse to sign them.
 ///
 /// This transaction kind is deprecated in favour of `EndOfEpochTransaction`.
 #[Object]
@@ -139,23 +146,26 @@ impl ChangeEpochTransaction {
         self.native.protocol_version.as_u64()
     }
 
-    /// The total amount of gas charged for storage during the previous epoch (in MIST).
+    /// The total amount of gas charged for storage during the previous epoch
+    /// (in MIST).
     async fn storage_charge(&self) -> BigInt {
         BigInt::from(self.native.storage_charge)
     }
 
-    /// The total amount of gas charged for computation during the previous epoch (in MIST).
+    /// The total amount of gas charged for computation during the previous
+    /// epoch (in MIST).
     async fn computation_charge(&self) -> BigInt {
         BigInt::from(self.native.computation_charge)
     }
 
-    /// The SUI returned to transaction senders for cleaning up objects (in MIST).
+    /// The SUI returned to transaction senders for cleaning up objects (in
+    /// MIST).
     async fn storage_rebate(&self) -> BigInt {
         BigInt::from(self.native.storage_rebate)
     }
 
-    /// The total gas retained from storage fees, that will not be returned by storage rebates when
-    /// the relevant objects are cleaned up (in MIST).
+    /// The total gas retained from storage fees, that will not be returned by
+    /// storage rebates when the relevant objects are cleaned up (in MIST).
     async fn non_refundable_storage_fee(&self) -> BigInt {
         BigInt::from(self.native.non_refundable_storage_fee)
     }
@@ -165,9 +175,9 @@ impl ChangeEpochTransaction {
         DateTime::from_ms(self.native.epoch_start_timestamp_ms as i64)
     }
 
-    /// System packages (specifically framework and move stdlib) that are written before the new
-    /// epoch starts, to upgrade them on-chain. Validators write these packages out when running the
-    /// transaction.
+    /// System packages (specifically framework and move stdlib) that are
+    /// written before the new epoch starts, to upgrade them on-chain.
+    /// Validators write these packages out when running the transaction.
     async fn system_packages(
         &self,
         ctx: &Context<'_>,

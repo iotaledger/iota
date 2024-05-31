@@ -1,26 +1,23 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 use diesel::prelude::*;
-
 use move_bytecode_utils::module_cache::GetModule;
-use sui_json_rpc_types::BalanceChange;
-use sui_json_rpc_types::ObjectChange;
-use sui_json_rpc_types::SuiTransactionBlock;
-use sui_json_rpc_types::SuiTransactionBlockEffects;
-use sui_json_rpc_types::SuiTransactionBlockEvents;
-use sui_json_rpc_types::SuiTransactionBlockResponse;
-use sui_json_rpc_types::SuiTransactionBlockResponseOptions;
-use sui_types::digests::TransactionDigest;
-use sui_types::effects::TransactionEffects;
-use sui_types::effects::TransactionEvents;
-use sui_types::event::Event;
-use sui_types::transaction::SenderSignedData;
+use sui_json_rpc_types::{
+    BalanceChange, ObjectChange, SuiTransactionBlock, SuiTransactionBlockEffects,
+    SuiTransactionBlockEvents, SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
+};
+use sui_types::{
+    digests::TransactionDigest,
+    effects::{TransactionEffects, TransactionEvents},
+    event::Event,
+    transaction::SenderSignedData,
+};
 
-use crate::errors::IndexerError;
-use crate::schema::transactions;
-use crate::types::IndexedObjectChange;
-use crate::types::IndexedTransaction;
-use crate::types::IndexerResult;
+use crate::{
+    errors::IndexerError,
+    schema::transactions,
+    types::{IndexedObjectChange, IndexedTransaction, IndexerResult},
+};
 
 #[derive(Clone, Debug, Queryable, Insertable, QueryableByName)]
 #[diesel(table_name = transactions)]

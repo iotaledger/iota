@@ -2,8 +2,8 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module implements a checker for verifying that all of the struct's fields satisfy the
-//! abilities required by the struct's abilities
+//! This module implements a checker for verifying that all of the struct's
+//! fields satisfy the abilities required by the struct's abilities
 use move_binary_format::{
     access::ModuleAccess,
     binary_views::BinaryIndexedView,
@@ -30,8 +30,8 @@ fn verify_module_impl(module: &CompiledModule) -> PartialVMResult<()> {
             .into_iter()
             .map(|a| a.requires())
             .fold(AbilitySet::EMPTY, |acc, required| acc | required);
-        // Assume type parameters have all abilities, as the struct's abilities will be dependent on
-        // them
+        // Assume type parameters have all abilities, as the struct's abilities will be
+        // dependent on them
         let type_parameter_abilities = sh
             .type_parameters
             .iter()

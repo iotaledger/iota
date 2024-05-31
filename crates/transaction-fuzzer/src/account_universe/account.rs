@@ -87,9 +87,9 @@ impl AccountCurrent {
         }
     }
 
-    // TODO: Use this to get around the fact that we need to update object refs in the
-    // executor..figure out a better way to do this other than just creating a gas object for each
-    // transaction.
+    // TODO: Use this to get around the fact that we need to update object refs in
+    // the executor..figure out a better way to do this other than just creating
+    // a gas object for each transaction.
     pub fn new_gas_object(&mut self, exec: &mut Executor) -> Object {
         // We just create a new gas object for this transaction
         let gas_object_id = ObjectID::random();

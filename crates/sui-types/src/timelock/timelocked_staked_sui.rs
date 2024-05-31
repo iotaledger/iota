@@ -1,25 +1,24 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::ident_str;
-use move_core_types::identifier::IdentStr;
-use move_core_types::language_storage::StructTag;
+use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
+use serde::{Deserialize, Serialize};
 
-use crate::base_types::ObjectID;
-use crate::committee::EpochId;
-use crate::error::SuiError;
-use crate::governance::StakedSui;
-use crate::id::UID;
-use crate::object::Data;
-use crate::object::Object;
-use crate::TIMELOCK_ADDRESS;
-use serde::Deserialize;
-use serde::Serialize;
+use crate::{
+    base_types::ObjectID,
+    committee::EpochId,
+    error::SuiError,
+    governance::StakedSui,
+    id::UID,
+    object::{Data, Object},
+    TIMELOCK_ADDRESS,
+};
 
 pub const TIMELOCKED_STAKED_SUI_MODULE_NAME: &IdentStr = ident_str!("timelocked_staked_sui");
 pub const TIMELOCKED_STAKED_SUI_STRUCT_NAME: &IdentStr = ident_str!("TimelockedStakedSui");
 
-/// Rust version of the Move stardust::timelocked_staked_sui::TimelockedStakedSui type.
+/// Rust version of the Move
+/// stardust::timelocked_staked_sui::TimelockedStakedSui type.
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct TimelockedStakedSui {
     id: UID,

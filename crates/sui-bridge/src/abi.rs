@@ -1,9 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::error::{BridgeError, BridgeResult};
-use crate::types::{BridgeAction, EthToSuiBridgeAction};
-use crate::types::{BridgeChainId, EthLog, TokenId};
 use ethers::{
     abi::RawLog,
     contract::{abigen, EthLogDecode},
@@ -11,6 +8,11 @@ use ethers::{
 };
 use serde::{Deserialize, Serialize};
 use sui_types::base_types::SuiAddress;
+
+use crate::{
+    error::{BridgeError, BridgeResult},
+    types::{BridgeAction, BridgeChainId, EthLog, EthToSuiBridgeAction, TokenId},
+};
 
 // TODO: write a macro to handle variants
 
@@ -55,11 +57,17 @@ impl EthBridgeEvent {
                         let bridge_event = match EthToSuiTokenBridgeV1::try_from(&event) {
                             Ok(bridge_event) => bridge_event,
                             // This only happens when solidity code does not align with rust code.
-                            // When this happens in production, there is a risk of stuck bridge transfers.
-                            // We log error here.
+                            // When this happens in production, there is a risk of stuck bridge
+                            // transfers. We log error here.
                             // TODO: add metrics and alert
                             Err(e) => {
-                                tracing::error!(?eth_tx_hash, eth_event_index, "Failed to convert TokensBridgedToSui log to EthToSuiTokenBridgeV1. This indicates incorrect parameters or a bug in the code: {:?}. Err: {:?}", event, e);
+                                tracing::error!(
+                                    ?eth_tx_hash,
+                                    eth_event_index,
+                                    "Failed to convert TokensBridgedToSui log to EthToSuiTokenBridgeV1. This indicates incorrect parameters or a bug in the code: {:?}. Err: {:?}",
+                                    event,
+                                    e
+                                );
                                 return None;
                             }
                         };

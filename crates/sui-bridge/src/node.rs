@@ -1,6 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::HashMap,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    sync::Arc,
+    time::Duration,
+};
+
+use tokio::task::JoinHandle;
+use tracing::info;
+
 use crate::{
     action_executor::BridgeActionExecutor,
     client::bridge_authority_aggregator::BridgeAuthorityAggregator,
@@ -11,14 +21,6 @@ use crate::{
     storage::BridgeOrchestratorTables,
     sui_syncer::SuiSyncer,
 };
-use std::{
-    collections::HashMap,
-    net::{IpAddr, Ipv4Addr, SocketAddr},
-    sync::Arc,
-    time::Duration,
-};
-use tokio::task::JoinHandle;
-use tracing::info;
 
 pub async fn run_bridge_node(config: BridgeNodeConfig) -> anyhow::Result<()> {
     let (server_config, client_config) = config.validate().await?;
@@ -110,7 +112,8 @@ async fn start_client_components(
                 contract, client_config.eth_bridge_contracts_start_block_override[contract], cursor
             );
         } else if let Some(cursor) = cursor {
-            // +1: The stored value is the last block that was processed, so we start from the next block.
+            // +1: The stored value is the last block that was processed, so we start from
+            // the next block.
             eth_contracts_to_watch.insert(*contract, cursor + 1);
         } else {
             return Err(anyhow::anyhow!(

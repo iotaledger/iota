@@ -1,22 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{env, net::SocketAddr, time::Duration};
+
 use diesel::connection::SimpleConnection;
 use mysten_metrics::init_metrics;
-use tokio::task::JoinHandle;
-
-use std::env;
-use std::net::SocketAddr;
-use std::time::Duration;
 use sui_json_rpc_types::SuiTransactionBlockResponse;
+use tokio::task::JoinHandle;
 use tracing::info;
 
-use crate::db::{new_pg_connection_pool_with_config, reset_database, PgConnectionPoolConfig};
-use crate::errors::IndexerError;
-use crate::handlers::objects_snapshot_processor::SnapshotLagConfig;
-use crate::indexer::Indexer;
-use crate::store::PgIndexerStore;
-use crate::{IndexerConfig, IndexerMetrics};
+use crate::{
+    db::{new_pg_connection_pool_with_config, reset_database, PgConnectionPoolConfig},
+    errors::IndexerError,
+    handlers::objects_snapshot_processor::SnapshotLagConfig,
+    indexer::Indexer,
+    store::PgIndexerStore,
+    IndexerConfig, IndexerMetrics,
+};
 
 pub enum ReaderWriterConfig {
     Reader { reader_mode_rpc_url: String },
@@ -168,9 +168,10 @@ fn replace_db_name(db_url: &str, new_db_name: &str) -> (String, String) {
 }
 
 pub async fn force_delete_database(db_url: String) {
-    // Replace the database name with the default `postgres`, which should be the last string after `/`
-    // This is necessary because you can't drop a database while being connected to it.
-    // Hence switch to the default `postgres` database to drop the active database.
+    // Replace the database name with the default `postgres`, which should be the
+    // last string after `/` This is necessary because you can't drop a database
+    // while being connected to it. Hence switch to the default `postgres`
+    // database to drop the active database.
     let (default_db_url, db_name) = replace_db_name(&db_url, "postgres");
     // Set connection timeout for tests to 1 second
     let mut pool_config = PgConnectionPoolConfig::default();

@@ -1,43 +1,43 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use self::effects_v2::TransactionEffectsV2;
-use crate::base_types::{ExecutionDigests, ObjectID, ObjectRef, SequenceNumber};
-use crate::committee::EpochId;
-use crate::crypto::{
-    default_hash, AuthoritySignInfo, AuthorityStrongQuorumSignInfo, EmptySignInfo,
-};
-use crate::digests::{
-    ObjectDigest, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest,
-};
-use crate::error::{SuiError, SuiResult};
-use crate::event::Event;
-use crate::execution::SharedInput;
-use crate::execution_status::ExecutionStatus;
-use crate::gas::GasCostSummary;
-use crate::message_envelope::{
-    Envelope, Message, TrustedEnvelope, UnauthenticatedMessage, VerifiedEnvelope,
-};
-use crate::object::Owner;
-use crate::storage::WriteKind;
-use crate::transaction::VersionedProtocolMessage;
+use std::collections::BTreeMap;
+
 use effects_v1::TransactionEffectsV1;
 pub use effects_v2::UnchangedSharedKind;
 use enum_dispatch::enum_dispatch;
 pub use object_change::{EffectsObjectChange, ObjectIn, ObjectOut};
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::IntentScope;
-use std::collections::BTreeMap;
 use sui_protocol_config::ProtocolConfig;
 pub use test_effects_builder::TestEffectsBuilder;
+
+use self::effects_v2::TransactionEffectsV2;
+use crate::{
+    base_types::{ExecutionDigests, ObjectID, ObjectRef, SequenceNumber},
+    committee::EpochId,
+    crypto::{default_hash, AuthoritySignInfo, AuthorityStrongQuorumSignInfo, EmptySignInfo},
+    digests::{ObjectDigest, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
+    error::{SuiError, SuiResult},
+    event::Event,
+    execution::SharedInput,
+    execution_status::ExecutionStatus,
+    gas::GasCostSummary,
+    message_envelope::{
+        Envelope, Message, TrustedEnvelope, UnauthenticatedMessage, VerifiedEnvelope,
+    },
+    object::Owner,
+    storage::WriteKind,
+    transaction::VersionedProtocolMessage,
+};
 
 mod effects_v1;
 mod effects_v2;
 mod object_change;
 mod test_effects_builder;
 
-// Since `std::mem::size_of` may not be stable across platforms, we use rough constants
-// We need these for estimating effects sizes
+// Since `std::mem::size_of` may not be stable across platforms, we use rough
+// constants We need these for estimating effects sizes
 // Approximate size of `ObjectRef` type in bytes
 pub const APPROX_SIZE_OF_OBJECT_REF: usize = 80;
 // Approximate size of `ExecutionStatus` type in bytes
@@ -102,8 +102,8 @@ impl Message for TransactionEffects {
     }
 
     fn verify_epoch(&self, _: EpochId) -> SuiResult {
-        // Authorities are allowed to re-sign effects from prior epochs, so we do not verify the
-        // epoch here.
+        // Authorities are allowed to re-sign effects from prior epochs, so we do not
+        // verify the epoch here.
         Ok(())
     }
 }
@@ -123,8 +123,8 @@ pub enum ObjectRemoveKind {
 }
 
 impl TransactionEffects {
-    /// Creates a TransactionEffects message from the results of execution, choosing the correct
-    /// format for the current protocol version.
+    /// Creates a TransactionEffects message from the results of execution,
+    /// choosing the correct format for the current protocol version.
     pub fn new_from_execution_v1(
         status: ExecutionStatus,
         executed_epoch: EpochId,
@@ -161,8 +161,8 @@ impl TransactionEffects {
         ))
     }
 
-    /// Creates a TransactionEffects message from the results of execution, choosing the correct
-    /// format for the current protocol version.
+    /// Creates a TransactionEffects message from the results of execution,
+    /// choosing the correct format for the current protocol version.
     pub fn new_from_execution_v2(
         status: ExecutionStatus,
         executed_epoch: EpochId,
@@ -208,8 +208,8 @@ impl TransactionEffects {
             + APPROX_SIZE_OF_OPT_TX_EVENTS_DIGEST;
 
         // Each write or delete contributes at roughly this amount because:
-        // Each write can be a mutation which can show up in `mutated` and `modified_at_versions`
-        // `num_delete` is added for padding
+        // Each write can be a mutation which can show up in `mutated` and
+        // `modified_at_versions` `num_delete` is added for padding
         let approx_change_entry_size = 1_000
             + (APPROX_SIZE_OF_OWNER + APPROX_SIZE_OF_OBJECT_REF) * num_writes
             + (APPROX_SIZE_OF_OBJECT_REF * num_mutables)
@@ -240,9 +240,9 @@ impl TransactionEffects {
         fixed_sizes + approx_change_entry_size + deps_size
     }
 
-    /// Return an iterator that iterates through all changed objects, including mutated,
-    /// created and unwrapped objects. In other words, all objects that still exist
-    /// in the object state after this transaction.
+    /// Return an iterator that iterates through all changed objects, including
+    /// mutated, created and unwrapped objects. In other words, all objects
+    /// that still exist in the object state after this transaction.
     /// It doesn't include deleted/wrapped objects.
     pub fn all_changed_objects(&self) -> Vec<(ObjectRef, Owner, WriteKind)> {
         self.mutated()
@@ -263,7 +263,8 @@ impl TransactionEffects {
 
     /// Return all objects that existed in the state prior to the transaction
     /// but no longer exist in the state after the transaction.
-    /// It includes deleted and wrapped objects, but does not include unwrapped_then_deleted objects.
+    /// It includes deleted and wrapped objects, but does not include
+    /// unwrapped_then_deleted objects.
     pub fn all_removed_objects(&self) -> Vec<(ObjectRef, ObjectRemoveKind)> {
         self.deleted()
             .iter()
@@ -346,15 +347,16 @@ pub trait TransactionEffectsAPI {
     /// The version assigned to all output objects (apart from packages).
     fn lamport_version(&self) -> SequenceNumber;
 
-    /// Metadata of objects prior to modification. This includes any object that exists in the
-    /// store prior to this transaction and is modified in this transaction.
-    /// It includes objects that are mutated, wrapped and deleted.
-    /// This API is only available on effects v2 and above.
+    /// Metadata of objects prior to modification. This includes any object that
+    /// exists in the store prior to this transaction and is modified in
+    /// this transaction. It includes objects that are mutated, wrapped and
+    /// deleted. This API is only available on effects v2 and above.
     fn old_object_metadata(&self) -> Vec<(ObjectRef, Owner)>;
-    /// Returns the list of shared objects used in the input, with full object reference
-    /// and use kind. This is needed in effects because in transaction we only have object ID
-    /// for shared objects. Their version and digest can only be figured out after sequencing.
-    /// Also provides the use kind to indicate whether the object was mutated or read-only.
+    /// Returns the list of shared objects used in the input, with full object
+    /// reference and use kind. This is needed in effects because in
+    /// transaction we only have object ID for shared objects. Their version
+    /// and digest can only be figured out after sequencing. Also provides
+    /// the use kind to indicate whether the object was mutated or read-only.
     /// Down the road it could also indicate use-of-deleted.
     fn input_shared_objects(&self) -> Vec<InputSharedObject>;
     fn created(&self) -> Vec<(ObjectRef, Owner)>;
@@ -367,8 +369,8 @@ pub trait TransactionEffectsAPI {
     fn object_changes(&self) -> Vec<ObjectChange>;
 
     // TODO: We should consider having this function to return Option.
-    // When the gas object is not available (i.e. system transaction), we currently return
-    // dummy object ref and owner. This is not ideal.
+    // When the gas object is not available (i.e. system transaction), we currently
+    // return dummy object ref and owner. This is not ideal.
     fn gas_object(&self) -> (ObjectRef, Owner);
 
     fn events_digest(&self) -> Option<&TransactionEventsDigest>;
@@ -390,8 +392,9 @@ pub trait TransactionEffectsAPI {
             .collect()
     }
 
-    // All of these should be #[cfg(test)], but they are used by tests in other crates, and
-    // dependencies don't get built with cfg(test) set as far as I can tell.
+    // All of these should be #[cfg(test)], but they are used by tests in other
+    // crates, and dependencies don't get built with cfg(test) set as far as I
+    // can tell.
     fn status_mut_for_testing(&mut self) -> &mut ExecutionStatus;
     fn gas_cost_summary_mut_for_testing(&mut self) -> &mut GasCostSummary;
     fn transaction_digest_mut_for_testing(&mut self) -> &mut TransactionDigest;

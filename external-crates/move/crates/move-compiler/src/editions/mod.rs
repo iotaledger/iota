@@ -1,7 +1,8 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module controls feature gating and breaking changes in new editions of the source language
+//! This module controls feature gating and breaking changes in new editions of
+//! the source language
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -9,15 +10,16 @@ use std::{
     str::FromStr,
 };
 
+use move_ir_types::location::*;
+use move_symbol_pool::Symbol;
+use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
+
 use crate::{
     diag,
     diagnostics::Diagnostic,
     shared::{format_oxford_list, CompilationEnv},
 };
-use move_ir_types::location::*;
-use move_symbol_pool::Symbol;
-use once_cell::sync::Lazy;
-use serde::{Deserialize, Serialize};
 
 //**************************************************************************************************
 // types
@@ -57,8 +59,7 @@ pub enum Flavor {
     Sui,
 }
 
-pub const UPGRADE_NOTE: &str =
-    "You can update the edition in the 'Move.toml', or via command line flag if invoking the \
+pub const UPGRADE_NOTE: &str = "You can update the edition in the 'Move.toml', or via command line flag if invoking the \
     compiler directly.";
 
 //**************************************************************************************************

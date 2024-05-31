@@ -137,9 +137,9 @@ impl ErrorBitset {
 
 #[cfg(test)]
 mod tests {
+    use proptest::{prelude::*, proptest};
+
     use super::{ErrorBitset, ErrorBitsetBuilder};
-    use proptest::prelude::*;
-    use proptest::proptest;
 
     proptest! {
         #[test]

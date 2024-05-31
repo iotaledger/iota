@@ -35,8 +35,8 @@ pub struct Options {
     )]
     pub dependencies: Vec<String>,
 
-    /// The output directory for saved artifacts, namely any 'move' interface files generated from
-    /// 'mv' files
+    /// The output directory for saved artifacts, namely any 'move' interface
+    /// files generated from 'mv' files
     #[clap(
         name = "PATH_TO_OUTPUT_DIRECTORY",
         short = cli::OUT_DIR_SHORT,

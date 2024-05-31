@@ -2,7 +2,10 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module contains verification of usage of dependencies for modules and scripts.
+//! This module contains verification of usage of dependencies for modules and
+//! scripts.
+use std::collections::{BTreeMap, BTreeSet};
+
 use move_binary_format::{
     access::{ModuleAccess, ScriptAccess},
     binary_views::BinaryIndexedView,
@@ -16,7 +19,6 @@ use move_binary_format::{
     safe_unwrap, IndexKind,
 };
 use move_core_types::{identifier::Identifier, language_storage::ModuleId, vm_status::StatusCode};
-use std::collections::{BTreeMap, BTreeSet};
 
 struct Context<'a, 'b> {
     resolver: BinaryIndexedView<'a>,
@@ -252,7 +254,7 @@ fn verify_imported_structs(context: &Context) -> PartialVMResult<()> {
                     StatusCode::LOOKUP_FAILED,
                     IndexKind::StructHandle,
                     idx as TableIndex,
-                ))
+                ));
             }
         }
     }
@@ -296,7 +298,7 @@ fn verify_imported_functions(context: &Context) -> PartialVMResult<()> {
                             StatusCode::LOOKUP_FAILED,
                             IndexKind::FunctionHandle,
                             idx as TableIndex,
-                        ))
+                        ));
                     }
                 };
 
@@ -317,7 +319,7 @@ fn verify_imported_functions(context: &Context) -> PartialVMResult<()> {
                             StatusCode::LOOKUP_FAILED,
                             IndexKind::FunctionHandle,
                             idx as TableIndex,
-                        ))
+                        ));
                     }
                 };
 
@@ -341,11 +343,11 @@ fn verify_imported_functions(context: &Context) -> PartialVMResult<()> {
     Ok(())
 }
 
-// The local view must be a subset of (or equal to) the defined set of abilities. Conceptually, the
-// local view can be more constrained than the defined one. Removing abilities locally does nothing
-// but limit the local usage.
-// (Note this works because there are no negative constraints, i.e. you cannot constrain a type
-// parameter with the absence of an ability)
+// The local view must be a subset of (or equal to) the defined set of
+// abilities. Conceptually, the local view can be more constrained than the
+// defined one. Removing abilities locally does nothing but limit the local
+// usage. (Note this works because there are no negative constraints, i.e. you
+// cannot constrain a type parameter with the absence of an ability)
 fn compatible_struct_abilities(
     local_struct_abilities_declaration: AbilitySet,
     defined_struct_abilities: AbilitySet,
@@ -354,7 +356,8 @@ fn compatible_struct_abilities(
 }
 
 // - The number of type parameters must be the same
-// - Each pair of parameters must satisfy [`compatible_type_parameter_constraints`]
+// - Each pair of parameters must satisfy
+//   [`compatible_type_parameter_constraints`]
 fn compatible_fun_type_parameters(
     local_type_parameters_declaration: &[AbilitySet],
     defined_type_parameters: &[AbilitySet],
@@ -377,7 +380,9 @@ fn compatible_fun_type_parameters(
 }
 
 // - The number of type parameters must be the same
-// - Each pair of parameters must satisfy [`compatible_type_parameter_constraints`] and [`compatible_type_parameter_phantom_decl`]
+// - Each pair of parameters must satisfy
+//   [`compatible_type_parameter_constraints`] and
+//   [`compatible_type_parameter_phantom_decl`]
 fn compatible_struct_type_parameters(
     local_type_parameters_declaration: &[StructTypeParameter],
     defined_type_parameters: &[StructTypeParameter],
@@ -399,9 +404,10 @@ fn compatible_struct_type_parameters(
             )
 }
 
-//  The local view of a type parameter must be a superset of (or equal to) the defined
-//  constraints. Conceptually, the local view can be more constrained than the defined one as the
-//  local context is only limiting usage, and cannot take advantage of the additional constraints.
+//  The local view of a type parameter must be a superset of (or equal to) the
+// defined  constraints. Conceptually, the local view can be more constrained
+// than the defined one as the  local context is only limiting usage, and cannot
+// take advantage of the additional constraints.
 fn compatible_type_parameter_constraints(
     local_type_parameter_constraints_declaration: AbilitySet,
     defined_type_parameter_constraints: AbilitySet,
@@ -409,13 +415,14 @@ fn compatible_type_parameter_constraints(
     defined_type_parameter_constraints.is_subset(local_type_parameter_constraints_declaration)
 }
 
-// Adding phantom declarations relaxes the requirements for clients, thus, the local view may
-// lack a phantom declaration present in the definition.
+// Adding phantom declarations relaxes the requirements for clients, thus, the
+// local view may lack a phantom declaration present in the definition.
 fn compatible_type_parameter_phantom_decl(
     local_type_parameter_declaration: &StructTypeParameter,
     defined_type_parameter: &StructTypeParameter,
 ) -> bool {
-    // local_type_parameter_declaration.is_phantom => defined_type_parameter.is_phantom
+    // local_type_parameter_declaration.is_phantom =>
+    // defined_type_parameter.is_phantom
     !local_type_parameter_declaration.is_phantom || defined_type_parameter.is_phantom
 }
 

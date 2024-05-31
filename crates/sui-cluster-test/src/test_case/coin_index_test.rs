@@ -1,23 +1,27 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{TestCaseImpl, TestContext};
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use jsonrpsee::rpc_params;
 use move_core_types::language_storage::StructTag;
 use serde_json::json;
-use std::collections::HashMap;
 use sui_core::test_utils::compile_managed_coin_package;
 use sui_json::SuiJsonValue;
-use sui_json_rpc_types::ObjectChange;
-use sui_json_rpc_types::SuiTransactionBlockResponse;
-use sui_json_rpc_types::{Balance, SuiTransactionBlockResponseOptions};
+use sui_json_rpc_types::{
+    Balance, ObjectChange, SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
+};
 use sui_test_transaction_builder::make_staking_transaction;
-use sui_types::base_types::{ObjectID, ObjectRef};
-use sui_types::gas_coin::GAS;
-use sui_types::object::Owner;
-use sui_types::quorum_driver_types::ExecuteTransactionRequestType;
+use sui_types::{
+    base_types::{ObjectID, ObjectRef},
+    gas_coin::GAS,
+    object::Owner,
+    quorum_driver_types::ExecuteTransactionRequestType,
+};
 use tracing::info;
+
+use crate::{TestCaseImpl, TestContext};
 
 pub struct CoinIndexTest;
 
@@ -613,10 +617,12 @@ impl TestCaseImpl for CoinIndexTest {
             managed_coins_12_39.data.last().unwrap().coin_object_id,
             last_managed_coin
         );
-        assert!(!managed_coins_12_39
-            .data
-            .iter()
-            .any(|coin| coin.coin_object_id == removed_coin_id));
+        assert!(
+            !managed_coins_12_39
+                .data
+                .iter()
+                .any(|coin| coin.coin_object_id == removed_coin_id)
+        );
         assert!(!managed_coins_12_39.has_next_page);
 
         // =========================== Test Get Coins Ends ===========================

@@ -4,13 +4,12 @@
 use async_graphql::*;
 use sui_package_resolver::FunctionDef;
 
-use crate::{data::Db, error::Error};
-
 use super::{
     move_module::MoveModule,
     open_move_type::{abilities, MoveAbility, MoveVisibility, OpenMoveType},
     sui_address::SuiAddress,
 };
+use crate::{data::Db, error::Error};
 
 pub(crate) struct MoveFunction {
     package: SuiAddress,
@@ -68,22 +67,23 @@ impl MoveFunction {
         Some(self.is_entry)
     }
 
-    /// Constraints on the function's formal type parameters.  Move bytecode does not name type
-    /// parameters, so when they are referenced (e.g. in parameter and return types) they are
-    /// identified by their index in this list.
+    /// Constraints on the function's formal type parameters.  Move bytecode
+    /// does not name type parameters, so when they are referenced (e.g. in
+    /// parameter and return types) they are identified by their index in
+    /// this list.
     async fn type_parameters(&self) -> Option<&Vec<MoveFunctionTypeParameter>> {
         Some(&self.type_parameters)
     }
 
-    /// The function's parameter types.  These types can reference type parameters introduce by this
-    /// function (see `typeParameters`).
+    /// The function's parameter types.  These types can reference type
+    /// parameters introduce by this function (see `typeParameters`).
     async fn parameters(&self) -> Option<&Vec<OpenMoveType>> {
         Some(&self.parameters)
     }
 
-    /// The function's return types.  There can be multiple because functions in Move can return
-    /// multiple values.  These types can reference type parameters introduced by this function (see
-    /// `typeParameters`).
+    /// The function's return types.  There can be multiple because functions in
+    /// Move can return multiple values.  These types can reference type
+    /// parameters introduced by this function (see `typeParameters`).
     #[graphql(name = "return")]
     async fn return_(&self) -> Option<&Vec<OpenMoveType>> {
         Some(&self.return_)

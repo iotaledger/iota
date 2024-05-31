@@ -3,6 +3,7 @@
 
 #[cfg(not(msim))]
 use std::path::Path;
+
 #[cfg(not(msim))]
 use sui_types::transaction::{CallArg, ObjectArg};
 
@@ -12,8 +13,10 @@ const TEST_DIR: &str = "tests";
 #[cfg(not(msim))]
 #[tokio::main]
 async fn test_ptb_files(path: &Path) -> datatest_stable::Result<()> {
-    use sui::client_ptb::ptb::{to_source_string, PTB};
-    use sui::client_ptb::{error::build_error_reports, ptb::PTBPreview};
+    use sui::client_ptb::{
+        error::build_error_reports,
+        ptb::{to_source_string, PTBPreview, PTB},
+    };
     use test_cluster::TestClusterBuilder;
 
     let _ = miette::set_hook(Box::new(|_| {

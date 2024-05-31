@@ -8,25 +8,28 @@ use prometheus::Registry;
 use storage::NodeStorage;
 use sui_protocol_config::ProtocolConfig;
 use telemetry_subscribers::TelemetryGuards;
-use test_utils::latest_protocol_version;
-use test_utils::{temp_dir, CommitteeFixture};
+use test_utils::{latest_protocol_version, temp_dir, CommitteeFixture};
 use tokio::sync::watch;
 use types::{
     Certificate, CertificateAPI, HeaderAPI, PreSubscribedBroadcastSender, ReputationScores,
 };
 
-use crate::consensus::{
-    Bullshark, Consensus, ConsensusMetrics, ConsensusRound, LeaderSchedule, LeaderSwapTable,
+use crate::{
+    consensus::{
+        Bullshark, Consensus, ConsensusMetrics, ConsensusRound, LeaderSchedule, LeaderSwapTable,
+    },
+    NUM_SHUTDOWN_RECEIVERS,
 };
-use crate::NUM_SHUTDOWN_RECEIVERS;
 
 /// This test is trying to compare the output of the Consensus algorithm when:
-/// (1) running without any crash for certificates processed from round 1 to 5 (inclusive)
-/// (2) when a crash happens with last commit at round 2, and then consensus recovers
+/// (1) running without any crash for certificates processed from round 1 to 5
+/// (inclusive) (2) when a crash happens with last commit at round 2, and then
+/// consensus recovers
 ///
-/// The output of (1) is compared to the output of (2) . The output of (2) is the combination
-/// of the output before the crash and after the crash. What we expect to see is the output of
-/// (1) & (2) be exactly the same. That will ensure:
+/// The output of (1) is compared to the output of (2) . The output of (2) is
+/// the combination of the output before the crash and after the crash. What we
+/// expect to see is the output of (1) & (2) be exactly the same. That will
+/// ensure:
 /// * no certificates re-commit happens
 /// * no certificates are skipped
 /// * no forks created
@@ -125,8 +128,8 @@ async fn test_consensus_recovery_with_bullshark() {
 
             committed_output_no_crash.push(output.clone());
 
-            // we received the leader of round 6, now stop as we don't expect to see any other
-            // certificate from that or higher round.
+            // we received the leader of round 6, now stop as we don't expect to see any
+            // other certificate from that or higher round.
             if output.round() == 6 {
                 break 'main;
             }
@@ -152,8 +155,8 @@ async fn test_consensus_recovery_with_bullshark() {
     // AND shutdown consensus
     consensus_handle.abort();
 
-    // AND bring up consensus again. Store is clean. Now send again the same certificates
-    // but up to round 3.
+    // AND bring up consensus again. Store is clean. Now send again the same
+    // certificates but up to round 3.
     let mut tx_shutdown = PreSubscribedBroadcastSender::new(NUM_SHUTDOWN_RECEIVERS);
     let (tx_waiter, rx_waiter) = test_utils::test_channel!(100);
     let (tx_primary, _rx_primary) = test_utils::test_channel!(100);
@@ -192,10 +195,10 @@ async fn test_consensus_recovery_with_bullshark() {
     );
 
     // WHEN we send same certificates but up to round 3 (inclusive)
-    // Then we store all the certificates up to round 6 so we can let the recovery algorithm
-    // restore the consensus.
-    // We omit round 7 so we can feed those later after "crash" to trigger a new leader
-    // election round and commit.
+    // Then we store all the certificates up to round 6 so we can let the recovery
+    // algorithm restore the consensus.
+    // We omit round 7 so we can feed those later after "crash" to trigger a new
+    // leader election round and commit.
     for certificate in certificates.iter() {
         if certificate.header().round() <= 3 {
             tx_waiter.send(certificate.clone()).await.unwrap();
@@ -219,8 +222,8 @@ async fn test_consensus_recovery_with_bullshark() {
 
             committed_output_before_crash.push(output.clone());
 
-            // we received the leader of round 2, now stop as we don't expect to see any other
-            // certificate from that or higher round.
+            // we received the leader of round 2, now stop as we don't expect to see any
+            // other certificate from that or higher round.
             if output.round() == 2 {
                 break 'main;
             }
@@ -231,7 +234,8 @@ async fn test_consensus_recovery_with_bullshark() {
     // AND shutdown (crash) consensus
     consensus_handle.abort();
 
-    // AND bring up consensus again. Re-use the same store, so we can recover certificates
+    // AND bring up consensus again. Re-use the same store, so we can recover
+    // certificates
     let mut tx_shutdown = PreSubscribedBroadcastSender::new(NUM_SHUTDOWN_RECEIVERS);
     let (tx_waiter, rx_waiter) = test_utils::test_channel!(100);
     let (tx_primary, _rx_primary) = test_utils::test_channel!(100);
@@ -262,8 +266,8 @@ async fn test_consensus_recovery_with_bullshark() {
         metrics.clone(),
     );
 
-    // WHEN send the certificates of round >= 5 to trigger a leader election for round 4
-    // and start committing.
+    // WHEN send the certificates of round >= 5 to trigger a leader election for
+    // round 4 and start committing.
     for certificate in certificates.iter() {
         if certificate.header().round() >= 5 {
             tx_waiter.send(certificate.clone()).await.unwrap();
@@ -283,16 +287,17 @@ async fn test_consensus_recovery_with_bullshark() {
 
             committed_output_after_crash.push(output.clone());
 
-            // we received the leader of round 6, now stop as we don't expect to see any other
-            // certificate from that or higher round.
+            // we received the leader of round 6, now stop as we don't expect to see any
+            // other certificate from that or higher round.
             if output.round() == 6 {
                 break 'main;
             }
         }
     }
 
-    // THEN compare the output from a non-Crashed consensus to the outputs produced by the
-    // crash consensus events. Those two should be exactly the same and will ensure that we see:
+    // THEN compare the output from a non-Crashed consensus to the outputs produced
+    // by the crash consensus events. Those two should be exactly the same and
+    // will ensure that we see:
     // * no certificate re-commits
     // * no skips
     // * no forks
@@ -320,7 +325,9 @@ fn setup_tracing() -> TelemetryGuards {
     let tracing_level = "debug";
     let network_tracing_level = "info";
 
-    let log_filter = format!("{tracing_level},h2={network_tracing_level},tower={network_tracing_level},hyper={network_tracing_level},tonic::transport={network_tracing_level}");
+    let log_filter = format!(
+        "{tracing_level},h2={network_tracing_level},tower={network_tracing_level},hyper={network_tracing_level},tonic::transport={network_tracing_level}"
+    );
 
     telemetry_subscribers::TelemetryConfig::new()
         // load env variables

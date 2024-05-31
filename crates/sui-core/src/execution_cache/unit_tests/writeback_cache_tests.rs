@@ -1,22 +1,25 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use prometheus::default_registry;
-use rand::{rngs::StdRng, SeedableRng};
 use std::{
     collections::BTreeMap,
     future::Future,
     path::PathBuf,
-    sync::atomic::Ordering,
-    sync::{atomic::AtomicU32, Arc},
+    sync::{
+        atomic::{AtomicU32, Ordering},
+        Arc,
+    },
 };
+
+use prometheus::default_registry;
+use rand::{rngs::StdRng, SeedableRng};
 use sui_framework::BuiltInFramework;
 use sui_macros::{register_fail_point_async, sim_test};
 use sui_test_transaction_builder::TestTransactionBuilder;
-use sui_types::effects::TestEffectsBuilder;
 use sui_types::{
     base_types::{random_object_ref, SuiAddress},
     crypto::{deterministic_random_account_key, get_key_pair_from_rng, AccountKeyPair},
+    effects::TestEffectsBuilder,
     object::{MoveObject, Owner, OBJECT_START_VERSION},
     storage::ChildObjectResolver,
 };
@@ -155,8 +158,8 @@ impl Scenario {
         let (sender, keypair): (SuiAddress, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
         let (receiver, _): (SuiAddress, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
 
-        // Tx is opaque to the cache, so we just build a dummy tx. The only requirement is
-        // that it has a unique digest every time.
+        // Tx is opaque to the cache, so we just build a dummy tx. The only requirement
+        // is that it has a unique digest every time.
         let tx = TestTransactionBuilder::new(sender, random_object_ref(), 100)
             .transfer(random_object_ref(), receiver)
             .build_and_sign(&keypair);
@@ -331,8 +334,8 @@ impl Scenario {
         Arc::new(outputs)
     }
 
-    // Commit the current tx to the cache, return its digest, and reset the transaction
-    // outputs to a new empty one.
+    // Commit the current tx to the cache, return its digest, and reset the
+    // transaction outputs to a new empty one.
     async fn do_tx(&mut self) -> TransactionDigest {
         // Resets outputs, but not objects, so that subsequent runs must respect
         // the state so far.
@@ -488,10 +491,11 @@ impl Scenario {
                     .unwrap(),
                 *object
             );
-            assert!(self
-                .cache()
-                .have_received_object_at_version(id, object.version(), 1)
-                .unwrap());
+            assert!(
+                self.cache()
+                    .have_received_object_at_version(id, object.version(), 1)
+                    .unwrap()
+            );
         }
     }
 
@@ -679,8 +683,8 @@ async fn test_write_transaction_outputs_is_sync() {
     Scenario::iterate(|mut s| async move {
         s.with_created(&[1, 2]);
         let outputs = s.take_outputs();
-        // assert that write_transaction_outputs is sync in non-simtest, which causes the
-        // fail_point_async! macros above to be elided
+        // assert that write_transaction_outputs is sync in non-simtest, which causes
+        // the fail_point_async! macros above to be elided
         s.cache
             .write_transaction_outputs(1, outputs)
             .now_or_never()
@@ -778,11 +782,12 @@ async fn test_invalidate_package_cache_on_revert() {
         s.cache().revert_state_update(&tx1).unwrap();
         s.clear_state_end_of_epoch().await;
 
-        assert!(s
-            .cache()
-            .get_package_object(&s.obj_id(2))
-            .unwrap()
-            .is_none());
+        assert!(
+            s.cache()
+                .get_package_object(&s.obj_id(2))
+                .unwrap()
+                .is_none()
+        );
     })
     .await;
 }

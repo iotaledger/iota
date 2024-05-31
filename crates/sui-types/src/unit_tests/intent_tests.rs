@@ -2,21 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::traits::KeyPair;
+use shared_crypto::intent::{
+    AppId, Intent, IntentMessage, IntentScope, IntentVersion, PersonalMessage,
+};
 
 use crate::{
     base_types::{dbg_addr, ObjectID},
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthoritySignature, Signature, SignatureScheme,
-        SuiAuthoritySignature, SuiSignature,
+        get_key_pair, AccountKeyPair, AuthorityKeyPair, AuthoritySignature, Signature,
+        SignatureScheme, SuiAuthoritySignature, SuiSignature,
     },
     object::Object,
     transaction::{Transaction, TransactionData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER},
-};
-
-use crate::crypto::get_key_pair;
-
-use shared_crypto::intent::{
-    AppId, Intent, IntentMessage, IntentScope, IntentVersion, PersonalMessage,
 };
 
 #[test]

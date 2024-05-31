@@ -2,8 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::bail;
 use std::{cmp::Ordering, path::Path};
+
+use anyhow::bail;
 use tempfile::tempdir;
 use walkdir::{DirEntry, WalkDir};
 

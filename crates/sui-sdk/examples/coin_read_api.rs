@@ -7,11 +7,12 @@ use utils::setup_for_read;
 
 // This example uses the coin read api to showcase the available
 // functions to retrieve coin related information for a specific address.
-// The example will use the active address in the wallet (if it exists or create one if it doesn't)
-// check if it has coins and request coins from the faucet if there aren't any.
-// If there is no wallet, it will create a wallet and two addresses, set one address as active,
-// and add 1 SUI to the active address.
-// By default, the example will use the Sui testnet network (fullnode.testnet.sui.io:443).
+// The example will use the active address in the wallet (if it exists or create
+// one if it doesn't) check if it has coins and request coins from the faucet if
+// there aren't any. If there is no wallet, it will create a wallet and two
+// addresses, set one address as active, and add 1 SUI to the active address.
+// By default, the example will use the Sui testnet network
+// (fullnode.testnet.sui.io:443).
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -33,8 +34,9 @@ async fn main() -> Result<(), anyhow::Error> {
     println!(" *** Coins ***\n");
 
     // Get all coins
-    // This function works very similar to the get_coins function, except it does not take
-    // a coin_type filter argument and it returns all coin types associated with this address
+    // This function works very similar to the get_coins function, except it does
+    // not take a coin_type filter argument and it returns all coin types
+    // associated with this address
     let all_coins = sui
         .coin_read_api()
         .get_all_coins(active_address, None, Some(5)) // get the first five coins
@@ -56,7 +58,8 @@ async fn main() -> Result<(), anyhow::Error> {
         .await;
     println!(" *** Coins Stream ***\n");
 
-    // Select coins based on the provided coin type (SUI in this example). Use `None` for the default Sui coin
+    // Select coins based on the provided coin type (SUI in this example). Use
+    // `None` for the default Sui coin
     let select_coins = sui
         .coin_read_api()
         .select_coins(active_address, coin_type, 1, vec![])

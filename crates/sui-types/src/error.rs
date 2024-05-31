@@ -2,6 +2,15 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::BTreeMap, fmt::Debug};
+
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use strum_macros::{AsRefStr, IntoStaticStr};
+use thiserror::Error;
+use tonic::Status;
+use typed_store_error::TypedStoreError;
+
 use crate::{
     base_types::*,
     committee::{Committee, EpochId, StakeUnit},
@@ -10,14 +19,6 @@ use crate::{
     messages_checkpoint::CheckpointSequenceNumber,
     object::Owner,
 };
-
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, fmt::Debug};
-use strum_macros::{AsRefStr, IntoStaticStr};
-use thiserror::Error;
-use tonic::Status;
-use typed_store_error::TypedStoreError;
 
 pub const TRANSACTION_NOT_FOUND_MSG_PREFIX: &str = "Could not find the referenced transaction";
 pub const TRANSACTIONS_NOT_FOUND_MSG_PREFIX: &str = "Could not find the referenced transactions";
@@ -37,9 +38,12 @@ macro_rules! fp_ensure {
         }
     };
 }
-use crate::digests::TransactionEventsDigest;
-use crate::execution_status::{CommandIndex, ExecutionFailureStatus};
 pub(crate) use fp_ensure;
+
+use crate::{
+    digests::TransactionEventsDigest,
+    execution_status::{CommandIndex, ExecutionFailureStatus},
+};
 
 #[macro_export]
 macro_rules! exit_main {
@@ -98,7 +102,9 @@ pub enum UserInputError {
         object_id: ObjectID,
         version: Option<SequenceNumber>,
     },
-    #[error("Object {provided_obj_ref:?} is not available for consumption, its current version: {current_version:?}.")]
+    #[error(
+        "Object {provided_obj_ref:?} is not available for consumption, its current version: {current_version:?}."
+    )]
     ObjectVersionUnavailableForConsumption {
         provided_obj_ref: ObjectRef,
         current_version: SequenceNumber,
@@ -176,7 +182,12 @@ pub enum UserInputError {
     #[error("Gas object does not have enough balance to cover minimal gas spend")]
     InsufficientBalanceToCoverMinimalGas,
 
-    #[error("Could not find the referenced object {:?} as the asked version {:?} is higher than the latest {:?}", object_id, asked_version, latest_version)]
+    #[error(
+        "Could not find the referenced object {:?} as the asked version {:?} is higher than the latest {:?}",
+        object_id,
+        asked_version,
+        latest_version
+    )]
     ObjectSequenceNumberTooHigh {
         object_id: ObjectID,
         asked_version: SequenceNumber,
@@ -191,13 +202,17 @@ pub enum UserInputError {
     #[error("Empty input coins for Pay related transaction")]
     EmptyInputCoins,
 
-    #[error("SUI payment transactions use first input coin for gas payment, but found a different gas object.")]
+    #[error(
+        "SUI payment transactions use first input coin for gas payment, but found a different gas object."
+    )]
     UnexpectedGasPaymentObject,
 
     #[error("Wrong initial version given for shared object")]
     SharedObjectStartingVersionMismatch,
 
-    #[error("Attempt to transfer object {object_id} that does not have public transfer. Object transfer must be done instead using a distinct Move function call.")]
+    #[error(
+        "Attempt to transfer object {object_id} that does not have public transfer. Object transfer must be done instead using a distinct Move function call."
+    )]
     TransferObjectWithoutPublicTransferError { object_id: ObjectID },
 
     #[error(
@@ -318,14 +333,18 @@ pub enum SuiError {
     #[error("There are too many transactions pending in consensus")]
     TooManyTransactionsPendingConsensus,
 
-    #[error("Input {object_id} already has {queue_len} transactions pending, above threshold of {threshold}")]
+    #[error(
+        "Input {object_id} already has {queue_len} transactions pending, above threshold of {threshold}"
+    )]
     TooManyTransactionsPendingOnObject {
         object_id: ObjectID,
         queue_len: usize,
         threshold: usize,
     },
 
-    #[error("Input {object_id} has a transaction {txn_age_sec} seconds old pending, above threshold of {threshold} seconds")]
+    #[error(
+        "Input {object_id} has a transaction {txn_age_sec} seconds old pending, above threshold of {threshold} seconds"
+    )]
     TooOldTransactionPendingOnObject {
         object_id: ObjectID,
         txn_age_sec: u64,
@@ -344,7 +363,11 @@ pub enum SuiError {
     SignerSignatureNumberMismatch { expected: usize, actual: usize },
     #[error("Value was not signed by the correct sender: {}", error)]
     IncorrectSigner { error: String },
-    #[error("Value was not signed by a known authority. signer: {:?}, index: {:?}, committee: {committee}", signer, index)]
+    #[error(
+        "Value was not signed by a known authority. signer: {:?}, index: {:?}, committee: {committee}",
+        signer,
+        index
+    )]
     UnknownSigner {
         signer: Option<String>,
         index: Option<u32>,
@@ -359,7 +382,8 @@ pub enum SuiError {
         signer: AuthorityName,
         conflicting_sig: bool,
     },
-    // TODO: Used for distinguishing between different occurrences of invalid signatures, to allow retries in some cases.
+    // TODO: Used for distinguishing between different occurrences of invalid signatures, to allow
+    // retries in some cases.
     #[error(
         "Signature is not valid, but a retry may result in a valid one: {}",
         error
@@ -440,7 +464,9 @@ pub enum SuiError {
         obj_ref: ObjectRef,
         pending_transaction: TransactionDigest,
     },
-    #[error("Objects {obj_refs:?} are already locked by a transaction from a future epoch {locked_epoch:?}), attempt to override with a transaction from epoch {new_epoch:?}")]
+    #[error(
+        "Objects {obj_refs:?} are already locked by a transaction from a future epoch {locked_epoch:?}), attempt to override with a transaction from epoch {new_epoch:?}"
+    )]
     ObjectLockedAtFutureEpoch {
         obj_refs: Vec<ObjectRef>,
         locked_epoch: EpochId,
@@ -612,15 +638,18 @@ pub enum SuiError {
     #[error("Storage error: {0}")]
     Storage(String),
 
-    #[error("Validator cannot handle the request at the moment. Please retry after at least {retry_after_secs} seconds.")]
+    #[error(
+        "Validator cannot handle the request at the moment. Please retry after at least {retry_after_secs} seconds."
+    )]
     ValidatorOverloadedRetryAfter { retry_after_secs: u64 },
 }
 
 #[repr(u64)]
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
-/// Sub-status codes for the `UNKNOWN_VERIFICATION_ERROR` VM Status Code which provides more context
-/// TODO: add more Vm Status errors. We use `UNKNOWN_VERIFICATION_ERROR` as a catchall for now.
+/// Sub-status codes for the `UNKNOWN_VERIFICATION_ERROR` VM Status Code which
+/// provides more context TODO: add more Vm Status errors. We use
+/// `UNKNOWN_VERIFICATION_ERROR` as a catchall for now.
 pub enum VMMVerifierErrorSubStatusCode {
     MULTIPLE_RETURN_VALUES_NOT_ALLOWED = 0,
     INVALID_OBJECT_CREATION = 1,
@@ -629,7 +658,8 @@ pub enum VMMVerifierErrorSubStatusCode {
 #[repr(u64)]
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
-/// Sub-status codes for the `MEMORY_LIMIT_EXCEEDED` VM Status Code which provides more context
+/// Sub-status codes for the `MEMORY_LIMIT_EXCEEDED` VM Status Code which
+/// provides more context
 pub enum VMMemoryLimitExceededSubStatusCode {
     EVENT_COUNT_LIMIT_EXCEEDED = 0,
     EVENT_SIZE_LIMIT_EXCEEDED = 1,
@@ -736,8 +766,9 @@ impl SuiError {
 
     /// Returns if the error is retryable and if the error's retryability is
     /// explicitly categorized.
-    /// There should be only a handful of retryable errors. For now we list common
-    /// non-retryable error below to help us find more retryable errors in logs.
+    /// There should be only a handful of retryable errors. For now we list
+    /// common non-retryable error below to help us find more retryable
+    /// errors in logs.
     pub fn is_retryable(&self) -> (bool, bool) {
         let retryable = match self {
             // Network error
