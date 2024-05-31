@@ -24,7 +24,7 @@ IGNORED_EXTENSIONS = ('svg', 'mv', 'png', 'jpg', 'jpeg', 'gif', 'wasm', 'errmap'
 REPLACE_MAP = (
     ('MystenLabs/sui', 'iotaledger/kinesis'),
     ('SUI', 'IOTA'),
-    ('Sui', 'IOTA'),
+    ('Sui', 'Iota'),
     ('sui', 'iota'),
     ('@mysten/', '@iota/'),
     ('MIST', 'MICROS'),
