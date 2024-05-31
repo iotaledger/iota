@@ -12,5 +12,5 @@ export const parseTimestamp = (timestampMs?: string | null): number | undefined 
     }
 
     const timestamp = parseInt(timestampMs);
-    return Number.isInteger(timestamp) ? timestamp : undefined;
+    return Number.isFinite(timestamp) ? timestamp : undefined;
 };
