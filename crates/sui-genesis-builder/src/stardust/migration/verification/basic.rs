@@ -5,7 +5,9 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, ensure, Result};
 use iota_sdk::types::block::output::{BasicOutput, TokenId};
-use sui_types::in_memory_storage::InMemoryStorage;
+use sui_types::{
+    balance::Balance, coin::Coin, dynamic_field::Field, in_memory_storage::InMemoryStorage, TypeTag,
+};
 
 use crate::stardust::migration::{
     executor::FoundryLedgerData,
@@ -47,7 +49,7 @@ pub(super) fn verify_basic_output(
         );
 
         // Native Tokens
-        verify_native_tokens(
+        verify_native_tokens::<Field<String, Balance>>(
             output.native_tokens(),
             foundry_data,
             created_objects.native_tokens(),
@@ -111,7 +113,7 @@ pub(super) fn verify_basic_output(
         );
 
         // Native Tokens
-        verify_native_tokens(
+        verify_native_tokens::<(TypeTag, Coin)>(
             output.native_tokens(),
             foundry_data,
             created_objects.native_tokens(),

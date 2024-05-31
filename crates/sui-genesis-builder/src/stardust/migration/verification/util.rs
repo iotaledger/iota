@@ -17,6 +17,7 @@ use sui_types::{
     coin::Coin,
     dynamic_field::Field,
     in_memory_storage::InMemoryStorage,
+    object::Object,
     TypeTag,
 };
 
@@ -25,7 +26,7 @@ use crate::stardust::{
     types::{output as migration_output, Alias, Nft},
 };
 
-pub(super) fn verify_native_tokens(
+pub(super) fn verify_native_tokens<NtKind: NativeTokenKind>(
     native_tokens: &NativeTokens,
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     created_native_tokens: Option<&[ObjectID]>,
@@ -41,11 +42,7 @@ pub(super) fn verify_native_tokens(
                     let obj = storage
                         .get_object(id)
                         .ok_or_else(|| anyhow!("missing native token field for {id}"))?;
-                    obj.to_rust::<Field<String, Balance>>()
-                        .map(|nt| (nt.token_type(), nt.value()))
-                        .ok_or_else(|| {
-                            anyhow!("expected a native token field, found {:?}", obj.type_())
-                        })
+                    NtKind::from_object(obj).map(|nt| (nt.token_type(), nt.value()))
                 })
                 .collect::<Result<HashMap<String, u64>, _>>()
         })
@@ -323,6 +320,10 @@ pub(super) trait NativeTokenKind {
     fn token_type(&self) -> String;
 
     fn value(&self) -> u64;
+
+    fn from_object(obj: &Object) -> Result<Self>
+    where
+        Self: Sized;
 }
 
 impl NativeTokenKind for (TypeTag, Coin) {
@@ -333,6 +334,12 @@ impl NativeTokenKind for (TypeTag, Coin) {
     fn value(&self) -> u64 {
         self.1.value()
     }
+
+    fn from_object(obj: &Object) -> Result<Self> {
+        obj.coin_type_maybe()
+            .zip(obj.as_coin_maybe())
+            .ok_or_else(|| anyhow!("expected a native token coin, found {:?}", obj.type_()))
+    }
 }
 
 impl NativeTokenKind for Field<String, Balance> {
@@ -342,6 +349,11 @@ impl NativeTokenKind for Field<String, Balance> {
 
     fn value(&self) -> u64 {
         self.value.value()
+    }
+
+    fn from_object(obj: &Object) -> Result<Self> {
+        obj.to_rust::<Field<String, Balance>>()
+            .ok_or_else(|| anyhow!("expected a native token field, found {:?}", obj.type_()))
     }
 }
 
