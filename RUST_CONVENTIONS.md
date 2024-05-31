@@ -2,6 +2,40 @@
 
 These guidelines define IOTA Foundation rules and recommendations for Rust development.
 
+## Workspace Setup
+
+In order to use the unstable features specified in rustfmt.toml, you must have the correct nightly toolchain component
+installed.
+
+```sh
+cargo toolchain install nightly --component rustfmt --allow-downgrade
+```
+
+This can be used regardless of the default toolchain to format the code using the following command.
+
+```sh
+cargo +nightly fmt
+```
+
+### IDE Configuration
+
+For convenience, it is recommended that developers configure their IDEs to automatically format files on save.
+
+### VS Code
+
+`settings.json`
+
+```json
+{
+  "[rust]": {
+    "editor.formatOnSave": true,
+  },
+  "rust-analyzer.rustfmt.extraArgs": [
+    "+nightly"
+  ]
+}
+```
+
 ## Requirements
 
 The following rules should always be followed to the best of your ability.
@@ -25,7 +59,8 @@ manually which could be incorrect.
 
 #### Document Potential Panics
 
-Functions which might panic should document this behavior clearly in its `rustdoc` comments.
+Functions which might panic should document this behavior clearly in its `rustdoc` comments within a `Panics` section
+(see [here](https://doc.rust-lang.org/rustdoc/how-to-write-documentation.html#documenting-components) for an example).
 
 ### Style
 
@@ -43,7 +78,8 @@ It is acceptable to use short, non-descriptive variables in some situations. For
 
 #### Absolute Imports
 
-Use crate-level imports. Do not use `super` to specify relative import paths.
+Use `crate`-level imports. Do not use `super` to specify relative import paths, as they tend to break more easily during
+refactors than `crate` imports.
 
 <small>NOTE: Relative import paths are allowed in test modules.</small>
 
@@ -58,7 +94,8 @@ Do not use the import-all wildcard (`use something::*;`). All dependencies shoul
 #### Succinct Error Messages
 
 Error messages should generally be short and to the point. Avoid multiple sentences and periods, instead use commas or
-semicolons to divide message content.
+semicolons to divide message content. When writing error messages, think about what information would be most helpful in
+a debugging scenario to quickly understand what the cause of the error was.
 
 #### Error Message Style
 
@@ -136,7 +173,8 @@ scrutinized.
 
 #### Unwrap over Result
 
-Use `.unwrap()` in tests rather than returning a result, so that the stack trace is printed in the output.
+Use `.unwrap()` in tests rather than returning a result, so that the stack trace is printed in the output if the line
+fails.
 
 #### Unit Test Locality
 
@@ -166,7 +204,7 @@ In addition to the conventions listed here, follow the
 Generally speaking, `mod.rs` files should contain little or no code.
 
 <small>NOTE: In situations where a module folder should logically contain functionality, create a file with the same
-name as the containing folder and re-export it’s members in `mod.rs`.
+name as the containing folder and re-export it’s members in <code>mod.rs</code>.
 
     something
         ├ mod.rs <-- pub use something::*;
@@ -189,13 +227,19 @@ public re-export for convenience.
 
 Detailed context should be provided on errors whenever possible.
 
-When using `thiserror` to define errors, prefer `#[source]` over `#[from]` when defining wrapping errors.
+When using `thiserror` to define errors, prefer `#[source]` over `#[from]` when defining wrapping errors. Errors that
+are converted automatically by `thiserror` contain only the context provided by the wrapped error, which is often from a
+3rd party library. This is frequently insufficient to discern the nature of the error when debugging, particularly if a
+back trace is not available. Using `#[source]` forces the call site to manually map error types and allows a opportunity
+to add helpful context to errors that may otherwise contain none.
 
 ### Style
 
 #### Descriptive Generics
 
-When generics and lifetimes are presented as part of a public API, they should be descriptively named.
+When generics and lifetimes are presented as part of a public API, they should be descriptively named. In particular,
+lifetimes should describe what they constrain. Consider using multi-letter names for type parameters (e.g. `Doc` instead
+of just `D`) as well if it helps clarity and readability, in particular when a type has multiple type parameters.
 
 ### Usability
 
