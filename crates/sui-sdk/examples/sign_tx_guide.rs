@@ -2,13 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 mod utils;
-use crate::utils::request_tokens_from_faucet;
 use anyhow::anyhow;
-use fastcrypto::encoding::Encoding;
-use fastcrypto::hash::HashFunction;
 use fastcrypto::{
     ed25519::Ed25519KeyPair,
-    encoding::Base64,
+    encoding::{Base64, Encoding},
+    hash::HashFunction,
     secp256k1::Secp256k1KeyPair,
     secp256r1::Secp256r1KeyPair,
     traits::{EncodeDecodeBase64, KeyPair},
@@ -23,14 +21,13 @@ use sui_sdk::{
     },
     SuiClientBuilder,
 };
-use sui_types::crypto::Signer;
-use sui_types::crypto::SuiSignature;
-use sui_types::crypto::ToFromBytes;
-use sui_types::signature::GenericSignature;
 use sui_types::{
     base_types::SuiAddress,
-    crypto::{get_key_pair_from_rng, SuiKeyPair},
+    crypto::{get_key_pair_from_rng, Signer, SuiKeyPair, SuiSignature, ToFromBytes},
+    signature::GenericSignature,
 };
+
+use crate::utils::request_tokens_from_faucet;
 
 /// This example walks through the Rust SDK use case described in
 /// https://github.com/MystenLabs/sui/blob/main/docs/content/guides/developer/sui-101/sign-and-send-txn.mdx
@@ -53,7 +50,8 @@ async fn main() -> Result<(), anyhow::Error> {
     let _skp_rand_1 = SuiKeyPair::Secp256k1(get_key_pair_from_rng(&mut rand::rngs::OsRng).1);
     let _skp_rand_2 = SuiKeyPair::Secp256r1(get_key_pair_from_rng(&mut rand::rngs::OsRng).1);
 
-    // import a keypair from a base64 encoded 32-byte `private key` assuming scheme is Ed25519.
+    // import a keypair from a base64 encoded 32-byte `private key` assuming scheme
+    // is Ed25519.
     let _skp_import_no_flag_0 = SuiKeyPair::Ed25519(Ed25519KeyPair::from_bytes(
         &Base64::decode("1GPhHHkVlF6GrCty2IuBkM+tj/e0jn64ksJ1pc8KPoI=")
             .map_err(|_| anyhow!("Invalid base64"))?,
@@ -140,8 +138,9 @@ async fn main() -> Result<(), anyhow::Error> {
     // use SuiKeyPair to sign the digest.
     let sui_sig = skp_determ_0.sign(&digest);
 
-    // if you would like to verify the signature locally before submission, use this function.
-    // if it fails to verify locally, the transaction will fail to execute in Sui.
+    // if you would like to verify the signature locally before submission, use this
+    // function. if it fails to verify locally, the transaction will fail to
+    // execute in Sui.
     let res = sui_sig.verify_secure(
         &intent_msg,
         sender,

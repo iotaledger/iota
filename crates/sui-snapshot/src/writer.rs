@@ -2,41 +2,53 @@
 // SPDX-License-Identifier: Apache-2.0
 #![allow(dead_code)]
 
+use std::{
+    collections::{hash_map::Entry::Vacant, HashMap},
+    fs,
+    fs::{File, OpenOptions},
+    io::{BufWriter, Seek, SeekFrom, Write},
+    num::NonZeroUsize,
+    path::PathBuf,
+    sync::Arc,
+};
+
+use anyhow::{anyhow, Context, Result};
+use byteorder::{BigEndian, ByteOrder};
+use futures::StreamExt;
+use integer_encoding::VarInt;
+use object_store::{path::Path, DynObjectStore};
+use sui_config::object_storage_config::ObjectStoreConfig;
+use sui_core::authority::{
+    authority_store_tables::{AuthorityPerpetualTables, LiveObject},
+    CHAIN_IDENTIFIER,
+};
+use sui_protocol_config::{ProtocolConfig, ProtocolVersion};
+use sui_storage::{
+    blob::{Blob, BlobEncoding, BLOB_ENCODING_BYTES},
+    object_store::util::{copy_file, delete_recursively, path_to_filesystem},
+};
+use sui_types::{
+    base_types::{ObjectID, ObjectRef},
+    sui_system_state::{get_sui_system_state, SuiSystemStateTrait},
+};
+use tokio::{
+    sync::{
+        mpsc,
+        mpsc::{Receiver, Sender},
+    },
+    task::JoinHandle,
+};
+use tokio_stream::wrappers::ReceiverStream;
+use tracing::debug;
+
 use crate::{
     compute_sha3_checksum, create_file_metadata, FileCompression, FileMetadata, FileType, Manifest,
     ManifestV1, FILE_MAX_BYTES, MAGIC_BYTES, MANIFEST_FILE_MAGIC, OBJECT_FILE_MAGIC,
     OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC, SEQUENCE_NUM_BYTES,
 };
-use anyhow::{anyhow, Context, Result};
-use byteorder::{BigEndian, ByteOrder};
-use futures::StreamExt;
-use integer_encoding::VarInt;
-use object_store::path::Path;
-use object_store::DynObjectStore;
-use std::collections::hash_map::Entry::Vacant;
-use std::collections::HashMap;
-use std::fs;
-use std::fs::{File, OpenOptions};
-use std::io::{BufWriter, Seek, SeekFrom, Write};
-use std::num::NonZeroUsize;
-use std::path::PathBuf;
-use std::sync::Arc;
-use sui_config::object_storage_config::ObjectStoreConfig;
-use sui_core::authority::authority_store_tables::{AuthorityPerpetualTables, LiveObject};
-use sui_core::authority::CHAIN_IDENTIFIER;
-use sui_protocol_config::{ProtocolConfig, ProtocolVersion};
-use sui_storage::blob::{Blob, BlobEncoding, BLOB_ENCODING_BYTES};
-use sui_storage::object_store::util::{copy_file, delete_recursively, path_to_filesystem};
-use sui_types::base_types::{ObjectID, ObjectRef};
-use sui_types::sui_system_state::get_sui_system_state;
-use sui_types::sui_system_state::SuiSystemStateTrait;
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::{Receiver, Sender};
-use tokio::task::JoinHandle;
-use tokio_stream::wrappers::ReceiverStream;
-use tracing::debug;
 
-/// LiveObjectSetWriterV1 writes live object set. It creates multiple *.obj files and *.ref file
+/// LiveObjectSetWriterV1 writes live object set. It creates multiple *.obj
+/// files and *.ref file
 struct LiveObjectSetWriterV1 {
     dir_path: PathBuf,
     bucket_num: u32,
@@ -202,8 +214,8 @@ impl LiveObjectSetWriterV1 {
     }
 }
 
-/// StateSnapshotWriterV1 writes snapshot files to a local staging dir and simultaneously uploads them
-/// to a remote object store
+/// StateSnapshotWriterV1 writes snapshot files to a local staging dir and
+/// simultaneously uploads them to a remote object store
 pub struct StateSnapshotWriterV1 {
     local_staging_dir: PathBuf,
     file_compression: FileCompression,
@@ -437,7 +449,8 @@ impl StateSnapshotWriterV1 {
     }
 
     fn bucket_func(_object: &LiveObject) -> u32 {
-        // TODO: Use the hash bucketing function used for accumulator tree if there is one
+        // TODO: Use the hash bucketing function used for accumulator tree if there is
+        // one
         1u32
     }
 

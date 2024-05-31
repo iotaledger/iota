@@ -1,19 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
-use std::env;
-use std::sync::Arc;
+use std::{collections::BTreeMap, env, sync::Arc};
 
-use rustyline::completion::Completer;
-use rustyline::history::History;
-use rustyline::Context;
-
+use rustyline::{completion::Completer, history::History, Context};
 use sui_types::base_types::ObjectID;
 
-use crate::shell::split_and_unescape;
 use crate::shell::{
-    substitute_env_variables, CacheKey, CommandStructure, CompletionCache, ShellHelper,
+    split_and_unescape, substitute_env_variables, CacheKey, CommandStructure, CompletionCache,
+    ShellHelper,
 };
 
 #[test]
@@ -46,7 +41,8 @@ fn test_substitute_env_variables() {
     let test_string_3 = "$OBJECT_ID_2".to_string();
     assert_eq!(random_id_2, substitute_env_variables(test_string_3));
 
-    // Substitution will not happen if the variable is not found, and should not fail
+    // Substitution will not happen if the variable is not found, and should not
+    // fail
     let test_string_4 = "$THIS_VARIABLE_DOES_NOT_EXISTS".to_string();
     assert_eq!(
         test_string_4.clone(),
@@ -192,7 +188,8 @@ fn test_completer_with_cache() {
         .collect::<Vec<_>>();
     assert_eq!(vec!["Gas1", "Gas2", "Gas3", "--address"], candidates);
 
-    // CacheKey::new only apply the completion values to the flag with matching command name
+    // CacheKey::new only apply the completion values to the flag with matching
+    // command name
     completion_cache.write().unwrap().insert(
         CacheKey::new("command1", "--address"),
         vec!["Address1".to_string(), "Address2".to_string()],

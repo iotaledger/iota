@@ -349,7 +349,8 @@ fn init_signature(context: &mut Context, name: FunctionName, signature: &Functio
         && context.one_time_witness.is_some()
         && tx_ctx_kind != TxContextKind::None
     {
-        // if there is 1 parameter, and a OTW, this is an error since the OTW must be used
+        // if there is 1 parameter, and a OTW, this is an error since the OTW must be
+        // used
         let msg = format!(
             "Invalid first parameter to 'init'. \
             Expected this module's one-time witness type '{}::{otw_name}'",
@@ -419,9 +420,10 @@ fn init_signature(context: &mut Context, name: FunctionName, signature: &Functio
     }
 }
 
-// While theoretically we could call this just once for the upper cased module struct, we break it
-// out into a separate function to help programmers understand the rules for one-time witness types,
-// when trying to write an 'init' function.
+// While theoretically we could call this just once for the upper cased module
+// struct, we break it out into a separate function to help programmers
+// understand the rules for one-time witness types, when trying to write an
+// 'init' function.
 fn check_otw_type(
     context: &mut Context,
     name: StructName,
@@ -513,7 +515,8 @@ enum InvalidOTW {
 }
 
 // Find the first invalid field in a one-time witness type, if any.
-// First looks for a non-boolean field, otherwise looks for any field after the first.
+// First looks for a non-boolean field, otherwise looks for any field after the
+// first.
 fn invalid_otw_field_loc(fields: &Fields<Type>) -> Option<InvalidOTW> {
     let invalid_first_field = fields.iter().find_map(|(loc, _, (idx, ty))| {
         if *idx != 0 {
@@ -629,9 +632,9 @@ fn entry_param_ty(
     let is_mut_random = is_mut_random(param_ty);
 
     // TODO better error message for cases such as `MyObject<InnerTypeWithoutStore>`
-    // which should give a contextual error about `MyObject` having `key`, but the instantiation
-    // `MyObject<InnerTypeWithoutStore>` not having `key` due to `InnerTypeWithoutStore` not having
-    // `store`
+    // which should give a contextual error about `MyObject` having `key`, but the
+    // instantiation `MyObject<InnerTypeWithoutStore>` not having `key` due to
+    // `InnerTypeWithoutStore` not having `store`
     let is_valid = is_entry_primitive_ty(param_ty)
         || is_entry_object_ty(param_ty)
         || is_entry_receiving_ty(param_ty);
@@ -708,9 +711,9 @@ fn is_entry_receiving_ty(param_ty: &Type) -> bool {
             if n.is(SUI_ADDR_NAME, TRANSFER_MODULE_NAME, RECEIVING_TYPE_NAME) =>
         {
             debug_assert!(targs.len() == 1);
-            // Don't care about the type parameter, just that it's a receiving type -- since it has
-            // a `key` requirement on the type parameter it must be an object or type checking will
-            // fail.
+            // Don't care about the type parameter, just that it's a receiving type -- since
+            // it has a `key` requirement on the type parameter it must be an
+            // object or type checking will fail.
             true
         }
         _ => false,

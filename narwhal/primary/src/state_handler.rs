@@ -2,8 +2,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 use config::AuthorityIdentifier;
-use mysten_metrics::metered_channel::{Receiver, Sender};
-use mysten_metrics::spawn_logged_monitored_task;
+use mysten_metrics::{
+    metered_channel::{Receiver, Sender},
+    spawn_logged_monitored_task,
+};
 use tap::TapFallible;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, warn};

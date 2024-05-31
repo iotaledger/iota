@@ -5,10 +5,10 @@
 #[path = "../unit_tests/epoch_data_tests.rs"]
 pub mod epoch_data_tests;
 
+use std::{fs, path::PathBuf};
+
 use mysten_metrics::spawn_monitored_task;
 use narwhal_config::Epoch;
-use std::fs;
-use std::path::PathBuf;
 use tokio::sync::mpsc;
 
 pub struct EpochDataRemover {
@@ -61,7 +61,8 @@ pub(crate) fn remove_old_epoch_data(storage_base_path: PathBuf, epoch: Epoch) {
         return;
     }
 
-    // Keep previous epoch data as a safety buffer and remove starting from epoch - 1
+    // Keep previous epoch data as a safety buffer and remove starting from epoch -
+    // 1
     let drop_boundary = epoch - 1;
 
     tracing::info!(
@@ -73,7 +74,10 @@ pub(crate) fn remove_old_epoch_data(storage_base_path: PathBuf, epoch: Epoch) {
     let files = match fs::read_dir(storage_base_path) {
         Ok(f) => f,
         Err(e) => {
-            tracing::error!("Data Remover cannot read the files in the storage path directory for epoch cleanup: {:?}", e);
+            tracing::error!(
+                "Data Remover cannot read the files in the storage path directory for epoch cleanup: {:?}",
+                e
+            );
             return;
         }
     };
@@ -100,7 +104,10 @@ pub(crate) fn remove_old_epoch_data(storage_base_path: PathBuf, epoch: Epoch) {
         let file_epoch = match file_epoch_string.to_owned().parse::<u64>() {
             Ok(f) => f,
             Err(e) => {
-                tracing::error!("Data Remover could not parse file in storage path into epoch for cleanup: {:?}",e);
+                tracing::error!(
+                    "Data Remover could not parse file in storage path into epoch for cleanup: {:?}",
+                    e
+                );
                 continue;
             }
         };

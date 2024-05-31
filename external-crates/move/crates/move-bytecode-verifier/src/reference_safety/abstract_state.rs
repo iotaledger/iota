@@ -2,11 +2,10 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module defines the abstract state for the type and memory safety analysis.
-use crate::{
-    absint::{AbstractDomain, JoinResult},
-    meter::{Meter, Scope},
-};
+//! This module defines the abstract state for the type and memory safety
+//! analysis.
+use std::collections::{BTreeMap, BTreeSet};
+
 use move_binary_format::{
     binary_views::FunctionView,
     errors::{PartialVMError, PartialVMResult},
@@ -18,12 +17,16 @@ use move_binary_format::{
 };
 use move_borrow_graph::references::RefID;
 use move_core_types::vm_status::StatusCode;
-use std::collections::{BTreeMap, BTreeSet};
+
+use crate::{
+    absint::{AbstractDomain, JoinResult},
+    meter::{Meter, Scope},
+};
 
 type BorrowGraph = move_borrow_graph::graph::BorrowGraph<(), Label>;
 
-/// AbstractValue represents a reference or a non reference value, both on the stack and stored
-/// in a local
+/// AbstractValue represents a reference or a non reference value, both on the
+/// stack and stored in a local
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum AbstractValue {
     Reference(RefID),
@@ -86,7 +89,8 @@ pub(crate) const REF_PARAM_EDGE_COST_GROWTH: f32 = 1.5;
 // The cost of an acquires in a call.
 pub(crate) const CALL_PER_ACQUIRES_COST: u128 = 100;
 
-/// AbstractState is the analysis state over which abstract interpretation is performed.
+/// AbstractState is the analysis state over which abstract interpretation is
+/// performed.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct AbstractState {
     current_function: Option<FunctionDefinitionIndex>,
@@ -204,7 +208,8 @@ impl AbstractState {
 
     /// Checks if `id` is borrowed
     /// - All full/epsilon borrows are considered
-    /// - Only field borrows the specified label (or all if one isn't specified) are considered
+    /// - Only field borrows the specified label (or all if one isn't specified)
+    ///   are considered
     fn has_consistent_borrows(&self, id: RefID, label_opt: Option<Label>) -> bool {
         let (full_borrows, field_borrows) = self.borrow_graph.borrowed_by(id);
         !full_borrows.is_empty() || {
@@ -220,8 +225,8 @@ impl AbstractState {
 
     /// Checks if `id` is mutable borrowed
     /// - All full/epsilon mutable borrows are considered
-    /// - Only field mutable borrows the specified label (or all if one isn't specified) are
-    ///   considered
+    /// - Only field mutable borrows the specified label (or all if one isn't
+    ///   specified) are considered
     fn has_consistent_mutable_borrows(&self, id: RefID, label_opt: Option<Label>) -> bool {
         let (full_borrows, field_borrows) = self.borrow_graph.borrowed_by(id);
         !self.all_immutable(&full_borrows) || {
@@ -246,7 +251,8 @@ impl AbstractState {
     }
 
     /// checks if `id` is freezable
-    /// - Mutable references are freezable if there are no consistent mutable borrows
+    /// - Mutable references are freezable if there are no consistent mutable
+    ///   borrows
     /// - Immutable references are not freezable by the typing rules
     fn is_freezable(&self, id: RefID, at_field_opt: Option<FieldHandleIndex>) -> bool {
         assert!(self.borrow_graph.is_mutable(id));
@@ -281,9 +287,10 @@ impl AbstractState {
         self.has_consistent_mutable_borrows(self.frame_root(), Some(Label::Global(resource)))
     }
 
-    /// checks if the stack frame of the function being analyzed can be safely destroyed.
-    /// safe destruction requires that all references in locals have already been destroyed
-    /// and all values in locals are copyable and unborrowed.
+    /// checks if the stack frame of the function being analyzed can be safely
+    /// destroyed. safe destruction requires that all references in locals
+    /// have already been destroyed and all values in locals are copyable
+    /// and unborrowed.
     fn is_frame_safe_to_destroy(&self) -> bool {
         !self.has_consistent_borrows(self.frame_root(), None)
     }
@@ -417,8 +424,8 @@ impl AbstractState {
         mut_: bool,
         local: LocalIndex,
     ) -> PartialVMResult<AbstractValue> {
-        // nothing to check in case borrow is mutable since the frame cannot have an full borrow/
-        // epsilon outgoing edge
+        // nothing to check in case borrow is mutable since the frame cannot have an
+        // full borrow/ epsilon outgoing edge
         if !mut_ && self.is_local_mutably_borrowed(local) {
             return Err(self.error(StatusCode::BORROWLOC_EXISTS_BORROW_ERROR, offset));
         }

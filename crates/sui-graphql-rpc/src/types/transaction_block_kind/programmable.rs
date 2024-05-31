@@ -1,6 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use async_graphql::{
+    connection::{Connection, CursorType, Edge},
+    *,
+};
+use sui_json_rpc_types::SuiArgument;
+use sui_types::transaction::{
+    Argument as NativeArgument, CallArg as NativeCallArg, Command as NativeProgrammableTransaction,
+    ObjectArg as NativeObjectArg, ProgrammableMoveCall as NativeMoveCallTransaction,
+    ProgrammableTransaction as NativeProgrammableTransactionBlock,
+};
+
 use crate::{
     consistency::ConsistentIndexCursor,
     types::{
@@ -11,16 +22,6 @@ use crate::{
         object_read::ObjectRead,
         sui_address::SuiAddress,
     },
-};
-use async_graphql::{
-    connection::{Connection, CursorType, Edge},
-    *,
-};
-use sui_json_rpc_types::SuiArgument;
-use sui_types::transaction::{
-    Argument as NativeArgument, CallArg as NativeCallArg, Command as NativeProgrammableTransaction,
-    ObjectArg as NativeObjectArg, ProgrammableMoveCall as NativeMoveCallTransaction,
-    ProgrammableTransaction as NativeProgrammableTransactionBlock,
 };
 
 #[derive(Clone, Eq, PartialEq)]
@@ -54,11 +55,12 @@ struct SharedInput {
     address: SuiAddress,
     /// The version that this this object was shared at.
     initial_shared_version: u64,
-    /// Controls whether the transaction block can reference the shared object as a mutable
-    /// reference or by value. This has implications for scheduling: Transactions that just read
-    /// shared objects at a certain version (mutable = false) can be executed concurrently, while
-    /// transactions that write shared objects (mutable = true) must be executed serially with
-    /// respect to each other.
+    /// Controls whether the transaction block can reference the shared object
+    /// as a mutable reference or by value. This has implications for
+    /// scheduling: Transactions that just read shared objects at a certain
+    /// version (mutable = false) can be executed concurrently, while
+    /// transactions that write shared objects (mutable = true) must be executed
+    /// serially with respect to each other.
     mutable: bool,
 }
 
@@ -94,8 +96,8 @@ struct MoveCallTransaction {
     checkpoint_viewed_at: u64,
 }
 
-/// Transfers `inputs` to `address`. All inputs must have the `store` ability (allows public
-/// transfer) and must not be previously immutable or shared.
+/// Transfers `inputs` to `address`. All inputs must have the `store` ability
+/// (allows public transfer) and must not be previously immutable or shared.
 #[derive(SimpleObject, Clone, Eq, PartialEq)]
 struct TransferObjectsTransaction {
     /// The objects to transfer.
@@ -105,8 +107,8 @@ struct TransferObjectsTransaction {
     address: TransactionArgument,
 }
 
-/// Splits off coins with denominations in `amounts` from `coin`, returning multiple results (as
-/// many as there are amounts.)
+/// Splits off coins with denominations in `amounts` from `coin`, returning
+/// multiple results (as many as there are amounts.)
 #[derive(SimpleObject, Clone, Eq, PartialEq)]
 struct SplitCoinsTransaction {
     /// The coin to split.
@@ -129,7 +131,8 @@ struct MergeCoinsTransaction {
 /// Publishes a Move Package.
 #[derive(SimpleObject, Clone, Eq, PartialEq)]
 struct PublishTransaction {
-    /// Bytecode for the modules to be published, BCS serialized and Base64 encoded.
+    /// Bytecode for the modules to be published, BCS serialized and Base64
+    /// encoded.
     modules: Vec<Base64>,
 
     /// IDs of the transitive dependencies of the package to be published.
@@ -139,7 +142,8 @@ struct PublishTransaction {
 /// Upgrades a Move Package.
 #[derive(SimpleObject, Clone, Eq, PartialEq)]
 struct UpgradeTransaction {
-    /// Bytecode for the modules to be published, BCS serialized and Base64 encoded.
+    /// Bytecode for the modules to be published, BCS serialized and Base64
+    /// encoded.
     modules: Vec<Base64>,
 
     /// IDs of the transitive dependencies of the package to be published.
@@ -155,7 +159,8 @@ struct UpgradeTransaction {
 /// Create a vector (possibly empty).
 #[derive(SimpleObject, Clone, Eq, PartialEq)]
 struct MakeMoveVecTransaction {
-    /// If the elements are not objects, or the vector is empty, a type must be supplied.
+    /// If the elements are not objects, or the vector is empty, a type must be
+    /// supplied.
     #[graphql(name = "type")]
     type_: Option<MoveType>,
 
@@ -171,8 +176,9 @@ pub(crate) enum TransactionArgument {
     Result(TxResult),
 }
 
-/// Access to the gas inputs, after they have been smashed into one coin. The gas coin can only be
-/// used by reference, except for with `TransferObjectsTransaction` that can accept it by value.
+/// Access to the gas inputs, after they have been smashed into one coin. The
+/// gas coin can only be used by reference, except for with
+/// `TransferObjectsTransaction` that can accept it by value.
 #[derive(SimpleObject, Clone, Debug, Eq, PartialEq)]
 pub(crate) struct GasCoin {
     /// A workaround to define an empty variant of a GraphQL union.
@@ -180,7 +186,8 @@ pub(crate) struct GasCoin {
     dummy: Option<bool>,
 }
 
-/// One of the input objects or primitive values to the programmable transaction block.
+/// One of the input objects or primitive values to the programmable transaction
+/// block.
 #[derive(SimpleObject, Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Input {
     /// Index of the programmable transaction block input (0-indexed).
@@ -194,13 +201,15 @@ pub(crate) struct TxResult {
     /// The index of the previous command (0-indexed) that returned this result.
     cmd: u16,
 
-    /// If the previous command returns multiple values, this is the index of the individual result
-    /// among the multiple results from that command (also 0-indexed).
+    /// If the previous command returns multiple values, this is the index of
+    /// the individual result among the multiple results from that command
+    /// (also 0-indexed).
     ix: Option<u16>,
 }
 
-/// A user transaction that allows the interleaving of native commands (like transfer, split coins,
-/// merge coins, etc) and move calls, executed atomically.
+/// A user transaction that allows the interleaving of native commands (like
+/// transfer, split coins, merge coins, etc) and move calls, executed
+/// atomically.
 #[Object]
 impl ProgrammableTransactionBlock {
     /// Input objects or primitive values.

@@ -1,9 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{fmt, fmt::Display};
+
 use futures::future::join_all;
-use std::fmt;
-use std::fmt::Display;
 use sui_sdk::SuiClient;
 use sui_types::messages_checkpoint::CheckpointSequenceNumber;
 

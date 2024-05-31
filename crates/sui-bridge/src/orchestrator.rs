@@ -2,26 +2,31 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! `BridgeOrchestrator` is the component that:
-//! 1. monitors Sui and Ethereum events with the help of `SuiSyncer` and `EthSyncer`
+//! 1. monitors Sui and Ethereum events with the help of `SuiSyncer` and
+//!    `EthSyncer`
 //! 2. updates WAL table and cursor tables
 //! 2. hands actions to `BridgeExecutor` for execution
 
-use crate::abi::EthBridgeEvent;
-use crate::action_executor::{
-    submit_to_executor, BridgeActionExecutionWrapper, BridgeActionExecutorTrait,
-};
-use crate::error::BridgeResult;
-use crate::events::SuiBridgeEvent;
-use crate::storage::BridgeOrchestratorTables;
-use crate::sui_client::{SuiClient, SuiClientInner};
-use crate::types::EthLog;
+use std::sync::Arc;
+
 use ethers::types::Address as EthAddress;
 use mysten_metrics::spawn_logged_monitored_task;
-use std::sync::Arc;
 use sui_json_rpc_types::SuiEvent;
 use sui_types::Identifier;
 use tokio::task::JoinHandle;
 use tracing::{info, warn};
+
+use crate::{
+    abi::EthBridgeEvent,
+    action_executor::{
+        submit_to_executor, BridgeActionExecutionWrapper, BridgeActionExecutorTrait,
+    },
+    error::BridgeResult,
+    events::SuiBridgeEvent,
+    storage::BridgeOrchestratorTables,
+    sui_client::{SuiClient, SuiClientInner},
+    types::EthLog,
+};
 
 pub struct BridgeOrchestrator<C> {
     _sui_client: Arc<SuiClient<C>>,
@@ -179,7 +184,8 @@ where
                 store
                     .insert_pending_actions(&actions)
                     .expect("Store operation should not fail");
-                // Execution will remove the pending actions from DB when the action is completed.
+                // Execution will remove the pending actions from DB when the action is
+                // completed.
                 for action in actions {
                     submit_to_executor(&executor_tx, action)
                         .await
@@ -197,13 +203,16 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{test_utils::get_test_log_and_action, types::BridgeActionDigest};
-    use ethers::types::{Address as EthAddress, TxHash};
-    use prometheus::Registry;
     use std::str::FromStr;
 
+    use ethers::types::{Address as EthAddress, TxHash};
+    use prometheus::Registry;
+
     use super::*;
-    use crate::{events::tests::get_test_sui_event_and_action, sui_mock_client::SuiMockClient};
+    use crate::{
+        events::tests::get_test_sui_event_and_action, sui_mock_client::SuiMockClient,
+        test_utils::get_test_log_and_action, types::BridgeActionDigest,
+    };
 
     #[tokio::test]
     async fn test_sui_watcher_task() {
@@ -259,8 +268,10 @@ mod tests {
     #[tokio::test]
     async fn test_eth_watcher_task() {
         // Note: this test may fail beacuse of the following reasons:
-        // 1. Log and BridgeAction returned from `get_test_log_and_action` are not in sync
-        // 2. Log returned from `get_test_log_and_action` is not parseable log (not abigen!, check abi.rs)
+        // 1. Log and BridgeAction returned from `get_test_log_and_action` are not in
+        //    sync
+        // 2. Log returned from `get_test_log_and_action` is not parseable log (not
+        //    abigen!, check abi.rs)
 
         let (_sui_events_tx, sui_events_rx, eth_events_tx, eth_events_rx, sui_client, store) =
             setup();
@@ -364,7 +375,8 @@ mod tests {
         )
     }
 
-    /// A `BridgeActionExecutorTrait` implementation that only tracks the submitted actions.
+    /// A `BridgeActionExecutorTrait` implementation that only tracks the
+    /// submitted actions.
     struct MockExecutor {
         requested_transactions_tx: tokio::sync::broadcast::Sender<BridgeActionDigest>,
     }

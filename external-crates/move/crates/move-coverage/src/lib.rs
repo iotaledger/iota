@@ -2,9 +2,11 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::summary::ModuleSummary;
-use move_binary_format::CompiledModule;
 use std::io::Write;
+
+use move_binary_format::CompiledModule;
+
+use crate::summary::ModuleSummary;
 
 pub mod coverage_map;
 pub mod source_coverage;

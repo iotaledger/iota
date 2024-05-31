@@ -57,8 +57,8 @@ impl FixedPoint32 {
         assert!(scaled_denominator != 0);
         let quotient = scaled_numerator / scaled_denominator;
         assert!(quotient != 0 || numerator == 0);
-        // Return the quotient as a fixed-point number. We first need to check whether the cast
-        // can succeed.
+        // Return the quotient as a fixed-point number. We first need to check whether
+        // the cast can succeed.
         assert!(quotient <= u64::MAX as u128);
         FixedPoint32 {
             value: quotient as u64,
@@ -83,8 +83,9 @@ pub struct Url {
     ///
     /// # SAFETY
     ///
-    /// Note that this String is UTF-8 encoded while the URL type in Move is ascii-encoded.
-    /// Setting this field requires ensuring that the string consists of only ASCII characters.
+    /// Note that this String is UTF-8 encoded while the URL type in Move is
+    /// ascii-encoded. Setting this field requires ensuring that the string
+    /// consists of only ASCII characters.
     url: String,
 }
 
@@ -119,15 +120,17 @@ pub struct Irc27Metadata {
     /// URL pointing to the NFT file location.
     pub uri: Url,
 
-    /// Alphanumeric text string defining the human identifiable name for the NFT.
+    /// Alphanumeric text string defining the human identifiable name for the
+    /// NFT.
     pub name: String,
 
     /// The human-readable collection name of the NFT.
     pub collection_name: Option<String>,
 
     /// Royalty payment addresses mapped to the payout percentage.
-    /// Contains a hash of the 32 bytes parsed from the BECH32 encoded IOTA address in the metadata, it is a legacy address.
-    /// Royalties are not supported by the protocol and needed to be processed by an integrator.
+    /// Contains a hash of the 32 bytes parsed from the BECH32 encoded IOTA
+    /// address in the metadata, it is a legacy address. Royalties are not
+    /// supported by the protocol and needed to be processed by an integrator.
     pub royalties: VecMap<SuiAddress, FixedPoint32>,
 
     /// The human-readable name of the NFT creator.
@@ -149,9 +152,10 @@ impl TryFrom<StardustIrc27> for Irc27Metadata {
         Ok(Self {
             version: irc27.version().to_string(),
             media_type: irc27.media_type().to_string(),
-            // We are converting a `Url` to an ASCII string here (as the URL type in move is based on ASCII strings).
-            // The `ToString` implementation of the `Url` ensures only ascii characters are returned
-            // and this conversion is therefore safe to do.
+            // We are converting a `Url` to an ASCII string here (as the URL type in move is based
+            // on ASCII strings). The `ToString` implementation of the `Url` ensures
+            // only ascii characters are returned and this conversion is therefore safe
+            // to do.
             uri: Url::try_from(irc27.uri().to_string())
                 .expect("url should only contain ascii characters"),
             name: irc27.name().to_string(),
@@ -226,12 +230,12 @@ impl Default for Irc27Metadata {
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct Nft {
-    /// The ID of the Nft = hash of the Output ID that created the Nft Output in Stardust.
-    /// This is the NftID from Stardust.
+    /// The ID of the Nft = hash of the Output ID that created the Nft Output in
+    /// Stardust. This is the NftID from Stardust.
     pub id: UID,
 
-    /// The sender feature holds the last sender address assigned before the migration and
-    /// is not supported by the protocol after it.
+    /// The sender feature holds the last sender address assigned before the
+    /// migration and is not supported by the protocol after it.
     pub legacy_sender: Option<SuiAddress>,
     /// The metadata feature.
     pub metadata: Option<Vec<u8>>,
@@ -289,12 +293,16 @@ impl Nft {
 
     /// Converts the immutable metadata of the NFT into an [`Irc27Metadata`].
     ///
-    /// - If the metadata is empty or non-existent returns the default `Irc27Metadata`.
-    /// - If the metadata can be parsed into [`StardustIrc27`] returns that converted into `Irc27Metadata`.
+    /// - If the metadata is empty or non-existent returns the default
+    ///   `Irc27Metadata`.
+    /// - If the metadata can be parsed into [`StardustIrc27`] returns that
+    ///   converted into `Irc27Metadata`.
     /// - If the metadata can be parsed into a JSON object returns the default
-    ///   `Irc27Metadata` with `non_standard_fields` set to the fields of the object.
-    /// - Otherwise, returns the default `Irc27Metadata` with `non_standard_fields`
-    ///   containing a `data` key with the hex-encoded metadata (without `0x` prefix).
+    ///   `Irc27Metadata` with `non_standard_fields` set to the fields of the
+    ///   object.
+    /// - Otherwise, returns the default `Irc27Metadata` with
+    ///   `non_standard_fields` containing a `data` key with the hex-encoded
+    ///   metadata (without `0x` prefix).
     fn convert_immutable_metadata(nft: &StardustNft) -> anyhow::Result<Irc27Metadata> {
         let Some(metadata) = nft.immutable_features().metadata() else {
             return Ok(Irc27Metadata::default());
@@ -373,8 +381,9 @@ pub struct NftOutput {
 
     /// The amount of IOTA coins held by the output.
     pub iota: Balance,
-    /// The `Bag` holds native tokens, key-ed by the stringified type of the asset.
-    /// Example: key: "0xabcded::soon::SOON", value: Balance<0xabcded::soon::SOON>.
+    /// The `Bag` holds native tokens, key-ed by the stringified type of the
+    /// asset. Example: key: "0xabcded::soon::SOON", value:
+    /// Balance<0xabcded::soon::SOON>.
     pub native_tokens: Bag,
 
     /// The storage deposit return unlock condition.
@@ -395,7 +404,8 @@ impl NftOutput {
         }
     }
 
-    /// Creates the Move-based Nft Output model from a Stardust-based Nft Output.
+    /// Creates the Move-based Nft Output model from a Stardust-based Nft
+    /// Output.
     pub fn try_from_stardust(
         object_id: ObjectID,
         nft: &StardustNft,

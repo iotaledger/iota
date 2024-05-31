@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::fmt::Debug;
+
 use serde::{
     de::{Deserializer, Error},
     ser::{Error as SerError, Serializer},
 };
 use serde_with::{Bytes, DeserializeAs, SerializeAs};
-use std::fmt::Debug;
 
 #[inline]
 fn to_custom_error<'de, D, E>(e: E) -> D::Error

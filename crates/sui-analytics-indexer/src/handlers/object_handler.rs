@@ -1,25 +1,25 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::Result;
-use fastcrypto::encoding::{Base64, Encoding};
 use std::path::Path;
 
+use anyhow::Result;
+use fastcrypto::encoding::{Base64, Encoding};
 use sui_indexer::framework::Handler;
 use sui_json_rpc_types::SuiMoveStruct;
 use sui_package_resolver::Resolver;
 use sui_rest_api::{CheckpointData, CheckpointTransaction};
-use sui_types::effects::TransactionEffects;
-use sui_types::object::Object;
+use sui_types::{effects::TransactionEffects, object::Object};
 
-use crate::handlers::{
-    get_move_struct, get_owner_address, get_owner_type, initial_shared_version, AnalyticsHandler,
-    ObjectStatusTracker,
+use crate::{
+    handlers::{
+        get_move_struct, get_owner_address, get_owner_type, initial_shared_version,
+        AnalyticsHandler, ObjectStatusTracker,
+    },
+    package_store::{LocalDBPackageStore, PackageCache},
+    tables::{ObjectEntry, ObjectStatus},
+    FileType,
 };
-
-use crate::package_store::{LocalDBPackageStore, PackageCache};
-use crate::tables::{ObjectEntry, ObjectStatus};
-use crate::FileType;
 
 pub struct ObjectHandler {
     objects: Vec<ObjectEntry>,

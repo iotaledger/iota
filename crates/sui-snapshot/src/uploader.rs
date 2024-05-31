@@ -1,25 +1,27 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::writer::StateSnapshotWriterV1;
+use std::{num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
+
 use anyhow::Result;
 use bytes::Bytes;
 use object_store::DynObjectStore;
 use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
-use std::num::NonZeroUsize;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::Duration;
 use sui_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-use sui_core::authority::authority_store_tables::AuthorityPerpetualTables;
-use sui_core::db_checkpoint_handler::{STATE_SNAPSHOT_COMPLETED_MARKER, SUCCESS_MARKER};
-use sui_storage::object_store::util::{
-    find_all_dirs_with_epoch_prefix, find_missing_epochs_dirs, path_to_filesystem, put,
-    run_manifest_update_loop,
+use sui_core::{
+    authority::authority_store_tables::AuthorityPerpetualTables,
+    db_checkpoint_handler::{STATE_SNAPSHOT_COMPLETED_MARKER, SUCCESS_MARKER},
 };
-
-use sui_storage::FileCompression;
+use sui_storage::{
+    object_store::util::{
+        find_all_dirs_with_epoch_prefix, find_missing_epochs_dirs, path_to_filesystem, put,
+        run_manifest_update_loop,
+    },
+    FileCompression,
+};
 use tracing::{debug, error, info};
+
+use crate::writer::StateSnapshotWriterV1;
 
 pub struct StateSnapshotUploaderMetrics {
     pub first_missing_state_snapshot_epoch: IntGauge,

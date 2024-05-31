@@ -1,17 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{command::CommandOptions, run_cmd};
-use anyhow::anyhow;
-use anyhow::{Context, Result};
+use std::{
+    collections::HashMap,
+    env, fs,
+    path::PathBuf,
+    time::{SystemTime, UNIX_EPOCH},
+};
+
+use anyhow::{anyhow, Context, Result};
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::env;
-use std::fs;
-use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::{debug, error, info};
+
+use crate::{command::CommandOptions, run_cmd};
 
 const PULUMI: &str = "pulumi";
 const GO: &str = "go";

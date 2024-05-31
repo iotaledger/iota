@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{consistency::ConsistentIndexCursor, error::Error};
 use async_graphql::{
     connection::{Connection, ConnectionNameType, CursorType, Edge, EdgeNameType, EmptyFields},
     *,
@@ -11,8 +10,9 @@ use sui_types::{
     effects::{TransactionEffects as NativeTransactionEffects, TransactionEffectsAPI},
     event::Event as NativeEvent,
     execution_status::ExecutionStatus as NativeExecutionStatus,
-    transaction::SenderSignedData as NativeSenderSignedData,
-    transaction::TransactionData as NativeTransactionData,
+    transaction::{
+        SenderSignedData as NativeSenderSignedData, TransactionData as NativeTransactionData,
+    },
 };
 
 use super::{
@@ -29,9 +29,11 @@ use super::{
     transaction_block::{TransactionBlock, TransactionBlockInner},
     unchanged_shared_object::UnchangedSharedObject,
 };
+use crate::{consistency::ConsistentIndexCursor, error::Error};
 
-/// Wraps the actual transaction block effects data with the checkpoint sequence number at which the
-/// data was viewed, for consistent results on paginating through and resolving nested types.
+/// Wraps the actual transaction block effects data with the checkpoint sequence
+/// number at which the data was viewed, for consistent results on paginating
+/// through and resolving nested types.
 #[derive(Clone, Debug)]
 pub(crate) struct TransactionBlockEffects {
     pub kind: TransactionBlockEffectsKind,
@@ -48,14 +50,16 @@ pub(crate) enum TransactionBlockEffectsKind {
         native: NativeTransactionEffects,
     },
     /// A transaction block that has been executed via executeTransactionBlock
-    /// but not yet indexed. So it does not contain checkpoint, timestamp or balanceChanges.
+    /// but not yet indexed. So it does not contain checkpoint, timestamp or
+    /// balanceChanges.
     Executed {
         tx_data: NativeSenderSignedData,
         native: NativeTransactionEffects,
         events: Vec<NativeEvent>,
     },
-    /// A transaction block that has been executed via dryRunTransactionBlock. Similar to
-    /// Executed, it does not contain checkpoint, timestamp or balanceChanges.
+    /// A transaction block that has been executed via dryRunTransactionBlock.
+    /// Similar to Executed, it does not contain checkpoint, timestamp or
+    /// balanceChanges.
     DryRun {
         tx_data: NativeTransactionData,
         native: NativeTransactionEffects,
@@ -72,8 +76,9 @@ pub enum ExecutionStatus {
     Failure,
 }
 
-/// Type to override names of the Dependencies Connection (which has nullable transactions and
-/// therefore must be a different types to the default `TransactionBlockConnection`).
+/// Type to override names of the Dependencies Connection (which has nullable
+/// transactions and therefore must be a different types to the default
+/// `TransactionBlockConnection`).
 struct DependencyConnectionNames;
 
 type CDependencies = JsonCursor<ConsistentIndexCursor>;
@@ -98,8 +103,9 @@ impl TransactionBlockEffects {
         })
     }
 
-    /// The latest version of all objects (apart from packages) that have been created or modified
-    /// by this transaction, immediately following this transaction.
+    /// The latest version of all objects (apart from packages) that have been
+    /// created or modified by this transaction, immediately following this
+    /// transaction.
     async fn lamport_version(&self) -> u64 {
         self.native().lamport_version().value()
     }
@@ -201,7 +207,8 @@ impl TransactionBlockEffects {
         Some(GasEffects::from(self.native(), self.checkpoint_viewed_at))
     }
 
-    /// Shared objects that are referenced by but not changed by this transaction.
+    /// Shared objects that are referenced by but not changed by this
+    /// transaction.
     async fn unchanged_shared_objects(
         &self,
         ctx: &Context<'_>,
@@ -232,7 +239,8 @@ impl TransactionBlockEffects {
                         .edges
                         .push(Edge::new(c.encode_cursor(), unchanged_shared_object));
                 }
-                Err(_shared_object_changed) => continue, // Only add unchanged shared objects to the connection.
+                Err(_shared_object_changed) => continue, /* Only add unchanged shared objects to
+                                                          * the connection. */
             }
         }
 
@@ -276,8 +284,8 @@ impl TransactionBlockEffects {
         Ok(connection)
     }
 
-    /// The effect this transaction had on the balances (sum of coin values per coin type) of
-    /// addresses and objects.
+    /// The effect this transaction had on the balances (sum of coin values per
+    /// coin type) of addresses and objects.
     async fn balance_changes(
         &self,
         ctx: &Context<'_>,
@@ -361,7 +369,8 @@ impl TransactionBlockEffects {
         Ok(connection)
     }
 
-    /// Timestamp corresponding to the checkpoint this transaction was finalized in.
+    /// Timestamp corresponding to the checkpoint this transaction was finalized
+    /// in.
     async fn timestamp(&self) -> Result<Option<DateTime>, Error> {
         let TransactionBlockEffectsKind::Stored { stored_tx, .. } = &self.kind else {
             return Ok(None);
@@ -382,7 +391,8 @@ impl TransactionBlockEffects {
 
     /// The checkpoint this transaction was finalized in.
     async fn checkpoint(&self, ctx: &Context<'_>) -> Result<Option<Checkpoint>> {
-        // If the transaction data is not a stored transaction, it's not in the checkpoint yet so we return None.
+        // If the transaction data is not a stored transaction, it's not in the
+        // checkpoint yet so we return None.
         let TransactionBlockEffectsKind::Stored { stored_tx, .. } = &self.kind else {
             return Ok(None);
         };

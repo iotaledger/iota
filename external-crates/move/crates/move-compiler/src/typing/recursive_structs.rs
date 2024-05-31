@@ -2,6 +2,11 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::BTreeMap;
+
+use move_ir_types::location::*;
+use petgraph::{algo::tarjan_scc as petgraph_scc, graphmap::DiGraphMap};
+
 use crate::{
     diag,
     diagnostics::Diagnostic,
@@ -11,9 +16,6 @@ use crate::{
     shared::{unique_map::UniqueMap, *},
     typing::ast as T,
 };
-use move_ir_types::location::*;
-use petgraph::{algo::tarjan_scc as petgraph_scc, graphmap::DiGraphMap};
-use std::collections::BTreeMap;
 
 struct Context {
     struct_neighbors: BTreeMap<StructName, BTreeMap<StructName, Loc>>,

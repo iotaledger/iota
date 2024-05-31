@@ -1,15 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::payload::rpc_command_processor::DEFAULT_GAS_BUDGET;
-use crate::payload::{PaySui, ProcessPayload, RpcCommandProcessor, SignerInfo};
 use async_trait::async_trait;
 use futures::future::join_all;
-use sui_types::base_types::SuiAddress;
-use sui_types::crypto::{EncodeDecodeBase64, SuiKeyPair};
-use sui_types::quorum_driver_types::ExecuteTransactionRequestType;
-use sui_types::transaction::TransactionData;
+use sui_types::{
+    base_types::SuiAddress,
+    crypto::{EncodeDecodeBase64, SuiKeyPair},
+    quorum_driver_types::ExecuteTransactionRequestType,
+    transaction::TransactionData,
+};
 use tracing::debug;
+
+use crate::payload::{
+    rpc_command_processor::DEFAULT_GAS_BUDGET, PaySui, ProcessPayload, RpcCommandProcessor,
+    SignerInfo,
+};
 
 #[async_trait]
 impl<'a> ProcessPayload<'a, &'a PaySui> for RpcCommandProcessor {
@@ -38,8 +43,9 @@ impl<'a> ProcessPayload<'a, &'a PaySui> for RpcCommandProcessor {
         );
 
         let sender = SuiAddress::from(&keypair.public());
-        // TODO: For write operations, we usually just want to submit the transaction to fullnode
-        // Let's figure out what's the best way to support other mode later
+        // TODO: For write operations, we usually just want to submit the transaction to
+        // fullnode Let's figure out what's the best way to support other mode
+        // later
         let client = clients.first().unwrap();
         let gas_price = client
             .governance_api()

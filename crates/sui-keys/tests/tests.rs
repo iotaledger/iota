@@ -1,20 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fs;
-use std::str::FromStr;
+use std::{fs, str::FromStr};
 
-use fastcrypto::hash::HashFunction;
-use fastcrypto::traits::EncodeDecodeBase64;
-use sui_keys::key_derive::generate_new_key;
-use tempfile::TempDir;
-
-use sui_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore};
-use sui_types::crypto::{DefaultHash, SignatureScheme, SuiSignatureInner};
+use fastcrypto::{hash::HashFunction, traits::EncodeDecodeBase64};
+use sui_keys::{
+    key_derive::generate_new_key,
+    keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore},
+};
 use sui_types::{
     base_types::{SuiAddress, SUI_ADDRESS_LENGTH},
-    crypto::Ed25519SuiSignature,
+    crypto::{DefaultHash, Ed25519SuiSignature, SignatureScheme, SuiSignatureInner},
 };
+use tempfile::TempDir;
 
 #[test]
 fn alias_exists_test() {
@@ -105,7 +103,8 @@ fn keystore_no_aliases() {
     // and a new alias for it.
     // This idea is to test the correct conversion
     // from the old type (which only contains keys and an optional path)
-    // to the new type which contains keys and aliases (and an optional path), and if it creates the aliases file.
+    // to the new type which contains keys and aliases (and an optional path), and
+    // if it creates the aliases file.
 
     let temp_dir = TempDir::new().unwrap();
     let mut keystore_path = temp_dir.path().join("sui.keystore");
@@ -210,7 +209,8 @@ fn mnemonic_test() {
     assert_eq!(address, imported_address);
 }
 
-/// This test confirms rust's implementation of mnemonic is the same with the Sui Wallet
+/// This test confirms rust's implementation of mnemonic is the same with the
+/// Sui Wallet
 #[test]
 fn sui_wallet_address_mnemonic_test() -> Result<(), anyhow::Error> {
     let phrase = "result crisp session latin must fruit genuine question prevent start coconut brave speak student dismiss";

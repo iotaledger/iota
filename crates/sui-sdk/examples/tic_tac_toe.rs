@@ -1,18 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::io::{stdin, stdout, Write};
-use std::path::PathBuf;
-use std::str::FromStr;
-use std::thread;
-use std::time::Duration;
+use std::{
+    io::{stdin, stdout, Write},
+    path::PathBuf,
+    str::FromStr,
+    thread,
+    time::Duration,
+};
 
 use anyhow::anyhow;
 use async_recursion::async_recursion;
-use clap::Parser;
-use clap::Subcommand;
+use clap::{Parser, Subcommand};
 use serde::Deserialize;
-
 use shared_crypto::intent::Intent;
 use sui_json_rpc_types::{SuiObjectDataOptions, SuiTransactionBlockResponseOptions};
 use sui_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
@@ -69,7 +69,8 @@ impl TicTacToe {
         player_x: Option<SuiAddress>,
         player_o: Option<SuiAddress>,
     ) -> Result<(), anyhow::Error> {
-        // Default player identity to first and second keys in the keystore if not provided.
+        // Default player identity to first and second keys in the keystore if not
+        // provided.
         let player_x = player_x.unwrap_or_else(|| self.keystore.addresses()[0]);
         let player_o = player_o.unwrap_or_else(|| self.keystore.addresses()[1]);
 
@@ -322,7 +323,8 @@ enum TicTacToeCommand {
     },
 }
 
-// Data structure mirroring move object `games::shared_tic_tac_toe::TicTacToe` for deserialization.
+// Data structure mirroring move object `games::shared_tic_tac_toe::TicTacToe`
+// for deserialization.
 #[derive(Deserialize, Debug)]
 struct TicTacToeState {
     info: UID,

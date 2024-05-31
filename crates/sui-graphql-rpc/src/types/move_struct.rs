@@ -4,13 +4,12 @@
 use async_graphql::*;
 use sui_package_resolver::StructDef;
 
-use crate::error::Error;
-
 use super::{
     move_module::MoveModule,
     open_move_type::{abilities, MoveAbility, OpenMoveType},
     sui_address::SuiAddress,
 };
+use crate::error::Error;
 
 pub(crate) struct MoveStruct {
     defining_id: SuiAddress,
@@ -71,15 +70,16 @@ impl MoveStruct {
         Some(&self.abilities)
     }
 
-    /// Constraints on the struct's formal type parameters.  Move bytecode does not name type
-    /// parameters, so when they are referenced (e.g. in field types) they are identified by their
-    /// index in this list.
+    /// Constraints on the struct's formal type parameters.  Move bytecode does
+    /// not name type parameters, so when they are referenced (e.g. in field
+    /// types) they are identified by their index in this list.
     async fn type_parameters(&self) -> Option<&Vec<MoveStructTypeParameter>> {
         Some(&self.type_parameters)
     }
 
-    /// The names and types of the struct's fields.  Field types reference type parameters, by their
-    /// index in the defining struct's `typeParameters` list.
+    /// The names and types of the struct's fields.  Field types reference type
+    /// parameters, by their index in the defining struct's `typeParameters`
+    /// list.
     async fn fields(&self) -> Option<&Vec<MoveField>> {
         Some(&self.fields)
     }

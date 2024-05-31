@@ -1,29 +1,35 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::config::ZkLoginConfig;
-use crate::error::Error;
-use crate::types::base64::Base64;
-use crate::types::dynamic_field::{DynamicField, DynamicFieldName};
-use crate::types::epoch::Epoch;
-use crate::types::sui_address::SuiAddress;
-use crate::types::type_filter::ExactTypeFilter;
 use async_graphql::*;
 use im::hashmap::HashMap as ImHashMap;
 use shared_crypto::intent::{
     AppId, Intent, IntentMessage, IntentScope, IntentVersion, PersonalMessage,
 };
-use sui_types::authenticator_state::{ActiveJwk, AuthenticatorStateInner};
-use sui_types::crypto::ToFromBytes;
-use sui_types::dynamic_field::{DynamicFieldType, Field};
-use sui_types::signature::GenericSignature;
-use sui_types::signature::{AuthenticatorTrait, VerifyParams};
-use sui_types::transaction::TransactionData;
-use sui_types::{TypeTag, SUI_AUTHENTICATOR_STATE_ADDRESS};
+use sui_types::{
+    authenticator_state::{ActiveJwk, AuthenticatorStateInner},
+    crypto::ToFromBytes,
+    dynamic_field::{DynamicFieldType, Field},
+    signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
+    transaction::TransactionData,
+    TypeTag, SUI_AUTHENTICATOR_STATE_ADDRESS,
+};
 use tracing::warn;
 
-/// An enum that specifies the intent scope to be used to parse the bytes for signature
-/// verification.
+use crate::{
+    config::ZkLoginConfig,
+    error::Error,
+    types::{
+        base64::Base64,
+        dynamic_field::{DynamicField, DynamicFieldName},
+        epoch::Epoch,
+        sui_address::SuiAddress,
+        type_filter::ExactTypeFilter,
+    },
+};
+
+/// An enum that specifies the intent scope to be used to parse the bytes for
+/// signature verification.
 #[derive(Enum, Copy, Clone, Eq, PartialEq)]
 pub(crate) enum ZkLoginIntentScope {
     /// Indicates that the bytes are to be parsed as transaction data bytes.
@@ -41,8 +47,9 @@ pub(crate) struct ZkLoginVerifyResult {
     pub errors: Vec<String>,
 }
 
-/// Verifies a zkLogin signature based on the bytes (parsed as either TransactionData or
-/// PersonalMessage based on the intent scope) and its author.
+/// Verifies a zkLogin signature based on the bytes (parsed as either
+/// TransactionData or PersonalMessage based on the intent scope) and its
+/// author.
 pub(crate) async fn verify_zklogin_signature(
     ctx: &Context<'_>,
     bytes: Base64,

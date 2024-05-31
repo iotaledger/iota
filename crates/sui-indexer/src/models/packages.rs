@@ -1,10 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::schema::packages;
-use crate::types::IndexedPackage;
-
 use diesel::prelude::*;
+
+use crate::{schema::packages, types::IndexedPackage};
 
 #[derive(Queryable, Insertable, Clone, Debug, Identifiable)]
 #[diesel(table_name = packages, primary_key(package_id))]

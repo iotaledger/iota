@@ -1,14 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::path::PathBuf;
+
 use anyhow::Result;
 use camino::Utf8PathBuf;
 use clap::Parser;
 use fastcrypto::encoding::{Encoding, Hex};
-use std::path::PathBuf;
 use sui_config::{genesis::UnsignedGenesis, SUI_GENESIS_FILENAME};
 use sui_genesis_builder::Builder;
-use sui_types::multiaddr::Multiaddr;
+use sui_keys::keypair_file::{
+    read_authority_keypair_from_file, read_keypair_from_file, read_network_keypair_from_file,
+};
 use sui_types::{
     base_types::SuiAddress,
     committee::ProtocolVersion,
@@ -16,10 +19,7 @@ use sui_types::{
         generate_proof_of_possession, AuthorityKeyPair, KeypairTraits, NetworkKeyPair, SuiKeyPair,
     },
     message_envelope::Message,
-};
-
-use sui_keys::keypair_file::{
-    read_authority_keypair_from_file, read_keypair_from_file, read_network_keypair_from_file,
+    multiaddr::Multiaddr,
 };
 
 use crate::genesis_inspector::examine_genesis_checkpoint;
@@ -248,25 +248,28 @@ pub fn run(cmd: Ceremony) -> Result<()> {
 
 fn check_protocol_version(builder: &Builder, protocol_version: ProtocolVersion) -> Result<()> {
     // It is entirely possible for the user to sign a genesis blob with an unknown
-    // protocol version, but if this happens there is almost certainly some confusion
-    // (e.g. using a `sui` binary built at the wrong commit).
+    // protocol version, but if this happens there is almost certainly some
+    // confusion (e.g. using a `sui` binary built at the wrong commit).
     if builder.protocol_version() != protocol_version {
         return Err(anyhow::anyhow!(
-                        "Serialized protocol version does not match local --protocol-version argument. ({:?} vs {:?})",
-                        builder.protocol_version(), protocol_version));
+            "Serialized protocol version does not match local --protocol-version argument. ({:?} vs {:?})",
+            builder.protocol_version(),
+            protocol_version
+        ));
     }
     Ok(())
 }
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use anyhow::Result;
     use sui_config::local_ip_utils;
     use sui_genesis_builder::validator_info::ValidatorInfo;
     use sui_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
     use sui_macros::nondeterministic;
     use sui_types::crypto::{get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair, SuiKeyPair};
+
+    use super::*;
 
     #[test]
     #[cfg_attr(msim, ignore)]

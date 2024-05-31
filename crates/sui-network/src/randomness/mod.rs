@@ -1,7 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use self::{auth::AllowedPeersUpdatable, metrics::Metrics};
+use std::{
+    collections::{btree_map::BTreeMap, BTreeSet, HashMap},
+    ops::Bound,
+    sync::Arc,
+    time::{self, Duration},
+};
+
 use anemo::PeerId;
 use anyhow::Result;
 use fastcrypto::groups::bls12381;
@@ -9,12 +15,6 @@ use fastcrypto_tbls::{dkg, nodes::PartyId, tbls::ThresholdBls, types::ThresholdB
 use mysten_metrics::spawn_monitored_task;
 use mysten_network::anemo_ext::NetworkExt;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::{btree_map::BTreeMap, BTreeSet, HashMap},
-    ops::Bound,
-    sync::Arc,
-    time::{self, Duration},
-};
 use sui_config::p2p::RandomnessConfig;
 use sui_types::{
     base_types::AuthorityName,
@@ -23,6 +23,8 @@ use sui_types::{
 };
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, instrument, warn};
+
+use self::{auth::AllowedPeersUpdatable, metrics::Metrics};
 
 mod auth;
 mod builder;
@@ -54,16 +56,17 @@ pub struct SendSignaturesRequest {
 
 /// A handle to the Randomness network subsystem.
 ///
-/// This handle can be cloned and shared. Once all copies of a Randomness system's Handle have been
-/// dropped, the Randomness system will be gracefully shutdown.
+/// This handle can be cloned and shared. Once all copies of a Randomness
+/// system's Handle have been dropped, the Randomness system will be gracefully
+/// shutdown.
 #[derive(Clone, Debug)]
 pub struct Handle {
     sender: mpsc::Sender<RandomnessMessage>,
 }
 
 impl Handle {
-    /// Transitions the Randomness system to a new epoch. Cancels all partial signature sends for
-    /// prior epochs.
+    /// Transitions the Randomness system to a new epoch. Cancels all partial
+    /// signature sends for prior epochs.
     pub fn update_epoch(
         &self,
         new_epoch: EpochId,
@@ -81,14 +84,16 @@ impl Handle {
             .expect("RandomnessEventLoop mailbox should not overflow or be closed")
     }
 
-    /// Begins transmitting partial signatures for the given epoch and round until completed.
+    /// Begins transmitting partial signatures for the given epoch and round
+    /// until completed.
     pub fn send_partial_signatures(&self, epoch: EpochId, round: RandomnessRound) {
         self.sender
             .try_send(RandomnessMessage::SendPartialSignatures(epoch, round))
             .expect("RandomnessEventLoop mailbox should not overflow or be closed")
     }
 
-    /// Records the given round as complete, stopping any partial signature sends.
+    /// Records the given round as complete, stopping any partial signature
+    /// sends.
     pub fn complete_round(&self, epoch: EpochId, round: RandomnessRound) {
         self.sender
             .try_send(RandomnessMessage::CompleteRound(epoch, round))
@@ -253,8 +258,13 @@ impl RandomnessEventLoop {
         let mut aggregate_rounds = BTreeSet::new();
         for (epoch, round, _) in self.received_partial_sigs.keys() {
             if *epoch < new_epoch {
-                error!("BUG: received partial sigs for old epoch still present after attempting to remove them");
-                debug_assert!(false, "received partial sigs for old epoch still present after attempting to remove them");
+                error!(
+                    "BUG: received partial sigs for old epoch still present after attempting to remove them"
+                );
+                debug_assert!(
+                    false,
+                    "received partial sigs for old epoch still present after attempting to remove them"
+                );
                 continue;
             }
             if *epoch > new_epoch {
@@ -350,8 +360,9 @@ impl RandomnessEventLoop {
             return;
         };
         if sig_bytes.len() != *expected_share_count as usize {
-            // No need to verify share IDs here as well, since if we receive incorrect IDs, we
-            // will catch it later when aggregating/verifying the partial sigs.
+            // No need to verify share IDs here as well, since if we receive incorrect IDs,
+            // we will catch it later when aggregating/verifying the partial
+            // sigs.
             debug!(
                 "received partial sigs with wrong share count: expected {expected_share_count}, got {}",
                 sig_bytes.len(),
@@ -372,14 +383,14 @@ impl RandomnessEventLoop {
                     .saturating_add(self.config.max_partial_sigs_rounds_ahead())
         {
             debug!(
-                    "skipping received partial sigs, most recent round we completed was only {last_completed_round}",
-                );
+                "skipping received partial sigs, most recent round we completed was only {last_completed_round}",
+            );
             return;
         }
         if epoch > last_completed_epoch && round.0 >= self.config.max_partial_sigs_rounds_ahead() {
             debug!(
-                    "skipping received partial sigs, most recent epoch we completed was only {last_completed_epoch}",
-                );
+                "skipping received partial sigs, most recent epoch we completed was only {last_completed_epoch}",
+            );
             return;
         }
 
@@ -419,11 +430,14 @@ impl RandomnessEventLoop {
         if !(self.send_tasks.contains_key(&(epoch, round))
             || self.pending_tasks.contains(&(epoch, round)))
         {
-            // We have to wait here, because even if we have enough information from other nodes
-            // to complete the signature, local shared object versions are not set until consensus
-            // finishes processing the corresponding commit. This function will be called again
+            // We have to wait here, because even if we have enough information from other
+            // nodes to complete the signature, local shared object versions are
+            // not set until consensus finishes processing the corresponding
+            // commit. This function will be called again
             // after maybe_start_pending_tasks begins this round locally.
-            debug!("waiting to aggregate randomness partial signatures until local consensus catches up");
+            debug!(
+                "waiting to aggregate randomness partial signatures until local consensus catches up"
+            );
             return;
         }
 
@@ -445,20 +459,24 @@ impl RandomnessEventLoop {
             .received_partial_sigs
             .range(sig_bounds)
             .flat_map(|(_, sigs)| sigs);
-        let mut sig =
-            match ThresholdBls12381MinSig::aggregate(self.aggregation_threshold, sig_range) {
-                Ok(sig) => sig,
-                Err(fastcrypto::error::FastCryptoError::NotEnoughInputs) => return, // wait for more input
-                Err(e) => {
-                    error!("error while aggregating randomness partial signatures: {e:?}");
-                    return;
-                }
-            };
+        let mut sig = match ThresholdBls12381MinSig::aggregate(
+            self.aggregation_threshold,
+            sig_range,
+        ) {
+            Ok(sig) => sig,
+            Err(fastcrypto::error::FastCryptoError::NotEnoughInputs) => return, // wait for more
+            // input
+            Err(e) => {
+                error!("error while aggregating randomness partial signatures: {e:?}");
+                return;
+            }
+        };
 
-        // Try to verify the aggregated signature all at once. (Should work in the happy path.)
+        // Try to verify the aggregated signature all at once. (Should work in the happy
+        // path.)
         if ThresholdBls12381MinSig::verify(vss_pk.c0(), &round.signature_message(), &sig).is_err() {
-            // If verifiation fails, some of the inputs must be invalid. We have to go through
-            // one-by-one to find which.
+            // If verifiation fails, some of the inputs must be invalid. We have to go
+            // through one-by-one to find which.
             // TODO: add test for individual sig verification.
             self.received_partial_sigs
                 .retain(|&(e, r, peer_id), partial_sigs| {
@@ -487,7 +505,7 @@ impl RandomnessEventLoop {
                 .flat_map(|(_, sigs)| sigs);
             sig = match ThresholdBls12381MinSig::aggregate(self.aggregation_threshold, sig_range) {
                 Ok(sig) => sig,
-                Err(fastcrypto::error::FastCryptoError::NotEnoughInputs) => return, // wait for more input
+                Err(fastcrypto::error::FastCryptoError::NotEnoughInputs) => return, /* wait for more input */
                 Err(e) => {
                     error!("error while aggregating randomness partial signatures: {e:?}");
                     return;
@@ -496,8 +514,13 @@ impl RandomnessEventLoop {
             if let Err(e) =
                 ThresholdBls12381MinSig::verify(vss_pk.c0(), &round.signature_message(), &sig)
             {
-                error!("error while verifying randomness partial signatures after removing invalid partials: {e:?}");
-                debug_assert!(false, "error while verifying randomness partial signatures after removing invalid partials");
+                error!(
+                    "error while verifying randomness partial signatures after removing invalid partials: {e:?}"
+                );
+                debug_assert!(
+                    false,
+                    "error while verifying randomness partial signatures after removing invalid partials"
+                );
                 return;
             }
         }
@@ -517,7 +540,8 @@ impl RandomnessEventLoop {
             .map(|(key, _)| *key)
             .collect();
         for key in keys_to_remove {
-            // Have to remove keys one-by-one because BTreeMap does not support range-removal.
+            // Have to remove keys one-by-one because BTreeMap does not support
+            // range-removal.
             self.received_partial_sigs.remove(&key);
         }
 
@@ -616,8 +640,8 @@ impl RandomnessEventLoop {
         }
         self.update_rounds_pending_metric();
 
-        // After starting a round, we have generated our own partial sigs. Check if that's
-        // enough for us to aggregate already.
+        // After starting a round, we have generated our own partial sigs. Check if
+        // that's enough for us to aggregate already.
         for (epoch, round) in rounds_to_aggregate {
             self.maybe_aggregate_partial_signatures(epoch, round);
         }

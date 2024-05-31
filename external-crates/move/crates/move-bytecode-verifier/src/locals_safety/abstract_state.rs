@@ -4,7 +4,6 @@
 
 //! This module defines the abstract state for the local safety analysis.
 
-use crate::absint::{AbstractDomain, JoinResult};
 use move_binary_format::{
     binary_views::{BinaryIndexedView, FunctionView},
     errors::{PartialVMError, PartialVMResult},
@@ -12,19 +11,23 @@ use move_binary_format::{
 };
 use move_core_types::vm_status::StatusCode;
 
+use crate::absint::{AbstractDomain, JoinResult};
+
 /// LocalState represents the current assignment state of a local
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum LocalState {
     /// The local does not have a value
     Unavailable,
-    /// The local was assigned a non-drop value in at least one control flow path,
+    /// The local was assigned a non-drop value in at least one control flow
+    /// path,
     // but was `Unavailable` in at least one other path
     MaybeAvailable,
     /// The local has a value
     Available,
 }
-use crate::meter::{Meter, Scope};
 use LocalState::*;
+
+use crate::meter::{Meter, Scope};
 
 pub(crate) const STEP_BASE_COST: u128 = 15;
 pub(crate) const RET_PER_LOCAL_COST: u128 = 30;
