@@ -1,18 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use anyhow::{bail, Context, Result};
-use fastcrypto::ed25519::Ed25519PublicKey;
-use fastcrypto::traits::ToFromBytes;
-use multiaddr::Multiaddr;
-use once_cell::sync::Lazy;
-use prometheus::{register_counter_vec, register_histogram_vec};
-use prometheus::{CounterVec, HistogramVec};
-use serde::Deserialize;
-use std::time::Duration;
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
+    time::Duration,
 };
+
+use anyhow::{bail, Context, Result};
+use fastcrypto::{ed25519::Ed25519PublicKey, traits::ToFromBytes};
+use multiaddr::Multiaddr;
+use once_cell::sync::Lazy;
+use prometheus::{register_counter_vec, register_histogram_vec, CounterVec, HistogramVec};
+use serde::Deserialize;
 use sui_tls::Allower;
 use sui_types::sui_system_state::sui_system_state_summary::SuiSystemStateSummary;
 use tracing::{debug, error, info};
@@ -49,10 +48,12 @@ pub struct SuiPeer {
     pub public_key: Ed25519PublicKey,
 }
 
-/// SuiNodeProvider queries the sui blockchain and keeps a record of known validators based on the response from
-/// sui_getValidators.  The node name, public key and other info is extracted from the chain and stored in this
-/// data structure.  We pass this struct to the tls verifier and it depends on the state contained within.
-/// Handlers also use this data in an Extractor extension to check incoming clients on the http api against known keys.
+/// SuiNodeProvider queries the sui blockchain and keeps a record of known
+/// validators based on the response from sui_getValidators.  The node name,
+/// public key and other info is extracted from the chain and stored in this
+/// data structure.  We pass this struct to the tls verifier and it depends on
+/// the state contained within. Handlers also use this data in an Extractor
+/// extension to check incoming clients on the http api against known keys.
 #[derive(Debug, Clone)]
 pub struct SuiNodeProvider {
     nodes: SuiPeers,
@@ -70,7 +71,8 @@ impl Allower for SuiNodeProvider {
 
 impl SuiNodeProvider {
     pub fn new(rpc_url: String, rpc_poll_interval: Duration, static_peers: Vec<SuiPeer>) -> Self {
-        // build our hashmap with the static pub keys. we only do this one time at binary startup.
+        // build our hashmap with the static pub keys. we only do this one time at
+        // binary startup.
         let static_nodes: HashMap<Ed25519PublicKey, SuiPeer> = static_peers
             .into_iter()
             .map(|v| (v.public_key.clone(), v))
@@ -218,9 +220,10 @@ impl SuiNodeProvider {
     }
 }
 
-/// extract will get the network pubkey bytes from a SuiValidatorSummary type.  This type comes from a
-/// full node rpc result.  See get_validators for details.  The key here, if extracted successfully, will
-/// ultimately be stored in the allow list and let us communicate with those actual peers via tls.
+/// extract will get the network pubkey bytes from a SuiValidatorSummary type.
+/// This type comes from a full node rpc result.  See get_validators for
+/// details.  The key here, if extracted successfully, will ultimately be stored
+/// in the allow list and let us communicate with those actual peers via tls.
 fn extract(summary: SuiSystemStateSummary) -> impl Iterator<Item = (Ed25519PublicKey, SuiPeer)> {
     summary.active_validators.into_iter().filter_map(|vm| {
         match Ed25519PublicKey::from_bytes(&vm.network_pubkey_bytes) {
@@ -258,15 +261,17 @@ fn extract(summary: SuiSystemStateSummary) -> impl Iterator<Item = (Ed25519Publi
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::admin::{generate_self_cert, CertKeyPair};
     use serde::Serialize;
     use sui_types::sui_system_state::sui_system_state_summary::{
         SuiSystemStateSummary, SuiValidatorSummary,
     };
 
-    /// creates a test that binds our proxy use case to the structure in sui_getLatestSuiSystemState
-    /// most of the fields are garbage, but we will send the results of the serde process to a private decode
+    use super::*;
+    use crate::admin::{generate_self_cert, CertKeyPair};
+
+    /// creates a test that binds our proxy use case to the structure in
+    /// sui_getLatestSuiSystemState most of the fields are garbage, but we
+    /// will send the results of the serde process to a private decode
     /// function that should always work if the structure is valid for our use
     #[test]
     fn depend_on_sui_sui_system_state_summary() {
@@ -274,8 +279,8 @@ mod tests {
         let p2p_address: Multiaddr = "/ip4/127.0.0.1/tcp/10000"
             .parse()
             .expect("expected a multiaddr value");
-        // all fields here just satisfy the field types, with exception to active_validators, we use
-        // some of those.
+        // all fields here just satisfy the field types, with exception to
+        // active_validators, we use some of those.
         let depends_on = SuiSystemStateSummary {
             active_validators: vec![SuiValidatorSummary {
                 network_pubkey_bytes: Vec::from(client_pub_key.as_bytes()),

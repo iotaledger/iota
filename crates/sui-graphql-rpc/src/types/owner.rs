@@ -1,49 +1,53 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use super::address::Address;
-use super::coin_metadata::CoinMetadata;
-use super::cursor::Page;
-use super::dynamic_field::DynamicField;
-use super::dynamic_field::DynamicFieldName;
-use super::move_package::MovePackage;
-use super::object::ObjectLookupKey;
-use super::stake::StakedSui;
-use super::suins_registration::{DomainFormat, NameService, SuinsRegistration};
-use crate::data::Db;
-use crate::types::balance::{self, Balance};
-use crate::types::coin::Coin;
-use crate::types::move_object::MoveObject;
-use crate::types::object::{self, Object, ObjectFilter};
-use crate::types::sui_address::SuiAddress;
-use crate::types::type_filter::ExactTypeFilter;
-
-use async_graphql::connection::Connection;
-use async_graphql::*;
+use async_graphql::{connection::Connection, *};
 use sui_json_rpc::name_service::NameServiceConfig;
-use sui_types::dynamic_field::DynamicFieldType;
-use sui_types::gas_coin::GAS;
+use sui_types::{dynamic_field::DynamicFieldType, gas_coin::GAS};
+
+use super::{
+    address::Address,
+    coin_metadata::CoinMetadata,
+    cursor::Page,
+    dynamic_field::{DynamicField, DynamicFieldName},
+    move_package::MovePackage,
+    object::ObjectLookupKey,
+    stake::StakedSui,
+    suins_registration::{DomainFormat, NameService, SuinsRegistration},
+};
+use crate::{
+    data::Db,
+    types::{
+        balance::{self, Balance},
+        coin::Coin,
+        move_object::MoveObject,
+        object::{self, Object, ObjectFilter},
+        sui_address::SuiAddress,
+        type_filter::ExactTypeFilter,
+    },
+};
 
 #[derive(Clone, Debug)]
 pub(crate) struct Owner {
     pub address: SuiAddress,
-    /// The checkpoint sequence number at which this was viewed at, or None if the data was
-    /// requested at the latest checkpoint.
+    /// The checkpoint sequence number at which this was viewed at, or None if
+    /// the data was requested at the latest checkpoint.
     pub checkpoint_viewed_at: Option<u64>,
 }
 
 /// Type to implement GraphQL fields that are shared by all Owners.
 pub(crate) struct OwnerImpl {
     pub address: SuiAddress,
-    /// The checkpoint sequence number at which this was viewed at, or None if the data was
-    /// requested at the latest checkpoint.
+    /// The checkpoint sequence number at which this was viewed at, or None if
+    /// the data was requested at the latest checkpoint.
     pub checkpoint_viewed_at: Option<u64>,
 }
 
-/// Interface implemented by GraphQL types representing entities that can own objects. Object owners
-/// are identified by an address which can represent either the public key of an account or another
-/// object. The same address can only refer to an account or an object, never both, but it is not
-/// possible to know which up-front.
+/// Interface implemented by GraphQL types representing entities that can own
+/// objects. Object owners are identified by an address which can represent
+/// either the public key of an account or another object. The same address can
+/// only refer to an account or an object, never both, but it is not possible to
+/// know which up-front.
 #[derive(Interface)]
 #[graphql(
     name = "IOwner",
@@ -124,9 +128,10 @@ pub(crate) enum IOwner {
     SuinsRegistration(SuinsRegistration),
 }
 
-/// An Owner is an entity that can own an object. Each Owner is identified by a SuiAddress which
-/// represents either an Address (corresponding to a public key of an account) or an Object, but
-/// never both (it is not known up-front whether a given Owner is an Address or an Object).
+/// An Owner is an entity that can own an object. Each Owner is identified by a
+/// SuiAddress which represents either an Address (corresponding to a public key
+/// of an account) or an Object, but never both (it is not known up-front
+/// whether a given Owner is an Address or an Object).
 #[Object]
 impl Owner {
     pub(crate) async fn address(&self) -> SuiAddress {
@@ -148,8 +153,8 @@ impl Owner {
             .await
     }
 
-    /// Total balance of all coins with marker type owned by this object or address. If type is not
-    /// supplied, it defaults to `0x2::sui::SUI`.
+    /// Total balance of all coins with marker type owned by this object or
+    /// address. If type is not supplied, it defaults to `0x2::sui::SUI`.
     pub(crate) async fn balance(
         &self,
         ctx: &Context<'_>,
@@ -174,7 +179,8 @@ impl Owner {
 
     /// The coin objects for this object or address.
     ///
-    ///`type` is a filter on the coin's type parameter, defaulting to `0x2::sui::SUI`.
+    /// `type` is a filter on the coin's type parameter, defaulting to
+    /// `0x2::sui::SUI`.
     pub(crate) async fn coins(
         &self,
         ctx: &Context<'_>,
@@ -189,7 +195,8 @@ impl Owner {
             .await
     }
 
-    /// The `0x3::staking_pool::StakedSui` objects owned by this object or address.
+    /// The `0x3::staking_pool::StakedSui` objects owned by this object or
+    /// address.
     pub(crate) async fn staked_suis(
         &self,
         ctx: &Context<'_>,
@@ -203,7 +210,8 @@ impl Owner {
             .await
     }
 
-    /// The domain explicitly configured as the default domain pointing to this object or address.
+    /// The domain explicitly configured as the default domain pointing to this
+    /// object or address.
     pub(crate) async fn default_suins_name(
         &self,
         ctx: &Context<'_>,
@@ -212,8 +220,8 @@ impl Owner {
         OwnerImpl::from(self).default_suins_name(ctx, format).await
     }
 
-    /// The SuinsRegistration NFTs owned by this object or address. These grant the owner the
-    /// capability to manage the associated domain.
+    /// The SuinsRegistration NFTs owned by this object or address. These grant
+    /// the owner the capability to manage the associated domain.
     pub(crate) async fn suins_registrations(
         &self,
         ctx: &Context<'_>,
@@ -248,11 +256,12 @@ impl Owner {
         .extend()
     }
 
-    /// Access a dynamic field on an object using its name. Names are arbitrary Move values whose
-    /// type have `copy`, `drop`, and `store`, and are specified using their type, and their BCS
-    /// contents, Base64 encoded.
+    /// Access a dynamic field on an object using its name. Names are arbitrary
+    /// Move values whose type have `copy`, `drop`, and `store`, and are
+    /// specified using their type, and their BCS contents, Base64 encoded.
     ///
-    /// This field exists as a convenience when accessing a dynamic field on a wrapped object.
+    /// This field exists as a convenience when accessing a dynamic field on a
+    /// wrapped object.
     async fn dynamic_field(
         &self,
         ctx: &Context<'_>,
@@ -263,12 +272,14 @@ impl Owner {
             .await
     }
 
-    /// Access a dynamic object field on an object using its name. Names are arbitrary Move values
-    /// whose type have `copy`, `drop`, and `store`, and are specified using their type, and their
-    /// BCS contents, Base64 encoded. The value of a dynamic object field can also be accessed
+    /// Access a dynamic object field on an object using its name. Names are
+    /// arbitrary Move values whose type have `copy`, `drop`, and `store`,
+    /// and are specified using their type, and their BCS contents, Base64
+    /// encoded. The value of a dynamic object field can also be accessed
     /// off-chain directly via its address (e.g. using `Query.object`).
     ///
-    /// This field exists as a convenience when accessing a dynamic field on a wrapped object.
+    /// This field exists as a convenience when accessing a dynamic field on a
+    /// wrapped object.
     async fn dynamic_object_field(
         &self,
         ctx: &Context<'_>,
@@ -281,7 +292,8 @@ impl Owner {
 
     /// The dynamic fields and dynamic object fields on an object.
     ///
-    /// This field exists as a convenience when accessing a dynamic field on a wrapped object.
+    /// This field exists as a convenience when accessing a dynamic field on a
+    /// wrapped object.
     async fn dynamic_fields(
         &self,
         ctx: &Context<'_>,
@@ -292,7 +304,8 @@ impl Owner {
     ) -> Result<Connection<String, DynamicField>> {
         OwnerImpl::from(self)
             .dynamic_fields(
-                ctx, first, after, last, before, /* parent_version */ None,
+                ctx, first, after, last, before, // parent_version
+                None,
             )
             .await
     }
@@ -440,8 +453,9 @@ impl OwnerImpl {
         .extend()
     }
 
-    // Dynamic field related functions are part of the `IMoveObject` interface, but are provided
-    // here to implement convenience functions on `Owner` and `Object` to access dynamic fields.
+    // Dynamic field related functions are part of the `IMoveObject` interface, but
+    // are provided here to implement convenience functions on `Owner` and
+    // `Object` to access dynamic fields.
 
     pub(crate) async fn dynamic_field(
         &self,

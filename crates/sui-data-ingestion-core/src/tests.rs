@@ -1,27 +1,30 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::progress_store::ExecutorProgress;
-use crate::{DataIngestionMetrics, FileProgressStore, IndexerExecutor, WorkerPool};
-use crate::{ReaderOptions, Worker};
+use std::{path::PathBuf, time::Duration};
+
 use anyhow::Result;
 use async_trait::async_trait;
 use prometheus::Registry;
-use rand::prelude::StdRng;
-use rand::SeedableRng;
-use std::path::PathBuf;
-use std::time::Duration;
+use rand::{prelude::StdRng, SeedableRng};
 use sui_storage::blob::{Blob, BlobEncoding};
-use sui_types::crypto::KeypairTraits;
-use sui_types::full_checkpoint_content::CheckpointData;
-use sui_types::gas::GasCostSummary;
-use sui_types::messages_checkpoint::{
-    CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber, CheckpointSummary,
-    SignedCheckpointSummary,
+use sui_types::{
+    crypto::KeypairTraits,
+    full_checkpoint_content::CheckpointData,
+    gas::GasCostSummary,
+    messages_checkpoint::{
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
+        CheckpointSummary, SignedCheckpointSummary,
+    },
+    utils::make_committee_key,
 };
-use sui_types::utils::make_committee_key;
 use tempfile::NamedTempFile;
 use tokio::sync::oneshot;
+
+use crate::{
+    progress_store::ExecutorProgress, DataIngestionMetrics, FileProgressStore, IndexerExecutor,
+    ReaderOptions, Worker, WorkerPool,
+};
 
 async fn add_worker_pool<W: Worker + 'static>(
     indexer: &mut IndexerExecutor<FileProgressStore>,

@@ -17,11 +17,12 @@ use types::{
 
 use crate::traits::{PrimaryToWorkerClient, WorkerToPrimaryClient};
 
-/// NetworkClient provides the interface to send requests to other nodes, and call other components
-/// directly if they live in the same process. It is used by both primary and worker(s).
+/// NetworkClient provides the interface to send requests to other nodes, and
+/// call other components directly if they live in the same process. It is used
+/// by both primary and worker(s).
 ///
-/// Currently this only supports local direct calls, and it will be extended to support remote
-/// network calls.
+/// Currently this only supports local direct calls, and it will be extended to
+/// support remote network calls.
 ///
 /// TODO: investigate splitting this into Primary and Worker specific clients.
 #[derive(Clone)]

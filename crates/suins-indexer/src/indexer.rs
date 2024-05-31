@@ -55,7 +55,8 @@ impl SuinsIndexer {
 
     /// Checks if the object referenced is a subdomain wrapper.
     /// For subdomain wrappers, we're saving the ID of the wrapper object,
-    /// to make it easy to locate the NFT (since the base NFT gets wrapped and indexing won't work there).
+    /// to make it easy to locate the NFT (since the base NFT gets wrapped and
+    /// indexing won't work there).
     pub fn is_subdomain_wrapper(&self, object: &Object) -> bool {
         object
             .struct_tag()
@@ -64,27 +65,32 @@ impl SuinsIndexer {
 
     // Filter by owner.
     // Owner has to be the TABLE of the registry.
-    // A table of that type can only have `Field<Domain,NameRecord> as a child so that check is enough to
-    // make sure we're dealing with a registry change.
+    // A table of that type can only have `Field<Domain,NameRecord> as a child so
+    // that check is enough to make sure we're dealing with a registry change.
     pub fn is_name_record(&self, object: &Object) -> bool {
         object
             .get_single_owner()
             .is_some_and(|owner| owner == self.registry_table_id)
     }
 
-    /// Processes a checkpoint and produces a list of `updates` and a list of `removals`
+    /// Processes a checkpoint and produces a list of `updates` and a list of
+    /// `removals`
     ///
-    /// We can then use these to execute our DB bulk insertions + bulk deletions.
+    /// We can then use these to execute our DB bulk insertions + bulk
+    /// deletions.
     ///
     /// Returns
-    /// - `Vec<VerifiedDomain>`: A list of NameRecord updates for the database (including sequence number)
-    /// - `Vec<String>`: A list of IDs to be deleted from the database (`field_id` is the matching column)
+    /// - `Vec<VerifiedDomain>`: A list of NameRecord updates for the database
+    ///   (including sequence number)
+    /// - `Vec<String>`: A list of IDs to be deleted from the database
+    ///   (`field_id` is the matching column)
     pub fn process_checkpoint(&self, data: &CheckpointData) -> (Vec<VerifiedDomain>, Vec<String>) {
         let mut checkpoint = SuinsIndexerCheckpoint::new(data.checkpoint_summary.sequence_number);
 
         // loop through all the transactions in the checkpoint
-        // Since the transactions are sequenced inside the checkpoint, we can safely assume
-        // that we have the latest data for each name record in the end of the loop.
+        // Since the transactions are sequenced inside the checkpoint, we can safely
+        // assume that we have the latest data for each name record in the end
+        // of the loop.
         for transaction in &data.transactions {
             // Add all name record changes to the name_records HashMap.
             // Remove any removals that got re-created.
@@ -131,7 +137,8 @@ impl SuinsIndexerCheckpoint {
     /// Parses the name record changes + subdomain wraps.
     /// and pushes them into the supplied vector + hashmap.
     ///
-    /// It is implemented in a way to do just a single iteration over the objects.
+    /// It is implemented in a way to do just a single iteration over the
+    /// objects.
     pub fn parse_record_changes(&mut self, config: &SuinsIndexer, objects: &[Object]) {
         for object in objects {
             // Parse all the changes to a `NameRecord`
@@ -143,16 +150,18 @@ impl SuinsIndexerCheckpoint {
                 let id = object.id();
 
                 // Remove from the removals list if it's there.
-                // The reason it might have been there is that the same name record might have been
-                // deleted in a previous transaction in the same checkpoint, and now it got re-created.
+                // The reason it might have been there is that the same name record might have
+                // been deleted in a previous transaction in the same
+                // checkpoint, and now it got re-created.
                 self.removals.remove(&id);
 
                 self.name_records.insert(id, NameRecordChange(name_record));
             }
             // Parse subdomain wrappers and save them in our hashmap.
             // Later, we'll save the id of the wrapper in the name record.
-            // NameRecords & their equivalent SubdomainWrappers are always created in the same PTB, so we can safely assume
-            // that the wrapper will be created on the same checkpoint as the name record and vice versa.
+            // NameRecords & their equivalent SubdomainWrappers are always created in the
+            // same PTB, so we can safely assume that the wrapper will be
+            // created on the same checkpoint as the name record and vice versa.
             if config.is_subdomain_wrapper(object) {
                 let sub_domain: SubDomainRegistration = object.to_rust().unwrap();
                 self.subdomain_wrappers.insert(
@@ -163,8 +172,9 @@ impl SuinsIndexerCheckpoint {
         }
     }
 
-    /// Parses a list of the deletions in the checkpoint and adds them to the removals list.
-    /// Also removes any name records from the updates, if they ended up being deleted in the same checkpoint.
+    /// Parses a list of the deletions in the checkpoint and adds them to the
+    /// removals list. Also removes any name records from the updates, if
+    /// they ended up being deleted in the same checkpoint.
     pub fn parse_record_deletions(
         &mut self,
         config: &SuinsIndexer,
@@ -180,9 +190,10 @@ impl SuinsIndexerCheckpoint {
 
         for input in transaction.input_objects.iter() {
             if config.is_name_record(input) && deleted_objects.contains(&input.id()) {
-                // since this record was deleted, we need to remove it from the name_records hashmap.
-                // that catches a case where a name record was edited on a previous transaction in the checkpoint
-                // and deleted from a different tx later in the checkpoint.
+                // since this record was deleted, we need to remove it from the name_records
+                // hashmap. that catches a case where a name record was edited
+                // on a previous transaction in the checkpoint and deleted from
+                // a different tx later in the checkpoint.
                 self.name_records.remove(&input.id());
 
                 // add it in the list of removals
@@ -191,8 +202,9 @@ impl SuinsIndexerCheckpoint {
         }
     }
 
-    /// Prepares a vector of `VerifiedDomain`s to be inserted into the DB, taking in account
-    /// the list of subdomain wrappers created as well as the checkpoint's sequence number.
+    /// Prepares a vector of `VerifiedDomain`s to be inserted into the DB,
+    /// taking in account the list of subdomain wrappers created as well as
+    /// the checkpoint's sequence number.
     pub fn prepare_db_updates(&self) -> Vec<VerifiedDomain> {
         let mut updates: Vec<VerifiedDomain> = vec![];
 
@@ -215,7 +227,8 @@ impl SuinsIndexerCheckpoint {
                 } else {
                     None
                 },
-                // unwrapping must be safe as `value.data` is an on-chain value with VecMap<String,String> type.
+                // unwrapping must be safe as `value.data` is an on-chain value with
+                // VecMap<String,String> type.
                 data: serde_json::to_value(&name_record.value.data).unwrap(),
                 last_checkpoint_updated: self.checkpoint_sequence_number as i64,
                 subdomain_wrapper_id: self
@@ -231,10 +244,11 @@ impl SuinsIndexerCheckpoint {
 
 /// Allows us to format a SuiNS specific query for updating the DB entries
 /// only if the checkpoint is newer than the last checkpoint we have in the DB.
-/// Doing that, we do not care about the order of execution and we can use multiple threads
-/// to commit from later checkpoints to the DB.
+/// Doing that, we do not care about the order of execution and we can use
+/// multiple threads to commit from later checkpoints to the DB.
 ///
-/// WARNING: This can easily be SQL-injected, so make sure to use it only with trusted inputs.
+/// WARNING: This can easily be SQL-injected, so make sure to use it only with
+/// trusted inputs.
 pub fn format_update_field_query(field: &str) -> String {
     format!(
         "CASE WHEN excluded.last_checkpoint_updated > domains.last_checkpoint_updated THEN excluded.{field} ELSE domains.{field} END"

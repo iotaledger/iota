@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use axum::body::Body;
-use axum::body::HttpBody;
-use axum::http::Request;
+use axum::{
+    body::{Body, HttpBody},
+    http::Request,
+};
 use tower::ServiceExt;
 
 #[tokio::test]

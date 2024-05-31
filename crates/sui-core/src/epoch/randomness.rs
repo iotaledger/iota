@@ -1,38 +1,47 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use anemo::PeerId;
-use fastcrypto::encoding::{Encoding, Hex};
-use fastcrypto::error::FastCryptoError;
-use fastcrypto::groups::bls12381;
-use fastcrypto::serde_helpers::ToFromByteArray;
-use fastcrypto::traits::{KeyPair, ToFromBytes};
-use fastcrypto_tbls::nodes::PartyId;
-use fastcrypto_tbls::{dkg, nodes};
-use futures::stream::FuturesUnordered;
-use futures::StreamExt;
-use narwhal_types::Round;
-use rand::rngs::{OsRng, StdRng};
-use rand::SeedableRng;
-use std::collections::{BTreeMap, HashMap};
-use std::sync::{Arc, Weak};
-use std::time::Instant;
-use sui_network::randomness;
-use sui_types::base_types::AuthorityName;
-use sui_types::committee::{Committee, EpochId, StakeUnit};
-use sui_types::crypto::{AuthorityKeyPair, RandomnessRound};
-use sui_types::error::{SuiError, SuiResult};
-use sui_types::messages_consensus::ConsensusTransaction;
-use sui_types::sui_system_state::epoch_start_sui_system_state::EpochStartSystemStateTrait;
-use tokio::sync::OnceCell;
-use tokio::task::JoinHandle;
-use tracing::{debug, error, info, warn};
-use typed_store::rocks::DBBatch;
-use typed_store::Map;
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::{Arc, Weak},
+    time::Instant,
+};
 
-use crate::authority::authority_per_epoch_store::{AuthorityEpochTables, AuthorityPerEpochStore};
-use crate::authority::epoch_start_configuration::EpochStartConfigTrait;
-use crate::consensus_adapter::ConsensusAdapter;
+use anemo::PeerId;
+use fastcrypto::{
+    encoding::{Encoding, Hex},
+    error::FastCryptoError,
+    groups::bls12381,
+    serde_helpers::ToFromByteArray,
+    traits::{KeyPair, ToFromBytes},
+};
+use fastcrypto_tbls::{dkg, nodes, nodes::PartyId};
+use futures::{stream::FuturesUnordered, StreamExt};
+use narwhal_types::Round;
+use rand::{
+    rngs::{OsRng, StdRng},
+    SeedableRng,
+};
+use sui_network::randomness;
+use sui_types::{
+    base_types::AuthorityName,
+    committee::{Committee, EpochId, StakeUnit},
+    crypto::{AuthorityKeyPair, RandomnessRound},
+    error::{SuiError, SuiResult},
+    messages_consensus::ConsensusTransaction,
+    sui_system_state::epoch_start_sui_system_state::EpochStartSystemStateTrait,
+};
+use tokio::{sync::OnceCell, task::JoinHandle};
+use tracing::{debug, error, info, warn};
+use typed_store::{rocks::DBBatch, Map};
+
+use crate::{
+    authority::{
+        authority_per_epoch_store::{AuthorityEpochTables, AuthorityPerEpochStore},
+        epoch_start_configuration::EpochStartConfigTrait,
+    },
+    consensus_adapter::ConsensusAdapter,
+};
 
 type PkG = bls12381::G2Element;
 type EncG = bls12381::G2Element;
@@ -43,21 +52,25 @@ const SINGLETON_KEY: u64 = 0;
 //
 // DKG protocol:
 // 1. This validator sends out a `Message` to all other validators.
-// 2. Once sufficient valid `Message`s are received from other validators via consensus and
-//    procesed, this validator sends out a `Confirmation` to all other validators.
-// 3. Once sufficient `Confirmation`s are received from other validators via consensus and
-//    processed, they are combined to form a public VSS key and local private key shares.
+// 2. Once sufficient valid `Message`s are received from other validators via
+//    consensus and procesed, this validator sends out a `Confirmation` to all
+//    other validators.
+// 3. Once sufficient `Confirmation`s are received from other validators via
+//    consensus and processed, they are combined to form a public VSS key and
+//    local private key shares.
 // 4. Randomness generation begins.
 //
 // Randomness generation:
-// 1. For each new round, AuthorityPerEpochStore eventually calls `generate_randomness`.
-// 2. This kicks off a process in RandomnessEventLoop to send partial signatures for the new
-//    round to all other validators.
-// 3. Once enough partial signautres for the round are collected, a RandomnessStateUpdate
-//    transaction is generated and injected into the TransactionManager.
-// 4. Once the RandomnessStateUpdate transaction is seen in a certified checkpoint,
-//    `notify_randomness_in_checkpoint` is called to complete the round and stop sending
-//    partial signatures for it.
+// 1. For each new round, AuthorityPerEpochStore eventually calls
+//    `generate_randomness`.
+// 2. This kicks off a process in RandomnessEventLoop to send partial signatures
+//    for the new round to all other validators.
+// 3. Once enough partial signautres for the round are collected, a
+//    RandomnessStateUpdate transaction is generated and injected into the
+//    TransactionManager.
+// 4. Once the RandomnessStateUpdate transaction is seen in a certified
+//    checkpoint, `notify_randomness_in_checkpoint` is called to complete the
+//    round and stop sending partial signatures for it.
 pub struct RandomnessManager {
     epoch_store: Weak<AuthorityPerEpochStore>,
     consensus_adapter: Arc<ConsensusAdapter>,
@@ -97,7 +110,9 @@ impl RandomnessManager {
         let tables = match epoch_store.tables() {
             Ok(tables) => tables,
             Err(_) => {
-                error!("could not construct RandomnessManager: AuthorityPerEpochStore tables already gone");
+                error!(
+                    "could not construct RandomnessManager: AuthorityPerEpochStore tables already gone"
+                );
                 return None;
             }
         };
@@ -110,7 +125,9 @@ impl RandomnessManager {
             // Log first few entries in DKG info for debugging.
             for (id, name, pk, stake) in info.iter().filter(|(id, _, _, _)| *id < 3) {
                 let pk_bytes = pk.as_element().to_byte_array();
-                debug!("random beacon: DKG info: id={id}, stake={stake}, name={name}, pk={pk_bytes:x?}");
+                debug!(
+                    "random beacon: DKG info: id={id}, stake={stake}, name={name}, pk={pk_bytes:x?}"
+                );
             }
         }
         let authority_ids: HashMap<_, _> =
@@ -255,8 +272,8 @@ impl RandomnessManager {
 
         // Resume randomness generation from where we left off.
         // This must be loaded regardless of whether DKG has finished yet, since the
-        // RandomnessEventLoop and commit-handling logic in AuthorityPerEpochStore both depend on
-        // this state.
+        // RandomnessEventLoop and commit-handling logic in AuthorityPerEpochStore both
+        // depend on this state.
         rm.next_randomness_round = tables
             .randomness_next_round
             .get(&SINGLETON_KEY)
@@ -326,8 +343,9 @@ impl RandomnessManager {
         Ok(())
     }
 
-    /// Processes all received messages and advances the randomness DKG state machine when possible,
-    /// sending out a dkg::Confirmation and generating final output.
+    /// Processes all received messages and advances the randomness DKG state
+    /// machine when possible, sending out a dkg::Confirmation and
+    /// generating final output.
     pub async fn advance_dkg(&mut self, batch: &mut DBBatch, round: Round) -> SuiResult {
         let epoch_store = self.epoch_store()?;
 
@@ -384,7 +402,8 @@ impl RandomnessManager {
                             .set(elapsed as i64);
                     }
                 }
-                Err(fastcrypto::error::FastCryptoError::NotEnoughInputs) => (), // wait for more input
+                Err(fastcrypto::error::FastCryptoError::NotEnoughInputs) => (), // wait for more
+                // input
                 Err(e) => debug!("random beacon: error while merging DKG Messages: {e:?}"),
             }
         }
@@ -402,7 +421,9 @@ impl RandomnessManager {
                     let num_shares = output.shares.as_ref().map_or(0, |shares| shares.len());
                     let epoch_elapsed = epoch_store.epoch_open_time.elapsed().as_millis();
                     let elapsed = self.dkg_start_time.get().map(|t| t.elapsed().as_millis());
-                    info!("random beacon: DKG complete in {epoch_elapsed}ms since epoch start, {elapsed:?}ms since DKG start, with {num_shares} shares for this node");
+                    info!(
+                        "random beacon: DKG complete in {epoch_elapsed}ms since epoch start, {elapsed:?}ms since DKG start, with {num_shares} shares for this node"
+                    );
                     epoch_store
                         .metrics
                         .epoch_random_beacon_dkg_num_shares
@@ -432,7 +453,8 @@ impl RandomnessManager {
                         std::iter::once((SINGLETON_KEY, output)),
                     )?;
                 }
-                Err(fastcrypto::error::FastCryptoError::NotEnoughInputs) => (), // wait for more input
+                Err(fastcrypto::error::FastCryptoError::NotEnoughInputs) => (), // wait for more
+                // input
                 Err(e) => error!("random beacon: error while processing DKG Confirmations: {e:?}"),
             }
         }
@@ -445,7 +467,9 @@ impl RandomnessManager {
                     .random_beacon_dkg_timeout_round()
                     .into()
         {
-            error!("random beacon: DKG timed out. Randomness disabled for this epoch. All randomness-using transactions will fail.");
+            error!(
+                "random beacon: DKG timed out. Randomness disabled for this epoch. All randomness-using transactions will fail."
+            );
             epoch_store.metrics.epoch_random_beacon_dkg_failed.set(1);
             self.dkg_output
                 .set(None)
@@ -470,7 +494,9 @@ impl RandomnessManager {
             return Ok(());
         };
         if *party_id != msg.sender {
-            warn!("ignoring equivocating DKG Message from authority {authority:?} pretending to be PartyId {party_id:?}");
+            warn!(
+                "ignoring equivocating DKG Message from authority {authority:?} pretending to be PartyId {party_id:?}"
+            );
             return Ok(());
         }
         if self.enqueued_messages.contains_key(&msg.sender)
@@ -481,7 +507,8 @@ impl RandomnessManager {
         }
 
         let party = self.party.clone();
-        // TODO: Could save some CPU by not processing messages if we already have enough to merge.
+        // TODO: Could save some CPU by not processing messages if we already have
+        // enough to merge.
         self.enqueued_messages.insert(
             msg.sender,
             tokio::task::spawn_blocking(move || {
@@ -515,7 +542,9 @@ impl RandomnessManager {
             return Ok(());
         };
         if *party_id != conf.sender {
-            warn!("ignoring equivocating DKG Confirmation from authority {authority:?} pretending to be PartyId {party_id:?}");
+            warn!(
+                "ignoring equivocating DKG Confirmation from authority {authority:?} pretending to be PartyId {party_id:?}"
+            );
             return Ok(());
         }
         self.confirmations.insert(conf.sender, conf.clone());
@@ -526,9 +555,10 @@ impl RandomnessManager {
         Ok(())
     }
 
-    /// Reserves the next available round number for randomness generation. Once the given
-    /// batch is written, `generate_randomness` must be called to start the process. On restart,
-    /// any reserved rounds for which the batch was written will automatically be resumed.
+    /// Reserves the next available round number for randomness generation. Once
+    /// the given batch is written, `generate_randomness` must be called to
+    /// start the process. On restart, any reserved rounds for which the
+    /// batch was written will automatically be resumed.
     pub fn reserve_next_randomness(&mut self, batch: &mut DBBatch) -> SuiResult<RandomnessRound> {
         let tables = self.tables()?;
 
@@ -556,7 +586,8 @@ impl RandomnessManager {
             .send_partial_signatures(epoch, randomness_round);
     }
 
-    /// Returns true if DKG is over for this epoch, whether due to success or failure.
+    /// Returns true if DKG is over for this epoch, whether due to success or
+    /// failure.
     pub fn is_dkg_closed(&self) -> bool {
         self.dkg_output.initialized()
     }
@@ -566,7 +597,8 @@ impl RandomnessManager {
         self.dkg_output.get().and_then(|opt| opt.as_ref()).is_some()
     }
 
-    /// Generates a new RandomnessReporter for reporting observed rounds to this RandomnessManager.
+    /// Generates a new RandomnessReporter for reporting observed rounds to this
+    /// RandomnessManager.
     pub fn reporter(&self) -> RandomnessReporter {
         RandomnessReporter {
             epoch_store: self.epoch_store.clone(),
@@ -618,7 +650,8 @@ impl RandomnessManager {
     }
 }
 
-// Used by other components to notify the randomness system of observed randomness.
+// Used by other components to notify the randomness system of observed
+// randomness.
 #[derive(Clone)]
 pub struct RandomnessReporter {
     epoch_store: Weak<AuthorityPerEpochStore>,
@@ -626,9 +659,9 @@ pub struct RandomnessReporter {
 }
 
 impl RandomnessReporter {
-    /// Notifies the associated randomness manager that randomness for the given round has been
-    /// durably committed in a checkpoint. This completes the process of generating randomness for
-    /// the round.
+    /// Notifies the associated randomness manager that randomness for the given
+    /// round has been durably committed in a checkpoint. This completes the
+    /// process of generating randomness for the round.
     pub fn notify_randomness_in_checkpoint(&self, round: RandomnessRound) -> SuiResult {
         let epoch_store = self.epoch_store.upgrade().ok_or(SuiError::EpochEnded)?;
         epoch_store
@@ -643,6 +676,11 @@ impl RandomnessReporter {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroUsize;
+
+    use sui_types::messages_consensus::ConsensusTransactionKind;
+    use tokio::sync::mpsc;
+
     use crate::{
         authority::test_authority_builder::TestAuthorityBuilder,
         consensus_adapter::{
@@ -651,9 +689,6 @@ mod tests {
         },
         epoch::randomness::*,
     };
-    use std::num::NonZeroUsize;
-    use sui_types::messages_consensus::ConsensusTransactionKind;
-    use tokio::sync::mpsc;
 
     #[tokio::test]
     async fn test_dkg() {

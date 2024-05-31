@@ -4,7 +4,7 @@
 import TokenDetails from './TokensDetails';
 
 function TokenDetailsPage() {
-	return <TokenDetails />;
+    return <TokenDetails />;
 }
 
 export default TokenDetailsPage;

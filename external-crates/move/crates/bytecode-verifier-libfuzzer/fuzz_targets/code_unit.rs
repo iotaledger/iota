@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #![no_main]
+use std::str::FromStr;
+
+use libfuzzer_sys::fuzz_target;
 use move_binary_format::file_format::{
     empty_module, AbilitySet, CodeUnit, Constant, FieldDefinition, FunctionDefinition,
     FunctionHandle, FunctionHandleIndex, IdentifierIndex, ModuleHandleIndex, Signature,
@@ -11,9 +14,6 @@ use move_binary_format::file_format::{
     Visibility,
 };
 use move_core_types::{account_address::AccountAddress, identifier::Identifier};
-use std::str::FromStr;
-
-use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|code_unit: CodeUnit| {
     let mut module = empty_module();

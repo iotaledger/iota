@@ -78,11 +78,13 @@ pub struct BytecodeVerifierMetrics {
     pub verifier_timeout_metrics: IntCounterVec,
     /// Bytecode verifier runtime latency for each module successfully verified
     pub verifier_runtime_per_module_success_latency: Histogram,
-    /// Bytecode verifier runtime latency for each programmable transaction block successfully verified
+    /// Bytecode verifier runtime latency for each programmable transaction
+    /// block successfully verified
     pub verifier_runtime_per_ptb_success_latency: Histogram,
     /// Bytecode verifier runtime latency for each module which timed out
     pub verifier_runtime_per_module_timeout_latency: Histogram,
-    /// Bytecode verifier runtime latency for each programmable transaction block which timed out
+    /// Bytecode verifier runtime latency for each programmable transaction
+    /// block which timed out
     pub verifier_runtime_per_ptb_timeout_latency: Histogram,
 }
 
@@ -93,10 +95,10 @@ impl BytecodeVerifierMetrics {
     pub const SUCCESS_TAG: &'static str = "success";
     pub const TIMEOUT_TAG: &'static str = "failed";
     const LATENCY_SEC_BUCKETS: &'static [f64] = &[
-        0.000_010, 0.000_025, 0.000_050, 0.000_100, /* sub 100 micros */
-        0.000_250, 0.000_500, 0.001_000, 0.002_500, 0.005_000, 0.010_000, /* sub 10 ms: p99 */
-        0.025_000, 0.050_000, 0.100_000, 0.250_000, 0.500_000, 1.000_000, /* sub 1 s */
-        10.000_000, 20.000_000, 50.000_000, 100.0, /* We should almost never get here */
+        0.000_010, 0.000_025, 0.000_050, 0.000_100, // sub 100 micros
+        0.000_250, 0.000_500, 0.001_000, 0.002_500, 0.005_000, 0.010_000, // sub 10 ms: p99
+        0.025_000, 0.050_000, 0.100_000, 0.250_000, 0.500_000, 1.000_000, // sub 1 s
+        10.000_000, 20.000_000, 50.000_000, 100.0, // We should almost never get here
     ];
     pub fn new(registry: &prometheus::Registry) -> Self {
         Self {

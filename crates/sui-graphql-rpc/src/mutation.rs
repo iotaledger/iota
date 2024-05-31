@@ -1,21 +1,28 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::types::transaction_block_effects::TransactionBlockEffectsKind;
-use crate::{
-    error::Error, types::execution_result::ExecutionResult,
-    types::transaction_block_effects::TransactionBlockEffects,
-};
 use async_graphql::*;
-use fastcrypto::encoding::Encoding;
-use fastcrypto::{encoding::Base64, traits::ToFromBytes};
+use fastcrypto::{
+    encoding::{Base64, Encoding},
+    traits::ToFromBytes,
+};
 use sui_json_rpc_types::SuiTransactionBlockResponseOptions;
 use sui_sdk::SuiClient;
-use sui_types::effects::TransactionEffects as NativeTransactionEffects;
-use sui_types::event::Event as NativeEvent;
-use sui_types::quorum_driver_types::ExecuteTransactionRequestType;
-use sui_types::transaction::SenderSignedData;
-use sui_types::{signature::GenericSignature, transaction::Transaction};
+use sui_types::{
+    effects::TransactionEffects as NativeTransactionEffects,
+    event::Event as NativeEvent,
+    quorum_driver_types::ExecuteTransactionRequestType,
+    signature::GenericSignature,
+    transaction::{SenderSignedData, Transaction},
+};
+
+use crate::{
+    error::Error,
+    types::{
+        execution_result::ExecutionResult,
+        transaction_block_effects::{TransactionBlockEffects, TransactionBlockEffectsKind},
+    },
+};
 pub struct Mutation;
 
 /// Mutations are used to write to the Sui network.
@@ -23,18 +30,23 @@ pub struct Mutation;
 impl Mutation {
     /// Execute a transaction, committing its effects on chain.
     ///
-    /// - `txBytes` is a `TransactionData` struct that has been BCS-encoded and then Base64-encoded.
-    /// - `signatures` are a list of `flag || signature || pubkey` bytes, Base64-encoded.
+    /// - `txBytes` is a `TransactionData` struct that has been BCS-encoded and
+    ///   then Base64-encoded.
+    /// - `signatures` are a list of `flag || signature || pubkey` bytes,
+    ///   Base64-encoded.
     ///
-    /// Waits until the transaction has reached finality on chain to return its transaction digest,
-    /// or returns the error that prevented finality if that was not possible. A transaction is
-    /// final when its effects are guaranteed on chain (it cannot be revoked).
+    /// Waits until the transaction has reached finality on chain to return its
+    /// transaction digest, or returns the error that prevented finality if
+    /// that was not possible. A transaction is final when its effects are
+    /// guaranteed on chain (it cannot be revoked).
     ///
-    /// There may be a delay between transaction finality and when GraphQL requests (including the
-    /// request that issued the transaction) reflect its effects. As a result, queries that depend
-    /// on indexing the state of the chain (e.g. contents of output objects, address-level balance
-    /// information at the time of the transaction), must wait for indexing to catch up by polling
-    /// for the transaction digest using `Query.transactionBlock`.
+    /// There may be a delay between transaction finality and when GraphQL
+    /// requests (including the request that issued the transaction) reflect
+    /// its effects. As a result, queries that depend on indexing the state
+    /// of the chain (e.g. contents of output objects, address-level balance
+    /// information at the time of the transaction), must wait for indexing to
+    /// catch up by polling for the transaction digest using
+    /// `Query.transactionBlock`.
     async fn execute_transaction_block(
         &self,
         ctx: &Context<'_>,

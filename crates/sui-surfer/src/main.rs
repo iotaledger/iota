@@ -1,11 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use clap::Parser;
 use std::{path::PathBuf, time::Duration};
-use tracing::info;
 
+use clap::Parser;
 use sui_surfer::default_surf_strategy::DefaultSurfStrategy;
+use tracing::info;
 
 #[derive(Parser)]
 #[clap(rename_all = "kebab-case")]

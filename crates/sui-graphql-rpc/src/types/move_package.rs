@@ -1,30 +1,32 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use super::balance::{self, Balance};
-use super::base64::Base64;
-use super::big_int::BigInt;
-use super::coin::Coin;
-use super::cursor::{JsonCursor, Page};
-use super::move_module::MoveModule;
-use super::move_object::MoveObject;
-use super::object::{
-    self, Object, ObjectFilter, ObjectImpl, ObjectLookupKey, ObjectOwner, ObjectStatus,
+use async_graphql::{
+    connection::{Connection, CursorType, Edge},
+    *,
 };
-use super::owner::OwnerImpl;
-use super::stake::StakedSui;
-use super::sui_address::SuiAddress;
-use super::suins_registration::{DomainFormat, SuinsRegistration};
-use super::transaction_block::{self, TransactionBlock, TransactionBlockFilter};
-use super::type_filter::ExactTypeFilter;
-use crate::consistency::ConsistentNamedCursor;
-use crate::data::Db;
-use crate::error::Error;
-use crate::types::checkpoint::Checkpoint;
-use async_graphql::connection::{Connection, CursorType, Edge};
-use async_graphql::*;
 use sui_package_resolver::{error::Error as PackageCacheError, Package as ParsedMovePackage};
 use sui_types::{move_package::MovePackage as NativeMovePackage, object::Data};
+
+use super::{
+    balance::{self, Balance},
+    base64::Base64,
+    big_int::BigInt,
+    coin::Coin,
+    cursor::{JsonCursor, Page},
+    move_module::MoveModule,
+    move_object::MoveObject,
+    object::{self, Object, ObjectFilter, ObjectImpl, ObjectLookupKey, ObjectOwner, ObjectStatus},
+    owner::OwnerImpl,
+    stake::StakedSui,
+    sui_address::SuiAddress,
+    suins_registration::{DomainFormat, SuinsRegistration},
+    transaction_block::{self, TransactionBlock, TransactionBlockFilter},
+    type_filter::ExactTypeFilter,
+};
+use crate::{
+    consistency::ConsistentNamedCursor, data::Db, error::Error, types::checkpoint::Checkpoint,
+};
 
 #[derive(Clone)]
 pub(crate) struct MovePackage {
@@ -39,13 +41,15 @@ pub(crate) struct MovePackage {
     pub checkpoint_viewed_at: u64,
 }
 
-/// Information used by a package to link to a specific version of its dependency.
+/// Information used by a package to link to a specific version of its
+/// dependency.
 #[derive(SimpleObject)]
 struct Linkage {
     /// The ID on-chain of the first version of the dependency.
     original_id: SuiAddress,
 
-    /// The ID on-chain of the version of the dependency that this package depends on.
+    /// The ID on-chain of the version of the dependency that this package
+    /// depends on.
     upgraded_id: SuiAddress,
 
     /// The version of the dependency that this package depends on.
@@ -70,8 +74,9 @@ pub(crate) struct MovePackageDowncastError;
 
 pub(crate) type CModule = JsonCursor<ConsistentNamedCursor>;
 
-/// A MovePackage is a kind of Move object that represents code that has been published on chain.
-/// It exposes information about its modules, type definitions, functions, and dependencies.
+/// A MovePackage is a kind of Move object that represents code that has been
+/// published on chain. It exposes information about its modules, type
+/// definitions, functions, and dependencies.
 #[Object]
 impl MovePackage {
     pub(crate) async fn address(&self) -> SuiAddress {
@@ -80,8 +85,8 @@ impl MovePackage {
 
     /// Objects owned by this package, optionally `filter`-ed.
     ///
-    /// Note that objects owned by a package are inaccessible, because packages are immutable and
-    /// cannot be owned by an address.
+    /// Note that objects owned by a package are inaccessible, because packages
+    /// are immutable and cannot be owned by an address.
     pub(crate) async fn objects(
         &self,
         ctx: &Context<'_>,
@@ -96,11 +101,11 @@ impl MovePackage {
             .await
     }
 
-    /// Total balance of all coins with marker type owned by this package. If type is not supplied,
-    /// it defaults to `0x2::sui::SUI`.
+    /// Total balance of all coins with marker type owned by this package. If
+    /// type is not supplied, it defaults to `0x2::sui::SUI`.
     ///
-    /// Note that coins owned by a package are inaccessible, because packages are immutable and
-    /// cannot be owned by an address.
+    /// Note that coins owned by a package are inaccessible, because packages
+    /// are immutable and cannot be owned by an address.
     pub(crate) async fn balance(
         &self,
         ctx: &Context<'_>,
@@ -111,8 +116,8 @@ impl MovePackage {
 
     /// The balances of all coin types owned by this package.
     ///
-    /// Note that coins owned by a package are inaccessible, because packages are immutable and
-    /// cannot be owned by an address.
+    /// Note that coins owned by a package are inaccessible, because packages
+    /// are immutable and cannot be owned by an address.
     pub(crate) async fn balances(
         &self,
         ctx: &Context<'_>,
@@ -128,10 +133,11 @@ impl MovePackage {
 
     /// The coin objects owned by this package.
     ///
-    ///`type` is a filter on the coin's type parameter, defaulting to `0x2::sui::SUI`.
+    /// `type` is a filter on the coin's type parameter, defaulting to
+    /// `0x2::sui::SUI`.
     ///
-    /// Note that coins owned by a package are inaccessible, because packages are immutable and
-    /// cannot be owned by an address.
+    /// Note that coins owned by a package are inaccessible, because packages
+    /// are immutable and cannot be owned by an address.
     pub(crate) async fn coins(
         &self,
         ctx: &Context<'_>,
@@ -148,8 +154,8 @@ impl MovePackage {
 
     /// The `0x3::staking_pool::StakedSui` objects owned by this package.
     ///
-    /// Note that objects owned by a package are inaccessible, because packages are immutable and
-    /// cannot be owned by an address.
+    /// Note that objects owned by a package are inaccessible, because packages
+    /// are immutable and cannot be owned by an address.
     pub(crate) async fn staked_suis(
         &self,
         ctx: &Context<'_>,
@@ -163,7 +169,8 @@ impl MovePackage {
             .await
     }
 
-    /// The domain explicitly configured as the default domain pointing to this object.
+    /// The domain explicitly configured as the default domain pointing to this
+    /// object.
     pub(crate) async fn default_suins_name(
         &self,
         ctx: &Context<'_>,
@@ -174,11 +181,11 @@ impl MovePackage {
             .await
     }
 
-    /// The SuinsRegistration NFTs owned by this package. These grant the owner the capability to
-    /// manage the associated domain.
+    /// The SuinsRegistration NFTs owned by this package. These grant the owner
+    /// the capability to manage the associated domain.
     ///
-    /// Note that objects owned by a package are inaccessible, because packages are immutable and
-    /// cannot be owned by an address.
+    /// Note that objects owned by a package are inaccessible, because packages
+    /// are immutable and cannot be owned by an address.
     pub(crate) async fn suins_registrations(
         &self,
         ctx: &Context<'_>,
@@ -196,18 +203,21 @@ impl MovePackage {
         ObjectImpl(&self.super_).version().await
     }
 
-    /// The current status of the object as read from the off-chain store. The possible states are:
-    /// NOT_INDEXED, the object is loaded from serialized data, such as the contents of a genesis or
-    /// system package upgrade transaction. LIVE, the version returned is the most recent for the
-    /// object, and it is not deleted or wrapped at that version. HISTORICAL, the object was
-    /// referenced at a specific version or checkpoint, so is fetched from historical tables and may
-    /// not be the latest version of the object. WRAPPED_OR_DELETED, the object is deleted or
-    /// wrapped and only partial information can be loaded."
+    /// The current status of the object as read from the off-chain store. The
+    /// possible states are: NOT_INDEXED, the object is loaded from
+    /// serialized data, such as the contents of a genesis or system package
+    /// upgrade transaction. LIVE, the version returned is the most recent for
+    /// the object, and it is not deleted or wrapped at that version.
+    /// HISTORICAL, the object was referenced at a specific version or
+    /// checkpoint, so is fetched from historical tables and may not be the
+    /// latest version of the object. WRAPPED_OR_DELETED, the object is deleted
+    /// or wrapped and only partial information can be loaded."
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_).status().await
     }
 
-    /// 32-byte hash that identifies the package's contents, encoded as a Base58 string.
+    /// 32-byte hash that identifies the package's contents, encoded as a Base58
+    /// string.
     pub(crate) async fn digest(&self) -> Option<String> {
         ObjectImpl(&self.super_).digest().await
     }
@@ -228,11 +238,12 @@ impl MovePackage {
             .await
     }
 
-    /// The amount of SUI we would rebate if this object gets deleted or mutated. This number is
-    /// recalculated based on the present storage gas price.
+    /// The amount of SUI we would rebate if this object gets deleted or
+    /// mutated. This number is recalculated based on the present storage
+    /// gas price.
     ///
-    /// Note that packages cannot be deleted or mutated, so this number is provided purely for
-    /// reference.
+    /// Note that packages cannot be deleted or mutated, so this number is
+    /// provided purely for reference.
     pub(crate) async fn storage_rebate(&self) -> Option<BigInt> {
         ObjectImpl(&self.super_).storage_rebate().await
     }
@@ -259,8 +270,8 @@ impl MovePackage {
         ObjectImpl(&self.super_).bcs().await
     }
 
-    /// A representation of the module called `name` in this package, including the
-    /// structs and functions it defines.
+    /// A representation of the module called `name` in this package, including
+    /// the structs and functions it defines.
     async fn module(&self, name: String) -> Result<Option<MoveModule>> {
         self.module_impl(&name).extend()
     }
@@ -374,8 +385,9 @@ impl MovePackage {
         Some(type_origins)
     }
 
-    /// BCS representation of the package's modules.  Modules appear as a sequence of pairs (module
-    /// name, followed by module bytes), in alphabetic order by module name.
+    /// BCS representation of the package's modules.  Modules appear as a
+    /// sequence of pairs (module name, followed by module bytes), in
+    /// alphabetic order by module name.
     async fn module_bcs(&self) -> Result<Option<Base64>> {
         let bcs = bcs::to_bytes(self.native.serialized_module_map())
             .map_err(|_| {
@@ -389,8 +401,8 @@ impl MovePackage {
 
 impl MovePackage {
     fn parsed_package(&self) -> Result<ParsedMovePackage, Error> {
-        // TODO: Leverage the package cache (attempt to read from it, and if that doesn't succeed,
-        // write back the parsed Package to the cache as well.)
+        // TODO: Leverage the package cache (attempt to read from it, and if that
+        // doesn't succeed, write back the parsed Package to the cache as well.)
         let Some(native) = self.super_.native_impl() else {
             return Err(Error::Internal(
                 "No native representation of package to parse.".to_string(),

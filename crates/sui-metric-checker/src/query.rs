@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use crate::unix_seconds_to_timestamp_string;
 use anyhow::anyhow;
 use base64::{engine::general_purpose, Engine};
 use prometheus_http_query::Client;
 use reqwest::header::{HeaderValue, AUTHORIZATION};
 use tracing::debug;
+
+use crate::unix_seconds_to_timestamp_string;
 
 pub async fn instant_query(
     auth_header: &str,
@@ -41,7 +42,8 @@ pub async fn instant_query(
     }
 }
 
-// This will return the average value of the queried metric over the given time range.
+// This will return the average value of the queried metric over the given time
+// range.
 pub async fn range_query(
     auth_header: &str,
     client: Client,

@@ -2,12 +2,13 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use std::path::Path;
+
+use anyhow::{bail, Result};
+
 use crate::sandbox::utils::{
     contains_module, is_bytecode_file, on_disk_state_view::OnDiskStateView,
 };
-
-use anyhow::{bail, Result};
-use std::path::Path;
 /// Print a module or resource stored in `file`
 pub fn view(_state: &OnDiskStateView, path: &Path) -> Result<()> {
     if is_bytecode_file(path) {

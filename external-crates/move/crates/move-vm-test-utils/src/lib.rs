@@ -12,7 +12,6 @@ pub mod gas_schedule;
 #[cfg(feature = "tiered-gas")]
 pub mod tiered_gas_schedule;
 
+pub use storage::{BlankStorage, DeltaStorage, InMemoryStorage};
 #[cfg(feature = "tiered-gas")]
 pub use tiered_gas_schedule as gas_schedule;
-
-pub use storage::{BlankStorage, DeltaStorage, InMemoryStorage};

@@ -1,17 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::displays::Pretty;
 use std::fmt::{Display, Formatter};
 
-use crate::{
-    SuiArgument, SuiCallArg, SuiCommand, SuiObjectArg, SuiProgrammableMoveCall,
-    SuiProgrammableTransactionBlock,
-};
 use sui_types::transaction::write_sep;
 use tabled::{
     builder::Builder as TableBuilder,
     settings::{style::HorizontalLine, Panel as TablePanel, Style as TableStyle},
+};
+
+use crate::{
+    displays::Pretty, SuiArgument, SuiCallArg, SuiCommand, SuiObjectArg, SuiProgrammableMoveCall,
+    SuiProgrammableTransactionBlock,
 };
 
 impl<'a> Display for Pretty<'a, SuiProgrammableTransactionBlock> {

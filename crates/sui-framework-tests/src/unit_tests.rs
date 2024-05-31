@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{fs, io, path::PathBuf};
+
 use move_cli::base::test::UnitTestResult;
 use move_package::LintFlag;
 use move_unit_test::UnitTestingConfig;
-use std::{fs, io, path::PathBuf};
 use sui_move::unit_test::run_move_unit_tests;
 use sui_move_build::BuildConfig;
 

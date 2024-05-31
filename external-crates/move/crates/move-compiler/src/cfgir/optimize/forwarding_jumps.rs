@@ -4,8 +4,8 @@
 //**************************************************************************************************
 // OPTIMIZE FORWARDING JUMPS
 // -----------------------------
-// This optimization forwards and removes "forwarding" jumps within a function. For example, the
-// following code will jump to 1 just to immediately jump to 3:
+// This optimization forwards and removes "forwarding" jumps within a function.
+// For example, the following code will jump to 1 just to immediately jump to 3:
 //
 // Label 0:
 //     JumpIf(<exp>, 1, 2)
@@ -26,6 +26,8 @@
 // Label 2:
 //     ...
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use move_proc_macros::growing_stack;
 
 use crate::{
@@ -38,8 +40,6 @@ use crate::{
     parser::ast::ConstantName,
     shared::unique_map::UniqueMap,
 };
-
-use std::collections::{BTreeMap, BTreeSet};
 
 /// returns true if anything changed
 pub fn optimize(
@@ -72,10 +72,11 @@ fn find_forwarding_jump_destinations(blocks: &BasicBlocks) -> LabelMap {
         }
     }
 
-    // Computes the label map of forwarding jumps to their final destinations, collapsing any
-    // forwarding blocks between the starting label and final label. Note that we have to
-    // take care to detect cycles (fairly common in empty while loops). We also always look up the
-    // new label up in the final map to allow us to short-circuit work we've already done.
+    // Computes the label map of forwarding jumps to their final destinations,
+    // collapsing any forwarding blocks between the starting label and final
+    // label. Note that we have to take care to detect cycles (fairly common in
+    // empty while loops). We also always look up the new label up in the final
+    // map to allow us to short-circuit work we've already done.
     let mut final_jumps: LabelMap = BTreeMap::new();
 
     for start in forwarding_jumps.keys() {
@@ -160,7 +161,8 @@ fn optimize_cmd(sp!(_, cmd_): &mut Command, final_jumps: &BTreeMap<Label, Label>
     }
 }
 
-// Once we've inlined all our jumps, we need to renumber the remaining blocks for compactness.
+// Once we've inlined all our jumps, we need to renumber the remaining blocks
+// for compactness.
 fn remap_in_order(start: Label, blocks: &mut BasicBlocks) {
     let mut remapping = blocks
         .keys()

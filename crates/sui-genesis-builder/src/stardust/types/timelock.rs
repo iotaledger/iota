@@ -91,7 +91,8 @@ pub fn try_from_stardust(
     let id = UID::new(ObjectID::new(header.output_id().hash()));
     let locked = Balance::new(basic_output.amount());
 
-    // We already checked the existence of the timelock unlock condition at this point.
+    // We already checked the existence of the timelock unlock condition at this
+    // point.
     let timelock_uc = basic_output
         .unlock_conditions()
         .timelock()

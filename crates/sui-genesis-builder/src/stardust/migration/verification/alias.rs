@@ -1,28 +1,42 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::stardust::migration::verification::created_objects::CreatedObjects;
-use crate::stardust::migration::verification::util::{
-    verify_issuer_feature, verify_metadata_feature, verify_native_tokens, verify_sender_feature,
-};
-use crate::stardust::types::{
-    stardust_to_sui_address_owner, ALIAS_DYNAMIC_OBJECT_FIELD_KEY,
-    ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE,
-};
-use crate::stardust::types::{Alias, AliasOutput};
-use anyhow::{anyhow, bail, ensure};
-use iota_sdk::types::block::output::{self as stardust, OutputId};
-use sui_types::base_types::ObjectID;
-use sui_types::base_types::SuiAddress;
-use sui_types::dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo};
-use sui_types::in_memory_storage::InMemoryStorage;
-use sui_types::object::Owner;
-use sui_types::TypeTag;
+use std::collections::HashMap;
 
-pub fn verify_alias_output(
-    output_id: &OutputId,
+use anyhow::{anyhow, bail, ensure};
+use iota_sdk::types::block::output as stardust;
+use sui_types::{
+    balance::Balance,
+    base_types::{ObjectID, SuiAddress},
+    dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo, Field},
+    in_memory_storage::InMemoryStorage,
+    object::Owner,
+    TypeTag,
+};
+
+use super::util::verify_parent;
+use crate::stardust::{
+    migration::{
+        executor::FoundryLedgerData,
+        verification::{
+            created_objects::CreatedObjects,
+            util::{
+                verify_issuer_feature, verify_metadata_feature, verify_native_tokens,
+                verify_sender_feature,
+            },
+        },
+    },
+    types::{
+        stardust_to_sui_address_owner, Alias, AliasOutput, ALIAS_DYNAMIC_OBJECT_FIELD_KEY,
+        ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE,
+    },
+};
+
+pub(super) fn verify_alias_output(
+    output_id: &stardust::OutputId,
     output: &stardust::AliasOutput,
     created_objects: &CreatedObjects,
+    foundry_data: &HashMap<stardust::TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
 ) -> anyhow::Result<()> {
     let alias_id = ObjectID::new(*output.alias_id_non_null(output_id));
@@ -83,18 +97,29 @@ pub fn verify_alias_output(
     );
 
     // Native Tokens
-    let created_native_token_coins = created_objects.native_tokens().and_then(|ids| {
+    ensure!(
+        created_alias_output.native_tokens.size == output.native_tokens().len() as u64,
+        "native tokens bag length mismatch: found {}, expected {}",
+        created_alias_output.native_tokens.size,
+        output.native_tokens().len()
+    );
+    let created_native_token_fields = created_objects.native_tokens().and_then(|ids| {
         ids.iter()
             .map(|id| {
                 let obj = storage
                     .get_object(id)
-                    .ok_or_else(|| anyhow!("missing native token coin for {id}"))?;
-                obj.as_coin_maybe()
-                    .ok_or_else(|| anyhow!("expected a native token coin, found {:?}", obj.type_()))
+                    .ok_or_else(|| anyhow!("missing native token field for {id}"))?;
+                obj.to_rust::<Field<String, Balance>>().ok_or_else(|| {
+                    anyhow!("expected a native token field, found {:?}", obj.type_())
+                })
             })
             .collect::<Result<Vec<_>, _>>()
     })?;
-    verify_native_tokens(output.native_tokens(), created_native_token_coins)?;
+    verify_native_tokens(
+        output.native_tokens(),
+        foundry_data,
+        created_native_token_fields,
+    )?;
 
     // Legacy State Controller
     let expected_state_controller = output
@@ -155,6 +180,8 @@ pub fn verify_alias_output(
         output.immutable_features().metadata(),
         created_alias.immutable_metadata.as_ref(),
     )?;
+
+    verify_parent(output.governor_address(), storage)?;
 
     ensure!(created_objects.coin().is_err(), "unexpected coin found");
 

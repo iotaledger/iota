@@ -1,11 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    crypto::{CompressedSignature, DefaultHash, SignatureScheme},
-    signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
-    zk_login_authenticator::ZkLoginAuthenticator,
+use std::{
+    hash::{Hash, Hasher},
+    str::FromStr,
 };
+
 pub use enum_dispatch::enum_dispatch;
 use fastcrypto::{
     ed25519::Ed25519PublicKey,
@@ -21,15 +21,13 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use shared_crypto::intent::IntentMessage;
-use std::{
-    hash::{Hash, Hasher},
-    str::FromStr,
-};
 
 use crate::{
     base_types::{EpochId, SuiAddress},
-    crypto::PublicKey,
+    crypto::{CompressedSignature, DefaultHash, PublicKey, SignatureScheme},
     error::SuiError,
+    signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
+    zk_login_authenticator::ZkLoginAuthenticator,
 };
 
 #[cfg(test)]
@@ -41,17 +39,21 @@ pub type ThresholdUnit = u16;
 pub type BitmapUnit = u16;
 pub const MAX_SIGNER_IN_MULTISIG: usize = 10;
 pub const MAX_BITMAP_VALUE: BitmapUnit = 0b1111111111;
-/// The struct that contains signatures and public keys necessary for authenticating a MultiSig.
+/// The struct that contains signatures and public keys necessary for
+/// authenticating a MultiSig.
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 pub struct MultiSig {
     /// The plain signature encoded with signature scheme.
     sigs: Vec<CompressedSignature>,
-    /// A bitmap that indicates the position of which public key the signature should be authenticated with.
+    /// A bitmap that indicates the position of which public key the signature
+    /// should be authenticated with.
     bitmap: BitmapUnit,
-    /// The public key encoded with each public key with its signature scheme used along with the corresponding weight.
+    /// The public key encoded with each public key with its signature scheme
+    /// used along with the corresponding weight.
     multisig_pk: MultiSigPublicKey,
-    /// A bytes representation of [struct MultiSig]. This helps with implementing [trait AsRef<[u8]>].
+    /// A bytes representation of [struct MultiSig]. This helps with
+    /// implementing [trait AsRef<[u8]>].
     #[serde(skip)]
     bytes: OnceCell<Vec<u8>>,
 }
@@ -127,8 +129,9 @@ impl AuthenticatorTrait for MultiSig {
         let mut hasher = DefaultHash::default();
         hasher.update(message);
         let digest = hasher.finalize().digest;
-        // Verify each signature against its corresponding signature scheme and public key.
-        // TODO: further optimization can be done because multiple Ed25519 signatures can be batch verified.
+        // Verify each signature against its corresponding signature scheme and public
+        // key. TODO: further optimization can be done because multiple Ed25519
+        // signatures can be batch verified.
         for (sig, i) in self.sigs.iter().zip(as_indices(self.bitmap)?) {
             let (subsig_pubkey, weight) =
                 self.multisig_pk
@@ -248,10 +251,11 @@ impl MultiSig {
             bytes: OnceCell::new(),
         }
     }
-    /// This combines a list of [enum Signature] `flag || signature || pk` to a MultiSig.
-    /// The order of full_sigs must be the same as the order of public keys in
-    /// [enum MultiSigPublicKey]. e.g. for [pk1, pk2, pk3, pk4, pk5],
-    /// [sig1, sig2, sig5] is valid, but [sig2, sig1, sig5] is invalid.
+    /// This combines a list of [enum Signature] `flag || signature || pk` to a
+    /// MultiSig. The order of full_sigs must be the same as the order of
+    /// public keys in [enum MultiSigPublicKey]. e.g. for [pk1, pk2, pk3,
+    /// pk4, pk5], [sig1, sig2, sig5] is valid, but [sig2, sig1, sig5] is
+    /// invalid.
     pub fn combine(
         full_sigs: Vec<GenericSignature>,
         multisig_pk: MultiSigPublicKey,
@@ -385,7 +389,8 @@ impl AsRef<[u8]> for MultiSig {
 pub struct MultiSigPublicKey {
     /// A list of public key and its corresponding weight.
     pk_map: Vec<(PublicKey, WeightUnit)>,
-    /// If the total weight of the public keys corresponding to verified signatures is larger than threshold, the MultiSig is verified.
+    /// If the total weight of the public keys corresponding to verified
+    /// signatures is larger than threshold, the MultiSig is verified.
     threshold: ThresholdUnit,
 }
 

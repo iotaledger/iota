@@ -1,23 +1,27 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority::authority_tests::{init_state_with_committee, send_and_confirm_transaction};
-use crate::authority::test_authority_builder::TestAuthorityBuilder;
-use crate::authority::AuthorityState;
+use std::{collections::HashMap, sync::Arc};
+
 use futures::future::join_all;
-use std::collections::HashMap;
-use std::sync::Arc;
-use sui_types::base_types::{ObjectID, ObjectRef, SuiAddress};
-use sui_types::crypto::AccountKeyPair;
-use sui_types::effects::{SignedTransactionEffects, TransactionEffectsAPI};
-use sui_types::error::UserInputError;
-use sui_types::execution_status::{ExecutionFailureStatus, ExecutionStatus};
-use sui_types::gas_coin::GasCoin;
-use sui_types::object::Object;
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::transaction::TransactionData;
-use sui_types::utils::to_sender_signed_transaction;
-use sui_types::{base_types::dbg_addr, crypto::get_key_pair, error::SuiError};
+use sui_types::{
+    base_types::{dbg_addr, ObjectID, ObjectRef, SuiAddress},
+    crypto::{get_key_pair, AccountKeyPair},
+    effects::{SignedTransactionEffects, TransactionEffectsAPI},
+    error::{SuiError, UserInputError},
+    execution_status::{ExecutionFailureStatus, ExecutionStatus},
+    gas_coin::GasCoin,
+    object::Object,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::TransactionData,
+    utils::to_sender_signed_transaction,
+};
+
+use crate::authority::{
+    authority_tests::{init_state_with_committee, send_and_confirm_transaction},
+    test_authority_builder::TestAuthorityBuilder,
+    AuthorityState,
+};
 
 #[tokio::test]
 async fn test_pay_sui_failure_empty_recipients() {
@@ -31,7 +35,7 @@ async fn test_pay_sui_failure_empty_recipients() {
     let effects = res.txn_result.unwrap().into_data();
     assert_eq!(effects.status(), &ExecutionStatus::Success);
     assert_eq!(effects.mutated().len(), 1);
-    assert_eq!(effects.mutated()[0].0 .0, coin_id);
+    assert_eq!(effects.mutated()[0].0.0, coin_id);
     assert!(effects.deleted().is_empty());
     assert!(effects.created().is_empty());
 }
@@ -166,9 +170,9 @@ async fn test_pay_sui_success_one_input_coin() -> anyhow::Result<()> {
     assert_eq!(*effects.status(), ExecutionStatus::Success);
     // make sure each recipient receives the specified amount
     assert_eq!(effects.created().len(), 3);
-    let created_obj_id1 = effects.created()[0].0 .0;
-    let created_obj_id2 = effects.created()[1].0 .0;
-    let created_obj_id3 = effects.created()[2].0 .0;
+    let created_obj_id1 = effects.created()[0].0.0;
+    let created_obj_id2 = effects.created()[1].0.0;
+    let created_obj_id3 = effects.created()[2].0.0;
     let created_obj1 = res
         .authority_state
         .get_object(&created_obj_id1)
@@ -205,8 +209,9 @@ async fn test_pay_sui_success_one_input_coin() -> anyhow::Result<()> {
     assert_eq!(GasCoin::try_from(&created_obj3)?.value(), coin_val3);
 
     // make sure the first object still belongs to the sender,
-    // the value is equal to all residual values after amounts transferred and gas payment.
-    assert_eq!(effects.mutated()[0].0 .0, object_id);
+    // the value is equal to all residual values after amounts transferred and gas
+    // payment.
+    assert_eq!(effects.mutated()[0].0.0, object_id);
     assert_eq!(effects.mutated()[0].1, sender);
     let gas_used = effects.gas_cost_summary().net_gas_usage() as u64;
     let gas_object = res.authority_state.get_object(&object_id).await?.unwrap();
@@ -246,8 +251,8 @@ async fn test_pay_sui_success_multiple_input_coins() -> anyhow::Result<()> {
 
     // make sure each recipient receives the specified amount
     assert_eq!(effects.created().len(), 2);
-    let created_obj_id1 = effects.created()[0].0 .0;
-    let created_obj_id2 = effects.created()[1].0 .0;
+    let created_obj_id1 = effects.created()[0].0.0;
+    let created_obj_id2 = effects.created()[1].0.0;
     let created_obj1 = res
         .authority_state
         .get_object(&created_obj_id1)
@@ -271,8 +276,9 @@ async fn test_pay_sui_success_multiple_input_coins() -> anyhow::Result<()> {
     assert_eq!(GasCoin::try_from(&created_obj1)?.value(), coin_val1);
     assert_eq!(GasCoin::try_from(&created_obj2)?.value(), coin_val2);
     // make sure the first input coin still belongs to the sender,
-    // the value is equal to all residual values after amounts transferred and gas payment.
-    assert_eq!(effects.mutated()[0].0 .0, object_id1);
+    // the value is equal to all residual values after amounts transferred and gas
+    // payment.
+    assert_eq!(effects.mutated()[0].0.0, object_id1);
     assert_eq!(effects.mutated()[0].1, sender);
     let gas_used = effects.gas_cost_summary().net_gas_usage() as u64;
     let gas_object = res.authority_state.get_object(&object_id1).await?.unwrap();

@@ -1,5 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
+
 use anyhow::bail;
 use async_trait::async_trait;
 use embedded_reconfig_observer::EmbeddedReconfigObserver;
@@ -9,11 +15,6 @@ use mysten_metrics::GaugeGuard;
 use prometheus::Registry;
 use rand::Rng;
 use roaring::RoaringBitmap;
-use std::{
-    collections::BTreeMap,
-    sync::{Arc, Mutex},
-    time::Duration,
-};
 use sui_config::genesis::Genesis;
 use sui_core::{
     authority_aggregator::{AuthorityAggregator, AuthorityAggregatorBuilder},
@@ -30,32 +31,23 @@ use sui_json_rpc_types::{
 };
 use sui_network::{DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC};
 use sui_sdk::{SuiClient, SuiClientBuilder};
-use sui_types::base_types::ConciseableName;
-use sui_types::committee::CommitteeTrait;
-use sui_types::effects::{CertifiedTransactionEffects, TransactionEffectsAPI, TransactionEvents};
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::sui_system_state::sui_system_state_summary::SuiSystemStateSummary;
-use sui_types::transaction::Argument;
-use sui_types::transaction::CallArg;
-use sui_types::transaction::ObjectArg;
 use sui_types::{
-    base_types::ObjectID,
-    committee::{Committee, EpochId},
+    base_types::{AuthorityName, ConciseableName, ObjectID, ObjectRef, SequenceNumber, SuiAddress},
+    committee::{Committee, CommitteeTrait, EpochId},
     crypto::{
         AggregateAuthenticator, AggregateAuthoritySignature, AuthorityQuorumSignInfo,
-        AuthoritySignature,
+        AuthoritySignature, AuthorityStrongQuorumSignInfo,
     },
+    effects::{CertifiedTransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    error::SuiError,
+    gas::GasCostSummary,
+    gas_coin::GasCoin,
     message_envelope::Envelope,
-    object::Object,
-    transaction::{CertifiedTransaction, Transaction},
+    object::{Object, Owner},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    sui_system_state::{sui_system_state_summary::SuiSystemStateSummary, SuiSystemStateTrait},
+    transaction::{Argument, CallArg, CertifiedTransaction, ObjectArg, Transaction},
 };
-use sui_types::{base_types::ObjectRef, crypto::AuthorityStrongQuorumSignInfo, object::Owner};
-use sui_types::{base_types::SequenceNumber, gas_coin::GasCoin};
-use sui_types::{
-    base_types::{AuthorityName, SuiAddress},
-    sui_system_state::SuiSystemStateTrait,
-};
-use sui_types::{error::SuiError, gas::GasCostSummary};
 use tokio::{
     task::JoinSet,
     time::{sleep, timeout},
@@ -73,8 +65,10 @@ pub mod system_state_observer;
 pub mod util;
 pub mod workloads;
 use futures::FutureExt;
-use sui_types::messages_grpc::{HandleCertificateResponseV2, TransactionStatus};
-use sui_types::quorum_driver_types::{QuorumDriverError, QuorumDriverResponse};
+use sui_types::{
+    messages_grpc::{HandleCertificateResponseV2, TransactionStatus},
+    quorum_driver_types::{QuorumDriverError, QuorumDriverResponse},
+};
 
 #[derive(Debug)]
 /// A wrapper on execution results to accommodate different types of
@@ -149,7 +143,7 @@ impl ExecutionEffects {
     pub fn sender(&self) -> SuiAddress {
         match self.gas_object().1 {
             Owner::AddressOwner(a) => a,
-            Owner::ObjectOwner(_) | Owner::Shared { .. } | Owner::Immutable => unreachable!(), // owner of gas object is always an address
+            Owner::ObjectOwner(_) | Owner::Shared { .. } | Owner::Immutable => unreachable!(), /* owner of gas object is always an address */
         }
     }
 
@@ -227,8 +221,8 @@ pub trait ValidatorProxy {
 
     async fn execute_transaction_block(&self, tx: Transaction) -> anyhow::Result<ExecutionEffects>;
 
-    /// This function is similar to `execute_transaction` but does not check any validator's
-    /// signature. It should only be used for benchmarks.
+    /// This function is similar to `execute_transaction` but does not check any
+    /// validator's signature. It should only be used for benchmarks.
     async fn execute_bench_transaction(&self, tx: Transaction) -> anyhow::Result<ExecutionEffects>;
 
     fn clone_committee(&self) -> Arc<Committee>;
@@ -240,7 +234,8 @@ pub trait ValidatorProxy {
     async fn get_validators(&self) -> Result<Vec<SuiAddress>, anyhow::Error>;
 }
 
-// TODO: Eventually remove this proxy because we shouldn't rely on validators to read objects.
+// TODO: Eventually remove this proxy because we shouldn't rely on validators to
+// read objects.
 pub struct LocalValidatorAggregatorProxy {
     _qd_handler: QuorumDriverHandler<NetworkAuthorityClient>,
     // Stress client does not verify individual validator signatures since this is very expensive
@@ -397,7 +392,8 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
     }
 
     async fn execute_bench_transaction(&self, tx: Transaction) -> anyhow::Result<ExecutionEffects> {
-        // Store the epoch number; we read it from the votes and use it later to create the certificate.
+        // Store the epoch number; we read it from the votes and use it later to create
+        // the certificate.
         let mut epoch = 0;
         let auth_agg = self.qd.authority_aggregator().load();
 
@@ -429,7 +425,8 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
                         total_stake += self.committee.weight(&signature.authority);
                         votes.push(signature);
                     }
-                    // The transaction may be submitted again in case the certificate's submission failed.
+                    // The transaction may be submitted again in case the certificate's submission
+                    // failed.
                     TransactionStatus::Executed(cert, _effects, _) => {
                         tracing::warn!("Transaction already submitted: {tx:?}");
                         if let Some(cert) = cert {
@@ -562,8 +559,9 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
             }
         }
 
-        // Abort if we failed to submit the certificate to enough validators. This typically
-        // happens when the validators are overloaded and the requests timed out.
+        // Abort if we failed to submit the certificate to enough validators. This
+        // typically happens when the validators are overloaded and the requests
+        // timed out.
         if transaction_effects.is_none() || total_stake < self.committee.quorum_threshold() {
             bail!("Failed to submit certificate to quorum of validators");
         }
@@ -726,8 +724,8 @@ impl ValidatorProxy for FullNodeProxy {
         let tx_digest = *tx.digest();
         let mut retry_cnt = 0;
         while retry_cnt < 10 {
-            // Fullnode could time out after WAIT_FOR_FINALITY_TIMEOUT (30s) in TransactionOrchestrator
-            // SuiClient times out after 60s
+            // Fullnode could time out after WAIT_FOR_FINALITY_TIMEOUT (30s) in
+            // TransactionOrchestrator SuiClient times out after 60s
             match self
                 .sui_client
                 .quorum_driver_api()

@@ -1,32 +1,33 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fmt::{Display, Formatter};
-use std::net::SocketAddr;
-use std::str::FromStr;
+use std::{
+    fmt::{Display, Formatter},
+    net::SocketAddr,
+    str::FromStr,
+};
 
 use fastcrypto::encoding::{Encoding, Hex};
 use reqwest::Client;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
-use tokio::task::JoinHandle;
-
 use sui_config::local_ip_utils;
-use sui_keys::keystore::AccountKeystore;
-use sui_keys::keystore::Keystore;
-use sui_rosetta::operations::Operations;
-use sui_rosetta::types::{
-    AccountBalanceRequest, AccountBalanceResponse, AccountIdentifier, ConstructionCombineRequest,
-    ConstructionCombineResponse, ConstructionMetadataRequest, ConstructionMetadataResponse,
-    ConstructionPayloadsRequest, ConstructionPayloadsResponse, ConstructionPreprocessRequest,
-    ConstructionPreprocessResponse, ConstructionSubmitRequest, NetworkIdentifier, Signature,
-    SignatureType, SubAccount, SubAccountType, SuiEnv, TransactionIdentifierResponse,
+use sui_keys::keystore::{AccountKeystore, Keystore};
+use sui_rosetta::{
+    operations::Operations,
+    types::{
+        AccountBalanceRequest, AccountBalanceResponse, AccountIdentifier,
+        ConstructionCombineRequest, ConstructionCombineResponse, ConstructionMetadataRequest,
+        ConstructionMetadataResponse, ConstructionPayloadsRequest, ConstructionPayloadsResponse,
+        ConstructionPreprocessRequest, ConstructionPreprocessResponse, ConstructionSubmitRequest,
+        NetworkIdentifier, Signature, SignatureType, SubAccount, SubAccountType, SuiEnv,
+        TransactionIdentifierResponse,
+    },
+    RosettaOfflineServer, RosettaOnlineServer,
 };
-use sui_rosetta::{RosettaOfflineServer, RosettaOnlineServer};
 use sui_sdk::SuiClient;
-use sui_types::base_types::SuiAddress;
-use sui_types::crypto::SuiSignature;
+use sui_types::{base_types::SuiAddress, crypto::SuiSignature};
+use tokio::task::JoinHandle;
 
 pub async fn start_rosetta_test_server(
     client: SuiClient,

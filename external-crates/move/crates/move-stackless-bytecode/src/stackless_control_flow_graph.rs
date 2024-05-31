@@ -2,16 +2,19 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//! Adapted from control_flow_graph for Bytecode, this module defines the control-flow graph on
-//! Stackless Bytecode used in analysis as part of Move prover.
+//! Adapted from control_flow_graph for Bytecode, this module defines the
+//! control-flow graph on Stackless Bytecode used in analysis as part of Move
+//! prover.
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use move_binary_format::file_format::CodeOffset;
+use petgraph::{dot::Dot, graph::Graph};
 
 use crate::{
     function_target::FunctionTarget,
     stackless_bytecode::{Bytecode, Label},
 };
-use move_binary_format::file_format::CodeOffset;
-use petgraph::{dot::Dot, graph::Graph};
-use std::collections::{BTreeMap, BTreeSet};
 
 type Map<K, V> = BTreeMap<K, V>;
 type Set<V> = BTreeSet<V>;
@@ -50,8 +53,9 @@ impl StacklessControlFlowGraph {
         }
     }
 
-    /// If from_all_blocks is false, perform backward analysis only from blocks that may exit.
-    /// If from_all_blocks is true, perform backward analysis from all blocks.
+    /// If from_all_blocks is false, perform backward analysis only from blocks
+    /// that may exit. If from_all_blocks is true, perform backward analysis
+    /// from all blocks.
     pub fn new_backward(code: &[Bytecode], from_all_blocks: bool) -> Self {
         let blocks = Self::collect_blocks(code);
         let mut block_id_to_predecessors: Map<BlockId, Vec<BlockId>> =
@@ -316,7 +320,8 @@ impl std::fmt::Display for DotCFGEdge {
     }
 }
 
-/// Generate the dot representation of the CFG (which can be rendered by the Dot program)
+/// Generate the dot representation of the CFG (which can be rendered by the Dot
+/// program)
 pub fn generate_cfg_in_dot_format<'env>(func_target: &'env FunctionTarget<'env>) -> String {
     let code = &func_target.data.code;
     let cfg = StacklessControlFlowGraph::new_forward(code);

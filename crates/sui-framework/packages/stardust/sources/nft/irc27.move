@@ -6,9 +6,8 @@ module stardust::irc27 {
     use std::fixed_point32::FixedPoint32;
     use std::string::String;
 
-    use sui::table::Table;
     use sui::url::Url;
-    use sui::vec_set::VecSet;
+    use sui::vec_map::VecMap;
 
     /// The IRC27 NFT metadata standard schema.
     public struct Irc27Metadata has store {
@@ -28,48 +27,28 @@ module stardust::irc27 {
         /// URL pointing to the NFT file location.
         uri: Url,
 
-        /// The human-readable name of the native token.
+        /// Alphanumeric text string defining the human identifiable name for the NFT.
         name: String,
 
-        /// The human-readable collection name of the native token.
+        /// The human-readable collection name of the NFT.
         collection_name: Option<String>,
 
         /// Royalty payment addresses mapped to the payout percentage.
         /// Contains a hash of the 32 bytes parsed from the BECH32 encoded IOTA address in the metadata, it is a legacy address.
         /// Royalties are not supported by the protocol and needed to be processed by an integrator.
-        royalties: Table<address, FixedPoint32>,
+        royalties: VecMap<address, FixedPoint32>,
 
-        /// The human-readable name of the native token creator.
+        /// The human-readable name of the NFT creator.
         issuer_name: Option<String>,
 
-        /// The human-readable description of the token.
+        /// The human-readable description of the NFT.
         description: Option<String>,
 
         /// Additional attributes which follow [OpenSea Metadata standards](https://docs.opensea.io/docs/metadata-standards).
-        attributes: VecSet<String>,
+        attributes: VecMap<String, String>,
 
         /// Legacy non-standard metadata fields.
-        non_standard_fields: Table<String, String>,
-    }
-
-    /// Permanently destroy a `Irc27Metadata` object.
-    public fun destroy(irc27: Irc27Metadata) {
-        let Irc27Metadata {
-            version: _,
-            media_type: _,
-            uri: _,
-            name: _,
-            collection_name: _,
-            royalties,
-            issuer_name: _,
-            description: _,
-            attributes: _,
-            non_standard_fields,
-        } = irc27;
-
-        royalties.drop();
-
-        non_standard_fields.drop();
+        non_standard_fields: VecMap<String, String>,
     }
 
     /// Get the metadata's `version`.
@@ -98,7 +77,7 @@ module stardust::irc27 {
     }
 
     /// Get the metadata's `royalties`.
-    public fun royalties(irc27: &Irc27Metadata): &Table<address, FixedPoint32> {
+    public fun royalties(irc27: &Irc27Metadata): &VecMap<address, FixedPoint32> {
         &irc27.royalties
     }
 
@@ -113,14 +92,30 @@ module stardust::irc27 {
     }
 
     /// Get the metadata's `attributes`.
-    public fun attributes(irc27: &Irc27Metadata): &VecSet<String> {
+    public fun attributes(irc27: &Irc27Metadata): &VecMap<String, String> {
         &irc27.attributes
     }
 
     /// Get the metadata's `non_standard_fields`.
-    public fun non_standard_fields(irc27: &Irc27Metadata): &Table<String, String> {
+    public fun non_standard_fields(irc27: &Irc27Metadata): &VecMap<String, String> {
         &irc27.non_standard_fields
     }
+
+    /// Permanently destroy a `Irc27Metadata` object.
+    public fun destroy(irc27: Irc27Metadata) {
+        let Irc27Metadata {
+            version: _,
+            media_type: _,
+            uri: _,
+            name: _,
+            collection_name: _,
+            royalties: _,
+            issuer_name: _,
+            description: _,
+            attributes: _,
+            non_standard_fields: _,
+        } = irc27;
+     }
 
     #[test_only]
     public fun create_for_testing(
@@ -129,11 +124,11 @@ module stardust::irc27 {
         uri: Url,
         name: String,
         collection_name: Option<String>,
-        royalties: Table<address, FixedPoint32>,
+        royalties: VecMap<address, FixedPoint32>,
         issuer_name: Option<String>,
         description: Option<String>,
-        attributes: VecSet<String>,
-        non_standard_fields: Table<String, String>,
+        attributes: VecMap<String, String>,
+        non_standard_fields: VecMap<String, String>,
     ): Irc27Metadata {
         Irc27Metadata {
             version,

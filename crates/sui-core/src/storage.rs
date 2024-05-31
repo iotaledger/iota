@@ -1,33 +1,29 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use parking_lot::Mutex;
 use std::sync::Arc;
-use sui_types::storage::ObjectStore;
 
-use sui_types::base_types::TransactionDigest;
-use sui_types::committee::Committee;
-use sui_types::committee::EpochId;
-use sui_types::digests::TransactionEventsDigest;
-use sui_types::effects::{TransactionEffects, TransactionEvents};
-use sui_types::error::SuiError;
-use sui_types::messages_checkpoint::CheckpointContentsDigest;
-use sui_types::messages_checkpoint::CheckpointDigest;
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
-use sui_types::messages_checkpoint::EndOfEpochData;
-use sui_types::messages_checkpoint::FullCheckpointContents;
-use sui_types::messages_checkpoint::VerifiedCheckpoint;
-use sui_types::messages_checkpoint::VerifiedCheckpointContents;
-use sui_types::object::Object;
-use sui_types::storage::error::Error as StorageError;
-use sui_types::storage::WriteStore;
-use sui_types::storage::{ObjectKey, ReadStore};
-use sui_types::transaction::VerifiedTransaction;
+use parking_lot::Mutex;
+use sui_types::{
+    base_types::TransactionDigest,
+    committee::{Committee, EpochId},
+    digests::TransactionEventsDigest,
+    effects::{TransactionEffects, TransactionEvents},
+    error::SuiError,
+    messages_checkpoint::{
+        CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber, EndOfEpochData,
+        FullCheckpointContents, VerifiedCheckpoint, VerifiedCheckpointContents,
+    },
+    object::Object,
+    storage::{error::Error as StorageError, ObjectKey, ObjectStore, ReadStore, WriteStore},
+    transaction::VerifiedTransaction,
+};
 
-use crate::checkpoints::CheckpointStore;
-use crate::epoch::committee_store::CommitteeStore;
-use crate::execution_cache::ExecutionCacheRead;
-use crate::execution_cache::StateSyncAPI;
+use crate::{
+    checkpoints::CheckpointStore,
+    epoch::committee_store::CommitteeStore,
+    execution_cache::{ExecutionCacheRead, StateSyncAPI},
+};
 
 #[derive(Clone)]
 pub struct RocksDbStore {
@@ -146,9 +142,10 @@ impl ReadStore for RocksDbStore {
 
         // Otherwise gather it from the individual components.
         // Note we can't insert the constructed contents into `full_checkpoint_content`,
-        // because it needs to be inserted along with `checkpoint_sequence_by_contents_digest`
-        // and `checkpoint_content`. However at this point it's likely we don't know the
-        // corresponding sequence number yet.
+        // because it needs to be inserted along with
+        // `checkpoint_sequence_by_contents_digest` and `checkpoint_content`.
+        // However at this point it's likely we don't know the corresponding
+        // sequence number yet.
         self.checkpoint_store
             .get_checkpoint_contents(digest)
             .map_err(sui_types::storage::error::Error::custom)?

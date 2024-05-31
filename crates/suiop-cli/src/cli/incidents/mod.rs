@@ -4,11 +4,12 @@
 mod jira;
 mod pd;
 
+use std::path::PathBuf;
+
 use anyhow::Result;
 use clap::Parser;
 use jira::generate_follow_up_tasks;
 use pd::print_recent_incidents;
-use std::path::PathBuf;
 
 #[derive(Parser, Debug, Clone)]
 pub struct IncidentsArgs {

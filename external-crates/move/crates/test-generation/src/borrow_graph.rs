@@ -2,13 +2,15 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::abstract_state::Mutability;
 use std::collections::HashMap;
+
+use crate::abstract_state::Mutability;
 
 /// Each partition is associated with a (unique) ID
 type PartitionID = u16;
 
-/// A nonce represents a runtime reference. It has a unique identifier and a mutability
+/// A nonce represents a runtime reference. It has a unique identifier and a
+/// mutability
 type Nonce = (u16, Mutability);
 
 /// A set of nonces
@@ -21,16 +23,18 @@ type Path = Vec<u8>;
 /// may be empty, and an `EdgeType`
 type Edge = (PartitionID, PartitionID, Path, EdgeType);
 
-/// The `EdgeType` is either weak or strong. A weak edge represents imprecise information
-/// on the path along which the borrow takes place. A strong edge is precise.
+/// The `EdgeType` is either weak or strong. A weak edge represents imprecise
+/// information on the path along which the borrow takes place. A strong edge is
+/// precise.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EdgeType {
     Weak,
     Strong,
 }
 
-/// The `BorrowGraph` stores information sufficient to determine whether the instruction
-/// of a bytecode instruction that interacts with references is memory safe.
+/// The `BorrowGraph` stores information sufficient to determine whether the
+/// instruction of a bytecode instruction that interacts with references is
+/// memory safe.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BorrowGraph {
     /// All of the partitions that make up the graph
@@ -98,8 +102,8 @@ impl BorrowGraph {
         }
     }
 
-    /// Determine whether the given partition is freezable. This operation may fail
-    /// with an error if the given partition ID is not in the graph.
+    /// Determine whether the given partition is freezable. This operation may
+    /// fail with an error if the given partition ID is not in the graph.
     pub fn partition_freezable(&self, partition_id: PartitionID) -> Result<bool, String> {
         let mut freezable = true;
         if self.partition_map.get(&partition_id).is_some() {

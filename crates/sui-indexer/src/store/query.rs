@@ -6,7 +6,7 @@ use sui_types::base_types::ObjectID;
 
 pub trait DBFilter<C> {
     fn to_objects_history_sql(&self, cursor: Option<C>, limit: usize, columns: Vec<&str>)
-        -> String;
+    -> String;
     fn to_latest_objects_sql(&self, cursor: Option<C>, limit: usize, columns: Vec<&str>) -> String;
 }
 
@@ -40,8 +40,9 @@ impl DBFilter<ObjectID> for SuiObjectDataFilter {
             .map(|c| format!("t1.{c}"))
             .collect::<Vec<_>>()
             .join(", ");
-        // NOTE: order by checkpoint DESC so that whenever a row from checkpoint is available,
-        // we will pick that over the one from fast-path, which has checkpoint of -1.
+        // NOTE: order by checkpoint DESC so that whenever a row from checkpoint is
+        // available, we will pick that over the one from fast-path, which has
+        // checkpoint of -1.
         format!(
             "SELECT {columns}
 FROM (SELECT DISTINCT ON (o.object_id) *
@@ -126,7 +127,9 @@ fn to_clauses(filter: &SuiObjectDataFilter) -> Option<String> {
                 Some(format!("NOT ({})", sub_filters.join(" OR ")))
             }
         }
-        SuiObjectDataFilter::Package(p) => Some(format!("o.object_type LIKE '{}::%'", p.to_hex_literal())),
+        SuiObjectDataFilter::Package(p) => {
+            Some(format!("o.object_type LIKE '{}::%'", p.to_hex_literal()))
+        }
         SuiObjectDataFilter::MoveModule { package, module } => Some(format!(
             "o.object_type LIKE '{}::{}::%'",
             package.to_hex_literal(),
@@ -140,16 +143,14 @@ fn to_clauses(filter: &SuiObjectDataFilter) -> Option<String> {
             } else {
                 Some(format!("o.object_type = '{s}'"))
             }
-        },
-        SuiObjectDataFilter::AddressOwner(a) => {
-            Some(format!("((o.owner_type = 'address_owner' AND o.owner_address = '{a}') OR (o.old_owner_type = 'address_owner' AND o.old_owner_address = '{a}'))"))
         }
-        SuiObjectDataFilter::ObjectOwner(o) => {
-            Some(format!("((o.owner_type = 'object_owner' AND o.owner_address = '{o}') OR (o.old_owner_type = 'object_owner' AND o.old_owner_address = '{o}'))"))
-        }
-        SuiObjectDataFilter::ObjectId(id) => {
-            Some(format!("o.object_id = '{id}'"))
-        }
+        SuiObjectDataFilter::AddressOwner(a) => Some(format!(
+            "((o.owner_type = 'address_owner' AND o.owner_address = '{a}') OR (o.old_owner_type = 'address_owner' AND o.old_owner_address = '{a}'))"
+        )),
+        SuiObjectDataFilter::ObjectOwner(o) => Some(format!(
+            "((o.owner_type = 'object_owner' AND o.owner_address = '{o}') OR (o.old_owner_type = 'object_owner' AND o.old_owner_address = '{o}'))"
+        )),
+        SuiObjectDataFilter::ObjectId(id) => Some(format!("o.object_id = '{id}'")),
         SuiObjectDataFilter::ObjectIds(ids) => {
             if ids.is_empty() {
                 None
@@ -215,10 +216,11 @@ mod test {
     use std::str::FromStr;
 
     use move_core_types::ident_str;
-
     use sui_json_rpc_types::SuiObjectDataFilter;
-    use sui_types::base_types::{ObjectID, SuiAddress};
-    use sui_types::parse_sui_struct_tag;
+    use sui_types::{
+        base_types::{ObjectID, SuiAddress},
+        parse_sui_struct_tag,
+    };
 
     use crate::store::query::DBFilter;
 

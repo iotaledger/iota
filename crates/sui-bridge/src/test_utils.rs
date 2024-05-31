@@ -1,47 +1,52 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::abi::EthToSuiTokenBridgeV1;
-use crate::eth_mock_provider::EthMockProvider;
-use crate::events::SuiBridgeEvent;
-use crate::server::mock_handler::run_mock_server;
-use crate::sui_transaction_builder::{
-    get_bridge_package_id, get_root_bridge_object_arg, get_sui_token_type_tag,
+use std::{
+    collections::BTreeMap,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    path::PathBuf,
 };
-use crate::types::BridgeInnerDynamicField;
-use crate::{
-    crypto::{BridgeAuthorityKeyPair, BridgeAuthorityPublicKey, BridgeAuthoritySignInfo},
-    events::EmittedSuiToEthTokenBridgeV1,
-    server::mock_handler::BridgeRequestMockHandler,
+
+use ethers::{
+    abi::{long_signature, ParamType},
     types::{
-        BridgeAction, BridgeAuthority, BridgeChainId, EthToSuiBridgeAction, SignedBridgeAction,
-        SuiToEthBridgeAction, TokenId,
+        Address as EthAddress, Block, BlockNumber, Filter, FilterBlockOption, Log,
+        TransactionReceipt, TxHash, ValueOrArray, U64,
     },
 };
-use ethers::abi::{long_signature, ParamType};
-use ethers::types::Address as EthAddress;
-use ethers::types::{
-    Block, BlockNumber, Filter, FilterBlockOption, Log, TransactionReceipt, TxHash, ValueOrArray,
-    U64,
+use fastcrypto::{
+    encoding::{Encoding, Hex},
+    traits::KeyPair,
 };
-use fastcrypto::encoding::{Encoding, Hex};
-use fastcrypto::traits::KeyPair;
 use hex_literal::hex;
-use std::collections::BTreeMap;
-use std::net::IpAddr;
-use std::net::Ipv4Addr;
-use std::net::SocketAddr;
-use std::path::PathBuf;
 use sui_config::local_ip_utils;
 use sui_json_rpc_types::ObjectChange;
 use sui_sdk::wallet_context::WalletContext;
 use sui_test_transaction_builder::TestTransactionBuilder;
-use sui_types::base_types::ObjectRef;
-use sui_types::object::Owner;
-use sui_types::transaction::{CallArg, ObjectArg};
-use sui_types::SUI_FRAMEWORK_PACKAGE_ID;
-use sui_types::{base_types::SuiAddress, crypto::get_key_pair, digests::TransactionDigest};
+use sui_types::{
+    base_types::{ObjectRef, SuiAddress},
+    crypto::get_key_pair,
+    digests::TransactionDigest,
+    object::Owner,
+    transaction::{CallArg, ObjectArg},
+    SUI_FRAMEWORK_PACKAGE_ID,
+};
 use tokio::task::JoinHandle;
+
+use crate::{
+    abi::EthToSuiTokenBridgeV1,
+    crypto::{BridgeAuthorityKeyPair, BridgeAuthorityPublicKey, BridgeAuthoritySignInfo},
+    eth_mock_provider::EthMockProvider,
+    events::{EmittedSuiToEthTokenBridgeV1, SuiBridgeEvent},
+    server::mock_handler::{run_mock_server, BridgeRequestMockHandler},
+    sui_transaction_builder::{
+        get_bridge_package_id, get_root_bridge_object_arg, get_sui_token_type_tag,
+    },
+    types::{
+        BridgeAction, BridgeAuthority, BridgeChainId, BridgeInnerDynamicField,
+        EthToSuiBridgeAction, SignedBridgeAction, SuiToEthBridgeAction, TokenId,
+    },
+};
 
 pub fn get_test_authority_and_key(
     voting_power: u64,
@@ -142,8 +147,8 @@ pub fn mock_last_finalized_block(mock_provider: &EthMockProvider, block_number: 
         .unwrap();
 }
 
-// Mocks eth_getLogs and eth_getTransactionReceipt for the given address and block range.
-// The input log needs to have transaction_hash set.
+// Mocks eth_getLogs and eth_getTransactionReceipt for the given address and
+// block range. The input log needs to have transaction_hash set.
 pub fn mock_get_logs(
     mock_provider: &EthMockProvider,
     address: EthAddress,
@@ -216,9 +221,9 @@ pub fn get_test_log_and_action(
                     ParamType::Bytes,
                 ],
             ),
-            hex!("0000000000000000000000000000000000000000000000000000000000000001").into(), // chain id: sui testnet
-            hex!("0000000000000000000000000000000000000000000000000000000000000010").into(), // nonce: 16
-            hex!("000000000000000000000000000000000000000000000000000000000000000b").into(), // chain id: sepolia
+            hex!("0000000000000000000000000000000000000000000000000000000000000001").into(), /* chain id: sui testnet */
+            hex!("0000000000000000000000000000000000000000000000000000000000000010").into(), /* nonce: 16 */
+            hex!("000000000000000000000000000000000000000000000000000000000000000b").into(), /* chain id: sepolia */
         ],
         data: encoded.into(),
         block_hash: Some(TxHash::random()),

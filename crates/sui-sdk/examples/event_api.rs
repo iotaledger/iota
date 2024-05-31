@@ -3,8 +3,7 @@
 
 mod utils;
 use futures::stream::StreamExt;
-use sui_sdk::rpc_types::EventFilter;
-use sui_sdk::SuiClientBuilder;
+use sui_sdk::{rpc_types::EventFilter, SuiClientBuilder};
 use utils::{setup_for_write, split_coin_digest};
 
 // This example showcases how to use the Event API.
