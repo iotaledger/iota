@@ -8,13 +8,14 @@ use sui_types::{
     base_types::{ObjectID, ObjectRef, SuiAddress},
     crypto::AccountKeyPair,
     object::Owner,
-    transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, Command, Transaction, TransactionData, TransactionDataAPI},
     utils::to_sender_signed_transaction,
 };
 
-use crate::ProgrammableTransactionBuilder;
-use crate::{convert_move_call_args, workloads::Gas, BenchMoveCallArg, ExecutionEffects};
-use sui_types::transaction::Command;
+use crate::{
+    convert_move_call_args, workloads::Gas, BenchMoveCallArg, ExecutionEffects,
+    ProgrammableTransactionBuilder,
+};
 
 /// A Sui account and all of the objects it owns
 #[derive(Debug)]
@@ -57,7 +58,8 @@ impl SuiAccount {
     }
 }
 
-/// Utility struct tracking keys for known accounts, owned objects, shared objects, and immutable objects
+/// Utility struct tracking keys for known accounts, owned objects, shared
+/// objects, and immutable objects
 #[derive(Debug, Default)]
 pub struct InMemoryWallet {
     accounts: BTreeMap<SuiAddress, SuiAccount>, // TODO: track shared and immutable objects as well
@@ -95,10 +97,11 @@ impl InMemoryWallet {
             for obj in effects.deleted() {
                 // by construction, every deleted object either
                 // 1. belongs to the tx sender directly (e.g., sender owned the object)
-                // 2. belongs to the sender indirectly (e.g., deleted object was a dynamic field of a object the sender owned)
+                // 2. belongs to the sender indirectly (e.g., deleted object was a dynamic field
+                //    of a object the sender owned)
                 // 3. is shared (though we do not yet support deletion of shared objects)
-                // so, we just try to delete everything from the sender's account here, though it's
-                // worth noting that (2) and (3) are possible.
+                // so, we just try to delete everything from the sender's account here, though
+                // it's worth noting that (2) and (3) are possible.
                 sender_account.delete(&obj.0);
             }
         } // else, tx sender is not an account we can spend from, we don't care

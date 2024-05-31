@@ -1,10 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{path::PathBuf, time::Duration};
+
 use clap::Parser;
 use mysten_metrics::start_prometheus_server;
-use std::path::PathBuf;
-use std::time::Duration;
 use sui_config::Config;
 use sui_oracle::{config::OracleNodeConfig, OracleNode};
 use sui_sdk::wallet_context::WalletContext;

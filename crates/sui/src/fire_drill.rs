@@ -1,9 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! A tool to semi automate fire drills. It still requires some manual work today. For example,
+//! A tool to semi automate fire drills. It still requires some manual work
+//! today. For example,
 //! 1. update iptables for new tpc/udp ports
-//! 2. restart the node in a new epoch when config file will be reloaded and take effects
+//! 2. restart the node in a new epoch when config file will be reloaded and
+//!    take effects
 //!
 //! Example usage:
 //! sui fire-drill metadata-rotation \
@@ -11,24 +13,31 @@
 //! --account-key-path account.key \
 //! --fullnode-rpc-url http://fullnode-my-local-net:9000
 
+use std::path::{Path, PathBuf};
+
 use anyhow::bail;
 use clap::*;
-use fastcrypto::ed25519::Ed25519KeyPair;
-use fastcrypto::traits::{KeyPair, ToFromBytes};
+use fastcrypto::{
+    ed25519::Ed25519KeyPair,
+    traits::{KeyPair, ToFromBytes},
+};
 use move_core_types::ident_str;
-use std::path::{Path, PathBuf};
-use sui_config::node::{AuthorityKeyPairWithPath, KeyPairWithPath};
-use sui_config::{local_ip_utils, Config, NodeConfig, PersistedConfig};
+use sui_config::{
+    local_ip_utils,
+    node::{AuthorityKeyPairWithPath, KeyPairWithPath},
+    Config, NodeConfig, PersistedConfig,
+};
 use sui_json_rpc_types::{SuiExecutionStatus, SuiTransactionBlockResponseOptions};
 use sui_keys::keypair_file::read_keypair_from_file;
 use sui_sdk::{rpc_types::SuiTransactionBlockEffectsAPI, SuiClient, SuiClientBuilder};
-use sui_types::base_types::{ObjectRef, SuiAddress};
-use sui_types::crypto::{generate_proof_of_possession, get_key_pair, SuiKeyPair};
-use sui_types::multiaddr::{Multiaddr, Protocol};
-use sui_types::transaction::{
-    CallArg, Transaction, TransactionData, TEST_ONLY_GAS_UNIT_FOR_GENERIC,
+use sui_types::{
+    base_types::{ObjectRef, SuiAddress},
+    committee::EpochId,
+    crypto::{generate_proof_of_possession, get_authority_key_pair, get_key_pair, SuiKeyPair},
+    multiaddr::{Multiaddr, Protocol},
+    transaction::{CallArg, Transaction, TransactionData, TEST_ONLY_GAS_UNIT_FOR_GENERIC},
+    SUI_SYSTEM_PACKAGE_ID,
 };
-use sui_types::{committee::EpochId, crypto::get_authority_key_pair, SUI_SYSTEM_PACKAGE_ID};
 use tracing::info;
 
 #[derive(Parser)]
@@ -75,7 +84,9 @@ async fn run_metadata_rotation(metadata_rotation: MetadataRotation) -> anyhow::R
     let sui_client = SuiClientBuilder::default().build(fullnode_rpc_url).await?;
     let sui_address = SuiAddress::from(&account_key.public());
     let starting_epoch = current_epoch(&sui_client).await?;
-    info!("Running Metadata Rotation fire drill for validator address {sui_address} in epoch {starting_epoch}.");
+    info!(
+        "Running Metadata Rotation fire drill for validator address {sui_address} in epoch {starting_epoch}."
+    );
 
     // Prepare new metadata for next epoch
     let new_config_path =

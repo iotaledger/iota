@@ -7,17 +7,15 @@ use prometheus::{
     register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry, IntCounterVec,
     IntGaugeVec, Registry,
 };
+use sui_json_rpc_types::{
+    EffectsWithInput, EventFilter, SuiEvent, SuiTransactionBlockEffects,
+    SuiTransactionBlockEffectsAPI, SuiTransactionBlockEvents, TransactionFilter,
+};
+use sui_types::{error::SuiResult, transaction::TransactionData};
 use tokio_stream::Stream;
 use tracing::{error, instrument, trace};
 
 use crate::streamer::Streamer;
-use sui_json_rpc_types::{
-    EffectsWithInput, EventFilter, SuiTransactionBlockEffects, SuiTransactionBlockEvents,
-    TransactionFilter,
-};
-use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockEffectsAPI};
-use sui_types::error::SuiResult;
-use sui_types::transaction::TransactionData;
 
 #[cfg(test)]
 #[path = "unit_tests/subscription_handler_tests.rs"]

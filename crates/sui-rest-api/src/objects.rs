@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{accept::AcceptFormat, response::ResponseContent, types::JsonObject, Result};
 use axum::extract::{Path, State};
 use sui_types::{
     base_types::{ObjectID, SequenceNumber},
@@ -9,6 +8,8 @@ use sui_types::{
     storage::ReadStore,
 };
 use tap::Pipe;
+
+use crate::{accept::AcceptFormat, response::ResponseContent, types::JsonObject, Result};
 
 pub const GET_OBJECT_PATH: &str = "/objects/:object_id";
 

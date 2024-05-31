@@ -60,9 +60,11 @@ impl SuiTxValidator {
                     cert_batch.push(*certificate);
 
                     // if !certificate.contains_shared_object() {
-                    //     // new_unchecked safety: we do not use the certs in this list until all
-                    //     // have had their signatures verified.
-                    //     owned_tx_certs.push(VerifiedCertificate::new_unchecked(*certificate));
+                    //     // new_unchecked safety: we do not use the certs in
+                    // this list until all     // have had
+                    // their signatures verified.
+                    //     owned_tx_certs.
+                    // push(VerifiedCertificate::new_unchecked(*certificate));
                     // }
                 }
                 ConsensusTransactionKind::CheckpointSignature(signature) => {
@@ -88,7 +90,8 @@ impl SuiTxValidator {
             .tap_err(|e| warn!("batch verification error: {}", e))
             .wrap_err("Malformed batch (failed to verify)")?;
 
-        // All checkpoint sigs have been verified, forward them to the checkpoint service
+        // All checkpoint sigs have been verified, forward them to the checkpoint
+        // service
         for ckpt in ckpt_messages {
             self.checkpoint_service
                 .notify_checkpoint_signature(&self.epoch_store, &ckpt)?;
@@ -102,11 +105,12 @@ impl SuiTxValidator {
             .inc_by(ckpt_count as u64);
         Ok(())
 
-        // todo - we should un-comment line below once we have a way to revert those transactions at the end of epoch
-        // all certificates had valid signatures, schedule them for execution prior to sequencing
+        // todo - we should un-comment line below once we have a way to revert
+        // those transactions at the end of epoch all certificates had
+        // valid signatures, schedule them for execution prior to sequencing
         // which is unnecessary for owned object transactions.
-        // It is unnecessary to write to pending_certificates table because the certs will be written
-        // via Narwhal output.
+        // It is unnecessary to write to pending_certificates table because the
+        // certs will be written via Narwhal output.
         // self.transaction_manager
         //     .enqueue_certificates(owned_tx_certs, &self.epoch_store)
         //     .wrap_err("Failed to schedule certificates for execution")
@@ -122,7 +126,8 @@ impl TransactionValidator for SuiTxValidator {
     type Error = eyre::Report;
 
     fn validate(&self, _tx: &[u8]) -> Result<(), Self::Error> {
-        // We only accept transactions from local sui instance so no need to re-verify it
+        // We only accept transactions from local sui instance so no need to re-verify
+        // it
         Ok(())
     }
 
@@ -279,7 +284,8 @@ mod tests {
         // TODO: Remove once we have removed BatchV1 from the codebase.
         let batch_v1 = Batch::V1(BatchV1::new(vec![]));
 
-        // Case #1: Receive BatchV1 but network has upgraded past v11 so we fail because we expect BatchV2
+        // Case #1: Receive BatchV1 but network has upgraded past v11 so we fail because
+        // we expect BatchV2
         let res_batch = validator.validate_batch(&batch_v1, latest_protocol_config);
         assert!(res_batch.is_err());
 

@@ -6,23 +6,23 @@ use std::net::SocketAddr;
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
+use errors::IndexerError;
 use jsonrpsee::http_client::{HeaderMap, HeaderValue, HttpClient, HttpClientBuilder};
 use metrics::IndexerMetrics;
 use prometheus::Registry;
+use sui_json_rpc::{JsonRpcServerBuilder, ServerHandle, ServerType};
+use sui_json_rpc_api::CLIENT_SDK_TYPE_HEADER;
 use tokio::runtime::Handle;
 use tracing::warn;
 use url::Url;
 
-use sui_json_rpc::ServerType;
-use sui_json_rpc::{JsonRpcServerBuilder, ServerHandle};
-use sui_json_rpc_api::CLIENT_SDK_TYPE_HEADER;
-
-use crate::apis::{
-    CoinReadApi, ExtendedApi, GovernanceReadApi, IndexerApi, MoveUtilsApi, ReadApi,
-    TransactionBuilderApi, WriteApi,
+use crate::{
+    apis::{
+        CoinReadApi, ExtendedApi, GovernanceReadApi, IndexerApi, MoveUtilsApi, ReadApi,
+        TransactionBuilderApi, WriteApi,
+    },
+    indexer_reader::IndexerReader,
 };
-use crate::indexer_reader::IndexerReader;
-use errors::IndexerError;
 
 pub mod apis;
 pub mod db;
@@ -91,15 +91,29 @@ impl IndexerConfig {
     }
 
     pub fn get_db_url(&self) -> Result<String, anyhow::Error> {
-        match (&self.db_url, &self.db_user_name, &self.db_password, &self.db_host, &self.db_port, &self.db_name) {
+        match (
+            &self.db_url,
+            &self.db_user_name,
+            &self.db_password,
+            &self.db_host,
+            &self.db_port,
+            &self.db_name,
+        ) {
             (Some(db_url), _, _, _, _, _) => Ok(db_url.clone()),
-            (None, Some(db_user_name), Some(db_password), Some(db_host), Some(db_port), Some(db_name)) => {
-                Ok(format!(
-                    "postgres://{}:{}@{}:{}/{}",
-                    db_user_name, db_password, db_host, db_port, db_name
-                ))
-            }
-            _ => Err(anyhow!("Invalid db connection config, either db_url or (db_user_name, db_password, db_host, db_port, db_name) must be provided")),
+            (
+                None,
+                Some(db_user_name),
+                Some(db_password),
+                Some(db_host),
+                Some(db_port),
+                Some(db_name),
+            ) => Ok(format!(
+                "postgres://{}:{}@{}:{}/{}",
+                db_user_name, db_password, db_host, db_port, db_name
+            )),
+            _ => Err(anyhow!(
+                "Invalid db connection config, either db_url or (db_user_name, db_password, db_host, db_port, db_name) must be provided"
+            )),
         }
     }
 }

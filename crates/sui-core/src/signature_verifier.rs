@@ -1,10 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{hash::Hash, sync::Arc};
+
 use either::Either;
-use fastcrypto_zkp::bn254::zk_login::JwkId;
-use fastcrypto_zkp::bn254::zk_login::{OIDCProvider, JWK};
-use fastcrypto_zkp::bn254::zk_login_api::ZkLoginEnv;
+use fastcrypto_zkp::bn254::{
+    zk_login::{JwkId, OIDCProvider, JWK},
+    zk_login_api::ZkLoginEnv,
+};
 use futures::pin_mut;
 use im::hashmap::HashMap as ImHashMap;
 use itertools::izip;
@@ -13,35 +16,32 @@ use mysten_metrics::monitored_scope;
 use parking_lot::{Mutex, MutexGuard, RwLock};
 use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
 use shared_crypto::intent::Intent;
-use std::hash::Hash;
-use std::sync::Arc;
-use sui_types::digests::SenderSignedDataDigest;
-use sui_types::digests::ZKLoginInputsDigest;
-use sui_types::transaction::SenderSignedData;
 use sui_types::{
     committee::Committee,
     crypto::{AuthoritySignInfoTrait, VerificationObligation},
-    digests::CertificateDigest,
+    digests::{CertificateDigest, SenderSignedDataDigest, ZKLoginInputsDigest},
     error::{SuiError, SuiResult},
     message_envelope::{AuthenticatedMessage, Message},
     messages_checkpoint::SignedCheckpointSummary,
     signature::VerifyParams,
-    transaction::{CertifiedTransaction, VerifiedCertificate},
+    transaction::{CertifiedTransaction, SenderSignedData, VerifiedCertificate},
 };
 use tap::TapFallible;
-use tokio::runtime::Handle;
 use tokio::{
+    runtime::Handle,
     sync::oneshot,
     time::{timeout, Duration},
 };
 use tracing::debug;
-// Maximum amount of time we wait for a batch to fill up before verifying a partial batch.
+// Maximum amount of time we wait for a batch to fill up before verifying a
+// partial batch.
 const BATCH_TIMEOUT_MS: Duration = Duration::from_millis(10);
 
-// Maximum size of batch to verify. Increasing this value will slightly improve CPU utilization
-// (batching starts to hit steeply diminishing marginal returns around batch sizes of 16), at the
-// cost of slightly increasing latency (BATCH_TIMEOUT_MS will be hit more frequently if system is
-// not heavily loaded).
+// Maximum size of batch to verify. Increasing this value will slightly improve
+// CPU utilization (batching starts to hit steeply diminishing marginal returns
+// around batch sizes of 16), at the cost of slightly increasing latency
+// (BATCH_TIMEOUT_MS will be hit more frequently if system is not heavily
+// loaded).
 const MAX_BATCH_SIZE: usize = 8;
 
 type Sender = oneshot::Sender<SuiResult<VerifiedCertificate>>;
@@ -61,7 +61,8 @@ impl CertBuffer {
         }
     }
 
-    // Function consumes MutexGuard, therefore releasing the lock after mem swap is done
+    // Function consumes MutexGuard, therefore releasing the lock after mem swap is
+    // done
     fn take_and_replace(mut guard: MutexGuard<'_, Self>) -> Self {
         let this = &mut *guard;
         let mut new = CertBuffer::new(this.capacity());
@@ -86,7 +87,8 @@ impl CertBuffer {
     }
 }
 
-/// Verifies signatures in ways that faster than verifying each signature individually.
+/// Verifies signatures in ways that faster than verifying each signature
+/// individually.
 /// - BLS signatures - caching and batch verification.
 /// - User signed data - caching.
 pub struct SignatureVerifier {
@@ -96,13 +98,15 @@ pub struct SignatureVerifier {
     zklogin_inputs_cache: VerifiedDigestCache<ZKLoginInputsDigest>,
 
     /// Map from JwkId (iss, kid) to the fetched JWK for that key.
-    /// We use an immutable data structure because verification of ZKLogins may be slow, so we
-    /// don't want to pass a reference to the map to the verify method, since that would lead to a
-    /// lengthy critical section. Instead, we use an immutable data structure which can be cloned
-    /// very cheaply.
+    /// We use an immutable data structure because verification of ZKLogins may
+    /// be slow, so we don't want to pass a reference to the map to the
+    /// verify method, since that would lead to a lengthy critical section.
+    /// Instead, we use an immutable data structure which can be cloned very
+    /// cheaply.
     jwks: RwLock<ImHashMap<JwkId, JWK>>,
 
-    /// Params that contains a list of supported providers for ZKLogin and the environment (prod/test) the code runs in.
+    /// Params that contains a list of supported providers for ZKLogin and the
+    /// environment (prod/test) the code runs in.
     zk_login_params: ZkLoginParams,
 
     queue: Mutex<CertBuffer>,
@@ -114,7 +118,8 @@ pub struct SignatureVerifier {
 struct ZkLoginParams {
     /// A list of supported OAuth providers for ZkLogin.
     pub supported_providers: Vec<OIDCProvider>,
-    /// The environment (prod/test) the code runs in. It decides which verifying key to use in fastcrypto.
+    /// The environment (prod/test) the code runs in. It decides which verifying
+    /// key to use in fastcrypto.
     pub env: ZkLoginEnv,
     pub verify_legacy_zklogin_address: bool,
     pub accept_zklogin_in_multisig: bool,
@@ -189,8 +194,9 @@ impl SignatureVerifier {
             .filter(|cert| !self.certificate_cache.is_cached(&cert.certificate_digest()))
             .collect();
 
-        // Verify only the user sigs of certificates that were not cached already, since whenever we
-        // insert a certificate into the cache, it is already verified.
+        // Verify only the user sigs of certificates that were not cached already, since
+        // whenever we insert a certificate into the cache, it is already
+        // verified.
         for cert in &certs {
             self.verify_tx(cert.data())?;
         }
@@ -217,8 +223,8 @@ impl SignatureVerifier {
         &self,
         cert: CertifiedTransaction,
     ) -> SuiResult<VerifiedCertificate> {
-        // this is the only innocent error we are likely to encounter - filter it before we poison
-        // a whole batch.
+        // this is the only innocent error we are likely to encounter - filter it before
+        // we poison a whole batch.
         if cert.auth_sig().epoch != self.committee.epoch() {
             return Err(SuiError::WrongEpoch {
                 expected_epoch: self.committee.epoch(),
@@ -233,9 +239,10 @@ impl SignatureVerifier {
         &self,
         cert: CertifiedTransaction,
     ) -> SuiResult<VerifiedCertificate> {
-        // Cancellation safety: we use parking_lot locks, which cannot be held across awaits.
-        // Therefore once the queue has been taken by a thread, it is guaranteed to process the
-        // queue and send all results before the future can be cancelled by the caller.
+        // Cancellation safety: we use parking_lot locks, which cannot be held across
+        // awaits. Therefore once the queue has been taken by a thread, it is
+        // guaranteed to process the queue and send all results before the
+        // future can be cancelled by the caller.
         let (tx, rx) = oneshot::channel();
         pin_mut!(rx);
 
@@ -282,8 +289,8 @@ impl SignatureVerifier {
             return rx.try_recv().unwrap();
         }
 
-        // unwrap ok - another thread took the queue while we were re-acquiring the lock and is
-        // guaranteed to process the queue immediately.
+        // unwrap ok - another thread took the queue while we were re-acquiring the lock
+        // and is guaranteed to process the queue immediately.
         rx.await.unwrap()
     }
 
@@ -324,8 +331,8 @@ impl SignatureVerifier {
         });
     }
 
-    /// Insert a JWK into the verifier state. Pre-existing entries for a given JwkId will not be
-    /// overwritten.
+    /// Insert a JWK into the verifier state. Pre-existing entries for a given
+    /// JwkId will not be overwritten.
     pub(crate) fn insert_jwk(&self, jwk_id: &JwkId, jwk: &JWK) {
         let mut jwks = self.jwks.write();
         match jwks.entry(jwk_id.clone()) {
@@ -497,7 +504,8 @@ pub fn batch_verify_all_certificates_and_checkpoints(
     batch_verify(committee, certs, checkpoints)
 }
 
-/// Verifies certificates in batch mode, but returns a separate result for each cert.
+/// Verifies certificates in batch mode, but returns a separate result for each
+/// cert.
 pub fn batch_verify_certificates(
     committee: &Committee,
     certs: &[CertifiedTransaction],
@@ -547,9 +555,11 @@ fn batch_verify(
     obligation.verify_all()
 }
 
-// Cache up to 20000 verified certs. We will need to tune this number in the future - a decent
-// guess to start with is that it should be 10-20 times larger than peak transactions per second,
-// on the assumption that we should see most certs twice within about 10-20 seconds at most: Once via RPC, once via consensus.
+// Cache up to 20000 verified certs. We will need to tune this number in the
+// future - a decent guess to start with is that it should be 10-20 times larger
+// than peak transactions per second, on the assumption that we should see most
+// certs twice within about 10-20 seconds at most: Once via RPC, once via
+// consensus.
 const VERIFIED_CERTIFICATE_CACHE_SIZE: usize = 20000;
 
 pub struct VerifiedDigestCache<D> {

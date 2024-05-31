@@ -1,17 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::{BTreeMap, HashSet},
+    fs,
+    path::Path,
+    sync::Arc,
+};
+
 use anyhow::{bail, Context};
 use camino::Utf8Path;
-use fastcrypto::hash::HashFunction;
-use fastcrypto::traits::KeyPair;
+use fastcrypto::{hash::HashFunction, traits::KeyPair};
 use move_binary_format::CompiledModule;
 use move_core_types::ident_str;
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
-use std::collections::{BTreeMap, HashSet};
-use std::fs;
-use std::path::Path;
-use std::sync::Arc;
 use sui_config::genesis::{
     Genesis, GenesisCeremonyParameters, GenesisChainParameters, TokenDistributionSchedule,
     UnsignedGenesis,
@@ -19,35 +21,35 @@ use sui_config::genesis::{
 use sui_execution::{self, Executor};
 use sui_framework::{BuiltInFramework, SystemPackage};
 use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use sui_types::base_types::{
-    ExecutionDigests, ObjectID, SequenceNumber, SuiAddress, TransactionDigest, TxContext,
+use sui_types::{
+    base_types::{
+        ExecutionDigests, ObjectID, SequenceNumber, SuiAddress, TransactionDigest, TxContext,
+    },
+    committee::Committee,
+    crypto::{
+        AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo, AuthoritySignInfoTrait,
+        AuthoritySignature, DefaultHash, SuiAuthoritySignature,
+    },
+    deny_list::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
+    digests::ChainIdentifier,
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    epoch_data::EpochData,
+    gas::SuiGasStatus,
+    gas_coin::GasCoin,
+    governance::StakedSui,
+    in_memory_storage::InMemoryStorage,
+    inner_temporary_store::InnerTemporaryStore,
+    message_envelope::Message,
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary},
+    metrics::LimitsMetrics,
+    object::{Object, Owner},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    sui_system_state::{get_sui_system_state, SuiSystemState, SuiSystemStateTrait},
+    transaction::{
+        CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectReadResult, Transaction,
+    },
+    SUI_FRAMEWORK_ADDRESS, SUI_SYSTEM_ADDRESS,
 };
-use sui_types::committee::Committee;
-use sui_types::crypto::{
-    AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo, AuthoritySignInfoTrait,
-    AuthoritySignature, DefaultHash, SuiAuthoritySignature,
-};
-use sui_types::deny_list::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE};
-use sui_types::digests::ChainIdentifier;
-use sui_types::effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents};
-use sui_types::epoch_data::EpochData;
-use sui_types::gas::SuiGasStatus;
-use sui_types::gas_coin::GasCoin;
-use sui_types::governance::StakedSui;
-use sui_types::in_memory_storage::InMemoryStorage;
-use sui_types::inner_temporary_store::InnerTemporaryStore;
-use sui_types::message_envelope::Message;
-use sui_types::messages_checkpoint::{
-    CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary,
-};
-use sui_types::metrics::LimitsMetrics;
-use sui_types::object::{Object, Owner};
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::sui_system_state::{get_sui_system_state, SuiSystemState, SuiSystemStateTrait};
-use sui_types::transaction::{
-    CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectReadResult, Transaction,
-};
-use sui_types::{SUI_FRAMEWORK_ADDRESS, SUI_SYSTEM_ADDRESS};
 use tracing::trace;
 use validator_info::{GenesisValidatorInfo, GenesisValidatorMetadata, ValidatorInfo};
 
@@ -242,15 +244,16 @@ impl Builder {
         genesis
     }
 
-    /// Validates the entire state of the build, no matter what the internal state is (input
-    /// collection phase or output phase)
+    /// Validates the entire state of the build, no matter what the internal
+    /// state is (input collection phase or output phase)
     pub fn validate(&self) -> anyhow::Result<(), anyhow::Error> {
         self.validate_inputs()?;
         self.validate_output();
         Ok(())
     }
 
-    /// Runs through validation checks on the input values present in the builder
+    /// Runs through validation checks on the input values present in the
+    /// builder
     fn validate_inputs(&self) -> anyhow::Result<(), anyhow::Error> {
         if !self.parameters.allow_insertion_of_extra_objects && !self.objects.is_empty() {
             bail!("extra objects are disallowed");
@@ -275,10 +278,11 @@ impl Builder {
         Ok(())
     }
 
-    /// Runs through validation checks on the generated output (the initial chain state) based on
-    /// the input values present in the builder
+    /// Runs through validation checks on the generated output (the initial
+    /// chain state) based on the input values present in the builder
     fn validate_output(&self) {
-        // If genesis hasn't been built yet, just early return as there is nothing to validate yet
+        // If genesis hasn't been built yet, just early return as there is nothing to
+        // validate yet
         let Some(unsigned_genesis) = self.unsigned_genesis_checkpoint() else {
             return;
         };
@@ -339,10 +343,13 @@ impl Builder {
         {
             let metadata = onchain_validator.verified_metadata();
 
-            // Validators should not have duplicate addresses so the result of insertion should be None.
-            assert!(address_to_pool_id
-                .insert(metadata.sui_address, onchain_validator.staking_pool.id)
-                .is_none());
+            // Validators should not have duplicate addresses so the result of insertion
+            // should be None.
+            assert!(
+                address_to_pool_id
+                    .insert(metadata.sui_address, onchain_validator.staking_pool.id)
+                    .is_none()
+            );
             assert_eq!(validator.info.sui_address(), metadata.sui_address);
             assert_eq!(validator.info.protocol_key(), metadata.sui_pubkey_bytes());
             assert_eq!(validator.info.network_key, metadata.network_pubkey);
@@ -599,8 +606,8 @@ impl Builder {
             let unsigned_genesis_bytes = fs::read(unsigned_genesis_file)?;
             let loaded_genesis: UnsignedGenesis = bcs::from_bytes(&unsigned_genesis_bytes)?;
 
-            // If we have a built genesis, then we must have a token_distribution_schedule present
-            // as well.
+            // If we have a built genesis, then we must have a token_distribution_schedule
+            // present as well.
             assert!(
                 builder.token_distribution_schedule.is_some(),
                 "If a built genesis is present, then there must also be a token-distribution-schedule present"
@@ -670,9 +677,9 @@ impl Builder {
     }
 }
 
-// Create a Genesis Txn Context to be used when generating genesis objects by hashing all of the
-// inputs into genesis ans using that as our "Txn Digest". This is done to ensure that coin objects
-// created between chains are unique
+// Create a Genesis Txn Context to be used when generating genesis objects by
+// hashing all of the inputs into genesis ans using that as our "Txn Digest".
+// This is done to ensure that coin objects created between chains are unique
 fn create_genesis_context(
     epoch_data: &EpochData,
     genesis_chain_parameters: &GenesisChainParameters,
@@ -700,9 +707,9 @@ fn create_genesis_context(
 }
 
 fn get_genesis_protocol_config(version: ProtocolVersion) -> ProtocolConfig {
-    // We have a circular dependency here. Protocol config depends on chain ID, which
-    // depends on genesis checkpoint (digest), which depends on genesis transaction, which
-    // depends on protocol config.
+    // We have a circular dependency here. Protocol config depends on chain ID,
+    // which depends on genesis checkpoint (digest), which depends on genesis
+    // transaction, which depends on protocol config.
     //
     // ChainIdentifier::default().chain() which can be overridden by the
     // SUI_PROTOCOL_CONFIG_CHAIN_OVERRIDE if necessary
@@ -716,7 +723,9 @@ fn build_unsigned_genesis_data(
     objects: &[Object],
 ) -> UnsignedGenesis {
     if !parameters.allow_insertion_of_extra_objects && !objects.is_empty() {
-        panic!("insertion of extra objects at genesis time is prohibited due to 'allow_insertion_of_extra_objects' parameter");
+        panic!(
+            "insertion of extra objects at genesis time is prohibited due to 'allow_insertion_of_extra_objects' parameter"
+        );
     }
 
     let genesis_chain_parameters = parameters.to_genesis_chain_parameters();
@@ -733,9 +742,9 @@ fn build_unsigned_genesis_data(
 
     let epoch_data = EpochData::new_genesis(genesis_chain_parameters.chain_start_timestamp_ms);
 
-    // Get the correct system packages for our protocol version. If we cannot find the snapshot
-    // that means that we must be at the latest version and we should use the latest version of the
-    // framework.
+    // Get the correct system packages for our protocol version. If we cannot find
+    // the snapshot that means that we must be at the latest version and we
+    // should use the latest version of the framework.
     let system_packages =
         sui_framework_snapshot::load_bytecode_snapshot(parameters.protocol_version.as_u64())
             .unwrap_or_else(|_| BuiltInFramework::iter_system_packages().cloned().collect());
@@ -898,9 +907,9 @@ fn create_genesis_objects(
     metrics: Arc<LimitsMetrics>,
 ) -> Vec<Object> {
     let mut store = InMemoryStorage::new(Vec::new());
-    // We don't know the chain ID here since we haven't yet created the genesis checkpoint.
-    // However since we know there are no chain specific protool config options in genesis,
-    // we use Chain::Unknown here.
+    // We don't know the chain ID here since we haven't yet created the genesis
+    // checkpoint. However since we know there are no chain specific protool
+    // config options in genesis, we use Chain::Unknown here.
     let protocol_config = ProtocolConfig::get_for_version(
         ProtocolVersion::new(parameters.protocol_version),
         Chain::Unknown,
@@ -954,9 +963,10 @@ pub(crate) fn process_package(
 ) -> anyhow::Result<()> {
     let dependency_objects = store.get_objects(&dependencies);
     // When publishing genesis packages, since the std framework packages all have
-    // non-zero addresses, [`Transaction::input_objects_in_compiled_modules`] will consider
-    // them as dependencies even though they are not. Hence input_objects contain objects
-    // that don't exist on-chain because they are yet to be published.
+    // non-zero addresses, [`Transaction::input_objects_in_compiled_modules`] will
+    // consider them as dependencies even though they are not. Hence
+    // input_objects contain objects that don't exist on-chain because they are
+    // yet to be published.
     #[cfg(debug_assertions)]
     {
         use move_core_types::account_address::AccountAddress;
@@ -1046,8 +1056,8 @@ pub fn generate_genesis_system_object(
             vec![],
         )?;
 
-        // Step 3: Create ProtocolConfig-controlled system objects, unless disabled (which only
-        // happens in tests).
+        // Step 3: Create ProtocolConfig-controlled system objects, unless disabled
+        // (which only happens in tests).
         if protocol_config.create_authenticator_state_in_genesis() {
             builder.move_call(
                 SUI_FRAMEWORK_ADDRESS.into(),
@@ -1086,8 +1096,8 @@ pub fn generate_genesis_system_object(
         );
 
         // Step 5: Run genesis.
-        // The first argument is the system state uid we got from step 1 and the second one is the SUI supply we
-        // got from step 3.
+        // The first argument is the system state uid we got from step 1 and the second
+        // one is the SUI supply we got from step 3.
         let mut arguments = vec![sui_system_state_uid, sui_supply];
         let mut call_arg_arguments = vec![
             CallArg::Pure(bcs::to_bytes(&genesis_chain_parameters).unwrap()),
@@ -1134,18 +1144,21 @@ pub fn generate_genesis_system_object(
 
 #[cfg(test)]
 mod test {
-    use crate::validator_info::ValidatorInfo;
-    use crate::Builder;
     use fastcrypto::traits::KeyPair;
-    use sui_config::genesis::*;
-    use sui_config::local_ip_utils;
-    use sui_config::node::DEFAULT_COMMISSION_RATE;
-    use sui_config::node::DEFAULT_VALIDATOR_GAS_PRICE;
-    use sui_types::base_types::SuiAddress;
-    use sui_types::crypto::{
-        generate_proof_of_possession, get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair,
-        NetworkKeyPair,
+    use sui_config::{
+        genesis::*,
+        local_ip_utils,
+        node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
     };
+    use sui_types::{
+        base_types::SuiAddress,
+        crypto::{
+            generate_proof_of_possession, get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair,
+            NetworkKeyPair,
+        },
+    };
+
+    use crate::{validator_info::ValidatorInfo, Builder};
 
     #[test]
     fn allocation_csv() {

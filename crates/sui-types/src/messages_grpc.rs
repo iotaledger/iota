@@ -1,28 +1,30 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::base_types::{ObjectID, SequenceNumber, TransactionDigest};
-use crate::crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo};
-use crate::effects::{
-    SignedTransactionEffects, TransactionEvents, VerifiedSignedTransactionEffects,
-};
-use crate::object::Object;
-use crate::transaction::{SenderSignedData, SignedTransaction};
 use move_core_types::annotated_value::MoveStructLayout;
 use serde::{Deserialize, Serialize};
+
+use crate::{
+    base_types::{ObjectID, SequenceNumber, TransactionDigest},
+    crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
+    effects::{SignedTransactionEffects, TransactionEvents, VerifiedSignedTransactionEffects},
+    object::Object,
+    transaction::{SenderSignedData, SignedTransaction},
+};
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub enum ObjectInfoRequestKind {
     /// Request the latest object state.
     LatestObjectInfo,
     /// Request a specific version of the object.
-    /// This is used only for debugging purpose and will not work as a generic solution
-    /// since we don't keep around all historic object versions.
+    /// This is used only for debugging purpose and will not work as a generic
+    /// solution since we don't keep around all historic object versions.
     /// No production code should depend on this kind.
     PastObjectInfoDebug(SequenceNumber),
 }
 
-/// Layout generation options -- you can either generate or not generate the layout.
+/// Layout generation options -- you can either generate or not generate the
+/// layout.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub enum LayoutGenerationOption {
     Generate,
@@ -72,17 +74,18 @@ pub struct ObjectInfoResponse {
     /// Value of the requested object in this authority
     pub object: Object,
     /// Schema of the Move value inside this object.
-    /// None if the object is a Move package, or the request did not ask for the layout
+    /// None if the object is a Move package, or the request did not ask for the
+    /// layout
     pub layout: Option<MoveStructLayout>,
     /// Transaction the object is locked on in this authority.
     /// None if the object is not currently locked by this authority.
-    /// This should be only used for debugging purpose, such as from sui-tool. No prod clients should
-    /// rely on it.
+    /// This should be only used for debugging purpose, such as from sui-tool.
+    /// No prod clients should rely on it.
     pub lock_for_debugging: Option<SignedTransaction>,
 }
 
-/// Verified version of `ObjectInfoResponse`. `layout` and `lock_for_debugging` are skipped because they
-/// are not needed and we don't want to verify them.
+/// Verified version of `ObjectInfoResponse`. `layout` and `lock_for_debugging`
+/// are skipped because they are not needed and we don't want to verify them.
 #[derive(Debug, Clone)]
 pub struct VerifiedObjectInfoResponse {
     /// Value of the requested object in this authority
@@ -98,10 +101,11 @@ pub struct TransactionInfoRequest {
 pub enum TransactionStatus {
     /// Signature over the transaction.
     Signed(AuthoritySignInfo),
-    /// For executed transaction, we could return an optional certificate signature on the transaction
-    /// (i.e. the signature part of the CertifiedTransaction), as well as the signed effects.
-    /// The certificate signature is optional because for transactions executed in previous
-    /// epochs, we won't keep around the certificate signatures.
+    /// For executed transaction, we could return an optional certificate
+    /// signature on the transaction (i.e. the signature part of the
+    /// CertifiedTransaction), as well as the signed effects.
+    /// The certificate signature is optional because for transactions executed
+    /// in previous epochs, we won't keep around the certificate signatures.
     Executed(
         Option<AuthorityStrongQuorumSignInfo>,
         SignedTransactionEffects,
@@ -166,7 +170,8 @@ pub struct HandleCertificateResponseV2 {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SubmitCertificateResponse {
-    /// If transaction is already executed, return same result as handle_certificate
+    /// If transaction is already executed, return same result as
+    /// handle_certificate
     pub executed: Option<HandleCertificateResponseV2>,
 }
 

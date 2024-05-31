@@ -1,22 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
 use futures::future::join_all;
 use indexmap::map::IndexMap;
 use itertools::Itertools;
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::RpcModule;
+use jsonrpsee::{core::RpcResult, RpcModule};
 use move_bytecode_utils::module_cache::GetModule;
-use move_core_types::annotated_value::{MoveStruct, MoveStructLayout, MoveValue};
-use move_core_types::language_storage::StructTag;
-use tap::TapFallible;
-use tracing::{debug, error, info, instrument, trace, warn};
-
+use move_core_types::{
+    annotated_value::{MoveStruct, MoveStructLayout, MoveValue},
+    language_storage::StructTag,
+};
 use mysten_metrics::spawn_monitored_task;
 use sui_core::authority::AuthorityState;
 use sui_json_rpc_api::{
@@ -25,42 +22,44 @@ use sui_json_rpc_api::{
 };
 use sui_json_rpc_types::{
     BalanceChange, Checkpoint, CheckpointId, CheckpointPage, DisplayFieldsResponse, EventFilter,
-    ObjectChange, ProtocolConfigResponse, SuiEvent, SuiGetPastObjectRequest, SuiMoveStruct,
-    SuiMoveValue, SuiObjectDataOptions, SuiObjectResponse, SuiPastObjectResponse,
-    SuiTransactionBlock, SuiTransactionBlockEvents, SuiTransactionBlockResponse,
-    SuiTransactionBlockResponseOptions,
+    ObjectChange, ProtocolConfigResponse, SuiEvent, SuiGetPastObjectRequest, SuiLoadedChildObject,
+    SuiLoadedChildObjectsResponse, SuiMoveStruct, SuiMoveValue, SuiObjectDataOptions,
+    SuiObjectResponse, SuiPastObjectResponse, SuiTransactionBlock, SuiTransactionBlockEvents,
+    SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
 };
-use sui_json_rpc_types::{SuiLoadedChildObject, SuiLoadedChildObjectsResponse};
 use sui_open_rpc::Module;
 use sui_protocol_config::{ProtocolConfig, ProtocolVersion};
 use sui_storage::key_value_store::TransactionKeyValueStore;
-use sui_types::base_types::{ObjectID, SequenceNumber, TransactionDigest};
-use sui_types::collection_types::VecMap;
-use sui_types::crypto::AggregateAuthoritySignature;
-use sui_types::digests::TransactionEventsDigest;
-use sui_types::display::DisplayVersionUpdatedEvent;
-use sui_types::effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents};
-use sui_types::error::{SuiError, SuiObjectResponseError};
-use sui_types::messages_checkpoint::{
-    CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, CheckpointSummary,
-    CheckpointTimestamp,
+use sui_types::{
+    base_types::{ObjectID, SequenceNumber, TransactionDigest},
+    collection_types::VecMap,
+    crypto::AggregateAuthoritySignature,
+    digests::TransactionEventsDigest,
+    display::DisplayVersionUpdatedEvent,
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    error::{SuiError, SuiObjectResponseError},
+    messages_checkpoint::{
+        CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, CheckpointSummary,
+        CheckpointTimestamp,
+    },
+    object::{Object, ObjectRead, PastObjectRead},
+    sui_serde::BigInt,
+    transaction::{Transaction, TransactionDataAPI},
 };
-use sui_types::object::{Object, ObjectRead, PastObjectRead};
-use sui_types::sui_serde::BigInt;
-use sui_types::transaction::Transaction;
-use sui_types::transaction::TransactionDataAPI;
+use tap::TapFallible;
+use tracing::{debug, error, info, instrument, trace, warn};
 
-use crate::authority_state::{StateRead, StateReadError, StateReadResult};
-use crate::error::{Error, RpcInterimResult, SuiRpcInputError};
-use crate::with_tracing;
 use crate::{
-    get_balance_changes_from_effect, get_object_changes, ObjectProviderCache, SuiRpcModule,
+    authority_state::{StateRead, StateReadError, StateReadResult},
+    error::{Error, RpcInterimResult, SuiRpcInputError},
+    get_balance_changes_from_effect, get_object_changes, with_tracing, ObjectProviderCache,
+    SuiRpcModule,
 };
 
 const MAX_DISPLAY_NESTED_LEVEL: usize = 10;
 
-// An implementation of the read portion of the JSON-RPC interface intended for use in
-// Fullnodes.
+// An implementation of the read portion of the JSON-RPC interface intended for
+// use in Fullnodes.
 #[derive(Clone)]
 pub struct ReadApi {
     pub state: Arc<dyn StateRead>,
@@ -69,8 +68,8 @@ pub struct ReadApi {
 }
 
 // Internal data structure to make it easy to work with data returned from
-// authority store and also enable code sharing between get_transaction_with_options,
-// multi_get_transaction_with_options, etc.
+// authority store and also enable code sharing between
+// get_transaction_with_options, multi_get_transaction_with_options, etc.
 #[derive(Default)]
 struct IntermediateTransactionResponse {
     digest: TransactionDigest,
@@ -309,7 +308,8 @@ impl ReadApi {
                             .as_ref()
                             .unwrap(),
                     )
-                    // Safe to unwrap because checkpoint_seq is guaranteed to exist in checkpoint_to_timestamp
+                    // Safe to unwrap because checkpoint_seq is guaranteed to exist in
+                    // checkpoint_to_timestamp
                     .unwrap();
             }
         }
@@ -361,7 +361,9 @@ impl ReadApi {
                         Some(Ok(e)) => cache_entry.events = Some(e),
                         Some(Err(e)) => cache_entry.errors.push(e.to_string()),
                         None => {
-                            error!("Failed to fetch events with event digest {event_digest:?} for txn {transaction_digest}");
+                            error!(
+                                "Failed to fetch events with event digest {event_digest:?} for txn {transaction_digest}"
+                            );
                             cache_entry.errors.push(format!(
                                 "Failed to fetch events with event digest {event_digest:?}",
                             ))
@@ -1290,7 +1292,7 @@ fn get_value_from_move_struct(
                 return Err(Error::UnexpectedError(format!(
                     "Unexpected move value type for field {}",
                     var_name
-                )))?
+                )))?;
             }
         }
     }

@@ -1,39 +1,39 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::cmp::Ordering;
-use std::collections::BTreeMap;
-use std::fmt;
-use std::fmt::Write;
-use std::fmt::{Display, Formatter};
+use std::{
+    cmp::Ordering,
+    collections::BTreeMap,
+    fmt,
+    fmt::{Display, Formatter, Write},
+};
 
 use anyhow::anyhow;
 use colored::Colorize;
 use fastcrypto::encoding::Base64;
 use move_bytecode_utils::module_cache::GetModule;
-use move_core_types::annotated_value::{MoveStruct, MoveStructLayout};
-use move_core_types::identifier::Identifier;
-use move_core_types::language_storage::StructTag;
-use schemars::JsonSchema;
-use serde::Deserialize;
-use serde::Serialize;
-use serde_json::Value;
-use serde_with::serde_as;
-use serde_with::DisplayFromStr;
-
-use sui_protocol_config::ProtocolConfig;
-use sui_types::base_types::{
-    ObjectDigest, ObjectID, ObjectInfo, ObjectRef, ObjectType, SequenceNumber, SuiAddress,
-    TransactionDigest,
+use move_core_types::{
+    annotated_value::{MoveStruct, MoveStructLayout},
+    identifier::Identifier,
+    language_storage::StructTag,
 };
-use sui_types::error::{ExecutionError, SuiObjectResponseError, UserInputError, UserInputResult};
-use sui_types::gas_coin::GasCoin;
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
-use sui_types::move_package::{MovePackage, TypeOrigin, UpgradeInfo};
-use sui_types::object::{Data, MoveObject, Object, ObjectInner, ObjectRead, Owner};
-use sui_types::sui_serde::BigInt;
-use sui_types::sui_serde::SequenceNumber as AsSequenceNumber;
-use sui_types::sui_serde::SuiStructTag;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use serde_with::{serde_as, DisplayFromStr};
+use sui_protocol_config::ProtocolConfig;
+use sui_types::{
+    base_types::{
+        ObjectDigest, ObjectID, ObjectInfo, ObjectRef, ObjectType, SequenceNumber, SuiAddress,
+        TransactionDigest,
+    },
+    error::{ExecutionError, SuiObjectResponseError, UserInputError, UserInputResult},
+    gas_coin::GasCoin,
+    messages_checkpoint::CheckpointSequenceNumber,
+    move_package::{MovePackage, TypeOrigin, UpgradeInfo},
+    object::{Data, MoveObject, Object, ObjectInner, ObjectRead, Owner},
+    sui_serde::{BigInt, SequenceNumber as AsSequenceNumber, SuiStructTag},
+};
 
 use crate::{Page, SuiMoveStruct, SuiMoveValue};
 
@@ -121,7 +121,9 @@ impl SuiObjectResponse {
                     digest: _,
                 }),
             ) => Ok(*object_id),
-            _ => Err(anyhow!("Could not get object_id, something went wrong with SuiObjectResponse construction.")),
+            _ => Err(anyhow!(
+                "Could not get object_id, something went wrong with SuiObjectResponse construction."
+            )),
         }
     }
 
@@ -176,17 +178,20 @@ pub struct SuiObjectData {
     pub version: SequenceNumber,
     /// Base64 string representing the object digest
     pub digest: ObjectDigest,
-    /// The type of the object. Default to be None unless SuiObjectDataOptions.showType is set to true
+    /// The type of the object. Default to be None unless
+    /// SuiObjectDataOptions.showType is set to true
     #[schemars(with = "Option<String>")]
     #[serde_as(as = "Option<DisplayFromStr>")]
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub type_: Option<ObjectType>,
     // Default to be None because otherwise it will be repeated for the getOwnedObjects endpoint
-    /// The owner of this object. Default to be None unless SuiObjectDataOptions.showOwner is set to true
+    /// The owner of this object. Default to be None unless
+    /// SuiObjectDataOptions.showOwner is set to true
     #[serde(skip_serializing_if = "Option::is_none")]
     pub owner: Option<Owner>,
-    /// The digest of the transaction that created or last mutated this object. Default to be None unless
-    /// SuiObjectDataOptions.showPreviousTransaction is set to true
+    /// The digest of the transaction that created or last mutated this object.
+    /// Default to be None unless SuiObjectDataOptions.
+    /// showPreviousTransaction is set to true
     #[serde(skip_serializing_if = "Option::is_none")]
     pub previous_transaction: Option<TransactionDigest>,
     /// The amount of SUI we would rebate if this object gets deleted.
@@ -196,15 +201,17 @@ pub struct SuiObjectData {
     #[serde_as(as = "Option<BigInt<u64>>")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub storage_rebate: Option<u64>,
-    /// The Display metadata for frontend UI rendering, default to be None unless SuiObjectDataOptions.showContent is set to true
-    /// This can also be None if the struct type does not have Display defined
-    /// See more details in <https://forums.sui.io/t/nft-object-display-proposal/4872>
+    /// The Display metadata for frontend UI rendering, default to be None
+    /// unless SuiObjectDataOptions.showContent is set to true This can also
+    /// be None if the struct type does not have Display defined See more details in <https://forums.sui.io/t/nft-object-display-proposal/4872>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display: Option<DisplayFieldsResponse>,
-    /// Move object content or package content, default to be None unless SuiObjectDataOptions.showContent is set to true
+    /// Move object content or package content, default to be None unless
+    /// SuiObjectDataOptions.showContent is set to true
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content: Option<SuiParsedData>,
-    /// Move object content or package content in BCS, default to be None unless SuiObjectDataOptions.showBcs is set to true
+    /// Move object content or package content in BCS, default to be None unless
+    /// SuiObjectDataOptions.showBcs is set to true
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bcs: Option<SuiRawData>,
 }
@@ -328,12 +335,14 @@ pub struct SuiObjectDataOptions {
     pub show_type: bool,
     /// Whether to show the owner of the object. Default to be False
     pub show_owner: bool,
-    /// Whether to show the previous transaction digest of the object. Default to be False
+    /// Whether to show the previous transaction digest of the object. Default
+    /// to be False
     pub show_previous_transaction: bool,
-    /// Whether to show the Display metadata of the object for frontend rendering. Default to be False
+    /// Whether to show the Display metadata of the object for frontend
+    /// rendering. Default to be False
     pub show_display: bool,
-    /// Whether to show the content(i.e., package content or Move struct content) of the object.
-    /// Default to be False
+    /// Whether to show the content(i.e., package content or Move struct
+    /// content) of the object. Default to be False
     pub show_content: bool,
     /// Whether to show the content in BCS format. Default to be False
     pub show_bcs: bool,
@@ -590,7 +599,8 @@ impl SuiObjectResponse {
         } else if let Some(error) = &self.error {
             Err(error.clone())
         } else {
-            // We really shouldn't reach this code block since either data, or error field should always be filled.
+            // We really shouldn't reach this code block since either data, or error field
+            // should always be filled.
             Err(SuiObjectResponseError::Unknown)
         }
     }
@@ -689,7 +699,7 @@ pub trait SuiData: Sized {
     type ObjectType;
     type PackageType;
     fn try_from_object(object: MoveObject, layout: MoveStructLayout)
-        -> Result<Self, anyhow::Error>;
+    -> Result<Self, anyhow::Error>;
     fn try_from_package(package: MovePackage) -> Result<Self, anyhow::Error>;
     fn try_as_move(&self) -> Option<&Self::ObjectType>;
     fn try_into_move(self) -> Option<Self::ObjectType>;
@@ -851,7 +861,7 @@ impl SuiParsedData {
 
 pub trait SuiMoveObject: Sized {
     fn try_from_layout(object: MoveObject, layout: MoveStructLayout)
-        -> Result<Self, anyhow::Error>;
+    -> Result<Self, anyhow::Error>;
 
     fn try_from(o: MoveObject, resolver: &impl GetModule) -> Result<Self, anyhow::Error> {
         let layout = o.get_layout(resolver)?;
@@ -1223,7 +1233,8 @@ impl SuiObjectDataFilter {
 pub struct SuiObjectResponseQuery {
     /// If None, no filter will be applied
     pub filter: Option<SuiObjectDataFilter>,
-    /// config which fields to include in the response, by default only digest is included
+    /// config which fields to include in the response, by default only digest
+    /// is included
     pub options: Option<SuiObjectDataOptions>,
 }
 

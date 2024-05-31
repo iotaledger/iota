@@ -3,9 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[cfg(any(debug_assertions, feature = "debugging"))]
-use crate::debug::DebugContext;
-
-#[cfg(any(debug_assertions, feature = "debugging"))]
 use ::{
     move_binary_format::file_format::Bytecode,
     move_vm_types::values::Locals,
@@ -20,6 +17,8 @@ use ::{
     },
 };
 
+#[cfg(any(debug_assertions, feature = "debugging"))]
+use crate::debug::DebugContext;
 #[cfg(any(debug_assertions, feature = "debugging"))]
 use crate::{
     interpreter::Interpreter,

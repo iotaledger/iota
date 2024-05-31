@@ -1,6 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
+
 use better_any::{Tid, TidAble};
 use linked_hash_map::LinkedHashMap;
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
@@ -11,10 +16,6 @@ use move_core_types::{
 use move_vm_types::{
     loaded_data::runtime_types::Type,
     values::{GlobalValue, Value},
-};
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
 };
 use sui_protocol_config::{check_limit_by_meter, LimitThresholdCrossed, ProtocolConfig};
 use sui_types::{
@@ -33,7 +34,6 @@ pub(crate) mod object_store;
 use object_store::ObjectStore;
 
 use self::object_store::{ChildObjectEffect, ObjectResult};
-
 use super::get_object_id;
 
 pub enum ObjectEvent {
@@ -219,8 +219,8 @@ impl<'a> ObjectRuntime<'a> {
                 ));
         };
 
-        // remove from deleted_ids for the case in dynamic fields where the Field object was deleted
-        // and then re-added in a single transaction
+        // remove from deleted_ids for the case in dynamic fields where the Field object
+        // was deleted and then re-added in a single transaction
         if self.state.deleted_ids.remove(&id).is_none() {
             // mark the id as new
             self.state.new_ids.insert(id, ());
@@ -267,11 +267,11 @@ impl<'a> ObjectRuntime<'a> {
         let id: ObjectID = get_object_id(obj.copy_value()?)?
             .value_as::<AccountAddress>()?
             .into();
-        // - An object is new if it is contained in the new ids or if it is one of the objects
-        //   created during genesis (the system state object or clock).
+        // - An object is new if it is contained in the new ids or if it is one of the
+        //   objects created during genesis (the system state object or clock).
         // - Otherwise, check the input objects for the previous owner
-        // - If it was not in the input objects, it must have been wrapped or must have been a
-        //   child object
+        // - If it was not in the input objects, it must have been wrapped or must have
+        //   been a child object
         let is_framework_obj = [SUI_SYSTEM_STATE_OBJECT_ID, SUI_CLOCK_OBJECT_ID].contains(&id);
         let transfer_result = if self.state.new_ids.contains_key(&id) || is_framework_obj {
             TransferResult::New
@@ -290,7 +290,8 @@ impl<'a> ObjectRuntime<'a> {
 
         if let LimitThresholdCrossed::Hard(_, lim) = check_limit_by_meter!(
             // TODO: is this not redundant? Metered TX implies framework obj cannot be transferred
-            self.is_metered && !is_framework_obj, // We have higher limits for unmetered transactions and framework obj
+            self.is_metered && !is_framework_obj, /* We have higher limits for unmetered
+                                                   * transactions and framework obj */
             self.state.transfers.len(),
             self.constants.max_num_transferred_move_object_ids,
             self.constants.max_num_transferred_move_object_ids_system_tx,
@@ -430,13 +431,14 @@ pub fn max_event_error(max_events: u64) -> PartialVMError {
 }
 
 impl ObjectRuntimeState {
-    /// Update `state_view` with the effects of successfully executing a transaction:
-    /// - Given the effects `Op<Value>` of child objects, processes the changes in terms of
-    ///   object writes/deletes
-    /// - Process `transfers` and `input_objects` to determine whether the type of change
-    ///   (WriteKind) to the object
-    /// - Process `deleted_ids` with previously determined information to determine the
-    ///   DeleteKind
+    /// Update `state_view` with the effects of successfully executing a
+    /// transaction:
+    /// - Given the effects `Op<Value>` of child objects, processes the changes
+    ///   in terms of object writes/deletes
+    /// - Process `transfers` and `input_objects` to determine whether the type
+    ///   of change (WriteKind) to the object
+    /// - Process `deleted_ids` with previously determined information to
+    ///   determine the DeleteKind
     /// - Passes through user events
     pub(crate) fn finish(
         mut self,
@@ -609,11 +611,12 @@ fn update_owner_map(
 }
 
 // TODO use a custom DeserializerSeed and improve this performance
-/// WARNING! This function assumes that the bcs bytes have already been validated,
-/// and it will give an invariant violation otherwise.
-/// In short, we are relying on the invariant that the bytes are valid for objects
-/// in storage.  We do not need this invariant for dev-inspect, as the programmable
-/// transaction execution will validate the bytes before we get to this point.
+/// WARNING! This function assumes that the bcs bytes have already been
+/// validated, and it will give an invariant violation otherwise.
+/// In short, we are relying on the invariant that the bytes are valid for
+/// objects in storage.  We do not need this invariant for dev-inspect, as the
+/// programmable transaction execution will validate the bytes before we get to
+/// this point.
 pub fn get_all_uids(
     fully_annotated_layout: &A::MoveTypeLayout,
     bcs_bytes: &[u8],

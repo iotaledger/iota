@@ -6,9 +6,9 @@ use std::{collections::HashMap, str::FromStr};
 use fastcrypto::traits::ToFromBytes;
 use move_core_types::ident_str;
 use once_cell::sync::OnceCell;
-use sui_types::gas_coin::GAS;
 use sui_types::{
     base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress},
+    gas_coin::GAS,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{ObjectArg, TransactionData},
     TypeTag,
@@ -19,7 +19,8 @@ use crate::{
     types::{BridgeAction, TokenId, VerifiedCertifiedBridgeAction},
 };
 
-// TODO: once we have bridge package on sui framework, we can hardcode the actual package id.
+// TODO: once we have bridge package on sui framework, we can hardcode the
+// actual package id.
 pub fn get_bridge_package_id() -> &'static ObjectID {
     static BRIDGE_PACKAGE_ID: OnceCell<ObjectID> = OnceCell::new();
     BRIDGE_PACKAGE_ID.get_or_init(|| match std::env::var("BRIDGE_PACKAGE_ID") {

@@ -163,8 +163,9 @@ impl std::fmt::Display for SuiAddress {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use async_graphql::Value;
+
+    use super::*;
 
     const STR_ADDRESS: &str = "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     const ARR_ADDRESS: [u8; SUI_ADDRESS_LENGTH] = [

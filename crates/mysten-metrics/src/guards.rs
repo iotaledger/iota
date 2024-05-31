@@ -1,10 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
+
 use prometheus::IntGauge;
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 
 /// Increments gauge when acquired, decrements when guard drops
 pub struct GaugeGuard<'a>(&'a IntGauge);

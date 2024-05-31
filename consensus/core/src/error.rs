@@ -10,7 +10,8 @@ use typed_store::TypedStoreError;
 
 use crate::block::{BlockRef, BlockTimestampMs, Round};
 
-/// Errors that can occur when processing blocks, reading from storage, or encountering shutdown.
+/// Errors that can occur when processing blocks, reading from storage, or
+/// encountering shutdown.
 #[derive(Clone, Debug, Error)]
 pub enum ConsensusError {
     #[error("Error deserializing block: {0}")]
@@ -40,7 +41,9 @@ pub enum ConsensusError {
         block_ref: BlockRef,
     },
 
-    #[error("Too many blocks have been returned from authority {0} when requesting to fetch missing blocks")]
+    #[error(
+        "Too many blocks have been returned from authority {0} when requesting to fetch missing blocks"
+    )]
     TooManyFetchedBlocksReturned(AuthorityIndex),
 
     #[error("Too many blocks have been requested from authority {0}")]
@@ -58,7 +61,9 @@ pub enum ConsensusError {
     #[error("Synchronizer for fetching blocks directly from {0} is saturated")]
     SynchronizerSaturated(AuthorityIndex),
 
-    #[error("Ancestor is in wrong position: block {block_authority}, ancestor {ancestor_authority}, position {position}")]
+    #[error(
+        "Ancestor is in wrong position: block {block_authority}, ancestor {ancestor_authority}, position {position}"
+    )]
     InvalidAncestorPosition {
         block_authority: AuthorityIndex,
         ancestor_authority: AuthorityIndex,

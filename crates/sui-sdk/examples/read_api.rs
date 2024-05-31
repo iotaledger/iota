@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 mod utils;
-use sui_sdk::rpc_types::{
-    SuiGetPastObjectRequest, SuiObjectDataOptions, SuiTransactionBlockResponseOptions,
+use sui_sdk::{
+    rpc_types::{
+        SuiGetPastObjectRequest, SuiObjectDataOptions, SuiTransactionBlockResponseOptions,
+    },
+    types::base_types::ObjectID,
 };
-use sui_sdk::types::base_types::ObjectID;
 use utils::{setup_for_write, split_coin_digest};
 
 // This example uses the Read API to get owned objects of an address,

@@ -5,7 +5,6 @@
 use criterion::{criterion_group, criterion_main, measurement::Measurement, Criterion};
 use language_benchmarks::{measurement::cpu_time_measurement, move_vm::bench};
 
-//
 // MoveVM benchmarks
 //
 

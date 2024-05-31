@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::payload::{GetAllBalances, ProcessPayload, RpcCommandProcessor, SignerInfo};
 use anyhow::Result;
 use async_trait::async_trait;
 use futures::future::join_all;
@@ -10,6 +9,7 @@ use sui_sdk::SuiClient;
 use sui_types::base_types::SuiAddress;
 
 use super::validation::chunk_entities;
+use crate::payload::{GetAllBalances, ProcessPayload, RpcCommandProcessor, SignerInfo};
 
 #[async_trait]
 impl<'a> ProcessPayload<'a, &'a GetAllBalances> for RpcCommandProcessor {

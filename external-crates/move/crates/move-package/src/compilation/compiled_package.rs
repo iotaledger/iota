@@ -2,15 +2,12 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    compilation::package_layout::CompiledPackageLayout,
-    resolution::resolution_graph::{Package, Renaming, ResolvedGraph, ResolvedTable},
-    source_package::{
-        layout::{SourcePackageLayout, REFERENCE_TEMPLATE_FILENAME},
-        parsed_manifest::{FileName, PackageDigest, PackageName},
-    },
-    BuildConfig,
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    io::Write,
+    path::{Path, PathBuf},
 };
+
 use anyhow::{ensure, Result};
 use colored::Colorize;
 use itertools::{Either, Itertools};
@@ -37,17 +34,23 @@ use move_docgen::{Docgen, DocgenOptions};
 use move_model::{model::GlobalEnv, options::ModelBuilderOptions, run_model_builder_with_options};
 use move_symbol_pool::Symbol;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    io::Write,
-    path::{Path, PathBuf},
+
+use crate::{
+    compilation::package_layout::CompiledPackageLayout,
+    resolution::resolution_graph::{Package, Renaming, ResolvedGraph, ResolvedTable},
+    source_package::{
+        layout::{SourcePackageLayout, REFERENCE_TEMPLATE_FILENAME},
+        parsed_manifest::{FileName, PackageDigest, PackageName},
+    },
+    BuildConfig,
 };
 
 #[derive(Debug, Clone)]
 pub enum CompilationCachingStatus {
     /// The package and all if its dependencies were cached
     Cached,
-    /// At least this package and/or one of its dependencies needed to be rebuilt
+    /// At least this package and/or one of its dependencies needed to be
+    /// rebuilt
     Recompiled,
 }
 
@@ -57,16 +60,19 @@ pub struct CompiledUnitWithSource {
     pub source_path: PathBuf,
 }
 
-/// Represents meta information about a package and the information it was compiled with. Shared
-/// across both the `CompiledPackage` and `OnDiskCompiledPackage` structs.
+/// Represents meta information about a package and the information it was
+/// compiled with. Shared across both the `CompiledPackage` and
+/// `OnDiskCompiledPackage` structs.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompiledPackageInfo {
     /// The name of the compiled package
     pub package_name: PackageName,
-    /// The instantiations for all named addresses that were used for compilation
+    /// The instantiations for all named addresses that were used for
+    /// compilation
     pub address_alias_instantiation: ResolvedTable,
-    /// The hash of the source directory at the time of compilation. `None` if the source for this
-    /// package is not available/this package was not compiled.
+    /// The hash of the source directory at the time of compilation. `None` if
+    /// the source for this package is not available/this package was not
+    /// compiled.
     pub source_digest: Option<PackageDigest>,
     /// The build flags that were used when compiling this package.
     pub build_flags: BuildConfig,
@@ -77,24 +83,25 @@ pub struct CompiledPackageInfo {
 pub struct CompiledPackage {
     /// Meta information about the compilation of this `CompiledPackage`
     pub compiled_package_info: CompiledPackageInfo,
-    /// The output compiled bytecode in the root package (both module, and scripts) along with its
-    /// source file
+    /// The output compiled bytecode in the root package (both module, and
+    /// scripts) along with its source file
     pub root_compiled_units: Vec<CompiledUnitWithSource>,
     /// The output compiled bytecode for dependencies
     pub deps_compiled_units: Vec<(PackageName, CompiledUnitWithSource)>,
 
     // Optional artifacts from compilation
-    //
     /// filename -> doctext
     pub compiled_docs: Option<Vec<(String, String)>>,
 }
 
-/// Represents a compiled package that has been saved to disk. This holds only the minimal metadata
-/// needed to reconstruct a `CompiledPackage` package from it and to determine whether or not a
-/// recompilation of the package needs to be performed or not.
+/// Represents a compiled package that has been saved to disk. This holds only
+/// the minimal metadata needed to reconstruct a `CompiledPackage` package from
+/// it and to determine whether or not a recompilation of the package needs to
+/// be performed or not.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OnDiskPackage {
-    /// Information about the package and the specific compilation that was done.
+    /// Information about the package and the specific compilation that was
+    /// done.
     pub compiled_package_info: CompiledPackageInfo,
     /// Dependency names for this package.
     pub dependencies: Vec<PackageName>,
@@ -102,8 +109,8 @@ pub struct OnDiskPackage {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OnDiskCompiledPackage {
-    /// Path to the root of the package and its data on disk. Relative to/rooted at the directory
-    /// containing the `Move.toml` file for this package.
+    /// Path to the root of the package and its data on disk. Relative to/rooted
+    /// at the directory containing the `Move.toml` file for this package.
     pub root_path: PathBuf,
     pub package: OnDiskPackage,
 }
@@ -337,21 +344,22 @@ impl OnDiskCompiledPackage {
 }
 
 impl CompiledPackage {
-    /// Returns all compiled units with sources for this package in transitive dependencies. Order
-    /// is not guaranteed.
+    /// Returns all compiled units with sources for this package in transitive
+    /// dependencies. Order is not guaranteed.
     pub fn all_compiled_units_with_source(&self) -> impl Iterator<Item = &CompiledUnitWithSource> {
         self.root_compiled_units
             .iter()
             .chain(self.deps_compiled_units.iter().map(|(_, unit)| unit))
     }
 
-    /// Returns all compiled units for this package in transitive dependencies. Order is not
-    /// guaranteed.
+    /// Returns all compiled units for this package in transitive dependencies.
+    /// Order is not guaranteed.
     pub fn all_compiled_units(&self) -> impl Iterator<Item = &CompiledUnit> {
         self.all_compiled_units_with_source().map(|unit| &unit.unit)
     }
 
-    /// Returns compiled modules for this package and its transitive dependencies
+    /// Returns compiled modules for this package and its transitive
+    /// dependencies
     pub fn all_modules_map(&self) -> Modules {
         Modules::new(self.all_compiled_units().map(|unit| &unit.module))
     }
@@ -601,8 +609,8 @@ impl CompiledPackage {
         Ok(compiled_package)
     }
 
-    // We take the (restrictive) view that all filesystems are case insensitive to maximize
-    // portability of packages.
+    // We take the (restrictive) view that all filesystems are case insensitive to
+    // maximize portability of packages.
     fn check_filepaths_ok(&self) -> Result<()> {
         // A mapping of (lowercase_name => [info_for_each_occurence]
         let mut insensitive_mapping = BTreeMap::new();
@@ -641,7 +649,8 @@ impl CompiledPackage {
             })
             .collect::<Vec<_>>();
         if !errs.is_empty() {
-            anyhow::bail!("Module and/or script names found that would cause failures on case insensitive \
+            anyhow::bail!(
+                "Module and/or script names found that would cause failures on case insensitive \
                 file systems when compiling package '{}':\n{}\nPlease rename these scripts and/or modules to resolve these conflicts.",
                 self.compiled_package_info.package_name,
                 errs.join("\n"),
@@ -668,8 +677,8 @@ impl CompiledPackage {
             },
         };
 
-        // Clear out the build dir for this package so we don't keep artifacts from previous
-        // compilations
+        // Clear out the build dir for this package so we don't keep artifacts from
+        // previous compilations
         if on_disk_package.root_path.is_dir() {
             std::fs::remove_dir_all(&on_disk_package.root_path)?;
         }
@@ -800,8 +809,10 @@ pub(crate) fn make_source_and_deps_for_compiler(
     root: &Package,
     deps: Vec<DependencyInfo>,
 ) -> Result<(
-    /* sources */ PackagePaths,
-    /* deps */ Vec<(PackagePaths, ModuleFormat)>,
+    // sources
+    PackagePaths,
+    // deps
+    Vec<(PackagePaths, ModuleFormat)>,
 )> {
     let deps_package_paths = make_deps_for_compiler_internal(deps)?;
     let root_named_addrs = apply_named_address_renaming(
@@ -814,7 +825,8 @@ pub(crate) fn make_source_and_deps_for_compiler(
         name: Some((
             root.source_package.package.name,
             root.compiler_config(
-                /* is_dependency */ false,
+                // is_dependency
+                false,
                 &resolution_graph.build_options,
             ),
         )),

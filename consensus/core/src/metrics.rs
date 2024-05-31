@@ -3,13 +3,14 @@
 
 use std::sync::Arc;
 
-use crate::network::metrics::{NetworkRouteMetrics, QuinnConnectionMetrics};
 use prometheus::{
     register_histogram_vec_with_registry, register_histogram_with_registry,
     register_int_counter_vec_with_registry, register_int_counter_with_registry,
     register_int_gauge_vec_with_registry, register_int_gauge_with_registry, Histogram,
     HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
 };
+
+use crate::network::metrics::{NetworkRouteMetrics, QuinnConnectionMetrics};
 
 // starts from 1μs, 50μs, 100μs...
 const FINE_GRAINED_LATENCY_SEC_BUCKETS: &[f64] = &[

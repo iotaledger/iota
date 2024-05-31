@@ -1,37 +1,41 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
+
+use fastcrypto::hash::MultisetHash;
 use itertools::Itertools;
 use mysten_metrics::monitored_scope;
 use serde::Serialize;
 use sui_protocol_config::ProtocolConfig;
-use sui_types::base_types::{ObjectID, ObjectRef, SequenceNumber, VersionNumber};
-use sui_types::committee::EpochId;
-use sui_types::digests::{ObjectDigest, TransactionDigest};
-use sui_types::in_memory_storage::InMemoryStorage;
-use sui_types::storage::{ObjectKey, ObjectStore};
+use sui_types::{
+    accumulator::Accumulator,
+    base_types::{ObjectID, ObjectRef, SequenceNumber, VersionNumber},
+    committee::EpochId,
+    digests::{ObjectDigest, TransactionDigest},
+    effects::{TransactionEffects, TransactionEffectsAPI},
+    error::SuiResult,
+    in_memory_storage::InMemoryStorage,
+    messages_checkpoint::{CheckpointSequenceNumber, ECMHLiveObjectSetDigest},
+    storage::{ObjectKey, ObjectStore},
+};
 use tracing::debug;
 
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-
-use fastcrypto::hash::MultisetHash;
-use sui_types::accumulator::Accumulator;
-use sui_types::effects::TransactionEffects;
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::error::SuiResult;
-use sui_types::messages_checkpoint::{CheckpointSequenceNumber, ECMHLiveObjectSetDigest};
-
-use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use crate::authority::authority_store_tables::LiveObject;
+use crate::authority::{
+    authority_per_epoch_store::AuthorityPerEpochStore, authority_store_tables::LiveObject,
+};
 
 pub struct StateAccumulator {
     store: Arc<dyn AccumulatorStore>,
 }
 
 pub trait AccumulatorStore: ObjectStore + Send + Sync {
-    /// This function is only called in older protocol versions, and should no longer be used.
-    /// It creates an explicit dependency to tombstones which is not desired.
+    /// This function is only called in older protocol versions, and should no
+    /// longer be used. It creates an explicit dependency to tombstones
+    /// which is not desired.
     fn get_object_ref_prior_to_key_deprecated(
         &self,
         object_id: &ObjectID,
@@ -66,7 +70,9 @@ impl AccumulatorStore for InMemoryStorage {
         _object_id: &ObjectID,
         _version: VersionNumber,
     ) -> SuiResult<Option<ObjectRef>> {
-        unreachable!("get_object_ref_prior_to_key is only called by accumulate_effects_v1, while InMemoryStorage is used by testing and genesis only, which always uses latest protocol ")
+        unreachable!(
+            "get_object_ref_prior_to_key is only called by accumulate_effects_v1, while InMemoryStorage is used by testing and genesis only, which always uses latest protocol "
+        )
     }
 
     fn get_root_state_accumulator_for_epoch(
@@ -160,8 +166,9 @@ where
             .collect::<Vec<ObjectDigest>>(),
     );
 
-    // insert wrapped tombstones. We use a custom struct in order to contain the tombstone
-    // against the object id and sequence number, as the tombstone by itself is not unique.
+    // insert wrapped tombstones. We use a custom struct in order to contain the
+    // tombstone against the object id and sequence number, as the tombstone by
+    // itself is not unique.
     acc.insert_all(
         effects
             .iter()
@@ -201,9 +208,9 @@ where
         .collect();
 
     // Collect keys from modified_at_versions to remove from the accumulator.
-    // Filter all unwrapped objects (from unwrapped or unwrapped_then_deleted effects)
-    // as these were inserted into the accumulator as a WrappedObject. Will handle these
-    // separately.
+    // Filter all unwrapped objects (from unwrapped or unwrapped_then_deleted
+    // effects) as these were inserted into the accumulator as a WrappedObject.
+    // Will handle these separately.
     let modified_at_version_keys: Vec<ObjectKey> = effects
         .iter()
         .flat_map(|fx| {
@@ -240,9 +247,9 @@ where
     // removed as WrappedObject using the last sequence number it was tombstoned
     // against. Since this happened in a past transaction, and the child object may
     // have been modified since (and hence its sequence number incremented), we
-    // seek the version prior to the unwrapped version from the objects table directly.
-    // If the tombstone is not found, then assume this is a newly created wrapped object hence
-    // we don't expect to find it in the table.
+    // seek the version prior to the unwrapped version from the objects table
+    // directly. If the tombstone is not found, then assume this is a newly
+    // created wrapped object hence we don't expect to find it in the table.
     let wrapped_objects_to_remove: Vec<WrappedObject> = all_unwrapped
         .iter()
         .filter_map(|(_tx_digest, id, seq_num)| {
@@ -351,7 +358,8 @@ impl StateAccumulator {
         Self { store }
     }
 
-    /// Accumulates the effects of a single checkpoint and persists the accumulator.
+    /// Accumulates the effects of a single checkpoint and persists the
+    /// accumulator.
     pub fn accumulate_checkpoint(
         &self,
         effects: Vec<TransactionEffects>,
@@ -375,7 +383,8 @@ impl StateAccumulator {
         Ok(acc)
     }
 
-    /// Accumulates given effects and returns the accumulator without side effects.
+    /// Accumulates given effects and returns the accumulator without side
+    /// effects.
     pub fn accumulate_effects(
         &self,
         effects: Vec<TransactionEffects>,
@@ -384,10 +393,10 @@ impl StateAccumulator {
         accumulate_effects(&*self.store, effects, protocol_config)
     }
 
-    /// Unions all checkpoint accumulators at the end of the epoch to generate the
-    /// root state hash and persists it to db. This function is idempotent. Can be called on
-    /// non-consecutive epochs, e.g. to accumulate epoch 3 after having last
-    /// accumulated epoch 1.
+    /// Unions all checkpoint accumulators at the end of the epoch to generate
+    /// the root state hash and persists it to db. This function is
+    /// idempotent. Can be called on non-consecutive epochs, e.g. to
+    /// accumulate epoch 3 after having last accumulated epoch 1.
     pub async fn accumulate_epoch(
         &self,
         epoch: &EpochId,
@@ -459,7 +468,8 @@ impl StateAccumulator {
         Ok(root_state_accumulator)
     }
 
-    /// Returns the result of accumulating the live object set, without side effects
+    /// Returns the result of accumulating the live object set, without side
+    /// effects
     pub fn accumulate_live_object_set(&self, include_wrapped_tombstone: bool) -> Accumulator {
         let mut acc = Accumulator::default();
         for live_object in self.store.iter_live_object_set(include_wrapped_tombstone) {

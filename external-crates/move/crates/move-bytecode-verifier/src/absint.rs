@@ -2,20 +2,22 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::meter::{
-    Meter, Scope, ANALYZE_FUNCTION_BASE_COST, EXECUTE_BLOCK_BASE_COST, PER_BACKEDGE_COST,
-    PER_SUCCESSOR_COST,
-};
+use std::collections::BTreeMap;
+
 use move_binary_format::{
     binary_views::FunctionView,
     control_flow_graph::{BlockId, ControlFlowGraph},
     errors::PartialVMResult,
     file_format::{Bytecode, CodeOffset},
 };
-use std::collections::BTreeMap;
 
-/// Trait for finite-height abstract domains. Infinite height domains would require a more complex
-/// trait with widening and a partial order.
+use crate::meter::{
+    Meter, Scope, ANALYZE_FUNCTION_BASE_COST, EXECUTE_BLOCK_BASE_COST, PER_BACKEDGE_COST,
+    PER_SUCCESSOR_COST,
+};
+
+/// Trait for finite-height abstract domains. Infinite height domains would
+/// require a more complex trait with widening and a partial order.
 pub trait AbstractDomain: Clone + Sized {
     fn join(&mut self, other: &Self, meter: &mut impl Meter) -> PartialVMResult<JoinResult>;
 }
@@ -33,7 +35,8 @@ pub struct BlockInvariant<State> {
     pre: State,
 }
 
-/// A map from block id's to the pre/post of each block after a fixed point is reached.
+/// A map from block id's to the pre/post of each block after a fixed point is
+/// reached.
 #[allow(dead_code)]
 pub type InvariantMap<State> = BTreeMap<BlockId, BlockInvariant<State>>;
 
@@ -43,16 +46,17 @@ pub trait TransferFunctions {
     type State: AbstractDomain;
     type Error;
 
-    /// Execute local@instr found at index local@index in the current basic block from pre-state
-    /// local@pre.
-    /// Should return an AnalysisError if executing the instruction is unsuccessful, and () if
-    /// the effects of successfully executing local@instr have been reflected by mutatating
-    /// local@pre.
-    /// Auxilary data from the analysis that is not part of the abstract state can be collected by
-    /// mutating local@self.
-    /// The last instruction index in the current block is local@last_index. Knowing this
-    /// information allows clients to detect the end of a basic block and special-case appropriately
-    /// (e.g., normalizing the abstract state before a join).
+    /// Execute local@instr found at index local@index in the current basic
+    /// block from pre-state local@pre.
+    /// Should return an AnalysisError if executing the instruction is
+    /// unsuccessful, and () if the effects of successfully executing
+    /// local@instr have been reflected by mutatating local@pre.
+    /// Auxilary data from the analysis that is not part of the abstract state
+    /// can be collected by mutating local@self.
+    /// The last instruction index in the current block is local@last_index.
+    /// Knowing this information allows clients to detect the end of a basic
+    /// block and special-case appropriately (e.g., normalizing the abstract
+    /// state before a join).
     fn execute(
         &mut self,
         pre: &mut Self::State,
@@ -64,7 +68,8 @@ pub trait TransferFunctions {
 }
 
 pub trait AbstractInterpreter: TransferFunctions {
-    /// Analyze procedure local@function_view starting from pre-state local@initial_state.
+    /// Analyze procedure local@function_view starting from pre-state
+    /// local@initial_state.
     fn analyze_function(
         &mut self,
         initial_state: Self::State,
@@ -89,8 +94,8 @@ pub trait AbstractInterpreter: TransferFunctions {
             };
 
             let pre_state = &block_invariant.pre;
-            // Note: this will stop analysis after the first error occurs, to avoid the risk of
-            // subsequent crashes
+            // Note: this will stop analysis after the first error occurs, to avoid the risk
+            // of subsequent crashes
             let post_state = self.execute_block(block_id, pre_state, function_view, meter)?;
 
             let mut next_block_candidate = function_view.cfg().next_block(block_id);
@@ -105,7 +110,8 @@ pub trait AbstractInterpreter: TransferFunctions {
                         }?;
                         match join_result {
                             JoinResult::Unchanged => {
-                                // Pre is the same after join. Reanalyzing this block would produce
+                                // Pre is the same after join. Reanalyzing this
+                                // block would produce
                                 // the same post
                             }
                             JoinResult::Changed => {
