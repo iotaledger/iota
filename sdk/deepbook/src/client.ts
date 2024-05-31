@@ -122,7 +122,7 @@ export class DeepBookClient {
      * @param txb
      */
     createAccountCap(txb: TransactionBlock) {
-        let [cap] = txb.moveCall({
+        const [cap] = txb.moveCall({
             typeArguments: [],
             target: `${PACKAGE_ID}::${MODULE_CLOB}::create_account`,
             arguments: [],
@@ -154,7 +154,7 @@ export class DeepBookClient {
         accountCap: string | undefined = this.accountCap,
     ): TransactionBlock {
         const txb = new TransactionBlock();
-        let [childCap] = txb.moveCall({
+        const [childCap] = txb.moveCall({
             typeArguments: [],
             target: `${PACKAGE_ID}::${MODULE_CUSTODIAN}::create_child_account_cap`,
             arguments: [txb.object(this.#checkAccountCap(accountCap))],
