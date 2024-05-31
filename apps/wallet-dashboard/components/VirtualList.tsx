@@ -3,13 +3,13 @@
 
 'use client';
 
-import React from 'react';
+import React, { ReactNode } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 
 interface VirtualListProps<T> {
     items: T[];
     estimateSize: () => number;
-    render: (item: T) => void;
+    render: (item: T) => ReactNode;
 }
 
 function VirtualList<T>({ items, estimateSize, render: render }: VirtualListProps<T>): JSX.Element {
