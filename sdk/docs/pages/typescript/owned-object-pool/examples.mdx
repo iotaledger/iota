@@ -3,8 +3,8 @@
 import { Callout } from 'nextra/components';
 
 <Callout type="info">
-	Sui Owned Object Pools (SuiOOP) is a beta library. Enhancements and changes are likely during
-	development.
+    Sui Owned Object Pools (SuiOOP) is a beta library. Enhancements and changes are likely during
+    development.
 </Callout>
 
 These examples demonstrate some possible use cases for the Sui Owned Object Pool library.
@@ -19,9 +19,9 @@ first need to have a set of coins to use for the coin transferring and to pay fo
 transaction.
 
 <Callout type="info">
-	`ExecutorServiceHandler` creates worker pools that handle the execution of the transactions. The
-	maximum number of worker pools the handler can create is tightly coupled with the number of your
-	account's coins.
+    `ExecutorServiceHandler` creates worker pools that handle the execution of the transactions. The
+    maximum number of worker pools the handler can create is tightly coupled with the number of your
+    account's coins.
 </Callout>
 
 Here is the code that creates the coins by splitting a single coin 20 times and transferring the new
@@ -33,7 +33,7 @@ import type { SuiObjectRef, SuiObjectResponse } from '@mysten/sui.js/client/';
 import { TransactionBlock } from '@mysten/sui.js/transactions';
 
 const client = new SuiClient({
-	url: 'https://fullnode.testnet.sui.io:443',
+    url: 'https://fullnode.testnet.sui.io:443',
 });
 
 const objectId: string = '<your-coin-object-id>'; // A
@@ -42,46 +42,46 @@ const yourAddressSecretKey: string = '<your-address-secret-key>';
 const numberOfCoinsToCreate = 5;
 /// Splits a specific coin and then transfer the new coins to the same address.
 for (let i = 0; i < numberOfCoinsToCreate; i++) {
-	await splitCoinAndTransferToSelf(client, objectId, yourAddressSecretKey);
+    await splitCoinAndTransferToSelf(client, objectId, yourAddressSecretKey);
 }
 
 async function splitCoinAndTransferToSelf(
-	client: SuiClient,
-	coinObjectId: string,
-	yourAddressSecretKey: string,
+    client: SuiClient,
+    coinObjectId: string,
+    yourAddressSecretKey: string,
 ) {
-	const txb = new TransactionBlock();
-	const coinToPay = await client.getObject({ id: coinObjectId });
-	const newcoins1 = txb.splitCoins(txb.gas, [txb.pure(300000000)]);
-	// const newcoins2 = txb.splitCoins(txb.gas, [txb.pure(300000000)]);
-	txb.transferObjects(
-		[
-			newcoins1,
-			// newcoins2
-		],
-		txb.pure(getKeyPair(yourAddressSecretKey).getPublicKey().toSuiAddress()),
-	);
-	txb.setGasPayment([toSuiObjectRef(coinToPay)]);
-	txb.setGasBudget(100000000);
-	await client
-		.signAndExecuteTransactionBlock({
-			signer: getKeyPair(yourAddressSecretKey),
-			transactionBlock: txb,
-			requestType: 'WaitForLocalExecution',
-			options: {
-				showEffects: true,
-			},
-		})
-		.then((txRes) => {
-			const status = txRes.effects?.status?.status;
-			if (status !== 'success') {
-				throw new Error(`Could not split coin! ${txRes.effects?.status?.error}`);
-			}
-			return txRes;
-		})
-		.catch((err) => {
-			throw new Error(`Error thrown: Could not split coin!: ${err}`);
-		});
+    const txb = new TransactionBlock();
+    const coinToPay = await client.getObject({ id: coinObjectId });
+    const newcoins1 = txb.splitCoins(txb.gas, [txb.pure(300000000)]);
+    // const newcoins2 = txb.splitCoins(txb.gas, [txb.pure(300000000)]);
+    txb.transferObjects(
+        [
+            newcoins1,
+            // newcoins2
+        ],
+        txb.pure(getKeyPair(yourAddressSecretKey).getPublicKey().toSuiAddress()),
+    );
+    txb.setGasPayment([toSuiObjectRef(coinToPay)]);
+    txb.setGasBudget(100000000);
+    await client
+        .signAndExecuteTransactionBlock({
+            signer: getKeyPair(yourAddressSecretKey),
+            transactionBlock: txb,
+            requestType: 'WaitForLocalExecution',
+            options: {
+                showEffects: true,
+            },
+        })
+        .then((txRes) => {
+            const status = txRes.effects?.status?.status;
+            if (status !== 'success') {
+                throw new Error(`Could not split coin! ${txRes.effects?.status?.error}`);
+            }
+            return txRes;
+        })
+        .catch((err) => {
+            throw new Error(`Error thrown: Could not split coin!: ${err}`);
+        });
 }
 ```
 
@@ -102,16 +102,16 @@ const eshandler = await ExecutorServiceHandler.initialize(adminKeypair, client);
 const promises = [];
 let txb: TransactionBlockWithLambda;
 for (let i = 0; i < 10; i++) {
-	txb = new TransactionBlockWithLambda(
-		() => createPaymentTxb('<recipient-address>'), // Use a test user address to receive the txbs
-	);
-	promises.push(
-		eshandler.execute(
-			txb,
-			client,
-			new DefaultSplitStrategy(300000000), // Each pool contains coins with a total balance of 300000000 MIST
-		),
-	);
+    txb = new TransactionBlockWithLambda(
+        () => createPaymentTxb('<recipient-address>'), // Use a test user address to receive the txbs
+    );
+    promises.push(
+        eshandler.execute(
+            txb,
+            client,
+            new DefaultSplitStrategy(300000000), // Each pool contains coins with a total balance of 300000000 MIST
+        ),
+    );
 }
 
 // Collect the promise results
@@ -119,9 +119,9 @@ const results = await Promise.allSettled(promises);
 ```
 
 <Callout type="info">
-	Providing a `SplitStrategy` is optional. If you don't provide one, the `DefaultSplitStrategy` is
-	used, which also has a default minimum balance. For demonstration purposes, the minimum pool
-	balance here is 300000000.
+    Providing a `SplitStrategy` is optional. If you don't provide one, the `DefaultSplitStrategy` is
+    used, which also has a default minimum balance. For demonstration purposes, the minimum pool
+    balance here is 300000000.
 </Callout>
 
 ## Use case 2: mint and transfer NFTs concurrently using multiple AdminCaps
@@ -159,27 +159,27 @@ creates and returns the transaction block of type `TransactionBlockWithLambda`.
 
 ```ts
 function mintNFTTxb(
-	env: EnvironmentVariables,
-	adminKeypair: Ed25519Keypair,
+    env: EnvironmentVariables,
+    adminKeypair: Ed25519Keypair,
 ): TransactionBlockWithLambda {
-	const txbLambda = (adminCapId: string) => {
-		const txb = new TransactionBlock();
-		const hero = txb.moveCall({
-			arguments: [
-				txb.object(adminCapId),
-				txb.pure('zed'),
-				txb.pure('gold'),
-				txb.pure(3),
-				txb.pure('ipfs://example.com/'),
-			],
-			target: `${env.NFT_APP_PACKAGE_ID}::hero_nft::mint_hero`,
-		});
+    const txbLambda = (adminCapId: string) => {
+        const txb = new TransactionBlock();
+        const hero = txb.moveCall({
+            arguments: [
+                txb.object(adminCapId),
+                txb.pure('zed'),
+                txb.pure('gold'),
+                txb.pure(3),
+                txb.pure('ipfs://example.com/'),
+            ],
+            target: `${env.NFT_APP_PACKAGE_ID}::hero_nft::mint_hero`,
+        });
 
-		txb.transferObjects([hero], txb.pure(adminKeypair.getPublicKey().toSuiAddress()));
-		txb.setGasBudget(10000000);
-		return txb;
-	};
-	return new TransactionBlockWithLambda(txbLambda, ['AdminCap']);
+        txb.transferObjects([hero], txb.pure(adminKeypair.getPublicKey().toSuiAddress()));
+        txb.setGasBudget(10000000);
+        return txb;
+    };
+    return new TransactionBlockWithLambda(txbLambda, ['AdminCap']);
 }
 ```
 
@@ -191,16 +191,16 @@ const eshandler = await ExecutorServiceHandler.initialize(adminKeypair, client);
 const promises: Promise<SuiTransactionBlockResponse>[] = [];
 let txb: TransactionBlockWithLambda;
 for (let i = 0; i < NUMBER_OF_TRANSACTION_TO_EXECUTE; i++) {
-	txb = mintNFTTxb(env, adminKeypair);
-	promises.push(
-		eshandler.execute(txb, client, new IncludeAdminCapStrategy('<your-nft-package-id>')),
-	);
+    txb = mintNFTTxb(env, adminKeypair);
+    promises.push(
+        eshandler.execute(txb, client, new IncludeAdminCapStrategy('<your-nft-package-id>')),
+    );
 }
 
 const results = await Promise.allSettled(promises);
 results.forEach((result) => {
-	if (result.status === 'rejected') {
-		console.error(result.reason);
-	}
+    if (result.status === 'rejected') {
+        console.error(result.reason);
+    }
 });
 ```

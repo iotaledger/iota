@@ -1,6 +1,6 @@
 {
-	"entryPoints": ["src"],
-	"excludeInternal": true,
-	"excludePrivate": true,
-	"intentionallyNotExported": []
+    "entryPoints": ["src"],
+    "excludeInternal": true,
+    "excludePrivate": true,
+    "intentionallyNotExported": []
 }
