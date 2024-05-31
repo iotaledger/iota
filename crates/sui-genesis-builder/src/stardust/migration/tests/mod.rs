@@ -1,41 +1,37 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 
-use iota_sdk::types::block::address::AliasAddress;
-use iota_sdk::types::block::output::feature::Irc30Metadata;
-use iota_sdk::types::block::output::feature::MetadataFeature;
-use iota_sdk::types::block::output::unlock_condition::ImmutableAliasAddressUnlockCondition;
-use iota_sdk::types::block::output::AliasId;
-use iota_sdk::types::block::output::Feature;
-use iota_sdk::types::block::output::FoundryOutput;
-use iota_sdk::types::block::output::FoundryOutputBuilder;
-use iota_sdk::types::block::output::Output;
-use iota_sdk::types::block::output::OutputId;
-use iota_sdk::types::block::output::SimpleTokenScheme;
-use iota_sdk::types::block::output::TokenScheme;
-use move_core_types::identifier::IdentStr;
+use iota_sdk::types::block::{
+    address::AliasAddress,
+    output::{
+        feature::{Irc30Metadata, MetadataFeature},
+        unlock_condition::ImmutableAliasAddressUnlockCondition,
+        AliasId, Feature, FoundryOutput, FoundryOutputBuilder, NativeToken, Output, OutputId,
+        SimpleTokenScheme, TokenId, TokenScheme,
+    },
+};
+use move_core_types::{ident_str, identifier::IdentStr};
+use sui_types::{
+    balance::Balance,
+    base_types::SuiAddress,
+    coin::Coin,
+    gas_coin::GAS,
+    inner_temporary_store::InnerTemporaryStore,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::{Argument, CheckedInputObjects, ObjectArg},
+    TypeTag, STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID,
+};
 
-use crate::stardust::migration::executor::Executor;
-use crate::stardust::migration::migration::Migration;
-use crate::stardust::migration::verification::created_objects::CreatedObjects;
-use crate::stardust::types::snapshot::OutputHeader;
-
-use crate::stardust::migration::migration::NATIVE_TOKEN_BAG_KEY_TYPE;
-use crate::stardust::migration::migration::PACKAGE_DEPS;
-use iota_sdk::types::block::output::{NativeToken, TokenId};
-use move_core_types::ident_str;
-use sui_types::balance::Balance;
-use sui_types::base_types::SuiAddress;
-use sui_types::coin::Coin;
-use sui_types::gas_coin::GAS;
-use sui_types::inner_temporary_store::InnerTemporaryStore;
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::transaction::{Argument, CheckedInputObjects, ObjectArg};
-use sui_types::TypeTag;
-use sui_types::{STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID};
+use crate::stardust::{
+    migration::{
+        executor::Executor,
+        migration::{Migration, NATIVE_TOKEN_BAG_KEY_TYPE, PACKAGE_DEPS},
+        verification::created_objects::CreatedObjects,
+    },
+    types::snapshot::OutputHeader,
+};
 
 mod alias;
 mod executor;
@@ -76,10 +72,12 @@ fn create_foundry(
     (random_output_header(), foundry_output)
 }
 
-/// Test that an Object owned by another Object (not to be confused with Owner::ObjectOwner)
-/// can be received by the owning object. This means aliases owned by aliases, aliases owned by NFTs, etc.
+/// Test that an Object owned by another Object (not to be confused with
+/// Owner::ObjectOwner) can be received by the owning object. This means aliases
+/// owned by aliases, aliases owned by NFTs, etc.
 ///
-/// The PTB sends the extracted assets to the null address since they must be used in the transaction.
+/// The PTB sends the extracted assets to the null address since they must be
+/// used in the transaction.
 fn object_migration_with_object_owner(
     output_id_owner: OutputId,
     output_id_owned: OutputId,
@@ -149,7 +147,8 @@ fn object_migration_with_object_owner(
             vec![balance_arg],
         );
 
-        // Destroying the bag only works if it's empty, hence asserting that it is in fact empty.
+        // Destroying the bag only works if it's empty, hence asserting that it is in
+        // fact empty.
         builder.programmable_move_call(
             SUI_FRAMEWORK_PACKAGE_ID,
             ident_str!("bag").into(),
@@ -161,8 +160,8 @@ fn object_migration_with_object_owner(
         // Transfer the coin to the zero address since we have to move it somewhere.
         builder.transfer_arg(SuiAddress::default(), coin_arg);
 
-        // We have to use extracted object as we cannot transfer it (since it lacks the `store` ability),
-        // so we extract its assets.
+        // We have to use extracted object as we cannot transfer it (since it lacks the
+        // `store` ability), so we extract its assets.
         let extracted_assets = builder.programmable_move_call(
             STARDUST_PACKAGE_ID,
             extraction2_module_name.into(),
@@ -185,7 +184,8 @@ fn object_migration_with_object_owner(
             vec![balance_arg],
         );
 
-        // Destroying the bag only works if it's empty, hence asserting that it is in fact empty.
+        // Destroying the bag only works if it's empty, hence asserting that it is in
+        // fact empty.
         builder.programmable_move_call(
             SUI_FRAMEWORK_PACKAGE_ID,
             ident_str!("bag").into(),
@@ -197,8 +197,8 @@ fn object_migration_with_object_owner(
         // Transfer the coin to the zero address since we have to move it somewhere.
         builder.transfer_arg(SuiAddress::default(), coin_arg);
 
-        // We have successfully extracted the owned objects which is what we want to test.
-        // Transfer to the zero address so the PTB doesn't fail.
+        // We have successfully extracted the owned objects which is what we want to
+        // test. Transfer to the zero address so the PTB doesn't fail.
         builder.transfer_arg(SuiAddress::default(), owned_arg);
         builder.transfer_arg(SuiAddress::default(), inner_owned_arg);
 
@@ -214,7 +214,8 @@ fn object_migration_with_object_owner(
     executor.execute_pt_unmetered(input_objects, pt).unwrap();
 }
 
-/// Test that an Output that owns Native Tokens can extract those tokens from the contained bag.
+/// Test that an Output that owns Native Tokens can extract those tokens from
+/// the contained bag.
 fn extract_native_token_from_bag(
     output_id: OutputId,
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
@@ -305,7 +306,8 @@ fn extract_native_token_from_bag(
             vec![balance_arg],
         );
 
-        // Destroying the bag only works if it's empty, hence asserting that it is in fact empty.
+        // Destroying the bag only works if it's empty, hence asserting that it is in
+        // fact empty.
         builder.programmable_move_call(
             SUI_FRAMEWORK_PACKAGE_ID,
             ident_str!("bag").into(),
