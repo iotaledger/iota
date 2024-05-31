@@ -13,7 +13,7 @@ use iota_sdk::{
             feature::{Attribute, Irc30Metadata, IssuerFeature, MetadataFeature, SenderFeature},
             unlock_condition::{
                 AddressUnlockCondition, GovernorAddressUnlockCondition,
-                StateControllerAddressUnlockCondition,
+                StateControllerAddressUnlockCondition, TimelockUnlockCondition,
             },
             AliasId, AliasOutputBuilder, Feature, NativeToken, NftId, NftOutput as StardustNft,
             NftOutputBuilder, SimpleTokenScheme,
@@ -34,7 +34,7 @@ use sui_types::{
 use crate::stardust::{
     migration::tests::{
         create_foundry, extract_native_token_from_bag, object_migration_with_object_owner,
-        random_output_header, run_migration,
+        random_output_header, run_migration, unlock_timelocked_object, TimelockTestResult,
     },
     types::{
         snapshot::OutputHeader, stardust_to_sui_address, FixedPoint32, Irc27Metadata, Nft,
@@ -472,4 +472,54 @@ fn nft_migration_without_metadata() {
     // Since we removed non_standard_fields, the other fields of immutable_metadata
     // should be the defaults.
     assert_eq!(immutable_metadata, Irc27Metadata::default());
+}
+
+#[test]
+fn nft_migration_with_timelock_unlocked() {
+    let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+    let header = random_output_header();
+
+    // The epoch timestamp that the executor will use for the test.
+    let epoch_start_timestamp_ms = 100_000;
+
+    let stardust_nft = NftOutputBuilder::new_with_amount(1_000_000, NftId::null())
+        .add_unlock_condition(AddressUnlockCondition::new(random_address))
+        .add_unlock_condition(
+            TimelockUnlockCondition::new(epoch_start_timestamp_ms / 1000).unwrap(),
+        )
+        .finish()
+        .unwrap();
+
+    unlock_timelocked_object(
+        header.output_id(),
+        [(header, stardust_nft.into())],
+        NFT_OUTPUT_MODULE_NAME,
+        epoch_start_timestamp_ms as u64,
+        TimelockTestResult::Success,
+    );
+}
+
+#[test]
+fn nft_migration_with_timelock_still_locked() {
+    let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+    let header = random_output_header();
+
+    // The epoch timestamp that the executor will use for the test.
+    let epoch_start_timestamp_ms = 100_000;
+
+    let stardust_nft = NftOutputBuilder::new_with_amount(1_000_000, NftId::null())
+        .add_unlock_condition(AddressUnlockCondition::new(random_address))
+        .add_unlock_condition(
+            TimelockUnlockCondition::new((epoch_start_timestamp_ms / 1000) + 1).unwrap(),
+        )
+        .finish()
+        .unwrap();
+
+    unlock_timelocked_object(
+        header.output_id(),
+        [(header, stardust_nft.into())],
+        NFT_OUTPUT_MODULE_NAME,
+        epoch_start_timestamp_ms as u64,
+        TimelockTestResult::Failure,
+    );
 }

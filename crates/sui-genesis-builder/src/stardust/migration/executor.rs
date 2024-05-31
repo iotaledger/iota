@@ -659,6 +659,21 @@ impl Executor {
     }
 }
 
+#[cfg(test)]
+impl Executor {
+    /// Set the [`TxContext`] of the [`Executor`].
+    pub(crate) fn with_tx_context(mut self, tx_context: TxContext) -> Self {
+        self.tx_context = tx_context;
+        self
+    }
+
+    /// Set the [`InMemoryStorage`] of the [`Executor`].
+    pub(crate) fn with_store(mut self, store: InMemoryStorage) -> Self {
+        self.store = store;
+        self
+    }
+}
+
 mod pt {
     use super::*;
     use crate::stardust::migration::NATIVE_TOKEN_BAG_KEY_TYPE;
