@@ -30,7 +30,8 @@ pub(super) fn verify_native_tokens(
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     created_native_tokens: impl IntoIterator<Item = impl NativeTokenKind>,
 ) -> Result<()> {
-    // Token types should be unique as the token ID is guaranteed unique within NativeTokens
+    // Token types should be unique as the token ID is guaranteed unique within
+    // NativeTokens
     let created_native_tokens = created_native_tokens
         .into_iter()
         .map(|nt| (nt.token_type(), nt.value()))
@@ -49,7 +50,8 @@ pub(super) fn verify_native_tokens(
             .ok_or_else(|| anyhow!("missing foundry data for token {}", native_token.token_id()))?;
 
         let expected_token_type = foundry_data.canonical_coin_type();
-        // The token amounts are scaled so that the total circulating supply does not exceed `u64::MAX`
+        // The token amounts are scaled so that the total circulating supply does not
+        // exceed `u64::MAX`
         let reduced_amount = foundry_data
             .token_scheme_u64
             .adjust_tokens(native_token.amount());
@@ -228,8 +230,9 @@ pub(super) fn verify_sender_feature(
     Ok(())
 }
 
-// Checks whether an object exists for this address and whether it is the expected alias or nft object.
-// We do not expect an object for Ed25519 addresses.
+// Checks whether an object exists for this address and whether it is the
+// expected alias or nft object. We do not expect an object for Ed25519
+// addresses.
 pub(super) fn verify_parent(address: &Address, storage: &InMemoryStorage) -> Result<()> {
     let object_id = ObjectID::from(address.to_string().parse::<SuiAddress>()?);
     let parent = storage.get_object(&object_id);

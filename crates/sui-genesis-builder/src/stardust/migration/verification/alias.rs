@@ -6,11 +6,10 @@ use std::collections::HashMap;
 use iota_sdk::types::block::output::{AliasOutput, TokenId};
 use sui_types::in_memory_storage::InMemoryStorage;
 
+use super::util::verify_parent;
 use crate::stardust::migration::{
     executor::FoundryLedgerData, verification::created_objects::CreatedObjects,
 };
-
-use super::util::verify_parent;
 
 pub(super) fn verify_alias_output(
     output: &AliasOutput,
