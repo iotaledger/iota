@@ -1,11 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::HashMap;
+
 use anyhow::{anyhow, bail, ensure, Result};
 use iota_sdk::{
     types::block::{
         address::Address,
-        output::{self as sdk_output, NativeTokens},
+        output::{self as sdk_output, NativeTokens, TokenId},
     },
     U256,
 };
@@ -15,14 +17,26 @@ use sui_types::{
     coin::Coin,
     dynamic_field::Field,
     in_memory_storage::InMemoryStorage,
+    TypeTag,
 };
 
-use crate::stardust::types::{output as migration_output, Alias, Nft};
+use crate::stardust::{
+    migration::executor::FoundryLedgerData,
+    types::{output as migration_output, Alias, Nft},
+};
 
 pub(super) fn verify_native_tokens(
     native_tokens: &NativeTokens,
-    mut created_native_tokens: Vec<impl NativeTokenKind>,
+    foundry_data: &HashMap<TokenId, FoundryLedgerData>,
+    created_native_tokens: impl IntoIterator<Item = impl NativeTokenKind>,
 ) -> Result<()> {
+    // Token types should be unique as the token ID is guaranteed unique within
+    // NativeTokens
+    let created_native_tokens = created_native_tokens
+        .into_iter()
+        .map(|nt| (nt.token_type(), nt.value()))
+        .collect::<HashMap<_, _>>();
+
     ensure!(
         native_tokens.len() == created_native_tokens.len(),
         "native token count mismatch: found {}, expected: {}",
@@ -30,19 +44,26 @@ pub(super) fn verify_native_tokens(
         created_native_tokens.len(),
     );
 
-    let token_max = U256::from(u64::MAX);
     for native_token in native_tokens.iter() {
-        // The token amounts are capped at u64 max
-        let reduced_amount = native_token.amount().min(token_max).as_u64();
-        if let Some(idx) = created_native_tokens
-            .iter()
-            .position(|coin| coin.value() == reduced_amount)
-        {
-            // Remove the coin so we don't find it again.
-            created_native_tokens.remove(idx);
+        let foundry_data = foundry_data
+            .get(native_token.token_id())
+            .ok_or_else(|| anyhow!("missing foundry data for token {}", native_token.token_id()))?;
+
+        let expected_token_type = foundry_data.canonical_coin_type();
+        // The token amounts are scaled so that the total circulating supply does not
+        // exceed `u64::MAX`
+        let reduced_amount = foundry_data
+            .token_scheme_u64
+            .adjust_tokens(native_token.amount());
+
+        if let Some(created_value) = created_native_tokens.get(&expected_token_type) {
+            ensure!(
+                *created_value == reduced_amount,
+                "created token amount mismatch: found {created_value}, expected {reduced_amount}"
+            );
         } else {
             bail!(
-                "native token coin was not created for token: {}",
+                "native token object was not created for token: {}",
                 native_token.token_id()
             );
         }
@@ -209,8 +230,9 @@ pub(super) fn verify_sender_feature(
     Ok(())
 }
 
-// Checks whether an object exists for this address and whether it is the expected alias or nft object.
-// We do not expect an object for Ed25519 addresses.
+// Checks whether an object exists for this address and whether it is the
+// expected alias or nft object. We do not expect an object for Ed25519
+// addresses.
 pub(super) fn verify_parent(address: &Address, storage: &InMemoryStorage) -> Result<()> {
     let object_id = ObjectID::from(address.to_string().parse::<SuiAddress>()?);
     let parent = storage.get_object(&object_id);
@@ -240,17 +262,35 @@ pub(super) fn verify_parent(address: &Address, storage: &InMemoryStorage) -> Res
 }
 
 pub(super) trait NativeTokenKind {
+    fn token_type(&self) -> String;
+
     fn value(&self) -> u64;
 }
 
-impl NativeTokenKind for Coin {
+impl NativeTokenKind for (TypeTag, Coin) {
+    fn token_type(&self) -> String {
+        self.0.to_canonical_string(false)
+    }
+
     fn value(&self) -> u64 {
-        self.value()
+        self.1.value()
     }
 }
 
-impl<K> NativeTokenKind for Field<K, Balance> {
+impl NativeTokenKind for Field<String, Balance> {
+    fn token_type(&self) -> String {
+        self.name.clone()
+    }
+
     fn value(&self) -> u64 {
         self.value.value()
+    }
+}
+
+pub fn truncate_u256_to_u64(value: U256) -> u64 {
+    if value.bits() > 64 {
+        u64::MAX
+    } else {
+        value.as_u64()
     }
 }

@@ -177,9 +177,6 @@ export const developmentFeatures = {
     suins: {
         defaultValue: false,
     },
-    'wallet-onramp-coinbase': {
-        defaultValue: true,
-    },
     'team-address-overrides': {
         defaultValue: {
             addresses: [
@@ -306,9 +303,6 @@ export const developmentFeatures = {
     'wallet-activity-refetch-interval': {
         defaultValue: 1000,
     },
-    'wallet-onramp': {
-        defaultValue: true,
-    },
     'wallet-ledger-notification-enabled': {
         defaultValue: false,
         rules: [
@@ -316,12 +310,6 @@ export const developmentFeatures = {
                 force: true,
             },
         ],
-    },
-    'wallet-onramp-transak': {
-        defaultValue: true,
-    },
-    'wallet-onramp-moonpay': {
-        defaultValue: true,
     },
     'kiosk-marketplace-links': {
         defaultValue: [
@@ -401,9 +389,6 @@ export const developmentFeatures = {
                 TBTC: '0xbc3a676894871284b3ccfb2eec66f428612000e2a6e6d23f592ce8833c27c973::coin::COIN',
             },
         },
-    },
-    'wallet-onramp-banxa': {
-        defaultValue: true,
     },
     'wallet-qr-scanner': {
         defaultValue: false,
