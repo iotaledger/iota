@@ -3,30 +3,30 @@
 
 import { formatAddress, formatDigest } from './format.js';
 import {
-	isValidSuiAddress,
-	isValidSuiObjectId,
-	isValidTransactionDigest,
-	normalizeStructTag,
-	normalizeSuiAddress,
-	normalizeSuiObjectId,
-	parseStructTag,
-	SUI_ADDRESS_LENGTH,
+    isValidSuiAddress,
+    isValidSuiObjectId,
+    isValidTransactionDigest,
+    normalizeStructTag,
+    normalizeSuiAddress,
+    normalizeSuiObjectId,
+    parseStructTag,
+    SUI_ADDRESS_LENGTH,
 } from './sui-types.js';
 
 export { fromB64, toB64, fromHEX, toHEX } from '@mysten/bcs';
 export { is, assert } from 'superstruct';
 
 export {
-	formatAddress,
-	formatDigest,
-	isValidSuiAddress,
-	isValidSuiObjectId,
-	isValidTransactionDigest,
-	normalizeStructTag,
-	normalizeSuiAddress,
-	normalizeSuiObjectId,
-	parseStructTag,
-	SUI_ADDRESS_LENGTH,
+    formatAddress,
+    formatDigest,
+    isValidSuiAddress,
+    isValidSuiObjectId,
+    isValidTransactionDigest,
+    normalizeStructTag,
+    normalizeSuiAddress,
+    normalizeSuiObjectId,
+    parseStructTag,
+    SUI_ADDRESS_LENGTH,
 };
 
 export const SUI_DECIMALS = 9;

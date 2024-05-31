@@ -25,8 +25,8 @@ to get a list of transfers and iterate over them to transfer coins to each of th
 
 ```tsx
 interface Transfer {
-	to: string;
-	amount: number;
+    to: string;
+    amount: number;
 }
 
 // procure a list of some Sui transfers to make
@@ -36,13 +36,13 @@ const txb = new TransactionBlock();
 
 // first, split the gas coin into multiple coins
 const coins = txb.splitCoins(
-	txb.gas,
-	transfers.map((transfer) => transfer.amount),
+    txb.gas,
+    transfers.map((transfer) => transfer.amount),
 );
 
 // next, create a transfer transaction for each coin
 transfers.forEach((transfer, index) => {
-	txb.transferObjects([coins[index]], transfer.to);
+    txb.transferObjects([coins[index]], transfer.to);
 });
 ```
 
@@ -61,22 +61,23 @@ Transactions are steps of execution in the transaction block. Each Transaction i
 takes a set of inputs, and produces results. The inputs for a transaction depend on the kind of
 transaction. Sui supports following transactions:
 
-- `txb.splitCoins(coin, amounts)` - Creates new coins with the defined amounts, split from the
-  provided coin. Returns the coins so that it can be used in subsequent transactions.
-  - Example: `txb.splitCoins(txb.gas, [100, 200])`
-- `txb.mergeCoins(destinationCoin, sourceCoins)` - Merges the sourceCoins into the destinationCoin.
-  - Example: `txb.mergeCoins(txb.object(coin1), [txb.object(coin2), txb.object(coin3)])`
-- `txb.transferObjects(objects, address)` - Transfers a list of objects to the specified address.
-  - Example: `txb.transferObjects([txb.object(thing1), txb.object(thing2)], myAddress)`
-- `txb.moveCall({ target, arguments, typeArguments  })` - Executes a Move call. Returns whatever the
-  Sui Move call returns.
-  - Example:
-    `txb.moveCall({ target: '0x2::devnet_nft::mint', arguments: [txb.pure.string(name), txb.pure.string(description), txb.pure.string(image)] })`
-- `txb.makeMoveVec({ type, objects })` - Constructs a vector of objects that can be passed into a
-  `moveCall`. This is required as there’s no way to define a vector as an input.
-  - Example: `txb.makeMoveVec({ objects: [txb.object(id1), txb.object(id2)] })`
-- `txb.publish(modules, dependencies)` - Publishes a Move package. Returns the upgrade capability
-  object.
+-   `txb.splitCoins(coin, amounts)` - Creates new coins with the defined amounts, split from the
+    provided coin. Returns the coins so that it can be used in subsequent transactions.
+    -   Example: `txb.splitCoins(txb.gas, [100, 200])`
+-   `txb.mergeCoins(destinationCoin, sourceCoins)` - Merges the sourceCoins into the
+    destinationCoin.
+    -   Example: `txb.mergeCoins(txb.object(coin1), [txb.object(coin2), txb.object(coin3)])`
+-   `txb.transferObjects(objects, address)` - Transfers a list of objects to the specified address.
+    -   Example: `txb.transferObjects([txb.object(thing1), txb.object(thing2)], myAddress)`
+-   `txb.moveCall({ target, arguments, typeArguments  })` - Executes a Move call. Returns whatever
+    the Sui Move call returns.
+    -   Example:
+        `txb.moveCall({ target: '0x2::devnet_nft::mint', arguments: [txb.pure.string(name), txb.pure.string(description), txb.pure.string(image)] })`
+-   `txb.makeMoveVec({ type, objects })` - Constructs a vector of objects that can be passed into a
+    `moveCall`. This is required as there’s no way to define a vector as an input.
+    -   Example: `txb.makeMoveVec({ objects: [txb.object(id1), txb.object(id2)] })`
+-   `txb.publish(modules, dependencies)` - Publishes a Move package. Returns the upgrade capability
+    object.
 
 ## Passing inputs to a transaction
 
@@ -128,17 +129,17 @@ txb.transferObjects(['0xSomeObject'], 'OxSomeAddress');
 txb.transferObjects([txb.object('0xSomeObject')], 'OxSomeAddress');
 
 txb.moveCall({
-	target: '0x2::nft::mint',
-	// object IDs must be wrapped in moveCall arguments
-	arguments: [txb.object('0xSomeObject')],
+    target: '0x2::nft::mint',
+    // object IDs must be wrapped in moveCall arguments
+    arguments: [txb.object('0xSomeObject')],
 });
 
 // txb.object automaically converts the object ID to receiving transaction arguments if the moveCall expects it
 txb.moveCall({
-	target: '0xSomeAddress::example::receive_object',
-	// 0xSomeAddress::example::receive_object expects a receiving argument and has a Move definition that looks like this:
-	// public fun receive_object<T: key>(parent_object: &mut ParentObjectType, receiving_object: Receiving<ChildObjectType>) { ... }
-	arguments: [txb.object('0xParentObjectID'), txb.object('0xReceivingObjectID')],
+    target: '0xSomeAddress::example::receive_object',
+    // 0xSomeAddress::example::receive_object expects a receiving argument and has a Move definition that looks like this:
+    // public fun receive_object<T: key>(parent_object: &mut ParentObjectType, receiving_object: Receiving<ChildObjectType>) { ... }
+    arguments: [txb.object('0xParentObjectID'), txb.object('0xReceivingObjectID')],
 });
 ```
 
