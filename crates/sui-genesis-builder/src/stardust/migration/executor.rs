@@ -23,15 +23,17 @@ use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use sui_types::{
     balance::Balance,
     base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress, TxContext},
+    coin::Coin,
     collection_types::Bag,
     dynamic_field::Field,
     execution_mode,
+    gas_coin::GAS,
     id::UID,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
     metrics::LimitsMetrics,
     move_package::{MovePackage, TypeOrigin, UpgradeCap},
-    object::Object,
+    object::{Data, MoveObject, Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
         Argument, CheckedInputObjects, Command, InputObjectKind, InputObjects, ObjectArg,
@@ -267,6 +269,19 @@ impl Executor {
                     SimpleTokenSchemeU64::try_from(foundry.token_scheme().as_simple())?,
                 ),
             );
+
+            //Create the foundry amount object.
+            let amount_object = self.create_foundry_amount(
+                UID::new(ObjectID::new(header.output_id().hash())),
+                foundry_package.id().into(),
+                &self.protocol_config,
+                &self.tx_context,
+                foundry_package.version(),
+                foundry.amount(),
+            )?;
+            created_objects.set_foundry_amount(amount_object.id())?;
+            self.store.insert_object(amount_object);
+            
             self.store.finish(
                 written
                     .into_iter()
@@ -277,6 +292,36 @@ impl Executor {
             res.push((header.output_id(), created_objects));
         }
         Ok(res)
+    }
+
+    pub(crate) fn create_foundry_amount(
+        &self,
+        object_id: UID,
+        owner: SuiAddress,
+        protocol_config: &ProtocolConfig,
+        tx_context: &TxContext,
+        version: SequenceNumber,
+        foundry_amount: u64,
+    ) -> Result<Object> {
+        let coin = Coin::new(object_id, foundry_amount);
+        let move_object = unsafe {
+            // Safety: we know from the definition of `Coin`
+            // that it has public transfer (`store` ability is present).
+            MoveObject::new_from_execution(
+                GAS::type_().into(),
+                true,
+                version,
+                bcs::to_bytes(&coin)?,
+                protocol_config,
+            )?
+        };
+        // Resolve ownership
+        let owner = Owner::AddressOwner(owner);
+        Ok(Object::new_from_genesis(
+            Data::Move(move_object),
+            owner,
+            tx_context.digest(),
+        ))
     }
 
     pub(super) fn create_alias_objects(

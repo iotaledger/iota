@@ -13,6 +13,7 @@ pub struct CreatedObjects {
     package: Option<ObjectID>,
     max_supply_policy: Option<ObjectID>,
     native_tokens: Option<Vec<ObjectID>>,
+    foundry_amount: Option<ObjectID>,
 }
 
 impl CreatedObjects {
@@ -97,6 +98,20 @@ impl CreatedObjects {
             bail!("native tokens already set: {id:?}")
         }
         self.native_tokens.replace(ids);
+        Ok(())
+    }
+
+    pub fn foundry_amount(&self) -> Result<&ObjectID> {
+        self.foundry_amount
+            .as_ref()
+            .ok_or_else(|| anyhow!("no created foundry amount object"))
+    }
+
+    pub(crate) fn set_foundry_amount(&mut self, id: ObjectID) -> Result<()> {
+        if let Some(id) = self.foundry_amount {
+            bail!("foundry amount already set: {id}")
+        }
+        self.foundry_amount.replace(id);
         Ok(())
     }
 }
