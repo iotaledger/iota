@@ -368,7 +368,7 @@ impl Executor {
             let mut builder = ProgrammableTransactionBuilder::new();
             let bag = pt::bag_new(&mut builder);
             for token in native_tokens.iter() {
-                let Some(foundry_ledger_data) = self.native_tokens.get(token.token_id()) else {
+                let Some(foundry_ledger_data) = self.native_tokens.get_mut(token.token_id()) else {
                     anyhow::bail!("foundry for native token has not been published");
                 };
 
@@ -386,6 +386,11 @@ impl Executor {
                 let adjusted_amount = foundry_ledger_data
                     .token_scheme_u64
                     .adjust_tokens(token.amount());
+
+                foundry_ledger_data.minted_value = foundry_ledger_data
+                    .minted_value
+                    .checked_sub(adjusted_amount)
+                    .ok_or_else(|| anyhow::anyhow!("underflow splitting native token balance"))?;
 
                 let balance = pt::coin_balance_split(
                     &mut builder,
@@ -456,7 +461,7 @@ impl Executor {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             for token in native_tokens.iter() {
-                let Some(foundry_ledger_data) = self.native_tokens.get(token.token_id()) else {
+                let Some(foundry_ledger_data) = self.native_tokens.get_mut(token.token_id()) else {
                     anyhow::bail!("foundry for native token has not been published");
                 };
 
@@ -473,6 +478,12 @@ impl Executor {
                 let adjusted_amount = foundry_ledger_data
                     .token_scheme_u64
                     .adjust_tokens(token.amount());
+
+                foundry_ledger_data.minted_value = foundry_ledger_data
+                    .minted_value
+                    .checked_sub(adjusted_amount)
+                    .ok_or_else(|| anyhow::anyhow!("underflow splitting native token balance"))?;
+
                 builder.pay(vec![object_ref], vec![owner], vec![adjusted_amount])?;
             }
 
@@ -724,6 +735,7 @@ pub(crate) struct FoundryLedgerData {
     pub(crate) coin_type_origin: TypeOrigin,
     pub(crate) package_id: ObjectID,
     pub(crate) token_scheme_u64: SimpleTokenSchemeU64,
+    pub(crate) minted_value: u64,
 }
 
 impl FoundryLedgerData {
@@ -743,6 +755,7 @@ impl FoundryLedgerData {
             // There must be only one type created in the foundry package.
             coin_type_origin: foundry_package.type_origin_table()[0].clone(),
             package_id: foundry_package.id(),
+            minted_value: token_scheme_u64.circulating_supply(),
             token_scheme_u64,
         }
     }

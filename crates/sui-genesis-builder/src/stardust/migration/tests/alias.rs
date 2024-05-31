@@ -46,7 +46,9 @@ fn migrate_alias(
         .or_from_output_id(&header.output_id())
         .to_owned();
 
-    let migrated_objects = run_migration([(header, stardust_alias.into())]).into_objects();
+    let migrated_objects = run_migration([(header, stardust_alias.into())])
+        .unwrap()
+        .into_objects();
 
     // Ensure the migrated objects exist under the expected identifiers.
     let alias_object_id = ObjectID::new(*alias_id);
@@ -168,7 +170,8 @@ fn test_alias_migration_with_alias_owner() {
     let mut executor = run_migration([
         (random_output_header(), stardust_alias1.into()),
         (random_output_header(), stardust_alias2.into()),
-    ]);
+    ])
+    .unwrap();
 
     // Find the corresponding objects to the migrated aliases, uniquely identified
     // by their amounts. Should be adapted to use the tags from issue 239 to
@@ -326,7 +329,8 @@ fn alias_migration_with_native_tokens() {
             .unwrap(),
         Irc30Metadata::new("Rustcoin", "Rust", 0),
         AliasId::null(),
-    );
+    )
+    .unwrap();
     let native_token_id: TokenId = foundry_output.id().into();
 
     let alias1_amount = 1_000_000;
@@ -342,7 +346,8 @@ fn alias_migration_with_native_tokens() {
     let mut executor = run_migration([
         (random_output_header(), stardust_alias1.into()),
         (foundry_header, foundry_output.into()),
-    ]);
+    ])
+    .unwrap();
 
     // Find the corresponding objects to the migrated aliases, uniquely identified
     // by their amounts. Should be adapted to use the tags from issue 239 to

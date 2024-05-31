@@ -28,10 +28,12 @@ fn random_output_header() -> OutputHeader {
     )
 }
 
-fn run_migration(outputs: impl IntoIterator<Item = (OutputHeader, Output)>) -> Executor {
-    let mut migration = Migration::new(1).unwrap();
-    migration.run_migration(outputs).unwrap();
-    migration.into_executor()
+fn run_migration(
+    outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
+) -> anyhow::Result<Executor> {
+    let mut migration = Migration::new(1)?;
+    migration.run_migration(outputs)?;
+    Ok(migration.into_executor())
 }
 
 fn create_foundry(
@@ -39,16 +41,14 @@ fn create_foundry(
     token_scheme: SimpleTokenScheme,
     irc_30_metadata: Irc30Metadata,
     alias_id: AliasId,
-) -> (OutputHeader, FoundryOutput) {
+) -> anyhow::Result<(OutputHeader, FoundryOutput)> {
     let builder =
         FoundryOutputBuilder::new_with_amount(iota_amount, 1, TokenScheme::Simple(token_scheme))
             .add_unlock_condition(ImmutableAliasAddressUnlockCondition::new(
                 AliasAddress::new(alias_id),
             ))
-            .add_feature(Feature::Metadata(
-                MetadataFeature::new(irc_30_metadata).unwrap(),
-            ));
-    let foundry_output = builder.finish().unwrap();
+            .add_feature(Feature::Metadata(MetadataFeature::new(irc_30_metadata)?));
+    let foundry_output = builder.finish()?;
 
-    (random_output_header(), foundry_output)
+    Ok((random_output_header(), foundry_output))
 }
