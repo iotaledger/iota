@@ -1,11 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! This analysis flags transfers of an object to tx_context::sender(). Such objects should be
-//! returned from the function instead
+//! This analysis flags transfers of an object to tx_context::sender(). Such
+//! objects should be returned from the function instead
+
+use std::collections::BTreeMap;
 
 use move_ir_types::location::*;
 
+use super::{
+    type_abilities, LinterDiagCategory, INVALID_LOC, LINTER_DEFAULT_DIAG_CODE, LINT_WARNING_PREFIX,
+    PUBLIC_TRANSFER_FUN, SUI_PKG_NAME, TRANSFER_FUN, TRANSFER_MOD_NAME,
+};
 use crate::{
     cfgir::{
         absint::JoinResult,
@@ -23,12 +29,6 @@ use crate::{
     hlir::ast::{Label, ModuleCall, Type, Type_, Var},
     parser::ast::Ability_,
     shared::CompilationEnv,
-};
-use std::collections::BTreeMap;
-
-use super::{
-    type_abilities, LinterDiagCategory, INVALID_LOC, LINTER_DEFAULT_DIAG_CODE, LINT_WARNING_PREFIX,
-    PUBLIC_TRANSFER_FUN, SUI_PKG_NAME, TRANSFER_FUN, TRANSFER_MOD_NAME,
 };
 
 const TRANSFER_FUNCTIONS: &[(&str, &str, &str)] = &[
@@ -103,9 +103,9 @@ impl SimpleAbsIntConstructor for SelfTransferVerifier {
         }
 
         if name.value.as_str() == "init" {
-            // do not lint module initializers, since they do not have the option of returning
-            // values, and the entire purpose of this linter is to encourage folks to return
-            // values instead of using transfer
+            // do not lint module initializers, since they do not have the option of
+            // returning values, and the entire purpose of this linter is to
+            // encourage folks to return values instead of using transfer
             return None;
         }
         Some(SelfTransferVerifierAI {
@@ -149,8 +149,7 @@ impl SimpleAbsInt for SelfTransferVerifierAI {
             if let Value::SenderAddress(sender_addr_loc) = args[1] {
                 if is_wrappable_obj_type(&f.arguments[0].ty) {
                     let msg = "Transfer of an object to transaction sender address";
-                    let uid_msg =
-                        "Returning an object from a function, allows a caller to use the object \
+                    let uid_msg = "Returning an object from a function, allows a caller to use the object \
                                and enables composability via programmable transactions.";
                     let mut d = diag!(SELF_TRANSFER_DIAG, (*loc, msg), (self.fn_ret_loc, uid_msg));
                     if sender_addr_loc != INVALID_LOC {

@@ -2,6 +2,18 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::{BTreeSet, HashMap, HashSet},
+    hash::Hash,
+};
+
+use move_core_types::u256::U256;
+use proptest::{
+    collection::{vec, SizeRange},
+    prelude::*,
+    sample::{select, Index as PropIndex},
+};
+
 use crate::{
     file_format::{
         AbilitySet, Bytecode, CodeOffset, CodeUnit, ConstantPoolIndex, FieldHandle,
@@ -17,16 +29,6 @@ use crate::{
         signature::{AbilitySetGen, SignatureGen, SignatureTokenGen},
         TableSize,
     },
-};
-use move_core_types::u256::U256;
-use proptest::{
-    collection::{vec, SizeRange},
-    prelude::*,
-    sample::{select, Index as PropIndex},
-};
-use std::{
-    collections::{BTreeSet, HashMap, HashSet},
-    hash::Hash,
 };
 
 #[derive(Debug, Default)]
@@ -125,7 +127,8 @@ where
     }
 }
 
-/// Represents state required to materialize final data structures for function handles.
+/// Represents state required to materialize final data structures for function
+/// handles.
 #[derive(Debug)]
 pub struct FnHandleMaterializeState<'a> {
     self_module_handle_idx: ModuleHandleIndex,
@@ -229,7 +232,8 @@ impl FunctionHandleGen {
     }
 }
 
-/// Represents state required to materialize final data structures for function definitions.
+/// Represents state required to materialize final data structures for function
+/// definitions.
 #[derive(Debug)]
 pub struct FnDefnMaterializeState<'a> {
     self_module_handle_idx: ModuleHandleIndex,
@@ -514,8 +518,8 @@ enum BytecodeGen {
 }
 
 impl BytecodeGen {
-    // This just generates nonsensical bytecodes. This will be cleaned up later as the generation
-    // model is refined.
+    // This just generates nonsensical bytecodes. This will be cleaned up later as
+    // the generation model is refined.
     fn garbage_strategy() -> impl Strategy<Value = Self> {
         use BytecodeGen::*;
 
@@ -822,7 +826,7 @@ impl BytecodeGen {
                 type_arguments
                     .iter()
                     .all(BytecodeGen::check_signature_token)
-            },
+            }
             Reference(_) | MutableReference(_) => false,
         }
     }

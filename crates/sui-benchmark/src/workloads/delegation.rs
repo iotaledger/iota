@@ -1,25 +1,33 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::drivers::Interval;
-use crate::system_state_observer::SystemStateObserver;
-use crate::workloads::payload::Payload;
-use crate::workloads::workload::{Workload, WorkloadBuilder};
-use crate::workloads::workload::{
-    ESTIMATED_COMPUTATION_COST, MAX_GAS_FOR_TESTING, STORAGE_COST_PER_COIN,
-};
-use crate::workloads::{Gas, GasCoinConfig, WorkloadBuilderInfo, WorkloadParams};
-use crate::{ExecutionEffects, ValidatorProxy};
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use rand::seq::IteratorRandom;
-use std::sync::Arc;
 use sui_core::test_utils::make_transfer_sui_transaction;
 use sui_test_transaction_builder::TestTransactionBuilder;
-use sui_types::base_types::{ObjectRef, SuiAddress};
-use sui_types::crypto::{get_key_pair, AccountKeyPair};
-use sui_types::gas_coin::MIST_PER_SUI;
-use sui_types::transaction::Transaction;
+use sui_types::{
+    base_types::{ObjectRef, SuiAddress},
+    crypto::{get_key_pair, AccountKeyPair},
+    gas_coin::MIST_PER_SUI,
+    transaction::Transaction,
+};
 use tracing::error;
+
+use crate::{
+    drivers::Interval,
+    system_state_observer::SystemStateObserver,
+    workloads::{
+        payload::Payload,
+        workload::{
+            Workload, WorkloadBuilder, ESTIMATED_COMPUTATION_COST, MAX_GAS_FOR_TESTING,
+            STORAGE_COST_PER_COIN,
+        },
+        Gas, GasCoinConfig, WorkloadBuilderInfo, WorkloadParams,
+    },
+    ExecutionEffects, ValidatorProxy,
+};
 
 #[derive(Debug)]
 pub struct DelegationTestPayload {
@@ -53,8 +61,8 @@ impl Payload for DelegationTestPayload {
     }
 
     /// delegation flow is split into two phases
-    /// first `make_transaction` call creates separate coin object for future delegation
-    /// followup call creates delegation transaction itself
+    /// first `make_transaction` call creates separate coin object for future
+    /// delegation followup call creates delegation transaction itself
     fn make_transaction(&mut self) -> Transaction {
         match self.coin {
             Some(coin) => TestTransactionBuilder::new(

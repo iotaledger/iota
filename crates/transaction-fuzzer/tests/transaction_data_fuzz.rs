@@ -1,14 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use proptest::prelude::*;
+use proptest::{prelude::*, strategy::ValueTree};
 use sui_types::utils::to_sender_signed_transaction;
-
-use proptest::strategy::ValueTree;
-use transaction_fuzzer::account_universe::AccountCurrent;
-use transaction_fuzzer::account_universe::AccountData;
-
 use transaction_fuzzer::{
+    account_universe::{AccountCurrent, AccountData},
     executor::{assert_is_acceptable_result, Executor},
     transaction_data_gen::transaction_data_gen,
 };

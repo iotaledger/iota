@@ -2,11 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::path::PathBuf;
+
 use strum::IntoEnumIterator;
 use sui_macros::sim_test;
-use sui_single_node_benchmark::command::{Component, WorkloadKind};
-use sui_single_node_benchmark::run_benchmark;
-use sui_single_node_benchmark::workload::Workload;
+use sui_single_node_benchmark::{
+    command::{Component, WorkloadKind},
+    run_benchmark,
+    workload::Workload,
+};
 
 #[sim_test]
 async fn benchmark_non_move_transactions_smoke_test() {

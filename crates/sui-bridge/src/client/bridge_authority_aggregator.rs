@@ -3,25 +3,28 @@
 
 //! BridgeAuthorityAggregator aggregates signatures from BridgeCommittee.
 
-use crate::client::bridge_client::BridgeClient;
-use crate::crypto::BridgeAuthorityPublicKeyBytes;
-use crate::crypto::BridgeAuthoritySignInfo;
-use crate::error::{BridgeError, BridgeResult};
-use crate::types::BridgeCommitteeValiditySignInfo;
-use crate::types::{
-    BridgeAction, BridgeCommittee, CertifiedBridgeAction, VerifiedCertifiedBridgeAction,
-    VerifiedSignedBridgeAction,
+use std::{
+    collections::{btree_map::Entry, BTreeMap},
+    sync::Arc,
+    time::Duration,
 };
-use std::collections::btree_map::Entry;
-use std::collections::BTreeMap;
-use std::sync::Arc;
-use std::time::Duration;
-use sui_common::authority_aggregation::quorum_map_then_reduce_with_timeout;
-use sui_common::authority_aggregation::ReduceOutput;
-use sui_types::base_types::ConciseableName;
-use sui_types::committee::StakeUnit;
-use sui_types::committee::TOTAL_VOTING_POWER;
+
+use sui_common::authority_aggregation::{quorum_map_then_reduce_with_timeout, ReduceOutput};
+use sui_types::{
+    base_types::ConciseableName,
+    committee::{StakeUnit, TOTAL_VOTING_POWER},
+};
 use tracing::{error, info, warn};
+
+use crate::{
+    client::bridge_client::BridgeClient,
+    crypto::{BridgeAuthorityPublicKeyBytes, BridgeAuthoritySignInfo},
+    error::{BridgeError, BridgeResult},
+    types::{
+        BridgeAction, BridgeCommittee, BridgeCommitteeValiditySignInfo, CertifiedBridgeAction,
+        VerifiedCertifiedBridgeAction, VerifiedSignedBridgeAction,
+    },
+};
 
 pub struct BridgeAuthorityAggregator {
     pub committee: Arc<BridgeCommittee>,
@@ -181,7 +184,7 @@ async fn request_sign_bridge_action_into_certification(
                             verified_signed_action,
                         ) {
                             Ok(Some(certified_action)) => {
-                                return ReduceOutput::Success(certified_action)
+                                return ReduceOutput::Success(certified_action);
                             }
                             Ok(None) => (),
                             Err(e) => {
@@ -204,7 +207,8 @@ async fn request_sign_bridge_action_into_certification(
                     }
                 };
 
-                // If bad stake (including blocklisted stake) is too high to reach validity threshold, return error
+                // If bad stake (including blocklisted stake) is too high to reach validity
+                // threshold, return error
                 if state.is_too_many_error() {
                     ReduceOutput::Failed(state)
                 } else {
@@ -238,18 +242,18 @@ mod tests {
     use std::collections::BTreeSet;
 
     use fastcrypto::traits::ToFromBytes;
-    use sui_types::committee::VALIDITY_THRESHOLD;
-    use sui_types::digests::TransactionDigest;
-
-    use crate::crypto::BridgeAuthorityPublicKey;
-    use crate::server::mock_handler::BridgeRequestMockHandler;
+    use sui_types::{committee::VALIDITY_THRESHOLD, digests::TransactionDigest};
 
     use super::*;
-    use crate::test_utils::{
-        get_test_authorities_and_run_mock_bridge_server, get_test_authority_and_key,
-        get_test_sui_to_eth_bridge_action, sign_action_with_key,
+    use crate::{
+        crypto::BridgeAuthorityPublicKey,
+        server::mock_handler::BridgeRequestMockHandler,
+        test_utils::{
+            get_test_authorities_and_run_mock_bridge_server, get_test_authority_and_key,
+            get_test_sui_to_eth_bridge_action, sign_action_with_key,
+        },
+        types::BridgeCommittee,
     };
-    use crate::types::BridgeCommittee;
 
     #[tokio::test]
     async fn test_bridge_auth_agg_construction() {
@@ -424,8 +428,9 @@ mod tests {
             Some(amount),
         );
 
-        // Only mock authority 2 and 3 to return signatures, such that if BridgeAuthorityAggregator
-        // requests to authority 0 and 1 (which should not happen) it will panic.
+        // Only mock authority 2 and 3 to return signatures, such that if
+        // BridgeAuthorityAggregator requests to authority 0 and 1 (which should
+        // not happen) it will panic.
         mock2.add_sui_event_response(
             sui_tx_digest,
             sui_tx_event_index,
@@ -469,7 +474,8 @@ mod tests {
             BridgeError::AuthoritySignatureAggregationTooManyError(_)
         ));
 
-        // if mock 3 returns duplicated signature (by authority 2), `BridgeClient` will catch this
+        // if mock 3 returns duplicated signature (by authority 2), `BridgeClient` will
+        // catch this
         mock3.add_sui_event_response(
             sui_tx_digest,
             sui_tx_event_index,
@@ -558,14 +564,16 @@ mod tests {
 
         let sig_0 = sign_action_with_key(&action, &secrets[0]);
         // returns Ok(None)
-        assert!(state
-            .handle_verified_signed_action(
-                authorities[0].pubkey_bytes().clone(),
-                authorities[0].voting_power,
-                VerifiedSignedBridgeAction::new_from_verified(sig_0.clone())
-            )
-            .unwrap()
-            .is_none());
+        assert!(
+            state
+                .handle_verified_signed_action(
+                    authorities[0].pubkey_bytes().clone(),
+                    authorities[0].voting_power,
+                    VerifiedSignedBridgeAction::new_from_verified(sig_0.clone())
+                )
+                .unwrap()
+                .is_none()
+        );
         assert_eq!(state.total_ok_stake, 2500);
 
         // Handling a sig from an already signed authority would fail
@@ -611,14 +619,16 @@ mod tests {
         // Collect signtuare from authority 1 (voting power = 1)
         let sig_1 = sign_action_with_key(&action, &secrets[1]);
         // returns Ok(None)
-        assert!(state
-            .handle_verified_signed_action(
-                authorities[1].pubkey_bytes().clone(),
-                authorities[1].voting_power,
-                VerifiedSignedBridgeAction::new_from_verified(sig_1.clone())
-            )
-            .unwrap()
-            .is_none());
+        assert!(
+            state
+                .handle_verified_signed_action(
+                    authorities[1].pubkey_bytes().clone(),
+                    authorities[1].voting_power,
+                    VerifiedSignedBridgeAction::new_from_verified(sig_1.clone())
+                )
+                .unwrap()
+                .is_none()
+        );
         assert_eq!(state.total_ok_stake, 2501);
 
         // Collect signtuare from authority 2 - reach validity threshold

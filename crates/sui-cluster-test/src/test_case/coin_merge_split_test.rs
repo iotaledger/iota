@@ -1,14 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{helper::ObjectChecker, TestCaseImpl, TestContext};
 use async_trait::async_trait;
 use jsonrpsee::rpc_params;
 use sui_json_rpc_types::{SuiTransactionBlockEffectsAPI, SuiTransactionBlockResponse};
-use sui_types::base_types::{ObjectID, SuiAddress};
-use sui_types::object::Owner;
-use sui_types::sui_serde::BigInt;
+use sui_types::{
+    base_types::{ObjectID, SuiAddress},
+    object::Owner,
+    sui_serde::BigInt,
+};
 use tracing::{debug, info};
+
+use crate::{helper::ObjectChecker, TestCaseImpl, TestContext};
 
 pub struct CoinMergeSplitTest;
 
@@ -61,7 +64,8 @@ impl TestCaseImpl for CoinMergeSplitTest {
         info!("Testing coin merge.");
         let mut coins_merged = Vec::new();
         let mut txes = Vec::new();
-        // We on purpose linearize the merge operations, otherwise the primary coin may be locked
+        // We on purpose linearize the merge operations, otherwise the primary coin may
+        // be locked
         for new_coin in new_coins {
             let coin_to_merge = new_coin.reference.object_id;
             debug!(

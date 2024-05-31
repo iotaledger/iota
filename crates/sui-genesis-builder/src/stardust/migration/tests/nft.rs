@@ -3,44 +3,40 @@
 
 use std::str::FromStr;
 
-use crate::stardust::migration::tests::create_foundry;
-use crate::stardust::migration::tests::extract_native_token_from_bag;
-use crate::stardust::migration::tests::object_migration_with_object_owner;
-use crate::stardust::migration::tests::random_output_header;
-use crate::stardust::migration::tests::run_migration;
-use crate::stardust::types::stardust_to_sui_address;
-use crate::stardust::types::ALIAS_OUTPUT_MODULE_NAME;
-use crate::stardust::types::NFT_DYNAMIC_OBJECT_FIELD_KEY;
-use crate::stardust::types::NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE;
-use crate::stardust::types::NFT_OUTPUT_MODULE_NAME;
-use crate::stardust::types::{snapshot::OutputHeader, Nft, NftOutput};
+use iota_sdk::{
+    types::block::{
+        address::{AliasAddress, Ed25519Address, NftAddress},
+        output::{
+            feature::{Irc30Metadata, IssuerFeature, MetadataFeature, SenderFeature},
+            unlock_condition::{
+                AddressUnlockCondition, GovernorAddressUnlockCondition,
+                StateControllerAddressUnlockCondition,
+            },
+            AliasId, AliasOutputBuilder, Feature, NativeToken, NftId, NftOutput as StardustNft,
+            NftOutputBuilder, SimpleTokenScheme,
+        },
+    },
+    U256,
+};
+use move_core_types::ident_str;
+use sui_types::{
+    base_types::ObjectID,
+    dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo},
+    id::UID,
+    object::{Object, Owner},
+    TypeTag,
+};
 
-use iota_sdk::types::block::address::AliasAddress;
-use iota_sdk::types::block::address::NftAddress;
-use iota_sdk::types::block::output::feature::Irc30Metadata;
-use iota_sdk::types::block::output::unlock_condition::AddressUnlockCondition;
-use iota_sdk::types::block::output::unlock_condition::GovernorAddressUnlockCondition;
-use iota_sdk::types::block::output::unlock_condition::StateControllerAddressUnlockCondition;
-use iota_sdk::types::block::output::AliasId;
-use iota_sdk::types::block::output::AliasOutputBuilder;
-use iota_sdk::types::block::output::NativeToken;
-use iota_sdk::types::block::output::SimpleTokenScheme;
-use iota_sdk::types::block::{
-    address::Ed25519Address,
-    output::{
-        feature::{IssuerFeature, MetadataFeature, SenderFeature},
-        Feature, NftId, NftOutput as StardustNft, NftOutputBuilder,
+use crate::stardust::{
+    migration::tests::{
+        create_foundry, extract_native_token_from_bag, object_migration_with_object_owner,
+        random_output_header, run_migration,
+    },
+    types::{
+        snapshot::OutputHeader, stardust_to_sui_address, Nft, NftOutput, ALIAS_OUTPUT_MODULE_NAME,
+        NFT_DYNAMIC_OBJECT_FIELD_KEY, NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE, NFT_OUTPUT_MODULE_NAME,
     },
 };
-use iota_sdk::U256;
-use move_core_types::ident_str;
-use sui_types::base_types::ObjectID;
-use sui_types::dynamic_field::derive_dynamic_field_id;
-use sui_types::dynamic_field::DynamicFieldInfo;
-use sui_types::id::UID;
-use sui_types::object::Object;
-use sui_types::object::Owner;
-use sui_types::TypeTag;
 
 fn migrate_nft(
     header: OutputHeader,
@@ -74,8 +70,9 @@ fn migrate_nft(
         .unwrap();
     assert_eq!(nft_output_object.struct_tag().unwrap(), NftOutput::tag());
 
-    // Version is set to 1 when the nft is created based on the computed lamport timestamp.
-    // When the nft is attached to the nft output, the version should be incremented.
+    // Version is set to 1 when the nft is created based on the computed lamport
+    // timestamp. When the nft is attached to the nft output, the version should
+    // be incremented.
     assert!(
         nft_object.version().value() > 1,
         "nft object version should have been incremented"
@@ -98,7 +95,8 @@ fn migrate_nft(
     )
 }
 
-/// Test that the migrated nft objects in the snapshot contain the expected data.
+/// Test that the migrated nft objects in the snapshot contain the expected
+/// data.
 #[test]
 fn nft_migration_with_full_features() {
     let nft_id = NftId::new(rand::random());
@@ -124,7 +122,8 @@ fn nft_migration_with_full_features() {
 
     // The bag is tested separately.
     assert_eq!(stardust_nft.amount(), nft_output.iota.value());
-    // The ID is newly generated, so we don't know the exact value, but it should not be zero.
+    // The ID is newly generated, so we don't know the exact value, but it should
+    // not be zero.
     assert_ne!(nft_output.id, UID::new(ObjectID::ZERO));
     assert!(nft_output.storage_deposit_return.is_none());
     assert!(nft_output.expiration.is_none());
@@ -148,7 +147,8 @@ fn nft_migration_with_full_features() {
     assert_eq!(nft_output_object.owner, nft_output_owner);
 }
 
-/// Test that an Nft with a zeroed ID is migrated to an Nft Object with its UID set to the hashed Output ID.
+/// Test that an Nft with a zeroed ID is migrated to an Nft Object with its UID
+/// set to the hashed Output ID.
 #[test]
 fn nft_migration_with_zeroed_id() {
     let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
@@ -229,7 +229,8 @@ fn nft_migration_with_nft_owner() {
     );
 }
 
-/// Test that an NFT that owns Native Tokens can extract those tokens from the contained bag.
+/// Test that an NFT that owns Native Tokens can extract those tokens from the
+/// contained bag.
 #[test]
 fn nft_migration_with_native_tokens() {
     let (foundry_header, foundry_output) = create_foundry(

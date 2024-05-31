@@ -1,9 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::{exit, Command, ExitStatus};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    process::{exit, Command, ExitStatus},
+};
 
 fn main() -> Result<(), ExitStatus> {
     #[cfg(windows)]
@@ -102,7 +104,8 @@ fn should_install_dependencies(dir_path: &str) -> bool {
     if !missing_dependencies {
         return false;
     }
-    // if any dependencies are missing, recreate an empty directory and then reinstall
+    // if any dependencies are missing, recreate an empty directory and then
+    // reinstall
     eprintln!(
         "cargo:warning={:?} does not have all the dependnecies, re-creating",
         dir_path

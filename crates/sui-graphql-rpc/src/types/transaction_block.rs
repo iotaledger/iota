@@ -26,13 +26,6 @@ use sui_types::{
     },
 };
 
-use crate::{
-    consistency::Checkpointed,
-    data::{self, Db, DbConnection, QueryExecutor},
-    error::Error,
-    types::intersect,
-};
-
 use super::{
     address::Address,
     base64::Base64,
@@ -46,9 +39,16 @@ use super::{
     transaction_block_kind::TransactionBlockKind,
     type_filter::FqNameFilter,
 };
+use crate::{
+    consistency::Checkpointed,
+    data::{self, Db, DbConnection, QueryExecutor},
+    error::Error,
+    types::intersect,
+};
 
-/// Wraps the actual transaction block data with the checkpoint sequence number at which the data
-/// was viewed, for consistent results on paginating through and resolving nested types.
+/// Wraps the actual transaction block data with the checkpoint sequence number
+/// at which the data was viewed, for consistent results on paginating through
+/// and resolving nested types.
 #[derive(Clone, Debug)]
 pub(crate) struct TransactionBlock {
     pub inner: TransactionBlockInner,
@@ -72,7 +72,8 @@ pub(crate) enum TransactionBlockInner {
         events: Vec<NativeEvent>,
     },
     /// A transaction block that has been executed via dryRunTransactionBlock.
-    /// This variant also does not return signatures or digest since only `NativeTransactionData` is present.
+    /// This variant also does not return signatures or digest since only
+    /// `NativeTransactionData` is present.
     DryRun {
         tx_data: NativeTransactionData,
         effects: NativeTransactionEffects,
@@ -94,7 +95,8 @@ pub(crate) enum TransactionBlockKindInput {
 pub(crate) struct TransactionBlockFilter {
     pub function: Option<FqNameFilter>,
 
-    /// An input filter selecting for either system or programmable transactions.
+    /// An input filter selecting for either system or programmable
+    /// transactions.
     pub kind: Option<TransactionBlockKindInput>,
     pub after_checkpoint: Option<u64>,
     pub at_checkpoint: Option<u64>,
@@ -112,9 +114,9 @@ pub(crate) struct TransactionBlockFilter {
 pub(crate) type Cursor = cursor::JsonCursor<TransactionBlockCursor>;
 type Query<ST, GB> = data::Query<ST, transactions::table, GB>;
 
-/// The cursor returned for each `TransactionBlock` in a connection's page of results. The
-/// `checkpoint_viewed_at` will set the consistent upper bound for subsequent queries made on this
-/// cursor.
+/// The cursor returned for each `TransactionBlock` in a connection's page of
+/// results. The `checkpoint_viewed_at` will set the consistent upper bound for
+/// subsequent queries made on this cursor.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub(crate) struct TransactionBlockCursor {
     /// The checkpoint sequence number this was viewed at.
@@ -129,15 +131,16 @@ pub(crate) struct TransactionBlockCursor {
 
 #[Object]
 impl TransactionBlock {
-    /// A 32-byte hash that uniquely identifies the transaction block contents, encoded in Base58.
-    /// This serves as a unique id for the block on chain.
+    /// A 32-byte hash that uniquely identifies the transaction block contents,
+    /// encoded in Base58. This serves as a unique id for the block on
+    /// chain.
     async fn digest(&self) -> Option<String> {
         self.native_signed_data()
             .map(|s| Base58::encode(s.digest()))
     }
 
-    /// The address corresponding to the public key that signed this transaction. System
-    /// transactions do not have senders.
+    /// The address corresponding to the public key that signed this
+    /// transaction. System transactions do not have senders.
     async fn sender(&self) -> Option<Address> {
         let sender = self.native().sender();
 
@@ -147,11 +150,12 @@ impl TransactionBlock {
         })
     }
 
-    /// The gas input field provides information on what objects were used as gas as well as the
-    /// owner of the gas object(s) and information on the gas price and budget.
+    /// The gas input field provides information on what objects were used as
+    /// gas as well as the owner of the gas object(s) and information on the
+    /// gas price and budget.
     ///
-    /// If the owner of the gas object(s) is not the same as the sender, the transaction block is a
-    /// sponsored transaction block.
+    /// If the owner of the gas object(s) is not the same as the sender, the
+    /// transaction block is a sponsored transaction block.
     async fn gas_input(&self) -> Option<GasInput> {
         let checkpoint_sequence_number = match &self.inner {
             TransactionBlockInner::Stored { stored_tx, .. } => {
@@ -166,8 +170,8 @@ impl TransactionBlock {
         ))
     }
 
-    /// The type of this transaction as well as the commands and/or parameters comprising the
-    /// transaction of this kind.
+    /// The type of this transaction as well as the commands and/or parameters
+    /// comprising the transaction of this kind.
     async fn kind(&self) -> Option<TransactionBlockKind> {
         Some(TransactionBlockKind::from(
             self.native().kind().clone(),
@@ -175,8 +179,8 @@ impl TransactionBlock {
         ))
     }
 
-    /// A list of all signatures, Base64-encoded, from senders, and potentially the gas owner if
-    /// this is a sponsored transaction.
+    /// A list of all signatures, Base64-encoded, from senders, and potentially
+    /// the gas owner if this is a sponsored transaction.
     async fn signatures(&self) -> Option<Vec<Base64>> {
         self.native_signed_data().map(|s| {
             s.tx_signatures()
@@ -186,14 +190,16 @@ impl TransactionBlock {
         })
     }
 
-    /// The effects field captures the results to the chain of executing this transaction.
+    /// The effects field captures the results to the chain of executing this
+    /// transaction.
     async fn effects(&self) -> Result<Option<TransactionBlockEffects>> {
         Ok(Some(self.clone().try_into().extend()?))
     }
 
-    /// This field is set by senders of a transaction block. It is an epoch reference that sets a
-    /// deadline after which validators will no longer consider the transaction valid. By default,
-    /// there is no deadline for when a transaction must execute.
+    /// This field is set by senders of a transaction block. It is an epoch
+    /// reference that sets a deadline after which validators will no longer
+    /// consider the transaction valid. By default, there is no deadline for
+    /// when a transaction must execute.
     async fn expiration(&self, ctx: &Context<'_>) -> Result<Option<Epoch>> {
         let TransactionExpiration::Epoch(id) = self.native().expiration() else {
             return Ok(None);
@@ -204,7 +210,8 @@ impl TransactionBlock {
             .extend()
     }
 
-    /// Serialized form of this transaction's `SenderSignedData`, BCS serialized and Base64 encoded.
+    /// Serialized form of this transaction's `SenderSignedData`, BCS serialized
+    /// and Base64 encoded.
     async fn bcs(&self) -> Option<Base64> {
         match &self.inner {
             TransactionBlockInner::Stored { stored_tx, .. } => {
@@ -236,9 +243,10 @@ impl TransactionBlock {
         }
     }
 
-    /// Look up a `TransactionBlock` in the database, by its transaction digest. If
-    /// `checkpoint_viewed_at` is provided, the transaction block will inherit the value. Otherwise,
-    /// it will be set to the upper bound of the available range at the time of the query.
+    /// Look up a `TransactionBlock` in the database, by its transaction digest.
+    /// If `checkpoint_viewed_at` is provided, the transaction block will
+    /// inherit the value. Otherwise, it will be set to the upper bound of
+    /// the available range at the time of the query.
     pub(crate) async fn query(
         db: &Db,
         digest: Digest,
@@ -275,9 +283,10 @@ impl TransactionBlock {
         }))
     }
 
-    /// Look up multiple `TransactionBlock`s by their digests. Returns a map from those digests to
-    /// their resulting transaction blocks, for the blocks that could be found. We return a map
-    /// because the order of results from the DB is not otherwise guaranteed to match the order that
+    /// Look up multiple `TransactionBlock`s by their digests. Returns a map
+    /// from those digests to their resulting transaction blocks, for the
+    /// blocks that could be found. We return a map because the order of
+    /// results from the DB is not otherwise guaranteed to match the order that
     /// digests were passed into `multi_query`.
     pub(crate) async fn multi_query(
         db: &Db,
@@ -312,17 +321,19 @@ impl TransactionBlock {
         Ok(transactions)
     }
 
-    /// Query the database for a `page` of TransactionBlocks. The page uses `tx_sequence_number` and
-    /// `checkpoint_viewed_at` as the cursor, and can optionally be further `filter`-ed.
+    /// Query the database for a `page` of TransactionBlocks. The page uses
+    /// `tx_sequence_number` and `checkpoint_viewed_at` as the cursor, and
+    /// can optionally be further `filter`-ed.
     ///
     /// The `checkpoint_viewed_at` parameter is an Option<u64> representing the
-    /// checkpoint_sequence_number at which this page was queried for, or `None` if the data was
-    /// requested at the latest checkpoint. Each entity returned in the connection will inherit this
-    /// checkpoint, so that when viewing that entity's state, it will be from the reference of this
+    /// checkpoint_sequence_number at which this page was queried for, or `None`
+    /// if the data was requested at the latest checkpoint. Each entity
+    /// returned in the connection will inherit this checkpoint, so that
+    /// when viewing that entity's state, it will be from the reference of this
     /// checkpoint_viewed_at parameter.
     ///
-    /// If the `Page<Cursor>` is set, then this function will defer to the `checkpoint_viewed_at` in
-    /// the cursor if they are consistent.
+    /// If the `Page<Cursor>` is set, then this function will defer to the
+    /// `checkpoint_viewed_at` in the cursor if they are consistent.
     pub(crate) async fn paginate(
         db: &Db,
         page: Page<Cursor>,
@@ -426,8 +437,9 @@ impl TransactionBlock {
 
         let mut conn = Connection::new(prev, next);
 
-        // Defer to the provided checkpoint_viewed_at, but if it is not provided, use the
-        // current available range. This sets a consistent upper bound for the nested queries.
+        // Defer to the provided checkpoint_viewed_at, but if it is not provided, use
+        // the current available range. This sets a consistent upper bound for
+        // the nested queries.
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             let inner = TransactionBlockInner::try_from(stored)?;
@@ -443,9 +455,10 @@ impl TransactionBlock {
 }
 
 impl TransactionBlockFilter {
-    /// Try to create a filter whose results are the intersection of transaction blocks in `self`'s
-    /// results and transaction blocks in `other`'s results. This may not be possible if the
-    /// resulting filter is inconsistent in some way (e.g. a filter that requires one field to be
+    /// Try to create a filter whose results are the intersection of transaction
+    /// blocks in `self`'s results and transaction blocks in `other`'s
+    /// results. This may not be possible if the resulting filter is
+    /// inconsistent in some way (e.g. a filter that requires one field to be
     /// two different values simultaneously).
     pub(crate) fn intersect(self, other: Self) -> Option<Self> {
         macro_rules! intersect {

@@ -8,13 +8,14 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use serde_json as json;
 
-/// Groups of features served by the RPC service.  The GraphQL Service can be configured to enable
-/// or disable these features.
+/// Groups of features served by the RPC service.  The GraphQL Service can be
+/// configured to enable or disable these features.
 #[derive(Enum, Copy, Clone, Serialize, Deserialize, Debug, Eq, PartialEq, Ord, PartialOrd)]
 #[serde(rename_all = "kebab-case")]
 #[graphql(name = "Feature")]
 pub(crate) enum FunctionalGroup {
-    /// Statistics about how the network was running (TPS, top packages, APY, etc)
+    /// Statistics about how the network was running (TPS, top packages, APY,
+    /// etc)
     Analytics,
 
     /// Coin metadata, per-address coin and balance information.
@@ -35,8 +36,9 @@ pub(crate) enum FunctionalGroup {
 }
 
 impl FunctionalGroup {
-    /// Name that the group is referred to by in configuration and responses on the GraphQL API.
-    /// Not a suitable `Display` implementation because it enquotes the representation.
+    /// Name that the group is referred to by in configuration and responses on
+    /// the GraphQL API. Not a suitable `Display` implementation because it
+    /// enquotes the representation.
     pub(crate) fn name(&self) -> String {
         json::ser::to_string(self).expect("Serializing `FunctionalGroup` cannot fail.")
     }
@@ -56,11 +58,13 @@ impl FunctionalGroup {
     }
 }
 
-/// Mapping from type and field name in the schema to the functional group it belongs to.
+/// Mapping from type and field name in the schema to the functional group it
+/// belongs to.
 fn functional_groups() -> &'static BTreeMap<(&'static str, &'static str), FunctionalGroup> {
-    // TODO: Introduce a macro to declare the functional group for a field and/or type on the
-    // appropriate type, field, or function, instead of here.  This may also be able to set the
-    // graphql `visible` attribute to control schema visibility by functional groups.
+    // TODO: Introduce a macro to declare the functional group for a field and/or
+    // type on the appropriate type, field, or function, instead of here.  This
+    // may also be able to set the graphql `visible` attribute to control schema
+    // visibility by functional groups.
 
     use FunctionalGroup as G;
     static GROUPS: Lazy<BTreeMap<(&str, &str), FunctionalGroup>> = Lazy::new(|| {
@@ -108,8 +112,8 @@ fn functional_groups() -> &'static BTreeMap<(&'static str, &'static str), Functi
     Lazy::force(&GROUPS)
 }
 
-/// Map a type and field name to a functional group.  If an explicit group does not exist for the
-/// field, then it is assumed to be a "core" feature.
+/// Map a type and field name to a functional group.  If an explicit group does
+/// not exist for the field, then it is assumed to be a "core" feature.
 pub(crate) fn functional_group(type_: &str, field: &str) -> Option<FunctionalGroup> {
     functional_groups().get(&(type_, field)).copied()
 }
@@ -118,17 +122,16 @@ pub(crate) fn functional_group(type_: &str, field: &str) -> Option<FunctionalGro
 mod tests {
     use std::collections::BTreeSet;
 
-    use async_graphql::registry::Registry;
-    use async_graphql::OutputType;
-
-    use crate::types::query::Query;
+    use async_graphql::{registry::Registry, OutputType};
 
     use super::*;
+    use crate::types::query::Query;
 
     #[test]
-    /// Makes sure all the functional groups correspond to real elements of the schema unless they
-    /// are explicitly recorded as unimplemented.  Complementarily, makes sure that fields marked as
-    /// unimplemented don't appear in the set of unimplemented fields.
+    /// Makes sure all the functional groups correspond to real elements of the
+    /// schema unless they are explicitly recorded as unimplemented.
+    /// Complementarily, makes sure that fields marked as unimplemented
+    /// don't appear in the set of unimplemented fields.
     fn test_groups_match_schema() {
         let mut registry = Registry::default();
         Query::create_type_info(&mut registry);

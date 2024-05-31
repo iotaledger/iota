@@ -1,19 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{env, path::PathBuf};
+
 use anyhow::Result;
 use prometheus::Registry;
 use serde::{Deserialize, Serialize};
-use std::env;
-use std::path::PathBuf;
 use sui_data_ingestion::{
     ArchivalConfig, ArchivalWorker, BlobTaskConfig, BlobWorker, DynamoDBProgressStore,
     KVStoreTaskConfig, KVStoreWorker,
 };
-use sui_data_ingestion_core::{DataIngestionMetrics, ReaderOptions};
-use sui_data_ingestion_core::{IndexerExecutor, WorkerPool};
-use tokio::signal;
-use tokio::sync::oneshot;
+use sui_data_ingestion_core::{DataIngestionMetrics, IndexerExecutor, ReaderOptions, WorkerPool};
+use tokio::{signal, sync::oneshot};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "lowercase")]

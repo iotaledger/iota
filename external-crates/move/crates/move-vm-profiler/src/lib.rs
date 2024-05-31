@@ -1,9 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use move_vm_config::runtime::VMProfilerConfig;
-use serde::Serialize;
 use std::collections::BTreeMap;
 
+use move_vm_config::runtime::VMProfilerConfig;
+use serde::Serialize;
 #[cfg(feature = "gas-profiler")]
 use tracing::info;
 
@@ -180,10 +180,12 @@ impl GasProfiler {
 
     #[cfg(feature = "gas-profiler")]
     pub fn to_file(&self) {
-        use std::ffi::{OsStr, OsString};
-        use std::fs::File;
-        use std::io::Write;
-        use std::time::SystemTime;
+        use std::{
+            ffi::{OsStr, OsString},
+            fs::File,
+            io::Write,
+            time::SystemTime,
+        };
 
         let Some(config) = &self.config else {
             return;

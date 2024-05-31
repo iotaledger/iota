@@ -1,14 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::error::ExecutionErrorKind;
-use crate::error::SuiError;
-use crate::{
-    balance::{Balance, Supply},
-    error::ExecutionError,
-    object::{Data, Object},
-};
-use crate::{base_types::ObjectID, id::UID, SUI_FRAMEWORK_ADDRESS};
 use move_core_types::{
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
@@ -17,6 +9,15 @@ use move_core_types::{
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+use crate::{
+    balance::{Balance, Supply},
+    base_types::ObjectID,
+    error::{ExecutionError, ExecutionErrorKind, SuiError},
+    id::UID,
+    object::{Data, Object},
+    SUI_FRAMEWORK_ADDRESS,
+};
 
 pub const COIN_MODULE_NAME: &IdentStr = ident_str!("coin");
 pub const COIN_STRUCT_NAME: &IdentStr = ident_str!("Coin");
@@ -64,9 +65,10 @@ impl Coin {
         bcs::from_bytes(content)
     }
 
-    /// If the given object is a Coin, deserialize its contents and extract the balance Ok(Some(u64)).
-    /// If it's not a Coin, return Ok(None).
-    /// The cost is 2 comparisons if not a coin, and deserialization if its a Coin.
+    /// If the given object is a Coin, deserialize its contents and extract the
+    /// balance Ok(Some(u64)). If it's not a Coin, return Ok(None).
+    /// The cost is 2 comparisons if not a coin, and deserialization if its a
+    /// Coin.
     pub fn extract_balance_if_coin(object: &Object) -> Result<Option<u64>, bcs::Error> {
         match &object.data {
             Data::Move(move_obj) => {
@@ -109,7 +111,8 @@ impl Coin {
         }
     }
 
-    /// Add balance to this coin, erroring if the new total balance exceeds the maximum
+    /// Add balance to this coin, erroring if the new total balance exceeds the
+    /// maximum
     pub fn add(&mut self, balance: Balance) -> Result<(), ExecutionError> {
         let Some(new_value) = self.value().checked_add(balance.value()) else {
             return Err(ExecutionError::from_kind(
@@ -121,8 +124,9 @@ impl Coin {
     }
 
     // Split amount out of this coin to a new coin.
-    // Related coin objects need to be updated in temporary_store to persist the changes,
-    // including creating the coin object related to the newly created coin.
+    // Related coin objects need to be updated in temporary_store to persist the
+    // changes, including creating the coin object related to the newly created
+    // coin.
     pub fn split(&mut self, amount: u64, new_coin_id: UID) -> Result<Coin, ExecutionError> {
         self.balance.withdraw(amount)?;
         Ok(Coin::new(new_coin_id, amount))

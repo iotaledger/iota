@@ -15,59 +15,59 @@ import * as Yup from 'yup';
 const MIN_CHAR = 5;
 
 const validation = Yup.object({
-	rpcInput: Yup.string()
-		.required()
-		.label('Custom RPC URL')
-		.min(MIN_CHAR)
-		.test('validate-url', 'Not a valid URL', (value) => isValidUrl(value || null)),
+    rpcInput: Yup.string()
+        .required()
+        .label('Custom RPC URL')
+        .min(MIN_CHAR)
+        .test('validate-url', 'Not a valid URL', (value) => isValidUrl(value || null)),
 });
 
 export function CustomRPCInput() {
-	const placeholder = 'http://localhost:3000/';
+    const placeholder = 'http://localhost:3000/';
 
-	const customRpc = useAppSelector(({ app }) => app.customRpc || '');
+    const customRpc = useAppSelector(({ app }) => app.customRpc || '');
 
-	const dispatch = useAppDispatch();
+    const dispatch = useAppDispatch();
 
-	const changeNetwork = useCallback(
-		async ({ rpcInput }: { rpcInput: string }) => {
-			try {
-				await dispatch(
-					changeActiveNetwork({
-						network: {
-							network: Network.Custom,
-							customRpcUrl: rpcInput,
-						},
-						store: true,
-					}),
-				).unwrap();
-				ampli.switchedNetwork({
-					toNetwork: rpcInput,
-				});
-			} catch (e) {
-				toast.error((e as Error).message);
-			}
-		},
-		[dispatch],
-	);
+    const changeNetwork = useCallback(
+        async ({ rpcInput }: { rpcInput: string }) => {
+            try {
+                await dispatch(
+                    changeActiveNetwork({
+                        network: {
+                            network: Network.Custom,
+                            customRpcUrl: rpcInput,
+                        },
+                        store: true,
+                    }),
+                ).unwrap();
+                ampli.switchedNetwork({
+                    toNetwork: rpcInput,
+                });
+            } catch (e) {
+                toast.error((e as Error).message);
+            }
+        },
+        [dispatch],
+    );
 
-	return (
-		<Formik
-			initialValues={{ rpcInput: customRpc }}
-			validationSchema={validation}
-			onSubmit={changeNetwork}
-			enableReinitialize={true}
-		>
-			<Form>
-				<InputWithAction
-					type="text"
-					name="rpcInput"
-					min={MIN_CHAR}
-					actionDisabled="auto"
-					placeholder={placeholder}
-					actionText="Save"
-				/>
-			</Form>
-		</Formik>
-	);
+    return (
+        <Formik
+            initialValues={{ rpcInput: customRpc }}
+            validationSchema={validation}
+            onSubmit={changeNetwork}
+            enableReinitialize={true}
+        >
+            <Form>
+                <InputWithAction
+                    type="text"
+                    name="rpcInput"
+                    min={MIN_CHAR}
+                    actionDisabled="auto"
+                    placeholder={placeholder}
+                    actionText="Save"
+                />
+            </Form>
+        </Formik>
+    );
 }

@@ -7,38 +7,45 @@ import { type SubmitHandler } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 
+import { seedValidation } from '../../helpers/validation/seedValidation';
 import { Form } from '../../shared/forms/Form';
 import { TextAreaField } from '../../shared/forms/TextAreaField';
 
-const formSchema = z.object({});
+const formSchema = z.object({
+    seed: seedValidation,
+});
 
 type FormValues = z.infer<typeof formSchema>;
 
 type ImportSeedFormProps = {
-	onSubmit: SubmitHandler<FormValues>;
+    onSubmit: SubmitHandler<FormValues>;
 };
 
 export function ImportSeedForm({ onSubmit }: ImportSeedFormProps) {
-	const form = useZodForm({
-		mode: 'onTouched',
-		schema: formSchema,
-	});
-	const navigate = useNavigate();
+    const form = useZodForm({
+        mode: 'onTouched',
+        schema: formSchema,
+    });
+    const {
+        register,
+        formState: { isSubmitting, isValid },
+    } = form;
+    const navigate = useNavigate();
 
-	return (
-		<Form className="flex flex-col h-full gap-2" form={form} onSubmit={onSubmit}>
-			<TextAreaField label="Enter Seed" name={''} rows={3} />
-			<div className="flex gap-2.5 mt-auto">
-				<Button variant="outline" size="tall" text="Cancel" onClick={() => navigate(-1)} />
-				<Button
-					type="submit"
-					disabled={true}
-					variant="primary"
-					size="tall"
-					loading={false}
-					text="Add Account"
-				/>
-			</div>
-		</Form>
-	);
+    return (
+        <Form className="flex h-full flex-col gap-2" form={form} onSubmit={onSubmit}>
+            <TextAreaField label="Enter Seed" rows={5} {...register('seed')} />
+            <div className="mt-auto flex gap-2.5">
+                <Button variant="outline" size="tall" text="Cancel" onClick={() => navigate(-1)} />
+                <Button
+                    type="submit"
+                    disabled={isSubmitting || !isValid}
+                    variant="primary"
+                    size="tall"
+                    loading={isSubmitting}
+                    text="Add Account"
+                />
+            </div>
+        </Form>
+    );
 }

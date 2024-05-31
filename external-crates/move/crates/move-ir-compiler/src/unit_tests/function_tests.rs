@@ -2,8 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::unit_tests::testutils::compile_module_string;
 use std::fmt::Write;
+
+use crate::unit_tests::testutils::compile_module_string;
 
 fn generate_function(name: &str, num_formals: usize, num_locals: usize) -> String {
     let mut code = format!("public {}(", name);
@@ -43,8 +44,8 @@ fn compile_module_with_large_frame() {
         ",
     );
 
-    // Default metering in place, so use reasonable values. This may need to be changed
-    // when the metering changes, and gives a useful signal.
+    // Default metering in place, so use reasonable values. This may need to be
+    // changed when the metering changes, and gives a useful signal.
     code.push_str(&generate_function("foo_func", 64, 90));
 
     code.push('}');

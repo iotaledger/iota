@@ -1,31 +1,36 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority::authority_store_pruner::{
-    AuthorityStorePruner, AuthorityStorePruningMetrics, EPOCH_DURATION_MS_FOR_TESTING,
-};
-use crate::authority::authority_store_tables::AuthorityPerpetualTables;
-use crate::checkpoints::CheckpointStore;
+use std::{fs, num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
+
 use anyhow::Result;
 use bytes::Bytes;
 use futures::future::try_join_all;
-use object_store::path::Path;
-use object_store::DynObjectStore;
+use object_store::{path::Path, DynObjectStore};
 use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
-use std::fs;
-use std::num::NonZeroUsize;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::Duration;
-use sui_config::node::AuthorityStorePruningConfig;
-use sui_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-use sui_storage::mutex_table::RwLockTable;
-use sui_storage::object_store::util::{
-    copy_recursively, find_all_dirs_with_epoch_prefix, find_missing_epochs_dirs,
-    path_to_filesystem, put, run_manifest_update_loop, write_snapshot_manifest,
+use sui_config::{
+    node::AuthorityStorePruningConfig,
+    object_storage_config::{ObjectStoreConfig, ObjectStoreType},
+};
+use sui_storage::{
+    mutex_table::RwLockTable,
+    object_store::util::{
+        copy_recursively, find_all_dirs_with_epoch_prefix, find_missing_epochs_dirs,
+        path_to_filesystem, put, run_manifest_update_loop, write_snapshot_manifest,
+    },
 };
 use tracing::{debug, error, info};
 use typed_store::rocks::MetricConf;
+
+use crate::{
+    authority::{
+        authority_store_pruner::{
+            AuthorityStorePruner, AuthorityStorePruningMetrics, EPOCH_DURATION_MS_FOR_TESTING,
+        },
+        authority_store_tables::AuthorityPerpetualTables,
+    },
+    checkpoints::CheckpointStore,
+};
 
 pub const SUCCESS_MARKER: &str = "_SUCCESS";
 pub const TEST_MARKER: &str = "_TEST";
@@ -59,9 +64,11 @@ pub struct DBCheckpointHandler {
     output_object_store: Option<Arc<DynObjectStore>>,
     /// Time interval to check for presence of new db checkpoint
     interval: Duration,
-    /// File markers which signal that local db checkpoint can be garbage collected
+    /// File markers which signal that local db checkpoint can be garbage
+    /// collected
     gc_markers: Vec<String>,
-    /// Boolean flag to enable/disable object pruning and manual compaction before upload
+    /// Boolean flag to enable/disable object pruning and manual compaction
+    /// before upload
     prune_and_compact_before_upload: bool,
     /// Indirect object config for pruner
     indirect_objects_threshold: usize,
@@ -289,14 +296,18 @@ impl DBCheckpointHandler {
             .expect("Expected object store to exist")
             .clone();
         for (epoch, db_path) in dirs {
-            // Convert `db_path` to the local filesystem path to where db checkpoint is stored
+            // Convert `db_path` to the local filesystem path to where db checkpoint is
+            // stored
             let local_db_path = path_to_filesystem(self.input_root_path.clone(), db_path)?;
             if missing_epochs.contains(epoch) || *epoch >= last_missing_epoch {
                 if self.state_snapshot_enabled {
                     let snapshot_completed_marker =
                         local_db_path.join(STATE_SNAPSHOT_COMPLETED_MARKER);
                     if !snapshot_completed_marker.exists() {
-                        info!("DB checkpoint upload for epoch {} to wait until state snasphot uploaded", *epoch);
+                        info!(
+                            "DB checkpoint upload for epoch {} to wait until state snasphot uploaded",
+                            *epoch
+                        );
                         continue;
                     }
                 }
@@ -316,7 +327,8 @@ impl DBCheckpointHandler {
                 )
                 .await?;
 
-                // This writes a single "MANIFEST" file which contains a list of all files that make up a db snapshot
+                // This writes a single "MANIFEST" file which contains a list of all files that
+                // make up a db snapshot
                 write_snapshot_manifest(db_path, &object_store, format!("epoch_{}/", epoch))
                     .await?;
                 // Drop marker in the output directory that upload completed successfully
@@ -372,16 +384,18 @@ impl DBCheckpointHandler {
 
 #[cfg(test)]
 mod tests {
-    use crate::db_checkpoint_handler::{
-        DBCheckpointHandler, SUCCESS_MARKER, TEST_MARKER, UPLOAD_COMPLETED_MARKER,
-    };
-    use itertools::Itertools;
     use std::fs;
+
+    use itertools::Itertools;
     use sui_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
     use sui_storage::object_store::util::{
         find_all_dirs_with_epoch_prefix, find_missing_epochs_dirs, path_to_filesystem,
     };
     use tempfile::TempDir;
+
+    use crate::db_checkpoint_handler::{
+        DBCheckpointHandler, SUCCESS_MARKER, TEST_MARKER, UPLOAD_COMPLETED_MARKER,
+    };
 
     #[tokio::test]
     async fn test_basic() -> anyhow::Result<()> {
@@ -445,9 +459,11 @@ mod tests {
         assert!(remote_epoch0_checkpoint.join("file2").exists());
         assert!(remote_epoch0_checkpoint.join("data").join("file3").exists());
         assert!(remote_epoch0_checkpoint.join(SUCCESS_MARKER).exists());
-        assert!(local_epoch0_checkpoint
-            .join(UPLOAD_COMPLETED_MARKER)
-            .exists());
+        assert!(
+            local_epoch0_checkpoint
+                .join(UPLOAD_COMPLETED_MARKER)
+                .exists()
+        );
 
         // Drop an extra gc marker meant only for gc to trigger
         let test_marker = local_epoch0_checkpoint.join(TEST_MARKER);
@@ -513,9 +529,11 @@ mod tests {
         assert!(remote_epoch0_checkpoint.join("file2").exists());
         assert!(remote_epoch0_checkpoint.join("data").join("file3").exists());
         assert!(remote_epoch0_checkpoint.join(SUCCESS_MARKER).exists());
-        assert!(local_epoch0_checkpoint
-            .join(UPLOAD_COMPLETED_MARKER)
-            .exists());
+        assert!(
+            local_epoch0_checkpoint
+                .join(UPLOAD_COMPLETED_MARKER)
+                .exists()
+        );
 
         // Add a new db checkpoint to the local checkpoint directory
         let local_epoch1_checkpoint = checkpoint_dir_path.join("epoch_1");
@@ -547,18 +565,22 @@ mod tests {
         assert!(remote_epoch0_checkpoint.join("file2").exists());
         assert!(remote_epoch0_checkpoint.join("data").join("file3").exists());
         assert!(remote_epoch0_checkpoint.join(SUCCESS_MARKER).exists());
-        assert!(local_epoch0_checkpoint
-            .join(UPLOAD_COMPLETED_MARKER)
-            .exists());
+        assert!(
+            local_epoch0_checkpoint
+                .join(UPLOAD_COMPLETED_MARKER)
+                .exists()
+        );
 
         let remote_epoch1_checkpoint = remote_checkpoint_dir_path.join("epoch_1");
         assert!(remote_epoch1_checkpoint.join("file1").exists());
         assert!(remote_epoch1_checkpoint.join("file2").exists());
         assert!(remote_epoch1_checkpoint.join("data").join("file3").exists());
         assert!(remote_epoch1_checkpoint.join(SUCCESS_MARKER).exists());
-        assert!(local_epoch1_checkpoint
-            .join(UPLOAD_COMPLETED_MARKER)
-            .exists());
+        assert!(
+            local_epoch1_checkpoint
+                .join(UPLOAD_COMPLETED_MARKER)
+                .exists()
+        );
 
         // Drop an extra gc marker meant only for gc to trigger
         let test_marker = local_epoch0_checkpoint.join(TEST_MARKER);

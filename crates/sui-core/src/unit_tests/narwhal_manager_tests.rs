@@ -1,31 +1,37 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority::test_authority_builder::TestAuthorityBuilder;
-use crate::authority::AuthorityState;
-use crate::checkpoints::{CheckpointMetrics, CheckpointService, CheckpointServiceNoop};
-use crate::consensus_handler::ConsensusHandlerInitializer;
-use crate::consensus_manager::narwhal_manager::{NarwhalConfiguration, NarwhalManager};
-use crate::consensus_manager::{ConsensusManagerMetrics, ConsensusManagerTrait};
-use crate::consensus_validator::{SuiTxValidator, SuiTxValidatorMetrics};
-use crate::state_accumulator::StateAccumulator;
+use std::{sync::Arc, time::Duration};
+
 use bytes::Bytes;
-use fastcrypto::bls12381;
-use fastcrypto::traits::KeyPair;
+use fastcrypto::{bls12381, traits::KeyPair};
 use mysten_metrics::RegistryService;
 use narwhal_config::{Epoch, WorkerCache};
 use narwhal_types::{TransactionProto, TransactionsClient};
 use prometheus::Registry;
-use std::sync::Arc;
-use std::time::Duration;
 use sui_swarm_config::network_config_builder::ConfigBuilder;
-use sui_types::messages_checkpoint::{
-    CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary,
+use sui_types::{
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary},
+    sui_system_state::{
+        epoch_start_sui_system_state::EpochStartSystemStateTrait, SuiSystemStateTrait,
+    },
 };
-use sui_types::sui_system_state::epoch_start_sui_system_state::EpochStartSystemStateTrait;
-use sui_types::sui_system_state::SuiSystemStateTrait;
-use tokio::sync::{broadcast, mpsc};
-use tokio::time::{interval, sleep};
+use tokio::{
+    sync::{broadcast, mpsc},
+    time::{interval, sleep},
+};
+
+use crate::{
+    authority::{test_authority_builder::TestAuthorityBuilder, AuthorityState},
+    checkpoints::{CheckpointMetrics, CheckpointService, CheckpointServiceNoop},
+    consensus_handler::ConsensusHandlerInitializer,
+    consensus_manager::{
+        narwhal_manager::{NarwhalConfiguration, NarwhalManager},
+        ConsensusManagerMetrics, ConsensusManagerTrait,
+    },
+    consensus_validator::{SuiTxValidator, SuiTxValidatorMetrics},
+    state_accumulator::StateAccumulator,
+};
 
 async fn send_transactions(
     name: &bls12381::min_sig::BLS12381PublicKey,
@@ -191,11 +197,13 @@ async fn test_narwhal_manager() {
         // ensure that no primary or worker node is running
         assert!(!narwhal_manager.is_running().await);
         assert!(!narwhal_manager.primary_node.is_running().await);
-        assert!(narwhal_manager
-            .worker_nodes
-            .workers_running()
-            .await
-            .is_empty());
+        assert!(
+            narwhal_manager
+                .worker_nodes
+                .workers_running()
+                .await
+                .is_empty()
+        );
 
         let system_state = state
             .get_sui_system_state_object_for_testing()

@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Error types pertaining to deserializing Stardust snapshots
-use iota_sdk::types::block::output::FoundryId;
 use std::convert::Infallible;
 
+use iota_sdk::types::block::output::FoundryId;
 use packable::error::UnknownTagError;
 use thiserror::Error;
 
@@ -18,15 +18,23 @@ pub enum StardustError {
     BlockError(#[from] iota_sdk::types::block::Error),
     #[error("{0}")]
     UnknownTag(#[from] UnknownTagError<u8>),
-    #[error("cannot convert `FoundryOutput` with `FoundryId` {foundry_id} to `NativeTokenPackageData`: {err}")]
+    #[error(
+        "cannot convert `FoundryOutput` with `FoundryId` {foundry_id} to `NativeTokenPackageData`: {err}"
+    )]
     FoundryConversionError {
         foundry_id: FoundryId,
         err: anyhow::Error,
     },
     #[error("framework packages path not found")]
     FrameworkPackagesPathNotFound,
-    #[error("failed to derive valid move identifier from symbol `{symbol}`, invalid identifier: `{identifier}`")]
+    #[error(
+        "failed to derive valid move identifier from symbol `{symbol}`, invalid identifier: `{identifier}`"
+    )]
     InvalidMoveIdentifierDerived { symbol: String, identifier: String },
+    #[error("melting tokens must not be greater than minted tokens")]
+    MeltingTokensMustNotBeGreaterThanMintedTokens,
+    #[error("circulating supply must not be greater than maximum supply")]
+    CirculatingSupplyMustNotBeGreaterThanMaximumSupply,
 }
 
 impl From<Infallible> for StardustError {

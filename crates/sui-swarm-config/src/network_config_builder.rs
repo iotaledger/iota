@@ -1,38 +1,50 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::PathBuf;
-use std::time::Duration;
-use std::{num::NonZeroUsize, path::Path, sync::Arc};
+use std::{
+    num::NonZeroUsize,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 
 use rand::rngs::OsRng;
-use sui_config::genesis::{TokenAllocation, TokenDistributionScheduleBuilder};
-use sui_config::node::AuthorityOverloadConfig;
+use sui_config::{
+    genesis::{TokenAllocation, TokenDistributionScheduleBuilder},
+    node::AuthorityOverloadConfig,
+};
 use sui_macros::nondeterministic;
 use sui_protocol_config::SupportedProtocolVersions;
-use sui_types::base_types::{AuthorityName, SuiAddress};
-use sui_types::committee::{Committee, ProtocolVersion};
-use sui_types::crypto::{get_key_pair_from_rng, AccountKeyPair, KeypairTraits, PublicKey};
-use sui_types::object::Object;
+use sui_types::{
+    base_types::{AuthorityName, SuiAddress},
+    committee::{Committee, ProtocolVersion},
+    crypto::{get_key_pair_from_rng, AccountKeyPair, KeypairTraits, PublicKey},
+    object::Object,
+};
 
-use crate::genesis_config::{AccountConfig, ValidatorGenesisConfigBuilder, DEFAULT_GAS_AMOUNT};
-use crate::genesis_config::{GenesisConfig, ValidatorGenesisConfig};
-use crate::network_config::NetworkConfig;
-use crate::node_config_builder::ValidatorConfigBuilder;
+use crate::{
+    genesis_config::{
+        AccountConfig, GenesisConfig, ValidatorGenesisConfig, ValidatorGenesisConfigBuilder,
+        DEFAULT_GAS_AMOUNT,
+    },
+    network_config::NetworkConfig,
+    node_config_builder::ValidatorConfigBuilder,
+};
 
 pub enum CommitteeConfig {
     Size(NonZeroUsize),
     Validators(Vec<ValidatorGenesisConfig>),
     AccountKeys(Vec<AccountKeyPair>),
-    /// Indicates that a committee should be deterministically generated, using the provided rng
-    /// as a source of randomness as well as generating deterministic network port information.
+    /// Indicates that a committee should be deterministically generated, using
+    /// the provided rng as a source of randomness as well as generating
+    /// deterministic network port information.
     Deterministic((NonZeroUsize, Option<Vec<AccountKeyPair>>)),
 }
 
 pub type SupportedProtocolVersionsCallback = Arc<
     dyn Fn(
-            usize,                 /* validator idx */
-            Option<AuthorityName>, /* None for fullnode */
+            usize,                 // validator idx
+            Option<AuthorityName>, // None for fullnode
         ) -> SupportedProtocolVersions
         + Send
         + Sync
@@ -225,7 +237,8 @@ impl<R> ConfigBuilder<R> {
 }
 
 impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
-    //TODO right now we always randomize ports, we may want to have a default port configuration
+    // TODO right now we always randomize ports, we may want to have a default port
+    // configuration
     pub fn build(self) -> NetworkConfig {
         let committee = self.committee;
 
@@ -233,9 +246,9 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
         let validators = match committee {
             CommitteeConfig::Size(size) => {
                 // We always get fixed protocol keys from this function (which is isolated from
-                // external test randomness because it uses a fixed seed). Necessary because some
-                // tests call `make_tx_certs_and_signed_effects`, which locally forges a cert using
-                // this same committee.
+                // external test randomness because it uses a fixed seed). Necessary because
+                // some tests call `make_tx_certs_and_signed_effects`, which
+                // locally forges a cert using this same committee.
                 let (_, keys) = Committee::new_simple_test_committee_of_size(size.into());
 
                 keys.into_iter()
@@ -446,16 +459,15 @@ mod tests {
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashSet;
-    use std::sync::Arc;
+    use std::{collections::HashSet, sync::Arc};
+
     use sui_config::genesis::Genesis;
     use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-    use sui_types::epoch_data::EpochData;
-    use sui_types::gas::SuiGasStatus;
-    use sui_types::in_memory_storage::InMemoryStorage;
-    use sui_types::metrics::LimitsMetrics;
-    use sui_types::sui_system_state::SuiSystemStateTrait;
-    use sui_types::transaction::CheckedInputObjects;
+    use sui_types::{
+        epoch_data::EpochData, gas::SuiGasStatus, in_memory_storage::InMemoryStorage,
+        metrics::LimitsMetrics, sui_system_state::SuiSystemStateTrait,
+        transaction::CheckedInputObjects,
+    };
 
     #[test]
     fn roundtrip() {

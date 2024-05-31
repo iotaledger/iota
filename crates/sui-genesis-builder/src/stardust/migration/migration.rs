@@ -3,8 +3,14 @@
 
 //! Contains the logic for the migration process.
 
+use std::{
+    collections::HashMap,
+    io::{prelude::Write, BufWriter},
+};
+
 use anyhow::Result;
 use fastcrypto::hash::HashFunction;
+use iota_sdk::types::block::output::{FoundryOutput, Output, OutputId};
 use sui_move_build::CompiledPackage;
 use sui_protocol_config::ProtocolVersion;
 use sui_types::{
@@ -16,13 +22,6 @@ use sui_types::{
     MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID, SUI_SYSTEM_PACKAGE_ID,
     TIMELOCK_PACKAGE_ID,
 };
-
-use std::{
-    collections::HashMap,
-    io::{prelude::Write, BufWriter},
-};
-
-use iota_sdk::types::block::output::{FoundryOutput, Output, OutputId};
 
 use crate::stardust::{
     migration::{
@@ -49,18 +48,19 @@ pub(crate) const NATIVE_TOKEN_BAG_KEY_TYPE: &str = "0x01::ascii::String";
 
 /// The orchestrator of the migration process.
 ///
-/// It is run by providing an [`Iterator`] of stardust UTXOs, and holds an inner executor
-/// and in-memory object storage for their conversion into objects.
+/// It is run by providing an [`Iterator`] of stardust UTXOs, and holds an inner
+/// executor and in-memory object storage for their conversion into objects.
 ///
 /// It guarantees the following:
 ///
 /// * That foundry UTXOs are sorted by `(milestone_timestamp, output_id)`.
 /// * That the foundry packages and total supplies are created first
-/// * That all other outputs are created in a second iteration over the original UTXOs.
+/// * That all other outputs are created in a second iteration over the original
+///   UTXOs.
 /// * That the resulting ledger state is valid.
 ///
-/// The migration process results in the generation of a snapshot file with the generated
-/// objects serialized.
+/// The migration process results in the generation of a snapshot file with the
+/// generated objects serialized.
 pub struct Migration {
     target_milestone_timestamp_sec: u32,
 
@@ -138,7 +138,8 @@ impl Migration {
         self.executor.into_objects()
     }
 
-    /// Create the packages, and associated objects representing foundry outputs.
+    /// Create the packages, and associated objects representing foundry
+    /// outputs.
     fn migrate_foundries<'a>(
         &mut self,
         foundries: impl IntoIterator<Item = &'a (OutputHeader, FoundryOutput)>,
@@ -165,8 +166,8 @@ impl Migration {
                 Output::Alias(alias) => self.executor.create_alias_objects(header, alias)?,
                 Output::Nft(nft) => self.executor.create_nft_objects(header, nft)?,
                 Output::Basic(basic) => {
-                    // All timelocked vested rewards(basic outputs with the specific ID format) should be migrated
-                    // as TimeLock<Balance<IOTA>> objects.
+                    // All timelocked vested rewards(basic outputs with the specific ID format)
+                    // should be migrated as TimeLock<Balance<IOTA>> objects.
                     if timelock::is_timelocked_vested_reward(
                         header,
                         basic,
@@ -188,7 +189,8 @@ impl Migration {
         Ok(())
     }
 
-    /// Verify the ledger state represented by the objects in [`InMemoryStorage`].
+    /// Verify the ledger state represented by the objects in
+    /// [`InMemoryStorage`].
     pub fn verify_ledger_state<'a>(
         &self,
         outputs: impl IntoIterator<Item = &'a (OutputHeader, Output)>,
@@ -205,8 +207,9 @@ impl Migration {
         Ok(())
     }
 
-    /// Consumes the `Migration` and returns the underlying `Executor` and created objects map, so tests can
-    /// continue to work in the same environment as the migration.
+    /// Consumes the `Migration` and returns the underlying `Executor` and
+    /// created objects map, so tests can continue to work in the same
+    /// environment as the migration.
     #[cfg(test)]
     pub(super) fn into_parts(self) -> (Executor, HashMap<OutputId, CreatedObjects>) {
         (self.executor, self.output_objects_map)

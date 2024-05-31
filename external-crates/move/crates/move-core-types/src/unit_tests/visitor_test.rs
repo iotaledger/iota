@@ -372,8 +372,9 @@ fn nested_typed_struct_visit() {
 [3] 2: u32
 [3] 3: u32"#;
 
-    // This is a little strange -- even though we are deserializing a struct, we still get a value.
-    // This is because the return type comes from the visitor, not the deserializer.
+    // This is a little strange -- even though we are deserializing a struct, we
+    // still get a value. This is because the return type comes from the
+    // visitor, not the deserializer.
     assert_eq!(value, from_value);
     assert_eq!(value, from_struct);
 
@@ -453,8 +454,8 @@ fn peek_field_test() {
             Ok(None)
         }
 
-        /// Field specifier doesn't support vectors, so we know we won't find the field we want
-        /// under here.
+        /// Field specifier doesn't support vectors, so we know we won't find
+        /// the field we want under here.
         fn visit_vector(
             &mut self,
             _: &mut VecDriver<'_, '_, '_>,

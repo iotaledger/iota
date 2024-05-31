@@ -4,6 +4,8 @@
 //! BridgeActionExecutor receives BridgeActions (from BridgeOrchestrator),
 //! collects bridge authority signatures and submit signatures on chain.
 
+use std::sync::Arc;
+
 use mysten_metrics::spawn_logged_monitored_task;
 use shared_crypto::intent::{Intent, IntentMessage};
 use sui_json_rpc_types::{
@@ -18,6 +20,7 @@ use sui_types::{
     object::Owner,
     transaction::Transaction,
 };
+use tracing::{error, info, warn};
 
 use crate::{
     client::bridge_authority_aggregator::BridgeAuthorityAggregator,
@@ -27,13 +30,12 @@ use crate::{
     sui_transaction_builder::build_transaction,
     types::{BridgeAction, BridgeActionStatus, VerifiedCertifiedBridgeAction},
 };
-use std::sync::Arc;
-use tracing::{error, info, warn};
 
 pub const CHANNEL_SIZE: usize = 1000;
 
 // delay schedule: at most 16 times including the initial attempt
-// 0.1s, 0.2s, 0.4s, 0.8s, 1.6s, 3.2s, 6.4s, 12.8s, 25.6s, 51.2s, 102.4s, 204.8s, 409.6s, 819.2s, 1638.4s
+// 0.1s, 0.2s, 0.4s, 0.8s, 1.6s, 3.2s, 6.4s, 12.8s, 25.6s, 51.2s, 102.4s,
+// 204.8s, 409.6s, 819.2s, 1638.4s
 pub const MAX_SIGNING_ATTEMPTS: u64 = 16;
 pub const MAX_EXECUTION_ATTEMPTS: u64 = 16;
 
@@ -259,7 +261,10 @@ where
                 warn!("Failed to collect sigs for bridge action: {:?}", e);
 
                 if attempt_times >= MAX_SIGNING_ATTEMPTS {
-                    error!("Manual intervention is required. Failed to collect sigs for bridge action after {MAX_SIGNING_ATTEMPTS} attempts: {:?}", e);
+                    error!(
+                        "Manual intervention is required. Failed to collect sigs for bridge action after {MAX_SIGNING_ATTEMPTS} attempts: {:?}",
+                        e
+                    );
                     return;
                 }
                 delay(attempt_times).await;
@@ -352,7 +357,10 @@ where
                         // TODO: metrics + alerts
                         // If it fails for too many times, log and ask for manual intervention.
                         if attempt_times >= MAX_EXECUTION_ATTEMPTS {
-                            error!("Manual intervention is required. Failed to collect execute transaction for bridge action after {MAX_EXECUTION_ATTEMPTS} attempts: {:?}", err);
+                            error!(
+                                "Manual intervention is required. Failed to collect execute transaction for bridge action after {MAX_EXECUTION_ATTEMPTS} attempts: {:?}",
+                                err
+                            );
                             return;
                         }
                         delay(attempt_times).await;
@@ -388,14 +396,18 @@ where
                     })
             }
             SuiExecutionStatus::Failure { error } => {
-                // In practice the transaction could fail because of running out of gas, but really
-                // should not be due to other reasons.
+                // In practice the transaction could fail because of running out of gas, but
+                // really should not be due to other reasons.
                 // This means manual intervention is needed. So we do not push them back to
                 // the execution queue because retries are mostly likely going to fail anyway.
-                // After human examination, the node should be restarted and fetch them from WAL.
+                // After human examination, the node should be restarted and fetch them from
+                // WAL.
 
                 // TODO metrics + alerts
-                error!(?tx_digest, "Manual intervention is needed. Sui transaction executed and failed with error: {error:?}");
+                error!(
+                    ?tx_digest,
+                    "Manual intervention is needed. Sui transaction executed and failed with error: {error:?}"
+                );
             }
         }
     }
@@ -439,10 +451,12 @@ mod tests {
     use fastcrypto::traits::KeyPair;
     use prometheus::Registry;
     use sui_json_rpc_types::SuiTransactionBlockResponse;
-    use sui_types::crypto::get_key_pair;
-    use sui_types::gas_coin::GasCoin;
-    use sui_types::{base_types::random_object_ref, transaction::TransactionData};
+    use sui_types::{
+        base_types::random_object_ref, crypto::get_key_pair, gas_coin::GasCoin,
+        transaction::TransactionData,
+    };
 
+    use super::*;
     use crate::{
         crypto::{
             BridgeAuthorityKeyPair, BridgeAuthorityPublicKeyBytes,
@@ -456,8 +470,6 @@ mod tests {
         },
         types::{BridgeCommittee, BridgeCommitteeValiditySignInfo, CertifiedBridgeAction},
     };
-
-    use super::*;
 
     #[tokio::test]
     async fn test_onchain_execution_loop() {
@@ -518,13 +530,16 @@ mod tests {
             .await
             .unwrap();
 
-        // Expect to see the transaction to be requested and successfully executed hence removed from WAL
+        // Expect to see the transaction to be requested and successfully executed hence
+        // removed from WAL
         tx_subscription.recv().await.unwrap();
         assert!(store.get_all_pending_actions().unwrap().is_empty());
 
         /////////////////////////////////////////////////////////////////////////////////////////////////
-        ////////////////////////////////////// Test execution failure ///////////////////////////////////
-        /////////////////////////////////////////////////////////////////////////////////////////////////
+        ////////////////////////////////////// Test execution failure
+        ////////////////////////////////////// ///////////////////////////////////
+        ////////////////////////////////////// /////////////////////////////////////////
+        ////////////////////////////////////// //////////////////
 
         let (action_certificate, _, _) = get_bridge_authority_approved_action(
             vec![&mock0, &mock1, &mock2, &mock3],
@@ -566,8 +581,10 @@ mod tests {
         );
 
         /////////////////////////////////////////////////////////////////////////////////////////////////
-        //////////////////////////// Test transaction failed at signing stage ///////////////////////////
-        /////////////////////////////////////////////////////////////////////////////////////////////////
+        //////////////////////////// Test transaction failed at signing stage
+        //////////////////////////// /////////////////////////// ///////////////
+        //////////////////////////// ///////////////////////////////////////////////////
+        //////////////////////////// ///
 
         let (action_certificate, _, _) = get_bridge_authority_approved_action(
             vec![&mock0, &mock1, &mock2, &mock3],
@@ -601,10 +618,12 @@ mod tests {
         assert_eq!(tx_subscription.recv().await.unwrap(), tx_digest);
 
         // The retry is still going on, action still in WAL
-        assert!(store
-            .get_all_pending_actions()
-            .unwrap()
-            .contains_key(&action.digest()));
+        assert!(
+            store
+                .get_all_pending_actions()
+                .unwrap()
+                .contains_key(&action.digest())
+        );
 
         // Now let it succeed
         mock_transaction_response(
@@ -617,10 +636,12 @@ mod tests {
         // Give it 1 second to retry and succeed
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         // The action is successful and should be removed from WAL now
-        assert!(!store
-            .get_all_pending_actions()
-            .unwrap()
-            .contains_key(&action.digest()));
+        assert!(
+            !store
+                .get_all_pending_actions()
+                .unwrap()
+                .contains_key(&action.digest())
+        );
     }
 
     #[tokio::test]
@@ -683,7 +704,8 @@ mod tests {
             .await
             .unwrap();
 
-        // Wait until the transaction is retried at least once (instead of deing dropped)
+        // Wait until the transaction is retried at least once (instead of deing
+        // dropped)
         loop {
             let requested_times =
                 mock0.get_sui_token_events_requested(sui_tx_digest, sui_tx_event_index);
@@ -731,10 +753,12 @@ mod tests {
         // Expect to see the transaction to be requested and succeed
         assert_eq!(tx_subscription.recv().await.unwrap(), tx_digest);
         // The action is removed from WAL
-        assert!(!store
-            .get_all_pending_actions()
-            .unwrap()
-            .contains_key(&action.digest()));
+        assert!(
+            !store
+                .get_all_pending_actions()
+                .unwrap()
+                .contains_key(&action.digest())
+        );
     }
 
     #[tokio::test]
@@ -785,18 +809,22 @@ mod tests {
             .unwrap();
         let action_digest = action.digest();
 
-        // Wait for 1 second. It should still in the process of retrying requesting sigs becaues we mock errors above.
+        // Wait for 1 second. It should still in the process of retrying requesting sigs
+        // becaues we mock errors above.
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         tx_subscription.try_recv().unwrap_err();
         // And the action is still in WAL
-        assert!(store
-            .get_all_pending_actions()
-            .unwrap()
-            .contains_key(&action_digest));
+        assert!(
+            store
+                .get_all_pending_actions()
+                .unwrap()
+                .contains_key(&action_digest)
+        );
 
         sui_client_mock.set_action_onchain_status(&action, BridgeActionStatus::Approved);
 
-        // The next retry will see the action is already processed on chain and remove it from WAL
+        // The next retry will see the action is already processed on chain and remove
+        // it from WAL
         let now = std::time::Instant::now();
         while store
             .get_all_pending_actions()
@@ -878,7 +906,8 @@ mod tests {
         // Set the action to be already approved on chain
         sui_client_mock.set_action_onchain_status(&action, BridgeActionStatus::Approved);
 
-        // The next retry will see the action is already processed on chain and remove it from WAL
+        // The next retry will see the action is already processed on chain and remove
+        // it from WAL
         let now = std::time::Instant::now();
         let action_digest = action.digest();
         while store
@@ -1026,8 +1055,9 @@ mod tests {
         let tx_subscription = sui_client_mock.subscribe_to_requested_transactions();
         let sui_client = Arc::new(SuiClient::new_for_testing(sui_client_mock.clone()));
 
-        // The dummy key is used to sign transaction so we can get TransactionDigest easily.
-        // User signature is not part of the transaction so it does not matter which key it is.
+        // The dummy key is used to sign transaction so we can get TransactionDigest
+        // easily. User signature is not part of the transaction so it does not
+        // matter which key it is.
         let (_, dummy_kp): (_, fastcrypto::secp256k1::Secp256k1KeyPair) = get_key_pair();
         let dummy_sui_key = SuiKeyPair::from(dummy_kp);
 

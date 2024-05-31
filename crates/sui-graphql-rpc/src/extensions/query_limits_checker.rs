@@ -1,29 +1,36 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::config::{Limits, ServiceConfig};
-use crate::error::{code, graphql_error, graphql_error_at_pos};
-use crate::metrics::Metrics;
-use async_graphql::extensions::NextParseQuery;
-use async_graphql::extensions::NextRequest;
-use async_graphql::extensions::{Extension, ExtensionContext, ExtensionFactory};
-use async_graphql::parser::types::{
-    Directive, ExecutableDocument, Field, FragmentDefinition, Selection, SelectionSet,
+use std::{
+    collections::{BTreeSet, HashMap, VecDeque},
+    net::SocketAddr,
+    sync::Arc,
+    time::Instant,
 };
-use async_graphql::{value, Name, Pos, Positioned, Response, ServerResult, Value, Variables};
+
+use async_graphql::{
+    extensions::{Extension, ExtensionContext, ExtensionFactory, NextParseQuery, NextRequest},
+    parser::types::{
+        Directive, ExecutableDocument, Field, FragmentDefinition, Selection, SelectionSet,
+    },
+    value, Name, Pos, Positioned, Response, ServerResult, Value, Variables,
+};
 use async_graphql_value::Value as GqlValue;
-use axum::headers;
-use axum::http::HeaderName;
-use axum::http::HeaderValue;
+use axum::{
+    headers,
+    http::{HeaderName, HeaderValue},
+};
 use once_cell::sync::Lazy;
-use std::collections::{BTreeSet, HashMap, VecDeque};
-use std::net::SocketAddr;
-use std::sync::Arc;
-use std::time::Instant;
 use sui_graphql_rpc_headers::LIMITS_HEADER;
 use tokio::sync::Mutex;
 use tracing::info;
 use uuid::Uuid;
+
+use crate::{
+    config::{Limits, ServiceConfig},
+    error::{code, graphql_error, graphql_error_at_pos},
+    metrics::Metrics,
+};
 
 /// Only display usage information if this header was in the request.
 pub(crate) struct ShowUsage;
@@ -161,13 +168,14 @@ impl Extension for QueryLimitsChecker {
         };
         let mut max_depth_seen = 0;
 
-        // An operation is a query, mutation or subscription consisting of a set of selections
+        // An operation is a query, mutation or subscription consisting of a set of
+        // selections
         for (count, (_name, oper)) in doc.operations.iter().enumerate() {
             let sel_set = &oper.node.selection_set;
 
             // If the query is pure introspection, we don't need to check the limits.
-            // Pure introspection queries are queries that only have one operation with one field
-            // and that field is a `__schema` query
+            // Pure introspection queries are queries that only have one operation with one
+            // field and that field is a `__schema` query
             if (count == 0) && (sel_set.node.items.len() == 1) {
                 if let Some(node) = sel_set.node.items.first() {
                     if let Selection::Field(field) = &node.node {
@@ -221,7 +229,8 @@ impl Extension for QueryLimitsChecker {
 }
 
 impl QueryLimitsChecker {
-    /// Parse the selected fields in one operation and check if it conforms to configured limits.
+    /// Parse the selected fields in one operation and check if it conforms to
+    /// configured limits.
     fn analyze_selection_set(
         &self,
         limits: &Limits,
@@ -231,7 +240,8 @@ impl QueryLimitsChecker {
         variables: &Variables,
         ctx: &ExtensionContext<'_>,
     ) -> ServerResult<()> {
-        // Use BFS to analyze the query and count the number of nodes and the depth of the query
+        // Use BFS to analyze the query and count the number of nodes and the depth of
+        // the query
         struct ToVisit<'s> {
             selection: &'s Positioned<Selection>,
             parent_node_count: u64,
@@ -299,9 +309,10 @@ impl QueryLimitsChecker {
                             )
                         })?;
 
-                        // TODO: this is inefficient as we might loop over same fragment multiple times
-                        // Ideally web should cache the costs of fragments we've seen before
-                        // Will do as enhancement
+                        // TODO: this is inefficient as we might loop over same fragment multiple
+                        // times Ideally web should cache the costs of
+                        // fragments we've seen before Will do as
+                        // enhancement
                         check_directives(&frag_def.node.directives)?;
                         for selection in frag_def.node.selection_set.node.items.iter() {
                             que.push_back(ToVisit {
@@ -387,7 +398,7 @@ fn check_limits(
         );
         return Err(graphql_error_at_pos(
             error_code,
-                format!(
+            format!(
                 "Query will result in too many output nodes. The maximum allowed is {}, estimated {}",
                 limits.max_output_nodes, cost.output_nodes
             ),
@@ -446,7 +457,8 @@ fn estimate_output_nodes_for_curr_node(
     }
 }
 
-/// Try to extract a u64 value from the given argument, or return None on failure.
+/// Try to extract a u64 value from the given argument, or return None on
+/// failure.
 fn extract_limit(value: Option<&Positioned<GqlValue>>, variables: &Variables) -> Option<u64> {
     if let GqlValue::Variable(var) = &value?.node {
         return match variables.get(var) {
@@ -461,8 +473,9 @@ fn extract_limit(value: Option<&Positioned<GqlValue>>, variables: &Variables) ->
     value.as_u64()
 }
 
-/// Checks if the given field is a connection field by whether it has 'edges' or 'nodes' selected.
-/// This should typically not require checking more than the first element of the selection set
+/// Checks if the given field is a connection field by whether it has 'edges' or
+/// 'nodes' selected. This should typically not require checking more than the
+/// first element of the selection set
 fn is_connection(f: &Positioned<Field>) -> bool {
     for field_sel in f.node.selection_set.node.items.iter() {
         if let Selection::Field(field) = &field_sel.node {

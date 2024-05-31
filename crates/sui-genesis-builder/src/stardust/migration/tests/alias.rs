@@ -1,41 +1,43 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::stardust::migration::tests::extract_native_token_from_bag;
-use crate::stardust::migration::tests::object_migration_with_object_owner;
-use crate::stardust::migration::tests::run_migration;
-use crate::stardust::migration::tests::{create_foundry, random_output_header};
-use crate::stardust::types::stardust_to_sui_address;
-use crate::stardust::types::ALIAS_DYNAMIC_OBJECT_FIELD_KEY;
-use crate::stardust::types::ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE;
-use crate::stardust::types::ALIAS_OUTPUT_MODULE_NAME;
-use crate::stardust::types::NFT_OUTPUT_MODULE_NAME;
-use crate::stardust::types::{snapshot::OutputHeader, Alias, AliasOutput};
+use std::str::FromStr;
 
-use iota_sdk::types::block::address::Address;
-use iota_sdk::types::block::output::feature::Irc30Metadata;
-use iota_sdk::types::block::output::unlock_condition::AddressUnlockCondition;
-use iota_sdk::types::block::output::NftId;
-use iota_sdk::types::block::output::NftOutputBuilder;
-use iota_sdk::types::block::output::{NativeToken, SimpleTokenScheme};
-use iota_sdk::types::block::{
-    address::Ed25519Address,
-    output::{
-        feature::{IssuerFeature, MetadataFeature, SenderFeature},
-        unlock_condition::{GovernorAddressUnlockCondition, StateControllerAddressUnlockCondition},
-        AliasId, AliasOutput as StardustAlias, AliasOutputBuilder, Feature,
+use iota_sdk::{
+    types::block::{
+        address::{Address, Ed25519Address},
+        output::{
+            feature::{Irc30Metadata, IssuerFeature, MetadataFeature, SenderFeature},
+            unlock_condition::{
+                AddressUnlockCondition, GovernorAddressUnlockCondition,
+                StateControllerAddressUnlockCondition,
+            },
+            AliasId, AliasOutput as StardustAlias, AliasOutputBuilder, Feature, NativeToken, NftId,
+            NftOutputBuilder, SimpleTokenScheme,
+        },
+    },
+    U256,
+};
+use move_core_types::ident_str;
+use sui_types::{
+    base_types::ObjectID,
+    dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo},
+    id::UID,
+    object::{Object, Owner},
+    TypeTag,
+};
+
+use crate::stardust::{
+    migration::tests::{
+        create_foundry, extract_native_token_from_bag, object_migration_with_object_owner,
+        random_output_header, run_migration,
+    },
+    types::{
+        snapshot::OutputHeader, stardust_to_sui_address, Alias, AliasOutput,
+        ALIAS_DYNAMIC_OBJECT_FIELD_KEY, ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE,
+        ALIAS_OUTPUT_MODULE_NAME, NFT_OUTPUT_MODULE_NAME,
     },
 };
-use iota_sdk::U256;
-use move_core_types::ident_str;
-use std::str::FromStr;
-use sui_types::base_types::ObjectID;
-use sui_types::dynamic_field::derive_dynamic_field_id;
-use sui_types::dynamic_field::DynamicFieldInfo;
-use sui_types::id::UID;
-use sui_types::object::Object;
-use sui_types::object::Owner;
-use sui_types::TypeTag;
 
 fn migrate_alias(
     header: OutputHeader,
@@ -72,8 +74,9 @@ fn migrate_alias(
         AliasOutput::tag()
     );
 
-    // Version is set to 1 when the alias is created based on the computed lamport timestamp.
-    // When the alias is attached to the alias output, the version should be incremented.
+    // Version is set to 1 when the alias is created based on the computed lamport
+    // timestamp. When the alias is attached to the alias output, the version
+    // should be incremented.
     assert!(
         alias_object.version().value() > 1,
         "alias object version should have been incremented"
@@ -97,7 +100,8 @@ fn migrate_alias(
     )
 }
 
-/// Test that the migrated alias objects in the snapshot contain the expected data.
+/// Test that the migrated alias objects in the snapshot contain the expected
+/// data.
 #[test]
 fn alias_migration_with_full_features() {
     let alias_id = AliasId::new(rand::random());
@@ -126,7 +130,8 @@ fn alias_migration_with_full_features() {
 
     // The bag is tested separately.
     assert_eq!(stardust_alias.amount(), alias_output.iota.value());
-    // The ID is newly generated, so we don't know the exact value, but it should not be zero.
+    // The ID is newly generated, so we don't know the exact value, but it should
+    // not be zero.
     assert_ne!(alias_output.id, UID::new(ObjectID::ZERO));
 
     assert_eq!(expected_alias, alias);
@@ -148,7 +153,8 @@ fn alias_migration_with_full_features() {
     assert_eq!(alias_output_object.owner, alias_output_owner);
 }
 
-/// Test that an Alias with a zeroed ID is migrated to an Alias Object with its UID set to the hashed Output ID.
+/// Test that an Alias with a zeroed ID is migrated to an Alias Object with its
+/// UID set to the hashed Output ID.
 #[test]
 fn alias_migration_with_zeroed_id() {
     let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
@@ -165,9 +171,11 @@ fn alias_migration_with_zeroed_id() {
     migrate_alias(header, stardust_alias);
 }
 
-/// Test that an Alias owned by another Alias can be received by the owning object.
+/// Test that an Alias owned by another Alias can be received by the owning
+/// object.
 ///
-/// The PTB sends the extracted assets to the null address since they must be used in the transaction.
+/// The PTB sends the extracted assets to the null address since they must be
+/// used in the transaction.
 #[test]
 fn alias_migration_with_alias_owner() {
     let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
@@ -185,10 +193,10 @@ fn alias_migration_with_alias_owner() {
     let stardust_alias2 =
         AliasOutputBuilder::new_with_amount(2_000_000, AliasId::new(rand::random()))
             .add_unlock_condition(StateControllerAddressUnlockCondition::new(Address::from(
-                stardust_alias1.alias_id().clone(),
+                *stardust_alias1.alias_id(),
             )))
             .add_unlock_condition(GovernorAddressUnlockCondition::new(Address::from(
-                stardust_alias1.alias_id().clone(),
+                *stardust_alias1.alias_id(),
             )))
             .finish()
             .unwrap();
@@ -242,7 +250,8 @@ fn alias_migration_with_nft_owner() {
     );
 }
 
-/// Test that an Alias that owns Native Tokens can extract those tokens from the contained bag.
+/// Test that an Alias that owns Native Tokens can extract those tokens from the
+/// contained bag.
 #[test]
 fn alias_migration_with_native_tokens() {
     let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());

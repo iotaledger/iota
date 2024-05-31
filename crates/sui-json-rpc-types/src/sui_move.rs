@@ -1,28 +1,36 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::BTreeMap,
+    fmt,
+    fmt::{Display, Formatter, Write},
+};
+
 use colored::Colorize;
 use itertools::Itertools;
-use move_binary_format::file_format::{Ability, AbilitySet, StructTypeParameter, Visibility};
-use move_binary_format::normalized::{
-    Field as NormalizedField, Function as SuiNormalizedFunction, Module as NormalizedModule,
-    Struct as NormalizedStruct, Type as NormalizedType,
+use move_binary_format::{
+    file_format::{Ability, AbilitySet, StructTypeParameter, Visibility},
+    normalized::{
+        Field as NormalizedField, Function as SuiNormalizedFunction, Module as NormalizedModule,
+        Struct as NormalizedStruct, Type as NormalizedType,
+    },
 };
-use move_core_types::annotated_value::{MoveStruct, MoveValue};
-use move_core_types::identifier::Identifier;
-use move_core_types::language_storage::StructTag;
+use move_core_types::{
+    annotated_value::{MoveStruct, MoveValue},
+    identifier::Identifier,
+    language_storage::StructTag,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use serde_with::serde_as;
-use std::collections::BTreeMap;
-use std::fmt;
-use std::fmt::{Display, Formatter, Write};
 use sui_macros::EnumVariantOrder;
+use sui_types::{
+    base_types::{ObjectID, SuiAddress},
+    sui_serde::SuiStructTag,
+};
 use tracing::warn;
-
-use sui_types::base_types::{ObjectID, SuiAddress};
-use sui_types::sui_serde::SuiStructTag;
 
 pub type SuiMoveTypeParameterIndex = u16;
 
@@ -423,7 +431,8 @@ impl SuiMoveStruct {
                     .collect::<Vec<_>>();
                 json!(values)
             }
-            // We only care about values here, assuming struct type information is known at the client side.
+            // We only care about values here, assuming struct type information is known at the
+            // client side.
             SuiMoveStruct::WithTypes { type_: _, fields } | SuiMoveStruct::WithFields(fields) => {
                 let fields = fields
                     .into_iter()

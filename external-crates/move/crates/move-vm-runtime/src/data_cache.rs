@@ -2,7 +2,7 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::loader::Loader;
+use std::collections::btree_map::BTreeMap;
 
 use move_binary_format::errors::*;
 use move_core_types::{
@@ -20,7 +20,8 @@ use move_vm_types::{
     loaded_data::runtime_types::Type,
     values::{GlobalValue, Value},
 };
-use std::collections::btree_map::BTreeMap;
+
+use crate::loader::Loader;
 
 pub struct AccountDataCache {
     data_map: BTreeMap<Type, (MoveTypeLayout, GlobalValue)>,
@@ -36,19 +37,20 @@ impl AccountDataCache {
     }
 }
 
-/// Transaction data cache. Keep updates within a transaction so they can all be published at
-/// once when the transaction succeeds.
+/// Transaction data cache. Keep updates within a transaction so they can all be
+/// published at once when the transaction succeeds.
 ///
-/// It also provides an implementation for the opcodes that refer to storage and gives the
-/// proper guarantees of reference lifetime.
+/// It also provides an implementation for the opcodes that refer to storage and
+/// gives the proper guarantees of reference lifetime.
 ///
 /// Dirty objects are serialized and returned in make_write_set.
 ///
-/// It is a responsibility of the client to publish changes once the transaction is executed.
+/// It is a responsibility of the client to publish changes once the transaction
+/// is executed.
 ///
-/// The Move VM takes a `DataStore` in input and this is the default and correct implementation
-/// for a data store related to a transaction. Clients should create an instance of this type
-/// and pass it to the Move VM.
+/// The Move VM takes a `DataStore` in input and this is the default and correct
+/// implementation for a data store related to a transaction. Clients should
+/// create an instance of this type and pass it to the Move VM.
 pub(crate) struct TransactionDataCache<'l, S> {
     remote: S,
     loader: &'l Loader,
@@ -57,8 +59,8 @@ pub(crate) struct TransactionDataCache<'l, S> {
 }
 
 impl<'l, S: MoveResolver> TransactionDataCache<'l, S> {
-    /// Create a `TransactionDataCache` with a `RemoteCache` that provides access to data
-    /// not updated in the transaction.
+    /// Create a `TransactionDataCache` with a `RemoteCache` that provides
+    /// access to data not updated in the transaction.
     pub(crate) fn new(remote: S, loader: &'l Loader) -> Self {
         TransactionDataCache {
             remote,
@@ -68,8 +70,8 @@ impl<'l, S: MoveResolver> TransactionDataCache<'l, S> {
         }
     }
 
-    /// Make a write set from the updated (dirty, deleted) global resources along with
-    /// published modules.
+    /// Make a write set from the updated (dirty, deleted) global resources
+    /// along with published modules.
     ///
     /// Gives all proper guarantees on lifetime of global data as well.
     pub(crate) fn into_effects(mut self) -> (PartialVMResult<(ChangeSet, Vec<Event>)>, S) {
@@ -157,9 +159,9 @@ impl<'l, S: MoveResolver> TransactionDataCache<'l, S> {
 
 // `DataStore` implementation for the `TransactionDataCache`
 impl<'l, S: MoveResolver> DataStore for TransactionDataCache<'l, S> {
-    // Retrieve data from the local cache or loads it from the remote cache into the local cache.
-    // All operations on the global data are based on this API and they all load the data
-    // into the cache.
+    // Retrieve data from the local cache or loads it from the remote cache into the
+    // local cache. All operations on the global data are based on this API and
+    // they all load the data into the cache.
     fn load_resource(
         &mut self,
         addr: AccountAddress,
@@ -177,7 +179,7 @@ impl<'l, S: MoveResolver> DataStore for TransactionDataCache<'l, S> {
                 _ =>
                 // non-struct top-level value; can't happen
                 {
-                    return Err(PartialVMError::new(StatusCode::INTERNAL_TYPE_ERROR))
+                    return Err(PartialVMError::new(StatusCode::INTERNAL_TYPE_ERROR));
                 }
             };
             // TODO(Gas): Shall we charge for this?

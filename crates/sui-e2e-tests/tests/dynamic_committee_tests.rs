@@ -1,21 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::Result;
-use async_trait::async_trait;
-use move_core_types::ident_str;
-use rand::{rngs::StdRng, Rng, SeedableRng};
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
+
+use anyhow::Result;
+use async_trait::async_trait;
+use move_core_types::ident_str;
+use rand::{rngs::StdRng, Rng, SeedableRng};
 use sui_core::authority::AuthorityState;
 use sui_macros::*;
 use sui_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use sui_test_transaction_builder::TestTransactionBuilder;
-use sui_types::effects::{TransactionEffects, TransactionEffectsAPI};
 use sui_types::{
     base_types::{ObjectID, ObjectRef, SuiAddress},
+    effects::{TransactionEffects, TransactionEffectsAPI},
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::ObjectStore,
@@ -201,10 +202,9 @@ impl StressTestRunner {
         }
     }
 
-    /*
-    pub fn db(&self) -> Arc<AuthorityStore> {
-        self.state().db()
-    }*/
+    // pub fn db(&self) -> Arc<AuthorityStore> {
+    // self.state().db()
+    // }
 
     pub fn state(&self) -> Arc<AuthorityState> {
         self.test_cluster.fullnode_handle.sui_node.state()
@@ -265,8 +265,9 @@ impl StressTestRunner {
 }
 
 mod add_stake {
-    use super::*;
     use sui_types::effects::TransactionEffects;
+
+    use super::*;
 
     pub struct RequestAddStakeGen;
 

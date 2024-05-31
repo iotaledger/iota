@@ -3,20 +3,6 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use super::{
-    base64::Base64,
-    cursor::{self, Page, Paginated, Target},
-    date_time::DateTime,
-    digest::Digest,
-    epoch::Epoch,
-    gas::GasCostSummary,
-    transaction_block::{self, TransactionBlock, TransactionBlockFilter},
-};
-use crate::consistency::Checkpointed;
-use crate::{
-    data::{self, Conn, Db, DbConnection, QueryExecutor},
-    error::Error,
-};
 use async_graphql::{
     connection::{Connection, CursorType, Edge},
     dataloader::{DataLoader, Loader},
@@ -31,26 +17,43 @@ use sui_indexer::{
 };
 use sui_types::messages_checkpoint::CheckpointDigest;
 
-/// Filter either by the digest, or the sequence number, or neither, to get the latest checkpoint.
+use super::{
+    base64::Base64,
+    cursor::{self, Page, Paginated, Target},
+    date_time::DateTime,
+    digest::Digest,
+    epoch::Epoch,
+    gas::GasCostSummary,
+    transaction_block::{self, TransactionBlock, TransactionBlockFilter},
+};
+use crate::{
+    consistency::Checkpointed,
+    data::{self, Conn, Db, DbConnection, QueryExecutor},
+    error::Error,
+};
+
+/// Filter either by the digest, or the sequence number, or neither, to get the
+/// latest checkpoint.
 #[derive(Default, InputObject)]
 pub(crate) struct CheckpointId {
     pub digest: Option<Digest>,
     pub sequence_number: Option<u64>,
 }
 
-/// DataLoader key for fetching a `Checkpoint` by its sequence number, optionally constrained by a
-/// consistency cursor.
+/// DataLoader key for fetching a `Checkpoint` by its sequence number,
+/// optionally constrained by a consistency cursor.
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
 struct SeqNumKey {
     pub sequence_number: u64,
-    /// The digest is not used for fetching, but is used as an additional filter, to correctly
-    /// implement a request that sets both a sequence number and a digest.
+    /// The digest is not used for fetching, but is used as an additional
+    /// filter, to correctly implement a request that sets both a sequence
+    /// number and a digest.
     pub digest: Option<Digest>,
     pub checkpoint_viewed_at: Option<u64>,
 }
 
-/// DataLoader key for fetching a `Checkpoint` by its digest, optionally constrained by a
-/// consistency cursor.
+/// DataLoader key for fetching a `Checkpoint` by its digest, optionally
+/// constrained by a consistency cursor.
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
 struct DigestKey {
     pub digest: Digest,
@@ -59,8 +62,8 @@ struct DigestKey {
 
 #[derive(Clone)]
 pub(crate) struct Checkpoint {
-    /// Representation of transaction data in the Indexer's Store. The indexer stores the
-    /// transaction data and its effects together, in one table.
+    /// Representation of transaction data in the Indexer's Store. The indexer
+    /// stores the transaction data and its effects together, in one table.
     pub stored: StoredCheckpoint,
     // The checkpoint_sequence_number at which this was viewed at, or `None` if the data was
     // requested at the latest checkpoint.
@@ -70,9 +73,9 @@ pub(crate) struct Checkpoint {
 pub(crate) type Cursor = cursor::JsonCursor<CheckpointCursor>;
 type Query<ST, GB> = data::Query<ST, checkpoints::table, GB>;
 
-/// The cursor returned for each `Checkpoint` in a connection's page of results. The
-/// `checkpoint_viewed_at` will set the consistent upper bound for subsequent queries made on this
-/// cursor.
+/// The cursor returned for each `Checkpoint` in a connection's page of results.
+/// The `checkpoint_viewed_at` will set the consistent upper bound for
+/// subsequent queries made on this cursor.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub(crate) struct CheckpointCursor {
     /// The checkpoint sequence number this was viewed at.
@@ -82,31 +85,33 @@ pub(crate) struct CheckpointCursor {
     pub sequence_number: u64,
 }
 
-/// Checkpoints contain finalized transactions and are used for node synchronization
-/// and global transaction ordering.
+/// Checkpoints contain finalized transactions and are used for node
+/// synchronization and global transaction ordering.
 #[Object]
 impl Checkpoint {
-    /// A 32-byte hash that uniquely identifies the checkpoint contents, encoded in Base58. This
-    /// hash can be used to verify checkpoint contents by checking signatures against the committee,
-    /// Hashing contents to match digest, and checking that the previous checkpoint digest matches.
+    /// A 32-byte hash that uniquely identifies the checkpoint contents, encoded
+    /// in Base58. This hash can be used to verify checkpoint contents by
+    /// checking signatures against the committee, Hashing contents to match
+    /// digest, and checking that the previous checkpoint digest matches.
     async fn digest(&self) -> Result<String> {
         Ok(self.digest_impl().extend()?.base58_encode())
     }
 
-    /// This checkpoint's position in the total order of finalized checkpoints, agreed upon by
-    /// consensus.
+    /// This checkpoint's position in the total order of finalized checkpoints,
+    /// agreed upon by consensus.
     async fn sequence_number(&self) -> u64 {
         self.sequence_number_impl()
     }
 
-    /// The timestamp at which the checkpoint is agreed to have happened according to consensus.
-    /// Transactions that access time in this checkpoint will observe this timestamp.
+    /// The timestamp at which the checkpoint is agreed to have happened
+    /// according to consensus. Transactions that access time in this
+    /// checkpoint will observe this timestamp.
     async fn timestamp(&self) -> Result<DateTime> {
         DateTime::from_ms(self.stored.timestamp_ms).extend()
     }
 
-    /// This is an aggregation of signatures from a quorum of validators for the checkpoint
-    /// proposal.
+    /// This is an aggregation of signatures from a quorum of validators for the
+    /// checkpoint proposal.
     async fn validator_signatures(&self) -> Base64 {
         Base64::from(&self.stored.validator_signature)
     }
@@ -119,14 +124,16 @@ impl Checkpoint {
             .map(Base58::encode)
     }
 
-    /// The total number of transaction blocks in the network by the end of this checkpoint.
+    /// The total number of transaction blocks in the network by the end of this
+    /// checkpoint.
     async fn network_total_transactions(&self) -> Option<u64> {
         Some(self.network_total_transactions_impl())
     }
 
-    /// The computation cost, storage cost, storage rebate, and non-refundable storage fee
-    /// accumulated during this epoch, up to and including this checkpoint. These values increase
-    /// monotonically across checkpoints in the same epoch, and reset on epoch boundaries.
+    /// The computation cost, storage cost, storage rebate, and non-refundable
+    /// storage fee accumulated during this epoch, up to and including this
+    /// checkpoint. These values increase monotonically across checkpoints
+    /// in the same epoch, and reset on epoch boundaries.
     async fn rolling_gas_summary(&self) -> Option<GasCostSummary> {
         Some(GasCostSummary {
             computation_cost: self.stored.computation_cost as u64,
@@ -203,9 +210,9 @@ impl Checkpoint {
             .map_err(|e| Error::Internal(format!("Failed to deserialize checkpoint digest: {e}")))
     }
 
-    /// Look up a `Checkpoint` in the database, filtered by either sequence number or digest. If
-    /// both filters are supplied they will both be applied. If none are supplied, the latest
-    /// checkpoint is fetched.
+    /// Look up a `Checkpoint` in the database, filtered by either sequence
+    /// number or digest. If both filters are supplied they will both be
+    /// applied. If none are supplied, the latest checkpoint is fetched.
     pub(crate) async fn query(
         ctx: &Context<'_>,
         filter: CheckpointId,
@@ -244,9 +251,9 @@ impl Checkpoint {
         }
     }
 
-    /// Look up the latest `Checkpoint` from the database, optionally filtered by a consistency
-    /// cursor (querying for a consistency cursor in the past looks for the latest checkpoint as of
-    /// that cursor).
+    /// Look up the latest `Checkpoint` from the database, optionally filtered
+    /// by a consistency cursor (querying for a consistency cursor in the
+    /// past looks for the latest checkpoint as of that cursor).
     async fn query_latest_at(
         db: &Db,
         checkpoint_viewed_at: Option<u64>,
@@ -279,8 +286,9 @@ impl Checkpoint {
         }))
     }
 
-    /// Look up a `Checkpoint` in the database and retrieve its `timestamp_ms` field. This method
-    /// takes a connection, so that it can be used within a transaction.
+    /// Look up a `Checkpoint` in the database and retrieve its `timestamp_ms`
+    /// field. This method takes a connection, so that it can be used within
+    /// a transaction.
     pub(crate) fn query_timestamp(
         conn: &mut Conn,
         seq_num: u64,
@@ -302,9 +310,9 @@ impl Checkpoint {
             .map_err(|e| Error::Internal(format!("Failed to fetch checkpoint: {e}")))
     }
 
-    /// Queries the database for the upper bound of the available range supported by the graphql
-    /// server. This method takes a connection, so that it can be used in an execute_repeatable
-    /// transaction.
+    /// Queries the database for the upper bound of the available range
+    /// supported by the graphql server. This method takes a connection, so
+    /// that it can be used in an execute_repeatable transaction.
     pub(crate) fn latest_checkpoint_sequence_number(
         conn: &mut Conn,
     ) -> Result<u64, diesel::result::Error> {
@@ -319,19 +327,21 @@ impl Checkpoint {
         Ok(result as u64)
     }
 
-    /// Query the database for a `page` of checkpoints. The Page uses the checkpoint sequence number
-    /// of the stored checkpoint and the checkpoint at which this was viewed at as the cursor, and
-    /// can optionally be further `filter`-ed by an epoch number (to only return checkpoints within
-    /// that epoch).
+    /// Query the database for a `page` of checkpoints. The Page uses the
+    /// checkpoint sequence number of the stored checkpoint and the
+    /// checkpoint at which this was viewed at as the cursor, and
+    /// can optionally be further `filter`-ed by an epoch number (to only return
+    /// checkpoints within that epoch).
     ///
     /// The `checkpoint_viewed_at` parameter is an Option<u64> representing the
-    /// checkpoint_sequence_number at which this page was queried for, or `None` if the data was
-    /// requested at the latest checkpoint. Each entity returned in the connection will inherit this
-    /// checkpoint, so that when viewing that entity's state, it will be from the reference of this
+    /// checkpoint_sequence_number at which this page was queried for, or `None`
+    /// if the data was requested at the latest checkpoint. Each entity
+    /// returned in the connection will inherit this checkpoint, so that
+    /// when viewing that entity's state, it will be from the reference of this
     /// checkpoint_viewed_at parameter.
     ///
-    /// If the `Page<Cursor>` is set, then this function will defer to the `checkpoint_viewed_at` in
-    /// the cursor if they are consistent.
+    /// If the `Page<Cursor>` is set, then this function will defer to the
+    /// `checkpoint_viewed_at` in the cursor if they are consistent.
     pub(crate) async fn paginate(
         db: &Db,
         page: Page<Cursor>,
@@ -366,8 +376,9 @@ impl Checkpoint {
             })
             .await?;
 
-        // Defer to the provided checkpoint_viewed_at, but if it is not provided, use the
-        // current available range. This sets a consistent upper bound for the nested queries.
+        // Defer to the provided checkpoint_viewed_at, but if it is not provided, use
+        // the current available range. This sets a consistent upper bound for
+        // the nested queries.
         let mut conn = Connection::new(prev, next);
         let checkpoint_viewed_at = checkpoint_viewed_at.unwrap_or(rhs);
         for stored in results {
@@ -384,8 +395,9 @@ impl Checkpoint {
         Ok(conn)
     }
 
-    /// Queries the database for the available range supported by the graphql server. This method
-    /// takes a connection, so that it can be used in an execute_repeatable transaction.
+    /// Queries the database for the available range supported by the graphql
+    /// server. This method takes a connection, so that it can be used in an
+    /// execute_repeatable transaction.
     pub(crate) fn available_range(conn: &mut Conn) -> Result<(u64, u64), diesel::result::Error> {
         use checkpoints::dsl as checkpoints;
         use objects_snapshot::dsl as snapshots;
@@ -542,9 +554,9 @@ impl Loader<DigestKey> for Db {
                     checkpoint_viewed_at: key.checkpoint_viewed_at,
                 };
 
-                // Filter by key's checkpoint viewed at here. Doing this in memory because it should
-                // be quite rare that this query actually filters something, but encoding it in SQL
-                // is complicated.
+                // Filter by key's checkpoint viewed at here. Doing this in memory because it
+                // should be quite rare that this query actually filters
+                // something, but encoding it in SQL is complicated.
                 let seq_num = checkpoint.stored.sequence_number as u64;
                 if matches!(key.checkpoint_viewed_at, Some(cp) if cp < seq_num) {
                     None

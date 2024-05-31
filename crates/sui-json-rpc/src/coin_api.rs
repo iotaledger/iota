@@ -1,40 +1,37 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use cached::proc_macro::cached;
-use cached::SizedCache;
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::RpcModule;
+use cached::{proc_macro::cached, SizedCache};
+use jsonrpsee::{core::RpcResult, RpcModule};
+#[cfg(test)]
+use mockall::automock;
 use move_core_types::language_storage::{StructTag, TypeTag};
-use sui_storage::indexes::TotalBalance;
-use tap::TapFallible;
-use tracing::{debug, info, instrument};
-
 use mysten_metrics::spawn_monitored_task;
 use sui_core::authority::AuthorityState;
 use sui_json_rpc_api::{cap_page_limit, CoinReadApiOpenRpc, CoinReadApiServer, JsonRpcMetrics};
-use sui_json_rpc_types::Balance;
-use sui_json_rpc_types::{CoinPage, SuiCoinMetadata};
+use sui_json_rpc_types::{Balance, CoinPage, SuiCoinMetadata};
 use sui_open_rpc::Module;
-use sui_storage::key_value_store::TransactionKeyValueStore;
-use sui_types::balance::Supply;
-use sui_types::base_types::{ObjectID, SuiAddress};
-use sui_types::coin::{CoinMetadata, TreasuryCap};
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::gas_coin::{GAS, TOTAL_SUPPLY_MIST};
-use sui_types::object::Object;
-use sui_types::parse_sui_struct_tag;
+use sui_storage::{indexes::TotalBalance, key_value_store::TransactionKeyValueStore};
+use sui_types::{
+    balance::Supply,
+    base_types::{ObjectID, SuiAddress},
+    coin::{CoinMetadata, TreasuryCap},
+    effects::TransactionEffectsAPI,
+    gas_coin::{GAS, TOTAL_SUPPLY_MIST},
+    object::Object,
+    parse_sui_struct_tag,
+};
+use tap::TapFallible;
+use tracing::{debug, info, instrument};
 
-#[cfg(test)]
-use mockall::automock;
-
-use crate::authority_state::StateRead;
-use crate::error::{Error, RpcInterimResult, SuiRpcInputError};
-use crate::{with_tracing, SuiRpcModule};
+use crate::{
+    authority_state::StateRead,
+    error::{Error, RpcInterimResult, SuiRpcInputError},
+    with_tracing, SuiRpcModule,
+};
 
 pub fn parse_to_struct_tag(coin_type: &str) -> Result<StructTag, SuiRpcInputError> {
     parse_sui_struct_tag(coin_type)
@@ -95,7 +92,8 @@ impl CoinReadApiServer for CoinReadApi {
 
             let cursor = match cursor {
                 Some(c) => (coin_type_tag.to_string(), c),
-                // If cursor is not specified, we need to start from the beginning of the coin type, which is the minimal possible ObjectID.
+                // If cursor is not specified, we need to start from the beginning of the coin type,
+                // which is the minimal possible ObjectID.
                 None => (coin_type_tag.to_string(), ObjectID::ZERO),
             };
 
@@ -277,8 +275,8 @@ async fn find_package_object_id(
     .await?
 }
 
-/// CoinReadInternal trait to capture logic of interactions with AuthorityState and metrics
-/// This allows us to also mock internal implementation for testing
+/// CoinReadInternal trait to capture logic of interactions with AuthorityState
+/// and metrics This allows us to also mock internal implementation for testing
 #[cfg_attr(test, automock)]
 #[async_trait]
 pub trait CoinReadInternal {
@@ -398,33 +396,37 @@ impl CoinReadInternal for CoinReadInternalImpl {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::authority_state::{MockStateRead, StateReadError};
     use expect_test::expect;
     use jsonrpsee::types::ErrorObjectOwned;
-    use mockall::mock;
-    use mockall::predicate;
-    use move_core_types::account_address::AccountAddress;
-    use move_core_types::language_storage::StructTag;
+    use mockall::{mock, predicate};
+    use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
     use sui_json_rpc_types::Coin;
-    use sui_storage::key_value_store::{
-        KVStoreCheckpointData, KVStoreTransactionData, TransactionKeyValueStoreTrait,
+    use sui_storage::{
+        key_value_store::{
+            KVStoreCheckpointData, KVStoreTransactionData, TransactionKeyValueStoreTrait,
+        },
+        key_value_store_metrics::KeyValueStoreMetrics,
     };
-    use sui_storage::key_value_store_metrics::KeyValueStoreMetrics;
-    use sui_types::balance::Supply;
-    use sui_types::base_types::{ObjectID, SequenceNumber, SuiAddress};
-    use sui_types::coin::TreasuryCap;
-    use sui_types::digests::{ObjectDigest, TransactionDigest, TransactionEventsDigest};
-    use sui_types::effects::TransactionEffects;
-    use sui_types::error::{SuiError, SuiResult};
-    use sui_types::gas_coin::GAS;
-    use sui_types::id::UID;
-    use sui_types::messages_checkpoint::{
-        CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
+    use sui_types::{
+        balance::Supply,
+        base_types::{ObjectID, SequenceNumber, SuiAddress},
+        coin::TreasuryCap,
+        digests::{ObjectDigest, TransactionDigest, TransactionEventsDigest},
+        effects::TransactionEffects,
+        error::{SuiError, SuiResult},
+        gas_coin::GAS,
+        id::UID,
+        messages_checkpoint::{
+            CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
+        },
+        object::Object,
+        parse_sui_struct_tag,
+        utils::create_fake_transaction,
+        TypeTag,
     };
-    use sui_types::object::Object;
-    use sui_types::utils::create_fake_transaction;
-    use sui_types::{parse_sui_struct_tag, TypeTag};
+
+    use super::*;
+    use crate::authority_state::{MockStateRead, StateReadError};
 
     mock! {
         pub KeyValueStore {}
@@ -558,9 +560,9 @@ mod tests {
     }
 
     mod get_coins_tests {
-        use super::super::*;
-        use super::*;
         use jsonrpsee::types::ErrorObjectOwned;
+
+        use super::{super::*, *};
 
         // Success scenarios
         #[tokio::test]
@@ -728,7 +730,9 @@ mod tests {
             let error_object: ErrorObjectOwned = error_result.into();
             let expected = expect!["-32602"];
             expected.assert_eq(&error_object.code().to_string());
-            let expected = expect!["Invalid struct type: 0x2::invalid::struct::tag. Got error: Expected end of token stream. Got: ::"];
+            let expected = expect![
+                "Invalid struct type: 0x2::invalid::struct::tag. Got error: Expected end of token stream. Got: ::"
+            ];
             expected.assert_eq(error_object.message());
         }
 
@@ -811,8 +815,7 @@ mod tests {
     mod get_all_coins_tests {
         use sui_types::object::{MoveObject, Owner};
 
-        use super::super::*;
-        use super::*;
+        use super::{super::*, *};
 
         // Success scenarios
         #[tokio::test]
@@ -933,9 +936,9 @@ mod tests {
     }
 
     mod get_balance_tests {
-        use super::super::*;
-        use super::*;
         use jsonrpsee::types::ErrorObjectOwned;
+
+        use super::{super::*, *};
         // Success scenarios
         #[tokio::test]
         async fn test_gas_coin() {
@@ -1023,7 +1026,9 @@ mod tests {
             let error_object: ErrorObjectOwned = error_result.into();
             let expected = expect!["-32602"];
             expected.assert_eq(&error_object.code().to_string());
-            let expected = expect!["Invalid struct type: 0x2::invalid::struct::tag. Got error: Expected end of token stream. Got: ::"];
+            let expected = expect![
+                "Invalid struct type: 0x2::invalid::struct::tag. Got error: Expected end of token stream. Got: ::"
+            ];
             expected.assert_eq(error_object.message());
         }
 
@@ -1056,7 +1061,8 @@ mod tests {
 
         #[tokio::test]
         async fn test_get_balance_execution_error() {
-            // Validate that we handle and return an error message when we encounter an unexpected error
+            // Validate that we handle and return an error message when we encounter an
+            // unexpected error
             let owner = get_test_owner();
             let coin_type = get_test_coin_type(get_test_package_id());
             let mut mock_state = MockStateRead::new();
@@ -1082,9 +1088,9 @@ mod tests {
     }
 
     mod get_all_balances_tests {
-        use super::super::*;
-        use super::*;
         use jsonrpsee::types::ErrorObjectOwned;
+
+        use super::{super::*, *};
 
         // Success scenarios
         #[tokio::test]
@@ -1134,7 +1140,8 @@ mod tests {
                     locked_balance: Default::default(),
                 },
             ];
-            // This is because the underlying result is a hashmap, so order is not guaranteed
+            // This is because the underlying result is a hashmap, so order is not
+            // guaranteed
             let mut result = response.unwrap();
             for item in expected_result {
                 if let Some(pos) = result.iter().position(|i| *i == item) {
@@ -1172,10 +1179,10 @@ mod tests {
     }
 
     mod get_coin_metadata_tests {
-        use super::super::*;
-        use super::*;
         use mockall::predicate;
         use sui_types::id::UID;
+
+        use super::{super::*, *};
 
         // Success scenarios
         #[tokio::test]
@@ -1278,10 +1285,10 @@ mod tests {
     }
 
     mod get_total_supply_tests {
-        use super::super::*;
-        use super::*;
         use mockall::predicate;
         use sui_types::id::UID;
+
+        use super::{super::*, *};
 
         #[tokio::test]
         async fn test_success_response_for_gas_coin() {
@@ -1349,7 +1356,9 @@ mod tests {
             let error_object: ErrorObjectOwned = error_result.into();
             let expected = expect!["-32602"];
             expected.assert_eq(&error_object.code().to_string());
-            let expected = expect!["Cannot find object [0x2::coin::TreasuryCap<0xf::test_coin::TEST_COIN>] from [0x000000000000000000000000000000000000000000000000000000000000000f] package event."];
+            let expected = expect![
+                "Cannot find object [0x2::coin::TreasuryCap<0xf::test_coin::TEST_COIN>] from [0x000000000000000000000000000000000000000000000000000000000000000f] package event."
+            ];
             expected.assert_eq(error_object.message());
         }
 
@@ -1391,7 +1400,9 @@ mod tests {
                 error_object.code(),
                 jsonrpsee::types::error::CALL_EXECUTION_FAILED_CODE
             );
-            let expected = expect!["Failure deserializing object in the requested format: \"Unable to deserialize TreasuryCap object: remaining input\""];
+            let expected = expect![
+                "Failure deserializing object in the requested format: \"Unable to deserialize TreasuryCap object: remaining input\""
+            ];
             expected.assert_eq(error_object.message());
         }
     }

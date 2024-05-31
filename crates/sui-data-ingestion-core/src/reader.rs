@@ -1,29 +1,26 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::create_remote_store_client;
-use crate::executor::MAX_CHECKPOINTS_IN_PROGRESS;
+use std::{ffi::OsString, fs, path::PathBuf, time::Duration};
+
 use anyhow::Result;
 use backoff::backoff::Backoff;
 use futures::StreamExt;
 use mysten_metrics::spawn_monitored_task;
-use notify::RecursiveMode;
-use notify::Watcher;
-use object_store::path::Path;
-use object_store::ObjectStore;
-use std::ffi::OsString;
-use std::fs;
-use std::path::PathBuf;
-use std::time::Duration;
+use notify::{RecursiveMode, Watcher};
+use object_store::{path::Path, ObjectStore};
 use sui_storage::blob::Blob;
-use sui_types::full_checkpoint_content::CheckpointData;
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
+use sui_types::{
+    full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
+};
 use tap::pipe::Pipe;
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::error::TryRecvError;
-use tokio::sync::oneshot;
-use tokio::time::timeout;
+use tokio::{
+    sync::{mpsc, mpsc::error::TryRecvError, oneshot},
+    time::timeout,
+};
 use tracing::{debug, error, info};
+
+use crate::{create_remote_store_client, executor::MAX_CHECKPOINTS_IN_PROGRESS};
 
 /// Implements a checkpoint reader that monitors a local directory.
 /// Designed for setups where the indexer daemon is colocated with FN.
@@ -60,7 +57,8 @@ impl Default for ReaderOptions {
 
 impl CheckpointReader {
     /// Represents a single iteration of the reader.
-    /// Reads files in a local directory, validates them, and forwards `CheckpointData` to the executor.
+    /// Reads files in a local directory, validates them, and forwards
+    /// `CheckpointData` to the executor.
     async fn read_local_files(&self) -> Result<Vec<CheckpointData>> {
         let mut files = vec![];
         for entry in fs::read_dir(self.path.clone())? {
@@ -194,7 +192,9 @@ impl CheckpointReader {
 
         info!(
             "Local reader. Current checkpoint number: {}, pruning watermark: {}, unprocessed checkpoints: {:?}",
-            self.current_checkpoint_number, self.last_pruned_watermark, checkpoints.len(),
+            self.current_checkpoint_number,
+            self.last_pruned_watermark,
+            checkpoints.len(),
         );
         for checkpoint in checkpoints {
             assert_eq!(

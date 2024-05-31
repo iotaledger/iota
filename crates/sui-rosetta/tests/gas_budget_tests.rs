@@ -4,18 +4,19 @@
 use std::time::Duration;
 
 use fastcrypto::encoding::{Encoding, Hex};
+use rosetta_client::start_rosetta_test_server;
 use serde::Deserialize;
 use serde_json::json;
-
-use rosetta_client::start_rosetta_test_server;
 use sui_keys::keystore::AccountKeystore;
-use sui_rosetta::operations::Operations;
-use sui_rosetta::types::{
-    ConstructionCombineRequest, ConstructionCombineResponse, ConstructionMetadataRequest,
-    ConstructionMetadataResponse, ConstructionPayloadsRequest, ConstructionPayloadsResponse,
-    ConstructionPreprocessRequest, ConstructionPreprocessResponse, ConstructionSubmitRequest,
-    NetworkIdentifier, PreprocessMetadata, Signature, SignatureType, SuiEnv,
-    TransactionIdentifierResponse,
+use sui_rosetta::{
+    operations::Operations,
+    types::{
+        ConstructionCombineRequest, ConstructionCombineResponse, ConstructionMetadataRequest,
+        ConstructionMetadataResponse, ConstructionPayloadsRequest, ConstructionPayloadsResponse,
+        ConstructionPreprocessRequest, ConstructionPreprocessResponse, ConstructionSubmitRequest,
+        NetworkIdentifier, PreprocessMetadata, Signature, SignatureType, SuiEnv,
+        TransactionIdentifierResponse,
+    },
 };
 use sui_types::crypto::SuiSignature;
 use test_cluster::TestClusterBuilder;

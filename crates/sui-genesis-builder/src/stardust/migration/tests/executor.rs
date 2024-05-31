@@ -1,27 +1,29 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk::types::block::output::NativeTokens;
 use iota_sdk::types::block::{
     address::AliasAddress,
     output::{
         unlock_condition::ImmutableAliasAddressUnlockCondition, AliasId, FoundryOutputBuilder,
-        NativeToken, SimpleTokenScheme, UnlockCondition,
+        NativeToken, NativeTokens, SimpleTokenScheme, UnlockCondition,
     },
 };
-
 use sui_protocol_config::ProtocolVersion;
-use sui_types::balance::Balance;
 use sui_types::{
+    balance::Balance,
     dynamic_field::{derive_dynamic_field_id, Field},
     object::Owner,
 };
 
-use crate::stardust::migration::executor::Executor;
-use crate::stardust::migration::migration::NATIVE_TOKEN_BAG_KEY_TYPE;
-use crate::stardust::migration::tests::random_output_header;
-use crate::stardust::native_token::package_builder;
-use crate::stardust::native_token::package_data::{NativeTokenModuleData, NativeTokenPackageData};
+use crate::stardust::{
+    migration::{
+        executor::Executor, migration::NATIVE_TOKEN_BAG_KEY_TYPE, tests::random_output_header,
+    },
+    native_token::{
+        package_builder,
+        package_data::{NativeTokenModuleData, NativeTokenPackageData},
+    },
+};
 
 #[test]
 fn create_bag_with_pt() {

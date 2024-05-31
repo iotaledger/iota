@@ -28,27 +28,29 @@ pub(crate) struct JsonCursor<C>(OpaqueCursor<C>);
 /// Cursor that hides its value by encoding it as BCS and then Base64.
 pub(crate) struct BcsCursor<C>(C);
 
-/// Connection field parameters parsed into a single type that encodes the bounds of a single page
-/// in a paginated response.
+/// Connection field parameters parsed into a single type that encodes the
+/// bounds of a single page in a paginated response.
 #[derive(Debug, Clone)]
 pub(crate) struct Page<C> {
-    /// The exclusive lower bound of the page (no bound means start from the beginning of the
-    /// data-set).
+    /// The exclusive lower bound of the page (no bound means start from the
+    /// beginning of the data-set).
     after: Option<C>,
 
-    /// The exclusive upper bound of the page (no bound means continue to the end of the data-set).
+    /// The exclusive upper bound of the page (no bound means continue to the
+    /// end of the data-set).
     before: Option<C>,
 
     /// Maximum number of entries in the page.
     limit: u64,
 
-    /// In case there are more than `limit` entries in the range described by `(after, before)`,
-    /// this field states whether the entries up to limit are taken fron the `Front` or `Back` of
-    /// that range.
+    /// In case there are more than `limit` entries in the range described by
+    /// `(after, before)`, this field states whether the entries up to limit
+    /// are taken fron the `Front` or `Back` of that range.
     end: End,
 }
 
-/// Whether the page is extracted from the beginning or the end of the range bounded by the cursors.
+/// Whether the page is extracted from the beginning or the end of the range
+/// bounded by the cursors.
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 enum End {
     Front,
@@ -59,45 +61,48 @@ enum End {
 pub(crate) trait Paginated<C: CursorType>: Target<C> {
     type Source: QuerySource;
 
-    /// Adds a filter to `query` to bound its result to be greater than or equal to `cursor`
-    /// (returning the new query).
+    /// Adds a filter to `query` to bound its result to be greater than or equal
+    /// to `cursor` (returning the new query).
     fn filter_ge<ST, GB>(
         cursor: &C,
         query: Query<ST, Self::Source, GB>,
     ) -> Query<ST, Self::Source, GB>;
 
-    /// Adds a filter to `query` to bound its results to be less than or equal to `cursor`
-    /// (returning the new query).
+    /// Adds a filter to `query` to bound its results to be less than or equal
+    /// to `cursor` (returning the new query).
     fn filter_le<ST, GB>(
         cursor: &C,
         query: Query<ST, Self::Source, GB>,
     ) -> Query<ST, Self::Source, GB>;
 
-    /// Adds an `ORDER BY` clause to `query` to order rows according to their cursor values
-    /// (returning the new query). The `asc` parameter controls whether the ordering is ASCending
-    /// (`true`) or descending (`false`).
+    /// Adds an `ORDER BY` clause to `query` to order rows according to their
+    /// cursor values (returning the new query). The `asc` parameter
+    /// controls whether the ordering is ASCending (`true`) or descending
+    /// (`false`).
     fn order<ST, GB>(asc: bool, query: Query<ST, Self::Source, GB>) -> Query<ST, Self::Source, GB>;
 }
 
-/// Results from the database that are pointed to by cursors. Equivalent to `Paginated`, but for a
-/// `RawQuery`.
+/// Results from the database that are pointed to by cursors. Equivalent to
+/// `Paginated`, but for a `RawQuery`.
 pub(crate) trait RawPaginated<C: CursorType>: Target<C> {
-    /// Adds a filter to `query` to bound its result to be greater than or equal to `cursor`
-    /// (returning the new query).
+    /// Adds a filter to `query` to bound its result to be greater than or equal
+    /// to `cursor` (returning the new query).
     fn filter_ge(cursor: &C, query: RawQuery) -> RawQuery;
 
-    /// Adds a filter to `query` to bound its results to be less than or equal to `cursor`
-    /// (returning the new query).
+    /// Adds a filter to `query` to bound its results to be less than or equal
+    /// to `cursor` (returning the new query).
     fn filter_le(cursor: &C, query: RawQuery) -> RawQuery;
 
-    /// Adds an `ORDER BY` clause to `query` to order rows according to their cursor values
-    /// (returning the new query). The `asc` parameter controls whether the ordering is ASCending
-    /// (`true`) or descending (`false`).
+    /// Adds an `ORDER BY` clause to `query` to order rows according to their
+    /// cursor values (returning the new query). The `asc` parameter
+    /// controls whether the ordering is ASCending (`true`) or descending
+    /// (`false`).
     fn order(asc: bool, query: RawQuery) -> RawQuery;
 }
 
 pub(crate) trait Target<C: CursorType> {
-    /// The cursor pointing at this target value, assuming it was read at `checkpoint_viewed_at`.
+    /// The cursor pointing at this target value, assuming it was read at
+    /// `checkpoint_viewed_at`.
     fn cursor(&self, checkpoint_viewed_at: u64) -> C;
 }
 
@@ -114,18 +119,21 @@ impl<C> BcsCursor<C> {
 }
 
 impl<C> Page<C> {
-    /// Convert connection parameters into a page. Entries for the page are drawn from the range
-    /// `(after, before)` (Both bounds are optional). The number of entries in the page is
-    /// controlled by `first` and `last`.
+    /// Convert connection parameters into a page. Entries for the page are
+    /// drawn from the range `(after, before)` (Both bounds are optional).
+    /// The number of entries in the page is controlled by `first` and
+    /// `last`.
     ///
     /// - Setting both is in an error.
-    /// - Setting `first` indicates that the entries are taken from the front of the range.
-    /// - Setting `last` indicates that the entries are taken from the end of the range.
-    /// - Setting neither defaults the limit to the default page size in `config`, taken from the
-    ///   front of the range.
+    /// - Setting `first` indicates that the entries are taken from the front of
+    ///   the range.
+    /// - Setting `last` indicates that the entries are taken from the end of
+    ///   the range.
+    /// - Setting neither defaults the limit to the default page size in
+    ///   `config`, taken from the front of the range.
     ///
-    /// It is an error to set a limit on page size that is greater than the `config`'s max page
-    /// size.
+    /// It is an error to set a limit on page size that is greater than the
+    /// `config`'s max page size.
     pub(crate) fn from_params(
         config: &ServiceConfig,
         first: Option<u64>,
@@ -180,9 +188,10 @@ impl<C> Page<C>
 where
     C: Checkpointed,
 {
-    /// If cursors are provided, defer to the `checkpoint_viewed_at` in the cursor if they are
-    /// consistent. Otherwise, use the value from the parameter, or set to None. This is so that
-    /// paginated queries are consistent with the previous query that created the cursor.
+    /// If cursors are provided, defer to the `checkpoint_viewed_at` in the
+    /// cursor if they are consistent. Otherwise, use the value from the
+    /// parameter, or set to None. This is so that paginated queries are
+    /// consistent with the previous query that created the cursor.
     pub(crate) fn validate_cursor_consistency(&self) -> Result<Option<u64>, Error> {
         match (self.after(), self.before()) {
             (Some(after), Some(before)) => {
@@ -204,10 +213,11 @@ where
 }
 
 impl Page<JsonCursor<ConsistentIndexCursor>> {
-    /// Treat the cursors of this Page as indices into a range [0, total). Validates that the
-    /// cursors of the page are consistent, and returns two booleans indicating whether there is a
-    /// previous or next page in the range, the `checkpoint_viewed_at` to set for consistency, and
-    /// an iterator of cursors within that Page.
+    /// Treat the cursors of this Page as indices into a range [0, total).
+    /// Validates that the cursors of the page are consistent, and returns
+    /// two booleans indicating whether there is a previous or next page in
+    /// the range, the `checkpoint_viewed_at` to set for consistency, and an
+    /// iterator of cursors within that Page.
     pub(crate) fn paginate_consistent_indices(
         &self,
         total: usize,
@@ -252,14 +262,16 @@ impl Page<JsonCursor<ConsistentIndexCursor>> {
 }
 
 impl<C: CursorType + Eq + Clone + Send + Sync + 'static> Page<C> {
-    /// Treat the cursors of this page as upper- and lowerbound filters for a database `query`.
-    /// Returns two booleans indicating whether there is a previous or next page in the range,
-    /// followed by an iterator of values in the page, fetched from the database.
+    /// Treat the cursors of this page as upper- and lowerbound filters for a
+    /// database `query`. Returns two booleans indicating whether there is a
+    /// previous or next page in the range, followed by an iterator of
+    /// values in the page, fetched from the database.
     ///
-    /// The values returned implement `Target<C>`, so are able to compute their own cursors.
+    /// The values returned implement `Target<C>`, so are able to compute their
+    /// own cursors.
     ///
-    /// `checkpoint_viewed_at` is a required parameter to and passed to each element to construct a
-    /// consistent cursor.
+    /// `checkpoint_viewed_at` is a required parameter to and passed to each
+    /// element to construct a consistent cursor.
     pub(crate) fn paginate_query<T, Q, ST, GB>(
         &self,
         conn: &mut Conn<'_>,
@@ -311,13 +323,15 @@ impl<C: CursorType + Eq + Clone + Send + Sync + 'static> Page<C> {
         ))
     }
 
-    /// This function is similar to `paginate_query`, but is specifically designed for handling
-    /// `RawQuery`. Treat the cursors of this page as upper- and lowerbound filters for a database
-    /// `query`. Returns two booleans indicating whether there is a previous or next page in the
-    /// range, followed by an iterator of values in the page, fetched from the database.
+    /// This function is similar to `paginate_query`, but is specifically
+    /// designed for handling `RawQuery`. Treat the cursors of this page as
+    /// upper- and lowerbound filters for a database `query`. Returns two
+    /// booleans indicating whether there is a previous or next page in the
+    /// range, followed by an iterator of values in the page, fetched from the
+    /// database.
     ///
-    /// `checkpoint_viewed_at` is a required parameter to and passed to each element to construct a
-    /// consistent cursor.
+    /// `checkpoint_viewed_at` is a required parameter to and passed to each
+    /// element to construct a consistent cursor.
     pub(crate) fn paginate_raw_query<T>(
         &self,
         conn: &mut Conn<'_>,
@@ -350,12 +364,14 @@ impl<C: CursorType + Eq + Clone + Send + Sync + 'static> Page<C> {
         ))
     }
 
-    /// Given the results of a database query, determine whether the result set has a previous and
-    /// next page and is consistent with the provided cursors.
+    /// Given the results of a database query, determine whether the result set
+    /// has a previous and next page and is consistent with the provided
+    /// cursors.
     ///
-    /// Returns two booleans indicating whether there is a previous or next page in the range,
-    /// followed by an iterator of values in the page, fetched from the database. The values
-    /// returned implement `Target<C>`, so are able to compute their own cursors.
+    /// Returns two booleans indicating whether there is a previous or next page
+    /// in the range, followed by an iterator of values in the page, fetched
+    /// from the database. The values returned implement `Target<C>`, so are
+    /// able to compute their own cursors.
     fn paginate_results<T>(
         &self,
         f_cursor: Option<C>,
@@ -393,9 +409,9 @@ impl<C: CursorType + Eq + Clone + Send + Sync + 'static> Page<C> {
                     let has_previous_page = after.is_some();
                     let prefix = has_previous_page as usize;
 
-                    // If results end with the before cursor, we will at least need to trim one element
-                    // from the suffix and we trim more off the end if there is more after applying the
-                    // limit.
+                    // If results end with the before cursor, we will at least need to trim one
+                    // element from the suffix and we trim more off the end if
+                    // there is more after applying the limit.
                     let mut suffix = before.is_some_and(|b| *b == l) as usize;
                     suffix += results.len().saturating_sub(self.limit() + prefix + suffix);
                     let has_next_page = suffix > 0;
@@ -416,14 +432,15 @@ impl<C: CursorType + Eq + Clone + Send + Sync + 'static> Page<C> {
                 }
             };
 
-        // If after trimming, we're going to return no elements, then forget whether there's a
-        // previous or next page, because there will be no start or end cursor for this page to
-        // anchor on.
+        // If after trimming, we're going to return no elements, then forget whether
+        // there's a previous or next page, because there will be no start or
+        // end cursor for this page to anchor on.
         if results.len() == prefix + suffix {
             return (false, false, vec![].into_iter());
         }
 
-        // We finally made it -- trim the prefix and suffix rows from the result and send it!
+        // We finally made it -- trim the prefix and suffix rows from the result and
+        // send it!
         let mut results = results.into_iter();
         if prefix > 0 {
             results.nth(prefix - 1);
@@ -467,7 +484,8 @@ where
         Ok(JsonCursor(OpaqueCursor::decode_cursor(&s)?))
     }
 
-    /// Just check that the value is a string, as we'll do more involved tests during parsing.
+    /// Just check that the value is a string, as we'll do more involved tests
+    /// during parsing.
     fn is_valid(value: &Value) -> bool {
         matches!(value, Value::String(_))
     }
@@ -491,7 +509,8 @@ where
         Ok(Self::decode_cursor(&s)?)
     }
 
-    /// Just check that the value is a string, as we'll do more involved tests during parsing.
+    /// Just check that the value is a string, as we'll do more involved tests
+    /// during parsing.
     fn is_valid(value: &Value) -> bool {
         matches!(value, Value::String(_))
     }
@@ -501,7 +520,8 @@ where
     }
 }
 
-/// Wrapping implementation of `CursorType` directly forwarding to `OpaqueCursor`.
+/// Wrapping implementation of `CursorType` directly forwarding to
+/// `OpaqueCursor`.
 impl<C> CursorType for JsonCursor<C>
 where
     C: Send + Sync,
@@ -566,7 +586,7 @@ impl<C: fmt::Debug> fmt::Debug for BcsCursor<C> {
 
 impl<C: Clone> Clone for JsonCursor<C> {
     fn clone(&self) -> Self {
-        JsonCursor::new(self.0 .0.clone())
+        JsonCursor::new(self.0.0.clone())
     }
 }
 
@@ -593,8 +613,9 @@ impl<C: Eq> Eq for BcsCursor<C> {}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use expect_test::expect;
+
+    use super::*;
 
     #[test]
     fn test_default_page() {
