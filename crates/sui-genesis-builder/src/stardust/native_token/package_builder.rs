@@ -1,18 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! The [`package_builder`] module provides the [`PackageBuilder`] struct, which is responsible for building and compiling Stardust native token packages.
-use std::fs;
-use std::path::{Path, PathBuf};
+//! The [`package_builder`] module provides the [`PackageBuilder`] struct, which
+//! is responsible for building and compiling Stardust native token packages.
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use anyhow::Result;
 use fs_extra::dir::{copy, CopyOptions};
+use sui_move_build::{BuildConfig, CompiledPackage, SuiPackageHooks};
 use tempfile::tempdir;
 
-use crate::stardust::error::StardustError;
-use sui_move_build::{BuildConfig, CompiledPackage, SuiPackageHooks};
-
-use crate::stardust::native_token::package_data::NativeTokenPackageData;
+use crate::stardust::{error::StardustError, native_token::package_data::NativeTokenPackageData};
 
 /// Builds and compiles a Stardust native token package.
 pub fn build_and_compile(package: NativeTokenPackageData) -> Result<CompiledPackage> {
@@ -124,11 +125,14 @@ fn adjust_native_token_module(package_path: &Path, package: &NativeTokenPackageD
 
 #[cfg(test)]
 mod tests {
-    use std::fs::{self, File};
-    use std::io::Write;
+    use std::{
+        fs::{self, File},
+        io::Write,
+    };
+
+    use tempfile::tempdir;
 
     use crate::stardust::native_token::package_builder;
-    use tempfile::tempdir;
 
     #[test]
     fn copy_template_dir_success() {

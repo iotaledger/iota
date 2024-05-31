@@ -2,6 +2,11 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use move_binary_format::file_format::{
+    Ability, Bytecode, FunctionHandleIndex, FunctionInstantiationIndex, SignatureToken,
+    StructDefInstantiationIndex, StructDefinitionIndex,
+};
+
 use crate::{
     abstract_state::{AbstractState, AbstractValue, BorrowState, Mutability},
     error::VMError,
@@ -22,10 +27,6 @@ use crate::{
     state_stack_unpack_struct, state_stack_unpack_struct_inst, struct_instantiation_for_state,
     transitions::*,
     unpack_instantiation_for_state, with_ty_param,
-};
-use move_binary_format::file_format::{
-    Ability, Bytecode, FunctionHandleIndex, FunctionInstantiationIndex, SignatureToken,
-    StructDefInstantiationIndex, StructDefinitionIndex,
 };
 
 /// A `Precondition` is a boolean predicate on an `AbstractState`.
@@ -225,7 +226,7 @@ pub fn instruction_summary(instruction: Bytecode, exact: bool) -> Summary {
         },
         Bytecode::ImmBorrowLoc(i) => Summary {
             // TODO: Add these back in when the borrow graph is added
-            //preconditions: vec![
+            // preconditions: vec![
             //    state_local_exists!(i),
             //    state_local_availability_is!(i, BorrowState::Available),
             //    state_memory_safe!(None),

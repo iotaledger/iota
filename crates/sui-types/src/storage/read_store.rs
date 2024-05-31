@@ -1,39 +1,41 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use super::error::Result;
-use super::ObjectStore;
-use crate::base_types::EpochId;
-use crate::committee::Committee;
-use crate::digests::{
-    CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEventsDigest,
-};
-use crate::effects::{TransactionEffects, TransactionEvents};
-use crate::full_checkpoint_content::CheckpointData;
-use crate::messages_checkpoint::{
-    CheckpointContents, CheckpointSequenceNumber, FullCheckpointContents, VerifiedCheckpoint,
-};
-use crate::transaction::VerifiedTransaction;
 use std::sync::Arc;
 
+use super::{error::Result, ObjectStore};
+use crate::{
+    base_types::EpochId,
+    committee::Committee,
+    digests::{
+        CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEventsDigest,
+    },
+    effects::{TransactionEffects, TransactionEvents},
+    full_checkpoint_content::CheckpointData,
+    messages_checkpoint::{
+        CheckpointContents, CheckpointSequenceNumber, FullCheckpointContents, VerifiedCheckpoint,
+    },
+    transaction::VerifiedTransaction,
+};
+
 pub trait ReadStore: ObjectStore {
-    //
     // Committee Getters
     //
 
     fn get_committee(&self, epoch: EpochId) -> Result<Option<Arc<Committee>>>;
 
-    //
     // Checkpoint Getters
     //
 
-    /// Get the latest available checkpoint. This is the latest executed checkpoint.
+    /// Get the latest available checkpoint. This is the latest executed
+    /// checkpoint.
     ///
-    /// All transactions, effects, objects and events are guaranteed to be available for the
-    /// returned checkpoint.
+    /// All transactions, effects, objects and events are guaranteed to be
+    /// available for the returned checkpoint.
     fn get_latest_checkpoint(&self) -> Result<VerifiedCheckpoint>;
 
-    /// Get the latest available checkpoint sequence number. This is the sequence number of the latest executed checkpoint.
+    /// Get the latest available checkpoint sequence number. This is the
+    /// sequence number of the latest executed checkpoint.
     fn get_latest_checkpoint_sequence_number(&self) -> Result<CheckpointSequenceNumber> {
         let latest_checkpoint = self.get_latest_checkpoint()?;
         Ok(*latest_checkpoint.sequence_number())
@@ -45,14 +47,15 @@ pub trait ReadStore: ObjectStore {
         Ok(latest_checkpoint.epoch())
     }
 
-    /// Get the highest verified checkpint. This is the highest checkpoint summary that has been
-    /// verified, generally by state-sync. Only the checkpoint header is guaranteed to be present in
-    /// the store.
+    /// Get the highest verified checkpint. This is the highest checkpoint
+    /// summary that has been verified, generally by state-sync. Only the
+    /// checkpoint header is guaranteed to be present in the store.
     fn get_highest_verified_checkpoint(&self) -> Result<VerifiedCheckpoint>;
 
-    /// Get the highest synced checkpint. This is the highest checkpoint that has been synced from
-    /// state-synce. The checkpoint header, contents, transactions, and effects of this checkpoint
-    /// are guaranteed to be present in the store
+    /// Get the highest synced checkpint. This is the highest checkpoint that
+    /// has been synced from state-synce. The checkpoint header, contents,
+    /// transactions, and effects of this checkpoint are guaranteed to be
+    /// present in the store
     fn get_highest_synced_checkpoint(&self) -> Result<VerifiedCheckpoint>;
 
     /// The lowest available checkpoint that hasn't yet been pruned.
@@ -78,7 +81,6 @@ pub trait ReadStore: ObjectStore {
         sequence_number: CheckpointSequenceNumber,
     ) -> Result<Option<CheckpointContents>>;
 
-    //
     // Transaction Getters
     //
 
@@ -127,7 +129,6 @@ pub trait ReadStore: ObjectStore {
             .collect::<Result<Vec<_>, _>>()
     }
 
-    //
     // Extra Checkpoint fetching apis
     //
 
@@ -152,10 +153,12 @@ pub trait ReadStore: ObjectStore {
         checkpoint: VerifiedCheckpoint,
         checkpoint_contents: CheckpointContents,
     ) -> anyhow::Result<CheckpointData> {
-        use super::ObjectKey;
-        use crate::effects::TransactionEffectsAPI;
-        use crate::full_checkpoint_content::CheckpointTransaction;
         use std::collections::{HashMap, HashSet};
+
+        use super::ObjectKey;
+        use crate::{
+            effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointTransaction,
+        };
 
         let transaction_digests = checkpoint_contents
             .iter()
@@ -219,7 +222,8 @@ pub trait ReadStore: ObjectStore {
                 )
                 .collect::<HashSet<_>>()
                 .into_iter()
-                // Unwrapped-then-deleted objects are not stored in state before the tx, so we have nothing to fetch.
+                // Unwrapped-then-deleted objects are not stored in state before the tx, so we have
+                // nothing to fetch.
                 .filter(|key| !unwrapped_then_deleted_obj_ids.contains(&key.0))
                 .collect::<Vec<_>>();
 

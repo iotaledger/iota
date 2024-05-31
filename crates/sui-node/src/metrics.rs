@@ -1,17 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
 use axum::http::header;
+use mysten_metrics::RegistryService;
 use mysten_network::metrics::MetricsCallbackProvider;
 use prometheus::{
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry, Encoder, HistogramVec, IntCounterVec, IntGaugeVec,
     Registry, PROTOBUF_FORMAT,
 };
-
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use sui_network::tonic::Code;
-
-use mysten_metrics::RegistryService;
 use tracing::error;
 
 pub struct MetricsPushClient {
@@ -47,8 +46,8 @@ impl MetricsPushClient {
     }
 }
 
-/// Starts a task to periodically push metrics to a configured endpoint if a metrics push endpoint
-/// is configured.
+/// Starts a task to periodically push metrics to a configured endpoint if a
+/// metrics push endpoint is configured.
 pub fn start_metrics_push_task(config: &sui_config::NodeConfig, registry: RegistryService) {
     use fastcrypto::traits::KeyPair;
     use sui_config::node::MetricsConfig;
@@ -69,7 +68,8 @@ pub fn start_metrics_push_task(config: &sui_config::NodeConfig, registry: Regist
         _ => return,
     };
 
-    // make a copy so we can make a new client later when we hit errors posting metrics
+    // make a copy so we can make a new client later when we hit errors posting
+    // metrics
     let config_copy = config.clone();
     let mut client = MetricsPushClient::new(config_copy.network_key_pair().copy());
 
@@ -78,7 +78,8 @@ pub fn start_metrics_push_task(config: &sui_config::NodeConfig, registry: Regist
         url: &reqwest::Url,
         registry: &RegistryService,
     ) -> Result<(), anyhow::Error> {
-        // now represents a collection timestamp for all of the metrics we send to the proxy
+        // now represents a collection timestamp for all of the metrics we send to the
+        // proxy
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -261,9 +262,10 @@ impl MetricsCallbackProvider for GrpcMetrics {
 
 #[cfg(test)]
 mod tests {
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
     use mysten_metrics::start_prometheus_server;
     use prometheus::{IntCounter, Registry};
-    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
     #[tokio::test]
     pub async fn test_metrics_endpoint_with_multiple_registries_add_remove() {

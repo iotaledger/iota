@@ -1,21 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{str::FromStr, sync::Arc};
+
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::{self, StreamExt};
-use hyper::client::HttpConnector;
-use hyper::header::{HeaderValue, CONTENT_LENGTH};
-use hyper::Client;
-use hyper::Uri;
+use hyper::{
+    client::HttpConnector,
+    header::{HeaderValue, CONTENT_LENGTH},
+    Client, Uri,
+};
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
-use std::sync::Arc;
-use sui_types::base_types::{ObjectID, SequenceNumber, VersionNumber};
-use sui_types::object::Object;
-use sui_types::storage::ObjectKey;
 use sui_types::{
+    base_types::{ObjectID, SequenceNumber, VersionNumber},
     digests::{
         CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEventsDigest,
     },
@@ -24,14 +23,18 @@ use sui_types::{
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
     },
+    object::Object,
+    storage::ObjectKey,
     transaction::Transaction,
 };
 use tap::TapFallible;
 use tracing::{error, info, instrument, trace, warn};
 use url::Url;
 
-use crate::key_value_store::{TransactionKeyValueStore, TransactionKeyValueStoreTrait};
-use crate::key_value_store_metrics::KeyValueStoreMetrics;
+use crate::{
+    key_value_store::{TransactionKeyValueStore, TransactionKeyValueStoreTrait},
+    key_value_store_metrics::KeyValueStoreMetrics,
+};
 
 pub struct HttpKVStore {
     base_url: Url,

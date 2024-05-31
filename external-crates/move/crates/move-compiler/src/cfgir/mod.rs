@@ -14,17 +14,19 @@ pub mod visitor;
 
 mod optimize;
 
+use std::collections::BTreeSet;
+
+use cfg::*;
+use move_ir_types::location::Loc;
+use move_symbol_pool::Symbol;
+use optimize::optimize;
+
 use crate::{
     expansion::ast::{AbilitySet, Attributes, ModuleIdent, Mutability},
     hlir::ast::{FunctionSignature, Label, SingleType, Var, Visibility},
     parser::ast::StructName,
     shared::{unique_map::UniqueMap, CompilationEnv, Name},
 };
-use cfg::*;
-use move_ir_types::location::Loc;
-use move_symbol_pool::Symbol;
-use optimize::optimize;
-use std::collections::BTreeSet;
 
 pub struct CFGContext<'a> {
     pub package: Option<Symbol>,

@@ -1,24 +1,30 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use super::object_change::{ObjectIn, ObjectOut};
-use super::{EffectsObjectChange, IDOperation, ObjectChange};
-use crate::base_types::{
-    EpochId, ObjectDigest, ObjectID, ObjectRef, SequenceNumber, SuiAddress, TransactionDigest,
-    VersionDigest,
-};
-use crate::digests::{EffectsAuxDataDigest, TransactionEventsDigest};
-use crate::effects::{InputSharedObject, TransactionEffectsAPI};
-use crate::execution::SharedInput;
-use crate::execution_status::ExecutionStatus;
-use crate::gas::GasCostSummary;
-#[cfg(debug_assertions)]
-use crate::is_system_package;
-use crate::object::{Owner, OBJECT_START_VERSION};
-use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 #[cfg(debug_assertions)]
 use std::collections::HashSet;
+
+use serde::{Deserialize, Serialize};
+
+use super::{
+    object_change::{ObjectIn, ObjectOut},
+    EffectsObjectChange, IDOperation, ObjectChange,
+};
+#[cfg(debug_assertions)]
+use crate::is_system_package;
+use crate::{
+    base_types::{
+        EpochId, ObjectDigest, ObjectID, ObjectRef, SequenceNumber, SuiAddress, TransactionDigest,
+        VersionDigest,
+    },
+    digests::{EffectsAuxDataDigest, TransactionEventsDigest},
+    effects::{InputSharedObject, TransactionEffectsAPI},
+    execution::SharedInput,
+    execution_status::ExecutionStatus,
+    gas::GasCostSummary,
+    object::{Owner, OBJECT_START_VERSION},
+};
 
 /// The response from processing a transaction or a certified transaction
 #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
@@ -30,8 +36,8 @@ pub struct TransactionEffectsV2 {
     gas_used: GasCostSummary,
     /// The transaction digest
     transaction_digest: TransactionDigest,
-    /// The updated gas object reference, as an index into the `changed_objects` vector.
-    /// Having a dedicated field for convenient access.
+    /// The updated gas object reference, as an index into the `changed_objects`
+    /// vector. Having a dedicated field for convenient access.
     /// System transaction that don't require gas will leave this as None.
     gas_object_index: Option<u32>,
     /// The digest of the events emitted during execution,
@@ -44,13 +50,15 @@ pub struct TransactionEffectsV2 {
     lamport_version: SequenceNumber,
     /// Objects whose state are changed in the object store.
     changed_objects: Vec<(ObjectID, EffectsObjectChange)>,
-    /// Shared objects that are not mutated in this transaction. Unlike owned objects,
-    /// read-only shared objects' version are not committed in the transaction,
-    /// and in order for a node to catch up and execute it without consensus sequencing,
-    /// the version needs to be committed in the effects.
+    /// Shared objects that are not mutated in this transaction. Unlike owned
+    /// objects, read-only shared objects' version are not committed in the
+    /// transaction, and in order for a node to catch up and execute it
+    /// without consensus sequencing, the version needs to be committed in
+    /// the effects.
     unchanged_shared_objects: Vec<(ObjectID, UnchangedSharedKind)>,
-    /// Auxiliary data that are not protocol-critical, generated as part of the effects but are stored separately.
-    /// Storing it separately allows us to avoid bloating the effects with data that are not critical.
+    /// Auxiliary data that are not protocol-critical, generated as part of the
+    /// effects but are stored separately. Storing it separately allows us
+    /// to avoid bloating the effects with data that are not critical.
     /// It also provides more flexibility on the format and type of the data.
     aux_data_digest: Option<EffectsAuxDataDigest>,
 }
@@ -451,7 +459,8 @@ impl TransactionEffectsV2 {
     }
 
     /// This function demonstrates what's the invariant of the effects.
-    /// It also documents the semantics of different combinations in object changes.
+    /// It also documents the semantics of different combinations in object
+    /// changes.
     #[cfg(debug_assertions)]
     fn check_invariant(&self) {
         let mut unique_ids = HashSet::new();
@@ -568,8 +577,9 @@ impl Default for TransactionEffectsV2 {
 
 #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
 pub enum UnchangedSharedKind {
-    /// Read-only shared objects from the input. We don't really need ObjectDigest
-    /// for protocol correctness, but it will make it easier to verify untrusted read.
+    /// Read-only shared objects from the input. We don't really need
+    /// ObjectDigest for protocol correctness, but it will make it easier to
+    /// verify untrusted read.
     ReadOnlyRoot(VersionDigest),
     /// Deleted shared objects that appear mutably/owned in the input.
     MutateDeleted(SequenceNumber),

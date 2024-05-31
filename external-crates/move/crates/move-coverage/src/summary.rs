@@ -4,9 +4,11 @@
 
 #![forbid(unsafe_code)]
 
-use crate::coverage_map::{
-    ExecCoverageMap, ExecCoverageMapWithModules, ModuleCoverageMap, TraceMap,
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    io::{self, Write},
 };
+
 use move_binary_format::{
     access::ModuleAccess,
     control_flow_graph::{BlockId, ControlFlowGraph, VMControlFlowGraph},
@@ -16,9 +18,9 @@ use move_binary_format::{
 use move_core_types::{identifier::Identifier, language_storage::ModuleId};
 use petgraph::{algo::tarjan_scc, Graph};
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    io::{self, Write},
+
+use crate::coverage_map::{
+    ExecCoverageMap, ExecCoverageMapWithModules, ModuleCoverageMap, TraceMap,
 };
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -70,8 +72,8 @@ impl ModuleSummary {
         Ok(())
     }
 
-    /// Summarizes the modules coverage, and returns the total module coverage in a human-readable
-    /// format.
+    /// Summarizes the modules coverage, and returns the total module coverage
+    /// in a human-readable format.
     pub fn summarize_human<W: Write>(
         &self,
         summary_writer: &mut W,
@@ -282,11 +284,13 @@ pub fn summarize_path_cov(module: &CompiledModule, trace_map: &TraceMap) -> Modu
                             }
 
                             for (path_end_scc, path_end_reachability) in reachability.into_iter() {
-                                assert!(path_nums
-                                    .get_mut(&path_end_scc)
-                                    .unwrap()
-                                    .insert(scc_idx, path_end_reachability)
-                                    .is_none());
+                                assert!(
+                                    path_nums
+                                        .get_mut(&path_end_scc)
+                                        .unwrap()
+                                        .insert(scc_idx, path_end_reachability)
+                                        .is_none()
+                                );
                             }
 
                             // move to branch info if there are more than one branches

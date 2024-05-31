@@ -1,14 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use crate::authority::authority_per_epoch_store::EPOCH_DB_PREFIX;
+use std::{fs, path::PathBuf, time::Duration};
+
 use itertools::Itertools;
-use std::fs;
-use std::path::PathBuf;
-use std::time::Duration;
 use sui_config::node::AuthorityStorePruningConfig;
 use tokio::sync::oneshot;
 use tracing::log::{error, info};
 use typed_store::rocks::safe_drop_db;
+
+use crate::authority::authority_per_epoch_store::EPOCH_DB_PREFIX;
 
 pub struct AuthorityPerEpochStorePruner {
     _cancel_handle: oneshot::Sender<()>,
@@ -73,8 +73,9 @@ impl AuthorityPerEpochStorePruner {
 
 #[cfg(test)]
 mod tests {
-    use crate::authority::authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner;
     use std::fs;
+
+    use crate::authority::authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner;
 
     #[test]
     fn test_basic_epoch_pruner() {

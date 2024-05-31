@@ -46,7 +46,6 @@ import clsx from 'clsx';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import Interstitial, { type InterstitialConfig } from '../interstitial';
-import { useOnrampProviders } from '../onramp/useOnrampProviders';
 import { CoinBalance } from './coin-balance';
 import { PortfolioName } from './PortfolioName';
 import { TokenIconLink } from './TokenIconLink';
@@ -368,8 +367,6 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
         FEATURES.WALLET_INTERSTITIAL_CONFIG,
     ).value;
 
-    const { providers } = useOnrampProviders();
-
     const tokenBalance = BigInt(coinBalance?.totalBalance ?? 0);
     const [formatted] = useFormatCoin(tokenBalance, activeCoinType);
 
@@ -475,26 +472,6 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                                         </Alert>
                                     ) : null}
                                     <div className="grid w-full grid-cols-3 gap-3">
-                                        {isMainnet ? (
-                                            <LargeButton
-                                                spacing="sm"
-                                                className={
-                                                    !accountHasSui && isMainnet
-                                                        ? 'col-span-3 !bg-sui-primaryBlue2023 !text-white'
-                                                        : ''
-                                                }
-                                                primary={!accountHasSui}
-                                                center
-                                                to="/onramp"
-                                                disabled={
-                                                    (coinType && coinType !== SUI_TYPE_ARG) ||
-                                                    !providers?.length
-                                                }
-                                            >
-                                                Buy
-                                            </LargeButton>
-                                        ) : null}
-
                                         <LargeButton
                                             center
                                             data-testid="send-coin-button"

@@ -1,23 +1,27 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::quorum_driver::reconfig_observer::DummyReconfigObserver;
-use crate::quorum_driver::{AuthorityAggregator, QuorumDriverHandlerBuilder};
-use crate::test_authority_clients::LocalAuthorityClient;
-use crate::test_authority_clients::LocalAuthorityClientFaultConfig;
-use crate::test_utils::make_transfer_sui_transaction;
-use crate::{quorum_driver::QuorumDriverMetrics, test_utils::init_local_authorities};
+use std::{sync::Arc, time::Duration};
+
 use mysten_common::sync::notify_read::{NotifyRead, Registration};
-use std::sync::Arc;
-use std::time::Duration;
-use sui_types::base_types::SuiAddress;
-use sui_types::base_types::TransactionDigest;
-use sui_types::crypto::{deterministic_random_account_key, get_key_pair, AccountKeyPair};
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::object::{generate_test_gas_objects, Object};
-use sui_types::quorum_driver_types::{QuorumDriverError, QuorumDriverResponse, QuorumDriverResult};
-use sui_types::transaction::Transaction;
+use sui_types::{
+    base_types::{SuiAddress, TransactionDigest},
+    crypto::{deterministic_random_account_key, get_key_pair, AccountKeyPair},
+    effects::TransactionEffectsAPI,
+    object::{generate_test_gas_objects, Object},
+    quorum_driver_types::{QuorumDriverError, QuorumDriverResponse, QuorumDriverResult},
+    transaction::Transaction,
+};
 use tokio::time::timeout;
+
+use crate::{
+    quorum_driver::{
+        reconfig_observer::DummyReconfigObserver, AuthorityAggregator, QuorumDriverHandlerBuilder,
+        QuorumDriverMetrics,
+    },
+    test_authority_clients::{LocalAuthorityClient, LocalAuthorityClientFaultConfig},
+    test_utils::{init_local_authorities, make_transfer_sui_transaction},
+};
 
 async fn setup() -> (AuthorityAggregator<LocalAuthorityClient>, Transaction) {
     let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
@@ -185,16 +189,22 @@ async fn test_quorum_driver_update_validators_and_max_retry_times() {
 
         // This now will fail due to server/client epoch mismatch:
         // server's epoch is 0 but client's is 10
-        // This error should not happen in practice for benign validators and a working client
+        // This error should not happen in practice for benign validators and a working
+        // client
         let ticket = quorum_driver.submit_transaction(tx).await.unwrap();
         // We have a timeout here to make the test fail fast if fails
         match tokio::time::timeout(Duration::from_secs(20), ticket).await {
-            Ok(Err(QuorumDriverError::FailedWithTransientErrorAfterMaximumAttempts { total_attempts })) => assert_eq!(total_attempts, 4),
-            _ => panic!("The transaction should err on SafeClient epoch check mismatch, be retried 3 times and raise QuorumDriverError::FailedWithTransientErrorAfterMaximumAttempts error"),
+            Ok(Err(QuorumDriverError::FailedWithTransientErrorAfterMaximumAttempts {
+                total_attempts,
+            })) => assert_eq!(total_attempts, 4),
+            _ => panic!(
+                "The transaction should err on SafeClient epoch check mismatch, be retried 3 times and raise QuorumDriverError::FailedWithTransientErrorAfterMaximumAttempts error"
+            ),
         };
     });
 
-    // Update authority aggregator with a new epoch number, and let quorum driver know.
+    // Update authority aggregator with a new epoch number, and let quorum driver
+    // know.
     let mut committee = aggregator.clone_inner_committee_test_only();
     committee.epoch = 10;
     aggregator.committee = Arc::new(committee);
@@ -263,9 +273,9 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
     let res = quorum_driver.submit_transaction(tx2).await.unwrap().await;
 
     // Aggregator waits for all responses when it sees a conflicting tx and because
-    // there are not enough retryable errors to push the original tx or the most staked
-    // conflicting tx >= 2f+1 stake. Neither transaction can be retried due to client
-    // double spend and this is a fatal error.
+    // there are not enough retryable errors to push the original tx or the most
+    // staked conflicting tx >= 2f+1 stake. Neither transaction can be retried
+    // due to client double spend and this is a fatal error.
     if let Err(QuorumDriverError::ObjectsDoubleUsed {
         conflicting_txes,
         retried_tx,
@@ -331,7 +341,9 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
     let QuorumDriverResponse { effects_cert, .. } = res;
     assert_eq!(*effects_cert.transaction_digest(), tx2_digest);
 
-    println!("Case 3 - object is locked by 2 txes with weight 2 and 1 respectivefully. Then try to execute the third txn");
+    println!(
+        "Case 3 - object is locked by 2 txes with weight 2 and 1 respectivefully. Then try to execute the third txn"
+    );
     let gas = gas_objects.pop().unwrap();
     let tx = make_tx(&gas, sender, &keypair, rgp);
     let tx2 = make_tx(&gas, sender, &keypair, rgp);
@@ -363,7 +375,9 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
         )
     }
 
-    println!("Case 4 - object is locked by 2 txes with weight 2 and 1, try to execute the lighter stake tx");
+    println!(
+        "Case 4 - object is locked by 2 txes with weight 2 and 1, try to execute the lighter stake tx"
+    );
     let gas = gas_objects.pop().unwrap();
     let tx = make_tx(&gas, sender, &keypair, rgp);
     let tx2 = make_tx(&gas, sender, &keypair, rgp);
@@ -389,7 +403,9 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
         )
     }
 
-    println!("Case 5 - object is locked by 2 txes with weight 2 and 1, try to execute the heavier stake tx");
+    println!(
+        "Case 5 - object is locked by 2 txes with weight 2 and 1, try to execute the heavier stake tx"
+    );
     let gas = gas_objects.pop().unwrap();
     let tx = make_tx(&gas, sender, &keypair, rgp);
     let tx_digest = *tx.digest();
@@ -434,10 +450,12 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
         assert_eq!(retried_tx, None);
         assert_eq!(retried_tx_success, None);
         assert!(conflicting_txes.len() == 3 || conflicting_txes.len() == 2);
-        assert!(conflicting_txes
-            .iter()
-            .all(|(digest, (_objs, stake))| (*stake == 2500)
-                && (digest == tx.digest() || digest == tx2.digest() || digest == tx3.digest())));
+        assert!(
+            conflicting_txes
+                .iter()
+                .all(|(digest, (_objs, stake))| (*stake == 2500)
+                    && (digest == tx.digest() || digest == tx2.digest() || digest == tx3.digest()))
+        );
     } else {
         panic!(
             "expect Err(QuorumDriverError::ObjectsDoubleUsed) but got {:?}",
@@ -448,7 +466,8 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-// Tests that quorum driver can continuously retry txn with SystemOverloadedRetryAfter error.
+// Tests that quorum driver can continuously retry txn with
+// SystemOverloadedRetryAfter error.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_quorum_driver_handling_overload_and_retry() {
     telemetry_subscribers::init_for_testing();
@@ -459,7 +478,8 @@ async fn test_quorum_driver_handling_overload_and_retry() {
     let (mut aggregator, authorities, genesis, _) =
         init_local_authorities(4, vec![gas_object.clone()]).await;
 
-    // Make local authority client to always return SystemOverloadedRetryAfter error.
+    // Make local authority client to always return SystemOverloadedRetryAfter
+    // error.
     let fault_config = LocalAuthorityClientFaultConfig {
         overload_retry_after_handle_transaction: true,
         ..Default::default()

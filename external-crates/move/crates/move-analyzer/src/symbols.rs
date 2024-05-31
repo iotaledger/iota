@@ -1,32 +1,37 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module is responsible for building symbolication information on top of compiler's parsed
-//! and typed ASTs, in particular identifier definitions to be used for implementing go-to-def,
-//! go-to-references, and on-hover language server commands.
+//! This module is responsible for building symbolication information on top of
+//! compiler's parsed and typed ASTs, in particular identifier definitions to be
+//! used for implementing go-to-def, go-to-references, and on-hover language
+//! server commands.
 //!
-//! There are different structs that are used at different phases of the process, the
-//! ParsingSymbolicator and Typing Symbolicator structs are used when building symbolication
-//! information and the Symbols struct is summarizes the symbolication results and is used by the
-//! language server find definitions and references.
+//! There are different structs that are used at different phases of the
+//! process, the ParsingSymbolicator and Typing Symbolicator structs are used
+//! when building symbolication information and the Symbols struct is summarizes
+//! the symbolication results and is used by the language server find
+//! definitions and references.
 //!
-//! Here is a brief description of how the symbolication information is encoded. Each identifier in
-//! the source code of a given module is represented by its location (UseLoc struct): line number,
-//! starting and ending column, and hash of the source file where this identifier is located). A
-//! definition for each identifier (if any - e.g., built-in type definitions are excluded as there
-//! is no place in source code where they are defined) is also represented by its location in the
-//! source code (DefLoc struct): line, starting column and a hash of the source file where it's
-//! located. The symbolication process maps each identifier with its definition, and also computes
-//! other relevant information for each identifier, such as location of its type and information
-//! that should be displayed on hover. All this information for an identifier is stored in the
-//! UseDef struct.
+//! Here is a brief description of how the symbolication information is encoded.
+//! Each identifier in the source code of a given module is represented by its
+//! location (UseLoc struct): line number, starting and ending column, and hash
+//! of the source file where this identifier is located). A definition for each
+//! identifier (if any - e.g., built-in type definitions are excluded as there
+//! is no place in source code where they are defined) is also represented by
+//! its location in the source code (DefLoc struct): line, starting column and a
+//! hash of the source file where it's located. The symbolication process maps
+//! each identifier with its definition, and also computes other relevant
+//! information for each identifier, such as location of its type and
+//! information that should be displayed on hover. All this information for an
+//! identifier is stored in the UseDef struct.
 
-//! All UseDefs for a given module are stored in a per module map keyed on the line number where the
-//! identifier represented by a given UseDef is located - the map entry contains a set of UseDef-s
-//! ordered by the column where the identifier starts.
+//! All UseDefs for a given module are stored in a per module map keyed on the
+//! line number where the identifier represented by a given UseDef is located -
+//! the map entry contains a set of UseDef-s ordered by the column where the
+//! identifier starts.
 //!
-//! For example consider the following code fragment (0-based line numbers on the left and 0-based
-//! column numbers at the bottom):
+//! For example consider the following code fragment (0-based line numbers on
+//! the left and 0-based column numbers at the bottom):
 //!
 //! 7: const SOME_CONST: u64 = 42;
 //! 8:
@@ -34,31 +39,38 @@
 //!    |     |  |   | |      |
 //!    0     6  9  13 15    22
 //!
-//! Symbolication information for this code fragment would look as follows assuming that this code
-//! is stored in a file with hash FHASH (we omit on-hover, type def and doc string info here; also
-//! note that identifier in the definition of the constant maps to itself):
+//! Symbolication information for this code fragment would look as follows
+//! assuming that this code is stored in a file with hash FHASH (we omit
+//! on-hover, type def and doc string info here; also note that identifier in
+//! the definition of the constant maps to itself):
 //!
 //! [7] -> [UseDef(col_start:6,  col_end:13, DefLoc(7:6, FHASH))]
 //! [9] -> [UseDef(col_start:0,  col_end: 9, DefLoc(7:6, FHASH))],
 //!        [UseDef(col_start:13, col_end:22, DefLoc(7:6, FHASH))]
 //!
 //! We also associate all uses of an identifier with its definition to support
-//! go-to-references. This is done in a global map from an identifier location (DefLoc) to a set of
-//! use locations (UseLoc).
+//! go-to-references. This is done in a global map from an identifier location
+//! (DefLoc) to a set of use locations (UseLoc).
 //!
-//! Symbolication algorithm over typing AST first analyzes all top-level definitions from all
-//! modules. ParsingSymbolicator then processes import statements (no longer available at the level
-//! of typed AST) and TypingSymbolicator processes function bodies, as well as constant and struct
-//! definitions. For local definitions, TypingSymbolicator builds a scope stack, entering
-//! encountered definitions and matching uses to a definition in the innermost scope.
+//! Symbolication algorithm over typing AST first analyzes all top-level
+//! definitions from all modules. ParsingSymbolicator then processes import
+//! statements (no longer available at the level of typed AST) and
+//! TypingSymbolicator processes function bodies, as well as constant and struct
+//! definitions. For local definitions, TypingSymbolicator builds a scope stack,
+//! entering encountered definitions and matching uses to a definition in the
+//! innermost scope.
 
 #![allow(clippy::non_canonical_partial_ord_impl)]
 
-use crate::{
-    context::Context,
-    diagnostics::{lsp_diagnostics, lsp_empty_diagnostics},
-    utils::get_loc,
+use std::{
+    cmp,
+    collections::{BTreeMap, BTreeSet, HashMap},
+    fmt,
+    path::{Path, PathBuf},
+    sync::{Arc, Condvar, Mutex},
+    thread,
 };
+
 use anyhow::{anyhow, Result};
 use codespan_reporting::files::SimpleFiles;
 use crossbeam::channel::Sender;
@@ -70,22 +82,6 @@ use lsp_types::{
     GotoDefinitionParams, Hover, HoverContents, HoverParams, Location, MarkupContent, MarkupKind,
     Position, Range, ReferenceParams, SymbolKind,
 };
-
-use std::{
-    cmp,
-    collections::{BTreeMap, BTreeSet, HashMap},
-    fmt,
-    path::{Path, PathBuf},
-    sync::{Arc, Condvar, Mutex},
-    thread,
-};
-use tempfile::tempdir;
-use url::Url;
-use vfs::{
-    impls::{memory::MemoryFS, overlay::OverlayFS, physical::PhysicalFS},
-    VfsPath,
-};
-
 use move_command_line_common::files::FileHash;
 use move_compiler::{
     command_line::compiler::{construct_pre_compiled_lib, FullyCompiledProgram},
@@ -108,9 +104,21 @@ use move_package::{
     source_package::parsed_manifest::FileName,
 };
 use move_symbol_pool::Symbol;
+use tempfile::tempdir;
+use url::Url;
+use vfs::{
+    impls::{memory::MemoryFS, overlay::OverlayFS, physical::PhysicalFS},
+    VfsPath,
+};
 
-/// Enabling/disabling the language server reporting readiness to support go-to-def and
-/// go-to-references to the IDE.
+use crate::{
+    context::Context,
+    diagnostics::{lsp_diagnostics, lsp_empty_diagnostics},
+    utils::get_loc,
+};
+
+/// Enabling/disabling the language server reporting readiness to support
+/// go-to-def and go-to-references to the IDE.
 pub const DEFS_AND_REFS_SUPPORT: bool = true;
 
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Copy)]
@@ -201,12 +209,12 @@ pub enum DefInfo {
     ),
 }
 
-/// Information about both the use identifier (source file is specified wherever an instance of this
-/// struct is used) and the definition identifier
+/// Information about both the use identifier (source file is specified wherever
+/// an instance of this struct is used) and the definition identifier
 #[derive(Debug, Clone, Eq)]
 pub struct UseDef {
-    /// Column where the (use) identifier location starts on a given line (use this field for
-    /// sorting uses on the line)
+    /// Column where the (use) identifier location starts on a given line (use
+    /// this field for sorting uses on the line)
     col_start: u32,
     /// Column where the (use) identifier location ends on a given line
     col_end: u32,
@@ -250,7 +258,8 @@ struct LocalDef {
     #[derivative(PartialOrd = "ignore")]
     #[derivative(Ord = "ignore")]
     def_type: Type,
-    /// Is directly declared with `let` (i.e., not a parameter and not declared with unpack)?
+    /// Is directly declared with `let` (i.e., not a parameter and not declared
+    /// with unpack)?
     with_let: bool,
 }
 
@@ -281,55 +290,67 @@ pub struct ModuleDefs {
 
 /// Data used during symbolication over parsed AST
 pub struct ParsingSymbolicator<'a> {
-    /// Outermost definitions in a module (structs, consts, functions), keyd on a ModuleIdent
-    /// string so that we can access it regardless of the ModuleIdent representation
-    /// (e.g., in the parsing AST or in the typing AST)
+    /// Outermost definitions in a module (structs, consts, functions), keyd on
+    /// a ModuleIdent string so that we can access it regardless of the
+    /// ModuleIdent representation (e.g., in the parsing AST or in the
+    /// typing AST)
     mod_outer_defs: &'a BTreeMap<String, ModuleDefs>,
-    /// A mapping from file names to file content (used to obtain source file locations)
+    /// A mapping from file names to file content (used to obtain source file
+    /// locations)
     files: &'a SimpleFiles<Symbol, String>,
-    /// A mapping from file hashes to file IDs (used to obtain source file locations)
+    /// A mapping from file hashes to file IDs (used to obtain source file
+    /// locations)
     file_id_mapping: &'a HashMap<FileHash, usize>,
-    // A mapping from file IDs to a split vector of the lines in each file (used to build docstrings)
+    // A mapping from file IDs to a split vector of the lines in each file (used to build
+    // docstrings)
     file_id_to_lines: &'a HashMap<usize, Vec<String>>,
-    /// Associates uses for a given definition to allow displaying all references
+    /// Associates uses for a given definition to allow displaying all
+    /// references
     references: &'a mut BTreeMap<DefLoc, BTreeSet<UseLoc>>,
     /// Additional information about definitions
     def_info: &'a mut BTreeMap<DefLoc, DefInfo>,
-    /// A UseDefMap for a given module (needs to be appropriately set before the module
-    /// processing starts)
+    /// A UseDefMap for a given module (needs to be appropriately set before the
+    /// module processing starts)
     use_defs: UseDefMap,
-    /// Module name lengths in access paths for a given module (needs to be appropriately
-    /// set before the module processing starts)
+    /// Module name lengths in access paths for a given module (needs to be
+    /// appropriately set before the module processing starts)
     alias_lengths: BTreeMap<Position, usize>,
 }
 
 /// Data used during symbolication over typed AST
 pub struct TypingSymbolicator<'a> {
-    /// Outermost definitions in a module (structs, consts, functions), keyd on a ModuleIdent
-    /// string so that we can access it regardless of the ModuleIdent representation
-    /// (e.g., in the parsing AST or in the typing AST)
+    /// Outermost definitions in a module (structs, consts, functions), keyd on
+    /// a ModuleIdent string so that we can access it regardless of the
+    /// ModuleIdent representation (e.g., in the parsing AST or in the
+    /// typing AST)
     mod_outer_defs: &'a BTreeMap<String, ModuleDefs>,
-    /// A mapping from file names to file content (used to obtain source file locations)
+    /// A mapping from file names to file content (used to obtain source file
+    /// locations)
     files: &'a SimpleFiles<Symbol, String>,
-    /// A mapping from file hashes to file IDs (used to obtain source file locations)
+    /// A mapping from file hashes to file IDs (used to obtain source file
+    /// locations)
     file_id_mapping: &'a HashMap<FileHash, usize>,
-    // A mapping from file IDs to a split vector of the lines in each file (used to build docstrings)
+    // A mapping from file IDs to a split vector of the lines in each file (used to build
+    // docstrings)
     file_id_to_lines: &'a HashMap<usize, Vec<String>>,
-    /// Contains type params where relevant (e.g. when processing function definition)
+    /// Contains type params where relevant (e.g. when processing function
+    /// definition)
     type_params: BTreeMap<Symbol, DefLoc>,
-    /// Associates uses for a given definition to allow displaying all references
+    /// Associates uses for a given definition to allow displaying all
+    /// references
     references: &'a mut BTreeMap<DefLoc, BTreeSet<UseLoc>>,
     /// Additional information about definitions
     def_info: &'a mut BTreeMap<DefLoc, DefInfo>,
-    /// A UseDefMap for a given module (needs to be appropriately set before the module
-    /// processing starts)
+    /// A UseDefMap for a given module (needs to be appropriately set before the
+    /// module processing starts)
     use_defs: UseDefMap,
-    /// Alias lengths in access paths for a given module (needs to be appropriately
-    /// set before the module processing starts)
+    /// Alias lengths in access paths for a given module (needs to be
+    /// appropriately set before the module processing starts)
     alias_lengths: &'a BTreeMap<Position, usize>,
 }
 
-/// Maps a line number to a list of use-def-s on a given line (use-def set is sorted by col_start)
+/// Maps a line number to a list of use-def-s on a given line (use-def set is
+/// sorted by col_start)
 #[derive(Debug, Clone, Eq, PartialEq)]
 struct UseDefMap(BTreeMap<u32, BTreeSet<UseDef>>);
 
@@ -370,12 +391,13 @@ impl fmt::Display for DefInfo {
         match self {
             Self::Type(t) => {
                 // Technically, we could use error_format function here to display the "regular"
-                // type, but the original intent of this function is subtly different that we need
-                // (i.e., to be used by compiler error messages) which, for example, results in
-                // verbosity that is not needed here.
+                // type, but the original intent of this function is subtly different that we
+                // need (i.e., to be used by compiler error messages) which, for
+                // example, results in verbosity that is not needed here.
                 //
-                // It also seems like a reasonable idea to be able to tune user experience in the
-                // IDE independently on how compiler error messages are generated.
+                // It also seems like a reasonable idea to be able to tune user experience in
+                // the IDE independently on how compiler error messages are
+                // generated.
                 write!(f, "{}", type_to_ide_string(t))
             }
             Self::Function(mod_ident, visibility, name, type_args, arg_names, arg_types, ret) => {
@@ -562,8 +584,9 @@ fn struct_type_list_to_ide_string(types: &[(Type, bool)]) -> String {
         .join(", ")
 }
 
-/// Conversions of constant values to strings is currently best-effort which is why this function
-/// returns an Option (in the worst case we will display constant name and type but no value).
+/// Conversions of constant values to strings is currently best-effort which is
+/// why this function returns an Option (in the worst case we will display
+/// constant name and type but no value).
 fn const_val_to_ide_string(exp: &Exp) -> Option<String> {
     ast_exp_to_ide_string(exp)
 }
@@ -581,7 +604,8 @@ fn ast_exp_to_ide_string(exp: &Exp) -> Option<String> {
                 .map(ast_seq_item_to_ide_string)
                 .collect::<Vec<_>>();
             if seq_items.iter().any(|o| o.is_none()) {
-                // even if only one element cannot be turned into string, don't try displaying block content at all
+                // even if only one element cannot be turned into string, don't try displaying
+                // block content at all
                 return None;
             }
             Some(
@@ -601,7 +625,8 @@ fn ast_exp_to_ide_string(exp: &Exp) -> Option<String> {
                 })
                 .collect::<Vec<_>>();
             if items.iter().any(|o| o.is_none()) {
-                // even if only one element cannot be turned into string, don't try displaying expression list at all
+                // even if only one element cannot be turned into string, don't try displaying
+                // expression list at all
                 return None;
             }
             Some(
@@ -678,7 +703,8 @@ impl SymbolicatorRunner {
         thread::Builder::new()
             .spawn(move || {
                 let (mtx, cvar) = &*thread_mtx_cvar;
-                // Locations opened in the IDE (files or directories) for which manifest file is missing
+                // Locations opened in the IDE (files or directories) for which manifest file is
+                // missing
                 let mut missing_manifests = BTreeSet::new();
                 // infinite loop to wait for symbolication requests
                 eprintln!("starting symbolicator runner loop");
@@ -687,8 +713,9 @@ impl SymbolicatorRunner {
                 let mut pkg_dependencies = BTreeMap::new();
                 loop {
                     let starting_path_opt = {
-                        // hold the lock only as long as it takes to get the data, rather than through
-                        // the whole symbolication process (hence a separate scope here)
+                        // hold the lock only as long as it takes to get the data, rather than
+                        // through the whole symbolication process (hence a
+                        // separate scope here)
                         let mut symbolicate = mtx.lock().unwrap();
                         match symbolicate.clone() {
                             RunnerState::Quit => break,
@@ -715,8 +742,9 @@ impl SymbolicatorRunner {
                         if root_dir.is_none() && !missing_manifests.contains(&starting_path) {
                             eprintln!("reporting missing manifest");
 
-                            // report missing manifest file only once to avoid cluttering IDE's UI in
-                            // cases when developer indeed intended to open a standalone file that was
+                            // report missing manifest file only once to avoid cluttering IDE's UI
+                            // in cases when developer indeed intended
+                            // to open a standalone file that was
                             // not meant to compile
                             missing_manifests.insert(starting_path);
                             if let Err(err) = sender.send(Err(anyhow!(
@@ -739,13 +767,15 @@ impl SymbolicatorRunner {
                                 eprintln!("symbolication finished");
                                 if let Some(new_symbols) = symbols_opt {
                                     // merge the new symbols with the old ones to support a
-                                    // (potentially) new project/package that symbolication information
-                                    // was built for
+                                    // (potentially) new project/package that symbolication
+                                    // information was built for
                                     //
-                                    // TODO: we may consider "unloading" symbolication information when
-                                    // files/directories are being closed but as with other performance
-                                    // optimizations (e.g. incrementalizatino of the vfs), let's wait
-                                    // until we know we actually need it
+                                    // TODO: we may consider "unloading" symbolication information
+                                    // when files/directories
+                                    // are being closed but as with other performance
+                                    // optimizations (e.g. incrementalizatino of the vfs), let's
+                                    // wait until we know we
+                                    // actually need it
                                     let mut old_symbols = symbols.lock().unwrap();
                                     (*old_symbols).merge(new_symbols);
                                 }
@@ -785,7 +815,8 @@ impl SymbolicatorRunner {
         cvar.notify_one();
     }
 
-    /// Finds manifest file in a (sub)directory of the starting path passed as argument
+    /// Finds manifest file in a (sub)directory of the starting path passed as
+    /// argument
     pub fn root_dir(starting_path: &Path) -> Option<PathBuf> {
         let mut current_path_opt = Some(starting_path);
         while current_path_opt.is_some() {
@@ -871,7 +902,8 @@ impl UseDef {
         }
     }
 
-    /// Given a UseDef, modify just the use name and location (to make it represent an alias).
+    /// Given a UseDef, modify just the use name and location (to make it
+    /// represent an alias).
     fn rename_use(
         &mut self,
         references: &mut BTreeMap<DefLoc, BTreeSet<UseLoc>>,
@@ -967,10 +999,11 @@ impl Symbols {
     }
 }
 
-/// Main driver to get symbols for the whole package. Returned symbols is an option as only the
-/// correctly computed symbols should be a replacement for the old set - if symbols are not
-/// actually (re)computed and the diagnostics are returned, the old symbolic information should
-/// be retained even if it's getting out-of-date.
+/// Main driver to get symbols for the whole package. Returned symbols is an
+/// option as only the correctly computed symbols should be a replacement for
+/// the old set - if symbols are not actually (re)computed and the diagnostics
+/// are returned, the old symbolic information should be retained even if it's
+/// getting out-of-date.
 pub fn get_symbols(
     pkg_deps: &mut BTreeMap<PathBuf, Arc<FullyCompiledProgram>>,
     ide_files_root: VfsPath,
@@ -987,8 +1020,8 @@ pub fn get_symbols(
 
     eprintln!("symbolicating {:?}", pkg_path);
 
-    // resolution graph diagnostics are only needed for CLI commands so ignore them by passing a
-    // vector as the writer
+    // resolution graph diagnostics are only needed for CLI commands so ignore them
+    // by passing a vector as the writer
     let resolution_graph = build_config.resolution_graph_for_package(pkg_path, &mut Vec::new())?;
 
     let overlay_fs_root = VfsPath::new(OverlayFS::new(&[
@@ -997,8 +1030,8 @@ pub fn get_symbols(
         VfsPath::new(PhysicalFS::new("/")),
     ]));
 
-    // get source files to be able to correlate positions (in terms of byte offsets) with actual
-    // file locations (in terms of line/column numbers)
+    // get source files to be able to correlate positions (in terms of byte offsets)
+    // with actual file locations (in terms of line/column numbers)
     let source_files = file_sources(&resolution_graph, overlay_fs_root.clone());
     let mut files = SimpleFiles::new();
     let mut file_id_mapping = HashMap::new();
@@ -1122,9 +1155,10 @@ pub fn get_symbols(
             &file_id_mapping,
             &file_name_mapping,
         );
-        // start with empty diagnostics for all files and replace them with actual diagnostics
-        // only for files that have failures/warnings so that diagnostics for all other files
-        // (that no longer have failures/warnings) are reset
+        // start with empty diagnostics for all files and replace them with actual
+        // diagnostics only for files that have failures/warnings so that
+        // diagnostics for all other files (that no longer have
+        // failures/warnings) are reset
         ide_diagnostics.extend(lsp_diagnostics);
         if failure {
             // just return diagnostics as we don't have typed AST that we can use to compute
@@ -1134,8 +1168,8 @@ pub fn get_symbols(
         }
     }
 
-    // uwrap's are safe - this function returns earlier (during diagnostics processing)
-    // when failing to produce the ASTs
+    // uwrap's are safe - this function returns earlier (during diagnostics
+    // processing) when failing to produce the ASTs
     let typed_modules = typed_ast.unwrap().inner.modules;
 
     let mut mod_outer_defs = BTreeMap::new();
@@ -1348,14 +1382,16 @@ fn file_sources(
         .collect()
 }
 
-/// Produces module ident string of the form pkg_name::module_name to be used as a map key.
-/// It's important that these are consistent between parsing AST and typed AST,
+/// Produces module ident string of the form pkg_name::module_name to be used as
+/// a map key. It's important that these are consistent between parsing AST and
+/// typed AST,
 fn parsing_mod_ident_to_map_key(mod_ident: &P::ModuleIdent_) -> String {
     format!("{}", mod_ident).to_string()
 }
 
-/// Produces module ident string of the form pkg_name::module_name to be used as a map key
-/// It's important that these are consistent between parsing AST and typed AST,
+/// Produces module ident string of the form pkg_name::module_name to be used as
+/// a map key It's important that these are consistent between parsing AST and
+/// typed AST,
 fn expansion_mod_ident_to_map_key(mod_ident: &E::ModuleIdent_) -> String {
     use E::Address as A;
     match mod_ident.address {
@@ -1381,7 +1417,8 @@ pub fn empty_symbols() -> Symbols {
 
 /// Main AST traversal functions
 
-/// Get symbols for outer definitions in the module (functions, structs, and consts)
+/// Get symbols for outer definitions in the module (functions, structs, and
+/// consts)
 fn get_mod_outer_defs(
     loc: &Loc,
     mod_ident: &ModuleIdent,
@@ -1649,12 +1686,14 @@ impl<'a> ParsingSymbolicator<'a> {
         mod_use_defs: &mut BTreeMap<String, UseDefMap>,
         mod_to_alias_lengths: &mut BTreeMap<String, BTreeMap<Position, usize>>,
     ) {
-        // parsing symbolicator is currently only responsible for processing use declarations
+        // parsing symbolicator is currently only responsible for processing use
+        // declarations
 
-        // we optimistically assume that modules are declared using the PkgName::ModName pattern
-        // (which seems to be the standard practice) and while Move allows other ways of defining
-        // modules (e.g., with address preceding a sequence of modules) we will handle those only
-        // when deemed necessary (worst-case scenario for now is that imports will not feature
+        // we optimistically assume that modules are declared using the PkgName::ModName
+        // pattern (which seems to be the standard practice) and while Move
+        // allows other ways of defining modules (e.g., with address preceding a
+        // sequence of modules) we will handle those only when deemed necessary
+        // (worst-case scenario for now is that imports will not feature
         // advanced functionality, such as go-to-def for modules defined this way)
         // TODO: handle retrieving address specified in a non-standard way if needed
         let mod_ident_str = match mod_def.address {
@@ -1899,7 +1938,8 @@ impl<'a> ParsingSymbolicator<'a> {
         }
     }
 
-    /// Get symbols for a module member in the use declaration (can be a struct or a function)
+    /// Get symbols for a module member in the use declaration (can be a struct
+    /// or a function)
     fn use_decl_member_symbols(
         &mut self,
         mod_defs: &ModuleDefs,
@@ -2043,7 +2083,8 @@ impl<'a> TypingSymbolicator<'a> {
     /// Get symbols for the whole module
     fn mod_symbols(&mut self, mod_def: &ModuleDefinition) {
         for (pos, name, fun) in &mod_def.functions {
-            // enter self-definition for function name (unwrap safe - done when inserting def)
+            // enter self-definition for function name (unwrap safe - done when inserting
+            // def)
             let name_start = get_start_loc(&pos, self.files, self.file_id_mapping).unwrap();
             let doc_string = extract_doc_string(
                 self.file_id_mapping,
@@ -2209,7 +2250,7 @@ impl<'a> TypingSymbolicator<'a> {
                 &pname.value.name,
                 &mut scope,
                 ptype.clone(),
-                false, /* with_let */
+                false, // with_let
             );
         }
 
@@ -2237,8 +2278,9 @@ impl<'a> TypingSymbolicator<'a> {
             I::Seq(e) => self.exp_symbols(e, scope),
             I::Declare(lvalues) => self.lvalue_list_symbols(true, lvalues, scope),
             I::Bind(lvalues, opt_types, e) => {
-                // process RHS first to avoid accidentally binding its identifiers to LHS (which now
-                // will be put into the current scope only after RHS is processed)
+                // process RHS first to avoid accidentally binding its identifiers to LHS (which
+                // now will be put into the current scope only after RHS is
+                // processed)
                 self.exp_symbols(e, scope);
                 for opt_t in opt_types {
                     match opt_t {
@@ -2279,7 +2321,8 @@ impl<'a> TypingSymbolicator<'a> {
                         &var.value.name,
                         scope,
                         *t.clone(),
-                        define && !for_unpack, // with_let (only for simple definition, e.g., `let t = 1;``)
+                        define && !for_unpack, /* with_let (only for simple definition, e.g.,
+                                                * `let t = 1;``) */
                     );
                 } else {
                     self.add_local_use_def(&var.value.name, &var.loc, scope)
@@ -2449,8 +2492,8 @@ impl<'a> TypingSymbolicator<'a> {
             color: _,
         } = use_funs;
 
-        // at typing there should be no unresolved candidates (it's also checked in typing
-        // translaction pass)
+        // at typing there should be no unresolved candidates (it's also checked in
+        // typing translaction pass)
         assert!(implicit_candidates.is_empty());
 
         for uses in resolved.values() {
@@ -2864,9 +2907,9 @@ impl<'a> TypingSymbolicator<'a> {
                         with_let,
                     },
                 );
-                // in other languages only one definition is allowed per scope but in move an (and
-                // in rust) a variable can be re-defined in the same scope replacing the previous
-                // definition
+                // in other languages only one definition is allowed per scope but in move an
+                // (and in rust) a variable can be re-defined in the same scope
+                // replacing the previous definition
 
                 // enter self-definition for def name
                 let ident_type_def_loc = type_def_loc(self.mod_outer_defs, &def_type);
@@ -2898,8 +2941,8 @@ impl<'a> TypingSymbolicator<'a> {
         }
     }
 
-    /// Add a use for and identifier whose definition is expected to be local to a function, and
-    /// pair it with an appropriate definition
+    /// Add a use for and identifier whose definition is expected to be local to
+    /// a function, and pair it with an appropriate definition
     fn add_local_use_def(
         &mut self,
         use_name: &Symbol,
@@ -3086,7 +3129,8 @@ fn find_struct(
     })
 }
 
-/// Extracts the docstring (/// or /** ... */) for a given definition by traversing up from the line definition
+/// Extracts the docstring (/// or /** ... */) for a given definition by
+/// traversing up from the line definition
 fn extract_doc_string(
     file_id_mapping: &HashMap<FileHash, usize>,
     file_id_to_lines: &HashMap<usize, Vec<String>>,
@@ -3186,8 +3230,8 @@ pub fn on_go_to_def_request(context: &Context, request: &Request, symbols: &Symb
         request.id.clone(),
         |u| {
             // TODO: Do we need beginning and end of the definition? Does not seem to make a
-            // difference from the IDE perspective as the cursor goes to the beginning anyway (at
-            // least in VSCode).
+            // difference from the IDE perspective as the cursor goes to the beginning
+            // anyway (at least in VSCode).
             let range = Range {
                 start: u.def_loc.start,
                 end: u.def_loc.start,
@@ -3367,8 +3411,8 @@ pub fn on_use_request(
     }
 
     eprintln!("about to send use response");
-    // unwrap will succeed based on the logic above which the compiler is unable to figure out
-    // without using Option
+    // unwrap will succeed based on the logic above which the compiler is unable to
+    // figure out without using Option
     let response = lsp_server::Response::new_ok(id, result.unwrap());
     if let Err(err) = context
         .connection
@@ -3483,7 +3527,8 @@ pub fn on_document_symbol_request(context: &Context, request: &Request, symbols:
         });
     }
 
-    // unwrap will succeed based on the logic above which the compiler is unable to figure out
+    // unwrap will succeed based on the logic above which the compiler is unable to
+    // figure out
     let response = lsp_server::Response::new_ok(request.id.clone(), defs);
     if let Err(err) = context
         .connection
@@ -3650,7 +3695,8 @@ fn assert_use_def(
 }
 
 #[test]
-/// Tests if symbolication + doc_string information for documented Move constructs is constructed correctly.
+/// Tests if symbolication + doc_string information for documented Move
+/// constructs is constructed correctly.
 fn docstring_test() {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
@@ -3808,7 +3854,9 @@ fn docstring_test() {
         "M6.move",
         "fun Symbols::M6::other_doc_struct(): Symbols::M7::OtherDocStruct",
         Some((3, 11, "M7.move")),
-        Some("\nThis is a multiline docstring\n\nThis docstring has empty lines.\n\nIt uses the ** format instead of ///\n\n"),
+        Some(
+            "\nThis is a multiline docstring\n\nThis docstring has empty lines.\n\nIt uses the ** format instead of ///\n\n",
+        ),
     );
 
     // docstring construction for single-line /** .. */ based strings
@@ -3827,7 +3875,7 @@ fn docstring_test() {
         Some("Asterix based single-line docstring\n"),
     );
 
-    /* Test doc_string construction for struct/function imported from another module */
+    // Test doc_string construction for struct/function imported from another module
 
     // other module struct name (other_doc_struct function)
     assert_use_def_with_doc_string(
@@ -3893,7 +3941,8 @@ fn docstring_test() {
         Some("Documented struct in another module\n"),
     );
 
-    // Type param definition in documented function (type_param_doc function) - should have no doc string
+    // Type param definition in documented function (type_param_doc function) -
+    // should have no doc string
     assert_use_def_with_doc_string(
         mod_symbols,
         &symbols,
@@ -3909,7 +3958,8 @@ fn docstring_test() {
         None,
     );
 
-    // Param def (of generic type) in documented function (type_param_doc function) - should have no doc string
+    // Param def (of generic type) in documented function (type_param_doc function)
+    // - should have no doc string
     assert_use_def_with_doc_string(
         mod_symbols,
         &symbols,
@@ -3927,7 +3977,8 @@ fn docstring_test() {
 }
 
 #[test]
-/// Tests if symbolication information for specific Move constructs has been constructed correctly.
+/// Tests if symbolication information for specific Move constructs has been
+/// constructed correctly.
 fn symbols_test() {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
@@ -4974,7 +5025,8 @@ fn symbols_test() {
 }
 
 #[test]
-/// Tests if symbolication information for constants has been constructed correctly.
+/// Tests if symbolication information for constants has been constructed
+/// correctly.
 fn const_test() {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
@@ -5220,7 +5272,8 @@ fn const_test() {
 }
 
 #[test]
-/// Tests if symbolication information for imports (use statements) has been constructed correctly.
+/// Tests if symbolication information for imports (use statements) has been
+/// constructed correctly.
 fn imports_test() {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
@@ -5428,7 +5481,8 @@ fn imports_test() {
 }
 
 #[test]
-/// Tests if symbolication information for module accesses has been constructed correctly.
+/// Tests if symbolication information for module accesses has been constructed
+/// correctly.
 fn module_access_test() {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
@@ -5588,8 +5642,9 @@ fn module_access_test() {
 }
 
 #[test]
-/// Tests if in presence of parsing errors for one module (M1), symbolication information will still
-/// be correctly constructed for another independent module (M2).
+/// Tests if in presence of parsing errors for one module (M1), symbolication
+/// information will still be correctly constructed for another independent
+/// module (M2).
 fn parse_error_test() {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
@@ -5625,8 +5680,8 @@ fn parse_error_test() {
         "const ParseError::M1::c: u64 = 7",
         None,
     );
-    // const in a file containing a parse error (in the second module, after parsing error in the
-    // previous module)
+    // const in a file containing a parse error (in the second module, after parsing
+    // error in the previous module)
     assert_use_def(
         mod_symbols,
         &symbols,
@@ -5640,8 +5695,8 @@ fn parse_error_test() {
         "const ParseError::M3::c: u64 = 7",
         None,
     );
-    // const in a file containing a parse error (in the second module, with module annotation, after
-    // parsing error in the previous module)
+    // const in a file containing a parse error (in the second module, with module
+    // annotation, after parsing error in the previous module)
     assert_use_def(
         mod_symbols,
         &symbols,
@@ -5679,8 +5734,9 @@ fn parse_error_test() {
 }
 
 #[test]
-/// Tests if in presence of parsing errors for one module (M1), partial symbolication information
-/// will still be correctly constructed for another dependent module (M2).
+/// Tests if in presence of parsing errors for one module (M1), partial
+/// symbolication information will still be correctly constructed for another
+/// dependent module (M2).
 fn parse_error_with_deps_test() {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
@@ -5734,8 +5790,9 @@ fn parse_error_with_deps_test() {
 }
 
 #[test]
-/// Tests if in presence of pre-typing (e.g. in naming) errors for one module (M1), symbolication
-/// information will still be correctly constructed for another independent module (M2).
+/// Tests if in presence of pre-typing (e.g. in naming) errors for one module
+/// (M1), symbolication information will still be correctly constructed for
+/// another independent module (M2).
 fn pretype_error_test() {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
@@ -5774,9 +5831,9 @@ fn pretype_error_test() {
 }
 
 #[test]
-/// Tests if in presence of pre-typing (e.g. in naming) errors for one module (M1), partial
-/// symbolication information will still be correctly constructed for another dependent module (M2)
-/// or even for a module with the error.
+/// Tests if in presence of pre-typing (e.g. in naming) errors for one module
+/// (M1), partial symbolication information will still be correctly constructed
+/// for another dependent module (M2) or even for a module with the error.
 fn pretype_error_with_deps_test() {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
@@ -6214,9 +6271,10 @@ fn dot_call_test() {
 }
 
 #[test]
-/// Checks if module identifiers used during symbolication process at both parsing and typing are
-/// the same. They are used as a key to a map and if they look differently, it may lead to a crash
-/// due to keys used for insertion/ retrieval being different.
+/// Checks if module identifiers used during symbolication process at both
+/// parsing and typing are the same. They are used as a key to a map and if they
+/// look differently, it may lead to a crash due to keys used for insertion/
+/// retrieval being different.
 fn mod_ident_uniform_test() {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 

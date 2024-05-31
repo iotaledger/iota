@@ -1,29 +1,30 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    error::{BridgeError, BridgeResult},
-    types::{BridgeAction, BridgeCommittee, SignedBridgeAction, VerifiedSignedBridgeAction},
+use std::fmt::{Debug, Display, Formatter};
+
+use ethers::{
+    core::k256::{ecdsa::VerifyingKey, elliptic_curve::sec1::ToEncodedPoint},
+    types::Address as EthAddress,
 };
-use ethers::core::k256::ecdsa::VerifyingKey;
-use ethers::core::k256::elliptic_curve::sec1::ToEncodedPoint;
-use ethers::types::Address as EthAddress;
-use fastcrypto::hash::HashFunction;
 use fastcrypto::{
     encoding::{Encoding, Hex},
     error::FastCryptoError,
+    hash::{HashFunction, Keccak256},
     secp256k1::{
         recoverable::Secp256k1RecoverableSignature, Secp256k1KeyPair, Secp256k1PublicKey,
         Secp256k1PublicKeyAsBytes,
     },
-    traits::{RecoverableSigner, ToFromBytes, VerifyRecoverable},
+    traits::{KeyPair, RecoverableSigner, ToFromBytes, VerifyRecoverable},
 };
-use fastcrypto::{hash::Keccak256, traits::KeyPair};
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
-use std::fmt::{Display, Formatter};
 use sui_types::{base_types::ConciseableName, message_envelope::VerifiedEnvelope};
 use tap::TapFallible;
+
+use crate::{
+    error::{BridgeError, BridgeResult},
+    types::{BridgeAction, BridgeCommittee, SignedBridgeAction, VerifiedSignedBridgeAction},
+};
 pub type BridgeAuthorityKeyPair = Secp256k1KeyPair;
 pub type BridgeAuthorityPublicKey = Secp256k1PublicKey;
 pub type BridgeAuthorityRecoverableSignature = Secp256k1RecoverableSignature;
@@ -67,7 +68,7 @@ pub struct ConciseBridgeAuthorityPublicKeyBytesRef<'a>(&'a BridgeAuthorityPublic
 
 impl Debug for ConciseBridgeAuthorityPublicKeyBytesRef<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let s = Hex::encode(self.0 .0 .0.get(0..4).ok_or(std::fmt::Error)?);
+        let s = Hex::encode(self.0.0.0.get(0..4).ok_or(std::fmt::Error)?);
         write!(f, "k#{}..", s)
     }
 }
@@ -80,7 +81,7 @@ impl Display for ConciseBridgeAuthorityPublicKeyBytesRef<'_> {
 
 impl AsRef<[u8]> for BridgeAuthorityPublicKeyBytes {
     fn as_ref(&self) -> &[u8] {
-        self.0 .0.as_ref()
+        self.0.0.as_ref()
     }
 }
 
@@ -140,8 +141,9 @@ impl BridgeAuthoritySignInfo {
     }
 }
 
-/// Verifies a SignedBridgeAction (response from bridge authority to bridge client)
-/// represents the right BridgeAction, and is signed by the right authority.
+/// Verifies a SignedBridgeAction (response from bridge authority to bridge
+/// client) represents the right BridgeAction, and is signed by the right
+/// authority.
 pub fn verify_signed_bridge_action(
     expected_action: &BridgeAction,
     signed_action: SignedBridgeAction,
@@ -168,22 +170,22 @@ pub fn verify_signed_bridge_action(
 
 #[cfg(test)]
 mod tests {
-    use crate::events::EmittedSuiToEthTokenBridgeV1;
-    use crate::test_utils::{get_test_authority_and_key, get_test_sui_to_eth_bridge_action};
-    use crate::types::SignedBridgeAction;
-    use crate::types::{
-        BridgeAction, BridgeAuthority, BridgeChainId, SuiToEthBridgeAction, TokenId,
-    };
+    use std::{str::FromStr, sync::Arc};
+
     use ethers::types::Address as EthAddress;
     use fastcrypto::traits::{KeyPair, ToFromBytes};
     use prometheus::Registry;
-    use std::str::FromStr;
-    use std::sync::Arc;
-    use sui_types::base_types::SuiAddress;
-    use sui_types::crypto::get_key_pair;
-    use sui_types::digests::TransactionDigest;
+    use sui_types::{base_types::SuiAddress, crypto::get_key_pair, digests::TransactionDigest};
 
     use super::*;
+    use crate::{
+        events::EmittedSuiToEthTokenBridgeV1,
+        test_utils::{get_test_authority_and_key, get_test_sui_to_eth_bridge_action},
+        types::{
+            BridgeAction, BridgeAuthority, BridgeChainId, SignedBridgeAction, SuiToEthBridgeAction,
+            TokenId,
+        },
+    };
 
     #[test]
     fn test_sign_and_verify_bridge_event_basic() -> anyhow::Result<()> {
@@ -232,7 +234,8 @@ mod tests {
             BridgeError::MismatchedAction,
         ));
 
-        // Signature is invalid (signed over different message), verification should fail
+        // Signature is invalid (signed over different message), verification should
+        // fail
         let action2: BridgeAction =
             get_test_sui_to_eth_bridge_action(None, Some(3), Some(5), Some(77));
 

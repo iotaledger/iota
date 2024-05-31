@@ -2,6 +2,12 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    ffi::OsStr,
+    fs,
+    path::{Path, PathBuf},
+};
+
 use anyhow::{anyhow, bail};
 use move_command_line_common::testing::{
     add_update_baseline_fix, format_diff, read_env_update_baseline,
@@ -11,18 +17,12 @@ use move_package::{
         build_plan::BuildPlan, compiled_package::CompiledPackageInfo, model_builder::ModelBuilder,
     },
     package_hooks,
-    package_hooks::PackageHooks,
-    package_hooks::PackageIdentifier,
+    package_hooks::{PackageHooks, PackageIdentifier},
     resolution::resolution_graph::Package,
     source_package::parsed_manifest::{CustomDepInfo, PackageDigest, SourceManifest},
     BuildConfig, ModelConfig,
 };
 use move_symbol_pool::Symbol;
-use std::{
-    ffi::OsStr,
-    fs,
-    path::{Path, PathBuf},
-};
 use tempfile::{tempdir, TempDir};
 
 const EXTENSIONS: &[&str] = &[

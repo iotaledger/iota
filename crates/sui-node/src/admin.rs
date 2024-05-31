@@ -1,7 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::SuiNode;
+use std::{
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    sync::Arc,
+};
+
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -10,11 +14,11 @@ use axum::{
 };
 use humantime::parse_duration;
 use serde::Deserialize;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::sync::Arc;
 use sui_types::error::SuiError;
 use telemetry_subscribers::TracingHandle;
 use tracing::info;
+
+use crate::SuiNode;
 
 // Example commands:
 //
@@ -31,7 +35,8 @@ use tracing::info;
 //
 //   $ curl -X POST 'http://127.0.0.1:1337/force-close-epoch?epoch=2'
 //
-// View current all capabilities from all authorities that have been received by this node:
+// View current all capabilities from all authorities that have been received by
+// this node:
 //
 //   $ curl 'http://127.0.0.1:1337/capabilities'
 //
@@ -39,8 +44,8 @@ use tracing::info;
 //
 //   $ curl 'http://127.0.0.1:1337/node-config'
 //
-// Set a time-limited tracing config. After the duration expires, tracing will be disabled
-// automatically.
+// Set a time-limited tracing config. After the duration expires, tracing will
+// be disabled automatically.
 //
 //   $ curl -X POST 'http://127.0.0.1:1337/enable-tracing?filter=info&duration=10s'
 //

@@ -1,35 +1,34 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::{HashMap, HashSet},
+    env,
+    process::exit,
+    str::FromStr,
+    sync::Arc,
+};
+
 use anyhow::anyhow;
 use data_transform::*;
-use diesel::prelude::*;
-use diesel::RunQueryDsl;
-use once_cell::sync::Lazy;
-use std::process::exit;
-use std::str::FromStr;
-use std::sync::Arc;
-use sui_types::object::bounded_visitor::BoundedVisitor;
-
+use diesel::{prelude::*, RunQueryDsl};
 use move_bytecode_utils::module_cache::SyncModuleCache;
-use sui_types::object::MoveObject;
+use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
+use once_cell::sync::Lazy;
+use sui_indexer::{
+    db::new_pg_connection_pool, errors::IndexerError,
+    store::module_resolver::IndexerStorePackageModuleResolver,
+};
+use sui_json_rpc_types::SuiMoveStruct;
+use sui_types::{
+    object::{bounded_visitor::BoundedVisitor, MoveObject},
+    parse_sui_struct_tag,
+};
+use tracing::debug;
 
 use self::models::*;
-use std::env;
-use sui_indexer::db::new_pg_connection_pool;
-use sui_indexer::errors::IndexerError;
-use sui_indexer::store::module_resolver::IndexerStorePackageModuleResolver;
-
-use move_core_types::language_storage::ModuleId;
-use move_core_types::resolver::ModuleResolver;
-use std::collections::{HashMap, HashSet};
-use sui_json_rpc_types::SuiMoveStruct;
-use sui_types::parse_sui_struct_tag;
-
-use tracing::debug;
 extern crate base64;
-use base64::engine::general_purpose::STANDARD as BASE64;
-use base64::engine::Engine as _;
+use base64::engine::{general_purpose::STANDARD as BASE64, Engine as _};
 use move_core_types::account_address::AccountAddress;
 
 struct GrootModuleResolver {
@@ -199,8 +198,7 @@ fn map_typus_address(address: &AccountAddress) -> AccountAddress {
 }
 
 fn main() {
-    use self::schema::events::dsl::*;
-    use self::schema::events_json::dsl::*;
+    use self::schema::{events::dsl::*, events_json::dsl::*};
 
     // get the starting id from the arguments
     let args: Vec<String> = env::args().collect();
@@ -220,14 +218,16 @@ fn main() {
 
     println!("start id = {}", start_id);
 
-    //let mut end_id: i64 = start_id +1;
+    // let mut end_id: i64 = start_id +1;
 
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let connection = &mut establish_connection();
 
     let blocking_cp = new_pg_connection_pool(&database_url, None)
         .map_err(|e| anyhow!("Unable to connect to Postgres, is it running? {e}"));
-    //let module_cache = Arc::new(SyncModuleCache::new(IndexerModuleResolver::new(blocking_cp.expect("REASON").clone())));
+    // let module_cache =
+    // Arc::new(SyncModuleCache::new(IndexerModuleResolver::new(blocking_cp.expect("
+    // REASON").clone())));
     //
     let module_cache = Arc::new(SyncModuleCache::new(GrootModuleResolver::new(
         blocking_cp.expect("REASON"),
@@ -252,12 +252,11 @@ fn main() {
                 let text = String::from_utf8_lossy(&event.event_bcs);
                 debug!("bcs in text = {:#?}", text);
 
-                /*
-                if event.package != "0x000000000000000000000000000000000000000000000000000000000000dee9" {
-                    println!("not deepbook skipping...");
-                    continue;
-                }
-                */
+                // if event.package !=
+                // "0x000000000000000000000000000000000000000000000000000000000000dee9" {
+                // println!("not deepbook skipping...");
+                // continue;
+                // }
 
                 // check for the previous record in events_json
                 let eventj = events_json

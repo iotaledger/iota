@@ -12,12 +12,14 @@ use crate::{
     consensus_types::{committee_api::CommitteeAPI, AuthorityIndex},
 };
 
-/// Updates list of authorities that are deemed to have low reputation scores by consensus
-/// these may be lagging behind the network, byzantine, or not reliably participating for any reason.
-/// The algorithm is flagging as low scoring authorities all the validators that have the lowest scores
-/// up to the defined protocol_config.consensus_bad_nodes_stake_threshold. This is done to align the
-/// submission side with the Narwhal leader election schedule. Practically we don't want to submit
-/// transactions for sequencing to validators that have low scores and are not part of the leader
+/// Updates list of authorities that are deemed to have low reputation scores by
+/// consensus these may be lagging behind the network, byzantine, or not
+/// reliably participating for any reason. The algorithm is flagging as low
+/// scoring authorities all the validators that have the lowest scores up to the
+/// defined protocol_config.consensus_bad_nodes_stake_threshold. This is done to
+/// align the submission side with the Narwhal leader election schedule.
+/// Practically we don't want to submit transactions for sequencing to
+/// validators that have low scores and are not part of the leader
 /// schedule since the chances of getting them sequenced are lower.
 pub(crate) fn update_low_scoring_authorities(
     low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
@@ -26,14 +28,19 @@ pub(crate) fn update_low_scoring_authorities(
     metrics: &Arc<AuthorityMetrics>,
     consensus_bad_nodes_stake_threshold: u64,
 ) {
-    assert!((0..=33).contains(&consensus_bad_nodes_stake_threshold), "The bad_nodes_stake_threshold should be in range [0 - 33], out of bounds parameter detected {}", consensus_bad_nodes_stake_threshold);
+    assert!(
+        (0..=33).contains(&consensus_bad_nodes_stake_threshold),
+        "The bad_nodes_stake_threshold should be in range [0 - 33], out of bounds parameter detected {}",
+        consensus_bad_nodes_stake_threshold
+    );
 
     let Some(reputation_scores) = reputation_score_sorted_desc else {
         return;
     };
 
-    // We order the authorities by score ascending order in the exact same way as the reputation
-    // scores do - so we keep complete alignment between implementations
+    // We order the authorities by score ascending order in the exact same way as
+    // the reputation scores do - so we keep complete alignment between
+    // implementations
     let scores_per_authority_order_asc: Vec<_> = reputation_scores
         .into_iter()
         .rev() // we reverse so we get them in asc order
@@ -121,7 +128,8 @@ mod tests {
         let low_scoring = Arc::new(ArcSwap::from_pointee(HashMap::new()));
         let metrics = Arc::new(AuthorityMetrics::new(&Registry::new()));
 
-        // there is a low outlier in the non zero scores, exclude it as well as down nodes
+        // there is a low outlier in the non zero scores, exclude it as well as down
+        // nodes
         let mut scores = HashMap::new();
         scores.insert(a1.id(), 350_u64);
         scores.insert(a2.id(), 390_u64);
@@ -157,7 +165,7 @@ mod tests {
         assert_eq!(low_scoring.load().len(), 2);
         println!("low scoring {:?}", low_scoring.load());
         assert_eq!(
-            *low_scoring.load().get(&a3.protocol_key().into()).unwrap(), // Since a3 & a4 have equal scores, we resolve the decision with a3.id < a4.id
+            *low_scoring.load().get(&a3.protocol_key().into()).unwrap(), /* Since a3 & a4 have equal scores, we resolve the decision with a3.id < a4.id */
             50
         );
         assert_eq!(
@@ -189,8 +197,9 @@ mod tests {
         );
     }
 
-    /// Generate a random committee for the given size. It's important to create the Authorities
-    /// via the committee to ensure than an AuthorityIdentifier will be assigned, as this is dynamically
+    /// Generate a random committee for the given size. It's important to create
+    /// the Authorities via the committee to ensure than an
+    /// AuthorityIdentifier will be assigned, as this is dynamically
     /// calculated during committee creation.
     fn generate_committee(committee_size: usize) -> Arc<Committee> {
         let mut committee_builder = CommitteeBuilder::new(0);

@@ -4,8 +4,7 @@
 use std::time::Duration;
 
 use anyhow::anyhow;
-use diesel::migration::MigrationSource;
-use diesel::{r2d2::ConnectionManager, PgConnection, RunQueryDsl};
+use diesel::{migration::MigrationSource, r2d2::ConnectionManager, PgConnection, RunQueryDsl};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use tracing::info;
 
@@ -138,9 +137,10 @@ const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
 
 /// Resets the database by reverting all migrations and reapplying them.
 ///
-/// If `drop_all` is set to `true`, the function will drop all tables in the database before
-/// resetting the migrations. This option is destructive and will result in the loss of all
-/// data in the tables. Use with caution, especially in production environments.
+/// If `drop_all` is set to `true`, the function will drop all tables in the
+/// database before resetting the migrations. This option is destructive and
+/// will result in the loss of all data in the tables. Use with caution,
+/// especially in production environments.
 pub fn reset_database(conn: &mut PgPoolConnection, drop_all: bool) -> Result<(), anyhow::Error> {
     info!("Resetting database ...");
     if drop_all {

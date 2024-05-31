@@ -1,37 +1,46 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::command::Component;
-use crate::mock_consensus::{ConsensusMode, MockConsensusClient};
-use crate::mock_storage::InMemoryObjectStore;
-use std::collections::{BTreeMap, HashMap, HashSet};
-use std::sync::Arc;
-use sui_core::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use sui_core::authority::authority_store_tables::LiveObject;
-use sui_core::authority::test_authority_builder::TestAuthorityBuilder;
-use sui_core::authority::AuthorityState;
-use sui_core::authority_server::{ValidatorService, ValidatorServiceMetrics};
-use sui_core::checkpoints::checkpoint_executor::CheckpointExecutor;
-use sui_core::consensus_adapter::{
-    ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    sync::Arc,
 };
-use sui_core::state_accumulator::AccumulatorStore;
-use sui_core::state_accumulator::StateAccumulator;
+
+use sui_core::{
+    authority::{
+        authority_per_epoch_store::AuthorityPerEpochStore, authority_store_tables::LiveObject,
+        test_authority_builder::TestAuthorityBuilder, AuthorityState,
+    },
+    authority_server::{ValidatorService, ValidatorServiceMetrics},
+    checkpoints::checkpoint_executor::CheckpointExecutor,
+    consensus_adapter::{
+        ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
+    },
+    state_accumulator::{AccumulatorStore, StateAccumulator},
+};
 use sui_test_transaction_builder::{PublishData, TestTransactionBuilder};
-use sui_types::base_types::{AuthorityName, ObjectRef, SuiAddress, TransactionDigest};
-use sui_types::committee::Committee;
-use sui_types::crypto::{AccountKeyPair, AuthoritySignature, Signer};
-use sui_types::effects::{TransactionEffects, TransactionEffectsAPI};
-use sui_types::executable_transaction::VerifiedExecutableTransaction;
-use sui_types::messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents};
-use sui_types::messages_grpc::HandleTransactionResponse;
-use sui_types::mock_checkpoint_builder::{MockCheckpointBuilder, ValidatorKeypairProvider};
-use sui_types::object::Object;
-use sui_types::transaction::{
-    CertifiedTransaction, Transaction, TransactionDataAPI, VerifiedCertificate,
-    VerifiedTransaction, DEFAULT_VALIDATOR_GAS_PRICE,
+use sui_types::{
+    base_types::{AuthorityName, ObjectRef, SuiAddress, TransactionDigest},
+    committee::Committee,
+    crypto::{AccountKeyPair, AuthoritySignature, Signer},
+    effects::{TransactionEffects, TransactionEffectsAPI},
+    executable_transaction::VerifiedExecutableTransaction,
+    messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents},
+    messages_grpc::HandleTransactionResponse,
+    mock_checkpoint_builder::{MockCheckpointBuilder, ValidatorKeypairProvider},
+    object::Object,
+    transaction::{
+        CertifiedTransaction, Transaction, TransactionDataAPI, VerifiedCertificate,
+        VerifiedTransaction, DEFAULT_VALIDATOR_GAS_PRICE,
+    },
 };
 use tokio::sync::broadcast;
+
+use crate::{
+    command::Component,
+    mock_consensus::{ConsensusMode, MockConsensusClient},
+    mock_storage::InMemoryObjectStore,
+};
 
 #[derive(Clone)]
 pub struct SingleValidator {
@@ -89,7 +98,8 @@ impl SingleValidator {
         &self.epoch_store
     }
 
-    /// Publish a package, returns the package object and the updated gas object.
+    /// Publish a package, returns the package object and the updated gas
+    /// object.
     pub async fn publish_package(
         &self,
         publish_data: PublishData,

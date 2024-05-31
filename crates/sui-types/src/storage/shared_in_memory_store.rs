@@ -1,22 +1,24 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use super::error::Result;
-use super::ObjectStore;
-use crate::base_types::{EpochId, TransactionDigest};
-use crate::committee::Committee;
-use crate::digests::{CheckpointContentsDigest, CheckpointDigest, TransactionEventsDigest};
-use crate::effects::{TransactionEffects, TransactionEvents};
-use crate::messages_checkpoint::{
-    CheckpointContents, CheckpointSequenceNumber, FullCheckpointContents, VerifiedCheckpoint,
-    VerifiedCheckpointContents,
-};
-use crate::storage::{ReadStore, WriteStore};
-use crate::transaction::VerifiedTransaction;
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
+
 use tap::Pipe;
 use tracing::error;
+
+use super::{error::Result, ObjectStore};
+use crate::{
+    base_types::{EpochId, TransactionDigest},
+    committee::Committee,
+    digests::{CheckpointContentsDigest, CheckpointDigest, TransactionEventsDigest},
+    effects::{TransactionEffects, TransactionEvents},
+    messages_checkpoint::{
+        CheckpointContents, CheckpointSequenceNumber, FullCheckpointContents, VerifiedCheckpoint,
+        VerifiedCheckpointContents,
+    },
+    storage::{ReadStore, WriteStore},
+    transaction::VerifiedTransaction,
+};
 
 #[derive(Clone, Debug, Default)]
 pub struct SharedInMemoryStore(Arc<std::sync::RwLock<InMemoryStore>>);
@@ -332,8 +334,9 @@ impl InMemoryStore {
         }
     }
 
-    // This function simulates Consensus inserts certified checkpoint into the checkpoint store
-    // without bumping the highest_verified_checkpoint watermark.
+    // This function simulates Consensus inserts certified checkpoint into the
+    // checkpoint store without bumping the highest_verified_checkpoint
+    // watermark.
     pub fn insert_certified_checkpoint(&mut self, checkpoint: &VerifiedCheckpoint) {
         let digest = *checkpoint.digest();
         let sequence_number = *checkpoint.sequence_number();
@@ -465,7 +468,7 @@ impl SingleCheckpointSharedInMemoryStore {
         contents: VerifiedCheckpointContents,
         committee: Committee,
     ) {
-        let mut locked = self.0 .0.write().unwrap();
+        let mut locked = self.0.0.write().unwrap();
         locked.insert_genesis_state(checkpoint, contents, committee);
     }
 }
@@ -573,7 +576,7 @@ impl ReadStore for SingleCheckpointSharedInMemoryStore {
 impl WriteStore for SingleCheckpointSharedInMemoryStore {
     fn insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
         {
-            let mut locked = self.0 .0.write().unwrap();
+            let mut locked = self.0.0.write().unwrap();
             locked.checkpoints.clear();
             locked.sequence_number_to_digest.clear();
         }
@@ -597,7 +600,7 @@ impl WriteStore for SingleCheckpointSharedInMemoryStore {
         contents: VerifiedCheckpointContents,
     ) -> Result<()> {
         {
-            let mut locked = self.0 .0.write().unwrap();
+            let mut locked = self.0.0.write().unwrap();
             locked.transactions.clear();
             locked.effects.clear();
             locked.contents_digest_to_sequence_number.clear();

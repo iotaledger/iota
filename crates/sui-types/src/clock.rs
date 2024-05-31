@@ -37,7 +37,8 @@ impl Clock {
         }
     }
 
-    /// Detects a `&mut sui::clock::Clock` or `sui::clock::Clock` in the signature.
+    /// Detects a `&mut sui::clock::Clock` or `sui::clock::Clock` in the
+    /// signature.
     pub fn is_mutable(view: &BinaryIndexedView<'_>, s: &SignatureToken) -> bool {
         use SignatureToken as S;
         match s {

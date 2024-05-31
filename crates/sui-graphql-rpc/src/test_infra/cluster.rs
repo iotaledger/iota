@@ -1,29 +1,27 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::config::ConnectionConfig;
-use crate::config::ServerConfig;
-use crate::config::ServiceConfig;
-use crate::config::Version;
-use crate::server::graphiql_server::start_graphiql_server;
-use std::net::SocketAddr;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{net::SocketAddr, sync::Arc, time::Duration};
+
 use sui_graphql_rpc_client::simple_client::SimpleClient;
-use sui_indexer::errors::IndexerError;
 pub use sui_indexer::handlers::objects_snapshot_processor::SnapshotLagConfig;
-use sui_indexer::store::indexer_store::IndexerStore;
-use sui_indexer::store::PgIndexerStore;
-use sui_indexer::test_utils::force_delete_database;
-use sui_indexer::test_utils::start_test_indexer;
-use sui_indexer::test_utils::start_test_indexer_impl;
-use sui_indexer::test_utils::ReaderWriterConfig;
+use sui_indexer::{
+    errors::IndexerError,
+    store::{indexer_store::IndexerStore, PgIndexerStore},
+    test_utils::{
+        force_delete_database, start_test_indexer, start_test_indexer_impl, ReaderWriterConfig,
+    },
+};
 use sui_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use sui_types::storage::ReadStore;
-use test_cluster::TestCluster;
-use test_cluster::TestClusterBuilder;
+use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
+
+use crate::{
+    config::{ConnectionConfig, ServerConfig, ServiceConfig, Version},
+    server::graphiql_server::start_graphiql_server,
+};
 
 const VALIDATOR_COUNT: usize = 7;
 const EPOCH_DURATION_MS: u64 = 15000;
@@ -74,7 +72,8 @@ pub async fn start_cluster(
     let graphql_server_handle = start_graphql_server_with_fn_rpc(
         graphql_connection_config.clone(),
         Some(fn_rpc_url),
-        /* cancellation_token */ None,
+        // cancellation_token
+        None,
     )
     .await;
 
@@ -96,8 +95,9 @@ pub async fn start_cluster(
     }
 }
 
-/// Takes in a simulated instantiation of a Sui blockchain and builds a cluster around it. This
-/// cluster is typically used in e2e tests to emulate and test behaviors.
+/// Takes in a simulated instantiation of a Sui blockchain and builds a cluster
+/// around it. This cluster is typically used in e2e tests to emulate and test
+/// behaviors.
 pub async fn serve_executor(
     graphql_connection_config: ConnectionConfig,
     internal_data_source_rpc_port: u16,
@@ -221,8 +221,8 @@ async fn wait_for_graphql_server(client: &SimpleClient) {
     .expect("Timeout waiting for graphql server to start");
 }
 
-/// Ping the GraphQL server until its background task has updated the checkpoint watermark to the
-/// desired checkpoint.
+/// Ping the GraphQL server until its background task has updated the checkpoint
+/// watermark to the desired checkpoint.
 async fn wait_for_graphql_checkpoint_catchup(
     client: &SimpleClient,
     checkpoint: u64,
@@ -269,23 +269,26 @@ async fn wait_for_graphql_checkpoint_catchup(
 }
 
 impl Cluster {
-    /// Waits for the indexer to index up to the given checkpoint, then waits for the graphql
-    /// service's background task to update the checkpoint watermark to the given checkpoint.
+    /// Waits for the indexer to index up to the given checkpoint, then waits
+    /// for the graphql service's background task to update the checkpoint
+    /// watermark to the given checkpoint.
     pub async fn wait_for_checkpoint_catchup(&self, checkpoint: u64, base_timeout: Duration) {
         wait_for_graphql_checkpoint_catchup(&self.graphql_client, checkpoint, base_timeout).await
     }
 }
 
 impl ExecutorCluster {
-    /// Waits for the indexer to index up to the given checkpoint, then waits for the graphql
-    /// service's background task to update the checkpoint watermark to the given checkpoint.
+    /// Waits for the indexer to index up to the given checkpoint, then waits
+    /// for the graphql service's background task to update the checkpoint
+    /// watermark to the given checkpoint.
     pub async fn wait_for_checkpoint_catchup(&self, checkpoint: u64, base_timeout: Duration) {
         wait_for_graphql_checkpoint_catchup(&self.graphql_client, checkpoint, base_timeout).await
     }
 
-    /// The ObjectsSnapshotProcessor is a long-running task that periodically takes a snapshot of
-    /// the objects table. This leads to flakiness in tests, so we wait until the objects_snapshot
-    /// has reached the expected state.
+    /// The ObjectsSnapshotProcessor is a long-running task that periodically
+    /// takes a snapshot of the objects table. This leads to flakiness in
+    /// tests, so we wait until the objects_snapshot has reached the
+    /// expected state.
     pub async fn wait_for_objects_snapshot_catchup(&self, base_timeout: Duration) {
         let mut latest_snapshot_cp = 0;
 
@@ -312,9 +315,10 @@ impl ExecutorCluster {
         latest_cp, latest_snapshot_cp));
     }
 
-    /// Deletes the database created for the test and sends a cancellation signal to the graphql
-    /// service. When this function is awaited on, the callsite will wait for the graphql service to
-    /// terminate its background task and then itself.
+    /// Deletes the database created for the test and sends a cancellation
+    /// signal to the graphql service. When this function is awaited on, the
+    /// callsite will wait for the graphql service to terminate its
+    /// background task and then itself.
     pub async fn cleanup_resources(self) {
         self.cancellation_token.cancel();
         let db_url = self.graphql_connection_config.db_url.clone();

@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use super::{Callback, MakeCallbackHandler};
 use tower::Layer;
+
+use super::{Callback, MakeCallbackHandler};
 
 /// [`Layer`] that adds callbacks to a [`Service`].
 ///

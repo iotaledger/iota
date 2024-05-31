@@ -2,10 +2,12 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use super::{unique_map::UniqueMap, *};
 use std::{cmp::Ordering, fmt::Debug, iter::IntoIterator};
 
-/// Unique set wrapper around `UniqueMap` where the value of the map is not needed
+use super::{unique_map::UniqueMap, *};
+
+/// Unique set wrapper around `UniqueMap` where the value of the map is not
+/// needed
 #[derive(Clone)]
 pub struct UniqueSet<T: TName>(UniqueMap<T, ()>);
 
