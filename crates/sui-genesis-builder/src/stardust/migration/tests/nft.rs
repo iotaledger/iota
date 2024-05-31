@@ -137,7 +137,7 @@ fn nft_migration_with_full_features() {
         &TypeTag::from(DynamicFieldInfo::dynamic_object_field_wrapper(
             TypeTag::from_str(NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE).unwrap(),
         )),
-        &bcs::to_bytes(&NFT_DYNAMIC_OBJECT_FIELD_KEY.to_vec()).unwrap(),
+        &bcs::to_bytes(NFT_DYNAMIC_OBJECT_FIELD_KEY).unwrap(),
     )
     .unwrap();
     assert_eq!(nft_object.owner, Owner::ObjectOwner(nft_owner.into()));

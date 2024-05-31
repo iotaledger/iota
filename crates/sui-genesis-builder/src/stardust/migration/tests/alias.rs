@@ -143,7 +143,7 @@ fn alias_migration_with_full_features() {
             // The key type of the dynamic object field.
             TypeTag::from_str(ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE).unwrap(),
         )),
-        &bcs::to_bytes(&ALIAS_DYNAMIC_OBJECT_FIELD_KEY.to_vec()).unwrap(),
+        &bcs::to_bytes(ALIAS_DYNAMIC_OBJECT_FIELD_KEY).unwrap(),
     )
     .unwrap();
     assert_eq!(alias_object.owner, Owner::ObjectOwner(alias_owner.into()));
