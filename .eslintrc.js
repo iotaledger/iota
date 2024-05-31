@@ -88,6 +88,12 @@ module.exports = {
             },
         },
         {
+            files: ['sdk/graphql-transport/**/*'],
+            rules: {
+                '@typescript-eslint/no-non-null-asserted-optional-chain': 'off',
+            },
+        },
+        {
             files: ['apps/explorer/**/*'],
             rules: {
                 'import/no-duplicates': ['error'],
