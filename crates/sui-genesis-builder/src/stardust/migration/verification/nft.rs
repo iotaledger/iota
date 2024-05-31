@@ -3,25 +3,24 @@
 
 use std::collections::HashMap;
 
+use anyhow::{anyhow, ensure};
+use iota_sdk::types::block::output::{NftOutput, OutputId, TokenId};
+use sui_types::{base_types::ObjectID, in_memory_storage::InMemoryStorage};
+
 use crate::stardust::migration::{
     executor::FoundryLedgerData,
     verification::{
+        created_objects::CreatedObjects,
         util::{
             verify_expiration_unlock_condition, verify_issuer_feature, verify_metadata_feature,
-            verify_native_tokens, verify_sender_feature, verify_storage_deposit_unlock_condition,
-            verify_tag_feature, verify_timelock_unlock_condition,
+            verify_native_tokens, verify_parent, verify_sender_feature,
+            verify_storage_deposit_unlock_condition, verify_tag_feature,
+            verify_timelock_unlock_condition,
         },
-        {created_objects::CreatedObjects, util::verify_parent},
     },
 };
-use anyhow::{anyhow, ensure, Result};
-use iota_sdk::types::block::output::{NftOutput, OutputId, TokenId};
-use sui_types::{
-    balance::Balance, base_types::ObjectID, dynamic_field::Field,
-    in_memory_storage::InMemoryStorage,
-};
 
-pub fn verify_nft_output(
+pub(crate) fn verify_nft_output(
     output_id: OutputId,
     output: &NftOutput,
     created_objects: &CreatedObjects,

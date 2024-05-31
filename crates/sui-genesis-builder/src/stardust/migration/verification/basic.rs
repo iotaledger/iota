@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, ensure, Result};
 use iota_sdk::types::block::output::{BasicOutput, TokenId};
-use sui_types::{balance::Balance, dynamic_field::Field, in_memory_storage::InMemoryStorage};
+use sui_types::in_memory_storage::InMemoryStorage;
 
 use crate::stardust::migration::{
     executor::FoundryLedgerData,
