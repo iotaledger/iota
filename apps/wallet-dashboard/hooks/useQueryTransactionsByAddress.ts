@@ -9,32 +9,30 @@ import { type SuiTransactionBlockResponse } from '@mysten/sui.js/client';
 import { useQuery } from '@tanstack/react-query';
 
 export function useQueryTransactionsByAddress(address?: string) {
+    const queryOptions = {
+        showInput: true,
+        showEffects: true,
+        showEvents: true,
+    };
+
     const rpc = useSuiClient();
 
     return useQuery({
-        queryKey: ['transactions-by-address', address],
+        queryKey: ['transactions-by-address', address, queryOptions],
         queryFn: async () => {
+            if (!address) {
+                throw new Error('Address is required to query transactions.');
+            }
+
             // combine from and to transactions
             const [txnIds, fromTxnIds] = await Promise.all([
                 rpc.queryTransactionBlocks({
-                    filter: {
-                        ToAddress: address!,
-                    },
-                    options: {
-                        showInput: true,
-                        showEffects: true,
-                        showEvents: true,
-                    },
+                    options: queryOptions,
+                    filter: { ToAddress: address },
                 }),
                 rpc.queryTransactionBlocks({
-                    filter: {
-                        FromAddress: address!,
-                    },
-                    options: {
-                        showInput: true,
-                        showEffects: true,
-                        showEvents: true,
-                    },
+                    options: queryOptions,
+                    filter: { FromAddress: address },
                 }),
             ]);
 

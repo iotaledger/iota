@@ -8,7 +8,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import React, { useMemo } from 'react';
 import { useCurrentAccount } from '@mysten/dapp-kit';
 import { useQueryTransactionsByAddress } from '@/hooks/useQueryTransactionsByAddress';
-import { txToActivity } from '@/lib/utils/activity';
+import { getTransactionActivity } from '@/lib/utils/activity';
 
 function ActivityPage(): JSX.Element {
     const containerRef = React.useRef(null);
@@ -16,7 +16,7 @@ function ActivityPage(): JSX.Element {
     const { data: txs, error } = useQueryTransactionsByAddress(currentAccount?.address);
 
     const mapped = useMemo(() => {
-        return txs?.map((tx) => txToActivity(tx, currentAccount?.address)) || [];
+        return txs?.map((tx) => getTransactionActivity(tx, currentAccount?.address)) || [];
     }, [currentAccount?.address, txs]);
 
     const virtualizer = useVirtualizer({

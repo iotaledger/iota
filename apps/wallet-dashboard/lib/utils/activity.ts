@@ -3,8 +3,9 @@
 
 import { Activity, ActivityAction, ActivityState } from '@/lib/interfaces';
 import { ExecutionStatus, SuiTransactionBlockResponse } from '@mysten/sui.js/client';
+import { parseTimestamp } from './time';
 
-const executionStatusToActivityState = (tx: SuiTransactionBlockResponse): ActivityState => {
+const getTransactionActivityState = (tx: SuiTransactionBlockResponse): ActivityState => {
     const executionStatus = tx.effects?.status.status;
     const isTxFailed = !!tx.effects?.status.error;
     const map: {
@@ -25,26 +26,15 @@ const executionStatusToActivityState = (tx: SuiTransactionBlockResponse): Activi
     return map[executionStatus] || ActivityState.Pending;
 };
 
-export const txGetAction = (transaction: SuiTransactionBlockResponse, currentAddress?: string) => {
+export const getTransactionAction = (
+    transaction: SuiTransactionBlockResponse,
+    currentAddress?: string,
+) => {
     const isSender = transaction.transaction?.data.sender === currentAddress;
     return isSender ? ActivityAction.Transaction : ActivityAction.Receive;
 };
 
-const txGetTimestamp = (timestampMs?: string | null): number | undefined => {
-    if (!timestampMs) {
-        return;
-    }
-
-    const timestamp = new Date(parseInt(timestampMs)).getTime();
-
-    if (isNaN(timestamp)) {
-        return;
-    }
-
-    return timestamp;
-};
-
-export const txToActivity = (
+export const getTransactionActivity = (
     tx: SuiTransactionBlockResponse,
     address?: string,
 ): Activity | undefined => {
@@ -53,8 +43,8 @@ export const txToActivity = (
     }
 
     return {
-        action: txGetAction(tx, address),
-        state: executionStatusToActivityState(tx),
-        timestamp: txGetTimestamp(tx.timestampMs),
+        action: getTransactionAction(tx, address),
+        state: getTransactionActivityState(tx),
+        timestamp: parseTimestamp(tx.timestampMs),
     };
 };
