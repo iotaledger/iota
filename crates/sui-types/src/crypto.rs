@@ -1,57 +1,61 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use crate::base_types::{AuthorityName, ConciseableName, SuiAddress};
-use crate::committee::CommitteeTrait;
-use crate::committee::{Committee, EpochId, StakeUnit};
-use crate::error::{SuiError, SuiResult};
-use crate::signature::GenericSignature;
-use crate::sui_serde::{Readable, SuiBitmap};
+use std::{
+    collections::BTreeMap,
+    fmt::{self, Debug, Display, Formatter},
+    hash::{Hash, Hasher},
+    str::FromStr,
+};
+
 use anyhow::{anyhow, Error};
 use derive_more::{AsMut, AsRef, From};
 pub use enum_dispatch::enum_dispatch;
 use eyre::eyre;
-use fastcrypto::bls12381::min_sig::{
-    BLS12381AggregateSignature, BLS12381AggregateSignatureAsBytes, BLS12381KeyPair,
-    BLS12381PrivateKey, BLS12381PublicKey, BLS12381Signature,
-};
-use fastcrypto::ed25519::{
-    Ed25519KeyPair, Ed25519PrivateKey, Ed25519PublicKey, Ed25519PublicKeyAsBytes, Ed25519Signature,
-    Ed25519SignatureAsBytes,
-};
-use fastcrypto::encoding::{Base64, Bech32, Encoding, Hex};
-use fastcrypto::error::FastCryptoError;
-use fastcrypto::hash::{Blake2b256, HashFunction};
-use fastcrypto::secp256k1::{
-    Secp256k1KeyPair, Secp256k1PublicKey, Secp256k1PublicKeyAsBytes, Secp256k1Signature,
-    Secp256k1SignatureAsBytes,
-};
-use fastcrypto::secp256r1::{
-    Secp256r1KeyPair, Secp256r1PublicKey, Secp256r1PublicKeyAsBytes, Secp256r1Signature,
-    Secp256r1SignatureAsBytes,
-};
-pub use fastcrypto::traits::KeyPair as KeypairTraits;
-pub use fastcrypto::traits::Signer;
 pub use fastcrypto::traits::{
-    AggregateAuthenticator, Authenticator, EncodeDecodeBase64, SigningKey, ToFromBytes,
-    VerifyingKey,
+    AggregateAuthenticator, Authenticator, EncodeDecodeBase64, KeyPair as KeypairTraits, Signer,
+    SigningKey, ToFromBytes, VerifyingKey,
 };
-use fastcrypto_zkp::bn254::zk_login::ZkLoginInputs;
-use fastcrypto_zkp::zk_login_utils::Bn254FrElement;
-use rand::rngs::{OsRng, StdRng};
-use rand::SeedableRng;
+use fastcrypto::{
+    bls12381::min_sig::{
+        BLS12381AggregateSignature, BLS12381AggregateSignatureAsBytes, BLS12381KeyPair,
+        BLS12381PrivateKey, BLS12381PublicKey, BLS12381Signature,
+    },
+    ed25519::{
+        Ed25519KeyPair, Ed25519PrivateKey, Ed25519PublicKey, Ed25519PublicKeyAsBytes,
+        Ed25519Signature, Ed25519SignatureAsBytes,
+    },
+    encoding::{Base64, Bech32, Encoding, Hex},
+    error::FastCryptoError,
+    hash::{Blake2b256, HashFunction},
+    secp256k1::{
+        Secp256k1KeyPair, Secp256k1PublicKey, Secp256k1PublicKeyAsBytes, Secp256k1Signature,
+        Secp256k1SignatureAsBytes,
+    },
+    secp256r1::{
+        Secp256r1KeyPair, Secp256r1PublicKey, Secp256r1PublicKeyAsBytes, Secp256r1Signature,
+        Secp256r1SignatureAsBytes,
+    },
+};
+use fastcrypto_zkp::{bn254::zk_login::ZkLoginInputs, zk_login_utils::Bn254FrElement};
+use rand::{
+    rngs::{OsRng, StdRng},
+    SeedableRng,
+};
 use roaring::RoaringBitmap;
 use schemars::JsonSchema;
-use serde::ser::Serializer;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{ser::Serializer, Deserialize, Deserializer, Serialize};
 use serde_with::{serde_as, Bytes};
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
-use std::collections::BTreeMap;
-use std::fmt::Debug;
-use std::fmt::{self, Display, Formatter};
-use std::hash::{Hash, Hasher};
-use std::str::FromStr;
 use strum::EnumString;
 use tracing::{instrument, warn};
+
+use crate::{
+    base_types::{AuthorityName, ConciseableName, SuiAddress},
+    committee::{Committee, CommitteeTrait, EpochId, StakeUnit},
+    error::{SuiError, SuiResult},
+    signature::GenericSignature,
+    sui_serde::{Readable, SuiBitmap},
+};
 
 #[cfg(test)]
 #[path = "unit_tests/crypto_tests.rs"]
@@ -87,9 +91,9 @@ pub const SUI_PRIV_KEY_PREFIX: &str = "suiprivkey";
 /// Creates a proof of that the authority account address is owned by the
 /// holder of authority protocol key, and also ensures that the authority
 /// protocol public key exists. A proof of possession is an authority
-/// signature committed over the intent message `intent || message || epoch` (See
-/// more at [struct IntentMessage] and [struct Intent]) where the message is
-/// constructed as `authority_pubkey_bytes || authority_account_address`.
+/// signature committed over the intent message `intent || message || epoch`
+/// (See more at [struct IntentMessage] and [struct Intent]) where the message
+/// is constructed as `authority_pubkey_bytes || authority_account_address`.
 pub fn generate_proof_of_possession(
     keypair: &AuthorityKeyPair,
     address: SuiAddress,
@@ -130,7 +134,6 @@ pub fn verify_proof_of_possession(
 /// * The following section defines the keypairs that are used by
 /// * accounts to interact with Sui.
 /// * Currently we support eddsa and ecdsa on Sui.
-///
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, From, PartialEq, Eq)]
@@ -211,12 +214,15 @@ impl SuiKeyPair {
             _ => Err(eyre!("Invalid bytes")),
         }
     }
-    /// Encode a SuiKeyPair as `flag || privkey` in Bech32 starting with "suiprivkey" to a string. Note that the pubkey is not encoded.
+    /// Encode a SuiKeyPair as `flag || privkey` in Bech32 starting with
+    /// "suiprivkey" to a string. Note that the pubkey is not encoded.
     pub fn encode(&self) -> Result<String, eyre::Report> {
         Bech32::encode(self.to_bytes(), SUI_PRIV_KEY_PREFIX)
     }
 
-    /// Decode a SuiKeyPair from `flag || privkey` in Bech32 starting with "suiprivkey" to SuiKeyPair. The public key is computed directly from the private key bytes.
+    /// Decode a SuiKeyPair from `flag || privkey` in Bech32 starting with
+    /// "suiprivkey" to SuiKeyPair. The public key is computed directly from the
+    /// private key bytes.
     pub fn decode(value: &str) -> Result<Self, eyre::Report> {
         let bytes = Bech32::decode(value, SUI_PRIV_KEY_PREFIX)?;
         Self::from_bytes(&bytes)
@@ -409,7 +415,7 @@ pub struct ConciseAuthorityPublicKeyBytesRef<'a>(&'a AuthorityPublicKeyBytes);
 
 impl Debug for ConciseAuthorityPublicKeyBytesRef<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let s = Hex::encode(self.0 .0.get(0..4).ok_or(std::fmt::Error)?);
+        let s = Hex::encode(self.0.0.get(0..4).ok_or(std::fmt::Error)?);
         write!(f, "k#{}..", s)
     }
 }
@@ -426,7 +432,7 @@ pub struct ConciseAuthorityPublicKeyBytes(AuthorityPublicKeyBytes);
 
 impl Debug for ConciseAuthorityPublicKeyBytes {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let s = Hex::encode(self.0 .0.get(0..4).ok_or(std::fmt::Error)?);
+        let s = Hex::encode(self.0.0.get(0..4).ok_or(std::fmt::Error)?);
         write!(f, "k#{}..", s)
     }
 }
@@ -475,7 +481,8 @@ impl ToFromBytes for AuthorityPublicKeyBytes {
 impl AuthorityPublicKeyBytes {
     pub const ZERO: Self = Self::new([0u8; AuthorityPublicKey::LENGTH]);
 
-    /// This ensures it's impossible to construct an instance with other than registered lengths
+    /// This ensures it's impossible to construct an instance with other than
+    /// registered lengths
     pub const fn new(bytes: [u8; AuthorityPublicKey::LENGTH]) -> AuthorityPublicKeyBytes
 where {
         AuthorityPublicKeyBytes(bytes)
@@ -497,7 +504,6 @@ impl Default for AuthorityPublicKeyBytes {
     }
 }
 
-//
 // Add helper calls for Authority Signature
 //
 
@@ -563,8 +569,8 @@ impl SuiAuthoritySignature for AuthoritySignature {
     }
 }
 
-// TODO: get_key_pair() and get_key_pair_from_bytes() should return KeyPair only.
-// TODO: rename to random_key_pair
+// TODO: get_key_pair() and get_key_pair_from_bytes() should return KeyPair
+// only. TODO: rename to random_key_pair
 pub fn get_key_pair<KP: KeypairTraits>() -> (SuiAddress, KP)
 where
     <KP as KeypairTraits>::PubKey: SuiPublicKey,
@@ -578,10 +584,10 @@ pub fn random_committee_key_pairs_of_size(size: usize) -> Vec<AuthorityKeyPair> 
     (0..size)
         .map(|_| {
             // TODO: We are generating the keys 4 times to match exactly as how we generate
-            // keys in ConfigBuilder::build (sui-config/src/network_config_builder). This is because
-            // we are using these key generation functions as fixtures and we call them
-            // independently in different paths and exact the results to be the same.
-            // We should eliminate them.
+            // keys in ConfigBuilder::build (sui-config/src/network_config_builder). This is
+            // because we are using these key generation functions as fixtures
+            // and we call them independently in different paths and exact the
+            // results to be the same. We should eliminate them.
             let key_pair = get_key_pair_from_rng::<AuthorityKeyPair, _>(&mut rng);
             get_key_pair_from_rng::<AuthorityKeyPair, _>(&mut rng);
             get_key_pair_from_rng::<AccountKeyPair, _>(&mut rng);
@@ -604,7 +610,8 @@ pub fn get_authority_key_pair() -> (SuiAddress, AuthorityKeyPair) {
     get_key_pair()
 }
 
-/// Generate a keypair from the specified RNG (useful for testing with seedable rngs).
+/// Generate a keypair from the specified RNG (useful for testing with seedable
+/// rngs).
 pub fn get_key_pair_from_rng<KP: KeypairTraits, R>(csprng: &mut R) -> (SuiAddress, KP)
 where
     R: rand::CryptoRng + rand::RngCore,
@@ -638,7 +645,6 @@ where
     Ok((kp.public().into(), kp))
 }
 
-//
 // Account Signatures
 //
 
@@ -740,7 +746,6 @@ impl ToFromBytes for Signature {
     }
 }
 
-//
 // BLS Port
 //
 
@@ -748,7 +753,6 @@ impl SuiPublicKey for BLS12381PublicKey {
     const SIGNATURE_SCHEME: SignatureScheme = SignatureScheme::BLS12381;
 }
 
-//
 // Ed25519 Sui Signature port
 //
 
@@ -797,7 +801,6 @@ impl Signer<Signature> for Ed25519KeyPair {
     }
 }
 
-//
 // Secp256k1 Sui Signature port
 //
 #[serde_as]
@@ -838,7 +841,6 @@ impl Signer<Signature> for Secp256k1KeyPair {
     }
 }
 
-//
 // Secp256r1 Sui Signature port
 //
 #[serde_as]
@@ -879,7 +881,6 @@ impl Signer<Signature> for Secp256r1KeyPair {
     }
 }
 
-//
 // This struct exists due to the limitations of the `enum_dispatch` library.
 //
 pub trait SuiSignatureInner: Sized + ToFromBytes + PartialEq + Eq + Hash {
@@ -970,7 +971,8 @@ impl<S: SuiSignatureInner + Sized> SuiSignature for S {
 
         let (sig, pk) = &self.get_verification_inputs()?;
         match scheme {
-            SignatureScheme::ZkLoginAuthenticator => {} // Pass this check because zk login does not derive address from pubkey.
+            SignatureScheme::ZkLoginAuthenticator => {} // Pass this check because zk login does
+            // not derive address from pubkey.
             _ => {
                 let address = SuiAddress::from(pk);
                 if author != address {
@@ -991,11 +993,12 @@ impl<S: SuiSignatureInner + Sized> SuiSignature for S {
     }
 }
 
-/// AuthoritySignInfoTrait is a trait used specifically for a few structs in messages.rs
-/// to template on whether the struct is signed by an authority. We want to limit how
-/// those structs can be instantiated on, hence the sealed trait.
-/// TODO: We could also add the aggregated signature as another impl of the trait.
-///       This will make CertifiedTransaction also an instance of the same struct.
+/// AuthoritySignInfoTrait is a trait used specifically for a few structs in
+/// messages.rs to template on whether the struct is signed by an authority. We
+/// want to limit how those structs can be instantiated on, hence the sealed
+/// trait. TODO: We could also add the aggregated signature as another impl of
+/// the trait.       This will make CertifiedTransaction also an instance of the
+/// same struct.
 pub trait AuthoritySignInfoTrait: private::SealedAuthoritySignInfoTrait {
     fn verify_secure<T: Serialize>(
         &self,
@@ -1144,11 +1147,11 @@ impl PartialEq for AuthoritySignInfo {
 }
 
 /// Represents at least a quorum (could be more) of authority signatures.
-/// STRONG_THRESHOLD indicates whether to use the quorum threshold for quorum check.
-/// When STRONG_THRESHOLD is true, the quorum is valid when the total stake is
-/// at least the quorum threshold (2f+1) of the committee; when STRONG_THRESHOLD is false,
-/// the quorum is valid when the total stake is at least the validity threshold (f+1) of
-/// the committee.
+/// STRONG_THRESHOLD indicates whether to use the quorum threshold for quorum
+/// check. When STRONG_THRESHOLD is true, the quorum is valid when the total
+/// stake is at least the quorum threshold (2f+1) of the committee; when
+/// STRONG_THRESHOLD is false, the quorum is valid when the total stake is at
+/// least the validity threshold (f+1) of the committee.
 #[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct AuthorityQuorumSignInfo<const STRONG_THRESHOLD: bool> {
@@ -1162,8 +1165,8 @@ pub struct AuthorityQuorumSignInfo<const STRONG_THRESHOLD: bool> {
 
 pub type AuthorityStrongQuorumSignInfo = AuthorityQuorumSignInfo<true>;
 
-// Variant of [AuthorityStrongQuorumSignInfo] but with a serialized signature, to be used in
-// external APIs.
+// Variant of [AuthorityStrongQuorumSignInfo] but with a serialized signature,
+// to be used in external APIs.
 #[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct SuiAuthorityStrongQuorumSignInfo {
@@ -1196,13 +1199,17 @@ impl TryFrom<&SuiAuthorityStrongQuorumSignInfo> for AuthorityStrongQuorumSignInf
     }
 }
 
-// Note: if you meet an error due to this line it may be because you need an Eq implementation for `CertifiedTransaction`,
-// or one of the structs that include it, i.e. `ConfirmationTransaction`, `TransactionInfoResponse` or `ObjectInfoResponse`.
+// Note: if you meet an error due to this line it may be because you need an Eq
+// implementation for `CertifiedTransaction`, or one of the structs that include
+// it, i.e. `ConfirmationTransaction`, `TransactionInfoResponse` or
+// `ObjectInfoResponse`.
 //
-// Please note that any such implementation must be agnostic to the exact set of signatures in the certificate, as
-// clients are allowed to equivocate on the exact nature of valid certificates they send to the system. This assertion
-// is a simple tool to make sure certificates are accounted for correctly - should you remove it, you're on your own to
-// maintain the invariant that valid certificates with distinct signatures are equivalent, but yet-unchecked
+// Please note that any such implementation must be agnostic to the exact set of
+// signatures in the certificate, as clients are allowed to equivocate on the
+// exact nature of valid certificates they send to the system. This assertion is
+// a simple tool to make sure certificates are accounted for correctly - should
+// you remove it, you're on your own to maintain the invariant that valid
+// certificates with distinct signatures are equivalent, but yet-unchecked
 // certificates that differ on signers aren't.
 //
 // see also https://github.com/MystenLabs/sui/issues/266
@@ -1408,8 +1415,9 @@ where
 /// We protect the access to this marker trait through a "sealed trait" pattern:
 /// impls must be add added here (nowehre else) which lets us note those impls
 /// MUST be on types that comply with the `serde_name` machinery
-/// for the below implementations not to panic. One way to check they work is to write
-/// a unit test for serialization to / deserialization from signable bytes.
+/// for the below implementations not to panic. One way to check they work is to
+/// write a unit test for serialization to / deserialization from signable
+/// bytes.
 mod bcs_signable {
 
     pub trait BcsSignable: serde::Serialize + serde::de::DeserializeOwned {}
@@ -1507,7 +1515,8 @@ impl<'a> VerificationObligation<'a> {
         self.messages.len() - 1
     }
 
-    // Attempts to add signature and public key to the obligation. If this fails, ensure to call `verify` manually.
+    // Attempts to add signature and public key to the obligation. If this fails,
+    // ensure to call `verify` manually.
     pub fn add_signature_and_public_key(
         &mut self,
         signature: &AuthoritySignature,
@@ -1555,8 +1564,8 @@ impl<'a> VerificationObligation<'a> {
 
             let chunk_size = 2048;
 
-            // This error message may be very long, so we print out the error in chunks of to avoid
-            // hitting a max log line length on the system.
+            // This error message may be very long, so we print out the error in chunks of
+            // to avoid hitting a max log line length on the system.
             for (i, chunk) in message
                 .as_bytes()
                 .chunks(chunk_size)
@@ -1630,13 +1639,14 @@ impl SignatureScheme {
             SignatureScheme::Secp256k1 => 0x01,
             SignatureScheme::Secp256r1 => 0x02,
             SignatureScheme::MultiSig => 0x03,
-            SignatureScheme::BLS12381 => 0x04, // This is currently not supported for user Sui Address.
+            SignatureScheme::BLS12381 => 0x04, // This is currently not supported for user Sui
+            // Address.
             SignatureScheme::ZkLoginAuthenticator => 0x05,
         }
     }
 
-    /// Takes as input an hasher and updates it with a flag byte if the input scheme is not ED25519;
-    /// it does nothing otherwise.
+    /// Takes as input an hasher and updates it with a flag byte if the input
+    /// scheme is not ED25519; it does nothing otherwise.
     pub fn update_hasher_with_flag(&self, hasher: &mut DefaultHash) {
         match self {
             SignatureScheme::ED25519 => (),
@@ -1665,7 +1675,8 @@ impl SignatureScheme {
         }
     }
 }
-/// Unlike [enum Signature], [enum CompressedSignature] does not contain public key.
+/// Unlike [enum Signature], [enum CompressedSignature] does not contain public
+/// key.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
 pub enum CompressedSignature {
     Ed25519(Ed25519SignatureAsBytes),
@@ -1708,7 +1719,6 @@ impl FromStr for GenericSignature {
     }
 }
 
-//
 // Types for randomness generation
 //
 pub type RandomnessSignature = fastcrypto_tbls::types::Signature;

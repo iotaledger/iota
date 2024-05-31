@@ -2,15 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use diesel::prelude::*;
-
 use sui_json_rpc_types::Checkpoint as RpcCheckpoint;
-use sui_types::base_types::TransactionDigest;
-use sui_types::digests::CheckpointDigest;
-use sui_types::gas::GasCostSummary;
+use sui_types::{base_types::TransactionDigest, digests::CheckpointDigest, gas::GasCostSummary};
 
-use crate::errors::IndexerError;
-use crate::schema::checkpoints;
-use crate::types::IndexedCheckpoint;
+use crate::{errors::IndexerError, schema::checkpoints, types::IndexedCheckpoint};
 
 #[derive(Queryable, Insertable, Debug, Clone, Default)]
 #[diesel(table_name = checkpoints)]

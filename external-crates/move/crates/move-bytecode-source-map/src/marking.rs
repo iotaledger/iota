@@ -2,13 +2,15 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::{BTreeMap, HashMap};
+
 use move_binary_format::file_format::{
     CodeOffset, FunctionDefinitionIndex, MemberCount, StructDefinitionIndex, TableIndex,
 };
-use std::collections::{BTreeMap, HashMap};
 
-/// A data structure used to track any markings or extra information that is desired to be exposed
-/// in the disassembled function definition. Every marking can have multiple messages associated with it.
+/// A data structure used to track any markings or extra information that is
+/// desired to be exposed in the disassembled function definition. Every marking
+/// can have multiple messages associated with it.
 #[derive(Debug, Default)]
 pub struct FunctionMarking {
     // Code offset markings
@@ -18,8 +20,9 @@ pub struct FunctionMarking {
     pub type_param_offsets: BTreeMap<usize, Vec<String>>,
 }
 
-/// A data structure used to track any markings or extra information that is desired to be exposed
-/// in the disassembled struct definition. Every marking can have multiple messages associated with it.
+/// A data structure used to track any markings or extra information that is
+/// desired to be exposed in the disassembled struct definition. Every marking
+/// can have multiple messages associated with it.
 #[derive(Debug, Default)]
 pub struct StructMarking {
     // Field markings
@@ -29,8 +32,8 @@ pub struct StructMarking {
     pub type_param_offsets: BTreeMap<usize, Vec<String>>,
 }
 
-/// A data structure that contains markings for both functions and structs. This will be used for
-/// printing out error messages and the like.
+/// A data structure that contains markings for both functions and structs. This
+/// will be used for printing out error messages and the like.
 #[derive(Debug, Default)]
 pub struct MarkedSourceMapping {
     // Any function markings

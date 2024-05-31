@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use move_ir_types::location::Loc;
+use move_symbol_pool::Symbol;
+
 use crate::{
     cfgir::visitor::AbstractInterpreterVisitor,
     command_line::compiler::Visitor,
@@ -11,8 +14,6 @@ use crate::{
     naming::ast as N,
     typing::visitor::TypingVisitor,
 };
-use move_ir_types::location::Loc;
-use move_symbol_pool::Symbol;
 
 pub mod coin_field;
 pub mod collection_equality;
@@ -85,8 +86,9 @@ pub enum LinterDiagCategory {
     PublicRandom,
 }
 
-/// A default code for each linter category (as long as only one code per category is used, no other
-/// codes are needed, otherwise they should be defined to be unique per-category).
+/// A default code for each linter category (as long as only one code per
+/// category is used, no other codes are needed, otherwise they should be
+/// defined to be unique per-category).
 pub const LINTER_DEFAULT_DIAG_CODE: u8 = 1;
 
 pub fn known_filters() -> (Option<Symbol>, Vec<WarningFilter>) {

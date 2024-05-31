@@ -1,21 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{path::PathBuf, sync::Arc, time::Duration};
+
 use futures::future::join_all;
-use rand::rngs::StdRng;
-use rand::seq::SliceRandom;
-use rand::{Rng, SeedableRng};
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::Duration;
+use rand::{rngs::StdRng, seq::SliceRandom, Rng, SeedableRng};
 use sui_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use surf_strategy::SurfStrategy;
 use test_cluster::TestClusterBuilder;
 use tokio::sync::watch;
 use tracing::info;
 
-use crate::surfer_state::SurfStatistics;
-use crate::surfer_task::SurferTask;
+use crate::{surfer_state::SurfStatistics, surfer_task::SurferTask};
 
 pub mod default_surf_strategy;
 mod surf_strategy;
@@ -79,6 +75,6 @@ pub async fn run<S: SurfStrategy + Default>(
     let all_stats: Result<Vec<_>, _> = join_all(handles).await.into_iter().collect();
     SurfStatistics::aggregate(all_stats.unwrap())
 
-    // TODO: Right now it will panic here complaining about dropping a tokio runtime
-    // inside of another tokio runtime. Reason unclear.
+    // TODO: Right now it will panic here complaining about dropping a tokio
+    // runtime inside of another tokio runtime. Reason unclear.
 }

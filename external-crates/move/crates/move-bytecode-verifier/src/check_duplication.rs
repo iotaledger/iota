@@ -2,13 +2,17 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module implements a checker for verifying that each vector in a CompiledModule contains
-//! distinct values. Successful verification implies that an index in vector can be used to
-//! uniquely name the entry at that index. Additionally, the checker also verifies the
-//! following:
+//! This module implements a checker for verifying that each vector in a
+//! CompiledModule contains distinct values. Successful verification implies
+//! that an index in vector can be used to uniquely name the entry at that
+//! index. Additionally, the checker also verifies the following:
 //! - struct and field definitions are consistent
-//! - the handles in struct and function definitions point to the self module index
-//! - all struct and function handles pointing to the self module index have a definition
+//! - the handles in struct and function definitions point to the self module
+//!   index
+//! - all struct and function handles pointing to the self module index have a
+//!   definition
+use std::{collections::HashSet, hash::Hash};
+
 use move_binary_format::{
     access::{ModuleAccess, ScriptAccess},
     errors::{verification_error, Location, PartialVMResult, VMResult},
@@ -22,7 +26,6 @@ use move_binary_format::{
 use move_core_types::{
     account_address::AccountAddress, identifier::Identifier, vm_status::StatusCode,
 };
-use std::{collections::HashSet, hash::Hash};
 
 pub struct DuplicationChecker<'a> {
     module: &'a CompiledModule,
@@ -159,7 +162,6 @@ impl<'a> DuplicationChecker<'a> {
         }
     }
 
-    //
     // Module only code
     //
 
@@ -238,7 +240,8 @@ impl<'a> DuplicationChecker<'a> {
                 idx as TableIndex,
             ));
         }
-        // Check that each struct handle in self module is implemented (has a declaration)
+        // Check that each struct handle in self module is implemented (has a
+        // declaration)
         let implemented_struct_handles: HashSet<StructHandleIndex> = self
             .module
             .struct_defs()
@@ -291,7 +294,8 @@ impl<'a> DuplicationChecker<'a> {
                 idx as TableIndex,
             ));
         }
-        // Check that each function handle in self module is implemented (has a declaration)
+        // Check that each function handle in self module is implemented (has a
+        // declaration)
         let implemented_function_handles: HashSet<FunctionHandleIndex> = self
             .module
             .function_defs()

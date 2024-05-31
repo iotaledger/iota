@@ -1,22 +1,23 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! This analysis flags uses of the sui::coin::Coin struct in fields of other structs. In most cases
-//! it's preferable to use sui::balance::Balance instead to save space.
+//! This analysis flags uses of the sui::coin::Coin struct in fields of other
+//! structs. In most cases it's preferable to use sui::balance::Balance instead
+//! to save space.
 
-use crate::{
-    diag,
-    diagnostics::codes::{custom, DiagnosticInfo, Severity},
-    naming::ast as N,
-    shared::{program_info::TypingProgramInfo, CompilationEnv},
-    typing::{ast as T, visitor::TypingVisitor},
-};
 use move_ir_types::location::Loc;
 use move_symbol_pool::Symbol;
 
 use super::{
     LinterDiagCategory, COIN_MOD_NAME, COIN_STRUCT_NAME, LINTER_DEFAULT_DIAG_CODE,
     LINT_WARNING_PREFIX, SUI_PKG_NAME,
+};
+use crate::{
+    diag,
+    diagnostics::codes::{custom, DiagnosticInfo, Severity},
+    naming::ast as N,
+    shared::{program_info::TypingProgramInfo, CompilationEnv},
+    typing::{ast as T, visitor::TypingVisitor},
 };
 
 const COIN_FIELD_DIAG: DiagnosticInfo = custom(

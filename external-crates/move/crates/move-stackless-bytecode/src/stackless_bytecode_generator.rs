@@ -2,14 +2,12 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    function_target::FunctionData,
-    stackless_bytecode::{
-        AssignKind, AttrId,
-        Bytecode::{self},
-        Constant, Label, Operation,
-    },
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    convert::TryInto,
+    matches,
 };
+
 use itertools::Itertools;
 use move_binary_format::{
     access::ModuleAccess,
@@ -28,10 +26,14 @@ use move_model::{
     ty::{PrimitiveType, Type},
 };
 use num::BigUint;
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    convert::TryInto,
-    matches,
+
+use crate::{
+    function_target::FunctionData,
+    stackless_bytecode::{
+        AssignKind, AttrId,
+        Bytecode::{self},
+        Constant, Label, Operation,
+    },
 };
 
 pub struct StacklessBytecodeGenerator<'a> {
@@ -382,8 +384,11 @@ impl<'a> StacklessBytecodeGenerator<'a> {
                 let temp_index = self.temp_count;
                 self.temp_stack.push(temp_index);
                 self.local_types.push(Type::Primitive(PrimitiveType::U256));
-                self.code
-                    .push(Bytecode::Load(attr_id, temp_index, Constant::from(&**number)));
+                self.code.push(Bytecode::Load(
+                    attr_id,
+                    temp_index,
+                    Constant::from(&**number),
+                ));
                 self.temp_count += 1;
             }
 
@@ -391,8 +396,11 @@ impl<'a> StacklessBytecodeGenerator<'a> {
                 let temp_index = self.temp_count;
                 self.temp_stack.push(temp_index);
                 self.local_types.push(Type::Primitive(PrimitiveType::U128));
-                self.code
-                    .push(Bytecode::Load(attr_id, temp_index, Constant::U128(**number)));
+                self.code.push(Bytecode::Load(
+                    attr_id,
+                    temp_index,
+                    Constant::U128(**number),
+                ));
                 self.temp_count += 1;
             }
 

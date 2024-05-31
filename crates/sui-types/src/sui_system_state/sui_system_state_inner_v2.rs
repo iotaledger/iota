@@ -1,24 +1,29 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::balance::Balance;
-use crate::base_types::SuiAddress;
-use crate::collection_types::{Bag, Table, TableVec, VecMap, VecSet};
-use crate::committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata};
-use crate::error::SuiError;
-use crate::storage::ObjectStore;
-use crate::sui_system_state::epoch_start_sui_system_state::EpochStartSystemState;
-use crate::sui_system_state::get_validators_from_table_vec;
-use crate::sui_system_state::sui_system_state_inner_v1::{
-    StakeSubsidyV1, StorageFundV1, ValidatorSetV1,
-};
-use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-use super::epoch_start_sui_system_state::EpochStartValidatorInfoV1;
-use super::sui_system_state_inner_v1::ValidatorV1;
-use super::sui_system_state_summary::{SuiSystemStateSummary, SuiValidatorSummary};
-use super::{AdvanceEpochParams, SuiSystemStateTrait};
+use serde::{Deserialize, Serialize};
+
+use super::{
+    epoch_start_sui_system_state::EpochStartValidatorInfoV1,
+    sui_system_state_inner_v1::ValidatorV1,
+    sui_system_state_summary::{SuiSystemStateSummary, SuiValidatorSummary},
+    AdvanceEpochParams, SuiSystemStateTrait,
+};
+use crate::{
+    balance::Balance,
+    base_types::SuiAddress,
+    collection_types::{Bag, Table, TableVec, VecMap, VecSet},
+    committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata},
+    error::SuiError,
+    storage::ObjectStore,
+    sui_system_state::{
+        epoch_start_sui_system_state::EpochStartSystemState,
+        get_validators_from_table_vec,
+        sui_system_state_inner_v1::{StakeSubsidyV1, StorageFundV1, ValidatorSetV1},
+    },
+};
 
 /// Rust version of the Move sui::sui_system::SystemParametersV2 type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
@@ -39,13 +44,14 @@ pub struct SystemParametersV2 {
     /// Lower-bound on the amount of stake required to become a validator.
     pub min_validator_joining_stake: u64,
 
-    /// Validators with stake amount below `validator_low_stake_threshold` are considered to
-    /// have low stake and will be escorted out of the validator set after being below this
-    /// threshold for more than `validator_low_stake_grace_period` number of epochs.
+    /// Validators with stake amount below `validator_low_stake_threshold` are
+    /// considered to have low stake and will be escorted out of the
+    /// validator set after being below this threshold for more than
+    /// `validator_low_stake_grace_period` number of epochs.
     pub validator_low_stake_threshold: u64,
 
-    /// Validators with stake below `validator_very_low_stake_threshold` will be removed
-    /// immediately at epoch change, no grace period.
+    /// Validators with stake below `validator_very_low_stake_threshold` will be
+    /// removed immediately at epoch change, no grace period.
     pub validator_very_low_stake_threshold: u64,
 
     /// A validator can have stake below `validator_low_stake_threshold`
@@ -185,9 +191,10 @@ impl SuiSystemStateTrait for SuiSystemStateInnerV2 {
     }
 
     fn into_sui_system_state_summary(self) -> SuiSystemStateSummary {
-        // If you are making any changes to SuiSystemStateV1 or any of its dependent types before
-        // mainnet, please also update SuiSystemStateSummary and its corresponding TS type.
-        // Post-mainnet, we will need to introduce a new version.
+        // If you are making any changes to SuiSystemStateV1 or any of its dependent
+        // types before mainnet, please also update SuiSystemStateSummary and
+        // its corresponding TS type. Post-mainnet, we will need to introduce a
+        // new version.
         let Self {
             epoch,
             protocol_version,

@@ -1,10 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use super::{CallbackLayer, MakeCallbackHandler, ResponseFuture};
-use http::{Request, Response};
 use std::task::{Context, Poll};
+
+use http::{Request, Response};
 use tower::Service;
+
+use super::{CallbackLayer, MakeCallbackHandler, ResponseFuture};
 
 /// Middleware that adds callbacks to a [`Service`].
 ///
@@ -26,7 +28,8 @@ impl<S, M> Callback<S, M> {
         }
     }
 
-    /// Returns a new [`Layer`] that wraps services with a [`CallbackLayer`] middleware.
+    /// Returns a new [`Layer`] that wraps services with a [`CallbackLayer`]
+    /// middleware.
     ///
     /// [`Layer`]: tower::layer::Layer
     pub fn layer(make_handler: M) -> CallbackLayer<M>

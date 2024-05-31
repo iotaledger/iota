@@ -1,12 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! This analysis flags freezing instances of structs containing (transitively or not) other structs
-//! with the key ability. In other words flags freezing of structs whose fields (directly or not)
-//! wrap objects.
+//! This analysis flags freezing instances of structs containing (transitively
+//! or not) other structs with the key ability. In other words flags freezing of
+//! structs whose fields (directly or not) wrap objects.
 
 use std::collections::BTreeMap;
 
+use move_ir_types::location::*;
+use move_symbol_pool::Symbol;
+
+use super::{
+    base_type, LinterDiagCategory, FREEZE_FUN, LINTER_DEFAULT_DIAG_CODE, LINT_WARNING_PREFIX,
+    PUBLIC_FREEZE_FUN, SUI_PKG_NAME, TRANSFER_MOD_NAME,
+};
 use crate::{
     diag,
     diagnostics::{
@@ -21,13 +28,6 @@ use crate::{
         ast as T,
         visitor::{TypingVisitorConstructor, TypingVisitorContext},
     },
-};
-use move_ir_types::location::*;
-use move_symbol_pool::Symbol;
-
-use super::{
-    base_type, LinterDiagCategory, FREEZE_FUN, LINTER_DEFAULT_DIAG_CODE, LINT_WARNING_PREFIX,
-    PUBLIC_FREEZE_FUN, SUI_PKG_NAME, TRANSFER_MOD_NAME,
 };
 
 const FREEZE_WRAPPING_DIAG: DiagnosticInfo = custom(
@@ -75,7 +75,8 @@ pub struct FreezeWrappedVisitor;
 pub struct Context<'a> {
     env: &'a mut CompilationEnv,
     program_info: &'a TypingProgramInfo,
-    /// Memoizes information about struct fields wrapping other objects as they are discovered
+    /// Memoizes information about struct fields wrapping other objects as they
+    /// are discovered
     wrapping_fields: WrappingFields,
 }
 
@@ -157,8 +158,9 @@ impl<'a> TypingVisitorContext for Context<'a> {
 }
 
 impl<'a> Context<'a> {
-    /// Checks if a given field (identified by ftype and fname) wraps other objects and, if so,
-    /// returns its location and information on whether wrapping is direct or indirect.
+    /// Checks if a given field (identified by ftype and fname) wraps other
+    /// objects and, if so, returns its location and information on whether
+    /// wrapping is direct or indirect.
     fn wraps_object(
         &mut self,
         sp!(_, ftype_): &N::Type,
@@ -193,9 +195,10 @@ impl<'a> Context<'a> {
         }
     }
 
-    /// Find if a field (if any) of a given struct identified by mident and sname that is wrapping
-    /// other objects, and return its location. In case this function is called recursively (we also
-    /// track recursion depth) to find "inner" fields wrapping objects, the "outer" field
+    /// Find if a field (if any) of a given struct identified by mident and
+    /// sname that is wrapping other objects, and return its location. In
+    /// case this function is called recursively (we also track recursion
+    /// depth) to find "inner" fields wrapping objects, the "outer" field
     /// information is included as well.
     fn find_wrapping_field_loc(
         &mut self,

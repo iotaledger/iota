@@ -1,15 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    net::SocketAddr,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
+
 use async_graphql::{
     extensions::{Extension, ExtensionContext, ExtensionFactory, NextExecute, NextParseQuery},
     parser::types::ExecutableDocument,
     Response, ServerError, ServerResult,
 };
 use async_graphql_value::Variables;
-use std::sync::Mutex;
-use std::time::Duration;
-use std::{net::SocketAddr, sync::Arc};
 use tokio::time::timeout;
 use tracing::error;
 use uuid::Uuid;

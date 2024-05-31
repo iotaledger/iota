@@ -1,38 +1,37 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::execution_status::PackageUpgradeError;
-use crate::{
-    base_types::{ObjectID, SequenceNumber},
-    crypto::DefaultHash,
-    error::{ExecutionError, ExecutionErrorKind, SuiError, SuiResult},
-    id::{ID, UID},
-    object::OBJECT_START_VERSION,
-    SUI_FRAMEWORK_ADDRESS,
-};
+use std::collections::{BTreeMap, BTreeSet};
+
 use derive_more::Display;
 use fastcrypto::hash::HashFunction;
-use move_binary_format::access::ModuleAccess;
-use move_binary_format::binary_config::BinaryConfig;
-use move_binary_format::binary_views::BinaryIndexedView;
-use move_binary_format::file_format::CompiledModule;
-use move_binary_format::normalized;
-use move_core_types::language_storage::ModuleId;
+use move_binary_format::{
+    access::ModuleAccess, binary_config::BinaryConfig, binary_views::BinaryIndexedView,
+    file_format::CompiledModule, normalized,
+};
 use move_core_types::{
     account_address::AccountAddress,
     ident_str,
     identifier::{IdentStr, Identifier},
-    language_storage::StructTag,
+    language_storage::{ModuleId, StructTag},
 };
 use move_disassembler::disassembler::Disassembler;
 use move_ir_types::location::Spanned;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use serde_with::serde_as;
-use serde_with::Bytes;
-use std::collections::{BTreeMap, BTreeSet};
+use serde_with::{serde_as, Bytes};
 use sui_protocol_config::ProtocolConfig;
+
+use crate::{
+    base_types::{ObjectID, SequenceNumber},
+    crypto::DefaultHash,
+    error::{ExecutionError, ExecutionErrorKind, SuiError, SuiResult},
+    execution_status::PackageUpgradeError,
+    id::{ID, UID},
+    object::OBJECT_START_VERSION,
+    SUI_FRAMEWORK_ADDRESS,
+};
 
 // TODO: robust MovePackage tests
 // #[cfg(test)]
@@ -47,7 +46,8 @@ pub const UPGRADERECEIPT_STRUCT_NAME: &IdentStr = ident_str!("UpgradeReceipt");
 #[derive(Clone, Debug)]
 /// Additional information about a function
 pub struct FnInfo {
-    /// If true, it's a function involved in testing (`[test]`, `[test_only]`, `[expected_failure]`)
+    /// If true, it's a function involved in testing (`[test]`, `[test_only]`,
+    /// `[expected_failure]`)
     pub is_test: bool,
 }
 
@@ -80,28 +80,30 @@ pub struct UpgradeInfo {
     pub upgraded_version: SequenceNumber,
 }
 
-// serde_bytes::ByteBuf is an analog of Vec<u8> with built-in fast serialization.
+// serde_bytes::ByteBuf is an analog of Vec<u8> with built-in fast
+// serialization.
 #[serde_as]
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
 pub struct MovePackage {
     id: ObjectID,
-    /// Most move packages are uniquely identified by their ID (i.e. there is only one version per
-    /// ID), but the version is still stored because one package may be an upgrade of another (at a
-    /// different ID), in which case its version will be one greater than the version of the
+    /// Most move packages are uniquely identified by their ID (i.e. there is
+    /// only one version per ID), but the version is still stored because
+    /// one package may be an upgrade of another (at a different ID), in
+    /// which case its version will be one greater than the version of the
     /// upgraded package.
     ///
-    /// Framework packages are an exception to this rule -- all versions of the framework packages
-    /// exist at the same ID, at increasing versions.
+    /// Framework packages are an exception to this rule -- all versions of the
+    /// framework packages exist at the same ID, at increasing versions.
     ///
-    /// In all cases, packages are referred to by move calls using just their ID, and they are
-    /// always loaded at their latest version.
+    /// In all cases, packages are referred to by move calls using just their
+    /// ID, and they are always loaded at their latest version.
     version: SequenceNumber,
     // TODO use session cache
     #[serde_as(as = "BTreeMap<_, Bytes>")]
     module_map: BTreeMap<String, Vec<u8>>,
 
-    /// Maps struct/module to a package version where it was first defined, stored as a vector for
-    /// simple serialization and deserialization.
+    /// Maps struct/module to a package version where it was first defined,
+    /// stored as a vector for simple serialization and deserialization.
     type_origin_table: Vec<TypeOrigin>,
 
     // For each dependency, maps original package ID to the info about the (upgraded) dependency
@@ -109,8 +111,9 @@ pub struct MovePackage {
     linkage_table: BTreeMap<ObjectID, UpgradeInfo>,
 }
 
-// NB: do _not_ add `Serialize` or `Deserialize` to this enum. Convert to u8 first  or use the
-// associated constants before storing in any serialization setting.
+// NB: do _not_ add `Serialize` or `Deserialize` to this enum. Convert to u8
+// first  or use the associated constants before storing in any serialization
+// setting.
 /// Rust representation of upgrade policy constants in `sui::package`.
 #[repr(u8)]
 #[derive(Display, Debug, Clone, Copy)]
@@ -172,8 +175,8 @@ pub struct UpgradeReceipt {
 }
 
 impl MovePackage {
-    /// Create a package with all required data (including serialized modules, type origin and
-    /// linkage tables) already supplied.
+    /// Create a package with all required data (including serialized modules,
+    /// type origin and linkage tables) already supplied.
     pub fn new(
         id: ObjectID,
         version: SequenceNumber,
@@ -210,8 +213,9 @@ impl MovePackage {
         )
     }
 
-    /// It is important that this function is shared across both the calculation of the
-    /// digest for the package, and the calculation of the digest on-chain.
+    /// It is important that this function is shared across both the calculation
+    /// of the digest for the package, and the calculation of the digest
+    /// on-chain.
     pub fn compute_digest_for_modules_and_deps<'a>(
         modules: impl IntoIterator<Item = &'a Vec<u8>>,
         object_ids: impl IntoIterator<Item = &'a ObjectID>,
@@ -234,7 +238,8 @@ impl MovePackage {
         }
 
         components.extend(object_ids.into_iter().map(|o| o.as_ref()));
-        // NB: sorting so the order of the modules and the order of the dependencies does not matter.
+        // NB: sorting so the order of the modules and the order of the dependencies
+        // does not matter.
         components.sort();
 
         let mut digest = DefaultHash::default();
@@ -244,8 +249,8 @@ impl MovePackage {
         digest.finalize().digest
     }
 
-    /// Create an initial version of the package along with this version's type origin and linkage
-    /// tables.
+    /// Create an initial version of the package along with this version's type
+    /// origin and linkage tables.
     pub fn new_initial<'p>(
         modules: &[CompiledModule],
         max_move_package_size: u64,
@@ -268,8 +273,8 @@ impl MovePackage {
         )
     }
 
-    /// Create an upgraded version of the package along with this version's type origin and linkage
-    /// tables.
+    /// Create an upgraded version of the package along with this version's type
+    /// origin and linkage tables.
     pub fn new_upgraded<'p>(
         &self,
         storage_id: ObjectID,
@@ -417,7 +422,11 @@ impl MovePackage {
             .sum::<usize>();
 
         let linkage_table_size = self.linkage_table.len()
-            * (ObjectID::LENGTH + (ObjectID::LENGTH + 8/* SequenceNumber */));
+            * (ObjectID::LENGTH
+                + (
+                    ObjectID::LENGTH + 8
+                    // SequenceNumber
+                ));
 
         8 /* SequenceNumber */ + module_map_size + type_origin_table_size + linkage_table_size
     }
@@ -468,8 +477,9 @@ impl MovePackage {
         &self.linkage_table
     }
 
-    /// The ObjectID that this package's modules believe they are from, at runtime (can differ from
-    /// `MovePackage::id()` in the case of package upgrades).
+    /// The ObjectID that this package's modules believe they are from, at
+    /// runtime (can differ from `MovePackage::id()` in the case of package
+    /// upgrades).
     pub fn original_package_id(&self) -> ObjectID {
         let bytes = self.module_map.values().next().expect("Empty module map");
         let module = CompiledModule::deserialize_with_defaults(bytes)
@@ -518,8 +528,8 @@ impl UpgradeCap {
         }
     }
 
-    /// Create an `UpgradeCap` for the newly published package at `package_id`, and associate it with
-    /// the fresh `uid`.
+    /// Create an `UpgradeCap` for the newly published package at `package_id`,
+    /// and associate it with the fresh `uid`.
     pub fn new(uid: ObjectID, package_id: ObjectID) -> Self {
         UpgradeCap {
             id: UID::new(uid),
@@ -551,8 +561,8 @@ impl UpgradeReceipt {
         }
     }
 
-    /// Create an `UpgradeReceipt` for the upgraded package at `package_id` using the
-    /// `UpgradeTicket` and newly published package id.
+    /// Create an `UpgradeReceipt` for the upgraded package at `package_id`
+    /// using the `UpgradeTicket` and newly published package id.
     pub fn new(upgrade_ticket: UpgradeTicket, upgraded_package_id: ObjectID) -> Self {
         UpgradeReceipt {
             cap: upgrade_ticket.cap,
@@ -579,8 +589,8 @@ where
 {
     let mut disassembled = BTreeMap::new();
     for bytecode in modules {
-        // this function is only from JSON RPC - it is OK to deserialize with max Move binary
-        // version
+        // this function is only from JSON RPC - it is OK to deserialize with max Move
+        // binary version
         let module = CompiledModule::deserialize_with_defaults(bytecode).map_err(|error| {
             SuiError::ModuleDeserializationFailure {
                 error: error.to_string(),
@@ -643,14 +653,14 @@ fn build_linkage_table<'p>(
     let mut dep_linkage_tables = vec![];
 
     for transitive_dep in transitive_dependencies.into_iter() {
-        // original_package_id will deserialize a module but only for the purpose of obtaining
-        // "original ID" of the package containing it so using max Move binary version during
-        // deserialization is OK
+        // original_package_id will deserialize a module but only for the purpose of
+        // obtaining "original ID" of the package containing it so using max
+        // Move binary version during deserialization is OK
         let original_id = transitive_dep.original_package_id();
 
         if immediate_dependencies.remove(&original_id) {
-            // Found an immediate dependency, mark it as seen, and stash a reference to its linkage
-            // table to check later.
+            // Found an immediate dependency, mark it as seen, and stash a reference to its
+            // linkage table to check later.
             dep_linkage_tables.push(&transitive_dep.linkage_table);
         }
 
@@ -716,8 +726,8 @@ fn build_upgraded_type_origin_table(
             let module_name = m.name().to_string();
             let struct_name = m.identifier_at(struct_handle.name).to_string();
             let mod_key = (module_name.clone(), struct_name.clone());
-            // if id exists in the predecessor's table, use it, otherwise use the id of the upgraded
-            // module
+            // if id exists in the predecessor's table, use it, otherwise use the id of the
+            // upgraded module
             let package = existing_table.remove(&mod_key).unwrap_or(storage_id);
             new_table.push(TypeOrigin {
                 module_name,

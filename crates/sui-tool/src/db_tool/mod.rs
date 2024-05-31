@@ -1,22 +1,32 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use self::db_dump::{dump_table, duplicate_objects_summary, list_tables, table_summary, StoreName};
-use self::index_search::{search_index, SearchRange};
-use crate::db_tool::db_dump::{compact, print_table_metadata, prune_checkpoints, prune_objects};
+use std::path::{Path, PathBuf};
+
 use anyhow::{anyhow, bail};
 use clap::Parser;
 use narwhal_storage::NodeStorage;
-use std::path::{Path, PathBuf};
-use sui_core::authority::authority_per_epoch_store::AuthorityEpochTables;
-use sui_core::authority::authority_store_tables::AuthorityPerpetualTables;
-use sui_core::checkpoints::CheckpointStore;
-use sui_types::base_types::{EpochId, ObjectID};
-use sui_types::digests::{CheckpointContentsDigest, TransactionDigest};
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber};
-use sui_types::storage::ObjectStore;
+use sui_core::{
+    authority::{
+        authority_per_epoch_store::AuthorityEpochTables,
+        authority_store_tables::AuthorityPerpetualTables,
+    },
+    checkpoints::CheckpointStore,
+};
+use sui_types::{
+    base_types::{EpochId, ObjectID},
+    digests::{CheckpointContentsDigest, TransactionDigest},
+    effects::TransactionEffectsAPI,
+    messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
+    storage::ObjectStore,
+};
 use typed_store::rocks::MetricConf;
+
+use self::{
+    db_dump::{dump_table, duplicate_objects_summary, list_tables, table_summary, StoreName},
+    index_search::{search_index, SearchRange},
+};
+use crate::db_tool::db_dump::{compact, print_table_metadata, prune_checkpoints, prune_objects};
 pub mod db_dump;
 mod index_search;
 
@@ -350,13 +360,20 @@ pub fn print_checkpoint_content(
 pub fn reset_db_to_genesis(path: &Path) -> anyhow::Result<()> {
     // Follow the below steps to test:
     //
-    // Get a db snapshot. Either generate one by running stress locally and enabling db checkpoints or download one from S3 bucket (pretty big in size though).
-    // Download the snapshot for the epoch you want to restore to the local disk. You will find one snapshot per epoch in the S3 bucket. We need to place the snapshot in the dir where config is pointing to. If db-config in fullnode.yaml is /opt/sui/db/authorities_db and we want to restore from epoch 10, we want to copy the snapshot to /opt/sui/db/authorities_dblike this:
-    // aws s3 cp s3://myBucket/dir /opt/sui/db/authorities_db/ --recursive —exclude “*” —include “epoch_10*”
-    // Mark downloaded snapshot as live: mv  /opt/sui/db/authorities_db/epoch_10  /opt/sui/db/authorities_db/live
-    // Reset the downloaded db to execute from genesis with: cargo run --package sui-tool -- db-tool --db-path /opt/sui/db/authorities_db/live reset-db
-    // Start the sui full node: cargo run --release --bin sui-node -- --config-path ~/db_checkpoints/fullnode.yaml
-    // A sample fullnode.yaml config would be:
+    // Get a db snapshot. Either generate one by running stress locally and enabling
+    // db checkpoints or download one from S3 bucket (pretty big in size though).
+    // Download the snapshot for the epoch you want to restore to the local disk.
+    // You will find one snapshot per epoch in the S3 bucket. We need to place the
+    // snapshot in the dir where config is pointing to. If db-config in
+    // fullnode.yaml is /opt/sui/db/authorities_db and we want to restore from epoch
+    // 10, we want to copy the snapshot to /opt/sui/db/authorities_dblike this:
+    // aws s3 cp s3://myBucket/dir /opt/sui/db/authorities_db/ --recursive —exclude
+    // “*” —include “epoch_10*” Mark downloaded snapshot as live: mv
+    // /opt/sui/db/authorities_db/epoch_10  /opt/sui/db/authorities_db/live
+    // Reset the downloaded db to execute from genesis with: cargo run --package
+    // sui-tool -- db-tool --db-path /opt/sui/db/authorities_db/live reset-db
+    // Start the sui full node: cargo run --release --bin sui-node -- --config-path
+    // ~/db_checkpoints/fullnode.yaml A sample fullnode.yaml config would be:
     // ---
     // db-path:  /opt/sui/db/authorities_db
     // network-address: /ip4/0.0.0.0/tcp/8080/http
@@ -406,7 +423,9 @@ pub fn reset_db_to_genesis(path: &Path) -> anyhow::Result<()> {
 
 /// Force sets the highest executed checkpoint.
 /// NOTE: Does not force re-execution of transactions.
-/// Run with: cargo run --package sui-tool -- db-tool --db-path /opt/sui/db/authorities_db/live rewind-checkpoint-execution --epoch 3 --checkpoint-sequence-number 300000
+/// Run with: cargo run --package sui-tool -- db-tool --db-path
+/// /opt/sui/db/authorities_db/live rewind-checkpoint-execution --epoch 3
+/// --checkpoint-sequence-number 300000
 pub fn rewind_checkpoint_execution(
     path: &Path,
     epoch: EpochId,
@@ -490,7 +509,9 @@ pub fn print_all_entries(
 
 /// Force sets state sync checkpoint watermarks.
 /// Run with (for example):
-/// cargo run --package sui-tool -- db-tool --db-path /opt/sui/db/authorities_db/live set_checkpoint_watermark --highest-synced 300000
+/// cargo run --package sui-tool -- db-tool --db-path
+/// /opt/sui/db/authorities_db/live set_checkpoint_watermark --highest-synced
+/// 300000
 pub fn set_checkpoint_watermark(
     path: &Path,
     options: SetCheckpointWatermarkOptions,

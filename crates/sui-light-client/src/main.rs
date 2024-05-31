@@ -1,12 +1,24 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    fs,
+    io::{Read, Write},
+    path::PathBuf,
+    str::FromStr,
+    sync::Arc,
+};
+
 use anyhow::anyhow;
 use async_trait::async_trait;
+use clap::{Parser, Subcommand};
 use move_core_types::account_address::AccountAddress;
+use sui_config::genesis::Genesis;
+use sui_json::SuiJsonValue;
 use sui_json_rpc_types::SuiTransactionBlockResponseOptions;
-
+use sui_package_resolver::{Package, PackageStore, Resolver, Result as ResolverResult};
 use sui_rest_api::{CheckpointData, Client};
+use sui_sdk::SuiClientBuilder;
 use sui_types::{
     base_types::{ObjectID, SequenceNumber},
     committee::Committee,
@@ -17,17 +29,6 @@ use sui_types::{
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSummary, EndOfEpochData},
     object::{Data, Object},
 };
-
-use sui_config::genesis::Genesis;
-
-use sui_json::SuiJsonValue;
-use sui_package_resolver::Result as ResolverResult;
-use sui_package_resolver::{Package, PackageStore, Resolver};
-use sui_sdk::SuiClientBuilder;
-
-use clap::{Parser, Subcommand};
-use std::{fs, io::Write, path::PathBuf, str::FromStr};
-use std::{io::Read, sync::Arc};
 
 /// A light client for the Sui blockchain
 #[derive(Parser, Debug)]
@@ -58,8 +59,8 @@ impl PackageStore for RemotePackageStore {
     async fn version(&self, id: AccountAddress) -> ResolverResult<SequenceNumber> {
         Ok(self.client.get_object(id.into()).await.unwrap().version())
     }
-    /// Read package contents. Fails if `id` is not an object, not a package, or is malformed in
-    /// some way.
+    /// Read package contents. Fails if `id` is not an object, not a package, or
+    /// is malformed in some way.
     async fn fetch(&self, id: AccountAddress) -> ResolverResult<Arc<Package>> {
         let object = get_verified_object(&self.config, id.into()).await.unwrap();
         let package = Package::read(&object).unwrap();
@@ -87,7 +88,8 @@ enum SCommands {
     },
 }
 
-// The config file for the light client including the root of trust genesis digest
+// The config file for the light client including the root of trust genesis
+// digest
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 struct Config {
     /// Full node url
@@ -280,7 +282,8 @@ async fn check_and_sync_checkpoints(config: &Config) -> anyhow::Result<()> {
 
     let mut prev_committee = genesis_committee;
     for ckp_id in &checkpoints_list.checkpoints {
-        // check if there is a file with this name ckp_id.yaml in the checkpoint_summary_dir
+        // check if there is a file with this name ckp_id.yaml in the
+        // checkpoint_summary_dir
         let mut checkpoint_path = config.checkpoint_summary_dir.clone();
         checkpoint_path.push(format!("{}.yaml", ckp_id));
 
@@ -545,10 +548,11 @@ pub async fn main() {
 // Make a test namespace
 #[cfg(test)]
 mod tests {
+    use std::path::{Path, PathBuf};
+
     use sui_types::messages_checkpoint::FullCheckpointContents;
 
     use super::*;
-    use std::path::{Path, PathBuf};
 
     async fn read_full_checkpoint(checkpoint_path: &PathBuf) -> anyhow::Result<CheckpointData> {
         let mut reader = fs::File::open(checkpoint_path.clone())?;
@@ -626,24 +630,30 @@ mod tests {
         // Change committee
         committee.epoch += 10;
 
-        assert!(extract_verified_effects_and_events(
-            &full_checkpoint,
-            &committee,
-            TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zi6cMVA9t4WhWk").unwrap(),
-        )
-        .is_err());
+        assert!(
+            extract_verified_effects_and_events(
+                &full_checkpoint,
+                &committee,
+                TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zi6cMVA9t4WhWk")
+                    .unwrap(),
+            )
+            .is_err()
+        );
     }
 
     #[tokio::test]
     async fn test_checkpoint_no_transaction() {
         let (committee, full_checkpoint) = read_data().await;
 
-        assert!(extract_verified_effects_and_events(
-            &full_checkpoint,
-            &committee,
-            TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zj6cMVA9t4WhWk").unwrap(),
-        )
-        .is_err());
+        assert!(
+            extract_verified_effects_and_events(
+                &full_checkpoint,
+                &committee,
+                TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zj6cMVA9t4WhWk")
+                    .unwrap(),
+            )
+            .is_err()
+        );
     }
 
     #[tokio::test]
@@ -654,12 +664,15 @@ mod tests {
         let random_contents = FullCheckpointContents::random_for_testing();
         full_checkpoint.checkpoint_contents = random_contents.checkpoint_contents();
 
-        assert!(extract_verified_effects_and_events(
-            &full_checkpoint,
-            &committee,
-            TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zj6cMVA9t4WhWk").unwrap(),
-        )
-        .is_err());
+        assert!(
+            extract_verified_effects_and_events(
+                &full_checkpoint,
+                &committee,
+                TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zj6cMVA9t4WhWk")
+                    .unwrap(),
+            )
+            .is_err()
+        );
     }
 
     #[tokio::test]
@@ -679,11 +692,14 @@ mod tests {
             }
         }
 
-        assert!(extract_verified_effects_and_events(
-            &full_checkpoint,
-            &committee,
-            TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zj6cMVA9t4WhWk").unwrap(),
-        )
-        .is_err());
+        assert!(
+            extract_verified_effects_and_events(
+                &full_checkpoint,
+                &committee,
+                TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zj6cMVA9t4WhWk")
+                    .unwrap(),
+            )
+            .is_err()
+        );
     }
 }

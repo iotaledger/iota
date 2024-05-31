@@ -2,10 +2,11 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use move_ir_types::location::*;
+
 use crate::{
     cfgir::absint::*, expansion::ast::Mutability, hlir::ast::Var, shared::unique_map::UniqueMap,
 };
-use move_ir_types::location::*;
 
 //**************************************************************************************************
 // Abstract state

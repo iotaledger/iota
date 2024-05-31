@@ -1,26 +1,31 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::base_types::AuthorityName;
-use crate::committee::{Committee, EpochId};
-use crate::crypto::{
-    AuthorityKeyPair, AuthorityQuorumSignInfo, AuthoritySignInfo, AuthoritySignInfoTrait,
-    AuthoritySignature, AuthorityStrongQuorumSignInfo, EmptySignInfo, Signer,
+use std::{
+    fmt::{Debug, Display, Formatter},
+    ops::{Deref, DerefMut},
+    sync::{Arc, RwLock},
 };
-use crate::error::SuiResult;
-use crate::executable_transaction::CertificateProof;
-use crate::messages_checkpoint::CheckpointSequenceNumber;
-use crate::signature::VerifyParams;
-use crate::transaction::VersionedProtocolMessage;
+
 use fastcrypto::traits::KeyPair;
 use once_cell::sync::OnceCell;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use shared_crypto::intent::{Intent, IntentScope};
-use std::fmt::{Debug, Display, Formatter};
-use std::ops::{Deref, DerefMut};
-use std::sync::Arc;
-use std::sync::RwLock;
 use sui_protocol_config::ProtocolConfig;
+
+use crate::{
+    base_types::AuthorityName,
+    committee::{Committee, EpochId},
+    crypto::{
+        AuthorityKeyPair, AuthorityQuorumSignInfo, AuthoritySignInfo, AuthoritySignInfoTrait,
+        AuthoritySignature, AuthorityStrongQuorumSignInfo, EmptySignInfo, Signer,
+    },
+    error::SuiResult,
+    executable_transaction::CertificateProof,
+    messages_checkpoint::CheckpointSequenceNumber,
+    signature::VerifyParams,
+    transaction::VersionedProtocolMessage,
+};
 
 pub static GOOGLE_JWK_BYTES: OnceCell<Arc<RwLock<Vec<u8>>>> = OnceCell::new();
 pub static TWITCH_JWK_BYTES: OnceCell<Arc<RwLock<Vec<u8>>>> = OnceCell::new();
@@ -104,22 +109,24 @@ pub trait Message {
     /// Perform cheap validity checks before any expensive crypto verification.
     fn verify_user_input(&self) -> SuiResult;
 
-    /// Verify that the message is from the correct epoch (e.g. for CertifiedCheckpointSummary
-    /// we verify that the checkpoint is from the same epoch as the committee signatures).
+    /// Verify that the message is from the correct epoch (e.g. for
+    /// CertifiedCheckpointSummary we verify that the checkpoint is from the
+    /// same epoch as the committee signatures).
     fn verify_epoch(&self, epoch: EpochId) -> SuiResult;
 }
 
 /// A message type that has an internal authenticator, such as SenderSignedData
 pub trait AuthenticatedMessage {
-    /// Verify internal signatures, e.g. for Transaction we verify the user signature(s).
+    /// Verify internal signatures, e.g. for Transaction we verify the user
+    /// signature(s).
     fn verify_message_signature(&self, verify_params: &VerifyParams) -> SuiResult;
 
     /// Checks that still need to be verified outside cache.
     fn verify_uncached_checks(&self, verify_params: &VerifyParams) -> SuiResult;
 }
 
-/// A marker trait to indicate !AuthenticatedMessage since rust does not allow negative trait
-/// bounds.
+/// A marker trait to indicate !AuthenticatedMessage since rust does not allow
+/// negative trait bounds.
 pub trait UnauthenticatedMessage {}
 
 #[derive(Clone, Debug, Eq, Serialize, Deserialize)]
@@ -411,16 +418,16 @@ where
 }
 
 /// TrustedEnvelope is a serializable wrapper around Envelope which is
-/// `Into<VerifiedEnvelope>` - in other words it models a verified message which has been
-/// written to the db (or some other trusted store), and may be read back from the db without
-/// further signature verification.
+/// `Into<VerifiedEnvelope>` - in other words it models a verified message which
+/// has been written to the db (or some other trusted store), and may be read
+/// back from the db without further signature verification.
 ///
 /// TrustedEnvelope should *only* appear in database interfaces.
 ///
 /// DO NOT USE in networked APIs.
 ///
-/// Because it is used very sparingly, it can be audited easily: Use rust-analyzer,
-/// or run: git grep -E 'TrustedEnvelope'
+/// Because it is used very sparingly, it can be audited easily: Use
+/// rust-analyzer, or run: git grep -E 'TrustedEnvelope'
 ///
 /// And verify that none of the uses appear in any network APIs.
 #[derive(Clone, Serialize, Deserialize)]
@@ -459,7 +466,7 @@ where
     T: Message + Debug,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.0 .0)
+        write!(f, "{:?}", self.0.0)
     }
 }
 
@@ -469,19 +476,19 @@ impl<T: Message, S> VerifiedEnvelope<T, S> {
         Self(TrustedEnvelope(inner), NoSer)
     }
 
-    /// There are some situations (e.g. fragment verification) where its very awkward and/or
-    /// inefficient to obtain verified certificates from calling CertifiedTransaction::verify()
-    /// Use this carefully.
+    /// There are some situations (e.g. fragment verification) where its very
+    /// awkward and/or inefficient to obtain verified certificates from
+    /// calling CertifiedTransaction::verify() Use this carefully.
     pub fn new_unchecked(inner: Envelope<T, S>) -> Self {
         Self(TrustedEnvelope(inner), NoSer)
     }
 
     pub fn into_inner(self) -> Envelope<T, S> {
-        self.0 .0
+        self.0.0
     }
 
     pub fn inner(&self) -> &Envelope<T, S> {
-        &self.0 .0
+        &self.0.0
     }
 
     pub fn into_message(self) -> T {
@@ -514,8 +521,8 @@ impl<T: Message + VersionedProtocolMessage, S> VersionedProtocolMessage for Veri
     }
 }
 
-/// After deserialization, a TrustedTransactionEnvelope can be turned back into a
-/// VerifiedTransactionEnvelope.
+/// After deserialization, a TrustedTransactionEnvelope can be turned back into
+/// a VerifiedTransactionEnvelope.
 impl<T: Message, S> From<TrustedEnvelope<T, S>> for VerifiedEnvelope<T, S> {
     fn from(e: TrustedEnvelope<T, S>) -> Self {
         Self::new_unchecked(e.0)
@@ -525,7 +532,7 @@ impl<T: Message, S> From<TrustedEnvelope<T, S>> for VerifiedEnvelope<T, S> {
 impl<T: Message, S> Deref for VerifiedEnvelope<T, S> {
     type Target = Envelope<T, S>;
     fn deref(&self) -> &Self::Target {
-        &self.0 .0
+        &self.0.0
     }
 }
 
@@ -544,7 +551,7 @@ impl<T: Message, S> DerefMut for Envelope<T, S> {
 
 impl<T: Message, S> From<VerifiedEnvelope<T, S>> for Envelope<T, S> {
     fn from(v: VerifiedEnvelope<T, S>) -> Self {
-        v.0 .0
+        v.0.0
     }
 }
 
@@ -553,7 +560,7 @@ where
     Envelope<T, S>: PartialEq,
 {
     fn eq(&self, other: &Self) -> bool {
-        self.0 .0 == other.0 .0
+        self.0.0 == other.0.0
     }
 }
 
@@ -565,15 +572,16 @@ where
     Envelope<T, S>: Display,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0 .0)
+        write!(f, "{}", self.0.0)
     }
 }
 
-/// The following implementation provides two ways to construct a VerifiedEnvelope with CertificateProof.
-/// It is implemented in this file such that we could reuse the digest without having to
-/// recompute it.
-/// We allow converting a VerifiedCertificate into a VerifiedEnvelope with CertificateProof::Certificate;
-/// and converting a VerifiedTransaction along with checkpoint information into a VerifiedEnvelope
+/// The following implementation provides two ways to construct a
+/// VerifiedEnvelope with CertificateProof. It is implemented in this file such
+/// that we could reuse the digest without having to recompute it.
+/// We allow converting a VerifiedCertificate into a VerifiedEnvelope with
+/// CertificateProof::Certificate; and converting a VerifiedTransaction along
+/// with checkpoint information into a VerifiedEnvelope
 /// with CertificateProof::Checkpoint.
 impl<T: Message> VerifiedEnvelope<T, CertificateProof> {
     pub fn new_from_certificate(

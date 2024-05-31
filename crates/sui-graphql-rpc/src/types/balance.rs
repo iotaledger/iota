@@ -1,23 +1,33 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use super::cursor::{self, Page, RawPaginated, Target};
-use super::{big_int::BigInt, move_type::MoveType, sui_address::SuiAddress};
-use crate::consistency::{consistent_range, Checkpointed};
-use crate::data::{Db, DbConnection, QueryExecutor};
-use crate::error::Error;
-use crate::raw_query::RawQuery;
-use crate::{filter, query};
-use async_graphql::connection::{Connection, CursorType, Edge};
-use async_graphql::*;
+use std::str::FromStr;
+
+use async_graphql::{
+    connection::{Connection, CursorType, Edge},
+    *,
+};
 use diesel::{
     sql_types::{BigInt as SqlBigInt, Nullable, Text},
     OptionalExtension, QueryableByName,
 };
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
 use sui_indexer::types::OwnerType;
 use sui_types::{parse_sui_type_tag, TypeTag};
+
+use super::{
+    big_int::BigInt,
+    cursor::{self, Page, RawPaginated, Target},
+    move_type::MoveType,
+    sui_address::SuiAddress,
+};
+use crate::{
+    consistency::{consistent_range, Checkpointed},
+    data::{Db, DbConnection, QueryExecutor},
+    error::Error,
+    filter, query,
+    raw_query::RawQuery,
+};
 
 /// The total balance for a particular coin type.
 #[derive(Clone, Debug, SimpleObject)]
@@ -30,8 +40,9 @@ pub(crate) struct Balance {
     pub(crate) total_balance: Option<BigInt>,
 }
 
-/// Representation of a row of balance information from the DB. We read the balance as a `String` to
-/// deal with the large (bigger than 2^63 - 1) balances.
+/// Representation of a row of balance information from the DB. We read the
+/// balance as a `String` to deal with the large (bigger than 2^63 - 1)
+/// balances.
 #[derive(QueryableByName)]
 pub struct StoredBalance {
     #[diesel(sql_type = Nullable<Text>)]
@@ -44,8 +55,9 @@ pub struct StoredBalance {
 
 pub(crate) type Cursor = cursor::JsonCursor<BalanceCursor>;
 
-/// The inner struct for the `Balance`'s cursor. The `coin_type` is used as the cursor, while the
-/// `checkpoint_viewed_at` sets the consistent upper bound for the cursor.
+/// The inner struct for the `Balance`'s cursor. The `coin_type` is used as the
+/// cursor, while the `checkpoint_viewed_at` sets the consistent upper bound for
+/// the cursor.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub(crate) struct BalanceCursor {
     #[serde(rename = "t")]
@@ -56,8 +68,9 @@ pub(crate) struct BalanceCursor {
 }
 
 impl Balance {
-    /// Query for the balance of coins owned by `address`, of coins with type `coin_type`. Note that
-    /// `coin_type` is the type of `0x2::coin::Coin`'s type parameter, not the full type of the coin
+    /// Query for the balance of coins owned by `address`, of coins with type
+    /// `coin_type`. Note that `coin_type` is the type of
+    /// `0x2::coin::Coin`'s type parameter, not the full type of the coin
     /// object.
     pub(crate) async fn query(
         db: &Db,
@@ -82,17 +95,19 @@ impl Balance {
         stored.map(Balance::try_from).transpose()
     }
 
-    /// Query the database for a `page` of coin balances. Each balance represents the total balance
-    /// for a particular coin type, owned by `address`.
+    /// Query the database for a `page` of coin balances. Each balance
+    /// represents the total balance for a particular coin type, owned by
+    /// `address`.
     pub(crate) async fn paginate(
         db: &Db,
         page: Page<Cursor>,
         address: SuiAddress,
         checkpoint_viewed_at: Option<u64>,
     ) -> Result<Connection<String, Balance>, Error> {
-        // If cursors are provided, defer to the `checkpoint_viewed_at` in the cursor if they are
-        // consistent. Otherwise, use the value from the parameter, or set to None. This is so that
-        // paginated queries are consistent with the previous query that created the cursor.
+        // If cursors are provided, defer to the `checkpoint_viewed_at` in the cursor if
+        // they are consistent. Otherwise, use the value from the parameter, or
+        // set to None. This is so that paginated queries are consistent with
+        // the previous query that created the cursor.
         let cursor_viewed_at = page.validate_cursor_consistency()?;
         let checkpoint_viewed_at: Option<u64> = cursor_viewed_at.or(checkpoint_viewed_at);
 
@@ -191,17 +206,18 @@ impl TryFrom<StoredBalance> for Balance {
     }
 }
 
-/// Query the database for a `page` of coin balances. Each balance represents the total balance for
-/// a particular coin type, owned by `address`. This function is meant to be called within a thunk
-/// and returns a RawQuery that can be converted into a BoxedSqlQuery with `.into_boxed()`.
+/// Query the database for a `page` of coin balances. Each balance represents
+/// the total balance for a particular coin type, owned by `address`. This
+/// function is meant to be called within a thunk and returns a RawQuery that
+/// can be converted into a BoxedSqlQuery with `.into_boxed()`.
 fn balance_query(address: SuiAddress, coin_type: Option<TypeTag>, lhs: i64, rhs: i64) -> RawQuery {
-    // Construct the filtered inner query - apply the same filtering criteria to both
-    // objects_snapshot and objects_history tables.
+    // Construct the filtered inner query - apply the same filtering criteria to
+    // both objects_snapshot and objects_history tables.
     let mut snapshot_objs = query!("SELECT * FROM objects_snapshot");
     snapshot_objs = filter(snapshot_objs, address, coin_type.clone());
 
-    // Additionally filter objects_history table for results between the available range, or
-    // checkpoint_viewed_at, if provided.
+    // Additionally filter objects_history table for results between the available
+    // range, or checkpoint_viewed_at, if provided.
     let mut history_objs = query!("SELECT * FROM objects_history");
     history_objs = filter(history_objs, address, coin_type.clone());
     history_objs = filter!(
@@ -218,9 +234,9 @@ fn balance_query(address: SuiAddress, coin_type: Option<TypeTag>, lhs: i64, rhs:
     .order_by("object_id")
     .order_by("object_version DESC");
 
-    // Objects that fulfill the filtering criteria may not be the most recent version available.
-    // Left join the candidates table on newer to filter out any objects that have a newer
-    // version.
+    // Objects that fulfill the filtering criteria may not be the most recent
+    // version available. Left join the candidates table on newer to filter out
+    // any objects that have a newer version.
     let mut newer = query!("SELECT object_id, object_version FROM objects_history");
     newer = filter!(
         newer,
@@ -245,8 +261,8 @@ fn balance_query(address: SuiAddress, coin_type: Option<TypeTag>, lhs: i64, rhs:
     filter!(final_, "newer.object_version IS NULL").group_by("coin_type")
 }
 
-/// Applies the filtering criteria for balances to the input `RawQuery` and returns a new
-/// `RawQuery`.
+/// Applies the filtering criteria for balances to the input `RawQuery` and
+/// returns a new `RawQuery`.
 fn filter(mut query: RawQuery, owner: SuiAddress, coin_type: Option<TypeTag>) -> RawQuery {
     query = filter!(query, "coin_type IS NOT NULL");
 

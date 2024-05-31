@@ -1,14 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::anyhow;
-use anyhow::Context;
-use anyhow::Result;
-use spinners::Spinner;
-use spinners::Spinners;
-use std::process::Command;
-use std::process::Output;
-use std::process::Stdio;
+use std::process::{Command, Output, Stdio};
+
+use anyhow::{anyhow, Context, Result};
+use spinners::{Spinner, Spinners};
 use tracing::debug;
 const SPINNER: Spinners = Spinners::Dots12;
 

@@ -7,8 +7,7 @@ mod setup;
 use anyhow::Result;
 use clap::Parser;
 use init::ProjectType;
-use setup::ensure_gcloud;
-use setup::ensure_setup;
+use setup::{ensure_gcloud, ensure_setup};
 
 #[derive(Parser, Debug, Clone)]
 pub struct PulumiArgs {

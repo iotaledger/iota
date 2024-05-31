@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{object_runtime::ObjectRuntime, NativesCostTable};
+use std::collections::VecDeque;
+
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{gas_algebra::InternalGas, language_storage::TypeTag, vm_status::StatusCode};
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
@@ -9,8 +10,9 @@ use move_vm_types::{
     loaded_data::runtime_types::Type, natives::function::NativeResult, values::Value,
 };
 use smallvec::smallvec;
-use std::collections::VecDeque;
 use sui_types::error::VMMemoryLimitExceededSubStatusCode;
+
+use crate::{object_runtime::ObjectRuntime, NativesCostTable};
 
 #[derive(Clone, Debug)]
 pub struct EventEmitCostParams {
@@ -19,15 +21,20 @@ pub struct EventEmitCostParams {
     pub event_emit_tag_size_derivation_cost_per_byte: InternalGas,
     pub event_emit_output_cost_per_byte: InternalGas,
 }
-/***************************************************************************************************
- * native fun emit
- * Implementation of the Move native function `event::emit<T: copy + drop>(event: T)`
- * Adds an event to the transaction's event log
- *   gas cost: event_emit_cost_base                  |  covers various fixed costs in the oper
- *              + event_emit_value_size_derivation_cost_per_byte * event_size     | derivation of size
- *              + event_emit_tag_size_derivation_cost_per_byte * tag_size         | converting type
- *              + event_emit_output_cost_per_byte * (tag_size + event_size)       | emitting the actual event
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun emit
+/// Implementation of the Move native function `event::emit<T: copy +
+/// drop>(event: T)` Adds an event to the transaction's event log
+///   gas cost: event_emit_cost_base                  |  covers various fixed
+/// costs in the oper
+///              + event_emit_value_size_derivation_cost_per_byte * event_size |
+///                derivation of size
+///              + event_emit_tag_size_derivation_cost_per_byte * tag_size |
+///                converting type
+///              + event_emit_output_cost_per_byte * (tag_size + event_size) |
+///                emitting the actual event
+/// ****************************************************************************
+/// *******************
 pub fn emit(
     context: &mut NativeContext,
     mut ty_args: Vec<Type>,
@@ -62,7 +69,7 @@ pub fn emit(
             return Err(
                 PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                     .with_message("Sui verifier guarantees this is a struct".to_string()),
-            )
+            );
         }
     };
     let tag_size = tag.abstract_size_for_gas_metering();

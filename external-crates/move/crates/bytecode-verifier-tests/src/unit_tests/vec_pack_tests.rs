@@ -1,13 +1,14 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::unit_tests::production_config;
 use move_binary_format::file_format::{
     empty_module, Bytecode, CodeUnit, FunctionDefinition, FunctionHandle, FunctionHandleIndex,
     IdentifierIndex, ModuleHandleIndex, Signature, SignatureIndex, SignatureToken, Visibility,
 };
 use move_bytecode_verifier::meter::DummyMeter;
 use move_core_types::{identifier::Identifier, vm_status::StatusCode};
+
+use crate::unit_tests::production_config;
 
 fn vec_sig(len: usize) -> SignatureToken {
     if len > 0 {

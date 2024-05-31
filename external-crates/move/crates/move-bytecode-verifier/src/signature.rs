@@ -2,9 +2,12 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module implements a checker for verifying signature tokens used in types of function
-//! parameters, locals, and fields of structs are well-formed. References can only occur at the
-//! top-level in all tokens.  Additionally, references cannot occur at all in field types.
+//! This module implements a checker for verifying signature tokens used in
+//! types of function parameters, locals, and fields of structs are well-formed.
+//! References can only occur at the top-level in all tokens.  Additionally,
+//! references cannot occur at all in field types.
+use std::collections::{HashMap, HashSet};
+
 use move_binary_format::{
     access::{ModuleAccess, ScriptAccess},
     binary_views::BinaryIndexedView,
@@ -18,7 +21,6 @@ use move_binary_format::{
     IndexKind,
 };
 use move_core_types::vm_status::StatusCode;
-use std::collections::{HashMap, HashSet};
 
 pub struct SignatureChecker<'a> {
     resolver: BinaryIndexedView<'a>,
@@ -363,7 +365,7 @@ impl<'a> SignatureChecker<'a> {
             StructInstantiation(struct_inst) => {
                 let (_, type_arguments) = &**struct_inst;
                 self.check_signature_tokens(type_arguments)
-            },
+            }
         }
     }
 
@@ -410,9 +412,10 @@ impl<'a> SignatureChecker<'a> {
             SignatureToken::StructInstantiation(struct_inst) => {
                 let (idx, type_arguments) = &**struct_inst;
                 // Check that the instantiation satisfies the `idx` struct's constraints
-                // Cannot be checked completely if we do not know the constraints of type parameters
-                // i.e. it cannot be checked unless we are inside some module member. The only case
-                // where that happens is when checking the signature pool itself
+                // Cannot be checked completely if we do not know the constraints of type
+                // parameters i.e. it cannot be checked unless we are inside
+                // some module member. The only case where that happens is when
+                // checking the signature pool itself
                 let sh = self.resolver.struct_handle_at(*idx);
                 self.check_generic_instance(
                     type_arguments,
@@ -437,7 +440,8 @@ impl<'a> SignatureChecker<'a> {
         }
     }
 
-    // Checks if the given types are well defined and satisfy the constraints in the given context.
+    // Checks if the given types are well defined and satisfy the constraints in the
+    // given context.
     fn check_generic_instance(
         &self,
         type_arguments: &[SignatureToken],
