@@ -1,10 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use tempfile::TempDir;
-
 use sui_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
-use sui_types::crypto::Ed25519SuiSignature;
-use sui_types::crypto::{SignatureScheme, SuiSignatureInner};
+use sui_types::crypto::{Ed25519SuiSignature, SignatureScheme, SuiSignatureInner};
+use tempfile::TempDir;
 #[test]
 fn mnemonic_test() {
     let temp_dir = TempDir::new().unwrap();

@@ -4,11 +4,12 @@
 // Tests that overload monitor only starts on validators.
 #[cfg(msim)]
 mod simtests {
-    use std::sync::atomic::AtomicUsize;
-    use std::sync::atomic::Ordering;
-    use std::sync::Arc;
-    use sui_macros::register_fail_point;
-    use sui_macros::sim_test;
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+
+    use sui_macros::{register_fail_point, sim_test};
     use test_cluster::TestClusterBuilder;
 
     #[sim_test]
@@ -22,8 +23,8 @@ mod simtests {
             counter_clone.fetch_add(1, Ordering::SeqCst);
         });
 
-        // Creates a cluster, and tests that number of nodes with overload monitor is equal to
-        // the number of validators.
+        // Creates a cluster, and tests that number of nodes with overload monitor is
+        // equal to the number of validators.
         let test_cluster = TestClusterBuilder::new().build().await;
         let nodes_with_overload_monitor = counter.load(Ordering::SeqCst);
         assert_eq!(
@@ -38,4 +39,5 @@ mod simtests {
     }
 }
 
-// TODO: move other overload relate tests from execution_driver_tests.rs to here.
+// TODO: move other overload relate tests from execution_driver_tests.rs to
+// here.

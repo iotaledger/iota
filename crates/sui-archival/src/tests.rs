@@ -1,29 +1,39 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::reader::{ArchiveReader, ArchiveReaderMetrics};
-use crate::writer::ArchiveWriter;
-use crate::{read_manifest, verify_archive_with_local_store, write_manifest, Manifest};
+use std::{
+    fs,
+    fs::File,
+    io::Write,
+    num::NonZeroUsize,
+    path::PathBuf,
+    sync::{atomic::AtomicU64, Arc},
+    time::Duration,
+};
+
 use anyhow::{anyhow, Context, Result};
 use more_asserts as ma;
 use object_store::DynObjectStore;
 use prometheus::Registry;
-use std::fs;
-use std::fs::File;
-use std::io::Write;
-use std::num::NonZeroUsize;
-use std::path::PathBuf;
-use std::sync::atomic::AtomicU64;
-use std::sync::Arc;
-use std::time::Duration;
-use sui_config::node::ArchiveReaderConfig;
-use sui_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-use sui_storage::object_store::util::path_to_filesystem;
-use sui_storage::{FileCompression, StorageFormat};
+use sui_config::{
+    node::ArchiveReaderConfig,
+    object_storage_config::{ObjectStoreConfig, ObjectStoreType},
+};
+use sui_storage::{object_store::util::path_to_filesystem, FileCompression, StorageFormat};
 use sui_swarm_config::test_utils::{empty_contents, CommitteeFixture};
-use sui_types::messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents};
-use sui_types::storage::{ReadStore, SharedInMemoryStore, SingleCheckpointSharedInMemoryStore};
+use sui_types::{
+    messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents},
+    storage::{ReadStore, SharedInMemoryStore, SingleCheckpointSharedInMemoryStore},
+};
 use tempfile::tempdir;
+
+use crate::{
+    read_manifest,
+    reader::{ArchiveReader, ArchiveReaderMetrics},
+    verify_archive_with_local_store, write_manifest,
+    writer::ArchiveWriter,
+    Manifest,
+};
 
 struct TestState {
     archive_writer: ArchiveWriter,
@@ -286,14 +296,16 @@ async fn test_verify_archive_with_oneshot_store() -> Result<(), anyhow::Error> {
     );
 
     // Verification should pass
-    assert!(verify_archive_with_local_store(
-        read_store,
-        test_state.remote_store_config.clone(),
-        1,
-        false
-    )
-    .await
-    .is_ok());
+    assert!(
+        verify_archive_with_local_store(
+            read_store,
+            test_state.remote_store_config.clone(),
+            1,
+            false
+        )
+        .await
+        .is_ok()
+    );
     kill.send(())?;
     Ok(())
 }
@@ -360,14 +372,16 @@ async fn test_verify_archive_with_oneshot_store_bad_data() -> Result<(), anyhow:
     );
 
     // Verification should fail
-    assert!(verify_archive_with_local_store(
-        read_store,
-        test_state.remote_store_config.clone(),
-        1,
-        false
-    )
-    .await
-    .is_err());
+    assert!(
+        verify_archive_with_local_store(
+            read_store,
+            test_state.remote_store_config.clone(),
+            1,
+            false
+        )
+        .await
+        .is_err()
+    );
     kill.send(())?;
 
     Ok(())

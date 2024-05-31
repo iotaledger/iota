@@ -1,32 +1,40 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::{BTreeMap, HashMap},
+    path::PathBuf,
+    str,
+    sync::Arc,
+};
+
 use anyhow::{anyhow, Ok};
 use clap::{Parser, ValueEnum};
 use comfy_table::{Cell, ContentArrangement, Row, Table};
 use prometheus::Registry;
 use rocksdb::MultiThreaded;
-use std::collections::{BTreeMap, HashMap};
-use std::path::PathBuf;
-use std::str;
-use std::sync::Arc;
 use strum_macros::EnumString;
 use sui_archival::reader::ArchiveReaderBalancer;
 use sui_config::node::AuthorityStorePruningConfig;
-use sui_core::authority::authority_per_epoch_store::AuthorityEpochTables;
-use sui_core::authority::authority_store_pruner::{
-    AuthorityStorePruner, AuthorityStorePruningMetrics, EPOCH_DURATION_MS_FOR_TESTING,
+use sui_core::{
+    authority::{
+        authority_per_epoch_store::AuthorityEpochTables,
+        authority_store_pruner::{
+            AuthorityStorePruner, AuthorityStorePruningMetrics, EPOCH_DURATION_MS_FOR_TESTING,
+        },
+        authority_store_tables::AuthorityPerpetualTables,
+        authority_store_types::{StoreData, StoreObject},
+    },
+    checkpoints::CheckpointStore,
+    epoch::committee_store::CommitteeStoreTables,
 };
-use sui_core::authority::authority_store_tables::AuthorityPerpetualTables;
-use sui_core::authority::authority_store_types::{StoreData, StoreObject};
-use sui_core::checkpoints::CheckpointStore;
-use sui_core::epoch::committee_store::CommitteeStoreTables;
-use sui_storage::mutex_table::RwLockTable;
-use sui_storage::IndexStoreTables;
+use sui_storage::{mutex_table::RwLockTable, IndexStoreTables};
 use sui_types::base_types::{EpochId, ObjectID};
 use tracing::info;
-use typed_store::rocks::{default_db_options, MetricConf};
-use typed_store::traits::{Map, TableSummary};
+use typed_store::{
+    rocks::{default_db_options, MetricConf},
+    traits::{Map, TableSummary},
+};
 
 #[derive(EnumString, Clone, Parser, Debug, ValueEnum)]
 pub enum StoreName {
@@ -303,8 +311,10 @@ pub fn dump_table(
 
 #[cfg(test)]
 mod test {
-    use sui_core::authority::authority_per_epoch_store::AuthorityEpochTables;
-    use sui_core::authority::authority_store_tables::AuthorityPerpetualTables;
+    use sui_core::authority::{
+        authority_per_epoch_store::AuthorityEpochTables,
+        authority_store_tables::AuthorityPerpetualTables,
+    };
 
     use crate::db_tool::db_dump::{dump_table, list_tables, StoreName};
 

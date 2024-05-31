@@ -42,7 +42,8 @@ use std::{
 
 /// The number of buckets in the pool's contiguous array.
 const NB_BUCKETS: usize = 1 << 12; // 4096
-/// A mask used to convert a string hash into the index of one of the contiguous buckets.
+/// A mask used to convert a string hash into the index of one of the contiguous
+/// buckets.
 const BUCKET_MASK: u64 = NB_BUCKETS as u64 - 1;
 
 /// A bucket is a space on the heap within which an entry may be allocated.

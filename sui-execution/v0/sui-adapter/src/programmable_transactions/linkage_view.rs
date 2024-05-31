@@ -13,43 +13,49 @@ use move_core_types::{
     language_storage::{ModuleId, StructTag},
     resolver::{LinkageResolver, ModuleResolver, ResourceResolver},
 };
-use sui_types::storage::{get_module, PackageObject};
 use sui_types::{
     base_types::ObjectID,
     error::{ExecutionError, SuiError, SuiResult},
     execution::SuiResolver,
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
-    storage::BackingPackageStore,
+    storage::{get_module, BackingPackageStore, PackageObject},
 };
 
-/// Exposes module and linkage resolution to the Move runtime.  The first by delegating to
-/// `resolver` and the second via linkage information that is loaded from a move package.
+/// Exposes module and linkage resolution to the Move runtime.  The first by
+/// delegating to `resolver` and the second via linkage information that is
+/// loaded from a move package.
 pub struct LinkageView<'state> {
-    /// Interface to resolve packages, modules and resources directly from the store.
+    /// Interface to resolve packages, modules and resources directly from the
+    /// store.
     resolver: Box<dyn SuiResolver + 'state>,
     /// Information used to change module and type identities during linkage.
     linkage_info: LinkageInfo,
-    /// Cache containing the type origin information from every package that has been set as the
-    /// link context, and every other type that has been requested by the loader in this session.
-    /// It's okay to retain entries in this cache between different link contexts because a type's
+    /// Cache containing the type origin information from every package that has
+    /// been set as the link context, and every other type that has been
+    /// requested by the loader in this session. It's okay to retain entries
+    /// in this cache between different link contexts because a type's
     /// Runtime ID and Defining ID are invariant between across link contexts.
     ///
-    /// Cache is keyed first by the Runtime ID of the type's module, and then the type's identifier.
-    /// The value is the ObjectID/Address of the package that introduced the type.
+    /// Cache is keyed first by the Runtime ID of the type's module, and then
+    /// the type's identifier. The value is the ObjectID/Address of the
+    /// package that introduced the type.
     type_origin_cache: RefCell<HashMap<ModuleId, HashMap<Identifier, AccountAddress>>>,
-    /// Cache of past package addresses that have been the link context -- if a package is in this
-    /// set, then we will not try to load its type origin table when setting it as a context (again).
+    /// Cache of past package addresses that have been the link context -- if a
+    /// package is in this set, then we will not try to load its type origin
+    /// table when setting it as a context (again).
     past_contexts: RefCell<HashSet<ObjectID>>,
 }
 
 #[derive(Debug)]
 pub enum LinkageInfo {
-    /// No linkage information -- requests to relink will fail with an invariant violation.
+    /// No linkage information -- requests to relink will fail with an invariant
+    /// violation.
     Unset,
-    /// Linkage information cannot be altered, and does not affect type or module identity.
+    /// Linkage information cannot be altered, and does not affect type or
+    /// module identity.
     Universal,
-    /// Linkage provided by the package found at `storage_id` whose module self-addresses are
-    /// `runtime_id`.
+    /// Linkage provided by the package found at `storage_id` whose module
+    /// self-addresses are `runtime_id`.
     Set(PackageLinkage),
 }
 
@@ -79,8 +85,8 @@ impl<'state> LinkageView<'state> {
         }
     }
 
-    /// Indicates whether this `LinkageView` has had its context set to match the linkage in
-    /// `context`.
+    /// Indicates whether this `LinkageView` has had its context set to match
+    /// the linkage in `context`.
     pub fn has_linkage(&self, context: ObjectID) -> bool {
         match &self.linkage_info {
             LinkageInfo::Unset => false,
@@ -89,7 +95,8 @@ impl<'state> LinkageView<'state> {
         }
     }
 
-    /// Reset the linkage, but save the context that existed before, if there was one.
+    /// Reset the linkage, but save the context that existed before, if there
+    /// was one.
     pub fn steal_linkage(&mut self) -> Option<SavedLinkage> {
         if let LinkageInfo::Universal = &self.linkage_info {
             None
@@ -102,7 +109,8 @@ impl<'state> LinkageView<'state> {
         }
     }
 
-    /// Restore a previously saved linkage context.  Fails if there is already a context set.
+    /// Restore a previously saved linkage context.  Fails if there is already a
+    /// context set.
     pub fn restore_linkage(&mut self, saved: Option<SavedLinkage>) -> Result<(), ExecutionError> {
         let Some(SavedLinkage(saved)) = saved else {
             return Ok(());
@@ -119,15 +127,16 @@ impl<'state> LinkageView<'state> {
             }
         }
 
-        // No need to populate type origin cache, because a saved context must have been set as a
-        // linkage before, and the cache would have been populated at that time.
+        // No need to populate type origin cache, because a saved context must have been
+        // set as a linkage before, and the cache would have been populated at
+        // that time.
         self.linkage_info = LinkageInfo::Set(saved);
         Ok(())
     }
 
-    /// Set the linkage context to the information based on the linkage and type origin tables from
-    /// the `context` package.  Returns the original package ID (aka the runtime ID) of the context
-    /// package on success.
+    /// Set the linkage context to the information based on the linkage and type
+    /// origin tables from the `context` package.  Returns the original
+    /// package ID (aka the runtime ID) of the context package on success.
     pub fn set_linkage(&mut self, context: &MovePackage) -> Result<AccountAddress, ExecutionError> {
         match &self.linkage_info {
             LinkageInfo::Unset => (),
@@ -151,9 +160,9 @@ impl<'state> LinkageView<'state> {
             return Ok(runtime_id);
         }
 
-        // Pre-populate the type origin cache with entries from the current package -- this is
-        // necessary to serve "defining module" requests for unpublished packages, but will also
-        // speed up other requests.
+        // Pre-populate the type origin cache with entries from the current package --
+        // this is necessary to serve "defining module" requests for unpublished
+        // packages, but will also speed up other requests.
         for TypeOrigin {
             module_name,
             struct_name,
@@ -257,8 +266,9 @@ impl<'state> LinkageResolver for LinkageView<'state> {
             }
         };
 
-        // The request is to relocate a module in the package that the link context is from.  This
-        // entry will not be stored in the linkage table, so must be handled specially.
+        // The request is to relocate a module in the package that the link context is
+        // from.  This entry will not be stored in the linkage table, so must be
+        // handled specially.
         if module_id.address() == &linkage.runtime_id {
             return Ok(ModuleId::new(
                 linkage.storage_id,
@@ -325,7 +335,7 @@ impl<'state> LinkageResolver for LinkageView<'state> {
     }
 }
 
-/** Remaining implementations delegated to state_view *************************/
+/// Remaining implementations delegated to state_view ************************
 
 impl<'state> ResourceResolver for LinkageView<'state> {
     type Error = SuiError;

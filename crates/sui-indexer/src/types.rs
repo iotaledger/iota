@@ -1,28 +1,30 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::errors::IndexerError;
 use move_core_types::language_storage::StructTag;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use sui_json_rpc_types::{
     ObjectChange, SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
 };
-use sui_types::base_types::{ObjectDigest, SequenceNumber};
-use sui_types::base_types::{ObjectID, SuiAddress};
-use sui_types::crypto::AggregateAuthoritySignature;
-use sui_types::digests::TransactionDigest;
-use sui_types::dynamic_field::DynamicFieldInfo;
-use sui_types::effects::TransactionEffects;
-use sui_types::event::SystemEpochInfoEvent;
-use sui_types::messages_checkpoint::{
-    CertifiedCheckpointSummary, CheckpointCommitment, CheckpointDigest, EndOfEpochData,
+use sui_types::{
+    base_types::{ObjectDigest, ObjectID, SequenceNumber, SuiAddress},
+    crypto::AggregateAuthoritySignature,
+    digests::TransactionDigest,
+    dynamic_field::DynamicFieldInfo,
+    effects::TransactionEffects,
+    event::SystemEpochInfoEvent,
+    messages_checkpoint::{
+        CertifiedCheckpointSummary, CheckpointCommitment, CheckpointDigest, EndOfEpochData,
+    },
+    move_package::MovePackage,
+    object::{Object, Owner},
+    sui_serde::SuiStructTag,
+    sui_system_state::sui_system_state_summary::SuiSystemStateSummary,
+    transaction::SenderSignedData,
 };
-use sui_types::move_package::MovePackage;
-use sui_types::object::{Object, Owner};
-use sui_types::sui_serde::SuiStructTag;
-use sui_types::sui_system_state::sui_system_state_summary::SuiSystemStateSummary;
-use sui_types::transaction::SenderSignedData;
+
+use crate::errors::IndexerError;
 
 pub type IndexerResult<T> = Result<T, IndexerError>;
 
@@ -226,7 +228,7 @@ impl TryFrom<i16> for ObjectStatus {
             value => {
                 return Err(IndexerError::PersistentStorageDataCorruptionError(format!(
                     "{value} as ObjectStatus"
-                )))
+                )));
             }
         })
     }
@@ -244,7 +246,7 @@ impl TryFrom<i16> for OwnerType {
             value => {
                 return Err(IndexerError::PersistentStorageDataCorruptionError(format!(
                     "{value} as OwnerType"
-                )))
+                )));
             }
         })
     }

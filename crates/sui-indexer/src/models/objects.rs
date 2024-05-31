@@ -1,22 +1,25 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use serde::de::DeserializeOwned;
 use std::collections::HashMap;
-use sui_json_rpc::coin_api::parse_to_struct_tag;
 
 use diesel::prelude::*;
 use move_bytecode_utils::module_cache::GetModule;
+use serde::de::DeserializeOwned;
+use sui_json_rpc::coin_api::parse_to_struct_tag;
 use sui_json_rpc_types::{Balance, Coin as SuiCoin};
-use sui_types::base_types::{ObjectID, ObjectRef, SequenceNumber};
-use sui_types::digests::ObjectDigest;
-use sui_types::dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType, Field};
-use sui_types::object::Object;
-use sui_types::object::ObjectRead;
+use sui_types::{
+    base_types::{ObjectID, ObjectRef, SequenceNumber},
+    digests::ObjectDigest,
+    dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType, Field},
+    object::{Object, ObjectRead},
+};
 
-use crate::errors::IndexerError;
-use crate::schema::{objects, objects_history};
-use crate::types::{IndexedDeletedObject, IndexedObject, ObjectStatus};
+use crate::{
+    errors::IndexerError,
+    schema::{objects, objects_history},
+    types::{IndexedDeletedObject, IndexedObject, ObjectStatus},
+};
 
 #[derive(Queryable)]
 pub struct DynamicFieldColumn {
@@ -212,7 +215,8 @@ impl StoredObject {
             return Ok(None);
         }
 
-        // Past this point, if there is any unexpected field, it's a data corruption error
+        // Past this point, if there is any unexpected field, it's a data corruption
+        // error
         let object_id = ObjectID::from_bytes(&self.object_id).map_err(|_| {
             IndexerError::PersistentStorageDataCorruptionError(format!(
                 "Can't convert {:?} to object_id",
@@ -245,7 +249,7 @@ impl StoredObject {
                 return Err(IndexerError::PersistentStorageDataCorruptionError(format!(
                     "object {} has incompatible dynamic field type: empty df_kind",
                     object_id
-                )))
+                )));
             }
         };
         let name = if let Some(field_name) = self.df_name {
@@ -411,7 +415,10 @@ mod tests {
 
         match stored_obj.object_type {
             Some(t) => {
-                assert_eq!(t, "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI>");
+                assert_eq!(
+                    t,
+                    "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI>"
+                );
             }
             None => {
                 panic!("object_type should not be none");
@@ -491,7 +498,10 @@ mod tests {
 
         match stored_obj.object_type {
             Some(t) => {
-                assert_eq!(t, "0x00000000000000000000000000000000000000000000000000000000000000e7::vec_coin::VecCoin<vector<0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI>>>");
+                assert_eq!(
+                    t,
+                    "0x00000000000000000000000000000000000000000000000000000000000000e7::vec_coin::VecCoin<vector<0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI>>>"
+                );
             }
             None => {
                 panic!("object_type should not be none");

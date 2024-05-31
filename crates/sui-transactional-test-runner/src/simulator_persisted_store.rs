@@ -1,18 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, path::PathBuf, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
 
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
 use simulacrum::Simulacrum;
-use std::num::NonZeroUsize;
 use sui_config::genesis;
 use sui_protocol_config::ProtocolVersion;
-use sui_swarm_config::genesis_config::AccountConfig;
-use sui_swarm_config::network_config_builder::ConfigBuilder;
-use sui_types::storage::ReadStore;
+use sui_swarm_config::{genesis_config::AccountConfig, network_config_builder::ConfigBuilder};
 use sui_types::{
     base_types::{ObjectID, SequenceNumber, SuiAddress, VersionNumber},
     committee::{Committee, EpochId},
@@ -27,17 +24,16 @@ use sui_types::{
     object::{Object, Owner},
     storage::{
         load_package_object_from_object_store, BackingPackageStore, ChildObjectResolver,
-        ObjectStore, PackageObject, ParentSync,
+        ObjectStore, PackageObject, ParentSync, ReadStore,
     },
     transaction::VerifiedTransaction,
 };
 use tempfile::tempdir;
-use typed_store::traits::TableSummary;
-use typed_store::traits::TypedStoreDebug;
-use typed_store::Map;
 use typed_store::{
     metrics::SamplingInterval,
     rocks::{DBMap, MetricConf},
+    traits::{TableSummary, TypedStoreDebug},
+    Map,
 };
 use typed_store_derive::DBMapUtils;
 
@@ -730,8 +726,9 @@ impl Clone for PersistedStoreInnerReadOnlyWrapper {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rand::{rngs::StdRng, SeedableRng};
+
+    use super::*;
 
     #[tokio::test]
     async fn deterministic_genesis() {

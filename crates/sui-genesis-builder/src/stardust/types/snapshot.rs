@@ -30,11 +30,13 @@ pub const TOTAL_SUPPLY_IOTA: u64 = 4_600_000_000_000_000;
 #[derive(Debug, Copy, Clone, Eq, PartialEq, packable::Packable)]
 #[packable(unpack_error = StardustError)]
 pub enum SnapshotKind {
-    /// Full is a snapshot which contains the full ledger entry for a given milestone plus the milestone diffs which
-    /// subtracted to the ledger milestone reduce to the snapshot milestone ledger.
+    /// Full is a snapshot which contains the full ledger entry for a given
+    /// milestone plus the milestone diffs which subtracted to the ledger
+    /// milestone reduce to the snapshot milestone ledger.
     Full = 0,
-    /// Delta is a snapshot which contains solely diffs of milestones newer than a certain ledger milestone instead of
-    /// the complete ledger state of a given milestone.
+    /// Delta is a snapshot which contains solely diffs of milestones newer than
+    /// a certain ledger milestone instead of the complete ledger state of a
+    /// given milestone.
     Delta = 1,
 }
 

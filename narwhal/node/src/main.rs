@@ -8,6 +8,13 @@
     rust_2021_compatibility
 )]
 mod benchmark_client;
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
+
 use benchmark_client::{parse_url, url_to_multiaddr, Client, OperatingMode};
 use clap::{Parser, Subcommand};
 use config::{
@@ -20,9 +27,9 @@ use fastcrypto::traits::{EncodeDecodeBase64, KeyPair as _};
 use futures::join;
 use mysten_metrics::start_prometheus_server;
 use narwhal_node as node;
-use narwhal_node::metrics::NarwhalBenchMetrics;
-use narwhal_node::primary_node::PrimaryNode;
-use narwhal_node::worker_node::WorkerNode;
+use narwhal_node::{
+    metrics::NarwhalBenchMetrics, primary_node::PrimaryNode, worker_node::WorkerNode,
+};
 use network::client::NetworkClient;
 use node::{
     execution_state::SimpleExecutionState,
@@ -30,12 +37,6 @@ use node::{
 };
 use prometheus::Registry;
 use rand::{rngs::StdRng, SeedableRng};
-use std::sync::Arc;
-use std::{
-    collections::BTreeMap,
-    fs,
-    path::{Path, PathBuf},
-};
 use storage::{CertificateStoreCacheMetrics, NodeStorage};
 use sui_keys::keypair_file::{
     read_authority_keypair_from_file, read_network_keypair_from_file,
@@ -49,16 +50,14 @@ use sui_types::{
     multiaddr::Multiaddr,
 };
 use telemetry_subscribers::TelemetryGuards;
-use tokio::sync::mpsc::channel;
-use tokio::time::Duration;
-use url::Url;
-
+use tokio::{sync::mpsc::channel, time::Duration};
 // TODO: remove when old benchmark code is removed
 // #[cfg(feature = "benchmark")]
 // use tracing::subscriber::set_global_default;
 // #[cfg(feature = "benchmark")]
 // use tracing_subscriber::filter::{EnvFilter, LevelFilter};
 use tracing::{info, warn};
+use url::Url;
 use worker::{LazyNarwhalClient, TrivialTransactionValidator};
 
 #[derive(Parser)]
@@ -75,8 +74,9 @@ struct App {
 #[allow(clippy::large_enum_variant)]
 #[derive(Subcommand)]
 enum Commands {
-    /// Generate a committee, workers and the parameters config files of all validators
-    /// from a list of initial peers. This is only suitable for benchmarks as it exposes all keys.
+    /// Generate a committee, workers and the parameters config files of all
+    /// validators from a list of initial peers. This is only suitable for
+    /// benchmarks as it exposes all keys.
     BenchmarkGenesis {
         #[clap(
             long,
@@ -102,7 +102,8 @@ enum Commands {
         #[arg(long)]
         filename: PathBuf,
     },
-    /// Save an encoded ed25519 network keypair (Base64 encoded `flag || privkey`) to file
+    /// Save an encoded ed25519 network keypair (Base64 encoded `flag ||
+    /// privkey`) to file
     GenerateNetworkKeys {
         /// The file where to save the encoded network key pair
         #[arg(long)]
@@ -166,10 +167,12 @@ enum NodeType {
         /// The rate (txs/s) at which to send the transactions
         #[clap(long, default_value = "100", global = true)]
         rate: u64,
-        /// Optional duration of the benchmark in seconds. If not provided the benchmark will run forever.
+        /// Optional duration of the benchmark in seconds. If not provided the
+        /// benchmark will run forever.
         #[clap(long, global = true)]
         duration: Option<u64>,
-        /// Network addresses that must be reachable before starting the benchmark.
+        /// Network addresses that must be reachable before starting the
+        /// benchmark.
         #[clap(long, value_delimiter = ',', value_parser = parse_url, global = true)]
         nodes: Vec<Url>,
     },
@@ -272,15 +275,16 @@ async fn main() -> Result<(), eyre::Report> {
                 ),
             };
 
-            // TODO: re-enable telemetry if needed, otherwise remove when old benchmark code is removed
-            // In benchmarks, transactions are not deserializable => many errors at the debug level
-            // Moreover, we need RFC 3339 timestamps to parse properly => we use a custom subscriber.
+            // TODO: re-enable telemetry if needed, otherwise remove when old benchmark code
+            // is removed In benchmarks, transactions are not deserializable =>
+            // many errors at the debug level Moreover, we need RFC 3339
+            // timestamps to parse properly => we use a custom subscriber.
             // cfg_if::cfg_if! {
             //     if #[cfg(feature = "benchmark")] {
             //         setup_benchmark_telemetry(tracing_level, network_tracing_level)?;
             //     } else {
-            //         let _guard = setup_telemetry(tracing_level, network_tracing_level, Some(&registry));
-            //     }
+            //         let _guard = setup_telemetry(tracing_level, network_tracing_level,
+            // Some(&registry));     }
             // }
             run(
                 subcommand,
@@ -314,7 +318,8 @@ fn benchmark_genesis(
         working_directory.display()
     ))?;
 
-    // Use rng seed so that runs across multiple instances generate the same configs.
+    // Use rng seed so that runs across multiple instances generate the same
+    // configs.
     let mut rng = StdRng::seed_from_u64(0);
 
     // Generate primary keys
@@ -472,7 +477,9 @@ fn setup_telemetry(
     network_tracing_level: &str,
     prom_registry: Option<&Registry>,
 ) -> TelemetryGuards {
-    let log_filter = format!("{tracing_level},h2={network_tracing_level},tower={network_tracing_level},hyper={network_tracing_level},tonic::transport={network_tracing_level},quinn={network_tracing_level}");
+    let log_filter = format!(
+        "{tracing_level},h2={network_tracing_level},tower={network_tracing_level},hyper={network_tracing_level},tonic::transport={network_tracing_level},quinn={network_tracing_level}"
+    );
 
     let config = telemetry_subscribers::TelemetryConfig::new()
         // load env variables
@@ -490,8 +497,8 @@ fn setup_telemetry(
     guard
 }
 
-// TODO: re-enable telemetry if needed, otherwise remove when old benchmark code is removed
-// #[cfg(feature = "benchmark")]
+// TODO: re-enable telemetry if needed, otherwise remove when old benchmark code
+// is removed #[cfg(feature = "benchmark")]
 // fn setup_benchmark_telemetry(
 //     tracing_level: &str,
 //     network_tracing_level: &str,
@@ -500,8 +507,10 @@ fn setup_telemetry(
 //     let filter = EnvFilter::builder()
 //         .with_default_directive(LevelFilter::INFO.into())
 //         .parse(format!(
-//             "{tracing_level},h2={network_tracing_level},tower={network_tracing_level},hyper={network_tracing_level},tonic::transport={network_tracing_level},{custom_directive}"
-//         ))?;
+//
+// "{tracing_level},h2={network_tracing_level},tower={network_tracing_level},
+// hyper={network_tracing_level},tonic::transport={network_tracing_level},
+// {custom_directive}"         ))?;
 
 //     let env_filter = EnvFilter::try_from_default_env().unwrap_or(filter);
 
@@ -510,7 +519,8 @@ fn setup_telemetry(
 //         .with_env_filter(env_filter)
 //         .with_timer(timer)
 //         .with_ansi(false);
-//     let subscriber = subscriber_builder.with_writer(std::io::stderr).finish();
+//     let subscriber =
+// subscriber_builder.with_writer(std::io::stderr).finish();
 //     set_global_default(subscriber).expect("Failed to set subscriber");
 //     Ok(())
 // }
@@ -725,6 +735,7 @@ async fn run(
         }
     }
 
-    // If this expression is reached, the program ends and all other tasks terminate.
+    // If this expression is reached, the program ends and all other tasks
+    // terminate.
     Ok(())
 }

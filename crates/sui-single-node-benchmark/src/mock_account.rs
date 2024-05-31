@@ -1,12 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::BTreeMap, sync::Arc};
+
 use futures::stream::FuturesUnordered;
-use std::collections::BTreeMap;
-use std::sync::Arc;
-use sui_types::base_types::{ObjectID, ObjectRef, SuiAddress, SUI_ADDRESS_LENGTH};
-use sui_types::crypto::{get_account_key_pair, AccountKeyPair};
-use sui_types::object::Object;
+use sui_types::{
+    base_types::{ObjectID, ObjectRef, SuiAddress, SUI_ADDRESS_LENGTH},
+    crypto::{get_account_key_pair, AccountKeyPair},
+    object::Object,
+};
 
 #[derive(Clone)]
 pub struct Account {
@@ -15,8 +17,9 @@ pub struct Account {
     pub gas_objects: Arc<Vec<ObjectRef>>,
 }
 
-/// Generate \num_accounts accounts and for each account generate \gas_object_num_per_account gas objects.
-/// Return all accounts along with a flattened list of all gas objects as genesis objects.
+/// Generate \num_accounts accounts and for each account generate
+/// \gas_object_num_per_account gas objects. Return all accounts along with a
+/// flattened list of all gas objects as genesis objects.
 pub async fn batch_create_account_and_gas(
     num_accounts: u64,
     gas_object_num_per_account: u64,

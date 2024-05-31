@@ -3,15 +3,11 @@
 
 use anyhow::Result;
 use move_core_types::identifier::IdentStr;
-
 use sui_indexer::framework::Handler;
 use sui_rest_api::CheckpointData;
-use sui_types::base_types::ObjectID;
-use sui_types::transaction::TransactionDataAPI;
+use sui_types::{base_types::ObjectID, transaction::TransactionDataAPI};
 
-use crate::handlers::AnalyticsHandler;
-use crate::tables::MoveCallEntry;
-use crate::FileType;
+use crate::{handlers::AnalyticsHandler, tables::MoveCallEntry, FileType};
 
 pub struct MoveCallHandler {
     move_calls: Vec<MoveCallEntry>,

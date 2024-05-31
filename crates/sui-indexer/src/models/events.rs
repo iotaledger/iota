@@ -6,18 +6,16 @@ use std::str::FromStr;
 use diesel::prelude::*;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::identifier::Identifier;
-
 use sui_json_rpc_types::{SuiEvent, SuiMoveStruct};
-use sui_types::base_types::{ObjectID, SuiAddress};
-use sui_types::digests::TransactionDigest;
-use sui_types::event::EventID;
-use sui_types::object::bounded_visitor::BoundedVisitor;
-use sui_types::object::MoveObject;
-use sui_types::parse_sui_struct_tag;
+use sui_types::{
+    base_types::{ObjectID, SuiAddress},
+    digests::TransactionDigest,
+    event::EventID,
+    object::{bounded_visitor::BoundedVisitor, MoveObject},
+    parse_sui_struct_tag,
+};
 
-use crate::errors::IndexerError;
-use crate::schema::events;
-use crate::types::IndexedEvent;
+use crate::{errors::IndexerError, schema::events, types::IndexedEvent};
 
 #[derive(Queryable, QueryableByName, Insertable, Debug, Clone)]
 #[diesel(table_name = events)]
@@ -101,7 +99,7 @@ impl StoredEvent {
             None => {
                 return Err(IndexerError::PersistentStorageDataCorruptionError(
                     "Event senders element should not be null".to_string(),
-                ))
+                ));
             }
         };
 
@@ -136,9 +134,10 @@ impl StoredEvent {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
     use sui_types::event::Event;
+
+    use super::*;
 
     #[test]
     fn test_canonical_string_of_event_type() {

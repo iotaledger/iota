@@ -3,19 +3,20 @@
 
 extern crate core;
 
-use std::collections::btree_map::Entry::Occupied;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{btree_map::Entry::Occupied, BTreeMap, HashMap};
 
-use schemars::gen::{SchemaGenerator, SchemaSettings};
-use schemars::schema::SchemaObject;
-use schemars::JsonSchema;
+use schemars::{
+    gen::{SchemaGenerator, SchemaSettings},
+    schema::SchemaObject,
+    JsonSchema,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use versions::Versioning;
 
 /// OPEN-RPC documentation following the OpenRPC specification <https://spec.open-rpc.org>
-/// The implementation is partial, only required fields and subset of optional fields
-/// in the specification are implemented catered to Sui's need.
+/// The implementation is partial, only required fields and subset of optional
+/// fields in the specification are implemented catered to Sui's need.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Project {
     openrpc: String,

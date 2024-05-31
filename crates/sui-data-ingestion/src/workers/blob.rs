@@ -4,8 +4,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use bytes::Bytes;
-use object_store::path::Path;
-use object_store::ObjectStore;
+use object_store::{path::Path, ObjectStore};
 use serde::{Deserialize, Serialize};
 use sui_data_ingestion_core::{create_remote_store_client, Worker};
 use sui_storage::blob::{Blob, BlobEncoding};

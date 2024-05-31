@@ -4,6 +4,7 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
 use std::{path::Path, sync::Arc};
+
 use sui_transactional_test_runner::{
     run_test_impl,
     test_adapter::{SuiTestAdapter, PRE_COMPILED},
