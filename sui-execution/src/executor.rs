@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::HashSet, sync::Arc};
+
 use sui_protocol_config::ProtocolConfig;
-use sui_types::storage::BackingStore;
 use sui_types::{
     base_types::{ObjectRef, SuiAddress, TxContext},
     committee::EpochId,
@@ -15,6 +15,7 @@ use sui_types::{
     gas::SuiGasStatus,
     inner_temporary_store::InnerTemporaryStore,
     metrics::LimitsMetrics,
+    storage::BackingStore,
     transaction::{CheckedInputObjects, ProgrammableTransaction, TransactionKind},
     type_resolver::LayoutResolver,
 };

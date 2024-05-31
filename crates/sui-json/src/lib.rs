@@ -1,9 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, VecDeque};
-use std::fmt::{self, Debug, Formatter};
-use std::str::FromStr;
+use std::{
+    collections::{BTreeMap, VecDeque},
+    fmt::{self, Debug, Formatter},
+    str::FromStr,
+};
 
 use anyhow::{anyhow, bail};
 use fastcrypto::encoding::{Encoding, Hex};
@@ -12,32 +14,31 @@ use move_binary_format::{
     file_format::SignatureToken,
 };
 use move_bytecode_utils::resolve_struct;
-use move_core_types::account_address::AccountAddress;
-use move_core_types::annotated_value::MoveFieldLayout;
 pub use move_core_types::annotated_value::MoveTypeLayout;
-use move_core_types::identifier::IdentStr;
-use move_core_types::u256::U256;
 use move_core_types::{
-    annotated_value::{MoveStruct, MoveStructLayout, MoveValue},
+    account_address::AccountAddress,
+    annotated_value::{MoveFieldLayout, MoveStruct, MoveStructLayout, MoveValue},
     ident_str,
-    identifier::Identifier,
+    identifier::{IdentStr, Identifier},
     language_storage::{StructTag, TypeTag},
     runtime_value as R,
+    u256::U256,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Number, Value as JsonValue};
-
-use sui_types::base_types::{
-    is_primitive_type_tag, ObjectID, SuiAddress, TxContext, TxContextKind, RESOLVED_ASCII_STR,
-    RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, STD_ASCII_MODULE_NAME, STD_ASCII_STRUCT_NAME,
-    STD_OPTION_MODULE_NAME, STD_OPTION_STRUCT_NAME, STD_UTF8_MODULE_NAME, STD_UTF8_STRUCT_NAME,
+use sui_types::{
+    base_types::{
+        is_primitive_type_tag, ObjectID, SuiAddress, TxContext, TxContextKind, RESOLVED_ASCII_STR,
+        RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, STD_ASCII_MODULE_NAME, STD_ASCII_STRUCT_NAME,
+        STD_OPTION_MODULE_NAME, STD_OPTION_STRUCT_NAME, STD_UTF8_MODULE_NAME, STD_UTF8_STRUCT_NAME,
+    },
+    id::{ID, RESOLVED_SUI_ID},
+    move_package::MovePackage,
+    object::bounded_visitor::BoundedVisitor,
+    transfer::RESOLVED_RECEIVING_STRUCT,
+    MOVE_STDLIB_ADDRESS,
 };
-use sui_types::id::{ID, RESOLVED_SUI_ID};
-use sui_types::move_package::MovePackage;
-use sui_types::object::bounded_visitor::BoundedVisitor;
-use sui_types::transfer::RESOLVED_RECEIVING_STRUCT;
-use sui_types::MOVE_STDLIB_ADDRESS;
 
 const HEX_PREFIX: &str = "0x";
 
@@ -245,7 +246,8 @@ impl SuiJsonValue {
             // Bool to Bool is simple
             (JsonValue::Bool(b), MoveTypeLayout::Bool) => R::MoveValue::Bool(*b),
 
-            // In constructor, we have already checked that the JSON number is unsigned int of at most U32
+            // In constructor, we have already checked that the JSON number is unsigned int of at
+            // most U32
             (JsonValue::Number(n), MoveTypeLayout::U8) => match n.as_u64() {
                 Some(x) => R::MoveValue::U8(u8::try_from(x)?),
                 None => return Err(anyhow!("{} is not a valid number. Only u8 allowed.", n)),
@@ -438,7 +440,8 @@ fn move_value_to_json(move_value: &MoveValue) -> Option<JsonValue> {
                     return None;
                 }
             }
-            // We only care about values here, assuming struct type information is known at the client side.
+            // We only care about values here, assuming struct type information is known at the
+            // client side.
             MoveStruct { fields, .. } => {
                 let fields = fields
                     .iter()
@@ -476,7 +479,8 @@ impl FromStr for SuiJsonValue {
             }
             json!(s)
         }
-        // if serde_json fails, the failure usually cause by missing quote escapes, try parse array manually.
+        // if serde_json fails, the failure usually cause by missing quote escapes, try
+        // parse array manually.
         SuiJsonValue::new(serde_json::from_str(s).unwrap_or_else(|_| try_escape_array(s)))
     }
 }
@@ -492,7 +496,8 @@ enum ValidJsonType {
 }
 
 /// Check via BFS
-/// The invariant is that all types at a given level must be the same or be empty, and all must be valid
+/// The invariant is that all types at a given level must be the same or be
+/// empty, and all must be valid
 pub fn check_valid_homogeneous(val: &JsonValue) -> Result<(), SuiJsonValueError> {
     let mut deq: VecDeque<&JsonValue> = VecDeque::new();
     deq.push_back(val);
@@ -500,7 +505,8 @@ pub fn check_valid_homogeneous(val: &JsonValue) -> Result<(), SuiJsonValueError>
 }
 
 /// Check via BFS
-/// The invariant is that all types at a given level must be the same or be empty
+/// The invariant is that all types at a given level must be the same or be
+/// empty
 fn check_valid_homogeneous_rec(curr_q: &mut VecDeque<&JsonValue>) -> Result<(), SuiJsonValueError> {
     if curr_q.is_empty() {
         // Nothing to do
@@ -527,7 +533,7 @@ fn check_valid_homogeneous_rec(curr_q: &mut VecDeque<&JsonValue>) -> Result<(), 
                 return Err(SuiJsonValueError::new(
                     v,
                     SuiJsonValueErrorKind::ValueTypeNotAllowed,
-                ))
+                ));
             }
         };
 
@@ -546,11 +552,12 @@ fn check_valid_homogeneous_rec(curr_q: &mut VecDeque<&JsonValue>) -> Result<(), 
     check_valid_homogeneous_rec(&mut next_q)
 }
 
-/// Checks if a give SignatureToken represents a primitive type and, if so, returns MoveTypeLayout
-/// for this type (if available). The reason we need to return both information about whether a
-/// SignatureToken represents a primitive and an Option representing MoveTypeLayout is that there
-/// can be signature tokens that represent primitives but that do not have corresponding
-/// MoveTypeLayout (e.g., SignatureToken::StructInstantiation).
+/// Checks if a give SignatureToken represents a primitive type and, if so,
+/// returns MoveTypeLayout for this type (if available). The reason we need to
+/// return both information about whether a SignatureToken represents a
+/// primitive and an Option representing MoveTypeLayout is that there
+/// can be signature tokens that represent primitives but that do not have
+/// corresponding MoveTypeLayout (e.g., SignatureToken::StructInstantiation).
 pub fn primitive_type(
     view: &BinaryIndexedView,
     type_args: &[TypeTag],
@@ -589,7 +596,8 @@ pub fn primitive_type(
                     })),
                 )
             } else if resolved_struct == RESOLVED_UTF8_STR {
-                // both structs structs representing strings have one field - a vector of type u8
+                // both structs structs representing strings have one field - a vector of type
+                // u8
                 (
                     true,
                     Some(MoveTypeLayout::Struct(MoveStructLayout {
@@ -685,9 +693,9 @@ fn resolve_object_vec_arg(idx: usize, arg: &SuiJsonValue) -> Result<Vec<ObjectID
             Ok(object_ids)
         }
         JsonValue::String(s) if s.starts_with('[') && s.ends_with(']') => {
-            // Due to how escaping of square bracket works, we may be dealing with a JSON string
-            // representing a JSON array rather than with the array itself ("[0x42,0x7]" rather than
-            // [0x42,0x7]).
+            // Due to how escaping of square bracket works, we may be dealing with a JSON
+            // string representing a JSON array rather than with the array
+            // itself ("[0x42,0x7]" rather than [0x42,0x7]).
             let mut object_ids = vec![];
             for tok in s[1..s.len() - 1].to_string().split(',') {
                 let id = JsonValue::String(tok.to_string());
@@ -745,8 +753,9 @@ fn resolve_call_arg(
         }
     }
 
-    // in terms of non-primitives we only currently support objects and "flat" (depth == 1) vectors
-    // of objects (but not, for example, vectors of references)
+    // in terms of non-primitives we only currently support objects and "flat"
+    // (depth == 1) vectors of objects (but not, for example, vectors of
+    // references)
     match param {
         SignatureToken::Struct(_)
         | SignatureToken::StructInstantiation(_)
@@ -781,8 +790,8 @@ fn resolve_call_arg(
 pub fn is_receiving_argument(view: &BinaryIndexedView, arg_type: &SignatureToken) -> bool {
     use SignatureToken as ST;
 
-    // Progress down into references to determine if the underlying type is a receiving
-    // type or not.
+    // Progress down into references to determine if the underlying type is a
+    // receiving type or not.
     let mut token = arg_type;
     while let ST::Reference(inner) | ST::MutableReference(inner) = token {
         token = inner;
@@ -808,8 +817,9 @@ fn resolve_call_args(
         .collect()
 }
 
-/// Resolve the JSON args of a function into the expected formats to make them usable by Move call
-/// This is because we have special types which we need to specify in other formats
+/// Resolve the JSON args of a function into the expected formats to make them
+/// usable by Move call This is because we have special types which we need to
+/// specify in other formats
 pub fn resolve_move_function_args(
     package: &MovePackage,
     module_ident: Identifier,

@@ -1,30 +1,36 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::{BTreeSet, HashSet},
+    sync::Arc,
+    time::Duration,
+};
+
 use futures::future::join_all;
 use rand::rngs::OsRng;
-use std::collections::{BTreeSet, HashSet};
-use std::sync::Arc;
-use std::time::Duration;
-use sui_core::authority::epoch_start_configuration::EpochFlag;
-use sui_core::consensus_adapter::position_submit_certificate;
+use sui_core::{
+    authority::epoch_start_configuration::EpochFlag, consensus_adapter::position_submit_certificate,
+};
 use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
 use sui_macros::{register_fail_point_arg, sim_test};
 use sui_node::SuiNodeHandle;
 use sui_protocol_config::ProtocolConfig;
 use sui_swarm_config::genesis_config::{ValidatorGenesisConfig, ValidatorGenesisConfigBuilder};
 use sui_test_transaction_builder::{make_transfer_sui_transaction, TestTransactionBuilder};
-use sui_types::base_types::SuiAddress;
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::error::SuiError;
-use sui_types::gas::GasCostSummary;
-use sui_types::governance::MIN_VALIDATOR_JOINING_STAKE_MIST;
-use sui_types::message_envelope::Message;
-use sui_types::sui_system_state::{
-    get_validator_from_table, sui_system_state_summary::get_validator_by_pool_id,
-    SuiSystemStateTrait,
+use sui_types::{
+    base_types::SuiAddress,
+    effects::TransactionEffectsAPI,
+    error::SuiError,
+    gas::GasCostSummary,
+    governance::MIN_VALIDATOR_JOINING_STAKE_MIST,
+    message_envelope::Message,
+    sui_system_state::{
+        get_validator_from_table, sui_system_state_summary::get_validator_by_pool_id,
+        SuiSystemStateTrait,
+    },
+    transaction::{TransactionDataAPI, TransactionExpiration},
 };
-use sui_types::transaction::{TransactionDataAPI, TransactionExpiration};
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::time::sleep;
 
@@ -50,13 +56,15 @@ async fn advance_epoch_tx_test() {
                 .await
                 .unwrap();
             // Check that the validator didn't commit the transaction yet.
-            assert!(state
-                .get_signed_effects_and_maybe_resign(
-                    effects.transaction_digest(),
-                    &state.epoch_store_for_testing()
-                )
-                .unwrap()
-                .is_none());
+            assert!(
+                state
+                    .get_signed_effects_and_maybe_resign(
+                        effects.transaction_digest(),
+                        &state.epoch_store_for_testing()
+                    )
+                    .unwrap()
+                    .is_none()
+            );
             effects
         })
         .collect();
@@ -123,8 +131,8 @@ async fn test_transaction_expiration() {
         .unwrap();
 }
 
-// TODO: This test does not guarantee that tx would be reverted, and hence the code path
-// may not always be tested.
+// TODO: This test does not guarantee that tx would be reverted, and hence the
+// code path may not always be tested.
 #[sim_test]
 async fn reconfig_with_revert_end_to_end_test() {
     let test_cluster = TestClusterBuilder::new().build().await;
@@ -371,6 +379,7 @@ async fn do_test_lock_table_upgrade() {
 #[sim_test]
 async fn test_create_advance_epoch_tx_race() {
     use std::sync::Arc;
+
     use sui_macros::{register_fail_point, register_fail_point_async};
     use tokio::sync::broadcast;
     use tracing::info;
@@ -378,14 +387,15 @@ async fn test_create_advance_epoch_tx_race() {
     telemetry_subscribers::init_for_testing();
     sui_protocol_config::ProtocolConfig::poison_get_for_min_version();
 
-    // panic if we enter safe mode. If you remove the check for `is_tx_already_executed` in
+    // panic if we enter safe mode. If you remove the check for
+    // `is_tx_already_executed` in
     // AuthorityState::create_and_execute_advance_epoch_tx, this test should fail.
     register_fail_point("record_checkpoint_builder_is_safe_mode_metric", || {
         panic!("safe mode recorded");
     });
 
-    // Intercept the specified async wait point on a given node, and wait there until a message
-    // is sent from the given tx.
+    // Intercept the specified async wait point on a given node, and wait there
+    // until a message is sent from the given tx.
     let register_wait = |failpoint, node_id, tx: Arc<broadcast::Sender<()>>| {
         let node = sui_simulator::task::NodeId(node_id);
         register_fail_point_async(failpoint, move || {
@@ -431,7 +441,8 @@ async fn test_create_advance_epoch_tx_race() {
     // Allow time for paused node to execute change epoch tx via state sync.
     sleep(Duration::from_secs(5)).await;
 
-    // now release the pause, node will find that change epoch tx has already been executed.
+    // now release the pause, node will find that change epoch tx has already been
+    // executed.
     info!("releasing change epoch delay tx");
     change_epoch_delay_tx.send(()).unwrap();
 
@@ -462,7 +473,8 @@ async fn test_reconfig_with_failing_validator() {
         .map(|v| v.parse().unwrap())
         .unwrap_or(4);
 
-    // A longer timeout is required, as restarts can cause reconfiguration to take longer.
+    // A longer timeout is required, as restarts can cause reconfiguration to take
+    // longer.
     test_cluster
         .wait_for_epoch_with_timeout(Some(target_epoch), Duration::from_secs(90))
         .await;
@@ -470,9 +482,9 @@ async fn test_reconfig_with_failing_validator() {
 
 #[sim_test]
 async fn test_validator_resign_effects() {
-    // This test checks that validators are able to re-sign transaction effects that were finalized
-    // in previous epochs. This allows authority aggregator to form a new effects certificate
-    // in the new epoch.
+    // This test checks that validators are able to re-sign transaction effects that
+    // were finalized in previous epochs. This allows authority aggregator to
+    // form a new effects certificate in the new epoch.
     let test_cluster = TestClusterBuilder::new().build().await;
     let tx = make_transfer_sui_transaction(&test_cluster.wallet, None, None).await;
     let effects0 = test_cluster
@@ -572,13 +584,15 @@ async fn test_inactive_validator_pool_read() {
 
     // Check that this node is no longer a validator.
     validator.with(|node| {
-        assert!(node
-            .state()
-            .is_fullnode(&node.state().epoch_store_for_testing()));
+        assert!(
+            node.state()
+                .is_fullnode(&node.state().epoch_store_for_testing())
+        );
     });
 
-    // Check that the validator that just left now shows up in the inactive_validators,
-    // and we can still deserialize it and get the inactive staking pool.
+    // Check that the validator that just left now shows up in the
+    // inactive_validators, and we can still deserialize it and get the inactive
+    // staking pool.
     test_cluster.fullnode_handle.sui_node.with(|node| {
         let system_state = node
             .state()
@@ -606,7 +620,8 @@ async fn test_inactive_validator_pool_read() {
 
 #[sim_test]
 async fn test_reconfig_with_committee_change_basic() {
-    // This test exercise the full flow of a validator joining the network, catch up and then leave.
+    // This test exercise the full flow of a validator joining the network, catch up
+    // and then leave.
 
     let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
     let address = (&new_validator.account_key_pair.public()).into();
@@ -633,9 +648,10 @@ async fn test_reconfig_with_committee_change_basic() {
     test_cluster.wait_for_epoch_all_nodes(1).await;
 
     new_validator_handle.with(|node| {
-        assert!(node
-            .state()
-            .is_validator(&node.state().epoch_store_for_testing()));
+        assert!(
+            node.state()
+                .is_validator(&node.state().epoch_store_for_testing())
+        );
     });
 
     execute_remove_validator_tx(&test_cluster, &new_validator_handle).await;
@@ -743,7 +759,8 @@ async fn safe_mode_reconfig_test() {
     assert_eq!(system_state.system_state_version, 1);
     assert_eq!(system_state.epoch, 0);
 
-    // Wait for regular epoch change to happen once. Migration from V1 to V2 should happen here.
+    // Wait for regular epoch change to happen once. Migration from V1 to V2 should
+    // happen here.
     let system_state = test_cluster.wait_for_epoch(Some(1)).await;
     assert!(!system_state.safe_mode());
     assert_eq!(system_state.epoch(), 1);
@@ -769,7 +786,8 @@ async fn safe_mode_reconfig_test() {
     let txn = make_staking_transaction(&test_cluster.wallet, validator_address).await;
     test_cluster.execute_transaction(txn).await;
 
-    // Now remove the override and check that in the next epoch we are no longer in safe mode.
+    // Now remove the override and check that in the next epoch we are no longer in
+    // safe mode.
     test_cluster.set_safe_mode_expected(false);
 
     let system_state = test_cluster.wait_for_epoch(Some(3)).await;
@@ -837,8 +855,8 @@ async fn execute_remove_validator_tx(test_cluster: &TestCluster, handle: &SuiNod
     test_cluster.execute_transaction(tx).await;
 }
 
-/// Execute a sequence of transactions to add a validator, including adding candidate, adding stake
-/// and activate the validator.
+/// Execute a sequence of transactions to add a validator, including adding
+/// candidate, adding stake and activate the validator.
 /// It does not however trigger reconfiguration yet.
 async fn execute_add_validator_transactions(
     test_cluster: &TestCluster,

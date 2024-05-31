@@ -2,66 +2,74 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::Result;
-use fastcrypto::traits::ToFromBytes;
-use futures::future::join_all;
-use futures::future::AbortHandle;
+use std::{
+    collections::BTreeMap,
+    fmt::Write,
+    fs, io,
+    num::NonZeroUsize,
+    ops::Range,
+    path::{Path, PathBuf},
+    sync::{
+        atomic::{AtomicU64, AtomicUsize, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
+
+use anyhow::{anyhow, Result};
+use eyre::ContextCompat;
+use fastcrypto::{hash::MultisetHash, traits::ToFromBytes};
+use futures::{
+    future::{join_all, AbortHandle},
+    StreamExt, TryStreamExt,
+};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use itertools::Itertools;
-use std::collections::BTreeMap;
-use std::fmt::Write;
-use std::num::NonZeroUsize;
-use std::ops::Range;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
-use std::{fs, io};
-use sui_config::{genesis::Genesis, NodeConfig};
-use sui_core::authority_client::{AuthorityAPI, NetworkAuthorityClient};
-use sui_core::execution_cache::ExecutionCache;
+use prometheus::Registry;
+use sui_archival::{
+    reader::{ArchiveReader, ArchiveReaderMetrics},
+    verify_archive_with_checksums, verify_archive_with_genesis_config,
+};
+use sui_config::{
+    genesis::Genesis,
+    node::ArchiveReaderConfig,
+    object_storage_config::{ObjectStoreConfig, ObjectStoreType},
+    NodeConfig,
+};
+use sui_core::{
+    authority::{authority_store_tables::AuthorityPerpetualTables, AuthorityStore},
+    authority_client::{AuthorityAPI, NetworkAuthorityClient},
+    checkpoints::CheckpointStore,
+    epoch::committee_store::CommitteeStore,
+    execution_cache::ExecutionCache,
+    storage::RocksDbStore,
+};
 use sui_network::default_mysten_network_config;
 use sui_protocol_config::Chain;
 use sui_sdk::SuiClientBuilder;
-use sui_storage::object_store::http::HttpDownloaderBuilder;
-use sui_storage::object_store::util::Manifest;
-use sui_storage::object_store::util::PerEpochManifest;
-use sui_storage::object_store::util::MANIFEST_FILENAME;
-use sui_types::accumulator::Accumulator;
-use sui_types::crypto::AuthorityPublicKeyBytes;
-use sui_types::messages_grpc::LayoutGenerationOption;
-use sui_types::multiaddr::Multiaddr;
-use sui_types::{base_types::*, object::Owner};
-use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
-use tokio::time::Instant;
-
-use anyhow::anyhow;
-use eyre::ContextCompat;
-use fastcrypto::hash::MultisetHash;
-use futures::{StreamExt, TryStreamExt};
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use prometheus::Registry;
-use sui_archival::reader::{ArchiveReader, ArchiveReaderMetrics};
-use sui_archival::{verify_archive_with_checksums, verify_archive_with_genesis_config};
-use sui_config::node::ArchiveReaderConfig;
-use sui_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-use sui_core::authority::authority_store_tables::AuthorityPerpetualTables;
-use sui_core::authority::AuthorityStore;
-use sui_core::checkpoints::CheckpointStore;
-use sui_core::epoch::committee_store::CommitteeStore;
-use sui_core::storage::RocksDbStore;
-use sui_snapshot::reader::StateSnapshotReaderV1;
-use sui_snapshot::setup_db_state;
-use sui_storage::object_store::util::{copy_file, exists, get_path};
-use sui_storage::object_store::ObjectStoreGetExt;
-use sui_storage::verify_checkpoint_range;
-use sui_types::messages_checkpoint::{CheckpointCommitment, ECMHLiveObjectSetDigest};
-use sui_types::messages_grpc::{
-    ObjectInfoRequest, ObjectInfoRequestKind, ObjectInfoResponse, TransactionInfoRequest,
-    TransactionStatus,
+use sui_snapshot::{reader::StateSnapshotReaderV1, setup_db_state};
+use sui_storage::{
+    object_store::{
+        http::HttpDownloaderBuilder,
+        util::{copy_file, exists, get_path, Manifest, PerEpochManifest, MANIFEST_FILENAME},
+        ObjectStoreGetExt,
+    },
+    verify_checkpoint_range,
 };
-
-use sui_types::storage::{ReadStore, SharedInMemoryStore};
+use sui_types::{
+    accumulator::Accumulator,
+    base_types::*,
+    crypto::AuthorityPublicKeyBytes,
+    messages_checkpoint::{CheckpointCommitment, ECMHLiveObjectSetDigest},
+    messages_grpc::{
+        LayoutGenerationOption, ObjectInfoRequest, ObjectInfoRequestKind, ObjectInfoResponse,
+        TransactionInfoRequest, TransactionStatus,
+    },
+    multiaddr::Multiaddr,
+    object::Owner,
+    storage::{ReadStore, SharedInMemoryStore},
+};
+use tokio::{sync::mpsc, task::JoinHandle, time::Instant};
 use tracing::info;
 use typed_store::rocks::MetricConf;
 
@@ -483,7 +491,8 @@ pub async fn get_transaction_block(
     Ok(s)
 }
 
-// Keep the return type a vector in case we need support for lamport versions in the near future
+// Keep the return type a vector in case we need support for lamport versions in
+// the near future
 async fn get_object_impl(
     client: &NetworkAuthorityClient,
     id: ObjectID,
@@ -513,8 +522,7 @@ async fn get_object_impl(
 
 pub(crate) fn make_anemo_config() -> anemo_cli::Config {
     use narwhal_types::*;
-    use sui_network::discovery::*;
-    use sui_network::state_sync::*;
+    use sui_network::{discovery::*, state_sync::*};
 
     // TODO: implement `ServiceInfo` generation in anemo-build and use here.
     anemo_cli::Config::new()
@@ -660,7 +668,8 @@ fn start_summary_sync(
             committee_store,
             checkpoint_store.clone(),
         );
-        // Only insert the genesis checkpoint if the DB is empty and doesn't have it already
+        // Only insert the genesis checkpoint if the DB is empty and doesn't have it
+        // already
         if checkpoint_store
             .get_checkpoint_by_digest(genesis.checkpoint().digest())
             .unwrap()
@@ -982,8 +991,9 @@ pub async fn download_formal_snapshot(
         .expect("Snapshot restore task failed");
 
     // TODO we should ensure this map is being updated for all end of epoch
-    // checkpoints during summary sync. This happens in `insert_{verified|certified}_checkpoint`
-    // in checkpoint store, but not in the corresponding functions in ObjectStore trait
+    // checkpoints during summary sync. This happens in
+    // `insert_{verified|certified}_checkpoint` in checkpoint store, but not in
+    // the corresponding functions in ObjectStore trait
     checkpoint_store.insert_epoch_last_checkpoint(epoch, &last_checkpoint)?;
 
     setup_db_state(

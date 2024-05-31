@@ -12,7 +12,8 @@ pub(crate) struct OpenMoveType {
     signature: OpenMoveTypeSignature,
 }
 
-/// Abilities are keywords in Sui Move that define how types behave at the compiler level.
+/// Abilities are keywords in Sui Move that define how types behave at the
+/// compiler level.
 #[derive(Enum, Copy, Clone, Eq, PartialEq)]
 pub(crate) enum MoveAbility {
     /// Enables values to be copied.
@@ -25,16 +26,18 @@ pub(crate) enum MoveAbility {
     Store,
 }
 
-/// The visibility modifier describes which modules can access this module member.
-/// By default, a module member can be called only within the same module.
+/// The visibility modifier describes which modules can access this module
+/// member. By default, a module member can be called only within the same
+/// module.
 #[derive(Enum, Copy, Clone, Eq, PartialEq)]
 pub(crate) enum MoveVisibility {
     /// A public member can be accessed by any module.
     Public,
     /// A private member can be accessed in the module it is defined in.
     Private,
-    /// A friend member can be accessed in the module it is defined in and any other module in
-    /// its package that is explicitly specified in its friend list.
+    /// A friend member can be accessed in the module it is defined in and any
+    /// other module in its package that is explicitly specified in its
+    /// friend list.
     Friend,
 }
 
@@ -104,8 +107,9 @@ pub(crate) enum OpenMoveTypeSignatureBody {
     },
 }
 
-/// Represents types that could contain references or free type parameters.  Such types can appear
-/// as function parameters, in fields of structs, or as actual type parameter.
+/// Represents types that could contain references or free type parameters.
+/// Such types can appear as function parameters, in fields of structs, or as
+/// actual type parameter.
 #[Object]
 impl OpenMoveType {
     /// Structured representation of the type signature.
@@ -277,7 +281,8 @@ impl fmt::Display for OpenMoveTypeSignatureBody {
     }
 }
 
-/// Convert an `AbilitySet` from the binary format into a vector of `MoveAbility` (a GraphQL type).
+/// Convert an `AbilitySet` from the binary format into a vector of
+/// `MoveAbility` (a GraphQL type).
 pub(crate) fn abilities(set: AbilitySet) -> Vec<MoveAbility> {
     set.into_iter().map(MoveAbility::from).collect()
 }
@@ -286,13 +291,12 @@ pub(crate) fn abilities(set: AbilitySet) -> Vec<MoveAbility> {
 mod tests {
     use std::str::FromStr;
 
-    use super::*;
-
     use expect_test::expect;
     use move_core_types::language_storage::StructTag;
     use sui_package_resolver::{DatatypeKey, DatatypeRef};
-
     use OpenSignatureBody as S;
+
+    use super::*;
 
     fn struct_key(s: &str) -> DatatypeKey {
         DatatypeRef::from(&StructTag::from_str(s).unwrap()).as_key()
@@ -359,7 +363,9 @@ mod tests {
             vec![S::TypeParameter(0), S::TypeParameter(1)],
         ));
 
-        let expect = expect!["0x0000000000000000000000000000000000000000000000000000000000000002::table::Table<$0, $1>"];
+        let expect = expect![
+            "0x0000000000000000000000000000000000000000000000000000000000000002::table::Table<$0, $1>"
+        ];
         expect.assert_eq(&format!("{signature}"));
     }
 
@@ -370,7 +376,9 @@ mod tests {
             vec![S::Datatype(struct_key("0x2::sui::SUI"), vec![])],
         ));
 
-        let expect = expect!["0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI>"];
+        let expect = expect![
+            "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI>"
+        ];
         expect.assert_eq(&format!("{signature}"));
     }
 }

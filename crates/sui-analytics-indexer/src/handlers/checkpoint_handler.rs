@@ -3,16 +3,15 @@
 
 use anyhow::Result;
 use fastcrypto::traits::EncodeDecodeBase64;
-
 use sui_indexer::framework::Handler;
 use sui_rest_api::{CheckpointData, CheckpointTransaction};
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSummary};
-use sui_types::transaction::TransactionDataAPI;
+use sui_types::{
+    effects::TransactionEffectsAPI,
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSummary},
+    transaction::TransactionDataAPI,
+};
 
-use crate::handlers::AnalyticsHandler;
-use crate::tables::CheckpointEntry;
-use crate::FileType;
+use crate::{handlers::AnalyticsHandler, tables::CheckpointEntry, FileType};
 
 pub struct CheckpointHandler {
     checkpoints: Vec<CheckpointEntry>,

@@ -6,8 +6,9 @@
 // Abstract state
 //**************************************************************************************************
 
-use crate::{cfgir::absint::*, hlir::ast::Var};
 use std::{cmp::Ordering, collections::BTreeSet};
+
+use crate::{cfgir::absint::*, hlir::ast::Var};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LivenessState(pub BTreeSet<Var>);

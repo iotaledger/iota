@@ -2,7 +2,8 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::natives::helpers::make_module_natives;
+use std::{collections::VecDeque, sync::Arc};
+
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::{
     gas_algebra::{InternalGas, InternalGasPerByte, NumBytes},
@@ -19,18 +20,20 @@ use move_vm_types::{
     values::{values_impl::Reference, Value},
 };
 use smallvec::smallvec;
-use std::{collections::VecDeque, sync::Arc};
-/***************************************************************************************************
- * native fun to_bytes
- *
- *   gas cost: size_of(val_type) * input_unit_cost +        | get type layout
- *             size_of(val) * input_unit_cost +             | serialize value
- *             max(size_of(output), 1) * output_unit_cost
- *
- *             If any of the first two steps fails, a partial cost + an additional failure_cost
- *             will be charged.
- *
- **************************************************************************************************/
+
+use crate::natives::helpers::make_module_natives;
+/// ****************************************************************************
+/// ********************* native fun to_bytes
+///
+///   gas cost: size_of(val_type) * input_unit_cost +        | get type layout
+///             size_of(val) * input_unit_cost +             | serialize value
+///             max(size_of(output), 1) * output_unit_cost
+///
+///             If any of the first two steps fails, a partial cost + an
+/// additional failure_cost             will be charged.
+///
+/// ****************************************************************************
+/// *******************
 #[derive(Debug, Clone)]
 pub struct ToBytesGasParameters {
     pub per_byte_serialized: InternalGasPerByte,
@@ -38,7 +41,8 @@ pub struct ToBytesGasParameters {
     pub failure: InternalGas,
 }
 
-/// Rust implementation of Move's `native public fun to_bytes<T>(&T): vector<u8>`
+/// Rust implementation of Move's `native public fun to_bytes<T>(&T):
+/// vector<u8>`
 #[inline]
 fn native_to_bytes(
     gas_params: &ToBytesGasParameters,
@@ -57,8 +61,9 @@ fn native_to_bytes(
     let layout = match context.type_to_type_layout(&arg_type)? {
         Some(layout) => layout,
         None => {
-            // If we run out of gas when charging for failure, we don't want the `OUT_OF_GAS` error
-            // to mask the actual error `NFE_BCS_SERIALIZATION_FAILURE`, so we saturate deduction at 0
+            // If we run out of gas when charging for failure, we don't want the
+            // `OUT_OF_GAS` error to mask the actual error
+            // `NFE_BCS_SERIALIZATION_FAILURE`, so we saturate deduction at 0
             context.charge_gas(gas_params.failure);
             return Ok(NativeResult::err(
                 context.gas_used(),
@@ -71,8 +76,9 @@ fn native_to_bytes(
     let serialized_value = match val.simple_serialize(&layout) {
         Some(serialized_value) => serialized_value,
         None => {
-            // If we run out of gas when charging for failure, we don't want the `OUT_OF_GAS` error
-            // to mask the actual error `NFE_BCS_SERIALIZATION_FAILURE`, so we saturate deduction at 0
+            // If we run out of gas when charging for failure, we don't want the
+            // `OUT_OF_GAS` error to mask the actual error
+            // `NFE_BCS_SERIALIZATION_FAILURE`, so we saturate deduction at 0
             context.charge_gas(gas_params.failure);
             return Ok(NativeResult::err(
                 context.gas_used(),
@@ -103,9 +109,10 @@ pub fn make_native_to_bytes(gas_params: ToBytesGasParameters) -> NativeFunction 
     )
 }
 
-/***************************************************************************************************
- * module
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* module
+/// ****************************************************************************
+/// *******************
 #[derive(Debug, Clone)]
 pub struct GasParameters {
     pub to_bytes: ToBytesGasParameters,

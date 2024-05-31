@@ -2,15 +2,17 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    file_format::{CodeOffset, FunctionDefinitionIndex, TableIndex},
-    IndexKind,
-};
+use std::fmt;
+
 use move_core_types::{
     language_storage::ModuleId,
     vm_status::{StatusCode, StatusType},
 };
-use std::fmt;
+
+use crate::{
+    file_format::{CodeOffset, FunctionDefinitionIndex, TableIndex},
+    IndexKind,
+};
 
 pub type VMResult<T> = ::std::result::Result<T, VMError>;
 pub type BinaryLoaderResult<T> = ::std::result::Result<T, PartialVMError>;
@@ -293,8 +295,8 @@ impl PartialVMError {
         self
     }
 
-    /// Append the message `message` to the message field of the VM status, and insert a seperator
-    /// if the original message is non-empty.
+    /// Append the message `message` to the message field of the VM status, and
+    /// insert a seperator if the original message is non-empty.
     pub fn append_message_with_separator(
         mut self,
         separator: char,

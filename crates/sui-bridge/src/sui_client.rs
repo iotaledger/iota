@@ -4,64 +4,59 @@
 // TODO remove when integrated
 #![allow(unused)]
 
-use std::str::from_utf8;
-use std::str::FromStr;
-use std::time::Duration;
+use std::{
+    str::{from_utf8, FromStr},
+    time::Duration,
+};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
 use axum::response::sse::Event;
 use ethers::types::{Address, U256};
-use fastcrypto::traits::KeyPair;
-use fastcrypto::traits::ToFromBytes;
+use fastcrypto::traits::{KeyPair, ToFromBytes};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
-use sui_json_rpc_types::{EventFilter, Page, SuiData, SuiEvent};
 use sui_json_rpc_types::{
-    EventPage, SuiObjectDataOptions, SuiTransactionBlockResponse,
-    SuiTransactionBlockResponseOptions,
+    EventFilter, EventPage, Page, SuiData, SuiEvent, SuiObjectDataOptions,
+    SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
 };
 use sui_sdk::{SuiClient as SuiSdkClient, SuiClientBuilder};
-use sui_types::base_types::ObjectRef;
-use sui_types::collection_types::LinkedTableNode;
-use sui_types::crypto::get_key_pair;
-use sui_types::dynamic_field::DynamicFieldName;
-use sui_types::dynamic_field::Field;
-use sui_types::error::SuiObjectResponseError;
-use sui_types::error::UserInputError;
-use sui_types::event;
-use sui_types::gas_coin::GasCoin;
-use sui_types::object::{Object, Owner};
-use sui_types::transaction::Transaction;
-use sui_types::TypeTag;
 use sui_types::{
-    base_types::{ObjectID, SuiAddress},
+    base_types::{ObjectID, ObjectRef, SuiAddress},
+    collection_types::LinkedTableNode,
+    crypto::get_key_pair,
     digests::TransactionDigest,
+    dynamic_field::{DynamicFieldName, Field},
+    error::{SuiObjectResponseError, UserInputError},
+    event,
     event::EventID,
-    Identifier,
+    gas_coin::GasCoin,
+    object::{Object, Owner},
+    transaction::Transaction,
+    Identifier, TypeTag,
 };
 use tap::TapFallible;
 use tracing::{error, warn};
 
-use crate::crypto::BridgeAuthorityPublicKey;
-use crate::error::{BridgeError, BridgeResult};
-use crate::events::SuiBridgeEvent;
-use crate::retry_with_max_elapsed_time;
-use crate::sui_transaction_builder::get_bridge_package_id;
-use crate::types::BridgeActionStatus;
-use crate::types::BridgeInnerDynamicField;
-use crate::types::BridgeRecordDyanmicField;
-use crate::types::MoveTypeBridgeMessageKey;
-use crate::types::MoveTypeBridgeRecord;
-use crate::types::{
-    BridgeAction, BridgeAuthority, BridgeCommittee, MoveTypeBridgeCommittee, MoveTypeBridgeInner,
-    MoveTypeCommitteeMember,
+use crate::{
+    crypto::BridgeAuthorityPublicKey,
+    error::{BridgeError, BridgeResult},
+    events::SuiBridgeEvent,
+    retry_with_max_elapsed_time,
+    sui_transaction_builder::get_bridge_package_id,
+    types::{
+        BridgeAction, BridgeActionStatus, BridgeAuthority, BridgeCommittee,
+        BridgeInnerDynamicField, BridgeRecordDyanmicField, MoveTypeBridgeCommittee,
+        MoveTypeBridgeInner, MoveTypeBridgeMessageKey, MoveTypeBridgeRecord,
+        MoveTypeCommitteeMember,
+    },
 };
 
-// TODO: once we have bridge package on sui framework, we can hardcode the actual
-// bridge dynamic field object id (not 0x9 or dynamic field wrapper) and update
-// along with software upgrades.
-// Or do we always retrieve from 0x9? We can figure this out before the first uggrade.
+// TODO: once we have bridge package on sui framework, we can hardcode the
+// actual bridge dynamic field object id (not 0x9 or dynamic field wrapper) and
+// update along with software upgrades.
+// Or do we always retrieve from 0x9? We can figure this out before the first
+// uggrade.
 fn get_bridge_object_id() -> &'static ObjectID {
     static BRIDGE_OBJ_ID: OnceCell<ObjectID> = OnceCell::new();
     BRIDGE_OBJ_ID.get_or_init(|| {
@@ -73,7 +68,8 @@ fn get_bridge_object_id() -> &'static ObjectID {
 }
 
 // object id of BridgeRecord, this is wrapped in the bridge inner object.
-// TODO: once we have bridge package on sui framework, we can hardcode the actual id.
+// TODO: once we have bridge package on sui framework, we can hardcode the
+// actual id.
 fn get_bridge_record_id() -> &'static ObjectID {
     static BRIDGE_RECORD_ID: OnceCell<ObjectID> = OnceCell::new();
     BRIDGE_RECORD_ID.get_or_init(|| {
@@ -130,11 +126,13 @@ where
         let events = self.inner.query_events(filter.clone(), cursor).await?;
 
         // Safeguard check that all events are emitted from requested package and module
-        assert!(events
-            .data
-            .iter()
-            .all(|event| event.type_.address.as_ref() == package.as_ref()
-                && event.type_.module == module));
+        assert!(
+            events
+                .data
+                .iter()
+                .all(|event| event.type_.address.as_ref() == package.as_ref()
+                    && event.type_.module == module)
+        );
         Ok(events)
     }
 
@@ -340,17 +338,18 @@ impl SuiClientInner for SuiSdkClient {
         {
             Ok(object) => object.object_id,
             Err(SuiObjectResponseError::DynamicFieldNotFound { .. }) => {
-                return Ok(BridgeActionStatus::RecordNotFound)
+                return Ok(BridgeActionStatus::RecordNotFound);
             }
             other => {
                 return Err(BridgeError::Generic(format!(
                     "Can't get bridge action record dynamic field {:?}: {:?}",
                     key, other
-                )))
+                )));
             }
         };
 
-        // get_dynamic_field_object does not return bcs, so we have to issue anothe query
+        // get_dynamic_field_object does not return bcs, so we have to issue anothe
+        // query
         let bcs_bytes = self
             .read_api()
             .get_move_object_bcs(status_object_id)
@@ -413,15 +412,8 @@ impl SuiClientInner for SuiSdkClient {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        events::{EmittedSuiToEthTokenBridgeV1, MoveTokenBridgeEvent},
-        sui_mock_client::SuiMockClient,
-        test_utils::{
-            bridge_token, get_test_sui_to_eth_bridge_action, mint_tokens, publish_bridge_package,
-            transfer_treasury_cap,
-        },
-        types::{BridgeActionType, BridgeChainId, SuiToEthBridgeAction, TokenId},
-    };
+    use std::{collections::HashSet, str::FromStr};
+
     use ethers::{
         abi::Token,
         types::{
@@ -431,11 +423,21 @@ mod tests {
     };
     use move_core_types::account_address::AccountAddress;
     use prometheus::Registry;
-    use std::{collections::HashSet, str::FromStr};
     use test_cluster::TestClusterBuilder;
 
     use super::*;
-    use crate::events::{init_all_struct_tags, SuiToEthTokenBridgeV1};
+    use crate::{
+        events::{
+            init_all_struct_tags, EmittedSuiToEthTokenBridgeV1, MoveTokenBridgeEvent,
+            SuiToEthTokenBridgeV1,
+        },
+        sui_mock_client::SuiMockClient,
+        test_utils::{
+            bridge_token, get_test_sui_to_eth_bridge_action, mint_tokens, publish_bridge_package,
+            transfer_treasury_cap,
+        },
+        types::{BridgeActionType, BridgeChainId, SuiToEthBridgeAction, TokenId},
+    };
 
     #[tokio::test]
     async fn get_bridge_action_by_tx_digest_and_event_idx_maybe() {
@@ -605,11 +607,13 @@ mod tests {
             .unwrap();
         assert_eq!(status, BridgeActionStatus::Pending);
 
-        // TODO: run bridge committee and approve the action, then assert status is Approved
+        // TODO: run bridge committee and approve the action, then assert status
+        // is Approved
     }
 
     #[tokio::test]
     async fn test_get_action_onchain_status_for_eth_to_sui_transfer() {
-        // TODO: init an eth -> sui transfer, run bridge committee, approve the action, then assert status is Approved/Claimed
+        // TODO: init an eth -> sui transfer, run bridge committee, approve the
+        // action, then assert status is Approved/Claimed
     }
 }

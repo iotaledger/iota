@@ -2,54 +2,56 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use core::result::Result::Ok;
-use itertools::Itertools;
-use std::any::Any;
-use std::collections::hash_map::Entry;
-use std::collections::BTreeMap;
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::Duration;
-use std::time::Instant;
-use tap::Tap;
+use std::{
+    any::Any,
+    collections::{hash_map::Entry, BTreeMap, HashMap},
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use async_trait::async_trait;
-use diesel::dsl::max;
-use diesel::upsert::excluded;
-use diesel::ExpressionMethods;
-use diesel::OptionalExtension;
-use diesel::{QueryDsl, RunQueryDsl};
+use diesel::{
+    dsl::max, upsert::excluded, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl,
+};
+use itertools::Itertools;
 use move_bytecode_utils::module_cache::SyncModuleCache;
+use sui_types::{
+    base_types::{ObjectID, SequenceNumber},
+    object::ObjectRead,
+};
+use tap::Tap;
 use tracing::info;
 
-use sui_types::base_types::{ObjectID, SequenceNumber};
-use sui_types::object::ObjectRead;
-
-use crate::errors::{Context, IndexerError};
-use crate::handlers::EpochToCommit;
-use crate::handlers::TransactionObjectChangesToCommit;
-use crate::metrics::IndexerMetrics;
-
-use crate::db::PgConnectionPool;
-use crate::models::checkpoints::StoredCheckpoint;
-use crate::models::display::StoredDisplay;
-use crate::models::epoch::StoredEpochInfo;
-use crate::models::events::StoredEvent;
-use crate::models::objects::{
-    StoredDeletedHistoryObject, StoredDeletedObject, StoredHistoryObject, StoredObject,
+use super::{
+    pg_partition_manager::{EpochPartitionData, PgPartitionManager},
+    IndexerStore, ObjectChangeToCommit,
 };
-use crate::models::packages::StoredPackage;
-use crate::models::transactions::StoredTransaction;
-use crate::schema::{
-    checkpoints, display, epochs, events, objects, objects_history, objects_snapshot, packages,
-    transactions, tx_calls, tx_changed_objects, tx_input_objects, tx_recipients, tx_senders,
+use crate::{
+    db::PgConnectionPool,
+    errors::{Context, IndexerError},
+    handlers::{EpochToCommit, TransactionObjectChangesToCommit},
+    metrics::IndexerMetrics,
+    models::{
+        checkpoints::StoredCheckpoint,
+        display::StoredDisplay,
+        epoch::StoredEpochInfo,
+        events::StoredEvent,
+        objects::{
+            StoredDeletedHistoryObject, StoredDeletedObject, StoredHistoryObject, StoredObject,
+        },
+        packages::StoredPackage,
+        transactions::StoredTransaction,
+    },
+    schema::{
+        checkpoints, display, epochs, events, objects, objects_history, objects_snapshot, packages,
+        transactions, tx_calls, tx_changed_objects, tx_input_objects, tx_recipients, tx_senders,
+    },
+    store::{
+        diesel_macro::{read_only_blocking, transactional_blocking_with_retry},
+        module_resolver::IndexerStorePackageModuleResolver,
+    },
+    types::{IndexedCheckpoint, IndexedEvent, IndexedPackage, IndexedTransaction, TxIndex},
 };
-use crate::store::diesel_macro::{read_only_blocking, transactional_blocking_with_retry};
-use crate::store::module_resolver::IndexerStorePackageModuleResolver;
-use crate::types::{IndexedCheckpoint, IndexedEvent, IndexedPackage, IndexedTransaction, TxIndex};
-
-use super::pg_partition_manager::{EpochPartitionData, PgPartitionManager};
-use super::IndexerStore;
-use super::ObjectChangeToCommit;
 
 #[macro_export]
 macro_rules! chunk {
@@ -710,7 +712,8 @@ impl PgIndexerStore {
                         .do_update()
                         .set((
                             // Note: Exclude epoch beginning info except system_state below.
-                            // This is to ensure that epoch beginning info columns are not overridden with default values,
+                            // This is to ensure that epoch beginning info columns are not
+                            // overridden with default values,
                             // because these columns are default values in `last_epoch`.
                             epochs::system_state.eq(excluded(epochs::system_state)),
                             epochs::epoch_total_transactions

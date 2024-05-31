@@ -1,20 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
-use std::path::Path;
-use std::sync::Arc;
-use sui_types::Identifier;
+use std::{collections::HashMap, path::Path, sync::Arc};
 
-use sui_types::event::EventID;
-use typed_store::rocks::{DBMap, MetricConf};
-use typed_store::traits::TableSummary;
-use typed_store::traits::TypedStoreDebug;
-use typed_store::Map;
+use sui_types::{event::EventID, Identifier};
+use typed_store::{
+    rocks::{DBMap, MetricConf},
+    traits::{TableSummary, TypedStoreDebug},
+    Map,
+};
 use typed_store_derive::DBMapUtils;
 
-use crate::error::{BridgeError, BridgeResult};
-use crate::types::{BridgeAction, BridgeActionDigest};
+use crate::{
+    error::{BridgeError, BridgeResult},
+    types::{BridgeAction, BridgeActionDigest},
+};
 
 #[derive(DBMapUtils)]
 pub struct BridgeOrchestratorTables {
@@ -141,9 +141,8 @@ mod tests {
 
     use sui_types::digests::TransactionDigest;
 
-    use crate::test_utils::get_test_sui_to_eth_bridge_action;
-
     use super::*;
+    use crate::test_utils::get_test_sui_to_eth_bridge_action;
 
     // async: existing runtime is required with typed-store
     #[tokio::test]
@@ -202,10 +201,12 @@ mod tests {
         // update eth event cursor
         let eth_contract_address = ethers::types::Address::random();
         let eth_block_num = 199999u64;
-        assert!(store
-            .get_eth_event_cursors(&[eth_contract_address])
-            .unwrap()[0]
-            .is_none());
+        assert!(
+            store
+                .get_eth_event_cursors(&[eth_contract_address])
+                .unwrap()[0]
+                .is_none()
+        );
         store
             .update_eth_event_cursor(eth_contract_address, eth_block_num)
             .unwrap();

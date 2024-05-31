@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
 use mysten_metrics::histogram::Histogram;
 use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
-use std::sync::Arc;
 use sui_types::messages_checkpoint::CheckpointSequenceNumber;
 use tap::Pipe;
 

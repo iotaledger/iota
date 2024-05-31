@@ -1,14 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use clap::Parser;
-use mysten_metrics::start_prometheus_server;
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     path::PathBuf,
 };
-use sui_bridge::config::BridgeNodeConfig;
-use sui_bridge::node::run_bridge_node;
+
+use clap::Parser;
+use mysten_metrics::start_prometheus_server;
+use sui_bridge::{config::BridgeNodeConfig, node::run_bridge_node};
 use sui_config::Config;
 use tracing::info;
 

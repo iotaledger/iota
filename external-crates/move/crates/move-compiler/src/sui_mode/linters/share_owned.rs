@@ -1,12 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! This analysis flags making objects passed as function parameters or resulting from unpacking
-//! (likely already owned) shareable which would lead to an abort. A typical patterns is to create a
-//! fresh object and share it within the same function
+//! This analysis flags making objects passed as function parameters or
+//! resulting from unpacking (likely already owned) shareable which would lead
+//! to an abort. A typical patterns is to create a fresh object and share it
+//! within the same function
+
+use std::collections::BTreeMap;
 
 use move_ir_types::location::*;
 
+use super::{
+    type_abilities, LinterDiagCategory, LINTER_DEFAULT_DIAG_CODE, LINT_WARNING_PREFIX,
+    PUBLIC_SHARE_FUN, SHARE_FUN, SUI_PKG_NAME, TRANSFER_MOD_NAME,
+};
 use crate::{
     cfgir::{
         absint::JoinResult,
@@ -26,12 +33,6 @@ use crate::{
     },
     parser::ast::Ability_,
     shared::{CompilationEnv, Identifier},
-};
-use std::collections::BTreeMap;
-
-use super::{
-    type_abilities, LinterDiagCategory, LINTER_DEFAULT_DIAG_CODE, LINT_WARNING_PREFIX,
-    PUBLIC_SHARE_FUN, SHARE_FUN, SUI_PKG_NAME, TRANSFER_MOD_NAME,
 };
 
 const SHARE_FUNCTIONS: &[(&str, &str, &str)] = &[
@@ -58,7 +59,8 @@ pub struct ShareOwnedVerifierAI;
 pub enum Value {
     /// a fresh object resulting from packing
     FreshObj,
-    /// a most likely non-fresh object coming from unpacking or a function argument
+    /// a most likely non-fresh object coming from unpacking or a function
+    /// argument
     NotFreshObj(Loc),
     #[default]
     Other,

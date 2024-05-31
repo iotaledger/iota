@@ -1,8 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::env;
-use std::str::FromStr;
+use std::{env, str::FromStr};
+
 use sui_config::NodeConfig;
 use tap::TapFallible;
 use tokio::runtime::Runtime;

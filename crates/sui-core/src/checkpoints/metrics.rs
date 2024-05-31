@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
 use mysten_metrics::histogram::Histogram;
 use prometheus::{
     register_int_counter_vec_with_registry, register_int_counter_with_registry,
     register_int_gauge_vec_with_registry, register_int_gauge_with_registry, IntCounter,
     IntCounterVec, IntGauge, IntGaugeVec, Registry,
 };
-use std::sync::Arc;
 
 pub struct CheckpointMetrics {
     pub last_certified_checkpoint: IntGauge,
@@ -44,12 +45,12 @@ impl CheckpointMetrics {
             last_created_checkpoint_age_ms: Histogram::new_in_registry(
                 "last_created_checkpoint_age_ms",
                 "Age of the last created checkpoint",
-                registry
+                registry,
             ),
             last_certified_checkpoint_age_ms: Histogram::new_in_registry(
                 "last_certified_checkpoint_age_ms",
                 "Age of the last certified checkpoint",
-                registry
+                registry,
             ),
             checkpoint_errors: register_int_counter_with_registry!(
                 "checkpoint_errors",

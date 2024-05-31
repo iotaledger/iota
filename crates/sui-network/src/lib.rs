@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use mysten_network::config::Config;
 use std::time::Duration;
+
+use mysten_network::config::Config;
 
 pub mod api;
 pub mod discovery;

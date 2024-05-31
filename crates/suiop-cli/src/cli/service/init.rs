@@ -1,18 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::Context;
-use anyhow::Result;
-use clap::Parser;
-use clap::ValueEnum;
+use std::{
+    fs,
+    fs::{create_dir_all, File},
+    io::prelude::*,
+    path::Path,
+};
+
+use anyhow::{Context, Result};
+use clap::{Parser, ValueEnum};
 use include_dir::{include_dir, Dir};
-use std::fs;
-use std::fs::create_dir_all;
-use std::fs::File;
-use std::io::prelude::*;
-use std::path::Path;
-use tracing::debug;
-use tracing::info;
+use tracing::{debug, info};
 
 // include the boilerplate code in this binary
 

@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::indexer_reader::IndexerReader;
 use jsonrpsee::{core::RpcResult, RpcModule};
 use sui_json_rpc::SuiRpcModule;
 use sui_json_rpc_api::{validate_limit, ExtendedApiServer, QUERY_MAX_RESULT_LIMIT_CHECKPOINTS};
@@ -10,6 +9,8 @@ use sui_json_rpc_types::{
 };
 use sui_open_rpc::Module;
 use sui_types::sui_serde::BigInt;
+
+use crate::indexer_reader::IndexerReader;
 
 pub(crate) struct ExtendedApi {
     inner: IndexerReader,

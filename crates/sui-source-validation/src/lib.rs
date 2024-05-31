@@ -1,48 +1,58 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use core::fmt;
+use std::{
+    collections::HashMap,
+    ffi::OsStr,
+    fmt::Debug,
+    fs::File,
+    io::{self, Seek},
+    path::{Path, PathBuf},
+    process::Command,
+};
+
 use anyhow::{anyhow, bail, ensure};
 use colored::Colorize;
-use core::fmt;
 use futures::future;
-use move_binary_format::access::ModuleAccess;
-use move_binary_format::CompiledModule;
+use move_binary_format::{access::ModuleAccess, CompiledModule};
 use move_bytecode_source_map::utils::source_map_from_file;
-use move_compiler::editions::{Edition, Flavor};
-use move_compiler::shared::NumericalAddress;
-use move_package::compilation::package_layout::CompiledPackageLayout;
-use move_package::lock_file::schema::{Header, ToolchainVersion};
-use move_package::source_package::layout::SourcePackageLayout;
-use move_package::source_package::parsed_manifest::{FileName, PackageName};
-use std::ffi::OsStr;
-use std::fs::File;
-use std::io::{self, Seek};
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::{collections::HashMap, fmt::Debug};
+use move_command_line_common::{
+    env::MOVE_HOME,
+    files::{
+        extension_equals, find_filenames, MOVE_COMPILED_EXTENSION, MOVE_EXTENSION,
+        SOURCE_MAP_EXTENSION,
+    },
+};
+use move_compiler::{
+    compiled_unit::NamedCompiledModule,
+    editions::{Edition, Flavor},
+    shared::NumericalAddress,
+};
+use move_core_types::account_address::AccountAddress;
+use move_package::{
+    compilation::{
+        compiled_package::{CompiledPackage as MoveCompiledPackage, CompiledUnitWithSource},
+        package_layout::CompiledPackageLayout,
+    },
+    lock_file::schema::{Header, ToolchainVersion},
+    source_package::{
+        layout::SourcePackageLayout,
+        parsed_manifest::{FileName, PackageName},
+    },
+};
+use move_symbol_pool::Symbol;
 use sui_move_build::CompiledPackage;
-use sui_types::error::SuiObjectResponseError;
+use sui_sdk::{
+    apis::ReadApi,
+    error::Error,
+    rpc_types::{SuiObjectDataOptions, SuiRawData, SuiRawMoveObject, SuiRawMovePackage},
+};
+use sui_types::{base_types::ObjectID, error::SuiObjectResponseError};
 use tar::Archive;
 use tempfile::TempDir;
 use thiserror::Error;
 use tracing::{debug, info};
-
-use move_command_line_common::env::MOVE_HOME;
-use move_command_line_common::files::MOVE_COMPILED_EXTENSION;
-use move_command_line_common::files::{
-    extension_equals, find_filenames, MOVE_EXTENSION, SOURCE_MAP_EXTENSION,
-};
-use move_compiler::compiled_unit::NamedCompiledModule;
-use move_core_types::account_address::AccountAddress;
-use move_package::compilation::compiled_package::{
-    CompiledPackage as MoveCompiledPackage, CompiledUnitWithSource,
-};
-use move_symbol_pool::Symbol;
-use sui_sdk::apis::ReadApi;
-use sui_sdk::error::Error;
-
-use sui_sdk::rpc_types::{SuiObjectDataOptions, SuiRawData, SuiRawMoveObject, SuiRawMovePackage};
-use sui_types::base_types::ObjectID;
 
 #[cfg(test)]
 mod tests;
@@ -134,7 +144,8 @@ pub enum SourceMode {
     /// Verify source at the address specified in its manifest.
     Verify,
 
-    /// Verify source at an overridden address (only works if the package is not published)
+    /// Verify source at an overridden address (only works if the package is not
+    /// published)
     VerifyAt(AccountAddress),
 }
 
@@ -144,8 +155,8 @@ pub struct BytecodeSourceVerifier<'a> {
 
 /// Map package addresses and module names to package names and bytecode.
 type LocalModules = HashMap<(AccountAddress, Symbol), (Symbol, CompiledModule)>;
-/// Map package addresses and modules names to bytecode (package names are gone in the on-chain
-/// representation).
+/// Map package addresses and modules names to bytecode (package names are gone
+/// in the on-chain representation).
 type OnChainModules = HashMap<(AccountAddress, Symbol), CompiledModule>;
 
 impl<'a> BytecodeSourceVerifier<'a> {
@@ -153,8 +164,9 @@ impl<'a> BytecodeSourceVerifier<'a> {
         BytecodeSourceVerifier { rpc_client }
     }
 
-    /// Helper wrapper to verify that all local Move package dependencies' and root bytecode matches
-    /// the bytecode at the address specified on the Sui network we are publishing to.
+    /// Helper wrapper to verify that all local Move package dependencies' and
+    /// root bytecode matches the bytecode at the address specified on the
+    /// Sui network we are publishing to.
     pub async fn verify_package_root_and_deps(
         &self,
         compiled_package: &CompiledPackage,
@@ -162,14 +174,16 @@ impl<'a> BytecodeSourceVerifier<'a> {
     ) -> Result<(), AggregateSourceVerificationError> {
         self.verify_package(
             compiled_package,
-            /* verify_deps */ true,
+            // verify_deps
+            true,
             SourceMode::VerifyAt(root_on_chain_address),
         )
         .await
     }
 
-    /// Helper wrapper to verify that all local Move package root bytecode matches
-    /// the bytecode at the address specified on the Sui network we are publishing to.
+    /// Helper wrapper to verify that all local Move package root bytecode
+    /// matches the bytecode at the address specified on the Sui network we
+    /// are publishing to.
     pub async fn verify_package_root(
         &self,
         compiled_package: &CompiledPackage,
@@ -177,29 +191,33 @@ impl<'a> BytecodeSourceVerifier<'a> {
     ) -> Result<(), AggregateSourceVerificationError> {
         self.verify_package(
             compiled_package,
-            /* verify_deps */ false,
+            // verify_deps
+            false,
             SourceMode::VerifyAt(root_on_chain_address),
         )
         .await
     }
 
-    /// Helper wrapper to verify that all local Move package dependencies' matches
-    /// the bytecode at the address specified on the Sui network we are publishing to.
+    /// Helper wrapper to verify that all local Move package dependencies'
+    /// matches the bytecode at the address specified on the Sui network we
+    /// are publishing to.
     pub async fn verify_package_deps(
         &self,
         compiled_package: &CompiledPackage,
     ) -> Result<(), AggregateSourceVerificationError> {
         self.verify_package(
             compiled_package,
-            /* verify_deps */ true,
+            // verify_deps
+            true,
             SourceMode::Skip,
         )
         .await
     }
 
-    /// Verify that all local Move package dependencies' and/or root bytecode matches the bytecode
-    /// at the address specified on the Sui network we are publishing to.  If `verify_deps` is true,
-    /// the dependencies are verified.  If `root_on_chain_address` is specified, the root is
+    /// Verify that all local Move package dependencies' and/or root bytecode
+    /// matches the bytecode at the address specified on the Sui network we
+    /// are publishing to.  If `verify_deps` is true, the dependencies are
+    /// verified.  If `root_on_chain_address` is specified, the root is
     /// verified against a package at `root_on_chain_address`.
     pub async fn verify_package(
         &self,
@@ -212,7 +230,7 @@ impl<'a> BytecodeSourceVerifier<'a> {
             SourceMode::Skip => (),
             // On-chain address for matching root package cannot be zero
             SourceMode::VerifyAt(AccountAddress::ZERO) => {
-                return Err(SourceVerificationError::ZeroOnChainAddresSpecifiedFailure.into())
+                return Err(SourceVerificationError::ZeroOnChainAddresSpecifiedFailure.into());
             }
             SourceMode::VerifyAt(root_address) => on_chain_pkgs.push(*root_address),
             SourceMode::Verify => {
@@ -270,9 +288,10 @@ impl<'a> BytecodeSourceVerifier<'a> {
         // fetched from a sui network via sui_getObject, which takes an object ID
         let obj_id = ObjectID::from(addr);
 
-        // fetch the Sui object at the address specified for the package in the local resolution table
-        // if future packages with a large set of dependency packages prove too slow to verify,
-        // batched object fetching should be added to the ReadApi & used here
+        // fetch the Sui object at the address specified for the package in the local
+        // resolution table if future packages with a large set of dependency
+        // packages prove too slow to verify, batched object fetching should be
+        // added to the ReadApi & used here
         let obj_read = self
             .rpc_client
             .get_object_with_options(obj_id, SuiObjectDataOptions::new().with_bcs())
@@ -472,8 +491,8 @@ fn local_modules(
 fn current_toolchain() -> ToolchainVersion {
     ToolchainVersion {
         compiler_version: CURRENT_COMPILER_VERSION.into(),
-        edition: Edition::LEGACY, /* does not matter, unused for current_toolchain */
-        flavor: Flavor::Sui,      /* does not matter, unused for current_toolchain */
+        edition: Edition::LEGACY, // does not matter, unused for current_toolchain
+        flavor: Flavor::Sui,      // does not matter, unused for current_toolchain
     }
 }
 
@@ -485,9 +504,11 @@ fn legacy_toolchain() -> ToolchainVersion {
     }
 }
 
-/// Ensures `compiled_units` are compiled with the right compiler version, based on
-/// Move.lock contents. This works by detecting if a compiled unit requires a prior compiler version:
-/// - If so, download the compiler, recompile the unit, and return that unit in the result.
+/// Ensures `compiled_units` are compiled with the right compiler version, based
+/// on Move.lock contents. This works by detecting if a compiled unit requires a
+/// prior compiler version:
+/// - If so, download the compiler, recompile the unit, and return that unit in
+///   the result.
 /// - If not, simply keep the current compiled unit.
 fn units_for_toolchain(
     compiled_units: &Vec<(PackageName, CompiledUnitWithSource)>,
@@ -497,7 +518,8 @@ fn units_for_toolchain(
     }
     let mut package_version_map: HashMap<Symbol, (ToolchainVersion, Vec<CompiledUnitWithSource>)> =
         HashMap::new();
-    // First iterate over packages, mapping the required version for each package in `package_version_map`.
+    // First iterate over packages, mapping the required version for each package in
+    // `package_version_map`.
     for (package, local_unit) in compiled_units {
         if let Some((_, units)) = package_version_map.get_mut(package) {
             // We've processed this package's required version.
@@ -559,7 +581,8 @@ fn units_for_toolchain(
     }
 
     let mut units = vec![];
-    // Iterate over compiled units, and check if they need to be recompiled and replaced by a prior compiler's output.
+    // Iterate over compiled units, and check if they need to be recompiled and
+    // replaced by a prior compiler's output.
     for (package, (toolchain_version, local_units)) in package_version_map {
         if toolchain_version.compiler_version == CURRENT_COMPILER_VERSION {
             let local_units: Vec<_> = local_units.iter().map(|u| (package, u.clone())).collect();
@@ -623,8 +646,9 @@ fn download_and_compile(
     }
 
     if !dest_canonical_binary.exists() {
-        // Check the platform and proceed if we can download a binary. If not, the user should follow error instructions to sideload the binary.
-        // Download if binary does not exist.
+        // Check the platform and proceed if we can download a binary. If not, the user
+        // should follow error instructions to sideload the binary. Download if
+        // binary does not exist.
         let mainnet_url = format!(
             "https://github.com/MystenLabs/sui/releases/download/mainnet-v{compiler_version}/sui-mainnet-v{compiler_version}-{platform}.tgz",
         );
@@ -748,8 +772,7 @@ fn detect_platform(
 
 #[cfg(unix)]
 fn set_executable_permission(path: &OsStr) -> anyhow::Result<()> {
-    use std::fs;
-    use std::os::unix::prelude::PermissionsExt;
+    use std::{fs, os::unix::prelude::PermissionsExt};
     let mut perms = fs::metadata(path)?.permissions();
     perms.set_mode(0o755);
     fs::set_permissions(path, perms)?;

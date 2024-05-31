@@ -1,42 +1,46 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
 #[cfg(not(msim))]
 use std::str::FromStr;
-use std::time::Duration;
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+    time::Duration,
+};
+
 use sui_json::{call_args, type_args};
 use sui_json_rpc_api::{
     CoinReadApiClient, GovernanceReadApiClient, IndexerApiClient, ReadApiClient,
     TransactionBuilderClient, WriteApiClient,
 };
-use sui_json_rpc_types::ObjectsPage;
 use sui_json_rpc_types::{
-    Balance, CoinPage, DelegatedStake, StakeStatus, SuiCoinMetadata, SuiExecutionStatus,
-    SuiObjectDataOptions, SuiObjectResponse, SuiObjectResponseQuery, SuiTransactionBlockEffectsAPI,
-    SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions, TransactionBlockBytes,
+    Balance, CoinPage, DelegatedStake, DelegatedTimelockedStake, ObjectChange, ObjectsPage,
+    StakeStatus, SuiCoinMetadata, SuiExecutionStatus, SuiObjectDataOptions, SuiObjectResponse,
+    SuiObjectResponseQuery, SuiTransactionBlockEffectsAPI, SuiTransactionBlockResponse,
+    SuiTransactionBlockResponseOptions, TransactionBlockBytes,
 };
-use sui_json_rpc_types::{DelegatedTimelockedStake, ObjectChange};
 use sui_macros::sim_test;
 use sui_move_build::BuildConfig;
 use sui_protocol_config::ProtocolConfig;
 use sui_swarm_config::genesis_config::{
     AccountConfig, DEFAULT_GAS_AMOUNT, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT,
 };
-use sui_types::balance::Supply;
-use sui_types::base_types::SequenceNumber;
-use sui_types::base_types::{MoveObjectType, ObjectID};
-use sui_types::coin::{TreasuryCap, COIN_MODULE_NAME};
-use sui_types::crypto::deterministic_random_account_key;
-use sui_types::digests::{ObjectDigest, TransactionDigest};
-use sui_types::gas_coin::GAS;
-use sui_types::id::UID;
-use sui_types::object::{Data, MoveObject, ObjectInner, Owner, OBJECT_START_VERSION};
-use sui_types::quorum_driver_types::ExecuteTransactionRequestType;
-use sui_types::timelock::timelock::TimeLock;
-use sui_types::utils::to_sender_signed_transaction;
-use sui_types::{parse_sui_struct_tag, SUI_FRAMEWORK_ADDRESS};
+use sui_types::{
+    balance::Supply,
+    base_types::{MoveObjectType, ObjectID, SequenceNumber},
+    coin::{TreasuryCap, COIN_MODULE_NAME},
+    crypto::deterministic_random_account_key,
+    digests::{ObjectDigest, TransactionDigest},
+    gas_coin::GAS,
+    id::UID,
+    object::{Data, MoveObject, ObjectInner, Owner, OBJECT_START_VERSION},
+    parse_sui_struct_tag,
+    quorum_driver_types::ExecuteTransactionRequestType,
+    timelock::timelock::TimeLock,
+    utils::to_sender_signed_transaction,
+    SUI_FRAMEWORK_ADDRESS,
+};
 use test_cluster::TestClusterBuilder;
 use tokio::time::sleep;
 
@@ -83,13 +87,15 @@ async fn test_get_package_with_display_should_not_fail() -> Result<(), anyhow::E
         .await;
     assert!(response.is_ok());
     let response: SuiObjectResponse = response?;
-    assert!(response
-        .into_object()
-        .unwrap()
-        .display
-        .unwrap()
-        .data
-        .is_none());
+    assert!(
+        response
+            .into_object()
+            .unwrap()
+            .display
+            .unwrap()
+            .data
+            .is_none()
+    );
     Ok(())
 }
 
@@ -962,7 +968,8 @@ async fn test_staking_multiple_coins() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-// Need to be enable when the Stardust package is integrated in the system packages list.
+// Need to be enable when the Stardust package is integrated in the system
+// packages list.
 #[ignore]
 #[sim_test]
 async fn test_timelocked_staking() -> Result<(), anyhow::Error> {

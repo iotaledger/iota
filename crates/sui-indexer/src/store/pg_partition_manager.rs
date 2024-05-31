@@ -1,17 +1,21 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use diesel::sql_types::{BigInt, VarChar};
-use diesel::{QueryableByName, RunQueryDsl};
-use std::collections::BTreeMap;
-use std::time::Duration;
+use std::{collections::BTreeMap, time::Duration};
+
+use diesel::{
+    sql_types::{BigInt, VarChar},
+    QueryableByName, RunQueryDsl,
+};
 use tracing::{error, info};
 
-use crate::db::PgConnectionPool;
-use crate::handlers::EpochToCommit;
-use crate::models::epoch::StoredEpochInfo;
-use crate::store::diesel_macro::{read_only_blocking, transactional_blocking_with_retry};
-use crate::IndexerError;
+use crate::{
+    db::PgConnectionPool,
+    handlers::EpochToCommit,
+    models::epoch::StoredEpochInfo,
+    store::diesel_macro::{read_only_blocking, transactional_blocking_with_retry},
+    IndexerError,
+};
 
 const GET_PARTITION_SQL: &str = r"
 SELECT parent.relname                                            AS table_name,
@@ -116,8 +120,8 @@ impl PgPartitionManager {
                 table, last_partition, data.next_epoch
             );
         } else if last_partition != data.next_epoch {
-            // skip when the partition is already advanced once, which is possible when indexer
-            // crashes and restarts; error otherwise.
+            // skip when the partition is already advanced once, which is possible when
+            // indexer crashes and restarts; error otherwise.
             error!(
                 "Epoch partition for table {} is not in sync with the last epoch {}.",
                 table, data.last_epoch

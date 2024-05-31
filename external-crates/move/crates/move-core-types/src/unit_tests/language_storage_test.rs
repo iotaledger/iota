@@ -2,14 +2,15 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use bcs::test_helpers::assert_canonical_encode_decode;
+use proptest::prelude::*;
+
 use crate::{
     account_address::AccountAddress,
     gas_algebra::AbstractMemorySize,
     identifier::{IdentStr, Identifier},
     language_storage::{ModuleId, StructTag, TypeTag, TYPETAG_ENUM_ABSTRACT_SIZE},
 };
-use bcs::test_helpers::assert_canonical_encode_decode;
-use proptest::prelude::*;
 
 proptest! {
     #[test]

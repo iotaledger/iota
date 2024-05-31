@@ -1,6 +1,8 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use std::str::FromStr;
+
 use move_binary_format::{
     file_format::{
         empty_module, AbilitySet, AddressIdentifierIndex,
@@ -19,7 +21,6 @@ use move_core_types::{
     account_address::AccountAddress, identifier::Identifier, vm_status::StatusCode,
 };
 use move_vm_config::verifier::VerifierConfig;
-use std::str::FromStr;
 
 #[test]
 fn unbalanced_stack_crash() {
@@ -110,11 +111,11 @@ fn unbalanced_stack_crash() {
 
 #[test]
 fn too_many_locals() {
-    // Create a signature of 128 elements. This will be used both for locals and parameters,
-    // thus the overall size will be 256. If this is not intercepted in bounds checks,
-    // as a result the following iterator in abstract state
-    // would be empty, breaking reference analysis: `0..self.num_locals as LocalIndex`
-    // (since LocalIndex is u8).
+    // Create a signature of 128 elements. This will be used both for locals and
+    // parameters, thus the overall size will be 256. If this is not intercepted
+    // in bounds checks, as a result the following iterator in abstract state
+    // would be empty, breaking reference analysis: `0..self.num_locals as
+    // LocalIndex` (since LocalIndex is u8).
     let sign_128 = (0..128)
         .map(|_| Reference(Box::new(U64)))
         .collect::<Vec<_>>();

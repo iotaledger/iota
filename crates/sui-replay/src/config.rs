@@ -3,11 +3,12 @@
 
 use std::{fs::File, io::BufReader, path::PathBuf, str::FromStr};
 
-use crate::types::ReplayEngineError;
 use http::Uri;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use tracing::log::warn;
+
+use crate::types::ReplayEngineError;
 
 pub const DEFAULT_CONFIG_PATH: &str = "~/.sui-replay/network-config.yaml";
 

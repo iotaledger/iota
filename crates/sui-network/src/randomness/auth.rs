@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::HashSet, sync::Arc};
+
 use anemo_tower::auth::AuthorizeRequest;
 use arc_swap::ArcSwap;
 use bytes::Bytes;
-use std::{collections::HashSet, sync::Arc};
 
 #[derive(Clone, Debug)]
 pub(crate) struct AllowedPeersUpdatable {

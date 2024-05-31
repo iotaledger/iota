@@ -4,16 +4,18 @@
 
 //! Defines accessors for compiled modules.
 
-use crate::{file_format::*, internals::ModuleIndex};
 use move_core_types::{
     account_address::AccountAddress,
     identifier::{IdentStr, Identifier},
     language_storage::ModuleId,
 };
 
+use crate::{file_format::*, internals::ModuleIndex};
+
 /// Represents accessors for a compiled module.
 ///
-/// This is a trait to allow working across different wrappers for `CompiledModule`.
+/// This is a trait to allow working across different wrappers for
+/// `CompiledModule`.
 pub trait ModuleAccess: Sync {
     /// Returns the `CompiledModule` that will be used for accesses.
     fn as_module(&self) -> &CompiledModule;
@@ -212,7 +214,8 @@ pub trait ModuleAccess: Sync {
 
 /// Represents accessors for a compiled script.
 ///
-/// This is a trait to allow working across different wrappers for `CompiledScript`.
+/// This is a trait to allow working across different wrappers for
+/// `CompiledScript`.
 pub trait ScriptAccess: Sync {
     /// Returns the `CompiledScript` that will be used for accesses.
     fn as_script(&self) -> &CompiledScript;

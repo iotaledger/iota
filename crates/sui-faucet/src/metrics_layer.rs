@@ -15,8 +15,8 @@ use tracing::{error, info, warn};
 
 use crate::metrics::RequestMetrics;
 
-/// Tower Layer for tracking metrics in Prometheus related to number, success-rate and latency of
-/// requests running through service.
+/// Tower Layer for tracking metrics in Prometheus related to number,
+/// success-rate and latency of requests running through service.
 #[derive(Clone)]
 pub struct RequestMetricsLayer {
     metrics: Arc<RequestMetrics>,
@@ -147,7 +147,8 @@ impl Drop for MetricsGuard {
     fn drop(&mut self) {
         self.metrics.current_requests_in_flight.dec();
 
-        // Request was still in flight when the guard was dropped, implying the client disconnected.
+        // Request was still in flight when the guard was dropped, implying the client
+        // disconnected.
         if let Some(timer) = self.timer.take() {
             let elapsed = timer.stop_and_record();
             self.metrics.total_requests_disconnected.inc();
