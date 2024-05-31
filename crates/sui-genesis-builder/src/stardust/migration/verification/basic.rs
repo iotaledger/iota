@@ -1,22 +1,28 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::HashMap;
+
 use anyhow::{anyhow, ensure, Result};
-use iota_sdk::types::block::output::BasicOutput;
+use iota_sdk::types::block::output::{BasicOutput, TokenId};
 use sui_types::{balance::Balance, dynamic_field::Field, in_memory_storage::InMemoryStorage};
 
-use crate::stardust::migration::verification::{
-    created_objects::CreatedObjects,
-    util::{
-        verify_expiration_unlock_condition, verify_metadata_feature, verify_native_tokens,
-        verify_parent, verify_sender_feature, verify_storage_deposit_unlock_condition,
-        verify_tag_feature, verify_timelock_unlock_condition,
+use crate::stardust::migration::{
+    executor::FoundryLedgerData,
+    verification::{
+        created_objects::CreatedObjects,
+        util::{
+            verify_expiration_unlock_condition, verify_metadata_feature, verify_native_tokens,
+            verify_parent, verify_sender_feature, verify_storage_deposit_unlock_condition,
+            verify_tag_feature, verify_timelock_unlock_condition,
+        },
     },
 };
 
-pub fn verify_basic_output(
+pub(super) fn verify_basic_output(
     output: &BasicOutput,
     created_objects: &CreatedObjects,
+    foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
 ) -> Result<()> {
     // If the output has multiple unlock conditions, then a genesis object should
@@ -59,7 +65,11 @@ pub fn verify_basic_output(
                 })
                 .collect::<Result<Vec<_>, _>>()
         })?;
-        verify_native_tokens(output.native_tokens(), created_native_token_fields)?;
+        verify_native_tokens(
+            output.native_tokens(),
+            foundry_data,
+            created_native_token_fields,
+        )?;
 
         // Storage Deposit Return Unlock Condition
         verify_storage_deposit_unlock_condition(
@@ -124,13 +134,19 @@ pub fn verify_basic_output(
                     let obj = storage
                         .get_object(id)
                         .ok_or_else(|| anyhow!("missing native token coin for {id}"))?;
-                    obj.as_coin_maybe().ok_or_else(|| {
-                        anyhow!("expected a native token coin, found {:?}", obj.type_())
-                    })
+                    obj.coin_type_maybe()
+                        .zip(obj.as_coin_maybe())
+                        .ok_or_else(|| {
+                            anyhow!("expected a native token coin, found {:?}", obj.type_())
+                        })
                 })
                 .collect::<Result<Vec<_>, _>>()
         })?;
-        verify_native_tokens(output.native_tokens(), created_native_token_coins)?;
+        verify_native_tokens(
+            output.native_tokens(),
+            foundry_data,
+            created_native_token_coins,
+        )?;
     }
 
     ensure!(

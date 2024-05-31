@@ -367,12 +367,7 @@ fn alias_migration_with_native_tokens() {
 
     // Recreate the key under which the tokens are stored in the bag.
     let foundry_ledger_data = executor.native_tokens().get(&native_token_id).unwrap();
-    let token_type = format!(
-        "{}::{}::{}",
-        foundry_ledger_data.coin_type_origin.package,
-        foundry_ledger_data.coin_type_origin.module_name,
-        foundry_ledger_data.coin_type_origin.struct_name
-    );
+    let token_type = foundry_ledger_data.canonical_coin_type();
     let token_type_tag = token_type.parse::<TypeTag>().unwrap();
 
     let pt = {
