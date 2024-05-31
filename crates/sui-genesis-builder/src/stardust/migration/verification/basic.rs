@@ -72,13 +72,13 @@ pub(super) fn verify_genesis_object(
     );
 
     // Native Tokens
+    ensure!(
+        created_output.native_tokens.size == output.native_tokens().len() as u64,
+        "native tokens bag length mismatch: found {}, expected {}",
+        created_output.native_tokens.size,
+        output.native_tokens().len()
+    );
     if !output.native_tokens().is_empty() {
-        ensure!(
-            created_output.native_tokens.size == output.native_tokens().len() as u64,
-            "native tokens bag length mismatch: found {}, expected {}",
-            created_output.native_tokens.size,
-            output.native_tokens().len()
-        );
         let created_native_token_fields = created_objects.native_tokens().and_then(|ids| {
             ids.iter()
                 .map(|id| {
