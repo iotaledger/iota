@@ -197,11 +197,12 @@ export default class Sui {
     ): Promise<Buffer> {
         let payload = initialPayload;
         let result = Buffer.alloc(0);
+        let rv_instruction;
         do {
             this.#log('Sending payload to ledger: ', payload.toString('hex'));
             const rv = await this.transport.send(cla, ins, p1, p2, payload);
             this.#log('Received response: ', rv);
-            const rv_instruction = rv[0];
+            rv_instruction = rv[0];
             const rv_payload = rv.slice(1, rv.length - 2); // Last two bytes are a return code.
             if (!(rv_instruction in LedgerToHost)) {
                 throw new TypeError('Unknown instruction returned from ledger');
