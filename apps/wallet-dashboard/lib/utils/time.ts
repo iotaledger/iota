@@ -12,10 +12,5 @@ export const parseTimestamp = (timestampMs?: string | null): number | undefined 
     }
 
     const timestamp = parseInt(timestampMs);
-
-    if (isNaN(timestamp)) {
-        return;
-    }
-
-    return timestamp;
+    return Number.isInteger(timestamp) ? timestamp : undefined;
 };

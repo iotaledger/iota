@@ -36,12 +36,8 @@ export const getTransactionAction = (
 
 export const getTransactionActivity = (
     tx: SuiTransactionBlockResponse,
-    address?: string,
-): Activity | undefined => {
-    if (!address) {
-        return;
-    }
-
+    address: string,
+): Activity => {
     return {
         action: getTransactionAction(tx, address),
         state: getTransactionActivityState(tx),
