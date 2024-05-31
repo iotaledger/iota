@@ -15,7 +15,7 @@ IGNORED_PATHS = (
     'crates/sui-framework-snapshot/bytecode_snapshot/',
     'crates/iota-light-client/example_config/20873329.yaml', 
     'crates/iota-framework-snapshot/bytecode_snapshot/',
-    'scripts/rename_to_iota/rename.py',
+    'scripts/rename-to-iota/',
 )
 
 IGNORED_EXTENSIONS = ('svg', 'mv', 'png', 'jpg', 'jpeg', 'gif', 'wasm', 'errmap', 'bcs', 'chk', 'pdf', 'ai', 'mp3', 'wav', 'ico', 'ttf', 'otf', 'woff', 'woff2', 'mvsm')
