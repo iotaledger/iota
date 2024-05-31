@@ -65,7 +65,7 @@ pub struct Migration {
     target_milestone_timestamp_sec: u32,
 
     executor: Executor,
-    output_objects_map: HashMap<OutputId, CreatedObjects>,
+    pub(super) output_objects_map: HashMap<OutputId, CreatedObjects>,
 }
 
 impl Migration {

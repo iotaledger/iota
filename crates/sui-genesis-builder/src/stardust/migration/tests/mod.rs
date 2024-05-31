@@ -17,6 +17,7 @@ use crate::stardust::{
 };
 
 mod alias;
+mod basic;
 mod executor;
 
 fn random_output_header() -> OutputHeader {
