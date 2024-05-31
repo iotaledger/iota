@@ -38,7 +38,7 @@ function SendCoinPopup({
     };
 
     return (
-        <div>
+        <>
             {step === Steps.EnterValues && (
                 <div className="flex flex-col gap-4">
                     <h1 className="mb-4 text-center text-xl">Send coins</h1>
@@ -79,11 +79,13 @@ function SendCoinPopup({
                     </div>
                     <div className="mt-4 flex justify-around">
                         <Button onClick={handleBack}>Back</Button>
-                        <Button onClick={onSend}>Send now</Button>
+                        <Button onClick={onSend} disabled={!recipientAddress || !amount}>
+                            Send now
+                        </Button>
                     </div>
                 </div>
             )}
-        </div>
+        </>
     );
 }
 
