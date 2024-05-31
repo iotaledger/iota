@@ -271,8 +271,8 @@ mod tests {
         let address_balance = u256_to_bigdecimal(minted_tokens);
         let adjusted_address_balance = (address_balance
             * token_scheme_u64.token_adjustment_ratio.unwrap())
-            .to_u64()
-            .unwrap();
+        .to_u64()
+        .unwrap();
 
         assert_eq!(adjusted_address_balance, MAX_ALLOWED_U64_SUPPLY);
         assert_eq!(token_scheme_u64.circulating_supply, MAX_ALLOWED_U64_SUPPLY);
