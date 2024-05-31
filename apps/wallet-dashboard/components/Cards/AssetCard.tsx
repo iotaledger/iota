@@ -8,11 +8,11 @@ import React from 'react';
 import { Box } from '@/components/index';
 import Image from 'next/image';
 
-interface VisualAssetCardProps {
+interface AssetCardProps {
     asset: SuiObjectData;
 }
 
-function VisualAssetCard({ asset }: VisualAssetCardProps): JSX.Element {
+function AssetCard({ asset }: AssetCardProps): JSX.Element {
     return (
         <Box>
             <div className="flex gap-2">
@@ -34,4 +34,4 @@ function VisualAssetCard({ asset }: VisualAssetCardProps): JSX.Element {
     );
 }
 
-export default VisualAssetCard;
+export default AssetCard;

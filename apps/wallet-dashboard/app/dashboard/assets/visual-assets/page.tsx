@@ -5,11 +5,11 @@
 
 import React, { useCallback } from 'react';
 import { SuiObjectData } from '@mysten/sui.js/client';
-import { VisualAssetCard, VirtualList } from '@/components/index';
+import { AssetCard, VirtualList } from '@/components/index';
 
 function VisualAssetsPage(): JSX.Element {
     const virtualItem = useCallback(
-        (asset: SuiObjectData) => <VisualAssetCard key={asset.objectId} asset={asset} />,
+        (asset: SuiObjectData) => <AssetCard key={asset.objectId} asset={asset} />,
         [],
     );
 
