@@ -12,7 +12,7 @@ export function formatDisplay(object: {
           }[]
         | null;
 }) {
-    let display: DisplayFieldsResponse = {
+    const display: DisplayFieldsResponse = {
         data: null,
         error: null,
     };
