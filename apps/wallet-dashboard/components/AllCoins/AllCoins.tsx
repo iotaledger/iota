@@ -15,13 +15,11 @@ export const AllCoins = () => {
     const { openPopup, closePopup } = usePopups();
 
     const openSendTokenPopup = (coin: CoinStruct) => {
-        openPopup(
-            <SendCoinPopup
-                coin={coin}
-                senderAddress={account?.address ?? ''}
-                onClose={closePopup}
-            />,
-        );
+        if (account?.address) {
+            openPopup(
+                <SendCoinPopup coin={coin} senderAddress={account.address} onClose={closePopup} />,
+            );
+        }
     };
 
     return (
