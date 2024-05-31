@@ -1,12 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::ops::Deref;
+
 use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
 use fastcrypto_zkp::bn254::zk_login::{parse_jwks, OIDCProvider, ZkLoginInputs};
 use mysten_network::Multiaddr;
 use rand::{rngs::StdRng, SeedableRng};
 use shared_crypto::intent::{Intent, IntentMessage};
-use std::ops::Deref;
+use sui_macros::sim_test;
 use sui_types::{
     authenticator_state::ActiveJwk,
     base_types::dbg_addr,
@@ -23,8 +25,6 @@ use sui_types::{
     zk_login_util::DEFAULT_JWK_BYTES,
 };
 
-use sui_macros::sim_test;
-
 macro_rules! assert_matches {
     ($expression:expr, $pattern:pat $(if $guard: expr)?) => {
         match $expression {
@@ -39,17 +39,16 @@ macro_rules! assert_matches {
     };
 }
 
+use fastcrypto::traits::AggregateAuthenticator;
+use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
+
+use super::*;
+pub use crate::authority::authority_test_utils::init_state_with_ids;
 use crate::{
     authority_client::{AuthorityAPI, NetworkAuthorityClient},
     authority_server::{AuthorityServer, AuthorityServerHandle},
     stake_aggregator::{InsertResult, StakeAggregator},
 };
-
-use super::*;
-use fastcrypto::traits::AggregateAuthenticator;
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-
-pub use crate::authority::authority_test_utils::init_state_with_ids;
 
 #[sim_test]
 async fn test_handle_transfer_transaction_bad_signature() {
@@ -403,7 +402,8 @@ async fn do_transaction_test_impl(
 
     check_locks(authority_state.clone(), vec![object_id]).await;
 
-    // now verify that the same transaction is rejected if a false certificate is somehow formed and sent
+    // now verify that the same transaction is rejected if a false certificate is
+    // somehow formed and sent
     if check_forged_cert {
         let epoch_store = authority_state.epoch_store_for_testing();
         let signed_transaction = VerifiedSignedTransaction::new(
@@ -497,16 +497,14 @@ async fn zklogin_test_cached_proof_wrong_key() {
     let res = client.handle_transaction(transfer_transaction).await;
     assert!(res.is_ok());
 
-    /*
-    assert_eq!(
-        epoch_store
-            .signature_verifier
-            .metrics
-            .zklogin_inputs_cache_misses
-            .get(),
-        1
-    );
-    */
+    // assert_eq!(
+    // epoch_store
+    // .signature_verifier
+    // .metrics
+    // .zklogin_inputs_cache_misses
+    // .get(),
+    // 1
+    // );
 
     let (skp, _eph_pk, zklogin) =
         &load_test_vectors("../sui-types/src/unit_tests/zklogin_test_vectors.json")[1];
@@ -543,23 +541,24 @@ async fn zklogin_test_cached_proof_wrong_key() {
         _ => panic!(),
     }
 
-    // This tx should fail, but passes because we skip the ephemeral sig check when hitting the zklogin check!
-    assert!(client
-        .handle_transaction(transfer_transaction2)
-        .await
-        .is_err());
+    // This tx should fail, but passes because we skip the ephemeral sig check when
+    // hitting the zklogin check!
+    assert!(
+        client
+            .handle_transaction(transfer_transaction2)
+            .await
+            .is_err()
+    );
 
     // TODO: re-enable when cache is re-enabled.
-    /*
-    assert_eq!(
-        epoch_store
-            .signature_verifier
-            .metrics
-            .zklogin_inputs_cache_hits
-            .get(),
-        1
-    );
-    */
+    // assert_eq!(
+    // epoch_store
+    // .signature_verifier
+    // .metrics
+    // .zklogin_inputs_cache_hits
+    // .get(),
+    // 1
+    // );
 
     assert_eq!(metrics.signature_errors.get(), 1);
 
@@ -585,22 +584,22 @@ async fn do_zklogin_transaction_test(
 
     post_sign_mutations(&mut transfer_transaction);
 
-    assert!(client
-        .handle_transaction(transfer_transaction)
-        .await
-        .is_err());
+    assert!(
+        client
+            .handle_transaction(transfer_transaction)
+            .await
+            .is_err()
+    );
 
     // TODO: re-enable when cache is re-enabled.
-    /*
-    assert_eq!(
-        epoch_store
-            .signature_verifier
-            .metrics
-            .zklogin_inputs_cache_misses
-            .get(),
-        1
-    );
-    */
+    // assert_eq!(
+    // epoch_store
+    // .signature_verifier
+    // .metrics
+    // .zklogin_inputs_cache_misses
+    // .get(),
+    // 1
+    // );
 
     assert_eq!(metrics.signature_errors.get(), expected_sig_errors);
 
@@ -614,14 +613,16 @@ async fn check_locks(authority_state: Arc<AuthorityState>, object_ids: Vec<Objec
             .await
             .unwrap()
             .unwrap();
-        assert!(authority_state
-            .get_transaction_lock(
-                &object.compute_object_reference(),
-                &authority_state.epoch_store_for_testing()
-            )
-            .await
-            .unwrap()
-            .is_none());
+        assert!(
+            authority_state
+                .get_transaction_lock(
+                    &object.compute_object_reference(),
+                    &authority_state.epoch_store_for_testing()
+                )
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 }
 
@@ -795,7 +796,8 @@ async fn zklogin_txn_fail_if_missing_jwk() {
         authenticator_obj_initial_shared_version: 1.into(),
     });
 
-    // Case 1: Submit a transaction with zklogin signature derived from a Twitch JWT should fail.
+    // Case 1: Submit a transaction with zklogin signature derived from a Twitch JWT
+    // should fail.
     let txn1 = init_zklogin_transfer(
         &authority_state,
         object_ids[2],
@@ -826,7 +828,8 @@ async fn zklogin_txn_fail_if_missing_jwk() {
         authenticator_obj_initial_shared_version: 1.into(),
     });
 
-    // Case 2: Submit a transaction with zklogin signature derived from a Twitch JWT with kid "1" should fail.
+    // Case 2: Submit a transaction with zklogin signature derived from a Twitch JWT
+    // with kid "1" should fail.
     execute_transaction_assert_err(authority_state, txn1, object_ids).await;
 }
 
@@ -998,11 +1001,12 @@ async fn test_oversized_txn() {
 
     let res = client.handle_transaction(txn).await;
     // The txn should be rejected due to its size.
-    assert!(res
-        .err()
-        .unwrap()
-        .to_string()
-        .contains("serialized transaction size exceeded maximum"));
+    assert!(
+        res.err()
+            .unwrap()
+            .to_string()
+            .contains("serialized transaction size exceeded maximum")
+    );
 }
 
 #[tokio::test]
@@ -1063,7 +1067,8 @@ async fn test_very_large_certificate() {
         .map(|a| (a.authority, a.signature))
         .collect();
 
-    // Insert a lot into the bitmap so the cert is very large, while the txn inside is reasonably sized.
+    // Insert a lot into the bitmap so the cert is very large, while the txn inside
+    // is reasonably sized.
     let mut signers_map = roaring::bitmap::RoaringBitmap::new();
     signers_map.insert_range(0..52108864);
     let sigs: Vec<AuthoritySignature> = signatures.into_values().collect();

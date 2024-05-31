@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use async_graphql::*;
+use sui_types::transaction::TransactionKind as NativeTransactionKind;
+
 use self::{
     consensus_commit_prologue::ConsensusCommitPrologueTransaction,
     end_of_epoch::ChangeEpochTransaction, genesis::GenesisTransaction,
@@ -10,8 +13,6 @@ use crate::types::transaction_block_kind::{
     authenticator_state_update::AuthenticatorStateUpdateTransaction,
     end_of_epoch::EndOfEpochTransaction, programmable::ProgrammableTransactionBlock,
 };
-use async_graphql::*;
-use sui_types::transaction::TransactionKind as NativeTransactionKind;
 
 pub(crate) mod authenticator_state_update;
 pub(crate) mod consensus_commit_prologue;
@@ -20,7 +21,8 @@ pub(crate) mod genesis;
 pub(crate) mod programmable;
 pub(crate) mod randomness_state_update;
 
-/// The kind of transaction block, either a programmable transaction or a system transaction.
+/// The kind of transaction block, either a programmable transaction or a system
+/// transaction.
 #[derive(Union, PartialEq, Clone, Eq)]
 pub(crate) enum TransactionBlockKind {
     ConsensusCommitPrologue(ConsensusCommitPrologueTransaction),

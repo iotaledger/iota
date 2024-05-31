@@ -1,9 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::base_types::EpochId;
-use crate::message_envelope::Message;
-use crate::messages_checkpoint::{CheckpointDigest, CheckpointSummary, CheckpointTimestamp};
+use crate::{
+    base_types::EpochId,
+    message_envelope::Message,
+    messages_checkpoint::{CheckpointDigest, CheckpointSummary, CheckpointTimestamp},
+};
 
 /// The static epoch information that is accessible to move smart contracts
 #[derive(Default)]

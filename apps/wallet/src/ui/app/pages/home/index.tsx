@@ -42,4 +42,3 @@ export { default as KioskDetailsPage } from './kiosk-details';
 export { default as ReceiptPage } from './receipt';
 export { default as CoinsSelectorPage } from './transfer-coin/CoinSelector';
 export { default as AppsPage } from './apps';
-export { Onramp as OnrampPage } from './onramp';

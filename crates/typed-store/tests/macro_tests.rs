@@ -2,27 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 #![allow(dead_code)]
 
+use std::{borrow::Borrow, collections::HashSet, fmt::Debug, sync::Mutex, time::Duration};
+
 use once_cell::sync::Lazy;
-use serde::Deserialize;
-use serde::Serialize;
-use std::borrow::Borrow;
-use std::collections::HashSet;
-use std::fmt::Debug;
-use std::sync::Mutex;
-use std::time::Duration;
-use typed_store::metrics::SamplingInterval;
-use typed_store::rocks::list_tables;
-use typed_store::rocks::DBMap;
-use typed_store::rocks::RocksDBAccessType;
-use typed_store::rocks::{be_fix_int_ser, MetricConf};
-use typed_store::sally::SallyColumn;
-use typed_store::sally::SallyDBOptions;
-use typed_store::sally::SallyReadOnlyDBOptions;
-use typed_store::traits::Map;
-use typed_store::traits::TableSummary;
-use typed_store::traits::TypedStoreDebug;
-use typed_store_derive::DBMapUtils;
-use typed_store_derive::SallyDB;
+use serde::{Deserialize, Serialize};
+use typed_store::{
+    metrics::SamplingInterval,
+    rocks::{be_fix_int_ser, list_tables, DBMap, MetricConf, RocksDBAccessType},
+    sally::{SallyColumn, SallyDBOptions, SallyReadOnlyDBOptions},
+    traits::{Map, TableSummary, TypedStoreDebug},
+};
+use typed_store_derive::{DBMapUtils, SallyDB};
 
 fn temp_dir() -> std::path::PathBuf {
     tempfile::tempdir()
@@ -60,9 +50,9 @@ struct RenameTables2 {
 }
 
 impl<
-        T: Eq + Debug + Serialize + for<'de> Deserialize<'de>,
-        V: Eq + Debug + Serialize + for<'de> Deserialize<'de>,
-    > Generic<T, V>
+    T: Eq + Debug + Serialize + for<'de> Deserialize<'de>,
+    V: Eq + Debug + Serialize + for<'de> Deserialize<'de>,
+> Generic<T, V>
 {
 }
 

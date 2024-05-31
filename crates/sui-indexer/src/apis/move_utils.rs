@@ -4,22 +4,16 @@
 use std::collections::BTreeMap;
 
 use async_trait::async_trait;
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::RpcModule;
+use jsonrpsee::{core::RpcResult, RpcModule};
 use move_binary_format::binary_config::BinaryConfig;
-
-use sui_json_rpc::error::SuiRpcInputError;
-use sui_json_rpc::SuiRpcModule;
+use sui_json_rpc::{error::SuiRpcInputError, SuiRpcModule};
 use sui_json_rpc_api::MoveUtilsServer;
-use sui_json_rpc_types::ObjectValueKind;
-use sui_json_rpc_types::SuiMoveNormalizedType;
 use sui_json_rpc_types::{
-    MoveFunctionArgType, SuiMoveNormalizedFunction, SuiMoveNormalizedModule,
-    SuiMoveNormalizedStruct,
+    MoveFunctionArgType, ObjectValueKind, SuiMoveNormalizedFunction, SuiMoveNormalizedModule,
+    SuiMoveNormalizedStruct, SuiMoveNormalizedType,
 };
 use sui_open_rpc::Module;
-use sui_types::base_types::ObjectID;
-use sui_types::move_package::normalize_modules;
+use sui_types::{base_types::ObjectID, move_package::normalize_modules};
 
 use crate::indexer_reader::IndexerReader;
 

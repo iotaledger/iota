@@ -1,16 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    fs::File,
+    io::{BufReader, Read},
+    path::{Path, PathBuf},
+};
+
 use clap::Parser;
 use move_binary_format::{binary_views::BinaryIndexedView, CompiledModule};
 use move_cli::base;
 use move_disassembler::disassembler::Disassembler;
 use move_ir_types::location::Spanned;
 use move_package::BuildConfig;
-use std::fs::File;
-use std::io::{BufReader, Read};
-use std::path::Path;
-use std::path::PathBuf;
 
 #[derive(Parser)]
 #[group(id = "sui-move-disassemmble")]
@@ -31,7 +33,8 @@ impl Disassemble {
         build_config: BuildConfig,
     ) -> anyhow::Result<()> {
         if base::reroot_path(Some(self.module_path.clone())).is_ok() {
-            // disassembling bytecode inside the source package that produced it--use the source info
+            // disassembling bytecode inside the source package that produced it--use the
+            // source info
             let module_name = self
                 .module_path
                 .file_stem()
@@ -58,8 +61,9 @@ impl Disassemble {
         let mut bytes = Vec::new();
         let mut file = BufReader::new(File::open(self.module_path)?);
         file.read_to_end(&mut bytes)?;
-        // this deserialized a module to the max version of the bytecode but it's OK here because
-        // it's not run as part of the deterministic replicated state machine.
+        // this deserialized a module to the max version of the bytecode but it's OK
+        // here because it's not run as part of the deterministic replicated
+        // state machine.
         let module = CompiledModule::deserialize_with_defaults(&bytes)?;
 
         if self.debug {

@@ -3,17 +3,16 @@
 
 #[cfg(feature = "pg_integration")]
 mod tests {
-    use rand::rngs::StdRng;
-    use rand::SeedableRng;
+    use std::{cmp::max, path::PathBuf, sync::Arc};
+
+    use rand::{rngs::StdRng, SeedableRng};
     use serial_test::serial;
     use simulacrum::Simulacrum;
-    use std::cmp::max;
-    use std::path::PathBuf;
-    use std::sync::Arc;
-    use sui_graphql_rpc::config::{ConnectionConfig, Limits};
-    use sui_graphql_rpc::examples::{load_examples, ExampleQuery, ExampleQueryGroup};
-    use sui_graphql_rpc::test_infra::cluster::ExecutorCluster;
-    use sui_graphql_rpc::test_infra::cluster::DEFAULT_INTERNAL_DATA_SOURCE_PORT;
+    use sui_graphql_rpc::{
+        config::{ConnectionConfig, Limits},
+        examples::{load_examples, ExampleQuery, ExampleQueryGroup},
+        test_infra::cluster::{ExecutorCluster, DEFAULT_INTERNAL_DATA_SOURCE_PORT},
+    };
 
     fn bad_examples() -> ExampleQueryGroup {
         ExampleQueryGroup {

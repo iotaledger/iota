@@ -1,9 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{fs::write, path::PathBuf};
+
 use insta::assert_snapshot;
-use std::fs::write;
-use std::path::PathBuf;
 use sui_graphql_rpc::server::builder::export_schema;
 
 #[test]

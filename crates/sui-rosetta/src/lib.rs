@@ -1,21 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::net::SocketAddr;
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc};
 
-use axum::routing::post;
-use axum::{Extension, Router};
+use axum::{routing::post, Extension, Router};
+use mysten_metrics::spawn_monitored_task;
 use once_cell::sync::Lazy;
+use sui_sdk::SuiClient;
 use tokio::task::JoinHandle;
 use tracing::info;
 
-use mysten_metrics::spawn_monitored_task;
-use sui_sdk::SuiClient;
-
-use crate::errors::Error;
-use crate::state::{CheckpointBlockProvider, OnlineServerContext};
-use crate::types::{Currency, SuiEnv};
+use crate::{
+    errors::Error,
+    state::{CheckpointBlockProvider, OnlineServerContext},
+    types::{Currency, SuiEnv},
+};
 
 /// This lib implements the Rosetta online and offline server defined by the [Rosetta API Spec](https://www.rosetta-api.org/docs/Reference.html)
 mod account;

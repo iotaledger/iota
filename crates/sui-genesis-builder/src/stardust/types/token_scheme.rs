@@ -2,23 +2,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Types representing token schemes in Stardust.
-use bigdecimal::num_bigint::BigInt;
-use bigdecimal::{num_bigint, BigDecimal};
-use iota_sdk::types::block::output::SimpleTokenScheme;
-use iota_sdk::U256;
+use bigdecimal::{num_bigint, num_bigint::BigInt, BigDecimal, ToPrimitive};
+use iota_sdk::{types::block::output::SimpleTokenScheme, U256};
 
 use crate::stardust::error::StardustError;
 
-/// This struct represents a conversion from a `SimpleTokenScheme` to a `SimpleTokenSchemeU64`.
+/// This struct represents a conversion from a `SimpleTokenScheme` to a
+/// `SimpleTokenSchemeU64`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SimpleTokenSchemeU64 {
     // Maximum supply of tokens controlled by a foundry.
     maximum_supply: u64,
     // Circulating supply of tokens controlled by a foundry.
     circulating_supply: u64,
-    // The ratio that the original circulating_supply (U256) was adjusted by in regards to the adjusted maximum supply (u64).
-    // During migration, native token balances need to be multiplied by this ratio to account for that the original maximum supply may exceeded u64::MAX.
-    // In case the original maximum supply was below u64::MAX, this value is None.
+    // The ratio that the original circulating_supply (U256) was adjusted by in regards to the
+    // adjusted maximum supply (u64). During migration, native token balances need to be
+    // multiplied by this ratio to account for that the original maximum supply may exceeded
+    // u64::MAX. In case the original maximum supply was below u64::MAX, this value is None.
     token_adjustment_ratio: Option<BigDecimal>,
 }
 
@@ -31,9 +31,21 @@ impl SimpleTokenSchemeU64 {
     pub fn circulating_supply(&self) -> u64 {
         self.circulating_supply
     }
-    /// The ratio that the original circulating_supply (U256) was adjusted by in regards to the adjusted maximum supply (u64).
+    /// The ratio that the original circulating_supply (U256) was adjusted by in
+    /// regards to the adjusted maximum supply (u64).
     pub fn token_adjustment_ratio(&self) -> &Option<BigDecimal> {
         &self.token_adjustment_ratio
+    }
+
+    /// Constrain U256 tokens to a u64 using the token adjustment ratio.
+    pub fn adjust_tokens(&self, tokens: U256) -> u64 {
+        if let Some(ratio) = self.token_adjustment_ratio() {
+            (u256_to_bigdecimal(tokens) * ratio)
+                .to_u64()
+                .expect("should be a valid u64")
+        } else {
+            tokens.as_u64()
+        }
     }
 }
 
@@ -84,7 +96,7 @@ impl TryFrom<&SimpleTokenScheme> for SimpleTokenSchemeU64 {
 }
 
 /// Converts a U256 to a BigDecimal.
-pub fn u256_to_bigdecimal(u256_value: U256) -> BigDecimal {
+fn u256_to_bigdecimal(u256_value: U256) -> BigDecimal {
     // Allocate a mutable array for the big-endian bytes
     let mut bytes = [0u8; 32];
     u256_value.to_big_endian(&mut bytes);
@@ -98,14 +110,10 @@ pub fn u256_to_bigdecimal(u256_value: U256) -> BigDecimal {
 
 #[cfg(test)]
 mod tests {
-    use std::convert::TryFrom;
-    use std::ops::Div;
-    use std::str::FromStr;
-
-    use iota_sdk::types::block::output::SimpleTokenScheme;
-    use iota_sdk::U256;
+    use std::{convert::TryFrom, ops::Div, str::FromStr};
 
     use bigdecimal::ToPrimitive;
+    use iota_sdk::{types::block::output::SimpleTokenScheme, U256};
 
     use super::*;
 
@@ -235,7 +243,8 @@ mod tests {
         assert_eq!(token_scheme_u64.maximum_supply, 18446744073709551615);
         assert_eq!(token_scheme_u64.circulating_supply, 18446744073709551615);
 
-        // Verify that the adjusted balance divided by the token_adjustment_ratio is equal the minted tokens.
+        // Verify that the adjusted balance divided by the token_adjustment_ratio is
+        // equal the minted tokens.
         let reversed = token_scheme_u64.circulating_supply()
             / token_scheme_u64.token_adjustment_ratio.unwrap();
         assert_eq!(reversed, u256_to_bigdecimal(minted_tokens));

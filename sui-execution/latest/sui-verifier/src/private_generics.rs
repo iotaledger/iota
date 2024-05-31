@@ -40,14 +40,14 @@ pub const TRANSFER_IMPL_FUNCTIONS: &[&IdentStr] = &[
     ident_str!("receive_impl"),
 ];
 
-/// All transfer functions (the functions in `sui::transfer`) are "private" in that they are
-/// restricted to the module.
+/// All transfer functions (the functions in `sui::transfer`) are "private" in
+/// that they are restricted to the module.
 /// For example, with `transfer::transfer<T>(...)`, either:
 /// - `T` must be a type declared in the current module or
 /// - `T` must have `store`
 ///
-/// Similarly, `event::emit` is also "private" to the module. Unlike the `transfer` functions, there
-/// is no relaxation for `store`
+/// Similarly, `event::emit` is also "private" to the module. Unlike the
+/// `transfer` functions, there is no relaxation for `store`
 /// Concretely, with `event::emit<T>(...)`:
 /// - `T` must be a type declared in the current module
 pub fn verify_module(
@@ -57,8 +57,9 @@ pub fn verify_module(
     if *module.address() == SUI_FRAMEWORK_ADDRESS
         && module.name() == IdentStr::new(TEST_SCENARIO_MODULE_NAME).unwrap()
     {
-        // exclude test_module which is a test-only module in the Sui framework which "emulates"
-        // transactional execution and needs to allow test code to bypass private generics
+        // exclude test_module which is a test-only module in the Sui framework which
+        // "emulates" transactional execution and needs to allow test code to
+        // bypass private generics
         return Ok(());
     }
     let view = &BinaryIndexedView::Module(module);

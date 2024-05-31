@@ -1,12 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    crypto::{CompressedSignature, SignatureScheme},
-    multisig::{MultiSig, MultiSigPublicKey},
-    signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
-    sui_serde::SuiBitmap,
-};
+use std::hash::{Hash, Hasher};
+
 pub use enum_dispatch::enum_dispatch;
 use fastcrypto::{
     encoding::Base64,
@@ -19,12 +15,14 @@ use schemars::JsonSchema;
 use serde::{ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};
 use serde_with::serde_as;
 use shared_crypto::intent::IntentMessage;
-use std::hash::{Hash, Hasher};
 
 use crate::{
     base_types::{EpochId, SuiAddress},
-    crypto::PublicKey,
+    crypto::{CompressedSignature, PublicKey, SignatureScheme},
     error::SuiError,
+    multisig::{MultiSig, MultiSigPublicKey},
+    signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
+    sui_serde::SuiBitmap,
 };
 
 pub type WeightUnit = u8;
@@ -32,26 +30,30 @@ pub type ThresholdUnit = u16;
 pub const MAX_SIGNER_IN_MULTISIG: usize = 10;
 
 /// Deprecated, use [struct MultiSig] instead.
-/// The struct that contains signatures and public keys necessary for authenticating a MultiSigLegacy.
+/// The struct that contains signatures and public keys necessary for
+/// authenticating a MultiSigLegacy.
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 pub struct MultiSigLegacy {
     /// The plain signature encoded with signature scheme.
     sigs: Vec<CompressedSignature>,
-    /// A bitmap that indicates the position of which public key the signature should be authenticated with.
+    /// A bitmap that indicates the position of which public key the signature
+    /// should be authenticated with.
     #[schemars(with = "Base64")]
     #[serde_as(as = "SuiBitmap")]
     bitmap: RoaringBitmap,
-    /// The public key encoded with each public key with its signature scheme used along with the corresponding weight.
+    /// The public key encoded with each public key with its signature scheme
+    /// used along with the corresponding weight.
     multisig_pk: MultiSigPublicKeyLegacy,
-    /// A bytes representation of [struct MultiSigLegacy]. This helps with implementing [trait AsRef<[u8]>].
+    /// A bytes representation of [struct MultiSigLegacy]. This helps with
+    /// implementing [trait AsRef<[u8]>].
     #[serde(skip)]
     bytes: OnceCell<Vec<u8>>,
 }
 
 /// This initialize the underlying bytes representation of MultiSig. It encodes
-/// [struct MultiSigLegacy] as the MultiSig flag (0x03) concat with the bcs bytes
-/// of [struct MultiSigLegacy] i.e. `flag || bcs_bytes(MultiSig)`.
+/// [struct MultiSigLegacy] as the MultiSig flag (0x03) concat with the bcs
+/// bytes of [struct MultiSigLegacy] i.e. `flag || bcs_bytes(MultiSig)`.
 impl AsRef<[u8]> for MultiSigLegacy {
     fn as_ref(&self) -> &[u8] {
         self.bytes
@@ -176,7 +178,8 @@ pub fn bitmap_to_u16(roaring: RoaringBitmap) -> Result<u16, FastCryptoError> {
 }
 
 impl MultiSigLegacy {
-    /// This combines a list of [enum Signature] `flag || signature || pk` to a MultiSig.
+    /// This combines a list of [enum Signature] `flag || signature || pk` to a
+    /// MultiSig.
     pub fn combine(
         full_sigs: Vec<GenericSignature>,
         multisig_pk: MultiSigPublicKeyLegacy,
@@ -262,11 +265,13 @@ pub struct MultiSigPublicKeyLegacy {
     #[serde(serialize_with = "serialize_pk_map")]
     #[serde(deserialize_with = "deserialize_pk_map")]
     pk_map: Vec<(PublicKey, WeightUnit)>,
-    /// If the total weight of the public keys corresponding to verified signatures is larger than threshold, the MultiSig is verified.
+    /// If the total weight of the public keys corresponding to verified
+    /// signatures is larger than threshold, the MultiSig is verified.
     threshold: ThresholdUnit,
 }
 
-/// Legacy serialization for MultiSigPublicKey where PublicKey is serialized as string in base64 encoding.
+/// Legacy serialization for MultiSigPublicKey where PublicKey is serialized as
+/// string in base64 encoding.
 fn serialize_pk_map<S>(pk_map: &[(PublicKey, WeightUnit)], serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
@@ -283,7 +288,8 @@ where
     seq.end()
 }
 
-/// Legacy deserialization for MultiSigPublicKey where PublicKey is deserialized from base64 encoded string.
+/// Legacy deserialization for MultiSigPublicKey where PublicKey is deserialized
+/// from base64 encoded string.
 fn deserialize_pk_map<'de, D>(deserializer: D) -> Result<Vec<(PublicKey, WeightUnit)>, D::Error>
 where
     D: Deserializer<'de>,

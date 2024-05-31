@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{command::CommandOptions, run_cmd};
+use std::{fs, path::PathBuf};
+
 use anyhow::{anyhow, Context, Result};
 use colored::Colorize;
 use inquire::Text;
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::path::PathBuf;
 use tracing::{debug, error, info, warn};
+
+use crate::{command::CommandOptions, run_cmd};
 
 pub enum ProjectType {
     App,

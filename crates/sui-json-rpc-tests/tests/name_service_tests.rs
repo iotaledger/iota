@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::str::FromStr;
+
 use sui_json_rpc::name_service::{self, Domain};
 use sui_types::{
     base_types::{ObjectID, SuiAddress},

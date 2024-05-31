@@ -5,30 +5,29 @@ use std::{str::FromStr, time::Duration};
 
 use anyhow::bail;
 use futures::{future, stream::StreamExt};
+use reqwest::Client;
+use serde_json::json;
+use shared_crypto::intent::Intent;
 use sui_config::{
     sui_config_dir, Config, PersistedConfig, SUI_CLIENT_CONFIG, SUI_KEYSTORE_FILENAME,
 };
 use sui_json_rpc_types::{Coin, SuiObjectDataOptions};
 use sui_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use sui_sdk::{
+    rpc_types::SuiTransactionBlockResponseOptions,
     sui_client_config::{SuiClientConfig, SuiEnv},
+    types::{
+        base_types::{ObjectID, SuiAddress},
+        crypto::SignatureScheme::ED25519,
+        digests::TransactionDigest,
+        programmable_transaction_builder::ProgrammableTransactionBuilder,
+        quorum_driver_types::ExecuteTransactionRequestType,
+        transaction::{Argument, Command, Transaction, TransactionData},
+    },
     wallet_context::WalletContext,
+    SuiClient, SuiClientBuilder,
 };
 use tracing::info;
-
-use reqwest::Client;
-use serde_json::json;
-use shared_crypto::intent::Intent;
-use sui_sdk::types::{
-    base_types::{ObjectID, SuiAddress},
-    crypto::SignatureScheme::ED25519,
-    digests::TransactionDigest,
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
-    quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{Argument, Command, Transaction, TransactionData},
-};
-
-use sui_sdk::{rpc_types::SuiTransactionBlockResponseOptions, SuiClient, SuiClientBuilder};
 
 #[derive(serde::Deserialize)]
 struct FaucetResponse {
@@ -40,15 +39,17 @@ struct FaucetResponse {
 
 pub const SUI_FAUCET: &str = "https://faucet.testnet.sui.io/v1/gas"; // testnet faucet
 
-// if you use the sui-test-validator and use the local network; if it does not work, try with port 5003.
-// const SUI_FAUCET: &str = "http://127.0.0.1:9123/gas";
+// if you use the sui-test-validator and use the local network; if it does not
+// work, try with port 5003. const SUI_FAUCET: &str = "http://127.0.0.1:9123/gas";
 
 /// Return a sui client to interact with the APIs,
-/// the active address of the local wallet, and another address that can be used as a recipient.
+/// the active address of the local wallet, and another address that can be used
+/// as a recipient.
 ///
-/// By default, this function will set up a wallet locally if there isn't any, or reuse the
-/// existing one and its active address. This function should be used when two addresses are needed,
-/// e.g., transferring objects from one address to another.
+/// By default, this function will set up a wallet locally if there isn't any,
+/// or reuse the existing one and its active address. This function should be
+/// used when two addresses are needed, e.g., transferring objects from one
+/// address to another.
 pub async fn setup_for_write() -> Result<(SuiClient, SuiAddress, SuiAddress), anyhow::Error> {
     let (client, active_address) = setup_for_read().await?;
     // make sure we have some SUI (5_000_000 MIST) on this address
@@ -69,7 +70,8 @@ pub async fn setup_for_write() -> Result<(SuiClient, SuiAddress, SuiAddress), an
     Ok((client, active_address, *recipient))
 }
 
-/// Return a sui client to interact with the APIs and an active address from the local wallet.
+/// Return a sui client to interact with the APIs and an active address from the
+/// local wallet.
 ///
 /// This function sets up a wallet in case there is no wallet locally,
 /// and ensures that the active address of the wallet has SUI on it.
@@ -157,7 +159,8 @@ pub async fn request_tokens_from_faucet(
         }
     }
 
-    // wait until the fullnode has the coin object, and check if it has the same owner
+    // wait until the fullnode has the coin object, and check if it has the same
+    // owner
     loop {
         let owner = sui_client
             .read_api()
@@ -179,7 +182,8 @@ pub async fn request_tokens_from_faucet(
     Ok(())
 }
 
-/// Return the coin owned by the address that has at least 5_000_000 MIST, otherwise returns None
+/// Return the coin owned by the address that has at least 5_000_000 MIST,
+/// otherwise returns None
 pub async fn fetch_coin(
     sui: &SuiClient,
     sender: &SuiAddress,
@@ -224,16 +228,16 @@ pub async fn split_coin_digest(
 
     // now we programmatically build the transaction through several commands
     let mut ptb = ProgrammableTransactionBuilder::new();
-    // first, we want to split the coin, and we specify how much SUI (in MIST) we want
-    // for the new coin
+    // first, we want to split the coin, and we specify how much SUI (in MIST) we
+    // want for the new coin
     let split_coin_amount = ptb.pure(1000u64)?; // note that we need to specify the u64 type here
     ptb.command(Command::SplitCoins(
         Argument::GasCoin,
         vec![split_coin_amount],
     ));
-    // now we want to merge the coins (so that we don't have many coins with very small values)
-    // observe here that we pass Argument::Result(0), which instructs the PTB to get
-    // the result from the previous command
+    // now we want to merge the coins (so that we don't have many coins with very
+    // small values) observe here that we pass Argument::Result(0), which
+    // instructs the PTB to get the result from the previous command
     ptb.command(Command::MergeCoins(
         Argument::GasCoin,
         vec![Argument::Result(0)],

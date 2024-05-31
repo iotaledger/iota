@@ -1,27 +1,24 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use axum::extract::rejection::JsonRejection;
 use std::fmt::Debug;
 
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
-use axum::Json;
+use axum::{
+    extract::rejection::JsonRejection,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    Json,
+};
 use fastcrypto::error::FastCryptoError;
-use serde::Serialize;
-use serde::Serializer;
+use serde::{Serialize, Serializer};
 use serde_json::{json, Value};
-use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
-
+use strum::{EnumProperty, IntoEnumIterator};
+use strum_macros::{Display, EnumDiscriminants, EnumIter};
 use sui_types::error::SuiError;
-
-use crate::types::{BlockHash, OperationType, PublicKey, SuiEnv};
-use strum::EnumProperty;
-use strum_macros::Display;
-use strum_macros::EnumDiscriminants;
 use thiserror::Error;
 use typed_store::TypedStoreError;
+
+use crate::types::{BlockHash, OperationType, PublicKey, SuiEnv};
 
 /// Sui-Rosetta specific error types.
 /// This contains all the errors returns by the sui-rosetta server.

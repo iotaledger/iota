@@ -1,17 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashSet;
-use std::path::PathBuf;
+use std::{collections::HashSet, path::PathBuf};
+
 use sui_core::authority_client::AuthorityAPI;
 use sui_macros::*;
 use sui_test_transaction_builder::publish_package;
-use sui_types::base_types::{ObjectID, ObjectRef};
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::effects::{TransactionEffects, TransactionEvents};
-use sui_types::error::SuiError;
-use sui_types::object::Owner;
-use sui_types::transaction::{CallArg, ObjectArg, Transaction};
+use sui_types::{
+    base_types::{ObjectID, ObjectRef},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    error::SuiError,
+    object::Owner,
+    transaction::{CallArg, ObjectArg, Transaction},
+};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 #[sim_test]
@@ -126,8 +127,8 @@ async fn delete_of_object_with_reconfiguration_receive_of_new_parent_and_old_chi
 }
 
 fn get_parent_and_child(created: Vec<(ObjectRef, Owner)>) -> (ObjectRef, ObjectRef) {
-    // make sure there is an object with an `AddressOwner` who matches the object ID of another
-    // object.
+    // make sure there is an object with an `AddressOwner` who matches the object ID
+    // of another object.
     let created_addrs: HashSet<_> = created.iter().map(|((i, _, _), _)| i).collect();
     let (child, parent_id) = created
         .iter()
@@ -210,11 +211,7 @@ impl TestEnvironment {
                 .iter()
                 .find_map(
                     |(oref, _)| {
-                        if oref.0 == child.0 {
-                            Some(*oref)
-                        } else {
-                            None
-                        }
+                        if oref.0 == child.0 { Some(*oref) } else { None }
                     },
                 )
                 .unwrap();

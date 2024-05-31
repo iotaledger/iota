@@ -1,20 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::Result;
-use std::collections::BTreeMap;
-use std::path::Path;
+use std::{collections::BTreeMap, path::Path};
 
+use anyhow::Result;
 use sui_indexer::framework::Handler;
 use sui_package_resolver::Resolver;
 use sui_rest_api::{CheckpointData, CheckpointTransaction};
 use sui_types::object::Object;
 
-use crate::handlers::{get_move_struct, parse_struct, AnalyticsHandler};
-
-use crate::package_store::{LocalDBPackageStore, PackageCache};
-use crate::tables::WrappedObjectEntry;
-use crate::FileType;
+use crate::{
+    handlers::{get_move_struct, parse_struct, AnalyticsHandler},
+    package_store::{LocalDBPackageStore, PackageCache},
+    tables::WrappedObjectEntry,
+    FileType,
+};
 
 pub struct WrappedObjectHandler {
     wrapped_objects: Vec<WrappedObjectEntry>,

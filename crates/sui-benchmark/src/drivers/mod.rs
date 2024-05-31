@@ -1,9 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{fmt::Formatter, str::FromStr, time::Duration};
+
 use duration_str::parse;
-use std::fmt::Formatter;
-use std::{str::FromStr, time::Duration};
 
 pub mod bench_driver;
 pub mod driver;
@@ -401,8 +401,8 @@ impl BenchmarkCmp<'_> {
     }
 }
 
-/// Convert an unsigned number into a string separated by `delim` every `step_size` digits
-/// For example used to make 100000 more readable as 100,000
+/// Convert an unsigned number into a string separated by `delim` every
+/// `step_size` digits For example used to make 100000 more readable as 100,000
 fn format_num_with_separators<T: Into<u128> + std::fmt::Display>(
     x: T,
     step_size: u8,

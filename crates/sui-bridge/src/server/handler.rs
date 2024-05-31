@@ -3,26 +3,25 @@
 
 #![allow(clippy::type_complexity)]
 
-use crate::crypto::{BridgeAuthorityKeyPair, BridgeAuthoritySignInfo};
-use crate::error::{BridgeError, BridgeResult};
-use crate::eth_client::EthClient;
-use crate::sui_client::{SuiClient, SuiClientInner};
-use crate::types::{BridgeAction, SignedBridgeAction};
+use std::{num::NonZeroUsize, str::FromStr, sync::Arc};
+
 use async_trait::async_trait;
 use axum::Json;
-use ethers::providers::JsonRpcClient;
-use ethers::types::TxHash;
+use ethers::{providers::JsonRpcClient, types::TxHash};
 use lru::LruCache;
-use std::num::NonZeroUsize;
-use std::str::FromStr;
-use std::sync::Arc;
 use sui_types::digests::TransactionDigest;
 use tap::TapFallible;
 use tokio::sync::{oneshot, Mutex};
-use tracing::info;
-use tracing::instrument;
+use tracing::{info, instrument};
 
 use super::governance_verifier::GovernanceVerifier;
+use crate::{
+    crypto::{BridgeAuthorityKeyPair, BridgeAuthoritySignInfo},
+    error::{BridgeError, BridgeResult},
+    eth_client::EthClient,
+    sui_client::{SuiClient, SuiClientInner},
+    types::{BridgeAction, SignedBridgeAction},
+};
 
 #[async_trait]
 pub trait BridgeRequestHandlerTrait {
@@ -128,8 +127,8 @@ where
                     .await
                     .unwrap_or_else(|| panic!("Server signer's channel is closed"));
                 let result = self.sign(key).await;
-                // The receiver may be dropped before the sender (client connection was dropped for example),
-                // we ignore the error in that case.
+                // The receiver may be dropped before the sender (client connection was dropped
+                // for example), we ignore the error in that case.
                 let _ = tx.send(result);
             }
         })
@@ -139,7 +138,8 @@ where
         &mut self,
         key: K,
     ) -> Arc<Mutex<Option<BridgeResult<SignedBridgeAction>>>> {
-        // This mutex exists to make sure everyone gets the same entry, namely no double insert
+        // This mutex exists to make sure everyone gets the same entry, namely no double
+        // insert
         let _ = self.mutex.lock().await;
         self.cache
             .get_or_insert(key, || Arc::new(Mutex::new(None)))
@@ -320,6 +320,10 @@ impl BridgeRequestHandlerTrait for BridgeRequestHandler {
 mod tests {
     use std::collections::HashSet;
 
+    use ethers::types::{Address as EthAddress, TransactionReceipt};
+    use sui_json_rpc_types::SuiEvent;
+    use sui_types::{base_types::SuiAddress, crypto::get_key_pair};
+
     use super::*;
     use crate::{
         eth_mock_provider::EthMockProvider,
@@ -333,9 +337,6 @@ mod tests {
             LimitUpdateAction, TokenId,
         },
     };
-    use ethers::types::{Address as EthAddress, TransactionReceipt};
-    use sui_json_rpc_types::SuiEvent;
-    use sui_types::{base_types::SuiAddress, crypto::get_key_pair};
 
     #[tokio::test]
     async fn test_sui_signer_with_cache() {
@@ -350,10 +351,12 @@ mod tests {
         // Test `get_cache_entry` creates a new entry if not exist
         let sui_tx_digest = TransactionDigest::random();
         let sui_event_idx = 42;
-        assert!(sui_signer_with_cache
-            .get_testing_only((sui_tx_digest, sui_event_idx))
-            .await
-            .is_none());
+        assert!(
+            sui_signer_with_cache
+                .get_testing_only((sui_tx_digest, sui_event_idx))
+                .await
+                .is_none()
+        );
         let entry = sui_signer_with_cache
             .get_cache_entry((sui_tx_digest, sui_event_idx))
             .await;
@@ -387,7 +390,8 @@ mod tests {
             .await;
         assert!(entry_.unwrap().lock().await.is_none());
 
-        // Mock a cacheable error such as no bridge events in tx position (empty event list)
+        // Mock a cacheable error such as no bridge events in tx position (empty event
+        // list)
         sui_client_mock.add_events_by_tx_digest(sui_tx_digest, vec![]);
         assert!(matches!(
             sui_signer_with_cache
@@ -403,8 +407,9 @@ mod tests {
             BridgeError::NoBridgeEventsInTxPosition,
         );
 
-        // TODO: test BridgeEventInUnrecognizedSuiPackage, SuiBridgeEvent::try_from_sui_event
-        // and BridgeEventNotActionable to be cached
+        // TODO: test BridgeEventInUnrecognizedSuiPackage,
+        // SuiBridgeEvent::try_from_sui_event and BridgeEventNotActionable to be
+        // cached
 
         // Test `sign` caches Ok result
         let emitted_event_1 = MoveTokenBridgeEvent {
@@ -447,7 +452,8 @@ mod tests {
             .unwrap();
 
         // Because the result is cached now, the verifier should not be called again.
-        // Even though we remove the `add_events_by_tx_digest` mock, we will still get the same result.
+        // Even though we remove the `add_events_by_tx_digest` mock, we will still get
+        // the same result.
         sui_client_mock.add_events_by_tx_digest(sui_tx_digest, vec![]);
         assert_eq!(
             sui_signer_with_cache
@@ -483,17 +489,20 @@ mod tests {
         // Test `get_cache_entry` creates a new entry if not exist
         let eth_tx_hash = TxHash::random();
         let eth_event_idx = 42;
-        assert!(eth_signer_with_cache
-            .get_testing_only((eth_tx_hash, eth_event_idx))
-            .await
-            .is_none());
+        assert!(
+            eth_signer_with_cache
+                .get_testing_only((eth_tx_hash, eth_event_idx))
+                .await
+                .is_none()
+        );
         let entry = eth_signer_with_cache
             .get_cache_entry((eth_tx_hash, eth_event_idx))
             .await;
         let entry_ = eth_signer_with_cache
             .get_testing_only((eth_tx_hash, eth_event_idx))
             .await;
-        // first unwrap should not pacic because the entry should have been inserted by `get_cache_entry`
+        // first unwrap should not pacic because the entry should have been inserted by
+        // `get_cache_entry`
         assert!(entry_.unwrap().lock().await.is_none());
 
         let (_, action) = get_test_log_and_action(contract_address, eth_tx_hash, eth_event_idx);

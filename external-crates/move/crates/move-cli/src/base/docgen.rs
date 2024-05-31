@@ -1,18 +1,21 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use super::reroot_path;
+use std::{fs, path::PathBuf};
+
 use clap::*;
 use move_docgen::DocgenOptions;
 use move_package::{BuildConfig, ModelConfig};
-use std::{fs, path::PathBuf};
+
+use super::reroot_path;
 
 /// Generate javadoc style documentation for Move packages
 #[derive(Parser)]
 #[clap(name = "docgen")]
 pub struct Docgen {
-    /// The level where we start sectioning. Often markdown sections are rendered with
-    /// unnecessary large section fonts, setting this value high reduces the size
+    /// The level where we start sectioning. Often markdown sections are
+    /// rendered with unnecessary large section fonts, setting this value
+    /// high reduces the size
     #[clap(long = "section-level-start", value_name = "HEADER_LEVEL")]
     pub section_level_start: Option<usize>,
     /// Whether to exclude private functions in the generated docs
@@ -21,8 +24,8 @@ pub struct Docgen {
     /// Whether to exclude specifications in the generated docs
     #[clap(long = "exclude-specs")]
     pub exclude_specs: bool,
-    /// Whether to put specifications in the same section as a declaration or put them all
-    /// into an independent section
+    /// Whether to put specifications in the same section as a declaration or
+    /// put them all into an independent section
     #[clap(long = "independent-specs")]
     pub independent_specs: bool,
     /// Whether to exclude Move implementations
@@ -40,8 +43,8 @@ pub struct Docgen {
     /// A template for documentation generation. Can be multiple
     #[clap(long = "template", short = 't', value_name = "FILE")]
     pub template: Vec<String>,
-    /// An optional file containing reference definitions. The content of this file will
-    /// be added to each generated markdown doc
+    /// An optional file containing reference definitions. The content of this
+    /// file will be added to each generated markdown doc
     #[clap(long = "references-file", value_name = "FILE")]
     pub references_file: Option<String>,
     /// Whether to include dependency diagrams in the generated docs
@@ -50,7 +53,8 @@ pub struct Docgen {
     /// Whether to include call diagrams in the generated docs
     #[clap(long = "include-call-diagrams")]
     pub include_call_diagrams: bool,
-    /// If this is being compiled relative to a different place where it will be stored (output directory)
+    /// If this is being compiled relative to a different place where it will be
+    /// stored (output directory)
     #[clap(long = "compile-relative-to-output-dir")]
     pub compile_relative_to_output_dir: bool,
 }

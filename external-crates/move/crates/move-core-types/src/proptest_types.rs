@@ -2,13 +2,14 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use proptest::{collection::vec, prelude::*};
+
 use crate::{
     account_address::AccountAddress,
     identifier::Identifier,
     language_storage::{StructTag, TypeTag},
     transaction_argument::TransactionArgument,
 };
-use proptest::{collection::vec, prelude::*};
 impl Arbitrary for TypeTag {
     type Parameters = ();
     type Strategy = BoxedStrategy<Self>;
