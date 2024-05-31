@@ -1,13 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::base_types::SequenceNumber;
-use crate::error::SuiResult;
-use crate::object::Owner;
-use crate::storage::ObjectStore;
-use crate::SUI_BRIDGE_OBJECT_ID;
-use move_core_types::ident_str;
-use move_core_types::identifier::IdentStr;
+use move_core_types::{ident_str, identifier::IdentStr};
+
+use crate::{
+    base_types::SequenceNumber, error::SuiResult, object::Owner, storage::ObjectStore,
+    SUI_BRIDGE_OBJECT_ID,
+};
 
 pub const BRIDGE_MODULE_NAME: &IdentStr = ident_str!("bridge");
 pub const BRIDGE_CREATE_FUNCTION_NAME: &IdentStr = ident_str!("create");

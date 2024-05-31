@@ -1,42 +1,48 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::client_commands::SuiClientCommands;
-use crate::console::start_console;
-use crate::fire_drill::{run_fire_drill, FireDrill};
-use crate::genesis_ceremony::{run, Ceremony};
-use crate::keytool::KeyToolCommand;
-use crate::validator_commands::SuiValidatorCommand;
+use std::{
+    fs, io,
+    io::{stderr, stdout, Write},
+    num::NonZeroUsize,
+    path::{Path, PathBuf},
+};
+
 use anyhow::{anyhow, bail};
 use clap::*;
 use fastcrypto::traits::KeyPair;
 use move_package::BuildConfig;
 use rand::rngs::OsRng;
-use std::io::{stderr, stdout, Write};
-use std::num::NonZeroUsize;
-use std::path::{Path, PathBuf};
-use std::{fs, io};
-use sui_config::node::Genesis;
-use sui_config::p2p::SeedPeer;
 use sui_config::{
-    sui_config_dir, Config, PersistedConfig, FULL_NODE_DB_PATH, SUI_CLIENT_CONFIG,
-    SUI_FULLNODE_CONFIG, SUI_NETWORK_CONFIG,
-};
-use sui_config::{
-    SUI_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, SUI_GENESIS_FILENAME, SUI_KEYSTORE_FILENAME,
+    node::Genesis, p2p::SeedPeer, sui_config_dir, Config, PersistedConfig, FULL_NODE_DB_PATH,
+    SUI_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, SUI_CLIENT_CONFIG, SUI_FULLNODE_CONFIG,
+    SUI_GENESIS_FILENAME, SUI_KEYSTORE_FILENAME, SUI_NETWORK_CONFIG,
 };
 use sui_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use sui_move::{self, execute_move_command};
 use sui_move_build::SuiPackageHooks;
-use sui_sdk::sui_client_config::{SuiClientConfig, SuiEnv};
-use sui_sdk::wallet_context::WalletContext;
+use sui_sdk::{
+    sui_client_config::{SuiClientConfig, SuiEnv},
+    wallet_context::WalletContext,
+};
 use sui_swarm::memory::Swarm;
-use sui_swarm_config::genesis_config::{GenesisConfig, DEFAULT_NUMBER_OF_AUTHORITIES};
-use sui_swarm_config::network_config::NetworkConfig;
-use sui_swarm_config::network_config_builder::ConfigBuilder;
-use sui_swarm_config::node_config_builder::FullnodeConfigBuilder;
+use sui_swarm_config::{
+    genesis_config::{GenesisConfig, DEFAULT_NUMBER_OF_AUTHORITIES},
+    network_config::NetworkConfig,
+    network_config_builder::ConfigBuilder,
+    node_config_builder::FullnodeConfigBuilder,
+};
 use sui_types::crypto::{SignatureScheme, SuiKeyPair};
 use tracing::info;
+
+use crate::{
+    client_commands::SuiClientCommands,
+    console::start_console,
+    fire_drill::{run_fire_drill, FireDrill},
+    genesis_ceremony::{run, Ceremony},
+    keytool::KeyToolCommand,
+    validator_commands::SuiValidatorCommand,
+};
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Parser)]
@@ -93,7 +99,7 @@ pub enum SuiCommand {
     KeyTool {
         #[clap(long)]
         keystore_path: Option<PathBuf>,
-        ///Return command outputs in json format
+        /// Return command outputs in json format
         #[clap(long, global = true)]
         json: bool,
         /// Subcommands.
@@ -103,14 +109,16 @@ pub enum SuiCommand {
     /// Start Sui interactive console.
     #[clap(name = "console")]
     Console {
-        /// Sets the file storing the state of our user accounts (an empty one will be created if missing)
+        /// Sets the file storing the state of our user accounts (an empty one
+        /// will be created if missing)
         #[clap(long = "client.config")]
         config: Option<PathBuf>,
     },
     /// Client for interacting with the Sui network.
     #[clap(name = "client")]
     Client {
-        /// Sets the file storing the state of our user accounts (an empty one will be created if missing)
+        /// Sets the file storing the state of our user accounts (an empty one
+        /// will be created if missing)
         #[clap(long = "client.config")]
         config: Option<PathBuf>,
         #[clap(subcommand)]
@@ -124,7 +132,8 @@ pub enum SuiCommand {
     /// A tool for validators and validator candidates.
     #[clap(name = "validator")]
     Validator {
-        /// Sets the file storing the state of our user accounts (an empty one will be created if missing)
+        /// Sets the file storing the state of our user accounts (an empty one
+        /// will be created if missing)
         #[clap(long = "client.config")]
         config: Option<PathBuf>,
         #[clap(subcommand)]
@@ -389,7 +398,10 @@ async fn genesis(
                 })?;
             }
         } else if files.len() != 2 || !client_path.exists() || !keystore_path.exists() {
-            bail!("Cannot run genesis with non-empty Sui config directory {}, please use the --force/-f option to remove the existing configuration", sui_config_dir.to_str().unwrap());
+            bail!(
+                "Cannot run genesis with non-empty Sui config directory {}, please use the --force/-f option to remove the existing configuration",
+                sui_config_dir.to_str().unwrap()
+            );
         }
     }
 
@@ -573,7 +585,10 @@ async fn prompt_if_no_config(
             }),
             None => {
                 if accept_defaults {
-                    print!("Creating config file [{:?}] with default (devnet) Full node server and ed25519 key scheme.", wallet_conf_path);
+                    print!(
+                        "Creating config file [{:?}] with default (devnet) Full node server and ed25519 key scheme.",
+                        wallet_conf_path
+                    );
                 } else {
                     print!(
                         "Config file [{:?}] doesn't exist, do you want to connect to a Sui Full node server [y/N]?",
@@ -622,7 +637,9 @@ async fn prompt_if_no_config(
             let key_scheme = if accept_defaults {
                 SignatureScheme::ED25519
             } else {
-                println!("Select key scheme to generate keypair (0 for ed25519, 1 for secp256k1, 2: for secp256r1):");
+                println!(
+                    "Select key scheme to generate keypair (0 for ed25519, 1 for secp256k1, 2: for secp256r1):"
+                );
                 match SignatureScheme::from_flag(read_line()?.trim()) {
                     Ok(s) => s,
                     Err(e) => return Err(anyhow!("{e}")),

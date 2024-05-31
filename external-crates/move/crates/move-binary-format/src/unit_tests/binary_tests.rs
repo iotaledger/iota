@@ -2,13 +2,15 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{file_format::Bytecode, file_format_common::*};
 use proptest::prelude::*;
+
+use crate::{file_format::Bytecode, file_format_common::*};
 
 #[test]
 fn size_canary() {
-    use crate::file_format::SignatureToken;
     use std::mem::size_of;
+
+    use crate::file_format::SignatureToken;
     assert_eq!(size_of::<SignatureToken>(), 16);
     assert_eq!(size_of::<Bytecode>(), 16);
 }

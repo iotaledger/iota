@@ -4,10 +4,12 @@
 use std::collections::BTreeMap;
 
 use sui_json_rpc_types::ObjectChange;
-use sui_types::base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress};
-use sui_types::effects::ObjectRemoveKind;
-use sui_types::object::Owner;
-use sui_types::storage::WriteKind;
+use sui_types::{
+    base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress},
+    effects::ObjectRemoveKind,
+    object::Owner,
+    storage::WriteKind,
+};
 
 use crate::ObjectProvider;
 

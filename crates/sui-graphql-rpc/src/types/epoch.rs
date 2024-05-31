@@ -3,26 +3,31 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use crate::context_data::db_data_provider::{convert_to_validators, PgManager};
-use crate::data::{Db, DbConnection, QueryExecutor};
-use crate::error::Error;
-
-use super::big_int::BigInt;
-use super::checkpoint::{self, Checkpoint, CheckpointId};
-use super::cursor::Page;
-use super::date_time::DateTime;
-use super::protocol_config::ProtocolConfigs;
-use super::system_state_summary::SystemStateSummary;
-use super::transaction_block::{self, TransactionBlock, TransactionBlockFilter};
-use super::validator_set::ValidatorSet;
-use async_graphql::connection::Connection;
-use async_graphql::dataloader::{DataLoader, Loader};
-use async_graphql::*;
+use async_graphql::{
+    connection::Connection,
+    dataloader::{DataLoader, Loader},
+    *,
+};
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, SelectableHelper};
 use fastcrypto::encoding::{Base58, Encoding};
-use sui_indexer::models::epoch::QueryableEpochInfo;
-use sui_indexer::schema::epochs;
+use sui_indexer::{models::epoch::QueryableEpochInfo, schema::epochs};
 use sui_types::messages_checkpoint::CheckpointCommitment as EpochCommitment;
+
+use super::{
+    big_int::BigInt,
+    checkpoint::{self, Checkpoint, CheckpointId},
+    cursor::Page,
+    date_time::DateTime,
+    protocol_config::ProtocolConfigs,
+    system_state_summary::SystemStateSummary,
+    transaction_block::{self, TransactionBlock, TransactionBlockFilter},
+    validator_set::ValidatorSet,
+};
+use crate::{
+    context_data::db_data_provider::{convert_to_validators, PgManager},
+    data::{Db, DbConnection, QueryExecutor},
+    error::Error,
+};
 
 #[derive(Clone)]
 pub(crate) struct Epoch {
@@ -30,29 +35,31 @@ pub(crate) struct Epoch {
     pub checkpoint_viewed_at: Option<u64>,
 }
 
-/// DataLoader key for fetching an `Epoch` by its ID, optionally constrained by a consistency
-/// cursor.
+/// DataLoader key for fetching an `Epoch` by its ID, optionally constrained by
+/// a consistency cursor.
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
 struct EpochKey {
     pub epoch_id: u64,
     pub checkpoint_viewed_at: Option<u64>,
 }
 
-/// Operation of the Sui network is temporally partitioned into non-overlapping epochs,
-/// and the network aims to keep epochs roughly the same duration as each other.
-/// During a particular epoch the following data is fixed:
+/// Operation of the Sui network is temporally partitioned into non-overlapping
+/// epochs, and the network aims to keep epochs roughly the same duration as
+/// each other. During a particular epoch the following data is fixed:
 ///
 /// - the protocol version
 /// - the reference gas price
 /// - the set of participating validators
 #[Object]
 impl Epoch {
-    /// The epoch's id as a sequence number that starts at 0 and is incremented by one at every epoch change.
+    /// The epoch's id as a sequence number that starts at 0 and is incremented
+    /// by one at every epoch change.
     async fn epoch_id(&self) -> u64 {
         self.stored.epoch as u64
     }
 
-    /// The minimum gas price that a quorum of validators are guaranteed to sign a transaction for.
+    /// The minimum gas price that a quorum of validators are guaranteed to sign
+    /// a transaction for.
     async fn reference_gas_price(&self) -> Option<BigInt> {
         Some(BigInt::from(self.stored.reference_gas_price as u64))
     }
@@ -164,14 +171,14 @@ impl Epoch {
         self.stored.storage_charge.map(BigInt::from)
     }
 
-    /// The storage fee rebates paid to users who deleted the data associated with past
-    /// transactions.
+    /// The storage fee rebates paid to users who deleted the data associated
+    /// with past transactions.
     async fn fund_outflow(&self) -> Option<BigInt> {
         self.stored.storage_rebate.map(BigInt::from)
     }
 
-    /// The epoch's corresponding protocol configuration, including the feature flags and the
-    /// configuration options.
+    /// The epoch's corresponding protocol configuration, including the feature
+    /// flags and the configuration options.
     async fn protocol_configs(&self, ctx: &Context<'_>) -> Result<ProtocolConfigs> {
         ProtocolConfigs::query(ctx.data_unchecked(), Some(self.protocol_version()))
             .await
@@ -187,8 +194,9 @@ impl Epoch {
         Ok(SystemStateSummary { native: state })
     }
 
-    /// A commitment by the committee at the end of epoch on the contents of the live object set at
-    /// that time. This can be used to verify state snapshots.
+    /// A commitment by the committee at the end of epoch on the contents of the
+    /// live object set at that time. This can be used to verify state
+    /// snapshots.
     async fn live_object_set_digest(&self) -> Result<Option<String>> {
         let Some(commitments) = self.stored.epoch_commitments.as_ref() else {
             return Ok(None);
@@ -268,8 +276,8 @@ impl Epoch {
         self.stored.protocol_version as u64
     }
 
-    /// Look up an `Epoch` in the database, optionally filtered by its Epoch ID. If no ID is
-    /// supplied, defaults to fetching the latest epoch.
+    /// Look up an `Epoch` in the database, optionally filtered by its Epoch ID.
+    /// If no ID is supplied, defaults to fetching the latest epoch.
     pub(crate) async fn query(
         ctx: &Context<'_>,
         filter: Option<u64>,
@@ -287,9 +295,9 @@ impl Epoch {
         }
     }
 
-    /// Look up the latest `Epoch` from the database, optionally filtered by a consistency cursor
-    /// (querying for a consistency cursor in the past looks for the latest epoch as of that
-    /// cursor).
+    /// Look up the latest `Epoch` from the database, optionally filtered by a
+    /// consistency cursor (querying for a consistency cursor in the past
+    /// looks for the latest epoch as of that cursor).
     pub(crate) async fn query_latest_at(
         db: &Db,
         checkpoint_viewed_at: Option<u64>,
@@ -367,9 +375,10 @@ impl Loader<EpochKey> for Db {
                     checkpoint_viewed_at: key.checkpoint_viewed_at,
                 };
 
-                // We filter by checkpoint viewed at in memory because it should be quite rare that
-                // this query actually filters something (only in edge cases), and not trying to
-                // encode it in the SQL query makes the query much simpler and therefore easier for
+                // We filter by checkpoint viewed at in memory because it should be quite rare
+                // that this query actually filters something (only in edge
+                // cases), and not trying to encode it in the SQL query makes
+                // the query much simpler and therefore easier for
                 // the DB to plan.
                 let start = epoch.stored.first_checkpoint_id as u64;
                 if matches!(key.checkpoint_viewed_at, Some(cp) if cp < start) {

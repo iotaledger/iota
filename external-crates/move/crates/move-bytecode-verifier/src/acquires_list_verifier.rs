@@ -2,18 +2,17 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module implements a checker for verifying properties about the acquires list on function
-//! definitions. Function definitions must annotate the global resources (declared in that module)
-//! accesssed by `BorrowGlobal`, `MoveFrom`, and any transitive function calls
-//! The list of acquired resources (stored in `FunctionDefinition`'s `acquires_global_resources`
-//! field) must have:
+//! This module implements a checker for verifying properties about the acquires
+//! list on function definitions. Function definitions must annotate the global
+//! resources (declared in that module) accesssed by `BorrowGlobal`, `MoveFrom`,
+//! and any transitive function calls The list of acquired resources (stored in
+//! `FunctionDefinition`'s `acquires_global_resources` field) must have:
 //! - No duplicate resources (checked by `check_duplication`)
 //! - No missing resources (any resource acquired must be present)
 //! - No additional resources (no extraneous resources not actually acquired)
 
 use std::collections::{BTreeSet, HashMap};
 
-use crate::meter::Meter;
 use move_binary_format::{
     access::ModuleAccess,
     errors::{PartialVMError, PartialVMResult},
@@ -24,6 +23,8 @@ use move_binary_format::{
     safe_unwrap,
 };
 use move_core_types::vm_status::StatusCode;
+
+use crate::meter::Meter;
 
 pub(crate) struct AcquiresVerifier<'a> {
     module: &'a CompiledModule,

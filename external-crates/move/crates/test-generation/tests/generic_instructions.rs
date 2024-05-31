@@ -33,8 +33,9 @@ fn unify_ty_param_empty_subst1() {
     assert!(!subst.check_and_add(TypeParameter(0), U64));
     assert!(!subst.check_and_add(TypeParameter(1), U64));
     assert!(subst.check_and_add(U64, TypeParameter(1)));
-    // Even if a type parameter can map to an instantiantion (due to a ground type on the stack) a
-    // non-grounded type on the stack cannot be unified with a particular instantiation.
+    // Even if a type parameter can map to an instantiantion (due to a ground type
+    // on the stack) a non-grounded type on the stack cannot be unified with a
+    // particular instantiation.
     assert!(!subst.check_and_add(TypeParameter(1), U64));
     assert!(subst.instantiation().len() == 2);
 }

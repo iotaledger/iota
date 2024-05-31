@@ -17,23 +17,20 @@ use sui_types::{
     committee::EpochId,
     digests::TransactionEffectsDigest,
     error::{SuiError, SuiResult},
-    fp_ensure,
+    executable_transaction::VerifiedExecutableTransaction,
+    fp_bail, fp_ensure,
     message_envelope::Message,
     storage::InputKey,
-    transaction::{TransactionDataAPI, VerifiedCertificate},
+    transaction::{SenderSignedData, TransactionDataAPI, VerifiedCertificate},
 };
-use sui_types::{executable_transaction::VerifiedExecutableTransaction, fp_bail};
-use tokio::sync::mpsc::UnboundedSender;
-use tokio::time::Instant;
+use tap::TapOptional;
+use tokio::{sync::mpsc::UnboundedSender, time::Instant};
 use tracing::{error, info, instrument, trace, warn};
 
-use crate::authority::AuthorityMetrics;
 use crate::{
-    authority::authority_per_epoch_store::AuthorityPerEpochStore,
+    authority::{authority_per_epoch_store::AuthorityPerEpochStore, AuthorityMetrics},
     execution_cache::ExecutionCacheRead,
 };
-use sui_types::transaction::SenderSignedData;
-use tap::TapOptional;
 
 #[cfg(test)]
 #[path = "unit_tests/transaction_manager_tests.rs"]
@@ -42,21 +39,24 @@ mod transaction_manager_tests;
 /// Minimum capacity of HashMaps used in TransactionManager.
 const MIN_HASHMAP_CAPACITY: usize = 1000;
 
-// Reject a transaction if transaction manager queue length is above this threshold.
-// 100_000 = 10k TPS * 5s resident time in transaction manager (pending + executing) * 2.
+// Reject a transaction if transaction manager queue length is above this
+// threshold. 100_000 = 10k TPS * 5s resident time in transaction manager
+// (pending + executing) * 2.
 pub(crate) const MAX_TM_QUEUE_LENGTH: usize = 100_000;
 
-// Reject a transaction if the number of pending transactions depending on the object
-// is above the threshold.
+// Reject a transaction if the number of pending transactions depending on the
+// object is above the threshold.
 pub(crate) const MAX_PER_OBJECT_QUEUE_LENGTH: usize = 200;
 
-/// TransactionManager is responsible for managing object dependencies of pending transactions,
-/// and publishing a stream of certified transactions (certificates) ready to execute.
-/// It receives certificates from Narwhal, validator RPC handlers, and checkpoint executor.
-/// Execution driver subscribes to the stream of ready certificates from TransactionManager, and
+/// TransactionManager is responsible for managing object dependencies of
+/// pending transactions, and publishing a stream of certified transactions
+/// (certificates) ready to execute. It receives certificates from Narwhal,
+/// validator RPC handlers, and checkpoint executor. Execution driver subscribes
+/// to the stream of ready certificates from TransactionManager, and
 /// executes them in parallel.
-/// The actual execution logic is inside AuthorityState. After a transaction commits and updates
-/// storage, committed objects and certificates are notified back to TransactionManager.
+/// The actual execution logic is inside AuthorityState. After a transaction
+/// commits and updates storage, committed objects and certificates are notified
+/// back to TransactionManager.
 pub struct TransactionManager {
     cache_read: Arc<dyn ExecutionCacheRead>,
     tx_ready_certificates: UnboundedSender<PendingCertificate>,
@@ -79,7 +79,8 @@ pub struct PendingCertificate {
     // When executing from checkpoint, the certified effects digest is provided, so that forks can
     // be detected prior to committing the transaction.
     pub expected_effects_digest: Option<TransactionEffectsDigest>,
-    // The input object this certificate is waiting for to become available in order to be executed.
+    // The input object this certificate is waiting for to become available in order to be
+    // executed.
     pub waiting_input_objects: BTreeSet<InputKey>,
     // Stores stats about this transaction.
     pub stats: PendingCertificateStats,
@@ -148,9 +149,9 @@ impl CacheInner {
                 .transaction_manager_object_cache_size
                 .set(self.versioned_cache.len() as i64);
         } else if let Some((previous_id, _)) = self.unversioned_cache.push(object.id(), ()) {
-            // lru_cache will does not check if the value being evicted is the same as the value
-            // being inserted, so we do need to check if the id is different before counting this
-            // as an eviction.
+            // lru_cache will does not check if the value being evicted is the same as the
+            // value being inserted, so we do need to check if the id is
+            // different before counting this as an eviction.
             if previous_id != object.id() {
                 self.metrics
                     .transaction_manager_package_cache_evictions
@@ -162,8 +163,8 @@ impl CacheInner {
         }
     }
 
-    // Returns Some(true/false) for a definitive result. Returns None if the caller must defer to
-    // the db.
+    // Returns Some(true/false) for a definitive result. Returns None if the caller
+    // must defer to the db.
     fn is_object_available(&mut self, object: &InputKey) -> Option<bool> {
         if let Some(version) = object.version() {
             if let Some(current) = self.versioned_cache.get(&object.id()) {
@@ -260,8 +261,8 @@ impl Inner {
         }
     }
 
-    // Checks if there is any transaction waiting on `input_key`. Returns all the pending
-    // transactions that are ready to be executed.
+    // Checks if there is any transaction waiting on `input_key`. Returns all the
+    // pending transactions that are ready to be executed.
     // Must ensure input_key is available in storage before calling this function.
     fn find_ready_transactions(
         &mut self,
@@ -327,7 +328,8 @@ impl Inner {
         self.executing_certificates.maybe_reserve_capacity();
     }
 
-    /// After reaching 1/4 load in hashmaps, decrease capacity to increase load to 1/2.
+    /// After reaching 1/4 load in hashmaps, decrease capacity to increase load
+    /// to 1/2.
     fn maybe_shrink_capacity(&mut self) {
         self.missing_inputs.maybe_shrink_capacity();
         self.input_objects.maybe_shrink_capacity();
@@ -337,9 +339,10 @@ impl Inner {
 }
 
 impl TransactionManager {
-    /// If a node restarts, transaction manager recovers in-memory data from pending_certificates,
-    /// which contains certificates not yet executed from Narwhal output and RPC.
-    /// Transactions from other sources, e.g. checkpoint executor, have own persistent storage to
+    /// If a node restarts, transaction manager recovers in-memory data from
+    /// pending_certificates, which contains certificates not yet executed
+    /// from Narwhal output and RPC. Transactions from other sources, e.g.
+    /// checkpoint executor, have own persistent storage to
     /// retry transactions.
     pub(crate) fn new(
         cache_read: Arc<dyn ExecutionCacheRead>,
@@ -357,11 +360,12 @@ impl TransactionManager {
         transaction_manager
     }
 
-    /// Enqueues certificates / verified transactions into TransactionManager. Once all of the input objects are available
-    /// locally for a certificate, the certified transaction will be sent to execution driver.
+    /// Enqueues certificates / verified transactions into TransactionManager.
+    /// Once all of the input objects are available locally for a
+    /// certificate, the certified transaction will be sent to execution driver.
     ///
-    /// REQUIRED: Shared object locks must be taken before calling enqueueing transactions
-    /// with shared objects!
+    /// REQUIRED: Shared object locks must be taken before calling enqueueing
+    /// transactions with shared objects!
     #[instrument(level = "trace", skip_all)]
     pub(crate) fn enqueue_certificates(
         &self,
@@ -503,9 +507,9 @@ impl TransactionManager {
             .into_iter()
             .zip(input_object_cache_misses);
 
-        // After this point, the function cannot return early and must run to the end. Otherwise,
-        // it can lead to data inconsistencies and potentially some transactions will never get
-        // executed.
+        // After this point, the function cannot return early and must run to the end.
+        // Otherwise, it can lead to data inconsistencies and potentially some
+        // transactions will never get executed.
 
         // Internal lock is held only for updating the internal state.
         let mut inner = self.inner.write();
@@ -514,10 +518,11 @@ impl TransactionManager {
 
         for (available, key) in cache_miss_availability {
             if available && key.version().is_none() {
-                // Mutable objects obtained from cache_miss_availability usually will not be read
-                // again, so we do not want to evict other objects in order to insert them into the
-                // cache. However, packages will likely be read often, so we do want to insert them
-                // even if they cause evictions.
+                // Mutable objects obtained from cache_miss_availability usually will not be
+                // read again, so we do not want to evict other objects in order
+                // to insert them into the cache. However, packages will likely
+                // be read often, so we do want to insert them even if they
+                // cause evictions.
                 inner.available_objects_cache.insert(&key);
             }
             object_availability
@@ -525,9 +530,10 @@ impl TransactionManager {
                 .expect("entry must already exist");
         }
 
-        // Now recheck the cache for anything that became available (via notify_commit) since we
-        // read cache_miss_availability - because the cache is unbounded mode it is guaranteed to
-        // contain all notifications that arrived since we released the lock on self.inner.
+        // Now recheck the cache for anything that became available (via notify_commit)
+        // since we read cache_miss_availability - because the cache is
+        // unbounded mode it is guaranteed to contain all notifications that
+        // arrived since we released the lock on self.inner.
         for (key, value) in object_availability.iter_mut() {
             if !value.expect("all objects must have been checked by now") {
                 if let Some(true) = inner.available_objects_cache.is_object_available(key) {
@@ -554,10 +560,11 @@ impl TransactionManager {
         }
 
         for mut pending_cert in pending {
-            // Tx lock is not held here, which makes it possible to send duplicated transactions to
-            // the execution driver after crash-recovery, when the same transaction is recovered
-            // from recovery log and pending certificates table. The transaction will still only
-            // execute once, because tx lock is acquired in execution driver and executed effects
+            // Tx lock is not held here, which makes it possible to send duplicated
+            // transactions to the execution driver after crash-recovery, when
+            // the same transaction is recovered from recovery log and pending
+            // certificates table. The transaction will still only execute once,
+            // because tx lock is acquired in execution driver and executed effects
             // table is consulted. So this behavior is benigh.
             let digest = *pending_cert.certificate.digest();
 
@@ -733,7 +740,12 @@ impl TransactionManager {
             let _scope = monitored_scope("TransactionManager::notify_commit::wlock");
 
             if inner.epoch != epoch_store.epoch() {
-                warn!("Ignoring committed certificate from wrong epoch. Expected={} Actual={} CertificateDigest={:?}", inner.epoch, epoch_store.epoch(), digest);
+                warn!(
+                    "Ignoring committed certificate from wrong epoch. Expected={} Actual={} CertificateDigest={:?}",
+                    inner.epoch,
+                    epoch_store.epoch(),
+                    digest
+                );
                 return;
             }
 
@@ -746,7 +758,10 @@ impl TransactionManager {
             );
 
             if !inner.executing_certificates.remove(digest) {
-                trace!("{:?} not found in executing certificates, likely because it is a system transaction", digest);
+                trace!(
+                    "{:?} not found in executing certificates, likely because it is a system transaction",
+                    digest
+                );
                 return;
             }
 
@@ -765,9 +780,11 @@ impl TransactionManager {
         trace!(tx_digest = ?pending_certificate.certificate.digest(), "certificate ready");
         assert_eq!(pending_certificate.waiting_input_objects.len(), 0);
         // Record as an executing certificate.
-        assert!(inner
-            .executing_certificates
-            .insert(*pending_certificate.certificate.digest()));
+        assert!(
+            inner
+                .executing_certificates
+                .insert(*pending_certificate.certificate.digest())
+        );
         self.metrics.txn_ready_rate_tracker.lock().record();
         let _ = self.tx_ready_certificates.send(pending_certificate);
         self.metrics.transaction_manager_num_ready.inc();
@@ -783,7 +800,8 @@ impl TransactionManager {
             .map(|cert| cert.waiting_input_objects.clone().into_iter().collect())
     }
 
-    // Returns the number of transactions waiting on each object ID, as well as the age of the oldest transaction in the queue.
+    // Returns the number of transactions waiting on each object ID, as well as the
+    // age of the oldest transaction in the queue.
     pub(crate) fn objects_queue_len_and_age(
         &self,
         keys: Vec<ObjectID>,
@@ -808,8 +826,9 @@ impl TransactionManager {
         inner.pending_certificates.len() + inner.executing_certificates.len()
     }
 
-    // Reconfigures the TransactionManager for a new epoch. Existing transactions will be dropped
-    // because they are no longer relevant and may be incorrect in the new epoch.
+    // Reconfigures the TransactionManager for a new epoch. Existing transactions
+    // will be dropped because they are no longer relevant and may be incorrect
+    // in the new epoch.
     pub(crate) fn reconfigure(&self, new_epoch: EpochId) {
         let mut inner = self.inner.write();
         *inner = Inner::new(new_epoch, self.metrics.clone());
@@ -852,9 +871,14 @@ impl TransactionManager {
                 });
             }
             if let Some(age) = txn_age {
-                // Check that we don't have a txn that has been waiting for a long time in the queue.
+                // Check that we don't have a txn that has been waiting for a long time in the
+                // queue.
                 if age >= txn_age_threshold {
-                    info!("Overload detected on object {:?} with oldest transaction pending for {} secs", object_id, age.as_secs());
+                    info!(
+                        "Overload detected on object {:?} with oldest transaction pending for {} secs",
+                        object_id,
+                        age.as_secs()
+                    );
                     fp_bail!(SuiError::TooOldTransactionPendingOnObject {
                         object_id,
                         txn_age_sec: age.as_secs(),
@@ -902,14 +926,16 @@ impl<K, V> ResizableHashMap<K, V> for HashMap<K, V>
 where
     K: std::cmp::Eq + std::hash::Hash,
 {
-    /// After reaching 3/4 load in hashmaps, increase capacity to decrease load to 1/2.
+    /// After reaching 3/4 load in hashmaps, increase capacity to decrease load
+    /// to 1/2.
     fn maybe_reserve_capacity(&mut self) {
         if self.len() > self.capacity() * 3 / 4 {
             self.reserve(self.capacity() / 2);
         }
     }
 
-    /// After reaching 1/4 load in hashmaps, decrease capacity to increase load to 1/2.
+    /// After reaching 1/4 load in hashmaps, decrease capacity to increase load
+    /// to 1/2.
     fn maybe_shrink_capacity(&mut self) {
         if self.len() > MIN_HASHMAP_CAPACITY && self.len() < self.capacity() / 4 {
             self.shrink_to(max(self.capacity() / 2, MIN_HASHMAP_CAPACITY))
@@ -926,14 +952,16 @@ impl<K> ResizableHashSet<K> for HashSet<K>
 where
     K: std::cmp::Eq + std::hash::Hash,
 {
-    /// After reaching 3/4 load in hashset, increase capacity to decrease load to 1/2.
+    /// After reaching 3/4 load in hashset, increase capacity to decrease load
+    /// to 1/2.
     fn maybe_reserve_capacity(&mut self) {
         if self.len() > self.capacity() * 3 / 4 {
             self.reserve(self.capacity() / 2);
         }
     }
 
-    /// After reaching 1/4 load in hashset, decrease capacity to increase load to 1/2.
+    /// After reaching 1/4 load in hashset, decrease capacity to increase load
+    /// to 1/2.
     fn maybe_shrink_capacity(&mut self) {
         if self.len() > MIN_HASHMAP_CAPACITY && self.len() < self.capacity() / 4 {
             self.shrink_to(max(self.capacity() / 2, MIN_HASHMAP_CAPACITY))
@@ -943,8 +971,9 @@ where
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use prometheus::Registry;
+
+    use super::*;
 
     #[test]
     #[cfg_attr(msim, ignore)]
@@ -1010,7 +1039,8 @@ mod test {
             version: 10.into(),
         };
         assert_eq!(cache.is_object_available(&input_key), Some(false));
-        // it is available at version 8 (this case can be used by readonly shared objects)
+        // it is available at version 8 (this case can be used by readonly shared
+        // objects)
         let input_key = InputKey::VersionedObject {
             id: object,
             version: 8.into(),

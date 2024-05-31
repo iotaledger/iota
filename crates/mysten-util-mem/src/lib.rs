@@ -32,10 +32,11 @@ pub mod allocators;
 pub mod sizeof;
 
 /// This is a copy of patched crate `malloc_size_of` as a module.
-/// We need to have it as an inner module to be able to define our own traits implementation,
-/// if at some point the trait become standard enough we could use the right way of doing it
-/// by implementing it in our type traits crates. At this time moving this trait to the primitive
-/// types level would impact too much of the dependencies to be easily manageable.
+/// We need to have it as an inner module to be able to define our own traits
+/// implementation, if at some point the trait become standard enough we could
+/// use the right way of doing it by implementing it in our type traits crates.
+/// At this time moving this trait to the primitive types level would impact too
+/// much of the dependencies to be easily manageable.
 #[macro_use]
 mod malloc_size;
 
@@ -43,7 +44,6 @@ pub mod external_impls;
 
 pub use allocators::MallocSizeOfExt;
 pub use malloc_size::{MallocShallowSizeOf, MallocSizeOf, MallocSizeOfOps};
-
 pub use mysten_util_mem_derive::*;
 
 /// Heap size of structure.
@@ -98,8 +98,9 @@ impl MemoryAllocationTracker {
 #[cfg(feature = "std")]
 #[cfg(test)]
 mod test {
-    use super::{malloc_size, MallocSizeOf, MallocSizeOfExt};
     use std::sync::Arc;
+
+    use super::{malloc_size, MallocSizeOf, MallocSizeOfExt};
 
     #[test]
     fn test_arc() {

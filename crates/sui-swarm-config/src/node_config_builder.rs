@@ -1,32 +1,39 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::genesis_config::{ValidatorGenesisConfig, ValidatorGenesisConfigBuilder};
-use crate::network_config::NetworkConfig;
-use fastcrypto::encoding::{Encoding, Hex};
-use fastcrypto::traits::KeyPair;
-use narwhal_config::{NetworkAdminServerParameters, PrometheusMetricsParameters};
-use std::net::SocketAddr;
-use std::path::PathBuf;
-use std::time::Duration;
-use sui_config::node::{
-    default_enable_index_processing, default_end_of_epoch_broadcast_channel_capacity,
-    AuthorityKeyPairWithPath, AuthorityOverloadConfig, AuthorityStorePruningConfig,
-    CheckpointExecutorConfig, DBCheckpointConfig, ExpensiveSafetyCheckConfig, Genesis,
-    KeyPairWithPath, StateArchiveConfig, StateSnapshotConfig, DEFAULT_GRPC_CONCURRENCY_LIMIT,
+use std::{net::SocketAddr, path::PathBuf, time::Duration};
+
+use fastcrypto::{
+    encoding::{Encoding, Hex},
+    traits::KeyPair,
 };
-use sui_config::node::{default_zklogin_oauth_providers, ConsensusProtocol, RunWithRange};
-use sui_config::p2p::{P2pConfig, SeedPeer, StateSyncConfig};
+use narwhal_config::{NetworkAdminServerParameters, PrometheusMetricsParameters};
 use sui_config::{
-    local_ip_utils, ConsensusConfig, NodeConfig, AUTHORITIES_DB_NAME, CONSENSUS_DB_NAME,
-    FULL_NODE_DB_PATH,
+    local_ip_utils,
+    node::{
+        default_enable_index_processing, default_end_of_epoch_broadcast_channel_capacity,
+        default_zklogin_oauth_providers, AuthorityKeyPairWithPath, AuthorityOverloadConfig,
+        AuthorityStorePruningConfig, CheckpointExecutorConfig, ConsensusProtocol,
+        DBCheckpointConfig, ExpensiveSafetyCheckConfig, Genesis, KeyPairWithPath, RunWithRange,
+        StateArchiveConfig, StateSnapshotConfig, DEFAULT_GRPC_CONCURRENCY_LIMIT,
+    },
+    p2p::{P2pConfig, SeedPeer, StateSyncConfig},
+    ConsensusConfig, NodeConfig, AUTHORITIES_DB_NAME, CONSENSUS_DB_NAME, FULL_NODE_DB_PATH,
 };
 use sui_protocol_config::SupportedProtocolVersions;
-use sui_types::crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair, SuiKeyPair};
-use sui_types::multiaddr::Multiaddr;
+use sui_types::{
+    crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair, SuiKeyPair},
+    multiaddr::Multiaddr,
+};
 
-/// This builder contains information that's not included in ValidatorGenesisConfig for building
-/// a validator NodeConfig. It can be used to build either a genesis validator or a new validator.
+use crate::{
+    genesis_config::{ValidatorGenesisConfig, ValidatorGenesisConfigBuilder},
+    network_config::NetworkConfig,
+};
+
+/// This builder contains information that's not included in
+/// ValidatorGenesisConfig for building a validator NodeConfig. It can be used
+/// to build either a genesis validator or a new validator.
 #[derive(Clone, Default)]
 pub struct ValidatorConfigBuilder {
     config_directory: Option<PathBuf>,
@@ -173,7 +180,8 @@ impl ValidatorConfigBuilder {
             supported_protocol_versions: self.supported_protocol_versions,
             db_checkpoint_config: Default::default(),
             indirect_objects_threshold: usize::MAX,
-            // By default, expensive checks will be enabled in debug build, but not in release build.
+            // By default, expensive checks will be enabled in debug build, but not in release
+            // build.
             expensive_safety_check_config: ExpensiveSafetyCheckConfig::default(),
             name_service_package_address: None,
             name_service_registry_id: None,
@@ -330,8 +338,8 @@ impl FullnodeConfigBuilder {
         rng: &mut R,
         network_config: &NetworkConfig,
     ) -> NodeConfig {
-        // Take advantage of ValidatorGenesisConfigBuilder to build the keypairs and addresses,
-        // even though this is a fullnode.
+        // Take advantage of ValidatorGenesisConfigBuilder to build the keypairs and
+        // addresses, even though this is a fullnode.
         let validator_config = ValidatorGenesisConfigBuilder::new().build(rng);
         let ip = validator_config
             .network_address
@@ -453,11 +461,13 @@ impl FullnodeConfigBuilder {
     }
 }
 
-/// Given a validator keypair, return a path that can be used to identify the validator.
+/// Given a validator keypair, return a path that can be used to identify the
+/// validator.
 fn get_key_path(key_pair: &AuthorityKeyPair) -> String {
     let public_key: AuthorityPublicKeyBytes = key_pair.public().into();
     let mut key_path = Hex::encode(public_key);
-    // 12 is rather arbitrary here but it's a nice balance between being short and being unique.
+    // 12 is rather arbitrary here but it's a nice balance between being short and
+    // being unique.
     key_path.truncate(12);
     key_path
 }

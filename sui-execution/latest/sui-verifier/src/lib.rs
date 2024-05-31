@@ -27,8 +27,8 @@ fn to_verification_timeout_error(error: String) -> ExecutionError {
     ExecutionError::new_with_source(ExecutionErrorKind::SuiMoveVerificationTimedout, error)
 }
 
-/// Runs the Move verifier and checks if the error counts as a Move verifier timeout
-/// NOTE: this function only check if the verifier error is a timeout
+/// Runs the Move verifier and checks if the error counts as a Move verifier
+/// timeout NOTE: this function only check if the verifier error is a timeout
 /// All other errors are ignored
 pub fn check_for_verifier_timeout(major_status_code: &StatusCode) -> bool {
     [
@@ -79,7 +79,7 @@ pub fn default_verifier_config(
         max_basic_blocks_in_script: None,
         max_per_fun_meter_units,
         max_per_mod_meter_units,
-        max_idenfitier_len: protocol_config.max_move_identifier_len_as_option(), // Before protocol version 9, there was no limit
+        max_idenfitier_len: protocol_config.max_move_identifier_len_as_option(), /* Before protocol version 9, there was no limit */
         allow_receiving_object_id: protocol_config.allow_receiving_object_id(),
         reject_mutable_random_on_entry_functions: protocol_config
             .reject_mutable_random_on_entry_functions(),

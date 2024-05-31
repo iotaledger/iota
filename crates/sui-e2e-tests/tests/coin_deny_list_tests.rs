@@ -2,19 +2,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::path::PathBuf;
+
 use sui_core::authority::epoch_start_configuration::EpochStartConfigTrait;
-use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
-use sui_json_rpc_types::SuiTransactionBlockKind;
-use sui_json_rpc_types::{SuiTransactionBlockDataAPI, SuiTransactionBlockResponseOptions};
-use sui_macros::sim_test;
-use sui_types::deny_list::RegulatedCoinMetadata;
-use sui_types::deny_list::{
-    get_coin_deny_list, get_deny_list_obj_initial_shared_version, get_deny_list_root_object,
-    CoinDenyCap, DenyList,
+use sui_json_rpc_types::{
+    SuiTransactionBlockDataAPI, SuiTransactionBlockEffectsAPI, SuiTransactionBlockKind,
+    SuiTransactionBlockResponseOptions,
 };
-use sui_types::id::UID;
-use sui_types::storage::ObjectStore;
-use sui_types::SUI_DENY_LIST_OBJECT_ID;
+use sui_macros::sim_test;
+use sui_types::{
+    deny_list::{
+        get_coin_deny_list, get_deny_list_obj_initial_shared_version, get_deny_list_root_object,
+        CoinDenyCap, DenyList, RegulatedCoinMetadata,
+    },
+    id::UID,
+    storage::ObjectStore,
+    SUI_DENY_LIST_OBJECT_ID,
+};
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]
@@ -26,14 +29,16 @@ async fn test_coin_deny_list_creation() {
         .await;
     for handle in test_cluster.all_node_handles() {
         handle.with(|node| {
-            assert!(get_deny_list_obj_initial_shared_version(
-                node.state().get_object_store().as_ref()
-            )
-            .is_none());
-            assert!(!node
-                .state()
-                .epoch_store_for_testing()
-                .coin_deny_list_state_exists());
+            assert!(
+                get_deny_list_obj_initial_shared_version(node.state().get_object_store().as_ref())
+                    .is_none()
+            );
+            assert!(
+                !node
+                    .state()
+                    .epoch_store_for_testing()
+                    .coin_deny_list_state_exists()
+            );
         });
     }
     test_cluster.wait_for_epoch_all_nodes(2).await;

@@ -1,15 +1,23 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! This analysis flags potential custom implementations of transfer/share/freeze calls on objects
-//! that already have a store ability and where "public" variants of these calls can be used. This
-//! can be dangerous as custom transfer/share/freeze operation is becoming unenforceable in this
-//! situation.  A function is considered a potential custom implementation if it takes as a
-//! parameter an instance of a struct type defined in a given module with a store ability and passes
-//! it as an argument to a "private" transfer/share/freeze call.
+//! This analysis flags potential custom implementations of
+//! transfer/share/freeze calls on objects that already have a store ability and
+//! where "public" variants of these calls can be used. This can be dangerous as
+//! custom transfer/share/freeze operation is becoming unenforceable in this
+//! situation.  A function is considered a potential custom implementation if it
+//! takes as a parameter an instance of a struct type defined in a given module
+//! with a store ability and passes it as an argument to a "private"
+//! transfer/share/freeze call.
+
+use std::collections::BTreeMap;
 
 use move_ir_types::location::*;
 
+use super::{
+    LinterDiagCategory, FREEZE_FUN, INVALID_LOC, LINTER_DEFAULT_DIAG_CODE, LINT_WARNING_PREFIX,
+    RECEIVE_FUN, SHARE_FUN, SUI_PKG_NAME, TRANSFER_FUN, TRANSFER_MOD_NAME,
+};
 use crate::{
     cfgir::{
         absint::JoinResult,
@@ -29,12 +37,6 @@ use crate::{
     },
     parser::ast::Ability_,
     shared::{CompilationEnv, Identifier},
-};
-use std::collections::BTreeMap;
-
-use super::{
-    LinterDiagCategory, FREEZE_FUN, INVALID_LOC, LINTER_DEFAULT_DIAG_CODE, LINT_WARNING_PREFIX,
-    RECEIVE_FUN, SHARE_FUN, SUI_PKG_NAME, TRANSFER_FUN, TRANSFER_MOD_NAME,
 };
 
 const PRIVATE_OBJ_FUNCTIONS: &[(&str, &str, &str)] = &[
@@ -63,7 +65,8 @@ pub struct CustomStateChangeVerifierAI {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum Value {
-    /// An instance of a struct defined within a given module with a store ability.
+    /// An instance of a struct defined within a given module with a store
+    /// ability.
     LocalObjWithStore(Loc),
     #[default]
     Other,
@@ -152,8 +155,10 @@ impl SimpleAbsInt for CustomStateChangeVerifierAI {
                                        the public_{fname} function which often negates the intent \
                                        of enforcing a custom {op} policy"
                 );
-                let note_msg = format!("A custom {op} policy for a given type is implemented through calling \
-                                       the private {fname} function variant in the module defining this type");
+                let note_msg = format!(
+                    "A custom {op} policy for a given type is implemented through calling \
+                                       the private {fname} function variant in the module defining this type"
+                );
                 let mut d = diag!(
                     CUSTOM_STATE_CHANGE_DIAG,
                     (self.fn_name_loc, msg),
@@ -161,7 +166,10 @@ impl SimpleAbsInt for CustomStateChangeVerifierAI {
                 );
                 d.add_note(note_msg);
                 if obj_addr_loc != INVALID_LOC {
-                    let loc_msg = format!("An instance of a module-private type with a store ability to be {} coming from here", action);
+                    let loc_msg = format!(
+                        "An instance of a module-private type with a store ability to be {} coming from here",
+                        action
+                    );
                     d.add_secondary_label((obj_addr_loc, loc_msg));
                 }
                 context.add_diag(d)

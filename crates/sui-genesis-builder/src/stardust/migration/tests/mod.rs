@@ -1,21 +1,20 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk::types::block::address::AliasAddress;
-use iota_sdk::types::block::output::feature::Irc30Metadata;
-use iota_sdk::types::block::output::feature::MetadataFeature;
-use iota_sdk::types::block::output::unlock_condition::ImmutableAliasAddressUnlockCondition;
-use iota_sdk::types::block::output::AliasId;
-use iota_sdk::types::block::output::Feature;
-use iota_sdk::types::block::output::FoundryOutput;
-use iota_sdk::types::block::output::FoundryOutputBuilder;
-use iota_sdk::types::block::output::Output;
-use iota_sdk::types::block::output::SimpleTokenScheme;
-use iota_sdk::types::block::output::TokenScheme;
+use iota_sdk::types::block::{
+    address::AliasAddress,
+    output::{
+        feature::{Irc30Metadata, MetadataFeature},
+        unlock_condition::ImmutableAliasAddressUnlockCondition,
+        AliasId, Feature, FoundryOutput, FoundryOutputBuilder, Output, SimpleTokenScheme,
+        TokenScheme,
+    },
+};
 
-use crate::stardust::migration::executor::Executor;
-use crate::stardust::migration::migration::Migration;
-use crate::stardust::types::snapshot::OutputHeader;
+use crate::stardust::{
+    migration::{executor::Executor, migration::Migration},
+    types::snapshot::OutputHeader,
+};
 
 mod alias;
 mod executor;
