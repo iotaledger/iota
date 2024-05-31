@@ -1,13 +1,16 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::str::FromStr;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    str::FromStr,
+};
 
 use iota_sdk::{
     types::block::{
-        address::{AliasAddress, Ed25519Address, NftAddress},
+        address::{AliasAddress, Ed25519Address, Hrp, NftAddress, ToBech32Ext},
         output::{
-            feature::{Irc30Metadata, IssuerFeature, MetadataFeature, SenderFeature},
+            feature::{Attribute, Irc30Metadata, IssuerFeature, MetadataFeature, SenderFeature},
             unlock_condition::{
                 AddressUnlockCondition, GovernorAddressUnlockCondition,
                 StateControllerAddressUnlockCondition,
@@ -20,7 +23,8 @@ use iota_sdk::{
 };
 use move_core_types::ident_str;
 use sui_types::{
-    base_types::ObjectID,
+    base_types::{ObjectID, SuiAddress},
+    collection_types::VecMap,
     dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo},
     id::UID,
     object::{Object, Owner},
@@ -33,8 +37,9 @@ use crate::stardust::{
         random_output_header, run_migration,
     },
     types::{
-        snapshot::OutputHeader, stardust_to_sui_address, Nft, NftOutput, ALIAS_OUTPUT_MODULE_NAME,
-        NFT_DYNAMIC_OBJECT_FIELD_KEY, NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE, NFT_OUTPUT_MODULE_NAME,
+        snapshot::OutputHeader, stardust_to_sui_address, FixedPoint32, Irc27Metadata, Nft,
+        NftOutput, ALIAS_OUTPUT_MODULE_NAME, NFT_DYNAMIC_OBJECT_FIELD_KEY,
+        NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE, NFT_OUTPUT_MODULE_NAME,
     },
 };
 
@@ -259,4 +264,212 @@ fn nft_migration_with_native_tokens() {
         NFT_OUTPUT_MODULE_NAME,
         native_token,
     );
+}
+
+#[test]
+fn nft_migration_with_valid_irc27_metadata() {
+    let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+    let random_address2 = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+    let header = random_output_header();
+
+    let hrp = Hrp::from_str_unchecked("atoi");
+    let mut attributes = BTreeSet::new();
+    attributes.insert(Attribute::new("planet", "earth"));
+    attributes.insert(Attribute::new("languages", vec!["english", "rust"]));
+
+    let mut royalties = BTreeMap::new();
+    royalties.insert(random_address.to_bech32(hrp), 10.0);
+    royalties.insert(random_address2.to_bech32(hrp), 5.0);
+
+    let metadata = iota_sdk::types::block::output::feature::Irc27Metadata::new(
+        "image/png",
+        "https://nft.org/nft.png".parse().unwrap(),
+        "NFT",
+    )
+    .with_issuer_name("issuer_name")
+    .with_collection_name("collection_name")
+    .with_royalties(royalties)
+    .with_description("description")
+    .with_attributes(attributes);
+
+    let stardust_nft = NftOutputBuilder::new_with_amount(1_000_000, NftId::new(rand::random()))
+        .add_unlock_condition(AddressUnlockCondition::new(random_address))
+        .with_immutable_features(vec![
+            Feature::Metadata(
+                MetadataFeature::new(serde_json::to_vec(&metadata).unwrap()).unwrap(),
+            ),
+            Feature::Issuer(IssuerFeature::new(random_address)),
+        ])
+        .finish()
+        .unwrap();
+
+    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone());
+
+    let immutable_metadata = nft.immutable_metadata;
+    assert_eq!(&immutable_metadata.media_type, metadata.media_type());
+    assert_eq!(immutable_metadata.uri.url, metadata.uri().to_string());
+    assert_eq!(&immutable_metadata.name, metadata.name());
+    assert_eq!(&immutable_metadata.issuer_name, metadata.issuer_name());
+    assert_eq!(
+        &immutable_metadata.collection_name,
+        metadata.collection_name()
+    );
+    assert_eq!(&immutable_metadata.description, metadata.description());
+
+    let migrated_royalties = immutable_metadata
+        .royalties
+        .contents
+        .into_iter()
+        .map(|entry| (entry.key, entry.value))
+        .collect::<BTreeMap<_, _>>();
+    let converted_royalties = metadata
+        .royalties()
+        .iter()
+        .map(|entry| {
+            (
+                SuiAddress::from_bytes(entry.0.as_ed25519().as_slice()).unwrap(),
+                FixedPoint32::try_from(*entry.1).unwrap(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+
+    assert_eq!(migrated_royalties, converted_royalties);
+
+    let migrated_attributes = immutable_metadata
+        .attributes
+        .contents
+        .into_iter()
+        .map(|entry| (entry.key, entry.value))
+        .collect::<BTreeMap<_, _>>();
+
+    let converted_attributes = metadata
+        .attributes()
+        .iter()
+        .map(|entry| (entry.trait_type().to_owned(), entry.value().to_string()))
+        .collect::<BTreeMap<_, _>>();
+
+    assert_eq!(migrated_attributes, converted_attributes);
+}
+
+#[test]
+fn nft_migration_with_invalid_irc27_metadata() {
+    let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+    let header = random_output_header();
+
+    let metadata = iota_sdk::types::block::output::feature::Irc27Metadata::new(
+        "image/png",
+        "https://nft.org/nft.png".parse().unwrap(),
+        "NFT",
+    );
+
+    let mut metadata = serde_json::to_value(&metadata).unwrap();
+    // Make the IRC-27 Metadata invalid by changing the type of the `uri` key.
+    metadata
+        .as_object_mut()
+        .unwrap()
+        .insert("uri".to_owned(), serde_json::Value::Bool(false));
+    let metadata_content = serde_json::to_vec(&metadata).unwrap();
+
+    let stardust_nft = NftOutputBuilder::new_with_amount(1_000_000, NftId::null())
+        .add_unlock_condition(AddressUnlockCondition::new(random_address))
+        .with_immutable_features(vec![
+            Feature::Metadata(MetadataFeature::new(metadata_content).unwrap()),
+            Feature::Issuer(IssuerFeature::new(random_address)),
+        ])
+        .finish()
+        .unwrap();
+
+    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone());
+
+    let mut immutable_metadata = nft.immutable_metadata;
+    let mut non_standard_fields = VecMap { contents: vec![] };
+    std::mem::swap(
+        &mut immutable_metadata.non_standard_fields,
+        &mut non_standard_fields,
+    );
+
+    let non_standard_fields = non_standard_fields
+        .contents
+        .into_iter()
+        .map(|entry| (entry.key, entry.value))
+        .collect::<BTreeMap<_, _>>();
+
+    let converted_metadata = metadata
+        .as_object()
+        .unwrap()
+        .iter()
+        .map(|entry| (entry.0.to_owned(), entry.1.to_string()))
+        .collect::<BTreeMap<_, _>>();
+
+    // Since the metadata is valid JSON, we expect the fields of the object to be in
+    // the non_standard_fields.
+    assert_eq!(non_standard_fields, converted_metadata);
+
+    // Since we removed non_standard_fields, the other fields of immutable_metadata
+    // should be the defaults.
+    assert_eq!(immutable_metadata, Irc27Metadata::default());
+}
+
+#[test]
+fn nft_migration_with_non_json_metadata() {
+    let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+    let header = random_output_header();
+
+    let stardust_nft = NftOutputBuilder::new_with_amount(1_000_000, NftId::null())
+        .add_unlock_condition(AddressUnlockCondition::new(random_address))
+        .with_immutable_features(vec![
+            Feature::Metadata(MetadataFeature::new([0xde, 0xca, 0xde]).unwrap()),
+            Feature::Issuer(IssuerFeature::new(random_address)),
+        ])
+        .finish()
+        .unwrap();
+
+    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone());
+
+    let mut immutable_metadata = nft.immutable_metadata;
+    let mut non_standard_fields = VecMap { contents: vec![] };
+    std::mem::swap(
+        &mut immutable_metadata.non_standard_fields,
+        &mut non_standard_fields,
+    );
+
+    assert_eq!(non_standard_fields.contents.len(), 1);
+    let data = non_standard_fields
+        .contents
+        .into_iter()
+        .find_map(|entry| {
+            if entry.key == "data" {
+                Some(entry.value)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+
+    assert_eq!(data, "decade");
+
+    // Since we removed non_standard_fields, the other fields of immutable_metadata
+    // should be the defaults.
+    assert_eq!(immutable_metadata, Irc27Metadata::default());
+}
+
+#[test]
+fn nft_migration_without_metadata() {
+    let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+    let header = random_output_header();
+
+    let stardust_nft = NftOutputBuilder::new_with_amount(1_000_000, NftId::null())
+        .add_unlock_condition(AddressUnlockCondition::new(random_address))
+        .with_immutable_features(vec![Feature::Issuer(IssuerFeature::new(random_address))])
+        .finish()
+        .unwrap();
+
+    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone());
+    let immutable_metadata = nft.immutable_metadata;
+
+    assert_eq!(immutable_metadata.non_standard_fields.contents.len(), 0);
+
+    // Since we removed non_standard_fields, the other fields of immutable_metadata
+    // should be the defaults.
+    assert_eq!(immutable_metadata, Irc27Metadata::default());
 }
