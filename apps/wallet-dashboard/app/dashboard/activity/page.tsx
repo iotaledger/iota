@@ -8,7 +8,7 @@ import { VirtualList, ActivityTile } from '@/components';
 import { Activity, ActivityState } from '@/lib/interfaces';
 
 function StakingDashboardPage(): JSX.Element {
-    const virtualItem = (activity: Activity) => (
+    const virtualItem = (activity: Activity): JSX.Element => (
         <ActivityTile key={activity.timestamp} activity={activity} />
     );
 
