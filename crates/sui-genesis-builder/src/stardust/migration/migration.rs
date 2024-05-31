@@ -108,6 +108,10 @@ impl Migration {
         foundries.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
         self.migrate_foundries(&foundries)?;
         self.migrate_outputs(&outputs)?;
+        let outputs = outputs
+            .into_iter()
+            .chain(foundries.into_iter().map(|(h, f)| (h, Output::Foundry(f))))
+            .collect::<Vec<_>>();
         self.verify_ledger_state(&outputs)?;
 
         Ok(())
@@ -202,7 +206,13 @@ impl Migration {
                 .ok_or_else(|| {
                     anyhow::anyhow!("missing created objects for output {}", header.output_id())
                 })?;
-            verify_output(header, output, objects, self.executor.store())?;
+            verify_output(
+                header,
+                output,
+                objects,
+                self.executor.native_tokens(),
+                self.executor.store(),
+            )?;
         }
         Ok(())
     }

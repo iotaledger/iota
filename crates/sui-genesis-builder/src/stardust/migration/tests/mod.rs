@@ -243,12 +243,7 @@ fn extract_native_token_from_bag(
         .native_tokens()
         .get(&native_token_id.clone().into())
         .unwrap();
-    let token_type = format!(
-        "{}::{}::{}",
-        foundry_ledger_data.coin_type_origin.package,
-        foundry_ledger_data.coin_type_origin.module_name,
-        foundry_ledger_data.coin_type_origin.struct_name
-    );
+    let token_type = foundry_ledger_data.canonical_coin_type();
     let token_type_tag = token_type.parse::<TypeTag>().unwrap();
 
     let pt = {
