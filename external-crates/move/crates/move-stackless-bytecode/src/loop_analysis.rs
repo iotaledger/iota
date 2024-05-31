@@ -17,15 +17,18 @@ use crate::{
     stackless_control_flow_graph::{BlockContent, BlockId, StacklessControlFlowGraph},
 };
 
-/// A fat-loop captures the information of one or more natural loops that share the same loop
-/// header. This shared header is called the header of the fat-loop.
+/// A fat-loop captures the information of one or more natural loops that share
+/// the same loop header. This shared header is called the header of the
+/// fat-loop.
 ///
-/// Conceptually, every back edge defines a unique natural loop and different back edges may points
-/// to the same loop header (e.g., when there are two "continue" statements in the loop body).
+/// Conceptually, every back edge defines a unique natural loop and different
+/// back edges may points to the same loop header (e.g., when there are two
+/// "continue" statements in the loop body).
 ///
-/// However, since these natural loops share the same loop header, they share the same loop
-/// invariants too and the fat-loop targets (i.e., variables that may be changed in any sub-loop)
-/// is the union of loop targets per each natural loop that share the header.
+/// However, since these natural loops share the same loop header, they share
+/// the same loop invariants too and the fat-loop targets (i.e., variables that
+/// may be changed in any sub-loop) is the union of loop targets per each
+/// natural loop that share the header.
 #[derive(Debug, Clone)]
 pub struct FatLoop {
     pub val_targets: BTreeSet<TempIndex>,
@@ -77,22 +80,24 @@ impl FunctionTargetProcessor for LoopAnalysisProcessor {
 }
 
 impl LoopAnalysisProcessor {
-    /// Perform a loop transformation that eliminate back-edges in a loop and flatten the function
-    /// CFG into a directed acyclic graph (DAG).
+    /// Perform a loop transformation that eliminate back-edges in a loop and
+    /// flatten the function CFG into a directed acyclic graph (DAG).
     ///
-    /// The general procedure works as following (assuming the loop invariant expression is L):
+    /// The general procedure works as following (assuming the loop invariant
+    /// expression is L):
     ///
-    /// - At the beginning of the loop header (identified by the label bytecode), insert the
-    ///   following statements:
+    /// - At the beginning of the loop header (identified by the label
+    ///   bytecode), insert the following statements:
     ///     - assert L;
     ///     - havoc T;
     ///     - assume L;
-    /// - Create a new dummy block (say, block X) with only the following statements
+    /// - Create a new dummy block (say, block X) with only the following
+    ///   statements
     ///     - assert L;
     ///     - stop;
     /// - For each backedge in this loop:
-    ///     - In the source block of the back edge, replace the last statement (must be a jump or
-    ///       branch) with the new label of X.
+    ///     - In the source block of the back edge, replace the last statement
+    ///       (must be a jump or branch) with the new label of X.
     fn transform(
         func_env: &FunctionEnv<'_>,
         data: FunctionData,
@@ -185,7 +190,8 @@ impl LoopAnalysisProcessor {
                             });
                         }
 
-                        // after showing the havocked locals and their new values, show the following message
+                        // after showing the havocked locals and their new values, show the
+                        // following message
                         if !affected_non_temporary_variables.is_empty() {
                             builder.set_next_debug_comment(
                                 "info: loop invariant holds at current state".to_string(),
@@ -221,7 +227,8 @@ impl LoopAnalysisProcessor {
             builder.emit_with(|attr_id| Bytecode::Label(attr_id, *checker_label));
             builder.clear_next_debug_comment();
 
-            // stop the checking in proving mode (branch back to loop header for interpretation mode)
+            // stop the checking in proving mode (branch back to loop header for
+            // interpretation mode)
             builder.emit_with(|attr_id| {
                 if options.for_interpretation {
                     Bytecode::Jump(attr_id, *label)
@@ -249,15 +256,17 @@ impl LoopAnalysisProcessor {
             builder.data.code[code_offset] = updated_goto;
         }
 
-        // we have unrolled the loop into a DAG, and there will be no loop invariants left
+        // we have unrolled the loop into a DAG, and there will be no loop invariants
+        // left
         builder.data.loop_invariants.clear();
         builder.data
     }
 
     /// Collect variables that may be changed during the loop execution.
     ///
-    /// The input to this function should include all the sub loops that constitute a fat-loop.
-    /// This function will return two sets of variables that represents, respectively,
+    /// The input to this function should include all the sub loops that
+    /// constitute a fat-loop. This function will return two sets of
+    /// variables that represents, respectively,
     /// - the set of values to be havoc-ed, and
     /// - the set of mutations to he havoc-ed and how they should be havoc-ed.
     fn collect_loop_targets(
@@ -294,10 +303,12 @@ impl LoopAnalysisProcessor {
         (val_targets, mut_targets)
     }
 
-    /// Collect code offsets that are branch instructions forming loop back-edges
+    /// Collect code offsets that are branch instructions forming loop
+    /// back-edges
     ///
-    /// The input to this function should include all the sub loops that constitute a fat-loop.
-    /// This function will return one back-edge location for each sub loop.
+    /// The input to this function should include all the sub loops that
+    /// constitute a fat-loop. This function will return one back-edge
+    /// location for each sub loop.
     fn collect_loop_back_edges(
         code: &[Bytecode],
         cfg: &StacklessControlFlowGraph,
@@ -324,8 +335,8 @@ impl LoopAnalysisProcessor {
             .collect()
     }
 
-    /// Find all loops in the function and collect information needed for invariant instrumentation
-    /// and loop-to-DAG transformation.
+    /// Find all loops in the function and collect information needed for
+    /// invariant instrumentation and loop-to-DAG transformation.
     fn build_loop_annotation(func_env: &FunctionEnv<'_>, data: &FunctionData) -> LoopAnnotation {
         // build for natural loops
         let func_target = FunctionTarget::new(func_env, data);

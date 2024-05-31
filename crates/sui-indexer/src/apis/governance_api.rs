@@ -3,11 +3,9 @@
 
 use std::collections::BTreeMap;
 
-use crate::{errors::IndexerError, indexer_reader::IndexerReader};
 use async_trait::async_trait;
-use jsonrpsee::{core::RpcResult, RpcModule};
-
 use cached::{proc_macro::cached, SizedCache};
+use jsonrpsee::{core::RpcResult, RpcModule};
 use sui_json_rpc::{governance_api::ValidatorExchangeRates, SuiRpcModule};
 use sui_json_rpc_api::GovernanceReadApiServer;
 use sui_json_rpc_types::{
@@ -23,6 +21,8 @@ use sui_types::{
     sui_system_state::{sui_system_state_summary::SuiSystemStateSummary, PoolTokenExchangeRate},
     timelock::timelocked_staked_sui::TimelockedStakedSui,
 };
+
+use crate::{errors::IndexerError, indexer_reader::IndexerReader};
 
 /// Maximum amount of staked objects for querying.
 const MAX_QUERY_STAKED_OBJECTS: usize = 1000;
@@ -290,8 +290,9 @@ fn stake_status(
     }
 }
 
-/// Cached exchange rates for validators for the given epoch, the cache size is 1, it will be cleared when the epoch changes.
-/// rates are in descending order by epoch.
+/// Cached exchange rates for validators for the given epoch, the cache size is
+/// 1, it will be cleared when the epoch changes. rates are in descending order
+/// by epoch.
 #[cached(
     type = "SizedCache<EpochId, Vec<ValidatorExchangeRates>>",
     create = "{ SizedCache::with_size(1) }",

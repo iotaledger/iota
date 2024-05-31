@@ -2,15 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Parser;
+use sui_indexer::{
+    db::{get_pg_pool_connection, new_pg_connection_pool, reset_database},
+    errors::IndexerError,
+    indexer::Indexer,
+    metrics::{start_prometheus_server, IndexerMetrics},
+    store::PgIndexerStore,
+    IndexerConfig,
+};
 use tracing::{error, info};
-
-use sui_indexer::db::{get_pg_pool_connection, new_pg_connection_pool, reset_database};
-use sui_indexer::errors::IndexerError;
-use sui_indexer::indexer::Indexer;
-use sui_indexer::metrics::start_prometheus_server;
-use sui_indexer::metrics::IndexerMetrics;
-use sui_indexer::store::PgIndexerStore;
-use sui_indexer::IndexerConfig;
 
 #[tokio::main]
 async fn main() -> Result<(), IndexerError> {

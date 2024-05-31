@@ -1,134 +1,122 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use anemo::Network;
-use anemo_tower::callback::CallbackLayer;
-use anemo_tower::trace::DefaultMakeSpan;
-use anemo_tower::trace::DefaultOnFailure;
-use anemo_tower::trace::TraceLayer;
-use anyhow::anyhow;
-use anyhow::Result;
-use arc_swap::ArcSwap;
-use fastcrypto_zkp::bn254::zk_login::JwkId;
-use fastcrypto_zkp::bn254::zk_login::OIDCProvider;
-use futures::TryFutureExt;
-use narwhal_worker::LazyNarwhalClient;
-use prometheus::Registry;
-use std::collections::{BTreeSet, HashMap, HashSet};
-use std::fmt;
-use std::path::PathBuf;
-use std::str::FromStr;
 #[cfg(msim)]
 use std::sync::atomic::Ordering;
-use std::sync::Arc;
-use std::time::Duration;
-use sui_core::authority::RandomnessRoundReceiver;
-use sui_core::authority::CHAIN_IDENTIFIER;
-use sui_core::consensus_adapter::SubmitToConsensus;
-use sui_core::epoch::randomness::RandomnessManager;
-use sui_core::execution_cache::ExecutionCacheMetrics;
-use sui_core::execution_cache::NotifyReadWrapper;
-use sui_json_rpc::ServerType;
-use sui_json_rpc_api::JsonRpcMetrics;
-use sui_network::randomness;
-use sui_protocol_config::ProtocolVersion;
-use sui_types::base_types::ConciseableName;
-use sui_types::crypto::RandomnessRound;
-use sui_types::digests::ChainIdentifier;
-use sui_types::message_envelope::get_google_jwk_bytes;
-use sui_types::sui_system_state::SuiSystemState;
-use tap::tap::TapFallible;
-use tokio::runtime::Handle;
-use tokio::sync::broadcast;
-use tokio::sync::mpsc;
-use tokio::sync::{watch, Mutex};
-use tokio::task::JoinHandle;
-use tower::ServiceBuilder;
-use tracing::{debug, error, warn};
-use tracing::{error_span, info, Instrument};
+use std::{
+    collections::{BTreeSet, HashMap, HashSet},
+    fmt,
+    path::PathBuf,
+    str::FromStr,
+    sync::Arc,
+    time::Duration,
+};
 
-use fastcrypto_zkp::bn254::zk_login::JWK;
+use anemo::Network;
+use anemo_tower::{
+    callback::CallbackLayer,
+    trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer},
+};
+use anyhow::{anyhow, Result};
+use arc_swap::ArcSwap;
+use fastcrypto_zkp::bn254::zk_login::{JwkId, OIDCProvider, JWK};
+use futures::TryFutureExt;
 pub use handle::SuiNodeHandle;
 use mysten_metrics::{spawn_monitored_task, RegistryService};
 use mysten_network::server::ServerBuilder;
-use narwhal_network::metrics::MetricsMakeCallbackHandler;
-use narwhal_network::metrics::{NetworkConnectionMetrics, NetworkMetrics};
-use sui_archival::reader::ArchiveReaderBalancer;
-use sui_archival::writer::ArchiveWriter;
-use sui_config::node::{ConsensusProtocol, DBCheckpointConfig, RunWithRange};
-use sui_config::node_config_metrics::NodeConfigMetrics;
-use sui_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-use sui_config::{ConsensusConfig, NodeConfig};
-use sui_core::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use sui_core::authority::authority_store_tables::AuthorityPerpetualTables;
-use sui_core::authority::epoch_start_configuration::EpochStartConfigTrait;
-use sui_core::authority::epoch_start_configuration::EpochStartConfiguration;
-use sui_core::authority_aggregator::AuthorityAggregator;
-use sui_core::authority_server::{ValidatorService, ValidatorServiceMetrics};
-use sui_core::checkpoints::checkpoint_executor::{CheckpointExecutor, StopReason};
-use sui_core::checkpoints::{
-    CheckpointMetrics, CheckpointService, CheckpointStore, SendCheckpointToStateSync,
-    SubmitCheckpointToConsensus,
+use narwhal_network::metrics::{
+    MetricsMakeCallbackHandler, NetworkConnectionMetrics, NetworkMetrics,
 };
-use sui_core::consensus_adapter::{
-    CheckConnection, ConnectionMonitorStatus, ConsensusAdapter, ConsensusAdapterMetrics,
+use narwhal_worker::LazyNarwhalClient;
+use prometheus::Registry;
+use sui_archival::{reader::ArchiveReaderBalancer, writer::ArchiveWriter};
+use sui_config::{
+    node::{ConsensusProtocol, DBCheckpointConfig, RunWithRange},
+    node_config_metrics::NodeConfigMetrics,
+    object_storage_config::{ObjectStoreConfig, ObjectStoreType},
+    ConsensusConfig, NodeConfig,
 };
-use sui_core::consensus_manager::{ConsensusManager, ConsensusManagerTrait};
-use sui_core::consensus_throughput_calculator::{
-    ConsensusThroughputCalculator, ConsensusThroughputProfiler, ThroughputProfileRanges,
-};
-use sui_core::consensus_validator::{SuiTxValidator, SuiTxValidatorMetrics};
-use sui_core::db_checkpoint_handler::DBCheckpointHandler;
-use sui_core::epoch::committee_store::CommitteeStore;
-use sui_core::epoch::data_removal::EpochDataRemover;
-use sui_core::epoch::epoch_metrics::EpochMetrics;
-use sui_core::epoch::reconfiguration::ReconfigurationInitiator;
-use sui_core::execution_cache::{ExecutionCache, ExecutionCacheReconfigAPI};
-use sui_core::module_cache_metrics::ResolverMetrics;
-use sui_core::overload_monitor::overload_monitor;
-use sui_core::signature_verifier::SignatureVerifierMetrics;
-use sui_core::state_accumulator::StateAccumulator;
-use sui_core::storage::RocksDbStore;
-use sui_core::transaction_orchestrator::TransactiondOrchestrator;
 use sui_core::{
-    authority::{AuthorityState, AuthorityStore},
+    authority::{
+        authority_per_epoch_store::AuthorityPerEpochStore,
+        authority_store_tables::AuthorityPerpetualTables,
+        epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
+        AuthorityState, AuthorityStore, RandomnessRoundReceiver, CHAIN_IDENTIFIER,
+    },
+    authority_aggregator::AuthorityAggregator,
     authority_client::NetworkAuthorityClient,
+    authority_server::{ValidatorService, ValidatorServiceMetrics},
+    checkpoints::{
+        checkpoint_executor::{CheckpointExecutor, StopReason},
+        CheckpointMetrics, CheckpointService, CheckpointStore, SendCheckpointToStateSync,
+        SubmitCheckpointToConsensus,
+    },
+    consensus_adapter::{
+        CheckConnection, ConnectionMonitorStatus, ConsensusAdapter, ConsensusAdapterMetrics,
+        SubmitToConsensus,
+    },
+    consensus_manager::{ConsensusManager, ConsensusManagerTrait},
+    consensus_throughput_calculator::{
+        ConsensusThroughputCalculator, ConsensusThroughputProfiler, ThroughputProfileRanges,
+    },
+    consensus_validator::{SuiTxValidator, SuiTxValidatorMetrics},
+    db_checkpoint_handler::DBCheckpointHandler,
+    epoch::{
+        committee_store::CommitteeStore, data_removal::EpochDataRemover,
+        epoch_metrics::EpochMetrics, randomness::RandomnessManager,
+        reconfiguration::ReconfigurationInitiator,
+    },
+    execution_cache::{
+        ExecutionCache, ExecutionCacheMetrics, ExecutionCacheReconfigAPI, NotifyReadWrapper,
+    },
+    module_cache_metrics::ResolverMetrics,
+    overload_monitor::overload_monitor,
+    signature_verifier::SignatureVerifierMetrics,
+    state_accumulator::StateAccumulator,
+    storage::RocksDbStore,
+    transaction_orchestrator::TransactiondOrchestrator,
 };
-use sui_json_rpc::coin_api::CoinReadApi;
-use sui_json_rpc::governance_api::GovernanceReadApi;
-use sui_json_rpc::indexer_api::IndexerApi;
-use sui_json_rpc::move_utils::MoveUtils;
-use sui_json_rpc::read_api::ReadApi;
-use sui_json_rpc::transaction_builder_api::TransactionBuilderApi;
-use sui_json_rpc::transaction_execution_api::TransactionExecutionApi;
-use sui_json_rpc::JsonRpcServerBuilder;
-use sui_macros::fail_point;
-use sui_macros::{fail_point_async, replay_log};
-use sui_network::api::ValidatorServer;
-use sui_network::discovery;
-use sui_network::discovery::TrustedPeerChangeEvent;
-use sui_network::state_sync;
-use sui_protocol_config::{Chain, ProtocolConfig, SupportedProtocolVersions};
+use sui_json_rpc::{
+    coin_api::CoinReadApi, governance_api::GovernanceReadApi, indexer_api::IndexerApi,
+    move_utils::MoveUtils, read_api::ReadApi, transaction_builder_api::TransactionBuilderApi,
+    transaction_execution_api::TransactionExecutionApi, JsonRpcServerBuilder, ServerType,
+};
+use sui_json_rpc_api::JsonRpcMetrics;
+use sui_macros::{fail_point, fail_point_async, replay_log};
+use sui_network::{
+    api::ValidatorServer, discovery, discovery::TrustedPeerChangeEvent, randomness, state_sync,
+};
+use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion, SupportedProtocolVersions};
 use sui_snapshot::uploader::StateSnapshotUploader;
 use sui_storage::{
     http_key_value_store::HttpKVStore,
     key_value_store::{FallbackTransactionKVStore, TransactionKeyValueStore},
     key_value_store_metrics::KeyValueStoreMetrics,
+    FileCompression, IndexStore, StorageFormat,
 };
-use sui_storage::{FileCompression, IndexStore, StorageFormat};
-use sui_types::base_types::{AuthorityName, EpochId};
-use sui_types::committee::Committee;
-use sui_types::crypto::KeypairTraits;
-use sui_types::error::{SuiError, SuiResult};
-use sui_types::messages_consensus::{
-    check_total_jwk_size, AuthorityCapabilities, ConsensusTransaction,
+use sui_types::{
+    base_types::{AuthorityName, ConciseableName, EpochId},
+    committee::Committee,
+    crypto::{KeypairTraits, RandomnessRound},
+    digests::ChainIdentifier,
+    error::{SuiError, SuiResult},
+    message_envelope::get_google_jwk_bytes,
+    messages_consensus::{check_total_jwk_size, AuthorityCapabilities, ConsensusTransaction},
+    quorum_driver_types::QuorumDriverEffectsQueueResult,
+    sui_system_state::{
+        epoch_start_sui_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
+        SuiSystemState, SuiSystemStateTrait,
+    },
 };
-use sui_types::quorum_driver_types::QuorumDriverEffectsQueueResult;
-use sui_types::sui_system_state::epoch_start_sui_system_state::EpochStartSystemState;
-use sui_types::sui_system_state::epoch_start_sui_system_state::EpochStartSystemStateTrait;
-use sui_types::sui_system_state::SuiSystemStateTrait;
-use typed_store::rocks::default_db_options;
-use typed_store::DBMetrics;
+use tap::tap::TapFallible;
+use tokio::{
+    runtime::Handle,
+    sync::{broadcast, mpsc, watch, Mutex},
+    task::JoinHandle,
+};
+use tower::ServiceBuilder;
+use tracing::{debug, error, error_span, info, warn, Instrument};
+use typed_store::{rocks::default_db_options, DBMetrics};
 
 use crate::metrics::{GrpcMetrics, SuiNodeMetrics};
 
@@ -152,8 +140,9 @@ pub struct ValidatorComponents {
 
 #[cfg(msim)]
 mod simulator {
-    use super::*;
     use std::sync::atomic::AtomicBool;
+
+    use super::*;
     pub(super) struct SimState {
         pub sim_node: sui_simulator::runtime::NodeHandle,
         pub sim_safe_mode_expected: AtomicBool,
@@ -202,18 +191,19 @@ mod simulator {
 }
 
 #[cfg(msim)]
-use simulator::*;
-
-#[cfg(msim)]
 pub use simulator::set_jwk_injector;
-use sui_core::consensus_handler::ConsensusHandlerInitializer;
-use sui_core::mysticeti_adapter::LazyMysticetiClient;
+#[cfg(msim)]
+use simulator::*;
+use sui_core::{
+    consensus_handler::ConsensusHandlerInitializer, mysticeti_adapter::LazyMysticetiClient,
+};
 use sui_types::execution_config_utils::to_binary_config;
 
 pub struct SuiNode {
     config: NodeConfig,
     validator_components: Mutex<Option<ValidatorComponents>>,
-    /// The http server responsible for serving JSON-RPC as well as the experimental rest service
+    /// The http server responsible for serving JSON-RPC as well as the
+    /// experimental rest service
     _http_server: Option<tokio::task::JoinHandle<()>>,
     state: Arc<AuthorityState>,
     transaction_orchestrator: Option<Arc<TransactiondOrchestrator<NetworkAuthorityClient>>>,
@@ -543,8 +533,9 @@ impl SuiNode {
         let _ = CHAIN_IDENTIFIER.set(chain_identifier);
 
         // Create network
-        // TODO only configure validators as seed/preferred peers for validators and not for
-        // fullnodes once we've had a chance to re-work fullnode configuration generation.
+        // TODO only configure validators as seed/preferred peers for validators and not
+        // for fullnodes once we've had a chance to re-work fullnode
+        // configuration generation.
         let archive_readers =
             ArchiveReaderBalancer::new(config.archive_reader_config(), &prometheus_registry)?;
         let (trusted_peer_change_tx, trusted_peer_change_rx) = watch::channel(Default::default());
@@ -567,8 +558,8 @@ impl SuiNode {
                 &prometheus_registry,
             )?;
 
-        // We must explicitly send this instead of relying on the initial value to trigger
-        // watch value change, so that state-sync is able to process it.
+        // We must explicitly send this instead of relying on the initial value to
+        // trigger watch value change, so that state-sync is able to process it.
         send_trusted_peer_change(
             &config,
             &trusted_peer_change_tx,
@@ -641,7 +632,8 @@ impl SuiNode {
                 .unwrap();
         }
 
-        // Start the loop that receives new randomness and generates transactions for it.
+        // Start the loop that receives new randomness and generates transactions for
+        // it.
         RandomnessRoundReceiver::spawn(state.clone(), randomness_rx);
 
         if config
@@ -1000,8 +992,8 @@ impl SuiNode {
                 .into_inner();
 
             let mut anemo_config = config.p2p_config.anemo_config.clone().unwrap_or_default();
-            // Set the max_frame_size to be 1 GB to work around the issue of there being too many
-            // staking events in the epoch change txn.
+            // Set the max_frame_size to be 1 GB to work around the issue of there being too
+            // many staking events in the epoch change txn.
             anemo_config.max_frame_size = Some(1 << 30);
 
             // Set a higher default value for socket send/receive buffers if not already
@@ -1084,8 +1076,8 @@ impl SuiNode {
             .as_mut()
             .ok_or_else(|| anyhow!("Validator is missing consensus config"))?;
 
-        // Only allow overriding the consensus protocol, if the protocol version supports
-        // fields needed by Mysticeti.
+        // Only allow overriding the consensus protocol, if the protocol version
+        // supports fields needed by Mysticeti.
         if epoch_store.protocol_config().version >= ProtocolVersion::new(36) {
             if let Ok(consensus_choice) = std::env::var("CONSENSUS") {
                 let consensus_protocol = match consensus_choice.as_str() {
@@ -1100,7 +1092,9 @@ impl SuiNode {
                     }
                     _ => {
                         let consensus = consensus_config.protocol.clone();
-                        warn!("Consensus env var was set to an invalid choice, using default consensus protocol {consensus:?}");
+                        warn!(
+                            "Consensus env var was set to an invalid choice, using default consensus protocol {consensus:?}"
+                        );
                         consensus
                     }
                 };
@@ -1152,7 +1146,8 @@ impl SuiNode {
         let mut consensus_epoch_data_remover =
             EpochDataRemover::new(consensus_manager.get_storage_base_path());
 
-        // This only gets started up once, not on every epoch. (Make call to remove every epoch.)
+        // This only gets started up once, not on every epoch. (Make call to remove
+        // every epoch.)
         consensus_epoch_data_remover.run().await;
 
         let checkpoint_metrics = CheckpointMetrics::new(&registry_service.default_registry());
@@ -1233,9 +1228,10 @@ impl SuiNode {
             checkpoint_metrics.clone(),
         );
 
-        // create a new map that gets injected into both the consensus handler and the consensus adapter
-        // the consensus handler will write values forwarded from consensus, and the consensus adapter
-        // will read the values to make decisions about which validator submits a transaction to consensus
+        // create a new map that gets injected into both the consensus handler and the
+        // consensus adapter the consensus handler will write values forwarded
+        // from consensus, and the consensus adapter will read the values to
+        // make decisions about which validator submits a transaction to consensus
         let low_scoring_authorities = Arc::new(ArcSwap::new(Arc::new(HashMap::new())));
 
         consensus_adapter.swap_low_scoring_authorities(low_scoring_authorities.clone());
@@ -1371,7 +1367,8 @@ impl SuiNode {
         consensus_client: Arc<dyn SubmitToConsensus>,
     ) -> ConsensusAdapter {
         let ca_metrics = ConsensusAdapterMetrics::new(prometheus_registry);
-        // The consensus adapter allows the authority to send user certificates through consensus.
+        // The consensus adapter allows the authority to send user certificates through
+        // consensus.
 
         ConsensusAdapter::new(
             consensus_client,
@@ -1430,11 +1427,9 @@ impl SuiNode {
         self.state.committee_store().clone()
     }
 
-    /*
-    pub fn clone_authority_store(&self) -> Arc<AuthorityStore> {
-        self.state.db()
-    }
-    */
+    // pub fn clone_authority_store(&self) -> Arc<AuthorityStore> {
+    // self.state.db()
+    // }
 
     /// Clone an AuthorityAggregator currently used in this node's
     /// QuorumDriver, if the node is a fullnode. After reconfig,
@@ -1471,8 +1466,9 @@ impl SuiNode {
             .ok_or_else(|| anyhow::anyhow!("Transaction Orchestrator is not enabled in this node."))
     }
 
-    /// This function awaits the completion of checkpoint execution of the current epoch,
-    /// after which it iniitiates reconfiguration of the entire system.
+    /// This function awaits the completion of checkpoint execution of the
+    /// current epoch, after which it iniitiates reconfiguration of the
+    /// entire system.
     pub async fn monitor_reconfiguration(self: Arc<Self>) -> Result<()> {
         let mut checkpoint_executor = CheckpointExecutor::new(
             self.state_sync_handle.subscribe_to_synced_checkpoints(),
@@ -1563,10 +1559,10 @@ impl SuiNode {
 
             fail_point_async!("reconfig_delay");
 
-            // We save the connection monitor status map regardless of validator / fullnode status
-            // so that we don't need to restart the connection monitor every epoch.
-            // Update the mappings that will be used by the consensus adapter if it exists or is
-            // about to be created.
+            // We save the connection monitor status map regardless of validator / fullnode
+            // status so that we don't need to restart the connection monitor
+            // every epoch. Update the mappings that will be used by the
+            // consensus adapter if it exists or is about to be created.
             let authority_names_to_peer_ids =
                 new_epoch_start_state.get_authority_names_to_peer_ids();
             self.connection_monitor_status

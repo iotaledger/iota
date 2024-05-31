@@ -2,17 +2,12 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module implements the checker for verifying correctness of function bodies.
-//! The overall verification is split between stack_usage_verifier.rs and
-//! abstract_interpreter.rs. CodeUnitVerifier simply orchestrates calls into these two files.
-use crate::{
-    acquires_list_verifier::AcquiresVerifier,
-    control_flow, locals_safety,
-    meter::{Meter, Scope},
-    reference_safety,
-    stack_usage_verifier::StackUsageVerifier,
-    type_safety,
-};
+//! This module implements the checker for verifying correctness of function
+//! bodies. The overall verification is split between stack_usage_verifier.rs
+//! and abstract_interpreter.rs. CodeUnitVerifier simply orchestrates calls into
+//! these two files.
+use std::collections::HashMap;
+
 use move_binary_format::{
     access::ModuleAccess,
     binary_views::{BinaryIndexedView, FunctionView},
@@ -26,7 +21,15 @@ use move_binary_format::{
 };
 use move_core_types::vm_status::StatusCode;
 use move_vm_config::verifier::VerifierConfig;
-use std::collections::HashMap;
+
+use crate::{
+    acquires_list_verifier::AcquiresVerifier,
+    control_flow, locals_safety,
+    meter::{Meter, Scope},
+    reference_safety,
+    stack_usage_verifier::StackUsageVerifier,
+    type_safety,
+};
 
 pub struct CodeUnitVerifier<'a> {
     resolver: BinaryIndexedView<'a>,
@@ -107,7 +110,7 @@ impl<'a> CodeUnitVerifier<'a> {
             }
         }
 
-        //verify
+        // verify
         meter.enter_scope("script", Scope::Function);
         let code_unit_verifier = CodeUnitVerifier {
             resolver,

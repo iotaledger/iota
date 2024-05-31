@@ -1,25 +1,27 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::balance::Balance;
-use crate::base_types::SuiAddress;
-use crate::collection_types::{Bag, Table};
-use crate::committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata};
-use crate::crypto::AuthorityPublicKeyBytes;
-use crate::error::SuiError;
-use crate::storage::ObjectStore;
-use crate::sui_system_state::epoch_start_sui_system_state::{
-    EpochStartSystemState, EpochStartValidatorInfoV1,
-};
-use crate::sui_system_state::sui_system_state_summary::{
-    SuiSystemStateSummary, SuiValidatorSummary,
-};
-use crate::sui_system_state::{AdvanceEpochParams, SuiSystemStateTrait};
+use std::collections::BTreeMap;
+
 use fastcrypto::traits::ToFromBytes;
 use mysten_network::Multiaddr;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+
+use crate::{
+    balance::Balance,
+    base_types::SuiAddress,
+    collection_types::{Bag, Table},
+    committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata},
+    crypto::AuthorityPublicKeyBytes,
+    error::SuiError,
+    storage::ObjectStore,
+    sui_system_state::{
+        epoch_start_sui_system_state::{EpochStartSystemState, EpochStartValidatorInfoV1},
+        sui_system_state_summary::{SuiSystemStateSummary, SuiValidatorSummary},
+        AdvanceEpochParams, SuiSystemStateTrait,
+    },
+};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct SimTestSuiSystemStateInnerV1 {

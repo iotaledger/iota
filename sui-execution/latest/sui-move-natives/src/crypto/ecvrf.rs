@@ -1,8 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use crate::NativesCostTable;
-use fastcrypto::vrf::ecvrf::{ECVRFProof, ECVRFPublicKey};
-use fastcrypto::vrf::VRFProof;
+use std::collections::VecDeque;
+
+use fastcrypto::vrf::{
+    ecvrf::{ECVRFProof, ECVRFPublicKey},
+    VRFProof,
+};
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::gas_algebra::InternalGas;
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
@@ -13,7 +16,8 @@ use move_vm_types::{
     values::{Value, VectorRef},
 };
 use smallvec::smallvec;
-use std::collections::VecDeque;
+
+use crate::NativesCostTable;
 
 pub const INVALID_ECVRF_HASH_LENGTH: u64 = 1;
 pub const INVALID_ECVRF_PUBLIC_KEY: u64 = 2;
@@ -30,15 +34,22 @@ pub struct EcvrfEcvrfVerifyCostParams {
     ///  Cost per block of `alpha_string` with block size = 128
     pub ecvrf_ecvrf_verify_alpha_string_cost_per_block: InternalGas,
 }
-/***************************************************************************************************
- * native fun ecvrf_verify
- * Implementation of the Move native function `ecvrf_verify(hash: &vector<u8>, alpha_string: &vector<u8>, public_key: &vector<u8>, proof: &vector<u8>): bool`
- *   gas cost: ecvrf_ecvrf_verify_cost_base                    | covers various fixed costs in the oper
- *              + ecvrf_ecvrf_verify_alpha_string_cost_per_byte    * size_of(alpha_string)        | covers cost of operating on each byte of `alpha_string`
- *              + ecvrf_ecvrf_verify_alpha_string_cost_per_block   * num_blocks(alpha_string)     | covers cost of operating on each block in `alpha_string`
- * Note: each block is of size `ECVRF_SHA512_BLOCK_SIZE` bytes, and we round up.
- *       `hash`, `proof`, and `public_key` are fixed size, so their costs are included in the base cost.
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun ecvrf_verify
+/// Implementation of the Move native function `ecvrf_verify(hash: &vector<u8>,
+/// alpha_string: &vector<u8>, public_key: &vector<u8>, proof: &vector<u8>):
+/// bool`   gas cost: ecvrf_ecvrf_verify_cost_base                    | covers
+/// various fixed costs in the oper
+///              + ecvrf_ecvrf_verify_alpha_string_cost_per_byte    *
+///                size_of(alpha_string)        | covers cost of operating on
+///                each byte of `alpha_string`
+///              + ecvrf_ecvrf_verify_alpha_string_cost_per_block   *
+///                num_blocks(alpha_string)     | covers cost of operating on
+///                each block in `alpha_string`
+/// Note: each block is of size `ECVRF_SHA512_BLOCK_SIZE` bytes, and we round
+/// up.       `hash`, `proof`, and `public_key` are fixed size, so their costs
+/// are included in the base cost. *********************************************
+/// **************************************************
 pub fn ecvrf_verify(
     context: &mut NativeContext,
     ty_args: Vec<Type>,

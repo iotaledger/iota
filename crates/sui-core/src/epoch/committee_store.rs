@@ -1,21 +1,26 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
+
 use parking_lot::RwLock;
 use rocksdb::Options;
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use sui_types::base_types::ObjectID;
-use sui_types::committee::{Committee, EpochId};
-use sui_types::error::{SuiError, SuiResult};
-use typed_store::rocks::{default_db_options, DBMap, DBOptions, MetricConf};
-use typed_store::traits::{TableSummary, TypedStoreDebug};
-
-use typed_store::Map;
-use typed_store_derive::DBMapUtils;
-
 use sui_macros::nondeterministic;
+use sui_types::{
+    base_types::ObjectID,
+    committee::{Committee, EpochId},
+    error::{SuiError, SuiResult},
+};
+use typed_store::{
+    rocks::{default_db_options, DBMap, DBOptions, MetricConf},
+    traits::{TableSummary, TypedStoreDebug},
+    Map,
+};
+use typed_store_derive::DBMapUtils;
 
 pub struct CommitteeStore {
     tables: CommitteeStoreTables,
@@ -69,7 +74,8 @@ impl CommitteeStore {
 
     pub fn insert_new_committee(&self, new_committee: &Committee) -> SuiResult {
         if let Some(old_committee) = self.get_committee(&new_committee.epoch)? {
-            // If somehow we already have this committee in the store, they must be the same.
+            // If somehow we already have this committee in the store, they must be the
+            // same.
             assert_eq!(&*old_committee, new_committee);
         } else {
             self.tables
@@ -106,7 +112,8 @@ impl CommitteeStore {
             .unwrap()
             .1
     }
-    /// Return the committee specified by `epoch`. If `epoch` is `None`, return the latest committee.
+    /// Return the committee specified by `epoch`. If `epoch` is `None`, return
+    /// the latest committee.
     // todo - make use of cache or remove this method
     pub fn get_or_latest_committee(&self, epoch: Option<EpochId>) -> SuiResult<Committee> {
         Ok(match epoch {

@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use diesel::prelude::*;
+
 use crate::{
     schema::{tx_calls, tx_changed_objects, tx_input_objects, tx_recipients, tx_senders},
     types::TxIndex,
 };
-use diesel::prelude::*;
 
 #[derive(QueryableByName)]
 pub struct TxSequenceNumber {

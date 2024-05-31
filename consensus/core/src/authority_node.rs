@@ -39,7 +39,8 @@ use crate::{
 };
 
 /// ConsensusAuthority is used by Sui to manage the lifetime of AuthorityNode.
-/// It hides the details of the implementation from the caller, MysticetiManager.
+/// It hides the details of the implementation from the caller,
+/// MysticetiManager.
 #[allow(private_interfaces)]
 pub enum ConsensusAuthority {
     WithAnemo(AuthorityNode<AnemoManager>),
@@ -176,7 +177,8 @@ where
         let mut network_manager = N::new(context.clone());
         let network_client = network_manager.client();
 
-        // REQUIRED: Broadcaster must be created before Core, to start listen on block broadcasts.
+        // REQUIRED: Broadcaster must be created before Core, to start listen on block
+        // broadcasts.
         let broadcaster =
             Broadcaster::new(context.clone(), network_client.clone(), &signals_receivers);
 

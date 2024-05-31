@@ -1,12 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use super::{string_input::impl_string_input, sui_address::SuiAddress};
-use crate::raw_query::RawQuery;
-use crate::{
-    data::{DieselBackend, Query},
-    filter,
-};
+use std::{fmt, result::Result, str::FromStr};
+
 use async_graphql::*;
 use diesel::{
     expression::{is_aggregate::No, ValidGrouping},
@@ -16,9 +12,15 @@ use diesel::{
     TextExpressionMethods,
 };
 use move_core_types::language_storage::StructTag;
-use std::{fmt, result::Result, str::FromStr};
 use sui_types::{
     parse_sui_address, parse_sui_fq_name, parse_sui_module_id, parse_sui_type_tag, TypeTag,
+};
+
+use super::{string_input::impl_string_input, sui_address::SuiAddress};
+use crate::{
+    data::{DieselBackend, Query},
+    filter,
+    raw_query::RawQuery,
 };
 
 /// A GraphQL scalar containing a filter on types that requires an exact match.
@@ -31,9 +33,10 @@ pub(crate) enum TypeFilter {
     /// Filter the type by the package or module it's from.
     ByModule(ModuleFilter),
 
-    /// If the type tag has type parameters, treat it as an exact filter on that instantiation,
-    /// otherwise treat it as either a filter on all generic instantiations of the type, or an exact
-    /// match on the type with no type parameters. E.g.
+    /// If the type tag has type parameters, treat it as an exact filter on that
+    /// instantiation, otherwise treat it as either a filter on all generic
+    /// instantiations of the type, or an exact match on the type with no
+    /// type parameters. E.g.
     ///
     ///  0x2::coin::Coin
     ///
@@ -145,9 +148,10 @@ impl TypeFilter {
         query
     }
 
-    /// Try to create a filter whose results are the intersection of the results of the input
-    /// filters (`self` and `other`). This may not be possible if the resulting filter is
-    /// inconsistent (e.g. a filter that requires the module member's package to be at two different
+    /// Try to create a filter whose results are the intersection of the results
+    /// of the input filters (`self` and `other`). This may not be possible
+    /// if the resulting filter is inconsistent (e.g. a filter that requires
+    /// the module member's package to be at two different
     /// addresses simultaneously), in which case `None` is returned.
     pub(crate) fn intersect(self, other: Self) -> Option<Self> {
         use ModuleFilter as M;
@@ -198,9 +202,10 @@ impl TypeFilter {
 }
 
 impl FqNameFilter {
-    /// Modify `query` to apply this filter, treating `package` as the column containing the package
-    /// address, `module` as the module containing the module name, and `name` as the column
-    /// containing the module member name.
+    /// Modify `query` to apply this filter, treating `package` as the column
+    /// containing the package address, `module` as the module containing
+    /// the module name, and `name` as the column containing the module
+    /// member name.
     pub(crate) fn apply<P, M, N, QS, ST, GB>(
         &self,
         query: Query<ST, QS, GB>,
@@ -230,9 +235,10 @@ impl FqNameFilter {
         }
     }
 
-    /// Try to create a filter whose results are the intersection of the results of the input
-    /// filters (`self` and `other`). This may not be possible if the resulting filter is
-    /// inconsistent (e.g. a filter that requires the module member's package to be at two different
+    /// Try to create a filter whose results are the intersection of the results
+    /// of the input filters (`self` and `other`). This may not be possible
+    /// if the resulting filter is inconsistent (e.g. a filter that requires
+    /// the module member's package to be at two different
     /// addresses simultaneously), in which case `None` is returned.
     pub(crate) fn intersect(self, other: Self) -> Option<Self> {
         use FqNameFilter as F;
@@ -257,8 +263,9 @@ impl FqNameFilter {
 }
 
 impl ModuleFilter {
-    /// Modify `query` to apply this filter, treating `package` as the column containing the package
-    /// address and `module` as the module containing the module name.
+    /// Modify `query` to apply this filter, treating `package` as the column
+    /// containing the package address and `module` as the module containing
+    /// the module name.
     pub(crate) fn apply<P, M, QS, ST, GB>(
         &self,
         query: Query<ST, QS, GB>,
@@ -283,9 +290,10 @@ impl ModuleFilter {
         }
     }
 
-    /// Try to create a filter whose results are the intersection of the results of the input
-    /// filters (`self` and `other`). This may not be possible if the resulting filter is
-    /// inconsistent (e.g. a filter that requires the module's package to be at two different
+    /// Try to create a filter whose results are the intersection of the results
+    /// of the input filters (`self` and `other`). This may not be possible
+    /// if the resulting filter is inconsistent (e.g. a filter that requires
+    /// the module's package to be at two different
     /// addresses simultaneously), in which case `None` is returned.
     pub(crate) fn intersect(self, other: Self) -> Option<Self> {
         match (&self, &other) {
@@ -414,8 +422,9 @@ impl From<StructTag> for TypeFilter {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use expect_test::expect;
+
+    use super::*;
 
     #[test]
     fn test_valid_exact_type_filters() {

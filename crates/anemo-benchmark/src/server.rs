@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::Benchmark;
 use rand::Rng;
+
+use crate::Benchmark;
 
 pub struct Server;
 

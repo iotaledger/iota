@@ -39,7 +39,7 @@ pub enum CoreError {
 #[async_trait]
 pub trait CoreThreadDispatcher: Sync + Send + 'static {
     async fn add_blocks(&self, blocks: Vec<VerifiedBlock>)
-        -> Result<BTreeSet<BlockRef>, CoreError>;
+    -> Result<BTreeSet<BlockRef>, CoreError>;
 
     async fn force_new_block(&self, round: Round) -> Result<(), CoreError>;
 
@@ -53,7 +53,8 @@ pub(crate) struct CoreThreadHandle {
 
 impl CoreThreadHandle {
     pub async fn stop(self) {
-        // drop the sender, that will force all the other weak senders to not able to upgrade.
+        // drop the sender, that will force all the other weak senders to not able to
+        // upgrade.
         drop(self.sender);
         self.join_handle.await.ok();
     }
@@ -121,8 +122,9 @@ impl ChannelCoreThreadDispatcher {
             "ConsensusCoreThread"
         );
 
-        // Explicitly using downgraded sender in order to allow sharing the CoreThreadDispatcher but
-        // able to shutdown the CoreThread by dropping the original sender.
+        // Explicitly using downgraded sender in order to allow sharing the
+        // CoreThreadDispatcher but able to shutdown the CoreThread by dropping
+        // the original sender.
         let dispatcher = ChannelCoreThreadDispatcher {
             sender: sender.downgrade(),
             context,

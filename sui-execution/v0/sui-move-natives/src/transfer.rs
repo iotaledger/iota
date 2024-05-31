@@ -1,8 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use super::object_runtime::{ObjectRuntime, TransferResult};
-use crate::NativesCostTable;
+use std::collections::VecDeque;
+
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
     account_address::AccountAddress, gas_algebra::InternalGas, language_storage::TypeTag,
@@ -13,8 +13,10 @@ use move_vm_types::{
     loaded_data::runtime_types::Type, natives::function::NativeResult, pop_arg, values::Value,
 };
 use smallvec::smallvec;
-use std::collections::VecDeque;
 use sui_types::{base_types::SequenceNumber, object::Owner};
+
+use super::object_runtime::{ObjectRuntime, TransferResult};
+use crate::NativesCostTable;
 
 const E_SHARED_NON_NEW_OBJECT: u64 = 0;
 
@@ -22,11 +24,12 @@ const E_SHARED_NON_NEW_OBJECT: u64 = 0;
 pub struct TransferInternalCostParams {
     pub transfer_transfer_internal_cost_base: InternalGas,
 }
-/***************************************************************************************************
-* native fun transfer_impl
-* Implementation of the Move native function `transfer_impl<T: key>(obj: T, recipient: address)`
-*   gas cost: transfer_transfer_internal_cost_base                  |  covers various fixed costs in the oper
-**************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun transfer_impl
+/// Implementation of the Move native function `transfer_impl<T: key>(obj: T,
+/// recipient: address)`   gas cost: transfer_transfer_internal_cost_base
+/// |  covers various fixed costs in the oper **********************************
+/// *************************************************************
 pub fn transfer_internal(
     context: &mut NativeContext,
     mut ty_args: Vec<Type>,
@@ -59,11 +62,12 @@ pub fn transfer_internal(
 pub struct TransferFreezeObjectCostParams {
     pub transfer_freeze_object_cost_base: InternalGas,
 }
-/***************************************************************************************************
-* native fun freeze_object
-* Implementation of the Move native function `freeze_object<T: key>(obj: T)`
-*   gas cost: transfer_freeze_object_cost_base                  |  covers various fixed costs in the oper
-**************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun freeze_object
+/// Implementation of the Move native function `freeze_object<T: key>(obj: T)`
+///   gas cost: transfer_freeze_object_cost_base                  |  covers
+/// various fixed costs in the oper ********************************************
+/// ***************************************************
 pub fn freeze_object(
     context: &mut NativeContext,
     mut ty_args: Vec<Type>,
@@ -94,11 +98,12 @@ pub fn freeze_object(
 pub struct TransferShareObjectCostParams {
     pub transfer_share_object_cost_base: InternalGas,
 }
-/***************************************************************************************************
-* native fun share_object
-* Implementation of the Move native function `share_object<T: key>(obj: T)`
-*   gas cost: transfer_share_object_cost_base                  |  covers various fixed costs in the oper
-**************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun share_object
+/// Implementation of the Move native function `share_object<T: key>(obj: T)`
+///   gas cost: transfer_share_object_cost_base                  |  covers
+/// various fixed costs in the oper ********************************************
+/// ***************************************************
 pub fn share_object(
     context: &mut NativeContext,
     mut ty_args: Vec<Type>,

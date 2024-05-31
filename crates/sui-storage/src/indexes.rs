@@ -1,47 +1,51 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! IndexStore supports creation of various ancillary indexes of state in SuiDataStore.
-//! The main user of this data is the explorer.
+//! IndexStore supports creation of various ancillary indexes of state in
+//! SuiDataStore. The main user of this data is the explorer.
 
-use std::cmp::{max, min};
-use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::{
+    cmp::{max, min},
+    collections::{BTreeMap, HashMap, HashSet},
+    path::{Path, PathBuf},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+};
 
 use itertools::Itertools;
-use move_core_types::identifier::Identifier;
-use move_core_types::language_storage::{ModuleId, StructTag, TypeTag};
+use move_core_types::{
+    identifier::Identifier,
+    language_storage::{ModuleId, StructTag, TypeTag},
+};
 use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::collections::BTreeMap;
-use sui_types::execution::DynamicallyLoadedObjectMetadata;
-use tokio::sync::OwnedMutexGuard;
-use typed_store::TypedStoreError;
-
-use crate::mutex_table::MutexTable;
-use crate::sharded_lru::ShardedLruCache;
 use sui_json_rpc_types::{SuiObjectDataFilter, TransactionFilter};
-use sui_types::base_types::{
-    ObjectDigest, ObjectID, SequenceNumber, SuiAddress, TransactionDigest, TxSequenceNumber,
+use sui_types::{
+    base_types::{
+        ObjectDigest, ObjectID, ObjectInfo, ObjectRef, SequenceNumber, SuiAddress,
+        TransactionDigest, TxSequenceNumber,
+    },
+    digests::TransactionEventsDigest,
+    dynamic_field::{self, DynamicFieldInfo},
+    effects::TransactionEvents,
+    error::{SuiError, SuiResult, UserInputError},
+    execution::DynamicallyLoadedObjectMetadata,
+    inner_temporary_store::TxCoins,
+    object::{Object, Owner},
+    parse_sui_struct_tag,
 };
-use sui_types::base_types::{ObjectInfo, ObjectRef};
-use sui_types::digests::TransactionEventsDigest;
-use sui_types::dynamic_field::{self, DynamicFieldInfo};
-use sui_types::effects::TransactionEvents;
-use sui_types::error::{SuiError, SuiResult, UserInputError};
-use sui_types::inner_temporary_store::TxCoins;
-use sui_types::object::{Object, Owner};
-use sui_types::parse_sui_struct_tag;
-use tokio::task::spawn_blocking;
+use tokio::{sync::OwnedMutexGuard, task::spawn_blocking};
 use tracing::{debug, trace};
-use typed_store::rocks::{
-    default_db_options, read_size_from_env, DBBatch, DBMap, DBOptions, MetricConf,
+use typed_store::{
+    rocks::{default_db_options, read_size_from_env, DBBatch, DBMap, DBOptions, MetricConf},
+    traits::{Map, TableSummary, TypedStoreDebug},
+    TypedStoreError,
 };
-use typed_store::traits::Map;
-use typed_store::traits::{TableSummary, TypedStoreDebug};
 use typed_store_derive::DBMapUtils;
+
+use crate::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 
 type OwnerIndexKey = (SuiAddress, ObjectID);
 type CoinIndexKey = (SuiAddress, String, ObjectID);
@@ -155,19 +159,22 @@ pub struct IndexStoreTables {
     #[default_options_override_fn = "transactions_by_input_object_id_table_default_config"]
     transactions_by_input_object_id: DBMap<(ObjectID, TxSequenceNumber), TransactionDigest>,
 
-    /// Index from object id to transactions that modified/created that object id.
+    /// Index from object id to transactions that modified/created that object
+    /// id.
     #[default_options_override_fn = "transactions_by_mutated_object_id_table_default_config"]
     transactions_by_mutated_object_id: DBMap<(ObjectID, TxSequenceNumber), TransactionDigest>,
 
-    /// Index from package id, module and function identifier to transactions that used that moce function call as input.
+    /// Index from package id, module and function identifier to transactions
+    /// that used that moce function call as input.
     #[default_options_override_fn = "transactions_by_move_function_table_default_config"]
     transactions_by_move_function:
         DBMap<(ObjectID, String, String, TxSequenceNumber), TransactionDigest>,
 
-    /// This is a map between the transaction digest and its timestamp (UTC timestamp in
-    /// **milliseconds** since epoch 1/1/1970). A transaction digest is subjectively time stamped
-    /// on a node according to the local machine time, so it varies across nodes.
-    /// The timestamping happens when the node sees a txn certificate for the first time.
+    /// This is a map between the transaction digest and its timestamp (UTC
+    /// timestamp in **milliseconds** since epoch 1/1/1970). A transaction
+    /// digest is subjectively time stamped on a node according to the local
+    /// machine time, so it varies across nodes. The timestamping happens
+    /// when the node sees a txn certificate for the first time.
     ///
     /// DEPRECATED. DO NOT USE
     #[allow(dead_code)]
@@ -182,9 +189,10 @@ pub struct IndexStoreTables {
     #[default_options_override_fn = "transactions_seq_table_default_config"]
     transactions_seq: DBMap<TransactionDigest, TxSequenceNumber>,
 
-    /// This is an index of object references to currently existing objects, indexed by the
-    /// composite key of the SuiAddress of their owner and the object ID of the object.
-    /// This composite index allows an efficient iterator to list all objected currently owned
+    /// This is an index of object references to currently existing objects,
+    /// indexed by the composite key of the SuiAddress of their owner and
+    /// the object ID of the object. This composite index allows an
+    /// efficient iterator to list all objected currently owned
     /// by a specific user, and their object reference.
     #[default_options_override_fn = "owner_index_table_default_config"]
     owner_index: DBMap<OwnerIndexKey, ObjectInfo>,
@@ -192,9 +200,10 @@ pub struct IndexStoreTables {
     #[default_options_override_fn = "coin_index_table_default_config"]
     coin_index: DBMap<CoinIndexKey, CoinInfo>,
 
-    /// This is an index of object references to currently existing dynamic field object, indexed by the
-    /// composite key of the object ID of their parent and the object ID of the dynamic field object.
-    /// This composite index allows an efficient iterator to list all objects currently owned
+    /// This is an index of object references to currently existing dynamic
+    /// field object, indexed by the composite key of the object ID of their
+    /// parent and the object ID of the dynamic field object. This composite
+    /// index allows an efficient iterator to list all objects currently owned
     /// by a specific object, and their object reference.
     #[default_options_override_fn = "dynamic_field_index_table_default_config"]
     dynamic_field_index: DBMap<DynamicFieldKey, DynamicFieldInfo>,
@@ -315,9 +324,9 @@ impl IndexStore {
         object_index_changes: &ObjectIndexChanges,
         tx_coins: Option<TxCoins>,
     ) -> SuiResult<IndexStoreCacheUpdates> {
-        // In production if this code path is hit, we should expect `tx_coins` to not be None.
-        // However, in many tests today we do not distinguish validator and/or fullnode, so
-        // we gracefully exist here.
+        // In production if this code path is hit, we should expect `tx_coins` to not be
+        // None. However, in many tests today we do not distinguish validator
+        // and/or fullnode, so we gracefully exist here.
         if tx_coins.is_none() {
             return Ok(IndexStoreCacheUpdates::default());
         }
@@ -376,11 +385,13 @@ impl IndexStore {
         batch.delete_batch(&self.tables.coin_index, coin_delete_keys.into_iter())?;
 
         // 2. Upsert new owner, by looking at `object_index_changes.new_owners`.
-        // For a object to appear in `new_owners`, it must be owned by `Owner::Address` after the tx.
-        // It also must not be deleted, hence appear in written_coins (see `AuthorityState::commit_certificate`)
-        // It also must be a coin type (see `AuthorityState::commit_certificate`).
-        // Here the coin could be transferred to a new address, to simply have the metadata changed (digest, balance etc)
-        // due to a successful or failed transaction.
+        // For a object to appear in `new_owners`, it must be owned by `Owner::Address`
+        // after the tx. It also must not be deleted, hence appear in
+        // written_coins (see `AuthorityState::commit_certificate`) It also must
+        // be a coin type (see `AuthorityState::commit_certificate`).
+        // Here the coin could be transferred to a new address, to simply have the
+        // metadata changed (digest, balance etc) due to a successful or failed
+        // transaction.
         let coin_add_keys = object_index_changes
         .new_owners
         .iter()
@@ -635,9 +646,10 @@ impl IndexStore {
         batch.write()?;
 
         if !invalidate_caches {
-            // We cannot update the cache before updating the db or else on failing to write to db
-            // we will update the cache (when we retry to index this transaction again we would have
-            // updated the cache twice). However, this only means cache is eventually consistent with
+            // We cannot update the cache before updating the db or else on failing to write
+            // to db we will update the cache (when we retry to index this
+            // transaction again we would have updated the cache twice).
+            // However, this only means cache is eventually consistent with
             // the db (within a very short delay)
             self.update_per_coin_type_cache(cache_updates.per_coin_type_balance_changes)
                 .await?;
@@ -1147,7 +1159,7 @@ impl IndexStore {
             .skip_to(&(object, cursor.unwrap_or(ObjectID::ZERO)))?
             // skip an extra b/c the cursor is exclusive
             .skip(usize::from(cursor.is_some()))
-            .take_while(move |result| result.is_err() || (result.as_ref().unwrap().0 .0 == object))
+            .take_while(move |result| result.is_err() || (result.as_ref().unwrap().0.0 == object))
             .map_ok(|((_, c), object_info)| (c, object_info)))
     }
 
@@ -1273,8 +1285,9 @@ impl IndexStore {
             .map(|(_, ((_, coin_type, obj_id), coin))| (coin_type, obj_id, coin)))
     }
 
-    /// starting_object_id can be used to implement pagination, where a client remembers the last
-    /// object id of each page, and use it to query the next page.
+    /// starting_object_id can be used to implement pagination, where a client
+    /// remembers the last object id of each page, and use it to query the
+    /// next page.
     pub fn get_owner_objects_iterator(
         &self,
         owner: SuiAddress,
@@ -1325,9 +1338,10 @@ impl IndexStore {
             .map_err(Into::into)
     }
 
-    /// This method first gets the balance from `per_coin_type_balance` cache. On a cache miss, it
-    /// gets the balance for passed in `coin_type` from the `all_balance` cache. Only on the second
-    /// cache miss, we go to the database (expensive) and update the cache. Notice that db read is
+    /// This method first gets the balance from `per_coin_type_balance` cache.
+    /// On a cache miss, it gets the balance for passed in `coin_type` from
+    /// the `all_balance` cache. Only on the second cache miss, we go to the
+    /// database (expensive) and update the cache. Notice that db read is
     /// done with `spawn_blocking` as that is expected to block
     pub async fn get_balance(
         &self,
@@ -1394,11 +1408,12 @@ impl IndexStore {
             .await
     }
 
-    /// This method gets the balance for all coin types from the `all_balance` cache. On a cache miss,
-    /// we go to the database (expensive) and update the cache. This cache is dual purpose in the
-    /// sense that it not only serves `get_AllBalance()` calls but is also used for serving
-    /// `get_Balance()` queries. Notice that db read is performed with `spawn_blocking` as that is
-    /// expected to block
+    /// This method gets the balance for all coin types from the `all_balance`
+    /// cache. On a cache miss, we go to the database (expensive) and update
+    /// the cache. This cache is dual purpose in the sense that it not only
+    /// serves `get_AllBalance()` calls but is also used for serving
+    /// `get_Balance()` queries. Notice that db read is performed with
+    /// `spawn_blocking` as that is expected to block
     pub async fn get_all_balance(
         &self,
         owner: SuiAddress,
@@ -1584,28 +1599,30 @@ impl IndexStore {
 
 #[cfg(test)]
 mod tests {
-    use crate::indexes::ObjectIndexChanges;
-    use crate::IndexStore;
+    use std::{collections::BTreeMap, env::temp_dir};
+
     use move_core_types::account_address::AccountAddress;
     use prometheus::Registry;
-    use std::collections::BTreeMap;
-    use std::env::temp_dir;
-    use sui_types::base_types::{ObjectInfo, ObjectType, SuiAddress};
-    use sui_types::digests::TransactionDigest;
-    use sui_types::effects::TransactionEvents;
-    use sui_types::gas_coin::GAS;
-    use sui_types::object;
-    use sui_types::object::Owner;
+    use sui_types::{
+        base_types::{ObjectInfo, ObjectType, SuiAddress},
+        digests::TransactionDigest,
+        effects::TransactionEvents,
+        gas_coin::GAS,
+        object,
+        object::Owner,
+    };
+
+    use crate::{indexes::ObjectIndexChanges, IndexStore};
 
     #[tokio::test]
     async fn test_index_cache() -> anyhow::Result<()> {
         // This test is going to invoke `index_tx()`where 10 coins each with balance 100
-        // are going to be added to an address. The balance is then going to be read from the db
-        // and the cache. It should be 1000. Then, we are going to delete 3 of those coins from
-        // the address and invoke `index_tx()` again and read balance. The balance should be 700
-        // and verified from both db and cache.
-        // This tests make sure we are invalidating entries in the cache and always reading latest
-        // balance.
+        // are going to be added to an address. The balance is then going to be read
+        // from the db and the cache. It should be 1000. Then, we are going to
+        // delete 3 of those coins from the address and invoke `index_tx()`
+        // again and read balance. The balance should be 700 and verified from
+        // both db and cache. This tests make sure we are invalidating entries
+        // in the cache and always reading latest balance.
         let index_store = IndexStore::new(temp_dir(), &Registry::default(), Some(128));
         let address: SuiAddress = AccountAddress::random().into();
         let mut written_objects = BTreeMap::new();
@@ -1705,8 +1722,8 @@ mod tests {
         assert_eq!(balance, balance_from_db);
         assert_eq!(balance.balance, 700);
         assert_eq!(balance.num_coins, 7);
-        // Invalidate per coin type balance cache and read from all balance cache to ensure
-        // the balance matches
+        // Invalidate per coin type balance cache and read from all balance cache to
+        // ensure the balance matches
         index_store
             .caches
             .per_coin_type_balance

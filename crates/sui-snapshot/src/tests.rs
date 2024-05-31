@@ -1,20 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::reader::StateSnapshotReaderV1;
-use crate::writer::StateSnapshotWriterV1;
-use crate::FileCompression;
+use std::{collections::HashSet, num::NonZeroUsize, sync::Arc};
+
 use futures::future::AbortHandle;
 use indicatif::MultiProgress;
-use std::collections::HashSet;
-use std::num::NonZeroUsize;
-use std::sync::Arc;
 use sui_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use sui_core::authority::authority_store_tables::AuthorityPerpetualTables;
 use sui_protocol_config::ProtocolConfig;
-use sui_types::base_types::ObjectID;
-use sui_types::object::Object;
+use sui_types::{base_types::ObjectID, object::Object};
 use tempfile::tempdir;
+
+use crate::{reader::StateSnapshotReaderV1, writer::StateSnapshotWriterV1, FileCompression};
 
 fn temp_dir() -> std::path::PathBuf {
     tempdir()

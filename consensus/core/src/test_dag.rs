@@ -15,8 +15,8 @@ use crate::{
 
 /// Build a fully interconnected dag up to the specified round. This function
 /// starts building the dag from the specified [`start`] parameter or from
-/// genesis if none are specified up to and including the specified round [`stop`]
-/// parameter.
+/// genesis if none are specified up to and including the specified round
+/// [`stop`] parameter.
 pub(crate) fn build_dag(
     context: Arc<Context>,
     dag_state: Arc<RwLock<DagState>>,

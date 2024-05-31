@@ -2,14 +2,15 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{anyhow, Context};
 use std::{collections::BTreeSet, fmt, str::FromStr};
 
-use crate::lexer::*;
+use anyhow::{anyhow, Context};
 use move_command_line_common::files::FileHash;
 use move_core_types::{account_address::AccountAddress, u256};
 use move_ir_types::{ast::*, location::*};
 use move_symbol_pool::Symbol;
+
+use crate::lexer::*;
 
 // FIXME: The following simplified version of ParseError copied from
 // lalrpop-util should be replaced.
@@ -327,7 +328,8 @@ fn parse_copyable_val(tokens: &mut Lexer) -> Result<CopyableVal, ParseError<Loc,
         Tok::ByteArrayValue => {
             let s = tokens.content();
             let buf = hex::decode(&s[2..s.len() - 1]).unwrap_or_else(|_| {
-                // The lexer guarantees this, but tracking this knowledge all the way to here is tedious
+                // The lexer guarantees this, but tracking this knowledge all the way to here is
+                // tedious
                 unreachable!("The string {:?} is not a valid hex-encoded byte array", s)
             });
             tokens.advance()?;
@@ -337,7 +339,7 @@ fn parse_copyable_val(tokens: &mut Lexer) -> Result<CopyableVal, ParseError<Loc,
             return Err(ParseError::InvalidToken {
                 location: current_token_loc(tokens),
                 message: format!("unrecognized token kind {:?}", t),
-            })
+            });
         }
     };
     let end_loc = tokens.previous_end_loc();
@@ -487,7 +489,7 @@ fn parse_qualified_function_name(
                     "unrecognized token kind for qualified function name {:?}",
                     t
                 ),
-            })
+            });
         }
     };
     let end_loc = tokens.previous_end_loc();
@@ -569,8 +571,8 @@ fn parse_unary_exp(tokens: &mut Lexer) -> Result<Exp, ParseError<Loc, anyhow::Er
 }
 
 // Call: Exp = {
-//     <f: Sp<QualifiedFunctionName>> <exp: Sp<CallOrTerm>> => Exp::FunctionCall(f, Box::new(exp)),
-// }
+//     <f: Sp<QualifiedFunctionName>> <exp: Sp<CallOrTerm>> =>
+// Exp::FunctionCall(f, Box::new(exp)), }
 
 fn parse_call(tokens: &mut Lexer) -> Result<Exp, ParseError<Loc, anyhow::Error>> {
     let start_loc = tokens.start_loc();
@@ -586,8 +588,8 @@ fn parse_call(tokens: &mut Lexer) -> Result<Exp, ParseError<Loc, anyhow::Error>>
 }
 
 // CallOrTerm: Exp = {
-//     <f: Sp<QualifiedFunctionName>> <exp: Sp<CallOrTerm>> => Exp::FunctionCall(f, Box::new(exp)),
-//     Term,
+//     <f: Sp<QualifiedFunctionName>> <exp: Sp<CallOrTerm>> =>
+// Exp::FunctionCall(f, Box::new(exp)),     Term,
 // }
 
 fn parse_call_or_term_(tokens: &mut Lexer) -> Result<Exp_, ParseError<Loc, anyhow::Error>> {
@@ -640,8 +642,8 @@ fn parse_field_exp(tokens: &mut Lexer) -> Result<(Field, Exp), ParseError<Loc, a
 //     "&mut " <v: Sp<Var>> => Exp::BorrowLocal(true, v),
 //     "&" <v: Sp<Var>> => Exp::BorrowLocal(false, v),
 //     Sp<CopyableVal> => Exp::Value(<>),
-//     <name_and_type_actuals: NameAndTypeActuals> "{" <fs:Comma<FieldExp>> "}" =>? { ... },
-//     "(" <exps: Comma<Sp<Exp>>> ")" => Exp::ExprList(exps),
+//     <name_and_type_actuals: NameAndTypeActuals> "{" <fs:Comma<FieldExp>> "}"
+// =>? { ... },     "(" <exps: Comma<Sp<Exp>>> ")" => Exp::ExprList(exps),
 // }
 
 fn parse_pack_(
@@ -735,11 +737,11 @@ fn parse_module_name(tokens: &mut Lexer) -> Result<ModuleName, ParseError<Loc, a
 
 // Builtin: Builtin = {
 //     "exists<" <name_and_type_actuals: NameAndTypeActuals> ">" =>? { ... },
-//     "borrow_global<" <name_and_type_actuals: NameAndTypeActuals> ">" =>? { ... },
-//     "borrow_global_mut<" <name_and_type_actuals: NameAndTypeActuals> ">" =>? { ... },
-//     "move_to<" <name_and_type_actuals: NameAndTypeActuals> ">" =>? { ... },
-//     "move_from<" <name_and_type_actuals: NameAndTypeActuals> ">" =>? { ... },
-//     "vec_*<" <type_actuals: TypeActuals> ">" =>? { ... },
+//     "borrow_global<" <name_and_type_actuals: NameAndTypeActuals> ">" =>? {
+// ... },     "borrow_global_mut<" <name_and_type_actuals: NameAndTypeActuals>
+// ">" =>? { ... },     "move_to<" <name_and_type_actuals: NameAndTypeActuals>
+// ">" =>? { ... },     "move_from<" <name_and_type_actuals: NameAndTypeActuals>
+// ">" =>? { ... },     "vec_*<" <type_actuals: TypeActuals> ">" =>? { ... },
 //     "freeze" => Builtin::Freeze,
 // }
 
@@ -881,14 +883,15 @@ fn parse_field_bindings(
 
 // pub Cmd : Cmd = {
 //     <lvalues: Comma<Sp<LValue>>> "=" <e: Sp<Exp>> => Cmd::Assign(lvalues, e),
-//     <name_and_type_actuals: NameAndTypeActuals> "{" <bindings: Comma<FieldBindings>> "}" "=" <e: Sp<Exp>> =>? { ... },
-//     "abort" <err: Sp<Exp>?> => { ... },
-//     "return" <v: Comma<Sp<Exp>>> => Cmd::Return(Box::new(Spanned::unsafe_no_loc(Exp::ExprList(v)))),
+//     <name_and_type_actuals: NameAndTypeActuals> "{" <bindings:
+// Comma<FieldBindings>> "}" "=" <e: Sp<Exp>> =>? { ... },     "abort" <err:
+// Sp<Exp>?> => { ... },     "return" <v: Comma<Sp<Exp>>> =>
+// Cmd::Return(Box::new(Spanned::unsafe_no_loc(Exp::ExprList(v)))),
 //     "continue" => Cmd::Continue,
 //     "break" => Cmd::Break,
 //     <Sp<Call>> => Cmd::Exp(Box::new(<>)),
-//     "(" <Comma<Sp<Exp>>> ")" => Cmd::Exp(Box::new(Spanned::unsafe_no_loc(Exp::ExprList(<>)))),
-// }
+//     "(" <Comma<Sp<Exp>>> ")" =>
+// Cmd::Exp(Box::new(Spanned::unsafe_no_loc(Exp::ExprList(<>)))), }
 
 fn parse_assign_(tokens: &mut Lexer) -> Result<Statement_, ParseError<Loc, anyhow::Error>> {
     let lvalues = parse_comma_list(tokens, &[Tok::Equal], parse_lvalue, false)?;
@@ -1055,8 +1058,8 @@ fn parse_label(tokens: &mut Lexer) -> Result<BlockLabel, ParseError<Loc, anyhow:
     Ok(spanned(tokens.file_hash(), start, end, BlockLabel_(name)))
 }
 
-/// Parses a sequence of blocks, such as would appear within the `{` and `}` delimiters of a
-/// function body.
+/// Parses a sequence of blocks, such as would appear within the `{` and `}`
+/// delimiters of a function body.
 fn parse_blocks(tokens: &mut Lexer) -> Result<Vec<Block>, ParseError<Loc, anyhow::Error>> {
     let mut blocks = vec![];
     while tokens.peek() != Tok::RBrace {
@@ -1065,7 +1068,8 @@ fn parse_blocks(tokens: &mut Lexer) -> Result<Vec<Block>, ParseError<Loc, anyhow
     Ok(blocks)
 }
 
-/// Parses a block: its block label `label b:`, and a sequence of 0 or more statements.
+/// Parses a block: its block label `label b:`, and a sequence of 0 or more
+/// statements.
 fn parse_block(tokens: &mut Lexer) -> Result<Block, ParseError<Loc, anyhow::Error>> {
     let start_loc = tokens.start_loc();
     let label = parse_block_label(tokens)?;
@@ -1111,8 +1115,8 @@ fn parse_declarations(
 }
 
 // FunctionBlock: (Vec<(Var_, Type)>, Block) = {
-//     "{" <locals: Declarations> <stmts: Statements> "}" => (locals, Block::new(stmts))
-// }
+//     "{" <locals: Declarations> <stmts: Statements> "}" => (locals,
+// Block::new(stmts)) }
 
 fn parse_function_block_(
     tokens: &mut Lexer,
@@ -1147,7 +1151,7 @@ fn parse_ability(tokens: &mut Lexer) -> Result<(Ability, Loc), ParseError<Loc, a
             return Err(ParseError::InvalidToken {
                 location: current_token_loc(tokens),
                 message: "could not parse ability".to_string(),
-            })
+            });
         }
     };
     tokens.advance()?;
@@ -1229,7 +1233,7 @@ fn parse_type(tokens: &mut Lexer) -> Result<Type, ParseError<Loc, anyhow::Error>
             return Err(ParseError::InvalidToken {
                 location: current_token_loc(tokens),
                 message: format!("invalid token kind for type {:?}", t),
-            })
+            });
         }
     };
     Ok(t)
@@ -1430,9 +1434,9 @@ fn parse_function_visibility(
 }
 
 // FunctionDecl : (FunctionName, Function_) = {
-//   <f: Sp<MoveFunctionDecl>> => (f.value.0, Spanned { span: f.loc, value: f.value.1 }),
-//   <f: Sp<NativeFunctionDecl>> => (f.value.0, Spanned { span: f.loc, value: f.value.1 }),
-// }
+//   <f: Sp<MoveFunctionDecl>> => (f.value.0, Spanned { span: f.loc, value:
+// f.value.1 }),   <f: Sp<NativeFunctionDecl>> => (f.value.0, Spanned { span:
+// f.loc, value: f.value.1 }), }
 
 // MoveFunctionDecl : (FunctionName, Function) = {
 //     <v: FunctionVisibility> <name_and_type_parameters: NameAndTypeFormals>
@@ -1442,8 +1446,8 @@ fn parse_function_visibility(
 // }
 
 // NativeFunctionDecl: (FunctionName, Function) = {
-//     <nat: NativeTag> <v: FunctionVisibility> <name_and_type_parameters: NameAndTypeFormals>
-//     "(" <args: Comma<ArgDecl>> ")" <ret: ReturnType?>
+//     <nat: NativeTag> <v: FunctionVisibility> <name_and_type_parameters:
+// NameAndTypeFormals>     "(" <args: Comma<ArgDecl>> ")" <ret: ReturnType?>
 //         <acquires: AcquireList?>
 //         ";" =>? { ... }
 // }
@@ -1515,8 +1519,8 @@ fn parse_field_decl(tokens: &mut Lexer) -> Result<(Field, Type), ParseError<Loc,
 
 // StructDecl: StructDefinition_ = {
 //     "struct" <name_and_type_parameters:
-//     NameAndTypeFormals> ("has" <Ability> ("," <Ability)*)? "{" <data: Comma<FieldDecl>> "}"
-//     =>? { ... }
+//     NameAndTypeFormals> ("has" <Ability> ("," <Ability)*)? "{" <data:
+// Comma<FieldDecl>> "}"     =>? { ... }
 //     <native: NativeTag> <name_and_type_parameters: NameAndTypeFormals>
 //     ("has" <Ability> ("," <Ability)*)?";" =>? { ... }
 // }

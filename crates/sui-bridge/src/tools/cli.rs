@@ -1,20 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::path::PathBuf;
+
 use anyhow::anyhow;
 use clap::*;
-use fastcrypto::ed25519::Ed25519KeyPair;
-use fastcrypto::secp256k1::Secp256k1KeyPair;
-use fastcrypto::traits::EncodeDecodeBase64;
-use std::path::PathBuf;
-use sui_bridge::config::BridgeNodeConfig;
-use sui_bridge::crypto::BridgeAuthorityKeyPair;
-use sui_bridge::crypto::BridgeAuthorityPublicKeyBytes;
+use fastcrypto::{
+    ed25519::Ed25519KeyPair, secp256k1::Secp256k1KeyPair, traits::EncodeDecodeBase64,
+};
+use sui_bridge::{
+    config::BridgeNodeConfig,
+    crypto::{BridgeAuthorityKeyPair, BridgeAuthorityPublicKeyBytes},
+};
 use sui_config::Config;
-use sui_types::base_types::ObjectID;
-use sui_types::base_types::SuiAddress;
-use sui_types::crypto::get_key_pair;
-use sui_types::crypto::SuiKeyPair;
+use sui_types::{
+    base_types::{ObjectID, SuiAddress},
+    crypto::{get_key_pair, SuiKeyPair},
+};
 
 #[derive(Parser)]
 #[clap(rename_all = "kebab-case")]
@@ -66,7 +68,8 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Generate Bridge Authority key (Secp256k1KeyPair) and write to a file as base64 encoded `privkey`.
+/// Generate Bridge Authority key (Secp256k1KeyPair) and write to a file as
+/// base64 encoded `privkey`.
 fn generate_bridge_authority_key_and_write_to_file(path: &PathBuf) -> Result<(), anyhow::Error> {
     let (_, kp): (_, BridgeAuthorityKeyPair) = get_key_pair();
     let eth_address = BridgeAuthorityPublicKeyBytes::from(&kp.public).to_eth_address();
@@ -84,7 +87,8 @@ fn generate_bridge_authority_key_and_write_to_file(path: &PathBuf) -> Result<(),
         .map_err(|err| anyhow!("Failed to write encoded key to path: {:?}", err))
 }
 
-/// Generate Bridge Client key (Secp256k1KeyPair or Ed25519KeyPair) and write to a file as base64 encoded `flag || privkey`.
+/// Generate Bridge Client key (Secp256k1KeyPair or Ed25519KeyPair) and write to
+/// a file as base64 encoded `flag || privkey`.
 fn generate_bridge_client_key_and_write_to_file(
     path: &PathBuf,
     use_ecdsa: bool,

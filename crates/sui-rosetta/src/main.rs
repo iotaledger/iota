@@ -1,28 +1,35 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
-use std::fs;
-use std::fs::File;
-use std::io::BufReader;
-use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::{
+    collections::BTreeMap,
+    fs,
+    fs::File,
+    io::BufReader,
+    net::SocketAddr,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 use anyhow::anyhow;
 use clap::Parser;
-use fastcrypto::encoding::{Encoding, Hex};
-use fastcrypto::traits::EncodeDecodeBase64;
+use fastcrypto::{
+    encoding::{Encoding, Hex},
+    traits::EncodeDecodeBase64,
+};
 use serde_json::{json, Value};
 use sui_config::{sui_config_dir, Config, NodeConfig, SUI_FULLNODE_CONFIG, SUI_KEYSTORE_FILENAME};
 use sui_node::SuiNode;
-use sui_rosetta::types::{CurveType, PrefundedAccount, SuiEnv};
-use sui_rosetta::{RosettaOfflineServer, RosettaOnlineServer, SUI};
+use sui_rosetta::{
+    types::{CurveType, PrefundedAccount, SuiEnv},
+    RosettaOfflineServer, RosettaOnlineServer, SUI,
+};
 use sui_sdk::{SuiClient, SuiClientBuilder};
-use sui_types::base_types::SuiAddress;
-use sui_types::crypto::{KeypairTraits, SuiKeyPair, ToFromBytes};
-use tracing::info;
-use tracing::log::warn;
+use sui_types::{
+    base_types::SuiAddress,
+    crypto::{KeypairTraits, SuiKeyPair, ToFromBytes},
+};
+use tracing::{info, log::warn};
 
 #[derive(Parser)]
 #[clap(name = "sui-rosetta", rename_all = "kebab-case", author, version)]
@@ -193,16 +200,18 @@ async fn wait_for_sui_client(rpc_address: String) -> SuiClient {
         {
             Ok(client) => return client,
             Err(e) => {
-                warn!("Error connecting to Sui RPC server [{rpc_address}]: {e}, retrying in 5 seconds.");
+                warn!(
+                    "Error connecting to Sui RPC server [{rpc_address}]: {e}, retrying in 5 seconds."
+                );
                 tokio::time::sleep(Duration::from_millis(5000)).await;
             }
         }
     }
 }
 
-/// This method reads the keypairs from the Sui keystore to create the PrefundedAccount objects,
-/// PrefundedAccount will be written to the rosetta-cli config file for testing.
-///
+/// This method reads the keypairs from the Sui keystore to create the
+/// PrefundedAccount objects, PrefundedAccount will be written to the
+/// rosetta-cli config file for testing.
 fn read_prefunded_account(path: &Path) -> Result<Vec<PrefundedAccount>, anyhow::Error> {
     let reader = BufReader::new(File::open(path).unwrap());
     let kp_strings: Vec<String> = serde_json::from_reader(reader).unwrap();

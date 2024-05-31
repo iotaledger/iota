@@ -1,24 +1,28 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+    sync::Arc,
+    time::Duration,
+};
+
 use indexmap::IndexSet;
-use move_binary_format::file_format::Visibility;
-use move_binary_format::normalized::Type;
+use move_binary_format::{file_format::Visibility, normalized::Type};
 use move_core_types::language_storage::StructTag;
 use rand::rngs::StdRng;
-use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::Duration;
 use sui_json_rpc_types::{SuiTransactionBlockEffects, SuiTransactionBlockEffectsAPI};
 use sui_move_build::BuildConfig;
 use sui_protocol_config::ProtocolConfig;
-use sui_types::base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress};
-use sui_types::execution_config_utils::to_binary_config;
-use sui_types::object::{Object, Owner};
-use sui_types::storage::WriteKind;
-use sui_types::transaction::{CallArg, ObjectArg, TransactionData, TEST_ONLY_GAS_UNIT_FOR_PUBLISH};
-use sui_types::{Identifier, SUI_FRAMEWORK_ADDRESS};
+use sui_types::{
+    base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress},
+    execution_config_utils::to_binary_config,
+    object::{Object, Owner},
+    storage::WriteKind,
+    transaction::{CallArg, ObjectArg, TransactionData, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
+    Identifier, SUI_FRAMEWORK_ADDRESS,
+};
 use test_cluster::TestCluster;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info};
@@ -99,8 +103,8 @@ pub type OwnedObjects = HashMap<StructTag, IndexSet<ObjectRef>>;
 
 pub type ImmObjects = Arc<RwLock<HashMap<StructTag, Vec<ObjectRef>>>>;
 
-/// Map from StructTag to a vector of shared objects, where each shared object is a tuple of
-/// (object ID, initial shared version).
+/// Map from StructTag to a vector of shared objects, where each shared object
+/// is a tuple of (object ID, initial shared version).
 pub type SharedObjects = Arc<RwLock<HashMap<StructTag, Vec<(ObjectID, SequenceNumber)>>>>;
 
 pub struct SurferState {
@@ -249,8 +253,9 @@ impl SurferState {
                             .or_default()
                             .push((obj_ref.0, initial_shared_version));
                     }
-                    // We do not need to insert it if it's a Mutate, because it means
-                    // we should already have it in the inventory.
+                    // We do not need to insert it if it's a Mutate, because it
+                    // means we should already have it in
+                    // the inventory.
                 }
             }
             if obj_ref.0 == self.gas_object.0 {
@@ -277,7 +282,8 @@ impl SurferState {
                         if !matches!(func.visibility, Visibility::Public) && !func.is_entry {
                             return None;
                         }
-                        // Surfer doesn't support chaining transactions in a programmable transaction yet.
+                        // Surfer doesn't support chaining transactions in a programmable
+                        // transaction yet.
                         if !func.return_.is_empty() {
                             return None;
                         }

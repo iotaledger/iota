@@ -1,12 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{fs, path::PathBuf};
+
 use clap::Parser;
 use move_cli::base;
-use move_package::source_package::layout::SourcePackageLayout;
-use move_package::BuildConfig as MoveBuildConfig;
+use move_package::{source_package::layout::SourcePackageLayout, BuildConfig as MoveBuildConfig};
 use serde_json::json;
-use std::{fs, path::PathBuf};
 use sui_move_build::{check_invalid_dependencies, check_unpublished_dependencies, BuildConfig};
 
 const LAYOUTS_DIR: &str = "layouts";
@@ -15,18 +15,18 @@ const STRUCT_LAYOUTS_FILENAME: &str = "struct_layouts.yaml";
 #[derive(Parser)]
 #[group(id = "sui-move-build")]
 pub struct Build {
-    /// Include the contents of packages in dependencies that haven't been published (only relevant
-    /// when dumping bytecode as base64)
+    /// Include the contents of packages in dependencies that haven't been
+    /// published (only relevant when dumping bytecode as base64)
     #[clap(long, global = true)]
     pub with_unpublished_dependencies: bool,
     /// Whether we are printing in base64.
     #[clap(long, global = true)]
     pub dump_bytecode_as_base64: bool,
     /// If true, generate struct layout schemas for
-    /// all struct types passed into `entry` functions declared by modules in this package
-    /// These layout schemas can be consumed by clients (e.g.,
-    /// the TypeScript SDK) to enable serialization/deserialization of transaction arguments
-    /// and events.
+    /// all struct types passed into `entry` functions declared by modules in
+    /// this package These layout schemas can be consumed by clients (e.g.,
+    /// the TypeScript SDK) to enable serialization/deserialization of
+    /// transaction arguments and events.
     #[clap(long, global = true)]
     pub generate_struct_layouts: bool,
 }

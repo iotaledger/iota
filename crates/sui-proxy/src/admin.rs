@@ -1,24 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use crate::config::{DynamicPeerValidationConfig, RemoteWriteConfig, StaticPeerValidationConfig};
-use crate::handlers::publish_metrics;
-use crate::histogram_relay::HistogramRelay;
-use crate::ip::{is_private, to_multiaddr};
-use crate::middleware::{
-    expect_content_length, expect_mysten_proxy_header, expect_valid_public_key,
+use std::{
+    fs,
+    io::BufReader,
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+    time::Duration,
 };
-use crate::peers::{SuiNodeProvider, SuiPeer};
-use crate::var;
-use anyhow::Error;
-use anyhow::Result;
+
+use anyhow::{Error, Result};
 use axum::{extract::DefaultBodyLimit, middleware, routing::post, Extension, Router};
-use fastcrypto::ed25519::{Ed25519KeyPair, Ed25519PublicKey};
-use fastcrypto::traits::{KeyPair, ToFromBytes};
-use std::fs;
-use std::io::BufReader;
-use std::net::{IpAddr, SocketAddr};
-use std::sync::Arc;
-use std::time::Duration;
+use fastcrypto::{
+    ed25519::{Ed25519KeyPair, Ed25519PublicKey},
+    traits::{KeyPair, ToFromBytes},
+};
 use sui_tls::{rustls::ServerConfig, AllowAll, CertVerifier, SelfSignedCertificate, TlsAcceptor};
 use tokio::signal;
 use tower::ServiceBuilder;
@@ -27,6 +22,16 @@ use tower_http::{
     LatencyUnit,
 };
 use tracing::{error, info, Level};
+
+use crate::{
+    config::{DynamicPeerValidationConfig, RemoteWriteConfig, StaticPeerValidationConfig},
+    handlers::publish_metrics,
+    histogram_relay::HistogramRelay,
+    ip::{is_private, to_multiaddr},
+    middleware::{expect_content_length, expect_mysten_proxy_header, expect_valid_public_key},
+    peers::{SuiNodeProvider, SuiPeer},
+    var,
+};
 
 /// Configure our graceful shutdown scenarios
 pub async fn shutdown_signal(h: axum_server::Handle) {
@@ -196,7 +201,8 @@ fn load_private_key(filename: &str) -> rustls::PrivateKey {
     );
 }
 
-/// load the static keys we'll use to allow external non-validator nodes to push metrics
+/// load the static keys we'll use to allow external non-validator nodes to push
+/// metrics
 fn load_static_peers(
     static_peers: Option<StaticPeerValidationConfig>,
 ) -> Result<Vec<SuiPeer>, Error> {
@@ -226,7 +232,8 @@ fn load_static_peers(
     Ok(static_keys)
 }
 
-/// Default allow mode for server, we don't verify clients, everything is accepted
+/// Default allow mode for server, we don't verify clients, everything is
+/// accepted
 pub fn create_server_cert_default_allow(
     hostname: String,
 ) -> Result<ServerConfig, sui_tls::rustls::Error> {
@@ -238,8 +245,8 @@ pub fn create_server_cert_default_allow(
     )
 }
 
-/// Verify clients against sui blockchain, clients that are not found in sui_getValidators
-/// will be rejected
+/// Verify clients against sui blockchain, clients that are not found in
+/// sui_getValidators will be rejected
 pub fn create_server_cert_enforce_peer(
     dynamic_peers: DynamicPeerValidationConfig,
     static_peers: Option<StaticPeerValidationConfig>,
