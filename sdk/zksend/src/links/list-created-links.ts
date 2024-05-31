@@ -149,6 +149,7 @@ export async function listCreatedLinks({
                     claimed: !!link.claimed,
                     assets: link.assets!,
                     digest: node.digest,
+                    // eslint-disable-next-line @typescript-eslint/no-non-null-asserted-optional-chain
                     createdAt: node.effects?.timestamp!,
                 };
             }),

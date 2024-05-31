@@ -332,7 +332,7 @@ export class ZkSendLinkBuilder {
         const pageSize = 50;
         let offset = 0;
         while (offset < allIds.length) {
-            let chunk = allIds.slice(offset, offset + pageSize);
+            const chunk = allIds.slice(offset, offset + pageSize);
             offset += pageSize;
 
             const objects = await client.multiGetObjects({
