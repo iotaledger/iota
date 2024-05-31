@@ -64,7 +64,7 @@ pub(crate) const NATIVE_TOKEN_BAG_KEY_TYPE: &str = "0x01::ascii::String";
 pub struct Migration {
     target_milestone_timestamp_sec: u32,
 
-    executor: Executor,
+    pub(super) executor: Executor,
     pub(super) output_objects_map: HashMap<OutputId, CreatedObjects>,
 }
 
