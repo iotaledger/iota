@@ -147,16 +147,16 @@ export default class Sui {
         // besides the payload.
         extraData: Map<String, Buffer> = new Map<String, Buffer>(),
     ): Promise<Buffer> {
-        let chunkSize = 180;
+        const chunkSize = 180;
         if (!(payload instanceof Array)) {
             payload = [payload];
         }
-        let parameterList: Buffer[] = [];
+        const parameterList: Buffer[] = [];
         let data = new Map<String, Buffer>(extraData);
         for (let j = 0; j < payload.length; j++) {
-            let chunkList: Buffer[] = [];
+            const chunkList: Buffer[] = [];
             for (let i = 0; i < payload[j].length; i += chunkSize) {
-                let cur = payload[j].slice(i, i + chunkSize);
+                const cur = payload[j].slice(i, i + chunkSize);
                 chunkList.push(cur);
             }
             // Store the hash that points to the "rest of the list of chunks"
@@ -166,7 +166,7 @@ export default class Sui {
             // We have to do it this way, because a block knows the hash of
             // the next block.
             data = chunkList.reduceRight((blocks, chunk) => {
-                let linkedChunk = Buffer.concat([lastHash, chunk]);
+                const linkedChunk = Buffer.concat([lastHash, chunk]);
                 this.#log('Chunk: ', chunk);
                 this.#log('linkedChunk: ', linkedChunk);
                 lastHash = Buffer.from(sha256(linkedChunk));
@@ -199,10 +199,10 @@ export default class Sui {
         let result = Buffer.alloc(0);
         do {
             this.#log('Sending payload to ledger: ', payload.toString('hex'));
-            let rv = await this.transport.send(cla, ins, p1, p2, payload);
+            const rv = await this.transport.send(cla, ins, p1, p2, payload);
             this.#log('Received response: ', rv);
-            var rv_instruction = rv[0];
-            let rv_payload = rv.slice(1, rv.length - 2); // Last two bytes are a return code.
+            const rv_instruction = rv[0];
+            const rv_payload = rv.slice(1, rv.length - 2); // Last two bytes are a return code.
             if (!(rv_instruction in LedgerToHost)) {
                 throw new TypeError('Unknown instruction returned from ledger');
             }
@@ -214,7 +214,7 @@ export default class Sui {
                     payload = Buffer.from([HostToLedger.RESULT_ACCUMULATING_RESPONSE]);
                     break;
                 case LedgerToHost.GET_CHUNK:
-                    let chunk = data.get(rv_payload.toString('hex'));
+                    const chunk = data.get(rv_payload.toString('hex'));
                     this.#log('Getting block ', rv_payload);
                     this.#log('Found block ', chunk);
                     if (chunk) {
