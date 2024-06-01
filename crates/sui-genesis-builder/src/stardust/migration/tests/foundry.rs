@@ -1,8 +1,11 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use iota_sdk::{
     types::block::output::{feature::Irc30Metadata, AliasId, SimpleTokenScheme},
     U256,
 };
-use sui_types::gas_coin::GAS;
+use sui_types::{base_types::ObjectID, gas_coin::GAS};
 
 use crate::stardust::migration::tests::{create_foundry, run_migration};
 
@@ -16,6 +19,8 @@ fn create_foundry_amount() {
         AliasId::null(),
     );
 
+    let output_id = foundry_header.output_id();
+
     let objects = run_migration([(foundry_header, foundry_output.into())]).into_objects();
 
     // Foundry package publication creates five objects
@@ -27,12 +32,31 @@ fn create_foundry_amount() {
     // * The foundry amount coin
     assert_eq!(objects.len(), 5);
 
+    // Extract the package object.
+    let package_object = objects
+        .iter()
+        .find_map(|object| object.is_package().then_some(object))
+        .expect("there should be only a single gas coin");
+
+    // Extract the gas coin object.
     let gas_coin_object = objects
-        .into_iter()
+        .iter()
         .find_map(|object| object.is_gas_coin().then_some(object))
         .expect("there should be only a single gas coin");
+
+    // Downcast the gas coin object to get the coin.
     let coin = gas_coin_object.as_coin_maybe().unwrap();
 
-    assert_eq!(coin.value(), 1_000_000);
+    // Check if the gas coin id is the same as the output id.
+    assert_eq!(gas_coin_object.id(), ObjectID::new(output_id.hash()));
+
+    // Check if the owner of the gas coin is the package object.
+    assert_eq!(
+        gas_coin_object.owner.get_owner_address().unwrap(),
+        package_object.id().into()
+    );
+
     assert_eq!(gas_coin_object.coin_type_maybe().unwrap(), GAS::type_tag());
+    assert_eq!(coin.value(), 1_000_000);
+    assert_eq!(package_object.version(), gas_coin_object.version());
 }
