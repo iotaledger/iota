@@ -22,12 +22,11 @@ use sui_move_natives_v2::all_natives;
 use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use sui_types::{
     balance::Balance,
-    base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress, TxContext},
+    base_types::{MoveObjectType, ObjectID, ObjectRef, SequenceNumber, SuiAddress, TxContext},
     coin::Coin,
     collection_types::Bag,
     dynamic_field::Field,
     execution_mode,
-    gas_coin::GAS,
     id::UID,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
@@ -270,7 +269,7 @@ impl Executor {
                 ),
             );
 
-            //Create the foundry amount object.
+            // Create the foundry amount object.
             let amount_object = self.create_foundry_amount(
                 UID::new(ObjectID::new(header.output_id().hash())),
                 foundry_package.id().into(),
@@ -281,7 +280,7 @@ impl Executor {
             )?;
             created_objects.set_foundry_amount(amount_object.id())?;
             self.store.insert_object(amount_object);
-            
+
             self.store.finish(
                 written
                     .into_iter()
@@ -308,7 +307,7 @@ impl Executor {
             // Safety: we know from the definition of `Coin`
             // that it has public transfer (`store` ability is present).
             MoveObject::new_from_execution(
-                GAS::type_().into(),
+                MoveObjectType::gas_coin(),
                 true,
                 version,
                 bcs::to_bytes(&coin)?,

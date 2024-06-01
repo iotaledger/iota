@@ -35,6 +35,7 @@ use crate::stardust::{
 
 mod alias;
 mod executor;
+mod foundry;
 
 fn random_output_header() -> OutputHeader {
     OutputHeader::new_testing(
