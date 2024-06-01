@@ -5,7 +5,10 @@ use iota_sdk::{
     types::block::output::{feature::Irc30Metadata, AliasId, SimpleTokenScheme},
     U256,
 };
-use sui_types::{base_types::ObjectID, gas_coin::GAS};
+use sui_types::{
+    base_types::{MoveObjectType, ObjectID},
+    gas_coin::GAS,
+};
 
 use crate::stardust::migration::tests::{create_foundry, run_migration};
 
@@ -56,6 +59,10 @@ fn create_foundry_amount() {
         package_object.id().into()
     );
 
+    assert_eq!(
+        *gas_coin_object.type_().unwrap(),
+        MoveObjectType::gas_coin()
+    );
     assert_eq!(gas_coin_object.coin_type_maybe().unwrap(), GAS::type_tag());
     assert_eq!(coin.value(), 1_000_000);
     assert_eq!(package_object.version(), gas_coin_object.version());
