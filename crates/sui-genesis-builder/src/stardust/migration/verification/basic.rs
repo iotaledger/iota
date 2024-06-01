@@ -52,6 +52,7 @@ pub(super) fn verify_basic_output(
         verify_native_tokens::<Field<String, Balance>>(
             output.native_tokens(),
             foundry_data,
+            created_output.native_tokens,
             created_objects.native_tokens(),
             storage,
         )?;
@@ -116,6 +117,7 @@ pub(super) fn verify_basic_output(
         verify_native_tokens::<(TypeTag, Coin)>(
             output.native_tokens(),
             foundry_data,
+            None,
             created_objects.native_tokens(),
             storage,
         )?;

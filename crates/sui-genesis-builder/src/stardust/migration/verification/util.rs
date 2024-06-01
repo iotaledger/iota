@@ -15,6 +15,7 @@ use sui_types::{
     balance::Balance,
     base_types::{ObjectID, SuiAddress},
     coin::Coin,
+    collection_types::Bag,
     dynamic_field::Field,
     in_memory_storage::InMemoryStorage,
     object::Object,
@@ -29,6 +30,7 @@ use crate::stardust::{
 pub(super) fn verify_native_tokens<NtKind: NativeTokenKind>(
     native_tokens: &NativeTokens,
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
+    native_tokens_bag: impl Into<Option<Bag>>,
     created_native_tokens: Option<&[ObjectID]>,
     storage: &InMemoryStorage,
 ) -> Result<()> {
@@ -49,11 +51,20 @@ pub(super) fn verify_native_tokens<NtKind: NativeTokenKind>(
         .unwrap_or(Ok(HashMap::new()))?;
 
     ensure!(
-        native_tokens.len() == created_native_tokens.len(),
+        created_native_tokens.len() == native_tokens.len(),
         "native token count mismatch: found {}, expected: {}",
-        native_tokens.len(),
         created_native_tokens.len(),
+        native_tokens.len(),
     );
+
+    if let Some(native_tokens_bag) = native_tokens_bag.into() {
+        ensure!(
+            native_tokens_bag.size == native_tokens.len() as u64,
+            "native tokens bag length mismatch: found {}, expected {}",
+            native_tokens_bag.size,
+            native_tokens.len()
+        );
+    }
 
     for native_token in native_tokens.iter() {
         let foundry_data = foundry_data
