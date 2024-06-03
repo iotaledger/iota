@@ -9,14 +9,14 @@ if currently connected.
 import { ConnectButton, useDisconnectWallet } from '@mysten/dapp-kit';
 
 function MyComponent() {
-	const { mutate: disconnect } = useDisconnectWallet();
-	return (
-		<div>
-			<ConnectButton />
+    const { mutate: disconnect } = useDisconnectWallet();
+    return (
+        <div>
+            <ConnectButton />
 
-			<button onClick={() => disconnect()}>Disconnect</button>
-		</div>
-	);
+            <button onClick={() => disconnect()}>Disconnect</button>
+        </div>
+    );
 }
 ```
 

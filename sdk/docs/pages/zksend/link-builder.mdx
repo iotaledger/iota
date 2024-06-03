@@ -3,36 +3,36 @@ import { Callout } from 'nextra/components';
 # Creating zkSend Links
 
 <Callout type="warning">
-	Products and services that incorporate zkSend links may be subject to financial regulations,
-	including obtaining money transmitter licenses in jurisdictions where you provide your services.
-	It is the developer's responsibility to ensure compliance with all relevant laws and obtain any
-	necessary licenses. The information provided by Mysten Labs is not legal advice, and developers
-	should consult with a qualified legal professional to address their specific circumstances.
+    Products and services that incorporate zkSend links may be subject to financial regulations,
+    including obtaining money transmitter licenses in jurisdictions where you provide your services.
+    It is the developer's responsibility to ensure compliance with all relevant laws and obtain any
+    necessary licenses. The information provided by Mysten Labs is not legal advice, and developers
+    should consult with a qualified legal professional to address their specific circumstances.
 </Callout>
 
 ## Limitations
 
-- zkSend only supports mainnet at this time.
-- Objects within links must be publicly transferrable.
+-   zkSend only supports mainnet at this time.
+-   Objects within links must be publicly transferrable.
 
 ## Create a link
 
 You can start creating your own zkSend link using the `ZkSendLinkBuilder` class. This class
 constructor takes an object with the following options:
 
-- **`sender`** (required) - Required. The address of the sender / creator of the link.
-- **`redirect`** (optional) - The redirect configuration for the link. See "Claim redirect" below
-  for more information.
-  - **`url`** - The url to redirect to after the link have been claimed.
-  - **`name`** - The name of your dApp. This will be shown to the user when claiming the link.
-- **`client`** (optional) - The `@mysten/sui.js` client used to fetch data to construct the link. If
-  not provided, a default client will be used.
+-   **`sender`** (required) - Required. The address of the sender / creator of the link.
+-   **`redirect`** (optional) - The redirect configuration for the link. See "Claim redirect" below
+    for more information.
+    -   **`url`** - The url to redirect to after the link have been claimed.
+    -   **`name`** - The name of your dApp. This will be shown to the user when claiming the link.
+-   **`client`** (optional) - The `@mysten/sui.js` client used to fetch data to construct the link.
+    If not provided, a default client will be used.
 
 ```ts
 import { ZkSendLinkBuilder } from '@mysten/zksend';
 
 const link = new ZkSendLinkBuilder({
-	sender: '0x...',
+    sender: '0x...',
 });
 ```
 
@@ -41,16 +41,16 @@ const link = new ZkSendLinkBuilder({
 You can add SUI to the link by calling `link.addClaimableMist()`. This method takes the following
 params:
 
-- **`amount`** (required) - The amount of MIST (the base unit of SUI) to add to the link.
+-   **`amount`** (required) - The amount of MIST (the base unit of SUI) to add to the link.
 
 #### Adding non-SUI coins to the link
 
 You can add non-SUI coins to the link by calling `link.addClaimableBalance()`. This method takes the
 following params:
 
-- **`coinType`** (required) - The coin type of the coin to add to the link (e.g. `0x2::sui::SUI`).
-- **`amount`** (required) - The amount of the coin to add to the link. Represented in the base unit
-  of the coin.
+-   **`coinType`** (required) - The coin type of the coin to add to the link (e.g. `0x2::sui::SUI`).
+-   **`amount`** (required) - The amount of the coin to add to the link. Represented in the base
+    unit of the coin.
 
 The SDK will automatically perform the necessary coin management logic to transfer the defined
 amount, such as merging and splitting coin objects.
@@ -60,8 +60,8 @@ amount, such as merging and splitting coin objects.
 You can add a publicly-transferrable object to the link by calling `link.addClaimableObject()`. This
 method takes the following params:
 
-- **`id`** (required) - The ID of the object. This must be owned by the `sender` you configured when
-  creating the link.
+-   **`id`** (required) - The ID of the object. This must be owned by the `sender` you configured
+    when creating the link.
 
 #### Getting the link URL
 
@@ -81,8 +81,8 @@ const txb = await link.createSendTransaction();
 const { bytes, signature } = txb.sign({ client, signer: keypair });
 
 const result = await client.executeTransactionBlock({
-	transactionBlock: bytes,
-	signature,
+    transactionBlock: bytes,
+    signature,
 });
 ```
 
@@ -91,7 +91,7 @@ as shorthand for creating the send transaction, signing it, and submitting it to
 
 ```ts
 await link.create({
-	signer: yourKeypair,
+    signer: yourKeypair,
 });
 ```
 
@@ -104,8 +104,8 @@ tool, and have the user redirected to their dApp after claiming the link.
 To configure a redirect, you need to provide a `redirect` object when creating the link. This object
 takes the following params:
 
-- **`url`** - The URL to redirect to after the link has been claimed.
-- **`name`** - The name of your dApp. This will be shown to the user when claiming the link.
+-   **`url`** - The URL to redirect to after the link has been claimed.
+-   **`name`** - The name of your dApp. This will be shown to the user when claiming the link.
 
 When redirecting to the URL, if the user claims with zkLogin, then zkSend will automatically add a
 `zksend_address` query parameter to the URL, containing the Sui address of the user that claimed the
@@ -116,11 +116,11 @@ itself connected as a result of a claim redirect.
 import { ZkSendLinkBuilder } from '@mysten/zksend';
 
 const link = new ZkSendLinkBuilder({
-	sender: '0x...',
-	redirect: {
-		url: 'https://your-dapp.com',
-		name: 'Your dApp',
-	},
+    sender: '0x...',
+    redirect: {
+        url: 'https://your-dapp.com',
+        name: 'Your dApp',
+    },
 });
 ```
 
@@ -149,7 +149,7 @@ To list the links created by a specific address, you can use the `listCreatedLin
 import { listCreatedLinks } from '@mysten/zksend';
 
 const { links, hasNextPage, cursor } = await listCreatedLinks({
-	address: addressOfCreator,
+    address: addressOfCreator,
 });
 
 // get the claimable assets for this link (will be empty if the link has been claimed)
@@ -165,18 +165,18 @@ that originally created the link):
 import { listCreatedLinks } from '@mysten/zksend';
 
 const { links, hasNextPage, cursor } = await listCreatedLinks({
-	address: addressOfCreator,
+    address: addressOfCreator,
 });
 
 // url will be the new link url
 const { url, transactionBlock } = await links[0].link.createRegenerateTransaction(
-	addressOfLinkCreator,
+    addressOfLinkCreator,
 );
 
 // Execute the transaction block to regenerate the link
 await client.signAndExecuteTransactionBlock({
-	transactionBlock,
-	signer: keypair,
+    transactionBlock,
+    signer: keypair,
 });
 ```
 
@@ -188,23 +188,23 @@ To create multiple links in a single transaction block, you can use `ZkSendLinkB
 const links = [];
 
 for (let i = 0; i < 10; i++) {
-	const link = new ZkSendLinkBuilder({
-		client,
-		sender: keypair.toSuiAddress(),
-	});
+    const link = new ZkSendLinkBuilder({
+        client,
+        sender: keypair.toSuiAddress(),
+    });
 
-	link.addClaimableMist(100n);
-	links.push(link);
+    link.addClaimableMist(100n);
+    links.push(link);
 }
 
 const urls = links.map((link) => link.getLink());
 
 const txb = await ZkSendLinkBuilder.createLinks({
-	links,
+    links,
 });
 
 await client.signAndExecuteTransactionBlock({
-	transactionBlock: txb,
-	signer: keypair,
+    transactionBlock: txb,
+    signer: keypair,
 });
 ```
