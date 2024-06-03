@@ -10,40 +10,40 @@ import { ConnectButton, useCurrentAccount, useSignTransactionBlock } from '@myst
 import { useState } from 'react';
 
 function MyComponent() {
-	const { mutate: signTransactionBlock } = useSignTransactionBlock();
-	const [signature, setSignature] = useState('');
-	const currentAccount = useCurrentAccount();
+    const { mutate: signTransactionBlock } = useSignTransactionBlock();
+    const [signature, setSignature] = useState('');
+    const currentAccount = useCurrentAccount();
 
-	return (
-		<div style={{ padding: 20 }}>
-			<ConnectButton />
-			{currentAccount && (
-				<>
-					<div>
-						<button
-							onClick={() => {
-								signTransactionBlock(
-									{
-										transactionBlock: new TransactionBlock(),
-										chain: 'sui:devnet',
-									},
-									{
-										onSuccess: (result) => {
-											console.log('signed transaction block', result);
-											setSignature(result.signature);
-										},
-									},
-								);
-							}}
-						>
-							Sign empty transaction block
-						</button>
-					</div>
-					<div>Signature: {signature}</div>
-				</>
-			)}
-		</div>
-	);
+    return (
+        <div style={{ padding: 20 }}>
+            <ConnectButton />
+            {currentAccount && (
+                <>
+                    <div>
+                        <button
+                            onClick={() => {
+                                signTransactionBlock(
+                                    {
+                                        transactionBlock: new TransactionBlock(),
+                                        chain: 'sui:devnet',
+                                    },
+                                    {
+                                        onSuccess: (result) => {
+                                            console.log('signed transaction block', result);
+                                            setSignature(result.signature);
+                                        },
+                                    },
+                                );
+                            }}
+                        >
+                            Sign empty transaction block
+                        </button>
+                    </div>
+                    <div>Signature: {signature}</div>
+                </>
+            )}
+        </div>
+    );
 }
 ```
 
@@ -53,10 +53,10 @@ function MyComponent() {
 
 ## Arguments
 
-- `transactionBlock`: The transaction block to sign.
-- `chain`: (optional) The chain identifier the transaction block should be signed for.
+-   `transactionBlock`: The transaction block to sign.
+-   `chain`: (optional) The chain identifier the transaction block should be signed for.
 
 ## Result
 
-- `signature`: The signature of the message, as a Base64-encoded `string`.
-- `transactionBlockBytes`: The serialized transaction bytes, as a a Base64-encoded `string`.
+-   `signature`: The signature of the message, as a Base64-encoded `string`.
+-   `transactionBlockBytes`: The serialized transaction bytes, as a a Base64-encoded `string`.

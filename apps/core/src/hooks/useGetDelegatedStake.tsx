@@ -6,16 +6,16 @@ import type { DelegatedStake } from '@mysten/sui.js/client';
 import { useQuery, type UseQueryOptions } from '@tanstack/react-query';
 
 type UseGetDelegatedStakesOptions = {
-	address: string;
+    address: string;
 } & Omit<UseQueryOptions<DelegatedStake[], Error>, 'queryKey' | 'queryFn'>;
 
 export function useGetDelegatedStake(options: UseGetDelegatedStakesOptions) {
-	const client = useSuiClient();
-	const { address, ...queryOptions } = options;
+    const client = useSuiClient();
+    const { address, ...queryOptions } = options;
 
-	return useQuery({
-		queryKey: ['delegated-stakes', address],
-		queryFn: () => client.getStakes({ owner: address }),
-		...queryOptions,
-	});
+    return useQuery({
+        queryKey: ['delegated-stakes', address],
+        queryFn: () => client.getStakes({ owner: address }),
+        ...queryOptions,
+    });
 }
