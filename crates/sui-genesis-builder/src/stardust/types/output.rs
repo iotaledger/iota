@@ -242,12 +242,12 @@ impl BasicOutput {
 pub(crate) fn create_gas_coin(
     object_id: UID,
     owner: SuiAddress,
-    foundry_amount: u64,
+    amount: u64,
     tx_context: &TxContext,
     version: SequenceNumber,
     protocol_config: &ProtocolConfig,
 ) -> Result<Object> {
-    let coin = Coin::new(object_id, foundry_amount);
+    let coin = Coin::new(object_id, amount);
     let move_object = unsafe {
         // Safety: we know from the definition of `Coin`
         // that it has public transfer (`store` ability is present).
