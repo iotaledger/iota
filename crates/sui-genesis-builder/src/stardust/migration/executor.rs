@@ -7,7 +7,6 @@ use std::{
 };
 
 use anyhow::Result;
-use bigdecimal::ToPrimitive;
 use iota_sdk::types::block::output::{
     AliasOutput, BasicOutput, FoundryOutput, NativeTokens, NftOutput, OutputId, TokenId,
 };
@@ -38,7 +37,7 @@ use sui_types::{
         Argument, CheckedInputObjects, Command, InputObjectKind, InputObjects, ObjectArg,
         ObjectReadResult, ProgrammableTransaction,
     },
-    TypeTag, STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID,
+    TypeTag, STARDUST_ADDRESS, STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID,
 };
 
 use crate::{
@@ -49,10 +48,8 @@ use crate::{
             verification::created_objects::CreatedObjects, PACKAGE_DEPS,
         },
         types::{
-            snapshot::OutputHeader,
-            stardust_to_sui_address, stardust_to_sui_address_owner, timelock,
-            token_scheme::{u256_to_bigdecimal, SimpleTokenSchemeU64},
-            Nft,
+            snapshot::OutputHeader, stardust_to_sui_address, stardust_to_sui_address_owner,
+            timelock, token_scheme::SimpleTokenSchemeU64, Nft,
         },
     },
 };
@@ -129,6 +126,10 @@ impl Executor {
 
     pub fn store(&self) -> &InMemoryStorage {
         &self.store
+    }
+
+    pub(crate) fn native_tokens(&self) -> &HashMap<TokenId, FoundryLedgerData> {
+        &self.native_tokens
     }
 
     /// The migration objects.
@@ -236,6 +237,14 @@ impl Executor {
                 if object.is_coin() {
                     minted_coin_id = Some(object.id());
                     created_objects.set_coin(object.id())?;
+                } else if object.type_().map_or(false, |t| t.is_coin_metadata()) {
+                    created_objects.set_coin_metadata(object.id())?
+                } else if object.type_().map_or(false, |t| {
+                    t.address() == STARDUST_ADDRESS
+                        && t.module().as_str() == "capped_coin"
+                        && t.name().as_str() == "MaxSupplyPolicy"
+                }) {
+                    created_objects.set_max_supply_policy(object.id())?
                 } else if object.is_package() {
                     foundry_package = Some(
                         object
@@ -275,29 +284,32 @@ impl Executor {
         header: &OutputHeader,
         alias: &AliasOutput,
     ) -> Result<CreatedObjects> {
+        let mut created_objects = CreatedObjects::default();
+
         // Take the Alias ID set in the output or, if its zeroized, compute it from the
         // Output ID.
         let alias_id = ObjectID::new(*alias.alias_id().or_from_output_id(&header.output_id()));
         let move_alias = crate::stardust::types::Alias::try_from_stardust(alias_id, alias)?;
-        let mut created_objects = CreatedObjects::default();
 
         // TODO: We should ensure that no circular ownership exists.
         let alias_output_owner = stardust_to_sui_address_owner(alias.governor_address())?;
 
         let package_deps = InputObjects::new(self.load_packages(PACKAGE_DEPS).collect());
         let version = package_deps.lamport_timestamp(&[]);
+
         let move_alias_object = move_alias.to_genesis_object(
             alias_output_owner,
             &self.protocol_config,
             &self.tx_context,
             version,
         )?;
-
         let move_alias_object_ref = move_alias_object.compute_object_reference();
+
         self.store.insert_object(move_alias_object);
 
         let (bag, version, fields) = self.create_bag_with_pt(alias.native_tokens())?;
         created_objects.set_native_tokens(fields)?;
+
         let move_alias_output = crate::stardust::types::AliasOutput::try_from_stardust(
             self.tx_context.fresh_id(),
             alias,
@@ -313,6 +325,7 @@ impl Executor {
             version,
         )?;
         let move_alias_output_object_ref = move_alias_output_object.compute_object_reference();
+
         created_objects.set_output(move_alias_output_object.id())?;
         self.store.insert_object(move_alias_output_object);
 
@@ -324,6 +337,7 @@ impl Executor {
             let alias_output_arg =
                 builder.obj(ObjectArg::ImmOrOwnedObject(move_alias_output_object_ref))?;
             let alias_arg = builder.obj(ObjectArg::ImmOrOwnedObject(move_alias_object_ref))?;
+
             builder.programmable_move_call(
                 STARDUST_PACKAGE_ID,
                 ident_str!("alias_output").into(),
@@ -372,23 +386,11 @@ impl Executor {
                 object_deps.push(object_ref);
                 foundry_package_deps.push(foundry_ledger_data.package_id);
 
-                let token_type = format!(
-                    "{}::{}::{}",
-                    foundry_ledger_data.coin_type_origin.package,
-                    foundry_ledger_data.coin_type_origin.module_name,
-                    foundry_ledger_data.coin_type_origin.struct_name
-                );
+                let token_type = foundry_ledger_data.canonical_coin_type();
 
-                let adjusted_amount = if let Some(ratio) = &foundry_ledger_data
+                let adjusted_amount = foundry_ledger_data
                     .token_scheme_u64
-                    .token_adjustment_ratio()
-                {
-                    (u256_to_bigdecimal(token.amount()) * ratio)
-                        .to_u64()
-                        .expect("should be a valid u64")
-                } else {
-                    token.amount().as_u64()
-                };
+                    .adjust_tokens(token.amount());
 
                 let balance = pt::coin_balance_split(
                     &mut builder,
@@ -473,16 +475,9 @@ impl Executor {
                 foundry_package_deps.push(foundry_ledger_data.package_id);
 
                 // Pay using that object
-                let adjusted_amount = if let Some(ratio) = &foundry_ledger_data
+                let adjusted_amount = foundry_ledger_data
                     .token_scheme_u64
-                    .token_adjustment_ratio()
-                {
-                    (u256_to_bigdecimal(token.amount()) * ratio)
-                        .to_u64()
-                        .expect("should be a valid u64")
-                } else {
-                    token.amount().as_u64()
-                };
+                    .adjust_tokens(token.amount());
                 builder.pay(vec![object_ref], vec![owner], vec![adjusted_amount])?;
             }
 
@@ -669,13 +664,6 @@ impl Executor {
     }
 }
 
-#[cfg(test)]
-impl Executor {
-    pub(crate) fn native_tokens(&mut self) -> &HashMap<TokenId, FoundryLedgerData> {
-        &self.native_tokens
-    }
-}
-
 mod pt {
     use super::*;
     use crate::stardust::migration::NATIVE_TOKEN_BAG_KEY_TYPE;
@@ -762,5 +750,14 @@ impl FoundryLedgerData {
             package_id: foundry_package.id(),
             token_scheme_u64,
         }
+    }
+
+    pub(crate) fn canonical_coin_type(&self) -> String {
+        format!(
+            "{}::{}::{}",
+            self.coin_type_origin.package,
+            self.coin_type_origin.module_name,
+            self.coin_type_origin.struct_name
+        )
     }
 }

@@ -108,6 +108,10 @@ impl Migration {
         foundries.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
         self.migrate_foundries(&foundries)?;
         self.migrate_outputs(&outputs)?;
+        let outputs = outputs
+            .into_iter()
+            .chain(foundries.into_iter().map(|(h, f)| (h, Output::Foundry(f))))
+            .collect::<Vec<_>>();
         self.verify_ledger_state(&outputs)?;
 
         Ok(())
@@ -202,16 +206,23 @@ impl Migration {
                 .ok_or_else(|| {
                     anyhow::anyhow!("missing created objects for output {}", header.output_id())
                 })?;
-            verify_output(header, output, objects, self.executor.store())?;
+            verify_output(
+                header,
+                output,
+                objects,
+                self.executor.native_tokens(),
+                self.executor.store(),
+            )?;
         }
         Ok(())
     }
 
-    /// Consumes the `Migration` and returns the underlying `Executor` so tests
-    /// can continue to work in the same environment as the migration.
+    /// Consumes the `Migration` and returns the underlying `Executor` and
+    /// created objects map, so tests can continue to work in the same
+    /// environment as the migration.
     #[cfg(test)]
-    pub(super) fn into_executor(self) -> Executor {
-        self.executor
+    pub(super) fn into_parts(self) -> (Executor, HashMap<OutputId, CreatedObjects>) {
+        (self.executor, self.output_objects_map)
     }
 }
 

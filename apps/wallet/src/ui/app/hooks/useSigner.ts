@@ -15,7 +15,6 @@ export function useSigner(account: SerializedUIAccount | null): WalletSigner | n
     const { connectToLedger } = useSuiLedgerClient();
     const api = useSuiClient();
     const background = useBackgroundClient();
-
     if (!account) {
         return null;
     }

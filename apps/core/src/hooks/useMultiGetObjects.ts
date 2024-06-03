@@ -8,25 +8,25 @@ import { useQuery, UseQueryOptions } from '@tanstack/react-query';
 import { chunkArray } from '../utils/chunkArray';
 
 export function useMultiGetObjects(
-	ids: string[],
-	options: SuiObjectDataOptions,
-	queryOptions?: Omit<UseQueryOptions<SuiObjectResponse[]>, 'queryKey' | 'queryFn'>,
+    ids: string[],
+    options: SuiObjectDataOptions,
+    queryOptions?: Omit<UseQueryOptions<SuiObjectResponse[]>, 'queryKey' | 'queryFn'>,
 ) {
-	const client = useSuiClient();
-	return useQuery({
-		...queryOptions,
-		queryKey: ['multiGetObjects', ids],
-		queryFn: async () => {
-			const responses = await Promise.all(
-				chunkArray(ids, 50).map((chunk) =>
-					client.multiGetObjects({
-						ids: chunk,
-						options,
-					}),
-				),
-			);
-			return responses.flat();
-		},
-		enabled: !!ids?.length,
-	});
+    const client = useSuiClient();
+    return useQuery({
+        ...queryOptions,
+        queryKey: ['multiGetObjects', ids],
+        queryFn: async () => {
+            const responses = await Promise.all(
+                chunkArray(ids, 50).map((chunk) =>
+                    client.multiGetObjects({
+                        ids: chunk,
+                        options,
+                    }),
+                ),
+            );
+            return responses.flat();
+        },
+        enabled: !!ids?.length,
+    });
 }
