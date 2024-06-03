@@ -280,8 +280,8 @@ importers:
         specifier: ^5.0.6
         version: 5.0.6
       '@growthbook/growthbook':
-        specifier: ^0.25.0
-        version: 0.25.0
+        specifier: ^1.0.0
+        version: 1.0.0
       '@growthbook/growthbook-react':
         specifier: ^1.0.0
         version: 1.0.0(react@18.2.0)
@@ -633,8 +633,8 @@ importers:
         specifier: ^5.0.6
         version: 5.0.6
       '@growthbook/growthbook':
-        specifier: ^0.25.0
-        version: 0.25.0
+        specifier: ^1.0.0
+        version: 1.0.0
       '@growthbook/growthbook-react':
         specifier: ^1.0.0
         version: 1.0.0(react@18.2.0)
@@ -4083,10 +4083,6 @@ packages:
     engines: {node: '>=10'}
     peerDependencies:
       react: ^16.8.0-0 || ^17.0.0-0 || ^18.0.0-0
-
-  '@growthbook/growthbook@0.25.0':
-    resolution: {integrity: sha512-H0L2i5G5UtaoU34zDGxxNfF0LezL5fbr31XXqIPu1faGeJ1ujBvfFT8/99EKS26dO6YzwCNU47PlPD+XV/5akw==}
-    engines: {node: '>=10'}
 
   '@growthbook/growthbook@1.0.0':
     resolution: {integrity: sha512-qfVhZcubsGjJI8oNjZp5g69N7c+NMxWl3WS05Sa93V6qNjE9Uz2PZqj7Qj+6iTEOZ1ignmEsIBJEKfdlpa9INg==}
@@ -8727,10 +8723,6 @@ packages:
 
   dom-converter@0.2.0:
     resolution: {integrity: sha512-gd3ypIPfOMr9h5jIKq8E3sHOTCjeirnl0WK5ZdS1AW0Odt0b1PaWaHdJ4Qk4klv+YB9aJBS7mESXjFoDQPu6DA==}
-
-  dom-mutator@0.4.0:
-    resolution: {integrity: sha512-H8pcE9Tmmnxs6FTZCX4aRthcweGsVdytqpBSiVIDnTnmosXXYO+jatDWwRReMbJJsAmsnAWsc0Ht4ZYGdN8gZw==}
-    engines: {node: '>=10'}
 
   dom-mutator@0.6.0:
     resolution: {integrity: sha512-iCt9o0aYfXMUkz/43ZOAUFQYotjGB+GNbYJiJdz4TgXkyToXbbRy5S6FbTp72lRBtfpUMwEc1KmpFEU4CZeoNg==}
@@ -18184,10 +18176,6 @@ snapshots:
       '@growthbook/growthbook': 1.0.0
       react: 18.2.0
 
-  '@growthbook/growthbook@0.25.0':
-    dependencies:
-      dom-mutator: 0.4.0
-
   '@growthbook/growthbook@1.0.0':
     dependencies:
       dom-mutator: 0.6.0
@@ -24491,8 +24479,6 @@ snapshots:
   dom-converter@0.2.0:
     dependencies:
       utila: 0.4.0
-
-  dom-mutator@0.4.0: {}
 
   dom-mutator@0.6.0: {}
 
