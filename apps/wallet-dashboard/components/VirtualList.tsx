@@ -16,7 +16,7 @@ interface VirtualListProps<T> {
 function VirtualList<T>({
     items,
     estimateSize,
-    render: render,
+    render,
     onClick,
 }: VirtualListProps<T>): JSX.Element {
     const containerRef = React.useRef<HTMLDivElement | null>(null);
