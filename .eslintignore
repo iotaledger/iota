@@ -1,0 +1,8 @@
+svgrrc.config.js
+tailwind.config.ts
+preprocess.mjs
+postcss.config.js
+sdk/build-scripts/src/build-package.ts
+sdk/build-scripts/src/build-dapp-kit.ts
+sdk/create-dapp/bin/index.js
+next.config.js
