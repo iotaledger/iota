@@ -9,17 +9,17 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 const MAX_PAGE_SIZE = 10;
 
 export function useGetDynamicFields(parentId: string, maxPageSize = MAX_PAGE_SIZE) {
-	const client = useSuiClient();
-	return useInfiniteQuery<DynamicFieldPage>({
-		queryKey: ['dynamic-fields', { maxPageSize, parentId }],
-		queryFn: ({ pageParam = null }) =>
-			client.getDynamicFields({
-				parentId: normalizeSuiAddress(parentId),
-				cursor: pageParam as string | null,
-				limit: maxPageSize,
-			}),
-		enabled: !!parentId,
-		initialPageParam: null,
-		getNextPageParam: ({ nextCursor, hasNextPage }) => (hasNextPage ? nextCursor : null),
-	});
+    const client = useSuiClient();
+    return useInfiniteQuery<DynamicFieldPage>({
+        queryKey: ['dynamic-fields', { maxPageSize, parentId }],
+        queryFn: ({ pageParam = null }) =>
+            client.getDynamicFields({
+                parentId: normalizeSuiAddress(parentId),
+                cursor: pageParam as string | null,
+                limit: maxPageSize,
+            }),
+        enabled: !!parentId,
+        initialPageParam: null,
+        getNextPageParam: ({ nextCursor, hasNextPage }) => (hasNextPage ? nextCursor : null),
+    });
 }

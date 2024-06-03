@@ -2,13 +2,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 query getBalance($owner: SuiAddress!, $type: String = "0x2::sui::SUI") {
-	address(address: $owner) {
-		balance(type: $type) {
-			coinType {
-				repr
-			}
-			coinObjectCount
-			totalBalance
-		}
-	}
+    address(address: $owner) {
+        balance(type: $type) {
+            coinType {
+                repr
+            }
+            coinObjectCount
+            totalBalance
+        }
+    }
 }
