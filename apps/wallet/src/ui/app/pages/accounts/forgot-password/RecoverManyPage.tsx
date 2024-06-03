@@ -25,13 +25,14 @@ export function RecoverManyPage() {
     const allAccountSources = useAccountSources();
     const accountGroups = useAccountGroups();
     const navigate = useNavigate();
-    const mnemonicAccountSource = allAccountSources.data?.find(({ type }) => type === 'mnemonic');
-    const seedAccountSource = allAccountSources.data?.find(({ type }) => type === 'seed');
+    const hasMnemonicOrSeedAccountSources = allAccountSources.data?.some(({ type }) =>
+        ['mnemonic', 'seed'].includes(type),
+    );
     useEffect(() => {
-        if (!allAccountSources.isPending && !mnemonicAccountSource && !seedAccountSource) {
+        if (!allAccountSources.isPending && !hasMnemonicOrSeedAccountSources) {
             navigate('/', { replace: true });
         }
-    }, [allAccountSources.isPending, mnemonicAccountSource, seedAccountSource, navigate]);
+    }, [allAccountSources.isPending, hasMnemonicOrSeedAccountSources, navigate]);
     const { value } = useForgotPasswordContext();
     const addRecoveryDataMutation = useRecoveryDataMutation();
     const [recoverInfo, setRecoverInfo] = useState<{
