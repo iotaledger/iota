@@ -22,7 +22,7 @@ use sui_types::{
 
 use crate::stardust::{
     migration::executor::FoundryLedgerData,
-    types::{output as migration_output, Alias, Nft},
+    types::{output as migration_output, token_scheme::MAX_ALLOWED_U64_SUPPLY, Alias, Nft},
 };
 
 pub(super) fn verify_native_tokens(
@@ -309,9 +309,9 @@ impl NativeTokenKind for Field<String, Balance> {
     }
 }
 
-pub fn truncate_u256_to_u64(value: U256) -> u64 {
-    if value.bits() > 64 {
-        u64::MAX
+pub fn truncate_to_max_allowed_u64_supply(value: U256) -> u64 {
+    if value > U256::from(MAX_ALLOWED_U64_SUPPLY) {
+        MAX_ALLOWED_U64_SUPPLY
     } else {
         value.as_u64()
     }
