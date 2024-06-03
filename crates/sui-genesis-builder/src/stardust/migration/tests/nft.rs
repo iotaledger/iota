@@ -13,7 +13,8 @@ use iota_sdk::{
             feature::{Attribute, Irc30Metadata, IssuerFeature, MetadataFeature, SenderFeature},
             unlock_condition::{
                 AddressUnlockCondition, ExpirationUnlockCondition, GovernorAddressUnlockCondition,
-                StateControllerAddressUnlockCondition, TimelockUnlockCondition,
+                StateControllerAddressUnlockCondition, StorageDepositReturnUnlockCondition,
+                TimelockUnlockCondition,
             },
             AliasId, AliasOutputBuilder, Feature, NativeToken, NftId, NftOutput as StardustNft,
             NftOutputBuilder, SimpleTokenScheme,
@@ -615,6 +616,35 @@ fn nft_migration_with_unexpired_unlock_condition() {
         &sui_owner_address,
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
+        UnlockObjectTestResult::Success,
+    );
+}
+
+/// Test that an NFT with a Storage Deposit Return Unlock Condition can be
+/// unlocked.
+#[test]
+fn nft_migration_with_storage_deposit_return_unlock_condition() {
+    let owner = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+    let return_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+    let header = random_output_header();
+
+    let stardust_nft = NftOutputBuilder::new_with_amount(1_000_000, NftId::null())
+        .add_unlock_condition(AddressUnlockCondition::new(owner))
+        .add_unlock_condition(
+            StorageDepositReturnUnlockCondition::new(return_address, 1_000, 1_000_000_000).unwrap(),
+        )
+        .finish()
+        .unwrap();
+
+    // Simply test that the unlock with the SDRUC succeeds.
+    unlock_object_test(
+        header.output_id(),
+        [(header.clone(), stardust_nft.clone().into())],
+        // Sender is not important for this test.
+        &SuiAddress::ZERO,
+        NFT_OUTPUT_MODULE_NAME,
+        // Epoch start time is not important for this test.
+        0,
         UnlockObjectTestResult::Success,
     );
 }
