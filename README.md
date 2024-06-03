@@ -18,7 +18,7 @@ In order to use the unstable features specified in rustfmt.toml, you must have t
 installed.
 
 ```sh
-cargo toolchain install nightly --component rustfmt --allow-downgrade
+rustup toolchain install nightly --component rustfmt --allow-downgrade
 ```
 
 This can be used regardless of the default toolchain to format the code using the following command.
