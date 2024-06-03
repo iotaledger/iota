@@ -28,7 +28,7 @@ function VisualAssetsPage(): JSX.Element {
                     items={HARCODED_VISUAL_ASSETS}
                     estimateSize={() => 130}
                     render={virtualItem}
-                    handleOnClick={(asset) => handleClick(asset.objectId)}
+                    onClick={(asset) => handleClick(asset.objectId)}
                 />
             </div>
         </div>

@@ -28,7 +28,7 @@ function EverythingElsePage(): JSX.Element {
                     items={HARDCODED_NON_VISUAL_ASSETS}
                     estimateSize={() => 140}
                     render={virtualItem}
-                    handleOnClick={(asset) => handleClick(asset.objectId)}
+                    onClick={(asset) => handleClick(asset.objectId)}
                 />
             </div>
         </div>
