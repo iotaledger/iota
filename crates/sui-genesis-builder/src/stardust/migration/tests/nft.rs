@@ -12,7 +12,7 @@ use iota_sdk::{
         output::{
             feature::{Attribute, Irc30Metadata, IssuerFeature, MetadataFeature, SenderFeature},
             unlock_condition::{
-                AddressUnlockCondition, GovernorAddressUnlockCondition,
+                AddressUnlockCondition, ExpirationUnlockCondition, GovernorAddressUnlockCondition,
                 StateControllerAddressUnlockCondition, TimelockUnlockCondition,
             },
             AliasId, AliasOutputBuilder, Feature, NativeToken, NftId, NftOutput as StardustNft,
@@ -31,6 +31,7 @@ use sui_types::{
     TypeTag,
 };
 
+use super::{unlock_expiration_locked_object, ExpirationTestResult};
 use crate::stardust::{
     migration::tests::{
         create_foundry, extract_native_token_from_bag, object_migration_with_object_owner,
@@ -521,5 +522,95 @@ fn nft_migration_with_timelock_still_locked() {
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         TimelockTestResult::Failure,
+    );
+}
+
+/// Test that an NFT with an expired Expiration Unlock Condition can/cannot be
+/// unlocked, depending on the TX sender.
+#[test]
+fn nft_migration_with_expired_unlock_condition() {
+    let owner = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+    let return_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+    let sui_owner_address = stardust_to_sui_address(owner).unwrap();
+    let sui_return_address = stardust_to_sui_address(return_address).unwrap();
+    let header = random_output_header();
+
+    // The epoch timestamp that the executor will use for the test.
+    let epoch_start_timestamp_ms = 100_000;
+
+    // Expiration Timestamp is exactly at the epoch start timestamp -> object is
+    // expired -> return address can unlock.
+    let stardust_nft = NftOutputBuilder::new_with_amount(1_000_000, NftId::null())
+        .add_unlock_condition(AddressUnlockCondition::new(owner))
+        .add_unlock_condition(
+            ExpirationUnlockCondition::new(return_address, epoch_start_timestamp_ms / 1000)
+                .unwrap(),
+        )
+        .finish()
+        .unwrap();
+
+    // Owner Address CANNOT unlock.
+    unlock_expiration_locked_object(
+        header.output_id(),
+        [(header.clone(), stardust_nft.clone().into())],
+        &sui_owner_address,
+        NFT_OUTPUT_MODULE_NAME,
+        epoch_start_timestamp_ms as u64,
+        ExpirationTestResult::Failure,
+    );
+
+    // Return Address CAN unlock.
+    unlock_expiration_locked_object(
+        header.output_id(),
+        [(header, stardust_nft.into())],
+        &sui_return_address,
+        NFT_OUTPUT_MODULE_NAME,
+        epoch_start_timestamp_ms as u64,
+        ExpirationTestResult::Success,
+    );
+}
+
+/// Test that an NFT with an unexpired Expiration Unlock Condition can/cannot be
+/// unlocked, depending on the TX sender.
+#[test]
+fn nft_migration_with_unexpired_unlock_condition() {
+    let owner = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+    let return_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+    let sui_owner_address = stardust_to_sui_address(owner).unwrap();
+    let sui_return_address = stardust_to_sui_address(return_address).unwrap();
+    let header = random_output_header();
+
+    // The epoch timestamp that the executor will use for the test.
+    let epoch_start_timestamp_ms = 100_000;
+
+    // Expiration Timestamp is after the epoch start timestamp -> object is not
+    // expired -> owner address can unlock.
+    let stardust_nft = NftOutputBuilder::new_with_amount(1_000_000, NftId::null())
+        .add_unlock_condition(AddressUnlockCondition::new(owner))
+        .add_unlock_condition(
+            ExpirationUnlockCondition::new(return_address, (epoch_start_timestamp_ms / 1000) + 1)
+                .unwrap(),
+        )
+        .finish()
+        .unwrap();
+
+    // Return Address CANNOT unlock.
+    unlock_expiration_locked_object(
+        header.output_id(),
+        [(header.clone(), stardust_nft.clone().into())],
+        &sui_return_address,
+        NFT_OUTPUT_MODULE_NAME,
+        epoch_start_timestamp_ms as u64,
+        ExpirationTestResult::Failure,
+    );
+
+    // Owner Address CAN unlock.
+    unlock_expiration_locked_object(
+        header.output_id(),
+        [(header, stardust_nft.into())],
+        &sui_owner_address,
+        NFT_OUTPUT_MODULE_NAME,
+        epoch_start_timestamp_ms as u64,
+        ExpirationTestResult::Success,
     );
 }
