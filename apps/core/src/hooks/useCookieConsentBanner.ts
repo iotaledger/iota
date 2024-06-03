@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useEffect } from 'react';
 
 import { PersistableStorage } from '../utils/persistableStorage';
@@ -34,6 +37,7 @@ async function loadCookieConsentBanner<T>(
     options: CookieConsentConfig,
 ) {
     await import('vanilla-cookieconsent');
+    // @ts-expect-error module or type declarations not found
     await import('vanilla-cookieconsent/dist/cookieconsent.css');
     await options.onBeforeLoad();
 
