@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { InputType } from '@/lib/enums';
 import React from 'react';
 
 interface InputProps {
@@ -9,16 +8,10 @@ interface InputProps {
     value: string;
     onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
     placeholder?: string;
-    type?: InputType;
+    type?: React.HTMLInputTypeAttribute;
 }
 
-function Input({
-    label,
-    value,
-    onChange,
-    placeholder,
-    type = InputType.Text,
-}: InputProps): JSX.Element {
+function Input({ label, value, onChange, placeholder, type = 'text' }: InputProps): JSX.Element {
     return (
         <div className="flex flex-col gap-1">
             {label && <label>{label}</label>}
