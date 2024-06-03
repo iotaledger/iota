@@ -3,6 +3,7 @@
 
 pub mod address;
 pub mod alias;
+pub mod foundry;
 pub mod nft;
 pub mod output;
 pub mod snapshot;

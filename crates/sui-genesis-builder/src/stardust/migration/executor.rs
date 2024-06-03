@@ -41,15 +41,15 @@ use sui_types::{
 };
 
 use crate::{
-    process_package, stardust,
+    process_package,
     stardust::{
         migration::{
             create_migration_context, package_module_bytes,
             verification::created_objects::CreatedObjects, PACKAGE_DEPS,
         },
         types::{
-            snapshot::OutputHeader, stardust_to_sui_address, stardust_to_sui_address_owner,
-            timelock, token_scheme::SimpleTokenSchemeU64, Nft,
+            foundry::create_foundry_amount, snapshot::OutputHeader, stardust_to_sui_address,
+            stardust_to_sui_address_owner, timelock, token_scheme::SimpleTokenSchemeU64, Nft,
         },
     },
 };
@@ -269,10 +269,9 @@ impl Executor {
             );
 
             // Create the foundry amount object.
-            let foundry_amount = stardust::types::output::create_gas_coin(
-                UID::new(ObjectID::new(header.output_id().hash())),
-                stardust_to_sui_address(*foundry.alias_address())?,
-                foundry.amount(),
+            let foundry_amount = create_foundry_amount(
+                header,
+                foundry,
                 &self.tx_context,
                 foundry_package.version(),
                 &self.protocol_config,
