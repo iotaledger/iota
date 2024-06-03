@@ -78,7 +78,12 @@ pub(super) fn verify_genesis_object(
         created_output.native_tokens.size,
         output.native_tokens().len()
     );
-    if !output.native_tokens().is_empty() {
+    if output.native_tokens().is_empty() {
+        ensure!(
+            created_objects.native_tokens().is_err(),
+            "found created native tokens when the original output has none",
+        )
+    } else {
         let created_native_token_fields = created_objects.native_tokens().and_then(|ids| {
             ids.iter()
                 .map(|id| {
@@ -162,6 +167,10 @@ pub(super) fn verify_coin_and_native_tokens(
     // Native Tokens
 
     if output.native_tokens().is_empty() {
+        ensure!(
+            created_objects.native_tokens().is_err(),
+            "found created native tokens when the original output has none",
+        );
         return Ok(());
     }
 
