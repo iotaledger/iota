@@ -2,42 +2,42 @@
 # SPDX-License-Identifier: Apache-2.0
 
 query getDynamicFields($parentId: SuiAddress!, $first: Int, $cursor: String) {
-	object(address: $parentId) {
-		dynamicFields(first: $first, after: $cursor) {
-			pageInfo {
-				hasNextPage
-				endCursor
-			}
-			nodes {
-				name {
-					bcs
-					json
-					type {
-						layout
-						repr
-					}
-				}
-				value {
-					__typename
-					... on MoveValue {
-						json
-						type {
-							repr
-						}
-					}
-					... on MoveObject {
-						contents {
-							type {
-								repr
-							}
-							json
-						}
-						address
-						digest
-						version
-					}
-				}
-			}
-		}
-	}
+    object(address: $parentId) {
+        dynamicFields(first: $first, after: $cursor) {
+            pageInfo {
+                hasNextPage
+                endCursor
+            }
+            nodes {
+                name {
+                    bcs
+                    json
+                    type {
+                        layout
+                        repr
+                    }
+                }
+                value {
+                    __typename
+                    ... on MoveValue {
+                        json
+                        type {
+                            repr
+                        }
+                    }
+                    ... on MoveObject {
+                        contents {
+                            type {
+                                repr
+                            }
+                            json
+                        }
+                        address
+                        digest
+                        version
+                    }
+                }
+            }
+        }
+    }
 }
