@@ -22,8 +22,7 @@ use sui_move_natives_v2::all_natives;
 use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use sui_types::{
     balance::Balance,
-    base_types::{MoveObjectType, ObjectID, ObjectRef, SequenceNumber, SuiAddress, TxContext},
-    coin::Coin,
+    base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress, TxContext},
     collection_types::Bag,
     dynamic_field::Field,
     execution_mode,
@@ -32,7 +31,7 @@ use sui_types::{
     inner_temporary_store::InnerTemporaryStore,
     metrics::LimitsMetrics,
     move_package::{MovePackage, TypeOrigin, UpgradeCap},
-    object::{Data, MoveObject, Object, Owner},
+    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
         Argument, CheckedInputObjects, Command, InputObjectKind, InputObjects, ObjectArg,
@@ -42,7 +41,7 @@ use sui_types::{
 };
 
 use crate::{
-    process_package,
+    process_package, stardust,
     stardust::{
         migration::{
             create_migration_context, package_module_bytes,
@@ -270,7 +269,7 @@ impl Executor {
             );
 
             // Create the foundry amount object.
-            let amount_object = self.create_foundry_amount(
+            let foundry_amount = stardust::types::output::create_gas_coin(
                 UID::new(ObjectID::new(header.output_id().hash())),
                 stardust_to_sui_address(*foundry.alias_address())?,
                 foundry.amount(),
@@ -278,8 +277,8 @@ impl Executor {
                 foundry_package.version(),
                 &self.protocol_config,
             )?;
-            created_objects.set_foundry_amount(amount_object.id())?;
-            self.store.insert_object(amount_object);
+            created_objects.set_foundry_amount(foundry_amount.id())?;
+            self.store.insert_object(foundry_amount);
 
             self.store.finish(
                 written
@@ -291,36 +290,6 @@ impl Executor {
             res.push((header.output_id(), created_objects));
         }
         Ok(res)
-    }
-
-    pub(crate) fn create_foundry_amount(
-        &self,
-        object_id: UID,
-        owner: SuiAddress,
-        foundry_amount: u64,
-        tx_context: &TxContext,
-        version: SequenceNumber,
-        protocol_config: &ProtocolConfig,
-    ) -> Result<Object> {
-        let coin = Coin::new(object_id, foundry_amount);
-        let move_object = unsafe {
-            // Safety: we know from the definition of `Coin`
-            // that it has public transfer (`store` ability is present).
-            MoveObject::new_from_execution(
-                MoveObjectType::gas_coin(),
-                true,
-                version,
-                bcs::to_bytes(&coin)?,
-                protocol_config,
-            )?
-        };
-        // Resolve ownership
-        let owner = Owner::AddressOwner(owner);
-        Ok(Object::new_from_genesis(
-            Data::Move(move_object),
-            owner,
-            tx_context.digest(),
-        ))
     }
 
     pub(super) fn create_alias_objects(
