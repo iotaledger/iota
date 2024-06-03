@@ -3,52 +3,24 @@
 
 'use client';
 
-import ActivityTile from '@/components/ActivityTile';
-import { Activity, ActivityState } from '@/lib/interfaces';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import React from 'react';
+import { VirtualList, ActivityTile } from '@/components';
+import { Activity, ActivityState } from '@/lib/interfaces';
 
 function StakingDashboardPage(): JSX.Element {
-    const containerRef = React.useRef(null);
-    const virtualizer = useVirtualizer({
-        count: MOCK_ACTIVITIES.length,
-        getScrollElement: () => containerRef.current,
-        estimateSize: () => 100,
-    });
-
-    const virtualItems = virtualizer.getVirtualItems();
+    const virtualItem = (activity: Activity): JSX.Element => (
+        <ActivityTile key={activity.timestamp} activity={activity} />
+    );
 
     return (
         <div className="flex h-full w-full flex-col items-center justify-center space-y-4 pt-12">
             <h1>Your Activity</h1>
-            <div className="relative h-[50vh] w-1/3 overflow-auto" ref={containerRef}>
-                <div
-                    style={{
-                        height: `${virtualizer.getTotalSize()}px`,
-                        width: '100%',
-                        position: 'relative',
-                    }}
-                >
-                    {virtualItems.map((virtualItem) => {
-                        const activity = MOCK_ACTIVITIES[virtualItem.index];
-                        return (
-                            <div
-                                key={virtualItem.key}
-                                className="absolute w-full pb-4 pr-4"
-                                style={{
-                                    position: 'absolute',
-                                    top: 0,
-                                    left: 0,
-                                    width: '100%',
-                                    height: `${virtualItem.size}px`,
-                                    transform: `translateY(${virtualItem.start}px)`,
-                                }}
-                            >
-                                <ActivityTile activity={activity} />
-                            </div>
-                        );
-                    })}
-                </div>
+            <div className="flex w-1/2">
+                <VirtualList
+                    items={MOCK_ACTIVITIES}
+                    estimateSize={() => 100}
+                    render={virtualItem}
+                />
             </div>
         </div>
     );
