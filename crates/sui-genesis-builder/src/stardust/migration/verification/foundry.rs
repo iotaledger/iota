@@ -21,7 +21,7 @@ use crate::stardust::{
     migration::{
         executor::FoundryLedgerData,
         verification::{
-            util::{truncate_u256_to_u64, verify_parent},
+            util::{truncate_to_max_allowed_u64_supply, verify_parent},
             CreatedObjects,
         },
     },
@@ -195,7 +195,7 @@ pub(super) fn verify_foundry_output(
         max_supply_policy.maximum_supply
     );
     let circulating_supply =
-        truncate_u256_to_u64(output.token_scheme().as_simple().circulating_supply());
+        truncate_to_max_allowed_u64_supply(output.token_scheme().as_simple().circulating_supply());
     ensure!(
         max_supply_policy.treasury_cap.total_supply.value == circulating_supply,
         "treasury total supply mismatch: found {}, expected {}",

@@ -7,6 +7,9 @@ use iota_sdk::{types::block::output::SimpleTokenScheme, U256};
 
 use crate::stardust::error::StardustError;
 
+/// The maximum allowed u64 supply.
+pub const MAX_ALLOWED_U64_SUPPLY: u64 = u64::MAX - 1;
+
 /// This struct represents a conversion from a `SimpleTokenScheme` to a
 /// `SimpleTokenSchemeU64`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -69,18 +72,21 @@ impl TryFrom<&SimpleTokenScheme> for SimpleTokenSchemeU64 {
             }
 
             // Check if maximum supply can't be converted to u64.
-            let maximum_supply_u64 = if maximum_supply_u256.bits() > 64 {
-                u64::MAX
+            let maximum_supply_u64 = if maximum_supply_u256 > U256::from(MAX_ALLOWED_U64_SUPPLY) {
+                MAX_ALLOWED_U64_SUPPLY
             } else {
                 maximum_supply_u256.as_u64()
             };
 
-            // Check if circulating supply can't be converted to u64, then create the ratio.
-            if circulating_supply_u256.bits() > 64 {
+            // Check if circulating supply can't be converted to max allowed u64 supply.
+            if circulating_supply_u256 > U256::from(MAX_ALLOWED_U64_SUPPLY) {
                 (
-                    u64::MAX,
-                    u64::MAX,
-                    Some(BigDecimal::from(u64::MAX) / u256_to_bigdecimal(circulating_supply_u256)),
+                    MAX_ALLOWED_U64_SUPPLY,
+                    MAX_ALLOWED_U64_SUPPLY,
+                    Some(
+                        BigDecimal::from(MAX_ALLOWED_U64_SUPPLY)
+                            / u256_to_bigdecimal(circulating_supply_u256),
+                    ),
                 )
             } else {
                 (circulating_supply_u256.as_u64(), maximum_supply_u64, None)
@@ -132,9 +138,9 @@ mod tests {
 
     #[test]
     fn calculate_token_adjustment_ratio_at_max() {
-        let minted_tokens = U256::from(u64::MAX);
+        let minted_tokens = U256::from(MAX_ALLOWED_U64_SUPPLY);
         let melted_tokens = U256::from(0);
-        let maximum_supply = U256::from(u64::MAX);
+        let maximum_supply = U256::from(MAX_ALLOWED_U64_SUPPLY);
 
         let token_scheme =
             SimpleTokenScheme::new(minted_tokens, melted_tokens, maximum_supply).unwrap();
@@ -145,16 +151,16 @@ mod tests {
 
     #[test]
     fn calculate_token_adjustment_ratio_above_max() {
-        let minted_tokens = U256::from(u64::MAX) + U256::from(1_u64);
+        let minted_tokens = U256::from(MAX_ALLOWED_U64_SUPPLY) + U256::from(1_u64);
         let melted_tokens = U256::from(0);
-        let maximum_supply = U256::from(u64::MAX) + U256::from(1_u64);
+        let maximum_supply = U256::from(MAX_ALLOWED_U64_SUPPLY) + U256::from(1_u64);
         let circulating_supply_u256 = minted_tokens - melted_tokens;
 
         let token_scheme =
             SimpleTokenScheme::new(minted_tokens, melted_tokens, maximum_supply).unwrap();
         let token_scheme_u64 = SimpleTokenSchemeU64::try_from(&token_scheme).unwrap();
 
-        let u64_max_bd = BigDecimal::from(u64::MAX);
+        let u64_max_bd = BigDecimal::from(MAX_ALLOWED_U64_SUPPLY);
         let circulating_supply_256_bd = u256_to_bigdecimal(circulating_supply_u256);
         let expected_ratio = u64_max_bd / circulating_supply_256_bd;
 
@@ -205,13 +211,13 @@ mod tests {
         let token_scheme_u64 = SimpleTokenSchemeU64::try_from(&token_scheme).unwrap();
 
         assert_eq!(token_scheme_u64.circulating_supply, 4000);
-        assert_eq!(token_scheme_u64.maximum_supply, u64::MAX);
+        assert_eq!(token_scheme_u64.maximum_supply, MAX_ALLOWED_U64_SUPPLY);
         assert!(token_scheme_u64.token_adjustment_ratio.is_none());
     }
 
     #[test]
     fn circulating_supply_ratio_calculation() {
-        let minted_tokens = U256::from(u64::MAX) * U256::from(10);
+        let minted_tokens = U256::from(MAX_ALLOWED_U64_SUPPLY) * U256::from(10);
         let melted_tokens = U256::from(0);
         let maximum_supply = U256::MAX;
 
@@ -220,13 +226,14 @@ mod tests {
 
         let token_scheme_u64 = SimpleTokenSchemeU64::try_from(&token_scheme).unwrap();
 
-        let expected_ratio = BigDecimal::from(u64::MAX) / u256_to_bigdecimal(minted_tokens);
-        assert_eq!(token_scheme_u64.circulating_supply, u64::MAX);
+        let expected_ratio =
+            BigDecimal::from(MAX_ALLOWED_U64_SUPPLY) / u256_to_bigdecimal(minted_tokens);
+        assert_eq!(token_scheme_u64.circulating_supply, MAX_ALLOWED_U64_SUPPLY);
         assert_eq!(
             token_scheme_u64.token_adjustment_ratio.unwrap(),
             expected_ratio
         );
-        assert_eq!(token_scheme_u64.maximum_supply, u64::MAX);
+        assert_eq!(token_scheme_u64.maximum_supply, MAX_ALLOWED_U64_SUPPLY);
     }
 
     #[test]
@@ -240,8 +247,8 @@ mod tests {
 
         let token_scheme_u64 = SimpleTokenSchemeU64::try_from(&token_scheme).unwrap();
 
-        assert_eq!(token_scheme_u64.maximum_supply, 18446744073709551615);
-        assert_eq!(token_scheme_u64.circulating_supply, 18446744073709551615);
+        assert_eq!(token_scheme_u64.maximum_supply, MAX_ALLOWED_U64_SUPPLY);
+        assert_eq!(token_scheme_u64.circulating_supply, MAX_ALLOWED_U64_SUPPLY);
 
         // Verify that the adjusted balance divided by the token_adjustment_ratio is
         // equal the minted tokens.
@@ -252,7 +259,7 @@ mod tests {
 
     #[test]
     fn circulating_supply_exceeds_u64_with_one_holder() {
-        let minted_tokens = U256::from(u64::MAX) + U256::from(1);
+        let minted_tokens = U256::from(MAX_ALLOWED_U64_SUPPLY) + U256::from(1);
         let melted_tokens = U256::from(0);
         let maximum_supply = U256::MAX;
 
@@ -267,14 +274,14 @@ mod tests {
         .to_u64()
         .unwrap();
 
-        assert_eq!(token_scheme_u64.circulating_supply, u64::MAX);
-        assert_eq!(adjusted_address_balance, u64::MAX);
-        assert_eq!(token_scheme_u64.maximum_supply, u64::MAX);
+        assert_eq!(adjusted_address_balance, MAX_ALLOWED_U64_SUPPLY);
+        assert_eq!(token_scheme_u64.circulating_supply, MAX_ALLOWED_U64_SUPPLY);
+        assert_eq!(token_scheme_u64.maximum_supply, MAX_ALLOWED_U64_SUPPLY);
     }
 
     #[test]
     fn circulating_supply_exceeds_u64_with_two_equal_holders() {
-        let minted_tokens = U256::MAX;
+        let minted_tokens = U256::from(MAX_ALLOWED_U64_SUPPLY) + U256::from(1);
         let melted_tokens = U256::from(0);
         let maximum_supply = U256::MAX;
 
@@ -297,19 +304,18 @@ mod tests {
             .to_u64()
             .unwrap();
 
-        assert_eq!(holder1_balance, holder2_balance);
-        assert_eq!(
-            holder1_balance + holder2_balance,
-            u256_to_bigdecimal(U256::MAX)
-        );
+        assert_eq!(adjusted_holder1_balance, MAX_ALLOWED_U64_SUPPLY / 2);
+
+        assert_eq!(adjusted_holder2_balance, MAX_ALLOWED_U64_SUPPLY / 2);
+
         assert_eq!(
             adjusted_holder1_balance + adjusted_holder2_balance,
-            u64::MAX - 1
+            MAX_ALLOWED_U64_SUPPLY
         );
 
-        assert_eq!(token_scheme_u64.circulating_supply, u64::MAX);
+        assert_eq!(token_scheme_u64.circulating_supply, MAX_ALLOWED_U64_SUPPLY);
 
-        assert_eq!(token_scheme_u64.maximum_supply, u64::MAX);
+        assert_eq!(token_scheme_u64.maximum_supply, MAX_ALLOWED_U64_SUPPLY);
     }
 
     #[test]
