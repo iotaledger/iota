@@ -273,10 +273,10 @@ impl Executor {
             let amount_object = self.create_foundry_amount(
                 UID::new(ObjectID::new(header.output_id().hash())),
                 stardust_to_sui_address(*foundry.alias_address())?,
-                &self.protocol_config,
+                foundry.amount(),
                 &self.tx_context,
                 foundry_package.version(),
-                foundry.amount(),
+                &self.protocol_config,
             )?;
             created_objects.set_foundry_amount(amount_object.id())?;
             self.store.insert_object(amount_object);
@@ -297,10 +297,10 @@ impl Executor {
         &self,
         object_id: UID,
         owner: SuiAddress,
-        protocol_config: &ProtocolConfig,
+        foundry_amount: u64,
         tx_context: &TxContext,
         version: SequenceNumber,
-        foundry_amount: u64,
+        protocol_config: &ProtocolConfig,
     ) -> Result<Object> {
         let coin = Coin::new(object_id, foundry_amount);
         let move_object = unsafe {
