@@ -34,7 +34,7 @@ export function RecoverPage() {
         ? 'Recover with 24-word Recovery Phrase'
         : 'Recover with Seed';
     return (
-        <div className="flex flex-1 flex-col items-center gap-6">
+        <div className="flex w-full flex-1 flex-col items-center gap-6">
             <div className="flex flex-col items-center gap-2">
                 <Heading variant="heading1" color="gray-90" as="h1" weight="bold">
                     Forgot Password?
@@ -43,7 +43,7 @@ export function RecoverPage() {
                     {title}
                 </Text>
             </div>
-            <div className="grow">
+            <div className="w-full grow">
                 {mnemonicAccountSource ? (
                     <ImportRecoveryPhraseForm
                         cancelButtonText="Cancel"
