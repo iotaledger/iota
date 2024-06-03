@@ -8,23 +8,19 @@
 
 use std::str::FromStr;
 
-use crate::error::BridgeError;
-use crate::error::BridgeResult;
-use crate::sui_transaction_builder::get_bridge_package_id;
-use crate::types::BridgeAction;
-use crate::types::BridgeActionType;
-use crate::types::BridgeChainId;
-use crate::types::SuiToEthBridgeAction;
-use crate::types::TokenId;
 use ethers::types::Address as EthAddress;
-use fastcrypto::encoding::Encoding;
-use fastcrypto::encoding::Hex;
+use fastcrypto::encoding::{Encoding, Hex};
 use move_core_types::language_storage::StructTag;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use sui_json_rpc_types::SuiEvent;
-use sui_types::base_types::SuiAddress;
-use sui_types::digests::TransactionDigest;
+use sui_types::{base_types::SuiAddress, digests::TransactionDigest};
+
+use crate::{
+    error::{BridgeError, BridgeResult},
+    sui_transaction_builder::get_bridge_package_id,
+    types::{BridgeAction, BridgeActionType, BridgeChainId, SuiToEthBridgeAction, TokenId},
+};
 
 // This is the event structure defined and emitted in Move
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
@@ -191,23 +187,22 @@ impl SuiBridgeEvent {
 
 #[cfg(test)]
 pub mod tests {
-    use super::get_bridge_event_struct_tag;
-    use super::EmittedSuiToEthTokenBridgeV1;
-    use super::MoveTokenBridgeEvent;
-    use crate::types::BridgeAction;
-    use crate::types::BridgeActionType;
-    use crate::types::BridgeChainId;
-    use crate::types::SuiToEthBridgeAction;
-    use crate::types::TokenId;
+    use std::str::FromStr;
+
     use ethers::types::Address as EthAddress;
     use move_core_types::language_storage::StructTag;
-    use std::str::FromStr;
     use sui_json_rpc_types::SuiEvent;
-    use sui_types::base_types::ObjectID;
-    use sui_types::base_types::SuiAddress;
-    use sui_types::digests::TransactionDigest;
-    use sui_types::event::EventID;
-    use sui_types::Identifier;
+    use sui_types::{
+        base_types::{ObjectID, SuiAddress},
+        digests::TransactionDigest,
+        event::EventID,
+        Identifier,
+    };
+
+    use super::{get_bridge_event_struct_tag, EmittedSuiToEthTokenBridgeV1, MoveTokenBridgeEvent};
+    use crate::types::{
+        BridgeAction, BridgeActionType, BridgeChainId, SuiToEthBridgeAction, TokenId,
+    };
 
     /// Returns a test SuiEvent and corresponding BridgeAction
     pub fn get_test_sui_event_and_action(identifier: Identifier) -> (SuiEvent, BridgeAction) {

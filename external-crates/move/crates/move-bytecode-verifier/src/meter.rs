@@ -1,10 +1,11 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use std::ops::Mul;
+
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::vm_status::StatusCode;
 use move_vm_config::verifier::VerifierConfig;
-use std::ops::Mul;
 
 /// Scope of meterinng
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -29,11 +30,13 @@ pub trait Meter {
     /// Indicates the begin of a new scope.
     fn enter_scope(&mut self, name: &str, scope: Scope);
 
-    /// Transfer the amount of metering from once scope to the next. If the current scope has
-    /// metered N units, the target scope will be charged with N*factor.
+    /// Transfer the amount of metering from once scope to the next. If the
+    /// current scope has metered N units, the target scope will be charged
+    /// with N*factor.
     fn transfer(&mut self, from: Scope, to: Scope, factor: f32) -> PartialVMResult<()>;
 
-    /// Add the number of units to the meter, returns an error if a limit is hit.
+    /// Add the number of units to the meter, returns an error if a limit is
+    /// hit.
     fn add(&mut self, scope: Scope, units: u128) -> PartialVMResult<()>;
 
     /// Adds the number of items.

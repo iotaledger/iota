@@ -3,27 +3,38 @@
 
 use std::str::FromStr;
 
-use super::checkpoint::Checkpoint;
-use super::cursor::{self, Page, Paginated, Target};
-use super::digest::Digest;
-use super::type_filter::{ModuleFilter, TypeFilter};
-use super::{
-    address::Address, base64::Base64, date_time::DateTime, move_module::MoveModule,
-    move_value::MoveValue, sui_address::SuiAddress,
+use async_graphql::{
+    connection::{Connection, CursorType, Edge},
+    *,
 };
-use crate::consistency::Checkpointed;
-use crate::data::{self, QueryExecutor};
-use crate::{data::Db, error::Error};
-use async_graphql::connection::{Connection, CursorType, Edge};
-use async_graphql::*;
 use diesel::{BoolExpressionMethods, ExpressionMethods, NullableExpressionMethods, QueryDsl};
 use serde::{Deserialize, Serialize};
-use sui_indexer::models::{events::StoredEvent, transactions::StoredTransaction};
-use sui_indexer::schema::{events, transactions, tx_senders};
-use sui_types::base_types::ObjectID;
-use sui_types::Identifier;
+use sui_indexer::{
+    models::{events::StoredEvent, transactions::StoredTransaction},
+    schema::{events, transactions, tx_senders},
+};
 use sui_types::{
-    base_types::SuiAddress as NativeSuiAddress, event::Event as NativeEvent, parse_sui_struct_tag,
+    base_types::{ObjectID, SuiAddress as NativeSuiAddress},
+    event::Event as NativeEvent,
+    parse_sui_struct_tag, Identifier,
+};
+
+use super::{
+    address::Address,
+    base64::Base64,
+    checkpoint::Checkpoint,
+    cursor::{self, Page, Paginated, Target},
+    date_time::DateTime,
+    digest::Digest,
+    move_module::MoveModule,
+    move_value::MoveValue,
+    sui_address::SuiAddress,
+    type_filter::{ModuleFilter, TypeFilter},
+};
+use crate::{
+    consistency::Checkpointed,
+    data::{self, Db, QueryExecutor},
+    error::Error,
 };
 
 /// A Sui node emits one of the following events:
@@ -140,18 +151,20 @@ impl Event {
 }
 
 impl Event {
-    /// Query the database for a `page` of events. The Page uses the transaction, event, and
-    /// checkpoint sequence numbers as the cursor to determine the correct page of results. The
-    /// query can optionally be further `filter`-ed by the `EventFilter`.
+    /// Query the database for a `page` of events. The Page uses the
+    /// transaction, event, and checkpoint sequence numbers as the cursor to
+    /// determine the correct page of results. The query can optionally be
+    /// further `filter`-ed by the `EventFilter`.
     ///
     /// The `checkpoint_viewed_at` parameter is an Option<u64> representing the
-    /// checkpoint_sequence_number at which this page was queried for, or `None` if the data was
-    /// requested at the latest checkpoint. Each entity returned in the connection will inherit this
-    /// checkpoint, so that when viewing that entity's state, it will be from the reference of this
+    /// checkpoint_sequence_number at which this page was queried for, or `None`
+    /// if the data was requested at the latest checkpoint. Each entity
+    /// returned in the connection will inherit this checkpoint, so that
+    /// when viewing that entity's state, it will be from the reference of this
     /// checkpoint_viewed_at parameter.
     ///
-    /// If the `Page<Cursor>` is set, then this function will defer to the `checkpoint_viewed_at` in
-    /// the cursor if they are consistent.
+    /// If the `Page<Cursor>` is set, then this function will defer to the
+    /// `checkpoint_viewed_at` in the cursor if they are consistent.
     pub(crate) async fn paginate(
         db: &Db,
         page: Page<Cursor>,
@@ -181,8 +194,8 @@ impl Event {
                             events::dsl::checkpoint_sequence_number.le(checkpoint_viewed_at as i64),
                         );
 
-                        // The transactions table doesn't have an index on the senders column, so use
-                        // `tx_senders`.
+                        // The transactions table doesn't have an index on the senders column, so
+                        // use `tx_senders`.
                         if let Some(sender) = &filter.sender {
                             query = query.filter(
                                 events::dsl::tx_sequence_number.eq_any(
@@ -230,8 +243,9 @@ impl Event {
 
         let mut conn = Connection::new(prev, next);
 
-        // Defer to the provided checkpoint_viewed_at, but if it is not provided, use the
-        // current available range. This sets a consistent upper bound for the nested queries.
+        // Defer to the provided checkpoint_viewed_at, but if it is not provided, use
+        // the current available range. This sets a consistent upper bound for
+        // the nested queries.
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             conn.edges.push(Edge::new(

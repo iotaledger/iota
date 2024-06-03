@@ -10,9 +10,8 @@ use move_command_line_common::{
 use move_core_types::runtime_value::MoveValue;
 use sui_types::{base_types::ObjectID, Identifier};
 
-use crate::{error, sp};
-
 use super::error::{PTBResult, Span, Spanned};
+use crate::{error, sp};
 
 pub type ParsedProgram = (Program, ProgramMetadata);
 
@@ -86,8 +85,8 @@ pub fn all_keywords() -> String {
         + &format!(", or '{}'", KEYWORDS[KEYWORDS.len() - 1])
 }
 
-/// A PTB Program consisting of a list of commands and a flag indicating if the preview
-/// warn-shadows command was present.
+/// A PTB Program consisting of a list of commands and a flag indicating if the
+/// preview warn-shadows command was present.
 #[derive(Debug, Clone)]
 pub struct Program {
     pub commands: Vec<Spanned<ParsedPTBCommand>>,
@@ -95,8 +94,8 @@ pub struct Program {
     pub warn_shadows_set: bool,
 }
 
-/// The `ProgramMetadata` struct holds metadata about a PTB program, such as whether the preview
-/// flag was set, json output was set, etc.
+/// The `ProgramMetadata` struct holds metadata about a PTB program, such as
+/// whether the preview flag was set, json output was set, etc.
 #[derive(Debug, Clone)]
 pub struct ProgramMetadata {
     pub preview_set: bool,
@@ -108,7 +107,8 @@ pub struct ProgramMetadata {
     pub gas_budget: Spanned<u64>,
 }
 
-/// A parsed module access consisting of the address, module name, and function name.
+/// A parsed module access consisting of the address, module name, and function
+/// name.
 #[derive(Debug, Clone)]
 pub struct ModuleAccess {
     pub address: Spanned<ParsedAddress>,
@@ -116,7 +116,8 @@ pub struct ModuleAccess {
     pub function_name: Spanned<Identifier>,
 }
 
-/// A parsed PTB command consisting of the command and the parsed arguments to the command.
+/// A parsed PTB command consisting of the command and the parsed arguments to
+/// the command.
 #[derive(Debug, Clone)]
 pub enum ParsedPTBCommand {
     TransferObjects(Spanned<Vec<Spanned<Argument>>>, Spanned<Argument>),
@@ -155,8 +156,8 @@ pub enum Argument {
 }
 
 impl Argument {
-    /// Resolve an `Argument` into a `MoveValue` if possible. Errors if the `Argument` is not
-    /// convertible to a `MoveValue`.
+    /// Resolve an `Argument` into a `MoveValue` if possible. Errors if the
+    /// `Argument` is not convertible to a `MoveValue`.
     pub fn to_pure_move_value(&self, loc: Span) -> PTBResult<MoveValue> {
         Ok(match self {
             Argument::Bool(b) => MoveValue::Bool(*b),

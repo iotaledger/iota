@@ -3,40 +3,48 @@
 
 #[cfg(msim)]
 mod test {
+    use std::{
+        collections::HashSet,
+        path::PathBuf,
+        str::FromStr,
+        sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc, Mutex,
+        },
+        time::{Duration, Instant},
+    };
+
     use rand::{distributions::uniform::SampleRange, thread_rng, Rng};
-    use std::collections::HashSet;
-    use std::path::PathBuf;
-    use std::str::FromStr;
-    use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::{Arc, Mutex};
-    use std::time::{Duration, Instant};
-    use sui_benchmark::bank::BenchmarkBank;
-    use sui_benchmark::system_state_observer::SystemStateObserver;
-    use sui_benchmark::workloads::adversarial::AdversarialPayloadCfg;
-    use sui_benchmark::workloads::workload_configuration::WorkloadConfiguration;
     use sui_benchmark::{
+        bank::BenchmarkBank,
         drivers::{bench_driver::BenchDriver, driver::Driver, Interval},
+        system_state_observer::SystemStateObserver,
         util::get_ed25519_keypair_from_keystore,
+        workloads::{
+            adversarial::AdversarialPayloadCfg, workload_configuration::WorkloadConfiguration,
+        },
         LocalValidatorAggregatorProxy, ValidatorProxy,
     };
-    use sui_config::genesis::Genesis;
-    use sui_config::{AUTHORITIES_DB_NAME, SUI_KEYSTORE_FILENAME};
-    use sui_core::authority::authority_store_tables::AuthorityPerpetualTables;
-    use sui_core::authority::framework_injection;
-    use sui_core::authority::AuthorityState;
-    use sui_core::checkpoints::{CheckpointStore, CheckpointWatermark};
+    use sui_config::{genesis::Genesis, AUTHORITIES_DB_NAME, SUI_KEYSTORE_FILENAME};
+    use sui_core::{
+        authority::{
+            authority_store_tables::AuthorityPerpetualTables, framework_injection, AuthorityState,
+        },
+        checkpoints::{CheckpointStore, CheckpointWatermark},
+    };
     use sui_framework::BuiltInFramework;
     use sui_macros::{
         clear_fail_point, nondeterministic, register_fail_point_async, register_fail_point_if,
         register_fail_points, sim_test,
     };
     use sui_protocol_config::{ProtocolVersion, SupportedProtocolVersions};
-    use sui_simulator::tempfile::TempDir;
-    use sui_simulator::{configs::*, SimConfig};
+    use sui_simulator::{configs::*, tempfile::TempDir, SimConfig};
     use sui_storage::blob::Blob;
-    use sui_types::base_types::{ObjectRef, SuiAddress};
-    use sui_types::full_checkpoint_content::CheckpointData;
-    use sui_types::messages_checkpoint::VerifiedCheckpoint;
+    use sui_types::{
+        base_types::{ObjectRef, SuiAddress},
+        full_checkpoint_content::CheckpointData,
+        messages_checkpoint::VerifiedCheckpoint,
+    };
     use test_cluster::{TestCluster, TestClusterBuilder};
     use tracing::{error, info};
     use typed_store::traits::Map;
@@ -85,7 +93,7 @@ mod test {
 
         register_fail_point_if("correlated-crash-after-consensus-commit-boundary", || true);
         // TODO: enable this - right now it causes rocksdb errors when re-opening DBs
-        //register_fail_point_if("correlated-crash-process-certificate", || true);
+        // register_fail_point_if("correlated-crash-process-certificate", || true);
 
         let test_cluster = build_test_cluster(4, 10000).await;
         test_simulated_load(TestInitData::new(&test_cluster).await, 60).await;
@@ -125,9 +133,10 @@ mod test {
         test_simulated_load(TestInitData::new(&test_cluster).await, 120).await;
     }
 
-    /// Get a list of nodes that we don't want to kill in the crash recovery tests.
-    /// This includes the client node which is the node that is running the test, as well as
-    /// rpc fullnode which are needed to run the benchmark.
+    /// Get a list of nodes that we don't want to kill in the crash recovery
+    /// tests. This includes the client node which is the node that is
+    /// running the test, as well as rpc fullnode which are needed to run
+    /// the benchmark.
     fn get_keep_alive_nodes(cluster: &TestCluster) -> HashSet<sui_simulator::task::NodeId> {
         let mut keep_alive_nodes = HashSet::new();
         // The first fullnode in the swarm ins the rpc fullnode.
@@ -183,7 +192,8 @@ mod test {
         }
     }
 
-    // Runs object pruning and compaction for object table in `state` probabistically.
+    // Runs object pruning and compaction for object table in `state`
+    // probabistically.
     async fn handle_failpoint_prune_and_compact(state: Arc<AuthorityState>, probability: f64) {
         {
             let mut rng = thread_rng();
@@ -224,7 +234,8 @@ mod test {
         });
 
         test_simulated_load(TestInitData::new(&test_cluster).await, 60).await;
-        // The fail point holds a reference to `node_state`, which we need to release before the test ends.
+        // The fail point holds a reference to `node_state`, which we need to release
+        // before the test ends.
         clear_fail_point("prune-and-compact");
     }
 
@@ -380,10 +391,11 @@ mod test {
 
     #[sim_test(config = "test_config()")]
     async fn test_upgrade_compatibility() {
-        // This test is intended to test the compatibility of the latest protocol version with
-        // the previous protocol version. It does this by starting a network with
-        // the previous protocol version that this binary supports, and then upgrading the network
-        // to the latest protocol version.
+        // This test is intended to test the compatibility of the latest protocol
+        // version with the previous protocol version. It does this by starting
+        // a network with the previous protocol version that this binary
+        // supports, and then upgrading the network to the latest protocol
+        // version.
         tokio::time::timeout(
             Duration::from_secs(1000),
             test_protocol_upgrade_compatibility_impl(),
@@ -441,8 +453,9 @@ mod test {
                             Some(BuiltInFramework::iter_system_packages().collect::<Vec<_>>())
                         } else {
                             // Often we want to be able to create multiple protocol config versions
-                            // on main that none have shipped to any production network. In this case,
-                            // some of the protocol versions may not have a framework snapshot.
+                            // on main that none have shipped to any production network. In this
+                            // case, some of the protocol versions may
+                            // not have a framework snapshot.
                             None
                         }
                     }
@@ -548,13 +561,15 @@ mod test {
         let system_state_observer = {
             let mut system_state_observer = SystemStateObserver::new(proxy.clone());
             if let Ok(_) = system_state_observer.state.changed().await {
-                info!("Got the new state (reference gas price and/or protocol config) from system state object");
+                info!(
+                    "Got the new state (reference gas price and/or protocol config) from system state object"
+                );
             }
             Arc::new(system_state_observer)
         };
 
-        // The default test parameters are somewhat conservative in order to keep the running time
-        // of the test reasonable in CI.
+        // The default test parameters are somewhat conservative in order to keep the
+        // running time of the test reasonable in CI.
         let target_qps = get_var("SIM_STRESS_TEST_QPS", 10);
         let num_workers = get_var("SIM_STRESS_TEST_WORKERS", 10);
         let in_flight_ratio = get_var("SIM_STRESS_TEST_IFR", 2);
@@ -570,8 +585,8 @@ mod test {
         let adversarial_cfg = AdversarialPayloadCfg::from_str("0-1.0").unwrap();
         let duration = Interval::from_str("unbounded").unwrap();
 
-        // TODO: re-enable this when we figure out why it is causing connection errors and making
-        // tests run for ever
+        // TODO: re-enable this when we figure out why it is causing connection errors
+        // and making tests run for ever
         let adversarial_weight = 0;
 
         let shared_counter_hotness_factor = 50;
@@ -634,7 +649,8 @@ mod test {
             .await
             .unwrap();
 
-        // TODO: make this stricter (== 0) when we have reliable error retrying on the client.
+        // TODO: make this stricter (== 0) when we have reliable error retrying on the
+        // client.
         tracing::info!("end of test {:?}", benchmark_stats);
         assert!(benchmark_stats.num_error_txes < 100);
     }

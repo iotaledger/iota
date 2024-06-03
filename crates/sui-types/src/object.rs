@@ -1,42 +1,41 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
-use std::convert::TryFrom;
-use std::fmt::{Debug, Display, Formatter};
-use std::mem::size_of;
-use std::sync::Arc;
+use std::{
+    collections::BTreeMap,
+    convert::TryFrom,
+    fmt::{Debug, Display, Formatter},
+    mem::size_of,
+    sync::Arc,
+};
 
 use move_binary_format::CompiledModule;
-use move_bytecode_utils::layout::TypeLayoutBuilder;
-use move_bytecode_utils::module_cache::GetModule;
-use move_core_types::annotated_value::{MoveStruct, MoveStructLayout, MoveTypeLayout};
-use move_core_types::language_storage::StructTag;
-use move_core_types::language_storage::TypeTag;
+use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
+use move_core_types::{
+    annotated_value::{MoveStruct, MoveStructLayout, MoveTypeLayout},
+    language_storage::{StructTag, TypeTag},
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
-use serde_with::Bytes;
-
-use crate::base_types::{MoveObjectType, ObjectIDParseError};
-use crate::coin::{Coin, CoinMetadata, TreasuryCap};
-use crate::crypto::{default_hash, deterministic_random_account_key};
-use crate::error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult};
-use crate::error::{SuiError, SuiResult};
-use crate::gas_coin::GAS;
-use crate::is_system_package;
-use crate::move_package::MovePackage;
-use crate::type_resolver::LayoutResolver;
-use crate::{
-    base_types::{
-        ObjectDigest, ObjectID, ObjectRef, SequenceNumber, SuiAddress, TransactionDigest,
-    },
-    gas_coin::GasCoin,
-};
+use serde_with::{serde_as, Bytes};
 use sui_protocol_config::ProtocolConfig;
 
-use self::balance_traversal::BalanceTraversal;
-use self::bounded_visitor::BoundedVisitor;
+use self::{balance_traversal::BalanceTraversal, bounded_visitor::BoundedVisitor};
+use crate::{
+    base_types::{
+        MoveObjectType, ObjectDigest, ObjectID, ObjectIDParseError, ObjectRef, SequenceNumber,
+        SuiAddress, TransactionDigest,
+    },
+    coin::{Coin, CoinMetadata, TreasuryCap},
+    crypto::{default_hash, deterministic_random_account_key},
+    error::{
+        ExecutionError, ExecutionErrorKind, SuiError, SuiResult, UserInputError, UserInputResult,
+    },
+    gas_coin::{GasCoin, GAS},
+    is_system_package,
+    move_package::MovePackage,
+    type_resolver::LayoutResolver,
+};
 
 mod balance_traversal;
 pub mod bounded_visitor;
@@ -49,11 +48,13 @@ pub const OBJECT_START_VERSION: SequenceNumber = SequenceNumber::from_u64(1);
 pub struct MoveObject {
     /// The type of this object. Immutable
     type_: MoveObjectType,
-    /// DEPRECATED this field is no longer used to determine whether a tx can transfer this
-    /// object. Instead, it is always calculated from the objects type when loaded in execution
+    /// DEPRECATED this field is no longer used to determine whether a tx can
+    /// transfer this object. Instead, it is always calculated from the
+    /// objects type when loaded in execution
     has_public_transfer: bool,
-    /// Number that increases each time a tx takes this object as a mutable input
-    /// This is a lamport timestamp, not a sequentially increasing version
+    /// Number that increases each time a tx takes this object as a mutable
+    /// input This is a lamport timestamp, not a sequentially increasing
+    /// version
     version: SequenceNumber,
     /// BCS bytes of a Move struct value
     #[serde_as(as = "Bytes")]
@@ -64,16 +65,18 @@ pub struct MoveObject {
 pub const ID_END_INDEX: usize = ObjectID::LENGTH;
 
 impl MoveObject {
-    /// Creates a new Move object of type `type_` with BCS encoded bytes in `contents`
-    /// `has_public_transfer` is determined by the abilities of the `type_`, but resolving
-    /// the abilities requires the compiled modules of the `type_: StructTag`.
-    /// In other words, `has_public_transfer` will be the same for all objects of the same `type_`.
+    /// Creates a new Move object of type `type_` with BCS encoded bytes in
+    /// `contents` `has_public_transfer` is determined by the abilities of
+    /// the `type_`, but resolving the abilities requires the compiled
+    /// modules of the `type_: StructTag`. In other words,
+    /// `has_public_transfer` will be the same for all objects of the same
+    /// `type_`.
     ///
     /// # Safety
     ///
-    /// This function should ONLY be called if has_public_transfer has been determined by the type_.
-    /// Yes, this is a bit of an abuse of the `unsafe` marker, but bad things will happen if this
-    /// is inconsistent
+    /// This function should ONLY be called if has_public_transfer has been
+    /// determined by the type_. Yes, this is a bit of an abuse of the
+    /// `unsafe` marker, but bad things will happen if this is inconsistent
     pub unsafe fn new_from_execution(
         type_: MoveObjectType,
         has_public_transfer: bool,
@@ -91,7 +94,8 @@ impl MoveObject {
     }
 
     /// # Safety
-    /// This function should ONLY be called if has_public_transfer has been determined by the type_
+    /// This function should ONLY be called if has_public_transfer has been
+    /// determined by the type_
     pub unsafe fn new_from_execution_with_limit(
         type_: MoveObjectType,
         has_public_transfer: bool,
@@ -176,9 +180,9 @@ impl MoveObject {
     }
 
     /// Return the `value: u64` field of a `Coin<T>` type.
-    /// Useful for reading the coin without deserializing the object into a Move value
-    /// It is the caller's responsibility to check that `self` is a coin--this function
-    /// may panic or do something unexpected otherwise.
+    /// Useful for reading the coin without deserializing the object into a Move
+    /// value It is the caller's responsibility to check that `self` is a
+    /// coin--this function may panic or do something unexpected otherwise.
     pub fn get_coin_value_unsafe(&self) -> u64 {
         debug_assert!(self.type_.is_coin());
         // 32 bytes for object ID, 8 for balance
@@ -189,9 +193,10 @@ impl MoveObject {
     }
 
     /// Update the `value: u64` field of a `Coin<T>` type.
-    /// Useful for updating the coin without deserializing the object into a Move value
-    /// It is the caller's responsibility to check that `self` is a coin--this function
-    /// may panic or do something unexpected otherwise.
+    /// Useful for updating the coin without deserializing the object into a
+    /// Move value It is the caller's responsibility to check that `self` is
+    /// a coin--this function may panic or do something unexpected
+    /// otherwise.
     pub fn set_coin_value_unsafe(&mut self, value: u64) {
         debug_assert!(self.type_.is_coin());
         // 32 bytes for object ID, 8 for balance
@@ -228,8 +233,9 @@ impl MoveObject {
         self.version
     }
 
-    /// Contents of the object that are specific to its type--i.e., not its ID and version, which all objects have
-    /// For example if the object was declared as `struct S has key { id: ID, f1: u64, f2: bool },
+    /// Contents of the object that are specific to its type--i.e., not its ID
+    /// and version, which all objects have For example if the object was
+    /// declared as `struct S has key { id: ID, f1: u64, f2: bool },
     /// this returns the slice containing `f1` and `f2`.
     #[cfg(test)]
     pub fn type_specific_contents(&self) -> &[u8] {
@@ -270,8 +276,8 @@ impl MoveObject {
         Ok(())
     }
 
-    /// Sets the version of this object to a new value which is assumed to be higher (and checked to
-    /// be higher in debug).
+    /// Sets the version of this object to a new value which is assumed to be
+    /// higher (and checked to be higher in debug).
     pub fn increment_version_to(&mut self, next: SequenceNumber) {
         self.version.increment_to(next);
     }
@@ -297,8 +303,9 @@ impl MoveObject {
     }
 
     /// Get a `MoveStructLayout` for `self`.
-    /// The `resolver` value must contain the module that declares `self.type_` and the (transitive)
-    /// dependencies of `self.type_` in order for this to succeed. Failure will result in an `ObjectSerializationError`
+    /// The `resolver` value must contain the module that declares `self.type_`
+    /// and the (transitive) dependencies of `self.type_` in order for this
+    /// to succeed. Failure will result in an `ObjectSerializationError`
     pub fn get_layout(&self, resolver: &impl GetModule) -> Result<MoveStructLayout, SuiError> {
         Self::get_layout_from_struct_tag(self.type_().clone().into(), resolver)
     }
@@ -343,9 +350,9 @@ impl MoveObject {
     }
 
     /// Approximate size of the object in bytes. This is used for gas metering.
-    /// For the type tag field, we serialize it on the spot to get the accurate size.
-    /// This should not be very expensive since the type tag is usually simple, and
-    /// we only do this once per object being mutated.
+    /// For the type tag field, we serialize it on the spot to get the accurate
+    /// size. This should not be very expensive since the type tag is
+    /// usually simple, and we only do this once per object being mutated.
     pub fn object_size_for_gas_metering(&self) -> usize {
         let serialized_type_tag_size =
             bcs::serialized_size(&self.type_).expect("Serializing type tag should not fail");
@@ -354,7 +361,8 @@ impl MoveObject {
         self.contents.len() + serialized_type_tag_size + 1 + 8
     }
 
-    /// Get the total amount of SUI embedded in `self`. Intended for testing purposes
+    /// Get the total amount of SUI embedded in `self`. Intended for testing
+    /// purposes
     pub fn get_total_sui(&self, layout_resolver: &mut dyn LayoutResolver) -> Result<u64, SuiError> {
         let balances = self.get_coin_balances(layout_resolver)?;
         Ok(balances.get(&GAS::type_tag()).copied().unwrap_or(0))
@@ -498,7 +506,8 @@ impl Owner {
     }
 
     // NOTE: this function will return address of both AddressOwner and ObjectOwner,
-    // address of ObjectOwner is converted from object id, even though the type is SuiAddress.
+    // address of ObjectOwner is converted from object id, even though the type is
+    // SuiAddress.
     pub fn get_owner_address(&self) -> SuiResult<SuiAddress> {
         match self {
             Self::AddressOwner(address) | Self::ObjectOwner(address) => Ok(*address),
@@ -686,8 +695,8 @@ impl Object {
         )
     }
 
-    /// Create a system package which is not subject to size limits. Panics if the object ID is not
-    /// a known system package.
+    /// Create a system package which is not subject to size limits. Panics if
+    /// the object ID is not a known system package.
     pub fn new_system_package(
         modules: &[CompiledModule],
         version: SequenceNumber,
@@ -751,7 +760,8 @@ impl ObjectInner {
         Some((self.owner, self.id()))
     }
 
-    /// Return true if this object is a Move package, false if it is a Move value
+    /// Return true if this object is a Move package, false if it is a Move
+    /// value
     pub fn is_package(&self) -> bool {
         matches!(&self.data, Data::Package(_))
     }
@@ -826,9 +836,9 @@ impl ObjectInner {
     }
 
     /// Return the `value: u64` field of a `Coin<T>` type.
-    /// Useful for reading the coin without deserializing the object into a Move value
-    /// It is the caller's responsibility to check that `self` is a coin--this function
-    /// may panic or do something unexpected otherwise.
+    /// Useful for reading the coin without deserializing the object into a Move
+    /// value It is the caller's responsibility to check that `self` is a
+    /// coin--this function may panic or do something unexpected otherwise.
     pub fn get_coin_value_unsafe(&self) -> u64 {
         self.data.try_as_move().unwrap().get_coin_value_unsafe()
     }
@@ -852,8 +862,9 @@ impl ObjectInner {
     }
 
     /// Get a `MoveStructLayout` for `self`.
-    /// The `resolver` value must contain the module that declares `self.type_` and the (transitive)
-    /// dependencies of `self.type_` in order for this to succeed. Failure will result in an `ObjectSerializationError`
+    /// The `resolver` value must contain the module that declares `self.type_`
+    /// and the (transitive) dependencies of `self.type_` in order for this
+    /// to succeed. Failure will result in an `ObjectSerializationError`
     pub fn get_layout(
         &self,
         resolver: &impl GetModule,
@@ -889,7 +900,8 @@ impl ObjectInner {
 
 // Testing-related APIs.
 impl Object {
-    /// Get the total amount of SUI embedded in `self`, including both Move objects and the storage rebate
+    /// Get the total amount of SUI embedded in `self`, including both Move
+    /// objects and the storage rebate
     pub fn get_total_sui(&self, layout_resolver: &mut dyn LayoutResolver) -> Result<u64, SuiError> {
         Ok(self.storage_rebate
             + match &self.data {
@@ -1193,13 +1205,18 @@ impl Display for PastObjectRead {
                 asked_version,
                 latest_version,
             } => {
-                write!(f, "PastObjectRead::VersionTooHigh ({:?}, asked sequence number {:?}, latest sequence number {:?})", object_id, asked_version, latest_version)
+                write!(
+                    f,
+                    "PastObjectRead::VersionTooHigh ({:?}, asked sequence number {:?}, latest sequence number {:?})",
+                    object_id, asked_version, latest_version
+                )
             }
         }
     }
 }
 
-// Ensure that object digest computation and bcs serialized format are not inadvertently changed.
+// Ensure that object digest computation and bcs serialized format are not
+// inadvertently changed.
 #[test]
 fn test_object_digest_and_serialized_format() {
     let g = GasCoin::new_for_testing_with_id(ObjectID::ZERO, 123).to_object(OBJECT_START_VERSION);
@@ -1222,7 +1239,10 @@ fn test_object_digest_and_serialized_format() {
     );
 
     let objref = format!("{:?}", o.compute_object_reference());
-    assert_eq!(objref, "(0x0000000000000000000000000000000000000000000000000000000000000000, SequenceNumber(1), o#59tZq65HVqZjUyNtD7BCGLTD87N5cpayYwEFrtwR4aMz)");
+    assert_eq!(
+        objref,
+        "(0x0000000000000000000000000000000000000000000000000000000000000000, SequenceNumber(1), o#59tZq65HVqZjUyNtD7BCGLTD87N5cpayYwEFrtwR4aMz)"
+    );
 }
 
 #[test]

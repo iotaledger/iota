@@ -1,32 +1,34 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::Path;
-use std::str::FromStr;
+use std::{path::Path, str::FromStr};
 
 use fastcrypto::encoding::{Encoding, Hex};
-use move_core_types::annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout};
-use move_core_types::language_storage::StructTag;
-use move_core_types::u256::U256;
-use move_core_types::{account_address::AccountAddress, ident_str, identifier::Identifier};
+use move_core_types::{
+    account_address::AccountAddress,
+    annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
+    ident_str,
+    identifier::Identifier,
+    language_storage::StructTag,
+    u256::U256,
+};
 use serde_json::{json, Value};
-use test_fuzz::runtime::num_traits::ToPrimitive;
-
 use sui_framework::BuiltInFramework;
 use sui_move_build::BuildConfig;
-use sui_types::base_types::{
-    ObjectID, SuiAddress, TransactionDigest, STD_ASCII_MODULE_NAME, STD_ASCII_STRUCT_NAME,
-    STD_OPTION_MODULE_NAME, STD_OPTION_STRUCT_NAME,
+use sui_types::{
+    base_types::{
+        ObjectID, SuiAddress, TransactionDigest, STD_ASCII_MODULE_NAME, STD_ASCII_STRUCT_NAME,
+        STD_OPTION_MODULE_NAME, STD_OPTION_STRUCT_NAME,
+    },
+    dynamic_field::derive_dynamic_field_id,
+    gas_coin::GasCoin,
+    object::Object,
+    parse_sui_type_tag, MOVE_STDLIB_ADDRESS,
 };
-use sui_types::dynamic_field::derive_dynamic_field_id;
-use sui_types::gas_coin::GasCoin;
-use sui_types::object::Object;
-use sui_types::{parse_sui_type_tag, MOVE_STDLIB_ADDRESS};
+use test_fuzz::runtime::num_traits::ToPrimitive;
 
+use super::{check_valid_homogeneous, resolve_move_function_args, SuiJsonValue, HEX_PREFIX};
 use crate::ResolvedCallArg;
-
-use super::{check_valid_homogeneous, HEX_PREFIX};
-use super::{resolve_move_function_args, SuiJsonValue};
 
 // Negative test cases
 #[test]
@@ -140,46 +142,53 @@ fn test_basic_args_linter_pure_args_bad() {
     let bad_hex_val = "0x1234AB  CD";
 
     let checks = vec![
-            // Although U256 value can be encoded as num, we enforce it must be a string
-            (
-                Value::from(123),
-                MoveTypeLayout::U256,
+        // Although U256 value can be encoded as num, we enforce it must be a string
+        (Value::from(123), MoveTypeLayout::U256),
+        // Space not allowed
+        (Value::from(" 9"), MoveTypeLayout::U8),
+        // Hex must start with 0x
+        (Value::from("AB"), MoveTypeLayout::U8),
+        // Too large
+        (Value::from("123456789"), MoveTypeLayout::U8),
+        // Too large
+        (
+            Value::from("123456789123456789123456789123456789"),
+            MoveTypeLayout::U64,
+        ),
+        // Too large
+        (
+            Value::from(
+                "123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789",
             ),
-             // Space not allowed
-             (Value::from(" 9"), MoveTypeLayout::U8),
-             // Hex must start with 0x
-             (Value::from("AB"), MoveTypeLayout::U8),
-             // Too large
-             (Value::from("123456789"), MoveTypeLayout::U8),
-             // Too large
-             (Value::from("123456789123456789123456789123456789"), MoveTypeLayout::U64),
-             // Too large
-             (Value::from("123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789"), MoveTypeLayout::U128),
-             // U64 value greater than 255 cannot be used as U8
-             (Value::from(900u64), MoveTypeLayout::U8),
-             // floats cannot be used as U8
-             (Value::from(0.4f32), MoveTypeLayout::U8),
-             // floats cannot be used as U64
-             (Value::from(3.4f32), MoveTypeLayout::U64),
-             // Negative cannot be used as U64
-             (Value::from(-19), MoveTypeLayout::U64),
-             // Negative cannot be used as Unsigned
-             (Value::from(-1), MoveTypeLayout::U8),
-              // u8 vector from bad hex repr
-            (
-                Value::from(bad_hex_val),
-                MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
-            ),
-            // u8 vector from heterogeneous array
-            (
-                json!([1, 2, 3, true, 5, 6, 7]),
-                MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
-            ),
-            // U64 deep nest, bad because heterogeneous array
-            (
-                json!([[[9, 53, 434], [0], [300]], [], [300, 4, 5, 6, 7]]),
-                MoveTypeLayout::Vector(Box::new(MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U64)))),
-            ),
+            MoveTypeLayout::U128,
+        ),
+        // U64 value greater than 255 cannot be used as U8
+        (Value::from(900u64), MoveTypeLayout::U8),
+        // floats cannot be used as U8
+        (Value::from(0.4f32), MoveTypeLayout::U8),
+        // floats cannot be used as U64
+        (Value::from(3.4f32), MoveTypeLayout::U64),
+        // Negative cannot be used as U64
+        (Value::from(-19), MoveTypeLayout::U64),
+        // Negative cannot be used as Unsigned
+        (Value::from(-1), MoveTypeLayout::U8),
+        // u8 vector from bad hex repr
+        (
+            Value::from(bad_hex_val),
+            MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
+        ),
+        // u8 vector from heterogeneous array
+        (
+            json!([1, 2, 3, true, 5, 6, 7]),
+            MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
+        ),
+        // U64 deep nest, bad because heterogeneous array
+        (
+            json!([[[9, 53, 434], [0], [300]], [], [300, 4, 5, 6, 7]]),
+            MoveTypeLayout::Vector(Box::new(MoveTypeLayout::Vector(Box::new(
+                MoveTypeLayout::U64,
+            )))),
+        ),
     ];
 
     // Driver
@@ -434,21 +443,19 @@ fn test_basic_args_linter_top_level() {
     let module = Identifier::new("geniteam").unwrap();
     let function = Identifier::new("create_monster").unwrap();
 
-    /*
-    Function signature:
-            public fun create_monster(
-                _player: &mut Player,
-                farm: &mut Farm,
-                pet_monsters: &mut Collection,
-                monster_name: vector<u8>,
-                monster_img_index: u64,
-                breed: u8,
-                monster_affinity: u8,
-                monster_description: vector<u8>,
-                display: vector<u8>,
-                ctx: &mut TxContext
-            )
-    */
+    // Function signature:
+    // public fun create_monster(
+    // _player: &mut Player,
+    // farm: &mut Farm,
+    // pet_monsters: &mut Collection,
+    // monster_name: vector<u8>,
+    // monster_img_index: u64,
+    // breed: u8,
+    // monster_affinity: u8,
+    // monster_description: vector<u8>,
+    // display: vector<u8>,
+    // ctx: &mut TxContext
+    // )
 
     let monster_name_raw = "MonsterName";
     let monster_img_id_raw = "12345678";
@@ -546,10 +553,8 @@ fn test_basic_args_linter_top_level() {
     let module = Identifier::new("object_basics").unwrap();
     let function = Identifier::new("create").unwrap();
 
-    /*
-    Function signature:
-            public fun create(value: u64, recipient: vector<u8>, ctx: &mut TxContext)
-    */
+    // Function signature:
+    // public fun create(value: u64, recipient: vector<u8>, ctx: &mut TxContext)
     let value_raw = "29897";
     let address = SuiAddress::random_for_testing_only();
 
@@ -571,7 +576,8 @@ fn test_basic_args_linter_top_level() {
     );
 
     // Need to verify this specially
-    // BCS serialzes addresses like vectors so there's a length prefix, which makes the vec longer by 1
+    // BCS serialzes addresses like vectors so there's a length prefix, which makes
+    // the vec longer by 1
     assert_eq!(
         args[1].0,
         ResolvedCallArg::Pure(bcs::to_bytes(&AccountAddress::from(address)).unwrap()),
@@ -582,10 +588,8 @@ fn test_basic_args_linter_top_level() {
     let module = Identifier::new("object_basics").unwrap();
     let function = Identifier::new("transfer").unwrap();
 
-    /*
-    Function signature:
-            public fun transfer(o: Object, recipient: vector<u8>, _ctx: &mut TxContext)
-    */
+    // Function signature:
+    // public fun transfer(o: Object, recipient: vector<u8>, _ctx: &mut TxContext)
     let object_id_raw = ObjectID::random();
     let address = SuiAddress::random_for_testing_only();
 
@@ -609,7 +613,8 @@ fn test_basic_args_linter_top_level() {
     );
 
     // Need to verify this specially
-    // BCS serialzes addresses like vectors so there's a length prefix, which makes the vec longer by 1
+    // BCS serialzes addresses like vectors so there's a length prefix, which makes
+    // the vec longer by 1
     assert_eq!(
         args[1].0,
         ResolvedCallArg::Pure(bcs::to_bytes(&AccountAddress::from(address)).unwrap())
@@ -633,10 +638,8 @@ fn test_basic_args_linter_top_level() {
     let module = Identifier::new("entry_point_vector").unwrap();
     let function = Identifier::new("two_obj_vec_destroy").unwrap();
 
-    /*
-    Function signature:
-            public entry fun two_obj_vec_destroy(v: vector<Obj>, _: &mut TxContext)
-     */
+    // Function signature:
+    // public entry fun two_obj_vec_destroy(v: vector<Obj>, _: &mut TxContext)
     let object_id_raw1 = ObjectID::random();
     let object_id_raw2 = ObjectID::random();
     let object_id1 = json!(format!("0x{}", object_id_raw1));

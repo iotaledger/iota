@@ -2,6 +2,15 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, BTreeSet, HashMap},
+    sync::Arc,
+};
+
+use move_ir_types::location::*;
+use move_symbol_pool::Symbol;
+
 use crate::{
     debug_display, diag,
     diagnostics::{
@@ -19,13 +28,6 @@ use crate::{
     parser::ast::{Ability_, ConstantName, Field, FunctionName, StructName, ENTRY_MODIFIER},
     shared::{known_attributes::TestingAttribute, program_info::*, unique_map::UniqueMap, *},
     FullyCompiledProgram,
-};
-use move_ir_types::location::*;
-use move_symbol_pool::Symbol;
-use std::{
-    cell::RefCell,
-    collections::{BTreeMap, BTreeSet, HashMap},
-    sync::Arc,
 };
 
 //**************************************************************************************************
@@ -88,18 +90,21 @@ pub struct Context<'env> {
 
     named_block_map: BTreeMap<BlockLabel, Type>,
 
-    /// collects all friends that should be added over the course of 'public(package)' calls
-    /// structured as (defining module, new friend, location) where `new friend` is usually the
-    /// context's current module. Note there may be more than one location in practice, but
+    /// collects all friends that should be added over the course of
+    /// 'public(package)' calls structured as (defining module, new friend,
+    /// location) where `new friend` is usually the context's current
+    /// module. Note there may be more than one location in practice, but
     /// tracking a single one is sufficient for error reporting.
     pub new_friends: BTreeSet<(ModuleIdent, Loc)>,
-    /// collects all used module members (functions and constants) but it's a superset of these in
-    /// that it may contain other identifiers that do not in fact represent a function or a constant
+    /// collects all used module members (functions and constants) but it's a
+    /// superset of these in that it may contain other identifiers that do
+    /// not in fact represent a function or a constant
     pub used_module_members: BTreeMap<ModuleIdent_, BTreeSet<Symbol>>,
     /// Current macros being expanded
     pub macro_expansion: Vec<MacroExpansion>,
-    /// Stack of items from `macro_expansion` pushed/popped when entering/leaving a lambda expansion
-    /// This is to prevent accidentally thinking we are in a recursive call if a macro is used
+    /// Stack of items from `macro_expansion` pushed/popped when
+    /// entering/leaving a lambda expansion This is to prevent accidentally
+    /// thinking we are in a recursive call if a macro is used
     /// inside a lambda body
     pub lambda_expansion: Vec<Vec<MacroExpansion>>,
 }
@@ -299,8 +304,9 @@ impl<'env> Context<'env> {
         let cur_color = self.use_funs.last().unwrap().color;
         self.use_funs.iter_mut().rev().find_map(|scope| {
             // scope color is None for global scope, which is always in consideration
-            // otherwise, the color must match the current color. In practice, we are preventing
-            // macro scopes from interfering with each the scopes in which they are expanded
+            // otherwise, the color must match the current color. In practice, we are
+            // preventing macro scopes from interfering with each the scopes in
+            // which they are expanded
             if scope.color.is_some() && scope.color != cur_color {
                 return None;
             }
@@ -573,7 +579,8 @@ impl<'env> Context<'env> {
         }
     }
 
-    /// current_module.is_test_only || current_function.is_test_only || current_function.is_test
+    /// current_module.is_test_only || current_function.is_test_only ||
+    /// current_function.is_test
     fn is_testing_context(&self) -> bool {
         self.current_module.as_ref().is_some_and(|m| {
             let minfo = self.module_info(m);
@@ -787,11 +794,7 @@ fn error_format_impl_(b_: &Type_, subst: &Subst, nested: bool) -> String {
             error_format_nested(ty, subst)
         ),
     };
-    if nested {
-        res
-    } else {
-        format!("'{}'", res)
-    }
+    if nested { res } else { format!("'{}'", res) }
 }
 
 //**************************************************************************************************
@@ -1644,8 +1647,8 @@ pub fn unfold_type(subst: &Subst, sp!(loc, t_): Type) -> Type {
 }
 
 // Equivelent to unfold_type, but only returns the loc.
-// The hope is to point to the last loc in a chain of type var's, giving the loc closest to the
-// actual type in the source code
+// The hope is to point to the last loc in a chain of type var's, giving the loc
+// closest to the actual type in the source code
 pub fn best_loc(subst: &Subst, sp!(loc, t_): &Type) -> Loc {
     match t_ {
         Type_::Var(i) => {
@@ -1818,9 +1821,9 @@ fn instantiate_apply(
 
 // The type arguments are bound to type variables after intantiation
 // i.e. vec<t1, ..., tn> ~> vec<a1, ..., an> s.t a1 => t1, ... , an => tn
-// This might be needed for any variance case, and I THINK that it should be fine without it
-// BUT I'm adding it as a safeguard against instantiating twice. Can always remove once this
-// stabilizes
+// This might be needed for any variance case, and I THINK that it should be
+// fine without it BUT I'm adding it as a safeguard against instantiating twice.
+// Can always remove once this stabilizes
 fn instantiate_type_args(
     context: &mut Context,
     loc: Loc,
@@ -1934,8 +1937,8 @@ fn make_tparams(
         .collect()
 }
 
-// used in macros to make the signatures consistent with the bodies, in that we don't check
-// constraints until application
+// used in macros to make the signatures consistent with the bodies, in that we
+// don't check constraints until application
 pub fn give_tparams_all_abilities(sp!(_, ty_): &mut Type) {
     match ty_ {
         Type_::Unit | Type_::Var(_) | Type_::UnresolvedError | Type_::Anything => (),
@@ -2014,7 +2017,7 @@ fn join_impl(
                     return Err(TypingError::InvariantError(
                         Box::new(lhs.clone()),
                         Box::new(rhs.clone()),
-                    ))
+                    ));
                 }
                 // imm <: imm
                 // mut <: imm
@@ -2026,7 +2029,7 @@ fn join_impl(
                     return Err(TypingError::SubtypeError(
                         Box::new(lhs.clone()),
                         Box::new(rhs.clone()),
-                    ))
+                    ));
                 }
             };
             let (subst, t) = join_impl(subst, case, t1, t2)?;
@@ -2131,8 +2134,8 @@ fn join_impl_types(
     tys1: &[Type],
     tys2: &[Type],
 ) -> Result<(Subst, Vec<Type>), TypingError> {
-    // if tys1.len() != tys2.len(), we will get an error when instantiating the type elsewhere
-    // as all types are instantiated as a sanity check
+    // if tys1.len() != tys2.len(), we will get an error when instantiating the type
+    // elsewhere as all types are instantiated as a sanity check
     let mut tys = vec![];
     for (ty1, ty2) in tys1.iter().zip(tys2) {
         let (nsubst, t) = join_impl(subst, case, ty1, ty2)?;

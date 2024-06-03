@@ -16,69 +16,69 @@ ANRdB4M6Hj73R+gRM4N6zUPNidLuatB9uccOzHBc/0bP
 */
 
 export default function MultiSigAddressGenerator() {
-	const [msAddress, setMSAddress] = useState('');
-	const { register, control, handleSubmit } = useForm({
-		defaultValues: {
-			pubKeys: [{ pubKey: 'Sui Pubkey', weight: '' }],
-			threshold: 1,
-		},
-	});
-	const { fields, append, remove } = useFieldArray({
-		control,
-		name: 'pubKeys',
-	});
+    const [msAddress, setMSAddress] = useState('');
+    const { register, control, handleSubmit } = useForm({
+        defaultValues: {
+            pubKeys: [{ pubKey: 'Sui Pubkey', weight: '' }],
+            threshold: 1,
+        },
+    });
+    const { fields, append, remove } = useFieldArray({
+        control,
+        name: 'pubKeys',
+    });
 
-	// Perform generation of multisig address
-	const onSubmit = (data: FieldValues) => {
-		let pks: { publicKey: PublicKey; weight: number }[] = [];
-		data.pubKeys.forEach((item: any) => {
-			const pk = publicKeyFromSuiBytes(item.pubKey);
-			pks.push({ publicKey: pk, weight: item.weight });
-		});
-		const multiSigPublicKey = MultiSigPublicKey.fromPublicKeys({
-			threshold: data.threshold,
-			publicKeys: pks,
-		});
-		const multisigSuiAddress = multiSigPublicKey.toSuiAddress();
-		setMSAddress(multisigSuiAddress);
-	};
+    // Perform generation of multisig address
+    const onSubmit = (data: FieldValues) => {
+        const pks: { publicKey: PublicKey; weight: number }[] = [];
+        data.pubKeys.forEach((item: Record<string, unknown>) => {
+            const pk = publicKeyFromSuiBytes(item.pubKey as string);
+            pks.push({ publicKey: pk, weight: item.weight as number });
+        });
+        const multiSigPublicKey = MultiSigPublicKey.fromPublicKeys({
+            threshold: data.threshold,
+            publicKeys: pks,
+        });
+        const multisigSuiAddress = multiSigPublicKey.toSuiAddress();
+        setMSAddress(multisigSuiAddress);
+    };
 
-	// if you want to control your fields with watch
-	// const watchResult = watch("pubKeys");
-	// console.log(watchResult);
+    // if you want to control your fields with watch
+    // const watchResult = watch("pubKeys");
+    // console.log(watchResult);
 
-	// The following is useWatch example
-	// console.log(useWatch({ name: "pubKeys", control }));
+    // The following is useWatch example
+    // console.log(useWatch({ name: "pubKeys", control }));
 
-	return (
-		<div className="flex flex-col gap-4">
-			<h2 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
-				MultiSig Address Creator
-			</h2>
+    return (
+        <div className="flex flex-col gap-4">
+            <h2 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
+                MultiSig Address Creator
+            </h2>
 
-			<form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)}>
-				<p>The following demo allow you to create Sui MultiSig addresses.</p>
-				<code>
-					Sui Pubkeys for playing with
-					<p>ABr818VXt+6PLPRoA7QnsHBfRpKJdWZPjt7ppiTl6Fkq</p>
-					<p>ANRdB4M6Hj73R+gRM4N6zUPNidLuatB9uccOzHBc/0bP</p>
-				</code>
-				<ul className="grid w-full gap-1.5">
-					{fields.map((item, index) => {
-						return (
-							<li key={item.id}>
-								<input
-									className="min-h-[80px] rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-									{...register(`pubKeys.${index}.pubKey`, { required: true })}
-								/>
+            <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)}>
+                <p>The following demo allow you to create Sui MultiSig addresses.</p>
+                <code>
+                    Sui Pubkeys for playing with
+                    <p>ABr818VXt+6PLPRoA7QnsHBfRpKJdWZPjt7ppiTl6Fkq</p>
+                    <p>ANRdB4M6Hj73R+gRM4N6zUPNidLuatB9uccOzHBc/0bP</p>
+                </code>
+                <ul className="grid w-full gap-1.5">
+                    {fields.map((item, index) => {
+                        return (
+                            <li key={item.id}>
+                                <input
+                                    className="min-h-[80px] rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                    {...register(`pubKeys.${index}.pubKey`, { required: true })}
+                                />
 
-								<input
-									className="min-h-[80px] rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-									type="number"
-									{...register(`pubKeys.${index}.weight`, { required: true })}
-								/>
+                                <input
+                                    className="min-h-[80px] rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                    type="number"
+                                    {...register(`pubKeys.${index}.weight`, { required: true })}
+                                />
 
-								{/* <Controller
+                                {/* <Controller
 									render={({ field }) => (
 										<input
 											className="min-h-[80px] rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -88,64 +88,66 @@ export default function MultiSigAddressGenerator() {
 									name={`pubKeys.${index}.weight`}
 									control={control}
 								/> */}
-								<Button
-									className="min-h-[80px] rounded-md border border-input px-3 py-2 text-sm padding-2"
-									type="button"
-									onClick={() => remove(index)}
-								>
-									Delete
-								</Button>
-							</li>
-						);
-					})}
-				</ul>
-				<section>
-					<Button
-						type="button"
-						onClick={() => {
-							append({ pubKey: 'Sui Pubkey', weight: '' });
-						}}
-					>
-						New PubKey
-					</Button>
-				</section>
-				<section>
-					<label className="form-label min-h-[80px] rounded-md border text-sm px-3 py-2 ring-offset-background">
-						MultiSig Threshold Value:
-					</label>
-					<input
-						className="min-h-[80px] rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-						type="number"
-						{...register(`threshold`, { valueAsNumber: true, required: true })}
-					/>
-				</section>
+                                <Button
+                                    className="min-h-[80px] rounded-md border border-input px-3 py-2 text-sm padding-2"
+                                    type="button"
+                                    onClick={() => remove(index)}
+                                >
+                                    Delete
+                                </Button>
+                            </li>
+                        );
+                    })}
+                </ul>
+                <section>
+                    <Button
+                        type="button"
+                        onClick={() => {
+                            append({ pubKey: 'Sui Pubkey', weight: '' });
+                        }}
+                    >
+                        New PubKey
+                    </Button>
+                </section>
+                <section>
+                    <label className="form-label min-h-[80px] rounded-md border text-sm px-3 py-2 ring-offset-background">
+                        MultiSig Threshold Value:
+                    </label>
+                    <input
+                        className="min-h-[80px] rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        type="number"
+                        {...register(`threshold`, { valueAsNumber: true, required: true })}
+                    />
+                </section>
 
-				{/* <input
+                {/* <input
 					{...register('threshold', { valueAsNumber: true })}
 					id="threshold"
 					type="number"
 					className="form-control"
 				/> */}
 
-				<Button type="submit">Submit</Button>
-			</form>
-			{msAddress && (
-				<Card key={msAddress}>
-					<CardHeader>
-						<CardTitle>Sui MultiSig Address</CardTitle>
-						<CardDescription>
-							https://docs.sui.io/testnet/learn/cryptography/sui-multisig
-						</CardDescription>
-					</CardHeader>
-					<CardContent>
-						<div className="flex flex-col gap-2">
-							<div className="bg-muted rounded text-sm font-mono p-2 break-all">{msAddress}</div>
-						</div>
-					</CardContent>
-				</Card>
-			)}
-		</div>
-	);
+                <Button type="submit">Submit</Button>
+            </form>
+            {msAddress && (
+                <Card key={msAddress}>
+                    <CardHeader>
+                        <CardTitle>Sui MultiSig Address</CardTitle>
+                        <CardDescription>
+                            https://docs.sui.io/testnet/learn/cryptography/sui-multisig
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex flex-col gap-2">
+                            <div className="bg-muted rounded text-sm font-mono p-2 break-all">
+                                {msAddress}
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+        </div>
+    );
 }
 
 /*

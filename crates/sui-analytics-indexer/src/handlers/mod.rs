@@ -4,21 +4,23 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::{anyhow, Result};
-use move_core_types::annotated_value::{MoveStruct, MoveTypeLayout, MoveValue};
-use move_core_types::language_storage::{StructTag, TypeTag};
-
+use move_core_types::{
+    annotated_value::{MoveStruct, MoveTypeLayout, MoveValue},
+    language_storage::{StructTag, TypeTag},
+};
 use sui_indexer::framework::Handler;
 use sui_package_resolver::{PackageStore, Resolver};
-use sui_types::base_types::ObjectID;
-use sui_types::effects::TransactionEffects;
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::object::bounded_visitor::BoundedVisitor;
-use sui_types::object::{Object, Owner};
-use sui_types::transaction::TransactionData;
-use sui_types::transaction::TransactionDataAPI;
+use sui_types::{
+    base_types::ObjectID,
+    effects::{TransactionEffects, TransactionEffectsAPI},
+    object::{bounded_visitor::BoundedVisitor, Object, Owner},
+    transaction::{TransactionData, TransactionDataAPI},
+};
 
-use crate::tables::{InputObjectKind, ObjectStatus, OwnerType};
-use crate::FileType;
+use crate::{
+    tables::{InputObjectKind, ObjectStatus, OwnerType},
+    FileType,
+};
 
 pub mod checkpoint_handler;
 pub mod df_handler;
@@ -43,7 +45,8 @@ pub trait AnalyticsHandler<S>: Handler {
     /// will be invoked by the analytics processor after every call to
     /// process_checkpoint
     fn read(&mut self) -> Result<Vec<S>>;
-    /// Type of data being written by this processor i.e. checkpoint, object, etc
+    /// Type of data being written by this processor i.e. checkpoint, object,
+    /// etc
     fn file_type(&self) -> Result<FileType>;
 }
 
@@ -75,8 +78,8 @@ fn get_owner_address(object: &Object) -> Option<String> {
 }
 
 // Helper class to track input object kind.
-// Build sets of object ids for input, shared input and gas coin objects as defined
-// in the transaction data.
+// Build sets of object ids for input, shared input and gas coin objects as
+// defined in the transaction data.
 // Input objects include coins and shared.
 struct InputObjectTracker {
     shared: BTreeSet<ObjectID>,
@@ -273,14 +276,17 @@ fn parse_struct_field(
 
 #[cfg(test)]
 mod tests {
-    use crate::handlers::parse_struct;
-    use move_core_types::account_address::AccountAddress;
-    use move_core_types::annotated_value::{MoveStruct, MoveValue};
-    use move_core_types::identifier::Identifier;
-    use move_core_types::language_storage::StructTag;
-    use std::collections::BTreeMap;
-    use std::str::FromStr;
+    use std::{collections::BTreeMap, str::FromStr};
+
+    use move_core_types::{
+        account_address::AccountAddress,
+        annotated_value::{MoveStruct, MoveValue},
+        identifier::Identifier,
+        language_storage::StructTag,
+    };
     use sui_types::base_types::ObjectID;
+
+    use crate::handlers::parse_struct;
 
     #[tokio::test]
     async fn test_wrapped_object_parsing() -> anyhow::Result<()> {

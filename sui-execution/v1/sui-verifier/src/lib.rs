@@ -25,8 +25,8 @@ fn to_verification_timeout_error(error: String) -> ExecutionError {
     ExecutionError::new_with_source(ExecutionErrorKind::SuiMoveVerificationTimedout, error)
 }
 
-/// Runs the Move verifier and checks if the error counts as a Move verifier timeout
-/// NOTE: this function only check if the verifier error is a timeout
+/// Runs the Move verifier and checks if the error counts as a Move verifier
+/// timeout NOTE: this function only check if the verifier error is a timeout
 /// All other errors are ignored
 pub fn check_for_verifier_timeout(major_status_code: &StatusCode) -> bool {
     [

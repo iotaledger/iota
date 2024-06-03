@@ -1,43 +1,42 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::cmp::max;
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::{cmp::max, collections::BTreeMap, sync::Arc};
 
 use async_trait::async_trait;
-use cached::proc_macro::cached;
-use cached::SizedCache;
+use cached::{proc_macro::cached, SizedCache};
 use itertools::Itertools;
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::RpcModule;
-use sui_types::timelock::timelocked_staked_sui::TimelockedStakedSui;
-use tracing::{info, instrument};
-
+use jsonrpsee::{core::RpcResult, RpcModule};
 use mysten_metrics::spawn_monitored_task;
 use sui_core::authority::AuthorityState;
 use sui_json_rpc_api::{GovernanceReadApiOpenRpc, GovernanceReadApiServer, JsonRpcMetrics};
 use sui_json_rpc_types::{
-    DelegatedStake, DelegatedTimelockedStake, Stake, StakeStatus, TimelockedStake,
+    DelegatedStake, DelegatedTimelockedStake, Stake, StakeStatus, SuiCommittee, TimelockedStake,
+    ValidatorApy, ValidatorApys,
 };
-use sui_json_rpc_types::{SuiCommittee, ValidatorApy, ValidatorApys};
 use sui_open_rpc::Module;
-use sui_types::base_types::{ObjectID, SuiAddress};
-use sui_types::committee::EpochId;
-use sui_types::dynamic_field::get_dynamic_field_from_store;
-use sui_types::error::{SuiError, UserInputError};
-use sui_types::governance::StakedSui;
-use sui_types::id::ID;
-use sui_types::object::{Object, ObjectRead};
-use sui_types::sui_serde::BigInt;
-use sui_types::sui_system_state::sui_system_state_summary::SuiSystemStateSummary;
-use sui_types::sui_system_state::PoolTokenExchangeRate;
-use sui_types::sui_system_state::SuiSystemStateTrait;
-use sui_types::sui_system_state::{get_validator_from_table, SuiSystemState};
+use sui_types::{
+    base_types::{ObjectID, SuiAddress},
+    committee::EpochId,
+    dynamic_field::get_dynamic_field_from_store,
+    error::{SuiError, UserInputError},
+    governance::StakedSui,
+    id::ID,
+    object::{Object, ObjectRead},
+    sui_serde::BigInt,
+    sui_system_state::{
+        get_validator_from_table, sui_system_state_summary::SuiSystemStateSummary,
+        PoolTokenExchangeRate, SuiSystemState, SuiSystemStateTrait,
+    },
+    timelock::timelocked_staked_sui::TimelockedStakedSui,
+};
+use tracing::{info, instrument};
 
-use crate::authority_state::StateRead;
-use crate::error::{Error, RpcInterimResult, SuiRpcInputError};
-use crate::{with_tracing, ObjectProvider, SuiRpcModule};
+use crate::{
+    authority_state::StateRead,
+    error::{Error, RpcInterimResult, SuiRpcInputError},
+    with_tracing, ObjectProvider, SuiRpcModule,
+};
 
 #[derive(Clone)]
 pub struct GovernanceReadApi {
@@ -167,8 +166,10 @@ impl GovernanceReadApi {
         let _timer = self.metrics.get_delegated_sui_latency.start_timer();
 
         let self_clone = self.clone();
-        spawn_monitored_task!(self_clone
-            .get_delegated_timelocked_stakes(stakes.into_iter().map(|s| (s, true)).collect()))
+        spawn_monitored_task!(
+            self_clone
+                .get_delegated_timelocked_stakes(stakes.into_iter().map(|s| (s, true)).collect())
+        )
         .await?
     }
 
@@ -533,8 +534,9 @@ fn stake_status(
     }
 }
 
-/// Cached exchange rates for validators for the given epoch, the cache size is 1, it will be cleared when the epoch changes.
-/// rates are in descending order by epoch.
+/// Cached exchange rates for validators for the given epoch, the cache size is
+/// 1, it will be cleared when the epoch changes. rates are in descending order
+/// by epoch.
 #[cached(
     type = "SizedCache<EpochId, Vec<ValidatorExchangeRates>>",
     create = "{ SizedCache::with_size(1) }",

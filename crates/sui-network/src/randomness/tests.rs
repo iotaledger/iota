@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{randomness::*, utils};
 use fastcrypto::{groups::bls12381, serde_helpers::ToFromByteArray};
 use fastcrypto_tbls::{mocked_dkg, nodes};
 use sui_swarm_config::test_utils::CommitteeFixture;
@@ -11,6 +10,8 @@ use sui_types::{
     crypto::{AuthorityPublicKeyBytes, ToFromBytes},
 };
 use tracing::Instrument;
+
+use crate::{randomness::*, utils};
 
 type PkG = bls12381::G2Element;
 type EncG = bls12381::G2Element;
@@ -174,9 +175,9 @@ async fn test_record_own_partial_sigs() {
 
     let nodes = nodes::Nodes::new(nodes).unwrap();
 
-    // Only send partial sigs from authorities 0 and 1. They should still be able to reach
-    // the threshold to generate full signatures, only if they are correctly recording and using
-    // their own partial signatures as well.
+    // Only send partial sigs from authorities 0 and 1. They should still be able to
+    // reach the threshold to generate full signatures, only if they are
+    // correctly recording and using their own partial signatures as well.
     for (authority, handle) in handles.iter().take(2) {
         let mock_dkg_output = mocked_dkg::generate_mocked_output::<PkG, EncG>(
             nodes.clone(),

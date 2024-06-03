@@ -2,21 +2,19 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module defines the transfer functions for verifying reference safety of a procedure body.
-//! The checks include (but are not limited to)
+//! This module defines the transfer functions for verifying reference safety of
+//! a procedure body. The checks include (but are not limited to)
 //! - verifying that there are no dangling references,
 //! - accesses to mutable references are safe
 //! - accesses to global storage references are safe
 
 mod abstract_state;
 
-use crate::{
-    absint::{AbstractInterpreter, TransferFunctions},
-    meter::{Meter, Scope},
-    reference_safety::abstract_state::{
-        STEP_BASE_COST, STEP_PER_GRAPH_ITEM_COST, STEP_PER_LOCAL_COST,
-    },
+use std::{
+    collections::{BTreeSet, HashMap},
+    num::NonZeroU64,
 };
+
 use abstract_state::{AbstractState, AbstractValue};
 use move_abstract_stack::AbstractStack;
 use move_binary_format::{
@@ -29,9 +27,13 @@ use move_binary_format::{
     safe_assert, safe_unwrap, safe_unwrap_err,
 };
 use move_core_types::vm_status::StatusCode;
-use std::{
-    collections::{BTreeSet, HashMap},
-    num::NonZeroU64,
+
+use crate::{
+    absint::{AbstractInterpreter, TransferFunctions},
+    meter::{Meter, Scope},
+    reference_safety::abstract_state::{
+        STEP_BASE_COST, STEP_PER_GRAPH_ITEM_COST, STEP_PER_LOCAL_COST,
+    },
 };
 
 struct ReferenceSafetyAnalysis<'a> {

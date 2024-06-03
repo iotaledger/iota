@@ -4,25 +4,25 @@
 use std::str::FromStr;
 
 use anyhow::ensure;
-use move_core_types::account_address::AccountAddress;
-use move_core_types::annotated_value::MoveStruct;
-use move_core_types::annotated_value::MoveStructLayout;
-use move_core_types::ident_str;
-use move_core_types::identifier::IdentStr;
-use move_core_types::identifier::Identifier;
-use move_core_types::language_storage::StructTag;
+use move_core_types::{
+    account_address::AccountAddress,
+    annotated_value::{MoveStruct, MoveStructLayout},
+    ident_str,
+    identifier::{IdentStr, Identifier},
+    language_storage::StructTag,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use serde_with::serde_as;
-use serde_with::Bytes;
+use serde_with::{serde_as, Bytes};
 
-use crate::base_types::{ObjectID, SuiAddress, TransactionDigest};
-use crate::error::{SuiError, SuiResult};
-use crate::object::bounded_visitor::BoundedVisitor;
-use crate::sui_serde::BigInt;
-use crate::sui_serde::Readable;
-use crate::SUI_SYSTEM_ADDRESS;
+use crate::{
+    base_types::{ObjectID, SuiAddress, TransactionDigest},
+    error::{SuiError, SuiResult},
+    object::bounded_visitor::BoundedVisitor,
+    sui_serde::{BigInt, Readable},
+    SUI_SYSTEM_ADDRESS,
+};
 
 /// A universal Sui event type encapsulating different types of events
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,8 +38,9 @@ pub struct EventEnvelope {
     /// Move event's json value
     pub parsed_json: Value,
 }
-/// Unique ID of a Sui Event, the ID is a combination of tx seq number and event seq number,
-/// the ID is local to this particular fullnode and will be different from other fullnode.
+/// Unique ID of a Sui Event, the ID is a combination of tx seq number and event
+/// seq number, the ID is local to this particular fullnode and will be
+/// different from other fullnode.
 #[serde_as]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Hash)]
 #[serde(rename_all = "camelCase")]

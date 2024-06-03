@@ -2,6 +2,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::HashSet, time::Duration};
+
 use anemo::{types::response::StatusCode, Network};
 use anyhow::Result;
 use async_trait::async_trait;
@@ -9,7 +11,6 @@ use config::{AuthorityIdentifier, Committee, WorkerCache, WorkerId};
 use fastcrypto::hash::Hash;
 use itertools::Itertools;
 use network::{client::NetworkClient, WorkerToPrimaryClient};
-use std::{collections::HashSet, time::Duration};
 use store::{rocks::DBMap, Map};
 use sui_protocol_config::ProtocolConfig;
 use tracing::{debug, trace};

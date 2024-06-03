@@ -1,18 +1,23 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::checkpoints::CheckpointStore;
-use crate::execution_cache::ExecutionCacheRead;
-use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+    sync::Arc,
+};
+
 use sui_storage::blob::{Blob, BlobEncoding};
-use sui_types::digests::TransactionDigest;
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::error::{SuiError, SuiResult, UserInputError};
-use sui_types::full_checkpoint_content::{CheckpointData, CheckpointTransaction};
-use sui_types::messages_checkpoint::VerifiedCheckpoint;
-use sui_types::storage::ObjectKey;
+use sui_types::{
+    digests::TransactionDigest,
+    effects::TransactionEffectsAPI,
+    error::{SuiError, SuiResult, UserInputError},
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
+    messages_checkpoint::VerifiedCheckpoint,
+    storage::ObjectKey,
+};
+
+use crate::{checkpoints::CheckpointStore, execution_cache::ExecutionCacheRead};
 
 pub(crate) fn store_checkpoint_locally(
     path: PathBuf,
@@ -81,7 +86,8 @@ pub(crate) fn store_checkpoint_locally(
             )
             .collect::<HashSet<_>>()
             .into_iter()
-            // Unwrapped-then-deleted objects are not stored in state before the tx, so we have nothing to fetch.
+            // Unwrapped-then-deleted objects are not stored in state before the tx, so we have
+            // nothing to fetch.
             .filter(|key| !unwrapped_then_deleted_obj_ids.contains(&key.0))
             .collect::<Vec<_>>();
 

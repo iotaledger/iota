@@ -59,7 +59,8 @@ pub(crate) struct DBMetrics {
 
 #[derive(Clone)]
 pub(crate) struct RequestMetrics {
-    /// The number of nodes for the input query that passed the query limits check
+    /// The number of nodes for the input query that passed the query limits
+    /// check
     pub input_nodes: Histogram,
     /// The number of nodes in the result
     pub output_nodes: Histogram,
@@ -123,8 +124,9 @@ impl Metrics {
         self.request_metrics.num_queries.inc();
     }
 
-    /// Use this function to increment the number of errors per path and per error type.
-    /// The error type is detected automatically from the passed errors.
+    /// Use this function to increment the number of errors per path and per
+    /// error type. The error type is detected automatically from the passed
+    /// errors.
     pub(crate) fn inc_errors(&self, errors: &[ServerError]) {
         for err in errors {
             if let Some(ext) = &err.extensions {

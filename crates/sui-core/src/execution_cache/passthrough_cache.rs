@@ -1,17 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use crate::authority::authority_store::{ExecutionLockWriteGuard, SuiLockResult};
-use crate::authority::authority_store_pruner::{
-    AuthorityStorePruner, AuthorityStorePruningMetrics, EPOCH_DURATION_MS_FOR_TESTING,
-};
-use crate::authority::epoch_start_configuration::EpochFlag;
-use crate::authority::epoch_start_configuration::EpochStartConfiguration;
-use crate::authority::AuthorityStore;
-use crate::checkpoints::CheckpointStore;
-use crate::state_accumulator::AccumulatorStore;
-use crate::transaction_outputs::TransactionOutputs;
+use std::sync::Arc;
 
 use either::Either;
 use futures::{
@@ -20,22 +10,22 @@ use futures::{
 };
 use mysten_common::sync::notify_read::NotifyRead;
 use prometheus::Registry;
-use std::sync::Arc;
 use sui_config::node::AuthorityStorePruningConfig;
 use sui_protocol_config::ProtocolVersion;
 use sui_storage::package_object_cache::PackageObjectCache;
-use sui_types::accumulator::Accumulator;
-use sui_types::base_types::VerifiedExecutionData;
-use sui_types::base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber};
-use sui_types::digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest};
-use sui_types::effects::{TransactionEffects, TransactionEvents};
-use sui_types::error::{SuiError, SuiResult};
-use sui_types::message_envelope::Message;
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
-use sui_types::object::Object;
-use sui_types::storage::{MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, PackageObject};
-use sui_types::sui_system_state::{get_sui_system_state, SuiSystemState};
-use sui_types::transaction::{VerifiedSignedTransaction, VerifiedTransaction};
+use sui_types::{
+    accumulator::Accumulator,
+    base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
+    digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
+    effects::{TransactionEffects, TransactionEvents},
+    error::{SuiError, SuiResult},
+    message_envelope::Message,
+    messages_checkpoint::CheckpointSequenceNumber,
+    object::Object,
+    storage::{MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, PackageObject},
+    sui_system_state::{get_sui_system_state, SuiSystemState},
+    transaction::{VerifiedSignedTransaction, VerifiedTransaction},
+};
 use tap::TapFallible;
 use tracing::instrument;
 use typed_store::Map;
@@ -44,6 +34,20 @@ use super::{
     implement_passthrough_traits, CheckpointCache, ExecutionCacheCommit, ExecutionCacheMetrics,
     ExecutionCacheRead, ExecutionCacheReconfigAPI, ExecutionCacheWrite, NotifyReadWrapper,
     StateSyncAPI,
+};
+use crate::{
+    authority::{
+        authority_per_epoch_store::AuthorityPerEpochStore,
+        authority_store::{ExecutionLockWriteGuard, SuiLockResult},
+        authority_store_pruner::{
+            AuthorityStorePruner, AuthorityStorePruningMetrics, EPOCH_DURATION_MS_FOR_TESTING,
+        },
+        epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
+        AuthorityStore,
+    },
+    checkpoints::CheckpointStore,
+    state_accumulator::AccumulatorStore,
+    transaction_outputs::TransactionOutputs,
 };
 
 pub struct PassthroughCache {
@@ -352,7 +356,8 @@ impl ExecutionCacheCommit for PassthroughCache {
         _epoch: EpochId,
         _digest: &TransactionDigest,
     ) -> BoxFuture<'_, SuiResult> {
-        // Nothing needs to be done since they were already committed in write_transaction_outputs
+        // Nothing needs to be done since they were already committed in
+        // write_transaction_outputs
         async { Ok(()) }.boxed()
     }
 }

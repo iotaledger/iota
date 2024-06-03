@@ -1,27 +1,31 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-/// This test exists to make sure that the feature gating for all the code under `gas-profiler`
-/// remains fully connected such that if and only if we enable the feature here, the `gas-profiler`
-/// feature gets enabled anywhere.
+/// This test exists to make sure that the feature gating for all the code under
+/// `gas-profiler` remains fully connected such that if and only if we enable
+/// the feature here, the `gas-profiler` feature gets enabled anywhere.
 ///
 /// If this test fails, check for the following.
 ///
-/// Any crate that has code decorated with #[cfg(feature = "gas-profiler")] needs to have
-/// a feature declared in its Cargo.toml named `gas-profiler`. If moving / refactoring code with
-/// this decorator from a crate to a different crate, it is likely needed to copy over some of the
-/// feature declaration defined in the original crate. Also ensure we do not include the feature in
-/// any dependency of the dependencies section so that the feature won't get partially enabled as
-/// default.
+/// Any crate that has code decorated with #[cfg(feature = "gas-profiler")]
+/// needs to have a feature declared in its Cargo.toml named `gas-profiler`. If
+/// moving / refactoring code with this decorator from a crate to a different
+/// crate, it is likely needed to copy over some of the feature declaration
+/// defined in the original crate. Also ensure we do not include the feature in
+/// any dependency of the dependencies section so that the feature won't get
+/// partially enabled as default.
 ///
-/// Each crate defines its own version of the feature with the same name. We can think of these
-/// features as a tree structure where the root is defined here in this crate. Enabling the feature
-/// here should continue to transitively enable all the other features in the other crates, and the
-/// specific list of other crates' features that any given crate enables should include all features
-/// defined in all the other crates that the decorated code in the current crate depends on.
+/// Each crate defines its own version of the feature with the same name. We can
+/// think of these features as a tree structure where the root is defined here
+/// in this crate. Enabling the feature here should continue to transitively
+/// enable all the other features in the other crates, and the specific list of
+/// other crates' features that any given crate enables should include all
+/// features defined in all the other crates that the decorated code in the
+/// current crate depends on.
 ///
-/// Note this crate will always have the feature enabled in testing due to the addition of
-/// `sui = { path = ".", features = ["gas-profiler"] }` to our dev-dependencies.
+/// Note this crate will always have the feature enabled in testing due to the
+/// addition of `sui = { path = ".", features = ["gas-profiler"] }` to our
+/// dev-dependencies.
 
 #[cfg(feature = "gas-profiler")]
 #[test]
@@ -36,6 +40,7 @@ fn test_macro_shows_feature_enabled() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_profiler() {
     use std::fs;
+
     use sui_replay::ReplayToolCommand;
     use tempfile::tempdir;
 

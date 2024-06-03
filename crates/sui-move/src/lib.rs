@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::path::PathBuf;
+
 use clap::Parser;
 #[cfg(feature = "unit_test")]
 use move_cli::base::test::UnitTestResult;
 use move_package::BuildConfig;
-use std::path::PathBuf;
 use sui_move_build::set_sui_flavor;
 
 #[cfg(feature = "build")]

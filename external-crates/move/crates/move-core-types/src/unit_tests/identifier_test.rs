@@ -2,15 +2,17 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    gas_algebra::AbstractMemorySize,
-    identifier::{IdentStr, Identifier, ALLOWED_IDENTIFIERS, ALLOWED_NO_SELF_IDENTIFIERS},
-};
+use std::borrow::Borrow;
+
 use bcs::test_helpers::assert_canonical_encode_decode;
 use once_cell::sync::Lazy;
 use proptest::prelude::*;
 use regex::Regex;
-use std::borrow::Borrow;
+
+use crate::{
+    gas_algebra::AbstractMemorySize,
+    identifier::{IdentStr, Identifier, ALLOWED_IDENTIFIERS, ALLOWED_NO_SELF_IDENTIFIERS},
+};
 
 #[test]
 fn valid_identifiers() {
@@ -119,7 +121,8 @@ fn invalid_identifier_strategy() -> impl Strategy<Value = String> {
     })
 }
 
-/// Ensure that Identifier instances serialize into strings directly, with no wrapper.
+/// Ensure that Identifier instances serialize into strings directly, with no
+/// wrapper.
 #[test]
 fn serde_serialize_no_wrapper() {
     let foobar = Identifier::new("foobar").expect("should parse correctly");

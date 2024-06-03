@@ -3,8 +3,6 @@
 
 use std::time::Instant;
 
-use super::QueryExecutor;
-use crate::{config::Limits, error::Error, metrics::Metrics};
 use async_trait::async_trait;
 use diesel::{
     pg::Pg,
@@ -13,8 +11,10 @@ use diesel::{
     QueryResult, RunQueryDsl,
 };
 use sui_indexer::indexer_reader::IndexerReader;
-
 use tracing::error;
+
+use super::QueryExecutor;
+use crate::{config::Limits, error::Error, metrics::Metrics};
 
 #[derive(Clone)]
 pub(crate) struct PgExecutor {
@@ -114,14 +114,15 @@ impl<'c> super::DbConnection for PgConnection<'c> {
     }
 }
 
-/// Support for calculating estimated query cost using EXPLAIN and then logging it.
+/// Support for calculating estimated query cost using EXPLAIN and then logging
+/// it.
 mod query_cost {
-    use super::*;
-
     use diesel::{query_builder::AstPass, sql_types::Text, PgConnection, QueryResult};
     use serde_json::Value;
     use tap::{TapFallible, TapOptional};
     use tracing::{info, warn};
+
+    use super::*;
 
     #[derive(Debug, Clone, Copy, QueryId)]
     struct Explained<Q> {
@@ -182,8 +183,6 @@ mod query_cost {
 
 #[cfg(all(test, feature = "pg_integration"))]
 mod tests {
-    use super::*;
-    use crate::config::DEFAULT_SERVER_DB_URL;
     use diesel::QueryDsl;
     use sui_framework::BuiltInFramework;
     use sui_indexer::{
@@ -192,6 +191,9 @@ mod tests {
         schema::objects,
         types::IndexedObject,
     };
+
+    use super::*;
+    use crate::config::DEFAULT_SERVER_DB_URL;
 
     #[test]
     fn test_query_cost() {

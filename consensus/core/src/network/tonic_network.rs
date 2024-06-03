@@ -258,12 +258,14 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
     }
 }
 
-/// Manages the lifecycle of Tonic network client and service. Typical usage during initialization:
+/// Manages the lifecycle of Tonic network client and service. Typical usage
+/// during initialization:
 /// 1. Create a new `TonicManager`.
 /// 2. Take `TonicClient` from `TonicManager::client()`.
 /// 3. Create consensus components.
 /// 4. Create `TonicService` for consensus service handler.
-/// 5. Install `TonicService` to `TonicManager` with `TonicManager::install_service()`.
+/// 5. Install `TonicService` to `TonicManager` with
+///    `TonicManager::install_service()`.
 pub(crate) struct TonicManager {
     context: Arc<Context>,
     client: Arc<TonicClient>,
@@ -358,8 +360,8 @@ impl<S: NetworkService> NetworkManager<S> for TonicManager {
     }
 }
 
-/// Attempts to convert a multiaddr of the form `/[ip4,ip6,dns]/{}/udp/{port}` into
-/// a host:port string.
+/// Attempts to convert a multiaddr of the form `/[ip4,ip6,dns]/{}/udp/{port}`
+/// into a host:port string.
 fn to_host_port_str(addr: &Multiaddr) -> Result<String, &'static str> {
     let mut iter = addr.iter();
 
@@ -381,8 +383,8 @@ fn to_host_port_str(addr: &Multiaddr) -> Result<String, &'static str> {
     }
 }
 
-/// Attempts to convert a multiaddr of the form `/[ip4,ip6]/{}/[udp,tcp]/{port}` into
-/// a SocketAddr value.
+/// Attempts to convert a multiaddr of the form `/[ip4,ip6]/{}/[udp,tcp]/{port}`
+/// into a SocketAddr value.
 fn to_socket_addr(addr: &Multiaddr) -> Result<SocketAddr, &'static str> {
     let mut iter = addr.iter();
 
@@ -404,7 +406,8 @@ fn to_socket_addr(addr: &Multiaddr) -> Result<SocketAddr, &'static str> {
     }
 }
 
-// TODO: after supporting peer authentication, using rtest to share the test case with anemo_network.rs
+// TODO: after supporting peer authentication, using rtest to share the test
+// case with anemo_network.rs
 #[cfg(test)]
 mod test {
     use std::{sync::Arc, time::Duration};

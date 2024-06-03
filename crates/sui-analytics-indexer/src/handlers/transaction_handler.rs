@@ -5,17 +5,15 @@ use std::collections::BTreeSet;
 
 use anyhow::Result;
 use fastcrypto::encoding::{Base64, Encoding};
-use tracing::error;
-
 use sui_indexer::framework::Handler;
 use sui_rest_api::{CheckpointData, CheckpointTransaction};
-use sui_types::effects::TransactionEffects;
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::transaction::{Command, TransactionDataAPI, TransactionKind};
+use sui_types::{
+    effects::{TransactionEffects, TransactionEffectsAPI},
+    transaction::{Command, TransactionDataAPI, TransactionKind},
+};
+use tracing::error;
 
-use crate::handlers::AnalyticsHandler;
-use crate::tables::TransactionEntry;
-use crate::FileType;
+use crate::{handlers::AnalyticsHandler, tables::TransactionEntry, FileType};
 
 pub struct TransactionHandler {
     pub(crate) transactions: Vec<TransactionEntry>,
@@ -114,10 +112,14 @@ impl TransactionHandler {
                     }
                 }
             } else {
-                error!("Transaction kind [{kind}] is not programmable transaction and not a system transaction");
+                error!(
+                    "Transaction kind [{kind}] is not programmable transaction and not a system transaction"
+                );
             }
             if move_calls_count != move_calls {
-                error!("Mismatch in move calls count: commands {move_calls_count} != {move_calls} calls");
+                error!(
+                    "Mismatch in move calls count: commands {move_calls_count} != {move_calls} calls"
+                );
             }
         }
         let transaction_json = serde_json::to_string(&transaction)?;
@@ -154,9 +156,9 @@ impl TransactionHandler {
             move_calls,
             packages,
             gas_owner: txn_data.gas_owner().to_string(),
-            gas_object_id: gas_object.0 .0.to_string(),
-            gas_object_sequence: gas_object.0 .1.value(),
-            gas_object_digest: gas_object.0 .2.to_string(),
+            gas_object_id: gas_object.0.0.to_string(),
+            gas_object_sequence: gas_object.0.1.value(),
+            gas_object_digest: gas_object.0.2.to_string(),
             gas_budget: txn_data.gas_budget(),
             total_gas_cost: gas_summary.net_gas_usage(),
             computation_cost: gas_summary.computation_cost,
@@ -180,12 +182,12 @@ impl TransactionHandler {
 
 #[cfg(test)]
 mod tests {
-    use crate::handlers::transaction_handler::TransactionHandler;
     use fastcrypto::encoding::{Base64, Encoding};
     use simulacrum::Simulacrum;
     use sui_indexer::framework::Handler;
-    use sui_types::base_types::SuiAddress;
-    use sui_types::storage::ReadStore;
+    use sui_types::{base_types::SuiAddress, storage::ReadStore};
+
+    use crate::handlers::transaction_handler::TransactionHandler;
 
     #[tokio::test]
     pub async fn test_transaction_handler() -> anyhow::Result<()> {
