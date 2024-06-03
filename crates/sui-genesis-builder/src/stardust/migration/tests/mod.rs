@@ -346,151 +346,29 @@ fn extract_native_token_from_bag(
     assert_eq!(coin_token.balance.value(), native_token.amount().as_u64());
 }
 
-/// The expected result of the timelock unlock test.
-enum TimelockTestResult {
+enum UnlockObjectTestResult {
+    /// The test should succeed.
     Success,
-    Failure,
+    /// The test should fail with the given sub_status.
+    Failure(u64),
 }
 
-/// Test that an object with a timelock can/cannot be unlocked, depending on the
-/// given `expected_test_result`.
-fn unlock_timelocked_object(
-    output_id: OutputId,
-    outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
-    module_name: &IdentStr,
-    epoch_start_timestamp_ms: u64,
-    expected_test_result: TimelockTestResult,
-) {
-    let (migration_executor, objects_map) = run_migration(outputs);
-
-    // Recreate the TxContext and Executor so we can set a timestamp greater than 0.
-    let tx_context = TxContext::new(
-        &SuiAddress::ZERO,
-        &TransactionDigest::new(rand::random()),
-        &EpochData::new(0, epoch_start_timestamp_ms, Default::default()),
-    );
-    let store = InMemoryStorage::new(
-        // Cloning all objects in the store includes the system packages we need for executing
-        // tests.
-        migration_executor
-            .store()
-            .objects()
-            .values()
-            .cloned()
-            .collect(),
-    );
-    let mut executor = Executor::new(MIGRATION_PROTOCOL_VERSION.into())
-        .unwrap()
-        .with_tx_context(tx_context)
-        .with_store(store);
-
-    // Find the corresponding objects to the migrated output.
-    let output_created_objects = objects_map
-        .get(&output_id)
-        .expect("output should have created objects");
-
-    let output_object_ref = executor
-        .store()
-        .get_object(output_created_objects.output().unwrap())
-        .unwrap()
-        .compute_object_reference();
-
-    let pt = {
-        let mut builder = ProgrammableTransactionBuilder::new();
-        let inner_object_arg = builder
-            .obj(ObjectArg::ImmOrOwnedObject(output_object_ref))
-            .unwrap();
-
-        let extracted_assets = builder.programmable_move_call(
-            STARDUST_PACKAGE_ID,
-            module_name.into(),
-            ident_str!("extract_assets").into(),
-            vec![],
-            vec![inner_object_arg],
-        );
-
-        let Argument::Result(result_idx) = extracted_assets else {
-            panic!("expected Argument::Result");
-        };
-        let balance_arg = Argument::NestedResult(result_idx, 0);
-        let bag_arg = Argument::NestedResult(result_idx, 1);
-        let object_arg = Argument::NestedResult(result_idx, 2);
-
-        let coin_arg = builder.programmable_move_call(
-            SUI_FRAMEWORK_PACKAGE_ID,
-            ident_str!("coin").into(),
-            ident_str!("from_balance").into(),
-            vec![TypeTag::from_str(&format!("{}::sui::SUI", SUI_FRAMEWORK_PACKAGE_ID)).unwrap()],
-            vec![balance_arg],
-        );
-
-        // Transfer the assets to the zero address since we have to move them somewhere
-        // in the test.
-        builder.transfer_arg(SuiAddress::ZERO, coin_arg);
-        builder.transfer_arg(SuiAddress::ZERO, bag_arg);
-        builder.transfer_arg(SuiAddress::ZERO, object_arg);
-
-        builder.finish()
-    };
-
-    let input_objects = CheckedInputObjects::new_for_genesis(
-        executor
-            .load_input_objects([output_object_ref])
-            .chain(executor.load_packages(PACKAGE_DEPS))
-            .collect(),
-    );
-    let result = executor.execute_pt_unmetered(input_objects, pt);
-
-    // A copy of ETimelockNotExpired in the timelock unlock condition smart
-    // contract.
-    const ERROR_TIMELOCK_NOT_EXPIRED: u64 = 0;
-
-    match (result, expected_test_result) {
-        (Ok(_), TimelockTestResult::Success) => (),
-        (Ok(_), TimelockTestResult::Failure) => panic!("expected test failure, but test suceeded"),
-        (Err(err), TimelockTestResult::Success) => {
-            panic!("expected test success, but test failed: {err}")
-        }
-        (Err(err), TimelockTestResult::Failure) => {
-            for cause in err.chain() {
-                match cause.downcast_ref::<VMError>() {
-                    Some(vm_error) => {
-                        assert_eq!(vm_error.major_status(), StatusCode::ABORTED);
-                        assert_eq!(
-                            vm_error
-                                .sub_status()
-                                .expect("sub_status should be set for aborts"),
-                            ERROR_TIMELOCK_NOT_EXPIRED,
-                            "vm sub_status did not match expected ETimelockNotExpired from the move smart contract"
-                        );
-                        // Finish test successfully.
-                        return;
-                    }
-                    None => continue,
-                }
-            }
-            panic!(
-                "expected test failure, but failed to find expected VMError in error chain, got: {err}"
-            );
-        }
-    }
+impl UnlockObjectTestResult {
+    /// A copy of `EWrongSender` in the expiration unlock condition smart
+    /// contract.
+    pub(crate) const ERROR_WRONG_SENDER_FAILURE: Self = Self::Failure(0);
+    /// A copy of `ETimelockNotExpired` in the timelock unlock condition smart
+    /// contract.
+    pub(crate) const ERROR_TIMELOCK_NOT_EXPIRED_FAILURE: Self = Self::Failure(0);
 }
 
-/// The expected result of the expiration unlock test.
-enum ExpirationTestResult {
-    Success,
-    Failure,
-}
-
-/// Test that an object with an expiration unlock condition can/cannot be
-/// unlocked, depending on the given `expected_test_result`.
-fn unlock_expiration_locked_object(
+fn unlock_object_test(
     output_id: OutputId,
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
     sender: &SuiAddress,
     module_name: &IdentStr,
     epoch_start_timestamp_ms: u64,
-    expected_test_result: ExpirationTestResult,
+    expected_test_result: UnlockObjectTestResult,
 ) {
     let (migration_executor, objects_map) = run_migration(outputs);
 
@@ -572,28 +450,25 @@ fn unlock_expiration_locked_object(
     );
     let result = executor.execute_pt_unmetered(input_objects, pt);
 
-    // A copy of EWrongSender in the expiration unlock condition smart contract.
-    const ERROR_WRONG_SENDER: u64 = 0;
-
     match (result, expected_test_result) {
-        (Ok(_), ExpirationTestResult::Success) => (),
-        (Ok(_), ExpirationTestResult::Failure) => {
+        (Ok(_), UnlockObjectTestResult::Success) => (),
+        (Ok(_), UnlockObjectTestResult::Failure(_)) => {
             panic!("expected test failure, but test suceeded")
         }
-        (Err(err), ExpirationTestResult::Success) => {
+        (Err(err), UnlockObjectTestResult::Success) => {
             panic!("expected test success, but test failed: {err}")
         }
-        (Err(err), ExpirationTestResult::Failure) => {
+        (Err(err), UnlockObjectTestResult::Failure(expected_sub_status)) => {
             for cause in err.chain() {
                 match cause.downcast_ref::<VMError>() {
                     Some(vm_error) => {
                         assert_eq!(vm_error.major_status(), StatusCode::ABORTED);
+                        let actual_sub_status = vm_error
+                            .sub_status()
+                            .expect("sub_status should be set for aborts");
                         assert_eq!(
-                            vm_error
-                                .sub_status()
-                                .expect("sub_status should be set for aborts"),
-                            ERROR_WRONG_SENDER,
-                            "vm sub_status did not match expected EWrongSender from the move smart contract"
+                            actual_sub_status, expected_sub_status,
+                            "actual vm sub_status {actual_sub_status} did not match expected sub_status {expected_sub_status}"
                         );
                         // Finish test successfully.
                         return;

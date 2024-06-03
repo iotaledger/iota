@@ -31,11 +31,11 @@ use sui_types::{
     TypeTag,
 };
 
-use super::{unlock_expiration_locked_object, ExpirationTestResult};
+use super::{unlock_object_test, UnlockObjectTestResult};
 use crate::stardust::{
     migration::tests::{
         create_foundry, extract_native_token_from_bag, object_migration_with_object_owner,
-        random_output_header, run_migration, unlock_timelocked_object, TimelockTestResult,
+        random_output_header, run_migration,
     },
     types::{
         snapshot::OutputHeader, stardust_to_sui_address, FixedPoint32, Irc27Metadata, Nft,
@@ -491,12 +491,14 @@ fn nft_migration_with_timelock_unlocked() {
         .finish()
         .unwrap();
 
-    unlock_timelocked_object(
+    unlock_object_test(
         header.output_id(),
         [(header, stardust_nft.into())],
+        // Sender is not important for this test.
+        &SuiAddress::ZERO,
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
-        TimelockTestResult::Success,
+        UnlockObjectTestResult::Success,
     );
 }
 
@@ -516,12 +518,14 @@ fn nft_migration_with_timelock_still_locked() {
         .finish()
         .unwrap();
 
-    unlock_timelocked_object(
+    unlock_object_test(
         header.output_id(),
         [(header, stardust_nft.into())],
+        // Sender is not important for this test.
+        &SuiAddress::ZERO,
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
-        TimelockTestResult::Failure,
+        UnlockObjectTestResult::ERROR_TIMELOCK_NOT_EXPIRED_FAILURE,
     );
 }
 
@@ -550,23 +554,23 @@ fn nft_migration_with_expired_unlock_condition() {
         .unwrap();
 
     // Owner Address CANNOT unlock.
-    unlock_expiration_locked_object(
+    unlock_object_test(
         header.output_id(),
         [(header.clone(), stardust_nft.clone().into())],
         &sui_owner_address,
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
-        ExpirationTestResult::Failure,
+        UnlockObjectTestResult::ERROR_WRONG_SENDER_FAILURE,
     );
 
     // Return Address CAN unlock.
-    unlock_expiration_locked_object(
+    unlock_object_test(
         header.output_id(),
         [(header, stardust_nft.into())],
         &sui_return_address,
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
-        ExpirationTestResult::Success,
+        UnlockObjectTestResult::Success,
     );
 }
 
@@ -595,22 +599,22 @@ fn nft_migration_with_unexpired_unlock_condition() {
         .unwrap();
 
     // Return Address CANNOT unlock.
-    unlock_expiration_locked_object(
+    unlock_object_test(
         header.output_id(),
         [(header.clone(), stardust_nft.clone().into())],
         &sui_return_address,
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
-        ExpirationTestResult::Failure,
+        UnlockObjectTestResult::ERROR_WRONG_SENDER_FAILURE,
     );
 
     // Owner Address CAN unlock.
-    unlock_expiration_locked_object(
+    unlock_object_test(
         header.output_id(),
         [(header, stardust_nft.into())],
         &sui_owner_address,
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
-        ExpirationTestResult::Success,
+        UnlockObjectTestResult::Success,
     );
 }
