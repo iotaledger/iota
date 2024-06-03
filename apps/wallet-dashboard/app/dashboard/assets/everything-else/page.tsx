@@ -3,12 +3,21 @@
 
 'use client';
 
-import { HARDCODED_NON_VISUAL_ASSETS } from '@/lib/mocks';
 import React from 'react';
 import { SuiObjectData } from '@mysten/sui.js/client';
 import { AssetCard, VirtualList } from '@/components/index';
+import { hasDisplayData, useGetOwnedObjects } from '@mysten/core';
+import { useCurrentAccount } from '@mysten/dapp-kit';
 
 function EverythingElsePage(): JSX.Element {
+    const account = useCurrentAccount();
+    const { data } = useGetOwnedObjects(account?.address);
+    const nonVisualAssets =
+        data?.pages
+            .flatMap((page) => page.data)
+            .filter((asset) => asset.data && asset.data.objectId && !hasDisplayData(asset))
+            .map((response) => response.data!) ?? [];
+
     const virtualItem = (asset: SuiObjectData): JSX.Element => (
         <AssetCard key={asset.objectId} asset={asset} />
     );
@@ -19,7 +28,7 @@ function EverythingElsePage(): JSX.Element {
 
             <div className="flex w-1/2">
                 <VirtualList
-                    items={HARDCODED_NON_VISUAL_ASSETS}
+                    items={nonVisualAssets}
                     estimateSize={() => 130}
                     render={virtualItem}
                 />
