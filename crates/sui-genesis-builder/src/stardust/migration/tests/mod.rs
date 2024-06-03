@@ -12,16 +12,12 @@ use iota_sdk::types::block::{
         SimpleTokenScheme, TokenId, TokenScheme,
     },
 };
-use move_binary_format::errors::VMError;
-use move_core_types::{ident_str, identifier::IdentStr, vm_status::StatusCode};
+use move_core_types::{ident_str, identifier::IdentStr};
 use sui_types::{
     balance::Balance,
-    base_types::{SuiAddress, TxContext},
+    base_types::SuiAddress,
     coin::Coin,
-    digests::TransactionDigest,
-    epoch_data::EpochData,
     gas_coin::GAS,
-    in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{Argument, CheckedInputObjects, ObjectArg},
@@ -33,7 +29,6 @@ use crate::stardust::{
         executor::Executor,
         migration::{Migration, NATIVE_TOKEN_BAG_KEY_TYPE, PACKAGE_DEPS},
         verification::created_objects::CreatedObjects,
-        MIGRATION_PROTOCOL_VERSION,
     },
     types::snapshot::OutputHeader,
 };
@@ -88,8 +83,8 @@ fn object_migration_with_object_owner(
     output_id_owner: OutputId,
     output_id_owned: OutputId,
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
-    extraction1_module_name: &IdentStr,
-    extraction2_module_name: &IdentStr,
+    output_owner_module_name: &IdentStr,
+    output_owned_module_name: &IdentStr,
     unlock_condition_function: &IdentStr,
 ) {
     let (mut executor, objects_map) = run_migration(outputs);
@@ -121,7 +116,7 @@ fn object_migration_with_object_owner(
 
         let extracted_assets = builder.programmable_move_call(
             STARDUST_PACKAGE_ID,
-            extraction1_module_name.into(),
+            output_owner_module_name.into(),
             ident_str!("extract_assets").into(),
             vec![],
             vec![owner_arg],
@@ -149,7 +144,7 @@ fn object_migration_with_object_owner(
             SUI_FRAMEWORK_PACKAGE_ID,
             ident_str!("coin").into(),
             ident_str!("from_balance").into(),
-            vec![TypeTag::from_str(&format!("{}::sui::SUI", SUI_FRAMEWORK_PACKAGE_ID)).unwrap()],
+            vec![TypeTag::from_str(&format!("{SUI_FRAMEWORK_PACKAGE_ID}::sui::SUI")).unwrap()],
             vec![balance_arg],
         );
 
@@ -170,7 +165,7 @@ fn object_migration_with_object_owner(
         // `store` ability), so we extract its assets.
         let extracted_assets = builder.programmable_move_call(
             STARDUST_PACKAGE_ID,
-            extraction2_module_name.into(),
+            output_owned_module_name.into(),
             ident_str!("extract_assets").into(),
             vec![],
             vec![received_owned_output],
@@ -186,7 +181,7 @@ fn object_migration_with_object_owner(
             SUI_FRAMEWORK_PACKAGE_ID,
             ident_str!("coin").into(),
             ident_str!("from_balance").into(),
-            vec![TypeTag::from_str(&format!("{}::sui::SUI", SUI_FRAMEWORK_PACKAGE_ID)).unwrap()],
+            vec![TypeTag::from_str(&format!("{SUI_FRAMEWORK_PACKAGE_ID}::sui::SUI")).unwrap()],
             vec![balance_arg],
         );
 
@@ -244,10 +239,7 @@ fn extract_native_token_from_bag(
         .compute_object_reference();
 
     // Recreate the key under which the tokens are stored in the bag.
-    let foundry_ledger_data = executor
-        .native_tokens()
-        .get(&native_token_id.clone().into())
-        .unwrap();
+    let foundry_ledger_data = executor.native_tokens().get(native_token_id).unwrap();
     let token_type = foundry_ledger_data.canonical_coin_type();
     let token_type_tag = token_type.parse::<TypeTag>().unwrap();
 
@@ -339,8 +331,7 @@ fn extract_native_token_from_bag(
                 .map(|tag| tag == coin_token_struct_tag)
                 .unwrap_or(false)
         })
-        .map(|obj| obj.as_coin_maybe())
-        .flatten()
+        .and_then(|obj| obj.as_coin_maybe())
         .expect("coin token object should exist");
 
     assert_eq!(coin_token.balance.value(), native_token.amount().as_u64());

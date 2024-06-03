@@ -232,7 +232,7 @@ fn alias_migration_with_nft_owner() {
             Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>()),
         ))
         .add_unlock_condition(GovernorAddressUnlockCondition::new(Address::from(
-            nft.nft_id().clone(),
+            *nft.nft_id(),
         )))
         .finish()
         .unwrap();
