@@ -186,7 +186,7 @@ fn nft_migration_with_alias_owner() {
     // alias is the owner of nft.
     let nft = NftOutputBuilder::new_with_amount(1_000_000, NftId::new(rand::random()))
         .add_unlock_condition(AddressUnlockCondition::new(AliasAddress::from(
-            alias.alias_id().clone(),
+            *alias.alias_id(),
         )))
         .finish()
         .unwrap();
@@ -218,7 +218,7 @@ fn nft_migration_with_nft_owner() {
     // nft1 is the owner of nft2.
     let nft2 = NftOutputBuilder::new_with_amount(1_000_000, NftId::new(rand::random()))
         .add_unlock_condition(AddressUnlockCondition::new(NftAddress::from(
-            nft1.nft_id().clone(),
+            *nft1.nft_id(),
         )))
         .finish()
         .unwrap();

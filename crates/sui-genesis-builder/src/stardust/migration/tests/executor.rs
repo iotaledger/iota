@@ -65,7 +65,7 @@ fn create_bag_with_pt() {
         .store()
         .objects()
         .values()
-        .find_map(|object| object.is_coin().then_some(object))
+        .find(|object| object.is_coin())
         .expect("there should be only a single coin: the total supply of native tokens");
     let coin_type_tag = initial_supply_coin_object.coin_type_maybe().unwrap();
     let initial_supply_coin_data = initial_supply_coin_object.as_coin_maybe().unwrap();
@@ -94,7 +94,7 @@ fn create_bag_with_pt() {
         .store()
         .objects()
         .values()
-        .filter_map(|object| object.is_child_object().then_some(object))
+        .filter(|object| object.is_child_object())
         .collect::<Vec<_>>();
     assert_eq!(tokens.len(), 1);
     assert_eq!(

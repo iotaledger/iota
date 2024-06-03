@@ -370,7 +370,7 @@ fn unlock_object_test(
 
     // Recreate the TxContext and Executor so we can set a timestamp greater than 0.
     let tx_context = TxContext::new(
-        &sender,
+        sender,
         &TransactionDigest::new(rand::random()),
         &EpochData::new(0, epoch_start_timestamp_ms, Default::default()),
     );
@@ -425,7 +425,7 @@ fn unlock_object_test(
             SUI_FRAMEWORK_PACKAGE_ID,
             ident_str!("coin").into(),
             ident_str!("from_balance").into(),
-            vec![TypeTag::from_str(&format!("{}::sui::SUI", SUI_FRAMEWORK_PACKAGE_ID)).unwrap()],
+            vec![TypeTag::from_str(&format!("{SUI_FRAMEWORK_PACKAGE_ID}::sui::SUI")).unwrap()],
             vec![balance_arg],
         );
 
