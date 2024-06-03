@@ -82,8 +82,8 @@ fn object_migration_with_object_owner(
     output_id_owner: OutputId,
     output_id_owned: OutputId,
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
-    extraction1_module_name: &IdentStr,
-    extraction2_module_name: &IdentStr,
+    output_owner_module_name: &IdentStr,
+    output_owned_module_name: &IdentStr,
     unlock_condition_function: &IdentStr,
 ) {
     let (mut executor, objects_map) = run_migration(outputs);
@@ -115,7 +115,7 @@ fn object_migration_with_object_owner(
 
         let extracted_assets = builder.programmable_move_call(
             STARDUST_PACKAGE_ID,
-            extraction1_module_name.into(),
+            output_owner_module_name.into(),
             ident_str!("extract_assets").into(),
             vec![],
             vec![owner_arg],
@@ -164,7 +164,7 @@ fn object_migration_with_object_owner(
         // `store` ability), so we extract its assets.
         let extracted_assets = builder.programmable_move_call(
             STARDUST_PACKAGE_ID,
-            extraction2_module_name.into(),
+            output_owned_module_name.into(),
             ident_str!("extract_assets").into(),
             vec![],
             vec![received_owned_output],
