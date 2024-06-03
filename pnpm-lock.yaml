@@ -283,8 +283,8 @@ importers:
         specifier: ^0.25.0
         version: 0.25.0
       '@growthbook/growthbook-react':
-        specifier: ^0.15.0
-        version: 0.15.0(react@18.2.0)
+        specifier: ^1.0.0
+        version: 1.0.0(react@18.2.0)
       '@headlessui/react':
         specifier: ^1.7.15
         version: 1.7.15(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -636,8 +636,8 @@ importers:
         specifier: ^0.25.0
         version: 0.25.0
       '@growthbook/growthbook-react':
-        specifier: ^0.15.0
-        version: 0.15.0(react@18.2.0)
+        specifier: ^1.0.0
+        version: 1.0.0(react@18.2.0)
       '@headlessui/react':
         specifier: ^1.7.15
         version: 1.7.15(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -4077,12 +4077,6 @@ packages:
     resolution: {integrity: sha512-mB9oAsNCm9aM3/SOv4YtBMqZbYj10R7dkq8byBqxGY/ncFwhf2oQzMV+LCRlWoDSEBJ3COiR1yeDvMtsoOsuFQ==}
     peerDependencies:
       graphql: ^0.8.0 || ^0.9.0 || ^0.10.0 || ^0.11.0 || ^0.12.0 || ^0.13.0 || ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
-
-  '@growthbook/growthbook-react@0.15.0':
-    resolution: {integrity: sha512-GB6oyWKsxi9KguYAJqG2el+a16eLi8kZIdObeM4K8qfjw2hV73bI+lszpgInUBPrkJuB1LvNZ5M0lLpAULgOgA==}
-    engines: {node: '>=10'}
-    peerDependencies:
-      react: ^16.8.0-0 || ^17.0.0-0 || ^18.0.0-0
 
   '@growthbook/growthbook-react@1.0.0':
     resolution: {integrity: sha512-zralTkrvDs8Dwjelr81V9wEV4oTPSTa96qY361UKx/nQVkjDyVuOgxZMtPpkmd05yng5lqxihqjd8pUYlRCk1Q==}
@@ -18184,11 +18178,6 @@ snapshots:
   '@graphql-typed-document-node/core@3.2.0(graphql@16.8.1)':
     dependencies:
       graphql: 16.8.1
-
-  '@growthbook/growthbook-react@0.15.0(react@18.2.0)':
-    dependencies:
-      '@growthbook/growthbook': 0.25.0
-      react: 18.2.0
 
   '@growthbook/growthbook-react@1.0.0(react@18.2.0)':
     dependencies:
