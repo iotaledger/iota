@@ -9,6 +9,10 @@ Kinesis is a project under active development by the [IOTA Foundation](https://i
 
 * [Install Rust][install-rust]
 
+#### Conventions
+
+The Rust language conventions used in this repository can be found in [Rust Conventions](./RUST_CONVENTIONS.md).
+
 #### Formatting
 
 * Install the `nightly` toolchain.
