@@ -3,23 +3,37 @@
 
 import type { UseQueryResult } from '@tanstack/react-query';
 import { useQuery } from '@tanstack/react-query';
+// import type {
+//     IdentifierRecord,
+//     StandardConnectFeature,
+//     StandardDisconnectFeature,
+//     StandardEventsFeature,
+//     SuiSignAndExecuteTransactionBlockFeature,
+//     SuiSignMessageFeature,
+//     SuiSignPersonalMessageFeature,
+//     SuiSignTransactionBlockFeature,
+//     Wallet,
+// } from '@mysten/wallet-standard';
 
 // import { WalletNotConnectedError } from '../../errors/walletErrors.js';
 import { useCurrentWallet } from './useCurrentWallet.js';
 
-export function useAccountList(): UseQueryResult<string[], Error> {
+export function useAccountList(
+    accountAddress: string | undefined,
+): UseQueryResult<string[], Error> {
     const { currentWallet } = useCurrentWallet();
+    // console.log('--- accountAddress from useAccountList', accountAddress);
 
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
     return useQuery({
-        queryKey: ['account-list'],
+        queryKey: ['account-list', accountAddress || 'placeholder-account-list'],
         queryFn: async () => {
             try {
                 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
                 // @ts-ignore
                 const e = await currentWallet.features['standard:accountList']?.get();
-                console.log('--- e', e);
+                // console.log('--- features standard:accountList response', e);
                 return e;
             } catch (error) {
                 console.error(
@@ -27,8 +41,8 @@ export function useAccountList(): UseQueryResult<string[], Error> {
                     error,
                 );
             }
-            return [''];
+            return ['fff'];
         },
-        enabled: !!currentWallet,
+        enabled: !!accountAddress,
     });
 }

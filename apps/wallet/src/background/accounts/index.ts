@@ -53,6 +53,10 @@ function toAccount(account: SerializedAccount) {
     throw new Error(`Unknown account of type ${account.type}`);
 }
 
+export async function getAllAccountsAddresses() {
+    return Promise.all((await getAllAccounts()).map((anAccount) => anAccount.address));
+}
+
 export async function getAllAccounts(filter?: { sourceID: string }) {
     const db = await getDB();
     let accounts;

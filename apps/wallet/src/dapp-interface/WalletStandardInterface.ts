@@ -116,7 +116,7 @@ export class SuiWallet implements Wallet {
             },
             'standard:accountList': {
                 version: '1.0.0',
-                get: this.#getAccountList,
+                get: this.#accountList,
             },
             'standard:events': {
                 version: '1.0.0',
@@ -236,19 +236,22 @@ export class SuiWallet implements Wallet {
         return null;
     };
 
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    #getAccountList = async () => {
-        await mapToPromise(
-            this.#send<AccountListRequest, AccountListResponse>({
-                type: 'account-list-request',
-            }),
-            (response) => {
-                return response;
-            },
-        );
+    #accountList = async () => {
+        const accounts = await this.#getAccountsFull();
+        // try {
+        //     const mapToPromiseResp = await mapToPromise(
+        //         this.#send<AccountListRequest, AccountListResponse>({
+        //             type: 'account-list-request',
+        //         }),
+        //         (response) => {
+        //             return response.result;
+        //         },
+        //     );
+        // } catch (e) {
+        //     console.error('Failed to get account list', e);
+        // }
 
-        return ['fasdfas'];
+        return accounts;
     };
 
     #signTransactionBlock: SuiSignTransactionBlockMethod = async ({
@@ -355,6 +358,15 @@ export class SuiWallet implements Wallet {
                 type: 'get-account',
             }),
             (response) => response.accounts,
+        );
+    }
+
+    #getAccountsFull() {
+        return mapToPromise(
+            this.#send<AccountListRequest, AccountListResponse>({
+                type: 'account-list-request',
+            }),
+            (response) => response.result,
         );
     }
 
