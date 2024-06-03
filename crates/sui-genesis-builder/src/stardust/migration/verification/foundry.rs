@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use sui_types::{
     base_types::SuiAddress,
     coin::{CoinMetadata, TreasuryCap},
+    id::UID,
     in_memory_storage::InMemoryStorage,
     object::Owner,
     Identifier,
@@ -174,6 +175,7 @@ pub(super) fn verify_foundry_output(
 
     #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
     struct MaxSupplyPolicy {
+        id: UID,
         maximum_supply: u64,
         treasury_cap: TreasuryCap,
     }

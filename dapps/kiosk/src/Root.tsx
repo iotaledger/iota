@@ -13,25 +13,25 @@ import { KisokClientProvider } from './context/KioskClientContext';
 const queryClient = new QueryClient();
 
 export default function Root() {
-	return (
-		<QueryClientProvider client={queryClient}>
-			<SuiClientProvider
-				defaultNetwork="testnet"
-				networks={{ testnet: { url: getFullnodeUrl('testnet') } }}
-			>
-				<WalletProvider>
-					<KisokClientProvider>
-						<Header />
-						<div className="min-h-[80vh]">
-							<Outlet />
-						</div>
-						<div className="mt-6 border-t border-primary text-center py-6">
-							Copyright © Mysten Labs, Inc.
-						</div>
-						<Toaster position="bottom-center" />
-					</KisokClientProvider>
-				</WalletProvider>
-			</SuiClientProvider>
-		</QueryClientProvider>
-	);
+    return (
+        <QueryClientProvider client={queryClient}>
+            <SuiClientProvider
+                defaultNetwork="testnet"
+                networks={{ testnet: { url: getFullnodeUrl('testnet') } }}
+            >
+                <WalletProvider>
+                    <KisokClientProvider>
+                        <Header />
+                        <div className="min-h-[80vh]">
+                            <Outlet />
+                        </div>
+                        <div className="mt-6 border-t border-primary text-center py-6">
+                            Copyright © Mysten Labs, Inc.
+                        </div>
+                        <Toaster position="bottom-center" />
+                    </KisokClientProvider>
+                </WalletProvider>
+            </SuiClientProvider>
+        </QueryClientProvider>
+    );
 }

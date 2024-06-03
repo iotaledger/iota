@@ -8,16 +8,16 @@ See https://sdk.mystenlabs.com/typescript for full documentation
 
 ### Core Features
 
-- **Query Hooks:** dApp Kit provides a set of hooks for making rpc calls to the Sui blockchain,
-  making it easy to load any information needed for your dApp.
-- **Automatic Wallet State Management:** dApp Kit removes the complexity of state management related
-  to wallet connections. You can focus on building your dApp.
-- **Supports all Sui wallets:** No need to manually define wallets you support. All Sui wallets are
-  automatically supported.
-- **Easy to integrate:** dApp Kit provides pre-built React Components that you can drop right into
-  your dApp, for easier integration
-- **Flexible:** dApp Kit ships both fully functional React Component, and lower level hooks that you
-  can use to build your own custom components.
+-   **Query Hooks:** dApp Kit provides a set of hooks for making rpc calls to the Sui blockchain,
+    making it easy to load any information needed for your dApp.
+-   **Automatic Wallet State Management:** dApp Kit removes the complexity of state management
+    related to wallet connections. You can focus on building your dApp.
+-   **Supports all Sui wallets:** No need to manually define wallets you support. All Sui wallets
+    are automatically supported.
+-   **Easy to integrate:** dApp Kit provides pre-built React Components that you can drop right into
+    your dApp, for easier integration
+-   **Flexible:** dApp Kit ships both fully functional React Component, and lower level hooks that
+    you can use to build your own custom components.
 
 ## Install from NPM
 
@@ -40,21 +40,21 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Config options for the networks you want to connect to
 const { networkConfig } = createNetworkConfig({
-	localnet: { url: getFullnodeUrl('localnet') },
-	mainnet: { url: getFullnodeUrl('mainnet') },
+    localnet: { url: getFullnodeUrl('localnet') },
+    mainnet: { url: getFullnodeUrl('mainnet') },
 });
 const queryClient = new QueryClient();
 
 function App() {
-	return (
-		<QueryClientProvider client={queryClient}>
-			<SuiClientProvider networks={networkConfig} defaultNetwork="localnet">
-				<WalletProvider>
-					<YourApp />
-				</WalletProvider>
-			</SuiClientProvider>
-		</QueryClientProvider>
-	);
+    return (
+        <QueryClientProvider client={queryClient}>
+            <SuiClientProvider networks={networkConfig} defaultNetwork="localnet">
+                <WalletProvider>
+                    <YourApp />
+                </WalletProvider>
+            </SuiClientProvider>
+        </QueryClientProvider>
+    );
 }
 ```
 
@@ -83,14 +83,14 @@ these query hooks can be used, check out the
 import { useSuiClientQuery } from '@mysten/dapp-kit';
 
 function MyComponent() {
-	const { data, isPending, error, refetch } = useSuiClientQuery('getOwnedObjects', {
-		owner: '0x123',
-	});
+    const { data, isPending, error, refetch } = useSuiClientQuery('getOwnedObjects', {
+        owner: '0x123',
+    });
 
-	if (isPending) {
-		return <div>Loading...</div>;
-	}
+    if (isPending) {
+        return <div>Loading...</div>;
+    }
 
-	return <pre>{JSON.stringify(data, null, 2)}</pre>;
+    return <pre>{JSON.stringify(data, null, 2)}</pre>;
 }
 ```

@@ -9,8 +9,10 @@ export { default as AmountBox } from './AmountBox';
 export { default as List } from './List';
 export { default as Button } from './Button';
 export { default as SendButton } from './SendButton';
+export { default as VirtualList } from './VirtualList';
 
 export * from './AccountBalance/AccountBalance';
 export * from './AllCoins/AllCoins';
 export * from './Popup';
 export * from './AppList';
+export * from './Cards';
