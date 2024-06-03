@@ -34,7 +34,7 @@ module stardust::expiration_unlock_condition {
         // Unix time in seconds.
         let current_time = ((tx_context::epoch_timestamp_ms(ctx) / 1000) as u32);
 
-        if (condition.unix_time() < current_time) {
+        if (condition.unix_time() <= current_time) {
             condition.return_address()
         } else {
             condition.owner()
