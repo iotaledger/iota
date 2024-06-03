@@ -143,7 +143,7 @@ fn object_migration_with_object_owner(
             SUI_FRAMEWORK_PACKAGE_ID,
             ident_str!("coin").into(),
             ident_str!("from_balance").into(),
-            vec![TypeTag::from_str(&format!("{}::sui::SUI", SUI_FRAMEWORK_PACKAGE_ID)).unwrap()],
+            vec![TypeTag::from_str(&format!("{SUI_FRAMEWORK_PACKAGE_ID}::sui::SUI")).unwrap()],
             vec![balance_arg],
         );
 
@@ -180,7 +180,7 @@ fn object_migration_with_object_owner(
             SUI_FRAMEWORK_PACKAGE_ID,
             ident_str!("coin").into(),
             ident_str!("from_balance").into(),
-            vec![TypeTag::from_str(&format!("{}::sui::SUI", SUI_FRAMEWORK_PACKAGE_ID)).unwrap()],
+            vec![TypeTag::from_str(&format!("{SUI_FRAMEWORK_PACKAGE_ID}::sui::SUI")).unwrap()],
             vec![balance_arg],
         );
 
@@ -238,10 +238,7 @@ fn extract_native_token_from_bag(
         .compute_object_reference();
 
     // Recreate the key under which the tokens are stored in the bag.
-    let foundry_ledger_data = executor
-        .native_tokens()
-        .get(&native_token_id.clone().into())
-        .unwrap();
+    let foundry_ledger_data = executor.native_tokens().get(native_token_id).unwrap();
     let token_type = format!(
         "{}::{}::{}",
         foundry_ledger_data.coin_type_origin.package,
@@ -338,8 +335,7 @@ fn extract_native_token_from_bag(
                 .map(|tag| tag == coin_token_struct_tag)
                 .unwrap_or(false)
         })
-        .map(|obj| obj.as_coin_maybe())
-        .flatten()
+        .and_then(|obj| obj.as_coin_maybe())
         .expect("coin token object should exist");
 
     assert_eq!(coin_token.balance.value(), native_token.amount().as_u64());
