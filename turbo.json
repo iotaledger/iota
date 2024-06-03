@@ -30,5 +30,6 @@
 		"DEFAULT_NETWORK",
 		"IOTA_NETWORKS"
 	],
-	"globalDotEnv": ["sdk/.env", "sdk/.env.defaults"]
+	"globalDotEnv": ["sdk/.env", "sdk/.env.defaults"],
+	"globalDependencies": ["tsconfig.json"]
 }
