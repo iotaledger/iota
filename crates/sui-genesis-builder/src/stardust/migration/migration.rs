@@ -217,11 +217,12 @@ impl Migration {
         Ok(())
     }
 
-    /// Consumes the `Migration` and returns the underlying `Executor` so tests
-    /// can continue to work in the same environment as the migration.
+    /// Consumes the `Migration` and returns the underlying `Executor` and
+    /// created objects map, so tests can continue to work in the same
+    /// environment as the migration.
     #[cfg(test)]
-    pub(super) fn into_executor(self) -> Executor {
-        self.executor
+    pub(super) fn into_parts(self) -> (Executor, HashMap<OutputId, CreatedObjects>) {
+        (self.executor, self.output_objects_map)
     }
 }
 

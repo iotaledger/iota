@@ -8,20 +8,22 @@ import { createContext, useMemo, type ReactNode } from 'react';
 export const KioskClientContext = createContext<KioskClient | null>(null);
 
 const suiToKioskNetwork: Record<string, Network> = {
-	mainnet: Network.MAINNET,
-	testnet: Network.TESTNET,
+    mainnet: Network.MAINNET,
+    testnet: Network.TESTNET,
 };
 
 export type KioskClientProviderProps = {
-	children: ReactNode;
+    children: ReactNode;
 };
 
 export function KioskClientProvider({ children }: KioskClientProviderProps) {
-	const { client, network } = useSuiClientContext();
-	const kioskNetwork = suiToKioskNetwork[network.toLowerCase()] || Network.CUSTOM;
-	const kioskClient = useMemo(
-		() => new KioskClient({ client, network: kioskNetwork }),
-		[client, kioskNetwork],
-	);
-	return <KioskClientContext.Provider value={kioskClient}>{children}</KioskClientContext.Provider>;
+    const { client, network } = useSuiClientContext();
+    const kioskNetwork = suiToKioskNetwork[network.toLowerCase()] || Network.CUSTOM;
+    const kioskClient = useMemo(
+        () => new KioskClient({ client, network: kioskNetwork }),
+        [client, kioskNetwork],
+    );
+    return (
+        <KioskClientContext.Provider value={kioskClient}>{children}</KioskClientContext.Provider>
+    );
 }

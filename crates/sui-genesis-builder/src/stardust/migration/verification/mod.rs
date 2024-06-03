@@ -27,9 +27,13 @@ pub(crate) fn verify_output(
     storage: &InMemoryStorage,
 ) -> anyhow::Result<()> {
     match output {
-        Output::Alias(output) => {
-            alias::verify_alias_output(output, created_objects, foundry_data, storage)
-        }
+        Output::Alias(output) => alias::verify_alias_output(
+            header.output_id(),
+            output,
+            created_objects,
+            foundry_data,
+            storage,
+        ),
         Output::Basic(output) => {
             basic::verify_basic_output(output, created_objects, foundry_data, storage)
         }
