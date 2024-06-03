@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { createMessage } from '_messages';
 import type { Message } from '_messages';
 import type { PortChannelName } from '_messaging/PortChannelName';
@@ -38,7 +41,6 @@ import {
 import { accountSourcesEvents } from '../account-sources/events';
 import { MnemonicAccountSource } from '../account-sources/MnemonicAccountSource';
 import { accountsHandleUIMessage, getAllSerializedUIAccounts } from '../accounts';
-import { type AccountType } from '../accounts/Account';
 import { accountsEvents } from '../accounts/events';
 import { getAutoLockMinutes, notifyUserActive, setAutoLockMinutes } from '../auto-lock-accounts';
 import { backupDB, getDB, settingsKeys } from '../db';
@@ -209,13 +211,10 @@ export class UiConnection extends Connection {
                     await accountSource.verifyRecoveryData(entropy);
                 }
                 const db = await getDB();
-                const zkLoginType: AccountType = 'zkLogin';
                 const accountSourceIDs = recoveryData.map(({ accountSourceID }) => accountSourceID);
                 await db.transaction('rw', db.accountSources, db.accounts, async () => {
                     await db.accountSources.where('id').noneOf(accountSourceIDs).delete();
                     await db.accounts
-                        .where('type')
-                        .notEqual(zkLoginType)
                         .filter(
                             (anAccount) =>
                                 !('sourceID' in anAccount) ||

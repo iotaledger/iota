@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 /* tslint:disable */
 /* eslint-disable */
 // @ts-nocheck
@@ -108,9 +111,9 @@ export interface AddedAccountsProperties {
      *
      * | Rule | Value |
      * |---|---|
-     * | Enum Values | Ledger, Derived, Imported, Zklogin |
+     * | Enum Values | Ledger, Derived, Imported|
      */
-    accountType: 'Ledger' | 'Derived' | 'Imported' | 'Zklogin';
+    accountType: 'Ledger' | 'Derived' | 'Imported';
     /**
      * The number of accounts imported.
      *

@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import '@fontsource-variable/inter';
 import '@fontsource-variable/red-hat-mono';
 
@@ -26,7 +29,6 @@ import App from './app';
 import { walletApiProvider } from './app/ApiProvider';
 import { AccountsFormProvider } from './app/components/accounts/AccountsFormContext';
 import { UnlockAccountProvider } from './app/components/accounts/UnlockAccountContext';
-import { ZkLoginAccountWarningModal } from './app/components/accounts/ZkLoginAccountWaringModal';
 import { SuiLedgerClientProvider } from './app/components/ledger/SuiLedgerClientProvider';
 import { growthbook } from './app/experimentation/feature-gating';
 import { persister, queryClient } from './app/helpers/queryClient';
@@ -99,7 +101,6 @@ function AppWrapper() {
                                             >
                                                 <ErrorBoundary>
                                                     <App />
-                                                    <ZkLoginAccountWarningModal />
                                                 </ErrorBoundary>
                                                 <div id="overlay-portal-container"></div>
                                                 <div id="toaster-portal-container"></div>

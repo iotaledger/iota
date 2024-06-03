@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Text } from '_src/ui/app/shared/text';
 import { useResolveSuiNSName } from '@mysten/core';
 import { ArrowUpRight12, Copy12 } from '@mysten/icons';
@@ -8,7 +11,6 @@ import { formatAddress } from '@mysten/sui.js/utils';
 import cn from 'clsx';
 import { forwardRef, type ReactNode } from 'react';
 
-import { getAccountBackgroundByType } from '../../helpers/accounts';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { useExplorerLink } from '../../hooks/useExplorerLink';
@@ -72,9 +74,7 @@ export const AccountItem = forwardRef<HTMLDivElement, AccountItemProps>(
                     { 'cursor-auto bg-white/80 shadow-card-soft': selected },
                     { 'bg-white/80': isActiveAccount },
                     { 'border-none !bg-hero/10 shadow-none hover:bg-white/40': disabled },
-                    {
-                        [getAccountBackgroundByType(account)]: background === 'gradient',
-                    },
+                    { 'bg-gradients-graph-cards': background === 'gradient' },
                 )}
                 {...props}
             >

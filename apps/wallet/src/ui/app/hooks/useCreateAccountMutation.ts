@@ -26,19 +26,13 @@ function validateAccountFormValues<T extends CreateType>(
     if (values.type !== createType) {
         throw new Error('Account data values type mismatch');
     }
-    if (
-        values.type !== 'zkLogin' &&
-        values.type !== 'mnemonic-derived' &&
-        values.type !== 'seed-derived' &&
-        !password
-    ) {
+    if (values.type !== 'mnemonic-derived' && values.type !== 'seed-derived' && !password) {
         throw new Error('Missing password');
     }
     return true;
 }
 
 const createTypeToAmpliAccount: Record<CreateType, AddedAccountsProperties['accountType']> = {
-    zkLogin: 'Zklogin',
     'new-mnemonic': 'Derived',
     'import-mnemonic': 'Derived',
     'mnemonic-derived': 'Derived',
@@ -56,9 +50,7 @@ export function useCreateAccountsMutation() {
         mutationFn: async ({ type, password }: { type: CreateType; password?: string }) => {
             let createdAccounts;
             const accountsFormValues = accountsFormValuesRef.current;
-            if (type === 'zkLogin' && validateAccountFormValues(type, accountsFormValues)) {
-                createdAccounts = await backgroundClient.createAccounts(accountsFormValues);
-            } else if (
+            if (
                 (type === 'new-mnemonic' || type === 'import-mnemonic') &&
                 validateAccountFormValues(type, accountsFormValues, password)
             ) {
