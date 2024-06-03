@@ -31,7 +31,7 @@ Choose network type:
 
 ```typescript
 export const suinsClient = new SuinsClient(client, {
-	networkType: 'testnet',
+    networkType: 'testnet',
 });
 ```
 
@@ -49,7 +49,7 @@ Fetch the default name of an address:
 
 ```typescript
 const defaultName = await suinsClient.getName(
-	'0xc2f08b6490b87610629673e76bab7e821fe8589c7ea6e752ea5dac2a4d371b41',
+    '0xc2f08b6490b87610629673e76bab7e821fe8589c7ea6e752ea5dac2a4d371b41',
 );
 ```
 
@@ -63,7 +63,7 @@ Fetch a name object including the owner:
 
 ```typescript
 const nameObject = await suinsClient.getNameObject('suins.sui', {
-	showOwner: true,
+    showOwner: true,
 });
 ```
 
@@ -71,8 +71,8 @@ Fetch a name object including the Avatar the owner has set (it automatically inc
 
 ```typescript
 const nameObject = await suinsClient.getNameObject('suins.sui', {
-	showOwner: true, // this can be skipped as showAvatar includes it by default
-	showAvatar: true,
+    showOwner: true, // this can be skipped as showAvatar includes it by default
+    showAvatar: true,
 });
 ```
 
