@@ -10,7 +10,10 @@ use sui_types::{
     gas_coin::GAS,
 };
 
-use crate::stardust::migration::tests::{create_foundry, run_migration};
+use crate::stardust::{
+    migration::tests::{create_foundry, run_migration},
+    types::stardust_to_sui_address,
+};
 
 #[test]
 fn create_foundry_amount() {
@@ -23,6 +26,7 @@ fn create_foundry_amount() {
     );
 
     let output_id = foundry_header.output_id();
+    let alias_address = *foundry_output.alias_address();
 
     let objects = run_migration([(foundry_header, foundry_output.into())]).into_objects();
 
@@ -56,7 +60,7 @@ fn create_foundry_amount() {
     // Check if the owner of the gas coin is the package object.
     assert_eq!(
         gas_coin_object.owner.get_owner_address().unwrap(),
-        package_object.id().into()
+        stardust_to_sui_address(alias_address).unwrap()
     );
 
     assert_eq!(

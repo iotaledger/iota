@@ -272,7 +272,7 @@ impl Executor {
             // Create the foundry amount object.
             let amount_object = self.create_foundry_amount(
                 UID::new(ObjectID::new(header.output_id().hash())),
-                foundry_package.id().into(),
+                stardust_to_sui_address(*foundry.alias_address())?,
                 &self.protocol_config,
                 &self.tx_context,
                 foundry_package.version(),
