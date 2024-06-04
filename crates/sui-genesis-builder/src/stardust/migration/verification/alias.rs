@@ -97,28 +97,12 @@ pub(super) fn verify_alias_output(
     );
 
     // Native Tokens
-    ensure!(
-        created_alias_output.native_tokens.size == output.native_tokens().len() as u64,
-        "native tokens bag length mismatch: found {}, expected {}",
-        created_alias_output.native_tokens.size,
-        output.native_tokens().len()
-    );
-    let created_native_token_fields = created_objects.native_tokens().and_then(|ids| {
-        ids.iter()
-            .map(|id| {
-                let obj = storage
-                    .get_object(id)
-                    .ok_or_else(|| anyhow!("missing native token field for {id}"))?;
-                obj.to_rust::<Field<String, Balance>>().ok_or_else(|| {
-                    anyhow!("expected a native token field, found {:?}", obj.type_())
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()
-    })?;
-    verify_native_tokens(
+    verify_native_tokens::<Field<String, Balance>>(
         output.native_tokens(),
         foundry_data,
-        created_native_token_fields,
+        created_alias_output.native_tokens,
+        created_objects.native_tokens().ok(),
+        storage,
     )?;
 
     // Legacy State Controller
