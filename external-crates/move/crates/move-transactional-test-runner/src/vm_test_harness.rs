@@ -2,12 +2,8 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, path::Path};
+use std::{collections::BTreeMap, path::Path, sync::Arc};
 
-use crate::{
-    framework::{run_test_impl, CompiledState, MaybeNamedCompiledModule, MoveTestAdapter},
-    tasks::{EmptyCommand, InitCommand, SyntaxChoice, TaskInput},
-};
 use anyhow::{anyhow, Error, Result};
 use async_trait::async_trait;
 use clap::Parser;
@@ -34,7 +30,11 @@ use move_vm_runtime::{
 };
 use move_vm_test_utils::{gas_schedule::GasStatus, InMemoryStorage};
 use once_cell::sync::Lazy;
-use std::sync::Arc;
+
+use crate::{
+    framework::{run_test_impl, CompiledState, MaybeNamedCompiledModule, MoveTestAdapter},
+    tasks::{EmptyCommand, InitCommand, SyntaxChoice, TaskInput},
+};
 
 const STD_ADDR: AccountAddress = AccountAddress::ONE;
 

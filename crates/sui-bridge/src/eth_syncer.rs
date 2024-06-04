@@ -1,23 +1,26 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! The EthSyncer module is responsible for synchronizing Events emitted on Ethereum blockchain from
-//! concerned contracts. Each contract is associated with a start block number, and the syncer will
-//! only query from that block number onwards. The syncer also keeps track of the last finalized
+//! The EthSyncer module is responsible for synchronizing Events emitted on
+//! Ethereum blockchain from concerned contracts. Each contract is associated
+//! with a start block number, and the syncer will only query from that block
+//! number onwards. The syncer also keeps track of the last finalized
 //! block on Ethereum and will only query for events up to that block number.
 
-use crate::error::BridgeResult;
-use crate::eth_client::EthClient;
-use crate::retry_with_max_elapsed_time;
-use crate::types::EthLog;
+use std::{collections::HashMap, sync::Arc};
+
 use ethers::types::Address as EthAddress;
 use mysten_metrics::spawn_logged_monitored_task;
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::watch;
-use tokio::task::JoinHandle;
-use tokio::time::{self, Duration};
+use tokio::{
+    sync::watch,
+    task::JoinHandle,
+    time::{self, Duration},
+};
 use tracing::error;
+
+use crate::{
+    error::BridgeResult, eth_client::EthClient, retry_with_max_elapsed_time, types::EthLog,
+};
 
 const ETH_LOG_QUERY_MAX_BLOCK_RANGE: u64 = 1000;
 const ETH_EVENTS_CHANNEL_SIZE: usize = 1000;
@@ -156,12 +159,14 @@ where
             };
             let len = events.len();
 
-            // Note 1: we always events to the channel even when it is empty. This is because of
-            // how `eth_getLogs` api is designed - we want cursor to move forward continuously.
+            // Note 1: we always events to the channel even when it is empty. This is
+            // because of how `eth_getLogs` api is designed - we want cursor to
+            // move forward continuously.
 
-            // Note 2: it's extremely critical to make sure the Logs we send via this channel
-            // are complete per block height. Namely, we should never send a partial list
-            // of events for a block. Otherwise, we may end up missing events.
+            // Note 2: it's extremely critical to make sure the Logs we send via this
+            // channel are complete per block height. Namely, we should never
+            // send a partial list of events for a block. Otherwise, we may end
+            // up missing events.
             events_sender
                 .send((contract_address, end_block, events))
                 .await
@@ -181,17 +186,15 @@ where
 mod tests {
     use std::{collections::HashSet, str::FromStr};
 
-    use ethers::types::{Log, U256, U64};
+    use ethers::types::{Log, TxHash, U256, U64};
     use prometheus::Registry;
     use tokio::sync::mpsc::error::TryRecvError;
 
+    use super::*;
     use crate::{
         eth_mock_provider::EthMockProvider,
         test_utils::{mock_get_logs, mock_last_finalized_block},
     };
-
-    use super::*;
-    use ethers::types::TxHash;
 
     #[tokio::test]
     async fn test_last_finalized_block() -> anyhow::Result<()> {
@@ -234,7 +237,8 @@ mod tests {
                 .await
                 .unwrap();
 
-        // The latest finalized block stays at 777, event listener should not query again.
+        // The latest finalized block stays at 777, event listener should not query
+        // again.
         finalized_block_rx.changed().await.unwrap();
         assert_eq!(*finalized_block_rx.borrow(), 777);
         let (contract_address, end_block, received_logs) = logs_rx.recv().await.unwrap();
@@ -250,7 +254,8 @@ mod tests {
             888,
             vec![log.clone()],
         );
-        // The latest finalized block is updated to 888, event listener should query again.
+        // The latest finalized block is updated to 888, event listener should query
+        // again.
         mock_last_finalized_block(&mock_provider, 888);
         finalized_block_rx.changed().await.unwrap();
         assert_eq!(*finalized_block_rx.borrow(), 888);
@@ -308,8 +313,8 @@ mod tests {
             log_index: Some(U256::from(6)),
             ..Default::default()
         };
-        // Mock logs for another_address although it shouldn't be queried. We don't expect to
-        // see log2 in the logs channel later on.
+        // Mock logs for another_address although it shouldn't be queried. We don't
+        // expect to see log2 in the logs channel later on.
         mock_get_logs(
             &mock_provider,
             another_address,
@@ -393,7 +398,8 @@ mod tests {
         Ok(())
     }
 
-    /// Test that the syncer will query for logs in multiple queries if the range is too big.
+    /// Test that the syncer will query for logs in multiple queries if the
+    /// range is too big.
     #[tokio::test]
     async fn test_paginated_eth_log_query() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
@@ -446,7 +452,8 @@ mod tests {
             start_block + ETH_LOG_QUERY_MAX_BLOCK_RANGE - 1,
             vec![log.clone()],
         );
-        // Second query handles [start + ETH_LOG_QUERY_MAX_BLOCK_RANGE, last_finalized_block]
+        // Second query handles [start + ETH_LOG_QUERY_MAX_BLOCK_RANGE,
+        // last_finalized_block]
         mock_get_logs(
             &mock_provider,
             EthAddress::zero(),

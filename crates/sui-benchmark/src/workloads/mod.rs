@@ -13,11 +13,13 @@ pub mod workload_configuration;
 
 use std::sync::Arc;
 
-use crate::drivers::Interval;
-use crate::workloads::payload::Payload;
-use sui_types::base_types::{ObjectRef, SuiAddress};
-use sui_types::crypto::AccountKeyPair;
+use sui_types::{
+    base_types::{ObjectRef, SuiAddress},
+    crypto::AccountKeyPair,
+};
 use workload::*;
+
+use crate::{drivers::Interval, workloads::payload::Payload};
 
 pub type GroupID = u32;
 

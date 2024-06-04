@@ -2,28 +2,26 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::RpcModule;
-use sui_json_rpc::error::SuiRpcInputError;
-use sui_types::error::SuiObjectResponseError;
-use sui_types::object::ObjectRead;
-
-use crate::errors::IndexerError;
-use crate::indexer_reader::IndexerReader;
-use sui_json_rpc::SuiRpcModule;
+use jsonrpsee::{core::RpcResult, RpcModule};
+use sui_json_rpc::{error::SuiRpcInputError, SuiRpcModule};
 use sui_json_rpc_api::{ReadApiServer, QUERY_MAX_RESULT_LIMIT};
 use sui_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, ProtocolConfigResponse, SuiEvent,
-    SuiGetPastObjectRequest, SuiObjectDataOptions, SuiObjectResponse, SuiPastObjectResponse,
-    SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
+    SuiGetPastObjectRequest, SuiLoadedChildObjectsResponse, SuiObjectDataOptions,
+    SuiObjectResponse, SuiPastObjectResponse, SuiTransactionBlockResponse,
+    SuiTransactionBlockResponseOptions,
 };
 use sui_open_rpc::Module;
 use sui_protocol_config::{ProtocolConfig, ProtocolVersion};
-use sui_types::base_types::{ObjectID, SequenceNumber};
-use sui_types::digests::{ChainIdentifier, TransactionDigest};
-use sui_types::sui_serde::BigInt;
+use sui_types::{
+    base_types::{ObjectID, SequenceNumber},
+    digests::{ChainIdentifier, TransactionDigest},
+    error::SuiObjectResponseError,
+    object::ObjectRead,
+    sui_serde::BigInt,
+};
 
-use sui_json_rpc_types::SuiLoadedChildObjectsResponse;
+use crate::{errors::IndexerError, indexer_reader::IndexerReader};
 
 #[derive(Clone)]
 pub(crate) struct ReadApi {
@@ -107,9 +105,9 @@ impl ReadApiServer for ReadApi {
         }
     }
 
-    // For ease of implementation we just forward to the single object query, although in the
-    // future we may want to improve the performance by having a more naitive multi_get
-    // functionality
+    // For ease of implementation we just forward to the single object query,
+    // although in the future we may want to improve the performance by having a
+    // more naitive multi_get functionality
     async fn multi_get_objects(
         &self,
         object_ids: Vec<ObjectID>,

@@ -4,11 +4,10 @@
 pub mod models;
 pub mod schema;
 
-use diesel::pg::PgConnection;
-use diesel::prelude::*;
-use diesel::r2d2::ConnectionManager;
-use dotenvy::dotenv;
 use std::env;
+
+use diesel::{pg::PgConnection, prelude::*, r2d2::ConnectionManager};
+use dotenvy::dotenv;
 
 pub type PgConnectionPool = diesel::r2d2::Pool<ConnectionManager<PgConnection>>;
 pub type PgPoolConnection = diesel::r2d2::PooledConnection<ConnectionManager<PgConnection>>;

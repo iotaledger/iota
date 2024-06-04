@@ -1,16 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::Result;
-use move_binary_format::CompiledModule;
-use move_compiler::editions::Edition;
-use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 use std::{
     collections::BTreeMap,
     env, fs,
     path::{Path, PathBuf},
 };
 
+use anyhow::Result;
+use move_binary_format::CompiledModule;
+use move_compiler::editions::Edition;
+use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 use sui_move_build::{BuildConfig, SuiPackageHooks};
 
 const DOCS_DIR: &str = "docs";
@@ -25,10 +25,12 @@ fn main() {
     let sui_system_path = packages_path.join("sui-system");
     let sui_framework_path = packages_path.join("sui-framework");
     let stardust_path = packages_path.join("stardust");
+    let timelock_path = packages_path.join("timelock");
     let deepbook_path_clone = deepbook_path.clone();
     let sui_system_path_clone = sui_system_path.clone();
     let sui_framework_path_clone = sui_framework_path.clone();
     let stardust_path_clone = stardust_path.clone();
+    let timelock_path_clone = timelock_path.clone();
     let move_stdlib_path = packages_path.join("move-stdlib");
 
     build_packages(
@@ -36,6 +38,7 @@ fn main() {
         sui_system_path_clone,
         sui_framework_path_clone,
         stardust_path_clone,
+        timelock_path_clone,
         out_dir,
     );
 
@@ -80,6 +83,14 @@ fn main() {
         "cargo:rerun-if-changed={}",
         stardust_path.join("sources").display()
     );
+    println!(
+        "cargo:rerun-if-changed={}",
+        timelock_path.join("Move.toml").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        timelock_path.join("sources").display()
+    );
 }
 
 fn build_packages(
@@ -87,6 +98,7 @@ fn build_packages(
     sui_system_path: PathBuf,
     sui_framework_path: PathBuf,
     stardust_path: PathBuf,
+    timelock_path: PathBuf,
     out_dir: PathBuf,
 ) {
     let config = MoveBuildConfig {
@@ -103,12 +115,14 @@ fn build_packages(
         sui_system_path.clone(),
         sui_framework_path.clone(),
         stardust_path.clone(),
+        timelock_path.clone(),
         out_dir.clone(),
         "deepbook",
         "sui-system",
         "sui-framework",
         "move-stdlib",
         "stardust",
+        "timelock",
         config,
         true,
     );
@@ -126,12 +140,14 @@ fn build_packages(
         sui_system_path,
         sui_framework_path,
         stardust_path,
+        timelock_path,
         out_dir,
         "deepbook-test",
         "sui-system-test",
         "sui-framework-test",
         "move-stdlib-test",
         "stardust-test",
+        "timelock-test",
         config,
         false,
     );
@@ -142,12 +158,14 @@ fn build_packages_with_move_config(
     sui_system_path: PathBuf,
     sui_framework_path: PathBuf,
     stardust_path: PathBuf,
+    timelock_path: PathBuf,
     out_dir: PathBuf,
     deepbook_dir: &str,
     system_dir: &str,
     framework_dir: &str,
     stdlib_dir: &str,
     stardust_dir: &str,
+    timelock_dir: &str,
     config: MoveBuildConfig,
     write_docs: bool,
 ) {
@@ -173,11 +191,18 @@ fn build_packages_with_move_config(
     .build(deepbook_path)
     .unwrap();
     let stardust_pkg = BuildConfig {
-        config,
+        config: config.clone(),
         run_bytecode_verifier: true,
         print_diags_to_stderr: false,
     }
     .build(stardust_path)
+    .unwrap();
+    let timelock_pkg = BuildConfig {
+        config,
+        run_bytecode_verifier: true,
+        print_diags_to_stderr: false,
+    }
+    .build(timelock_path)
     .unwrap();
 
     let sui_system = system_pkg.get_sui_system_modules();
@@ -185,16 +210,18 @@ fn build_packages_with_move_config(
     let deepbook = deepbook_pkg.get_deepbook_modules();
     let move_stdlib = framework_pkg.get_stdlib_modules();
     let stardust = stardust_pkg.get_stardust_modules();
+    let timelock = timelock_pkg.get_timelock_modules();
 
     serialize_modules_to_file(sui_system, &out_dir.join(system_dir)).unwrap();
     serialize_modules_to_file(sui_framework, &out_dir.join(framework_dir)).unwrap();
     serialize_modules_to_file(deepbook, &out_dir.join(deepbook_dir)).unwrap();
     serialize_modules_to_file(move_stdlib, &out_dir.join(stdlib_dir)).unwrap();
     serialize_modules_to_file(stardust, &out_dir.join(stardust_dir)).unwrap();
+    serialize_modules_to_file(timelock, &out_dir.join(timelock_dir)).unwrap();
     // write out generated docs
     if write_docs {
-        // Remove the old docs directory -- in case there was a module that was deleted (could
-        // happen during development).
+        // Remove the old docs directory -- in case there was a module that was deleted
+        // (could happen during development).
         if Path::new(DOCS_DIR).exists() {
             std::fs::remove_dir_all(DOCS_DIR).unwrap();
         }
@@ -219,6 +246,11 @@ fn build_packages_with_move_config(
             &stardust_pkg.package.compiled_docs.unwrap(),
             &mut files_to_write,
         );
+        relocate_docs(
+            timelock_dir,
+            &timelock_pkg.package.compiled_docs.unwrap(),
+            &mut files_to_write,
+        );
         for (fname, doc) in files_to_write {
             let mut dst_path = PathBuf::from(DOCS_DIR);
             dst_path.push(fname);
@@ -228,16 +260,17 @@ fn build_packages_with_move_config(
     }
 }
 
-/// Post process the generated docs so that they are in a format that can be consumed by
-/// docusaurus.
-/// * Flatten out the tree-like structure of the docs directory that we generate for a package into
-///   a flat list of packages;
-/// * Deduplicate packages (since multiple packages could share dependencies); and
+/// Post process the generated docs so that they are in a format that can be
+/// consumed by docusaurus.
+/// * Flatten out the tree-like structure of the docs directory that we generate
+///   for a package into a flat list of packages;
+/// * Deduplicate packages (since multiple packages could share dependencies);
+///   and
 /// * Write out the package docs in a flat directory structure.
 fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap<String, String>) {
-    // Turn on multi-line mode so that `.` matches newlines, consume from the start of the file to
-    // beginning of the heading, then capture the heading and replace with the yaml tag for docusaurus. E.g.,
-    // ```
+    // Turn on multi-line mode so that `.` matches newlines, consume from the start
+    // of the file to beginning of the heading, then capture the heading and
+    // replace with the yaml tag for docusaurus. E.g., ```
     // -<a name="0x2_display"></a>
     // -
     // -# Module `0x2::display`

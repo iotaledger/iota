@@ -2,15 +2,17 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module implements a checker for verifying that a script or entry function a valid
-//! signature, which entails
+//! This module implements a checker for verifying that a script or entry
+//! function a valid signature, which entails
 //! - (DEPRECATED) All signer arguments are occur before non-signer arguments
-//! - (DEPRECATED) All types non-signer arguments have a type that is valid for constants
+//! - (DEPRECATED) All types non-signer arguments have a type that is valid for
+//!   constants
 //! - (DEPRECATED) Has an empty return type
 //! - All return types are not references
-//! - Satisfies the additional checks provided as an argument via `check_signature`
-//! `check_signature` should be used by adapters to quickly and easily verify custom signature
-//! rules for entrypoints
+//! - Satisfies the additional checks provided as an argument via
+//!   `check_signature`
+//! `check_signature` should be used by adapters to quickly and easily verify
+//! custom signature rules for entrypoints
 
 use move_binary_format::{
     access::ModuleAccess,
@@ -27,12 +29,14 @@ use move_core_types::{identifier::IdentStr, vm_status::StatusCode};
 
 pub type FnCheckScriptSignature = fn(
     &BinaryIndexedView,
-    /* is_entry */ bool,
+    // is_entry
+    bool,
     SignatureIndex,
     Option<SignatureIndex>,
 ) -> PartialVMResult<()>;
 
-/// This function checks the extra requirements on the signature of the main function of a script.
+/// This function checks the extra requirements on the signature of the main
+/// function of a script.
 pub fn verify_script(
     script: &CompiledScript,
     check_signature: FnCheckScriptSignature,
@@ -72,8 +76,8 @@ pub fn verify_module(
     Ok(())
 }
 
-/// This function checks the extra requirements on the signature of the script visible function
-/// when it serves as an entry point for script execution
+/// This function checks the extra requirements on the signature of the script
+/// visible function when it serves as an entry point for script execution
 pub fn verify_module_function_signature_by_name(
     module: &CompiledModule,
     name: &IdentStr,
@@ -94,8 +98,8 @@ pub fn verify_module_function_signature_by_name(
     )
 }
 
-/// This function checks the extra requirements on the signature of the script visible function
-/// when it serves as an entry point for script execution
+/// This function checks the extra requirements on the signature of the script
+/// visible function when it serves as an entry point for script execution
 fn verify_module_function_signature(
     module: &CompiledModule,
     idx: FunctionDefinitionIndex,
@@ -157,8 +161,8 @@ pub fn legacy_script_signature_checks(
         .map(|idx| &resolver.signature_at(idx).0)
         .unwrap_or(empty_vec);
     // Check that all `signer` arguments occur before non-`signer` arguments
-    // signer is a type that can only be populated by the Move VM. And its value is filled
-    // based on the sender of the transaction
+    // signer is a type that can only be populated by the Move VM. And its value is
+    // filled based on the sender of the transaction
     let all_args_have_valid_type = if resolver.version() <= VERSION_1 {
         parameters
             .iter()

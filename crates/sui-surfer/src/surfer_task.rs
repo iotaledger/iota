@@ -4,8 +4,9 @@
 use std::{collections::HashMap, sync::Arc};
 
 use rand::{rngs::StdRng, Rng, SeedableRng};
-use sui_core::authority::authority_store_tables::LiveObject;
-use sui_core::state_accumulator::AccumulatorStore;
+use sui_core::{
+    authority::authority_store_tables::LiveObject, state_accumulator::AccumulatorStore,
+};
 use sui_types::{
     base_types::{ObjectRef, SuiAddress},
     object::Owner,

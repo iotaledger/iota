@@ -1,9 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use move_binary_format::file_format::CompiledModule;
-
 use std::{collections::BTreeMap, path::PathBuf};
+
+use move_binary_format::file_format::CompiledModule;
 use sui_move_build::{BuildConfig, CompiledPackage};
 use sui_protocol_config::{Chain, ProtocolConfig};
 use sui_types::{
@@ -78,8 +78,9 @@ fn test_new_initial() {
         }
     );
 
-    // also test that move package sizes used for gas computations are estimated correctly (small
-    // constant differences can be tolerated and are due to BCS encoding)
+    // also test that move package sizes used for gas computations are estimated
+    // correctly (small constant differences can be tolerated and are due to BCS
+    // encoding)
     let a_pkg_obj = Object::new_package_from_data(Data::Package(a_pkg), TransactionDigest::ZERO);
     let b_pkg_obj = Object::new_package_from_data(Data::Package(b_pkg), TransactionDigest::ZERO);
     let c_pkg_obj = Object::new_package_from_data(Data::Package(c_pkg), TransactionDigest::ZERO);
@@ -223,8 +224,8 @@ fn test_upgrade_linkage_digest_to_new_dep() {
         },
     );
 
-    // Make sure that we compute the package digest off of the update dependencies and not the old
-    // dependencies in the linkage table.
+    // Make sure that we compute the package digest off of the update dependencies
+    // and not the old dependencies in the linkage table.
     let hash_modules = true;
     assert_eq!(
         b_new.digest(hash_modules),

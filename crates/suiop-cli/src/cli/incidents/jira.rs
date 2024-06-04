@@ -1,15 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{env, fmt, fs, path::PathBuf};
+
 use anyhow::{Context, Result};
-use serde::Deserialize;
-use serde::Serialize;
-use std::env;
-use std::fmt;
-use std::fs;
-use std::path::PathBuf;
-use tracing::debug;
-use tracing::info;
+use serde::{Deserialize, Serialize};
+use tracing::{debug, info};
 
 const BASE_URL: &str = "https://mysten.atlassian.net/";
 const CREATE_ENDPOINT: &str = "rest/api/2/issue/bulk";

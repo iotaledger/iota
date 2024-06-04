@@ -3,8 +3,8 @@
 import { Callout } from 'nextra/components';
 
 <Callout type="info">
-	Sui Owned Object Pools (SuiOOP) is a beta library. Enhancements and changes are likely during
-	development.
+    Sui Owned Object Pools (SuiOOP) is a beta library. Enhancements and changes are likely during
+    development.
 </Callout>
 
 Equivocation is a situation where you unintentionally use the same object in more than one
@@ -31,9 +31,9 @@ also need to take advantage of concurrency, without equivocating their objects.
 
 The main modules of the library are `executorServiceHandler.ts` and `pool.ts`.
 
-- `executorServiceHandler.ts` contains the logic of the executor service - meaning that it acts like
-  a load balancer, distributing the transactions to the worker pools.
-- `pool.ts` contains the logic of the worker pools.
+-   `executorServiceHandler.ts` contains the logic of the executor service - meaning that it acts
+    like a load balancer, distributing the transactions to the worker pools.
+-   `pool.ts` contains the logic of the worker pools.
 
 As a user of the library, you use only the `executorServiceHandler.ts` module.
 
@@ -77,13 +77,13 @@ import { fromB64 } from '@mysten/sui.js/utils';
 /* HERE ARE DEFINED THE PREPARATORY STEPS IF YOU WANT TO CODE ALONG*/
 // Define the transaction block
 function createPaymentTxb(recipient: string): TransactionBlock {
-	const txb = new TransactionBlock();
-	const [coin] = txb.splitCoins(
-		txb.gas,
-		[txb.pure(1000000)], // Amount to be transferred to the recipient
-	);
-	txb.transferObjects([coin], txb.pure(recipient));
-	return txb;
+    const txb = new TransactionBlock();
+    const [coin] = txb.splitCoins(
+        txb.gas,
+        [txb.pure(1000000)], // Amount to be transferred to the recipient
+    );
+    txb.transferObjects([coin], txb.pure(recipient));
+    return txb;
 }
 // Define your admin keypair and client
 const ADMIN_SECRET_KEY: string = '<your-address-secret-key>';
@@ -91,7 +91,7 @@ const adminPrivateKeyArray = Uint8Array.from(Array.from(fromB64(ADMIN_SECRET_KEY
 const adminKeypair = Ed25519Keypair.fromSecretKey(adminPrivateKeyArray.slice(1));
 
 const client = new SuiClient({
-	url: process.env.SUI_NODE!,
+    url: process.env.SUI_NODE!,
 });
 ```
 
@@ -107,8 +107,8 @@ const eshandler = await ExecutorServiceHandler.initialize(adminKeypair, client);
 const promises = [];
 let txb: TransactionBlockWithLambda;
 for (let i = 0; i < 10; i++) {
-	txb = new TransactionBlockWithLambda(() => ceatePaymentTxb('<recipient-address>'));
-	promises.push(eshandler.execute(txb, client));
+    txb = new TransactionBlockWithLambda(() => ceatePaymentTxb('<recipient-address>'));
+    promises.push(eshandler.execute(txb, client));
 }
 
 // Collect the promise results

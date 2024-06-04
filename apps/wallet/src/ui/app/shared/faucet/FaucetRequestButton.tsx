@@ -13,42 +13,42 @@ import { useFaucetMutation } from './useFaucetMutation';
 import { useFaucetRateLimiter } from './useFaucetRateLimiter';
 
 export type FaucetRequestButtonProps = {
-	variant?: ButtonProps['variant'];
-	size?: ButtonProps['size'];
+    variant?: ButtonProps['variant'];
+    size?: ButtonProps['size'];
 };
 
 function FaucetRequestButton({ variant = 'primary', size = 'narrow' }: FaucetRequestButtonProps) {
-	const network = useAppSelector(({ app }) => app.network);
-	const customRpc = useAppSelector(({ app }) => app.customRpc);
-	const networkConfig = customRpc ? getCustomNetwork(customRpc) : getNetwork(network);
-	const [isRateLimited, rateLimit] = useFaucetRateLimiter();
+    const network = useAppSelector(({ app }) => app.network);
+    const customRpc = useAppSelector(({ app }) => app.customRpc);
+    const networkConfig = customRpc ? getCustomNetwork(customRpc) : getNetwork(network);
+    const [isRateLimited, rateLimit] = useFaucetRateLimiter();
 
-	const mutation = useFaucetMutation({
-		host: networkConfig?.faucet,
-		onError: (error) => {
-			if (error instanceof FaucetRateLimitError) {
-				rateLimit();
-			}
-		},
-	});
+    const mutation = useFaucetMutation({
+        host: networkConfig?.faucet,
+        onError: (error) => {
+            if (error instanceof FaucetRateLimitError) {
+                rateLimit();
+            }
+        },
+    });
 
-	return mutation.enabled ? (
-		<Button
-			data-testid="faucet-request-button"
-			variant={variant}
-			size={size}
-			disabled={isRateLimited}
-			onClick={() => {
-				toast.promise(mutation.mutateAsync(), {
-					loading: <FaucetMessageInfo loading />,
-					success: (totalReceived) => <FaucetMessageInfo totalReceived={totalReceived} />,
-					error: (error) => <FaucetMessageInfo error={error.message} />,
-				});
-			}}
-			loading={mutation.isMutating}
-			text={`Request ${networkConfig?.name} SUI Tokens`}
-		/>
-	) : null;
+    return mutation.enabled ? (
+        <Button
+            data-testid="faucet-request-button"
+            variant={variant}
+            size={size}
+            disabled={isRateLimited}
+            onClick={() => {
+                toast.promise(mutation.mutateAsync(), {
+                    loading: <FaucetMessageInfo loading />,
+                    success: (totalReceived) => <FaucetMessageInfo totalReceived={totalReceived} />,
+                    error: (error) => <FaucetMessageInfo error={error.message} />,
+                });
+            }}
+            loading={mutation.isMutating}
+            text={`Request ${networkConfig?.name} SUI Tokens`}
+        />
+    ) : null;
 }
 
 export default FaucetRequestButton;

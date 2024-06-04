@@ -47,8 +47,8 @@ fn direct_commit() {
 fn idempotence() {
     let (context, dag_state, committer) = basic_test_setup();
 
-    // Add enough blocks to reach decision round of pipeline 1 wave 0 which is round 4.
-    // note: pipelines, waves & rounds are zero-indexed.
+    // Add enough blocks to reach decision round of pipeline 1 wave 0 which is round
+    // 4. note: pipelines, waves & rounds are zero-indexed.
     let leader_round_pipeline_1_wave_0 = committer.committers[1].leader_round(0);
     let decision_round_pipeline_1_wave_0 = committer.committers[1].decision_round(0);
     build_dag(
@@ -89,7 +89,8 @@ fn idempotence() {
         panic!("Expected a committed leader")
     };
 
-    // Ensure we don't commit the same leader again once last decided has been updated.
+    // Ensure we don't commit the same leader again once last decided has been
+    // updated.
     let last_decided = Slot::new(first_sequence[0].round(), first_sequence[0].authority());
     let sequence = committer.try_commit(last_decided);
     assert!(sequence.is_empty());
@@ -292,7 +293,8 @@ fn direct_skip_enough_blame() {
         .take(context.committee.quorum_threshold() as usize)
         .collect();
 
-    // Add enough blocks to reach the decision round of the wave 0 leader for pipeline 1.
+    // Add enough blocks to reach the decision round of the wave 0 leader for
+    // pipeline 1.
     let decision_round_pipeline_1_wave_0 = committer.committers[1].decision_round(0);
     build_dag(
         context.clone(),
@@ -394,9 +396,9 @@ fn indirect_commit() {
         dag_state.clone(),
     ));
 
-    // Add enough blocks to decide the leader of round 5. The leader of round 2 will be skipped
-    // (it was the vote for the first leader that we removed) so we add enough blocks
-    // to indirectly skip it.
+    // Add enough blocks to decide the leader of round 5. The leader of round 2 will
+    // be skipped (it was the vote for the first leader that we removed) so we
+    // add enough blocks to indirectly skip it.
     let leader_round_5 = 5;
     let pipeline_leader_5 = leader_round_5 % wave_length as usize;
     let wave_leader_5 = committer.committers[pipeline_leader_5].wave_number(leader_round_5 as u32);
@@ -488,7 +490,8 @@ fn indirect_skip() {
         decision_round_7,
     );
 
-    // Ensure we commit the first 3 leaders, skip the 4th, and commit the last 2 leaders.
+    // Ensure we commit the first 3 leaders, skip the 4th, and commit the last 2
+    // leaders.
     let last_decided = Slot::new_for_test(0, 0);
     let sequence = committer.try_commit(last_decided);
     tracing::info!("Commit sequence: {sequence:#?}");
@@ -573,11 +576,11 @@ fn undecided() {
 }
 
 // This test scenario has one authority that is acting in a byzantine manner. It
-// will be sending multiple different blocks to different validators for a round.
-// The commit rule should handle this and correctly commit the expected blocks.
-// However when extra dag layers are added and the byzantine node is meant to be
-// a leader, its block is skipped as there is not enough votes to directly
-// decide it and not any certified links to indirectly commit it.
+// will be sending multiple different blocks to different validators for a
+// round. The commit rule should handle this and correctly commit the expected
+// blocks. However when extra dag layers are added and the byzantine node is
+// meant to be a leader, its block is skipped as there is not enough votes to
+// directly decide it and not any certified links to indirectly commit it.
 #[test]
 fn test_byzantine_validator() {
     let (context, dag_state, committer) = basic_test_setup();
@@ -590,7 +593,8 @@ fn test_byzantine_validator() {
 
     // Add blocks to reach voting round for leader A12
     let voting_round_12 = leader_round_12 + 1;
-    // This includes a "good vote" from validator B which is acting as a byzantine validator
+    // This includes a "good vote" from validator B which is acting as a byzantine
+    // validator
     let good_references_voting_round_wave_4 = build_dag(
         context.clone(),
         dag_state.clone(),
@@ -613,7 +617,8 @@ fn test_byzantine_validator() {
         .filter(|x| x.author != leader_12)
         .collect();
 
-    // Accept these references/blocks as ancestors from decision round blocks in dag state
+    // Accept these references/blocks as ancestors from decision round blocks in dag
+    // state
     let byzantine_block_b13_1 = VerifiedBlock::new_for_test(
         TestBlock::new(13, 1)
             .set_ancestors(references_without_leader_round_wave_4.clone())
@@ -644,9 +649,10 @@ fn test_byzantine_validator() {
         .write()
         .accept_block(byzantine_block_b13_3.clone());
 
-    // Ancestors of decision blocks in round 14 should include multiple byzantine non-votes B13
-    // but there are enough good votes to prevent a skip. Additionally only one of the non-votes
-    // per authority should be counted so we should not skip leader A12.
+    // Ancestors of decision blocks in round 14 should include multiple byzantine
+    // non-votes B13 but there are enough good votes to prevent a skip.
+    // Additionally only one of the non-votes per authority should be counted so
+    // we should not skip leader A12.
     let mut references_round_14 = vec![];
     let decison_block_a14 = VerifiedBlock::new_for_test(
         TestBlock::new(14, 0)
@@ -705,8 +711,8 @@ fn test_byzantine_validator() {
 
     // DagState Update:
     // - We have A13, B13, D13 & C13 as good votes in the voting round of leader A12
-    // - We have 3 byzantine B13 nonvotes that we received as ancestors from decision
-    //   round blocks from B, C, & D.
+    // - We have 3 byzantine B13 nonvotes that we received as ancestors from
+    //   decision round blocks from B, C, & D.
     // - We have B14, C14 & D14 that include this byzantine nonvote. But all of
     // these blocks also have good votes from A, C & D.
 

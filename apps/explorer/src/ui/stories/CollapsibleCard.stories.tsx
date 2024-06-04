@@ -7,30 +7,30 @@ import { CollapsibleCard, type CollapsibleCardProps } from '~/ui/collapsible/Col
 import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
 
 export default {
-	component: CollapsibleCard,
+    component: CollapsibleCard,
 } as Meta;
 
 export const Default: StoryObj<CollapsibleCardProps> = {
-	render: (props) => {
-		const sections = Array(5)
-			.fill(true)
-			.map((_, index) => <div key={index}>Section Item {index}</div>);
+    render: (props) => {
+        const sections = Array(5)
+            .fill(true)
+            .map((_, index) => <div key={index}>Section Item {index}</div>);
 
-		return (
-			<div className="h-[1000px]">
-				<CollapsibleCard collapsible title="Card Title" {...props}>
-					{sections.map((section, index) => (
-						<CollapsibleSection key={index} title={`Section Title ${index}`}>
-							{section}
-						</CollapsibleSection>
-					))}
-				</CollapsibleCard>
-			</div>
-		);
-	},
+        return (
+            <div className="h-[1000px]">
+                <CollapsibleCard collapsible title="Card Title" {...props}>
+                    {sections.map((section, index) => (
+                        <CollapsibleSection key={index} title={`Section Title ${index}`}>
+                            {section}
+                        </CollapsibleSection>
+                    ))}
+                </CollapsibleCard>
+            </div>
+        );
+    },
 };
 
 export const Small: StoryObj<CollapsibleCardProps> = {
-	...Default,
-	args: { size: 'sm' },
+    ...Default,
+    args: { size: 'sm' },
 };

@@ -1,27 +1,28 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::HashMap, path::Path};
+
 use anyhow::Result;
 use fastcrypto::encoding::{Base64, Encoding};
-use std::collections::HashMap;
-use std::path::Path;
-use sui_indexer::errors::IndexerError;
-use tap::tap::TapFallible;
-use tracing::warn;
-
-use sui_indexer::framework::Handler;
-use sui_indexer::types::owner_to_owner_info;
+use sui_indexer::{errors::IndexerError, framework::Handler, types::owner_to_owner_info};
 use sui_json_rpc_types::SuiMoveValue;
 use sui_package_resolver::Resolver;
 use sui_rest_api::{CheckpointData, CheckpointTransaction};
-use sui_types::base_types::ObjectID;
-use sui_types::dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType};
-use sui_types::object::Object;
+use sui_types::{
+    base_types::ObjectID,
+    dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
+    object::Object,
+};
+use tap::tap::TapFallible;
+use tracing::warn;
 
-use crate::handlers::{get_move_struct, AnalyticsHandler};
-use crate::package_store::{LocalDBPackageStore, PackageCache};
-use crate::tables::DynamicFieldEntry;
-use crate::FileType;
+use crate::{
+    handlers::{get_move_struct, AnalyticsHandler},
+    package_store::{LocalDBPackageStore, PackageCache},
+    tables::DynamicFieldEntry,
+    FileType,
+};
 
 pub struct DynamicFieldHandler {
     dynamic_fields: Vec<DynamicFieldEntry>,
@@ -142,13 +143,12 @@ impl DynamicFieldHandler {
                     .to_canonical_string(/* with_prefix */ true),
             },
             DynamicFieldType::DynamicObject => {
-                let object =
-                    all_written_objects
-                        .get(&object_id)
-                        .ok_or(IndexerError::UncategorizedError(anyhow::anyhow!(
-                    "Failed to find object_id {:?} when trying to create dynamic field info",
-                    object_id
-                )))?;
+                let object = all_written_objects.get(&object_id).ok_or(
+                    IndexerError::UncategorizedError(anyhow::anyhow!(
+                        "Failed to find object_id {:?} when trying to create dynamic field info",
+                        object_id
+                    )),
+                )?;
                 let version = object.version().value();
                 let digest = object.digest().to_string();
                 let object_type = object.data.type_().unwrap().clone();

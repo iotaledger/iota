@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use super::{Randomness, RandomnessMessage, SendSignaturesRequest};
 use anemo::{Request, Response};
 use tokio::sync::mpsc;
+
+use super::{Randomness, RandomnessMessage, SendSignaturesRequest};
 
 pub(super) struct Server {
     pub(super) sender: mpsc::WeakSender<RandomnessMessage>,

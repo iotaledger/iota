@@ -14,12 +14,13 @@ type PackageGraph<'p> = DiGraphMap<&'p str, ()>;
 struct Packages(HashMap<String, Package>);
 
 #[test]
-/// Make sure that all accesses to execution layer crates in the `sui-node` and `sui-replay` crates
-/// go via the `sui-execution` crate (in other words, the `sui-execution` crate dominates execution
-/// layer crates in the dependency graphs of `sui-node` and `sui-replay`).
+/// Make sure that all accesses to execution layer crates in the `sui-node` and
+/// `sui-replay` crates go via the `sui-execution` crate (in other words, the
+/// `sui-execution` crate dominates execution layer crates in the dependency
+/// graphs of `sui-node` and `sui-replay`).
 ///
-/// This helps ensures that execution that may be committed on-chain respects the execution version
-/// that is stated in the protocol config.
+/// This helps ensures that execution that may be committed on-chain respects
+/// the execution version that is stated in the protocol config.
 fn test_encapsulation() {
     let metadata = cargo_metadata().unwrap();
     let packages = Packages::new(&metadata);
@@ -27,8 +28,9 @@ fn test_encapsulation() {
     // Identify the crates that are part of the execution layer
     let mut exec_crates: BTreeSet<_> = packages.normal_deps("sui-execution").collect();
 
-    // Remove the crates that the execution layer depends on but which are not directly part of the
-    // execution layer -- these don't need to be accessed exclusively via `sui-execution`.
+    // Remove the crates that the execution layer depends on but which are not
+    // directly part of the execution layer -- these don't need to be accessed
+    // exclusively via `sui-execution`.
     exec_crates.remove("sui-protocol-config");
     exec_crates.remove("sui-types");
     exec_crates.remove("move-binary-format");
@@ -42,14 +44,16 @@ fn test_encapsulation() {
     for root in ["sui-node", "sui-replay"] {
         let mut graph = packages.graph(root);
 
-        // If we can still create a path from `root` to an execution crate after removing these
-        // nodes then we know that we can potential bypass "sui-execution".
+        // If we can still create a path from `root` to an execution crate after
+        // removing these nodes then we know that we can potential bypass
+        // "sui-execution".
         graph.remove_node("sui-execution");
 
         for exec_crate in &exec_crates {
             let paths = all_simple_paths::<Vec<&str>, &PackageGraph>(
-                &graph, root, exec_crate, /* min_intermediate_nodes */ 0,
-                /* max_intermediate_nodes */ None,
+                &graph, root, exec_crate, // min_intermediate_nodes
+                0,          // max_intermediate_nodes
+                None,
             );
 
             examples.extend(paths.map(|p| p.join(" -> ")));
@@ -85,8 +89,8 @@ fn cargo_metadata() -> cargo_metadata::Result<Metadata> {
 }
 
 impl Packages {
-    /// Create a mapping from package names to package `metadata` (from the output of `cargo
-    /// metadata`).
+    /// Create a mapping from package names to package `metadata` (from the
+    /// output of `cargo metadata`).
     fn new(metadata: &Metadata) -> Self {
         Self(HashMap::from_iter(
             metadata
@@ -96,9 +100,9 @@ impl Packages {
         ))
     }
 
-    /// Extract the transitive dependency sub-graph of the package named `root`.  The graph is a
-    /// directed, unweighted graph with nodes representing packages, identified by their name (a
-    /// `&str`).
+    /// Extract the transitive dependency sub-graph of the package named `root`.
+    /// The graph is a directed, unweighted graph with nodes representing
+    /// packages, identified by their name (a `&str`).
     fn graph<'p>(&'p self, root: &'p str) -> PackageGraph<'p> {
         let mut graph = PackageGraph::new();
         let mut stack = vec![];
@@ -114,9 +118,9 @@ impl Packages {
         graph
     }
 
-    /// Returns an iterator over all the edges from `pkg` to its "normal" dependencies (represented
-    /// as pairs of Node IDs).  A normal dependency is a non-target specific, non-build, non-dev
-    /// dependency.
+    /// Returns an iterator over all the edges from `pkg` to its "normal"
+    /// dependencies (represented as pairs of Node IDs).  A normal
+    /// dependency is a non-target specific, non-build, non-dev dependency.
     fn normal_edges<'p, 'q>(&'q self, pkg: &'p str) -> impl Iterator<Item = (&'p str, &'q str)> {
         self.0
             .get(pkg)
@@ -132,8 +136,8 @@ impl Packages {
             })
     }
 
-    /// Returns an iterator over all of `pkg`'s "normal" dependencies. (See [normal_edges] for a
-    /// definition of "normal").
+    /// Returns an iterator over all of `pkg`'s "normal" dependencies. (See
+    /// [normal_edges] for a definition of "normal").
     fn normal_deps<'p, 'q: 'p>(&'q self, pkg: &'p str) -> impl 'p + Iterator<Item = &'q str> {
         self.normal_edges(pkg).map(move |(_, to)| to)
     }

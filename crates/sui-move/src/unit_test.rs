@@ -1,6 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
+
 use clap::Parser;
 use move_cli::base::{
     self,
@@ -10,7 +12,6 @@ use move_package::BuildConfig;
 use move_unit_test::{extensions::set_extension_hook, UnitTestingConfig};
 use move_vm_runtime::native_extensions::NativeContextExtensions;
 use once_cell::sync::Lazy;
-use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 use sui_move_build::decorate_warnings;
 use sui_move_natives::{object_runtime::ObjectRuntime, NativesCostTable};
 use sui_protocol_config::ProtocolConfig;
@@ -23,7 +24,8 @@ use sui_types::{
     storage::ChildObjectResolver,
 };
 
-// Move unit tests will halt after executing this many steps. This is a protection to avoid divergence
+// Move unit tests will halt after executing this many steps. This is a
+// protection to avoid divergence
 const MAX_UNIT_TEST_INSTRUCTIONS: u64 = 1_000_000;
 
 #[derive(Parser)]
@@ -45,7 +47,8 @@ impl Test {
                 "The --coverage flag is currently supported only in debug builds. Please build the Sui CLI from source in debug mode."
             ));
         }
-        // find manifest file directory from a given path or (if missing) from current dir
+        // find manifest file directory from a given path or (if missing) from current
+        // dir
         let rerooted_path = base::reroot_path(path)?;
         let unit_test_config = self.test.unit_test_config();
         run_move_unit_tests(
@@ -84,8 +87,9 @@ static TEST_STORE: Lazy<DummyChildObjectStore> = Lazy::new(|| DummyChildObjectSt
 static SET_EXTENSION_HOOK: Lazy<()> =
     Lazy::new(|| set_extension_hook(Box::new(new_testing_object_and_natives_cost_runtime)));
 
-/// This function returns a result of UnitTestResult. The outer result indicates whether it
-/// successfully started running the test, and the inner result indicatests whether all tests pass.
+/// This function returns a result of UnitTestResult. The outer result indicates
+/// whether it successfully started running the test, and the inner result
+/// indicatests whether all tests pass.
 pub fn run_move_unit_tests(
     path: PathBuf,
     build_config: BuildConfig,

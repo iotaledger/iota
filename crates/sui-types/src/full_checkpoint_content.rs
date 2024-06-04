@@ -1,11 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::effects::{TransactionEffects, TransactionEvents};
-use crate::messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents};
-use crate::object::Object;
-use crate::transaction::Transaction;
 use serde::{Deserialize, Serialize};
+
+use crate::{
+    effects::{TransactionEffects, TransactionEvents},
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents},
+    object::Object,
+    transaction::Transaction,
+};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CheckpointData {
@@ -46,7 +49,8 @@ pub struct CheckpointTransaction {
     pub effects: TransactionEffects,
     /// The events, if any, emitted by this transaciton during execution
     pub events: Option<TransactionEvents>,
-    /// The state of all inputs to this transaction as they were prior to execution.
+    /// The state of all inputs to this transaction as they were prior to
+    /// execution.
     pub input_objects: Vec<Object>,
     /// The state of all output objects created or mutated by this transaction.
     pub output_objects: Vec<Object>,

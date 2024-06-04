@@ -1,19 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
-use std::net::SocketAddr;
+use std::{collections::HashMap, net::SocketAddr};
 
 use axum::{extract::Extension, http::StatusCode, routing::get, Router};
+use mysten_metrics::RegistryService;
 use prometheus::{
     register_histogram_with_registry, register_int_counter_with_registry,
-    register_int_gauge_with_registry, Histogram, IntCounter, IntGauge,
+    register_int_gauge_with_registry, Histogram, IntCounter, IntGauge, Registry, TextEncoder,
 };
-use prometheus::{Registry, TextEncoder};
 use regex::Regex;
 use tracing::{info, warn};
-
-use mysten_metrics::RegistryService;
 
 const METRICS_ROUTE: &str = "/metrics";
 
@@ -130,8 +127,8 @@ pub struct IndexerMetrics {
     pub update_object_snapshot_latency: Histogram,
     pub tokio_blocking_task_wait_latency: Histogram,
     // average latency of committing 1000 transactions.
-    // 1000 is not necessarily the batch size, it's to roughly map average tx commit latency to [0.1, 1] seconds,
-    // which is well covered by DB_COMMIT_LATENCY_SEC_BUCKETS.
+    // 1000 is not necessarily the batch size, it's to roughly map average tx commit latency to
+    // [0.1, 1] seconds, which is well covered by DB_COMMIT_LATENCY_SEC_BUCKETS.
     pub thousand_transaction_avg_db_commit_latency: Histogram,
     pub object_db_commit_latency: Histogram,
     pub object_mutation_db_commit_latency: Histogram,

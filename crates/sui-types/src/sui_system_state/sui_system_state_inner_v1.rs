@@ -1,26 +1,31 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::balance::Balance;
-use crate::base_types::{ObjectID, SuiAddress};
-use crate::collection_types::{Bag, Table, TableVec, VecMap, VecSet};
-use crate::committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata};
-use crate::crypto::verify_proof_of_possession;
-use crate::crypto::AuthorityPublicKeyBytes;
-use crate::error::SuiError;
-use crate::id::ID;
-use crate::multiaddr::Multiaddr;
-use crate::storage::ObjectStore;
-use crate::sui_system_state::epoch_start_sui_system_state::EpochStartSystemState;
+use std::collections::BTreeMap;
+
 use anyhow::Result;
 use fastcrypto::traits::ToFromBytes;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 
-use super::epoch_start_sui_system_state::EpochStartValidatorInfoV1;
-use super::sui_system_state_summary::{SuiSystemStateSummary, SuiValidatorSummary};
-use super::{get_validators_from_table_vec, AdvanceEpochParams, SuiSystemStateTrait};
+use super::{
+    epoch_start_sui_system_state::EpochStartValidatorInfoV1,
+    get_validators_from_table_vec,
+    sui_system_state_summary::{SuiSystemStateSummary, SuiValidatorSummary},
+    AdvanceEpochParams, SuiSystemStateTrait,
+};
+use crate::{
+    balance::Balance,
+    base_types::{ObjectID, SuiAddress},
+    collection_types::{Bag, Table, TableVec, VecMap, VecSet},
+    committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata},
+    crypto::{verify_proof_of_possession, AuthorityPublicKeyBytes},
+    error::SuiError,
+    id::ID,
+    multiaddr::Multiaddr,
+    storage::ObjectStore,
+    sui_system_state::epoch_start_sui_system_state::EpochStartSystemState,
+};
 
 const E_METADATA_INVALID_POP: u64 = 0;
 const E_METADATA_INVALID_PUBKEY: u64 = 1;
@@ -47,13 +52,14 @@ pub struct SystemParametersV1 {
     /// Lower-bound on the amount of stake required to become a validator.
     pub min_validator_joining_stake: u64,
 
-    /// Validators with stake amount below `validator_low_stake_threshold` are considered to
-    /// have low stake and will be escorted out of the validator set after being below this
-    /// threshold for more than `validator_low_stake_grace_period` number of epochs.
+    /// Validators with stake amount below `validator_low_stake_threshold` are
+    /// considered to have low stake and will be escorted out of the
+    /// validator set after being below this threshold for more than
+    /// `validator_low_stake_grace_period` number of epochs.
     pub validator_low_stake_threshold: u64,
 
-    /// Validators with stake below `validator_very_low_stake_threshold` will be removed
-    /// immediately at epoch change, no grace period.
+    /// Validators with stake below `validator_very_low_stake_threshold` will be
+    /// removed immediately at epoch change, no grace period.
     pub validator_very_low_stake_threshold: u64,
 
     /// A validator can have stake below `validator_low_stake_threshold`
@@ -123,7 +129,8 @@ impl VerifiedValidatorMetadataV1 {
 }
 
 impl ValidatorMetadataV1 {
-    /// Verify validator metadata and return a verified version (on success) or error code (on failure)
+    /// Verify validator metadata and return a verified version (on success) or
+    /// error code (on failure)
     pub fn verify(&self) -> Result<VerifiedValidatorMetadataV1, u64> {
         let protocol_pubkey =
             narwhal_crypto::PublicKey::from_bytes(self.protocol_pubkey_bytes.as_ref())
@@ -148,7 +155,8 @@ impl ValidatorMetadataV1 {
         let net_address = Multiaddr::try_from(self.net_address.clone())
             .map_err(|_| E_METADATA_INVALID_NET_ADDR)?;
 
-        // Ensure p2p, primary, and worker addresses are both Multiaddr's and valid anemo addresses
+        // Ensure p2p, primary, and worker addresses are both Multiaddr's and valid
+        // anemo addresses
         let p2p_address = Multiaddr::try_from(self.p2p_address.clone())
             .map_err(|_| E_METADATA_INVALID_P2P_ADDR)?;
         p2p_address
@@ -480,7 +488,8 @@ pub struct SuiSystemStateInnerV1 {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct StakeSubsidyV1 {
-    /// Balance of SUI set aside for stake subsidies that will be drawn down over time.
+    /// Balance of SUI set aside for stake subsidies that will be drawn down
+    /// over time.
     pub balance: Balance,
 
     /// Count of the number of times stake subsidies have been distributed.
@@ -608,9 +617,10 @@ impl SuiSystemStateTrait for SuiSystemStateInnerV1 {
     }
 
     fn into_sui_system_state_summary(self) -> SuiSystemStateSummary {
-        // If you are making any changes to SuiSystemStateV1 or any of its dependent types before
-        // mainnet, please also update SuiSystemStateSummary and its corresponding TS type.
-        // Post-mainnet, we will need to introduce a new version.
+        // If you are making any changes to SuiSystemStateV1 or any of its dependent
+        // types before mainnet, please also update SuiSystemStateSummary and
+        // its corresponding TS type. Post-mainnet, we will need to introduce a
+        // new version.
         let Self {
             epoch,
             protocol_version,
@@ -736,7 +746,8 @@ impl SuiSystemStateTrait for SuiSystemStateInnerV1 {
     }
 }
 
-/// Rust version of the Move sui_system::validator_cap::UnverifiedValidatorOperationCap type
+/// Rust version of the Move
+/// sui_system::validator_cap::UnverifiedValidatorOperationCap type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct UnverifiedValidatorOperationCapV1 {
     pub id: ObjectID,
