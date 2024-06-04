@@ -2,25 +2,28 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{CommitteeUpdateError, ConfigError, Epoch, Stake};
+use std::{
+    collections::{BTreeMap, HashSet},
+    fmt::{Display, Formatter},
+    num::NonZeroU64,
+};
+
 use crypto::{NetworkPublicKey, PublicKey, PublicKeyBytes};
 use fastcrypto::traits::EncodeDecodeBase64;
 use mysten_network::Multiaddr;
 use mysten_util_mem::MallocSizeOf;
-use rand::rngs::StdRng;
-use rand::seq::SliceRandom;
-use rand::SeedableRng;
+use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashSet};
-use std::fmt::{Display, Formatter};
-use std::num::NonZeroU64;
+
+use crate::{CommitteeUpdateError, ConfigError, Epoch, Stake};
 
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct Authority {
     /// The id under which we identify this authority across Narwhal
     #[serde(skip)]
     id: AuthorityIdentifier,
-    /// The authority's main PublicKey which is used to verify the content they sign.
+    /// The authority's main PublicKey which is used to verify the content they
+    /// sign.
     protocol_key: PublicKey,
     /// The authority's main PublicKey expressed as pure bytes
     protocol_key_bytes: PublicKeyBytes,
@@ -32,17 +35,19 @@ pub struct Authority {
     network_key: NetworkPublicKey,
     /// The validator's hostname
     hostname: String,
-    /// There are secondary indexes that should be initialised before we are ready to use the
-    /// authority - this bool protect us for premature use.
+    /// There are secondary indexes that should be initialised before we are
+    /// ready to use the authority - this bool protect us for premature use.
     #[serde(skip)]
     initialised: bool,
 }
 
 impl Authority {
-    /// The constructor is not public by design. Everyone who wants to create authorities should do
-    /// it via Committee (more specifically can use CommitteeBuilder). As some internal properties of
-    /// Authority are initialised via the Committee, to ensure that the user will not accidentally use
-    /// stale Authority data, should always derive them via the Commitee.
+    /// The constructor is not public by design. Everyone who wants to create
+    /// authorities should do it via Committee (more specifically can use
+    /// CommitteeBuilder). As some internal properties of Authority are
+    /// initialised via the Committee, to ensure that the user will not
+    /// accidentally use stale Authority data, should always derive them via
+    /// the Commitee.
     fn new(
         protocol_key: PublicKey,
         stake: Stake,
@@ -123,7 +128,8 @@ pub struct Committee {
 }
 
 // Every authority gets uniquely identified by the AuthorityIdentifier
-// The type can be easily swapped without needing to change anything else in the implementation.
+// The type can be easily swapped without needing to change anything else in the
+// implementation.
 #[derive(
     Eq,
     PartialEq,
@@ -149,8 +155,8 @@ impl Display for AuthorityIdentifier {
 impl Committee {
     pub const DEFAULT_FILENAME: &'static str = "committee.json";
 
-    /// Any committee should be created via the CommitteeBuilder - this is intentionally be marked as
-    /// private method.
+    /// Any committee should be created via the CommitteeBuilder - this is
+    /// intentionally be marked as private method.
     fn new(authorities: BTreeMap<PublicKey, Authority>, epoch: Epoch) -> Self {
         let mut committee = Self {
             authorities,
@@ -176,8 +182,8 @@ impl Committee {
             committee.calculate_quorum_threshold().get()
         );
 
-        // ensure all the authorities are ordered in incremented manner with their ids - just some
-        // extra confirmation here.
+        // ensure all the authorities are ordered in incremented manner with their ids -
+        // just some extra confirmation here.
         for (index, (_, authority)) in committee.authorities.iter().enumerate() {
             assert_eq!(index as u16, authority.id.0);
         }
@@ -225,7 +231,8 @@ impl Committee {
         self.authorities_by_id.get(identifier)
     }
 
-    /// Provided an identifier it returns the corresponding authority - if is not found then it panics
+    /// Provided an identifier it returns the corresponding authority - if is
+    /// not found then it panics
     pub fn authority_safe(&self, identifier: &AuthorityIdentifier) -> &Authority {
         self.authorities_by_id.get(identifier).unwrap_or_else(|| {
             panic!(
@@ -297,7 +304,8 @@ impl Committee {
         self.authorities.values().map(|x| x.stake).sum()
     }
 
-    /// Returns a leader node as a weighted choice seeded by the provided integer
+    /// Returns a leader node as a weighted choice seeded by the provided
+    /// integer
     pub fn leader(&self, seed: u64) -> Authority {
         let mut seed_bytes = [0u8; 32];
         seed_bytes[32 - 8..].copy_from_slice(&seed.to_le_bytes());
@@ -380,8 +388,8 @@ impl Committee {
             .collect()
     }
 
-    /// Return the network addresses that are present in the current committee but that are absent
-    /// from the new committee (provided as argument).
+    /// Return the network addresses that are present in the current committee
+    /// but that are absent from the new committee (provided as argument).
     pub fn network_diff<'a>(&'a self, other: &'a Self) -> HashSet<&Multiaddr> {
         self.get_all_network_addresses()
             .difference(&other.get_all_network_addresses())
@@ -389,9 +397,10 @@ impl Committee {
             .collect()
     }
 
-    /// Update the networking information of some of the primaries. The arguments are a full vector of
-    /// authorities which Public key and Stake must match the one stored in the current Committee. Any discrepancy
-    /// will generate no update and return a vector of errors.
+    /// Update the networking information of some of the primaries. The
+    /// arguments are a full vector of authorities which Public key and
+    /// Stake must match the one stored in the current Committee. Any
+    /// discrepancy will generate no update and return a vector of errors.
     #[allow(clippy::manual_try_fold)]
     pub fn update_primary_network_info(
         &mut self,
@@ -524,12 +533,14 @@ impl std::fmt::Display for Committee {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Authority, Committee};
+    use std::collections::BTreeMap;
+
     use crypto::{KeyPair, NetworkKeyPair, PublicKey};
     use fastcrypto::traits::KeyPair as _;
     use mysten_network::Multiaddr;
     use rand::thread_rng;
-    use std::collections::BTreeMap;
+
+    use crate::{Authority, Committee};
 
     #[test]
     fn committee_load() {

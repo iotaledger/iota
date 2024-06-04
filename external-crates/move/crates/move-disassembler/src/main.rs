@@ -4,6 +4,8 @@
 
 #![forbid(unsafe_code)]
 
+use std::{fs, path::Path};
+
 use clap::Parser;
 use move_binary_format::{
     binary_views::BinaryIndexedView,
@@ -16,7 +18,6 @@ use move_command_line_common::files::{
 use move_coverage::coverage_map::CoverageMap;
 use move_disassembler::disassembler::{Disassembler, DisassemblerOptions};
 use move_ir_types::location::Spanned;
-use std::{fs, path::Path};
 
 #[derive(Debug, Parser)]
 #[clap(author, version, about)]
@@ -41,14 +42,14 @@ struct Args {
     #[clap(short = 's', long = "script")]
     pub is_script: bool,
 
-    /// The path to the bytecode file to disassemble; let's call it file.mv. We assume that two
-    /// other files reside under the same directory: a source map file.mvsm (possibly) and the Move
-    /// source code file.move.
+    /// The path to the bytecode file to disassemble; let's call it file.mv. We
+    /// assume that two other files reside under the same directory: a
+    /// source map file.mvsm (possibly) and the Move source code file.move.
     #[clap(short = 'b', long = "bytecode")]
     pub bytecode_file_path: String,
 
-    /// (Optional) Path to a coverage file for the VM in order to print trace information in the
-    /// disassembled output.
+    /// (Optional) Path to a coverage file for the VM in order to print trace
+    /// information in the disassembled output.
     #[clap(short = 'c', long = "move-coverage-path")]
     pub code_coverage_path: Option<String>,
 }

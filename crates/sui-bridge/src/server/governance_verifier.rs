@@ -3,9 +3,11 @@
 
 use std::collections::HashMap;
 
-use crate::error::{BridgeError, BridgeResult};
-use crate::server::handler::ActionVerifier;
-use crate::types::{BridgeAction, BridgeActionDigest};
+use crate::{
+    error::{BridgeError, BridgeResult},
+    server::handler::ActionVerifier,
+    types::{BridgeAction, BridgeActionDigest},
+};
 
 #[derive(Debug)]
 pub struct GovernanceVerifier {
@@ -31,7 +33,8 @@ impl GovernanceVerifier {
 #[async_trait::async_trait]
 impl ActionVerifier<BridgeAction> for GovernanceVerifier {
     async fn verify(&self, key: BridgeAction) -> BridgeResult<BridgeAction> {
-        // TODO: an optimization would be to check the current nonce on chain and err for older ones
+        // TODO: an optimization would be to check the current nonce on chain and err
+        // for older ones
         if !key.is_governace_action() {
             return Err(BridgeError::ActionIsNotGovernanceAction(key));
         }

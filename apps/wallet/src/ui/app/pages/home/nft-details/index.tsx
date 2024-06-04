@@ -1,7 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useActiveAddress } from '_app/hooks/useActiveAddress';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Button } from '_app/shared/ButtonUI';
 import { Collapsible } from '_app/shared/collapse';
 import { Link } from '_app/shared/Link';
@@ -29,7 +31,6 @@ type NftFields = {
 function NFTDetailsPage() {
     const [searchParams] = useSearchParams();
     const nftId = searchParams.get('objectId');
-    const accountAddress = useActiveAddress();
     const { data: objectData, isPending: isNftLoading } = useOwnedNFT(nftId || '');
     const isTransferable =
         !!objectData &&

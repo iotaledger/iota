@@ -1,17 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::functional_group::FunctionalGroup;
-use crate::types::big_int::BigInt;
+use std::{collections::BTreeSet, fmt::Display, time::Duration};
+
 use async_graphql::*;
 use fastcrypto_zkp::bn254::zk_login_api::ZkLoginEnv;
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeSet, fmt::Display, time::Duration};
 use sui_json_rpc::name_service::NameServiceConfig;
+
+use crate::{functional_group::FunctionalGroup, types::big_int::BigInt};
 
 // TODO: calculate proper cost limits
 
-/// These values are set to support TS SDK shim layer queries for json-rpc compatibility.
+/// These values are set to support TS SDK shim layer queries for json-rpc
+/// compatibility.
 const MAX_QUERY_NODES: u32 = 300;
 const MAX_QUERY_PAYLOAD_SIZE: u32 = 5_000;
 
@@ -59,9 +61,10 @@ pub struct ServerConfig {
     pub ide: Ide,
 }
 
-/// Configuration for connections for the RPC, passed in as command-line arguments. This configures
-/// specific connections between this service and other services, and might differ from instance to
-/// instance of the GraphQL service.
+/// Configuration for connections for the RPC, passed in as command-line
+/// arguments. This configures specific connections between this service and
+/// other services, and might differ from instance to instance of the GraphQL
+/// service.
 #[derive(Serialize, Clone, Deserialize, Debug, Eq, PartialEq)]
 pub struct ConnectionConfig {
     /// Port to bind the server to
@@ -74,9 +77,9 @@ pub struct ConnectionConfig {
     pub(crate) prom_port: u16,
 }
 
-/// Configuration on features supported by the GraphQL service, passed in a TOML-based file. These
-/// configurations are shared across fleets of the service, i.e. all testnet services will have the
-/// same `ServiceConfig`.
+/// Configuration on features supported by the GraphQL service, passed in a
+/// TOML-based file. These configurations are shared across fleets of the
+/// service, i.e. all testnet services will have the same `ServiceConfig`.
 #[derive(Serialize, Clone, Deserialize, Debug, Eq, PartialEq, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct ServiceConfig {
@@ -136,21 +139,22 @@ pub struct BackgroundTasksConfig {
 }
 
 /// The Version of the service. `year.month` represents the major release.
-/// New `patch` versions represent backwards compatible fixes for their major release.
-/// The `full` version is `year.month.patch-sha`.
+/// New `patch` versions represent backwards compatible fixes for their major
+/// release. The `full` version is `year.month.patch-sha`.
 #[derive(Copy, Clone, Debug)]
 pub struct Version {
     /// The year of this release.
     pub year: &'static str,
     /// The month of this release.
     pub month: &'static str,
-    /// The patch is a positive number incremented for every compatible release on top of the major.month release.
+    /// The patch is a positive number incremented for every compatible release
+    /// on top of the major.month release.
     pub patch: &'static str,
     /// The commit sha for this release.
     pub sha: &'static str,
     /// The full version string.
-    /// Note that this extra field is used only for the uptime_metric function which requries a
-    /// &'static str.
+    /// Note that this extra field is used only for the uptime_metric function
+    /// which requries a &'static str.
     pub full: &'static str,
 }
 
@@ -251,27 +255,31 @@ impl ServiceConfig {
         self.limits.max_query_depth
     }
 
-    /// The maximum number of nodes (field names) the service will accept in a single query.
+    /// The maximum number of nodes (field names) the service will accept in a
+    /// single query.
     pub async fn max_query_nodes(&self) -> u32 {
         self.limits.max_query_nodes
     }
 
     /// The maximum number of output nodes in a GraphQL response.
     ///
-    /// Non-connection nodes have a count of 1, while connection nodes are counted as
-    /// the specified 'first' or 'last' number of items, or the default_page_size
-    /// as set by the server if those arguments are not set.
+    /// Non-connection nodes have a count of 1, while connection nodes are
+    /// counted as the specified 'first' or 'last' number of items, or the
+    /// default_page_size as set by the server if those arguments are not
+    /// set.
     ///
-    /// Counts accumulate multiplicatively down the query tree. For example, if a query starts
-    /// with a connection of first: 10 and has a field to a connection with last: 20, the count
-    /// at the second level would be 200 nodes. This is then summed to the count of 10 nodes
-    /// at the first level, for a total of 210 nodes.
+    /// Counts accumulate multiplicatively down the query tree. For example, if
+    /// a query starts with a connection of first: 10 and has a field to a
+    /// connection with last: 20, the count at the second level would be 200
+    /// nodes. This is then summed to the count of 10 nodes at the first
+    /// level, for a total of 210 nodes.
     pub async fn max_output_nodes(&self) -> u64 {
         self.limits.max_output_nodes
     }
 
-    /// Maximum estimated cost of a database query used to serve a GraphQL request.  This is
-    /// measured in the same units that the database uses in EXPLAIN queries.
+    /// Maximum estimated cost of a database query used to serve a GraphQL
+    /// request.  This is measured in the same units that the database uses
+    /// in EXPLAIN queries.
     async fn max_db_query_cost(&self) -> BigInt {
         BigInt::from(self.limits.max_db_query_cost)
     }
@@ -296,24 +304,26 @@ impl ServiceConfig {
         self.limits.max_query_payload_size
     }
 
-    /// Maximum nesting allowed in type arguments in Move Types resolved by this service.
+    /// Maximum nesting allowed in type arguments in Move Types resolved by this
+    /// service.
     async fn max_type_argument_depth(&self) -> u32 {
         self.limits.max_type_argument_depth
     }
 
-    /// Maximum number of type arguments passed into a generic instantiation of a Move Type resolved
-    /// by this service.
+    /// Maximum number of type arguments passed into a generic instantiation of
+    /// a Move Type resolved by this service.
     async fn max_type_argument_width(&self) -> u32 {
         self.limits.max_type_argument_width
     }
 
-    /// Maximum number of structs that need to be processed when calculating the layout of a single
-    /// Move Type.
+    /// Maximum number of structs that need to be processed when calculating the
+    /// layout of a single Move Type.
     async fn max_type_nodes(&self) -> u32 {
         self.limits.max_type_nodes
     }
 
-    /// Maximum nesting allowed in struct fields when calculating the layout of a single Move Type.
+    /// Maximum nesting allowed in struct fields when calculating the layout of
+    /// a single Move Type.
     async fn max_move_value_depth(&self) -> u32 {
         self.limits.max_move_value_depth
     }

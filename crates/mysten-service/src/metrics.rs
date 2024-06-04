@@ -1,9 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
 use prometheus::Registry;
-use std::net::SocketAddr;
-use std::net::{IpAddr, Ipv4Addr};
 
 pub const METRICS_HOST_PORT: u16 = 9184;
 
@@ -38,8 +38,8 @@ pub use mysten_metrics::start_prometheus_server;
 ///
 /// #[tokio::main]
 /// async fn main() {
-///      let prometheus_registry = mysten_service::metrics::start_basic_prometheus_server();
-///      let metrics = MyMetrics::new(&prometheus_registry);
+///     let prometheus_registry = mysten_service::metrics::start_basic_prometheus_server();
+///     let metrics = MyMetrics::new(&prometheus_registry);
 /// }
 /// ```
 pub fn start_basic_prometheus_server() -> Registry {

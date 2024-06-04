@@ -1,60 +1,62 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
 use futures::future;
-use jsonrpsee::core::client::{ClientT, Subscription, SubscriptionClientT};
-use jsonrpsee::rpc_params;
-use move_core_types::annotated_value::MoveStructLayout;
-use move_core_types::ident_str;
-use move_core_types::parser::parse_struct_tag;
+use jsonrpsee::{
+    core::client::{ClientT, Subscription, SubscriptionClientT},
+    rpc_params,
+};
+use move_core_types::{annotated_value::MoveStructLayout, ident_str, parser::parse_struct_tag};
 use rand::rngs::OsRng;
 use serde_json::json;
-use std::sync::Arc;
 use sui::client_commands::{SuiClientCommandResult, SuiClientCommands};
 use sui_config::node::RunWithRange;
 use sui_core::authority::EffectsNotifyRead;
 use sui_json_rpc_types::{
-    type_and_fields_from_move_struct, EventPage, SuiEvent, SuiExecutionStatus,
+    type_and_fields_from_move_struct, EventFilter, EventPage, SuiEvent, SuiExecutionStatus,
     SuiTransactionBlockEffectsAPI, SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
+    TransactionFilter,
 };
-use sui_json_rpc_types::{EventFilter, TransactionFilter};
 use sui_keys::keystore::AccountKeystore;
 use sui_macros::*;
 use sui_node::SuiNodeHandle;
 use sui_sdk::wallet_context::WalletContext;
-use sui_storage::key_value_store::TransactionKeyValueStore;
-use sui_storage::key_value_store_metrics::KeyValueStoreMetrics;
+use sui_storage::{
+    key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
+};
 use sui_test_transaction_builder::{
     batch_make_transfer_transactions, create_devnet_nft, delete_devnet_nft, increment_counter,
     publish_basics_package, publish_basics_package_and_make_counter, publish_nfts_package,
     TestTransactionBuilder,
 };
 use sui_tool::restore_from_db_checkpoint;
-use sui_types::base_types::{ObjectID, SuiAddress, TransactionDigest};
-use sui_types::base_types::{ObjectRef, SequenceNumber};
-use sui_types::crypto::{get_key_pair, SuiKeyPair};
-use sui_types::error::{SuiError, UserInputError};
-use sui_types::event::{Event, EventID};
-use sui_types::message_envelope::Message;
-use sui_types::messages_grpc::TransactionInfoRequest;
-use sui_types::object::{MoveObject, Object, ObjectRead, Owner, PastObjectRead};
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::quorum_driver_types::{
-    ExecuteTransactionRequest, ExecuteTransactionRequestType, ExecuteTransactionResponse,
-    QuorumDriverResponse,
-};
-use sui_types::storage::ObjectStore;
-use sui_types::transaction::{
-    CallArg, GasData, TransactionData, TransactionKind, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
-    TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-};
-use sui_types::utils::{
-    to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers,
+use sui_types::{
+    base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress, TransactionDigest},
+    crypto::{get_key_pair, SuiKeyPair},
+    error::{SuiError, UserInputError},
+    event::{Event, EventID},
+    message_envelope::Message,
+    messages_grpc::TransactionInfoRequest,
+    object::{MoveObject, Object, ObjectRead, Owner, PastObjectRead},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    quorum_driver_types::{
+        ExecuteTransactionRequest, ExecuteTransactionRequestType, ExecuteTransactionResponse,
+        QuorumDriverResponse,
+    },
+    storage::ObjectStore,
+    transaction::{
+        CallArg, GasData, TransactionData, TransactionKind, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+        TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+    },
+    utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
 use test_cluster::TestClusterBuilder;
-use tokio::sync::Mutex;
-use tokio::time::timeout;
-use tokio::time::{sleep, Duration};
+use tokio::{
+    sync::Mutex,
+    time::{sleep, timeout, Duration},
+};
 use tracing::info;
 
 #[sim_test]
@@ -77,7 +79,8 @@ async fn test_full_node_follows_txes() -> Result<(), anyhow::Error> {
         .await
         .unwrap();
 
-    // A small delay is needed for post processing operations following the transaction to finish.
+    // A small delay is needed for post processing operations following the
+    // transaction to finish.
     sleep(Duration::from_secs(1)).await;
 
     // verify that the node has seen the transfer
@@ -360,134 +363,135 @@ async fn test_full_node_indexes() -> Result<(), anyhow::Error> {
     assert_eq!(txes.len(), 0);
 
     // This is a poor substitute for the post processing taking some time
-    // Unfortunately event store writes seem to add some latency so this wait is needed
+    // Unfortunately event store writes seem to add some latency so this wait is
+    // needed
     sleep(Duration::from_millis(1000)).await;
 
-    /* // one event is stored, and can be looked up by digest
+    // // one event is stored, and can be looked up by digest
     // query by timestamp verifies that a timestamp is inserted, within an hour
-    let sender_balance_change = BalanceChange {
-        change_type: BalanceChangeType::Pay,
-        owner: sender,
-        coin_type: parse_struct_tag("0x2::sui::SUI").unwrap(),
-        amount: -100000000000000,
-    };
-    let recipient_balance_change = BalanceChange {
-        change_type: BalanceChangeType::Receive,
-        owner: receiver,
-        coin_type: parse_struct_tag("0x2::sui::SUI").unwrap(),
-        amount: 100000000000000,
-    };
-    let gas_balance_change = BalanceChange {
-        change_type: BalanceChangeType::Gas,
-        owner: sender,
-        coin_type: parse_struct_tag("0x2::sui::SUI").unwrap(),
-        amount: (gas_used as i128).neg(),
-    };
-
+    // let sender_balance_change = BalanceChange {
+    // change_type: BalanceChangeType::Pay,
+    // owner: sender,
+    // coin_type: parse_struct_tag("0x2::sui::SUI").unwrap(),
+    // amount: -100000000000000,
+    // };
+    // let recipient_balance_change = BalanceChange {
+    // change_type: BalanceChangeType::Receive,
+    // owner: receiver,
+    // coin_type: parse_struct_tag("0x2::sui::SUI").unwrap(),
+    // amount: 100000000000000,
+    // };
+    // let gas_balance_change = BalanceChange {
+    // change_type: BalanceChangeType::Gas,
+    // owner: sender,
+    // coin_type: parse_struct_tag("0x2::sui::SUI").unwrap(),
+    // amount: (gas_used as i128).neg(),
+    // };
+    //
     // query all events
-    let all_events = node
-        .state()
-        .get_transaction_events(
-            EventQuery::TimeRange {
-                start_time: ts.unwrap() - HOUR_MS,
-                end_time: ts.unwrap() + HOUR_MS,
-            },
-            None,
-            100,
-            false,
-        )
-        .await?;
-    let all_events = &all_events[all_events.len() - 3..];
-    assert_eq!(all_events.len(), 3);
-    assert_eq!(all_events[0].1.tx_digest, digest);
-    let all_events = all_events
-        .iter()
-        .map(|(_, envelope)| envelope.event.clone())
-        .collect::<Vec<_>>();
-    assert_eq!(all_events[0], gas_event.clone());
-    assert_eq!(all_events[1], sender_event.clone());
-    assert_eq!(all_events[2], recipient_event.clone());
-
+    // let all_events = node
+    // .state()
+    // .get_transaction_events(
+    // EventQuery::TimeRange {
+    // start_time: ts.unwrap() - HOUR_MS,
+    // end_time: ts.unwrap() + HOUR_MS,
+    // },
+    // None,
+    // 100,
+    // false,
+    // )
+    // .await?;
+    // let all_events = &all_events[all_events.len() - 3..];
+    // assert_eq!(all_events.len(), 3);
+    // assert_eq!(all_events[0].1.tx_digest, digest);
+    // let all_events = all_events
+    // .iter()
+    // .map(|(_, envelope)| envelope.event.clone())
+    // .collect::<Vec<_>>();
+    // assert_eq!(all_events[0], gas_event.clone());
+    // assert_eq!(all_events[1], sender_event.clone());
+    // assert_eq!(all_events[2], recipient_event.clone());
+    //
     // query by sender
-    let events_by_sender = node
-        .state()
-        .query_events(EventQuery::Sender(sender), None, 10, false)
-        .await?;
-    assert_eq!(events_by_sender.len(), 3);
-    assert_eq!(events_by_sender[0].1.tx_digest, digest);
-    let events_by_sender = events_by_sender
-        .into_iter()
-        .map(|(_, envelope)| envelope.event)
-        .collect::<Vec<_>>();
-    assert_eq!(events_by_sender[0], gas_event.clone());
-    assert_eq!(events_by_sender[1], sender_event.clone());
-    assert_eq!(events_by_sender[2], recipient_event.clone());
-
+    // let events_by_sender = node
+    // .state()
+    // .query_events(EventQuery::Sender(sender), None, 10, false)
+    // .await?;
+    // assert_eq!(events_by_sender.len(), 3);
+    // assert_eq!(events_by_sender[0].1.tx_digest, digest);
+    // let events_by_sender = events_by_sender
+    // .into_iter()
+    // .map(|(_, envelope)| envelope.event)
+    // .collect::<Vec<_>>();
+    // assert_eq!(events_by_sender[0], gas_event.clone());
+    // assert_eq!(events_by_sender[1], sender_event.clone());
+    // assert_eq!(events_by_sender[2], recipient_event.clone());
+    //
     // query by tx digest
-    let events_by_tx = node
-        .state()
-        .query_events(EventQuery::Transaction(digest), None, 10, false)
-        .await?;
-    assert_eq!(events_by_tx.len(), 3);
-    assert_eq!(events_by_tx[0].1.tx_digest, digest);
-    let events_by_tx = events_by_tx
-        .into_iter()
-        .map(|(_, envelope)| envelope.event)
-        .collect::<Vec<_>>();
-    assert_eq!(events_by_tx[0], gas_event);
-    assert_eq!(events_by_tx[1], sender_event.clone());
-    assert_eq!(events_by_tx[2], recipient_event.clone());
-
+    // let events_by_tx = node
+    // .state()
+    // .query_events(EventQuery::Transaction(digest), None, 10, false)
+    // .await?;
+    // assert_eq!(events_by_tx.len(), 3);
+    // assert_eq!(events_by_tx[0].1.tx_digest, digest);
+    // let events_by_tx = events_by_tx
+    // .into_iter()
+    // .map(|(_, envelope)| envelope.event)
+    // .collect::<Vec<_>>();
+    // assert_eq!(events_by_tx[0], gas_event);
+    // assert_eq!(events_by_tx[1], sender_event.clone());
+    // assert_eq!(events_by_tx[2], recipient_event.clone());
+    //
     // query by recipient
-    let events_by_recipient = node
-        .state()
-        .query_events(
-            EventQuery::Recipient(Owner::AddressOwner(receiver)),
-            None,
-            100,
-            false,
-        )
-        .await?;
-    assert_eq!(events_by_recipient.last().unwrap().1.tx_digest, digest);
-    assert_eq!(events_by_recipient.last().unwrap().1.event, recipient_event);
-
+    // let events_by_recipient = node
+    // .state()
+    // .query_events(
+    // EventQuery::Recipient(Owner::AddressOwner(receiver)),
+    // None,
+    // 100,
+    // false,
+    // )
+    // .await?;
+    // assert_eq!(events_by_recipient.last().unwrap().1.tx_digest, digest);
+    // assert_eq!(events_by_recipient.last().unwrap().1.event, recipient_event);
+    //
     // query by object
-    let mut events_by_object = node
-        .state()
-        .query_events(EventQuery::Object(transferred_object), None, 100, false)
-        .await?;
-    let events_by_object = events_by_object.split_off(events_by_object.len() - 2);
-    assert_eq!(events_by_object.len(), 2);
-    assert_eq!(events_by_object[0].1.tx_digest, digest);
-    let events_by_object = events_by_object
-        .into_iter()
-        .map(|(_, envelope)| envelope.event)
-        .collect::<Vec<_>>();
-    assert_eq!(events_by_object[0], sender_event.clone());
-    assert_eq!(events_by_object[1], recipient_event.clone());
-
+    // let mut events_by_object = node
+    // .state()
+    // .query_events(EventQuery::Object(transferred_object), None, 100, false)
+    // .await?;
+    // let events_by_object = events_by_object.split_off(events_by_object.len() -
+    // 2); assert_eq!(events_by_object.len(), 2);
+    // assert_eq!(events_by_object[0].1.tx_digest, digest);
+    // let events_by_object = events_by_object
+    // .into_iter()
+    // .map(|(_, envelope)| envelope.event)
+    // .collect::<Vec<_>>();
+    // assert_eq!(events_by_object[0], sender_event.clone());
+    // assert_eq!(events_by_object[1], recipient_event.clone());
+    //
     // query by transaction module
     // Query by module ID
-    let events_by_module = node
-        .state()
-        .query_events(
-            EventQuery::MoveModule {
-                package: SuiFramework::ID,
-                module: "unused_input_object".to_string(),
-            },
-            None,
-            10,
-            false,
-        )
-        .await?;
-    assert_eq!(events_by_module[0].1.tx_digest, digest);
-    let events_by_module = events_by_module
-        .into_iter()
-        .map(|(_, envelope)| envelope.event)
-        .collect::<Vec<_>>();
-    assert_eq!(events_by_module.len(), 2);
-    assert_eq!(events_by_module[0], sender_event);
-    assert_eq!(events_by_module[1], recipient_event);*/
+    // let events_by_module = node
+    // .state()
+    // .query_events(
+    // EventQuery::MoveModule {
+    // package: SuiFramework::ID,
+    // module: "unused_input_object".to_string(),
+    // },
+    // None,
+    // 10,
+    // false,
+    // )
+    // .await?;
+    // assert_eq!(events_by_module[0].1.tx_digest, digest);
+    // let events_by_module = events_by_module
+    // .into_iter()
+    // .map(|(_, envelope)| envelope.event)
+    // .collect::<Vec<_>>();
+    // assert_eq!(events_by_module.len(), 2);
+    // assert_eq!(events_by_module[0], sender_event);
+    // assert_eq!(events_by_module[1], recipient_event);
 
     Ok(())
 }
@@ -927,9 +931,10 @@ async fn test_validator_node_has_no_transaction_orchestrator() {
     let node_handle = test_cluster.swarm.validator_node_handles().pop().unwrap();
     node_handle.with(|node| {
         assert!(node.transaction_orchestrator().is_none());
-        assert!(node
-            .subscribe_to_transaction_orchestrator_effects()
-            .is_err());
+        assert!(
+            node.subscribe_to_transaction_orchestrator_effects()
+                .is_err()
+        );
         assert!(node.get_google_jwk_bytes().is_ok());
     });
 }
@@ -1190,8 +1195,8 @@ async fn test_full_node_bootstrap_from_snapshot() -> Result<(), anyhow::Error> {
     let (_transferred_object, _, _, digest, ..) = transfer_coin(&test_cluster.wallet).await?;
 
     // Skip the first epoch change from epoch 0 to epoch 1, but wait for the second
-    // epoch change from epoch 1 to epoch 2 at which point during reconfiguration we will take
-    // the db snapshot for epoch 1
+    // epoch change from epoch 1 to epoch 2 at which point during reconfiguration we
+    // will take the db snapshot for epoch 1
     loop {
         if checkpoint_path.join("epoch_1").exists() {
             break;
@@ -1199,7 +1204,8 @@ async fn test_full_node_bootstrap_from_snapshot() -> Result<(), anyhow::Error> {
         sleep(Duration::from_millis(500)).await;
     }
 
-    // Spin up a new full node restored from the snapshot taken at the end of epoch 1
+    // Spin up a new full node restored from the snapshot taken at the end of epoch
+    // 1
     restore_from_db_checkpoint(&config, &checkpoint_path.join("epoch_1")).await?;
     let node = test_cluster
         .start_fullnode_from_config(config)
@@ -1220,8 +1226,8 @@ async fn test_full_node_bootstrap_from_snapshot() -> Result<(), anyhow::Error> {
         sleep(Duration::from_millis(500)).await;
     }
 
-    // Ensure this fullnode never processed older epoch (before snapshot) i.e. epoch_0 store was
-    // doesn't exist
+    // Ensure this fullnode never processed older epoch (before snapshot) i.e.
+    // epoch_0 store was doesn't exist
     assert!(!epoch_0_db_path.exists());
 
     let (_transferred_object, _, _, digest_after_restore, ..) =
@@ -1251,7 +1257,8 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
         .cloned()
         .unwrap();
 
-    // TODO: this is publishing the wrong package - we should be publishing the one in `sui-core/src/unit_tests/data` instead.
+    // TODO: this is publishing the wrong package - we should be publishing the one
+    // in `sui-core/src/unit_tests/data` instead.
     let package_ref = publish_basics_package(context).await;
 
     let gas_obj = context
@@ -1274,7 +1281,8 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
         package_ref.0,
         ident_str!("object_basics").to_owned(),
         ident_str!("use_clock").to_owned(),
-        /* type_args */ vec![],
+        // type_args
+        vec![],
         gas_obj,
         vec![CallArg::CLOCK_IMM],
         TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
@@ -1306,10 +1314,10 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_access_old_object_pruned() {
-    // This test checks that when we ask a validator to handle a transaction that uses
-    // an old object that's already been pruned, it's able to return an non-retriable
-    // error ObjectVersionUnavailableForConsumption, instead of the retriable error
-    // ObjectNotFound.
+    // This test checks that when we ask a validator to handle a transaction that
+    // uses an old object that's already been pruned, it's able to return an
+    // non-retriable error ObjectVersionUnavailableForConsumption, instead of
+    // the retriable error ObjectNotFound.
     let test_cluster = TestClusterBuilder::new().build().await;
     let tx_builder = test_cluster.test_transaction_builder().await;
     let sender = tx_builder.sender();
@@ -1335,11 +1343,13 @@ async fn test_access_old_object_pruned() {
         let state = validator.get_node_handle().unwrap().state();
         state.prune_objects_and_compact_for_testing().await;
         // Make sure the old version of the object is already pruned.
-        assert!(state
-            .get_object_store()
-            .get_object_by_key(&gas_object.0, gas_object.1)
-            .unwrap()
-            .is_none());
+        assert!(
+            state
+                .get_object_store()
+                .get_object_by_key(&gas_object.0, gas_object.1)
+                .unwrap()
+                .is_none()
+        );
         let epoch_store = state.epoch_store_for_testing();
         assert_eq!(
             state
@@ -1360,13 +1370,15 @@ async fn test_access_old_object_pruned() {
 
     // Check that fullnode would return the same error.
     let result = test_cluster.wallet.execute_transaction_may_fail(tx).await;
-    assert!(result.unwrap_err().to_string().contains(
-        &UserInputError::ObjectVersionUnavailableForConsumption {
-            provided_obj_ref: gas_object,
-            current_version: new_gas_version,
-        }
-        .to_string()
-    ))
+    assert!(
+        result.unwrap_err().to_string().contains(
+            &UserInputError::ObjectVersionUnavailableForConsumption {
+                provided_obj_ref: gas_object,
+                current_version: new_gas_version,
+            }
+            .to_string()
+        )
+    )
 }
 
 async fn transfer_coin(
@@ -1435,11 +1447,13 @@ async fn test_full_node_run_with_range_checkpoint() -> Result<(), anyhow::Error>
     }));
 
     // we dont want transaction orchestrator enabled when run_with_range != None
-    assert!(test_cluster
-        .fullnode_handle
-        .sui_node
-        .with(|node| node.transaction_orchestrator())
-        .is_none());
+    assert!(
+        test_cluster
+            .fullnode_handle
+            .sui_node
+            .with(|node| node.transaction_orchestrator())
+            .is_none()
+    );
     Ok(())
 }
 
@@ -1461,28 +1475,35 @@ async fn test_full_node_run_with_range_epoch() -> Result<(), anyhow::Error> {
     assert_eq!(got_run_with_range, want_run_with_range);
 
     // ensure we end up at epoch + 1
-    // this is because we execute the target epoch, reconfigure, and then send shutdown signal at
-    // epoch + 1
-    assert!(test_cluster
-        .fullnode_handle
-        .sui_node
-        .with(|node| node.current_epoch_for_testing() == stop_after_epoch + 1));
+    // this is because we execute the target epoch, reconfigure, and then send
+    // shutdown signal at epoch + 1
+    assert!(
+        test_cluster
+            .fullnode_handle
+            .sui_node
+            .with(|node| node.current_epoch_for_testing() == stop_after_epoch + 1)
+    );
 
-    // epoch duration is 10s for testing, lets sleep long enough that epoch would normally progress
+    // epoch duration is 10s for testing, lets sleep long enough that epoch would
+    // normally progress
     tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
 
     // ensure we are still at epoch + 1
-    assert!(test_cluster
-        .fullnode_handle
-        .sui_node
-        .with(|node| node.current_epoch_for_testing() == stop_after_epoch + 1));
+    assert!(
+        test_cluster
+            .fullnode_handle
+            .sui_node
+            .with(|node| node.current_epoch_for_testing() == stop_after_epoch + 1)
+    );
 
     // we dont want transaction orchestrator enabled when run_with_range != None
-    assert!(test_cluster
-        .fullnode_handle
-        .sui_node
-        .with(|node| node.transaction_orchestrator())
-        .is_none());
+    assert!(
+        test_cluster
+            .fullnode_handle
+            .sui_node
+            .with(|node| node.transaction_orchestrator())
+            .is_none()
+    );
 
     Ok(())
 }

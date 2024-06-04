@@ -20,19 +20,19 @@ import { bcs } from '@mysten/bcs';
 
 // define UID as a 32-byte array, then add a transform to/from hex strings
 const UID = bcs.array(32, bcs.u8()).transform({
-	input: (id: string) => fromHex(id),
-	output: (id) => toHex(id),
+    input: (id: string) => fromHex(id),
+    output: (id) => toHex(id),
 });
 
 const Coin = bcs.struct('Coin', {
-	id: UID,
-	value: bcs.u64(),
+    id: UID,
+    value: bcs.u64(),
 });
 
 // deserialization: BCS bytes into Coin
 const bcsBytes = Coin.serialize({
-	id: '0000000000000000000000000000000000000000000000000000000000000001',
-	value: 1000000n,
+    id: '0000000000000000000000000000000000000000000000000000000000000001',
+    value: 1000000n,
 }).toBytes();
 
 const coin = Coin.parse(bcsBytes);
@@ -238,9 +238,9 @@ array. To handle this, you can use the `transform` API to map between the two fo
 
 ```ts
 const Address = bcs.bytes(32).transform({
-	// To change the input type, you need to provide a type definition for the input
-	input: (val: string) => fromHEX(val),
-	output: (val) => toHEX(val),
+    // To change the input type, you need to provide a type definition for the input
+    input: (val: string) => fromHEX(val),
+    output: (val) => toHEX(val),
 });
 
 const serialized = Address.serialize('0x000000...').toBytes();
@@ -259,32 +259,32 @@ definition to transform enums into a more TypeScript friends format:
 ```ts
 type Merge<T> = T extends infer U ? { [K in keyof U]: U[K] } : never;
 type EnumKindTransform<T> = T extends infer U
-	? Merge<(U[keyof U] extends null | boolean ? object : U[keyof U]) & { kind: keyof U }>
-	: never;
+    ? Merge<(U[keyof U] extends null | boolean ? object : U[keyof U]) & { kind: keyof U }>
+    : never;
 
 function enumKind<T extends object, Input extends object>(type: BcsType<T, Input>) {
-	return type.transform({
-		input: ({ kind, ...val }: EnumKindTransform<Input>) =>
-			({
-				[kind]: val,
-			}) as Input,
-		output: (val) => {
-			const key = Object.keys(val)[0] as keyof T;
+    return type.transform({
+        input: ({ kind, ...val }: EnumKindTransform<Input>) =>
+            ({
+                [kind]: val,
+            }) as Input,
+        output: (val) => {
+            const key = Object.keys(val)[0] as keyof T;
 
-			return { kind: key, ...val[key] } as EnumKindTransform<T>;
-		},
-	});
+            return { kind: key, ...val[key] } as EnumKindTransform<T>;
+        },
+    });
 }
 
 const MyEnum = enumKind(
-	bcs.enum('MyEnum', {
-		A: bcs.struct('A', {
-			id: bcs.u8(),
-		}),
-		B: bcs.struct('B', {
-			val: bcs.string(),
-		}),
-	}),
+    bcs.enum('MyEnum', {
+        A: bcs.struct('A', {
+            id: bcs.u8(),
+        }),
+        B: bcs.struct('B', {
+            val: bcs.string(),
+        }),
+    }),
 );
 
 // Enums wrapped with enumKind flatten the enum variants and add a `kind` field to differentiate them
@@ -337,8 +337,8 @@ properties on a `BcsType`, or using the `InferBcsType` and `InferBcsInput` type 
 import { bcs, type InferBcsType, type InferBcsInput } from '@mysten/bcs';
 
 const MyStruct = bcs.struct('MyStruct', {
-	id: bcs.u64(),
-	name: bcs.string(),
+    id: bcs.u64(),
+    name: bcs.string(),
 });
 
 // using the $inferType and $inferInput properties

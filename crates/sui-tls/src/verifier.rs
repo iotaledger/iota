@@ -1,21 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto::ed25519::Ed25519PublicKey;
-use fastcrypto::traits::ToFromBytes;
 use std::{
     collections::HashSet,
     sync::{Arc, RwLock},
 };
 
+use fastcrypto::{ed25519::Ed25519PublicKey, traits::ToFromBytes};
+
 static SUPPORTED_SIG_ALGS: &[&webpki::SignatureAlgorithm] = &[&webpki::ED25519];
 
 pub type ValidatorAllowlist = Arc<RwLock<HashSet<Ed25519PublicKey>>>;
 
-/// The Allower trait provides an interface for callers to inject decsions whether
-/// to allow a cert to be verified or not.  This does not prform actual cert validation
-/// it only acts as a gatekeeper to decide if we should even try.  For example, we may want
-/// to filter our actions to well known public keys.
+/// The Allower trait provides an interface for callers to inject decsions
+/// whether to allow a cert to be verified or not.  This does not prform actual
+/// cert validation it only acts as a gatekeeper to decide if we should even
+/// try.  For example, we may want to filter our actions to well known public
+/// keys.
 pub trait Allower: Send + Sync {
     fn allowed(&self, key: &Ed25519PublicKey) -> bool;
 }
@@ -30,8 +31,8 @@ impl Allower for AllowAll {
     }
 }
 
-/// HashSetAllow restricts keys to those that are found in the member set. non-members will not be
-/// allowed.
+/// HashSetAllow restricts keys to those that are found in the member set.
+/// non-members will not be allowed.
 #[derive(Clone, Default)]
 pub struct HashSetAllow {
     inner: ValidatorAllowlist,
@@ -59,8 +60,9 @@ impl Allower for HashSetAllow {
     }
 }
 
-/// A `rustls::server::ClientCertVerifier` that will ensure that every client provides a valid,
-/// expected certificate and that the client's public key is in the validator set.
+/// A `rustls::server::ClientCertVerifier` that will ensure that every client
+/// provides a valid, expected certificate and that the client's public key is
+/// in the validator set.
 #[derive(Clone, Debug)]
 pub struct CertVerifier<A> {
     allower: A,
@@ -98,14 +100,15 @@ impl<A: Allower> rustls::server::ClientCertVerifier for CertVerifier<A> {
     }
 
     fn client_auth_root_subjects(&self) -> &[rustls::DistinguishedName] {
-        // Since we're relying on self-signed certificates and not on CAs, continue the handshake
-        // without passing a list of CA DNs
+        // Since we're relying on self-signed certificates and not on CAs, continue the
+        // handshake without passing a list of CA DNs
         &[]
     }
 
     // Verifies this is a valid ed25519 self-signed certificate
-    // 1. we prepare arguments for webpki's certificate verification (following the rustls implementation)
-    //    placing the public key at the root of the certificate chain (as it should be for a self-signed certificate)
+    // 1. we prepare arguments for webpki's certificate verification (following the
+    //    rustls implementation) placing the public key at the root of the
+    //    certificate chain (as it should be for a self-signed certificate)
     // 2. we call webpki's certificate verification
     fn verify_client_cert(
         &self,
@@ -157,8 +160,9 @@ type CertChainAndRoots<'a> = (
     Vec<webpki::TrustAnchor<'a>>,
 );
 
-// This prepares arguments for webpki, including a trust anchor which is the end entity of the certificate
-// (which embodies a self-signed certificate by definition)
+// This prepares arguments for webpki, including a trust anchor which is the end
+// entity of the certificate (which embodies a self-signed certificate by
+// definition)
 fn prepare_for_self_signed<'a>(
     end_entity: &'a rustls::Certificate,
     intermediates: &'a [rustls::Certificate],

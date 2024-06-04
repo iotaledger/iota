@@ -17,20 +17,20 @@ import { queryClient } from './lib/queryClient';
 import { router } from './routes';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
-	<React.StrictMode>
-		<QueryClientProvider client={queryClient}>
-			<SuiClientProvider
-				defaultNetwork="sui:mainnet"
-				networks={{
-					'sui:testnet': { url: getFullnodeUrl('testnet') },
-					'sui:mainnet': { url: getFullnodeUrl('mainnet') },
-					'sui:devnet': { url: getFullnodeUrl('devnet') },
-				}}
-			>
-				<WalletProvider>
-					<RouterProvider router={router} />
-				</WalletProvider>
-			</SuiClientProvider>
-		</QueryClientProvider>
-	</React.StrictMode>,
+    <React.StrictMode>
+        <QueryClientProvider client={queryClient}>
+            <SuiClientProvider
+                defaultNetwork="sui:mainnet"
+                networks={{
+                    'sui:testnet': { url: getFullnodeUrl('testnet') },
+                    'sui:mainnet': { url: getFullnodeUrl('mainnet') },
+                    'sui:devnet': { url: getFullnodeUrl('devnet') },
+                }}
+            >
+                <WalletProvider>
+                    <RouterProvider router={router} />
+                </WalletProvider>
+            </SuiClientProvider>
+        </QueryClientProvider>
+    </React.StrictMode>,
 );

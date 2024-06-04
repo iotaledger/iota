@@ -4,20 +4,23 @@
 use std::env;
 
 use anyhow::Result;
+use mysten_metrics::spawn_monitored_task;
 use prometheus::Registry;
 use tracing::info;
 
-use mysten_metrics::spawn_monitored_task;
-
-use crate::build_json_rpc_server;
-use crate::errors::IndexerError;
-use crate::framework::fetcher::CheckpointFetcher;
-use crate::handlers::checkpoint_handler::new_handlers;
-use crate::handlers::objects_snapshot_processor::{ObjectsSnapshotProcessor, SnapshotLagConfig};
-use crate::indexer_reader::IndexerReader;
-use crate::metrics::IndexerMetrics;
-use crate::store::IndexerStore;
-use crate::IndexerConfig;
+use crate::{
+    build_json_rpc_server,
+    errors::IndexerError,
+    framework::fetcher::CheckpointFetcher,
+    handlers::{
+        checkpoint_handler::new_handlers,
+        objects_snapshot_processor::{ObjectsSnapshotProcessor, SnapshotLagConfig},
+    },
+    indexer_reader::IndexerReader,
+    metrics::IndexerMetrics,
+    store::IndexerStore,
+    IndexerConfig,
+};
 
 const DOWNLOAD_QUEUE_SIZE: usize = 200;
 

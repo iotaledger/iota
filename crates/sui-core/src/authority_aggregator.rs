@@ -2,62 +2,65 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority_client::{
-    make_authority_clients_with_timeout_config, make_network_authority_clients_with_network_config,
-    AuthorityAPI, NetworkAuthorityClient,
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap},
+    convert::AsRef,
+    string::ToString,
+    sync::Arc,
+    time::Duration,
 };
-use crate::execution_cache::ExecutionCacheRead;
-use crate::safe_client::{SafeClient, SafeClientMetrics, SafeClientMetricsBase};
+
 use fastcrypto::traits::ToFromBytes;
 use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
-use mysten_metrics::histogram::Histogram;
-use mysten_metrics::{monitored_future, spawn_monitored_task, GaugeGuard};
+use mysten_metrics::{histogram::Histogram, monitored_future, spawn_monitored_task, GaugeGuard};
 use mysten_network::config::Config;
-use std::convert::AsRef;
-use sui_authority_aggregation::ReduceOutput;
-use sui_authority_aggregation::{quorum_map_then_reduce_with_timeout, AsyncResult};
+use prometheus::{
+    register_int_counter_vec_with_registry, register_int_counter_with_registry,
+    register_int_gauge_with_registry, IntCounter, IntCounterVec, IntGauge, Registry,
+};
+use sui_authority_aggregation::{quorum_map_then_reduce_with_timeout, AsyncResult, ReduceOutput};
 use sui_config::genesis::Genesis;
 use sui_network::{
     default_mysten_network_config, DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC,
 };
 use sui_swarm_config::network_config::NetworkConfig;
-use sui_types::crypto::{AuthorityPublicKeyBytes, AuthoritySignInfo};
-use sui_types::error::UserInputError;
-use sui_types::fp_ensure;
-use sui_types::message_envelope::Message;
-use sui_types::object::Object;
-use sui_types::quorum_driver_types::GroupedErrors;
-use sui_types::sui_system_state::{SuiSystemState, SuiSystemStateTrait};
 use sui_types::{
     base_types::*,
-    committee::{Committee, ProtocolVersion},
-    error::{SuiError, SuiResult},
+    committee::{
+        Committee, CommitteeTrait, CommitteeWithNetworkMetadata, ProtocolVersion, StakeUnit,
+    },
+    crypto::{AuthorityPublicKeyBytes, AuthoritySignInfo},
+    effects::{
+        CertifiedTransactionEffects, SignedTransactionEffects, TransactionEffects,
+        TransactionEvents, VerifiedCertifiedTransactionEffects,
+    },
+    error::{SuiError, SuiResult, UserInputError},
+    fp_ensure,
+    message_envelope::Message,
+    messages_grpc::{
+        HandleCertificateResponseV2, LayoutGenerationOption, ObjectInfoRequest,
+        TransactionInfoRequest,
+    },
+    messages_safe_client::PlainTransactionInfoResponse,
+    object::Object,
+    quorum_driver_types::GroupedErrors,
+    sui_system_state::{SuiSystemState, SuiSystemStateTrait},
     transaction::*,
 };
 use thiserror::Error;
+use tokio::time::{sleep, timeout};
 use tracing::{debug, error, info, trace, warn, Instrument};
 
-use prometheus::{
-    register_int_counter_vec_with_registry, register_int_counter_with_registry,
-    register_int_gauge_with_registry, IntCounter, IntCounterVec, IntGauge, Registry,
+use crate::{
+    authority_client::{
+        make_authority_clients_with_timeout_config,
+        make_network_authority_clients_with_network_config, AuthorityAPI, NetworkAuthorityClient,
+    },
+    epoch::committee_store::CommitteeStore,
+    execution_cache::ExecutionCacheRead,
+    safe_client::{SafeClient, SafeClientMetrics, SafeClientMetricsBase},
+    stake_aggregator::{InsertResult, MultiStakeAggregator, StakeAggregator},
 };
-use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::string::ToString;
-use std::sync::Arc;
-use std::time::Duration;
-use sui_types::committee::{CommitteeTrait, CommitteeWithNetworkMetadata, StakeUnit};
-use sui_types::effects::{
-    CertifiedTransactionEffects, SignedTransactionEffects, TransactionEffects, TransactionEvents,
-    VerifiedCertifiedTransactionEffects,
-};
-use sui_types::messages_grpc::{
-    HandleCertificateResponseV2, LayoutGenerationOption, ObjectInfoRequest, TransactionInfoRequest,
-};
-use sui_types::messages_safe_client::PlainTransactionInfoResponse;
-use tokio::time::{sleep, timeout};
-
-use crate::epoch::committee_store::CommitteeStore;
-use crate::stake_aggregator::{InsertResult, MultiStakeAggregator, StakeAggregator};
 
 pub const DEFAULT_RETRIES: usize = 4;
 
@@ -201,7 +204,7 @@ impl AuthAggMetrics {
 pub enum AggregatorProcessTransactionError {
     #[error(
         "Failed to execute transaction on a quorum of validators due to non-retryable errors. Validator errors: {:?}",
-        errors,
+        errors
     )]
     FatalTransaction { errors: GroupedErrors },
 
@@ -214,7 +217,7 @@ pub enum AggregatorProcessTransactionError {
     #[error(
         "Failed to execute transaction on a quorum of validators due to conflicting transactions. Locked objects: {:?}. Validator errors: {:?}",
         conflicting_tx_digests,
-        errors,
+        errors
     )]
     FatalConflictingTransaction {
         errors: GroupedErrors,
@@ -225,7 +228,7 @@ pub enum AggregatorProcessTransactionError {
     #[error(
         "Validators returned conflicting transactions but it is potentially recoverable. Locked objects: {:?}. Validator errors: {:?}",
         conflicting_tx_digests,
-        errors,
+        errors
     )]
     RetryableConflictingTransaction {
         conflicting_tx_digest_to_retry: Option<TransactionDigest>,
@@ -370,13 +373,16 @@ impl ProcessTransactionState {
         &self,
         validity_threshold: StakeUnit,
     ) -> bool {
-        // In some edge cases, the client may send the same transaction multiple times but with different user signatures.
-        // When this happens, the "minority" tx will fail in safe_client because the certificate verification would fail
+        // In some edge cases, the client may send the same transaction multiple times
+        // but with different user signatures. When this happens, the "minority"
+        // tx will fail in safe_client because the certificate verification would fail
         // and return Sui::FailedToVerifyTxCertWithExecutedEffects.
-        // Here, we check if there are f+1 validators return this error. If so, the transaction is already finalized
-        // with a different set of user signatures. It's not trivial to return the results of that successful transaction
-        // because we don't want fullnode to store the transaction with non-canonical user signatures. Given that this is
-        // very rare, we simply return an error here.
+        // Here, we check if there are f+1 validators return this error. If so, the
+        // transaction is already finalized with a different set of user
+        // signatures. It's not trivial to return the results of that successful
+        // transaction because we don't want fullnode to store the transaction
+        // with non-canonical user signatures. Given that this is very rare, we
+        // simply return an error here.
         let invalid_sig_stake: StakeUnit = self
             .errors
             .iter()
@@ -441,7 +447,8 @@ pub struct AuthorityAggregator<A: Clone> {
     pub authority_clients: Arc<BTreeMap<AuthorityName, Arc<SafeClient<A>>>>,
     /// Metrics
     pub metrics: Arc<AuthAggMetrics>,
-    /// Metric base for the purpose of creating new safe clients during reconfiguration.
+    /// Metric base for the purpose of creating new safe clients during
+    /// reconfiguration.
     pub safe_client_metrics_base: SafeClientMetricsBase,
     pub timeouts: TimeoutConfig,
     /// Store here for clone during re-config.
@@ -549,8 +556,9 @@ impl<A: Clone> AuthorityAggregator<A> {
             })
             .collect::<BTreeMap<_, _>>();
 
-        // TODO: It's likely safer to do the following operations atomically, in case this function
-        // gets called from different threads. It cannot happen today, but worth the caution.
+        // TODO: It's likely safer to do the following operations atomically, in case
+        // this function gets called from different threads. It cannot happen
+        // today, but worth the caution.
         let new_committee = committee.committee;
         if disallow_missing_intermediate_committees {
             fp_ensure!(
@@ -642,9 +650,10 @@ impl AuthorityAggregator<NetworkAuthorityClient> {
         safe_client_metrics_base: SafeClientMetricsBase,
         auth_agg_metrics: AuthAggMetrics,
     ) -> anyhow::Result<Self> {
-        // TODO: We should get the committee from the epoch store instead to ensure consistency.
-        // Instead of this function use AuthorityEpochStore::epoch_start_configuration() to access this object everywhere
-        // besides when we are reading fields for the current epoch
+        // TODO: We should get the committee from the epoch store instead to ensure
+        // consistency. Instead of this function use
+        // AuthorityEpochStore::epoch_start_configuration() to access this object
+        // everywhere besides when we are reading fields for the current epoch
         let sui_system_state = store.get_sui_system_state_object_unsafe()?;
         let committee = sui_system_state.get_current_epoch_committee();
         let validator_display_names = sui_system_state
@@ -695,9 +704,10 @@ impl<A> AuthorityAggregator<A>
 where
     A: AuthorityAPI + Send + Sync + 'static + Clone,
 {
-    // Repeatedly calls the provided closure on a randomly selected validator until it succeeds.
-    // Once all validators have been attempted, starts over at the beginning. Intended for cases
-    // that must eventually succeed as long as the network is up (or comes back up) eventually.
+    // Repeatedly calls the provided closure on a randomly selected validator until
+    // it succeeds. Once all validators have been attempted, starts over at the
+    // beginning. Intended for cases that must eventually succeed as long as the
+    // network is up (or comes back up) eventually.
     async fn quorum_once_inner<'a, S, FMap>(
         &'a self,
         // try these authorities first
@@ -749,26 +759,27 @@ where
                 }))
             };
 
-            // This process is intended to minimize latency in the face of unreliable authorities,
-            // without creating undue load on authorities.
+            // This process is intended to minimize latency in the face of unreliable
+            // authorities, without creating undue load on authorities.
             //
             // The fastest possible process from the
             // client's point of view would simply be to issue a concurrent request to every
             // authority and then take the winner - this would create unnecessary load on
             // authorities.
             //
-            // The most efficient process from the network's point of view is to do one request at
-            // a time, however if the first validator that the client contacts is unavailable or
-            // slow, the client must wait for the serial_authority_request_interval period to elapse
+            // The most efficient process from the network's point of view is to do one
+            // request at a time, however if the first validator that the client
+            // contacts is unavailable or slow, the client must wait for the
+            // serial_authority_request_interval period to elapse
             // before starting its next request.
             //
             // So, this process is designed as a compromise between these two extremes.
             // - We start one request, and schedule another request to begin after
             //   serial_authority_request_interval.
-            // - Whenever a request finishes, if it succeeded, we return. if it failed, we start a
-            //   new request.
-            // - If serial_authority_request_interval elapses, we begin a new request even if the
-            //   previous one is not finished, and schedule another future request.
+            // - Whenever a request finishes, if it succeeded, we return. if it failed, we
+            //   start a new request.
+            // - If serial_authority_request_interval elapses, we begin a new request even
+            //   if the previous one is not finished, and schedule another future request.
 
             let name = authorities_shuffled.next().ok_or_else(|| {
                 error!(
@@ -826,10 +837,11 @@ where
         }
     }
 
-    /// Like quorum_map_then_reduce_with_timeout, but for things that need only a single
-    /// successful response, such as fetching a Transaction from some authority.
-    /// This is intended for cases in which byzantine authorities can time out or slow-loris, but
-    /// can't give a false answer, because e.g. the digest of the response is known, or a
+    /// Like quorum_map_then_reduce_with_timeout, but for things that need only
+    /// a single successful response, such as fetching a Transaction from
+    /// some authority. This is intended for cases in which byzantine
+    /// authorities can time out or slow-loris, but can't give a false
+    /// answer, because e.g. the digest of the response is known, or a
     /// quorum-signed object such as a checkpoint has been requested.
     pub(crate) async fn quorum_once_with_timeout<'a, S, FMap>(
         &'a self,
@@ -884,9 +896,10 @@ where
 
     /// Query the object with highest version number from the authorities.
     /// We stop after receiving responses from 2f+1 validators.
-    /// This function is untrusted because we simply assume each response is valid and there are no
-    /// byzantine validators.
-    /// Because of this, this function should only be used for testing or benchmarking.
+    /// This function is untrusted because we simply assume each response is
+    /// valid and there are no byzantine validators.
+    /// Because of this, this function should only be used for testing or
+    /// benchmarking.
     pub async fn get_latest_object_version_for_testing(
         &self,
         object_id: ObjectID,
@@ -1242,10 +1255,12 @@ where
             };
         }
 
-        // When state is in a retryable state and process transaction was not successful, it indicates that
-        // we have heard from *all* validators. Check if any SystemOverloadRetryAfter error caused the txn
-        // to fail. If so, return explicit SystemOverloadRetryAfter error for continuous retry (since objects)
-        // are locked in validators. If not, retry regular RetryableTransaction error.
+        // When state is in a retryable state and process transaction was not
+        // successful, it indicates that we have heard from *all* validators.
+        // Check if any SystemOverloadRetryAfter error caused the txn
+        // to fail. If so, return explicit SystemOverloadRetryAfter error for continuous
+        // retry (since objects) are locked in validators. If not, retry regular
+        // RetryableTransaction error.
         if state.tx_signatures.total_votes() + state.retryable_overloaded_stake >= quorum_threshold
         {
             // TODO: make use of retry_after_secs, which is currently not used.
@@ -1256,7 +1271,8 @@ where
             };
         }
 
-        // No conflicting transaction, the system is not overloaded and transaction state is still retryable.
+        // No conflicting transaction, the system is not overloaded and transaction
+        // state is still retryable.
         AggregatorProcessTransactionError::RetryableTransaction {
             errors: group_errors(state.errors),
         }
@@ -1356,8 +1372,9 @@ where
             }
             _ => {
                 // If we get 2f+1 effects, it's a proof that the transaction
-                // has already been finalized. This works because validators would re-sign effects for transactions
-                // that were finalized in previous epochs.
+                // has already been finalized. This works because validators would re-sign
+                // effects for transactions that were finalized in previous
+                // epochs.
                 let digest = plain_tx_effects.data().digest();
                 match state.effects_map.insert(digest, plain_tx_effects.clone()) {
                     InsertResult::NotEnoughVotes {
@@ -1437,8 +1454,9 @@ where
                 involved_validators.extend_from_slice(validators);
                 total_stake += stake;
             }
-            // TODO: Instead of pushing a new error, we should add more information about the non-quorum effects
-            // in the final error if state is no longer retryable
+            // TODO: Instead of pushing a new error, we should add more information about
+            // the non-quorum effects in the final error if state is no longer
+            // retryable
             state.errors.push((
                 SuiError::QuorumFailedToGetEffectsQuorumWhenProcessingTransaction {
                     effects_map: non_quorum_effects,
@@ -1710,8 +1728,8 @@ where
         Ok(response.0)
     }
 
-    /// This function tries to get SignedTransaction OR CertifiedTransaction from
-    /// an given list of validators who are supposed to know about it.
+    /// This function tries to get SignedTransaction OR CertifiedTransaction
+    /// from an given list of validators who are supposed to know about it.
     pub async fn handle_transaction_info_request_from_some_validators(
         &self,
         tx_digest: &TransactionDigest,

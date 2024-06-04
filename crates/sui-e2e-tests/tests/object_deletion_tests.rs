@@ -3,22 +3,26 @@
 
 #[cfg(msim)]
 mod sim_only_tests {
-    use std::path::PathBuf;
-    use std::time::Duration;
-    use sui_core::authority::authority_store_tables::LiveObject;
-    use sui_core::state_accumulator::AccumulatorStore;
+    use std::{path::PathBuf, time::Duration};
+
+    use sui_core::{
+        authority::authority_store_tables::LiveObject, state_accumulator::AccumulatorStore,
+    };
     use sui_json_rpc_types::{SuiTransactionBlockEffects, SuiTransactionBlockEffectsAPI};
     use sui_macros::sim_test;
     use sui_node::SuiNode;
     use sui_protocol_config::{ProtocolConfig, ProtocolVersion, SupportedProtocolVersions};
     use sui_test_transaction_builder::publish_package;
-    use sui_types::messages_checkpoint::CheckpointSequenceNumber;
-    use sui_types::{base_types::ObjectID, digests::TransactionDigest};
+    use sui_types::{
+        base_types::ObjectID, digests::TransactionDigest,
+        messages_checkpoint::CheckpointSequenceNumber,
+    };
     use test_cluster::{TestCluster, TestClusterBuilder};
     use tokio::time::timeout;
 
-    /// This test checks that after we enable simplified_unwrap_then_delete, we no longer depend
-    /// on wrapped tombstones when generating effects and using effects.
+    /// This test checks that after we enable simplified_unwrap_then_delete, we
+    /// no longer depend on wrapped tombstones when generating effects and
+    /// using effects.
     #[sim_test]
     async fn test_no_more_dependency_on_wrapped_tombstone() {
         let mut _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
@@ -47,8 +51,8 @@ mod sim_only_tests {
             config.set_simplified_unwrap_then_delete(true);
             config
         });
-        // At this epoch change, we should be re-accumulating without wrapped tombstone and now
-        // flips the feature flag simplified_unwrap_then_delete to true.
+        // At this epoch change, we should be re-accumulating without wrapped tombstone
+        // and now flips the feature flag simplified_unwrap_then_delete to true.
         test_cluster.trigger_reconfiguration().await;
 
         // Remove the wrapped tombstone on some nodes but not all.
@@ -71,15 +75,16 @@ mod sim_only_tests {
     }
 
     // Tests that object pruning can prune objects correctly.
-    // Specifically, we first wrap a child object into a root object (tests wrap tombstone),
-    // then unwrap and delete the child object (tests unwrap and delete),
-    // and last delete the root object (tests object deletion).
+    // Specifically, we first wrap a child object into a root object (tests wrap
+    // tombstone), then unwrap and delete the child object (tests unwrap and
+    // delete), and last delete the root object (tests object deletion).
     #[sim_test]
     async fn object_pruning_test() {
         let test_cluster = TestClusterBuilder::new().build().await;
         let fullnode = &test_cluster.fullnode_handle.sui_node;
 
-        // Create a root object and a child object. Wrap the child object inside the root object.
+        // Create a root object and a child object. Wrap the child object inside the
+        // root object.
         let (package_id, object_id) = publish_package_and_create_parent_object(&test_cluster).await;
         let child_id = create_owned_child(&test_cluster, package_id).await;
         let wrap_child_txn_digest = wrap_child(&test_cluster, package_id, object_id, child_id)
@@ -105,7 +110,8 @@ mod sim_only_tests {
                 .await
                 .unwrap();
 
-                // Manually initiating a pruning and compaction job to make sure that deleted objects are gong from object store.
+                // Manually initiating a pruning and compaction job to make sure that deleted
+                // objects are gong from object store.
                 node.state().prune_objects_and_compact_for_testing().await;
 
                 // Check that no object with `child_id` exists in object store.
@@ -124,7 +130,8 @@ mod sim_only_tests {
             })
             .await;
 
-        // Next, we unwrap and delete the child object, as well as delete the root object.
+        // Next, we unwrap and delete the child object, as well as delete the root
+        // object.
         let unwrap_delete_txn_digest =
             unwrap_and_delete_child(&test_cluster, package_id, object_id)
                 .await
@@ -158,7 +165,8 @@ mod sim_only_tests {
                 .await
                 .unwrap();
 
-                // Manually initiating a pruning and compaction job to make sure that deleted objects are gong from object store.
+                // Manually initiating a pruning and compaction job to make sure that deleted
+                // objects are gong from object store.
                 node.state().prune_objects_and_compact_for_testing().await;
 
                 // Check that both root and child objects are gone from object store.
@@ -250,11 +258,13 @@ mod sim_only_tests {
             .effects
             .unwrap();
         assert_eq!(effects.wrapped().len(), 1);
-        assert!(test_cluster
-            .get_object_or_tombstone_from_fullnode_store(child_id)
-            .await
-            .2
-            .is_wrapped());
+        assert!(
+            test_cluster
+                .get_object_or_tombstone_from_fullnode_store(child_id)
+                .await
+                .2
+                .is_wrapped()
+        );
         effects
     }
 

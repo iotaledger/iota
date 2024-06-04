@@ -16,12 +16,12 @@ export type SuiSignMessageVersion = '1.0.0';
  * @deprecated Wallets can still implement this method for compatibility, but this has been replaced by the `sui:signPersonalMessage` feature
  */
 export type SuiSignMessageFeature = {
-	/** Namespace for the feature. */
-	'sui:signMessage': {
-		/** Version of the feature API. */
-		version: SuiSignMessageVersion;
-		signMessage: SuiSignMessageMethod;
-	};
+    /** Namespace for the feature. */
+    'sui:signMessage': {
+        /** Version of the feature API. */
+        version: SuiSignMessageVersion;
+        signMessage: SuiSignMessageMethod;
+    };
 };
 
 /** @deprecated Wallets can still implement this method for compatibility, but this has been replaced by the `sui:signPersonalMessage` feature */
@@ -32,8 +32,8 @@ export type SuiSignMessageMethod = (input: SuiSignMessageInput) => Promise<SuiSi
  * @deprecated Wallets can still implement this method for compatibility, but this has been replaced by the `sui:signPersonalMessage` feature
  */
 export interface SuiSignMessageInput {
-	message: Uint8Array;
-	account: WalletAccount;
+    message: Uint8Array;
+    account: WalletAccount;
 }
 
 /**
@@ -41,6 +41,6 @@ export interface SuiSignMessageInput {
  * @deprecated Wallets can still implement this method for compatibility, but this has been replaced by the `sui:signPersonalMessage` feature
  */
 export interface SuiSignMessageOutput {
-	messageBytes: string;
-	signature: string;
+    messageBytes: string;
+    signature: string;
 }

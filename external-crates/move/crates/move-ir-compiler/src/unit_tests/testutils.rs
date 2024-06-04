@@ -23,8 +23,8 @@ fn compile_module_string_impl(
         .map_err(|e| e.finish(Location::Undefined))?;
     assert_eq!(compiled_module, deserialized_module);
 
-    // Always return a CompiledModule because some callers explicitly care about unverified
-    // modules.
+    // Always return a CompiledModule because some callers explicitly care about
+    // unverified modules.
     Ok(match verify_module_unmetered(&compiled_module) {
         Ok(_) => (compiled_module, None),
         Err(error) => (compiled_module, Some(error)),

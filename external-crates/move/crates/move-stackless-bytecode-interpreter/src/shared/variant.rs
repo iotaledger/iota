@@ -15,7 +15,8 @@ pub fn choose_variant<'env>(
 ) -> FunctionTarget<'env> {
     let mut target_variant = None;
     for (variant, target) in holder.get_targets(func_env) {
-        // regular verification variant is preferred, baseline version is the second choice
+        // regular verification variant is preferred, baseline version is the second
+        // choice
         match variant {
             FunctionVariant::Baseline => {
                 if target_variant.is_none() {

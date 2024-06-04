@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{path::PathBuf, sync::Arc, time::Instant};
+
 use move_bytecode_verifier::meter::Scope;
 use prometheus::Registry;
-use std::{path::PathBuf, sync::Arc, time::Instant};
 use sui_adapter::adapter::run_metered_move_bytecode_verifier;
 use sui_framework::BuiltInFramework;
 use sui_move_build::{CompiledPackage, SuiPackageHooks};
@@ -31,7 +32,7 @@ fn test_metered_move_bytecode_verifier() {
 
     let mut metered_verifier_config = default_verifier_config(
         &ProtocolConfig::get_for_max_version_UNSAFE(),
-        true, /* enable metering */
+        true, // enable metering
     );
     let registry = &Registry::new();
     let bytecode_verifier_metrics = Arc::new(BytecodeVerifierMetrics::new(registry));

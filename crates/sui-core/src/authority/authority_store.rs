@@ -1,51 +1,59 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::cmp::Ordering;
-use std::ops::Not;
-use std::sync::Arc;
-use std::{iter, mem, thread};
+use std::{cmp::Ordering, iter, mem, ops::Not, sync::Arc, thread};
 
-use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use crate::authority::authority_store_types::{
-    get_store_object_pair, ObjectContentDigest, StoreObject, StoreObjectPair, StoreObjectWrapper,
-};
-use crate::authority::epoch_start_configuration::{EpochFlag, EpochStartConfiguration};
-use crate::state_accumulator::AccumulatorStore;
-use crate::transaction_outputs::TransactionOutputs;
 use either::Either;
 use fastcrypto::hash::{HashFunction, MultisetHash, Sha3_256};
 use futures::stream::FuturesUnordered;
 use itertools::izip;
 use move_core_types::resolver::ModuleResolver;
+use mysten_common::sync::notify_read::NotifyRead;
 use serde::{Deserialize, Serialize};
 use sui_macros::fail_point_arg;
 use sui_storage::mutex_table::{MutexGuard, MutexTable, RwLockGuard, RwLockTable};
-use sui_types::accumulator::Accumulator;
-use sui_types::digests::TransactionEventsDigest;
-use sui_types::error::UserInputError;
-use sui_types::execution::TypeLayoutStore;
-use sui_types::message_envelope::Message;
-use sui_types::storage::{
-    get_module, BackingPackageStore, MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore,
+use sui_types::{
+    accumulator::Accumulator,
+    base_types::SequenceNumber,
+    digests::TransactionEventsDigest,
+    effects::{TransactionEffects, TransactionEvents},
+    error::UserInputError,
+    execution::TypeLayoutStore,
+    fp_bail, fp_ensure,
+    gas_coin::TOTAL_SUPPLY_MIST,
+    message_envelope::Message,
+    storage::{
+        get_module, BackingPackageStore, MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore,
+    },
+    sui_system_state::get_sui_system_state,
 };
-use sui_types::sui_system_state::get_sui_system_state;
-use sui_types::{base_types::SequenceNumber, fp_bail, fp_ensure};
-use tokio::sync::{RwLockReadGuard, RwLockWriteGuard};
-use tokio::time::Instant;
+use tokio::{
+    sync::{RwLockReadGuard, RwLockWriteGuard},
+    time::Instant,
+};
 use tracing::{debug, info, trace};
-use typed_store::traits::Map;
 use typed_store::{
-    rocks::{DBBatch, DBMap},
+    rocks::{util::is_ref_count_value, DBBatch, DBMap},
+    traits::Map,
     TypedStoreError,
 };
 
-use super::authority_store_tables::LiveObject;
-use super::{authority_store_tables::AuthorityPerpetualTables, *};
-use mysten_common::sync::notify_read::NotifyRead;
-use sui_types::effects::{TransactionEffects, TransactionEvents};
-use sui_types::gas_coin::TOTAL_SUPPLY_MIST;
-use typed_store::rocks::util::is_ref_count_value;
+use super::{
+    authority_store_tables::{AuthorityPerpetualTables, LiveObject},
+    *,
+};
+use crate::{
+    authority::{
+        authority_per_epoch_store::AuthorityPerEpochStore,
+        authority_store_types::{
+            get_store_object_pair, ObjectContentDigest, StoreObject, StoreObjectPair,
+            StoreObjectWrapper,
+        },
+        epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
+    },
+    state_accumulator::AccumulatorStore,
+    transaction_outputs::TransactionOutputs,
+};
 
 const NUM_SHARDS: usize = 4096;
 
@@ -105,9 +113,10 @@ impl AuthorityStoreMetrics {
 /// ALL_OBJ_VER determines whether we want to store all past
 /// versions of every object in the store. Authority doesn't store
 /// them, but other entities such as replicas will.
-/// S is a template on Authority signature state. This allows SuiDataStore to be used on either
-/// authorities or non-authorities. Specifically, when storing transactions and effects,
-/// S allows SuiDataStore to either store the authority signed version or unsigned version.
+/// S is a template on Authority signature state. This allows SuiDataStore to be
+/// used on either authorities or non-authorities. Specifically, when storing
+/// transactions and effects, S allows SuiDataStore to either store the
+/// authority signed version or unsigned version.
 pub struct AuthorityStore {
     /// Internal vector of locks to manage concurrent writes to the database
     mutex_table: MutexTable<ObjectDigest>,
@@ -195,15 +204,17 @@ impl AuthorityStore {
         }
     }
 
-    // NB: This must only be called at time of reconfiguration. We take the execution lock write
-    // guard as an argument to ensure that this is the case.
+    // NB: This must only be called at time of reconfiguration. We take the
+    // execution lock write guard as an argument to ensure that this is the
+    // case.
     pub fn clear_object_per_epoch_marker_table(
         &self,
         _execution_guard: &ExecutionLockWriteGuard<'_>,
     ) -> SuiResult<()> {
-        // We can safely delete all entries in the per epoch marker table since this is only called
-        // at epoch boundaries (during reconfiguration). Therefore any entries that currently
-        // exist can be removed. Because of this we can use the `schedule_delete_all` method.
+        // We can safely delete all entries in the per epoch marker table since this is
+        // only called at epoch boundaries (during reconfiguration). Therefore
+        // any entries that currently exist can be removed. Because of this we
+        // can use the `schedule_delete_all` method.
         Ok(self
             .perpetual_tables
             .object_per_epoch_marker_table
@@ -216,8 +227,8 @@ impl AuthorityStore {
         genesis: &Genesis,
         indirect_objects_threshold: usize,
     ) -> SuiResult<Arc<Self>> {
-        // TODO: Since we always start at genesis, the committee should be technically the same
-        // as the genesis committee.
+        // TODO: Since we always start at genesis, the committee should be technically
+        // the same as the genesis committee.
         assert_eq!(committee.epoch, 0);
         Self::open_inner(
             genesis,
@@ -269,8 +280,9 @@ impl AuthorityStore {
                 .effects
                 .insert(&genesis.effects().digest(), genesis.effects())
                 .unwrap();
-            // We don't insert the effects to executed_effects yet because the genesis tx hasn't but will be executed.
-            // This is important for fullnodes to be able to generate indexing data right now.
+            // We don't insert the effects to executed_effects yet because the genesis tx
+            // hasn't but will be executed. This is important for fullnodes to
+            // be able to generate indexing data right now.
 
             let event_digests = genesis.events().digest();
             let events = genesis
@@ -367,8 +379,9 @@ impl AuthorityStore {
         }
     }
 
-    /// Given a list of transaction digests, returns a list of the corresponding effects only if they have been
-    /// executed. For transactions that have not been executed, None is returned.
+    /// Given a list of transaction digests, returns a list of the corresponding
+    /// effects only if they have been executed. For transactions that have
+    /// not been executed, None is returned.
     pub fn multi_get_executed_effects_digests(
         &self,
         digests: &[TransactionDigest],
@@ -376,8 +389,9 @@ impl AuthorityStore {
         Ok(self.perpetual_tables.executed_effects.multi_get(digests)?)
     }
 
-    /// Given a list of transaction digests, returns a list of the corresponding effects only if they have been
-    /// executed. For transactions that have not been executed, None is returned.
+    /// Given a list of transaction digests, returns a list of the corresponding
+    /// effects only if they have been executed. For transactions that have
+    /// not been executed, None is returned.
     pub fn multi_get_executed_effects(
         &self,
         digests: &[TransactionDigest],
@@ -447,7 +461,8 @@ impl AuthorityStore {
         &self,
         epoch: EpochId,
     ) -> SuiResult<(CheckpointSequenceNumber, Accumulator)> {
-        // We need to register waiters _before_ reading from the database to avoid race conditions
+        // We need to register waiters _before_ reading from the database to avoid race
+        // conditions
         let registration = self.root_state_notify_read.register_one(&epoch);
         let hash = self.perpetual_tables.root_state_hash_by_epoch.get(&epoch)?;
 
@@ -510,7 +525,8 @@ impl AuthorityStore {
         self.perpetual_tables.database_is_empty()
     }
 
-    /// A function that acquires all locks associated with the objects (in order to avoid deadlocks).
+    /// A function that acquires all locks associated with the objects (in order
+    /// to avoid deadlocks).
     async fn acquire_locks(&self, input_objects: &[ObjectRef]) -> Vec<MutexGuard> {
         self.mutex_table
             .acquire_locks(input_objects.iter().map(|(_, _, digest)| *digest))
@@ -632,8 +648,8 @@ impl AuthorityStore {
         self.insert_object_direct(object_ref, &object)
     }
 
-    /// Insert an object directly into the store, and also update relevant tables
-    /// NOTE: does not handle transaction lock.
+    /// Insert an object directly into the store, and also update relevant
+    /// tables NOTE: does not handle transaction lock.
     /// This is used to insert genesis objects
     fn insert_object_direct(&self, object_ref: ObjectRef, object: &Object) -> SuiResult {
         let mut write_batch = self.perpetual_tables.objects.batch();
@@ -665,7 +681,8 @@ impl AuthorityStore {
         Ok(())
     }
 
-    /// This function should only be used for initializing genesis and should remain private.
+    /// This function should only be used for initializing genesis and should
+    /// remain private.
     pub(crate) fn bulk_insert_genesis_objects(&self, objects: &[Object]) -> SuiResult<()> {
         let mut batch = self.perpetual_tables.objects.batch();
         let ref_and_objects: Vec<_> = objects
@@ -792,9 +809,11 @@ impl AuthorityStore {
         //   - transaction execution branches to reference count increment
         //   - pruner decrements ref count to 0
         //   - compaction job compresses existing merge values to an empty vector
-        //   - tx executor commits ref count increment instead of the full value making object inaccessible
+        //   - tx executor commits ref count increment instead of the full value making
+        //     object inaccessible
         // read locks are sufficient because ref count increments are safe,
-        // concurrent transaction executions produce independent ref count increments and don't corrupt the state
+        // concurrent transaction executions produce independent ref count increments
+        // and don't corrupt the state
         let digests = written
             .values()
             .filter_map(|object| {
@@ -809,7 +828,8 @@ impl AuthorityStore {
     /// Updates the state resulting from the execution of a certificate.
     ///
     /// Internally it checks that all locks for active inputs are at the correct
-    /// version, and then writes objects, certificates, parents and clean up locks atomically.
+    /// version, and then writes objects, certificates, parents and clean up
+    /// locks atomically.
     #[instrument(level = "debug", skip_all)]
     pub async fn write_transaction_outputs(
         &self,
@@ -881,7 +901,8 @@ impl AuthorityStore {
             .indirect_move_objects
             .multi_get_raw_bytes(indirect_objects.iter().map(|(digest, _)| digest))?;
         // split updates to existing and new indirect objects
-        // for new objects full merge needs to be triggered. For existing ref count increment is sufficient
+        // for new objects full merge needs to be triggered. For existing ref count
+        // increment is sufficient
         let (existing_indirect_objects, new_indirect_objects): (Vec<_>, Vec<_>) = indirect_objects
             .into_iter()
             .enumerate()
@@ -912,21 +933,24 @@ impl AuthorityStore {
 
         write_batch.insert_batch(&self.perpetual_tables.events, events)?;
 
-        // NOTE: We just check here that locks exist, not that they are locked to a specific TX. Why?
-        // 1. Lock existence prevents re-execution of old certs when objects have been upgraded
-        // 2. Not all validators lock, just 2f+1, so transaction should proceed regardless
-        //    (But the lock should exist which means previous transactions finished)
-        // 3. Equivocation possible (different TX) but as long as 2f+1 approves current TX its
-        //    fine
-        // 4. Locks may have existed when we started processing this tx, but could have since
-        //    been deleted by a concurrent tx that finished first. In that case, check if the
-        //    tx effects exist.
+        // NOTE: We just check here that locks exist, not that they are locked to a
+        // specific TX. Why?
+        // 1. Lock existence prevents re-execution of old certs when objects have been
+        //    upgraded
+        // 2. Not all validators lock, just 2f+1, so transaction should proceed
+        //    regardless (But the lock should exist which means previous transactions
+        //    finished)
+        // 3. Equivocation possible (different TX) but as long as 2f+1 approves current
+        //    TX its fine
+        // 4. Locks may have existed when we started processing this tx, but could have
+        //    since been deleted by a concurrent tx that finished first. In that case,
+        //    check if the tx effects exist.
         self.check_owned_object_locks_exist(locks_to_delete)?;
 
         self.initialize_live_object_markers_impl(&mut write_batch, new_locks_to_init, false)?;
 
-        // Note: deletes locks for received objects as well (but not for objects that were in
-        // `Receiving` arguments which were not received)
+        // Note: deletes locks for received objects as well (but not for objects that
+        // were in `Receiving` arguments which were not received)
         self.delete_live_object_markers(&mut write_batch, locks_to_delete)?;
 
         write_batch
@@ -969,7 +993,8 @@ impl AuthorityStore {
         }
     }
 
-    /// Acquires a lock for a transaction on the given objects if they have all been initialized previously
+    /// Acquires a lock for a transaction on the given objects if they have all
+    /// been initialized previously
     async fn acquire_transaction_locks_v1(
         &self,
         epoch_store: &AuthorityPerEpochStore,
@@ -977,8 +1002,8 @@ impl AuthorityStore {
         tx_digest: TransactionDigest,
     ) -> SuiResult {
         let epoch = epoch_store.epoch();
-        // Other writers may be attempting to acquire locks on the same objects, so a mutex is
-        // required.
+        // Other writers may be attempting to acquire locks on the same objects, so a
+        // mutex is required.
         // TODO: replace with optimistic db_transactions (i.e. set lock to tx if none)
         let _mutexes = self.acquire_locks(owned_input_objects).await;
 
@@ -994,11 +1019,13 @@ impl AuthorityStore {
             // The object / version must exist, and therefore lock initialized.
             if lock.is_none() {
                 let latest_lock = self.get_latest_live_version_for_object_id(obj_ref.0)?;
-                fp_bail!(UserInputError::ObjectVersionUnavailableForConsumption {
-                    provided_obj_ref: *obj_ref,
-                    current_version: latest_lock.1
-                }
-                .into());
+                fp_bail!(
+                    UserInputError::ObjectVersionUnavailableForConsumption {
+                        provided_obj_ref: *obj_ref,
+                        current_version: latest_lock.1
+                    }
+                    .into()
+                );
             }
             // Safe to unwrap as it is checked above
             let lock = lock.unwrap().map(|l| l.migrate().into_inner());
@@ -1063,8 +1090,8 @@ impl AuthorityStore {
     ) -> SuiResult {
         let tx_digest = *transaction.digest();
         let epoch = epoch_store.epoch();
-        // Other writers may be attempting to acquire locks on the same objects, so a mutex is
-        // required.
+        // Other writers may be attempting to acquire locks on the same objects, so a
+        // mutex is required.
         // TODO: replace with optimistic db_transactions (i.e. set lock to tx if none)
         let _mutexes = self.acquire_locks(owned_input_objects).await;
 
@@ -1089,11 +1116,13 @@ impl AuthorityStore {
         ) {
             let Some(live_marker) = live_marker else {
                 let latest_lock = self.get_latest_live_version_for_object_id(obj_ref.0)?;
-                fp_bail!(UserInputError::ObjectVersionUnavailableForConsumption {
-                    provided_obj_ref: *obj_ref,
-                    current_version: latest_lock.1
-                }
-                .into());
+                fp_bail!(
+                    UserInputError::ObjectVersionUnavailableForConsumption {
+                        provided_obj_ref: *obj_ref,
+                        current_version: latest_lock.1
+                    }
+                    .into()
+                );
             };
 
             let live_marker = live_marker.map(|l| l.migrate().into_inner());
@@ -1140,7 +1169,8 @@ impl AuthorityStore {
     }
 
     /// Gets ObjectLockInfo that represents state of lock on an object.
-    /// Returns UserInputError::ObjectNotFound if cannot find lock record for this object
+    /// Returns UserInputError::ObjectNotFound if cannot find lock record for
+    /// this object
     pub(crate) fn get_lock(
         &self,
         obj_ref: ObjectRef,
@@ -1221,7 +1251,8 @@ impl AuthorityStore {
         )
     }
 
-    /// Returns UserInputError::ObjectNotFound if no lock records found for this object.
+    /// Returns UserInputError::ObjectNotFound if no lock records found for this
+    /// object.
     pub(crate) fn get_latest_live_version_for_object_id(
         &self,
         object_id: ObjectID,
@@ -1235,7 +1266,7 @@ impl AuthorityStore {
         Ok(iterator
             .next()
             .and_then(|value| {
-                if value.0 .0 == object_id {
+                if value.0.0 == object_id {
                     Some(value)
                 } else {
                     None
@@ -1251,9 +1282,10 @@ impl AuthorityStore {
     }
 
     /// Checks multiple object locks exist.
-    /// Returns UserInputError::ObjectNotFound if cannot find lock record for at least one of the objects.
-    /// Returns UserInputError::ObjectVersionUnavailableForConsumption if at least one object lock is not initialized
-    ///     at the given version.
+    /// Returns UserInputError::ObjectNotFound if cannot find lock record for at
+    /// least one of the objects.
+    /// Returns UserInputError::ObjectVersionUnavailableForConsumption if at
+    /// least one object lock is not initialized     at the given version.
     pub fn check_owned_object_locks_exist(&self, objects: &[ObjectRef]) -> SuiResult {
         let locks = self
             .perpetual_tables
@@ -1262,18 +1294,21 @@ impl AuthorityStore {
         for (lock, obj_ref) in locks.into_iter().zip(objects) {
             if lock.is_none() {
                 let latest_lock = self.get_latest_live_version_for_object_id(obj_ref.0)?;
-                fp_bail!(UserInputError::ObjectVersionUnavailableForConsumption {
-                    provided_obj_ref: *obj_ref,
-                    current_version: latest_lock.1
-                }
-                .into());
+                fp_bail!(
+                    UserInputError::ObjectVersionUnavailableForConsumption {
+                        provided_obj_ref: *obj_ref,
+                        current_version: latest_lock.1
+                    }
+                    .into()
+                );
             }
         }
         Ok(())
     }
 
     /// Initialize a lock to None (but exists) for a given list of ObjectRefs.
-    /// Returns SuiError::ObjectLockAlreadyInitialized if the lock already exists and is locked to a transaction
+    /// Returns SuiError::ObjectLockAlreadyInitialized if the lock already
+    /// exists and is locked to a transaction
     fn initialize_live_object_markers_impl(
         &self,
         write_batch: &mut DBBatch,
@@ -1303,7 +1338,8 @@ impl AuthorityStore {
             // If any locks exist and are not None, return errors for them
             // Note that if epoch_store.object_lock_split_tables_enabled() is true, we don't
             // check if there is a pre-existing lock. this is because initializing the live
-            // object marker will not overwrite the lock and cause the validator to equivocate.
+            // object marker will not overwrite the lock and cause the validator to
+            // equivocate.
             let existing_locks: Vec<ObjectRef> = locks
                 .iter()
                 .zip(objects)
@@ -1371,8 +1407,8 @@ impl AuthorityStore {
     }
 
     /// This function is called at the end of epoch for each transaction that's
-    /// executed locally on the validator but didn't make to the last checkpoint.
-    /// The effects of the execution is reverted here.
+    /// executed locally on the validator but didn't make to the last
+    /// checkpoint. The effects of the execution is reverted here.
     /// The following things are reverted:
     /// 1. All new object states are deleted.
     /// 2. owner_index table change is reverted.
@@ -1471,10 +1507,11 @@ impl AuthorityStore {
         Ok(())
     }
 
-    /// Return the object with version less then or eq to the provided seq number.
-    /// This is used by indexer to find the correct version of dynamic field child object.
-    /// We do not store the version of the child object, but because of lamport timestamp,
-    /// we know the child must have version number less then or eq to the parent.
+    /// Return the object with version less then or eq to the provided seq
+    /// number. This is used by indexer to find the correct version of
+    /// dynamic field child object. We do not store the version of the child
+    /// object, but because of lamport timestamp, we know the child must
+    /// have version number less then or eq to the parent.
     pub fn find_object_lt_or_eq_version(
         &self,
         object_id: ObjectID,
@@ -1484,13 +1521,14 @@ impl AuthorityStore {
             .find_object_lt_or_eq_version(object_id, version)
     }
 
-    /// Returns the latest object reference we have for this object_id in the objects table.
+    /// Returns the latest object reference we have for this object_id in the
+    /// objects table.
     ///
-    /// The method may also return the reference to a deleted object with a digest of
-    /// ObjectDigest::deleted() or ObjectDigest::wrapped() and lamport version
-    /// of a transaction that deleted the object.
-    /// Note that a deleted object may re-appear if the deletion was the result of the object
-    /// being wrapped in another object.
+    /// The method may also return the reference to a deleted object with a
+    /// digest of ObjectDigest::deleted() or ObjectDigest::wrapped() and
+    /// lamport version of a transaction that deleted the object.
+    /// Note that a deleted object may re-appear if the deletion was the result
+    /// of the object being wrapped in another object.
     ///
     /// If no entry for the object_id is found, return None.
     pub fn get_latest_object_ref_or_tombstone(
@@ -1501,8 +1539,8 @@ impl AuthorityStore {
             .get_latest_object_ref_or_tombstone(object_id)
     }
 
-    /// Returns the latest object reference if and only if the object is still live (i.e. it does
-    /// not return tombstones)
+    /// Returns the latest object reference if and only if the object is still
+    /// live (i.e. it does not return tombstones)
     pub fn get_latest_object_ref_if_alive(
         &self,
         object_id: ObjectID,
@@ -1513,7 +1551,8 @@ impl AuthorityStore {
         }
     }
 
-    /// Returns the latest object we have for this object_id in the objects table.
+    /// Returns the latest object we have for this object_id in the objects
+    /// table.
     ///
     /// If no entry for the object_id is found, return None.
     pub fn get_latest_object_or_tombstone(
@@ -1605,11 +1644,12 @@ impl AuthorityStore {
     }
 
     /// This function reads the DB directly to get the system state object.
-    /// If reconfiguration is happening at the same time, there is no guarantee whether we would be getting
-    /// the old or the new system state object.
-    /// Hence this function should only be called during RPC reads where data race is not a major concern.
-    /// In general we should avoid this as much as possible.
-    /// If the intent is for testing, you can use AuthorityState:: get_sui_system_state_object_for_testing.
+    /// If reconfiguration is happening at the same time, there is no guarantee
+    /// whether we would be getting the old or the new system state object.
+    /// Hence this function should only be called during RPC reads where data
+    /// race is not a major concern. In general we should avoid this as much
+    /// as possible. If the intent is for testing, you can use
+    /// AuthorityState:: get_sui_system_state_object_for_testing.
     pub fn get_sui_system_state_object_unsafe(&self) -> SuiResult<SuiSystemState> {
         get_sui_system_state(self.perpetual_tables.as_ref())
     }
@@ -1650,8 +1690,9 @@ impl AuthorityStore {
                                 let mut total_sui = 0;
                                 for object in task_objects {
                                     total_storage_rebate += object.storage_rebate;
-                                    // get_total_sui includes storage rebate, however all storage rebate is
-                                    // also stored in the storage fund, so we need to subtract it here.
+                                    // get_total_sui includes storage rebate, however all storage
+                                    // rebate is also stored in
+                                    // the storage fund, so we need to subtract it here.
                                     total_sui +=
                                         object.get_total_sui(layout_resolver.as_mut()).unwrap()
                                             - object.storage_rebate;
@@ -1694,7 +1735,8 @@ impl AuthorityStore {
             .sui_conservation_check_latency
             .set(cur_time.elapsed().as_secs() as i64);
 
-        // It is safe to call this function because we are in the middle of reconfiguration.
+        // It is safe to call this function because we are in the middle of
+        // reconfiguration.
         let system_state = self
             .get_sui_system_state_object_unsafe()
             .expect("Reading sui system state object cannot fail")
@@ -1764,8 +1806,9 @@ impl AuthorityStore {
         Ok(())
     }
 
-    /// This is a temporary method to be used when we enable simplified_unwrap_then_delete.
-    /// It re-accumulates state hash for the new epoch if simplified_unwrap_then_delete is enabled.
+    /// This is a temporary method to be used when we enable
+    /// simplified_unwrap_then_delete. It re-accumulates state hash for the
+    /// new epoch if simplified_unwrap_then_delete is enabled.
     #[instrument(level = "error", skip_all)]
     pub fn maybe_reaccumulate_state_hash(
         &self,
@@ -1780,23 +1823,25 @@ impl AuthorityStore {
             cur_epoch_store.get_chain_identifier().chain(),
         )
         .simplified_unwrap_then_delete();
-        // If in the new epoch the simplified_unwrap_then_delete is enabled for the first time,
-        // we re-accumulate state root.
+        // If in the new epoch the simplified_unwrap_then_delete is enabled for the
+        // first time, we re-accumulate state root.
         let should_reaccumulate =
             !old_simplified_unwrap_then_delete && new_simplified_unwrap_then_delete;
         if !should_reaccumulate {
             return;
         }
-        info!("[Re-accumulate] simplified_unwrap_then_delete is enabled in the new protocol version, re-accumulating state hash");
+        info!(
+            "[Re-accumulate] simplified_unwrap_then_delete is enabled in the new protocol version, re-accumulating state hash"
+        );
         let cur_time = Instant::now();
         std::thread::scope(|s| {
             let pending_tasks = FuturesUnordered::new();
-            // Shard the object IDs into different ranges so that we can process them in parallel.
-            // We divide the range into 2^BITS number of ranges. To do so we use the highest BITS bits
-            // to mark the starting/ending point of the range. For example, when BITS = 5, we
-            // divide the range into 32 ranges, and the first few ranges are:
-            // 00000000_.... to 00000111_....
-            // 00001000_.... to 00001111_....
+            // Shard the object IDs into different ranges so that we can process them in
+            // parallel. We divide the range into 2^BITS number of ranges. To do
+            // so we use the highest BITS bits to mark the starting/ending point
+            // of the range. For example, when BITS = 5, we divide the range
+            // into 32 ranges, and the first few ranges are: 00000000_.... to
+            // 00000111_.... 00001000_.... to 00001111_....
             // 00010000_.... to 00010111_....
             // and etc.
             const BITS: u8 = 5;
@@ -1835,10 +1880,10 @@ impl AuthorityStore {
                                     );
                                 }
                                 if matches!(prev.1.inner(), StoreObject::Wrapped)
-                                    && object_key.0 != prev.0 .0
+                                    && object_key.0 != prev.0.0
                                 {
                                     wrapped_objects_to_remove
-                                        .push(WrappedObject::new(prev.0 .0, prev.0 .1));
+                                        .push(WrappedObject::new(prev.0.0, prev.0.1));
                                 }
 
                                 prev = (object_key, object);
@@ -1850,7 +1895,7 @@ impl AuthorityStore {
                         }
                     }
                     if matches!(prev.1.inner(), StoreObject::Wrapped) {
-                        wrapped_objects_to_remove.push(WrappedObject::new(prev.0 .0, prev.0 .1));
+                        wrapped_objects_to_remove.push(WrappedObject::new(prev.0.0, prev.0.1));
                     }
                     info!(
                         "[Re-accumulate] Task {}: object scanned: {}, wrapped objects: {}",
@@ -1940,7 +1985,8 @@ impl AuthorityStore {
         self.perpetual_tables.objects.multi_remove(entries).unwrap();
     }
 
-    // Counts the number of versions exist in object store for `object_id`. This includes tombstone.
+    // Counts the number of versions exist in object store for `object_id`. This
+    // includes tombstone.
     #[cfg(msim)]
     pub fn count_object_versions(&self, object_id: ObjectID) -> usize {
         self.perpetual_tables
@@ -2078,13 +2124,14 @@ pub enum LockDetailsWrapperDeprecated {
 
 impl LockDetailsWrapperDeprecated {
     pub fn migrate(self) -> Self {
-        // TODO: when there are multiple versions, we must iteratively migrate from version N to
-        // N+1 until we arrive at the latest version
+        // TODO: when there are multiple versions, we must iteratively migrate from
+        // version N to N+1 until we arrive at the latest version
         self
     }
 
-    // Always returns the most recent version. Older versions are migrated to the latest version at
-    // read time, so there is never a need to access older versions.
+    // Always returns the most recent version. Older versions are migrated to the
+    // latest version at read time, so there is never a need to access older
+    // versions.
     pub fn inner(&self) -> &LockDetailsDeprecated {
         match self {
             Self::V1(v1) => v1,

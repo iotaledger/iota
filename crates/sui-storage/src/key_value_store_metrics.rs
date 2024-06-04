@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
 use prometheus::{
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry, HistogramVec,
     IntCounterVec, Registry,
 };
-use std::sync::Arc;
 
 pub struct KeyValueStoreMetrics {
     pub key_value_store_num_fetches_success: IntCounterVec,

@@ -1,6 +1,8 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+use std::{str::FromStr, sync::Arc, time::SystemTime};
+
 use bytes::Bytes;
 use clap::*;
 use eyre::Context;
@@ -12,9 +14,6 @@ use rand::{
     rngs::{SmallRng, StdRng},
     Rng, RngCore, SeedableRng,
 };
-use std::str::FromStr;
-use std::sync::Arc;
-use std::time::SystemTime;
 use tokio::{
     net::TcpStream,
     time::{interval, sleep, Duration, Instant},
@@ -31,9 +30,11 @@ use worker::LazyNarwhalClient;
 /// * the size of the transactions via the --size property
 /// * the worker address <ADDR> to send the transactions to. A url format is expected ex http://127.0.0.1:7000
 /// * the rate of sending transactions via the --rate parameter
-/// Optionally the --nodes parameter can be passed where a list of worker addresses
-/// should be passed. The benchmarking client will first try to connect to all of those nodes before start sending
-/// any transactions. That confirms the system is up and running and ready to start processing the transactions.
+/// Optionally the --nodes parameter can be passed where a list of worker
+/// addresses should be passed. The benchmarking client will first try to
+/// connect to all of those nodes before start sending any transactions. That
+/// confirms the system is up and running and ready to start processing the
+/// transactions.
 #[derive(Parser)]
 #[clap(name = "Narwhal Stress Testing Framework")]
 struct App {
@@ -49,7 +50,8 @@ struct App {
     /// Network addresses that must be reachable before starting the benchmark.
     #[clap(long, value_delimiter = ',', value_parser = parse_url, global = true)]
     nodes: Vec<Url>,
-    /// Optional duration of the benchmark in seconds. If not provided the benchmark will run forever.
+    /// Optional duration of the benchmark in seconds. If not provided the
+    /// benchmark will run forever.
     #[clap(long, global = true)]
     duration: Option<u64>,
     #[clap(long, default_value = "0.0.0.0", global = true)]
@@ -169,7 +171,8 @@ impl Client {
     }
 
     pub async fn send(&self) -> Result<(), eyre::Report> {
-        // The transaction size must be at least 100 bytes to ensure all txs are different.
+        // The transaction size must be at least 100 bytes to ensure all txs are
+        // different.
         if self.size < 100 {
             return Err(eyre::Report::msg(
                 "Transaction size must be at least 100 bytes",
@@ -268,8 +271,9 @@ impl Client {
                         metrics_clone.narwhal_client_num_error.inc();
                     } else {
                         metrics_clone.narwhal_client_num_success.inc();
-                        // TODO: properly compute the latency from submission to consensus output and successful commits
-                        // record client latencies per transaction
+                        // TODO: properly compute the latency from submission to consensus output
+                        // and successful commits record client latencies
+                        // per transaction
                         let latency_s = now.elapsed().as_secs_f64();
                         let latency_squared_s = latency_s.powf(2.0);
                         metrics_clone.narwhal_client_latency_s.observe(latency_s);

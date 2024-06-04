@@ -3,6 +3,8 @@
 
 import React from 'react';
 import { Button } from '@/components/index';
+import { usePopups } from '@/hooks';
+import UnstakePopup from './UnstakePopup';
 
 interface StakeDetailsPopupProps {
     stake: {
@@ -13,16 +15,24 @@ interface StakeDetailsPopupProps {
     };
 }
 
-function StakeDetailsPopup({
-    stake: { validator, stake, rewards },
-}: StakeDetailsPopupProps): JSX.Element {
+function StakeDetailsPopup({ stake }: StakeDetailsPopupProps): JSX.Element {
+    const { openPopup } = usePopups();
+
+    const unstake = (id: string) => {
+        console.log(`Unstake initiated for id: ${id}`);
+    };
+
+    const openUnstakePopup = () => {
+        openPopup(<UnstakePopup stake={stake} onUnstake={unstake} />);
+    };
+
     return (
-        <div className="flex min-w-[300px] flex-col gap-2">
-            <p>{validator}</p>
-            <p>Stake: {stake}</p>
-            <p>Rewards: {rewards}</p>
+        <div className="flex min-w-[400px] flex-col gap-2">
+            <p>{stake.validator}</p>
+            <p>Stake: {stake.stake}</p>
+            <p>Rewards: {stake.rewards}</p>
             <div className="flex justify-between gap-2">
-                <Button onClick={() => console.log('Unstake')}>Unstake</Button>
+                <Button onClick={openUnstakePopup}>Unstake</Button>
                 <Button onClick={() => console.log('Stake more')}>Stake more</Button>
             </div>
         </div>

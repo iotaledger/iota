@@ -50,8 +50,8 @@ pub(crate) async fn dump(db_url: String, output_dir: PathBuf) -> Result<()> {
     Ok(())
 }
 
-/// Ensure the output directory exists, either because it already exists as an empty, writable
-/// directory, or by creating a new directory.
+/// Ensure the output directory exists, either because it already exists as an
+/// empty, writable directory, or by creating a new directory.
 fn ensure_output_directory(path: impl Into<PathBuf>) -> Result<()> {
     let path: PathBuf = path.into();
     if path.exists() {

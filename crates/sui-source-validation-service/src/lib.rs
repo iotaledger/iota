@@ -1,44 +1,55 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use axum::middleware::{self, Next};
-use std::collections::BTreeMap;
-use std::fmt;
-use std::net::TcpListener;
-use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
-use std::time::Duration;
-use std::{ffi::OsString, fs, path::Path, process::Command};
-use tokio::sync::oneshot::Sender;
+use std::{
+    collections::BTreeMap,
+    ffi::OsString,
+    fmt, fs,
+    net::TcpListener,
+    path::{Path, PathBuf},
+    process::Command,
+    sync::{Arc, RwLock},
+    time::Duration,
+};
 
 use anyhow::{anyhow, bail};
-use axum::extract::{Query, State};
-use axum::response::{IntoResponse, Response};
-use axum::routing::{get, IntoMakeService};
-use axum::Extension;
-use axum::{Json, Router, Server};
-use hyper::http::{HeaderName, HeaderValue, Method};
-use hyper::server::conn::AddrIncoming;
-use hyper::{HeaderMap, StatusCode};
-use jsonrpsee::core::client::{Subscription, SubscriptionClientT};
-use jsonrpsee::core::params::ArrayParams;
-use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
-use mysten_metrics::RegistryService;
-use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
-use serde::{Deserialize, Serialize};
-use tower::ServiceBuilder;
-use tracing::{debug, error, info};
-use url::Url;
-
+use axum::{
+    extract::{Query, State},
+    middleware::{self, Next},
+    response::{IntoResponse, Response},
+    routing::{get, IntoMakeService},
+    Extension, Json, Router, Server,
+};
+use hyper::{
+    http::{HeaderName, HeaderValue, Method},
+    server::conn::AddrIncoming,
+    HeaderMap, StatusCode,
+};
+use jsonrpsee::{
+    core::{
+        client::{Subscription, SubscriptionClientT},
+        params::ArrayParams,
+    },
+    ws_client::{WsClient, WsClientBuilder},
+};
 use move_core_types::account_address::AccountAddress;
 use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 use move_symbol_pool::Symbol;
+use mysten_metrics::RegistryService;
+use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
+use serde::{Deserialize, Serialize};
 use sui_move::build::resolve_lock_file_path;
 use sui_move_build::{BuildConfig, SuiPackageHooks};
-use sui_sdk::rpc_types::{SuiTransactionBlockEffects, TransactionFilter};
-use sui_sdk::types::base_types::ObjectID;
-use sui_sdk::SuiClientBuilder;
+use sui_sdk::{
+    rpc_types::{SuiTransactionBlockEffects, TransactionFilter},
+    types::base_types::ObjectID,
+    SuiClientBuilder,
+};
 use sui_source_validation::{BytecodeSourceVerifier, SourceMode};
+use tokio::sync::oneshot::Sender;
+use tower::ServiceBuilder;
+use tracing::{debug, error, info};
+use url::Url;
 
 pub const HOST_PORT_ENV: &str = "HOST_PORT";
 pub const SUI_SOURCE_VALIDATION_VERSION_HEADER: &str = "x-sui-source-validation-version";
@@ -100,8 +111,9 @@ pub struct DirectorySource {
 #[derive(Clone, Deserialize, Debug)]
 pub struct Package {
     pub path: String,
-    /// Optional object ID to watch for upgrades. For framework packages, this is an address like 0x2.
-    /// For non-framework packages this is an upgrade cap (possibly wrapped).
+    /// Optional object ID to watch for upgrades. For framework packages, this
+    /// is an address like 0x2. For non-framework packages this is an
+    /// upgrade cap (possibly wrapped).
     pub watch: Option<ObjectID>,
 }
 
@@ -146,7 +158,8 @@ impl fmt::Display for Network {
 pub type SourceLookup = BTreeMap<Symbol, SourceInfo>;
 /// Map addresses to module names and sources.
 pub type AddressLookup = BTreeMap<AccountAddress, SourceLookup>;
-/// Top-level lookup that maps network to sources for corresponding on-chain networks.
+/// Top-level lookup that maps network to sources for corresponding on-chain
+/// networks.
 pub type NetworkLookup = BTreeMap<Network, AddressLookup>;
 
 pub async fn verify_package(
@@ -162,7 +175,7 @@ pub async fn verify_package(
     config.silence_warnings = true;
     let build_config = BuildConfig {
         config,
-        run_bytecode_verifier: false, /* no need to run verifier if code is on-chain */
+        run_bytecode_verifier: false, // no need to run verifier if code is on-chain
         print_diags_to_stderr: false,
     };
     let compiled_package = build_config.build(package_path.as_ref().to_path_buf())?;
@@ -177,7 +190,8 @@ pub async fn verify_package(
     BytecodeSourceVerifier::new(client.read_api())
         .verify_package(
             &compiled_package,
-            /* verify_deps */ false,
+            // verify_deps
+            false,
             SourceMode::Verify,
         )
         .await
@@ -222,7 +236,8 @@ pub fn repo_name_from_url(url: &str) -> anyhow::Result<String> {
 }
 
 #[derive(Debug)]
-/// Represents a sequence of git commands to clone a repository and sparsely checkout Move packages within.
+/// Represents a sequence of git commands to clone a repository and sparsely
+/// checkout Move packages within.
 pub struct CloneCommand {
     /// git args
     args: Vec<Vec<OsString>>,
@@ -308,7 +323,8 @@ impl CloneCommand {
     }
 }
 
-/// Clones repositories and checks out packages as per `config` at the directory `dir`.
+/// Clones repositories and checks out packages as per `config` at the directory
+/// `dir`.
 pub async fn clone_repositories(repos: Vec<&RepositorySource>, dir: &Path) -> anyhow::Result<()> {
     let mut tasks = vec![];
     for p in &repos {
@@ -339,7 +355,7 @@ pub async fn initialize(
     for s in &config.packages {
         match s {
             PackageSource::Repository(r) => repos.push(r),
-            PackageSource::Directory(_) => (), /* skip cloning */
+            PackageSource::Directory(_) => (), // skip cloning
         }
     }
     clone_repositories(repos, dir).await?;
@@ -427,10 +443,12 @@ pub async fn verify_packages(config: &Config, dir: &Path) -> anyhow::Result<Netw
     Ok(lookup)
 }
 
-// A thread that monitors on-chain transactions for package upgrades. `config` specifies which packages
-// to watch. `app_state` contains the map of sources returned by the server. In particular, `watch_for_upgrades`
-// invalidates (i.e., clears) the sources returned by the serve when we observe a package upgrade, so that we do not
-// falsely report outdated sources for a package. Pass an optional `channel` to observe the upgrade transaction(s).
+// A thread that monitors on-chain transactions for package upgrades. `config`
+// specifies which packages to watch. `app_state` contains the map of sources
+// returned by the server. In particular, `watch_for_upgrades` invalidates
+// (i.e., clears) the sources returned by the serve when we observe a package
+// upgrade, so that we do not falsely report outdated sources for a package.
+// Pass an optional `channel` to observe the upgrade transaction(s).
 // The `channel` parameter exists for testing.
 pub async fn watch_for_upgrades(
     packages: Vec<PackageSource>,
@@ -483,11 +501,14 @@ pub async fn watch_for_upgrades(
         let result: Option<Result<SuiTransactionBlockEffects, _>> = subscription.next().await;
         match result {
             Some(Ok(result)) => {
-                // We see an upgrade transaction. Clear all sources since all of part of these may now be invalid.
-                // Currently we need to restart the server within some time delta of this observation to resume
-                // returning source. Restarting revalidates the latest release sources per repositories in the config file.
-                // Restarting is a manual side-effect outside of this server because we need to ensure that sources in the
-                // repositories _actually contain_ the latest source corresponding to on-chain data (which is subject to
+                // We see an upgrade transaction. Clear all sources since all of part of these
+                // may now be invalid. Currently we need to restart the server
+                // within some time delta of this observation to resume
+                // returning source. Restarting revalidates the latest release sources per
+                // repositories in the config file. Restarting is a manual
+                // side-effect outside of this server because we need to ensure that sources in
+                // the repositories _actually contain_ the latest source
+                // corresponding to on-chain data (which is subject to
                 // manual syncing itself currently).
                 info!("Saw upgrade txn: {:?}", result);
                 let mut app_state = app_state.write().unwrap();
@@ -504,7 +525,9 @@ pub async fn watch_for_upgrades(
                 info!("Saw failed transaction when listening to upgrades.")
             }
             None => {
-                error!("Fatal: WebSocket connection lost while listening for upgrades. Shutting down server.");
+                error!(
+                    "Fatal: WebSocket connection lost while listening for upgrades. Shutting down server."
+                );
                 std::process::exit(1)
             }
         }

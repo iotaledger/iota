@@ -6,11 +6,11 @@ use std::fmt::{Display, Formatter, Write};
 use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-
-use crate::{SuiClient, SuiClientBuilder, SUI_DEVNET_URL, SUI_LOCAL_NETWORK_URL, SUI_TESTNET_URL};
 use sui_config::Config;
 use sui_keys::keystore::{AccountKeystore, Keystore};
 use sui_types::base_types::*;
+
+use crate::{SuiClient, SuiClientBuilder, SUI_DEVNET_URL, SUI_LOCAL_NETWORK_URL, SUI_TESTNET_URL};
 
 #[serde_as]
 #[derive(Serialize, Deserialize)]

@@ -3,6 +3,20 @@
 
 #![allow(clippy::inconsistent_digit_grouping)]
 
+use std::{net::SocketAddr, sync::Arc};
+
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    routing::get,
+    Json, Router,
+};
+use ethers::types::Address as EthAddress;
+use fastcrypto::{
+    encoding::{Encoding, Hex},
+    traits::ToFromBytes,
+};
+
 use crate::{
     crypto::BridgeAuthorityPublicKeyBytes,
     error::BridgeError,
@@ -13,18 +27,6 @@ use crate::{
         LimitUpdateAction, SignedBridgeAction, TokenId,
     },
 };
-use axum::{
-    extract::{Path, State},
-    Json,
-};
-use axum::{http::StatusCode, routing::get, Router};
-use ethers::types::Address as EthAddress;
-use fastcrypto::{
-    encoding::{Encoding, Hex},
-    traits::ToFromBytes,
-};
-use std::net::SocketAddr;
-use std::sync::Arc;
 
 pub mod governance_verifier;
 pub mod handler;
@@ -265,10 +267,10 @@ async fn handle_evm_contract_upgrade(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::client::bridge_client::BridgeClient;
-    use crate::server::mock_handler::BridgeRequestMockHandler;
-    use crate::test_utils::get_test_authorities_and_run_mock_bridge_server;
-    use crate::types::BridgeCommittee;
+    use crate::{
+        client::bridge_client::BridgeClient, server::mock_handler::BridgeRequestMockHandler,
+        test_utils::get_test_authorities_and_run_mock_bridge_server, types::BridgeCommittee,
+    };
 
     #[tokio::test]
     async fn test_bridge_server_handle_blocklist_update_action_path() {

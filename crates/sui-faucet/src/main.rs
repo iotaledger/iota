@@ -1,6 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    borrow::Cow,
+    env,
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+    time::Duration,
+};
+
 use axum::{
     error_handling::HandleErrorLayer,
     extract::Path,
@@ -12,13 +20,6 @@ use axum::{
 use clap::Parser;
 use http::Method;
 use mysten_metrics::spawn_monitored_task;
-use std::env;
-use std::{
-    borrow::Cow,
-    net::{IpAddr, SocketAddr},
-    sync::Arc,
-    time::Duration,
-};
 use sui_config::{sui_config_dir, SUI_CLIENT_CONFIG};
 use sui_faucet::{
     BatchFaucetResponse, BatchStatusFaucetResponse, Faucet, FaucetConfig, FaucetError,
@@ -112,7 +113,8 @@ async fn main() -> Result<(), anyhow::Error> {
     spawn_monitored_task!(async move {
         info!("Starting task to clear WAL.");
         loop {
-            // Every config.wal_retry_interval (Default: 300 seconds) we try to clear the wal coins
+            // Every config.wal_retry_interval (Default: 300 seconds) we try to clear the
+            // wal coins
             tokio::time::sleep(Duration::from_secs(wal_retry_interval)).await;
             app_state.faucet.retry_wal_coins().await.unwrap();
         }
@@ -177,7 +179,8 @@ async fn batch_request_gas(
             }
         }
     } else {
-        // TODO (jian): remove this feature gate when batch has proven to be baked long enough
+        // TODO (jian): remove this feature gate when batch has proven to be baked long
+        // enough
         info!(uuid = ?id, "Falling back to v1 implementation");
         let result = spawn_monitored_task!(async move {
             state
@@ -267,7 +270,7 @@ async fn request_gas(
                 Json(FaucetResponse::from(FaucetError::Internal(
                     "Input Error.".to_string(),
                 ))),
-            )
+            );
         }
     };
     match result {

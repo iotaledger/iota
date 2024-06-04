@@ -17,31 +17,31 @@ import { getFullnodeUrl } from '@mysten/sui.js/client';
 
 // Config options for the networks you want to connect to
 const { networkConfig } = createNetworkConfig({
-	localnet: { url: getFullnodeUrl('localnet') },
-	mainnet: { url: getFullnodeUrl('mainnet') },
+    localnet: { url: getFullnodeUrl('localnet') },
+    mainnet: { url: getFullnodeUrl('mainnet') },
 });
 
 function App() {
-	return (
-		<SuiClientProvider networks={networkConfig} defaultNetwork="localnet">
-			<YourApp />
-		</SuiClientProvider>
-	);
+    return (
+        <SuiClientProvider networks={networkConfig} defaultNetwork="localnet">
+            <YourApp />
+        </SuiClientProvider>
+    );
 }
 ```
 
 ## Props
 
-- `networks`: A map of networks you can use. The keys are the network names, and the values can be
-  either a configuration object (`SuiClientOptions`) or a `SuiClient` instance.
-- `defaultNetwork`: The name of the network to use by default when using the `SuiClientProvider` as
-  an uncontrolled component.
-- `network`: The name of the network to use when using the `SuiClientProvider` as a controlled
-  component.
-- `onNetworkChange`: A callback when the active network changes.
-- `createClient`: A callback when a new `SuiClient` is created (for example, when the active network
-  changes). It receives the network name and configuration object as arguments, returning a
-  `SuiClient` instance.
+-   `networks`: A map of networks you can use. The keys are the network names, and the values can be
+    either a configuration object (`SuiClientOptions`) or a `SuiClient` instance.
+-   `defaultNetwork`: The name of the network to use by default when using the `SuiClientProvider`
+    as an uncontrolled component.
+-   `network`: The name of the network to use when using the `SuiClientProvider` as a controlled
+    component.
+-   `onNetworkChange`: A callback when the active network changes.
+-   `createClient`: A callback when a new `SuiClient` is created (for example, when the active
+    network changes). It receives the network name and configuration object as arguments, returning
+    a `SuiClient` instance.
 
 ## Controlled component
 
@@ -54,24 +54,24 @@ import { useState } from 'react';
 
 // Config options for the networks you want to connect to
 const { networkConfig } = createNetworkConfig({
-	localnet: { url: getFullnodeUrl('localnet') },
-	mainnet: { url: getFullnodeUrl('mainnet') },
+    localnet: { url: getFullnodeUrl('localnet') },
+    mainnet: { url: getFullnodeUrl('mainnet') },
 });
 
 function App() {
-	const [activeNetwork, setActiveNetwork] = useState('localnet' as keyof typeof networks);
+    const [activeNetwork, setActiveNetwork] = useState('localnet' as keyof typeof networks);
 
-	return (
-		<SuiClientProvider
-			networks={networkConfig}
-			network={activeNetwork}
-			onNetworkChange={(network) => {
-				setActiveNetwork(network);
-			}}
-		>
-			<YourApp />
-		</SuiClientProvider>
-	);
+    return (
+        <SuiClientProvider
+            networks={networkConfig}
+            network={activeNetwork}
+            onNetworkChange={(network) => {
+                setActiveNetwork(network);
+            }}
+        >
+            <YourApp />
+        </SuiClientProvider>
+    );
 }
 ```
 
@@ -85,31 +85,31 @@ import { getFullnodeUrl, SuiClient, SuiHTTPTransport } from '@mysten/sui.js/clie
 
 // Config options for the networks you want to connect to
 const networks = {
-	localnet: { url: getFullnodeUrl('localnet') },
-	mainnet: { url: getFullnodeUrl('mainnet') },
+    localnet: { url: getFullnodeUrl('localnet') },
+    mainnet: { url: getFullnodeUrl('mainnet') },
 } satisfies Record<string, SuiClientOptions>;
 
 function App() {
-	return (
-		<SuiClientProvider
-			networks={networks}
-			defaultNetwork="localnet"
-			createClient={(network, config) => {
-				return new SuiClient({
-					transport: new SuiHTTPTransport({
-						url: 'https://api.safecoin.org',
-						rpc: {
-							headers: {
-								Authorization: 'xyz',
-							},
-						},
-					}),
-				});
-			}}
-		>
-			<YourApp />
-		</SuiClientProvider>
-	);
+    return (
+        <SuiClientProvider
+            networks={networks}
+            defaultNetwork="localnet"
+            createClient={(network, config) => {
+                return new SuiClient({
+                    transport: new SuiHTTPTransport({
+                        url: 'https://api.safecoin.org',
+                        rpc: {
+                            headers: {
+                                Authorization: 'xyz',
+                            },
+                        },
+                    }),
+                });
+            }}
+        >
+            <YourApp />
+        </SuiClientProvider>
+    );
 }
 ```
 
@@ -122,9 +122,9 @@ To use the `SuiClient` from the provider, import the `useSuiClient` function fro
 import { useSuiClient } from '@mysten/dapp-kit';
 
 function MyComponent() {
-	const client = useSuiClient();
+    const client = useSuiClient();
 
-	// use the client
+    // use the client
 }
 ```
 
@@ -135,17 +135,17 @@ hook to get the list of networks and set the active one:
 
 ```tsx
 function NetworkSelector() {
-	const ctx = useSuiClientContext();
+    const ctx = useSuiClientContext();
 
-	return (
-		<div>
-			{Object.keys(ctx.networks).map((network) => (
-				<button key={network} onClick={() => ctx.selectNetwork(network)}>
-					{`select ${network}`}
-				</button>
-			))}
-		</div>
-	);
+    return (
+        <div>
+            {Object.keys(ctx.networks).map((network) => (
+                <button key={network} onClick={() => ctx.selectNetwork(network)}>
+                    {`select ${network}`}
+                </button>
+            ))}
+        </div>
+    );
 }
 ```
 
@@ -158,9 +158,9 @@ configurations that your components can access.
 The `createNetworkConfig` function returns the provided configuration, along with hooks you can use
 to get the variables defined in your configuration.
 
-- `useNetworkConfig` returns the full network configuration object
-- `useNetworkVariables` returns the full variables object from the network configuration
-- `useNetworkVariable` returns a specific variable from the network configuration
+-   `useNetworkConfig` returns the full network configuration object
+-   `useNetworkVariables` returns the full variables object from the network configuration
+-   `useNetworkVariable` returns a specific variable from the network configuration
 
 ```tsx
 import { createNetworkConfig, SuiClientProvider } from '@mysten/dapp-kit';
@@ -171,38 +171,37 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Config options for the networks you want to connect to
 const { networkConfig, useNetworkVariable } = createNetworkConfig({
-	localnet: {
-		url: getFullnodeUrl('localnet'),
-		variables: {
-			myMovePackageId: '0x123',
-		}
-	},
-	mainnet: {
-		url: getFullnodeUrl('mainnet'),
-		variables: {
-			myMovePackageId: '0x456',
-		}
-	},
+    localnet: {
+        url: getFullnodeUrl('localnet'),
+        variables: {
+            myMovePackageId: '0x123',
+        },
+    },
+    mainnet: {
+        url: getFullnodeUrl('mainnet'),
+        variables: {
+            myMovePackageId: '0x456',
+        },
+    },
 });
 
 const queryClient = new QueryClient();
 
 function App() {
-	return (
-		<QueryClientProvider client={queryClient}>
-			<SuiClientProvider networks={networkConfig} defaultNetwork="localnet">
-				<WalletProvider>
-					<YourApp />
-				</WalletProvider>
-			</SuiClientProvider>
-		</QueryClientProvider>
-	);
+    return (
+        <QueryClientProvider client={queryClient}>
+            <SuiClientProvider networks={networkConfig} defaultNetwork="localnet">
+                <WalletProvider>
+                    <YourApp />
+                </WalletProvider>
+            </SuiClientProvider>
+        </QueryClientProvider>
+    );
 }
 
-
 function YourApp() {
-	const id = useNetworkVariable('myMovePackageId');
+    const id = useNetworkVariable('myMovePackageId');
 
-	return <div>Package ID: {id}</div>;
+    return <div>Package ID: {id}</div>;
 }
 ```

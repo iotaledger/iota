@@ -2,14 +2,6 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    diag,
-    diagnostics::Diagnostics,
-    expansion::ast::{Attributes, ModuleIdent, ModuleIdent_},
-    hlir::ast as H,
-    parser::ast::{FunctionName, ModuleName},
-    shared::{unique_map::UniqueMap, Name, NumericalAddress},
-};
 use move_binary_format::file_format as F;
 use move_bytecode_source_map::source_map::SourceMap;
 use move_core_types::{
@@ -18,6 +10,15 @@ use move_core_types::{
 };
 use move_ir_types::location::*;
 use move_symbol_pool::Symbol;
+
+use crate::{
+    diag,
+    diagnostics::Diagnostics,
+    expansion::ast::{Attributes, ModuleIdent, ModuleIdent_},
+    hlir::ast as H,
+    parser::ast::{FunctionName, ModuleName},
+    shared::{unique_map::UniqueMap, Name, NumericalAddress},
+};
 
 //**************************************************************************************************
 // Compiled Unit

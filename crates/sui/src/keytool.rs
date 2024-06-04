@@ -1,56 +1,68 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use crate::key_identity::{get_identity_address_from_keystore, KeyIdentity};
-use crate::zklogin_commands_util::{perform_zk_login_test_tx, read_cli_line};
+use std::{
+    fmt::{Debug, Display, Formatter},
+    fs,
+    path::{Path, PathBuf},
+};
+
 use anyhow::anyhow;
 use bip32::DerivationPath;
 use clap::*;
-use fastcrypto::ed25519::Ed25519KeyPair;
-use fastcrypto::encoding::{Base64, Encoding, Hex};
-use fastcrypto::hash::HashFunction;
-use fastcrypto::secp256k1::recoverable::Secp256k1Sig;
-use fastcrypto::traits::{KeyPair, ToFromBytes};
-use fastcrypto_zkp::bn254::utils::{get_oidc_url, get_token_exchange_url};
-use fastcrypto_zkp::bn254::zk_login::{fetch_jwks, OIDCProvider};
-use fastcrypto_zkp::bn254::zk_login::{JwkId, JWK};
-use fastcrypto_zkp::bn254::zk_login_api::ZkLoginEnv;
+use fastcrypto::{
+    ed25519::Ed25519KeyPair,
+    encoding::{Base64, Encoding, Hex},
+    hash::HashFunction,
+    secp256k1::recoverable::Secp256k1Sig,
+    traits::{KeyPair, ToFromBytes},
+};
+use fastcrypto_zkp::bn254::{
+    utils::{get_oidc_url, get_token_exchange_url},
+    zk_login::{fetch_jwks, JwkId, OIDCProvider, JWK},
+    zk_login_api::ZkLoginEnv,
+};
 use im::hashmap::HashMap as ImHashMap;
 use json_to_table::{json_to_table, Orientation};
 use num_bigint::BigUint;
-use rand::rngs::StdRng;
-use rand::Rng;
-use rand::SeedableRng;
+use rand::{rngs::StdRng, Rng, SeedableRng};
 use rusoto_core::Region;
 use rusoto_kms::{Kms, KmsClient, SignRequest};
 use serde::Serialize;
 use serde_json::json;
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope, PersonalMessage};
-use std::fmt::{Debug, Display, Formatter};
-use std::fs;
-use std::path::{Path, PathBuf};
-use sui_keys::key_derive::generate_new_key;
-use sui_keys::keypair_file::{
-    read_authority_keypair_from_file, read_keypair_from_file, write_authority_keypair_to_file,
-    write_keypair_to_file,
+use sui_keys::{
+    key_derive::generate_new_key,
+    keypair_file::{
+        read_authority_keypair_from_file, read_keypair_from_file, write_authority_keypair_to_file,
+        write_keypair_to_file,
+    },
+    keystore::{AccountKeystore, Keystore},
 };
-use sui_keys::keystore::{AccountKeystore, Keystore};
-use sui_types::base_types::SuiAddress;
-use sui_types::committee::EpochId;
-use sui_types::crypto::{
-    get_authority_key_pair, EncodeDecodeBase64, Signature, SignatureScheme, SuiKeyPair,
+use sui_types::{
+    base_types::SuiAddress,
+    committee::EpochId,
+    crypto::{
+        get_authority_key_pair, DefaultHash, EncodeDecodeBase64, PublicKey, Signature,
+        SignatureScheme, SuiKeyPair,
+    },
+    error::SuiResult,
+    multisig::{MultiSig, MultiSigPublicKey, ThresholdUnit, WeightUnit},
+    multisig_legacy::{MultiSigLegacy, MultiSigPublicKeyLegacy},
+    signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
+    transaction::{TransactionData, TransactionDataAPI},
+    zk_login_authenticator::ZkLoginAuthenticator,
+    zk_login_util::get_zklogin_inputs,
 };
-use sui_types::crypto::{DefaultHash, PublicKey};
-use sui_types::error::SuiResult;
-use sui_types::multisig::{MultiSig, MultiSigPublicKey, ThresholdUnit, WeightUnit};
-use sui_types::multisig_legacy::{MultiSigLegacy, MultiSigPublicKeyLegacy};
-use sui_types::signature::{AuthenticatorTrait, GenericSignature, VerifyParams};
-use sui_types::transaction::{TransactionData, TransactionDataAPI};
-use sui_types::zk_login_authenticator::ZkLoginAuthenticator;
-use sui_types::zk_login_util::get_zklogin_inputs;
-use tabled::builder::Builder;
-use tabled::settings::Rotate;
-use tabled::settings::{object::Rows, Modify, Width};
+use tabled::{
+    builder::Builder,
+    settings::{object::Rows, Modify, Rotate, Width},
+};
 use tracing::info;
+
+use crate::{
+    key_identity::{get_identity_address_from_keystore, KeyIdentity},
+    zklogin_commands_util::{perform_zk_login_test_tx, read_cli_line},
+};
 #[cfg(test)]
 #[path = "unit_tests/keytool_tests.rs"]
 mod keytool_tests;
@@ -64,7 +76,8 @@ pub enum KeyToolCommand {
     #[clap(name = "update-alias")]
     Alias {
         old_alias: String,
-        /// The alias must start with a letter and can contain only letters, digits, dots, hyphens (-), or underscores (_).
+        /// The alias must start with a letter and can contain only letters,
+        /// digits, dots, hyphens (-), or underscores (_).
         new_alias: Option<String>,
     },
     /// Convert private key in Hex or Base64 to new format (Bech32
@@ -73,8 +86,9 @@ pub enum KeyToolCommand {
     /// Sui Wallet and Sui CLI Keystore. Use `sui keytool import` if you
     /// wish to import a key to Sui Keystore.
     Convert { value: String },
-    /// Given a Base64 encoded transaction bytes, decode its components. If a signature is provided,
-    /// verify the signature against the transaction and output the result.
+    /// Given a Base64 encoded transaction bytes, decode its components. If a
+    /// signature is provided, verify the signature against the transaction
+    /// and output the result.
     DecodeOrVerifyTx {
         #[clap(long)]
         tx_bytes: String,
@@ -89,56 +103,64 @@ pub enum KeyToolCommand {
         #[clap(long)]
         tx_bytes: Option<String>,
     },
-    /// Generate a new keypair with key scheme flag {ed25519 | secp256k1 | secp256r1}
-    /// with optional derivation path, default to m/44'/4218'/0'/0'/0' for ed25519 or
-    /// m/54'/4218'/0'/0/0 for secp256k1 or m/74'/4218'/0'/0/0 for secp256r1. Word
-    /// length can be { word12 | word15 | word18 | word21 | word24} default to word12
+    /// Generate a new keypair with key scheme flag {ed25519 | secp256k1 |
+    /// secp256r1} with optional derivation path, default to
+    /// m/44'/4218'/0'/0'/0' for ed25519 or m/54'/4218'/0'/0/0 for secp256k1
+    /// or m/74'/4218'/0'/0/0 for secp256r1. Word length can be { word12 |
+    /// word15 | word18 | word21 | word24} default to word12
     /// if not specified.
     ///
-    /// The keypair file is output to the current directory. The content of the file is
-    /// a Base64 encoded string of 33-byte `flag || privkey`.
+    /// The keypair file is output to the current directory. The content of the
+    /// file is a Base64 encoded string of 33-byte `flag || privkey`.
     ///
-    /// Use `sui client new-address` if you want to generate and save the key into sui.keystore.
+    /// Use `sui client new-address` if you want to generate and save the key
+    /// into sui.keystore.
     Generate {
         key_scheme: SignatureScheme,
         derivation_path: Option<DerivationPath>,
         word_length: Option<String>,
     },
 
-    /// Add a new key to Sui CLI Keystore using either the input mnemonic phrase or a Bech32 encoded 33-byte
-    /// `flag || privkey` starting with "suiprivkey", the key scheme flag {ed25519 | secp256k1 | secp256r1}
-    /// and an optional derivation path, default to m/44'/4218'/0'/0'/0' for ed25519 or m/54'/4218'/0'/0/0
-    /// for secp256k1 or m/74'/4218'/0'/0/0 for secp256r1. Supports mnemonic phrase of word length 12, 15,
-    /// 18, 21, 24. Set an alias for the key with the --alias flag. If no alias is provided, the tool will
-    /// automatically generate one.
+    /// Add a new key to Sui CLI Keystore using either the input mnemonic phrase
+    /// or a Bech32 encoded 33-byte `flag || privkey` starting with
+    /// "suiprivkey", the key scheme flag {ed25519 | secp256k1 | secp256r1}
+    /// and an optional derivation path, default to m/44'/4218'/0'/0'/0' for
+    /// ed25519 or m/54'/4218'/0'/0/0 for secp256k1 or m/74'/4218'/0'/0/0
+    /// for secp256r1. Supports mnemonic phrase of word length 12, 15,
+    /// 18, 21, 24. Set an alias for the key with the --alias flag. If no alias
+    /// is provided, the tool will automatically generate one.
     Import {
-        /// Sets an alias for this address. The alias must start with a letter and can contain only letters, digits, hyphens (-), or underscores (_).
+        /// Sets an alias for this address. The alias must start with a letter
+        /// and can contain only letters, digits, hyphens (-), or underscores
+        /// (_).
         #[clap(long)]
         alias: Option<String>,
         input_string: String,
         key_scheme: SignatureScheme,
         derivation_path: Option<DerivationPath>,
     },
-    /// Output the private key of the given key identity in Sui CLI Keystore as Bech32
-    /// encoded string starting with `suiprivkey`.
+    /// Output the private key of the given key identity in Sui CLI Keystore as
+    /// Bech32 encoded string starting with `suiprivkey`.
     Export {
         #[clap(long)]
         key_identity: KeyIdentity,
     },
-    /// List all keys by its Sui address, Base64 encoded public key, key scheme name in
-    /// sui.keystore.
+    /// List all keys by its Sui address, Base64 encoded public key, key scheme
+    /// name in sui.keystore.
     List {
         /// Sort by alias
         #[clap(long, short = 's')]
         sort_by_alias: bool,
     },
-    /// This reads the content at the provided file path. The accepted format can be
-    /// [enum SuiKeyPair] (Base64 encoded of 33-byte `flag || privkey`) or `type AuthorityKeyPair`
-    /// (Base64 encoded `privkey`). This prints out the account keypair as Base64 encoded `flag || privkey`,
-    /// the network keypair, worker keypair, protocol keypair as Base64 encoded `privkey`.
+    /// This reads the content at the provided file path. The accepted format
+    /// can be [enum SuiKeyPair] (Base64 encoded of 33-byte `flag ||
+    /// privkey`) or `type AuthorityKeyPair` (Base64 encoded `privkey`).
+    /// This prints out the account keypair as Base64 encoded `flag || privkey`,
+    /// the network keypair, worker keypair, protocol keypair as Base64 encoded
+    /// `privkey`.
     LoadKeypair { file: PathBuf },
-    /// To MultiSig Sui Address. Pass in a list of all public keys `flag || pk` in Base64.
-    /// See `keytool list` for example public keys.
+    /// To MultiSig Sui Address. Pass in a list of all public keys `flag || pk`
+    /// in Base64. See `keytool list` for example public keys.
     MultiSigAddress {
         #[clap(long)]
         threshold: ThresholdUnit,
@@ -147,10 +169,11 @@ pub enum KeyToolCommand {
         #[clap(long, num_args(1..))]
         weights: Vec<WeightUnit>,
     },
-    /// Provides a list of participating signatures (`flag || sig || pk` encoded in Base64),
-    /// threshold, a list of all public keys and a list of their weights that define the
-    /// MultiSig address. Returns a valid MultiSig signature and its sender address. The
-    /// result can be used as signature field for `sui client execute-signed-tx`. The sum
+    /// Provides a list of participating signatures (`flag || sig || pk` encoded
+    /// in Base64), threshold, a list of all public keys and a list of their
+    /// weights that define the MultiSig address. Returns a valid MultiSig
+    /// signature and its sender address. The result can be used as
+    /// signature field for `sui client execute-signed-tx`. The sum
     /// of weights of all signatures must be >= the threshold.
     ///
     /// The order of `sigs` must be the same as the order of `pks`.
@@ -178,12 +201,14 @@ pub enum KeyToolCommand {
     },
 
     /// Read the content at the provided file path. The accepted format can be
-    /// [enum SuiKeyPair] (Base64 encoded of 33-byte `flag || privkey`) or `type AuthorityKeyPair`
-    /// (Base64 encoded `privkey`). It prints its Base64 encoded public key and the key scheme flag.
+    /// [enum SuiKeyPair] (Base64 encoded of 33-byte `flag || privkey`) or `type
+    /// AuthorityKeyPair` (Base64 encoded `privkey`). It prints its Base64
+    /// encoded public key and the key scheme flag.
     Show { file: PathBuf },
-    /// Create signature using the private key for for the given address (or its alias) in sui keystore.
-    /// Any signature commits to a [struct IntentMessage] consisting of the Base64 encoded
-    /// of the BCS serialized transaction bytes itself and its intent. If intent is absent,
+    /// Create signature using the private key for for the given address (or its
+    /// alias) in sui keystore. Any signature commits to a [struct
+    /// IntentMessage] consisting of the Base64 encoded of the BCS
+    /// serialized transaction bytes itself and its intent. If intent is absent,
     /// default will be used.
     Sign {
         #[clap(long)]
@@ -193,12 +218,12 @@ pub enum KeyToolCommand {
         #[clap(long)]
         intent: Option<Intent>,
     },
-    /// Creates a signature by leveraging AWS KMS. Pass in a key-id to leverage Amazon
-    /// KMS to sign a message and the base64 pubkey.
+    /// Creates a signature by leveraging AWS KMS. Pass in a key-id to leverage
+    /// Amazon KMS to sign a message and the base64 pubkey.
     /// Generate PubKey from pem using MystenLabs/base64pemkey
-    /// Any signature commits to a [struct IntentMessage] consisting of the Base64 encoded
-    /// of the BCS serialized transaction bytes itself and its intent. If intent is absent,
-    /// default will be used.
+    /// Any signature commits to a [struct IntentMessage] consisting of the
+    /// Base64 encoded of the BCS serialized transaction bytes itself and
+    /// its intent. If intent is absent, default will be used.
     SignKMS {
         #[clap(long)]
         data: String,
@@ -209,13 +234,17 @@ pub enum KeyToolCommand {
         #[clap(long)]
         base64pk: String,
     },
-    /// This takes [enum SuiKeyPair] of Base64 encoded of 33-byte `flag || privkey`). It
-    /// outputs the keypair into a file at the current directory where the address is the filename,
-    /// and prints out its Sui address, Base64 encoded public key, the key scheme, and the key scheme flag.
+    /// This takes [enum SuiKeyPair] of Base64 encoded of 33-byte `flag ||
+    /// privkey`). It outputs the keypair into a file at the current
+    /// directory where the address is the filename, and prints out its Sui
+    /// address, Base64 encoded public key, the key scheme, and the key scheme
+    /// flag.
     Unpack { keypair: String },
 
-    /// Given the max_epoch, generate an OAuth url, ask user to paste the redirect with id_token, call salt server, then call the prover server,
-    /// create a test transaction, use the ephemeral key to sign and execute it by assembling to a serialized zkLogin signature.
+    /// Given the max_epoch, generate an OAuth url, ask user to paste the
+    /// redirect with id_token, call salt server, then call the prover server,
+    /// create a test transaction, use the ephemeral key to sign and execute it
+    /// by assembling to a serialized zkLogin signature.
     ZkLoginSignAndExecuteTx {
         #[clap(long)]
         max_epoch: EpochId,
@@ -226,10 +255,13 @@ pub enum KeyToolCommand {
         #[clap(long, default_value = "true")]
         test_multisig: bool, // if true, use a multisig address with zklogin and a traditional kp.
         #[clap(long, default_value = "false")]
-        sign_with_sk: bool, // if true, execute tx with the traditional sig (in the multisig), otherwise with the zklogin sig.
+        sign_with_sk: bool, /* if true, execute tx with the traditional sig (in the multisig),
+                             * otherwise with the zklogin sig. */
     },
 
-    /// A workaround to the above command because sometimes token pasting does not work (for Facebook). All the inputs required here are printed from the command above.
+    /// A workaround to the above command because sometimes token pasting does
+    /// not work (for Facebook). All the inputs required here are printed from
+    /// the command above.
     ZkLoginEnterToken {
         #[clap(long)]
         parsed_token: String,
@@ -250,9 +282,11 @@ pub enum KeyToolCommand {
     },
 
     /// Given a zkLogin signature, parse it if valid. If `bytes` provided,
-    /// parse it as either as TransactionData or PersonalMessage based on `intent_scope`.
-    /// It verifies the zkLogin signature based its latest JWK fetched.
-    /// Example request: sui keytool zk-login-sig-verify --sig $SERIALIZED_ZKLOGIN_SIG --bytes $BYTES --intent-scope 0 --network devnet --curr-epoch 10
+    /// parse it as either as TransactionData or PersonalMessage based on
+    /// `intent_scope`. It verifies the zkLogin signature based its latest
+    /// JWK fetched. Example request: sui keytool zk-login-sig-verify --sig
+    /// $SERIALIZED_ZKLOGIN_SIG --bytes $BYTES --intent-scope 0 --network devnet
+    /// --curr-epoch 10
     ZkLoginSigVerify {
         /// The Base64 of the serialized zkLogin signature.
         #[clap(long)]
@@ -263,7 +297,8 @@ pub enum KeyToolCommand {
         /// Either 0 for TransactionData or 3 for PersonalMessage.
         #[clap(long)]
         intent_scope: u8,
-        /// The current epoch for the network to verify the signature's max_epoch against.
+        /// The current epoch for the network to verify the signature's
+        /// max_epoch against.
         #[clap(long)]
         curr_epoch: Option<EpochId>,
         /// The network to verify the signature for, determines ZkLoginEnv.
@@ -271,8 +306,9 @@ pub enum KeyToolCommand {
         network: String,
     },
 
-    /// TESTING ONLY: Given a string of data, sign with the fixed dev-only ephemeral key
-    /// and output a zkLogin signature with a fixed dev-only proof with fixed max epoch 10.
+    /// TESTING ONLY: Given a string of data, sign with the fixed dev-only
+    /// ephemeral key and output a zkLogin signature with a fixed dev-only
+    /// proof with fixed max epoch 10.
     ZkLoginInsecureSignPersonalMessage {
         /// The string of data to sign.
         #[clap(long)]
@@ -663,7 +699,8 @@ impl KeyToolCommand {
                         }
                     }
                     Err(_) => {
-                        // Authority keypair file is not stored with the flag, it will try read as BLS keypair..
+                        // Authority keypair file is not stored with the flag, it will try read as
+                        // BLS keypair..
                         match read_authority_keypair_from_file(&file) {
                             Ok(keypair) => KeypairData {
                                 account_keypair: keypair.encode_base64(),
@@ -1006,7 +1043,9 @@ impl KeyToolCommand {
                 println!("Visit URL (Slack): {url_7}");
                 println!("Token exchange URL (Slack): {url_8}");
 
-                println!("Finish login and paste the entire URL here (e.g. https://sui.io/#id_token=...):");
+                println!(
+                    "Finish login and paste the entire URL here (e.g. https://sui.io/#id_token=...):"
+                );
 
                 let parsed_token = read_cli_line()?;
                 let tx_digest = perform_zk_login_test_tx(
@@ -1213,14 +1252,16 @@ impl CommandOutput {
         };
         // Log line by line
         for line in line.lines() {
-            // Logs write to a file on the side.  Print to stdout and also log to file, for tests to pass.
+            // Logs write to a file on the side.  Print to stdout and also log to file, for
+            // tests to pass.
             println!("{line}");
             info!("{line}")
         }
     }
 }
 
-// when --json flag is used, any output result is transformed into a JSON pretty string and sent to std output
+// when --json flag is used, any output result is transformed into a JSON pretty
+// string and sent to std output
 impl Debug for CommandOutput {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match serde_json::to_string_pretty(self) {
@@ -1230,9 +1271,10 @@ impl Debug for CommandOutput {
     }
 }
 
-/// Converts legacy formatted private key to 33 bytes bech32 encoded private key or vice versa.
-/// It can handle:
-/// 1) Hex encoded 32 byte private key (assumes scheme is Ed25519), this is the legacy wallet format
+/// Converts legacy formatted private key to 33 bytes bech32 encoded private key
+/// or vice versa. It can handle:
+/// 1) Hex encoded 32 byte private key (assumes scheme is Ed25519), this is the
+///    legacy wallet format
 /// 2) Base64 encoded 32 bytes private key (assumes scheme is Ed25519)
 /// 3) Base64 encoded 33 bytes private key with flag.
 /// 4) Bech32 encoded 33 bytes private key with flag.

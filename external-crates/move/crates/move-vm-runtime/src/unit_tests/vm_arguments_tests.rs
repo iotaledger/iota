@@ -4,7 +4,6 @@
 
 use std::collections::HashMap;
 
-use crate::move_vm::MoveVM;
 use move_binary_format::{
     errors::{VMError, VMResult},
     file_format::{
@@ -25,6 +24,8 @@ use move_core_types::{
     vm_status::{StatusCode, StatusType},
 };
 use move_vm_types::gas::UnmeteredGasMeter;
+
+use crate::move_vm::MoveVM;
 
 fn make_module_with_function(
     visibility: Visibility,
@@ -212,7 +213,8 @@ fn call_script_function(
     call_script_function_with_args_ty_args_signers(module, function_name, args, vec![], vec![])
 }
 
-// these signatures used to be bad, but there are no bad signatures for scripts at the VM
+// these signatures used to be bad, but there are no bad signatures for scripts
+// at the VM
 fn deprecated_bad_signatures() -> Vec<Signature> {
     vec![
         // struct in signature
@@ -338,7 +340,6 @@ fn good_signatures_and_arguments() -> Vec<(Signature, Vec<MoveValue>)> {
                 ]),
             ],
         ),
-        //
         // Vector arguments
         //
         // empty vector
@@ -501,7 +502,6 @@ fn general_cases() -> Vec<(
 
 #[test]
 fn check_script_function() {
-    //
     // Bad signatures
     //
     for signature in deprecated_bad_signatures() {
@@ -519,11 +519,11 @@ fn check_script_function() {
         )
     }
 
-    //
     // Good signatures
     //
     for (signature, args) in good_signatures_and_arguments() {
-        // Body of the script is just an abort, so `ABORTED` means the script was accepted and ran
+        // Body of the script is just an abort, so `ABORTED` means the script was
+        // accepted and ran
         let expected_status = StatusCode::ABORTED;
         let (module, function_name) = make_script_function(signature);
         assert_eq!(
@@ -535,7 +535,6 @@ fn check_script_function() {
         )
     }
 
-    //
     // Mismatched Cases
     //
     for (signature, args, error) in mismatched_cases() {
@@ -550,7 +549,8 @@ fn check_script_function() {
     }
 
     for (signature, args, signers, expected_status_opt) in general_cases() {
-        // Body of the script is just an abort, so `ABORTED` means the script was accepted and ran
+        // Body of the script is just an abort, so `ABORTED` means the script was
+        // accepted and ran
         let expected_status = expected_status_opt.unwrap_or(StatusCode::ABORTED);
         let (module, function_name) = make_script_function(signature);
         assert_eq!(
@@ -568,7 +568,6 @@ fn check_script_function() {
         );
     }
 
-    //
     // Non script visible
     // DEPRECATED this check must now be done by the adapter
     //
