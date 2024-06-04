@@ -332,8 +332,7 @@ fn extract_native_token_from_bag(
         .and_then(|obj| obj.as_coin_maybe())?;
 
     ensure!(
-        coin_token.balance.value(),
-        native_token.amount().as_u64(),
+        coin_token.balance.value() == native_token.amount().as_u64(),
         "coin token balance does not match original native token amount"
     );
     Ok(())
