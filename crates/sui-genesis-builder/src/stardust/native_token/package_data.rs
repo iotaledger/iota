@@ -175,7 +175,7 @@ fn extract_irc30_metadata(output: &FoundryOutput) -> Irc30Metadata {
                 .unwrap_or(Irc30MetadataCompact::new(
                     derive_foundry_package_lowercase_identifier("", output.id().as_slice()),
                 ))
-                .to_full_scheme(),
+                .into_full_scheme(),
         },
         None => {
             let identifier =
@@ -414,7 +414,7 @@ mod tests {
         let identifier = "a".to_string();
         assert_eq!(
             derive_foundry_package_lowercase_identifier(&identifier, &[]),
-            "foundrya".to_string()
+            "a".to_string()
         );
     }
 
@@ -423,7 +423,7 @@ mod tests {
         let identifier = " a bc-d e_".to_string();
         assert_eq!(
             derive_foundry_package_lowercase_identifier(&identifier, &[]),
-            "foundryabcde".to_string()
+            "abcde".to_string()
         );
     }
 
@@ -432,7 +432,7 @@ mod tests {
         let identifier = "hello-world".to_string();
         assert_eq!(
             derive_foundry_package_lowercase_identifier(&identifier, &[]),
-            "foundryhelloworld".to_string()
+            "helloworld".to_string()
         );
     }
 
@@ -441,7 +441,7 @@ mod tests {
         let identifier = "#hello-move_world/token&".to_string();
         assert_eq!(
             derive_foundry_package_lowercase_identifier(&identifier, &[]),
-            "foundryhellomove_worldtoken"
+            "hellomove_worldtoken"
         );
     }
     #[test]
