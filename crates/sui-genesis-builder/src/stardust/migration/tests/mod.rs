@@ -228,6 +228,7 @@ fn extract_native_token_from_bag(
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
     module_name: &IdentStr,
     native_token: NativeToken,
+    expected_assets: ExpectedAssets,
 ) -> anyhow::Result<()> {
     let native_token_id: &TokenId = native_token.token_id();
 
@@ -269,9 +270,12 @@ fn extract_native_token_from_bag(
         };
         let balance_arg = Argument::NestedResult(result_idx, 0);
         let bag_arg = Argument::NestedResult(result_idx, 1);
-        // This is the inner object, i.e. the Alias extracted from an Alias Output
-        // or NFT extracted from an NFT Output.
-        let inner_arg = Argument::NestedResult(result_idx, 2);
+        if matches!(expected_assets, ExpectedAssets::BalanceBagObject) {
+            // This is the inner object, i.e. the Alias extracted from an Alias Output
+            // or NFT extracted from an NFT Output.
+            let inner_arg = Argument::NestedResult(result_idx, 2);
+            builder.transfer_arg(SuiAddress::default(), inner_arg);
+        }
 
         let coin_arg = builder.programmable_move_call(
             SUI_FRAMEWORK_PACKAGE_ID,
@@ -282,7 +286,6 @@ fn extract_native_token_from_bag(
         );
 
         builder.transfer_arg(SuiAddress::default(), coin_arg);
-        builder.transfer_arg(SuiAddress::default(), inner_arg);
 
         let token_type_arg = builder.pure(token_type.clone())?;
         let balance_arg = builder.programmable_move_call(
@@ -366,6 +369,13 @@ impl UnlockObjectTestResult {
     pub(crate) const ERROR_TIMELOCK_NOT_EXPIRED_FAILURE: Self = Self::Failure(0);
 }
 
+enum ExpectedAssets {
+    // TODO: Remove lint exception once the variant is used
+    #[allow(dead_code)]
+    BalanceBag,
+    BalanceBagObject,
+}
+
 fn unlock_object_test(
     output_id: OutputId,
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
@@ -373,6 +383,7 @@ fn unlock_object_test(
     module_name: &IdentStr,
     epoch_start_timestamp_ms: u64,
     expected_test_result: UnlockObjectTestResult,
+    expected_assets: ExpectedAssets,
 ) -> anyhow::Result<()> {
     let (migration_executor, objects_map) = run_migration(outputs)?;
 
@@ -427,7 +438,6 @@ fn unlock_object_test(
         };
         let balance_arg = Argument::NestedResult(result_idx, 0);
         let bag_arg = Argument::NestedResult(result_idx, 1);
-        let object_arg = Argument::NestedResult(result_idx, 2);
 
         let coin_arg = builder.programmable_move_call(
             SUI_FRAMEWORK_PACKAGE_ID,
@@ -441,7 +451,11 @@ fn unlock_object_test(
         // in the test.
         builder.transfer_arg(SuiAddress::ZERO, coin_arg);
         builder.transfer_arg(SuiAddress::ZERO, bag_arg);
-        builder.transfer_arg(SuiAddress::ZERO, object_arg);
+
+        if matches!(expected_assets, ExpectedAssets::BalanceBagObject) {
+            let object_arg = Argument::NestedResult(result_idx, 2);
+            builder.transfer_arg(SuiAddress::ZERO, object_arg);
+        }
 
         builder.finish()
     };
