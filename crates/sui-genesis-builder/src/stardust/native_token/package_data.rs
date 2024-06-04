@@ -14,6 +14,8 @@ use iota_sdk::{
     Url,
 };
 use rand::distributions::{Alphanumeric, DistString};
+use rand_pcg::Pcg64;
+use rand_seeder::Seeder;
 use regex::Regex;
 
 use crate::stardust::{error::StardustError, types::token_scheme::SimpleTokenSchemeU64};
@@ -115,7 +117,10 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
 
         // Derive a valid, lowercase move identifier from the symbol field in the irc30
         // metadata
-        let identifier = derive_lowercase_identifier(irc_30_metadata.symbol())?;
+        let identifier = derive_foundry_package_lowercase_identifier(
+            irc_30_metadata.symbol(),
+            output.id().to_ascii_lowercase(),
+        );
 
         let decimals = u8::try_from(*irc_30_metadata.decimals()).map_err(|e| {
             StardustError::FoundryConversionError {
@@ -148,7 +153,7 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
     }
 }
 
-fn derive_lowercase_identifier(input: &str) -> Result<String, StardustError> {
+fn derive_foundry_package_lowercase_identifier(input: &str, seed: Vec<u8>) -> String {
     let input = input.to_ascii_lowercase();
 
     static VALID_IDENTIFIER_PATTERN: &str = r"[a-z][a-z0-9_]*";
@@ -165,18 +170,14 @@ fn derive_lowercase_identifier(input: &str) -> Result<String, StardustError> {
     // Ensure no trailing underscore at the end of the identifier
     let final_identifier = concatenated.trim_end_matches('_').to_string();
 
-    if !final_identifier.is_empty() {
-        if move_core_types::identifier::is_valid(&final_identifier) {
-            Ok(final_identifier)
-        } else {
-            Err(StardustError::InvalidMoveIdentifierDerived {
-                symbol: input,
-                identifier: final_identifier,
-            })
-        }
+    if move_core_types::identifier::is_valid(&final_identifier) {
+        final_identifier
     } else {
         // Generate a new valid random identifier if the identifier is empty.
-        Ok(Alphanumeric.sample_string(&mut rand::thread_rng(), 7))
+        let mut rng: Pcg64 = Seeder::from(seed).make_rng();
+        let mut identifier = String::from("foundry");
+        identifier.push_str(&Alphanumeric.sample_string(&mut rng, 7).to_lowercase());
+        identifier
     }
 }
 
@@ -189,7 +190,7 @@ mod tests {
             address::AliasAddress,
             output::{
                 feature::MetadataFeature, unlock_condition::ImmutableAliasAddressUnlockCondition,
-                AliasId, Feature, FoundryOutputBuilder, SimpleTokenScheme, TokenScheme,
+                AliasId, Feature, FoundryId, FoundryOutputBuilder, SimpleTokenScheme, TokenScheme,
             },
         },
         U256,
@@ -361,23 +362,32 @@ mod tests {
     #[test]
     fn empty_identifier() {
         let identifier = "".to_string();
-        let result = derive_lowercase_identifier(&identifier).unwrap();
-        assert_eq!(7, result.len());
+        let result = derive_foundry_package_lowercase_identifier(
+            &identifier,
+            FoundryId::null().to_ascii_lowercase(),
+        );
+        assert_eq!(14, result.len());
     }
 
     #[test]
     fn identifier_with_only_invalid_chars() {
         let identifier = "!@#$%^".to_string();
-        let result = derive_lowercase_identifier(&identifier).unwrap();
-        assert_eq!(7, result.len());
+        let result = derive_foundry_package_lowercase_identifier(
+            &identifier,
+            FoundryId::null().to_ascii_lowercase(),
+        );
+        assert_eq!(14, result.len());
     }
 
     #[test]
     fn identifier_with_only_one_char() {
         let identifier = "a".to_string();
         assert_eq!(
-            derive_lowercase_identifier(&identifier).unwrap(),
-            "a".to_string()
+            derive_foundry_package_lowercase_identifier(
+                &identifier,
+                FoundryId::null().to_ascii_lowercase()
+            ),
+            "foundrya".to_string()
         );
     }
 
@@ -385,8 +395,11 @@ mod tests {
     fn identifier_with_whitespaces_and_ending_underscore() {
         let identifier = " a bc-d e_".to_string();
         assert_eq!(
-            derive_lowercase_identifier(&identifier).unwrap(),
-            "abcde".to_string()
+            derive_foundry_package_lowercase_identifier(
+                &identifier,
+                FoundryId::null().to_ascii_lowercase()
+            ),
+            "foundryabcde".to_string()
         );
     }
 
@@ -394,8 +407,11 @@ mod tests {
     fn identifier_with_minus() {
         let identifier = "hello-world".to_string();
         assert_eq!(
-            derive_lowercase_identifier(&identifier).unwrap(),
-            "helloworld".to_string()
+            derive_foundry_package_lowercase_identifier(
+                &identifier,
+                FoundryId::null().to_ascii_lowercase()
+            ),
+            "foundryhelloworld".to_string()
         );
     }
 
@@ -403,15 +419,21 @@ mod tests {
     fn identifier_with_multiple_invalid_chars() {
         let identifier = "#hello-move_world/token&".to_string();
         assert_eq!(
-            derive_lowercase_identifier(&identifier).unwrap(),
-            "hellomove_worldtoken"
+            derive_foundry_package_lowercase_identifier(
+                &identifier,
+                FoundryId::null().to_ascii_lowercase()
+            ),
+            "foundryhellomove_worldtoken"
         );
     }
     #[test]
     fn valid_identifier() {
         let identifier = "valid_identifier".to_string();
         assert_eq!(
-            derive_lowercase_identifier(&identifier).unwrap(),
+            derive_foundry_package_lowercase_identifier(
+                &identifier,
+                FoundryId::null().to_ascii_lowercase()
+            ),
             identifier
         );
     }
