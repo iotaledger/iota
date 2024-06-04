@@ -27,18 +27,26 @@ pub(crate) fn verify_output(
     storage: &InMemoryStorage,
 ) -> anyhow::Result<()> {
     match output {
-        Output::Alias(output) => {
-            alias::verify_alias_output(output, created_objects, foundry_data, storage)
-        }
+        Output::Alias(output) => alias::verify_alias_output(
+            header.output_id(),
+            output,
+            created_objects,
+            foundry_data,
+            storage,
+        ),
         Output::Basic(output) => {
             basic::verify_basic_output(output, created_objects, foundry_data, storage)
         }
         Output::Foundry(output) => {
             foundry::verify_foundry_output(output, created_objects, foundry_data, storage)
         }
-        Output::Nft(output) => {
-            nft::verify_nft_output(output, created_objects, foundry_data, storage)
-        }
+        Output::Nft(output) => nft::verify_nft_output(
+            header.output_id(),
+            output,
+            created_objects,
+            foundry_data,
+            storage,
+        ),
         // Treasury outputs aren't used since Stardust, so no need to verify anything here.
         Output::Treasury(_) => return Ok(()),
     }

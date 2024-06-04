@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { CookieStorage } from '@amplitude/analytics-client-common';
 import { MemoryStorage } from '@amplitude/analytics-core';
 import { CookieStorageOptions, type Storage } from '@amplitude/analytics-types';
@@ -15,19 +18,19 @@ export const AMP_COOKIE_PREFIX = 'AMP_';
  * tracking cookies :)
  */
 export class PersistableStorage<T> implements Storage<T> {
-    #cookieStorage: CookieStorage<T>;
-    #memoryStorage: MemoryStorage<T>;
-    #isPersisted: boolean;
+    private cookieStorage: CookieStorage<T>;
+    private memoryStorage: MemoryStorage<T>;
+    private isPersisted: boolean;
 
     constructor(options?: CookieStorageOptions) {
-        this.#cookieStorage = new CookieStorage<T>({
+        this.cookieStorage = new CookieStorage<T>({
             // These are the default options that the Amplitude SDK uses under the hood
             expirationDays: 365,
             sameSite: 'Lax',
             ...options,
         });
-        this.#memoryStorage = new MemoryStorage<T>();
-        this.#isPersisted = this.#getAmplitudeCookies().length > 0;
+        this.memoryStorage = new MemoryStorage<T>();
+        this.isPersisted = this.#getAmplitudeCookies().length > 0;
     }
 
     async isEnabled(): Promise<boolean> {
@@ -53,18 +56,18 @@ export class PersistableStorage<T> implements Storage<T> {
     async reset(): Promise<void> {
         this.#getActiveStorage().reset();
         this.#removeAmplitudeCookies();
-        this.#isPersisted = false;
+        this.isPersisted = false;
     }
 
     persist() {
-        this.#isPersisted = true;
-        for (const [key, value] of this.#memoryStorage.memoryStorage) {
-            this.#cookieStorage.set(key, value);
+        this.isPersisted = true;
+        for (const [key, value] of this.memoryStorage.memoryStorage) {
+            this.cookieStorage.set(key, value);
         }
     }
 
     #getActiveStorage() {
-        return this.#isPersisted ? this.#cookieStorage : this.#memoryStorage;
+        return this.isPersisted ? this.cookieStorage : this.memoryStorage;
     }
 
     #getAmplitudeCookies() {
