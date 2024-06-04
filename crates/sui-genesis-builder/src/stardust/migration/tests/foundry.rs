@@ -43,7 +43,7 @@ fn create_gas_coin() {
     // Extract the package object.
     let package_object = objects
         .iter()
-        .find_map(|object| object.is_package().then_some(object))
+        .find(|object| object.is_package())
         .expect("there should be only a single gas coin");
 
     // Extract the gas coin object.
