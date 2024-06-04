@@ -106,7 +106,7 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
         // metadata
         let identifier = derive_foundry_package_lowercase_identifier(
             irc_30_metadata.symbol(),
-            output.id().to_ascii_lowercase(),
+            output.id().as_slice(),
         );
 
         let decimals = u8::try_from(*irc_30_metadata.decimals()).map_err(|e| {
@@ -173,16 +173,13 @@ fn extract_irc30_metadata(output: &FoundryOutput) -> Irc30Metadata {
             Ok(m) => m,
             Err(_) => serde_json::from_slice::<Irc30MetadataCompact>(metadata.data())
                 .unwrap_or(Irc30MetadataCompact::new(
-                    derive_foundry_package_lowercase_identifier(
-                        "",
-                        output.id().to_ascii_lowercase(),
-                    ),
+                    derive_foundry_package_lowercase_identifier("", output.id().as_slice()),
                 ))
                 .to_full_scheme(),
         },
         None => {
             let identifier =
-                derive_foundry_package_lowercase_identifier("", output.id().to_ascii_lowercase());
+                derive_foundry_package_lowercase_identifier("", output.id().as_slice());
             Irc30Metadata::new(identifier.clone(), identifier, 0)
         }
     }
@@ -192,7 +189,7 @@ fn to_safe_string(input: &String) -> String {
     input.to_owned().replace("\n", "\\n").replace("\"", "\'")
 }
 
-fn derive_foundry_package_lowercase_identifier(input: &str, seed: Vec<u8>) -> String {
+fn derive_foundry_package_lowercase_identifier(input: &str, seed: &[u8]) -> String {
     let input = input.to_ascii_lowercase();
 
     static VALID_IDENTIFIER_PATTERN: &str = r"[a-z][a-z0-9_]*";
@@ -229,7 +226,7 @@ mod tests {
             address::AliasAddress,
             output::{
                 feature::MetadataFeature, unlock_condition::ImmutableAliasAddressUnlockCondition,
-                AliasId, Feature, FoundryId, FoundryOutputBuilder, SimpleTokenScheme, TokenScheme,
+                AliasId, Feature, FoundryOutputBuilder, SimpleTokenScheme, TokenScheme,
             },
         },
         U256,
@@ -401,20 +398,14 @@ mod tests {
     #[test]
     fn empty_identifier() {
         let identifier = "".to_string();
-        let result = derive_foundry_package_lowercase_identifier(
-            &identifier,
-            FoundryId::null().to_ascii_lowercase(),
-        );
+        let result = derive_foundry_package_lowercase_identifier(&identifier, &[]);
         assert_eq!(14, result.len());
     }
 
     #[test]
     fn identifier_with_only_invalid_chars() {
         let identifier = "!@#$%^".to_string();
-        let result = derive_foundry_package_lowercase_identifier(
-            &identifier,
-            FoundryId::null().to_ascii_lowercase(),
-        );
+        let result = derive_foundry_package_lowercase_identifier(&identifier, &[]);
         assert_eq!(14, result.len());
     }
 
@@ -422,10 +413,7 @@ mod tests {
     fn identifier_with_only_one_char() {
         let identifier = "a".to_string();
         assert_eq!(
-            derive_foundry_package_lowercase_identifier(
-                &identifier,
-                FoundryId::null().to_ascii_lowercase()
-            ),
+            derive_foundry_package_lowercase_identifier(&identifier, &[]),
             "foundrya".to_string()
         );
     }
@@ -434,10 +422,7 @@ mod tests {
     fn identifier_with_whitespaces_and_ending_underscore() {
         let identifier = " a bc-d e_".to_string();
         assert_eq!(
-            derive_foundry_package_lowercase_identifier(
-                &identifier,
-                FoundryId::null().to_ascii_lowercase()
-            ),
+            derive_foundry_package_lowercase_identifier(&identifier, &[]),
             "foundryabcde".to_string()
         );
     }
@@ -446,10 +431,7 @@ mod tests {
     fn identifier_with_minus() {
         let identifier = "hello-world".to_string();
         assert_eq!(
-            derive_foundry_package_lowercase_identifier(
-                &identifier,
-                FoundryId::null().to_ascii_lowercase()
-            ),
+            derive_foundry_package_lowercase_identifier(&identifier, &[]),
             "foundryhelloworld".to_string()
         );
     }
@@ -458,10 +440,7 @@ mod tests {
     fn identifier_with_multiple_invalid_chars() {
         let identifier = "#hello-move_world/token&".to_string();
         assert_eq!(
-            derive_foundry_package_lowercase_identifier(
-                &identifier,
-                FoundryId::null().to_ascii_lowercase()
-            ),
+            derive_foundry_package_lowercase_identifier(&identifier, &[]),
             "foundryhellomove_worldtoken"
         );
     }
@@ -469,10 +448,7 @@ mod tests {
     fn valid_identifier() {
         let identifier = "valid_identifier".to_string();
         assert_eq!(
-            derive_foundry_package_lowercase_identifier(
-                &identifier,
-                FoundryId::null().to_ascii_lowercase()
-            ),
+            derive_foundry_package_lowercase_identifier(&identifier, &[]),
             identifier
         );
     }
