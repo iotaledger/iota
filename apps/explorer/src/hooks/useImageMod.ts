@@ -1,8 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useAppsBackend } from '@mysten/core';
 import { useQuery } from '@tanstack/react-query';
+import { Visibility } from '~/lib/enums';
 
 // https://cloud.google.com/vision/docs/supported-files
 const SUPPORTED_IMG_TYPES = [
@@ -15,12 +19,6 @@ const SUPPORTED_IMG_TYPES = [
     'application/pdf',
     'image/tiff',
 ];
-
-export enum Visibility {
-    Pass = 'pass',
-    Blur = 'blur',
-    Hide = 'hide',
-}
 
 type ImageModeration = {
     visibility?: Visibility;

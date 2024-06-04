@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { EyeClose16, NftTypeImage24 } from '@mysten/icons';
 import { LoadingIndicator } from '@mysten/ui';
 import { cva, cx, type VariantProps } from 'class-variance-authority';
@@ -9,7 +12,7 @@ import { useAnimate } from 'framer-motion';
 import { type ImgHTMLAttributes, useEffect, useState } from 'react';
 
 import useImage from '~/hooks/useImage';
-import { Visibility } from '~/hooks/useImageMod';
+import { Visibility } from '~/lib/enums';
 
 const imageStyles = cva(null, {
     variants: {

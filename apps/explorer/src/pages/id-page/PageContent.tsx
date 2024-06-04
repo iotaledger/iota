@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useGetObject } from '@mysten/core';
 import { Banner } from '~/ui/Banner';
 import { Divider } from '~/ui/Divider';
@@ -12,9 +15,10 @@ import TransactionBlocksForAddress from '~/components/TransactionBlocksForAddres
 import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { OwnedCoins } from '~/components/OwnedCoins';
 import { OwnedObjects } from '~/components/OwnedObjects';
-import { LocalStorageSplitPaneKey, SplitPanes } from '~/ui/SplitPanes';
+import { SplitPanes } from '~/ui/SplitPanes';
 import { useSuiClient } from '@mysten/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
+import { LocalStorageSplitPaneKey } from '~/lib/enums';
 
 const LEFT_RIGHT_PANEL_MIN_SIZE = 30;
 

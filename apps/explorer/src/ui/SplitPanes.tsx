@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { ChevronLeft12, ChevronUp12 } from '@mysten/icons';
 import { cva, type VariantProps } from 'class-variance-authority';
 import clsx from 'clsx';
@@ -14,12 +17,6 @@ import {
     type PanelProps,
     PanelResizeHandle,
 } from 'react-resizable-panels';
-
-export enum LocalStorageSplitPaneKey {
-    TransactionView = 'splitPanes/transaction-view',
-    AddressViewHorizontal = 'splitPanes/address-view-horizontal',
-    AddressViewVertical = 'splitPanes/address-view-vertical',
-}
 
 const panelResizeHandleStyles = cva(['group/container z-10'], {
     variants: {

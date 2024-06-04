@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type TransactionFilter } from '@mysten/sui.js/client';
 import { Heading, RadioGroup, RadioGroupItem } from '@mysten/ui';
 import { type Dispatch, type SetStateAction, useReducer, useState } from 'react';
@@ -14,11 +17,7 @@ import { Pagination } from '~/ui/Pagination';
 import { PlaceholderTable } from '~/ui/PlaceholderTable';
 import { TableCard } from '~/ui/TableCard';
 import clsx from 'clsx';
-
-export enum ObjectFilterValue {
-    Input = 'inputObject',
-    Changed = 'changedObject',
-}
+import { ObjectFilterValue } from '~/lib/enums';
 
 type TransactionBlocksForAddressProps = {
     address: string;

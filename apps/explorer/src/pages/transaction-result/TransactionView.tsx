@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type SuiTransactionBlockResponse } from '@mysten/sui.js/client';
 import clsx from 'clsx';
 import { type ReactNode, useState } from 'react';
@@ -11,10 +14,11 @@ import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { Events } from '~/pages/transaction-result/Events';
 import { TransactionData } from '~/pages/transaction-result/TransactionData';
 import { TransactionSummary } from '~/pages/transaction-result/transaction-summary';
-import { LocalStorageSplitPaneKey, SplitPanes } from '~/ui/SplitPanes';
+import { SplitPanes } from '~/ui/SplitPanes';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
 
 import styles from './TransactionResult.module.css';
+import { LocalStorageSplitPaneKey } from '~/lib/enums';
 
 function TabsContentContainer({ value, children }: { value: string; children: ReactNode }) {
     return (

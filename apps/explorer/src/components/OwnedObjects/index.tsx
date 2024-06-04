@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useGetKioskContents, useGetOwnedObjects, useLocalStorage } from '@mysten/core';
 import { ThumbnailsOnly16, ViewList16, ViewSmallThumbnails16 } from '@mysten/icons';
 import { Heading, IconButton, RadioGroup, RadioGroupItem, Text } from '@mysten/ui';
@@ -10,7 +13,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ListView } from '~/components/OwnedObjects/ListView';
 import { SmallThumbnailsView } from '~/components/OwnedObjects/SmallThumbnailsView';
 import { ThumbnailsView } from '~/components/OwnedObjects/ThumbnailsView';
-import { ObjectViewMode } from '~/components/OwnedObjects/utils';
+import { ObjectViewMode } from '~/lib/enums';
 import { Pagination, useCursorPagination } from '~/ui/Pagination';
 
 const PAGE_SIZES = [10, 20, 30, 40, 50];
