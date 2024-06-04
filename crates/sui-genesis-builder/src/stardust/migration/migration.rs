@@ -8,9 +8,9 @@ use std::{
     io::{prelude::Write, BufWriter},
 };
 
-use anyhow::{ensure, Result};
+use anyhow::Result;
 use fastcrypto::hash::HashFunction;
-use iota_sdk::types::block::output::{FoundryOutput, Output, OutputId, TokenId};
+use iota_sdk::types::block::output::{FoundryOutput, Output, OutputId};
 use sui_move_build::CompiledPackage;
 use sui_protocol_config::ProtocolVersion;
 use sui_types::{
@@ -63,9 +63,9 @@ pub(crate) const NATIVE_TOKEN_BAG_KEY_TYPE: &str = "0x01::ascii::String";
 /// generated objects serialized.
 pub struct Migration {
     target_milestone_timestamp_sec: u32,
+
     executor: Executor,
     output_objects_map: HashMap<OutputId, CreatedObjects>,
-    pending_outputs: HashMap<TokenId, Vec<(OutputHeader, Output)>>,
 }
 
 impl Migration {
@@ -77,7 +77,6 @@ impl Migration {
             target_milestone_timestamp_sec,
             executor,
             output_objects_map: Default::default(),
-            pending_outputs: Default::default(),
         })
     }
 
@@ -89,75 +88,33 @@ impl Migration {
         &mut self,
         outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
     ) -> Result<()> {
-        let processed_outputs = self.migrate_outputs(outputs)?;
-        ensure!(
-            self.pending_outputs.is_empty(),
-            "outputs depend on foundry package(s) that were never migrated: {:#?}",
-            self.pending_outputs
+        let (mut foundries, mut outputs) = outputs.into_iter().fold(
+            (Vec::new(), Vec::new()),
+            |(mut foundries, mut outputs), (header, output)| {
+                if let Output::Foundry(foundry) = output {
+                    foundries.push((header, foundry));
+                } else {
+                    outputs.push((header, output));
+                }
+                (foundries, outputs)
+            },
         );
-        self.verify_ledger_state(&processed_outputs)?;
+        // We sort the outputs to make sure the order of outputs up to
+        // a certain milestone timestamp remains the same between runs.
+        //
+        // This guarantees that fresh ids created through the transaction
+        // context will also map to the same objects betwen runs.
+        outputs.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
+        foundries.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
+        self.migrate_foundries(&foundries)?;
+        self.migrate_outputs(&outputs)?;
+        let outputs = outputs
+            .into_iter()
+            .chain(foundries.into_iter().map(|(h, f)| (h, Output::Foundry(f))))
+            .collect::<Vec<_>>();
+        self.verify_ledger_state(&outputs)?;
 
         Ok(())
-    }
-
-    /// Create objects for all outputs. Outputs with native tokens associated
-    /// with unmigrated foundrys will be put into a pending list and
-    /// processed once the foundry is migrated.
-    fn migrate_outputs(
-        &mut self,
-        outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
-    ) -> Result<Vec<(OutputHeader, Output)>> {
-        let mut processed_outputs = Vec::new();
-        for (header, output) in outputs {
-            if let Some(native_tokens) = output.native_tokens() {
-                // Find the first native token which depends on an un-migrated foundry.
-                // If there are multiple, they will be handled when this output is reprocessed
-                // later.
-                if let Some(missing_token) = native_tokens
-                    .iter()
-                    .find(|nt| !self.executor.native_tokens().contains_key(nt.token_id()))
-                {
-                    self.pending_outputs
-                        .entry(*missing_token.token_id())
-                        .or_default()
-                        .push((header, output));
-                    continue;
-                }
-            }
-            let created = match &output {
-                Output::Alias(alias) => self.executor.create_alias_objects(&header, alias)?,
-                Output::Nft(nft) => self.executor.create_nft_objects(&header, nft)?,
-                Output::Basic(basic) => {
-                    // All timelocked vested rewards(basic outputs with the specific ID format)
-                    // should be migrated as TimeLock<Balance<IOTA>> objects.
-                    if timelock::is_timelocked_vested_reward(
-                        &header,
-                        basic,
-                        self.target_milestone_timestamp_sec,
-                    ) {
-                        self.executor.create_timelock_object(
-                            &header,
-                            basic,
-                            self.target_milestone_timestamp_sec,
-                        )?
-                    } else {
-                        self.executor.create_basic_objects(&header, basic)?
-                    }
-                }
-                Output::Foundry(foundry) => {
-                    let pkg = generate_package(foundry)?;
-                    let created = self.executor.create_foundry(foundry, pkg)?;
-                    if let Some(pending) = self.pending_outputs.remove(&foundry.token_id()) {
-                        processed_outputs.extend(self.migrate_outputs(pending)?);
-                    }
-                    created
-                }
-                Output::Treasury(_) => continue,
-            };
-            self.output_objects_map.insert(header.output_id(), created);
-            processed_outputs.push((header, output));
-        }
-        Ok(processed_outputs)
     }
 
     /// Run all stages of the migration.
@@ -183,6 +140,57 @@ impl Migration {
     /// in the genesis process.
     fn into_objects(self) -> Vec<Object> {
         self.executor.into_objects()
+    }
+
+    /// Create the packages, and associated objects representing foundry
+    /// outputs.
+    fn migrate_foundries<'a>(
+        &mut self,
+        foundries: impl IntoIterator<Item = &'a (OutputHeader, FoundryOutput)>,
+    ) -> Result<()> {
+        let compiled = foundries
+            .into_iter()
+            .map(|(header, output)| {
+                let pkg = generate_package(output)?;
+                Ok((header, output, pkg))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        self.output_objects_map
+            .extend(self.executor.create_foundries(compiled.into_iter())?);
+        Ok(())
+    }
+
+    /// Create objects for all outputs except for foundry outputs.
+    fn migrate_outputs<'a>(
+        &mut self,
+        outputs: impl IntoIterator<Item = &'a (OutputHeader, Output)>,
+    ) -> Result<()> {
+        for (header, output) in outputs {
+            let created = match output {
+                Output::Alias(alias) => self.executor.create_alias_objects(header, alias)?,
+                Output::Nft(nft) => self.executor.create_nft_objects(header, nft)?,
+                Output::Basic(basic) => {
+                    // All timelocked vested rewards(basic outputs with the specific ID format)
+                    // should be migrated as TimeLock<Balance<IOTA>> objects.
+                    if timelock::is_timelocked_vested_reward(
+                        header,
+                        basic,
+                        self.target_milestone_timestamp_sec,
+                    ) {
+                        self.executor.create_timelock_object(
+                            header,
+                            basic,
+                            self.target_milestone_timestamp_sec,
+                        )?
+                    } else {
+                        self.executor.create_basic_objects(header, basic)?
+                    }
+                }
+                Output::Treasury(_) | Output::Foundry(_) => continue,
+            };
+            self.output_objects_map.insert(header.output_id(), created);
+        }
+        Ok(())
     }
 
     /// Verify the ledger state represented by the objects in
