@@ -13,6 +13,7 @@ pub struct CreatedObjects {
     package: Option<ObjectID>,
     max_supply_policy: Option<ObjectID>,
     native_tokens: Option<Vec<ObjectID>>,
+    minted_coin: Option<ObjectID>,
 }
 
 impl CreatedObjects {
@@ -97,6 +98,20 @@ impl CreatedObjects {
             bail!("native tokens already set: {id:?}")
         }
         self.native_tokens.replace(ids);
+        Ok(())
+    }
+
+    pub fn minted_coin(&self) -> Result<&ObjectID> {
+        self.minted_coin
+            .as_ref()
+            .ok_or_else(|| anyhow!("no minted coin object"))
+    }
+
+    pub(crate) fn set_minted_coin(&mut self, id: ObjectID) -> Result<()> {
+        if let Some(id) = self.minted_coin {
+            bail!("minted coin already set: {id}")
+        }
+        self.minted_coin.replace(id);
         Ok(())
     }
 }

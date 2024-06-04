@@ -10,10 +10,9 @@ use serde_with::serde_as;
 use sui_protocol_config::ProtocolConfig;
 use sui_types::{
     balance::Balance,
-    base_types::{ObjectID, SequenceNumber, SuiAddress, TxContext},
+    base_types::{MoveObjectType, ObjectID, SequenceNumber, SuiAddress, TxContext},
     coin::Coin,
     collection_types::Bag,
-    gas_coin::GAS,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
     STARDUST_PACKAGE_ID,
@@ -229,24 +228,42 @@ impl BasicOutput {
         tx_context: &TxContext,
         version: SequenceNumber,
     ) -> Result<Object> {
-        let coin = Coin::new(self.id, self.iota.value());
-        let move_object = unsafe {
-            // Safety: we know from the definition of `Coin`
-            // that it has public transfer (`store` ability is present).
-            MoveObject::new_from_execution(
-                GAS::type_().into(),
-                true,
-                version,
-                bcs::to_bytes(&coin)?,
-                protocol_config,
-            )?
-        };
-        // Resolve ownership
-        let owner = Owner::AddressOwner(owner);
-        Ok(Object::new_from_genesis(
-            Data::Move(move_object),
+        create_gas_coin(
+            self.id,
             owner,
-            tx_context.digest(),
-        ))
+            self.iota.value(),
+            tx_context,
+            version,
+            protocol_config,
+        )
     }
+}
+
+pub(crate) fn create_gas_coin(
+    object_id: UID,
+    owner: SuiAddress,
+    amount: u64,
+    tx_context: &TxContext,
+    version: SequenceNumber,
+    protocol_config: &ProtocolConfig,
+) -> Result<Object> {
+    let coin = Coin::new(object_id, amount);
+    let move_object = unsafe {
+        // Safety: we know from the definition of `Coin`
+        // that it has public transfer (`store` ability is present).
+        MoveObject::new_from_execution(
+            MoveObjectType::gas_coin(),
+            true,
+            version,
+            bcs::to_bytes(&coin)?,
+            protocol_config,
+        )?
+    };
+    // Resolve ownership
+    let owner = Owner::AddressOwner(owner);
+    Ok(Object::new_from_genesis(
+        Data::Move(move_object),
+        owner,
+        tx_context.digest(),
+    ))
 }
