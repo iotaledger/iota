@@ -29,6 +29,13 @@ use crate::stardust::{
     types::token_scheme::SimpleTokenSchemeU64,
 };
 
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
+pub(crate) struct MaxSupplyPolicy {
+    pub(crate) id: UID,
+    pub(crate) maximum_supply: u64,
+    pub(crate) treasury_cap: TreasuryCap,
+}
+
 pub(super) fn verify_foundry_output(
     output: &FoundryOutput,
     created_objects: &CreatedObjects,
@@ -189,13 +196,6 @@ pub(super) fn verify_foundry_output(
         expected_package_data.module().icon_url,
         minted_coin.icon_url
     );
-
-    #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
-    struct MaxSupplyPolicy {
-        id: UID,
-        maximum_supply: u64,
-        treasury_cap: TreasuryCap,
-    }
 
     // Maximum Supply
     let max_supply_policy_obj = created_objects.max_supply_policy().and_then(|id| {
