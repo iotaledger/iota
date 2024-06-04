@@ -48,7 +48,7 @@ fn create_gas_coin() {
     // Extract the gas coin object.
     let gas_coin_object = objects
         .iter()
-        .find_map(|object| object.is_gas_coin().then_some(object))
+        .find(|object| object.is_gas_coin())
         .expect("there should be only a single gas coin");
 
     // Downcast the gas coin object to get the coin.
