@@ -298,5 +298,5 @@ module.exports = {
             files: ['apps/wallet-dashboard/**/*'],
             extends: 'next/core-web-vitals',
         },
-    ]
+    ],
 };
