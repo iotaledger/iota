@@ -9,6 +9,8 @@ import formatTimestamp from '@/lib/utils/time';
 import { Activity } from '@/lib/interfaces';
 import { usePopups } from '@/hooks';
 import { ActivityDetailsPopup, Button } from '@/components';
+import { useCurrentAccount } from '@mysten/dapp-kit';
+import { useTransactionSummary } from '@mysten/core';
 
 interface ActivityTileProps {
     activity: Activity;
@@ -16,9 +18,18 @@ interface ActivityTileProps {
 
 function ActivityTile({ activity }: ActivityTileProps): JSX.Element {
     const { openPopup, closePopup } = usePopups();
+    const currentAccount = useCurrentAccount();
+
+    const summary = useTransactionSummary({
+        transaction: activity.tx,
+        currentAddress: currentAccount?.address,
+        recognizedPackagesList: [],
+    });
 
     const handleDetailsClick = () => {
-        openPopup(<ActivityDetailsPopup activity={activity} onClose={closePopup} />);
+        openPopup(
+            <ActivityDetailsPopup activity={activity} onClose={closePopup} summary={summary} />,
+        );
     };
 
     return (

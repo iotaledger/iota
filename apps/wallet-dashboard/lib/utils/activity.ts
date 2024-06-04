@@ -42,5 +42,6 @@ export const getTransactionActivity = (
         action: getTransactionAction(tx, address),
         state: getTransactionActivityState(tx),
         timestamp: parseTimestamp(tx.timestampMs),
+        tx,
     };
 };

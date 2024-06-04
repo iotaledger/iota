@@ -1,10 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { SuiTransactionBlockResponse } from '@mysten/sui.js/client';
+
 export interface Activity {
     action: ActivityAction;
     timestamp?: number;
     state: ActivityState;
+    tx: SuiTransactionBlockResponse;
 }
 
 export enum ActivityAction {

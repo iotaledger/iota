@@ -1,0 +1,35 @@
+// Copyright (c) Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { useFormatCoin } from '@mysten/core';
+
+interface TransactionAmountProps {
+    amount: string | number;
+    coinType: string;
+    label: string;
+    approximation?: boolean;
+}
+
+export default function TransactionAmount({
+    amount,
+    coinType,
+    label,
+    approximation,
+}: TransactionAmountProps) {
+    const [formatAmount, symbol] = useFormatCoin(Math.abs(Number(amount)), coinType);
+    return Number(amount) !== 0 ? (
+        <div className="flex w-full items-center justify-between py-3.5 first:pt-0">
+            {label}
+            <div className="flex items-center gap-1">
+                <h2>
+                    {approximation ? '~' : ''}
+                    {formatAmount}
+                </h2>
+                {symbol}
+            </div>
+        </div>
+    ) : null;
+}

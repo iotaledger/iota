@@ -28,14 +28,16 @@ export default function RootLayout({
     return (
         <html lang="en">
             <body className={inter.className}>
-                <PopupProvider>
-                    <QueryClientProvider client={queryClient}>
-                        <SuiClientProvider networks={allNetworks} defaultNetwork="testnet">
-                            <WalletProvider>{children}</WalletProvider>
-                            <Popup />
-                        </SuiClientProvider>
-                    </QueryClientProvider>
-                </PopupProvider>
+                <QueryClientProvider client={queryClient}>
+                    <SuiClientProvider networks={allNetworks} defaultNetwork="testnet">
+                        <WalletProvider>
+                            <PopupProvider>
+                                {children}
+                                <Popup />
+                            </PopupProvider>
+                        </WalletProvider>
+                    </SuiClientProvider>
+                </QueryClientProvider>
             </body>
         </html>
     );
