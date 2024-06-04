@@ -126,7 +126,7 @@ Return the address that can unlock the related output.
     // Unix time in seconds.
     <b>let</b> current_time = ((<a href="../sui-framework/tx_context.md#0x2_tx_context_epoch_timestamp_ms">tx_context::epoch_timestamp_ms</a>(ctx) / 1000) <b>as</b> u32);
 
-    <b>if</b> (condition.<a href="expiration_unlock_condition.md#0x107a_expiration_unlock_condition_unix_time">unix_time</a>() &lt; current_time) {
+    <b>if</b> (condition.<a href="expiration_unlock_condition.md#0x107a_expiration_unlock_condition_unix_time">unix_time</a>() &lt;= current_time) {
         condition.<a href="expiration_unlock_condition.md#0x107a_expiration_unlock_condition_return_address">return_address</a>()
     } <b>else</b> {
         condition.<a href="expiration_unlock_condition.md#0x107a_expiration_unlock_condition_owner">owner</a>()

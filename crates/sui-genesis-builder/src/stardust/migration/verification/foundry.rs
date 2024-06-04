@@ -6,14 +6,8 @@ use std::collections::HashMap;
 use anyhow::{anyhow, ensure, Result};
 use iota_sdk::types::block::output::{FoundryOutput, TokenId};
 use move_core_types::language_storage::ModuleId;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 use sui_types::{
-    base_types::SuiAddress,
-    coin::{CoinMetadata, TreasuryCap},
-    id::UID,
-    in_memory_storage::InMemoryStorage,
-    object::Owner,
+    base_types::SuiAddress, coin::CoinMetadata, in_memory_storage::InMemoryStorage, object::Owner,
     Identifier,
 };
 
@@ -26,7 +20,7 @@ use crate::stardust::{
         },
     },
     native_token::package_data::NativeTokenPackageData,
-    types::token_scheme::SimpleTokenSchemeU64,
+    types::{capped_coin::MaxSupplyPolicy, token_scheme::SimpleTokenSchemeU64},
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
