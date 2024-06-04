@@ -5,19 +5,24 @@ use iota_sdk::types::block::{
     address::Ed25519Address,
     output::{
         feature::Irc30Metadata,
-        unlock_condition::{AddressUnlockCondition, ExpirationUnlockCondition},
-        AliasId, BasicOutputBuilder, NativeToken, OutputId, SimpleTokenScheme,
+        unlock_condition::{
+            AddressUnlockCondition, ExpirationUnlockCondition, StorageDepositReturnUnlockCondition,
+            TimelockUnlockCondition,
+        },
+        AliasId, BasicOutputBuilder, NativeToken, SimpleTokenScheme,
     },
 };
-use sui_types::base_types::ObjectID;
+use sui_types::base_types::{ObjectID, SuiAddress};
 
-use super::extract_native_token_from_bag;
+use super::{
+    extract_native_token_from_bag, unlock_object_test, ExpectedAssets, UnlockObjectTestResult,
+};
 use crate::stardust::{
     migration::{
         tests::{create_foundry, random_output_header},
         Migration,
     },
-    types::output::BASIC_OUTPUT_MODULE_NAME,
+    types::{output::BASIC_OUTPUT_MODULE_NAME, stardust_to_sui_address},
 };
 
 /// Test the id of a `BasicOutput` that is transformed to a simple coin.
@@ -139,6 +144,193 @@ fn basic_migration_with_native_token() {
         outputs,
         BASIC_OUTPUT_MODULE_NAME,
         native_token,
+        ExpectedAssets::BalanceBag,
+    )
+    .unwrap();
+}
+
+#[test]
+fn basic_migration_with_timelock_unlocked() {
+    let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+    let header = random_output_header();
+
+    // The epoch timestamp that the executor will use for the test.
+    let epoch_start_timestamp_ms = 100_000;
+
+    let stardust_basic = BasicOutputBuilder::new_with_amount(1_000_000)
+        .add_unlock_condition(AddressUnlockCondition::new(random_address))
+        .add_unlock_condition(
+            TimelockUnlockCondition::new(epoch_start_timestamp_ms / 1000).unwrap(),
+        )
+        .finish()
+        .unwrap();
+
+    unlock_object_test(
+        header.output_id(),
+        [(header, stardust_basic.into())],
+        // Sender is not important for this test.
+        &SuiAddress::ZERO,
+        BASIC_OUTPUT_MODULE_NAME,
+        epoch_start_timestamp_ms as u64,
+        UnlockObjectTestResult::Success,
+        ExpectedAssets::BalanceBag,
+    )
+    .unwrap();
+}
+
+#[test]
+fn basic_migration_with_timelock_still_locked() {
+    let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+    let header = random_output_header();
+
+    // The epoch timestamp that the executor will use for the test.
+    let epoch_start_timestamp_ms = 100_000;
+
+    let stardust_basic = BasicOutputBuilder::new_with_amount(1_000_000)
+        .add_unlock_condition(AddressUnlockCondition::new(random_address))
+        .add_unlock_condition(
+            TimelockUnlockCondition::new((epoch_start_timestamp_ms / 1000) + 1).unwrap(),
+        )
+        .finish()
+        .unwrap();
+
+    unlock_object_test(
+        header.output_id(),
+        [(header, stardust_basic.into())],
+        // Sender is not important for this test.
+        &SuiAddress::ZERO,
+        BASIC_OUTPUT_MODULE_NAME,
+        epoch_start_timestamp_ms as u64,
+        UnlockObjectTestResult::ERROR_TIMELOCK_NOT_EXPIRED_FAILURE,
+        ExpectedAssets::BalanceBag,
+    )
+    .unwrap();
+}
+
+/// Test that a BasicOutput with an expired Expiration Unlock Condition
+/// can/cannot be unlocked, depending on the TX sender.
+#[test]
+fn basic_migration_with_expired_unlock_condition() {
+    let owner = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+    let return_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+    let sui_owner_address = stardust_to_sui_address(owner).unwrap();
+    let sui_return_address = stardust_to_sui_address(return_address).unwrap();
+    let header = random_output_header();
+
+    // The epoch timestamp that the executor will use for the test.
+    let epoch_start_timestamp_ms = 100_000;
+
+    // Expiration Timestamp is exactly at the epoch start timestamp -> object is
+    // expired -> return address can unlock.
+    let stardust_basic = BasicOutputBuilder::new_with_amount(1_000_000)
+        .add_unlock_condition(AddressUnlockCondition::new(owner))
+        .add_unlock_condition(
+            ExpirationUnlockCondition::new(return_address, epoch_start_timestamp_ms / 1000)
+                .unwrap(),
+        )
+        .finish()
+        .unwrap();
+
+    // Owner Address CANNOT unlock.
+    unlock_object_test(
+        header.output_id(),
+        [(header.clone(), stardust_basic.clone().into())],
+        &sui_owner_address,
+        BASIC_OUTPUT_MODULE_NAME,
+        epoch_start_timestamp_ms as u64,
+        UnlockObjectTestResult::ERROR_WRONG_SENDER_FAILURE,
+        ExpectedAssets::BalanceBag,
+    )
+    .unwrap();
+
+    // Return Address CAN unlock.
+    unlock_object_test(
+        header.output_id(),
+        [(header, stardust_basic.into())],
+        &sui_return_address,
+        BASIC_OUTPUT_MODULE_NAME,
+        epoch_start_timestamp_ms as u64,
+        UnlockObjectTestResult::Success,
+        ExpectedAssets::BalanceBag,
+    )
+    .unwrap();
+}
+
+/// Test that a Basic Output with an unexpired Expiration Unlock Condition
+/// can/cannot be unlocked, depending on the TX sender.
+#[test]
+fn basic_migration_with_unexpired_unlock_condition() {
+    let owner = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+    let return_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+    let sui_owner_address = stardust_to_sui_address(owner).unwrap();
+    let sui_return_address = stardust_to_sui_address(return_address).unwrap();
+    let header = random_output_header();
+
+    // The epoch timestamp that the executor will use for the test.
+    let epoch_start_timestamp_ms = 100_000;
+
+    // Expiration Timestamp is after the epoch start timestamp -> object is not
+    // expired -> owner address can unlock.
+    let stardust_basic = BasicOutputBuilder::new_with_amount(1_000_000)
+        .add_unlock_condition(AddressUnlockCondition::new(owner))
+        .add_unlock_condition(
+            ExpirationUnlockCondition::new(return_address, (epoch_start_timestamp_ms / 1000) + 1)
+                .unwrap(),
+        )
+        .finish()
+        .unwrap();
+
+    // Return Address CANNOT unlock.
+    unlock_object_test(
+        header.output_id(),
+        [(header.clone(), stardust_basic.clone().into())],
+        &sui_return_address,
+        BASIC_OUTPUT_MODULE_NAME,
+        epoch_start_timestamp_ms as u64,
+        UnlockObjectTestResult::ERROR_WRONG_SENDER_FAILURE,
+        ExpectedAssets::BalanceBag,
+    )
+    .unwrap();
+
+    // Owner Address CAN unlock.
+    unlock_object_test(
+        header.output_id(),
+        [(header, stardust_basic.into())],
+        &sui_owner_address,
+        BASIC_OUTPUT_MODULE_NAME,
+        epoch_start_timestamp_ms as u64,
+        UnlockObjectTestResult::Success,
+        ExpectedAssets::BalanceBag,
+    )
+    .unwrap();
+}
+
+/// Test that a BasicOutput with a Storage Deposit Return Unlock Condition can
+/// be unlocked.
+#[test]
+fn basic_migration_with_storage_deposit_return_unlock_condition() {
+    let owner = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+    let return_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+    let header = random_output_header();
+
+    let stardust_basic = BasicOutputBuilder::new_with_amount(1_000_000)
+        .add_unlock_condition(AddressUnlockCondition::new(owner))
+        .add_unlock_condition(
+            StorageDepositReturnUnlockCondition::new(return_address, 1_000, 1_000_000_000).unwrap(),
+        )
+        .finish()
+        .unwrap();
+
+    // Simply test that the unlock with the SDRUC succeeds.
+    unlock_object_test(
+        header.output_id(),
+        [(header, stardust_basic.into())],
+        // Sender is not important for this test.
+        &SuiAddress::ZERO,
+        BASIC_OUTPUT_MODULE_NAME,
+        // Epoch start time is not important for this test.
+        0,
+        UnlockObjectTestResult::Success,
         ExpectedAssets::BalanceBag,
     )
     .unwrap();
