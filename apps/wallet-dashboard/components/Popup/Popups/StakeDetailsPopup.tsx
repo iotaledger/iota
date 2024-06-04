@@ -7,7 +7,11 @@ import { usePopups } from '@/hooks';
 import UnstakePopup from './UnstakePopup';
 import { Stake } from '@/lib/types';
 
-function StakeDetailsPopup(stake: Stake): JSX.Element {
+interface StakeDetailsPopupProps {
+    stake: Stake;
+}
+
+function StakeDetailsPopup({ stake }: StakeDetailsPopupProps): JSX.Element {
     const { openPopup } = usePopups();
 
     const unstake = (id: string) => {
