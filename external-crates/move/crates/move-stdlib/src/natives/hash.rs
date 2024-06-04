@@ -2,7 +2,8 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::natives::helpers::make_module_natives;
+use std::{collections::VecDeque, sync::Arc};
+
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::gas_algebra::{InternalGas, InternalGasPerByte, NumBytes};
 use move_vm_runtime::{
@@ -15,14 +16,17 @@ use move_vm_types::{
 use sha2::{Digest, Sha256};
 use sha3::Sha3_256;
 use smallvec::smallvec;
-use std::{collections::VecDeque, sync::Arc};
 
-/***************************************************************************************************
- * native fun sha2_256
- *
- *   gas cost: base_cost + unit_cost * max(input_length_in_bytes, legacy_min_input_len)
- *
- **************************************************************************************************/
+use crate::natives::helpers::make_module_natives;
+
+/// ****************************************************************************
+/// ********************* native fun sha2_256
+///
+///   gas cost: base_cost + unit_cost * max(input_length_in_bytes,
+/// legacy_min_input_len)
+///
+/// ****************************************************************************
+/// *******************
 #[derive(Debug, Clone)]
 pub struct Sha2_256GasParameters {
     pub base: InternalGas,
@@ -66,12 +70,14 @@ pub fn make_native_sha2_256(gas_params: Sha2_256GasParameters) -> NativeFunction
     )
 }
 
-/***************************************************************************************************
- * native fun sha3_256
- *
- *   gas cost: base_cost + unit_cost * max(input_length_in_bytes, legacy_min_input_len)
- *
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun sha3_256
+///
+///   gas cost: base_cost + unit_cost * max(input_length_in_bytes,
+/// legacy_min_input_len)
+///
+/// ****************************************************************************
+/// *******************
 #[derive(Debug, Clone)]
 pub struct Sha3_256GasParameters {
     pub base: InternalGas,
@@ -115,9 +121,10 @@ pub fn make_native_sha3_256(gas_params: Sha3_256GasParameters) -> NativeFunction
     )
 }
 
-/***************************************************************************************************
- * module
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* module
+/// ****************************************************************************
+/// *******************
 #[derive(Debug, Clone)]
 pub struct GasParameters {
     pub sha2_256: Sha2_256GasParameters,

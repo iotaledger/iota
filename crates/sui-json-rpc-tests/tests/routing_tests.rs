@@ -1,17 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use async_trait::async_trait;
-use hyper::header::HeaderValue;
-use hyper::HeaderMap;
-use jsonrpsee::core::client::ClientT;
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::http_client::HttpClientBuilder;
-use jsonrpsee::proc_macros::rpc;
-use jsonrpsee::rpc_params;
-use jsonrpsee::RpcModule;
-use prometheus::Registry;
 use std::env;
+
+use async_trait::async_trait;
+use hyper::{header::HeaderValue, HeaderMap};
+use jsonrpsee::{
+    core::{client::ClientT, RpcResult},
+    http_client::HttpClientBuilder,
+    proc_macros::rpc,
+    rpc_params, RpcModule,
+};
+use prometheus::Registry;
 use sui_config::local_ip_utils;
 use sui_json_rpc::{JsonRpcServerBuilder, SuiRpcModule};
 use sui_json_rpc_api::CLIENT_TARGET_API_VERSION_HEADER;
@@ -111,7 +111,8 @@ async fn test_disable_routing() {
     let response: RpcResult<String> = client.request("test_foo_1_5", rpc_params!("string")).await;
     assert!(response.is_err());
 
-    // Test with versioned client, version = backward compatible method version, should fail because routing is disabled.
+    // Test with versioned client, version = backward compatible method version,
+    // should fail because routing is disabled.
     let mut versioned_header = HeaderMap::new();
     versioned_header.insert(
         CLIENT_TARGET_API_VERSION_HEADER,
@@ -173,8 +174,8 @@ async fn test_disable_routing() {
 //                 jsonrpc: Default::default(),
 //                 id: Id::Number(1),
 //                 method: "test_foo".into(),
-//                 params: Some(&JsonRawValue::from_string("[true]".into()).unwrap()),
-//             }),
+//                 params:
+// Some(&JsonRawValue::from_string("[true]".into()).unwrap()),             }),
 //             json!("Bad json input"),
 //         ])
 //         .send()
@@ -182,18 +183,21 @@ async fn test_disable_routing() {
 //         .unwrap();
 
 //     let responses = response.text().await.unwrap();
-//     let responses: Vec<&JsonRawValue> = serde_json::from_str(&responses).unwrap();
+//     let responses: Vec<&JsonRawValue> =
+// serde_json::from_str(&responses).unwrap();
 
 //     // Should have 2 results
 //     assert_eq!(2, responses.len());
 
 //     // First response should success
-//     let response = serde_json::from_str::<Response<String>>(responses[0].get());
-//     assert!(matches!(response, Ok(result) if result.result == "Some string"));
+//     let response =
+// serde_json::from_str::<Response<String>>(responses[0].get());     assert!
+// (matches!(response, Ok(result) if result.result == "Some string"));
 
 //     // Second response should fail
 //     let response = serde_json::from_str::<ErrorResponse>(responses[1].get());
-//     assert!(matches!(response, Ok(result) if result.error_object().message() == "Invalid request"));
+//     assert!(matches!(response, Ok(result) if result.error_object().message()
+// == "Invalid request"));
 
 //     handle.stop().unwrap()
 // }

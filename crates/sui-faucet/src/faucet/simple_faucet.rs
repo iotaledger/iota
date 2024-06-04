@@ -1,50 +1,51 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::faucet::write_ahead_log;
-use crate::metrics::FaucetMetrics;
+#[cfg(test)]
+use std::collections::HashSet;
+use std::{
+    collections::HashMap,
+    fmt,
+    path::Path,
+    sync::{Arc, Weak},
+};
+
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use mysten_metrics::spawn_monitored_task;
 use prometheus::Registry;
 use shared_crypto::intent::Intent;
-use std::collections::HashMap;
-#[cfg(test)]
-use std::collections::HashSet;
-use std::fmt;
-use std::path::Path;
-use std::sync::{Arc, Weak};
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use tap::tap::TapFallible;
-use tokio::sync::oneshot;
-use ttl_cache::TtlCache;
-use typed_store::Map;
-
 use sui_json_rpc_types::{
     OwnedObjectRef, SuiObjectDataOptions, SuiTransactionBlockEffectsAPI,
     SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
 };
 use sui_keys::keystore::AccountKeystore;
 use sui_sdk::wallet_context::WalletContext;
-use sui_types::object::Owner;
-use sui_types::quorum_driver_types::ExecuteTransactionRequestType;
 use sui_types::{
     base_types::{ObjectID, SuiAddress, TransactionDigest},
     gas_coin::GasCoin,
+    object::Owner,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{Transaction, TransactionData},
 };
-use tokio::sync::{
-    mpsc::{self, Receiver, Sender},
-    Mutex,
+use tap::tap::TapFallible;
+use tokio::{
+    sync::{
+        mpsc::{self, Receiver, Sender},
+        oneshot, Mutex,
+    },
+    time::{timeout, Duration},
 };
-use tokio::time::{timeout, Duration};
 use tracing::{error, info, warn};
+use ttl_cache::TtlCache;
+use typed_store::Map;
 use uuid::Uuid;
 
 use super::write_ahead_log::WriteAheadLog;
 use crate::{
-    BatchFaucetReceipt, BatchSendStatus, BatchSendStatusType, CoinInfo, Faucet, FaucetConfig,
-    FaucetError, FaucetReceipt,
+    faucet::write_ahead_log, metrics::FaucetMetrics, BatchFaucetReceipt, BatchSendStatus,
+    BatchSendStatusType, CoinInfo, Faucet, FaucetConfig, FaucetError, FaucetReceipt,
 };
 
 pub struct SimpleFaucet {
@@ -66,8 +67,8 @@ pub struct SimpleFaucet {
     batch_transfer_shutdown: parking_lot::Mutex<Option<oneshot::Sender<()>>>,
 }
 
-/// We do not just derive(Debug) because WalletContext and the WriteAheadLog do not implement Debug / are also hard
-/// to implement Debug.
+/// We do not just derive(Debug) because WalletContext and the WriteAheadLog do
+/// not implement Debug / are also hard to implement Debug.
 impl fmt::Debug for SimpleFaucet {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("SimpleFaucet")
@@ -127,14 +128,16 @@ impl SimpleFaucet {
         let (sender, mut receiver) =
             mpsc::channel::<(Uuid, SuiAddress, Vec<u64>)>(config.max_request_queue_length as usize);
 
-        // This is to handle the case where there is only 1 coin, we want it to go to the normal queue
+        // This is to handle the case where there is only 1 coin, we want it to go to
+        // the normal queue
         let split_point = if coins.len() > 10 {
             coins.len() / 2
         } else {
             coins.len()
         };
-        // Put half of the coins in the old faucet impl queue, and put half in the other queue for batch coins.
-        // In the test cases we create an account with 5 coins so we just let this run with a minimum of 5 coins
+        // Put half of the coins in the old faucet impl queue, and put half in the other
+        // queue for batch coins. In the test cases we create an account with 5
+        // coins so we just let this run with a minimum of 5 coins
         for (coins_processed, coin) in coins.iter().enumerate() {
             let coin_id = *coin.id();
             if let Some(write_ahead_log::Entry {
@@ -184,7 +187,8 @@ impl SimpleFaucet {
             request_producer: sender,
             batch_request_size: config.batch_request_size,
             // Max faucet requests times 10 minutes worth of requests to hold onto at max.
-            // Note that the cache holds onto a Uuid for [ttl_expiration] in from every update in status with both INPROGRESS and SUCCEEDED
+            // Note that the cache holds onto a Uuid for [ttl_expiration] in from every update in
+            // status with both INPROGRESS and SUCCEEDED
             task_id_cache: TtlCache::new(config.max_request_per_second as usize * 60 * 10).into(),
             ttl_expiration: config.ttl_expiration,
             coin_amount: config.amount,
@@ -219,9 +223,9 @@ impl SimpleFaucet {
                 }
             }
         });
-        // Retrying all the pending transactions from the WAL, before continuing.  Ignore return
-        // values -- if the executions failed, the pending coins will simply remain in the WAL, and
-        // not recycled.
+        // Retrying all the pending transactions from the WAL, before continuing.
+        // Ignore return values -- if the executions failed, the pending coins
+        // will simply remain in the WAL, and not recycled.
         futures::future::join_all(pending.into_iter().map(|(uuid, recipient, coin_id, tx)| {
             arc_faucet.sign_and_execute_txn(uuid, recipient, coin_id, tx, false)
         }))
@@ -230,12 +234,13 @@ impl SimpleFaucet {
         Ok(arc_faucet)
     }
 
-    /// Take the consumer lock and pull a Coin ID from the queue, without checking whether it is
-    /// valid or not.
+    /// Take the consumer lock and pull a Coin ID from the queue, without
+    /// checking whether it is valid or not.
     async fn pop_gas_coin(&self, uuid: Uuid) -> Option<ObjectID> {
-        // If the gas candidate queue is exhausted, the request will be suspended indefinitely until
-        // a producer puts in more candidate gas objects. At the same time, other requests will be
-        // blocked by the lock acquisition as well.
+        // If the gas candidate queue is exhausted, the request will be suspended
+        // indefinitely until a producer puts in more candidate gas objects. At
+        // the same time, other requests will be blocked by the lock acquisition
+        // as well.
         let Ok(mut consumer) = tokio::time::timeout(LOCK_TIMEOUT, self.consumer.lock()).await
         else {
             error!(?uuid, "Timeout when getting consumer lock");
@@ -256,12 +261,13 @@ impl SimpleFaucet {
         Some(coin)
     }
 
-    /// Take the consumer lock and pull a Coin ID from the queue, without checking whether it is
-    /// valid or not.
+    /// Take the consumer lock and pull a Coin ID from the queue, without
+    /// checking whether it is valid or not.
     async fn pop_gas_coin_for_batch(&self, uuid: Uuid) -> Option<ObjectID> {
-        // If the gas candidate queue is exhausted, the request will be suspended indefinitely until
-        // a producer puts in more candidate gas objects. At the same time, other requests will be
-        // blocked by the lock acquisition as well.
+        // If the gas candidate queue is exhausted, the request will be suspended
+        // indefinitely until a producer puts in more candidate gas objects. At
+        // the same time, other requests will be blocked by the lock acquisition
+        // as well.
         let Ok(mut batch_consumer) =
             tokio::time::timeout(LOCK_TIMEOUT, self.batch_consumer.lock()).await
         else {
@@ -283,8 +289,8 @@ impl SimpleFaucet {
         Some(coin)
     }
 
-    /// Pulls a coin from the queue and makes sure it is fit for use (belongs to the faucet, has
-    /// sufficient balance).
+    /// Pulls a coin from the queue and makes sure it is fit for use (belongs to
+    /// the faucet, has sufficient balance).
     async fn prepare_gas_coin(
         &self,
         total_amount: u64,
@@ -404,8 +410,9 @@ impl SimpleFaucet {
         Ok(())
     }
 
-    /// Sign an already created transaction (in `tx_data`) and keep trying to execute it until
-    /// fullnode returns a definite response or a timeout is hit.
+    /// Sign an already created transaction (in `tx_data`) and keep trying to
+    /// execute it until fullnode returns a definite response or a timeout
+    /// is hit.
     async fn sign_and_execute_txn(
         &self,
         uuid: Uuid,
@@ -464,15 +471,16 @@ impl SimpleFaucet {
             }
 
             Ok(result) => {
-                // Note: we do not recycle gas unless the transaction was successful - the faucet
-                // may run out of available coins due to errors, but this allows a human to
-                // intervene and attempt to fix things. If we re-use coins that had errors, we may
-                // lock them permanently.
+                // Note: we do not recycle gas unless the transaction was successful - the
+                // faucet may run out of available coins due to errors, but this
+                // allows a human to intervene and attempt to fix things. If we
+                // re-use coins that had errors, we may lock them permanently.
 
-                // It's important to remove the coin from the WAL before recycling it, to avoid a
-                // race with the next request served with this coin.  If this operation fails, log
-                // it and continue so we don't lose access to the coin -- the worst that can happen
-                // is that the WAL contains a stale entry.
+                // It's important to remove the coin from the WAL before recycling it, to avoid
+                // a race with the next request served with this coin.  If this
+                // operation fails, log it and continue so we don't lose access
+                // to the coin -- the worst that can happen is that the WAL
+                // contains a stale entry.
                 if self.wal.lock().await.commit(coin_id).is_err() {
                     error!(?coin_id, "Failed to remove coin from WAL");
                 }
@@ -700,9 +708,11 @@ impl SimpleFaucet {
                 number_of_coins, created
             )));
         }
-        assert!(created
-            .iter()
-            .all(|created_coin_owner_ref| created_coin_owner_ref.owner == recipient));
+        assert!(
+            created
+                .iter()
+                .all(|created_coin_owner_ref| created_coin_owner_ref.owner == recipient)
+        );
         let coin_ids: Vec<ObjectID> = created
             .iter()
             .map(|created_coin_owner_ref| created_coin_owner_ref.reference.object_id)
@@ -719,7 +729,8 @@ impl SimpleFaucet {
     ) -> Result<TransactionData, anyhow::Error> {
         let gas_payment = self.wallet.get_object_ref(coin_id).await?;
         let gas_price = self.wallet.get_reference_gas_price().await?;
-        // TODO (Jian): change to make this more efficient by changing impl to one Splitcoin, and many TransferObjects
+        // TODO (Jian): change to make this more efficient by changing impl to one
+        // Splitcoin, and many TransferObjects
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             for (_uuid, recipient, amounts) in batch_requests {
@@ -743,7 +754,8 @@ impl SimpleFaucet {
         res: SuiTransactionBlockResponse,
         requests: Vec<(Uuid, SuiAddress, Vec<u64>)>,
     ) -> Result<(), FaucetError> {
-        // Grab the list of created coins and turn it into a map of destination SuiAddress to Vec<Coins>
+        // Grab the list of created coins and turn it into a map of destination
+        // SuiAddress to Vec<Coins>
         let created = res
             .effects
             .ok_or_else(|| {
@@ -767,8 +779,8 @@ impl SimpleFaucet {
                 .push(coin_obj_ref);
         });
 
-        // Assert that the number of times a sui_address occurs is the number of times the coins
-        // come up in the vector.
+        // Assert that the number of times a sui_address occurs is the number of times
+        // the coins come up in the vector.
         let mut request_count: HashMap<SuiAddress, u64> = HashMap::new();
         // Acquire lock and update all of the request Uuids
         let mut task_map = self.task_id_cache.lock().await;
@@ -777,7 +789,8 @@ impl SimpleFaucet {
             // Get or insert sui_address into request count
             let index = *request_count.entry(addy).or_insert(0);
 
-            // The address coin map should contain the coins transferred in the given request.
+            // The address coin map should contain the coins transferred in the given
+            // request.
             let coins_created_for_address = address_coins_map.entry(addy).or_default();
 
             if number_of_coins as u64 + index > coins_created_for_address.len() as u64 {
@@ -1030,8 +1043,9 @@ pub async fn batch_transfer_gases(
                     .await
                     .map_err(FaucetError::internal)?;
 
-                // Because we are batching transactions to faucet, we will just not use a real recipient for
-                // sui address, and instead just fill it with the ZERO address.
+                // Because we are batching transactions to faucet, we will just not use a real
+                // recipient for sui address, and instead just fill it with the
+                // ZERO address.
                 let recipient = SuiAddress::ZERO;
                 {
                     // Register the intention to send this transaction before we send it, so that if
@@ -1211,7 +1225,8 @@ mod tests {
         .map(|res| res.unwrap())
         .collect::<Vec<_>>();
 
-        // After all transfer requests settle, we still have the original candidates gas in queue.
+        // After all transfer requests settle, we still have the original candidates gas
+        // in queue.
         let available = faucet.metrics.total_available_coins.get();
         faucet.shutdown_batch_send_task();
 
@@ -1303,8 +1318,8 @@ mod tests {
                 .map(|res| res.unwrap())
                 .collect::<Vec<BatchSendStatus>>();
 
-            // All requests are submitted and picked up by the same batch, so one success in the test
-            // will guarantee all success.
+            // All requests are submitted and picked up by the same batch, so one success in
+            // the test will guarantee all success.
             if status_results[0].status == BatchSendStatusType::SUCCEEDED {
                 break;
             }
@@ -1322,8 +1337,8 @@ mod tests {
     async fn test_ttl_cache_expires_after_duration() {
         let test_cluster = TestClusterBuilder::new().build().await;
         let context = test_cluster.wallet;
-        // We set it to a fast expiration for the purposes of testing and so these requests don't have time to pass
-        // through the batch process.
+        // We set it to a fast expiration for the purposes of testing and so these
+        // requests don't have time to pass through the batch process.
         let config = FaucetConfig {
             ttl_expiration: 1,
             ..Default::default()
@@ -1417,7 +1432,8 @@ mod tests {
 
         let number_of_coins = gases.len();
         let amounts = &vec![1; number_of_coins];
-        // We traverse the list twice, which must trigger the transferred gas to be kicked out
+        // We traverse the list twice, which must trigger the transferred gas to be
+        // kicked out
         futures::future::join_all((0..2).map(|_| {
             faucet.send(
                 Uuid::new_v4(),
@@ -1515,7 +1531,8 @@ mod tests {
         let gases = get_current_gases(address, &mut context).await;
 
         // split out a coin that has a very small balance such that
-        // this coin will be not used later on. This is the new default amount for faucet due to gas changes
+        // this coin will be not used later on. This is the new default amount for
+        // faucet due to gas changes
         let config = FaucetConfig::default();
         let tiny_value = (config.num_coins as u64 * config.amount) + 1;
         let res = SuiClientCommands::SplitCoin {
@@ -1566,7 +1583,8 @@ mod tests {
         // Ask for a value higher than tiny coin + DEFAULT_GAS_COMPUTATION_BUCKET
         let number_of_coins = gases.len();
         let amounts = &vec![tiny_value + 1; number_of_coins];
-        // We traverse the list ten times, which must trigger the tiny gas to be examined and then discarded
+        // We traverse the list ten times, which must trigger the tiny gas to be
+        // examined and then discarded
         futures::future::join_all((0..10).map(|_| {
             faucet.send(
                 Uuid::new_v4(),
@@ -1601,7 +1619,8 @@ mod tests {
         let gases = get_current_gases(address, &mut context).await;
         let config = FaucetConfig::default();
 
-        // The coin that is split off stays because we don't try to refresh the coin vector
+        // The coin that is split off stays because we don't try to refresh the coin
+        // vector
         let reasonable_value = (config.num_coins as u64 * config.amount) * 10;
         SuiClientCommands::SplitCoin {
             coin_id: *gases[0].id(),
@@ -1632,7 +1651,8 @@ mod tests {
             .expect("transfer failed");
         }
 
-        // Assert that the coins were transferred away successfully to destination address
+        // Assert that the coins were transferred away successfully to destination
+        // address
         let gases = get_current_gases(destination_address, &mut context).await;
         assert!(!gases.is_empty());
 
@@ -1705,7 +1725,8 @@ mod tests {
             .expect("transfer failed");
         }
 
-        // Assert that the coins were transferred away successfully to destination address
+        // Assert that the coins were transferred away successfully to destination
+        // address
         let gases = get_current_gases(destination_address, &mut context).await;
         assert!(!gases.is_empty());
 
@@ -1868,8 +1889,8 @@ mod tests {
                 .map(|res| res.unwrap())
                 .collect::<Vec<BatchSendStatus>>();
 
-            // All requests are submitted and picked up by the same batch, so one success in the test
-            // will guarantee all success.
+            // All requests are submitted and picked up by the same batch, so one success in
+            // the test will guarantee all success.
             if status_results[0].status == BatchSendStatusType::SUCCEEDED {
                 break;
             }

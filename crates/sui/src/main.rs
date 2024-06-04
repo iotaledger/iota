@@ -3,8 +3,10 @@
 
 use clap::*;
 use colored::Colorize;
-use sui::client_commands::SuiClientCommands::{ProfileTransaction, ReplayTransaction};
-use sui::sui_commands::SuiCommand;
+use sui::{
+    client_commands::SuiClientCommands::{ProfileTransaction, ReplayTransaction},
+    sui_commands::SuiCommand,
+};
 use sui_types::exit_main;
 use tracing::debug;
 

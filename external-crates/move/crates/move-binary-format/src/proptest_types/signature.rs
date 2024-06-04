@@ -2,14 +2,15 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::file_format::{
-    Ability, AbilitySet, Signature, SignatureToken, StructHandle, StructHandleIndex, TableIndex,
-    TypeParameterIndex,
-};
 use proptest::{
     collection::{vec, SizeRange},
     prelude::*,
     sample::{select, Index as PropIndex},
+};
+
+use crate::file_format::{
+    Ability, AbilitySet, Signature, SignatureToken, StructHandle, StructHandleIndex, TableIndex,
+    TypeParameterIndex,
 };
 
 #[derive(Clone, Debug)]
@@ -190,12 +191,10 @@ impl SignatureTokenGen {
                                 _ => type_params.push(SignatureToken::U64),
                             }
                         }
-                        SignatureToken::StructInstantiation(Box::new(
-                            (
-                                StructHandleIndex(struct_idx as TableIndex),
-                                type_params,
-                            )
-                        ))
+                        SignatureToken::StructInstantiation(Box::new((
+                            StructHandleIndex(struct_idx as TableIndex),
+                            type_params,
+                        )))
                     }
                 }
             }

@@ -104,19 +104,24 @@ impl ConsensusHandlerInitializer {
 }
 
 pub struct ConsensusHandler<C> {
-    /// A store created for each epoch. ConsensusHandler is recreated each epoch, with the
-    /// corresponding store. This store is also used to get the current epoch ID.
+    /// A store created for each epoch. ConsensusHandler is recreated each
+    /// epoch, with the corresponding store. This store is also used to get
+    /// the current epoch ID.
     epoch_store: Arc<AuthorityPerEpochStore>,
     /// Holds the indices, hash and stats after the last consensus commit
     /// It is used for avoiding replaying already processed transactions,
-    /// checking chain consistency, and accumulating per-epoch consensus output stats.
+    /// checking chain consistency, and accumulating per-epoch consensus output
+    /// stats.
     last_consensus_stats: ExecutionIndicesWithStats,
     checkpoint_service: Arc<C>,
-    /// cache reader is needed when determining the next version to assign for shared objects.
+    /// cache reader is needed when determining the next version to assign for
+    /// shared objects.
     cache_reader: Arc<dyn ExecutionCacheRead>,
-    /// Reputation scores used by consensus adapter that we update, forwarded from consensus
+    /// Reputation scores used by consensus adapter that we update, forwarded
+    /// from consensus
     low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
-    /// The narwhal committee used to do stake computations for deciding set of low scoring authorities
+    /// The narwhal committee used to do stake computations for deciding set of
+    /// low scoring authorities
     committee: Committee,
     // TODO: ConsensusHandler doesn't really share metrics with AuthorityState. We could define
     // a new metrics type here if we want to.
@@ -124,7 +129,8 @@ pub struct ConsensusHandler<C> {
     /// Lru cache to quickly discard transactions processed by consensus
     processed_cache: LruCache<SequencedConsensusTransactionKey, ()>,
     transaction_scheduler: AsyncTransactionScheduler,
-    /// Using the throughput calculator to record the current consensus throughput
+    /// Using the throughput calculator to record the current consensus
+    /// throughput
     throughput_calculator: Arc<ConsensusThroughputCalculator>,
 }
 
@@ -165,8 +171,9 @@ impl<C> ConsensusHandler<C> {
         }
     }
 
-    /// Updates the execution indexes based on the provided input. Some is returned when the indexes
-    /// are updated which means that the transaction has been seen for first time. None is returned
+    /// Updates the execution indexes based on the provided input. Some is
+    /// returned when the indexes are updated which means that the
+    /// transaction has been seen for first time. None is returned
     /// otherwise.
     fn update_index_and_hash(&mut self, index: ExecutionIndices, v: &[u8]) -> bool {
         update_index_and_hash(&mut self.last_consensus_stats, index, v)
@@ -202,7 +209,8 @@ fn update_index_and_hash(
 
 #[async_trait]
 impl<C: CheckpointServiceNotify + Send + Sync> ExecutionState for ConsensusHandler<C> {
-    /// This function will be called by Narwhal, after Narwhal sequenced this certificate.
+    /// This function will be called by Narwhal, after Narwhal sequenced this
+    /// certificate.
     #[instrument(level = "debug", skip_all)]
     async fn handle_consensus_output(&mut self, consensus_output: ConsensusOutput) {
         let _scope = monitored_scope("HandleConsensusOutput");
@@ -226,10 +234,11 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         consensus_output: impl ConsensusOutputAPI,
     ) {
         // This code no longer supports old protocol versions.
-        assert!(self
-            .epoch_store
-            .protocol_config()
-            .consensus_order_end_of_epoch_last());
+        assert!(
+            self.epoch_store
+                .protocol_config()
+                .consensus_order_end_of_epoch_last()
+        );
 
         let last_committed_round = self.last_consensus_stats.index.last_committed_round;
 
@@ -238,8 +247,9 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         assert!(round >= last_committed_round);
         if last_committed_round == round {
             // we can receive the same commit twice after restart
-            // It is critical that the writes done by this function are atomic - otherwise we can
-            // lose the later parts of a commit if we restart midway through processing it.
+            // It is critical that the writes done by this function are atomic - otherwise
+            // we can lose the later parts of a commit if we restart midway
+            // through processing it.
             info!(
                 "Ignoring consensus output for round {} as it is already committed",
                 round
@@ -247,7 +257,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             return;
         }
 
-        /* (serialized, transaction, output_cert) */
+        // (serialized, transaction, output_cert)
         let mut transactions = vec![];
         let timestamp = consensus_output.commit_timestamp_ms();
         let leader_author = consensus_output.leader_author_index();
@@ -293,13 +303,15 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             consensus_output.leader_author_index(),
         ));
 
-        // Load all jwks that became active in the previous round, and commit them in this round.
-        // We want to delay one round because none of the transactions in the previous round could
-        // have been authenticated with the jwks that became active in that round.
+        // Load all jwks that became active in the previous round, and commit them in
+        // this round. We want to delay one round because none of the
+        // transactions in the previous round could have been authenticated with
+        // the jwks that became active in that round.
         //
-        // Because of this delay, jwks that become active in the last round of the epoch will
-        // never be committed. That is ok, because in the new epoch, the validators should
-        // immediately re-submit these jwks, and they can become active then.
+        // Because of this delay, jwks that become active in the last round of the epoch
+        // will never be committed. That is ok, because in the new epoch, the
+        // validators should immediately re-submit these jwks, and they can
+        // become active then.
         let new_jwks = self
             .epoch_store
             .get_new_jwks(last_committed_round)
@@ -362,8 +374,11 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                     if let ConsensusTransactionKind::RandomnessStateUpdate(randomness_round, _) =
                         &transaction.kind
                     {
-                        // These are deprecated and we should never see them. Log an error and eat the tx if one appears.
-                        error!("BUG: saw deprecated RandomnessStateUpdate tx for commit round {round:?}, randomness round {randomness_round:?}")
+                        // These are deprecated and we should never see them. Log an error and eat
+                        // the tx if one appears.
+                        error!(
+                            "BUG: saw deprecated RandomnessStateUpdate tx for commit round {round:?}, randomness round {randomness_round:?}"
+                        )
                     } else {
                         let transaction = SequencedConsensusTransactionKind::External(transaction);
                         transactions.push((serialized_transaction, transaction, authority_index));
@@ -392,8 +407,9 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
 
         let mut all_transactions = Vec::new();
         {
-            // We need a set here as well, since the processed_cache is a LRU cache and can drop
-            // entries while we're iterating over the sequenced transactions.
+            // We need a set here as well, since the processed_cache is a LRU cache and can
+            // drop entries while we're iterating over the sequenced
+            // transactions.
             let mut processed_set = HashSet::new();
 
             for (seq, (serialized, transaction, cert_origin)) in
@@ -506,10 +522,10 @@ impl AsyncTransactionScheduler {
     }
 }
 
-/// Consensus handler used by Mysticeti. Since Mysticeti repo is not yet integrated, we use a
-/// channel to receive the consensus output from Mysticeti.
-/// During initialization, the sender is passed into Mysticeti which can send consensus output
-/// to the channel.
+/// Consensus handler used by Mysticeti. Since Mysticeti repo is not yet
+/// integrated, we use a channel to receive the consensus output from Mysticeti.
+/// During initialization, the sender is passed into Mysticeti which can send
+/// consensus output to the channel.
 pub struct MysticetiConsensusHandler {
     handle: tokio::task::JoinHandle<()>,
 }
@@ -639,9 +655,9 @@ impl<'de> Deserialize<'de> for SequencedConsensusTransactionKind {
     }
 }
 
-// We can't serialize SequencedConsensusTransactionKind directly because it contains a
-// VerifiedExecutableTransaction, which is not serializable (by design). This wrapper allows us to
-// convert to a serializable format easily.
+// We can't serialize SequencedConsensusTransactionKind directly because it
+// contains a VerifiedExecutableTransaction, which is not serializable (by
+// design). This wrapper allows us to convert to a serializable format easily.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 enum SerializableSequencedConsensusTransactionKind {
     External(ConsensusTransaction),
@@ -755,8 +771,9 @@ impl SequencedConsensusTransaction {
 
     pub fn is_user_tx_with_randomness(&self, randomness_state_enabled: bool) -> bool {
         if !randomness_state_enabled {
-            // If randomness is disabled, these should be processed same as a tx without randomness,
-            // which will eventually fail when the randomness state object is not found.
+            // If randomness is disabled, these should be processed same as a tx without
+            // randomness, which will eventually fail when the randomness state
+            // object is not found.
             return false;
         }
         let SequencedConsensusTransactionKind::External(ConsensusTransaction {

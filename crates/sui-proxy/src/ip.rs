@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+
 use ipnetwork::IpNetwork;
 use multiaddr::Multiaddr;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 pub fn to_multiaddr(addr: IpAddr) -> Multiaddr {
     match addr {
@@ -12,7 +13,8 @@ pub fn to_multiaddr(addr: IpAddr) -> Multiaddr {
     }
 }
 
-/// is_private makes a decent guess at determining of an addr is publicly routable.
+/// is_private makes a decent guess at determining of an addr is publicly
+/// routable.
 pub fn is_private(addr: IpAddr) -> bool {
     match addr {
         IpAddr::V4(a) => is_private_v4(a),
@@ -20,7 +22,8 @@ pub fn is_private(addr: IpAddr) -> bool {
     }
 }
 
-/// is_private_v4 will say just that, is it private? we ignore 169.254.0.0/16 in this consideration
+/// is_private_v4 will say just that, is it private? we ignore 169.254.0.0/16 in
+/// this consideration
 fn is_private_v4(addr: Ipv4Addr) -> bool {
     // special case we will allow
     let allowed_private: IpNetwork = "169.254.0.0/16".parse().unwrap();
@@ -31,8 +34,8 @@ fn is_private_v4(addr: Ipv4Addr) -> bool {
     addr.is_private()
 }
 
-/// is_private_v6 and the funcs below are based on an unstable const fn in core. yoinked it.
-/// taken from https://github.com/rust-lang/rust/blob/340bb19fea20fd5f9357bbfac542fad84fc7ea2b/library/core/src/net/ip_addr.rs#L691-L783
+/// is_private_v6 and the funcs below are based on an unstable const fn in core.
+/// yoinked it. taken from https://github.com/rust-lang/rust/blob/340bb19fea20fd5f9357bbfac542fad84fc7ea2b/library/core/src/net/ip_addr.rs#L691-L783
 #[allow(clippy::manual_range_contains)]
 fn is_private_v6(addr: Ipv6Addr) -> bool {
     addr.is_unspecified()

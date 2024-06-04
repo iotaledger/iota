@@ -1,22 +1,25 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{any::Any, collections::BTreeMap, sync::Arc};
+
 use async_trait::async_trait;
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
-use std::any::Any;
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use sui_types::{
+    base_types::{ObjectID, SequenceNumber},
+    object::ObjectRead,
+};
 
-use sui_types::base_types::{ObjectID, SequenceNumber};
-use sui_types::object::ObjectRead;
-
-use crate::errors::IndexerError;
-use crate::handlers::{EpochToCommit, TransactionObjectChangesToCommit};
-
-use crate::models::display::StoredDisplay;
-use crate::models::objects::{StoredDeletedObject, StoredObject};
-use crate::types::{IndexedCheckpoint, IndexedEvent, IndexedPackage, IndexedTransaction, TxIndex};
+use crate::{
+    errors::IndexerError,
+    handlers::{EpochToCommit, TransactionObjectChangesToCommit},
+    models::{
+        display::StoredDisplay,
+        objects::{StoredDeletedObject, StoredObject},
+    },
+    types::{IndexedCheckpoint, IndexedEvent, IndexedPackage, IndexedTransaction, TxIndex},
+};
 
 #[allow(clippy::large_enum_variant)]
 pub enum ObjectChangeToCommit {
@@ -54,7 +57,7 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     ) -> Result<(), IndexerError>;
 
     async fn persist_object_snapshot(&self, start_cp: u64, end_cp: u64)
-        -> Result<(), IndexerError>;
+    -> Result<(), IndexerError>;
 
     async fn persist_checkpoints(
         &self,

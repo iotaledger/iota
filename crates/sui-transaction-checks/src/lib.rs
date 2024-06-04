@@ -7,31 +7,29 @@ pub use checked::*;
 
 #[sui_macros::with_checked_arithmetic]
 mod checked {
-    use std::collections::{BTreeMap, HashSet};
-    use std::sync::Arc;
-    use sui_protocol_config::ProtocolConfig;
-    use sui_types::base_types::{ObjectID, ObjectRef};
-    use sui_types::error::{UserInputError, UserInputResult};
-    use sui_types::executable_transaction::VerifiedExecutableTransaction;
-    use sui_types::metrics::BytecodeVerifierMetrics;
-    use sui_types::transaction::{
-        CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
-        ReceivingObjectReadResult, ReceivingObjects, TransactionData, TransactionDataAPI,
-        TransactionKind, VersionedProtocolMessage as _,
+    use std::{
+        collections::{BTreeMap, HashSet},
+        sync::Arc,
     };
+
+    use sui_protocol_config::ProtocolConfig;
     use sui_types::{
-        base_types::{SequenceNumber, SuiAddress},
-        error::{SuiError, SuiResult},
+        base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress},
+        error::{SuiError, SuiResult, UserInputError, UserInputResult},
+        executable_transaction::VerifiedExecutableTransaction,
         fp_bail, fp_ensure,
         gas::SuiGasStatus,
+        metrics::BytecodeVerifierMetrics,
         object::{Object, Owner},
-    };
-    use sui_types::{
+        transaction::{
+            CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
+            ObjectReadResultKind, ReceivingObjectReadResult, ReceivingObjects, TransactionData,
+            TransactionDataAPI, TransactionKind, VersionedProtocolMessage as _,
+        },
         SUI_AUTHENTICATOR_STATE_OBJECT_ID, SUI_CLOCK_OBJECT_ID, SUI_CLOCK_OBJECT_SHARED_VERSION,
         SUI_RANDOMNESS_STATE_OBJECT_ID,
     };
-    use tracing::error;
-    use tracing::instrument;
+    use tracing::{error, instrument};
 
     trait IntoChecked {
         fn into_checked(self) -> CheckedInputObjects;
@@ -115,9 +113,10 @@ mod checked {
     }
 
     // Since the purpose of this function is to audit certified transactions,
-    // the checks here should be a strict subset of the checks in check_transaction_input().
-    // For checks not performed in this function but in check_transaction_input(),
-    // we should add a comment calling out the difference.
+    // the checks here should be a strict subset of the checks in
+    // check_transaction_input(). For checks not performed in this function but
+    // in check_transaction_input(), we should add a comment calling out the
+    // difference.
     #[instrument(level = "trace", skip_all)]
     pub fn check_certificate_input(
         cert: &VerifiedExecutableTransaction,
@@ -133,14 +132,15 @@ mod checked {
             &input_objects,
             &[],
         )?;
-        // NB: We do not check receiving objects when executing. Only at signing time do we check.
-        // NB: move verifier is only checked at signing time, not at execution.
+        // NB: We do not check receiving objects when executing. Only at signing time do
+        // we check. NB: move verifier is only checked at signing time, not at
+        // execution.
 
         Ok((gas_status, input_objects.into_checked()))
     }
 
-    /// WARNING! This should only be used for the dev-inspect transaction. This transaction type
-    /// bypasses many of the normal object checks
+    /// WARNING! This should only be used for the dev-inspect transaction. This
+    /// transaction type bypasses many of the normal object checks
     pub fn check_dev_inspect_input(
         config: &ProtocolConfig,
         kind: &TransactionKind,
@@ -217,13 +217,14 @@ mod checked {
             .map(|x| x.object_id())
             .collect();
 
-        // Since we're at signing we check that every object reference that we are receiving is the
-        // most recent version of that object. If it's been received at the version specified we
-        // let it through to allow the transaction to run and fail to unlock any other objects in
+        // Since we're at signing we check that every object reference that we are
+        // receiving is the most recent version of that object. If it's been
+        // received at the version specified we let it through to allow the
+        // transaction to run and fail to unlock any other objects in
         // the transaction. Otherwise, we return an error.
         //
-        // If there are any object IDs in common (either between receiving objects and input
-        // objects) we return an error.
+        // If there are any object IDs in common (either between receiving objects and
+        // input objects) we return an error.
         for ReceivingObjectReadResult {
             object_ref: (object_id, version, object_digest),
             object,
@@ -275,34 +276,43 @@ mod checked {
 
                 match object.owner {
                     Owner::AddressOwner(_) => {
-                        debug_assert!(false,
+                        debug_assert!(
+                            false,
                             "Receiving object {:?} is invalid but we expect it should be valid. {:?}",
-                            (*object_id, *version, *object_id), object
+                            (*object_id, *version, *object_id),
+                            object
                         );
                         error!(
                             "Receiving object {:?} is invalid but we expect it should be valid. {:?}",
-                            (*object_id, *version, *object_id), object
+                            (*object_id, *version, *object_id),
+                            object
                         );
                         // We should never get here, but if for some reason we do just default to
                         // object not found and reject signing the transaction.
-                        fp_bail!(UserInputError::ObjectNotFound {
-                            object_id: *object_id,
-                            version: Some(*version),
-                        }
-                        .into())
+                        fp_bail!(
+                            UserInputError::ObjectNotFound {
+                                object_id: *object_id,
+                                version: Some(*version),
+                            }
+                            .into()
+                        )
                     }
                     Owner::ObjectOwner(owner) => {
-                        fp_bail!(UserInputError::InvalidChildObjectArgument {
-                            child_id: object.id(),
-                            parent_id: owner.into(),
-                        }
-                        .into())
+                        fp_bail!(
+                            UserInputError::InvalidChildObjectArgument {
+                                child_id: object.id(),
+                                parent_id: owner.into(),
+                            }
+                            .into()
+                        )
                     }
                     Owner::Shared { .. } => fp_bail!(UserInputError::NotSharedObjectError.into()),
-                    Owner::Immutable => fp_bail!(UserInputError::MutableParameterExpected {
-                        object_id: *object_id
-                    }
-                    .into()),
+                    Owner::Immutable => fp_bail!(
+                        UserInputError::MutableParameterExpected {
+                            object_id: *object_id
+                        }
+                        .into()
+                    ),
                 };
             }
 
@@ -351,8 +361,8 @@ mod checked {
         }
     }
 
-    /// Check all the objects used in the transaction against the database, and ensure
-    /// that they are all the correct version and number.
+    /// Check all the objects used in the transaction against the database, and
+    /// ensure that they are all the correct version and number.
     #[instrument(level = "trace", skip_all)]
     fn check_objects(transaction: &TransactionData, objects: &InputObjects) -> UserInputResult<()> {
         // We require that mutable objects cannot show up more than once.
@@ -456,11 +466,14 @@ mod checked {
                     Owner::AddressOwner(actual_owner) => {
                         // Check the owner is correct.
                         fp_ensure!(
-                        owner == &actual_owner,
-                        UserInputError::IncorrectUserSignature {
-                            error: format!("Object {:?} is owned by account address {:?}, but given owner/signer address is {:?}", object_id, actual_owner, owner),
-                        }
-                    );
+                            owner == &actual_owner,
+                            UserInputError::IncorrectUserSignature {
+                                error: format!(
+                                    "Object {:?} is owned by account address {:?}, but given owner/signer address is {:?}",
+                                    object_id, actual_owner, owner
+                                ),
+                            }
+                        );
                     }
                     Owner::ObjectOwner(owner) => {
                         return Err(UserInputError::InvalidChildObjectArgument {

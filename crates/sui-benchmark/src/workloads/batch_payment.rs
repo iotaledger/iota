@@ -1,28 +1,31 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::drivers::Interval;
-use crate::in_memory_wallet::InMemoryWallet;
-use crate::system_state_observer::SystemStateObserver;
-use crate::workloads::payload::Payload;
-use crate::workloads::workload::{Workload, STORAGE_COST_PER_COIN};
-use crate::workloads::workload::{WorkloadBuilder, ESTIMATED_COMPUTATION_COST};
-use crate::workloads::{Gas, GasCoinConfig, WorkloadBuilderInfo, WorkloadParams};
-use crate::{ExecutionEffects, ValidatorProxy};
+use std::{collections::HashMap, sync::Arc};
+
 use async_trait::async_trait;
-use std::collections::HashMap;
-use std::sync::Arc;
 use sui_core::test_utils::make_pay_sui_transaction;
-use sui_types::base_types::{ObjectID, SequenceNumber};
-use sui_types::digests::ObjectDigest;
-use sui_types::gas_coin::MIST_PER_SUI;
-use sui_types::object::Owner;
 use sui_types::{
-    base_types::{ObjectRef, SuiAddress},
+    base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress},
     crypto::get_key_pair,
+    digests::ObjectDigest,
+    gas_coin::MIST_PER_SUI,
+    object::Owner,
     transaction::Transaction,
 };
 use tracing::{debug, error};
+
+use crate::{
+    drivers::Interval,
+    in_memory_wallet::InMemoryWallet,
+    system_state_observer::SystemStateObserver,
+    workloads::{
+        payload::Payload,
+        workload::{Workload, WorkloadBuilder, ESTIMATED_COMPUTATION_COST, STORAGE_COST_PER_COIN},
+        Gas, GasCoinConfig, WorkloadBuilderInfo, WorkloadParams,
+    },
+    ExecutionEffects, ValidatorProxy,
+};
 
 /// Value of each address's "primary coin" in mist. The first transaction gives
 /// each address a coin worth PRIMARY_COIN_VALUE, and all subsequent transfers
@@ -39,8 +42,8 @@ pub struct BatchPaymentTestPayload {
     state: InMemoryWallet,
     /// total number of payments made, to be used in reporting batch TPS
     num_payments: usize,
-    /// address of the first sender. important because in the beginning, only one address has any coins.
-    /// after the first tx, any address can send
+    /// address of the first sender. important because in the beginning, only
+    /// one address has any coins. after the first tx, any address can send
     first_sender: SuiAddress,
     system_state_observer: Arc<SystemStateObserver>,
 }
@@ -84,7 +87,8 @@ impl Payload for BatchPaymentTestPayload {
             debug!("New sender sending gas {}...", addr);
             addr
         };
-        // we're only using gas objects in this benchmark, so safe to assume everything owned by an address is a gas object
+        // we're only using gas objects in this benchmark, so safe to assume everything
+        // owned by an address is a gas object
         let gas_obj = self.state.gas(&sender).unwrap();
         debug!("Gas ID being used for tx {gas_obj:#?}");
         let amount = if self.num_payments == 0 {

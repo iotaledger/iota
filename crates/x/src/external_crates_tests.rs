@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::anyhow;
 use std::{
     path::PathBuf,
     process::{Command, Stdio},
 };
+
+use anyhow::anyhow;
 
 pub fn run() -> crate::Result<()> {
     // change into the external-crates/move directory

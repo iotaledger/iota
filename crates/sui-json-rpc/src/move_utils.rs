@@ -1,12 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority_state::StateRead;
-use crate::error::{Error, SuiRpcInputError};
-use crate::{with_tracing, SuiRpcModule};
+use std::{collections::BTreeMap, sync::Arc};
+
 use async_trait::async_trait;
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::RpcModule;
+use jsonrpsee::{core::RpcResult, RpcModule};
 #[cfg(test)]
 use mockall::automock;
 use move_binary_format::{
@@ -14,8 +12,6 @@ use move_binary_format::{
     normalized::{Module as NormalizedModule, Type},
 };
 use move_core_types::identifier::Identifier;
-use std::collections::BTreeMap;
-use std::sync::Arc;
 use sui_core::authority::AuthorityState;
 use sui_json_rpc_api::{MoveUtilsOpenRpc, MoveUtilsServer};
 use sui_json_rpc_types::{
@@ -23,11 +19,19 @@ use sui_json_rpc_types::{
     SuiMoveNormalizedStruct,
 };
 use sui_open_rpc::Module;
-use sui_types::base_types::ObjectID;
-use sui_types::move_package::normalize_modules;
-use sui_types::object::{Data, ObjectRead};
+use sui_types::{
+    base_types::ObjectID,
+    move_package::normalize_modules,
+    object::{Data, ObjectRead},
+};
 use tap::TapFallible;
 use tracing::{error, instrument, warn};
+
+use crate::{
+    authority_state::StateRead,
+    error::{Error, SuiRpcInputError},
+    with_tracing, SuiRpcModule,
+};
 
 #[cfg_attr(test, automock)]
 #[async_trait]
@@ -91,8 +95,8 @@ impl MoveUtilsInternalTrait for MoveUtilsInternal {
             ObjectRead::Exists(_obj_ref, object, _layout) => {
                 match object.into_inner().data {
                     Data::Package(p) => {
-                        // we are on the read path - it's OK to use VERSION_MAX of the supported Move
-                        // binary format
+                        // we are on the read path - it's OK to use VERSION_MAX of the supported
+                        // Move binary format
                         let binary_config = BinaryConfig::with_extraneous_bytes_check(false);
                         normalize_modules(
                             p.serialized_module_map().values(),
@@ -229,8 +233,8 @@ impl MoveUtilsServer for MoveUtils {
             let normalized = match object_read {
                 ObjectRead::Exists(_obj_ref, object, _layout) => match object.into_inner().data {
                     Data::Package(p) => {
-                        // we are on the read path - it's OK to use VERSION_MAX of the supported Move
-                        // binary format
+                        // we are on the read path - it's OK to use VERSION_MAX of the supported
+                        // Move binary format
                         let binary_config = BinaryConfig::with_extraneous_bytes_check(false);
                         normalize_modules(p.serialized_module_map().values(), &binary_config)
                             .map_err(Error::from)
@@ -284,9 +288,10 @@ impl MoveUtilsServer for MoveUtils {
 mod tests {
 
     mod get_normalized_move_module_tests {
-        use super::super::*;
         use jsonrpsee::types::ErrorObjectOwned;
         use move_binary_format::file_format::basic_test_module;
+
+        use super::super::*;
 
         fn setup() -> (ObjectID, String) {
             (ObjectID::random(), String::from("test_module"))

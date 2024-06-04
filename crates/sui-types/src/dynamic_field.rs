@@ -1,31 +1,34 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::base_types::{ObjectDigest, SuiAddress};
-use crate::crypto::DefaultHash;
-use crate::error::{SuiError, SuiResult};
-use crate::id::UID;
-use crate::object::Object;
-use crate::storage::ObjectStore;
-use crate::sui_serde::Readable;
-use crate::sui_serde::SuiTypeTag;
-use crate::{MoveTypeTagTrait, ObjectID, SequenceNumber, SUI_FRAMEWORK_ADDRESS};
-use fastcrypto::encoding::Base58;
-use fastcrypto::hash::HashFunction;
-use move_core_types::annotated_value::{MoveStruct, MoveValue};
-use move_core_types::ident_str;
-use move_core_types::identifier::IdentStr;
-use move_core_types::language_storage::{StructTag, TypeTag};
+use std::{
+    fmt,
+    fmt::{Display, Formatter},
+};
+
+use fastcrypto::{encoding::Base58, hash::HashFunction};
+use move_core_types::{
+    annotated_value::{MoveStruct, MoveValue},
+    ident_str,
+    identifier::IdentStr,
+    language_storage::{StructTag, TypeTag},
+};
 use schemars::JsonSchema;
-use serde::de::DeserializeOwned;
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
-use serde_with::serde_as;
-use serde_with::DisplayFromStr;
+use serde_with::{serde_as, DisplayFromStr};
 use shared_crypto::intent::HashingIntentScope;
-use std::fmt;
-use std::fmt::{Display, Formatter};
+
+use crate::{
+    base_types::{ObjectDigest, SuiAddress},
+    crypto::DefaultHash,
+    error::{SuiError, SuiResult},
+    id::UID,
+    object::Object,
+    storage::ObjectStore,
+    sui_serde::{Readable, SuiTypeTag},
+    MoveTypeTagTrait, ObjectID, SequenceNumber, SUI_FRAMEWORK_ADDRESS,
+};
 
 const DYNAMIC_FIELD_MODULE_NAME: &IdentStr = ident_str!("dynamic_field");
 const DYNAMIC_FIELD_FIELD_STRUCT_NAME: &IdentStr = ident_str!("Field");
@@ -63,8 +66,9 @@ pub struct DynamicFieldName {
     #[schemars(with = "String")]
     #[serde_as(as = "Readable<SuiTypeTag, _>")]
     pub type_: TypeTag,
-    // Bincode does not like serde_json::Value, rocksdb will not insert the value without serializing value as string.
-    // TODO: investigate if this can be removed after switch to BCS.
+    // Bincode does not like serde_json::Value, rocksdb will not insert the value without
+    // serializing value as string. TODO: investigate if this can be removed after switch to
+    // BCS.
     #[schemars(with = "Value")]
     #[serde_as(as = "Readable<_, DisplayFromStr>")]
     pub value: Value,
@@ -270,16 +274,18 @@ where
     let hash = hasher.finalize();
 
     // truncate into an ObjectID and return
-    // OK to access slice because digest should never be shorter than ObjectID::LENGTH.
+    // OK to access slice because digest should never be shorter than
+    // ObjectID::LENGTH.
     let id = ObjectID::try_from(&hash.as_ref()[0..ObjectID::LENGTH]).unwrap();
     tracing::trace!("derive_dynamic_field_id result: {:?}", id);
     Ok(id)
 }
 
-/// Given a parent object ID (e.g. a table), and a `key`, retrieve the corresponding dynamic field object
-/// from the `object_store`. The key type `K` must implement `MoveTypeTagTrait` which has an associated
-/// function that returns the Move type tag.
-/// Note that this function returns the Field object itself, not the value in the field.
+/// Given a parent object ID (e.g. a table), and a `key`, retrieve the
+/// corresponding dynamic field object from the `object_store`. The key type `K`
+/// must implement `MoveTypeTagTrait` which has an associated function that
+/// returns the Move type tag. Note that this function returns the Field object
+/// itself, not the value in the field.
 pub fn get_dynamic_field_object_from_store<K>(
     object_store: &dyn ObjectStore,
     parent_id: ObjectID,
@@ -299,8 +305,8 @@ where
     Ok(object)
 }
 
-/// Similar to `get_dynamic_field_object_from_store`, but returns the value in the field instead of
-/// the Field object itself.
+/// Similar to `get_dynamic_field_object_from_store`, but returns the value in
+/// the field instead of the Field object itself.
 pub fn get_dynamic_field_from_store<K, V>(
     object_store: &dyn ObjectStore,
     parent_id: ObjectID,

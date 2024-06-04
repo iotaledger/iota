@@ -1,10 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    io::{BufWriter, Read},
+    path::PathBuf,
+};
+
 use anyhow::anyhow;
 use markdown_gen::markdown::{AsMarkdown, Markdown};
-use std::io::{BufWriter, Read};
-use std::path::PathBuf;
 
 #[derive(Debug)]
 pub struct ExampleQuery {
@@ -97,7 +100,8 @@ pub fn load_examples() -> anyhow::Result<Vec<ExampleQueryGroup>> {
     Ok(groups)
 }
 
-/// This generates a markdown page with all the examples, to be used in the docs site
+/// This generates a markdown page with all the examples, to be used in the docs
+/// site
 pub fn generate_examples_for_docs() -> anyhow::Result<String> {
     let groups = load_examples()?;
 
@@ -209,8 +213,9 @@ pub fn generate_markdown() -> anyhow::Result<String> {
 
 #[test]
 fn test_generate_markdown() {
-    use similar::*;
     use std::fs::File;
+
+    use similar::*;
 
     let mut buf: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     buf.push("docs");
@@ -235,6 +240,9 @@ fn test_generate_markdown() {
             };
             res.push(format!("{}{}", sign, change));
         }
-        panic!("Doc examples have changed. Please run `sui-graphql-rpc generate-examples` to update the docs. Diff: {}", res.join(""));
+        panic!(
+            "Doc examples have changed. Please run `sui-graphql-rpc generate-examples` to update the docs. Diff: {}",
+            res.join("")
+        );
     }
 }

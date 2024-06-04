@@ -3,11 +3,13 @@
 
 pub(crate) mod object_store;
 
-use self::object_store::{ChildObjectEffect, ObjectResult};
-use super::get_object_id;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
+
 use better_any::{Tid, TidAble};
-use indexmap::map::IndexMap;
-use indexmap::set::IndexSet;
+use indexmap::{map::IndexMap, set::IndexSet};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
     account_address::AccountAddress,
@@ -23,10 +25,6 @@ use move_vm_types::{
     values::{GlobalValue, Value},
 };
 use object_store::ChildObjectStore;
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
 use sui_protocol_config::{check_limit_by_meter, LimitThresholdCrossed, ProtocolConfig};
 use sui_types::{
     base_types::{MoveObjectType, ObjectID, SequenceNumber, SuiAddress},
@@ -40,6 +38,9 @@ use sui_types::{
     SUI_AUTHENTICATOR_STATE_OBJECT_ID, SUI_CLOCK_OBJECT_ID, SUI_DENY_LIST_OBJECT_ID,
     SUI_RANDOMNESS_STATE_OBJECT_ID, SUI_SYSTEM_STATE_OBJECT_ID,
 };
+
+use self::object_store::{ChildObjectEffect, ObjectResult};
+use super::get_object_id;
 
 pub enum ObjectEvent {
     /// Transfer to a new address or object. Or make it shared or immutable.
@@ -196,9 +197,9 @@ impl<'a> ObjectRuntime<'a> {
                 ));
         };
 
-        // remove from deleted_ids for the case in dynamic fields where the Field object was deleted
-        // and then re-added in a single transaction. In that case, we also skip adding it
-        // to new_ids.
+        // remove from deleted_ids for the case in dynamic fields where the Field object
+        // was deleted and then re-added in a single transaction. In that case,
+        // we also skip adding it to new_ids.
         let was_present = self.state.deleted_ids.swap_remove(&id);
         if !was_present {
             // mark the id as new
@@ -243,11 +244,11 @@ impl<'a> ObjectRuntime<'a> {
         let id: ObjectID = get_object_id(obj.copy_value()?)?
             .value_as::<AccountAddress>()?
             .into();
-        // - An object is new if it is contained in the new ids or if it is one of the objects
-        //   created during genesis (the system state object or clock).
+        // - An object is new if it is contained in the new ids or if it is one of the
+        //   objects created during genesis (the system state object or clock).
         // - Otherwise, check the input objects for the previous owner
-        // - If it was not in the input objects, it must have been wrapped or must have been a
-        //   child object
+        // - If it was not in the input objects, it must have been wrapped or must have
+        //   been a child object
         let is_framework_obj = [
             SUI_SYSTEM_STATE_OBJECT_ID,
             SUI_CLOCK_OBJECT_ID,
@@ -278,7 +279,8 @@ impl<'a> ObjectRuntime<'a> {
 
         if let LimitThresholdCrossed::Hard(_, lim) = check_limit_by_meter!(
             // TODO: is this not redundant? Metered TX implies framework obj cannot be transferred
-            self.is_metered && !is_framework_obj, // We have higher limits for unmetered transactions and framework obj
+            self.is_metered && !is_framework_obj, /* We have higher limits for unmetered
+                                                   * transactions and framework obj */
             self.state.transfers.len(),
             self.protocol_config.max_num_transferred_move_object_ids(),
             self.protocol_config
@@ -348,11 +350,12 @@ impl<'a> ObjectRuntime<'a> {
         else {
             return Ok(None);
         };
-        // NB: It is important that the object only be added to the received set after it has been
-        // fully authenticated and loaded.
+        // NB: It is important that the object only be added to the received set after
+        // it has been fully authenticated and loaded.
         if self.state.received.insert(child, obj_meta).is_some() {
-            // We should never hit this -- it means that we have received the same object twice which
-            // means we have a duplicated a receiving ticket somehow.
+            // We should never hit this -- it means that we have received the same object
+            // twice which means we have a duplicated a receiving ticket
+            // somehow.
             return Err(
                 PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(format!(
                     "Object {child} at version {child_version} already received. This can only happen \
@@ -416,13 +419,15 @@ impl<'a> ObjectRuntime<'a> {
     }
 
     pub fn loaded_runtime_objects(&self) -> BTreeMap<ObjectID, DynamicallyLoadedObjectMetadata> {
-        // The loaded child objects, and the received objects, should be disjoint. If they are not,
-        // this is an error since it could lead to incorrect transaction dependency computations.
-        debug_assert!(self
-            .child_object_store
-            .cached_objects()
-            .keys()
-            .all(|id| !self.state.received.contains_key(id)));
+        // The loaded child objects, and the received objects, should be disjoint. If
+        // they are not, this is an error since it could lead to incorrect
+        // transaction dependency computations.
+        debug_assert!(
+            self.child_object_store
+                .cached_objects()
+                .keys()
+                .all(|id| !self.state.received.contains_key(id))
+        );
         self.child_object_store
             .cached_objects()
             .iter()
@@ -449,8 +454,8 @@ impl<'a> ObjectRuntime<'a> {
             .collect()
     }
 
-    /// A map from wrapped objects to the object that wraps them at the beginning of the
-    /// transaction.
+    /// A map from wrapped objects to the object that wraps them at the
+    /// beginning of the transaction.
     pub fn wrapped_object_containers(&self) -> BTreeMap<ObjectID, ObjectID> {
         self.child_object_store.wrapped_object_containers().clone()
     }
@@ -466,13 +471,14 @@ pub fn max_event_error(max_events: u64) -> PartialVMError {
 }
 
 impl ObjectRuntimeState {
-    /// Update `state_view` with the effects of successfully executing a transaction:
-    /// - Given the effects `Op<Value>` of child objects, processes the changes in terms of
-    ///   object writes/deletes
-    /// - Process `transfers` and `input_objects` to determine whether the type of change
-    ///   (WriteKind) to the object
-    /// - Process `deleted_ids` with previously determined information to determine the
-    ///   DeleteKind
+    /// Update `state_view` with the effects of successfully executing a
+    /// transaction:
+    /// - Given the effects `Op<Value>` of child objects, processes the changes
+    ///   in terms of object writes/deletes
+    /// - Process `transfers` and `input_objects` to determine whether the type
+    ///   of change (WriteKind) to the object
+    /// - Process `deleted_ids` with previously determined information to
+    ///   determine the DeleteKind
     /// - Passes through user events
     pub(crate) fn finish(
         mut self,
@@ -544,12 +550,13 @@ impl ObjectRuntimeState {
         // Check new owners from transfers, reports an error on cycles.
         // TODO can we have cycles in the new system?
         check_circular_ownership(transfers.iter().map(|(id, (owner, _, _))| (*id, *owner)))?;
-        // For both written_objects and deleted_ids, we need to mark the loaded child object as modified.
-        // These may not be covered in the child object effects if they are taken out in one PT command and then
-        // transferred/deleted in a different command. Marking them as modified will allow us properly determine their
-        // mutation category in effects.
-        // TODO: This could get error-prone quickly: what if we forgot to mark an object as modified? There may be a cleaner
-        // sulution.
+        // For both written_objects and deleted_ids, we need to mark the loaded child
+        // object as modified. These may not be covered in the child object
+        // effects if they are taken out in one PT command and then transferred/
+        // deleted in a different command. Marking them as modified will allow us
+        // properly determine their mutation category in effects.
+        // TODO: This could get error-prone quickly: what if we forgot to mark an object
+        // as modified? There may be a cleaner sulution.
         let written_objects: IndexMap<_, _> = transfers
             .into_iter()
             .map(|(id, (owner, type_, value))| {
@@ -565,9 +572,9 @@ impl ObjectRuntimeState {
             }
         }
 
-        // Any received objects are viewed as modified. They had to be loaded in order to be
-        // received so they must be in the loaded_child_objects map otherwise it's an invariant
-        // violation.
+        // Any received objects are viewed as modified. They had to be loaded in order
+        // to be received so they must be in the loaded_child_objects map
+        // otherwise it's an invariant violation.
         for (received_object, _) in received.into_iter() {
             match loaded_child_objects.get_mut(&received_object) {
                 Some(loaded_child) => {
@@ -576,7 +583,7 @@ impl ObjectRuntimeState {
                 None => {
                     return Err(ExecutionError::invariant_violation(format!(
                         "Failed to find received UID {received_object} in loaded child objects."
-                    )))
+                    )));
                 }
             }
         }
@@ -629,11 +636,12 @@ fn check_circular_ownership(
     Ok(())
 }
 
-/// WARNING! This function assumes that the bcs bytes have already been validated,
-/// and it will give an invariant violation otherwise.
-/// In short, we are relying on the invariant that the bytes are valid for objects
-/// in storage.  We do not need this invariant for dev-inspect, as the programmable
-/// transaction execution will validate the bytes before we get to this point.
+/// WARNING! This function assumes that the bcs bytes have already been
+/// validated, and it will give an invariant violation otherwise.
+/// In short, we are relying on the invariant that the bytes are valid for
+/// objects in storage.  We do not need this invariant for dev-inspect, as the
+/// programmable transaction execution will validate the bytes before we get to
+/// this point.
 pub fn get_all_uids(
     fully_annotated_layout: &MoveTypeLayout,
     bcs_bytes: &[u8],

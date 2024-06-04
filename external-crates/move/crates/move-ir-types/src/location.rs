@@ -2,8 +2,6 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use move_command_line_common::files::FileHash;
-use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
     fmt,
@@ -11,20 +9,24 @@ use std::{
     ops::Range,
 };
 
+use move_command_line_common::files::FileHash;
+use serde::{Deserialize, Serialize};
+
 //**************************************************************************************************
 // Loc
 //**************************************************************************************************
 
 /// An index into a file.
-/// Much like the `codespan` crate, a `u32` is used here to for space efficiency.
-/// However, this assumes no file is larger than 4GB, so this might become a `usize` in the future
-/// if the space concerns turn out to not be an issue.
+/// Much like the `codespan` crate, a `u32` is used here to for space
+/// efficiency. However, this assumes no file is larger than 4GB, so this might
+/// become a `usize` in the future if the space concerns turn out to not be an
+/// issue.
 pub type ByteIndex = u32;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize, Hash)]
-/// The `Loc` struct is used to define a location in a file; where the file is considered to be a
-/// vector of bytes, and the range for a given `Loc` is defined by start and end index into that
-/// byte vector
+/// The `Loc` struct is used to define a location in a file; where the file is
+/// considered to be a vector of bytes, and the range for a given `Loc` is
+/// defined by start and end index into that byte vector
 pub struct Loc {
     /// The file the location points to
     file_hash: FileHash,

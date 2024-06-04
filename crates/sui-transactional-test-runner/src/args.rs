@@ -1,23 +1,28 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::test_adapter::{FakeID, SuiTestAdapter};
 use anyhow::{bail, ensure};
-use clap;
-use clap::{Args, Parser};
-use move_command_line_common::parser::{parse_u256, parse_u64};
-use move_command_line_common::values::{ParsableValue, ParsedValue};
-use move_command_line_common::{parser::Parser as MoveCLParser, values::ValueToken};
+use clap::{self, Args, Parser};
+use move_command_line_common::{
+    parser::{parse_u256, parse_u64, Parser as MoveCLParser},
+    values::{ParsableValue, ParsedValue, ValueToken},
+};
 use move_compiler::editions::Flavor;
-use move_core_types::runtime_value::{MoveStruct, MoveValue};
-use move_core_types::u256::U256;
+use move_core_types::{
+    runtime_value::{MoveStruct, MoveValue},
+    u256::U256,
+};
 use move_symbol_pool::Symbol;
 use move_transactional_test_runner::tasks::{RunCommand, SyntaxChoice};
-use sui_types::base_types::{SequenceNumber, SuiAddress};
-use sui_types::move_package::UpgradePolicy;
-use sui_types::object::{Object, Owner};
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::transaction::{Argument, CallArg, ObjectArg};
+use sui_types::{
+    base_types::{SequenceNumber, SuiAddress},
+    move_package::UpgradePolicy,
+    object::{Object, Owner},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::{Argument, CallArg, ObjectArg},
+};
+
+use crate::test_adapter::{FakeID, SuiTestAdapter};
 
 pub const SUI_ARGS_LONG: &str = "sui-args";
 
@@ -607,9 +612,11 @@ fn parse_fake_id(s: &str) -> anyhow::Result<FakeID> {
 
 fn parse_policy(x: &str) -> anyhow::Result<u8> {
     Ok(match x {
-            "compatible" => UpgradePolicy::COMPATIBLE,
-            "additive" => UpgradePolicy::ADDITIVE,
-            "dep_only" => UpgradePolicy::DEP_ONLY,
-        _ => bail!("Invalid upgrade policy {x}. Policy must be one of 'compatible', 'additive', or 'dep_only'")
+        "compatible" => UpgradePolicy::COMPATIBLE,
+        "additive" => UpgradePolicy::ADDITIVE,
+        "dep_only" => UpgradePolicy::DEP_ONLY,
+        _ => bail!(
+            "Invalid upgrade policy {x}. Policy must be one of 'compatible', 'additive', or 'dep_only'"
+        ),
     })
 }

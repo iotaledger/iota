@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use super::checkpoint::{Checkpoint, CheckpointId};
 use async_graphql::*;
+
+use super::checkpoint::{Checkpoint, CheckpointId};
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub(crate) struct AvailableRange {
@@ -11,7 +12,8 @@ pub(crate) struct AvailableRange {
 }
 
 // TODO: do both in one query?
-/// Range of checkpoints that the RPC is guaranteed to produce a consistent response for.
+/// Range of checkpoints that the RPC is guaranteed to produce a consistent
+/// response for.
 #[Object]
 impl AvailableRange {
     async fn first(&self, ctx: &Context<'_>) -> Result<Option<Checkpoint>> {

@@ -1,18 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use futures::Future;
-use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+    time::Duration,
+};
+
+use futures::{future::BoxFuture, stream::FuturesUnordered, Future, StreamExt};
 use mysten_metrics::monitored_future;
-use tracing::instrument::Instrument;
-
-use std::collections::{BTreeMap, BTreeSet};
-use std::sync::Arc;
-use std::time::Duration;
-use sui_types::base_types::ConciseableName;
-use sui_types::committee::{CommitteeTrait, StakeUnit};
-
+use sui_types::{
+    base_types::ConciseableName,
+    committee::{CommitteeTrait, StakeUnit},
+};
 use tokio::time::timeout;
+use tracing::instrument::Instrument;
 
 pub type AsyncResult<'a, T, E> = BoxFuture<'a, Result<T, E>>;
 
@@ -101,26 +103,31 @@ where
                 }
             }
     }
-    // If we have exhausted all authorities and still have not returned a result, return
-    // error with the accumulated state.
+    // If we have exhausted all authorities and still have not returned a result,
+    // return error with the accumulated state.
     Err(accumulated_state)
 }
 
-/// This function takes an initial state, than executes an asynchronous function (FMap) for each
-/// authority, and folds the results as they become available into the state using an async function (FReduce).
+/// This function takes an initial state, than executes an asynchronous function
+/// (FMap) for each authority, and folds the results as they become available
+/// into the state using an async function (FReduce).
 ///
-/// FMap can do io, and returns a result V. An error there may not be fatal, and could be consumed by the
-/// MReduce function to overall recover from it. This is necessary to ensure byzantine authorities cannot
-/// interrupt the logic of this function.
+/// FMap can do io, and returns a result V. An error there may not be fatal, and
+/// could be consumed by the MReduce function to overall recover from it. This
+/// is necessary to ensure byzantine authorities cannot interrupt the logic of
+/// this function.
 ///
-/// FReduce returns a result to a ReduceOutput. If the result is Err the function
-/// shortcuts and the Err is returned. An Ok ReduceOutput result can be used to shortcut and return
-/// the resulting state (ReduceOutput::End), continue the folding as new states arrive (ReduceOutput::Continue),
-/// or continue with a timeout maximum waiting time (ReduceOutput::ContinueWithTimeout).
+/// FReduce returns a result to a ReduceOutput. If the result is Err the
+/// function shortcuts and the Err is returned. An Ok ReduceOutput result can be
+/// used to shortcut and return the resulting state (ReduceOutput::End),
+/// continue the folding as new states arrive (ReduceOutput::Continue),
+/// or continue with a timeout maximum waiting time
+/// (ReduceOutput::ContinueWithTimeout).
 ///
-/// This function provides a flexible way to communicate with a quorum of authorities, processing and
-/// processing their results into a safe overall result, and also safely allowing operations to continue
-/// past the quorum to ensure all authorities are up to date (up to a timeout).
+/// This function provides a flexible way to communicate with a quorum of
+/// authorities, processing and processing their results into a safe overall
+/// result, and also safely allowing operations to continue past the quorum to
+/// ensure all authorities are up to date (up to a timeout).
 pub async fn quorum_map_then_reduce_with_timeout<
     'a,
     C,

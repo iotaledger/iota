@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{helper::ObjectChecker, TestCaseImpl, TestContext};
 use async_trait::async_trait;
 use sui_json_rpc_types::{SuiExecutionStatus, SuiTransactionBlockEffectsAPI};
 use sui_sdk::wallet_context::WalletContext;
 use sui_test_transaction_builder::{increment_counter, publish_basics_package_and_make_counter};
 use sui_types::object::Owner;
 use tracing::info;
+
+use crate::{helper::ObjectChecker, TestCaseImpl, TestContext};
 
 pub struct SharedCounterTest;
 

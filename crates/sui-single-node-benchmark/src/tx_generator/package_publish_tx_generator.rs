@@ -1,19 +1,21 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::benchmark_context::BenchmarkContext;
-use crate::mock_account::Account;
-use crate::tx_generator::TxGenerator;
+use std::{collections::HashMap, fs, path::PathBuf};
+
 use move_package::source_package::manifest_parser::parse_move_manifest_from_file;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fs;
-use std::path::PathBuf;
 use sui_move_build::{BuildConfig, CompiledPackage};
 use sui_test_transaction_builder::{PublishData, TestTransactionBuilder};
-use sui_types::base_types::ObjectID;
-use sui_types::transaction::{Transaction, DEFAULT_VALIDATOR_GAS_PRICE};
+use sui_types::{
+    base_types::ObjectID,
+    transaction::{Transaction, DEFAULT_VALIDATOR_GAS_PRICE},
+};
 use tracing::info;
+
+use crate::{
+    benchmark_context::BenchmarkContext, mock_account::Account, tx_generator::TxGenerator,
+};
 
 pub struct PackagePublishTxGenerator {
     compiled_package: CompiledPackage,

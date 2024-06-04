@@ -1,9 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{fs, path::PathBuf};
+
 use crate::epoch::data_removal;
-use std::fs;
-use std::path::PathBuf;
 
 #[tokio::test]
 async fn test_remove_old_epoch_data() {
@@ -22,7 +22,8 @@ async fn test_remove_old_epoch_data() {
     let mut path_100 = base_path.clone();
     path_100.push(base_path_string.clone() + "/100");
 
-    // Remove the directories created next in case it wasn't cleaned up before the last test run terminated
+    // Remove the directories created next in case it wasn't cleaned up before the
+    // last test run terminated
     _ = fs::remove_dir_all(base_path.clone());
 
     // Create some epoch directories

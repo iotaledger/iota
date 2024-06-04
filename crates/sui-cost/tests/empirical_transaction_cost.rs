@@ -1,25 +1,23 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::BTreeMap, path::PathBuf};
+
 use insta::assert_json_snapshot;
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, path::PathBuf};
-use strum_macros::Display;
-use strum_macros::EnumString;
+use strum_macros::{Display, EnumString};
 use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
 use sui_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
-use sui_test_transaction_builder::publish_basics_package_and_make_counter;
-use sui_test_transaction_builder::TestTransactionBuilder;
-use sui_types::base_types::{ObjectRef, SuiAddress};
-use sui_types::coin::PAY_JOIN_FUNC_NAME;
-use sui_types::coin::PAY_MODULE_NAME;
-use sui_types::coin::PAY_SPLIT_VEC_FUNC_NAME;
-use sui_types::gas_coin::GAS;
-use sui_types::transaction::TransactionData;
-use sui_types::SUI_FRAMEWORK_PACKAGE_ID;
+use sui_test_transaction_builder::{
+    publish_basics_package_and_make_counter, TestTransactionBuilder,
+};
 use sui_types::{
+    base_types::{ObjectRef, SuiAddress},
+    coin::{PAY_JOIN_FUNC_NAME, PAY_MODULE_NAME, PAY_SPLIT_VEC_FUNC_NAME},
     gas::GasCostSummary,
-    transaction::{CallArg, ObjectArg},
+    gas_coin::GAS,
+    transaction::{CallArg, ObjectArg, TransactionData},
+    SUI_FRAMEWORK_PACKAGE_ID,
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
 
@@ -50,8 +48,8 @@ impl CommonTransactionCosts {
 
 const TEST_DATA_DIR: &str = "tests/data/";
 
-// Execute every entry function in Move framework and examples and ensure costs don't change
-// To review snapshot changes, and fix snapshot differences,
+// Execute every entry function in Move framework and examples and ensure costs
+// don't change To review snapshot changes, and fix snapshot differences,
 // 0. Install cargo-insta
 // 1. Run `cargo insta test --review` under `./sui-cost`.
 // 2. Review, accept or reject changes.
@@ -95,8 +93,9 @@ async fn split_n_tx(
 async fn create_txes(
     test_cluster: &TestCluster,
 ) -> BTreeMap<CommonTransactionCosts, TransactionData> {
-    // Initial preparations to create a shared counter. This needs to be done first to not interfere
-    // with the use of gas objects in the rest of this function.
+    // Initial preparations to create a shared counter. This needs to be done first
+    // to not interfere with the use of gas objects in the rest of this
+    // function.
     let (counter_package, counter) =
         publish_basics_package_and_make_counter(&test_cluster.wallet).await;
     let counter_package_id = counter_package.0;
@@ -106,7 +105,6 @@ async fn create_txes(
     let (sender, mut gas_objects) = test_cluster.wallet.get_one_account().await.unwrap();
     let gas_price = test_cluster.get_reference_gas_price().await;
 
-    //
     // Publish
     //
     let mut package_path = PathBuf::from(TEST_DATA_DIR);
@@ -116,7 +114,6 @@ async fn create_txes(
         .build();
     ret.insert(CommonTransactionCosts::Publish, publish_tx);
 
-    //
     // Transfer Whole Sui Coin and Transfer Portion of Sui Coin
     //
     let whole_sui_coin_tx =
@@ -136,7 +133,6 @@ async fn create_txes(
         partial_sui_coin_tx,
     );
 
-    //
     // Transfer Whole Coin Object
     //
     let whole_coin_tx = TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price)
@@ -145,7 +141,6 @@ async fn create_txes(
 
     ret.insert(CommonTransactionCosts::TransferWholeCoin, whole_coin_tx);
 
-    //
     // Merge Two Coins
     //
     let c1 = gas_objects.pop().unwrap();
@@ -165,9 +160,9 @@ async fn create_txes(
         .build();
     ret.insert(CommonTransactionCosts::MergeCoin, merge_tx);
 
-    //
     // Split A Coin Into N Specific Amounts
-    // Note splitting complexity does not depend on the amounts but only on the number of amounts
+    // Note splitting complexity does not depend on the amounts but only on the
+    // number of amounts
     //
     for n in 0..4 {
         let gas = gas_objects.pop().unwrap();
@@ -176,7 +171,6 @@ async fn create_txes(
         ret.insert(CommonTransactionCosts::SplitCoin(n as usize), split_tx);
     }
 
-    //
     // Shared Object Section
     // Using the `counter` example
     //
@@ -222,8 +216,8 @@ async fn create_txes(
     ret
 }
 
-async fn run_actual_costs(
-) -> Result<BTreeMap<CommonTransactionCosts, GasCostSummary>, anyhow::Error> {
+async fn run_actual_costs()
+-> Result<BTreeMap<CommonTransactionCosts, GasCostSummary>, anyhow::Error> {
     let mut ret = BTreeMap::new();
     let test_cluster = TestClusterBuilder::new()
         .with_accounts(vec![AccountConfig {

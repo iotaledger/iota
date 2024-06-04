@@ -2,13 +2,15 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use std::path::PathBuf;
+
 use move_core_types::{
     account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId,
 };
 use move_unit_test::{self, UnitTestingConfig};
-use std::path::PathBuf;
 
-// Make sure the compiled bytecode for dependencies is included, but the tests in them are not run.
+// Make sure the compiled bytecode for dependencies is included, but the tests
+// in them are not run.
 #[test]
 fn test_deps_arent_tested() {
     let mut testing_config = UnitTestingConfig::default_with_bound(None)

@@ -6,8 +6,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
 use move_core_types::account_address::AccountAddress;
-use sui_indexer::errors::IndexerError;
-use sui_indexer::{indexer_reader::IndexerReader, schema::objects};
+use sui_indexer::{errors::IndexerError, indexer_reader::IndexerReader, schema::objects};
 use sui_package_resolver::{
     error::Error as PackageResolverError, Package, PackageStore, PackageStoreWithLruCache, Result,
 };
@@ -34,8 +33,8 @@ impl From<Error> for PackageResolverError {
 
 pub(crate) type PackageCache = PackageStoreWithLruCache<DbPackageStore>;
 
-/// Store which fetches package for the given address from the backend db on every call
-/// to `fetch`
+/// Store which fetches package for the given address from the backend db on
+/// every call to `fetch`
 pub struct DbPackageStore(pub IndexerReader);
 
 #[async_trait]

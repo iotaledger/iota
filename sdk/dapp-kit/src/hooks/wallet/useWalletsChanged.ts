@@ -12,29 +12,29 @@ import { useWalletStore } from './useWalletStore.js';
  * Internal hook for easily handling the addition and removal of new wallets.
  */
 export function useWalletsChanged(
-	preferredWallets: string[],
-	requiredFeatures: (keyof WalletWithRequiredFeatures['features'])[],
+    preferredWallets: string[],
+    requiredFeatures: (keyof WalletWithRequiredFeatures['features'])[],
 ) {
-	const setWalletRegistered = useWalletStore((state) => state.setWalletRegistered);
-	const setWalletUnregistered = useWalletStore((state) => state.setWalletUnregistered);
+    const setWalletRegistered = useWalletStore((state) => state.setWalletRegistered);
+    const setWalletUnregistered = useWalletStore((state) => state.setWalletUnregistered);
 
-	useEffect(() => {
-		const walletsApi = getWallets();
+    useEffect(() => {
+        const walletsApi = getWallets();
 
-		const unsubscribeFromRegister = walletsApi.on('register', () => {
-			setWalletRegistered(getRegisteredWallets(preferredWallets, requiredFeatures));
-		});
+        const unsubscribeFromRegister = walletsApi.on('register', () => {
+            setWalletRegistered(getRegisteredWallets(preferredWallets, requiredFeatures));
+        });
 
-		const unsubscribeFromUnregister = walletsApi.on('unregister', (unregisteredWallet) => {
-			setWalletUnregistered(
-				getRegisteredWallets(preferredWallets, requiredFeatures),
-				unregisteredWallet,
-			);
-		});
+        const unsubscribeFromUnregister = walletsApi.on('unregister', (unregisteredWallet) => {
+            setWalletUnregistered(
+                getRegisteredWallets(preferredWallets, requiredFeatures),
+                unregisteredWallet,
+            );
+        });
 
-		return () => {
-			unsubscribeFromRegister();
-			unsubscribeFromUnregister();
-		};
-	}, [preferredWallets, requiredFeatures, setWalletRegistered, setWalletUnregistered]);
+        return () => {
+            unsubscribeFromRegister();
+            unsubscribeFromUnregister();
+        };
+    }, [preferredWallets, requiredFeatures, setWalletRegistered, setWalletUnregistered]);
 }
