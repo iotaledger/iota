@@ -26,7 +26,6 @@ function StakeDetailsPopup({ stake }: StakeDetailsPopupProps): JSX.Element {
         <div className="flex min-w-[400px] flex-col gap-2">
             <p>{stake.validator}</p>
             <p>Stake: {stake.stake}</p>
-            <p>Rewards: {stake.rewards}</p>
             <p>Stake Active Epoch: {stake.stakeActiveEpoch}</p>
             <p>Stake Request Epoch: {stake.stakeRequestEpoch}</p>
             {stake.status === 'Active' && <p>Estimated reward: {stake.estimatedReward}</p>}

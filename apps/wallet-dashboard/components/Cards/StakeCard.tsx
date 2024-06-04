@@ -15,7 +15,7 @@ function StakeCard({ stake, onDetailsClick }: StakeCardProps): JSX.Element {
         <Box key={stake.id}>
             <div>Validator: {stake.validator}</div>
             <div>Stake: {stake.stake}</div>
-            <div>Rewards: {stake.rewards}</div>
+            {stake.status === 'Active' && <p>Estimated reward: {stake.estimatedReward}</p>}
             <div>Status: {stake.status}</div>
             <Button onClick={() => onDetailsClick(stake)}>Details</Button>
         </Box>
