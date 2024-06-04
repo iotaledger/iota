@@ -668,9 +668,6 @@ importers:
       '@mysten/icons':
         specifier: workspace:*
         version: link:../icons
-      '@mysten/kiosk':
-        specifier: workspace:*
-        version: link:../../sdk/kiosk
       '@mysten/ledgerjs-hw-app-sui':
         specifier: workspace:*
         version: link:../../sdk/ledgerjs-hw-app-sui
