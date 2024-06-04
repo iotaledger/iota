@@ -24,6 +24,8 @@ import { ImportSeedForm } from '_src/ui/app/components/accounts/ImportSeedForm';
 export function RecoverManyPage() {
     const allAccountSources = useAccountSources();
     const accountGroups = useAccountGroups();
+    const mnemonicAccounts = Object.entries(accountGroups['mnemonic-derived']);
+    const seedAccounts = Object.entries(accountGroups['seed-derived']);
     const navigate = useNavigate();
     const hasMnemonicOrSeedAccountSources = allAccountSources.data?.some(({ type }) =>
         ['mnemonic', 'seed'].includes(type),
@@ -51,9 +53,9 @@ export function RecoverManyPage() {
                         Please complete the recovery process for the accounts below
                     </Text>
                 </div>
-                <div className="flex grow flex-col gap-8 self-stretch overflow-y-auto overflow-x-hidden rounded-lg bg-hero-darkest/5 px-4 py-6">
-                    {Object.entries(accountGroups['mnemonic-derived']).map(
-                        ([sourceID, accounts], index) => {
+                {mnemonicAccounts.length > 0 ? (
+                    <div className="flex grow flex-col gap-8 self-stretch overflow-y-auto overflow-x-hidden rounded-lg bg-hero-darkest/5 px-4 py-6">
+                        {mnemonicAccounts.map(([sourceID, accounts], index) => {
                             const recoveryData = value.find(
                                 ({ accountSourceID }) => accountSourceID === sourceID,
                             );
@@ -74,12 +76,12 @@ export function RecoverManyPage() {
                                     recoverDone={!!recoveryData}
                                 />
                             );
-                        },
-                    )}
-                </div>
-                <div className="flex grow flex-col gap-8 self-stretch overflow-y-auto overflow-x-hidden rounded-lg bg-hero-darkest/5 px-4 py-6">
-                    {Object.entries(accountGroups['seed-derived']).map(
-                        ([sourceID, accounts], index) => {
+                        })}
+                    </div>
+                ) : null}
+                {seedAccounts.length > 0 ? (
+                    <div className="flex grow flex-col gap-8 self-stretch overflow-y-auto overflow-x-hidden rounded-lg bg-hero-darkest/5 px-4 py-6">
+                        {seedAccounts.map(([sourceID, accounts], index) => {
                             const recoveryData = value.find(
                                 ({ accountSourceID }) => accountSourceID === sourceID,
                             );
@@ -100,9 +102,9 @@ export function RecoverManyPage() {
                                     recoverDone={!!recoveryData}
                                 />
                             );
-                        },
-                    )}
-                </div>
+                        })}
+                    </div>
+                ) : null}
                 <div className="flex w-full flex-nowrap gap-2.5">
                     <Button variant="outline" size="tall" text="Cancel" to="/" />
                     <Button
