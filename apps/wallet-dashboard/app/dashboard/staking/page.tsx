@@ -12,7 +12,7 @@ function StakingDashboardPage(): JSX.Element {
     const { totalStakeConverted, totalRewardsConverted, stakingData } = useStakingData();
 
     const handleOpenPopup = (stake: Stake) => {
-        openPopup(<StakeDetailsPopup {...stake} />);
+        openPopup(<StakeDetailsPopup stake={stake} />);
     };
 
     return (

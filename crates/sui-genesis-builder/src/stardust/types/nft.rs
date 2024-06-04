@@ -4,7 +4,6 @@ use iota_sdk::types::block::output::{
 };
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use num_rational::Ratio;
-use packable::PackableExt;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use sui_protocol_config::ProtocolConfig;
@@ -273,7 +272,7 @@ impl Nft {
             .features()
             .metadata()
             .map(|metadata_feat| metadata_feat.data().to_vec());
-        let tag: Option<Vec<u8>> = nft.features().tag().map(|tag_feat| tag_feat.pack_to_vec());
+        let tag: Option<Vec<u8>> = nft.features().tag().map(|tag_feat| tag_feat.tag().to_vec());
         let immutable_issuer: Option<SuiAddress> = nft
             .immutable_features()
             .issuer()
@@ -303,7 +302,7 @@ impl Nft {
     /// - Otherwise, returns the default `Irc27Metadata` with
     ///   `non_standard_fields` containing a `data` key with the hex-encoded
     ///   metadata (without `0x` prefix).
-    fn convert_immutable_metadata(nft: &StardustNft) -> anyhow::Result<Irc27Metadata> {
+    pub(crate) fn convert_immutable_metadata(nft: &StardustNft) -> anyhow::Result<Irc27Metadata> {
         let Some(metadata) = nft.immutable_features().metadata() else {
             return Ok(Irc27Metadata::default());
         };
