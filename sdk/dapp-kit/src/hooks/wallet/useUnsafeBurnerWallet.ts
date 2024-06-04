@@ -8,6 +8,7 @@ import type {
     StandardConnectMethod,
     StandardEventsFeature,
     StandardEventsOnMethod,
+    SuiAdvancedConnectMethod,
     SuiFeatures,
     SuiSignAndExecuteTransactionBlockMethod,
     SuiSignPersonalMessageMethod,
@@ -100,6 +101,10 @@ function registerUnsafeBurnerWallet(suiClient: SuiClient) {
                     version: '1.0.0',
                     signAndExecuteTransactionBlock: this.#signAndExecuteTransactionBlock,
                 },
+                'sui:advancedConnect': {
+                    version: '1.0.0',
+                    advancedConnect: this.#advancedConnect,
+                },
             };
         }
 
@@ -137,6 +142,10 @@ function registerUnsafeBurnerWallet(suiClient: SuiClient) {
                 options: transactionInput.options,
                 requestType: transactionInput.requestType,
             });
+        };
+
+        #advancedConnect: SuiAdvancedConnectMethod = async () => {
+            return { accounts: this.accounts };
         };
     }
 

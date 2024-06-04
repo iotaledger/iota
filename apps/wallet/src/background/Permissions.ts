@@ -121,6 +121,7 @@ class Permissions {
 
     public async startRequestPermissions(
         permissionTypes: readonly PermissionType[],
+        force: boolean,
         connection: ContentScriptConnection,
         requestMsgID: string,
     ): Promise<Permission | null> {
@@ -150,7 +151,7 @@ class Permissions {
             permissionTypes,
             existingPermission,
         );
-        if (alreadyAllowed && existingPermission) {
+        if (alreadyAllowed && existingPermission && !force) {
             return existingPermission;
         }
         const pRequest = await this.createPermissionRequest(

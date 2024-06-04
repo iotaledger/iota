@@ -29,6 +29,7 @@ import { fromB64, toB64 } from '@mysten/sui.js/utils';
 import {
     ReadonlyWalletAccount,
     SUPPORTED_CHAINS,
+    SuiAdvancedConnectMethod,
     type StandardConnectFeature,
     type StandardConnectMethod,
     type StandardEventsFeature,
@@ -103,6 +104,10 @@ export class SuiWallet implements Wallet {
             'sui:signPersonalMessage': {
                 version: '1.0.0',
                 signPersonalMessage: this.#signPersonalMessage,
+            },
+            'sui:advancedConnect': {
+                version: '1.0.0',
+                advancedConnect: this.#advancedConnect,
             },
         };
     }
@@ -180,10 +185,26 @@ export class SuiWallet implements Wallet {
                 this.#send<AcquirePermissionsRequest, AcquirePermissionsResponse>({
                     type: 'acquire-permissions-request',
                     permissions: ALL_PERMISSION_TYPES,
+                    force: false
                 }),
                 (response) => response.result,
             );
         }
+
+        await this.#connected();
+
+        return { accounts: this.accounts };
+    };
+
+    #advancedConnect: SuiAdvancedConnectMethod = async (input) => {
+        await mapToPromise(
+            this.#send<AcquirePermissionsRequest, AcquirePermissionsResponse>({
+                type: 'acquire-permissions-request',
+                permissions: ALL_PERMISSION_TYPES,
+                force: input.force
+            }),
+            (response) => response.result,
+        );
 
         await this.#connected();
 

@@ -16,6 +16,8 @@ import { ChevronIcon } from './icons/ChevronIcon.js';
 import { StyleMarker } from './styling/StyleMarker.js';
 import { Button } from './ui/Button.js';
 import { Text } from './ui/Text.js';
+import { useAdvancedConnectWallet } from '../hooks/wallet/useAdvancedConnectWallet.js';
+import { useWalletStore } from '../hooks/wallet/useWalletStore.js';
 
 type AccountDropdownMenuProps = {
     currentAccount: WalletAccount;
@@ -23,6 +25,8 @@ type AccountDropdownMenuProps = {
 
 export function AccountDropdownMenu({ currentAccount }: AccountDropdownMenuProps) {
     const { mutate: disconnectWallet } = useDisconnectWallet();
+    const { mutate: advancedConnect } = useAdvancedConnectWallet();
+    const wallet = useWalletStore((state) => state.currentWallet)
 
     const { data: domain } = useResolveSuiNSName(
         currentAccount.label ? null : currentAccount.address,
@@ -59,6 +63,20 @@ export function AccountDropdownMenu({ currentAccount }: AccountDropdownMenuProps
                             onSelect={() => disconnectWallet()}
                         >
                             Disconnect
+                        </DropdownMenu.Item>
+                        <DropdownMenu.Item
+                            className={clsx(styles.menuItem)}
+                            onSelect={() => {
+                                if(wallet){
+                                    advancedConnect({ wallet },
+                                        {
+                                            onSuccess: () => console.log("connected more!"),
+                                        }
+                                    )
+                                }
+                            }}
+                        >
+                            Connect More
                         </DropdownMenu.Item>
                     </DropdownMenu.Content>
                 </StyleMarker>

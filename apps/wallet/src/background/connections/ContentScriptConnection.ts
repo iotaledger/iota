@@ -71,6 +71,7 @@ export class ContentScriptConnection extends Connection {
             } else if (isAcquirePermissionsRequest(payload)) {
                 const permission = await Permissions.startRequestPermissions(
                     payload.permissions,
+                    payload.force,
                     this,
                     msg.id,
                 );

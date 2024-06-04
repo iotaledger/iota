@@ -9,6 +9,7 @@ import type { PermissionType } from './PermissionType';
 export interface AcquirePermissionsRequest extends BasePayload {
     type: 'acquire-permissions-request';
     permissions: readonly PermissionType[];
+    force: boolean;
 }
 
 export function isAcquirePermissionsRequest(
