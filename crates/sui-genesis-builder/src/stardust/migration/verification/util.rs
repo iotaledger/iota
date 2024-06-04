@@ -15,8 +15,10 @@ use sui_types::{
     balance::Balance,
     base_types::{ObjectID, SuiAddress},
     coin::Coin,
+    collection_types::Bag,
     dynamic_field::Field,
     in_memory_storage::InMemoryStorage,
+    object::Object,
     TypeTag,
 };
 
@@ -25,24 +27,44 @@ use crate::stardust::{
     types::{output as migration_output, token_scheme::MAX_ALLOWED_U64_SUPPLY, Alias, Nft},
 };
 
-pub(super) fn verify_native_tokens(
+pub(super) fn verify_native_tokens<NtKind: NativeTokenKind>(
     native_tokens: &NativeTokens,
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
-    created_native_tokens: impl IntoIterator<Item = impl NativeTokenKind>,
+    native_tokens_bag: impl Into<Option<Bag>>,
+    created_native_tokens: Option<&[ObjectID]>,
+    storage: &InMemoryStorage,
 ) -> Result<()> {
     // Token types should be unique as the token ID is guaranteed unique within
     // NativeTokens
     let created_native_tokens = created_native_tokens
-        .into_iter()
-        .map(|nt| (nt.token_type(), nt.value()))
-        .collect::<HashMap<_, _>>();
+        .map(|object_ids| {
+            object_ids
+                .iter()
+                .map(|id| {
+                    let obj = storage
+                        .get_object(id)
+                        .ok_or_else(|| anyhow!("missing native token field for {id}"))?;
+                    NtKind::from_object(obj).map(|nt| (nt.token_type(), nt.value()))
+                })
+                .collect::<Result<HashMap<String, u64>, _>>()
+        })
+        .unwrap_or(Ok(HashMap::new()))?;
 
     ensure!(
-        native_tokens.len() == created_native_tokens.len(),
+        created_native_tokens.len() == native_tokens.len(),
         "native token count mismatch: found {}, expected: {}",
-        native_tokens.len(),
         created_native_tokens.len(),
+        native_tokens.len(),
     );
+
+    if let Some(native_tokens_bag) = native_tokens_bag.into() {
+        ensure!(
+            native_tokens_bag.size == native_tokens.len() as u64,
+            "native tokens bag length mismatch: found {}, expected {}",
+            native_tokens_bag.size,
+            native_tokens.len()
+        );
+    }
 
     for native_token in native_tokens.iter() {
         let foundry_data = foundry_data
@@ -287,6 +309,10 @@ pub(super) trait NativeTokenKind {
     fn token_type(&self) -> String;
 
     fn value(&self) -> u64;
+
+    fn from_object(obj: &Object) -> Result<Self>
+    where
+        Self: Sized;
 }
 
 impl NativeTokenKind for (TypeTag, Coin) {
@@ -297,6 +323,12 @@ impl NativeTokenKind for (TypeTag, Coin) {
     fn value(&self) -> u64 {
         self.1.value()
     }
+
+    fn from_object(obj: &Object) -> Result<Self> {
+        obj.coin_type_maybe()
+            .zip(obj.as_coin_maybe())
+            .ok_or_else(|| anyhow!("expected a native token coin, found {:?}", obj.type_()))
+    }
 }
 
 impl NativeTokenKind for Field<String, Balance> {
@@ -306,6 +338,11 @@ impl NativeTokenKind for Field<String, Balance> {
 
     fn value(&self) -> u64 {
         self.value.value()
+    }
+
+    fn from_object(obj: &Object) -> Result<Self> {
+        obj.to_rust::<Field<String, Balance>>()
+            .ok_or_else(|| anyhow!("expected a native token field, found {:?}", obj.type_()))
     }
 }
 
