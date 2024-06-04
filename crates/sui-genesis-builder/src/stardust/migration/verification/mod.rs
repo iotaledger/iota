@@ -40,9 +40,13 @@ pub(crate) fn verify_output(
         Output::Foundry(output) => {
             foundry::verify_foundry_output(output, created_objects, foundry_data, storage)
         }
-        Output::Nft(output) => {
-            nft::verify_nft_output(output, created_objects, foundry_data, storage)
-        }
+        Output::Nft(output) => nft::verify_nft_output(
+            header.output_id(),
+            output,
+            created_objects,
+            foundry_data,
+            storage,
+        ),
         // Treasury outputs aren't used since Stardust, so no need to verify anything here.
         Output::Treasury(_) => return Ok(()),
     }
