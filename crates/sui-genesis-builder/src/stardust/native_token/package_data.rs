@@ -132,10 +132,13 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
                 symbol: identifier,
                 circulating_supply: token_scheme_u64.circulating_supply(),
                 maximum_supply: token_scheme_u64.maximum_supply(),
-                coin_name: to_safe_string(irc_30_metadata.name()),
-                coin_description: to_safe_string(
-                    &irc_30_metadata.description().clone().unwrap_or_default(),
-                ),
+                coin_name: irc_30_metadata.name().escape_default().to_string(),
+                coin_description: irc_30_metadata
+                    .description()
+                    .clone()
+                    .unwrap_or_default()
+                    .escape_default()
+                    .to_string(),
                 icon_url: irc_30_metadata.url().clone(),
                 alias_address: *output.alias_address(),
             },
@@ -183,10 +186,6 @@ fn extract_irc30_metadata(output: &FoundryOutput) -> Irc30Metadata {
         let identifier = derive_foundry_package_lowercase_identifier("", output.id().as_slice());
         Irc30Metadata::new(identifier.clone(), identifier, 0)
     }
-}
-
-fn to_safe_string(input: &String) -> String {
-    input.to_owned().replace("\n", "\\n").replace("\"", "\'")
 }
 
 fn derive_foundry_package_lowercase_identifier(input: &str, seed: &[u8]) -> String {
