@@ -48,8 +48,8 @@ use crate::{
             verification::created_objects::CreatedObjects, PACKAGE_DEPS,
         },
         types::{
-            snapshot::OutputHeader, stardust_to_sui_address, stardust_to_sui_address_owner,
-            timelock, token_scheme::SimpleTokenSchemeU64, Nft,
+            foundry::create_foundry_gas_coin, snapshot::OutputHeader, stardust_to_sui_address,
+            stardust_to_sui_address_owner, timelock, token_scheme::SimpleTokenSchemeU64, Nft,
         },
     },
 };
@@ -236,7 +236,7 @@ impl Executor {
             for object in written.values() {
                 if object.is_coin() {
                     minted_coin_id = Some(object.id());
-                    created_objects.set_coin(object.id())?;
+                    created_objects.set_minted_coin(object.id())?;
                 } else if object.type_().map_or(false, |t| t.is_coin_metadata()) {
                     created_objects.set_coin_metadata(object.id())?
                 } else if object.type_().map_or(false, |t| {
@@ -267,6 +267,18 @@ impl Executor {
                     SimpleTokenSchemeU64::try_from(foundry.token_scheme().as_simple())?,
                 ),
             );
+
+            // Create the foundry gas coin object.
+            let gas_coin = create_foundry_gas_coin(
+                &header.output_id(),
+                foundry,
+                &self.tx_context,
+                foundry_package.version(),
+                &self.protocol_config,
+            )?;
+            created_objects.set_coin(gas_coin.id())?;
+            self.store.insert_object(gas_coin);
+
             self.store.finish(
                 written
                     .into_iter()

@@ -53,19 +53,20 @@ fn create_bag_with_pt() {
     executor
         .create_foundries([(&header, &foundry, foundry_package)])
         .unwrap();
-    // Foundry package publication creates four objects
+    // Foundry package publication creates five objects
     //
     // * The package
     // * Coin metadata
     // * MaxSupplyPolicy
     // * The total supply coin
-    assert_eq!(executor.store().objects().len() - object_count, 4);
+    // * The foundry gas coin
+    assert_eq!(executor.store().objects().len() - object_count, 5);
     assert!(executor.native_tokens().get(&foundry_id.into()).is_some());
     let initial_supply_coin_object = executor
         .store()
         .objects()
         .values()
-        .find(|object| object.is_coin())
+        .find(|object| object.is_coin() && !object.is_gas_coin())
         .expect("there should be only a single coin: the total supply of native tokens");
     let coin_type_tag = initial_supply_coin_object.coin_type_maybe().unwrap();
     let initial_supply_coin_data = initial_supply_coin_object.as_coin_maybe().unwrap();

@@ -33,8 +33,25 @@ pub(super) fn verify_foundry_output(
         .get(&output.token_id())
         .ok_or_else(|| anyhow!("missing foundry data"))?;
 
+    // Coin value.
+    let created_coin = created_objects
+        .coin()
+        .and_then(|id| {
+            storage
+                .get_object(id)
+                .ok_or_else(|| anyhow!("missing coin"))
+        })?
+        .as_coin_maybe()
+        .ok_or_else(|| anyhow!("expected a coin"))?;
+    ensure!(
+        created_coin.value() == output.amount(),
+        "coin amount mismatch: found {}, expected {}",
+        created_coin.value(),
+        output.amount()
+    );
+
     // Minted coin value
-    let minted_coin_id = created_objects.coin()?;
+    let minted_coin_id = created_objects.minted_coin()?;
     let minted_coin = storage
         .get_object(minted_coin_id)
         .ok_or_else(|| anyhow!("missing coin"))?
