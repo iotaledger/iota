@@ -1,10 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useProductAnalyticsConfig } from '@mysten/core';
 import { Text } from '@mysten/ui';
-
-import { legalLinks } from './footerLinks';
+import { LEGAL_LINKS } from '~/lib/constants';
 import { Link } from '~/ui/Link';
 
 export function LegalText() {
@@ -24,7 +26,7 @@ export function LegalLinks() {
 
     return (
         <ul className="flex flex-col gap-3 md:flex-row md:gap-8">
-            {legalLinks.map(({ title, href }) => (
+            {LEGAL_LINKS.map(({ title, href }) => (
                 <li className="flex items-center justify-center" key={href}>
                     <Link variant="text" href={href}>
                         <Text variant="subtitleSmall/medium" color="steel-darker">

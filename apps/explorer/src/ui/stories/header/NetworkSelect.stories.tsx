@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type Meta, type StoryObj } from '@storybook/react';
 import { useState } from 'react';
 
@@ -24,7 +27,7 @@ const NETWORKS = [
 ];
 
 export const Default: StoryObj<NetworkSelectProps> = {
-    render: (args) => {
+    render: (args: NetworkSelectProps) => {
         const [network, setNetwork] = useState(NETWORKS[0].id);
 
         return <NetworkSelect {...args} value={network} version="1" onChange={setNetwork} />;

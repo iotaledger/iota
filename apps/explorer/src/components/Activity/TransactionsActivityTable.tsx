@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useSuiClient } from '@mysten/dapp-kit';
 import { ArrowRight12 } from '@mysten/icons';
 import { Text } from '@mysten/ui';
@@ -8,15 +11,15 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 
 import { genTableDataFromTxData } from '../transactions/TxCardUtils';
-import { useGetTransactionBlocks } from '~/hooks/useGetTransactionBlocks';
+import {
+    DEFAULT_TRANSACTIONS_LIMIT,
+    useGetTransactionBlocks,
+} from '~/hooks/useGetTransactionBlocks';
 import { Link } from '~/ui/Link';
 import { Pagination, useCursorPagination } from '~/ui/Pagination';
 import { PlaceholderTable } from '~/ui/PlaceholderTable';
 import { TableCard } from '~/ui/TableCard';
 import { numberSuffix } from '~/utils/numberUtil';
-
-const DEFAULT_TRANSACTIONS_LIMIT = 20;
-
 interface Props {
     disablePagination?: boolean;
     refetchInterval?: number;

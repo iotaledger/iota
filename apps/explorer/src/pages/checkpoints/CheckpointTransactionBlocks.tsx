@@ -1,15 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useState } from 'react';
 
 import { genTableDataFromTxData } from '~/components/transactions/TxCardUtils';
-import { useGetTransactionBlocks } from '~/hooks/useGetTransactionBlocks';
+import {
+    DEFAULT_TRANSACTIONS_LIMIT,
+    useGetTransactionBlocks,
+} from '~/hooks/useGetTransactionBlocks';
 import { Pagination, useCursorPagination } from '~/ui/Pagination';
 import { PlaceholderTable } from '~/ui/PlaceholderTable';
 import { TableCard } from '~/ui/TableCard';
-
-const DEFAULT_TRANSACTIONS_LIMIT = 20;
 
 export function CheckpointTransactionBlocks({ id }: { id: string }) {
     const [limit, setLimit] = useState(DEFAULT_TRANSACTIONS_LIMIT);

@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useCookieConsentBanner } from '@mysten/core';
 import { SuiClientProvider, WalletProvider } from '@mysten/dapp-kit';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
@@ -15,7 +18,7 @@ import { persistableStorage } from '~/utils/analytics/amplitude';
 import { type Network, createSuiClient, SupportedNetworks } from '~/utils/api/DefaultRpcClient';
 import { KioskClientProvider } from '@mysten/core/src/components/KioskClientProvider';
 
-const toastVariants: Partial<Record<ToastType, BannerProps['variant']>> = {
+const TOAST_VARIANTS: Partial<Record<ToastType, BannerProps['variant']>> = {
     success: 'positive',
     error: 'error',
 };
@@ -61,7 +64,7 @@ export function Layout() {
                                 }}
                             >
                                 {(toast) => (
-                                    <Banner shadow border variant={toastVariants[toast.type]}>
+                                    <Banner shadow border variant={TOAST_VARIANTS[toast.type]}>
                                         {resolveValue(toast.message, toast)}
                                     </Banner>
                                 )}
