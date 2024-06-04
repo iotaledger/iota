@@ -16,8 +16,8 @@ import {
     type AcquirePermissionsResponse,
     type HasPermissionsRequest,
     type HasPermissionsResponse,
-    type DisconnectAllRequest,
-    type DisconnectAllResponse,
+    type ReconnectForceRequest,
+    type ReconnectForceResponse,
 } from '_payloads/permissions';
 import type {
     ExecuteTransactionRequest,
@@ -50,8 +50,6 @@ import mitt, { type Emitter } from 'mitt';
 import { filter, map, type Observable } from 'rxjs';
 
 import { mapToPromise } from './utils';
-import { type AccountListRequest } from '_payloads/account/AccountListRequest';
-import { type AccountListResponse } from '_payloads/account/AccountListResponse';
 
 type WalletEventsMap = {
     [E in keyof StandardEventsListeners]: Parameters<StandardEventsListeners[E]>[0];
@@ -60,17 +58,10 @@ type WalletEventsMap = {
 // NOTE: Because this runs in a content script, we can't fetch the manifest.
 const name = process.env.APP_NAME || 'Sui Wallet';
 
-type StandardDisconnectAllFeature = {
-    'standard:disconnectAll': {
+type StandardReconnectForceFeature = {
+    'standard:reconnectForce': {
         version: string;
-        disconnect: (input: never) => Promise<null>;
-    };
-};
-
-type StandardAccountListFeature = {
-    'standard:accountList': {
-        version: string;
-        get: () => Promise<string[]>;
+        reconnect: (input: never) => Promise<null>;
     };
 };
 
@@ -102,21 +93,16 @@ export class SuiWallet implements Wallet {
     get features(): StandardConnectFeature &
         StandardEventsFeature &
         SuiFeatures &
-        StandardDisconnectAllFeature &
-        StandardAccountListFeature {
+        StandardReconnectForceFeature {
         return {
             'standard:connect': {
                 version: '1.0.0',
                 connect: this.#connect,
             },
 
-            'standard:disconnectAll': {
+            'standard:reconnectForce': {
                 version: '1.0.0',
-                disconnect: this.#disconnectAll,
-            },
-            'standard:accountList': {
-                version: '1.0.0',
-                get: this.#accountList,
+                reconnect: this.#reconnectForce,
             },
             'standard:events': {
                 version: '1.0.0',
@@ -224,34 +210,16 @@ export class SuiWallet implements Wallet {
         return { accounts: this.accounts };
     };
 
-    #disconnectAll: (input: { origin: string }) => Promise<null> = async (input) => {
+    #reconnectForce: (input: { origin: string }) => Promise<null> = async (input) => {
         await mapToPromise(
-            this.#send<DisconnectAllRequest, DisconnectAllResponse>({
-                type: 'disconnect-all-request',
+            this.#send<ReconnectForceRequest, ReconnectForceResponse>({
+                type: 'reconnect-force-request',
                 origin: input.origin,
             }),
             (response) => response.result,
         );
 
         return null;
-    };
-
-    #accountList = async () => {
-        const accounts = await this.#getAccountsFull();
-        // try {
-        //     const mapToPromiseResp = await mapToPromise(
-        //         this.#send<AccountListRequest, AccountListResponse>({
-        //             type: 'account-list-request',
-        //         }),
-        //         (response) => {
-        //             return response.result;
-        //         },
-        //     );
-        // } catch (e) {
-        //     console.error('Failed to get account list', e);
-        // }
-
-        return accounts;
     };
 
     #signTransactionBlock: SuiSignTransactionBlockMethod = async ({
@@ -358,15 +326,6 @@ export class SuiWallet implements Wallet {
                 type: 'get-account',
             }),
             (response) => response.accounts,
-        );
-    }
-
-    #getAccountsFull() {
-        return mapToPromise(
-            this.#send<AccountListRequest, AccountListResponse>({
-                type: 'account-list-request',
-            }),
-            (response) => response.result,
         );
     }
 

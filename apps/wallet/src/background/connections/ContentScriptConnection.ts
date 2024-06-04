@@ -14,7 +14,7 @@ import type { SetNetworkPayload } from '_payloads/network';
 import {
     isAcquirePermissionsRequest,
     isHasPermissionRequest,
-    isDisconnectAllRequest,
+    isReconnectForceRequest,
     type AcquirePermissionsResponse,
     type HasPermissionsResponse,
     type Permission,
@@ -28,7 +28,6 @@ import {
 } from '_payloads/transactions';
 import Permissions from '_src/background/Permissions';
 import Transactions from '_src/background/Transactions';
-import { getAllAccounts, getAllAccountsAddresses, getAllSerializedUIAccounts } from '_src/background/accounts';
 import {
     isSignMessageRequest,
     type SignMessageRequest,
@@ -40,8 +39,6 @@ import type { Runtime } from 'webextension-polyfill';
 import { getAccountsStatusData } from '../accounts';
 import NetworkEnv from '../NetworkEnv';
 import { Connection } from './Connection';
-import { isAccountListRequest } from '_payloads/account/AccountListRequest';
-import { type AccountListResponse } from '_payloads/account/AccountListResponse';
 
 export class ContentScriptConnection extends Connection {
     public static readonly CHANNEL: PortChannelName = 'sui_content<->background';
@@ -84,24 +81,8 @@ export class ContentScriptConnection extends Connection {
                 if (permission) {
                     this.permissionReply(permission, msg.id);
                 }
-            } else if (isDisconnectAllRequest(payload)) {
+            } else if (isReconnectForceRequest(payload)) {
                 await Permissions.delete(payload.origin, []);
-            } else if (isAccountListRequest(payload)) {
-                const list = await getAllAccountsAddresses();
-                // const { accounts } = await this.ensurePermissions(['viewAccount']);
-                // const existingPermission = await Permissions.getPermission(this.origin);
-                this.send(
-                    createMessage<AccountListResponse>(
-                        {
-                            type: 'account-list-response',
-                            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                            // @ts-ignore
-                            result: list,
-                        },
-                        msg.id,
-                    ),
-                );
-                // return accounts;
             } else if (isExecuteTransactionRequest(payload)) {
                 if (!payload.transaction.account) {
                     // make sure we don't execute transactions that doesn't have a specified account

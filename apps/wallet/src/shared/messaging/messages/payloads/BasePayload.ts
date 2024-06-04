@@ -7,10 +7,8 @@
 import type { Payload } from './Payload';
 
 export type PayloadType =
-    | 'account-list-request'
-    | 'account-list-response'
-    | 'disconnect-all-request'
-    | 'disconnect-all-response'
+    | 'reconnect-force-request'
+    | 'reconnect-force-response'
     | 'permission-request'
     | 'permission-response'
     | 'get-permission-requests'

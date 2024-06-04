@@ -22,7 +22,7 @@ type UseDisconnectWalletMutationOptions = Omit<
 /**
  * Mutation hook for disconnecting from an active wallet connection, if currently connected.
  */
-export function useDisconnectAllWallet({
+export function useReconnectForceWallet({
     mutationKey,
     ...mutationOptions
 }: UseDisconnectWalletMutationOptions = {}): UseMutationResult<
@@ -46,7 +46,7 @@ export function useDisconnectAllWallet({
                 // state on the frontend at a minimum.
                 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
                 // @ts-ignore
-                await currentWallet.features['standard:disconnectAll']?.disconnect({
+                await currentWallet.features['standard:connect']?.reconnect({
                     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
                     // @ts-ignore
                     origin: window.location.origin,

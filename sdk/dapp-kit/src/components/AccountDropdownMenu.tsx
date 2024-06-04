@@ -19,7 +19,7 @@ import { ChevronIcon } from './icons/ChevronIcon.js';
 import { StyleMarker } from './styling/StyleMarker.js';
 import { Button } from './ui/Button.js';
 import { Text } from './ui/Text.js';
-import { useDisconnectAllWallet } from '../hooks/wallet/useDisconnectAllWallet.js';
+import { useReconnectForceWallet } from '../hooks/wallet/useReconnectForceWallet.js';
 
 type AccountDropdownMenuProps = {
     currentAccount: WalletAccount;
@@ -27,7 +27,7 @@ type AccountDropdownMenuProps = {
 
 export function AccountDropdownMenu({ currentAccount }: AccountDropdownMenuProps) {
     const { mutate: disconnectWallet } = useDisconnectWallet();
-    const { mutate: disconnectAllWallet } = useDisconnectAllWallet();
+    const { mutate: reconnectForceWallet } = useReconnectForceWallet();
 
     const { data: domain } = useResolveSuiNSName(
         currentAccount.label ? null : currentAccount.address,
@@ -68,9 +68,9 @@ export function AccountDropdownMenu({ currentAccount }: AccountDropdownMenuProps
                         </DropdownMenu.Item>
                         <DropdownMenu.Item
                             className={clsx(styles.menuItem)}
-                            onSelect={() => disconnectAllWallet()}
+                            onSelect={() => reconnectForceWallet()}
                         >
-                            Disconnect All
+                            Reconnect
                         </DropdownMenu.Item>
                     </DropdownMenu.Content>
                 </StyleMarker>
