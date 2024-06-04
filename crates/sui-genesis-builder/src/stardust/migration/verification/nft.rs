@@ -59,7 +59,7 @@ pub(crate) fn verify_nft_output(
         output.native_tokens(),
         foundry_data,
         created_output.native_tokens,
-        created_objects.native_tokens(),
+        created_objects.native_tokens().ok(),
         storage,
     )?;
 
