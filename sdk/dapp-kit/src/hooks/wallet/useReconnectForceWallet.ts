@@ -4,8 +4,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-nocheck
 import type { UseMutationOptions, UseMutationResult } from '@tanstack/react-query';
 import { useMutation } from '@tanstack/react-query';
 
@@ -14,12 +12,24 @@ import { WalletNotConnectedError } from '../../errors/walletErrors.js';
 import { useCurrentWallet } from './useCurrentWallet.js';
 import { useWalletStore } from './useWalletStore.js';
 import { isSupportedChain } from '@mysten/wallet-standard';
-import type { WalletAccount } from '@mysten/wallet-standard';
+import type { StandardConnectInput, StandardConnectOutput } from '@mysten/wallet-standard';
+import type {
+    WalletAccount,
+    StandardReconnectForceFeature,
+    WalletWithRequiredFeatures,
+} from '@mysten/wallet-standard';
 
 type UseDisconnectWalletError = WalletNotConnectedError | Error;
 
+type ConnectWalletArgs = {
+    /** An optional account address to connect to. Defaults to the first authorized account. */
+    accountAddress?: string;
+} & StandardConnectInput;
+
+type ConnectWalletResult = StandardConnectOutput;
+
 type UseDisconnectWalletMutationOptions = Omit<
-    UseMutationOptions<void, UseDisconnectWalletError, void, unknown>,
+    UseMutationOptions<ConnectWalletResult, UseDisconnectWalletError, ConnectWalletArgs, unknown>,
     'mutationFn'
 >;
 
@@ -30,27 +40,26 @@ export function useReconnectForceWallet({
     mutationKey,
     ...mutationOptions
 }: UseDisconnectWalletMutationOptions = {}): UseMutationResult<
-    void,
-    UseDisconnectWalletError,
-    void
+    StandardConnectOutput,
+    WalletNotConnectedError | Error,
+    ConnectWalletArgs,
+    unknown
 > {
     const { currentWallet } = useCurrentWallet();
     const setWalletConnected = useWalletStore((state) => state.setWalletConnected);
 
     return useMutation({
-        mutationKey: walletMutationKeys.disconnectAllWallet(mutationKey),
+        mutationKey: walletMutationKeys.reconnectForceWallet(mutationKey),
         mutationFn: async () => {
             if (!currentWallet) {
                 throw new WalletNotConnectedError('No wallet is connected.');
             }
 
             try {
-                // Wallets aren't required to implement the disconnect feature, so we'll
-                // optionally call the disconnect feature if it exists and reset the UI
-                // state on the frontend at a minimum.
-                const connectResult = await currentWallet.features[
-                    'standard:reconnectForce'
-                ]?.reconnect({
+                const connectResult = await (
+                    currentWallet.features as unknown as WalletWithRequiredFeatures &
+                        StandardReconnectForceFeature
+                )['standard:reconnectForce']?.reconnect({
                     origin: window.location.origin,
                 });
                 const connectedSuiAccounts = connectResult.accounts.filter((account) =>
@@ -58,14 +67,11 @@ export function useReconnectForceWallet({
                 );
                 const selectedAccount = getSelectedAccount(connectedSuiAccounts);
 
-                setWalletConnected(wallet, connectedSuiAccounts, selectedAccount);
+                setWalletConnected(currentWallet, connectedSuiAccounts, selectedAccount);
 
                 return { accounts: connectedSuiAccounts };
             } catch (error) {
-                console.error(
-                    'Failed to disconnect the application from the current wallet.',
-                    error,
-                );
+                throw new WalletNotConnectedError('No wallet is connected.');
             }
         },
         ...mutationOptions,

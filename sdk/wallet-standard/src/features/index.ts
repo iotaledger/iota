@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import type {
     IdentifierRecord,
     StandardConnectFeature,
@@ -47,3 +50,4 @@ export * from './suiSignMessage.js';
 export * from './suiSignTransactionBlock.js';
 export * from './suiSignAndExecuteTransactionBlock.js';
 export * from './suiSignPersonalMessage.js';
+export * from './reconnectForce.js';

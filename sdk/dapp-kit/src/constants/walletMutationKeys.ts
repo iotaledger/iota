@@ -11,7 +11,7 @@ export const walletMutationKeys = {
     connectWallet: formMutationKeyFn('connect-wallet'),
     autoconnectWallet: formMutationKeyFn('autoconnect-wallet'),
     disconnectWallet: formMutationKeyFn('disconnect-wallet'),
-    disconnectAllWallet: formMutationKeyFn('disconnect-all-wallet'),
+    reconnectForceWallet: formMutationKeyFn('disconnect-all-wallet'),
     signPersonalMessage: formMutationKeyFn('sign-personal-message'),
     signTransactionBlock: formMutationKeyFn('sign-transaction-block'),
     signAndExecuteTransactionBlock: formMutationKeyFn('sign-and-execute-transaction-block'),

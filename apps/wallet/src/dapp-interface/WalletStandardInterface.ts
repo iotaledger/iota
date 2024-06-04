@@ -59,7 +59,7 @@ type WalletEventsMap = {
 // NOTE: Because this runs in a content script, we can't fetch the manifest.
 const name = process.env.APP_NAME || 'Sui Wallet';
 
-type StandardReconnectForceFeature = {
+export type StandardReconnectForceFeature = {
     'standard:reconnectForce': {
         version: string;
         reconnect: (input: never) => Promise<StandardConnectOutput>;
