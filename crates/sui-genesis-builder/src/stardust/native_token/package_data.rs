@@ -17,6 +17,7 @@ use rand::distributions::{Alphanumeric, DistString};
 use rand_pcg::Pcg64;
 use rand_seeder::Seeder;
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 
 use crate::stardust::{error::StardustError, types::token_scheme::SimpleTokenSchemeU64};
 
@@ -99,21 +100,7 @@ impl NativeTokenModuleData {
 impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
     type Error = StardustError;
     fn try_from(output: &FoundryOutput) -> Result<Self, StardustError> {
-        let metadata =
-            output
-                .features()
-                .metadata()
-                .ok_or(StardustError::FoundryConversionError {
-                    foundry_id: output.id(),
-                    err: anyhow::anyhow!("metadata not found"),
-                })?;
-        let irc_30_metadata: Irc30Metadata =
-            serde_json::from_slice(metadata.data()).map_err(|e| {
-                StardustError::FoundryConversionError {
-                    foundry_id: output.id(),
-                    err: e.into(),
-                }
-            })?;
+        let irc_30_metadata = extract_irc30_metadata(output);
 
         // Derive a valid, lowercase move identifier from the symbol field in the irc30
         // metadata
@@ -142,8 +129,10 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
                 symbol: identifier,
                 circulating_supply: token_scheme_u64.circulating_supply(),
                 maximum_supply: token_scheme_u64.maximum_supply(),
-                coin_name: irc_30_metadata.name().to_owned(),
-                coin_description: irc_30_metadata.description().clone().unwrap_or_default(),
+                coin_name: to_safe_string(irc_30_metadata.name()),
+                coin_description: to_safe_string(
+                    &irc_30_metadata.description().clone().unwrap_or_default(),
+                ),
                 icon_url: irc_30_metadata.url().clone(),
                 alias_address: *output.alias_address(),
             },
@@ -151,6 +140,56 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
 
         Ok(native_token_data)
     }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Irc30MetadataCompact {
+    /// The human-readable name of the native token.
+    name: String,
+    /// The symbol/ticker of the token.
+    symbol: String,
+    /// Number of decimals the token uses (divide the token amount by `10^decimals` to get its user
+    /// representation).
+    decimals: u32,
+}
+
+impl Irc30MetadataCompact {
+    fn new(name: String) -> Self {
+        Irc30MetadataCompact {
+            name: name.clone(),
+            symbol: name,
+            decimals: 0,
+        }
+    }
+
+    fn to_full_scheme(self) -> Irc30Metadata {
+        Irc30Metadata::new(self.name, self.symbol, self.decimals)
+    }
+}
+
+fn extract_irc30_metadata(output: &FoundryOutput) -> Irc30Metadata {
+    match output.immutable_features().metadata() {
+        Some(metadata) => match serde_json::from_slice(metadata.data()) {
+            Ok(m) => m,
+            Err(_) => serde_json::from_slice::<Irc30MetadataCompact>(metadata.data())
+                .unwrap_or(Irc30MetadataCompact::new(
+                    derive_foundry_package_lowercase_identifier(
+                        "",
+                        output.id().to_ascii_lowercase(),
+                    ),
+                ))
+                .to_full_scheme(),
+        },
+        None => {
+            let identifier =
+                derive_foundry_package_lowercase_identifier("", output.id().to_ascii_lowercase());
+            Irc30Metadata::new(identifier.clone(), identifier, 0)
+        }
+    }
+}
+
+fn to_safe_string(input: &String) -> String {
+    input.to_owned().replace("\n", "\\n").replace("\"", "\'")
 }
 
 fn derive_foundry_package_lowercase_identifier(input: &str, seed: Vec<u8>) -> String {
