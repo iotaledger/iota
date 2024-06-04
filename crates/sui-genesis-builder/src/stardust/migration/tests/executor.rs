@@ -16,7 +16,9 @@ use sui_types::{
 };
 
 use crate::stardust::{
-    migration::{executor::Executor, migration::NATIVE_TOKEN_BAG_KEY_TYPE},
+    migration::{
+        executor::Executor, migration::NATIVE_TOKEN_BAG_KEY_TYPE, tests::random_output_header,
+    },
     native_token::{
         package_builder,
         package_data::{NativeTokenModuleData, NativeTokenPackageData},
@@ -29,6 +31,7 @@ fn create_bag_with_pt() {
     let owner = AliasAddress::new(AliasId::new([0; AliasId::LENGTH]));
     let supply = 1_000_000;
     let token_scheme = SimpleTokenScheme::new(supply, 0, supply).unwrap();
+    let header = random_output_header();
     let foundry = FoundryOutputBuilder::new_with_amount(1000, 1, token_scheme.into())
         .with_unlock_conditions([UnlockCondition::from(
             ImmutableAliasAddressUnlockCondition::new(owner),
@@ -47,7 +50,9 @@ fn create_bag_with_pt() {
     // Execution
     let mut executor = Executor::new(ProtocolVersion::MAX).unwrap();
     let object_count = executor.store().objects().len();
-    executor.create_foundry(&foundry, foundry_package).unwrap();
+    executor
+        .create_foundries([(&header, &foundry, foundry_package)])
+        .unwrap();
     // Foundry package publication creates four objects
     //
     // * The package
