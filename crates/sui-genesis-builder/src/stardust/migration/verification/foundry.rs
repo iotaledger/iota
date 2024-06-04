@@ -6,14 +6,8 @@ use std::collections::HashMap;
 use anyhow::{anyhow, ensure, Result};
 use iota_sdk::types::block::output::{FoundryOutput, TokenId};
 use move_core_types::language_storage::ModuleId;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 use sui_types::{
-    base_types::SuiAddress,
-    coin::{CoinMetadata, TreasuryCap},
-    id::UID,
-    in_memory_storage::InMemoryStorage,
-    object::Owner,
+    base_types::SuiAddress, coin::CoinMetadata, in_memory_storage::InMemoryStorage, object::Owner,
     Identifier,
 };
 
@@ -26,7 +20,7 @@ use crate::stardust::{
         },
     },
     native_token::package_data::NativeTokenPackageData,
-    types::token_scheme::SimpleTokenSchemeU64,
+    types::{capped_coin::MaxSupplyPolicy, token_scheme::SimpleTokenSchemeU64},
 };
 
 pub(super) fn verify_foundry_output(
@@ -172,13 +166,6 @@ pub(super) fn verify_foundry_output(
         expected_package_data.module().icon_url,
         minted_coin.icon_url
     );
-
-    #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
-    struct MaxSupplyPolicy {
-        id: UID,
-        maximum_supply: u64,
-        treasury_cap: TreasuryCap,
-    }
 
     // Maximum Supply
     let max_supply_policy_obj = created_objects.max_supply_policy().and_then(|id| {
