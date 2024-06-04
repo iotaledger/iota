@@ -1,25 +1,28 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { SuiHTTPTransport } from '@mysten/sui.js/client';
 import * as Sentry from '@sentry/react';
 
 const IGNORED_METHODS = ['suix_resolveNameServiceNames', 'suix_resolveNameServiceAddresses'];
 
 export class SentryHttpTransport extends SuiHTTPTransport {
-    #url: string;
+    private url: string;
     constructor(url: string) {
         super({ url });
-        this.#url = url;
+        this.url = url;
     }
 
-    async #withRequest<T>(input: { method: string; params: unknown[] }, handler: () => Promise<T>) {
+    async withRequest<T>(input: { method: string; params: unknown[] }, handler: () => Promise<T>) {
         const transaction = Sentry.startTransaction({
             name: input.method,
             op: 'http.rpc-request',
             data: input.params,
             tags: {
-                url: this.#url,
+                url: this.url,
             },
         });
 
@@ -42,6 +45,6 @@ export class SentryHttpTransport extends SuiHTTPTransport {
             return super.request<T>(input);
         }
 
-        return this.#withRequest(input, () => super.request<T>(input));
+        return this.withRequest(input, () => super.request<T>(input));
     }
 }
