@@ -3,6 +3,8 @@
 
 pub mod address;
 pub mod alias;
+pub mod capped_coin;
+pub mod foundry;
 pub mod nft;
 pub mod output;
 pub mod snapshot;
