@@ -162,7 +162,7 @@ impl Irc30MetadataCompact {
         }
     }
 
-    fn to_full_scheme(self) -> Irc30Metadata {
+    fn into_full_scheme(self) -> Irc30Metadata {
         Irc30Metadata::new(self.name, self.symbol, self.decimals)
     }
 }
