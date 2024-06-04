@@ -243,7 +243,7 @@ export class BackgroundClient {
                     if (type !== payload.args.type) {
                         throw new Error(`unexpected entity type response ${payload.args.type}`);
                     }
-                    return payload.args.entities;
+                    return payload.args.entities as R[];
                 }),
             ),
         );
