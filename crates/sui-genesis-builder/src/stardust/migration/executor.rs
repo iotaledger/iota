@@ -270,7 +270,7 @@ impl Executor {
 
             // Create the foundry gas coin object.
             let gas_coin = create_foundry_gas_coin(
-                header,
+                &header.output_id(),
                 foundry,
                 &self.tx_context,
                 foundry_package.version(),
