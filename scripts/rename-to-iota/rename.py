@@ -23,6 +23,7 @@ IGNORED_EXTENSIONS = ('svg', 'mv', 'png', 'jpg', 'jpeg', 'gif', 'wasm', 'errmap'
 # This mapping allows a simple replace mechanism for certain keywords, it's executed in order
 REPLACE_MAP = (
     ('MystenLabs/sui', 'iotaledger/iota'),
+    ('mystenlabs/sui', 'iotaledger/iota'),
     ('SUI', 'IOTA'),
     ('Sui', 'Iota'),
     ('sui', 'iota'),
