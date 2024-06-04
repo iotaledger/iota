@@ -7,17 +7,17 @@ import { useContext } from 'react';
 import { SuiClientContext } from '../components/SuiClientProvider.js';
 
 export function useSuiClientContext() {
-	const suiClient = useContext(SuiClientContext);
+    const suiClient = useContext(SuiClientContext);
 
-	if (!suiClient) {
-		throw new Error(
-			'Could not find SuiClientContext. Ensure that you have set up the SuiClientProvider',
-		);
-	}
+    if (!suiClient) {
+        throw new Error(
+            'Could not find SuiClientContext. Ensure that you have set up the SuiClientProvider',
+        );
+    }
 
-	return suiClient;
+    return suiClient;
 }
 
 export function useSuiClient(): SuiClient {
-	return useSuiClientContext().client;
+    return useSuiClientContext().client;
 }

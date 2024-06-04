@@ -1,27 +1,32 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    io::Cursor,
+    ops::Range,
+    time::{Duration, Instant},
+};
+
 use anyhow::Result;
 use async_trait::async_trait;
-use byteorder::BigEndian;
-use byteorder::ByteOrder;
+use byteorder::{BigEndian, ByteOrder};
 use bytes::Bytes;
-use object_store::path::Path;
-use object_store::ObjectStore;
+use object_store::{path::Path, ObjectStore};
 use serde::{Deserialize, Serialize};
-use std::io::Cursor;
-use std::ops::Range;
-use std::time::{Duration, Instant};
 use sui_archival::{
     create_file_metadata_from_bytes, finalize_manifest, read_manifest_from_bytes, FileType,
     Manifest, CHECKPOINT_FILE_MAGIC, SUMMARY_FILE_MAGIC,
 };
 use sui_data_ingestion_core::{create_remote_store_client, Worker, MAX_CHECKPOINTS_IN_PROGRESS};
-use sui_storage::blob::{Blob, BlobEncoding};
-use sui_storage::{compress, FileCompression, StorageFormat};
-use sui_types::base_types::{EpochId, ExecutionData};
-use sui_types::full_checkpoint_content::CheckpointData;
-use sui_types::messages_checkpoint::{CheckpointSequenceNumber, FullCheckpointContents};
+use sui_storage::{
+    blob::{Blob, BlobEncoding},
+    compress, FileCompression, StorageFormat,
+};
+use sui_types::{
+    base_types::{EpochId, ExecutionData},
+    full_checkpoint_content::CheckpointData,
+    messages_checkpoint::{CheckpointSequenceNumber, FullCheckpointContents},
+};
 use tokio::sync::Mutex;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

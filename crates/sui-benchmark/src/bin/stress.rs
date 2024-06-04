@@ -1,31 +1,21 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{sync::Arc, time::Duration};
+
 use anyhow::{anyhow, Context, Result};
 use clap::*;
-
 use prometheus::Registry;
-use rand::seq::SliceRandom;
-use rand::Rng;
-use sui_protocol_config::Chain;
-use tokio::time::sleep;
-
-use std::sync::Arc;
-use std::time::Duration;
-use sui_benchmark::drivers::bench_driver::BenchDriver;
-use sui_benchmark::drivers::driver::Driver;
-use sui_benchmark::drivers::BenchmarkCmp;
-use sui_benchmark::drivers::BenchmarkStats;
-use sui_protocol_config::{ProtocolConfig, ProtocolVersion};
-
-use sui_benchmark::benchmark_setup::Env;
-use sui_benchmark::options::Opts;
-
-use sui_benchmark::workloads::workload_configuration::WorkloadConfiguration;
-
-use sui_benchmark::system_state_observer::SystemStateObserver;
-use tokio::runtime::Builder;
-use tokio::sync::Barrier;
+use rand::{seq::SliceRandom, Rng};
+use sui_benchmark::{
+    benchmark_setup::Env,
+    drivers::{bench_driver::BenchDriver, driver::Driver, BenchmarkCmp, BenchmarkStats},
+    options::Opts,
+    system_state_observer::SystemStateObserver,
+    workloads::workload_configuration::WorkloadConfiguration,
+};
+use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use tokio::{runtime::Builder, sync::Barrier, time::sleep};
 
 /// To spin up a local cluster and direct some load
 /// at it with 50/50 shared and owned traffic, use

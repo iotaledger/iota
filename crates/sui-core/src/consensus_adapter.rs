@@ -1,61 +1,60 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::HashMap,
+    future::Future,
+    ops::Deref,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+    time::Instant,
+};
+
 use arc_swap::{ArcSwap, ArcSwapOption};
 use bytes::Bytes;
-use dashmap::try_result::TryResult;
-use dashmap::DashMap;
-use futures::future::{select, Either};
-use futures::pin_mut;
-use futures::FutureExt;
+use dashmap::{try_result::TryResult, DashMap};
+use futures::{
+    future::{select, Either},
+    pin_mut, FutureExt,
+};
 use itertools::Itertools;
+use mysten_metrics::{spawn_monitored_task, GaugeGuard, GaugeGuardFutureExt};
 use narwhal_types::{TransactionProto, TransactionsClient};
 use narwhal_worker::LazyNarwhalClient;
 use parking_lot::RwLockReadGuard;
-use prometheus::Histogram;
-use prometheus::HistogramVec;
-use prometheus::IntCounterVec;
-use prometheus::IntGauge;
-use prometheus::IntGaugeVec;
-use prometheus::Registry;
 use prometheus::{
     register_histogram_vec_with_registry, register_histogram_with_registry,
     register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
-    register_int_gauge_with_registry,
+    register_int_gauge_with_registry, Histogram, HistogramVec, IntCounterVec, IntGauge,
+    IntGaugeVec, Registry,
 };
-use rand::rngs::StdRng;
-use rand::SeedableRng;
-use std::collections::HashMap;
-use std::future::Future;
-use std::ops::Deref;
-use std::sync::atomic::AtomicU64;
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
-use std::time::Instant;
-use sui_types::base_types::TransactionDigest;
-use sui_types::committee::{Committee, CommitteeTrait};
-use sui_types::error::{SuiError, SuiResult};
-
-use tap::prelude::*;
-use tokio::sync::{Semaphore, SemaphorePermit};
-use tokio::task::JoinHandle;
-use tokio::time::{self};
-
-use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use crate::consensus_handler::{classify, SequencedConsensusTransactionKey};
-use crate::consensus_throughput_calculator::{ConsensusThroughputProfiler, Level};
-use crate::epoch::reconfiguration::{ReconfigState, ReconfigurationInitiator};
-use crate::metrics::LatencyObserver;
-use mysten_metrics::{spawn_monitored_task, GaugeGuard, GaugeGuardFutureExt};
+use rand::{rngs::StdRng, SeedableRng};
 use sui_protocol_config::ProtocolConfig;
-use sui_simulator::anemo::PeerId;
-use sui_simulator::narwhal_network::connectivity::ConnectionStatus;
-use sui_types::base_types::AuthorityName;
-use sui_types::fp_ensure;
-use sui_types::messages_consensus::ConsensusTransaction;
-use sui_types::messages_consensus::ConsensusTransactionKind;
-use tokio::time::Duration;
+use sui_simulator::{anemo::PeerId, narwhal_network::connectivity::ConnectionStatus};
+use sui_types::{
+    base_types::{AuthorityName, TransactionDigest},
+    committee::{Committee, CommitteeTrait},
+    error::{SuiError, SuiResult},
+    fp_ensure,
+    messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
+};
+use tap::prelude::*;
+use tokio::{
+    sync::{Semaphore, SemaphorePermit},
+    task::JoinHandle,
+    time::{self, Duration},
+};
 use tracing::{debug, info, warn};
+
+use crate::{
+    authority::authority_per_epoch_store::AuthorityPerEpochStore,
+    consensus_handler::{classify, SequencedConsensusTransactionKey},
+    consensus_throughput_calculator::{ConsensusThroughputProfiler, Level},
+    epoch::reconfiguration::{ReconfigState, ReconfigurationInitiator},
+    metrics::LatencyObserver,
+};
 
 #[cfg(test)]
 #[path = "unit_tests/consensus_tests.rs"]
@@ -221,8 +220,9 @@ impl SubmitToConsensus for LazyNarwhalClient {
     ) -> SuiResult {
         let transaction =
             bcs::to_bytes(transaction).expect("Serializing consensus transaction cannot fail");
-        // The retrieved LocalNarwhalClient can be from the past epoch. Submit would fail after
-        // Narwhal shuts down, so there should be no correctness issue.
+        // The retrieved LocalNarwhalClient can be from the past epoch. Submit would
+        // fail after Narwhal shuts down, so there should be no correctness
+        // issue.
         let client = {
             let c = self.client.load();
             if c.is_some() {
@@ -255,17 +255,20 @@ pub struct ConsensusAdapter {
     max_pending_transactions: usize,
     /// Number of submitted transactions still inflight at this node.
     num_inflight_transactions: AtomicU64,
-    /// Dictates the maximum position  from which will submit to consensus. Even if the is elected to
-    /// submit from a higher position than this, it will "reset" to the max_submit_position.
+    /// Dictates the maximum position  from which will submit to consensus. Even
+    /// if the is elected to submit from a higher position than this, it
+    /// will "reset" to the max_submit_position.
     max_submit_position: Option<usize>,
-    /// When provided it will override the current back off logic and will use this value instead
-    /// as delay step.
+    /// When provided it will override the current back off logic and will use
+    /// this value instead as delay step.
     submit_delay_step_override: Option<Duration>,
-    /// A structure to check the connection statuses populated by the Connection Monitor Listener
+    /// A structure to check the connection statuses populated by the Connection
+    /// Monitor Listener
     connection_monitor_status: Arc<dyn CheckConnection>,
     /// A structure to check the reputation scores populated by Consensus
     low_scoring_authorities: ArcSwap<Arc<ArcSwap<HashMap<AuthorityName, u64>>>>,
-    /// The throughput profiler to be used when making decisions to submit to consensus
+    /// The throughput profiler to be used when making decisions to submit to
+    /// consensus
     consensus_throughput_profiler: ArcSwapOption<ConsensusThroughputProfiler>,
     /// A structure to register metrics
     metrics: ConsensusAdapterMetrics,
@@ -337,11 +340,13 @@ impl ConsensusAdapter {
         self.consensus_throughput_profiler.store(Some(profiler))
     }
 
-    // todo - this probably need to hold some kind of lock to make sure epoch does not change while we are recovering
+    // todo - this probably need to hold some kind of lock to make sure epoch does
+    // not change while we are recovering
     pub fn submit_recovered(self: &Arc<Self>, epoch_store: &Arc<AuthorityPerEpochStore>) {
-        // Currently narwhal worker might lose transactions on restart, so we need to resend them
-        // todo - get_all_pending_consensus_transactions is called twice when
-        // initializing AuthorityPerEpochStore and here, should not be a big deal but can be optimized
+        // Currently narwhal worker might lose transactions on restart, so we need to
+        // resend them todo - get_all_pending_consensus_transactions is called
+        // twice when initializing AuthorityPerEpochStore and here, should not
+        // be a big deal but can be optimized
         let mut recovered = epoch_store.get_all_pending_consensus_transactions();
 
         #[allow(clippy::collapsible_if)] // This if can be collapsed but it will be ugly
@@ -355,11 +360,13 @@ impl ConsensusAdapter {
                 .any(ConsensusTransaction::is_end_of_publish)
             {
                 // There are two cases when this is needed
-                // (1) We send EndOfPublish message after removing pending certificates in submit_and_wait_inner
-                // It is possible that node will crash between those two steps, in which case we might need to
+                // (1) We send EndOfPublish message after removing pending certificates in
+                // submit_and_wait_inner It is possible that node will crash
+                // between those two steps, in which case we might need to
                 // re-introduce EndOfPublish message on restart
                 // (2) If node crashed inside ConsensusAdapter::close_epoch,
-                // after reconfig lock state was written to DB and before we persisted EndOfPublish message
+                // after reconfig lock state was written to DB and before we persisted
+                // EndOfPublish message
                 recovered.push(ConsensusTransaction::new_end_of_publish(self.authority));
             }
         }
@@ -426,9 +433,11 @@ impl ConsensusAdapter {
         )
     }
 
-    // According to the throughput profile we want to either allow some transaction duplication or not)
-    // When throughput profile is Low and the validator is in position = 1, then it will submit to consensus with much lower latency.
-    // When throughput profile is High then we go back to default operation and no-one co-submits.
+    // According to the throughput profile we want to either allow some transaction
+    // duplication or not) When throughput profile is Low and the validator is
+    // in position = 1, then it will submit to consensus with much lower latency.
+    // When throughput profile is High then we go back to default operation and
+    // no-one co-submits.
     fn override_by_throughput_profiler(&self, position: usize, latency: Duration) -> Duration {
         const LOW_THROUGHPUT_DELAY_BEFORE_SUBMIT_MS: u64 = 0;
         const MEDIUM_THROUGHPUT_DELAY_BEFORE_SUBMIT_MS: u64 = 2_500;
@@ -439,8 +448,9 @@ impl ConsensusAdapter {
         if let Some(profiler) = p.as_ref() {
             let (level, _) = profiler.throughput_level();
 
-            // we only run this for the position = 1 validator to co-submit with the validator of
-            // position = 0. We also enable this only when the feature is enabled on the protocol config.
+            // we only run this for the position = 1 validator to co-submit with the
+            // validator of position = 0. We also enable this only when the
+            // feature is enabled on the protocol config.
             if self.protocol_config.throughput_aware_consensus_submission() && position == 1 {
                 return match level {
                     Level::Low => Duration::from_millis(LOW_THROUGHPUT_DELAY_BEFORE_SUBMIT_MS),
@@ -451,11 +461,7 @@ impl ConsensusAdapter {
                         let l = Duration::from_millis(HIGH_THROUGHPUT_DELAY_BEFORE_SUBMIT_MS);
 
                         // back off according to recorded latency if it's significantly higher
-                        if latency >= 2 * l {
-                            latency
-                        } else {
-                            l
-                        }
+                        if latency >= 2 * l { latency } else { l }
                     }
                 };
             }
@@ -463,9 +469,11 @@ impl ConsensusAdapter {
         latency
     }
 
-    /// Overrides the latency and the position if there are defined settings for `max_submit_position` and
-    /// `submit_delay_step_override`. If the `max_submit_position` has defined, then that will always be used
-    /// irrespective of any so far decision. Same for the `submit_delay_step_override`.
+    /// Overrides the latency and the position if there are defined settings for
+    /// `max_submit_position` and `submit_delay_step_override`. If the
+    /// `max_submit_position` has defined, then that will always be used
+    /// irrespective of any so far decision. Same for the
+    /// `submit_delay_step_override`.
     fn override_by_max_submit_position_settings(
         &self,
         latency: Duration,
@@ -481,12 +489,14 @@ impl ConsensusAdapter {
     }
 
     /// Check when this authority should submit the certificate to consensus.
-    /// This sorts all authorities based on pseudo-random distribution derived from transaction hash.
+    /// This sorts all authorities based on pseudo-random distribution derived
+    /// from transaction hash.
     ///
-    /// The function targets having 1 consensus transaction submitted per user transaction
-    /// when system operates normally.
+    /// The function targets having 1 consensus transaction submitted per user
+    /// transaction when system operates normally.
     ///
-    /// The function returns the position of this authority when it is their turn to submit the transaction to consensus.
+    /// The function returns the position of this authority when it is their
+    /// turn to submit the transaction to consensus.
     fn submission_position(
         &self,
         committee: &Committee,
@@ -497,26 +507,32 @@ impl ConsensusAdapter {
         self.check_submission_wrt_connectivity_and_scores(positions)
     }
 
-    /// This function runs the following algorithm to decide whether or not to submit a transaction
-    /// to consensus.
+    /// This function runs the following algorithm to decide whether or not to
+    /// submit a transaction to consensus.
     ///
-    /// It takes in a deterministic list that represents positions of all the authorities.
-    /// The authority in the first position will be responsible for submitting to consensus, and
-    /// so we check if we are this validator, and if so, return true.
+    /// It takes in a deterministic list that represents positions of all the
+    /// authorities. The authority in the first position will be responsible
+    /// for submitting to consensus, and so we check if we are this
+    /// validator, and if so, return true.
     ///
-    /// If we are not in that position, we check our connectivity to the authority in that position.
-    /// If we are connected to them, we can assume that they are operational and will submit the transaction.
-    /// If we are not connected to them, we assume that they are not operational and we will not rely
-    /// on that authority to submit the transaction. So we shift them out of the first position, and
-    /// run this algorithm again on the new set of positions.
+    /// If we are not in that position, we check our connectivity to the
+    /// authority in that position. If we are connected to them, we can
+    /// assume that they are operational and will submit the transaction. If
+    /// we are not connected to them, we assume that they are not operational
+    /// and we will not rely on that authority to submit the transaction. So
+    /// we shift them out of the first position, and run this algorithm
+    /// again on the new set of positions.
     ///
-    /// This can possibly result in a transaction being submitted twice if an authority sees a false
-    /// negative in connectivity to another, such as in the case of a network partition.
+    /// This can possibly result in a transaction being submitted twice if an
+    /// authority sees a false negative in connectivity to another, such as
+    /// in the case of a network partition.
     ///
-    /// Recursively, if the authority further ahead of us in the positions is a low performing authority, we will
-    /// move our positions up one, and submit the transaction. This allows maintaining performance
-    /// overall. We will only do this part for authorities that are not low performers themselves to
-    /// prevent extra amplification in the case that the positions look like [low_scoring_a1, low_scoring_a2, a3]
+    /// Recursively, if the authority further ahead of us in the positions is a
+    /// low performing authority, we will move our positions up one, and
+    /// submit the transaction. This allows maintaining performance overall.
+    /// We will only do this part for authorities that are not low performers
+    /// themselves to prevent extra amplification in the case that the
+    /// positions look like [low_scoring_a1, low_scoring_a2, a3]
     fn check_submission_wrt_connectivity_and_scores(
         &self,
         positions: Vec<AuthorityName>,
@@ -564,12 +580,15 @@ impl ConsensusAdapter {
     }
 
     /// This method blocks until transaction is persisted in local database
-    /// It then returns handle to async task, user can join this handle to await while transaction is processed by consensus
+    /// It then returns handle to async task, user can join this handle to await
+    /// while transaction is processed by consensus
     ///
-    /// This method guarantees that once submit(but not returned async handle) returns,
-    /// transaction is persisted and will eventually be sent to consensus even after restart
+    /// This method guarantees that once submit(but not returned async handle)
+    /// returns, transaction is persisted and will eventually be sent to
+    /// consensus even after restart
     ///
-    /// When submitting a certificate caller **must** provide a ReconfigState lock guard
+    /// When submitting a certificate caller **must** provide a ReconfigState
+    /// lock guard
     pub fn submit(
         self: &Arc<Self>,
         transaction: ConsensusTransaction,
@@ -606,7 +625,8 @@ impl ConsensusAdapter {
         transaction: ConsensusTransaction,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> JoinHandle<()> {
-        // Reconfiguration lock is dropped when pending_consensus_transactions is persisted, before it is handled by consensus
+        // Reconfiguration lock is dropped when pending_consensus_transactions is
+        // persisted, before it is handled by consensus
         let async_stage = self
             .clone()
             .submit_and_wait(transaction, epoch_store.clone());
@@ -621,17 +641,19 @@ impl ConsensusAdapter {
         transaction: ConsensusTransaction,
         epoch_store: Arc<AuthorityPerEpochStore>,
     ) {
-        // When epoch_terminated signal is received all pending submit_and_wait_inner are dropped.
+        // When epoch_terminated signal is received all pending submit_and_wait_inner
+        // are dropped.
         //
-        // This is needed because submit_and_wait_inner waits on read_notify for consensus message to be processed,
-        // which may never happen on epoch boundary.
+        // This is needed because submit_and_wait_inner waits on read_notify for
+        // consensus message to be processed, which may never happen on epoch
+        // boundary.
         //
         // In addition to that, within_alive_epoch ensures that all pending consensus
         // adapter tasks are stopped before reconfiguration can proceed.
         //
-        // This is essential because narwhal workers reuse same ports when narwhal restarts,
-        // this means we might be sending transactions from previous epochs to narwhal of
-        // new epoch if we have not had this barrier.
+        // This is essential because narwhal workers reuse same ports when narwhal
+        // restarts, this means we might be sending transactions from previous
+        // epochs to narwhal of new epoch if we have not had this barrier.
         epoch_store
             .within_alive_epoch(self.submit_and_wait_inner(transaction, &epoch_store))
             .await
@@ -722,8 +744,9 @@ impl ConsensusAdapter {
             let _in_flight_submission_guard =
                 GaugeGuard::acquire(&self.metrics.sequencing_in_flight_submissions);
 
-            // We enter this branch when in select above await_submit completed and processed_waiter is pending
-            // This means it is time for us to submit transaction to consensus
+            // We enter this branch when in select above await_submit completed and
+            // processed_waiter is pending This means it is time for us to
+            // submit transaction to consensus
             let submit_inner = async {
                 let ack_start = Instant::now();
                 let mut retries: u32 = 0;
@@ -755,9 +778,10 @@ impl ConsensusAdapter {
                     };
                 }
 
-                // we want to record the num of retries when reporting latency but to avoid label
-                // cardinality we do some simple bucketing to give us a good enough idea of how
-                // many retries happened associated with the latency.
+                // we want to record the num of retries when reporting latency but to avoid
+                // label cardinality we do some simple bucketing to give us a
+                // good enough idea of how many retries happened associated with
+                // the latency.
                 let bucket = match retries {
                     0..=10 => retries.to_string(), // just report the retry count as is
                     11..=20 => "between_10_and_20".to_string(),
@@ -788,11 +812,13 @@ impl ConsensusAdapter {
             &transaction.kind
         {
             // If we are in RejectUserCerts state and we just drained the list we need to
-            // send EndOfPublish to signal other validators that we are not submitting more certificates to the epoch.
-            // Note that there could be a race condition here where we enter this check in RejectAllCerts state.
+            // send EndOfPublish to signal other validators that we are not submitting more
+            // certificates to the epoch. Note that there could be a race
+            // condition here where we enter this check in RejectAllCerts state.
             // In that case we don't need to send EndOfPublish because condition to enter
-            // RejectAllCerts is when 2f+1 other validators already sequenced their EndOfPublish message.
-            // Also note that we could sent multiple EndOfPublish due to that multiple tasks can enter here with
+            // RejectAllCerts is when 2f+1 other validators already sequenced their
+            // EndOfPublish message. Also note that we could sent multiple
+            // EndOfPublish due to that multiple tasks can enter here with
             // pending_count == 0. This doesn't affect correctness.
             if epoch_store
                 .get_reconfig_state_read_lock_guard()
@@ -906,7 +932,8 @@ pub fn order_validators_for_submission(
 impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
     /// This method is called externally to begin reconfiguration
     /// It transition reconfig state to reject new certificates from user
-    /// ConsensusAdapter will send EndOfPublish message once pending certificate queue is drained.
+    /// ConsensusAdapter will send EndOfPublish message once pending certificate
+    /// queue is drained.
     fn close_epoch(&self, epoch_store: &Arc<AuthorityPerEpochStore>) {
         let send_end_of_publish = {
             let reconfig_guard = epoch_store.get_reconfig_state_write_lock_guard();
@@ -1057,20 +1084,20 @@ pub fn position_submit_certificate(
 
 #[cfg(test)]
 mod adapter_tests {
-    use super::position_submit_certificate;
-    use crate::consensus_adapter::{
-        ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
-        LazyNarwhalClient,
-    };
+    use std::{sync::Arc, time::Duration};
+
     use fastcrypto::traits::KeyPair;
-    use rand::Rng;
-    use rand::{rngs::StdRng, SeedableRng};
-    use std::sync::Arc;
-    use std::time::Duration;
+    use rand::{rngs::StdRng, Rng, SeedableRng};
     use sui_types::{
         base_types::TransactionDigest,
         committee::Committee,
         crypto::{get_key_pair_from_rng, AuthorityKeyPair, AuthorityPublicKeyBytes},
+    };
+
+    use super::position_submit_certificate;
+    use crate::consensus_adapter::{
+        ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
+        LazyNarwhalClient,
     };
 
     fn test_committee(rng: &mut StdRng, size: usize) -> Committee {

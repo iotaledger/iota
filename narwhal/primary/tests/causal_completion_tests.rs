@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use bytes::Bytes;
 use std::time::Duration;
+
+use bytes::Bytes;
 use test_utils::cluster::{setup_tracing, Cluster};
 use tracing::info;
 use types::TransactionProto;

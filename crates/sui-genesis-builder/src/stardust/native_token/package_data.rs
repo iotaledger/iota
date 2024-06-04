@@ -1,18 +1,25 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The [`package_data`] module provides the [`NativeTokenPackageData`] struct, which encapsulates all the data necessary to build a Stardust native token package.
+//! The [`package_data`] module provides the [`NativeTokenPackageData`] struct,
+//! which encapsulates all the data necessary to build a Stardust native token
+//! package.
 
-use crate::stardust::error::StardustError;
 use anyhow::Result;
-use iota_sdk::types::block::address::AliasAddress;
-use iota_sdk::types::block::output::feature::Irc30Metadata;
-use iota_sdk::types::block::output::{FoundryId, FoundryOutput};
-use iota_sdk::Url;
-use rand::Rng;
+use iota_sdk::{
+    types::block::{
+        address::AliasAddress,
+        output::{feature::Irc30Metadata, FoundryId, FoundryOutput},
+    },
+    Url,
+};
+use rand::distributions::{Alphanumeric, DistString};
 use regex::Regex;
 
-/// The [`NativeTokenPackageData`] struct encapsulates all the data necessary to build a Stardust native token package.
+use crate::stardust::{error::StardustError, types::token_scheme::SimpleTokenSchemeU64};
+
+/// The [`NativeTokenPackageData`] struct encapsulates all the data necessary to
+/// build a Stardust native token package.
 #[derive(Debug)]
 pub struct NativeTokenPackageData {
     package_name: String,
@@ -39,7 +46,8 @@ impl NativeTokenPackageData {
     }
 }
 
-/// The [`NativeTokenModuleData`] struct encapsulates all the data necessary to build a Stardust native token module.
+/// The [`NativeTokenModuleData`] struct encapsulates all the data necessary to
+/// build a Stardust native token module.
 #[derive(Debug)]
 pub struct NativeTokenModuleData {
     pub foundry_id: FoundryId,
@@ -47,7 +55,7 @@ pub struct NativeTokenModuleData {
     pub otw_name: String,
     pub decimals: u8,
     pub symbol: String,
-    pub circulating_tokens: u64,
+    pub circulating_supply: u64,
     pub maximum_supply: u64,
     pub coin_name: String,
     pub coin_description: String,
@@ -63,7 +71,7 @@ impl NativeTokenModuleData {
         otw_name: impl Into<String>,
         decimals: u8,
         symbol: impl Into<String>,
-        circulating_tokens: u64,
+        circulating_supply: u64,
         maximum_supply: u64,
         coin_name: impl Into<String>,
         coin_description: impl Into<String>,
@@ -76,7 +84,7 @@ impl NativeTokenModuleData {
             otw_name: otw_name.into(),
             decimals,
             symbol: symbol.into(),
-            circulating_tokens,
+            circulating_supply,
             maximum_supply,
             coin_name: coin_name.into(),
             coin_description: coin_description.into(),
@@ -105,7 +113,8 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
                 }
             })?;
 
-        // Derive a valid, lowercase move identifier from the symbol field in the irc30 metadata
+        // Derive a valid, lowercase move identifier from the symbol field in the irc30
+        // metadata
         let identifier = derive_lowercase_identifier(irc_30_metadata.symbol())?;
 
         let decimals = u8::try_from(*irc_30_metadata.decimals()).map_err(|e| {
@@ -115,12 +124,8 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
             }
         })?;
 
-        let maximum_supply_u256 = output.token_scheme().as_simple().maximum_supply();
-        let maximum_supply_u64 = if maximum_supply_u256.bits() > 64 {
-            u64::MAX
-        } else {
-            maximum_supply_u256.as_u64()
-        };
+        let token_scheme_u64: SimpleTokenSchemeU64 =
+            output.token_scheme().as_simple().try_into()?;
 
         let native_token_data = NativeTokenPackageData {
             package_name: identifier.clone(),
@@ -130,9 +135,8 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
                 otw_name: identifier.clone().to_ascii_uppercase(),
                 decimals,
                 symbol: identifier,
-                circulating_tokens: output.token_scheme().as_simple().minted_tokens().as_u64()
-                    - output.token_scheme().as_simple().melted_tokens().as_u64(), // we know that "Melted Tokens must not be greater than Minted Tokens"
-                maximum_supply: maximum_supply_u64,
+                circulating_supply: token_scheme_u64.circulating_supply(),
+                maximum_supply: token_scheme_u64.maximum_supply(),
                 coin_name: irc_30_metadata.name().to_owned(),
                 coin_description: irc_30_metadata.description().clone().unwrap_or_default(),
                 icon_url: irc_30_metadata.url().clone(),
@@ -171,33 +175,31 @@ fn derive_lowercase_identifier(input: &str) -> Result<String, StardustError> {
             })
         }
     } else {
-        // Generate a new valid random identifier if still invalid
-        let mut rng = rand::thread_rng();
-        let gen = rand_regex::Regex::compile(VALID_IDENTIFIER_PATTERN, 100).unwrap();
-        let res: String = rng.sample(&gen);
-        if res.len() > 7 {
-            Ok(res[..7].to_string())
-        } else {
-            Ok(res)
-        }
+        // Generate a new valid random identifier if the identifier is empty.
+        Ok(Alphanumeric.sample_string(&mut rand::thread_rng(), 7))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::stardust::native_token::package_builder;
-    use iota_sdk::types::block::address::AliasAddress;
-    use iota_sdk::types::block::output::feature::MetadataFeature;
-    use iota_sdk::types::block::output::unlock_condition::ImmutableAliasAddressUnlockCondition;
-    use iota_sdk::types::block::output::{
-        AliasId, Feature, FoundryOutputBuilder, SimpleTokenScheme, TokenScheme,
+    use std::ops::{Add, Sub};
+
+    use iota_sdk::{
+        types::block::{
+            address::AliasAddress,
+            output::{
+                feature::MetadataFeature, unlock_condition::ImmutableAliasAddressUnlockCondition,
+                AliasId, Feature, FoundryOutputBuilder, SimpleTokenScheme, TokenScheme,
+            },
+        },
+        U256,
     };
-    use iota_sdk::U256;
 
     use super::*;
+    use crate::stardust::native_token::package_builder;
 
     #[test]
-    fn test_foundry_output_with_default_metadata() -> Result<()> {
+    fn foundry_output_with_default_metadata() -> Result<()> {
         // Step 1: Create a FoundryOutput with an IRC30Metadata feature
         let token_scheme = SimpleTokenScheme::new(
             U256::from(100_000_000),
@@ -232,7 +234,7 @@ mod tests {
     }
 
     #[test]
-    fn test_foundry_output_with_additional_metadata() -> Result<()> {
+    fn foundry_output_with_additional_metadata() -> Result<()> {
         // Step 1: Create a FoundryOutput with an IRC30Metadata feature
         let token_scheme = SimpleTokenScheme::new(
             U256::from(100_000_000),
@@ -271,21 +273,107 @@ mod tests {
     }
 
     #[test]
-    fn test_empty_identifier() {
+    fn foundry_output_with_exceeding_max_supply() -> Result<()> {
+        let minted_tokens = U256::from(u64::MAX).add(1);
+        let melted_tokens = U256::from(1);
+        let maximum_supply = U256::MAX;
+
+        // Step 1: Create a FoundryOutput with an IRC30Metadata feature
+        let token_scheme =
+            SimpleTokenScheme::new(minted_tokens, melted_tokens, maximum_supply).unwrap();
+
+        let irc_30_metadata = Irc30Metadata::new("Dogecoin", "DOGE", 0)
+            .with_description("Much wow")
+            .with_url(Url::parse("https://dogecoin.com").unwrap())
+            .with_logo_url(Url::parse("https://dogecoin.com/logo.png").unwrap())
+            .with_logo("0x54654");
+
+        let alias_id = AliasId::new([0; AliasId::LENGTH]);
+        let builder = FoundryOutputBuilder::new_with_amount(
+            100_000_000_000,
+            1,
+            TokenScheme::Simple(token_scheme),
+        )
+        .add_unlock_condition(ImmutableAliasAddressUnlockCondition::new(
+            AliasAddress::new(alias_id),
+        ))
+        .add_feature(Feature::Metadata(
+            MetadataFeature::new(irc_30_metadata).unwrap(),
+        ));
+        let output = builder.finish().unwrap();
+
+        // Step 2: Convert the FoundryOutput to NativeTokenPackageData
+        let native_token_data = NativeTokenPackageData::try_from(&output)?;
+        assert_eq!(
+            native_token_data.module().circulating_supply,
+            minted_tokens.sub(melted_tokens).as_u64()
+        );
+        assert_eq!(native_token_data.module().maximum_supply, u64::MAX);
+
+        // Step 3: Verify the conversion
+        assert!(package_builder::build_and_compile(native_token_data).is_ok());
+
+        Ok(())
+    }
+
+    #[test]
+    fn foundry_output_with_exceeding_circulating_supply() -> Result<()> {
+        let minted_tokens = U256::from(u64::MAX).add(1);
+        let melted_tokens = U256::from(0);
+        let maximum_supply = U256::MAX;
+
+        // Step 1: Create a FoundryOutput with an IRC30Metadata feature
+        let token_scheme =
+            SimpleTokenScheme::new(minted_tokens, melted_tokens, maximum_supply).unwrap();
+
+        let irc_30_metadata = Irc30Metadata::new("Dogecoin", "DOGE", 0)
+            .with_description("Much wow")
+            .with_url(Url::parse("https://dogecoin.com").unwrap())
+            .with_logo_url(Url::parse("https://dogecoin.com/logo.png").unwrap())
+            .with_logo("0x54654");
+
+        let alias_id = AliasId::new([0; AliasId::LENGTH]);
+        let builder = FoundryOutputBuilder::new_with_amount(
+            100_000_000_000,
+            1,
+            TokenScheme::Simple(token_scheme),
+        )
+        .add_unlock_condition(ImmutableAliasAddressUnlockCondition::new(
+            AliasAddress::new(alias_id),
+        ))
+        .add_feature(Feature::Metadata(
+            MetadataFeature::new(irc_30_metadata).unwrap(),
+        ));
+        let output = builder.finish().unwrap();
+
+        // Step 2: Convert the FoundryOutput to NativeTokenPackageData.
+        let native_token_data = NativeTokenPackageData::try_from(&output)?;
+
+        assert_eq!(native_token_data.module().circulating_supply, u64::MAX);
+        assert_eq!(native_token_data.module().maximum_supply, u64::MAX);
+
+        // Step 3: Verify the conversion
+        assert!(package_builder::build_and_compile(native_token_data).is_ok());
+
+        Ok(())
+    }
+
+    #[test]
+    fn empty_identifier() {
         let identifier = "".to_string();
         let result = derive_lowercase_identifier(&identifier).unwrap();
         assert_eq!(7, result.len());
     }
 
     #[test]
-    fn test_identifier_with_only_invalid_chars() {
+    fn identifier_with_only_invalid_chars() {
         let identifier = "!@#$%^".to_string();
         let result = derive_lowercase_identifier(&identifier).unwrap();
         assert_eq!(7, result.len());
     }
 
     #[test]
-    fn test_identifier_with_only_one_char() {
+    fn identifier_with_only_one_char() {
         let identifier = "a".to_string();
         assert_eq!(
             derive_lowercase_identifier(&identifier).unwrap(),
@@ -294,7 +382,7 @@ mod tests {
     }
 
     #[test]
-    fn test_identifier_with_whitespaces_and_ending_underscore() {
+    fn identifier_with_whitespaces_and_ending_underscore() {
         let identifier = " a bc-d e_".to_string();
         assert_eq!(
             derive_lowercase_identifier(&identifier).unwrap(),
@@ -303,7 +391,7 @@ mod tests {
     }
 
     #[test]
-    fn test_identifier_with_minus() {
+    fn identifier_with_minus() {
         let identifier = "hello-world".to_string();
         assert_eq!(
             derive_lowercase_identifier(&identifier).unwrap(),
@@ -312,7 +400,7 @@ mod tests {
     }
 
     #[test]
-    fn test_identifier_with_multiple_invalid_chars() {
+    fn identifier_with_multiple_invalid_chars() {
         let identifier = "#hello-move_world/token&".to_string();
         assert_eq!(
             derive_lowercase_identifier(&identifier).unwrap(),
@@ -320,7 +408,7 @@ mod tests {
         );
     }
     #[test]
-    fn test_valid_identifier() {
+    fn valid_identifier() {
         let identifier = "valid_identifier".to_string();
         assert_eq!(
             derive_lowercase_identifier(&identifier).unwrap(),

@@ -84,6 +84,13 @@ module.exports = {
                 '@typescript-eslint/consistent-type-imports': ['error'],
                 'import/consistent-type-specifier-style': ['error', 'prefer-top-level'],
                 'import/no-cycle': ['error'],
+                '@typescript-eslint/no-explicit-any': 'off',
+            },
+        },
+        {
+            files: ['sdk/graphql-transport/**/*'],
+            rules: {
+                '@typescript-eslint/no-non-null-asserted-optional-chain': 'off',
             },
         },
         {
@@ -220,13 +227,6 @@ module.exports = {
             },
         },
         {
-            files: ['apps/wallet/src/**/*.test.*', 'apps/wallet/src/**/*.spec.*'],
-            rules: {
-                // Allow any casting in tests:
-                '@typescript-eslint/no-explicit-any': 'off',
-            },
-        },
-        {
             files: ['dapps/kiosk/**/*'],
             rules: {
                 'no-unused-vars': 'off', // or "@typescript-eslint/no-unused-vars": "off",
@@ -261,6 +261,8 @@ module.exports = {
                 // Reset to defaults to allow `Buffer` usage in tests (given they run in Node and do not impact bundle):
                 'no-restricted-globals': ['off'],
                 '@typescript-eslint/ban-types': ['error'],
+                '@typescript-eslint/no-explicit-any': 'off',
+                '@typescript-eslint/no-non-null-asserted-optional-chain': 'off',
             },
         },
         {

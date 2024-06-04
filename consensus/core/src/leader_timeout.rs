@@ -1,16 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use crate::block::Round;
-use crate::context::Context;
-use crate::core::CoreSignalsReceivers;
-use crate::core_thread::CoreThreadDispatcher;
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::oneshot::{Receiver, Sender};
-use tokio::sync::watch;
-use tokio::task::JoinHandle;
-use tokio::time::{sleep_until, Instant};
+use std::{sync::Arc, time::Duration};
+
+use tokio::{
+    sync::{
+        oneshot::{Receiver, Sender},
+        watch,
+    },
+    task::JoinHandle,
+    time::{sleep_until, Instant},
+};
 use tracing::{debug, warn};
+
+use crate::{
+    block::Round, context::Context, core::CoreSignalsReceivers, core_thread::CoreThreadDispatcher,
+};
 
 pub(crate) struct LeaderTimeoutTaskHandle {
     handle: JoinHandle<()>,
@@ -96,20 +100,20 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
-    use std::sync::Arc;
-    use std::time::Duration;
+    use std::{collections::BTreeSet, sync::Arc, time::Duration};
 
     use async_trait::async_trait;
     use consensus_config::Parameters;
     use parking_lot::Mutex;
     use tokio::time::{sleep, Instant};
 
-    use crate::block::{BlockRef, Round, VerifiedBlock};
-    use crate::context::Context;
-    use crate::core::CoreSignals;
-    use crate::core_thread::{CoreError, CoreThreadDispatcher};
-    use crate::leader_timeout::LeaderTimeoutTask;
+    use crate::{
+        block::{BlockRef, Round, VerifiedBlock},
+        context::Context,
+        core::CoreSignals,
+        core_thread::{CoreError, CoreThreadDispatcher},
+        leader_timeout::LeaderTimeoutTask,
+    };
 
     #[derive(Clone, Default)]
     struct MockCoreThreadDispatcher {
@@ -204,8 +208,8 @@ mod tests {
         // spawn the task
         let _handle = LeaderTimeoutTask::start(dispatcher.clone(), &signal_receivers, context);
 
-        // now send some signals with some small delay between them, but not enough so every round
-        // manages to timeout and call the force new block method.
+        // now send some signals with some small delay between them, but not enough so
+        // every round manages to timeout and call the force new block method.
         signals.new_round(13);
         sleep(leader_timeout / 2).await;
         signals.new_round(14);

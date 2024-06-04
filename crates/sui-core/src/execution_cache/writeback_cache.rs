@@ -1,56 +1,54 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! MemoryCache is a cache for the transaction execution which delays writes to the database until
-//! transaction results are certified (i.e. they appear in a certified checkpoint, or an effects cert
-//! is observed by a fullnode). The cache also stores committed data in memory in order to serve
-//! future reads without hitting the database.
+//! MemoryCache is a cache for the transaction execution which delays writes to
+//! the database until transaction results are certified (i.e. they appear in a
+//! certified checkpoint, or an effects cert is observed by a fullnode). The
+//! cache also stores committed data in memory in order to serve future reads
+//! without hitting the database.
 //!
-//! For storing uncommitted transaction outputs, we cannot evict the data at all until it is written
-//! to disk. Committed data not only can be evicted, but it is also unbounded (imagine a stream of
-//! transactions that keep splitting a coin into smaller coins).
+//! For storing uncommitted transaction outputs, we cannot evict the data at all
+//! until it is written to disk. Committed data not only can be evicted, but it
+//! is also unbounded (imagine a stream of transactions that keep splitting a
+//! coin into smaller coins).
 //!
-//! We also want to be able to support negative cache hits (i.e. the case where we can determine an
-//! object does not exist without hitting the database).
+//! We also want to be able to support negative cache hits (i.e. the case where
+//! we can determine an object does not exist without hitting the database).
 //!
-//! To achieve both of these goals, we split the cache data into two pieces, a dirty set and a cached
-//! set. The dirty set has no automatic evictions, data is only removed after being committed. The
-//! cached set is in a bounded-sized cache with automatic evictions. In order to support negative
-//! cache hits, we treat the two halves of the cache as FIFO queue. Newly written (dirty) versions are
-//! inserted to one end of the dirty queue. As versions are committed to disk, they are
-//! removed from the other end of the dirty queue and inserted into the cache queue. The cache queue
-//! is truncated if it exceeds its maximum size, by removing all but the N newest versions.
+//! To achieve both of these goals, we split the cache data into two pieces, a
+//! dirty set and a cached set. The dirty set has no automatic evictions, data
+//! is only removed after being committed. The cached set is in a bounded-sized
+//! cache with automatic evictions. In order to support negative cache hits, we
+//! treat the two halves of the cache as FIFO queue. Newly written (dirty)
+//! versions are inserted to one end of the dirty queue. As versions are
+//! committed to disk, they are removed from the other end of the dirty queue
+//! and inserted into the cache queue. The cache queue is truncated if it
+//! exceeds its maximum size, by removing all but the N newest versions.
 //!
-//! This gives us the property that the sequence of versions in the dirty and cached queues are the
-//! most recent versions of the object, i.e. there can be no "gaps". This allows for the following:
+//! This gives us the property that the sequence of versions in the dirty and
+//! cached queues are the most recent versions of the object, i.e. there can be
+//! no "gaps". This allows for the following:
 //!
-//!   - Negative cache hits: If the queried version is not in memory, but is higher than the smallest
-//!     version in the cached queue, it does not exist in the db either.
-//!   - Bounded reads: When reading the most recent version that is <= some version bound, we can
-//!     correctly satisfy this query from the cache, or determine that we must go to the db.
+//!   - Negative cache hits: If the queried version is not in memory, but is
+//!     higher than the smallest version in the cached queue, it does not exist
+//!     in the db either.
+//!   - Bounded reads: When reading the most recent version that is <= some
+//!     version bound, we can correctly satisfy this query from the cache, or
+//!     determine that we must go to the db.
 //!
-//! Note that at any time, either or both the dirty or the cached queue may be non-existent. There may be no
-//! dirty versions of the objects, in which case there will be no dirty queue. And, the cached queue
-//! may be evicted from the cache, in which case there will be no cached queue. Because only the cached
-//! queue can be evicted (the dirty queue can only become empty by moving versions from it to the cached
-//! queue), the "highest versions" property still holds in all cases.
+//! Note that at any time, either or both the dirty or the cached queue may be
+//! non-existent. There may be no dirty versions of the objects, in which case
+//! there will be no dirty queue. And, the cached queue may be evicted from the
+//! cache, in which case there will be no cached queue. Because only the cached
+//! queue can be evicted (the dirty queue can only become empty by moving
+//! versions from it to the cached queue), the "highest versions" property still
+//! holds in all cases.
 //!
 //! The above design is used for both objects and markers.
 
-use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use crate::authority::authority_store::{ExecutionLockWriteGuard, SuiLockResult};
-use crate::authority::authority_store_pruner::{
-    AuthorityStorePruner, AuthorityStorePruningMetrics, EPOCH_DURATION_MS_FOR_TESTING,
-};
-use crate::authority::authority_store_tables::LiveObject;
-use crate::authority::epoch_start_configuration::{EpochFlag, EpochStartConfiguration};
-use crate::authority::AuthorityStore;
-use crate::checkpoints::CheckpointStore;
-use crate::state_accumulator::AccumulatorStore;
-use crate::transaction_outputs::TransactionOutputs;
+use std::{collections::BTreeSet, hash::Hash, sync::Arc};
 
-use dashmap::mapref::entry::Entry as DashMapEntry;
-use dashmap::DashMap;
+use dashmap::{mapref::entry::Entry as DashMapEntry, DashMap};
 use either::Either;
 use futures::{
     future::{join_all, BoxFuture},
@@ -60,32 +58,43 @@ use moka::sync::Cache as MokaCache;
 use mysten_common::sync::notify_read::NotifyRead;
 use parking_lot::Mutex;
 use prometheus::Registry;
-use std::collections::BTreeSet;
-use std::hash::Hash;
-use std::sync::Arc;
 use sui_config::node::AuthorityStorePruningConfig;
 use sui_macros::fail_point_async;
 use sui_protocol_config::ProtocolVersion;
-use sui_types::accumulator::Accumulator;
-use sui_types::base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData};
-use sui_types::digests::{
-    ObjectDigest, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest,
+use sui_types::{
+    accumulator::Accumulator,
+    base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
+    digests::{ObjectDigest, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
+    effects::{TransactionEffects, TransactionEvents},
+    error::{SuiError, SuiResult, UserInputError},
+    message_envelope::Message,
+    messages_checkpoint::CheckpointSequenceNumber,
+    object::Object,
+    storage::{MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, PackageObject},
+    sui_system_state::{get_sui_system_state, SuiSystemState},
+    transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
-use sui_types::effects::{TransactionEffects, TransactionEvents};
-use sui_types::error::{SuiError, SuiResult, UserInputError};
-use sui_types::message_envelope::Message;
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
-use sui_types::object::Object;
-use sui_types::storage::{MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, PackageObject};
-use sui_types::sui_system_state::{get_sui_system_state, SuiSystemState};
-use sui_types::transaction::{VerifiedSignedTransaction, VerifiedTransaction};
 use tracing::{info, instrument};
 
-use super::ExecutionCacheAPI;
 use super::{
     cached_version_map::CachedVersionMap, implement_passthrough_traits, CheckpointCache,
-    ExecutionCacheCommit, ExecutionCacheMetrics, ExecutionCacheRead, ExecutionCacheReconfigAPI,
-    ExecutionCacheWrite, NotifyReadWrapper, StateSyncAPI,
+    ExecutionCacheAPI, ExecutionCacheCommit, ExecutionCacheMetrics, ExecutionCacheRead,
+    ExecutionCacheReconfigAPI, ExecutionCacheWrite, NotifyReadWrapper, StateSyncAPI,
+};
+use crate::{
+    authority::{
+        authority_per_epoch_store::AuthorityPerEpochStore,
+        authority_store::{ExecutionLockWriteGuard, SuiLockResult},
+        authority_store_pruner::{
+            AuthorityStorePruner, AuthorityStorePruningMetrics, EPOCH_DURATION_MS_FOR_TESTING,
+        },
+        authority_store_tables::LiveObject,
+        epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
+        AuthorityStore,
+    },
+    checkpoints::CheckpointStore,
+    state_accumulator::AccumulatorStore,
+    transaction_outputs::TransactionOutputs,
 };
 
 #[cfg(test)]
@@ -138,21 +147,25 @@ enum CacheResult<T> {
     Miss,
 }
 
-/// UncommitedData stores execution outputs that are not yet written to the db. Entries in this
-/// struct can only be purged after they are committed.
+/// UncommitedData stores execution outputs that are not yet written to the db.
+/// Entries in this struct can only be purged after they are committed.
 struct UncommittedData {
-    /// The object dirty set. All writes go into this table first. After we flush the data to the
-    /// db, the data is removed from this table and inserted into the object_cache.
+    /// The object dirty set. All writes go into this table first. After we
+    /// flush the data to the db, the data is removed from this table and
+    /// inserted into the object_cache.
     ///
-    /// This table may contain both live and dead objects, since we flush both live and dead
-    /// objects to the db in order to support past object queries on fullnodes.
+    /// This table may contain both live and dead objects, since we flush both
+    /// live and dead objects to the db in order to support past object
+    /// queries on fullnodes.
     ///
-    /// Further, we only remove objects in FIFO order, which ensures that the cached
-    /// sequence of objects has no gaps. In other words, if we have versions 4, 8, 13 of
-    /// an object, we can deduce that version 9 does not exist. This also makes child object
-    /// reads efficient. `object_cache` cannot contain a more recent version of an object than
-    /// `objects`, and neither can have any gaps. Therefore if there is any object <= the version
-    /// bound for a child read in objects, it is the correct object to return.
+    /// Further, we only remove objects in FIFO order, which ensures that the
+    /// cached sequence of objects has no gaps. In other words, if we have
+    /// versions 4, 8, 13 of an object, we can deduce that version 9 does
+    /// not exist. This also makes child object reads efficient.
+    /// `object_cache` cannot contain a more recent version of an object than
+    /// `objects`, and neither can have any gaps. Therefore if there is any
+    /// object <= the version bound for a child read in objects, it is the
+    /// correct object to return.
     objects: DashMap<ObjectID, CachedVersionMap<ObjectEntry>>,
 
     // Markers for received objects and deleted shared objects. This contains all of the dirty
@@ -199,7 +212,8 @@ impl UncommittedData {
     }
 }
 
-/// CachedData stores data that has been committed to the db, but is likely to be read soon.
+/// CachedData stores data that has been committed to the db, but is likely to
+/// be read soon.
 struct CachedCommittedData {
     // See module level comment for an explanation of caching strategy.
     object_cache: MokaCache<ObjectID, Arc<Mutex<CachedVersionMap<ObjectEntry>>>>,
@@ -347,9 +361,9 @@ impl WritebackCache {
             .insert(object_key.1, marker_value);
     }
 
-    // lock both the dirty and committed sides of the cache, and then pass the entries to
-    // the callback. Written with the `with` pattern because any other way of doing this
-    // creates lifetime hell.
+    // lock both the dirty and committed sides of the cache, and then pass the
+    // entries to the callback. Written with the `with` pattern because any
+    // other way of doing this creates lifetime hell.
     fn with_locked_cache_entries<K, V, R>(
         dirty_map: &DashMap<K, CachedVersionMap<V>>,
         cached_map: &MokaCache<K, Arc<Mutex<CachedVersionMap<V>>>>,
@@ -490,8 +504,9 @@ impl WritebackCache {
             .write_transaction_outputs(epoch, outputs.clone())
             .await?;
 
-        // Now, remove each piece of committed data from the dirty state and insert it into the cache.
-        // TODO: outputs should have a strong count of 1 so we should be able to move out of it
+        // Now, remove each piece of committed data from the dirty state and insert it
+        // into the cache. TODO: outputs should have a strong count of 1 so we
+        // should be able to move out of it
         let TransactionOutputs {
             transaction,
             effects,
@@ -587,8 +602,9 @@ impl WritebackCache {
     {
         static MAX_VERSIONS: usize = 3;
 
-        // IMPORTANT: lock both the dirty set entry and the cache entry before modifying either.
-        // this ensures that readers cannot see a value temporarily disappear.
+        // IMPORTANT: lock both the dirty set entry and the cache entry before modifying
+        // either. this ensures that readers cannot see a value temporarily
+        // disappear.
         let dirty_entry = dirty.entry(key);
         let cache_entry = cache.entry(key).or_default();
         let mut cache_map = cache_entry.value().lock();
@@ -706,9 +722,9 @@ impl ExecutionCacheRead for WritebackCache {
             return Ok(Some(p));
         }
 
-        // We try the dirty objects cache as well before going to the database. This is necessary
-        // because the package could be evicted from the package cache before it is committed
-        // to the database.
+        // We try the dirty objects cache as well before going to the database. This is
+        // necessary because the package could be evicted from the package cache
+        // before it is committed to the database.
         if let Some(p) = ExecutionCacheRead::get_object(self, package_id)? {
             if p.is_package() {
                 let p = PackageObject::new(p);
@@ -737,17 +753,18 @@ impl ExecutionCacheRead for WritebackCache {
                 assert!(p.is_package());
                 self.packages.insert(*package_id, PackageObject::new(p));
             }
-            // It's possible that a package is not found if it's newly added system package ID
-            // that hasn't got created yet. This should be very very rare though.
+            // It's possible that a package is not found if it's newly added
+            // system package ID that hasn't got created yet. This
+            // should be very very rare though.
         }
     }
 
     // get_object and variants.
     //
-    // TODO: We don't insert objects into the cache after misses because they are usually only
-    // read once. We might want to cache immutable reads (RO shared objects and immutable objects)
-    // If we do this, we must be VERY CAREFUL not to break the contiguous version property
-    // of the cache.
+    // TODO: We don't insert objects into the cache after misses because they are
+    // usually only read once. We might want to cache immutable reads (RO shared
+    // objects and immutable objects) If we do this, we must be VERY CAREFUL not
+    // to break the contiguous version property of the cache.
 
     fn get_object(&self, id: &ObjectID) -> SuiResult<Option<Object>> {
         match self.get_object_by_id_cache_only(id) {
@@ -1083,10 +1100,11 @@ impl ExecutionCacheWrite for WritebackCache {
                 ..
             } = &*tx_outputs;
 
-            // Deletions and wraps must be written first. The reason is that one of the deletes
-            // may be a child object, and if we write the parent object first, a reader may or may
-            // not see the previous version of the child object, instead of the deleted/wrapped
-            // tombstone, which would cause an execution fork
+            // Deletions and wraps must be written first. The reason is that one of the
+            // deletes may be a child object, and if we write the parent object
+            // first, a reader may or may not see the previous version of the
+            // child object, instead of the deleted/wrapped tombstone, which
+            // would cause an execution fork
             for ObjectKey(id, version) in deleted.iter() {
                 self.write_object_entry(id, *version, ObjectEntry::Deleted)
                     .await;
@@ -1103,8 +1121,8 @@ impl ExecutionCacheWrite for WritebackCache {
                     .await;
             }
 
-            // Write children before parents to ensure that readers do not observe a parent object
-            // before its most recent children are visible.
+            // Write children before parents to ensure that readers do not observe a parent
+            // object before its most recent children are visible.
             for (object_id, object) in written.iter() {
                 if object.is_child_object() {
                     self.write_object_entry(object_id, object.version(), object.clone().into())
@@ -1163,11 +1181,12 @@ impl ExecutionCacheWrite for WritebackCache {
 
 /// do_fallback_lookup is a helper function for multi-get operations.
 /// It takes a list of keys and first attempts to look up each key in the cache.
-/// The cache can return a hit, a miss, or a negative hit (if the object is known to not exist).
-/// Any keys that result in a miss are then looked up in the store.
+/// The cache can return a hit, a miss, or a negative hit (if the object is
+/// known to not exist). Any keys that result in a miss are then looked up in
+/// the store.
 ///
-/// The "get from cache" and "get from store" behavior are implemented by the caller and provided
-/// via the get_cached_key and multiget_fallback functions.
+/// The "get from cache" and "get from store" behavior are implemented by the
+/// caller and provided via the get_cached_key and multiget_fallback functions.
 fn do_fallback_lookup<K: Copy, V: Default + Clone>(
     keys: &[K],
     get_cached_key: impl Fn(&K) -> SuiResult<CacheResult<V>>,
@@ -1211,9 +1230,10 @@ impl AccumulatorStore for WritebackCache {
         object_id: &ObjectID,
         version: SequenceNumber,
     ) -> SuiResult<Option<ObjectRef>> {
-        // There is probably a more efficient way to implement this, but since this is only used by
-        // old protocol versions, it is better to do the simple thing that is obviously correct.
-        // In this case we previous version from all sources and choose the highest
+        // There is probably a more efficient way to implement this, but since this is
+        // only used by old protocol versions, it is better to do the simple
+        // thing that is obviously correct. In this case we previous version
+        // from all sources and choose the highest
         let mut candidates = Vec::new();
 
         let check_versions =
@@ -1285,9 +1305,9 @@ impl AccumulatorStore for WritebackCache {
         &self,
         include_wrapped_tombstone: bool,
     ) -> Box<dyn Iterator<Item = LiveObject> + '_> {
-        // The only time it is safe to iterate the live object set is at an epoch boundary,
-        // at which point the db is consistent and the dirty cache is empty. So this does
-        // read the cache
+        // The only time it is safe to iterate the live object set is at an epoch
+        // boundary, at which point the db is consistent and the dirty cache is
+        // empty. So this does read the cache
         self.store.iter_live_object_set(include_wrapped_tombstone)
     }
 }

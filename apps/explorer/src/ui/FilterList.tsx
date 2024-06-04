@@ -9,37 +9,37 @@ import { type ComponentProps } from 'react';
 import { TabsList, Tabs, TabsTrigger } from './Tabs';
 
 export interface FilterListProps<T extends string = string> {
-	options: readonly T[];
-	value: T;
-	disabled?: boolean;
-	size?: ComponentProps<typeof Tabs>['size'];
-	lessSpacing?: boolean;
-	onChange(value: T): void;
+    options: readonly T[];
+    value: T;
+    disabled?: boolean;
+    size?: ComponentProps<typeof Tabs>['size'];
+    lessSpacing?: boolean;
+    onChange(value: T): void;
 }
 
 export function FilterList<T extends string>({
-	options,
-	value,
-	disabled = false,
-	size,
-	lessSpacing,
-	onChange,
+    options,
+    value,
+    disabled = false,
+    size,
+    lessSpacing,
+    onChange,
 }: FilterListProps<T>) {
-	return (
-		<Tabs
-			size={size}
-			value={value}
-			onValueChange={(value) => {
-				onChange(value as T);
-			}}
-		>
-			<TabsList disableBottomBorder gap={lessSpacing ? 3 : 6}>
-				{options.map((option) => (
-					<TabsTrigger disabled={disabled} key={option} value={option}>
-						{option}
-					</TabsTrigger>
-				))}
-			</TabsList>
-		</Tabs>
-	);
+    return (
+        <Tabs
+            size={size}
+            value={value}
+            onValueChange={(value) => {
+                onChange(value as T);
+            }}
+        >
+            <TabsList disableBottomBorder gap={lessSpacing ? 3 : 6}>
+                {options.map((option) => (
+                    <TabsTrigger disabled={disabled} key={option} value={option}>
+                        {option}
+                    </TabsTrigger>
+                ))}
+            </TabsList>
+        </Tabs>
+    );
 }

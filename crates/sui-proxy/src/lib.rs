@@ -13,9 +13,9 @@ pub mod prom_to_mimir;
 pub mod remote_write;
 
 /// var extracts environment variables at runtime with a default fallback value
-/// if a default is not provided, the value is simply an empty string if not found
-/// This function will return the provided default if env::var cannot find the key
-/// or if the key is somehow malformed.
+/// if a default is not provided, the value is simply an empty string if not
+/// found This function will return the provided default if env::var cannot find
+/// the key or if the key is somehow malformed.
 #[macro_export]
 macro_rules! var {
     ($key:expr) => {
@@ -34,22 +34,26 @@ macro_rules! var {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::admin::Labels;
-    use crate::histogram_relay::HistogramRelay;
-    use crate::prom_to_mimir::tests::*;
+    use std::{net::TcpListener, time::Duration};
 
-    use crate::{admin::CertKeyPair, config::RemoteWriteConfig, peers::SuiNodeProvider};
-    use axum::http::{header, StatusCode};
-    use axum::routing::post;
-    use axum::Router;
+    use axum::{
+        http::{header, StatusCode},
+        routing::post,
+        Router,
+    };
     use multiaddr::Multiaddr;
-    use prometheus::Encoder;
-    use prometheus::PROTOBUF_FORMAT;
+    use prometheus::{Encoder, PROTOBUF_FORMAT};
     use protobuf::RepeatedField;
-    use std::net::TcpListener;
-    use std::time::Duration;
     use sui_tls::{CertVerifier, TlsAcceptor};
+
+    use super::*;
+    use crate::{
+        admin::{CertKeyPair, Labels},
+        config::RemoteWriteConfig,
+        histogram_relay::HistogramRelay,
+        peers::SuiNodeProvider,
+        prom_to_mimir::tests::*,
+    };
 
     async fn run_dummy_remote_write(listener: TcpListener) {
         /// i accept everything, send me the trash
@@ -68,10 +72,12 @@ mod tests {
             .unwrap();
     }
 
-    /// axum_acceptor is a basic e2e test that creates a mock remote_write post endpoint and has a simple
-    /// sui-node client that posts data to the proxy using the protobuf format.  The server processes this
-    /// data and sends it to the mock remote_write which accepts everything.  Future work is to make this more
-    /// robust and expand the scope of coverage, probabaly moving this test elsewhere and renaming it.
+    /// axum_acceptor is a basic e2e test that creates a mock remote_write post
+    /// endpoint and has a simple sui-node client that posts data to the
+    /// proxy using the protobuf format.  The server processes this data and
+    /// sends it to the mock remote_write which accepts everything.  Future work
+    /// is to make this more robust and expand the scope of coverage,
+    /// probabaly moving this test elsewhere and renaming it.
     #[tokio::test]
     async fn axum_acceptor() {
         // generate self-signed certificates
@@ -141,7 +147,8 @@ mod tests {
         // Client request is rejected because it isn't in the allowlist
         client.get(&server_url).send().await.unwrap_err();
 
-        // Insert the client's public key into the allowlist and verify the request is successful
+        // Insert the client's public key into the allowlist and verify the request is
+        // successful
         allower.get_mut().write().unwrap().insert(
             client_pub_key.to_owned(),
             peers::SuiPeer {

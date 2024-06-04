@@ -1,37 +1,40 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use crate::certificate_deny_config::CertificateDenyConfig;
-use crate::genesis;
-use crate::object_storage_config::ObjectStoreConfig;
-use crate::p2p::P2pConfig;
-use crate::transaction_deny_config::TransactionDenyConfig;
-use crate::Config;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    net::SocketAddr,
+    num::NonZeroUsize,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+    usize,
+};
+
 use anyhow::Result;
 use narwhal_config::Parameters as ConsensusParameters;
 use once_cell::sync::OnceCell;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use std::collections::{BTreeMap, BTreeSet};
-use std::net::SocketAddr;
-use std::num::NonZeroUsize;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::time::Duration;
-use std::usize;
 use sui_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file};
 use sui_protocol_config::{Chain, SupportedProtocolVersions};
-use sui_types::base_types::{ObjectID, SuiAddress};
-use sui_types::committee::EpochId;
-use sui_types::crypto::AuthorityPublicKeyBytes;
-use sui_types::crypto::KeypairTraits;
-use sui_types::crypto::NetworkKeyPair;
-use sui_types::crypto::SuiKeyPair;
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
-
-use sui_types::crypto::{get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair};
-use sui_types::multiaddr::Multiaddr;
+use sui_types::{
+    base_types::{ObjectID, SuiAddress},
+    committee::EpochId,
+    crypto::{
+        get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes,
+        KeypairTraits, NetworkKeyPair, SuiKeyPair,
+    },
+    messages_checkpoint::CheckpointSequenceNumber,
+    multiaddr::Multiaddr,
+};
 use tracing::info;
+
+use crate::{
+    certificate_deny_config::CertificateDenyConfig, genesis,
+    object_storage_config::ObjectStoreConfig, p2p::P2pConfig,
+    transaction_deny_config::TransactionDenyConfig, Config,
+};
 
 // Default max number of concurrent requests served
 pub const DEFAULT_GRPC_CONCURRENCY_LIMIT: usize = 20000000000;
@@ -97,7 +100,8 @@ pub struct NodeConfig {
     #[serde(default = "default_authority_store_pruning_config")]
     pub authority_store_pruning_config: AuthorityStorePruningConfig,
 
-    /// Size of the broadcast channel used for notifying other systems of end of epoch.
+    /// Size of the broadcast channel used for notifying other systems of end of
+    /// epoch.
     ///
     /// If unspecified, this will default to `128`.
     #[serde(default = "default_end_of_epoch_broadcast_channel_capacity")]
@@ -109,8 +113,9 @@ pub struct NodeConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metrics: Option<MetricsConfig>,
 
-    /// In a `sui-node` binary, this is set to SupportedProtocolVersions::SYSTEM_DEFAULT
-    /// in sui-node/src/main.rs. It is present in the config so that it can be changed by tests in
+    /// In a `sui-node` binary, this is set to
+    /// SupportedProtocolVersions::SYSTEM_DEFAULT in sui-node/src/main.rs.
+    /// It is present in the config so that it can be changed by tests in
     /// order to test protocol upgrades.
     #[serde(skip)]
     pub supported_protocol_versions: Option<SupportedProtocolVersions>,
@@ -355,23 +360,26 @@ pub struct ConsensusConfig {
     pub address: Multiaddr,
     pub db_path: PathBuf,
 
-    /// Optional alternative address preferentially used by a primary to talk to its own worker.
-    /// For example, this could be used to connect to co-located workers over a private LAN address.
+    /// Optional alternative address preferentially used by a primary to talk to
+    /// its own worker. For example, this could be used to connect to
+    /// co-located workers over a private LAN address.
     pub internal_worker_address: Option<Multiaddr>,
 
-    /// Maximum number of pending transactions to submit to consensus, including those
-    /// in submission wait.
-    /// Assuming 10_000 txn tps * 10 sec consensus latency = 100_000 inflight consensus txns,
-    /// Default to 100_000.
+    /// Maximum number of pending transactions to submit to consensus, including
+    /// those in submission wait.
+    /// Assuming 10_000 txn tps * 10 sec consensus latency = 100_000 inflight
+    /// consensus txns, Default to 100_000.
     pub max_pending_transactions: Option<usize>,
 
-    /// When defined caps the calculated submission position to the max_submit_position. Even if the
-    /// is elected to submit from a higher position than this, it will "reset" to the max_submit_position.
+    /// When defined caps the calculated submission position to the
+    /// max_submit_position. Even if the is elected to submit from a higher
+    /// position than this, it will "reset" to the max_submit_position.
     pub max_submit_position: Option<usize>,
 
-    /// The submit delay step to consensus defined in milliseconds. When provided it will
-    /// override the current back off logic otherwise the default backoff logic will be applied based
-    /// on consensus latency estimates.
+    /// The submit delay step to consensus defined in milliseconds. When
+    /// provided it will override the current back off logic otherwise the
+    /// default backoff logic will be applied based on consensus latency
+    /// estimates.
     pub submit_delay_step_override_millis: Option<u64>,
 
     pub narwhal_config: ConsensusParameters,
@@ -412,7 +420,8 @@ pub fn default_consensus_protocol() -> ConsensusProtocol {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct CheckpointExecutorConfig {
-    /// Upper bound on the number of checkpoints that can be concurrently executed
+    /// Upper bound on the number of checkpoints that can be concurrently
+    /// executed
     ///
     /// If unspecified, this will default to `200`
     #[serde(default = "default_checkpoint_execution_max_concurrency")]
@@ -427,7 +436,8 @@ pub struct CheckpointExecutorConfig {
     pub local_execution_timeout_sec: u64,
 
     /// Optional directory used for data ingestion pipeline
-    /// When specified, each executed checkpoint will be saved in a local directory for post processing
+    /// When specified, each executed checkpoint will be saved in a local
+    /// directory for post processing
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub data_ingestion_dir: Option<PathBuf>,
 }
@@ -437,18 +447,19 @@ pub struct CheckpointExecutorConfig {
 pub struct ExpensiveSafetyCheckConfig {
     /// If enabled, at epoch boundary, we will check that the storage
     /// fund balance is always identical to the sum of the storage
-    /// rebate of all live objects, and that the total SUI in the network remains
-    /// the same.
+    /// rebate of all live objects, and that the total SUI in the network
+    /// remains the same.
     #[serde(default)]
     enable_epoch_sui_conservation_check: bool,
 
-    /// If enabled, we will check that the total SUI in all input objects of a tx
-    /// (both the Move part and the storage rebate) matches the total SUI in all
-    /// output objects of the tx + gas fees
+    /// If enabled, we will check that the total SUI in all input objects of a
+    /// tx (both the Move part and the storage rebate) matches the total SUI
+    /// in all output objects of the tx + gas fees
     #[serde(default)]
     enable_deep_per_tx_sui_conservation_check: bool,
 
-    /// Disable epoch SUI conservation check even when we are running in debug mode.
+    /// Disable epoch SUI conservation check even when we are running in debug
+    /// mode.
     #[serde(default)]
     force_disable_epoch_sui_conservation_check: bool,
 
@@ -540,7 +551,8 @@ pub struct AuthorityStorePruningConfig {
     /// number of the latest epoch dbs to retain
     #[serde(default = "default_num_latest_epoch_dbs_to_retain")]
     pub num_latest_epoch_dbs_to_retain: usize,
-    /// time interval used by the pruner to determine whether there are any epoch DBs to remove
+    /// time interval used by the pruner to determine whether there are any
+    /// epoch DBs to remove
     #[serde(default = "default_epoch_db_pruning_period_secs")]
     pub epoch_db_pruning_period_secs: u64,
     /// number of epochs to keep the latest version of objects for.
@@ -552,21 +564,25 @@ pub struct AuthorityStorePruningConfig {
     /// pruner's runtime interval used for aggressive mode
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pruning_run_delay_seconds: Option<u64>,
-    /// maximum number of checkpoints in the pruning batch. Can be adjusted to increase performance
+    /// maximum number of checkpoints in the pruning batch. Can be adjusted to
+    /// increase performance
     #[serde(default = "default_max_checkpoints_in_batch")]
     pub max_checkpoints_in_batch: usize,
     /// maximum number of transaction in the pruning batch
     #[serde(default = "default_max_transactions_in_batch")]
     pub max_transactions_in_batch: usize,
-    /// enables periodic background compaction for old SST files whose last modified time is
-    /// older than `periodic_compaction_threshold_days` days.
-    /// That ensures that all sst files eventually go through the compaction process
+    /// enables periodic background compaction for old SST files whose last
+    /// modified time is older than `periodic_compaction_threshold_days`
+    /// days. That ensures that all sst files eventually go through the
+    /// compaction process
     #[serde(skip_serializing_if = "Option::is_none")]
     pub periodic_compaction_threshold_days: Option<usize>,
-    /// number of epochs to keep the latest version of transactions and effects for
+    /// number of epochs to keep the latest version of transactions and effects
+    /// for
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_epochs_to_retain_for_checkpoints: Option<u64>,
-    /// disables object tombstone pruning. We don't serialize it if it is the default value, false.
+    /// disables object tombstone pruning. We don't serialize it if it is the
+    /// default value, false.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub killswitch_tombstone_pruning: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -840,7 +856,8 @@ enum GenesisLocation {
     },
 }
 
-/// Wrapper struct for SuiKeyPair that can be deserialized from a file path. Used by network, worker, and account keypair.
+/// Wrapper struct for SuiKeyPair that can be deserialized from a file path.
+/// Used by network, worker, and account keypair.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct KeyPairWithPath {
     #[serde(flatten)]
@@ -868,7 +885,8 @@ impl KeyPairWithPath {
     pub fn new(kp: SuiKeyPair) -> Self {
         let cell: OnceCell<Arc<SuiKeyPair>> = OnceCell::new();
         let arc_kp = Arc::new(kp);
-        // OK to unwrap panic because authority should not start without all keypairs loaded.
+        // OK to unwrap panic because authority should not start without all keypairs
+        // loaded.
         cell.set(arc_kp.clone()).expect("Failed to set keypair");
         Self {
             location: KeyPairLocation::InPlace { value: arc_kp },
@@ -878,7 +896,8 @@ impl KeyPairWithPath {
 
     pub fn new_from_path(path: PathBuf) -> Self {
         let cell: OnceCell<Arc<SuiKeyPair>> = OnceCell::new();
-        // OK to unwrap panic because authority should not start without all keypairs loaded.
+        // OK to unwrap panic because authority should not start without all keypairs
+        // loaded.
         cell.set(Arc::new(read_keypair_from_file(&path).unwrap_or_else(
             |e| panic!("Invalid keypair file at path {:?}: {e}", &path),
         )))
@@ -894,7 +913,8 @@ impl KeyPairWithPath {
             .get_or_init(|| match &self.location {
                 KeyPairLocation::InPlace { value } => value.clone(),
                 KeyPairLocation::File { path } => {
-                    // OK to unwrap panic because authority should not start without all keypairs loaded.
+                    // OK to unwrap panic because authority should not start without all keypairs
+                    // loaded.
                     Arc::new(
                         read_keypair_from_file(path).unwrap_or_else(|e| {
                             panic!("Invalid keypair file at path {:?}: {e}", path)
@@ -906,7 +926,8 @@ impl KeyPairWithPath {
     }
 }
 
-/// Wrapper struct for AuthorityKeyPair that can be deserialized from a file path.
+/// Wrapper struct for AuthorityKeyPair that can be deserialized from a file
+/// path.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct AuthorityKeyPairWithPath {
     #[serde(flatten)]
@@ -928,7 +949,8 @@ impl AuthorityKeyPairWithPath {
     pub fn new(kp: AuthorityKeyPair) -> Self {
         let cell: OnceCell<Arc<AuthorityKeyPair>> = OnceCell::new();
         let arc_kp = Arc::new(kp);
-        // OK to unwrap panic because authority should not start without all keypairs loaded.
+        // OK to unwrap panic because authority should not start without all keypairs
+        // loaded.
         cell.set(arc_kp.clone())
             .expect("Failed to set authority keypair");
         Self {
@@ -939,7 +961,8 @@ impl AuthorityKeyPairWithPath {
 
     pub fn new_from_path(path: PathBuf) -> Self {
         let cell: OnceCell<Arc<AuthorityKeyPair>> = OnceCell::new();
-        // OK to unwrap panic because authority should not start without all keypairs loaded.
+        // OK to unwrap panic because authority should not start without all keypairs
+        // loaded.
         cell.set(Arc::new(
             read_authority_keypair_from_file(&path)
                 .unwrap_or_else(|_| panic!("Invalid authority keypair file at path {:?}", &path)),
@@ -956,7 +979,8 @@ impl AuthorityKeyPairWithPath {
             .get_or_init(|| match &self.location {
                 AuthorityKeyPairLocation::InPlace { value } => value.clone(),
                 AuthorityKeyPairLocation::File { path } => {
-                    // OK to unwrap panic because authority should not start without all keypairs loaded.
+                    // OK to unwrap panic because authority should not start without all keypairs
+                    // loaded.
                     Arc::new(
                         read_authority_keypair_from_file(path).unwrap_or_else(|_| {
                             panic!("Invalid authority keypair file {:?}", &path)
@@ -1045,7 +1069,8 @@ mod tests {
 }
 
 // RunWithRange is used to specify the ending epoch/checkpoint to process.
-// this is intended for use with disaster recovery debugging and verification workflows, never in normal operations
+// this is intended for use with disaster recovery debugging and verification
+// workflows, never in normal operations
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum RunWithRange {
     Epoch(EpochId),

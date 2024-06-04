@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use crate::{consumer::ProtobufDecoder, peers::SuiNodeProvider};
+use std::sync::Arc;
+
 use axum::{
     async_trait,
     body::Bytes,
@@ -15,9 +16,10 @@ use bytes::Buf;
 use hyper::header::CONTENT_ENCODING;
 use once_cell::sync::Lazy;
 use prometheus::{proto::MetricFamily, register_counter_vec, CounterVec};
-use std::sync::Arc;
 use sui_tls::TlsConnectionInfo;
 use tracing::error;
+
+use crate::{consumer::ProtobufDecoder, peers::SuiNodeProvider};
 
 static MIDDLEWARE_OPS: Lazy<CounterVec> = Lazy::new(|| {
     register_counter_vec!(

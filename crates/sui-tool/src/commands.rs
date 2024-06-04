@@ -1,6 +1,28 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{env, path::PathBuf};
+
+use anyhow::Result;
+use clap::*;
+use fastcrypto::encoding::Encoding;
+use sui_archival::{read_manifest_as_json, write_manifest_from_json};
+use sui_config::{
+    genesis::Genesis,
+    object_storage_config::{ObjectStoreConfig, ObjectStoreType},
+    Config,
+};
+use sui_core::{authority_aggregator::AuthorityAggregatorBuilder, authority_client::AuthorityAPI};
+use sui_protocol_config::Chain;
+use sui_replay::{execute_replay_command, ReplayToolCommand};
+use sui_types::{
+    base_types::*,
+    messages_checkpoint::{CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber},
+    object::Owner,
+    transaction::{SenderSignedData, Transaction},
+};
+use telemetry_subscribers::TracingHandle;
+
 use crate::{
     check_completed_snapshot,
     db_tool::{execute_db_tool_command, print_db_all_tables, DbToolCommand},
@@ -9,27 +31,6 @@ use crate::{
     restore_from_db_checkpoint, verify_archive, verify_archive_by_checksum, ConciseObjectOutput,
     GroupedObjectOutput, VerboseObjectOutput,
 };
-use anyhow::Result;
-use std::env;
-use std::path::PathBuf;
-use sui_config::genesis::Genesis;
-use sui_core::authority_client::AuthorityAPI;
-use sui_protocol_config::Chain;
-use sui_replay::{execute_replay_command, ReplayToolCommand};
-use telemetry_subscribers::TracingHandle;
-
-use sui_types::{base_types::*, object::Owner};
-
-use clap::*;
-use fastcrypto::encoding::Encoding;
-use sui_archival::{read_manifest_as_json, write_manifest_from_json};
-use sui_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-use sui_config::Config;
-use sui_core::authority_aggregator::AuthorityAggregatorBuilder;
-use sui_types::messages_checkpoint::{
-    CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber,
-};
-use sui_types::transaction::{SenderSignedData, Transaction};
 
 #[derive(Parser, Clone, ValueEnum)]
 pub enum Verbosity {
@@ -89,12 +90,12 @@ pub enum ToolCommand {
 
         /// Concise mode groups responses by results.
         /// prints tabular output suitable for processing with unix tools. For
-        /// instance, to quickly check that all validators agree on the history of an object:
-        /// ```text
-        /// $ sui-tool fetch-object --id 0x260efde76ebccf57f4c5e951157f5c361cde822c \
-        ///      --genesis $HOME/.sui/sui_config/genesis.blob \
-        ///      --verbosity concise --concise-no-header
-        /// ```
+        /// instance, to quickly check that all validators agree on the history
+        /// of an object: ```text
+        /// $ sui-tool fetch-object --id
+        /// 0x260efde76ebccf57f4c5e951157f5c361cde822c \      --genesis
+        /// $HOME/.sui/sui_config/genesis.blob \      --verbosity
+        /// concise --concise-no-header ```
         #[arg(
             value_enum,
             long = "verbosity",
@@ -186,23 +187,25 @@ pub enum ToolCommand {
         max_content_length: usize,
     },
 
-    /// Download all packages to the local filesystem from an indexer database. Each package gets
-    /// its own sub-directory, named for its ID on-chain, containing two metadata files
-    /// (linkage.json and origins.json) as well as a file for every module it contains. Each module
-    /// file is named for its module name, with a .mv suffix, and contains Move bytecode (suitable
-    /// for passing into a disassembler).
+    /// Download all packages to the local filesystem from an indexer database.
+    /// Each package gets its own sub-directory, named for its ID on-chain,
+    /// containing two metadata files (linkage.json and origins.json) as
+    /// well as a file for every module it contains. Each module
+    /// file is named for its module name, with a .mv suffix, and contains Move
+    /// bytecode (suitable for passing into a disassembler).
     #[command(name = "dump-packages")]
     DumpPackages {
         /// Connection information for the Indexer's Postgres DB.
         #[clap(long, short)]
         db_url: String,
 
-        /// Path to a non-existent directory that can be created and filled with package information.
+        /// Path to a non-existent directory that can be created and filled with
+        /// package information.
         #[clap(long, short)]
         output_dir: PathBuf,
 
-        /// If false (default), log level will be overridden to "off", and output will be reduced to
-        /// necessary status information.
+        /// If false (default), log level will be overridden to "off", and
+        /// output will be reduced to necessary status information.
         #[clap(short, long = "verbose")]
         verbose: bool,
     },
@@ -225,8 +228,9 @@ pub enum ToolCommand {
         genesis: PathBuf,
     },
 
-    /// Fetch authenticated checkpoint information at a specific sequence number.
-    /// If sequence number is not specified, get the latest authenticated checkpoint.
+    /// Fetch authenticated checkpoint information at a specific sequence
+    /// number. If sequence number is not specified, get the latest
+    /// authenticated checkpoint.
     #[command(name = "fetch-checkpoint")]
     FetchCheckpoint {
         // At least one of genesis or fullnode_rpc_url must be provided
@@ -311,8 +315,8 @@ pub enum ToolCommand {
     },
 
     // Restore from formal (slim, DB agnostic) snapshot. Note that this is only supported
-    /// for protocol versions supporting `commit_root_state_digest`. For mainnet, this is
-    /// epoch 20+, and for testnet this is epoch 12+
+    /// for protocol versions supporting `commit_root_state_digest`. For
+    /// mainnet, this is epoch 20+, and for testnet this is epoch 12+
     #[clap(
         name = "download-formal-snapshot",
         about = "Downloads formal database snapshot via cloud object store, outputs to local disk"
@@ -891,8 +895,8 @@ impl ToolCommand {
                                 }
                             } else {
                                 panic!(
-                                "--snapshot-path must be specified for --snapshot-bucket-type=file"
-                            );
+                                    "--snapshot-path must be specified for --snapshot-bucket-type=file"
+                                );
                             }
                         }
                     }

@@ -1,15 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use super::governance_api::GovernanceReadApi;
-use crate::indexer_reader::IndexerReader;
 use async_trait::async_trait;
 use move_core_types::language_storage::StructTag;
 use sui_json_rpc::transaction_builder_api::TransactionBuilderApi as SuiTransactionBuilderApi;
 use sui_json_rpc_types::{SuiObjectDataFilter, SuiObjectDataOptions, SuiObjectResponse};
 use sui_transaction_builder::DataReader;
-use sui_types::base_types::{ObjectID, ObjectInfo, SuiAddress};
-use sui_types::object::Object;
+use sui_types::{
+    base_types::{ObjectID, ObjectInfo, SuiAddress},
+    object::Object,
+};
+
+use super::governance_api::GovernanceReadApi;
+use crate::indexer_reader::IndexerReader;
 
 pub(crate) struct TransactionBuilderApi {
     inner: IndexerReader,

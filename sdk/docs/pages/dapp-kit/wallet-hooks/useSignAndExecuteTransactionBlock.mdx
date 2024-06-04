@@ -7,47 +7,47 @@ transaction block with their wallet.
 
 ```ts
 import {
-	ConnectButton,
-	useCurrentAccount,
-	useSignAndExecuteTransactionBlock,
+    ConnectButton,
+    useCurrentAccount,
+    useSignAndExecuteTransactionBlock,
 } from '@mysten/dapp-kit';
 import { useState } from 'react';
 
 function MyComponent() {
-	const { mutate: signAndExecuteTransactionBlock } = useSignAndExecuteTransactionBlock();
-	const [digest, setDigest] = useState('');
-	const currentAccount = useCurrentAccount();
+    const { mutate: signAndExecuteTransactionBlock } = useSignAndExecuteTransactionBlock();
+    const [digest, setDigest] = useState('');
+    const currentAccount = useCurrentAccount();
 
-	return (
-		<div style={{ padding: 20 }}>
-			<ConnectButton />
-			{currentAccount && (
-				<>
-					<div>
-						<button
-							onClick={() => {
-								signAndExecuteTransactionBlock(
-									{
-										transactionBlock: new TransactionBlock(),
-										chain: 'sui:devnet',
-									},
-									{
-										onSuccess: (result) => {
-											console.log('executed transaction block', result);
-											setDigest(result.digest);
-										},
-									},
-								);
-							}}
-						>
-							Sign and execute transaction block
-						</button>
-					</div>
-					<div>Digest: {digest}</div>
-				</>
-			)}
-		</div>
-	);
+    return (
+        <div style={{ padding: 20 }}>
+            <ConnectButton />
+            {currentAccount && (
+                <>
+                    <div>
+                        <button
+                            onClick={() => {
+                                signAndExecuteTransactionBlock(
+                                    {
+                                        transactionBlock: new TransactionBlock(),
+                                        chain: 'sui:devnet',
+                                    },
+                                    {
+                                        onSuccess: (result) => {
+                                            console.log('executed transaction block', result);
+                                            setDigest(result.digest);
+                                        },
+                                    },
+                                );
+                            }}
+                        >
+                            Sign and execute transaction block
+                        </button>
+                    </div>
+                    <div>Digest: {digest}</div>
+                </>
+            )}
+        </div>
+    );
 }
 ```
 
@@ -57,8 +57,8 @@ function MyComponent() {
 
 ## Arguments
 
-- `transactionBlock`: The transaction block to sign and execute.
-- `chain`: (optional) The chain identifier the transaction block should be signed for.
+-   `transactionBlock`: The transaction block to sign and execute.
+-   `chain`: (optional) The chain identifier the transaction block should be signed for.
 
 In addition to these options, you can also pass any options that the
 [SuiClient.signAndExecuteTransactionBlock](http://localhost:3000/typescript/sui-client#signandexecutetransactionblock)

@@ -3,23 +3,27 @@
 
 use std::sync::Arc;
 
-use axum::extract::Json;
-use axum::extract::State;
+use axum::extract::{Json, State};
 use futures::StreamExt;
 use hyper::HeaderMap;
-use jsonrpsee::core::server::helpers::BoundedSubscriptions;
-use jsonrpsee::core::server::helpers::MethodResponse;
-use jsonrpsee::core::server::helpers::MethodSink;
-use jsonrpsee::core::server::rpc_module::MethodKind;
-use jsonrpsee::server::logger::{self, TransportProtocol};
-use jsonrpsee::server::RandomIntegerIdProvider;
-use jsonrpsee::types::error::{ErrorCode, BATCHES_NOT_SUPPORTED_CODE, BATCHES_NOT_SUPPORTED_MSG};
-use jsonrpsee::types::{ErrorObject, Id, InvalidRequest, Params, Request};
-use jsonrpsee::{core::server::rpc_module::Methods, server::logger::Logger};
+use jsonrpsee::{
+    core::server::{
+        helpers::{BoundedSubscriptions, MethodResponse, MethodSink},
+        rpc_module::{MethodKind, Methods},
+    },
+    server::{
+        logger::{self, Logger, TransportProtocol},
+        RandomIntegerIdProvider,
+    },
+    types::{
+        error::{ErrorCode, BATCHES_NOT_SUPPORTED_CODE, BATCHES_NOT_SUPPORTED_MSG},
+        ErrorObject, Id, InvalidRequest, Params, Request,
+    },
+};
 use serde_json::value::RawValue;
+use sui_json_rpc_api::CLIENT_TARGET_API_VERSION_HEADER;
 
 use crate::routing_layer::RpcRouter;
-use sui_json_rpc_api::CLIENT_TARGET_API_VERSION_HEADER;
 
 pub const MAX_RESPONSE_SIZE: u32 = 2 << 30;
 
@@ -203,8 +207,8 @@ async fn process_request<L: Logger>(
     response
 }
 
-/// Figure out if this is a sufficiently complete request that we can extract an [`Id`] out of, or just plain
-/// unparsable garbage.
+/// Figure out if this is a sufficiently complete request that we can extract an
+/// [`Id`] out of, or just plain unparsable garbage.
 pub fn prepare_error(data: &str) -> (Id<'_>, ErrorCode) {
     match serde_json::from_str::<InvalidRequest>(data) {
         Ok(InvalidRequest { id }) => (id, ErrorCode::InvalidRequest),
@@ -254,7 +258,8 @@ pub mod ws {
 
     // A WebSocket handler that echos any message it receives.
     //
-    // This one we'll be integration testing so it can be written in the regular way.
+    // This one we'll be integration testing so it can be written in the regular
+    // way.
     pub async fn ws_json_rpc_upgrade<L: Logger>(
         ws: WebSocketUpgrade,
         State(service): State<JsonRpcService<L>>,

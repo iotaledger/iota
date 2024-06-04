@@ -1,19 +1,21 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::consistency::ConsistentIndexCursor;
-use crate::context_data::db_data_provider::PgManager;
-use crate::types::cursor::{JsonCursor, Page};
-use async_graphql::connection::{Connection, CursorType, Edge};
-
-use super::big_int::BigInt;
-use super::move_object::MoveObject;
-use super::object::ObjectLookupKey;
-use super::sui_address::SuiAddress;
-use super::validator_credentials::ValidatorCredentials;
-use super::{address::Address, base64::Base64};
-use async_graphql::*;
+use async_graphql::{
+    connection::{Connection, CursorType, Edge},
+    *,
+};
 use sui_types::sui_system_state::sui_system_state_summary::SuiValidatorSummary as NativeSuiValidatorSummary;
+
+use super::{
+    address::Address, base64::Base64, big_int::BigInt, move_object::MoveObject,
+    object::ObjectLookupKey, sui_address::SuiAddress, validator_credentials::ValidatorCredentials,
+};
+use crate::{
+    consistency::ConsistentIndexCursor,
+    context_data::db_data_provider::PgManager,
+    types::cursor::{JsonCursor, Page},
+};
 
 #[derive(Clone, Debug)]
 pub(crate) struct Validator {
@@ -36,7 +38,8 @@ impl Validator {
         }
     }
 
-    /// Validator's set of credentials such as public keys, network addresses and others.
+    /// Validator's set of credentials such as public keys, network addresses
+    /// and others.
     async fn credentials(&self) -> Option<ValidatorCredentials> {
         let v = &self.validator_summary;
         let credentials = ValidatorCredentials {
@@ -92,8 +95,9 @@ impl Validator {
     }
 
     /// The validator's current valid `Cap` object. Validators can delegate
-    /// the operation ability to another address. The address holding this `Cap` object
-    /// can then update the reference gas price and tallying rule on behalf of the validator.
+    /// the operation ability to another address. The address holding this `Cap`
+    /// object can then update the reference gas price and tallying rule on
+    /// behalf of the validator.
     async fn operation_cap(&self, ctx: &Context<'_>) -> Result<Option<MoveObject>> {
         MoveObject::query(
             ctx.data_unchecked(),
@@ -104,8 +108,8 @@ impl Validator {
         .extend()
     }
 
-    /// The validator's current staking pool object, used to track the amount of stake
-    /// and to compound staking rewards.
+    /// The validator's current staking pool object, used to track the amount of
+    /// stake and to compound staking rewards.
     async fn staking_pool(&self, ctx: &Context<'_>) -> Result<Option<MoveObject>> {
         MoveObject::query(
             ctx.data_unchecked(),
@@ -116,8 +120,9 @@ impl Validator {
         .extend()
     }
 
-    /// The validator's current exchange object. The exchange rate is used to determine
-    /// the amount of SUI tokens that each past SUI staker can withdraw in the future.
+    /// The validator's current exchange object. The exchange rate is used to
+    /// determine the amount of SUI tokens that each past SUI staker can
+    /// withdraw in the future.
     async fn exchange_rates(&self, ctx: &Context<'_>) -> Result<Option<MoveObject>> {
         MoveObject::query(
             ctx.data_unchecked(),
@@ -160,21 +165,24 @@ impl Validator {
         Some(BigInt::from(self.validator_summary.pending_stake))
     }
 
-    /// Pending stake withdrawn during the current epoch, emptied at epoch boundaries.
+    /// Pending stake withdrawn during the current epoch, emptied at epoch
+    /// boundaries.
     async fn pending_total_sui_withdraw(&self) -> Option<BigInt> {
         Some(BigInt::from(
             self.validator_summary.pending_total_sui_withdraw,
         ))
     }
 
-    /// Pending pool token withdrawn during the current epoch, emptied at epoch boundaries.
+    /// Pending pool token withdrawn during the current epoch, emptied at epoch
+    /// boundaries.
     async fn pending_pool_token_withdraw(&self) -> Option<BigInt> {
         Some(BigInt::from(
             self.validator_summary.pending_pool_token_withdraw,
         ))
     }
 
-    /// The voting power of this validator in basis points (e.g., 100 = 1% voting power).
+    /// The voting power of this validator in basis points (e.g., 100 = 1%
+    /// voting power).
     async fn voting_power(&self) -> Option<u64> {
         Some(self.validator_summary.voting_power)
     }

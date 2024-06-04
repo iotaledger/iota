@@ -1,16 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use super::node::RuntimeType;
+use std::{
+    sync::{Arc, Weak},
+    thread,
+};
+
 use futures::FutureExt;
-use std::sync::{Arc, Weak};
-use std::thread;
 use sui_config::NodeConfig;
 use sui_node::{SuiNode, SuiNodeHandle};
-use sui_types::base_types::ConciseableName;
-use sui_types::crypto::{AuthorityPublicKeyBytes, KeypairTraits};
+use sui_types::{
+    base_types::ConciseableName,
+    crypto::{AuthorityPublicKeyBytes, KeypairTraits},
+};
 use telemetry_subscribers::get_global_telemetry_config;
 use tracing::{info, trace};
+
+use super::node::RuntimeType;
 
 #[derive(Debug)]
 pub(crate) struct Container {
@@ -19,7 +25,8 @@ pub(crate) struct Container {
     node: Weak<SuiNode>,
 }
 
-/// When dropped, stop and wait for the node running in this Container to completely shutdown.
+/// When dropped, stop and wait for the node running in this Container to
+/// completely shutdown.
 impl Drop for Container {
     fn drop(&mut self) {
         trace!("dropping Container");
@@ -119,10 +126,9 @@ impl Container {
         Some(SuiNodeHandle::new(self.node.upgrade()?))
     }
 
-    /// Check to see that the Node is still alive by checking if the receiving side of the
-    /// `cancel_sender` has been dropped.
-    ///
-    //TODO When we move to rust 1.61 we should also use
+    /// Check to see that the Node is still alive by checking if the receiving
+    /// side of the `cancel_sender` has been dropped.
+    // TODO When we move to rust 1.61 we should also use
     // https://doc.rust-lang.org/stable/std/thread/struct.JoinHandle.html#method.is_finished
     // in order to check if the thread has finished.
     pub fn is_alive(&self) -> bool {

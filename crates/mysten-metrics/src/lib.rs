@@ -1,21 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    future::Future,
+    net::SocketAddr,
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+    time::Instant,
+};
+
 use axum::{extract::Extension, http::StatusCode, routing::get, Router};
 use dashmap::DashMap;
-use std::future::Future;
-use std::net::SocketAddr;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::{Context, Poll};
-use std::time::Instant;
-
 use once_cell::sync::OnceCell;
 use prometheus::{register_int_gauge_vec_with_registry, IntGaugeVec, Registry, TextEncoder};
+pub use scopeguard;
 use tap::TapFallible;
 use tracing::warn;
-
-pub use scopeguard;
 use uuid::Uuid;
 
 mod guards;
@@ -100,9 +101,7 @@ pub fn get_metrics() -> Option<&'static Metrics> {
 
 #[macro_export]
 macro_rules! monitored_future {
-    ($fut: expr) => {{
-        monitored_future!(futures, $fut, "", INFO, false)
-    }};
+    ($fut: expr) => {{ monitored_future!(futures, $fut, "", INFO, false) }};
 
     ($metric: ident, $fut: expr, $name: expr, $logging_level: ident, $logging_enabled: expr) => {{
         let location: &str = if $name.is_empty() {
@@ -201,13 +200,15 @@ impl Drop for MonitoredScopeGuard {
 }
 
 /// This function creates a named scoped object, that keeps track of
-/// - the total iterations where the scope is called in the `monitored_scope_iterations` metric.
-/// - and the total duration of the scope in the `monitored_scope_duration_ns` metric.
+/// - the total iterations where the scope is called in the
+///   `monitored_scope_iterations` metric.
+/// - and the total duration of the scope in the `monitored_scope_duration_ns`
+///   metric.
 ///
-/// The monitored scope should be single threaded, e.g. the scoped object encompass the lifetime of
-/// a select loop or guarded by mutex.
-/// Then the rate of `monitored_scope_duration_ns`, converted to the unit of sec / sec, would be
-/// how full the single threaded scope is running.
+/// The monitored scope should be single threaded, e.g. the scoped object
+/// encompass the lifetime of a select loop or guarded by mutex.
+/// Then the rate of `monitored_scope_duration_ns`, converted to the unit of sec
+/// / sec, would be how full the single threaded scope is running.
 pub fn monitored_scope(name: &'static str) -> Option<MonitoredScopeGuard> {
     let metrics = get_metrics();
     if let Some(m) = metrics {
@@ -251,9 +252,9 @@ impl<F: Future> Future for MonitoredScopeFuture<F> {
 
 pub type RegistryID = Uuid;
 
-/// A service to manage the prometheus registries. This service allow us to create
-/// a new Registry on demand and keep it accessible for processing/polling.
-/// The service can be freely cloned/shared across threads.
+/// A service to manage the prometheus registries. This service allow us to
+/// create a new Registry on demand and keep it accessible for
+/// processing/polling. The service can be freely cloned/shared across threads.
 #[derive(Clone)]
 pub struct RegistryService {
     // Holds a Registry that is supposed to be used
@@ -262,8 +263,8 @@ pub struct RegistryService {
 }
 
 impl RegistryService {
-    // Creates a new registry service and also adds the main/default registry that is supposed to
-    // be preserved and never get removed
+    // Creates a new registry service and also adds the main/default registry that
+    // is supposed to be preserved and never get removed
     pub fn new(default_registry: Registry) -> Self {
         Self {
             default_registry,
@@ -277,10 +278,11 @@ impl RegistryService {
         self.default_registry.clone()
     }
 
-    // Adds a new registry to the service. The corresponding RegistryID is returned so can later be
-    // used for removing the Registry. Method panics if we try to insert a registry with the same id.
-    // As this can be quite serious for the operation of the node we don't want to accidentally
-    // swap an existing registry - we expected a removal to happen explicitly.
+    // Adds a new registry to the service. The corresponding RegistryID is returned
+    // so can later be used for removing the Registry. Method panics if we try
+    // to insert a registry with the same id. As this can be quite serious for
+    // the operation of the node we don't want to accidentally swap an existing
+    // registry - we expected a removal to happen explicitly.
     pub fn add(&self, registry: Registry) -> RegistryID {
         let registry_id = Uuid::new_v4();
         if self
@@ -294,8 +296,8 @@ impl RegistryService {
         registry_id
     }
 
-    // Removes the registry from the service. If Registry existed then this method returns true,
-    // otherwise false is returned instead.
+    // Removes the registry from the service. If Registry existed then this method
+    // returns true, otherwise false is returned instead.
     pub fn remove(&self, registry_id: RegistryID) -> bool {
         self.registries_by_id.remove(&registry_id).is_some()
     }
@@ -318,11 +320,14 @@ impl RegistryService {
     }
 }
 
-/// Create a metric that measures the uptime from when this metric was constructed.
-/// The metric is labeled with:
-/// - 'process': the process type, differentiating between validator and fullnode
-/// - 'version': binary version, generally be of the format: 'semver-gitrevision'
-/// - 'chain_identifier': the identifier of the network which this process is part of
+/// Create a metric that measures the uptime from when this metric was
+/// constructed. The metric is labeled with:
+/// - 'process': the process type, differentiating between validator and
+///   fullnode
+/// - 'version': binary version, generally be of the format:
+///   'semver-gitrevision'
+/// - 'chain_identifier': the identifier of the network which this process is
+///   part of
 pub fn uptime_metric(
     process: &str,
     version: &'static str,
@@ -350,15 +355,16 @@ pub const METRICS_ROUTE: &str = "/metrics";
 
 // Creates a new http server that has as a sole purpose to expose
 // and endpoint that prometheus agent can use to poll for the metrics.
-// A RegistryService is returned that can be used to get access in prometheus Registries.
+// A RegistryService is returned that can be used to get access in prometheus
+// Registries.
 pub fn start_prometheus_server(addr: SocketAddr) -> RegistryService {
     let registry = Registry::new();
 
     let registry_service = RegistryService::new(registry);
 
     if cfg!(msim) {
-        // prometheus uses difficult-to-support features such as TcpSocket::from_raw_fd(), so we
-        // can't yet run it in the simulator.
+        // prometheus uses difficult-to-support features such as
+        // TcpSocket::from_raw_fd(), so we can't yet run it in the simulator.
         warn!("not starting prometheus server in simulator");
         return registry_service;
     }
@@ -392,9 +398,9 @@ pub async fn metrics(
 
 #[cfg(test)]
 mod tests {
+    use prometheus::{IntCounter, Registry};
+
     use crate::RegistryService;
-    use prometheus::IntCounter;
-    use prometheus::Registry;
 
     #[test]
     fn registry_service() {

@@ -1,24 +1,27 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::HashMap, sync::Arc};
+
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::language_storage::ModuleId;
 use once_cell::unsync::OnceCell;
 use prometheus::core::{Atomic, AtomicU64};
-use std::collections::HashMap;
-use std::sync::Arc;
 use sui_storage::package_object_cache::PackageObjectCache;
-use sui_types::base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VersionNumber};
-use sui_types::error::{SuiError, SuiResult};
-use sui_types::object::{Object, Owner};
-use sui_types::storage::{
-    get_module_by_id, BackingPackageStore, ChildObjectResolver, GetSharedLocks, ObjectStore,
-    PackageObject, ParentSync,
+use sui_types::{
+    base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VersionNumber},
+    error::{SuiError, SuiResult},
+    object::{Object, Owner},
+    storage::{
+        get_module_by_id, BackingPackageStore, ChildObjectResolver, GetSharedLocks, ObjectStore,
+        PackageObject, ParentSync,
+    },
+    transaction::{InputObjectKind, InputObjects, ObjectReadResult, TransactionKey},
 };
-use sui_types::transaction::{InputObjectKind, InputObjects, ObjectReadResult, TransactionKey};
 
-// TODO: We won't need a special purpose InMemoryObjectStore once the InMemoryCache is ready.
+// TODO: We won't need a special purpose InMemoryObjectStore once the
+// InMemoryCache is ready.
 #[derive(Clone)]
 pub(crate) struct InMemoryObjectStore {
     objects: Arc<HashMap<ObjectID, Object>>,
@@ -39,8 +42,8 @@ impl InMemoryObjectStore {
         self.num_object_reads.get()
     }
 
-    // TODO: remove this when TransactionInputLoader is able to use the ExecutionCache trait
-    // note: does not support shared object deletion.
+    // TODO: remove this when TransactionInputLoader is able to use the
+    // ExecutionCache trait note: does not support shared object deletion.
     pub(crate) fn read_objects_for_execution(
         &self,
         shared_locks: &dyn GetSharedLocks,

@@ -4,6 +4,13 @@
 
 pub mod state;
 
+use std::collections::BTreeMap;
+
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
+use move_symbol_pool::Symbol;
+use state::*;
+
 use super::absint::*;
 use crate::{
     diag,
@@ -18,11 +25,6 @@ use crate::{
     parser::ast::{Ability_, StructName},
     shared::{unique_map::UniqueMap, *},
 };
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
-use move_symbol_pool::Symbol;
-use state::*;
-use std::collections::BTreeMap;
 
 //**************************************************************************************************
 // Entry and trait bindings

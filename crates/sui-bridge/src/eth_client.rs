@@ -3,17 +3,19 @@
 
 use std::collections::HashSet;
 
-use crate::abi::EthBridgeEvent;
-use crate::error::{BridgeError, BridgeResult};
-use crate::types::{BridgeAction, EthLog};
-use ethers::providers::{Http, JsonRpcClient, Middleware, Provider};
-use ethers::types::TxHash;
-use ethers::types::{Block, Filter};
+use ethers::{
+    providers::{Http, JsonRpcClient, Middleware, Provider},
+    types::{Address as EthAddress, Block, Filter, TxHash},
+};
 use tap::TapFallible;
 
 #[cfg(test)]
 use crate::eth_mock_provider::EthMockProvider;
-use ethers::types::Address as EthAddress;
+use crate::{
+    abi::EthBridgeEvent,
+    error::{BridgeError, BridgeResult},
+    types::{BridgeAction, EthLog},
+};
 pub struct EthClient<P> {
     provider: Provider<P>,
     contract_addresses: HashSet<EthAddress>,
@@ -162,8 +164,9 @@ where
         Ok(results)
     }
 
-    /// This function converts a `Log` to `EthLog`, to make sure the `block_num`, `tx_hash` and `log_index_in_tx`
-    /// are available for downstream.
+    /// This function converts a `Log` to `EthLog`, to make sure the
+    /// `block_num`, `tx_hash` and `log_index_in_tx` are available for
+    /// downstream.
     // It's frustratingly ugly because of the nulliability of many fields in `Log`.
     async fn get_log_tx_details(&self, log: ethers::types::Log) -> BridgeResult<EthLog> {
         let block_number = log
@@ -180,8 +183,8 @@ where
             "Provider returns log without log_index".into(),
         ))?;
 
-        // Now get the log's index in the transaction. There is `transaction_log_index` field in
-        // `Log`, but I never saw it populated.
+        // Now get the log's index in the transaction. There is `transaction_log_index`
+        // field in `Log`, but I never saw it populated.
 
         let receipt = self
             .provider
@@ -197,7 +200,10 @@ where
             "Provider returns log without block_number".into(),
         ))?;
         if receipt_block_num.as_u64() != block_number {
-            return Err(BridgeError::ProviderError(format!("Provider returns receipt with different block number from log. Receipt: {:?}, Log: {:?}", receipt, log)));
+            return Err(BridgeError::ProviderError(format!(
+                "Provider returns receipt with different block number from log. Receipt: {:?}, Log: {:?}",
+                receipt, log
+            )));
         }
 
         // Find the log index in the transaction
@@ -207,7 +213,10 @@ where
             if receipt_log.log_index == Some(log_index) {
                 // make sure the topics and data match
                 if receipt_log.topics != log.topics || receipt_log.data != log.data {
-                    return Err(BridgeError::ProviderError(format!("Provider returns receipt with different log from log. Receipt: {:?}, Log: {:?}", receipt, log)));
+                    return Err(BridgeError::ProviderError(format!(
+                        "Provider returns receipt with different log from log. Receipt: {:?}, Log: {:?}",
+                        receipt, log
+                    )));
                 }
                 log_index_in_tx = Some(idx);
             }

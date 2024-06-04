@@ -1,18 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! The [`package_builder`] module provides the [`PackageBuilder`] struct, which is responsible for building and compiling Stardust native token packages.
-use std::fs;
-use std::path::{Path, PathBuf};
+//! The [`package_builder`] module provides the [`PackageBuilder`] struct, which
+//! is responsible for building and compiling Stardust native token packages.
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use anyhow::Result;
 use fs_extra::dir::{copy, CopyOptions};
+use sui_move_build::{BuildConfig, CompiledPackage, SuiPackageHooks};
 use tempfile::tempdir;
 
-use crate::stardust::error::StardustError;
-use sui_move_build::{BuildConfig, CompiledPackage, SuiPackageHooks};
-
-use crate::stardust::native_token::package_data::NativeTokenPackageData;
+use crate::stardust::{error::StardustError, native_token::package_data::NativeTokenPackageData};
 
 /// Builds and compiles a Stardust native token package.
 pub fn build_and_compile(package: NativeTokenPackageData) -> Result<CompiledPackage> {
@@ -101,8 +102,8 @@ fn adjust_native_token_module(package_path: &Path, package: &NativeTokenPackageD
         .replace("$COIN_DECIMALS", &package.module().decimals.to_string())
         .replace("$COIN_SYMBOL", &package.module().symbol)
         .replace(
-            "$CIRCULATING_TOKENS",
-            &package.module().circulating_tokens.to_string(),
+            "$CIRCULATING_SUPPLY",
+            &package.module().circulating_supply.to_string(),
         )
         .replace(
             "$MAXIMUM_SUPPLY",
@@ -124,14 +125,17 @@ fn adjust_native_token_module(package_path: &Path, package: &NativeTokenPackageD
 
 #[cfg(test)]
 mod tests {
-    use std::fs::{self, File};
-    use std::io::Write;
+    use std::{
+        fs::{self, File},
+        io::Write,
+    };
 
-    use crate::stardust::native_token::package_builder;
     use tempfile::tempdir;
 
+    use crate::stardust::native_token::package_builder;
+
     #[test]
-    fn test_copy_template_dir_success() {
+    fn copy_template_dir_success() {
         // Set up a temporary directory as the environment for the test
         let tmp_dir = tempdir().unwrap();
         let test_package_path = tmp_dir.path().join("package_template");

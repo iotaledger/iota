@@ -1,60 +1,57 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::handlers::committer::start_tx_checkpoint_commit_task;
-use crate::handlers::tx_processor::IndexingPackageBuffer;
-use crate::models::display::StoredDisplay;
-use async_trait::async_trait;
-use itertools::Itertools;
-use move_core_types::annotated_value::{MoveStructLayout, MoveTypeLayout};
-use move_core_types::language_storage::{StructTag, TypeTag};
-use mysten_metrics::{get_metrics, spawn_monitored_task};
-use std::collections::{BTreeMap, HashMap};
-use std::sync::{Arc, Mutex};
-use sui_package_resolver::{PackageStore, Resolver};
-use sui_rest_api::CheckpointData;
-use sui_rest_api::CheckpointTransaction;
-use sui_types::base_types::ObjectRef;
-use sui_types::dynamic_field::DynamicFieldInfo;
-use sui_types::dynamic_field::DynamicFieldName;
-use sui_types::dynamic_field::DynamicFieldType;
-use sui_types::messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents};
-use sui_types::object::Object;
-
-use tokio::sync::watch;
-
-use std::collections::hash_map::Entry;
-use std::collections::HashSet;
-use sui_json_rpc_types::SuiMoveValue;
-use sui_types::base_types::SequenceNumber;
-use sui_types::effects::{TransactionEffects, TransactionEffectsAPI};
-use sui_types::event::SystemEpochInfoEvent;
-use sui_types::object::Owner;
-use sui_types::transaction::TransactionDataAPI;
-use tap::tap::TapFallible;
-use tracing::{error, info, warn};
-
-use sui_types::base_types::ObjectID;
-use sui_types::sui_system_state::sui_system_state_summary::SuiSystemStateSummary;
-use sui_types::sui_system_state::{get_sui_system_state, SuiSystemStateTrait};
-
-use crate::errors::IndexerError;
-use crate::framework::interface::Handler;
-use crate::metrics::IndexerMetrics;
-
-use crate::db::PgConnectionPool;
-use crate::store::module_resolver::{IndexerStorePackageModuleResolver, InterimPackageResolver};
-use crate::store::{IndexerStore, PgIndexerStore};
-use crate::types::{
-    IndexedCheckpoint, IndexedDeletedObject, IndexedEpochInfo, IndexedEvent, IndexedObject,
-    IndexedPackage, IndexedTransaction, IndexerResult, TransactionKind, TxIndex,
+use std::{
+    collections::{hash_map::Entry, BTreeMap, HashMap, HashSet},
+    sync::{Arc, Mutex},
 };
 
-use super::tx_processor::EpochEndIndexingObjectStore;
-use super::tx_processor::TxChangesProcessor;
-use super::CheckpointDataToCommit;
-use super::EpochToCommit;
-use super::TransactionObjectChangesToCommit;
+use async_trait::async_trait;
+use itertools::Itertools;
+use move_core_types::{
+    annotated_value::{MoveStructLayout, MoveTypeLayout},
+    language_storage::{StructTag, TypeTag},
+};
+use mysten_metrics::{get_metrics, spawn_monitored_task};
+use sui_json_rpc_types::SuiMoveValue;
+use sui_package_resolver::{PackageStore, Resolver};
+use sui_rest_api::{CheckpointData, CheckpointTransaction};
+use sui_types::{
+    base_types::{ObjectID, ObjectRef, SequenceNumber},
+    dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
+    effects::{TransactionEffects, TransactionEffectsAPI},
+    event::SystemEpochInfoEvent,
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents},
+    object::{Object, Owner},
+    sui_system_state::{
+        get_sui_system_state, sui_system_state_summary::SuiSystemStateSummary, SuiSystemStateTrait,
+    },
+    transaction::TransactionDataAPI,
+};
+use tap::tap::TapFallible;
+use tokio::sync::watch;
+use tracing::{error, info, warn};
+
+use super::{
+    tx_processor::{EpochEndIndexingObjectStore, TxChangesProcessor},
+    CheckpointDataToCommit, EpochToCommit, TransactionObjectChangesToCommit,
+};
+use crate::{
+    db::PgConnectionPool,
+    errors::IndexerError,
+    framework::interface::Handler,
+    handlers::{committer::start_tx_checkpoint_commit_task, tx_processor::IndexingPackageBuffer},
+    metrics::IndexerMetrics,
+    models::display::StoredDisplay,
+    store::{
+        module_resolver::{IndexerStorePackageModuleResolver, InterimPackageResolver},
+        IndexerStore, PgIndexerStore,
+    },
+    types::{
+        IndexedCheckpoint, IndexedDeletedObject, IndexedEpochInfo, IndexedEvent, IndexedObject,
+        IndexedPackage, IndexedTransaction, IndexerResult, TransactionKind, TxIndex,
+    },
+};
 
 const CHECKPOINT_QUEUE_SIZE: usize = 100;
 
@@ -197,8 +194,9 @@ where
             "Checkpoints indexing finished, about to sending to commit handler"
         );
 
-        // NOTE: when the channel is full, checkpoint_sender_guard will wait until the channel has space.
-        // Checkpoints are sent sequentially to stick to the order of checkpoint sequence numbers.
+        // NOTE: when the channel is full, checkpoint_sender_guard will wait until the
+        // channel has space. Checkpoints are sent sequentially to stick to the
+        // order of checkpoint sequence numbers.
         for checkpoint_data in checkpoint_data_to_commit {
             let checkpoint_seq = checkpoint_data.checkpoint.sequence_number;
             self.indexed_checkpoint_sender
@@ -241,7 +239,7 @@ where
                 last_epoch: None,
                 new_epoch: IndexedEpochInfo::from_new_system_state_summary(
                     system_state,
-                    0, //first_checkpoint_id
+                    0, // first_checkpoint_id
                     None,
                 ),
             }));
@@ -402,7 +400,9 @@ where
             if tx_digest != *sender_signed_data.digest() {
                 return Err(IndexerError::FullNodeReadingError(format!(
                     "Transactions has different ordering from CheckpointContents, for checkpoint {}, Mismatch found at {} v.s. {}",
-                    checkpoint_seq, tx_digest, sender_signed_data.digest()
+                    checkpoint_seq,
+                    tx_digest,
+                    sender_signed_data.digest()
                 )));
             }
             let tx = sender_signed_data.transaction_data();
