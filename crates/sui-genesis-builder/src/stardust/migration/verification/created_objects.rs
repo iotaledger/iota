@@ -13,7 +13,7 @@ pub struct CreatedObjects {
     package: Option<ObjectID>,
     max_supply_policy: Option<ObjectID>,
     native_tokens: Option<Vec<ObjectID>>,
-    foundry_amount: Option<ObjectID>,
+    minted_coin: Option<ObjectID>,
 }
 
 impl CreatedObjects {
@@ -101,17 +101,17 @@ impl CreatedObjects {
         Ok(())
     }
 
-    pub fn foundry_amount(&self) -> Result<&ObjectID> {
-        self.foundry_amount
+    pub fn minted_coin(&self) -> Result<&ObjectID> {
+        self.minted_coin
             .as_ref()
-            .ok_or_else(|| anyhow!("no created foundry amount object"))
+            .ok_or_else(|| anyhow!("no minted coin object"))
     }
 
-    pub(crate) fn set_foundry_amount(&mut self, id: ObjectID) -> Result<()> {
-        if let Some(id) = self.foundry_amount {
-            bail!("foundry amount already set: {id}")
+    pub(crate) fn set_minted_coin(&mut self, id: ObjectID) -> Result<()> {
+        if let Some(id) = self.minted_coin {
+            bail!("minted coin already set: {id}")
         }
-        self.foundry_amount.replace(id);
+        self.minted_coin.replace(id);
         Ok(())
     }
 }

@@ -236,7 +236,7 @@ impl Executor {
             for object in written.values() {
                 if object.is_coin() {
                     minted_coin_id = Some(object.id());
-                    created_objects.set_coin(object.id())?;
+                    created_objects.set_minted_coin(object.id())?;
                 } else if object.type_().map_or(false, |t| t.is_coin_metadata()) {
                     created_objects.set_coin_metadata(object.id())?
                 } else if object.type_().map_or(false, |t| {
@@ -276,7 +276,7 @@ impl Executor {
                 foundry_package.version(),
                 &self.protocol_config,
             )?;
-            created_objects.set_foundry_amount(foundry_amount.id())?;
+            created_objects.set_coin(foundry_amount.id())?;
             self.store.insert_object(foundry_amount);
 
             self.store.finish(
