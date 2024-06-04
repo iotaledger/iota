@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 'use client';
 
-import { AmountBox, Box, List, NewStakePopup, StakeDetailsPopup } from '@/components';
+import { AmountBox, Box, List, NewStakePopup, StakeDetailsPopup, Button } from '@/components';
 import { usePopups } from '@/hooks';
 
 function StakingDashboardPage(): JSX.Element {
@@ -33,7 +33,7 @@ function StakingDashboardPage(): JSX.Element {
 
     return (
         <div className="flex flex-col items-center justify-center gap-4 pt-12">
-            <button onClick={addNewStake}>New Stake</button>
+            <Button onClick={addNewStake}>New Stake</Button>
             <div className="flex items-center justify-center gap-4">
                 {' '}
                 <AmountBox title={HARCODED_STAKE_DATA.title} amount={HARCODED_STAKE_DATA.value} />
