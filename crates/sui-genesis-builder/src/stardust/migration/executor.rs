@@ -48,7 +48,7 @@ use crate::{
             verification::created_objects::CreatedObjects, PACKAGE_DEPS,
         },
         types::{
-            foundry::create_foundry_amount, snapshot::OutputHeader, stardust_to_sui_address,
+            foundry::create_foundry_gas_coin, snapshot::OutputHeader, stardust_to_sui_address,
             stardust_to_sui_address_owner, timelock, token_scheme::SimpleTokenSchemeU64, Nft,
         },
     },
@@ -268,16 +268,16 @@ impl Executor {
                 ),
             );
 
-            // Create the foundry amount object.
-            let foundry_amount = create_foundry_amount(
+            // Create the foundry gas coin object.
+            let gas_coin = create_foundry_gas_coin(
                 header,
                 foundry,
                 &self.tx_context,
                 foundry_package.version(),
                 &self.protocol_config,
             )?;
-            created_objects.set_coin(foundry_amount.id())?;
-            self.store.insert_object(foundry_amount);
+            created_objects.set_coin(gas_coin.id())?;
+            self.store.insert_object(gas_coin);
 
             self.store.finish(
                 written

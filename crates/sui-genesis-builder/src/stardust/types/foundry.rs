@@ -14,7 +14,7 @@ use crate::{
     stardust::types::{snapshot::OutputHeader, stardust_to_sui_address},
 };
 
-pub(crate) fn create_foundry_amount(
+pub(crate) fn create_foundry_gas_coin(
     header: &OutputHeader,
     foundry: &FoundryOutput,
     tx_context: &TxContext,
