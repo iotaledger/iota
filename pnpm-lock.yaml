@@ -192,8 +192,8 @@ importers:
         specifier: ^0.20.0
         version: 0.20.0
       '@growthbook/growthbook-react':
-        specifier: ^0.15.0
-        version: 0.15.0(react@18.2.0)
+        specifier: ^1.0.0
+        version: 1.0.0(react@18.2.0)
       '@hookform/resolvers':
         specifier: ^3.1.1
         version: 3.1.1(react-hook-form@7.45.2(react@18.2.0))
@@ -280,11 +280,11 @@ importers:
         specifier: ^5.0.6
         version: 5.0.6
       '@growthbook/growthbook':
-        specifier: ^0.25.0
-        version: 0.25.0
+        specifier: ^1.0.0
+        version: 1.0.0
       '@growthbook/growthbook-react':
-        specifier: ^0.15.0
-        version: 0.15.0(react@18.2.0)
+        specifier: ^1.0.0
+        version: 1.0.0(react@18.2.0)
       '@headlessui/react':
         specifier: ^1.7.15
         version: 1.7.15(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -633,11 +633,11 @@ importers:
         specifier: ^5.0.6
         version: 5.0.6
       '@growthbook/growthbook':
-        specifier: ^0.25.0
-        version: 0.25.0
+        specifier: ^1.0.0
+        version: 1.0.0
       '@growthbook/growthbook-react':
-        specifier: ^0.15.0
-        version: 0.15.0(react@18.2.0)
+        specifier: ^1.0.0
+        version: 1.0.0(react@18.2.0)
       '@headlessui/react':
         specifier: ^1.7.15
         version: 1.7.15(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -4075,14 +4075,14 @@ packages:
     peerDependencies:
       graphql: ^0.8.0 || ^0.9.0 || ^0.10.0 || ^0.11.0 || ^0.12.0 || ^0.13.0 || ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
 
-  '@growthbook/growthbook-react@0.15.0':
-    resolution: {integrity: sha512-GB6oyWKsxi9KguYAJqG2el+a16eLi8kZIdObeM4K8qfjw2hV73bI+lszpgInUBPrkJuB1LvNZ5M0lLpAULgOgA==}
+  '@growthbook/growthbook-react@1.0.0':
+    resolution: {integrity: sha512-zralTkrvDs8Dwjelr81V9wEV4oTPSTa96qY361UKx/nQVkjDyVuOgxZMtPpkmd05yng5lqxihqjd8pUYlRCk1Q==}
     engines: {node: '>=10'}
     peerDependencies:
       react: ^16.8.0-0 || ^17.0.0-0 || ^18.0.0-0
 
-  '@growthbook/growthbook@0.25.0':
-    resolution: {integrity: sha512-H0L2i5G5UtaoU34zDGxxNfF0LezL5fbr31XXqIPu1faGeJ1ujBvfFT8/99EKS26dO6YzwCNU47PlPD+XV/5akw==}
+  '@growthbook/growthbook@1.0.0':
+    resolution: {integrity: sha512-qfVhZcubsGjJI8oNjZp5g69N7c+NMxWl3WS05Sa93V6qNjE9Uz2PZqj7Qj+6iTEOZ1ignmEsIBJEKfdlpa9INg==}
     engines: {node: '>=10'}
 
   '@hapi/hoek@9.3.0':
@@ -8721,8 +8721,8 @@ packages:
   dom-converter@0.2.0:
     resolution: {integrity: sha512-gd3ypIPfOMr9h5jIKq8E3sHOTCjeirnl0WK5ZdS1AW0Odt0b1PaWaHdJ4Qk4klv+YB9aJBS7mESXjFoDQPu6DA==}
 
-  dom-mutator@0.4.0:
-    resolution: {integrity: sha512-H8pcE9Tmmnxs6FTZCX4aRthcweGsVdytqpBSiVIDnTnmosXXYO+jatDWwRReMbJJsAmsnAWsc0Ht4ZYGdN8gZw==}
+  dom-mutator@0.6.0:
+    resolution: {integrity: sha512-iCt9o0aYfXMUkz/43ZOAUFQYotjGB+GNbYJiJdz4TgXkyToXbbRy5S6FbTp72lRBtfpUMwEc1KmpFEU4CZeoNg==}
     engines: {node: '>=10'}
 
   dom-serializer@1.4.1:
@@ -18168,14 +18168,14 @@ snapshots:
     dependencies:
       graphql: 16.8.1
 
-  '@growthbook/growthbook-react@0.15.0(react@18.2.0)':
+  '@growthbook/growthbook-react@1.0.0(react@18.2.0)':
     dependencies:
-      '@growthbook/growthbook': 0.25.0
+      '@growthbook/growthbook': 1.0.0
       react: 18.2.0
 
-  '@growthbook/growthbook@0.25.0':
+  '@growthbook/growthbook@1.0.0':
     dependencies:
-      dom-mutator: 0.4.0
+      dom-mutator: 0.6.0
 
   '@hapi/hoek@9.3.0': {}
 
@@ -24477,7 +24477,7 @@ snapshots:
     dependencies:
       utila: 0.4.0
 
-  dom-mutator@0.4.0: {}
+  dom-mutator@0.6.0: {}
 
   dom-serializer@1.4.1:
     dependencies:
@@ -24946,7 +24946,7 @@ snapshots:
   eslint-import-resolver-typescript@3.5.5(@typescript-eslint/parser@6.1.0(eslint@8.45.0)(typescript@5.3.3))(eslint-import-resolver-node@0.3.7)(eslint-plugin-import@2.29.1)(eslint@8.45.0):
     dependencies:
       debug: 4.3.4(supports-color@8.1.1)
-      enhanced-resolve: 5.15.0
+      enhanced-resolve: 5.12.0
       eslint: 8.45.0
       eslint-module-utils: 2.7.4(@typescript-eslint/parser@6.1.0(eslint@8.45.0)(typescript@5.3.3))(eslint-import-resolver-node@0.3.7)(eslint-import-resolver-typescript@3.5.5(@typescript-eslint/parser@6.1.0(eslint@8.45.0)(typescript@5.3.3))(eslint-import-resolver-node@0.3.7)(eslint-plugin-import@2.29.1)(eslint@8.45.0))(eslint@8.45.0)
       eslint-plugin-import: 2.29.1(@typescript-eslint/parser@6.1.0(eslint@8.45.0)(typescript@5.3.3))(eslint-import-resolver-typescript@3.5.5)(eslint@8.45.0)

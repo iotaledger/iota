@@ -23,6 +23,8 @@ function StakingDashboardPage(): JSX.Element {
         { id: '2', validator: 'Validator 3', stake: '20 IOTA', rewards: '0.06 IOTA' },
     ];
 
+    // Use `Stake` when https://github.com/iotaledger/iota/pull/459 gets merged
+    // @ts-expect-error TODO improve typing here
     const handleOpenPopup = (stake) => {
         openPopup(<StakeDetailsPopup stake={stake} />);
     };
