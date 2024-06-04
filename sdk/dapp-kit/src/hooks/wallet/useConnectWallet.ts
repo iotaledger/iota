@@ -56,6 +56,17 @@ export function useConnectWallet({
                 const connectedSuiAccounts = connectResult.accounts.filter((account) =>
                     account.chains.some(isSupportedChain),
                 );
+                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                // @ts-ignore
+                const accountListFeature = wallet.features[
+                    'standard:accountList'
+                ].get() as string[];
+                // const accountListFeatureM = accountListFeature.map<Omit<WalletAccount, 'publicKey'>>((account) => {
+                //     return {
+                //         // addre
+                //     }
+                // });
+
                 const selectedAccount = getSelectedAccount(connectedSuiAccounts, accountAddress);
 
                 setWalletConnected(wallet, connectedSuiAccounts, selectedAccount);

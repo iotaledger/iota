@@ -61,6 +61,12 @@ function HomeDashboardPage(): JSX.Element {
 
     return (
         <main className="flex min-h-screen flex-col items-center space-y-8 p-24">
+            <button onClick={async () => {
+                const connectResult = await currentWallet?.features['standard:connect'].connect(
+                    {silent: false},
+                );
+            }}>offf</button>
+
             <p>Connection status: {connectionStatus}</p>
             {connectionStatus === 'connected' && account && (
                 <div className="flex flex-col items-center justify-center space-y-2">
