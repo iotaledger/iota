@@ -4,6 +4,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-nocheck
 import type { UseMutationOptions, UseMutationResult } from '@tanstack/react-query';
 import { useMutation } from '@tanstack/react-query';
 
@@ -11,6 +13,8 @@ import { walletMutationKeys } from '../../constants/walletMutationKeys.js';
 import { WalletNotConnectedError } from '../../errors/walletErrors.js';
 import { useCurrentWallet } from './useCurrentWallet.js';
 import { useWalletStore } from './useWalletStore.js';
+import { isSupportedChain } from '@mysten/wallet-standard';
+import type { WalletAccount } from '@mysten/wallet-standard';
 
 type UseDisconnectWalletError = WalletNotConnectedError | Error;
 
@@ -31,7 +35,7 @@ export function useReconnectForceWallet({
     void
 > {
     const { currentWallet } = useCurrentWallet();
-    const setWalletDisconnected = useWalletStore((state) => state.setWalletDisconnected);
+    const setWalletConnected = useWalletStore((state) => state.setWalletConnected);
 
     return useMutation({
         mutationKey: walletMutationKeys.disconnectAllWallet(mutationKey),
@@ -44,22 +48,41 @@ export function useReconnectForceWallet({
                 // Wallets aren't required to implement the disconnect feature, so we'll
                 // optionally call the disconnect feature if it exists and reset the UI
                 // state on the frontend at a minimum.
-                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                // @ts-ignore
-                await currentWallet.features['standard:connect']?.reconnect({
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                    // @ts-ignore
+                const connectResult = await currentWallet.features[
+                    'standard:reconnectForce'
+                ]?.reconnect({
                     origin: window.location.origin,
                 });
+                const connectedSuiAccounts = connectResult.accounts.filter((account) =>
+                    account.chains.some(isSupportedChain),
+                );
+                const selectedAccount = getSelectedAccount(connectedSuiAccounts);
+
+                setWalletConnected(wallet, connectedSuiAccounts, selectedAccount);
+
+                return { accounts: connectedSuiAccounts };
             } catch (error) {
                 console.error(
                     'Failed to disconnect the application from the current wallet.',
                     error,
                 );
             }
-
-            setWalletDisconnected();
         },
         ...mutationOptions,
     });
+}
+
+function getSelectedAccount(connectedAccounts: readonly WalletAccount[], accountAddress?: string) {
+    if (connectedAccounts.length === 0) {
+        return null;
+    }
+
+    if (accountAddress) {
+        const selectedAccount = connectedAccounts.find(
+            (account) => account.address === accountAddress,
+        );
+        return selectedAccount ?? connectedAccounts[0];
+    }
+
+    return connectedAccounts[0];
 }

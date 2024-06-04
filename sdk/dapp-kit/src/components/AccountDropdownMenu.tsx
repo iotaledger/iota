@@ -68,7 +68,7 @@ export function AccountDropdownMenu({ currentAccount }: AccountDropdownMenuProps
                         </DropdownMenu.Item>
                         <DropdownMenu.Item
                             className={clsx(styles.menuItem)}
-                            onSelect={() => reconnectForceWallet()}
+                            onSelect={() => reconnectForceWallet({ wallet })}
                         >
                             Reconnect
                         </DropdownMenu.Item>

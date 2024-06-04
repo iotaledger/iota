@@ -19,6 +19,7 @@ import {
     type HasPermissionsResponse,
     type Permission,
     type PermissionType,
+    type ReconnectForceResponse,
 } from '_payloads/permissions';
 import {
     isExecuteTransactionRequest,
@@ -82,7 +83,15 @@ export class ContentScriptConnection extends Connection {
                     this.permissionReply(permission, msg.id);
                 }
             } else if (isReconnectForceRequest(payload)) {
-                await Permissions.delete(payload.origin, []);
+                this.send(
+                    createMessage<ReconnectForceResponse>(
+                        {
+                            type: 'reconnect-force-response',
+                            result: Permissions.delete(payload.origin, []).then(() => true),
+                        },
+                        msg.id,
+                    ),
+                );
             } else if (isExecuteTransactionRequest(payload)) {
                 if (!payload.transaction.account) {
                     // make sure we don't execute transactions that doesn't have a specified account

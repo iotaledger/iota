@@ -45,6 +45,7 @@ import {
     type SuiSignPersonalMessageMethod,
     type SuiSignTransactionBlockMethod,
     type Wallet,
+    type StandardConnectOutput,
 } from '@mysten/wallet-standard';
 import mitt, { type Emitter } from 'mitt';
 import { filter, map, type Observable } from 'rxjs';
@@ -61,7 +62,7 @@ const name = process.env.APP_NAME || 'Sui Wallet';
 type StandardReconnectForceFeature = {
     'standard:reconnectForce': {
         version: string;
-        reconnect: (input: never) => Promise<null>;
+        reconnect: (input: never) => Promise<StandardConnectOutput>;
     };
 };
 
@@ -210,7 +211,9 @@ export class SuiWallet implements Wallet {
         return { accounts: this.accounts };
     };
 
-    #reconnectForce: (input: { origin: string }) => Promise<null> = async (input) => {
+    #reconnectForce: (input: { origin: string }) => Promise<StandardConnectOutput> = async (
+        input,
+    ) => {
         await mapToPromise(
             this.#send<ReconnectForceRequest, ReconnectForceResponse>({
                 type: 'reconnect-force-request',
@@ -218,8 +221,19 @@ export class SuiWallet implements Wallet {
             }),
             (response) => response.result,
         );
-
-        return null;
+        await this.#connect({ silent: false });
+        return { accounts: this.accounts };
+        // await mapToPromise(
+        //     this.#send<AcquirePermissionsRequest, AcquirePermissionsResponse>({
+        //         type: 'acquire-permissions-request',
+        //         permissions: ALL_PERMISSION_TYPES,
+        //     }),
+        //     (response) => response.result,
+        // );
+        //
+        // await this.#connected();
+        //
+        // return { accounts: this.accounts };
     };
 
     #signTransactionBlock: SuiSignTransactionBlockMethod = async ({
