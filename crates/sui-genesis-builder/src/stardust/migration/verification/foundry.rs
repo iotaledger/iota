@@ -23,13 +23,6 @@ use crate::stardust::{
     types::{capped_coin::MaxSupplyPolicy, token_scheme::SimpleTokenSchemeU64},
 };
 
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
-pub(crate) struct MaxSupplyPolicy {
-    pub(crate) id: UID,
-    pub(crate) maximum_supply: u64,
-    pub(crate) treasury_cap: TreasuryCap,
-}
-
 pub(super) fn verify_foundry_output(
     output: &FoundryOutput,
     created_objects: &CreatedObjects,

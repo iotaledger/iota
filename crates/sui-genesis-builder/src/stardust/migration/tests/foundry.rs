@@ -18,11 +18,8 @@ use sui_types::{
 };
 
 use crate::stardust::{
-    migration::{
-        tests::{create_foundry, run_migration},
-        verification::foundry::MaxSupplyPolicy,
-    },
-    types::{snapshot::OutputHeader, stardust_to_sui_address},
+    migration::tests::{create_foundry, run_migration},
+    types::{capped_coin::MaxSupplyPolicy, snapshot::OutputHeader, stardust_to_sui_address},
 };
 
 type PackageObject = Object;
