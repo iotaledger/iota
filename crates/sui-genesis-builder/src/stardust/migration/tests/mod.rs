@@ -3,7 +3,7 @@
 
 use std::{collections::HashMap, str::FromStr};
 
-use anyhow::ensure;
+use anyhow::{anyhow, ensure};
 use iota_sdk::types::block::{
     address::AliasAddress,
     output::{
@@ -97,11 +97,13 @@ fn object_migration_with_object_owner(
 
     let owner_output_object_ref = executor
         .store()
-        .get_object(owner_created_objects.output()?)?
+        .get_object(owner_created_objects.output()?)
+        .ok_or_else(|| anyhow!("missing owner-created output"))?
         .compute_object_reference();
     let owned_output_object_ref = executor
         .store()
-        .get_object(owned_created_objects.output()?)?
+        .get_object(owned_created_objects.output()?)
+        .ok_or_else(|| anyhow!("missing owned created output"))?
         .compute_object_reference();
 
     let pt = {
@@ -231,11 +233,15 @@ fn extract_native_token_from_bag(
 
     let output_object_ref = executor
         .store()
-        .get_object(output_created_objects.output()?)?
+        .get_object(output_created_objects.output()?)
+        .ok_or_else(|| anyhow!("missing output-created output"))?
         .compute_object_reference();
 
     // Recreate the key under which the tokens are stored in the bag.
-    let foundry_ledger_data = executor.native_tokens().get(native_token_id)?;
+    let foundry_ledger_data = executor
+        .native_tokens()
+        .get(native_token_id)
+        .ok_or_else(|| anyhow!("missing native token {native_token_id}"))?;
     let token_type = format!(
         "{}::{}::{}",
         foundry_ledger_data.coin_type_origin.package,
@@ -329,7 +335,11 @@ fn extract_native_token_from_bag(
                 .map(|tag| tag == coin_token_struct_tag)
                 .unwrap_or(false)
         })
-        .and_then(|obj| obj.as_coin_maybe())?;
+        .ok_or_else(|| anyhow!("missing coin object"))
+        .and_then(|obj| {
+            obj.as_coin_maybe()
+                .ok_or_else(|| anyhow!("object is not a coin"))
+        })?;
 
     ensure!(
         coin_token.balance.value() == native_token.amount().as_u64(),
