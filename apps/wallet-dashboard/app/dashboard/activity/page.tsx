@@ -14,12 +14,12 @@ function ActivityPage(): JSX.Element {
     const currentAccount = useCurrentAccount();
     const { data: txs, error } = useQueryTransactionsByAddress(currentAccount?.address);
 
-    const activities = useMemo(() => {
+    const activities = (() => {
         if (!currentAccount?.address || !txs?.length) {
             return [];
         }
-        return txs.map((tx) => getTransactionActivity(tx, currentAccount.address)) || [];
-    }, [currentAccount?.address, txs]);
+        return txs.map((tx) => getTransactionActivity(tx, currentAccount.address));
+    })();
 
     if (error) {
         return <div>{(error as Error)?.message}</div>;
