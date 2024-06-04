@@ -19,7 +19,10 @@ use sui_types::{
 
 use crate::stardust::{
     migration::tests::{create_foundry, run_migration},
-    types::{capped_coin::MaxSupplyPolicy, snapshot::OutputHeader, stardust_to_sui_address},
+    types::{
+        capped_coin::MaxSupplyPolicy, snapshot::OutputHeader, stardust_to_sui_address,
+        stardust_to_sui_address_owner,
+    },
 };
 
 type PackageObject = Object;
@@ -90,6 +93,8 @@ fn foundry_with_simple_metadata() {
         AliasId::null(),
     );
 
+    let alias_address = *foundry.alias_address();
+
     let (
         package_object,
         coin_object,
@@ -141,6 +146,10 @@ fn foundry_with_simple_metadata() {
         .to_rust::<MaxSupplyPolicy>()
         .unwrap();
 
+    assert_eq!(
+        max_supply_policy_object.owner,
+        stardust_to_sui_address_owner(alias_address).unwrap()
+    );
     assert_eq!(max_supply_policy.maximum_supply, 100_000_000);
 
     let max_supply_policy_object = max_supply_policy_object.data.try_as_move().unwrap();
@@ -174,6 +183,8 @@ fn foundry_with_exceeding_circulating_supply() {
         Irc30Metadata::new("Dogecoin", "DOGE❤", 0),
         AliasId::null(),
     );
+
+    let alias_address = *foundry.alias_address();
 
     let (
         package_object,
@@ -226,6 +237,10 @@ fn foundry_with_exceeding_circulating_supply() {
         .to_rust::<MaxSupplyPolicy>()
         .unwrap();
 
+    assert_eq!(
+        max_supply_policy_object.owner,
+        stardust_to_sui_address_owner(alias_address).unwrap()
+    );
     assert_eq!(max_supply_policy.maximum_supply, u64::MAX - 1);
 
     let max_supply_policy_object = max_supply_policy_object.data.try_as_move().unwrap();
