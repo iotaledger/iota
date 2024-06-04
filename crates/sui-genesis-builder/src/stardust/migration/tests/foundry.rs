@@ -16,7 +16,7 @@ use crate::stardust::{
 };
 
 #[test]
-fn create_foundry_amount() {
+fn create_gas_coin() {
     let (foundry_header, foundry_output) = create_foundry(
         1_000_000,
         SimpleTokenScheme::new(U256::from(100_000), U256::from(0), U256::from(100_000_000))
@@ -36,7 +36,7 @@ fn create_foundry_amount() {
     // * Coin metadata
     // * MaxSupplyPolicy
     // * The total supply coin
-    // * The foundry amount coin
+    // * The foundry gas coin
     assert_eq!(objects.len(), 5);
 
     // Extract the package object.

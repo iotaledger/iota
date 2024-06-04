@@ -59,7 +59,7 @@ fn create_bag_with_pt() {
     // * Coin metadata
     // * MaxSupplyPolicy
     // * The total supply coin
-    // * The foundry amount coin
+    // * The foundry gas coin
     assert_eq!(executor.store().objects().len() - object_count, 5);
     assert!(executor.native_tokens().get(&foundry_id.into()).is_some());
     let initial_supply_coin_object = executor
