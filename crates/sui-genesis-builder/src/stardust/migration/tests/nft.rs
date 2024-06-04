@@ -10,7 +10,9 @@ use iota_sdk::{
     types::block::{
         address::{AliasAddress, Ed25519Address, Hrp, NftAddress, ToBech32Ext},
         output::{
-            feature::{Attribute, Irc30Metadata, IssuerFeature, MetadataFeature, SenderFeature},
+            feature::{
+                Attribute, Irc30Metadata, IssuerFeature, MetadataFeature, SenderFeature, TagFeature,
+            },
             unlock_condition::{
                 AddressUnlockCondition, ExpirationUnlockCondition, GovernorAddressUnlockCondition,
                 StateControllerAddressUnlockCondition, StorageDepositReturnUnlockCondition,
@@ -115,6 +117,7 @@ fn nft_migration_with_full_features() {
         .with_features(vec![
             Feature::Metadata(MetadataFeature::new([0xdd; 1]).unwrap()),
             Feature::Sender(SenderFeature::new(random_address)),
+            Feature::Tag(TagFeature::new(b"tag").unwrap()),
         ])
         .with_immutable_features(vec![
             Feature::Metadata(MetadataFeature::new([0xaa; 1]).unwrap()),
@@ -132,6 +135,13 @@ fn nft_migration_with_full_features() {
     // The ID is newly generated, so we don't know the exact value, but it should
     // not be zero.
     assert_ne!(nft_output.id, UID::new(ObjectID::ZERO));
+    assert_ne!(
+        nft_output.id,
+        UID::new(ObjectID::new(
+            stardust_nft.nft_id().as_slice().try_into().unwrap()
+        ))
+    );
+
     assert!(nft_output.storage_deposit_return.is_none());
     assert!(nft_output.expiration.is_none());
     assert!(nft_output.timelock.is_none());

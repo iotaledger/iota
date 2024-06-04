@@ -133,6 +133,12 @@ fn alias_migration_with_full_features() {
     // The ID is newly generated, so we don't know the exact value, but it should
     // not be zero.
     assert_ne!(alias_output.id, UID::new(ObjectID::ZERO));
+    assert_ne!(
+        alias_output.id,
+        UID::new(ObjectID::new(
+            stardust_alias.alias_id().as_slice().try_into().unwrap()
+        ))
+    );
 
     assert_eq!(expected_alias, alias);
 
