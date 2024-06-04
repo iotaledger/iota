@@ -22,7 +22,7 @@ use sui_types::{
 
 use crate::stardust::{
     migration::executor::FoundryLedgerData,
-    types::{output as migration_output, Alias, Nft},
+    types::{output as migration_output, token_scheme::MAX_ALLOWED_U64_SUPPLY, Alias, Nft},
 };
 
 pub(super) fn verify_native_tokens(
@@ -230,6 +230,28 @@ pub(super) fn verify_sender_feature(
     Ok(())
 }
 
+pub(super) fn verify_issuer_feature(
+    original: Option<&sdk_output::feature::IssuerFeature>,
+    created: Option<SuiAddress>,
+) -> Result<()> {
+    if let Some(issuer) = original {
+        let sui_issuer_address = issuer.address().to_string().parse::<SuiAddress>()?;
+        if let Some(obj_issuer) = created {
+            ensure!(
+                obj_issuer == sui_issuer_address,
+                "issuer mismatch: found {}, expected {}",
+                obj_issuer,
+                sui_issuer_address
+            );
+        } else {
+            bail!("missing issuer on object");
+        }
+    } else {
+        ensure!(created.is_none(), "erroneous issuer on object");
+    }
+    Ok(())
+}
+
 // Checks whether an object exists for this address and whether it is the
 // expected alias or nft object. We do not expect an object for Ed25519
 // addresses.
@@ -287,9 +309,9 @@ impl NativeTokenKind for Field<String, Balance> {
     }
 }
 
-pub fn truncate_u256_to_u64(value: U256) -> u64 {
-    if value.bits() > 64 {
-        u64::MAX
+pub fn truncate_to_max_allowed_u64_supply(value: U256) -> u64 {
+    if value > U256::from(MAX_ALLOWED_U64_SUPPLY) {
+        MAX_ALLOWED_U64_SUPPLY
     } else {
         value.as_u64()
     }

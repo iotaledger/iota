@@ -2,21 +2,21 @@
 # SPDX-License-Identifier: Apache-2.0
 
 query resolveNameServiceAddress($domain: String!) {
-	resolveSuinsAddress(domain: $domain) {
-		address
-	}
+    resolveSuinsAddress(domain: $domain) {
+        address
+    }
 }
 
 query resolveNameServiceNames($address: SuiAddress!, $limit: Int, $cursor: String) {
-	address(address: $address) {
-		suinsRegistrations(first: $limit, after: $cursor) {
-			pageInfo {
-				hasNextPage
-				endCursor
-			}
-			nodes {
-				domain
-			}
-		}
-	}
+    address(address: $address) {
+        suinsRegistrations(first: $limit, after: $cursor) {
+            pageInfo {
+                hasNextPage
+                endCursor
+            }
+            nodes {
+                domain
+            }
+        }
+    }
 }

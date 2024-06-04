@@ -114,7 +114,6 @@
         "@mysten/dapp-kit": "workspace:*",
         "@mysten/deepbook": "workspace:*",
         "@mysten/icons": "workspace:*",
-        "@mysten/kiosk": "workspace:*",
         "@mysten/ledgerjs-hw-app-sui": "workspace:*",
         "@mysten/sui.js": "workspace:*",
         "@mysten/wallet-standard": "workspace:*",

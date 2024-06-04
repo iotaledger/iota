@@ -21,7 +21,7 @@ const client = new SuiClient({ url: rpcUrl });
 // get coins owned by an address
 // replace <OWNER_ADDRESS> with actual address in the form of 0x123...
 await client.getCoins({
-	owner: '<OWNER_ADDRESS>',
+    owner: '<OWNER_ADDRESS>',
 });
 ```
 
@@ -29,10 +29,10 @@ The `getFullnodeUrl` helper in the previous code provides the URL for the specif
 during development. In a production application, however, you should use the
 [Mainnet RPC address](../typescript#network-locations). The function supports the following values:
 
-- `localnet`
-- `devnet`
-- `testnet`
-- `mainnet`
+-   `localnet`
+-   `devnet`
+-   `testnet`
+-   `mainnet`
 
 For local development, you can run `cargo run --bin sui-test-validator` to spin up a local network
 with a local validator, a Full node, and a faucet server. Refer to
@@ -65,17 +65,17 @@ In addition to calling RPC methods, you can use `SuiClient` to subscribe to netw
 import { getFullnodeUrl, SuiClient } from '@mysten/sui.js/client';
 
 const client = new SuiClient({
-	url: getFullnodeUrl('testnet'),
+    url: getFullnodeUrl('testnet'),
 });
 
 // naming the function unsubscribe may seem counterintuitive here, but you call it later to unsubscribe from the event
 const unsubscribe = await client.subscribeEvent({
-	filter: {
-		Sender: '<SENDER_ADDRESS>',
-	},
-	onMessage(event) {
-		// handle subscription notification message here. This function is called once per subscription message.
-	},
+    filter: {
+        Sender: '<SENDER_ADDRESS>',
+    },
+    onMessage(event) {
+        // handle subscription notification message here. This function is called once per subscription message.
+    },
 });
 
 // later, to unsubscribe
@@ -94,11 +94,11 @@ import { getFullnodeUrl, SuiClient, SuiHTTPTransport } from '@mysten/sui.js/clie
 import { WebSocket } from 'ws';
 
 new SuiClient({
-	transport: new SuiHTTPTransport({
-		url: getFullnodeUrl('mainnet'),
-		// The typescript definitions may not match perfectly, casting to never avoids these minor incompatibilities
-		WebSocketConstructor: WebSocket as never,
-	}),
+    transport: new SuiHTTPTransport({
+        url: getFullnodeUrl('mainnet'),
+        // The typescript definitions may not match perfectly, casting to never avoids these minor incompatibilities
+        WebSocketConstructor: WebSocket as never,
+    }),
 });
 ```
 
@@ -110,16 +110,16 @@ Similar to subscribing to events, the `SuiClient` also supports subscribing to t
 import { getFullnodeUrl, SuiClient } from '@mysten/sui.js/client';
 
 const client = new SuiClient({
-	url: getFullnodeUrl('testnet'),
+    url: getFullnodeUrl('testnet'),
 });
 
 const unsubscribe = await client.subscribeTransaction({
-	filter: {
-		FromAddress: '<SUI_ADDRESS>',
-	},
-	onMessage(event) {
-		// This function is called once per transaction.
-	},
+    filter: {
+        FromAddress: '<SUI_ADDRESS>',
+    },
+    onMessage(event) {
+        // This function is called once per transaction.
+    },
 });
 
 // later, to unsubscribe:
@@ -137,18 +137,18 @@ headers or timeout values.
 import { getFullnodeUrl, SuiClient, SuiHTTPTransport } from '@mysten/sui.js/client';
 
 const client = new SuiClient({
-	transport: new SuiHTTPTransport({
-		url: 'https://my-custom-node.com/rpc',
-		websocket: {
-			reconnectTimeout: 1000,
-			url: 'https://my-custom-node.com/websockets',
-		},
-		rpc: {
-			headers: {
-				'x-custom-header': 'custom value',
-			},
-		},
-	}),
+    transport: new SuiHTTPTransport({
+        url: 'https://my-custom-node.com/rpc',
+        websocket: {
+            reconnectTimeout: 1000,
+            url: 'https://my-custom-node.com/websockets',
+        },
+        rpc: {
+            headers: {
+                'x-custom-header': 'custom value',
+            },
+        },
+    }),
 });
 ```
 
@@ -157,9 +157,9 @@ const client = new SuiClient({
 `SuiClient` exposes a number of RPC methods that return paginated results. These methods return a
 result object with 3 fields:
 
-- data: The list of results for the current page
-- nextCursor: a cursor pointing to the next page of results
-- hasNextPage: a boolean indicating whether there are more pages of results
+-   data: The list of results for the current page
+-   nextCursor: a cursor pointing to the next page of results
+-   hasNextPage: a boolean indicating whether there are more pages of results
 
 Some APIs also accept an `order` option that can be set to either `ascending` or `descending` to
 change the order in which the results are returned.
@@ -169,15 +169,15 @@ along with a `limit` to specify the page size:
 
 ```ts
 const page1 = await client.getCheckpoints({
-	limit: 10,
+    limit: 10,
 });
 
 const page2 =
-	page1.hasNextPage &&
-	client.getCheckpoints({
-		cursor: page1.nextCursor,
-		limit: 10,
-	});
+    page1.hasNextPage &&
+    client.getCheckpoints({
+        cursor: page1.nextCursor,
+        limit: 10,
+    });
 ```
 
 ## Methods
@@ -195,29 +195,29 @@ const txb = new TransactionBlock();
 const { bytes, signature } = txb.sign({ client, signer: keypair });
 
 const result = await client.executeTransactionBlock({
-	transactionBlock: bytes,
-	signature,
-	requestType: 'WaitForLocalExecution',
-	options: {
-		showEffects: true,
-	},
+    transactionBlock: bytes,
+    signature,
+    requestType: 'WaitForLocalExecution',
+    options: {
+        showEffects: true,
+    },
 });
 ```
 
 #### Arguments
 
-- `transactionBlock` - either a TransactionBlock or BCS serialized transaction data bytes as a
-  Uint8Array or as a base-64 encoded string.
-- `signer` - A `Keypair` instance to sign the transaction block
-- `requestType`: `WaitForEffectsCert` or `WaitForLocalExecution`. Determines when the RPC node
-  should return the response. Default to be `WaitForLocalExecution`
-- `options`:
-  - `showBalanceChanges`: Whether to show balance_changes. Default to be False
-  - `showEffects`: Whether to show transaction effects. Default to be False
-  - `showEvents`: Whether to show transaction events. Default to be False
-  - `showInput`: Whether to show transaction input data. Default to be False
-  - `showObjectChanges`: Whether to show object_changes. Default to be False
-  - `showRawInput`: Whether to show bcs-encoded transaction input data
+-   `transactionBlock` - either a TransactionBlock or BCS serialized transaction data bytes as a
+    Uint8Array or as a base-64 encoded string.
+-   `signer` - A `Keypair` instance to sign the transaction block
+-   `requestType`: `WaitForEffectsCert` or `WaitForLocalExecution`. Determines when the RPC node
+    should return the response. Default to be `WaitForLocalExecution`
+-   `options`:
+    -   `showBalanceChanges`: Whether to show balance_changes. Default to be False
+    -   `showEffects`: Whether to show transaction effects. Default to be False
+    -   `showEvents`: Whether to show transaction events. Default to be False
+    -   `showInput`: Whether to show transaction input data. Default to be False
+    -   `showObjectChanges`: Whether to show object_changes. Default to be False
+    -   `showRawInput`: Whether to show bcs-encoded transaction input data
 
 ### `signAndExecuteTransactionBlock`
 
@@ -226,30 +226,30 @@ const txb = new TransactionBlock();
 // add transaction data to txb
 
 const result = await client.signAndExecuteTransactionBlock({
-	transactionBlock: txb,
-	signer: keypair,
-	requestType: 'WaitForLocalExecution',
-	options: {
-		showEffects: true,
-	},
+    transactionBlock: txb,
+    signer: keypair,
+    requestType: 'WaitForLocalExecution',
+    options: {
+        showEffects: true,
+    },
 });
 ```
 
 #### Arguments
 
-- `transactionBlock` - BCS serialized transaction data bytes as a Uint8Array or as a base-64 encoded
-  string.
-- `signature` - A signature, or list of signatures committed to the intent message of the
-  transaction data, as a base-64 encoded string.
-- `requestType`: `WaitForEffectsCert` or `WaitForLocalExecution`. Determines when the RPC node
-  should return the response. Default to be `WaitForLocalExecution`
-- `options`:
-  - `showBalanceChanges`: Whether to show balance_changes. Default to be False
-  - `showEffects`: Whether to show transaction effects. Default to be False
-  - `showEvents`: Whether to show transaction events. Default to be False
-  - `showInput`: Whether to show transaction input data. Default to be False
-  - `showObjectChanges`: Whether to show object_changes. Default to be False
-  - `showRawInput`: Whether to show bcs-encoded transaction input data
+-   `transactionBlock` - BCS serialized transaction data bytes as a Uint8Array or as a base-64
+    encoded string.
+-   `signature` - A signature, or list of signatures committed to the intent message of the
+    transaction data, as a base-64 encoded string.
+-   `requestType`: `WaitForEffectsCert` or `WaitForLocalExecution`. Determines when the RPC node
+    should return the response. Default to be `WaitForLocalExecution`
+-   `options`:
+    -   `showBalanceChanges`: Whether to show balance_changes. Default to be False
+    -   `showEffects`: Whether to show transaction effects. Default to be False
+    -   `showEvents`: Whether to show transaction events. Default to be False
+    -   `showInput`: Whether to show transaction input data. Default to be False
+    -   `showObjectChanges`: Whether to show object_changes. Default to be False
+    -   `showRawInput`: Whether to show bcs-encoded transaction input data
 
 ### `waitForTransactionBlock`
 
@@ -261,29 +261,29 @@ currently polls the `getTransactionBlock` API to check for the transaction.
 const txb = new TransactionBlock();
 
 const result = await client.signAndExecuteTransactionBlock({
-	transactionBlock: txb,
-	signer: keypair,
+    transactionBlock: txb,
+    signer: keypair,
 });
 
 const transactionBlock = await client.waitForTransactionBlock({
-	digest: result.digest,
-	options: {
-		showEffects: true,
-	},
+    digest: result.digest,
+    options: {
+        showEffects: true,
+    },
 });
 ```
 
 #### Arguments
 
-- `digest` - the digest of the queried transaction
-- `signal` - An optional abort signal that can be used to cancel the request
-- `timeout` - The amount of time to wait for a transaction block. Defaults to one minute.
-- `pollInterval` - The amount of time to wait between checks for the transaction block. Defaults to
-  2 seconds.
-- `options`:
-  - `showBalanceChanges`: Whether to show balance_changes. Default to be False
-  - `showEffects`: Whether to show transaction effects. Default to be False
-  - `showEvents`: Whether to show transaction events. Default to be False
-  - `showInput`: Whether to show transaction input data. Default to be False
-  - `showObjectChanges`: Whether to show object_changes. Default to be False
-  - `showRawInput`: Whether to show bcs-encoded transaction input data
+-   `digest` - the digest of the queried transaction
+-   `signal` - An optional abort signal that can be used to cancel the request
+-   `timeout` - The amount of time to wait for a transaction block. Defaults to one minute.
+-   `pollInterval` - The amount of time to wait between checks for the transaction block. Defaults
+    to 2 seconds.
+-   `options`:
+    -   `showBalanceChanges`: Whether to show balance_changes. Default to be False
+    -   `showEffects`: Whether to show transaction effects. Default to be False
+    -   `showEvents`: Whether to show transaction events. Default to be False
+    -   `showInput`: Whether to show transaction input data. Default to be False
+    -   `showObjectChanges`: Whether to show object_changes. Default to be False
+    -   `showRawInput`: Whether to show bcs-encoded transaction input data

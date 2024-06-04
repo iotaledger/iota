@@ -10,7 +10,7 @@ export function useAppsBackend() {
     const request = useCallback(
         async <T>(
             path: string,
-            queryParams?: Record<string, any>,
+            queryParams?: Record<string, string>,
             options?: RequestInit,
         ): Promise<T> => {
             const res = await fetch(
@@ -30,7 +30,7 @@ export function useAppsBackend() {
     return { request };
 }
 
-function formatRequestURL(url: string, queryParams?: Record<string, any>) {
+function formatRequestURL(url: string, queryParams?: Record<string, string>) {
     if (queryParams && Object.keys(queryParams).length > 0) {
         const searchParams = new URLSearchParams(queryParams);
         return `${url}?${searchParams}`;

@@ -64,31 +64,31 @@ const suiClient = new SuiClient({ url: getFullnodeUrl('devnet') });
 
 // Convert MIST to Sui
 const balance = (balance) => {
-	return Number.parseInt(balance.totalBalance) / Number(MIST_PER_SUI);
+    return Number.parseInt(balance.totalBalance) / Number(MIST_PER_SUI);
 };
 
 // store the JSON representation for the SUI the address owns before using faucet
 const suiBefore = await suiClient.getBalance({
-	owner: MY_ADDRESS,
+    owner: MY_ADDRESS,
 });
 
 await requestSuiFromFaucetv1({
-	// use getFaucetHost to make sure you're using correct faucet address
-	// you can also just use the address (see Sui TypeScript SDK Quick Start for values)
-	host: getFaucetHost('devnet'),
-	recipient: MY_ADDRESS,
+    // use getFaucetHost to make sure you're using correct faucet address
+    // you can also just use the address (see Sui TypeScript SDK Quick Start for values)
+    host: getFaucetHost('devnet'),
+    recipient: MY_ADDRESS,
 });
 
 // store the JSON representation for the SUI the address owns after using faucet
 const suiAfter = await suiClient.getBalance({
-	owner: MY_ADDRESS,
+    owner: MY_ADDRESS,
 });
 
 // Output result to console.
 console.log(
-	`Balance before faucet: ${balance(suiBefore)} SUI. Balance after: ${balance(
-		suiAfter,
-	)} SUI. Hello, SUI!`,
+    `Balance before faucet: ${balance(suiBefore)} SUI. Balance after: ${balance(
+        suiAfter,
+    )} SUI. Hello, SUI!`,
 );
 ```
 
@@ -104,8 +104,8 @@ it uses to query the address and output the amount of SUI the address owns befor
 the faucet. You can check the total SUI for your address using the Sui Wallet or Sui Client CLI.
 
 <Callout type="info">
-	Faucets on Devnet and Testnet are rate limited. If you run the script too many times, you surpass
-	the limit and must wait to successfully run it again.
+    Faucets on Devnet and Testnet are rate limited. If you run the script too many times, you
+    surpass the limit and must wait to successfully run it again.
 </Callout>
 
 You can also use the [Sui Client CLI](https://docs.sui.io/references/cli/client) to perform client
