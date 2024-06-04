@@ -12,18 +12,23 @@ use iota_sdk::types::block::{
         SimpleTokenScheme, TokenId, TokenScheme,
     },
 };
-use move_core_types::{ident_str, identifier::IdentStr};
+use move_binary_format::errors::VMError;
+use move_core_types::{ident_str, identifier::IdentStr, vm_status::StatusCode};
 use sui_types::{
     balance::Balance,
-    base_types::SuiAddress,
+    base_types::{SuiAddress, TxContext},
     coin::Coin,
+    digests::TransactionDigest,
+    epoch_data::EpochData,
     gas_coin::GAS,
+    in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{Argument, CheckedInputObjects, ObjectArg},
     TypeTag, STARDUST_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID,
 };
 
+use super::MIGRATION_PROTOCOL_VERSION;
 use crate::stardust::{
     migration::{
         executor::Executor,
@@ -35,6 +40,8 @@ use crate::stardust::{
 
 mod alias;
 mod executor;
+mod foundry;
+mod nft;
 
 fn random_output_header() -> OutputHeader {
     OutputHeader::new_testing(
@@ -239,12 +246,7 @@ fn extract_native_token_from_bag(
 
     // Recreate the key under which the tokens are stored in the bag.
     let foundry_ledger_data = executor.native_tokens().get(native_token_id).unwrap();
-    let token_type = format!(
-        "{}::{}::{}",
-        foundry_ledger_data.coin_type_origin.package,
-        foundry_ledger_data.coin_type_origin.module_name,
-        foundry_ledger_data.coin_type_origin.struct_name
-    );
+    let token_type = foundry_ledger_data.canonical_coin_type();
     let token_type_tag = token_type.parse::<TypeTag>().unwrap();
 
     let pt = {
@@ -339,4 +341,141 @@ fn extract_native_token_from_bag(
         .expect("coin token object should exist");
 
     assert_eq!(coin_token.balance.value(), native_token.amount().as_u64());
+}
+
+enum UnlockObjectTestResult {
+    /// The test should succeed.
+    Success,
+    /// The test should fail with the given sub_status.
+    Failure(u64),
+}
+
+impl UnlockObjectTestResult {
+    /// A copy of `EWrongSender` in the expiration unlock condition smart
+    /// contract.
+    pub(crate) const ERROR_WRONG_SENDER_FAILURE: Self = Self::Failure(0);
+    /// A copy of `ETimelockNotExpired` in the timelock unlock condition smart
+    /// contract.
+    pub(crate) const ERROR_TIMELOCK_NOT_EXPIRED_FAILURE: Self = Self::Failure(0);
+}
+
+fn unlock_object_test(
+    output_id: OutputId,
+    outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
+    sender: &SuiAddress,
+    module_name: &IdentStr,
+    epoch_start_timestamp_ms: u64,
+    expected_test_result: UnlockObjectTestResult,
+) {
+    let (migration_executor, objects_map) = run_migration(outputs);
+
+    // Recreate the TxContext and Executor so we can set a timestamp greater than 0.
+    let tx_context = TxContext::new(
+        sender,
+        &TransactionDigest::new(rand::random()),
+        &EpochData::new(0, epoch_start_timestamp_ms, Default::default()),
+    );
+    let store = InMemoryStorage::new(
+        // Cloning all objects in the store includes the system packages we need for executing
+        // tests.
+        migration_executor
+            .store()
+            .objects()
+            .values()
+            .cloned()
+            .collect(),
+    );
+    let mut executor = Executor::new(MIGRATION_PROTOCOL_VERSION.into())
+        .unwrap()
+        .with_tx_context(tx_context)
+        .with_store(store);
+
+    // Find the corresponding objects to the migrated output.
+    let output_created_objects = objects_map
+        .get(&output_id)
+        .expect("output should have created objects");
+
+    let output_object_ref = executor
+        .store()
+        .get_object(output_created_objects.output().unwrap())
+        .unwrap()
+        .compute_object_reference();
+
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let inner_object_arg = builder
+            .obj(ObjectArg::ImmOrOwnedObject(output_object_ref))
+            .unwrap();
+
+        let extracted_assets = builder.programmable_move_call(
+            STARDUST_PACKAGE_ID,
+            module_name.into(),
+            ident_str!("extract_assets").into(),
+            vec![],
+            vec![inner_object_arg],
+        );
+
+        let Argument::Result(result_idx) = extracted_assets else {
+            panic!("expected Argument::Result");
+        };
+        let balance_arg = Argument::NestedResult(result_idx, 0);
+        let bag_arg = Argument::NestedResult(result_idx, 1);
+        let object_arg = Argument::NestedResult(result_idx, 2);
+
+        let coin_arg = builder.programmable_move_call(
+            SUI_FRAMEWORK_PACKAGE_ID,
+            ident_str!("coin").into(),
+            ident_str!("from_balance").into(),
+            vec![TypeTag::from_str(&format!("{SUI_FRAMEWORK_PACKAGE_ID}::sui::SUI")).unwrap()],
+            vec![balance_arg],
+        );
+
+        // Transfer the assets to the zero address since we have to move them somewhere
+        // in the test.
+        builder.transfer_arg(SuiAddress::ZERO, coin_arg);
+        builder.transfer_arg(SuiAddress::ZERO, bag_arg);
+        builder.transfer_arg(SuiAddress::ZERO, object_arg);
+
+        builder.finish()
+    };
+
+    let input_objects = CheckedInputObjects::new_for_genesis(
+        executor
+            .load_input_objects([output_object_ref])
+            .chain(executor.load_packages(PACKAGE_DEPS))
+            .collect(),
+    );
+    let result = executor.execute_pt_unmetered(input_objects, pt);
+
+    match (result, expected_test_result) {
+        (Ok(_), UnlockObjectTestResult::Success) => (),
+        (Ok(_), UnlockObjectTestResult::Failure(_)) => {
+            panic!("expected test failure, but test suceeded")
+        }
+        (Err(err), UnlockObjectTestResult::Success) => {
+            panic!("expected test success, but test failed: {err}")
+        }
+        (Err(err), UnlockObjectTestResult::Failure(expected_sub_status)) => {
+            for cause in err.chain() {
+                match cause.downcast_ref::<VMError>() {
+                    Some(vm_error) => {
+                        assert_eq!(vm_error.major_status(), StatusCode::ABORTED);
+                        let actual_sub_status = vm_error
+                            .sub_status()
+                            .expect("sub_status should be set for aborts");
+                        assert_eq!(
+                            actual_sub_status, expected_sub_status,
+                            "actual vm sub_status {actual_sub_status} did not match expected sub_status {expected_sub_status}"
+                        );
+                        // Finish test successfully.
+                        return;
+                    }
+                    None => continue,
+                }
+            }
+            panic!(
+                "expected test failure, but failed to find expected VMError in error chain, got: {err}"
+            );
+        }
+    }
 }

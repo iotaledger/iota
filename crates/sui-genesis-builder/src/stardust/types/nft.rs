@@ -29,6 +29,8 @@ pub const NFT_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("nft_output");
 pub const NFT_OUTPUT_STRUCT_NAME: &IdentStr = ident_str!("NftOutput");
 pub const NFT_STRUCT_NAME: &IdentStr = ident_str!("Nft");
 pub const IRC27_STRUCT_NAME: &IdentStr = ident_str!("Irc27Metadata");
+pub const NFT_DYNAMIC_OBJECT_FIELD_KEY: &[u8] = b"nft";
+pub const NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE: &str = "vector<u8>";
 
 /// Rust version of the Move std::fixed_point32::FixedPoint32 type.
 #[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]
@@ -85,7 +87,7 @@ pub struct Url {
     /// Note that this String is UTF-8 encoded while the URL type in Move is
     /// ascii-encoded. Setting this field requires ensuring that the string
     /// consists of only ASCII characters.
-    url: String,
+    pub(crate) url: String,
 }
 
 impl TryFrom<String> for Url {
@@ -292,8 +294,7 @@ impl Nft {
 
     /// Converts the immutable metadata of the NFT into an [`Irc27Metadata`].
     ///
-    /// - If the metadata is empty or non-existent returns the default
-    ///   `Irc27Metadata`.
+    /// - If the metadata does not exist returns the default `Irc27Metadata`.
     /// - If the metadata can be parsed into [`StardustIrc27`] returns that
     ///   converted into `Irc27Metadata`.
     /// - If the metadata can be parsed into a JSON object returns the default
@@ -302,14 +303,13 @@ impl Nft {
     /// - Otherwise, returns the default `Irc27Metadata` with
     ///   `non_standard_fields` containing a `data` key with the hex-encoded
     ///   metadata (without `0x` prefix).
+    ///
+    /// Note that the metadata feature of the NFT cannot be present _and_ empty
+    /// per the protocol rules: <https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md#additional-syntactic-transaction-validation-rules-2>.
     pub(crate) fn convert_immutable_metadata(nft: &StardustNft) -> anyhow::Result<Irc27Metadata> {
         let Some(metadata) = nft.immutable_features().metadata() else {
             return Ok(Irc27Metadata::default());
         };
-
-        if metadata.data().is_empty() {
-            return Ok(Irc27Metadata::default());
-        }
 
         if let Ok(parsed_irc27_metadata) = serde_json::from_slice::<StardustIrc27>(metadata.data())
         {

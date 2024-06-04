@@ -16,7 +16,9 @@ use sui_types::{
 };
 
 use crate::stardust::{
-    migration::{executor::Executor, migration::NATIVE_TOKEN_BAG_KEY_TYPE},
+    migration::{
+        executor::Executor, migration::NATIVE_TOKEN_BAG_KEY_TYPE, tests::random_output_header,
+    },
     native_token::{
         package_builder,
         package_data::{NativeTokenModuleData, NativeTokenPackageData},
@@ -29,6 +31,7 @@ fn create_bag_with_pt() {
     let owner = AliasAddress::new(AliasId::new([0; AliasId::LENGTH]));
     let supply = 1_000_000;
     let token_scheme = SimpleTokenScheme::new(supply, 0, supply).unwrap();
+    let header = random_output_header();
     let foundry = FoundryOutputBuilder::new_with_amount(1000, 1, token_scheme.into())
         .with_unlock_conditions([UnlockCondition::from(
             ImmutableAliasAddressUnlockCondition::new(owner),
@@ -47,20 +50,23 @@ fn create_bag_with_pt() {
     // Execution
     let mut executor = Executor::new(ProtocolVersion::MAX).unwrap();
     let object_count = executor.store().objects().len();
-    executor.create_foundry(&foundry, foundry_package).unwrap();
-    // Foundry package publication creates four objects
+    executor
+        .create_foundries([(&header, &foundry, foundry_package)])
+        .unwrap();
+    // Foundry package publication creates five objects
     //
     // * The package
     // * Coin metadata
     // * MaxSupplyPolicy
     // * The total supply coin
-    assert_eq!(executor.store().objects().len() - object_count, 4);
+    // * The foundry gas coin
+    assert_eq!(executor.store().objects().len() - object_count, 5);
     assert!(executor.native_tokens().get(&foundry_id.into()).is_some());
     let initial_supply_coin_object = executor
         .store()
         .objects()
         .values()
-        .find_map(|object| object.is_coin().then_some(object))
+        .find(|object| object.is_coin() && !object.is_gas_coin())
         .expect("there should be only a single coin: the total supply of native tokens");
     let coin_type_tag = initial_supply_coin_object.coin_type_maybe().unwrap();
     let initial_supply_coin_data = initial_supply_coin_object.as_coin_maybe().unwrap();
@@ -89,7 +95,7 @@ fn create_bag_with_pt() {
         .store()
         .objects()
         .values()
-        .filter_map(|object| object.is_child_object().then_some(object))
+        .filter(|object| object.is_child_object())
         .collect::<Vec<_>>();
     assert_eq!(tokens.len(), 1);
     assert_eq!(
