@@ -3,10 +3,8 @@
 
 //! Contains the logic for the migration process.
 
-use std::{
-    collections::HashMap,
-    io::{prelude::Write, BufWriter},
-};
+use std::{collections::HashMap, io::prelude::Write};
+use tracing::info;
 
 use anyhow::Result;
 use fastcrypto::hash::HashFunction;
@@ -106,12 +104,15 @@ impl Migration {
         // context will also map to the same objects betwen runs.
         outputs.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
         foundries.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
+        info!("Migrating foundries...");
         self.migrate_foundries(&foundries)?;
+        info!("Migrating the rest of outputs...");
         self.migrate_outputs(&outputs)?;
         let outputs = outputs
             .into_iter()
             .chain(foundries.into_iter().map(|(h, f)| (h, Output::Foundry(f))))
             .collect::<Vec<_>>();
+        info!("Verifying ledger state...");
         self.verify_ledger_state(&outputs)?;
 
         Ok(())
@@ -129,7 +130,10 @@ impl Migration {
         outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
         writer: impl Write,
     ) -> Result<()> {
+        info!("Starting the migration...");
         self.run_migration(outputs)?;
+        info!("Migration ended.");
+        info!("Writing snapshot file...");
         create_snapshot(&self.into_objects(), writer)
     }
 
@@ -235,7 +239,7 @@ fn generate_package(foundry: &FoundryOutput) -> Result<CompiledPackage> {
 /// Serialize the objects stored in [`InMemoryStorage`] into a file using
 /// [`bcs`] encoding.
 fn create_snapshot(ledger: &[Object], writer: impl Write) -> Result<()> {
-    let mut writer = BufWriter::new(writer);
+    let mut writer = brotli::CompressorWriter::new(writer, 4096, 11, 22);
     writer.write_all(&bcs::to_bytes(&ledger)?)?;
     Ok(writer.flush()?)
 }
