@@ -168,20 +168,17 @@ impl Irc30MetadataCompact {
 }
 
 fn extract_irc30_metadata(output: &FoundryOutput) -> Irc30Metadata {
-    match output.immutable_features().metadata() {
-        Some(metadata) => match serde_json::from_slice(metadata.data()) {
-            Ok(m) => m,
-            Err(_) => serde_json::from_slice::<Irc30MetadataCompact>(metadata.data())
+    if let Some(metadata) = output.immutable_features().metadata() {
+        serde_json::from_slice(metadata.data()).unwrap_or(
+            serde_json::from_slice::<Irc30MetadataCompact>(metadata.data())
                 .unwrap_or(Irc30MetadataCompact::new(
                     derive_foundry_package_lowercase_identifier("", output.id().as_slice()),
                 ))
                 .into_full_scheme(),
-        },
-        None => {
-            let identifier =
-                derive_foundry_package_lowercase_identifier("", output.id().as_slice());
-            Irc30Metadata::new(identifier.clone(), identifier, 0)
-        }
+        )
+    } else {
+        let identifier = derive_foundry_package_lowercase_identifier("", output.id().as_slice());
+        Irc30Metadata::new(identifier.clone(), identifier, 0)
     }
 }
 
