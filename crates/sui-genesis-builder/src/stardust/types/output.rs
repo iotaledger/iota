@@ -210,7 +210,7 @@ impl BasicOutput {
         // Resolve ownership
         let owner = if self.expiration.is_some() {
             Owner::Shared {
-                initial_shared_version: 0.into(),
+                initial_shared_version: version,
             }
         } else {
             Owner::AddressOwner(owner)

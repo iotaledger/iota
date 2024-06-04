@@ -10,7 +10,7 @@ import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessage
 import { useActiveAddress } from '_src/ui/app/hooks';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 import { useSigner } from '_src/ui/app/hooks/useSigner';
-import { isSuiNSName, useGetKioskContents, useSuiNSEnabled } from '@mysten/core';
+import { isSuiNSName, useSuiNSEnabled } from '@mysten/core';
 import { useSuiClient } from '@mysten/dapp-kit';
 import { ArrowRight16 } from '@mysten/icons';
 import { TransactionBlock } from '@mysten/sui.js/transactions';
@@ -19,7 +19,6 @@ import { Field, Form, Formik } from 'formik';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
-import { useTransferKioskItem } from './useTransferKioskItem';
 import { createValidationSchema } from './validation';
 
 export function TransferNFTForm({
@@ -42,11 +41,6 @@ export function TransferNFTForm({
     const signer = useSigner(activeAccount);
     const queryClient = useQueryClient();
     const navigate = useNavigate();
-    const { data: kiosk } = useGetKioskContents(activeAddress);
-    const transferKioskItem = useTransferKioskItem({ objectId, objectType });
-    const isContainedInKiosk = kiosk?.list.some(
-        (kioskItem) => kioskItem.data?.objectId === objectId,
-    );
 
     const transferNFT = useMutation({
         mutationFn: async (to: string) => {
@@ -64,10 +58,6 @@ export function TransferNFTForm({
                 to = address;
             }
 
-            if (isContainedInKiosk) {
-                return transferKioskItem.mutateAsync({ to });
-            }
-
             const tx = new TransactionBlock();
             tx.transferObjects([tx.object(objectId)], to);
 
@@ -82,7 +72,6 @@ export function TransferNFTForm({
         },
         onSuccess: (response) => {
             queryClient.invalidateQueries({ queryKey: ['object', objectId] });
-            queryClient.invalidateQueries({ queryKey: ['get-kiosk-contents'] });
             queryClient.invalidateQueries({ queryKey: ['get-owned-objects'] });
 
             ampli.sentCollectible({ objectId });
