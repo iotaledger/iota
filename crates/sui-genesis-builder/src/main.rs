@@ -17,7 +17,7 @@ fn main() -> anyhow::Result<()> {
 
     // Prepare files
     let Some(path) = std::env::args().nth(1) else {
-        anyhow::bail!("please provide path to the full-snapshot file");
+        anyhow::bail!("please provide path to the Hornet full-snapshot file");
     };
     let file = File::open(path)?;
     let object_snapshot = File::create("stardust_object_snapshot.bin")?;
