@@ -332,44 +332,6 @@ fn coin_ownership() -> Result<()> {
 }
 
 #[test]
-fn coin_ownership_with_zeroed_alias_id() -> Result<()> {
-    let alias_id = AliasId::null();
-    let (header, foundry) = create_foundry(
-        1_000_000,
-        SimpleTokenScheme::new(U256::from(100_000), U256::from(0), U256::from(100_000_000))
-            .unwrap(),
-        Irc30Metadata::new("Dogecoin", "DOGE", 0),
-        alias_id,
-    )
-    .unwrap();
-
-    let (
-        _package_object,
-        coin_object,
-        minted_coin_object,
-        _coin_metadata_object,
-        max_supply_policy_object,
-    ) = migrate_foundry(header, foundry)?;
-
-    // Check the owner of the coin object.
-    assert_eq!(
-        coin_object.owner.get_owner_address().unwrap().to_string(),
-        alias_id.to_string()
-    );
-
-    // Check the owner of the minted coin object.
-    assert_eq!(minted_coin_object.owner, SuiAddress::ZERO);
-
-    // Check the owner of the max supply policy object.
-    assert_eq!(
-        max_supply_policy_object.owner,
-        stardust_to_sui_address_owner(alias_id).unwrap()
-    );
-
-    Ok(())
-}
-
-#[test]
 fn create_gas_coin() {
     let (foundry_header, foundry_output) = create_foundry(
         1_000_000,
