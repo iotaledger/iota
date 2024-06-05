@@ -52,7 +52,7 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
                 />
             )}
             {step === Steps.ReviewValues && (
-                <ReviewValuesForm formData={formData} handleBack={handleBack} />
+                <ReviewValuesForm formData={formData} coin={coin} handleBack={handleBack} />
             )}
         </>
     );
