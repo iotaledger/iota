@@ -3,7 +3,7 @@
 
 'use client';
 
-import React, { useMemo } from 'react';
+import React from 'react';
 import { useCurrentAccount } from '@mysten/dapp-kit';
 import { VirtualList, ActivityTile } from '@/components';
 import { Activity } from '@/lib/interfaces';
@@ -22,7 +22,7 @@ function ActivityPage(): JSX.Element {
     })();
 
     if (error) {
-        return <div>{(error as Error)?.message}</div>;
+        return <div>{error?.message}</div>;
     }
 
     const virtualItem = (activity: Activity): JSX.Element => (

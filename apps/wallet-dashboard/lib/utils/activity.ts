@@ -41,6 +41,6 @@ export const getTransactionActivity = (
     return {
         action: getTransactionAction(tx, address),
         state: getTransactionActivityState(tx),
-        timestamp: parseTimestamp(tx.timestampMs),
+        timestamp: tx.timestampMs ? parseTimestamp(tx.timestampMs) : undefined,
     };
 };
