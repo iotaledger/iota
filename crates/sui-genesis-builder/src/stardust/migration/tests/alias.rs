@@ -27,6 +27,7 @@ use sui_types::{
     TypeTag,
 };
 
+use super::ExpectedAssets;
 use crate::stardust::{
     migration::tests::{
         create_foundry, extract_native_token_from_bag, object_migration_with_object_owner,
@@ -289,6 +290,7 @@ fn alias_migration_with_native_tokens() {
         ],
         ALIAS_OUTPUT_MODULE_NAME,
         native_token,
+        ExpectedAssets::BalanceBagObject,
     )
     .unwrap();
 }

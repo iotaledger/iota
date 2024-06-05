@@ -35,7 +35,7 @@ use sui_types::{
     TypeTag,
 };
 
-use super::{unlock_object_test, UnlockObjectTestResult};
+use super::{unlock_object_test, ExpectedAssets, UnlockObjectTestResult};
 use crate::stardust::{
     migration::tests::{
         create_foundry, extract_native_token_from_bag, object_migration_with_object_owner,
@@ -300,6 +300,7 @@ fn nft_migration_with_native_tokens() {
         ],
         NFT_OUTPUT_MODULE_NAME,
         native_token,
+        ExpectedAssets::BalanceBagObject,
     )
     .unwrap();
 }
@@ -536,6 +537,7 @@ fn nft_migration_with_timelock_unlocked() {
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::Success,
+        ExpectedAssets::BalanceBagObject,
     )
     .unwrap();
 }
@@ -564,6 +566,7 @@ fn nft_migration_with_timelock_still_locked() {
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::ERROR_TIMELOCK_NOT_EXPIRED_FAILURE,
+        ExpectedAssets::BalanceBagObject,
     )
     .unwrap();
 }
@@ -600,6 +603,7 @@ fn nft_migration_with_expired_unlock_condition() {
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::ERROR_WRONG_SENDER_FAILURE,
+        ExpectedAssets::BalanceBagObject,
     )
     .unwrap();
 
@@ -611,6 +615,7 @@ fn nft_migration_with_expired_unlock_condition() {
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::Success,
+        ExpectedAssets::BalanceBagObject,
     )
     .unwrap();
 }
@@ -647,6 +652,7 @@ fn nft_migration_with_unexpired_unlock_condition() {
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::ERROR_WRONG_SENDER_FAILURE,
+        ExpectedAssets::BalanceBagObject,
     )
     .unwrap();
 
@@ -658,6 +664,7 @@ fn nft_migration_with_unexpired_unlock_condition() {
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::Success,
+        ExpectedAssets::BalanceBagObject,
     )
     .unwrap();
 }
@@ -688,6 +695,7 @@ fn nft_migration_with_storage_deposit_return_unlock_condition() {
         // Epoch start time is not important for this test.
         0,
         UnlockObjectTestResult::Success,
+        ExpectedAssets::BalanceBagObject,
     )
     .unwrap();
 }
