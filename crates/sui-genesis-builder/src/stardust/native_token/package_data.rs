@@ -132,13 +132,8 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
                 symbol: identifier,
                 circulating_supply: token_scheme_u64.circulating_supply(),
                 maximum_supply: token_scheme_u64.maximum_supply(),
-                coin_name: irc_30_metadata.name().escape_default().to_string(),
-                coin_description: irc_30_metadata
-                    .description()
-                    .clone()
-                    .unwrap_or_default()
-                    .escape_default()
-                    .to_string(),
+                coin_name: irc_30_metadata.name().to_owned(),
+                coin_description: irc_30_metadata.description().clone().unwrap_or_default(),
                 icon_url: irc_30_metadata.url().clone(),
                 alias_address: *output.alias_address(),
             },
