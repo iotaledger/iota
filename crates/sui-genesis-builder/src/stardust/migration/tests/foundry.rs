@@ -92,15 +92,14 @@ fn migrate_foundry(
 
 #[test]
 fn foundry_with_simple_metadata() -> Result<()> {
+    let alias_id = AliasId::new(rand::random());
     let (header, foundry) = create_foundry(
         1_000_000,
         SimpleTokenScheme::new(U256::from(100_000), U256::from(0), U256::from(100_000_000))
             .unwrap(),
-        Irc30Metadata::new("Dogecoin", "DOGE❤", 0),
-        AliasId::null(),
+        Irc30Metadata::new("Dogecoin", "DOGE", 0),
+        alias_id,
     );
-
-    let alias_address = *foundry.alias_address();
 
     let (
         package_object,
@@ -125,15 +124,18 @@ fn foundry_with_simple_metadata() -> Result<()> {
     let coin = coin_object
         .as_coin_maybe()
         .expect("should be a coin object");
-    assert_eq!(coin_object.owner, SuiAddress::ZERO);
+    assert_eq!(
+        coin_object.owner.get_owner_address().unwrap().to_string(),
+        alias_id.to_string()
+    );
     assert_eq!(coin.balance, Balance::new(1_000_000));
 
     // Check the minted coin object.
-    let coin = minted_coin_object
+    let minted_coin = minted_coin_object
         .as_coin_maybe()
         .expect("should be a coin object");
-    assert_eq!(coin_object.owner, SuiAddress::ZERO);
-    assert_eq!(coin.balance, Balance::new(100_000));
+    assert_eq!(minted_coin_object.owner, SuiAddress::ZERO);
+    assert_eq!(minted_coin.balance, Balance::new(100_000));
 
     // Check the coin metadata object.
     let coin_metadata = coin_metadata_object
@@ -155,7 +157,7 @@ fn foundry_with_simple_metadata() -> Result<()> {
 
     assert_eq!(
         max_supply_policy_object.owner,
-        stardust_to_sui_address_owner(alias_address).unwrap()
+        stardust_to_sui_address_owner(alias_id).unwrap()
     );
     assert_eq!(max_supply_policy.maximum_supply, 100_000_000);
 
@@ -185,7 +187,8 @@ fn foundry_with_simple_metadata() -> Result<()> {
 }
 
 #[test]
-fn foundry_with_exceeding_circulating_supply() -> Result<()> {
+fn foundry_with_special_metadata() -> Result<()> {
+    let alias_id = AliasId::new(rand::random());
     let (header, foundry) = create_foundry(
         1_000_000,
         SimpleTokenScheme::new(U256::from(u64::MAX), U256::from(0), U256::MAX).unwrap(),
@@ -194,10 +197,8 @@ fn foundry_with_exceeding_circulating_supply() -> Result<()> {
             .with_url(Url::parse("https://dogecoin.com").unwrap())
             .with_logo_url(Url::parse("https://dogecoin.com/logo.png").unwrap())
             .with_logo("0x54654"),
-        AliasId::null(),
+        alias_id,
     );
-
-    let alias_address = *foundry.alias_address();
 
     let (
         package_object,
@@ -222,15 +223,18 @@ fn foundry_with_exceeding_circulating_supply() -> Result<()> {
     let coin = coin_object
         .as_coin_maybe()
         .expect("should be a coin object");
-    assert_eq!(coin_object.owner, SuiAddress::ZERO);
+    assert_eq!(
+        coin_object.owner.get_owner_address().unwrap().to_string(),
+        alias_id.to_string()
+    );
     assert_eq!(coin.balance, Balance::new(1_000_000));
 
     // Check the minted coin object.
-    let coin = minted_coin_object
+    let minted_coin = minted_coin_object
         .as_coin_maybe()
         .expect("should be a coin object");
-    assert_eq!(coin_object.owner, SuiAddress::ZERO);
-    assert_eq!(coin.balance, Balance::new(u64::MAX - 1));
+    assert_eq!(minted_coin_object.owner, SuiAddress::ZERO);
+    assert_eq!(minted_coin.balance, Balance::new(u64::MAX - 1));
 
     // Check the coin metadata object.
     let coin_metadata = coin_metadata_object
@@ -255,7 +259,7 @@ fn foundry_with_exceeding_circulating_supply() -> Result<()> {
 
     assert_eq!(
         max_supply_policy_object.owner,
-        stardust_to_sui_address_owner(alias_address).unwrap()
+        stardust_to_sui_address_owner(alias_id).unwrap()
     );
     assert_eq!(max_supply_policy.maximum_supply, u64::MAX - 1);
 
@@ -280,6 +284,80 @@ fn foundry_with_exceeding_circulating_supply() -> Result<()> {
     assert_eq!(type_tag.name.as_str(), "DOGE");
     assert_eq!(type_tag.type_params.len(), 0);
     assert!(max_supply_policy_object.has_public_transfer());
+
+    Ok(())
+}
+
+#[test]
+fn coin_ownership() -> Result<()> {
+    let alias_id = AliasId::new(rand::random());
+    let (header, foundry) = create_foundry(
+        1_000_000,
+        SimpleTokenScheme::new(U256::from(100_000), U256::from(0), U256::from(100_000_000))
+            .unwrap(),
+        Irc30Metadata::new("Dogecoin", "DOGE", 0),
+        alias_id,
+    );
+
+    let (
+        _package_object,
+        coin_object,
+        minted_coin_object,
+        _coin_metadata_object,
+        max_supply_policy_object,
+    ) = migrate_foundry(header, foundry)?;
+
+    // Check the owner of the coin object.
+    assert_eq!(
+        coin_object.owner.get_owner_address().unwrap().to_string(),
+        alias_id.to_string()
+    );
+
+    // Check the owner of the minted coin object.
+    assert_eq!(minted_coin_object.owner, SuiAddress::ZERO);
+
+    // Check the owner of the max supply policy object.
+    assert_eq!(
+        max_supply_policy_object.owner,
+        stardust_to_sui_address_owner(alias_id).unwrap()
+    );
+
+    Ok(())
+}
+
+#[test]
+fn coin_ownership_with_zeroid_alias_id() -> Result<()> {
+    let alias_id = AliasId::null();
+    let (header, foundry) = create_foundry(
+        1_000_000,
+        SimpleTokenScheme::new(U256::from(100_000), U256::from(0), U256::from(100_000_000))
+            .unwrap(),
+        Irc30Metadata::new("Dogecoin", "DOGE", 0),
+        alias_id,
+    );
+
+    let (
+        _package_object,
+        coin_object,
+        minted_coin_object,
+        _coin_metadata_object,
+        max_supply_policy_object,
+    ) = migrate_foundry(header, foundry)?;
+
+    // Check the owner of the coin object.
+    assert_eq!(
+        coin_object.owner.get_owner_address().unwrap().to_string(),
+        alias_id.to_string()
+    );
+
+    // Check the owner of the minted coin object.
+    assert_eq!(minted_coin_object.owner, SuiAddress::ZERO);
+
+    // Check the owner of the max supply policy object.
+    assert_eq!(
+        max_supply_policy_object.owner,
+        stardust_to_sui_address_owner(alias_id).unwrap()
+    );
 
     Ok(())
 }
