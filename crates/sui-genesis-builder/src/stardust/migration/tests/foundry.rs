@@ -1,6 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use anyhow::{anyhow, Result};
 use iota_sdk::{
     types::block::output::{
         feature::Irc30Metadata, AliasId, FoundryOutput, Output, SimpleTokenScheme,
@@ -34,57 +35,63 @@ type MaxSupplyPolicyObject = Object;
 fn migrate_foundry(
     header: OutputHeader,
     foundry: FoundryOutput,
-) -> (
+) -> Result<(
     PackageObject,
     CoinObject,
     MintedCoinObject,
     CoinMetadataObject,
     MaxSupplyPolicyObject,
-) {
+)> {
     let output_id = header.output_id();
 
     let (executor, objects_map) = run_migration([(header, Output::Foundry(foundry))]);
 
     let created_objects_ids = objects_map
         .get(&output_id)
-        .expect("foundry output should have created objects");
+        .ok_or(anyhow!("missing created objects"))?;
 
     let created_objects = executor.into_objects();
 
     assert_eq!(created_objects.len(), 5);
 
+    let package_id = *created_objects_ids.package()?;
+    let coin_id = *created_objects_ids.coin()?;
+    let minted_coin_id = *created_objects_ids.minted_coin()?;
+    let coin_metadata_id = *created_objects_ids.coin_metadata()?;
+    let max_supply_policy_id = *created_objects_ids.max_supply_policy()?;
+
     let package_object = created_objects
         .iter()
-        .find(|object| object.id() == *created_objects_ids.package().unwrap())
+        .find(|object| object.id() == package_id)
         .unwrap();
     let coin_object = created_objects
         .iter()
-        .find(|object| object.id() == *created_objects_ids.coin().unwrap())
+        .find(|object| object.id() == coin_id)
         .unwrap();
     let minted_coin_object = created_objects
         .iter()
-        .find(|object| object.id() == *created_objects_ids.minted_coin().unwrap())
+        .find(|object| object.id() == minted_coin_id)
         .unwrap();
     let coin_metadata_object = created_objects
         .iter()
-        .find(|object| object.id() == *created_objects_ids.coin_metadata().unwrap())
+        .find(|object| object.id() == coin_metadata_id)
         .unwrap();
     let max_supply_policy_object = created_objects
         .iter()
-        .find(|object| object.id() == *created_objects_ids.max_supply_policy().unwrap())
+        .find(|object| object.id() == max_supply_policy_id)
         .unwrap();
 
-    (
+    Ok((
         package_object.clone(),
         coin_object.clone(),
         minted_coin_object.clone(),
         coin_metadata_object.clone(),
         max_supply_policy_object.clone(),
-    )
+    ))
 }
 
 #[test]
-fn foundry_with_simple_metadata() {
+fn foundry_with_simple_metadata() -> Result<()> {
     let (header, foundry) = create_foundry(
         1_000_000,
         SimpleTokenScheme::new(U256::from(100_000), U256::from(0), U256::from(100_000_000))
@@ -101,7 +108,7 @@ fn foundry_with_simple_metadata() {
         minted_coin_object,
         coin_metadata_object,
         max_supply_policy_object,
-    ) = migrate_foundry(header, foundry);
+    ) = migrate_foundry(header, foundry)?;
 
     // Check the package object.
     let type_origin_table = package_object
@@ -173,10 +180,12 @@ fn foundry_with_simple_metadata() {
     assert_eq!(type_tag.name.as_str(), "DOGE");
     assert_eq!(type_tag.type_params.len(), 0);
     assert!(max_supply_policy_object.has_public_transfer());
+
+    Ok(())
 }
 
 #[test]
-fn foundry_with_exceeding_circulating_supply() {
+fn foundry_with_exceeding_circulating_supply() -> Result<()> {
     let (header, foundry) = create_foundry(
         1_000_000,
         SimpleTokenScheme::new(U256::from(u64::MAX), U256::from(0), U256::MAX).unwrap(),
@@ -192,7 +201,7 @@ fn foundry_with_exceeding_circulating_supply() {
         minted_coin_object,
         coin_metadata_object,
         max_supply_policy_object,
-    ) = migrate_foundry(header, foundry);
+    ) = migrate_foundry(header, foundry)?;
 
     // Check the package object.
     let type_origin_table = package_object
@@ -264,6 +273,8 @@ fn foundry_with_exceeding_circulating_supply() {
     assert_eq!(type_tag.name.as_str(), "DOGE");
     assert_eq!(type_tag.type_params.len(), 0);
     assert!(max_supply_policy_object.has_public_transfer());
+
+    Ok(())
 }
 
 #[test]
