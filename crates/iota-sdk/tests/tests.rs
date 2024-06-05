@@ -1,7 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2024 IOTA Stiftung 
 // SPDX-License-Identifier: Apache-2.0
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_types::crypto::{Ed25519IotaSignature, SignatureScheme, IotaSignatureInner};

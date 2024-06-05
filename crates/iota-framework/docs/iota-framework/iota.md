@@ -85,22 +85,22 @@ The amount of Micros per Iota token based on the fact that micros is
 
 
 
-<a name="0x2_iota_TOTAL_SUPPLY_MICROS"></a>
-
-The total supply of Iota denominated in Micros (10 Billion * 10^9)
-
-
-<pre><code><b>const</b> <a href="../iota-framework/iota.md#0x2_iota_TOTAL_SUPPLY_MICROS">TOTAL_SUPPLY_MICROS</a>: u64 = 10000000000000000000;
-</code></pre>
-
-
-
 <a name="0x2_iota_TOTAL_SUPPLY_IOTA"></a>
 
 The total supply of Iota denominated in whole Iota tokens (10 Billion)
 
 
 <pre><code><b>const</b> <a href="../iota-framework/iota.md#0x2_iota_TOTAL_SUPPLY_IOTA">TOTAL_SUPPLY_IOTA</a>: u64 = 10000000000;
+</code></pre>
+
+
+
+<a name="0x2_iota_TOTAL_SUPPLY_MICROS"></a>
+
+The total supply of Iota denominated in Micros (10 Billion * 10^9)
+
+
+<pre><code><b>const</b> <a href="../iota-framework/iota.md#0x2_iota_TOTAL_SUPPLY_MICROS">TOTAL_SUPPLY_MICROS</a>: u64 = 10000000000000000000;
 </code></pre>
 
 

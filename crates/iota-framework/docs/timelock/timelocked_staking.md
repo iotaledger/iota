@@ -20,8 +20,8 @@ title: Module `0x10cf::timelocked_staking`
 <b>use</b> <a href="../iota-framework/iota.md#0x2_iota">0x2::iota</a>;
 <b>use</b> <a href="../iota-framework/transfer.md#0x2_transfer">0x2::transfer</a>;
 <b>use</b> <a href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
-<b>use</b> <a href="../iota-system/staking_pool.md#0x3_staking_pool">0x3::staking_pool</a>;
 <b>use</b> <a href="../iota-system/iota_system.md#0x3_iota_system">0x3::iota_system</a>;
+<b>use</b> <a href="../iota-system/staking_pool.md#0x3_staking_pool">0x3::staking_pool</a>;
 </code></pre>
 
 

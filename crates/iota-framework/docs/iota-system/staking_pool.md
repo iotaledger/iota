@@ -46,9 +46,9 @@ title: Module `0x3::staking_pool`
 <pre><code><b>use</b> <a href="../move-stdlib/option.md#0x1_option">0x1::option</a>;
 <b>use</b> <a href="../iota-framework/bag.md#0x2_bag">0x2::bag</a>;
 <b>use</b> <a href="../iota-framework/balance.md#0x2_balance">0x2::balance</a>;
+<b>use</b> <a href="../iota-framework/iota.md#0x2_iota">0x2::iota</a>;
 <b>use</b> <a href="../iota-framework/math.md#0x2_math">0x2::math</a>;
 <b>use</b> <a href="../iota-framework/object.md#0x2_object">0x2::object</a>;
-<b>use</b> <a href="../iota-framework/iota.md#0x2_iota">0x2::iota</a>;
 <b>use</b> <a href="../iota-framework/table.md#0x2_table">0x2::table</a>;
 <b>use</b> <a href="../iota-framework/transfer.md#0x2_transfer">0x2::transfer</a>;
 <b>use</b> <a href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
@@ -289,6 +289,15 @@ A self-custodial object holding the staked IOTA tokens.
 
 
 
+<a name="0x3_staking_pool_EInsufficientIotaTokenBalance"></a>
+
+
+
+<pre><code><b>const</b> <a href="staking_pool.md#0x3_staking_pool_EInsufficientIotaTokenBalance">EInsufficientIotaTokenBalance</a>: u64 = 3;
+</code></pre>
+
+
+
 <a name="0x3_staking_pool_EInsufficientPoolTokenBalance"></a>
 
 
@@ -303,15 +312,6 @@ A self-custodial object holding the staked IOTA tokens.
 
 
 <pre><code><b>const</b> <a href="staking_pool.md#0x3_staking_pool_EInsufficientRewardsPoolBalance">EInsufficientRewardsPoolBalance</a>: u64 = 4;
-</code></pre>
-
-
-
-<a name="0x3_staking_pool_EInsufficientIotaTokenBalance"></a>
-
-
-
-<pre><code><b>const</b> <a href="staking_pool.md#0x3_staking_pool_EInsufficientIotaTokenBalance">EInsufficientIotaTokenBalance</a>: u64 = 3;
 </code></pre>
 
 

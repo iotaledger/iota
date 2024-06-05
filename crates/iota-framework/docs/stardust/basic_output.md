@@ -15,8 +15,8 @@ title: Module `0x107a::basic_output`
 <b>use</b> <a href="../move-stdlib/option.md#0x1_option">0x1::option</a>;
 <b>use</b> <a href="../iota-framework/bag.md#0x2_bag">0x2::bag</a>;
 <b>use</b> <a href="../iota-framework/balance.md#0x2_balance">0x2::balance</a>;
-<b>use</b> <a href="../iota-framework/object.md#0x2_object">0x2::object</a>;
 <b>use</b> <a href="../iota-framework/iota.md#0x2_iota">0x2::iota</a>;
+<b>use</b> <a href="../iota-framework/object.md#0x2_object">0x2::object</a>;
 <b>use</b> <a href="../iota-framework/transfer.md#0x2_transfer">0x2::transfer</a>;
 <b>use</b> <a href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
 </code></pre>
@@ -52,7 +52,7 @@ way to handle the two possible addresses that can unlock the output.
  Hash of the <code>outputId</code> that was migrated.
 </dd>
 <dt>
-<code>iota: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
+<code><a href="../iota-framework/iota.md#0x2_iota">iota</a>: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
 </dt>
 <dd>
  The amount of IOTA coins held by the output.
@@ -128,7 +128,7 @@ Extract the assets stored inside the output, respecting the unlock conditions.
     // Unpack the output into its basic part.
     <b>let</b> <a href="basic_output.md#0x107a_basic_output_BasicOutput">BasicOutput</a> {
         id,
-        iota: <b>mut</b> iota,
+        <a href="../iota-framework/iota.md#0x2_iota">iota</a>: <b>mut</b> <a href="../iota-framework/iota.md#0x2_iota">iota</a>,
         native_tokens,
         storage_deposit_return_uc: <b>mut</b> storage_deposit_return_uc,
         timelock_uc: <b>mut</b> timelock_uc,
@@ -150,7 +150,7 @@ Extract the assets stored inside the output, respecting the unlock conditions.
 
     // If the output <b>has</b> an storage deposit <b>return</b> unlock condition, then we need <b>to</b> <b>return</b> the deposit.
     <b>if</b> (storage_deposit_return_uc.is_some()) {
-        storage_deposit_return_uc.extract().unlock(&<b>mut</b> iota, ctx);
+        storage_deposit_return_uc.extract().unlock(&<b>mut</b> <a href="../iota-framework/iota.md#0x2_iota">iota</a>, ctx);
     };
 
     // Destroy the unlock conditions.
@@ -161,7 +161,7 @@ Extract the assets stored inside the output, respecting the unlock conditions.
     // Delete the output.
     <a href="../iota-framework/object.md#0x2_object_delete">object::delete</a>(id);
 
-    <b>return</b> (iota, native_tokens)
+    <b>return</b> (<a href="../iota-framework/iota.md#0x2_iota">iota</a>, native_tokens)
 }
 </code></pre>
 

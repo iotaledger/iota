@@ -1,7 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2024 IOTA Stiftung 
 // SPDX-License-Identifier: Apache-2.0
 
 export const TANSTACK_OWNED_KIOSK_KEY = 'TANSTACK_OWNED_KIOSK_KEY';

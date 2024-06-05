@@ -16,8 +16,8 @@ title: Module `0x107a::alias_output`
 <b>use</b> <a href="../iota-framework/bag.md#0x2_bag">0x2::bag</a>;
 <b>use</b> <a href="../iota-framework/balance.md#0x2_balance">0x2::balance</a>;
 <b>use</b> <a href="../iota-framework/dynamic_object_field.md#0x2_dynamic_object_field">0x2::dynamic_object_field</a>;
-<b>use</b> <a href="../iota-framework/object.md#0x2_object">0x2::object</a>;
 <b>use</b> <a href="../iota-framework/iota.md#0x2_iota">0x2::iota</a>;
+<b>use</b> <a href="../iota-framework/object.md#0x2_object">0x2::object</a>;
 <b>use</b> <a href="../iota-framework/transfer.md#0x2_transfer">0x2::transfer</a>;
 </code></pre>
 
@@ -47,7 +47,7 @@ Owned Object controlled by the Governor Address.
  This is a "random" UID, not the AliasID from Stardust.
 </dd>
 <dt>
-<code>iota: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
+<code><a href="../iota-framework/iota.md#0x2_iota">iota</a>: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
 </dt>
 <dd>
  The amount of IOTA coins held by the output.
@@ -105,14 +105,14 @@ The function extracts assets from a legacy <code><a href="alias_output.md#0x107a
     // Unpack the output into its basic part.
     <b>let</b> <a href="alias_output.md#0x107a_alias_output_AliasOutput">AliasOutput</a> {
         id,
-        iota,
+        <a href="../iota-framework/iota.md#0x2_iota">iota</a>,
         native_tokens
     } = output;
 
     // Delete the output.
     <a href="../iota-framework/object.md#0x2_object_delete">object::delete</a>(id);
 
-    (iota, native_tokens, <a href="alias.md#0x107a_alias">alias</a>)
+    (<a href="../iota-framework/iota.md#0x2_iota">iota</a>, native_tokens, <a href="alias.md#0x107a_alias">alias</a>)
 }
 </code></pre>
 

@@ -20,8 +20,8 @@ title: Module `0x107a::nft_output`
 <b>use</b> <a href="../iota-framework/bag.md#0x2_bag">0x2::bag</a>;
 <b>use</b> <a href="../iota-framework/balance.md#0x2_balance">0x2::balance</a>;
 <b>use</b> <a href="../iota-framework/dynamic_object_field.md#0x2_dynamic_object_field">0x2::dynamic_object_field</a>;
-<b>use</b> <a href="../iota-framework/object.md#0x2_object">0x2::object</a>;
 <b>use</b> <a href="../iota-framework/iota.md#0x2_iota">0x2::iota</a>;
+<b>use</b> <a href="../iota-framework/object.md#0x2_object">0x2::object</a>;
 <b>use</b> <a href="../iota-framework/transfer.md#0x2_transfer">0x2::transfer</a>;
 <b>use</b> <a href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
 </code></pre>
@@ -52,7 +52,7 @@ The Stardust NFT output representation.
  This is a "random" UID, not the NFTID from Stardust.
 </dd>
 <dt>
-<code>iota: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
+<code><a href="../iota-framework/iota.md#0x2_iota">iota</a>: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
 </dt>
 <dd>
  The amount of IOTA tokens held by the output.
@@ -125,7 +125,7 @@ The function extracts assets from a legacy NFT output.
     // Unpuck the output.
     <b>let</b> <a href="nft_output.md#0x107a_nft_output_NftOutput">NftOutput</a> {
         id,
-        iota: <b>mut</b> iota,
+        <a href="../iota-framework/iota.md#0x2_iota">iota</a>: <b>mut</b> <a href="../iota-framework/iota.md#0x2_iota">iota</a>,
         native_tokens,
         storage_deposit_return_uc: <b>mut</b> storage_deposit_return_uc,
         timelock_uc: <b>mut</b> timelock_uc,
@@ -144,7 +144,7 @@ The function extracts assets from a legacy NFT output.
 
     // If the output <b>has</b> a storage deposit <b>return</b> unlock condition, then we need <b>to</b> <b>return</b> the deposit.
     <b>if</b> (storage_deposit_return_uc.is_some()) {
-        storage_deposit_return_uc.extract().unlock(&<b>mut</b> iota, ctx);
+        storage_deposit_return_uc.extract().unlock(&<b>mut</b> <a href="../iota-framework/iota.md#0x2_iota">iota</a>, ctx);
     };
 
     // Destroy the output.
@@ -154,7 +154,7 @@ The function extracts assets from a legacy NFT output.
 
     <a href="../iota-framework/object.md#0x2_object_delete">object::delete</a>(id);
 
-    <b>return</b> (iota, native_tokens, <a href="nft.md#0x107a_nft">nft</a>)
+    <b>return</b> (<a href="../iota-framework/iota.md#0x2_iota">iota</a>, native_tokens, <a href="nft.md#0x107a_nft">nft</a>)
 }
 </code></pre>
 

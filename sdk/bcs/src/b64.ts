@@ -1,7 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2024 IOTA Stiftung 
 // SPDX-License-Identifier: Apache-2.0
 
 export function fromB64(base64String: string): Uint8Array {

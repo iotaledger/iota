@@ -57,9 +57,9 @@ of the type at once.
 <b>use</b> <a href="coin.md#0x2_coin">0x2::coin</a>;
 <b>use</b> <a href="dynamic_field.md#0x2_dynamic_field">0x2::dynamic_field</a>;
 <b>use</b> <a href="event.md#0x2_event">0x2::event</a>;
+<b>use</b> <a href="iota.md#0x2_iota">0x2::iota</a>;
 <b>use</b> <a href="object.md#0x2_object">0x2::object</a>;
 <b>use</b> <a href="package.md#0x2_package">0x2::package</a>;
-<b>use</b> <a href="iota.md#0x2_iota">0x2::iota</a>;
 <b>use</b> <a href="transfer.md#0x2_transfer">0x2::transfer</a>;
 <b>use</b> <a href="tx_context.md#0x2_tx_context">0x2::tx_context</a>;
 <b>use</b> <a href="vec_set.md#0x2_vec_set">0x2::vec_set</a>;

@@ -13,8 +13,8 @@ title: Module `0x3::stake_subsidy`
 
 <pre><code><b>use</b> <a href="../iota-framework/bag.md#0x2_bag">0x2::bag</a>;
 <b>use</b> <a href="../iota-framework/balance.md#0x2_balance">0x2::balance</a>;
-<b>use</b> <a href="../iota-framework/math.md#0x2_math">0x2::math</a>;
 <b>use</b> <a href="../iota-framework/iota.md#0x2_iota">0x2::iota</a>;
+<b>use</b> <a href="../iota-framework/math.md#0x2_math">0x2::math</a>;
 <b>use</b> <a href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
 </code></pre>
 
