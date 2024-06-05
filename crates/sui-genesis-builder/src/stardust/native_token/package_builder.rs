@@ -144,7 +144,6 @@ fn adjust_native_token_module(package_path: &Path, package: &NativeTokenPackageD
             &package.module().alias_address.to_string().replace("0x", ""),
         );
 
-    println!("{}", new_contents);
     fs::write(&new_move_file_path, new_contents)?;
 
     Ok(())
