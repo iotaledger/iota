@@ -475,6 +475,7 @@ impl Executor {
     ) -> Result<Vec<ObjectID>> {
         let mut object_deps = Vec::with_capacity(native_tokens.len());
         let mut foundry_package_deps = Vec::with_capacity(native_tokens.len());
+        let mut foundry_coins = Vec::with_capacity(native_tokens.len());
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             for token in native_tokens.iter() {
@@ -487,6 +488,7 @@ impl Executor {
                     anyhow::bail!("foundry coin should exist");
                 };
                 let object_ref = foundry_coin.compute_object_reference();
+                foundry_coins.push(foundry_coin.id());
 
                 object_deps.push(object_ref);
                 foundry_package_deps.push(foundry_ledger_data.package_id);
@@ -516,7 +518,13 @@ impl Executor {
         let InnerTemporaryStore { written, .. } =
             self.execute_pt_unmetered(checked_input_objects, pt)?;
 
-        let coin_ids = written.keys().copied().collect();
+        let coin_ids = written
+            .keys()
+            // Linear search is ok due to the expected very small size of
+            // `foundry_coins`
+            .filter(|id| !foundry_coins.contains(id))
+            .copied()
+            .collect();
 
         // Save the modified coin
         self.store.finish(written);
