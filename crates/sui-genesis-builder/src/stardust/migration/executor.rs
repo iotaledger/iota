@@ -8,7 +8,7 @@ use std::{
 
 use anyhow::Result;
 use iota_sdk::types::block::output::{
-    AliasOutput, BasicOutput, FoundryOutput, NativeTokens, NftOutput, TokenId,
+    AliasOutput, BasicOutput, FoundryOutput, NativeTokens, NftOutput, OutputId, TokenId,
 };
 use move_core_types::{ident_str, language_storage::StructTag};
 use move_vm_runtime_v2::move_vm::MoveVM;
@@ -48,8 +48,8 @@ use crate::{
             verification::created_objects::CreatedObjects, PACKAGE_DEPS,
         },
         types::{
-            snapshot::OutputHeader, stardust_to_sui_address, stardust_to_sui_address_owner,
-            timelock, token_scheme::SimpleTokenSchemeU64, Nft,
+            foundry::create_foundry_gas_coin, snapshot::OutputHeader, stardust_to_sui_address,
+            stardust_to_sui_address_owner, timelock, token_scheme::SimpleTokenSchemeU64, Nft,
         },
     },
 };
@@ -204,76 +204,91 @@ impl Executor {
         Ok(temporary_store.into_inner())
     }
 
-    /// Process a foundry output as follows:
+    /// Process the foundry outputs as follows:
     ///
-    /// * Publish the generated package using a tailored unmetered executor.
+    /// * Publish the generated packages using a tailored unmetered executor.
     /// * For each native token, map the [`TokenId`] to the [`ObjectID`] of the
     ///   coin that holds its total supply.
-    /// * Update the inner store with the created object.
-    pub(super) fn create_foundry<'a>(
+    /// * Update the inner store with the created objects.
+    pub(super) fn create_foundries<'a>(
         &mut self,
-        foundry: &'a FoundryOutput,
-        pkg: CompiledPackage,
-    ) -> Result<CreatedObjects> {
-        let mut created_objects = CreatedObjects::default();
-        let modules = package_module_bytes(&pkg)?;
-        let deps = self.checked_system_packages();
-        let pt = {
-            let mut builder = ProgrammableTransactionBuilder::new();
-            let upgrade_cap = builder.command(Command::Publish(modules, PACKAGE_DEPS.into()));
-            // We make a dummy transfer because the `UpgradeCap` does
-            // not have the drop ability.
-            //
-            // We ignore it in the genesis, to render the package immutable.
-            builder.transfer_arg(Default::default(), upgrade_cap);
-            builder.finish()
-        };
-        let InnerTemporaryStore { written, .. } = self.execute_pt_unmetered(deps, pt)?;
-        // Get on-chain info
-        let mut minted_coin_id = None::<ObjectID>;
-        let mut foundry_package = None::<&MovePackage>;
-        for object in written.values() {
-            if object.is_coin() {
-                minted_coin_id = Some(object.id());
-                created_objects.set_coin(object.id())?;
-            } else if object.type_().map_or(false, |t| t.is_coin_metadata()) {
-                created_objects.set_coin_metadata(object.id())?
-            } else if object.type_().map_or(false, |t| {
-                t.address() == STARDUST_ADDRESS
-                    && t.module().as_str() == "capped_coin"
-                    && t.name().as_str() == "MaxSupplyPolicy"
-            }) {
-                created_objects.set_max_supply_policy(object.id())?
-            } else if object.is_package() {
-                foundry_package = Some(
-                    object
-                        .data
-                        .try_as_package()
-                        .expect("already verified this is a package"),
-                );
-                created_objects.set_package(object.id())?;
+        foundries: impl IntoIterator<Item = (&'a OutputHeader, &'a FoundryOutput, CompiledPackage)>,
+    ) -> Result<Vec<(OutputId, CreatedObjects)>> {
+        let mut res = Vec::new();
+        for (header, foundry, pkg) in foundries {
+            let mut created_objects = CreatedObjects::default();
+            let modules = package_module_bytes(&pkg)?;
+            let deps = self.checked_system_packages();
+            let pt = {
+                let mut builder = ProgrammableTransactionBuilder::new();
+                let upgrade_cap = builder.command(Command::Publish(modules, PACKAGE_DEPS.into()));
+                // We make a dummy transfer because the `UpgradeCap` does
+                // not have the drop ability.
+                //
+                // We ignore it in the genesis, to render the package immutable.
+                builder.transfer_arg(Default::default(), upgrade_cap);
+                builder.finish()
+            };
+            let InnerTemporaryStore { written, .. } = self.execute_pt_unmetered(deps, pt)?;
+            // Get on-chain info
+            let mut minted_coin_id = None::<ObjectID>;
+            let mut foundry_package = None::<&MovePackage>;
+            for object in written.values() {
+                if object.is_coin() {
+                    minted_coin_id = Some(object.id());
+                    created_objects.set_minted_coin(object.id())?;
+                } else if object.type_().map_or(false, |t| t.is_coin_metadata()) {
+                    created_objects.set_coin_metadata(object.id())?
+                } else if object.type_().map_or(false, |t| {
+                    t.address() == STARDUST_ADDRESS
+                        && t.module().as_str() == "capped_coin"
+                        && t.name().as_str() == "MaxSupplyPolicy"
+                }) {
+                    created_objects.set_max_supply_policy(object.id())?
+                } else if object.is_package() {
+                    foundry_package = Some(
+                        object
+                            .data
+                            .try_as_package()
+                            .expect("already verified this is a package"),
+                    );
+                    created_objects.set_package(object.id())?;
+                }
             }
+            let (minted_coin_id, foundry_package) = (
+                minted_coin_id.expect("a coin must have been minted"),
+                foundry_package.expect("there should be a published package"),
+            );
+            self.native_tokens.insert(
+                foundry.token_id(),
+                FoundryLedgerData::new(
+                    minted_coin_id,
+                    foundry_package,
+                    SimpleTokenSchemeU64::try_from(foundry.token_scheme().as_simple())?,
+                ),
+            );
+
+            // Create the foundry gas coin object.
+            let gas_coin = create_foundry_gas_coin(
+                &header.output_id(),
+                foundry,
+                &self.tx_context,
+                foundry_package.version(),
+                &self.protocol_config,
+            )?;
+            created_objects.set_coin(gas_coin.id())?;
+            self.store.insert_object(gas_coin);
+
+            self.store.finish(
+                written
+                    .into_iter()
+                    // We ignore the [`UpgradeCap`] objects.
+                    .filter(|(_, object)| object.struct_tag() != Some(UpgradeCap::type_()))
+                    .collect(),
+            );
+            res.push((header.output_id(), created_objects));
         }
-        let (minted_coin_id, foundry_package) = (
-            minted_coin_id.expect("a coin must have been minted"),
-            foundry_package.expect("there should be a published package"),
-        );
-        self.native_tokens.insert(
-            foundry.token_id(),
-            FoundryLedgerData::new(
-                minted_coin_id,
-                foundry_package,
-                SimpleTokenSchemeU64::try_from(foundry.token_scheme().as_simple())?,
-            ),
-        );
-        self.store.finish(
-            written
-                .into_iter()
-                // We ignore the [`UpgradeCap`] objects.
-                .filter(|(_, object)| object.struct_tag() != Some(UpgradeCap::type_()))
-                .collect(),
-        );
-        Ok(created_objects)
+        Ok(res)
     }
 
     pub(super) fn create_alias_objects(
@@ -370,7 +385,7 @@ impl Executor {
             let mut builder = ProgrammableTransactionBuilder::new();
             let bag = pt::bag_new(&mut builder);
             for token in native_tokens.iter() {
-                let Some(foundry_ledger_data) = self.native_tokens.get(token.token_id()) else {
+                let Some(foundry_ledger_data) = self.native_tokens.get_mut(token.token_id()) else {
                     anyhow::bail!("foundry for native token has not been published");
                 };
 
@@ -388,6 +403,11 @@ impl Executor {
                 let adjusted_amount = foundry_ledger_data
                     .token_scheme_u64
                     .adjust_tokens(token.amount());
+
+                foundry_ledger_data.minted_value = foundry_ledger_data
+                    .minted_value
+                    .checked_sub(adjusted_amount)
+                    .ok_or_else(|| anyhow::anyhow!("underflow splitting native token balance"))?;
 
                 let balance = pt::coin_balance_split(
                     &mut builder,
@@ -455,10 +475,11 @@ impl Executor {
     ) -> Result<Vec<ObjectID>> {
         let mut object_deps = Vec::with_capacity(native_tokens.len());
         let mut foundry_package_deps = Vec::with_capacity(native_tokens.len());
+        let mut foundry_coins = Vec::with_capacity(native_tokens.len());
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             for token in native_tokens.iter() {
-                let Some(foundry_ledger_data) = self.native_tokens.get(token.token_id()) else {
+                let Some(foundry_ledger_data) = self.native_tokens.get_mut(token.token_id()) else {
                     anyhow::bail!("foundry for native token has not been published");
                 };
 
@@ -467,6 +488,7 @@ impl Executor {
                     anyhow::bail!("foundry coin should exist");
                 };
                 let object_ref = foundry_coin.compute_object_reference();
+                foundry_coins.push(foundry_coin.id());
 
                 object_deps.push(object_ref);
                 foundry_package_deps.push(foundry_ledger_data.package_id);
@@ -475,6 +497,12 @@ impl Executor {
                 let adjusted_amount = foundry_ledger_data
                     .token_scheme_u64
                     .adjust_tokens(token.amount());
+
+                foundry_ledger_data.minted_value = foundry_ledger_data
+                    .minted_value
+                    .checked_sub(adjusted_amount)
+                    .ok_or_else(|| anyhow::anyhow!("underflow splitting native token balance"))?;
+
                 builder.pay(vec![object_ref], vec![owner], vec![adjusted_amount])?;
             }
 
@@ -490,7 +518,13 @@ impl Executor {
         let InnerTemporaryStore { written, .. } =
             self.execute_pt_unmetered(checked_input_objects, pt)?;
 
-        let coin_ids = written.keys().copied().collect();
+        let coin_ids = written
+            .keys()
+            // Linear search is ok due to the expected very small size of
+            // `foundry_coins`
+            .filter(|id| !foundry_coins.contains(id))
+            .copied()
+            .collect();
 
         // Save the modified coin
         self.store.finish(written);
@@ -661,6 +695,21 @@ impl Executor {
     }
 }
 
+#[cfg(test)]
+impl Executor {
+    /// Set the [`TxContext`] of the [`Executor`].
+    pub(crate) fn with_tx_context(mut self, tx_context: TxContext) -> Self {
+        self.tx_context = tx_context;
+        self
+    }
+
+    /// Set the [`InMemoryStorage`] of the [`Executor`].
+    pub(crate) fn with_store(mut self, store: InMemoryStorage) -> Self {
+        self.store = store;
+        self
+    }
+}
+
 mod pt {
     use super::*;
     use crate::stardust::migration::NATIVE_TOKEN_BAG_KEY_TYPE;
@@ -726,6 +775,7 @@ pub(crate) struct FoundryLedgerData {
     pub(crate) coin_type_origin: TypeOrigin,
     pub(crate) package_id: ObjectID,
     pub(crate) token_scheme_u64: SimpleTokenSchemeU64,
+    pub(crate) minted_value: u64,
 }
 
 impl FoundryLedgerData {
@@ -745,6 +795,7 @@ impl FoundryLedgerData {
             // There must be only one type created in the foundry package.
             coin_type_origin: foundry_package.type_origin_table()[0].clone(),
             package_id: foundry_package.id(),
+            minted_value: token_scheme_u64.circulating_supply(),
             token_scheme_u64,
         }
     }

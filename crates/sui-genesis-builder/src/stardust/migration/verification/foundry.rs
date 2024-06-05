@@ -6,14 +6,8 @@ use std::collections::HashMap;
 use anyhow::{anyhow, ensure, Result};
 use iota_sdk::types::block::output::{FoundryOutput, TokenId};
 use move_core_types::language_storage::ModuleId;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 use sui_types::{
-    base_types::SuiAddress,
-    coin::{CoinMetadata, TreasuryCap},
-    id::UID,
-    in_memory_storage::InMemoryStorage,
-    object::Owner,
+    base_types::SuiAddress, coin::CoinMetadata, in_memory_storage::InMemoryStorage, object::Owner,
     Identifier,
 };
 
@@ -26,7 +20,7 @@ use crate::stardust::{
         },
     },
     native_token::package_data::NativeTokenPackageData,
-    types::token_scheme::SimpleTokenSchemeU64,
+    types::{capped_coin::MaxSupplyPolicy, token_scheme::SimpleTokenSchemeU64},
 };
 
 pub(super) fn verify_foundry_output(
@@ -39,8 +33,25 @@ pub(super) fn verify_foundry_output(
         .get(&output.token_id())
         .ok_or_else(|| anyhow!("missing foundry data"))?;
 
+    // Coin value.
+    let created_coin = created_objects
+        .coin()
+        .and_then(|id| {
+            storage
+                .get_object(id)
+                .ok_or_else(|| anyhow!("missing coin"))
+        })?
+        .as_coin_maybe()
+        .ok_or_else(|| anyhow!("expected a coin"))?;
+    ensure!(
+        created_coin.value() == output.amount(),
+        "coin amount mismatch: found {}, expected {}",
+        created_coin.value(),
+        output.amount()
+    );
+
     // Minted coin value
-    let minted_coin_id = created_objects.coin()?;
+    let minted_coin_id = created_objects.minted_coin()?;
     let minted_coin = storage
         .get_object(minted_coin_id)
         .ok_or_else(|| anyhow!("missing coin"))?
@@ -54,13 +65,11 @@ pub(super) fn verify_foundry_output(
         minted_coin_id
     );
 
-    let circulating_supply =
-        truncate_to_max_allowed_u64_supply(output.token_scheme().as_simple().circulating_supply());
     ensure!(
-        minted_coin.value() == circulating_supply,
-        "coin amount mismatch: found {}, expected {}",
+        minted_coin.value() == foundry_data.minted_value,
+        "minted coin amount mismatch: found {}, expected {}",
         minted_coin.value(),
-        circulating_supply
+        foundry_data.minted_value
     );
 
     // Package
@@ -173,13 +182,6 @@ pub(super) fn verify_foundry_output(
         minted_coin.icon_url
     );
 
-    #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
-    struct MaxSupplyPolicy {
-        id: UID,
-        maximum_supply: u64,
-        treasury_cap: TreasuryCap,
-    }
-
     // Maximum Supply
     let max_supply_policy_obj = created_objects.max_supply_policy().and_then(|id| {
         storage
@@ -196,6 +198,8 @@ pub(super) fn verify_foundry_output(
         expected_package_data.module().maximum_supply,
         max_supply_policy.maximum_supply
     );
+    let circulating_supply =
+        truncate_to_max_allowed_u64_supply(output.token_scheme().as_simple().circulating_supply());
     ensure!(
         max_supply_policy.treasury_cap.total_supply.value == circulating_supply,
         "treasury total supply mismatch: found {}, expected {}",
