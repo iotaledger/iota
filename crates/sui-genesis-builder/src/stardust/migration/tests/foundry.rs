@@ -63,23 +63,23 @@ fn migrate_foundry(
     let package_object = created_objects
         .iter()
         .find(|object| object.id() == package_id)
-        .unwrap();
+        .ok_or(anyhow!("missing package object"))?;
     let coin_object = created_objects
         .iter()
         .find(|object| object.id() == coin_id)
-        .unwrap();
+        .ok_or(anyhow!("missing coin object"))?;
     let minted_coin_object = created_objects
         .iter()
         .find(|object| object.id() == minted_coin_id)
-        .unwrap();
+        .ok_or(anyhow!("missing minted coin object"))?;
     let coin_metadata_object = created_objects
         .iter()
         .find(|object| object.id() == coin_metadata_id)
-        .unwrap();
+        .ok_or(anyhow!("missing coin metadata object"))?;
     let max_supply_policy_object = created_objects
         .iter()
         .find(|object| object.id() == max_supply_policy_id)
-        .unwrap();
+        .ok_or(anyhow!("missing max supply policy object"))?;
 
     Ok((
         package_object.clone(),
