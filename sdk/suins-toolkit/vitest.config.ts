@@ -1,6 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { config } from 'dotenv';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
@@ -9,6 +13,9 @@ export default defineConfig({
         maxThreads: 8,
         hookTimeout: 1000000,
         testTimeout: 1000000,
+        env: {
+            ...config({ path: '../.env.defaults' }).parsed,
+        },
     },
     resolve: {
         alias: {
