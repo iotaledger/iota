@@ -5,6 +5,7 @@ title: Tooling and APIs
 ## Tooling for EVM/Solidity
 
 EVM has been around for a while and has built a comprehensive library of tools and utilities to interact with the network and contracts. We can categorize the most important tools in various sections and provide the equivalent for IOTA Move in the next section.
+
 ### Building, testing, interacting, and deploying
 
 There have been various tools in the past to deal with the developer process of building, testing, interacting with, and deploying smart contracts. While you can do everything on a low level as well, interacting with the JSON/RPC API and compiling with `solc` is very cumbersome, so some abstractions have been built to make this easier. While there are several options, the most used tool today is [Hardhat](https://hardhat.org). Hardhat is a command-line toolkit for EVM development based on TypeScript. It allows you to create new projects, build them, test them with TypeScript tests, run scripts against them (to deploy or interact with these projects), and more. It has a comprehensive set of plugins to get more out of it, such as verifying smart contracts against block explorers or estimating gas prices for the contract you are developing. It's a mature toolkit that comes in very handy for every dApp developer. You can do some of this as well with the web-based [Remix](https://remix.ethereum.org) - It's more user-friendly for beginners, but it has limited capabilities. 
@@ -20,6 +21,7 @@ There are wallets in all sizes and shapes for the EVM ecosystem. The most used a
 ### APIs
 
 The most commonly used API within the EVM ecosystem is the JSON-RPC API exposed by the node you are connecting to. This API is often available in both HTTP and WebSocket form, and the methods exposed can differ slightly depending on the node implementation used. 
+
 ### Editors
 
 Solidity is supported by many editors who are aware of the Solidity syntax and support functionality like syntax checks and linting. While any editor can be used to create Solidity smart contracts, [VSCode](https://code.visualstudio.com) seems to be quite popular when combined with [the Hardhat plugin](https://hardhat.org/hardhat-vscode/docs/overview). This combination allows you to use a modern, Hardhat-aware editor that supports autocompletion, inline code validation, quick go-to functionality, and more.
@@ -32,11 +34,12 @@ Unlike with EVM, where open-source third parties create the most used tooling, t
 
 ### SDKs
 
-IOTA Move comes with a convenient [Rust](/references/rust-sdk) and [TypeScript](#TODO-add-link-to-ts-docs-once-merged-in) SDK right out of the box as part of the IOTA Move core. Next to that, a dApp toolkit is also offered by default, which provides several React components to more easily integrate your IOTA Move contract interaction within your dApp. If desired, an unofficial [Go SDK](#TODO-Add-link-to-go-sdk-repo) can be used. While TypeScript covers most dApp requirements for an SDK, there might not be an SDK available for your language of choice at the moment. However, You can use one of the APIs directly on a lower level.
+IOTA Move comes with a convenient [Rust](../../../references/rust-sdk.mdx) and TypeScript{/*TODO: add-link-to-ts-docs-once-merged-in*/} SDK right out of the box as part of the IOTA Move core. Next to that, a dApp toolkit is also offered by default, which provides several React components to more easily integrate your IOTA Move contract interaction within your dApp. If desired, an unofficial Go SDK{/*TODO: Add-link-to-go-sdk-repo*/} can be used. While TypeScript covers most dApp requirements for an SDK, there might not be an SDK available for your language of choice at the moment. However, You can use one of the APIs directly on a lower level.
 
 ### Wallets
 
-IOTA Move has an official Browser Extension wallet supporting direct dApp interaction similar to MetaMask (TODO: Add information once we have some content available for this). While the wallet ecosystem is very young, we encourage other wallets to join our efforts. Any new browser-extension-based wallets utilizing the [Wallet Standard](https://github.com/wallet-standard/wallet-standard/) can be used directly with any dApp made for IOTA Move instead of needing a custom integration. 
+IOTA Move has an official Browser Extension wallet supporting direct dApp interaction similar to MetaMask {/*TODO: Add information once we have some content available for this*/}. While the wallet ecosystem is very young, we encourage other wallets to join our efforts. Any new browser-extension-based wallets utilizing the [Wallet Standard](https://github.com/wallet-standard/wallet-standard/) can be used directly with any dApp made for IOTA Move instead of needing a custom integration. 
+
 ### APIs
 
 IOTA Move comes with a comprehensive JSON-RPC API, similar to the ones offered for EVM. It supports various commands, including commands prefixed with `iotax_`, which take advantage of the Indexer to query the requested data. In addition, a newer, more flexible GraphQL-based API is offered, allowing you to create more efficient, complex queries.
@@ -44,6 +47,7 @@ IOTA Move comes with a comprehensive JSON-RPC API, similar to the ones offered f
 ## Editors
 
 Like with Solidity and Hardhat, you can write IOTA Move code in any editor, in combination with the CLI utilities, But the recommended editor to get the most out of the experience is VSCode as well in combination with the [Move](https://marketplace.visualstudio.com/items?itemName=mysten.move) extension. This will add language support for Move to VSCode, allowing you to instantly see any mistakes made with inline code validation, go-to support, and more, offering a similar editor experience to the one for EVM.
+
 ## Conclusion
 
 IOTA Move is quite new compared to the EVM ecosystem, and this is reflected in the amount of tooling available. The tooling available, though, is often offered as part of the core software, is of high quality, and offers everything you need to develop, interact with, and manage your dApps successfully. 

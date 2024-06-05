@@ -41,7 +41,7 @@ module examples::exampletoken {
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
 
-    /// OTW of kind: `Coin<package_object::exampletoken::EXAMPLETOKEN>`
+    /// One-Time-Witness of kind: `Coin<package_object::exampletoken::EXAMPLETOKEN>`
     struct EXAMPLETOKEN has drop {}
 
     fun init(witness: EXAMPLETOKEN, ctx: &mut TxContext) {
@@ -66,7 +66,7 @@ module examples::exampletoken {
 
 There's a lot to unpack here; let's look at it piece by piece. In IOTA Move, there is no 'compiler version' defined within the module itself, like in Solidity.
 
-A `module` is defined (`exampletoken`) as part of the `examples` package (modules always reside in packages; a package can have one or more modules in one file or spread out over several files). Within the `module,` we first alias the functionality we wish to use from other modules with `use.` If you don't do this, you would have to explicitly call other modules through their full package path, which would be very verbose and cumbersome. We import an `option` module from the `std` package and some modules from the `sui` package. The `std` and `sui` names are actually mappings as well to other modules defined in the `Move.toml` file of the package as described in the [documentation](/guides/developer/first-app/write-package).
+A `module` is defined (`exampletoken`) as part of the `examples` package (modules always reside in packages; a package can have one or more modules in one file or spread out over several files). Within the `module,` we first alias the functionality we wish to use from other modules with `use.` If you don't do this, you would have to explicitly call other modules through their full package path, which would be very verbose and cumbersome. We import an `option` module from the `std` package and some modules from the `sui` package. The `std` and `sui` names are actually mappings as well to other modules defined in the `Move.toml` file of the package as described in the [documentation](../../../guides/developer/first-app/write-package.mdx).
 
 After the aliases, we see an empty struct defined:
 
@@ -86,7 +86,7 @@ After publishing this package, the `init` functionality is called, and we now ha
 ./iota client call --function mint_and_transfer --module coin --package 0x...<package_address>... --args 0x...<owned_cap_object_addr>... 5 "0x...receiver..." --type-args $0x...<deployed_token_addr>...::exampletoken::EXAMPLETOKEN --gas-budget 10000
 ```
 
-An important thing to note here is that unlike with ERC-20, a `Coin` has some properties that hold true for every `Coin` type, including the ability to freely transfer `Coin` objects without limitation (except [Regulated Coins](/standards/coin#regulated-coins) which can block transfers on a per-address base). You can't simply add limiting logic to your module like you can with an ERC-20 contract. Still, you would need to wrap the `Coin` in another module that does hold these constraints to implement this logic.
+An important thing to note here is that unlike with ERC-20, a `Coin` has some properties that hold true for every `Coin` type, including the ability to freely transfer `Coin` objects without limitation (except [Regulated Coins](../../../standards/coin.mdx#regulated-coins) which can block transfers on a per-address base). You can't simply add limiting logic to your module like you can with an ERC-20 contract. Still, you would need to wrap the `Coin` in another module that does hold these constraints to implement this logic.
 
 ### Using `CoinManager`
 
@@ -127,7 +127,7 @@ fun init(witness: EXAMPLETOKEN, ctx: &mut TxContext) {
 
 ### Using Closed-Loop tokens
 
-While the `CoinManager` can limit and expand upon the management capabilities of a `Coin` type, the same rules for using a `Coin` still apply: unrestricted freedom to transfer tokens. If you need to limit this, you can either wrap the `Coin` instances in another object that adds limitations, or you can use the Closed-Loop `Token` standard, which does this in a comprehensive and standardized way. You can read more about how Closed-Loop tokens work in [the documentation](/standards/closed-loop-token).
+While the `CoinManager` can limit and expand upon the management capabilities of a `Coin` type, the same rules for using a `Coin` still apply: unrestricted freedom to transfer tokens. If you need to limit this, you can either wrap the `Coin` instances in another object that adds limitations, or you can use the Closed-Loop `Token` standard, which does this in a comprehensive and standardized way. You can read more about how Closed-Loop tokens work in [the documentation](../../../standards/closed-loop-token.mdx).
 
 ## Differences, pitfalls, pros and cons
 
