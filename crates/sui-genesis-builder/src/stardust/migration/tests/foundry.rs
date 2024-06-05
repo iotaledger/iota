@@ -44,7 +44,7 @@ fn migrate_foundry(
 )> {
     let output_id = header.output_id();
 
-    let (executor, objects_map) = run_migration([(header, Output::Foundry(foundry))]);
+    let (executor, objects_map) = run_migration([(header, Output::Foundry(foundry))])?;
 
     let created_objects_ids = objects_map
         .get(&output_id)
@@ -99,7 +99,8 @@ fn foundry_with_simple_metadata() -> Result<()> {
             .unwrap(),
         Irc30Metadata::new("Dogecoin", "DOGE", 0),
         alias_id,
-    );
+    )
+    .unwrap();
 
     let (
         package_object,
@@ -198,7 +199,8 @@ fn foundry_with_special_metadata() -> Result<()> {
             .with_logo_url(Url::parse("https://dogecoin.com/logo.png").unwrap())
             .with_logo("0x54654"),
         alias_id,
-    );
+    )
+    .unwrap();
 
     let (
         package_object,
@@ -297,7 +299,8 @@ fn coin_ownership() -> Result<()> {
             .unwrap(),
         Irc30Metadata::new("Dogecoin", "DOGE", 0),
         alias_id,
-    );
+    )
+    .unwrap();
 
     let (
         _package_object,
@@ -326,7 +329,7 @@ fn coin_ownership() -> Result<()> {
 }
 
 #[test]
-fn coin_ownership_with_zeroid_alias_id() -> Result<()> {
+fn coin_ownership_with_zeroed_alias_id() -> Result<()> {
     let alias_id = AliasId::null();
     let (header, foundry) = create_foundry(
         1_000_000,
@@ -334,7 +337,8 @@ fn coin_ownership_with_zeroid_alias_id() -> Result<()> {
             .unwrap(),
         Irc30Metadata::new("Dogecoin", "DOGE", 0),
         alias_id,
-    );
+    )
+    .unwrap();
 
     let (
         _package_object,
