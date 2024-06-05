@@ -3,6 +3,9 @@ title: Install Sui
 description: Install the Sui framework and required prerequisites on your system, including the Sui command line interface to interact with the Sui network.
 ---
 
+import MacosDeps from "../../../_snippets/macos-deps.mdx";
+import LinuxDeps from "../../../_snippets/linux-deps.mdx";
+
 The quickest way to install Sui is using the binaries delivered with every release. If you require more control over the install process, you can install from source. To take advantage of containerization, you can utilize the Docker images in the `docker` folder of the sui repository.
 
 ## Supported operating systems {#supported-operating-systems}
@@ -137,7 +140,7 @@ sudo apt-get update
  
 Reference the relevant sections that follow to install each prerequisite individually, or run the following to install them all at once:
 
-{@include: ../../../snippets/linux-deps.mdx}
+<LinuxDeps />
 
 #### cURL {#curl}
 
@@ -258,7 +261,7 @@ If you used the commands in the [Install using Homebrew](#install-homebrew) sect
 
 With Homebrew installed, you can install individual prerequisites from the following sections or install them all at once with this command:
 
-{@include: ../../../snippets/macos-deps.mdx}
+<MacosDeps />
 
 
 #### cURL {#curl-1}
