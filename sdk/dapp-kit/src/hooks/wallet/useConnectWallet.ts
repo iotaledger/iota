@@ -8,7 +8,6 @@ import { isSupportedChain } from '@mysten/wallet-standard';
 import type {
     StandardConnectInput,
     StandardConnectOutput,
-    WalletAccount,
     WalletWithRequiredFeatures,
 } from '@mysten/wallet-standard';
 import type { UseMutationOptions, UseMutationResult } from '@tanstack/react-query';
@@ -16,6 +15,7 @@ import { useMutation } from '@tanstack/react-query';
 
 import { walletMutationKeys } from '../../constants/walletMutationKeys.js';
 import { useWalletStore } from './useWalletStore.js';
+import { getSelectedAccount } from '../../utils/getSelectedAccount.js';
 
 type ConnectWalletArgs = {
     /** The wallet to connect to. */
@@ -71,19 +71,4 @@ export function useConnectWallet({
         },
         ...mutationOptions,
     });
-}
-
-function getSelectedAccount(connectedAccounts: readonly WalletAccount[], accountAddress?: string) {
-    if (connectedAccounts.length === 0) {
-        return null;
-    }
-
-    if (accountAddress) {
-        const selectedAccount = connectedAccounts.find(
-            (account) => account.address === accountAddress,
-        );
-        return selectedAccount ?? connectedAccounts[0];
-    }
-
-    return connectedAccounts[0];
 }

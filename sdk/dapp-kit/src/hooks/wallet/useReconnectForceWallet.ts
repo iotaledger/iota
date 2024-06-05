@@ -53,6 +53,7 @@ export function useReconnectForceWallet({
 > {
     const { currentWallet } = useCurrentWallet();
     const setWalletConnected = useWalletStore((state) => state.setWalletConnected);
+    const setConnectionStatus = useWalletStore((state) => state.setConnectionStatus);
 
     return useMutation({
         mutationKey: walletMutationKeys.reconnectForceWallet(mutationKey),
@@ -62,6 +63,8 @@ export function useReconnectForceWallet({
             }
 
             try {
+                setConnectionStatus('connecting');
+
                 const connectResult = await (
                     currentWallet.features as unknown as WalletWithRequiredFeatures &
                         StandardReconnectForceFeature
@@ -77,7 +80,8 @@ export function useReconnectForceWallet({
 
                 return { accounts: connectedSuiAccounts };
             } catch (error) {
-                throw new WalletNotConnectedError('No wallet is connected.');
+                setConnectionStatus('disconnected');
+                throw error;
             }
         },
         ...mutationOptions,
