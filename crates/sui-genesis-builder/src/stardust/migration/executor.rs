@@ -587,7 +587,7 @@ impl Executor {
     /// mainnet.
     pub(super) fn create_timelock_object(
         &mut self,
-        header: &OutputHeader,
+        output_id: OutputId,
         basic_output: &BasicOutput,
         target_milestone_timestamp: u32,
     ) -> Result<CreatedObjects> {
@@ -599,7 +599,7 @@ impl Executor {
         let version = package_deps.lamport_timestamp(&[]);
 
         let timelock =
-            timelock::try_from_stardust(header, basic_output, target_milestone_timestamp)?;
+            timelock::try_from_stardust(output_id, basic_output, target_milestone_timestamp)?;
 
         let object = timelock::to_genesis_object(
             timelock,
