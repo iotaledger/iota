@@ -35,13 +35,13 @@ export const getTransactionAction = (
 };
 
 export const getTransactionActivity = (
-    tx: SuiTransactionBlockResponse,
+    transaction: SuiTransactionBlockResponse,
     address: string,
 ): Activity => {
     return {
-        action: getTransactionAction(tx, address),
-        state: getTransactionActivityState(tx),
-        timestamp: parseTimestamp(tx.timestampMs),
-        tx,
+        action: getTransactionAction(transaction, address),
+        state: getTransactionActivityState(transaction),
+        timestamp: parseTimestamp(transaction.timestampMs),
+        transaction,
     };
 };

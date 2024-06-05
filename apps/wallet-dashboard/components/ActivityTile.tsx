@@ -21,7 +21,7 @@ function ActivityTile({ activity }: ActivityTileProps): JSX.Element {
     const currentAccount = useCurrentAccount();
 
     const summary = useTransactionSummary({
-        transaction: activity.tx,
+        transaction: activity.transaction,
         currentAddress: currentAccount?.address,
         recognizedPackagesList: [],
     });

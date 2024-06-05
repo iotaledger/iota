@@ -31,7 +31,7 @@ function ActivityDetailsPopup({
     onClose,
     summary,
 }: ActivityDetailsPopupProps): JSX.Element {
-    const { events } = activity.tx;
+    const { events } = activity.transaction;
     const txDate = activity.timestamp
         ? formatDate(activity.timestamp, ['month', 'day', 'hour', 'minute'])
         : undefined;

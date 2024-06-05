@@ -7,7 +7,7 @@ export interface Activity {
     action: ActivityAction;
     timestamp?: number;
     state: ActivityState;
-    tx: SuiTransactionBlockResponse;
+    transaction: SuiTransactionBlockResponse;
 }
 
 export enum ActivityAction {
