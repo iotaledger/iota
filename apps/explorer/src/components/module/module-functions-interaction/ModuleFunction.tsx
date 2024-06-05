@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useZodForm } from '@mysten/core';
 import { ArrowRight12 } from '@mysten/icons';
 import { TransactionBlock, getPureSerializationType } from '@mysten/sui.js/transactions';
@@ -44,7 +47,7 @@ export function ModuleFunction({
     moduleName,
     functionName,
     functionDetails,
-}: ModuleFunctionProps) {
+}: ModuleFunctionProps): JSX.Element {
     const currentAccount = useCurrentAccount();
     const { mutateAsync: signAndExecuteTransactionBlock } = useSignAndExecuteTransactionBlock();
     const { handleSubmit, formState, register, control } = useZodForm({

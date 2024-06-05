@@ -1,12 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useSuiClientQuery } from '@mysten/dapp-kit';
 import { ArrowRight12 } from '@mysten/icons';
 import { Text } from '@mysten/ui';
 import { useMemo, useState } from 'react';
 
-import { genTableDataFromCheckpointsData } from './utils';
+import { generateTableDataFromCheckpointsData } from './utils';
 import { useGetCheckpoints } from '~/hooks/useGetCheckpoints';
 import { Link } from '~/ui/Link';
 import { Pagination, useCursorPagination } from '~/ui/Pagination';
@@ -29,7 +32,7 @@ export function CheckpointsTable({
     initialLimit = DEFAULT_CHECKPOINTS_LIMIT,
     initialCursor,
     maxCursor,
-}: Props) {
+}: Props): JSX.Element {
     const [limit, setLimit] = useState(initialLimit);
 
     const countQuery = useSuiClientQuery('getLatestCheckpointSequenceNumber');
@@ -51,7 +54,7 @@ export function CheckpointsTable({
         }
     }, [countQuery.data, initialCursor, maxCursor, checkpoints, isError]);
 
-    const cardData = data ? genTableDataFromCheckpointsData(data) : undefined;
+    const cardData = data ? generateTableDataFromCheckpointsData(data) : undefined;
 
     return (
         <div className="flex flex-col space-y-3 text-left xl:pr-10">

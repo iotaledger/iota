@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useSuiClient } from '@mysten/dapp-kit';
 import { ArrowRight12 } from '@mysten/icons';
 import { Text } from '@mysten/ui';
@@ -29,7 +32,7 @@ export function TransactionsActivityTable({
     refetchInterval,
     initialLimit = DEFAULT_TRANSACTIONS_LIMIT,
     transactionKindFilter,
-}: Props) {
+}: Props): JSX.Element {
     const [limit, setLimit] = useState(initialLimit);
     const client = useSuiClient();
     const { data: count } = useQuery({

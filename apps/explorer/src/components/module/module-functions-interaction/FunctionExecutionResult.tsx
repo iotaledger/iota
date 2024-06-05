@@ -1,12 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { LinkGroup } from './LinkGroup';
 import { Banner } from '~/ui/Banner';
 
 import type { SuiTransactionBlockResponse, OwnedObjectRef } from '@mysten/sui.js/client';
 
-function toObjectLink(object: OwnedObjectRef) {
+interface ToObjectLink {
+    text: string;
+    to: string;
+}
+
+function toObjectLink(object: OwnedObjectRef): ToObjectLink {
     return {
         text: object.reference.objectId,
         to: `/object/${encodeURIComponent(object.reference.objectId)}`,

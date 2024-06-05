@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
 import { useAppsBackend, useElementDimensions } from '@mysten/core';
 import { LoadingIndicator } from '@mysten/ui';
@@ -26,7 +29,7 @@ export type PageLayoutProps = {
 
 const DEFAULT_HEADER_HEIGHT = 68;
 
-export function PageLayout({ gradient, content, loading, isError }: PageLayoutProps) {
+export function PageLayout({ gradient, content, loading, isError }: PageLayoutProps): JSX.Element {
     const [network] = useNetworkContext();
     const { request } = useAppsBackend();
     const outageOverride = useFeatureIsOn('network-outage-override');

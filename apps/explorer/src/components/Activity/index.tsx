@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
 // import { Filter16 } from '@mysten/icons';
 import { Heading } from '@mysten/ui';
@@ -28,7 +31,7 @@ const AUTO_REFRESH_ID = 'auto-refresh';
 const REFETCH_INTERVAL_SECONDS = 10;
 const REFETCH_INTERVAL = REFETCH_INTERVAL_SECONDS * 1000;
 
-export function Activity({ initialTab, initialLimit, disablePagination }: Props) {
+export function Activity({ initialTab, initialLimit, disablePagination }: Props): JSX.Element {
     const pollingTxnTableEnabled = useFeatureIsOn('polling-txn-table');
 
     const [paused, setPaused] = useState(false);

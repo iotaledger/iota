@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Sui, SuiLogoTxt } from '@mysten/icons';
 import clsx from 'clsx';
 import { useEffect, useState } from 'react';
@@ -9,7 +12,7 @@ import NetworkSelect from '../network/Network';
 import Search from '../search/Search';
 import { LinkWithQuery } from '~/ui/utils/LinkWithQuery';
 
-function Header() {
+function Header(): JSX.Element {
     const [isScrolled, setIsScrolled] = useState(window.scrollY > 0);
     useEffect(() => {
         const callback = () => {

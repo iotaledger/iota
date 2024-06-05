@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Text } from '@mysten/ui';
 
 import { LegalLinks, LegalText } from './Legal';
@@ -8,7 +11,7 @@ import { footerLinks, socialLinks } from './footerLinks';
 import { ReactComponent as MystenLabsRed } from '../../assets/MystenLabs_Red.svg';
 import { Link } from '~/ui/Link';
 
-function FooterLinks() {
+function FooterLinks(): JSX.Element {
     return (
         <div className="flex flex-col items-center justify-center gap-6 md:flex-row md:justify-end">
             <ul className="flex gap-4 md:flex-row md:gap-6">
@@ -36,7 +39,7 @@ function FooterLinks() {
     );
 }
 
-function Footer() {
+function Footer(): JSX.Element {
     return (
         <footer className="sticky top-[100%] bg-gray-40 px-5 py-10 md:px-10 md:py-14">
             <nav className="flex flex-col justify-center gap-4 divide-y divide-solid divide-gray-45 md:gap-7.5">

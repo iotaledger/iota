@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useCookieConsentBanner } from '@mysten/core';
 import { SuiClientProvider, WalletProvider } from '@mysten/dapp-kit';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
@@ -20,7 +23,7 @@ const toastVariants: Partial<Record<ToastType, BannerProps['variant']>> = {
     error: 'error',
 };
 
-export function Layout() {
+export function Layout(): JSX.Element {
     const [network, setNetwork] = useNetwork();
 
     useCookieConsentBanner(persistableStorage, {
