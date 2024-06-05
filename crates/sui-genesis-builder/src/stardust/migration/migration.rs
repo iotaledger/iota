@@ -173,12 +173,12 @@ impl Migration {
                     // All timelocked vested rewards(basic outputs with the specific ID format)
                     // should be migrated as TimeLock<Balance<IOTA>> objects.
                     if timelock::is_timelocked_vested_reward(
-                        header,
+                        header.output_id(),
                         basic,
                         self.target_milestone_timestamp_sec,
                     ) {
                         self.executor.create_timelock_object(
-                            header,
+                            header.output_id(),
                             basic,
                             self.target_milestone_timestamp_sec,
                         )?
@@ -211,6 +211,7 @@ impl Migration {
                 output,
                 objects,
                 self.executor.native_tokens(),
+                self.target_milestone_timestamp_sec,
                 self.executor.store(),
             )?;
         }
