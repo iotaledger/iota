@@ -1,8 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 /// <reference types="vitest" />
 
+import { config } from 'dotenv';
 import { vanillaExtractPlugin } from '@vanilla-extract/vite-plugin';
 import { defineConfig } from 'vite';
 import { configDefaults } from 'vitest/config';
@@ -15,6 +19,9 @@ export default defineConfig({
         restoreMocks: true,
         globals: true,
         setupFiles: ['./test/setup.ts'],
+        env: {
+            ...config({ path: '../.env.defaults' }).parsed,
+        },
     },
     resolve: {
         alias: {
