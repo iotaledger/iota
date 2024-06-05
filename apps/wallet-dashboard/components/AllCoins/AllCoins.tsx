@@ -20,7 +20,9 @@ export const AllCoins = () => {
                         className="flex items-center justify-between gap-4"
                     >
                         {coin.balance} - {coin.coinObjectId}
-                        <SendButton address={account?.address} coin={coin} />
+                        {account?.address ? (
+                            <SendButton address={account.address} coin={coin} />
+                        ) : null}
                     </div>
                 );
             })}
