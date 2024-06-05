@@ -9,6 +9,7 @@ export interface FormDataValues {
     amount: string;
     recipientAddress: string;
     senderAddress: string;
+    gasBudget: string;
 }
 
 interface SendCoinPopupProps {
@@ -28,6 +29,7 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
         amount: '',
         recipientAddress: '',
         senderAddress,
+        gasBudget: '',
     });
 
     const handleNext = () => {
