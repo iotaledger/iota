@@ -385,7 +385,7 @@ impl Executor {
             let mut builder = ProgrammableTransactionBuilder::new();
             let bag = pt::bag_new(&mut builder);
             for token in native_tokens.iter() {
-                let Some(foundry_ledger_data) = self.native_tokens.get(token.token_id()) else {
+                let Some(foundry_ledger_data) = self.native_tokens.get_mut(token.token_id()) else {
                     anyhow::bail!("foundry for native token has not been published");
                 };
 
@@ -403,6 +403,11 @@ impl Executor {
                 let adjusted_amount = foundry_ledger_data
                     .token_scheme_u64
                     .adjust_tokens(token.amount());
+
+                foundry_ledger_data.minted_value = foundry_ledger_data
+                    .minted_value
+                    .checked_sub(adjusted_amount)
+                    .ok_or_else(|| anyhow::anyhow!("underflow splitting native token balance"))?;
 
                 let balance = pt::coin_balance_split(
                     &mut builder,
@@ -470,10 +475,11 @@ impl Executor {
     ) -> Result<Vec<ObjectID>> {
         let mut object_deps = Vec::with_capacity(native_tokens.len());
         let mut foundry_package_deps = Vec::with_capacity(native_tokens.len());
+        let mut foundry_coins = Vec::with_capacity(native_tokens.len());
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             for token in native_tokens.iter() {
-                let Some(foundry_ledger_data) = self.native_tokens.get(token.token_id()) else {
+                let Some(foundry_ledger_data) = self.native_tokens.get_mut(token.token_id()) else {
                     anyhow::bail!("foundry for native token has not been published");
                 };
 
@@ -482,6 +488,7 @@ impl Executor {
                     anyhow::bail!("foundry coin should exist");
                 };
                 let object_ref = foundry_coin.compute_object_reference();
+                foundry_coins.push(foundry_coin.id());
 
                 object_deps.push(object_ref);
                 foundry_package_deps.push(foundry_ledger_data.package_id);
@@ -490,6 +497,12 @@ impl Executor {
                 let adjusted_amount = foundry_ledger_data
                     .token_scheme_u64
                     .adjust_tokens(token.amount());
+
+                foundry_ledger_data.minted_value = foundry_ledger_data
+                    .minted_value
+                    .checked_sub(adjusted_amount)
+                    .ok_or_else(|| anyhow::anyhow!("underflow splitting native token balance"))?;
+
                 builder.pay(vec![object_ref], vec![owner], vec![adjusted_amount])?;
             }
 
@@ -505,7 +518,13 @@ impl Executor {
         let InnerTemporaryStore { written, .. } =
             self.execute_pt_unmetered(checked_input_objects, pt)?;
 
-        let coin_ids = written.keys().copied().collect();
+        let coin_ids = written
+            .keys()
+            // Linear search is ok due to the expected very small size of
+            // `foundry_coins`
+            .filter(|id| !foundry_coins.contains(id))
+            .copied()
+            .collect();
 
         // Save the modified coin
         self.store.finish(written);
@@ -756,6 +775,7 @@ pub(crate) struct FoundryLedgerData {
     pub(crate) coin_type_origin: TypeOrigin,
     pub(crate) package_id: ObjectID,
     pub(crate) token_scheme_u64: SimpleTokenSchemeU64,
+    pub(crate) minted_value: u64,
 }
 
 impl FoundryLedgerData {
@@ -775,6 +795,7 @@ impl FoundryLedgerData {
             // There must be only one type created in the foundry package.
             coin_type_origin: foundry_package.type_origin_table()[0].clone(),
             package_id: foundry_package.id(),
+            minted_value: token_scheme_u64.circulating_supply(),
             token_scheme_u64,
         }
     }

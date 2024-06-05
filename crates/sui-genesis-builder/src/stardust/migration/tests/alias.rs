@@ -27,6 +27,7 @@ use sui_types::{
     TypeTag,
 };
 
+use super::ExpectedAssets;
 use crate::stardust::{
     migration::tests::{
         create_foundry, extract_native_token_from_bag, object_migration_with_object_owner,
@@ -42,14 +43,14 @@ use crate::stardust::{
 fn migrate_alias(
     header: OutputHeader,
     stardust_alias: StardustAlias,
-) -> (ObjectID, Alias, AliasOutput, Object, Object) {
+) -> anyhow::Result<(ObjectID, Alias, AliasOutput, Object, Object)> {
     let output_id = header.output_id();
     let alias_id: AliasId = stardust_alias
         .alias_id()
         .or_from_output_id(&output_id)
         .to_owned();
 
-    let (executor, objects_map) = run_migration([(header, stardust_alias.into())]);
+    let (executor, objects_map) = run_migration([(header, stardust_alias.into())])?;
 
     // Ensure the migrated objects exist under the expected identifiers.
     let alias_object_id = ObjectID::new(*alias_id);
@@ -91,13 +92,13 @@ fn migrate_alias(
     let alias: Alias =
         bcs::from_bytes(alias_object.data.try_as_move().unwrap().contents()).unwrap();
 
-    (
+    Ok((
         alias_object_id,
         alias,
         alias_output,
         alias_object.clone(),
         alias_output_object.clone(),
-    )
+    ))
 }
 
 /// Test that the migrated alias objects in the snapshot contain the expected
@@ -125,7 +126,7 @@ fn alias_migration_with_full_features() {
         .unwrap();
 
     let (alias_object_id, alias, alias_output, alias_object, alias_output_object) =
-        migrate_alias(header, stardust_alias.clone());
+        migrate_alias(header, stardust_alias.clone()).unwrap();
     let expected_alias = Alias::try_from_stardust(alias_object_id, &stardust_alias).unwrap();
 
     // The bag is tested separately.
@@ -174,7 +175,7 @@ fn alias_migration_with_zeroed_id() {
 
     // If this function does not panic, then the created aliases
     // were found at the correct non-zeroed Alias ID.
-    migrate_alias(header, stardust_alias);
+    migrate_alias(header, stardust_alias).unwrap();
 }
 
 /// Test that an Alias owned by another Alias can be received by the owning
@@ -217,7 +218,8 @@ fn alias_migration_with_alias_owner() {
         ALIAS_OUTPUT_MODULE_NAME,
         ALIAS_OUTPUT_MODULE_NAME,
         ident_str!("unlock_alias_address_owned_alias"),
-    );
+    )
+    .unwrap();
 }
 
 /// Test that an Alias owned by an NFT can be received by the owning object.
@@ -253,7 +255,8 @@ fn alias_migration_with_nft_owner() {
         NFT_OUTPUT_MODULE_NAME,
         ALIAS_OUTPUT_MODULE_NAME,
         ident_str!("unlock_nft_address_owned_alias"),
-    );
+    )
+    .unwrap();
 }
 
 /// Test that an Alias that owns Native Tokens can extract those tokens from the
@@ -267,7 +270,8 @@ fn alias_migration_with_native_tokens() {
             .unwrap(),
         Irc30Metadata::new("Rustcoin", "Rust", 0),
         AliasId::null(),
-    );
+    )
+    .unwrap();
     let native_token = NativeToken::new(foundry_output.id().into(), 100).unwrap();
 
     let alias_header = random_output_header();
@@ -286,5 +290,7 @@ fn alias_migration_with_native_tokens() {
         ],
         ALIAS_OUTPUT_MODULE_NAME,
         native_token,
-    );
+        ExpectedAssets::BalanceBagObject,
+    )
+    .unwrap();
 }
