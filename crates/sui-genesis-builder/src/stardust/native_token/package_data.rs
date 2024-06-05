@@ -57,10 +57,13 @@ pub struct NativeTokenModuleData {
     pub module_name: String,
     pub otw_name: String,
     pub decimals: u8,
+    /// This must be a valid ASCII string.
     pub symbol: String,
     pub circulating_supply: u64,
     pub maximum_supply: u64,
+    /// This must be a valid UTF-8 string.
     pub coin_name: String,
+    /// This must be a valid UTF-8 string.
     pub coin_description: String,
     pub icon_url: Option<Url>,
     pub alias_address: AliasAddress,
@@ -148,8 +151,8 @@ pub struct Irc30MetadataCompact {
     name: String,
     /// The symbol/ticker of the token.
     symbol: String,
-    /// Number of decimals the token uses (divide the token amount by `10^decimals` to get its user
-    /// representation).
+    /// Number of decimals the token uses (divide the token amount by
+    /// `10^decimals` to get its user representation).
     decimals: u32,
 }
 

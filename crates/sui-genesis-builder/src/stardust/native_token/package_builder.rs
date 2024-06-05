@@ -96,6 +96,26 @@ fn adjust_native_token_module(package_path: &Path, package: &NativeTokenPackageD
         None => "option::none<Url>()".to_string(),
     };
 
+    let format_byte_string = |string: &str| -> String {
+        let mut byte_string = String::new();
+        byte_string.push_str("/* The utf-8 bytes of '");
+        byte_string.push_str(string);
+        byte_string.push_str("' */\n");
+
+        byte_string.push_str("            vector<u8>[");
+
+        for (idx, byte) in string.as_bytes().into_iter().enumerate() {
+            byte_string.push_str(&format!("0x{byte:x}"));
+
+            if idx != string.as_bytes().len() - 1 {
+                byte_string.push_str(", ");
+            }
+        }
+
+        byte_string.push_str("]");
+        byte_string
+    };
+
     let new_contents = contents
         .replace("$MODULE_NAME", &package.module().module_name)
         .replace("$OTW", &package.module().otw_name)
@@ -109,8 +129,14 @@ fn adjust_native_token_module(package_path: &Path, package: &NativeTokenPackageD
             "$MAXIMUM_SUPPLY",
             &package.module().maximum_supply.to_string(),
         )
-        .replace("$COIN_NAME", &package.module().coin_name)
-        .replace("$COIN_DESCRIPTION", &package.module().coin_description)
+        .replace(
+            "$COIN_NAME",
+            &format_byte_string(package.module().coin_name.as_str()),
+        )
+        .replace(
+            "$COIN_DESCRIPTION",
+            &format_byte_string(package.module().coin_description.as_str()),
+        )
         .replace("$ICON_URL", &icon_url)
         .replace(
             "$ALIAS",
@@ -118,6 +144,7 @@ fn adjust_native_token_module(package_path: &Path, package: &NativeTokenPackageD
             &package.module().alias_address.to_string().replace("0x", ""),
         );
 
+    println!("{}", new_contents);
     fs::write(&new_move_file_path, new_contents)?;
 
     Ok(())
