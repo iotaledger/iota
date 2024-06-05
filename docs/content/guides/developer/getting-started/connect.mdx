@@ -3,6 +3,8 @@ title: Connect to a Sui Network
 description: Besides Mainnet, Sui offers Testnet, Devnet, and local networks that you can connect to for development. You can also configure a custom RPC endpoint. 
 ---
 
+import DataWipe from "../../../_snippets/data-wipe.mdx";
+
 Sui has Mainnet, Devnet, and Testnet networks available. You can use one of the test networks, Devnet or Testnet, to experiment with the version of Sui running on that network. You can also spin up a [local Sui network](./local-network.mdx) for local development. 
 
 The Sui Testnet and Devnet networks consist of four validator nodes operated by Mysten Labs. Clients send transactions and read requests via this endpoint: `https://fullnode.<SUI-NETWORK-VERSION>.sui.io:443` using [JSON-RPC](/references/sui-api/json-rpc-format.mdx).
@@ -13,7 +15,7 @@ See announcements about Sui in the [#announcements](https://discord.com/channels
 
 See the [terms of service](https://sui.io/terms/) for using Sui networks.
 
-{@include: ../../../snippets/data-wipe.mdx}
+<DataWipe />
 
 ## Sui CLI
 
