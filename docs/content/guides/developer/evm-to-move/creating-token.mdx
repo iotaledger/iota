@@ -120,7 +120,7 @@ fun init(witness: EXAMPLETOKEN, ctx: &mut TxContext) {
     // Returning a new `CoinManagerMetadataCap` to the creator of the `Coin`
     transfer::public_transfer(metacap, ctx.sender());
 
-    // Publicly sharing the `CoinMananger` object for convenient usage by anyone interested
+    // Publicly sharing the `CoinManager` object for convenient usage by anyone interested
     transfer::public_share_object(manager);
 }
 ```
