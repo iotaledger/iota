@@ -2,6 +2,9 @@
 title: Coin Flip
 ---
 
+import InitializeSuiClientCli from "../../../_snippets/initialize-sui-client-cli.mdx";
+import PublishToDevnetWithCoins from "../../../_snippets/publish-to-devnet-with-coins.mdx";
+
 This guide demonstrates writing a module (smart contract) in Move, deploying it on Devnet, and adding a TypeScript frontend to communicate with the module.
 
 Satoshi Coin Flip is a dApp that utilizes verifiable random functions (VRFs) to create a fair coin game on the Sui blockchain. The user (human) plays against the house (module) and places a bet on either heads or tails. The user then either receives double their bet, or gets nothing, depending on the outcome of the game.
@@ -557,9 +560,9 @@ Now that you have written our contracts, it's time to deploy them.
 
 ## Deployment
 
-{@include: ../../../snippets/initialize-sui-client-cli.mdx}
+<InitializeSuiClientCli />
 
-{@include: ../../../snippets/publish-to-devnet-with-coins.mdx}
+<PublishToDevnetWithCoins />
 
 The package should successfully deploy. Now, it's time to create a frontend that can interact with it.
 
