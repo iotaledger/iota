@@ -109,8 +109,14 @@ fn adjust_native_token_module(package_path: &Path, package: &NativeTokenPackageD
             "$MAXIMUM_SUPPLY",
             &package.module().maximum_supply.to_string(),
         )
-        .replace("$COIN_NAME", &package.module().coin_name)
-        .replace("$COIN_DESCRIPTION", &package.module().coin_description)
+        .replace(
+            "$COIN_NAME",
+            format_string_as_move_vector(package.module().coin_name.as_str()).as_str(),
+        )
+        .replace(
+            "$COIN_DESCRIPTION",
+            format_string_as_move_vector(package.module().coin_description.as_str()).as_str(),
+        )
         .replace("$ICON_URL", &icon_url)
         .replace(
             "$ALIAS",
@@ -123,6 +129,32 @@ fn adjust_native_token_module(package_path: &Path, package: &NativeTokenPackageD
     Ok(())
 }
 
+/// Converts a string x to a string y representing the bytes of x as hexadecimal
+/// values, which can be used as a piece of Move code.
+///
+/// Example: It converts "abc" to "vector<u8>[0x61, 0x62, 0x63]" plus the
+/// original human-readable string in a comment.
+fn format_string_as_move_vector(string: &str) -> String {
+    let mut byte_string = String::new();
+    byte_string.push_str("/* The utf-8 bytes of '");
+    byte_string.push_str(string);
+    byte_string.push_str("' */\n");
+
+    byte_string.push_str("            vector<u8>[");
+
+    for (idx, byte) in string.as_bytes().iter().enumerate() {
+        byte_string.push_str(&format!("{byte:#x}"));
+
+        if idx != string.as_bytes().len() - 1 {
+            byte_string.push_str(", ");
+        }
+    }
+
+    byte_string.push(']');
+
+    byte_string
+}
+
 #[cfg(test)]
 mod tests {
     use std::{
@@ -132,6 +164,7 @@ mod tests {
 
     use tempfile::tempdir;
 
+    use super::*;
     use crate::stardust::native_token::package_builder;
 
     #[test]
@@ -157,5 +190,26 @@ mod tests {
         assert!(result.is_ok());
         assert!(target_dir.exists());
         assert!(target_dir.join("sources").join("test.move").exists());
+    }
+
+    #[test]
+    fn string_to_move_vector() {
+        let tests = [
+            ("", "vector<u8>[]"),
+            ("a", "vector<u8>[0x61]"),
+            ("ab", "vector<u8>[0x61, 0x62]"),
+            ("abc", "vector<u8>[0x61, 0x62, 0x63]"),
+            (
+                "\nöäü",
+                "vector<u8>[0xa, 0xc3, 0xb6, 0xc3, 0xa4, 0xc3, 0xbc]",
+            ),
+        ];
+
+        for (test_input, expected_result) in tests {
+            let move_string = format_string_as_move_vector(test_input);
+            // Ignore the comment and whitespace.
+            let actual_result = move_string.split('\n').next_back().unwrap().trim_start();
+            assert_eq!(expected_result, actual_result);
+        }
     }
 }

@@ -2,9 +2,11 @@
 title: Custom Upgrade Policies
 ---
 
+import UpgradeSingleKeyRisk from "../../../_snippets/upgrade-single-key-risk.mdx";
+
 Protecting the ability to upgrade a package on chain using a single key can pose a security risk for several reasons:
 
-{@include: ../../../snippets/upgrade-single-key-risk.mdx}
+<UpgradeSingleKeyRisk />
 
 To address the security risk of single-key upgrade ownership poses while still providing the opportunity to [upgrade live packages](./upgrade.mdx), Sui offers _custom upgrade policies_. These policies protect `UpgradeCap` access and issue `UpgradeTicket` objects that authorize upgrades on a case-by-case basis.
 

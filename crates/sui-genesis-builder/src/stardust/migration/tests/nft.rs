@@ -6,6 +6,7 @@ use std::{
     str::FromStr,
 };
 
+use anyhow::anyhow;
 use iota_sdk::{
     types::block::{
         address::{AliasAddress, Ed25519Address, Hrp, NftAddress, ToBech32Ext},
@@ -34,7 +35,7 @@ use sui_types::{
     TypeTag,
 };
 
-use super::{unlock_object_test, UnlockObjectTestResult};
+use super::{unlock_object_test, ExpectedAssets, UnlockObjectTestResult};
 use crate::stardust::{
     migration::tests::{
         create_foundry, extract_native_token_from_bag, object_migration_with_object_owner,
@@ -50,34 +51,44 @@ use crate::stardust::{
 fn migrate_nft(
     header: OutputHeader,
     stardust_nft: StardustNft,
-) -> (ObjectID, Nft, NftOutput, Object, Object) {
+) -> anyhow::Result<(ObjectID, Nft, NftOutput, Object, Object)> {
     let output_id = header.output_id();
     let nft_id: NftId = stardust_nft
         .nft_id()
         .or_from_output_id(&output_id)
         .to_owned();
 
-    let (executor, objects_map) = run_migration([(header, stardust_nft.into())]);
+    let (executor, objects_map) = run_migration([(header, stardust_nft.into())])?;
 
     // Ensure the migrated objects exist under the expected identifiers.
     let nft_object_id = ObjectID::new(*nft_id);
     let created_objects = objects_map
         .get(&output_id)
-        .expect("nft output should have created objects");
+        .ok_or_else(|| anyhow!("nft output should have created objects"))?;
 
     let nft_object = executor
         .store()
         .objects()
         .values()
         .find(|obj| obj.id() == nft_object_id)
-        .expect("nft object should be present in the migrated snapshot");
-    assert_eq!(nft_object.struct_tag().unwrap(), Nft::tag());
+        .ok_or_else(|| anyhow!("nft object should be present in the migrated snapshot"))?;
+    assert_eq!(
+        nft_object
+            .struct_tag()
+            .ok_or_else(|| anyhow!("missing struct tag on nft object"))?,
+        Nft::tag()
+    );
 
     let nft_output_object = executor
         .store()
-        .get_object(created_objects.output().unwrap())
-        .unwrap();
-    assert_eq!(nft_output_object.struct_tag().unwrap(), NftOutput::tag());
+        .get_object(created_objects.output()?)
+        .ok_or_else(|| anyhow!("missing nft output"))?;
+    assert_eq!(
+        nft_output_object
+            .struct_tag()
+            .ok_or_else(|| anyhow!("missing struct tag on output nft object"))?,
+        NftOutput::tag()
+    );
 
     // Version is set to 1 when the nft is created based on the computed lamport
     // timestamp. When the nft is attached to the nft output, the version should
@@ -91,17 +102,28 @@ fn migrate_nft(
         "nft output object version should have been incremented"
     );
 
-    let nft_output: NftOutput =
-        bcs::from_bytes(nft_output_object.data.try_as_move().unwrap().contents()).unwrap();
-    let nft: Nft = bcs::from_bytes(nft_object.data.try_as_move().unwrap().contents()).unwrap();
+    let nft_output: NftOutput = bcs::from_bytes(
+        nft_output_object
+            .data
+            .try_as_move()
+            .ok_or_else(|| anyhow!("nft output is not a move object"))?
+            .contents(),
+    )?;
+    let nft: Nft = bcs::from_bytes(
+        nft_object
+            .data
+            .try_as_move()
+            .ok_or_else(|| anyhow!("nft is not a move object"))?
+            .contents(),
+    )?;
 
-    (
+    Ok((
         nft_object_id,
         nft,
         nft_output,
         nft_object.clone(),
         nft_output_object.clone(),
-    )
+    ))
 }
 
 /// Test that the migrated nft objects in the snapshot contain the expected
@@ -127,7 +149,7 @@ fn nft_migration_with_full_features() {
         .unwrap();
 
     let (nft_object_id, nft, nft_output, nft_object, nft_output_object) =
-        migrate_nft(header, stardust_nft.clone());
+        migrate_nft(header, stardust_nft.clone()).unwrap();
     let expected_nft = Nft::try_from_stardust(nft_object_id, &stardust_nft).unwrap();
 
     // The bag is tested separately.
@@ -178,7 +200,7 @@ fn nft_migration_with_zeroed_id() {
 
     // If this function does not panic, then the created NFTs
     // were found at the correct non-zeroed Nft ID.
-    migrate_nft(header, stardust_nft);
+    migrate_nft(header, stardust_nft).unwrap();
 }
 
 #[test]
@@ -211,7 +233,8 @@ fn nft_migration_with_alias_owner() {
         ALIAS_OUTPUT_MODULE_NAME,
         NFT_OUTPUT_MODULE_NAME,
         ident_str!("unlock_alias_address_owned_nft"),
-    );
+    )
+    .unwrap();
 }
 
 #[test]
@@ -243,7 +266,8 @@ fn nft_migration_with_nft_owner() {
         NFT_OUTPUT_MODULE_NAME,
         NFT_OUTPUT_MODULE_NAME,
         ident_str!("unlock_nft_address_owned_nft"),
-    );
+    )
+    .unwrap();
 }
 
 /// Test that an NFT that owns Native Tokens can extract those tokens from the
@@ -255,7 +279,8 @@ fn nft_migration_with_native_tokens() {
         SimpleTokenScheme::new(U256::from(100_000), U256::from(0), U256::from(100_000)).unwrap(),
         Irc30Metadata::new("Rustcoin", "Rust", 0),
         AliasId::null(),
-    );
+    )
+    .unwrap();
     let native_token = NativeToken::new(foundry_output.id().into(), 100_000).unwrap();
 
     let nft_header = random_output_header();
@@ -275,7 +300,9 @@ fn nft_migration_with_native_tokens() {
         ],
         NFT_OUTPUT_MODULE_NAME,
         native_token,
-    );
+        ExpectedAssets::BalanceBagObject,
+    )
+    .unwrap();
 }
 
 #[test]
@@ -315,7 +342,7 @@ fn nft_migration_with_valid_irc27_metadata() {
         .finish()
         .unwrap();
 
-    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone());
+    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone()).unwrap();
 
     let immutable_metadata = nft.immutable_metadata;
     assert_eq!(&immutable_metadata.media_type, metadata.media_type());
@@ -391,7 +418,7 @@ fn nft_migration_with_invalid_irc27_metadata() {
         .finish()
         .unwrap();
 
-    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone());
+    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone()).unwrap();
 
     let mut immutable_metadata = nft.immutable_metadata;
     let mut non_standard_fields = VecMap { contents: vec![] };
@@ -436,7 +463,7 @@ fn nft_migration_with_non_json_metadata() {
         .finish()
         .unwrap();
 
-    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone());
+    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone()).unwrap();
 
     let mut immutable_metadata = nft.immutable_metadata;
     let mut non_standard_fields = VecMap { contents: vec![] };
@@ -476,7 +503,7 @@ fn nft_migration_without_metadata() {
         .finish()
         .unwrap();
 
-    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone());
+    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone()).unwrap();
     let immutable_metadata = nft.immutable_metadata;
 
     assert_eq!(immutable_metadata.non_standard_fields.contents.len(), 0);
@@ -510,7 +537,9 @@ fn nft_migration_with_timelock_unlocked() {
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::Success,
-    );
+        ExpectedAssets::BalanceBagObject,
+    )
+    .unwrap();
 }
 
 #[test]
@@ -537,7 +566,9 @@ fn nft_migration_with_timelock_still_locked() {
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::ERROR_TIMELOCK_NOT_EXPIRED_FAILURE,
-    );
+        ExpectedAssets::BalanceBagObject,
+    )
+    .unwrap();
 }
 
 /// Test that an NFT with an expired Expiration Unlock Condition can/cannot be
@@ -572,7 +603,9 @@ fn nft_migration_with_expired_unlock_condition() {
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::ERROR_WRONG_SENDER_FAILURE,
-    );
+        ExpectedAssets::BalanceBagObject,
+    )
+    .unwrap();
 
     // Return Address CAN unlock.
     unlock_object_test(
@@ -582,7 +615,9 @@ fn nft_migration_with_expired_unlock_condition() {
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::Success,
-    );
+        ExpectedAssets::BalanceBagObject,
+    )
+    .unwrap();
 }
 
 /// Test that an NFT with an unexpired Expiration Unlock Condition can/cannot be
@@ -617,7 +652,9 @@ fn nft_migration_with_unexpired_unlock_condition() {
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::ERROR_WRONG_SENDER_FAILURE,
-    );
+        ExpectedAssets::BalanceBagObject,
+    )
+    .unwrap();
 
     // Owner Address CAN unlock.
     unlock_object_test(
@@ -627,7 +664,9 @@ fn nft_migration_with_unexpired_unlock_condition() {
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::Success,
-    );
+        ExpectedAssets::BalanceBagObject,
+    )
+    .unwrap();
 }
 
 /// Test that an NFT with a Storage Deposit Return Unlock Condition can be
@@ -656,5 +695,7 @@ fn nft_migration_with_storage_deposit_return_unlock_condition() {
         // Epoch start time is not important for this test.
         0,
         UnlockObjectTestResult::Success,
-    );
+        ExpectedAssets::BalanceBagObject,
+    )
+    .unwrap();
 }

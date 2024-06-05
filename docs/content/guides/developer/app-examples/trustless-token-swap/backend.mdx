@@ -3,6 +3,10 @@ title: Trustless Swap Backend
 sidebar_label: Backend
 ---
 
+import InitializeSuiClientCli from "../../../../_snippets/initialize-sui-client-cli.mdx";
+import PublishToDevnetWithCoins from "../../../../_snippets/publish-to-devnet-with-coins.mdx";
+import AppExamplesSwapSource from "../../../../_snippets/app-examples-swap-source.mdx";
+
 :::note Multi-Page Guide
 
 This is the first in a [three-part guide](../trustless-token-swap.mdx) on how to build a trustless atomic swap on Sui.
@@ -19,7 +23,7 @@ Let's create a Sui project using the terminal command `sui move new escrow`. Cre
 
 ## shared.move
 
-{@include: ../../../../snippets/app-examples-swap-source.mdx}
+<AppExamplesSwapSource />
 
 Let's go through the code line by line:
 
@@ -149,9 +153,9 @@ In conclusion, this code provides a robust and secure way to perform atomic swap
 
 ## Deployment
 
-{@include: ../../../../snippets/initialize-sui-client-cli.mdx}
+<InitializeSuiClientCli />
 
-{@include: ../../../../snippets/publish-to-devnet-with-coins.mdx}
+<PublishToDevnetWithCoins />
 
 ## Next steps
 

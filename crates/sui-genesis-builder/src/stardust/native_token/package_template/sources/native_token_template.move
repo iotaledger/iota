@@ -1,4 +1,4 @@
-// Copyright (c) Mysten Labs, Inc.
+// Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module 0x0::$MODULE_NAME {
@@ -21,8 +21,8 @@ module 0x0::$MODULE_NAME {
             witness,
             $COIN_DECIMALS,
             b"$COIN_SYMBOL",
-            b"$COIN_NAME",
-            b"$COIN_DESCRIPTION",
+            $COIN_NAME,
+            $COIN_DESCRIPTION,
             icon_url,
             ctx
         );
