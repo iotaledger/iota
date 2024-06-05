@@ -61,12 +61,6 @@ const config = {
         },
       },
     ],
-    [
-      "docusaurus-plugin-includes",
-      {
-        postBuildDeletedFolders: ["../snippets"],
-      },
-    ],
     async function myPlugin(context, options) {
       return {
         name: "docusaurus-tailwindcss",
@@ -139,7 +133,7 @@ const config = {
       type: "text/css",
     },
   ],
-  themes: ["@docusaurus/theme-mermaid", "docusaurus-theme-frontmatter"],
+  themes: ["@docusaurus/theme-mermaid"],
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({

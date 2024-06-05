@@ -5,7 +5,7 @@
 /sdk/ @iotaledger/boxfish @iotaledger/l1-core @iotaledger/tooling
 
 # Docs are for DevEx to approve upon
-/docs/* @iotaledger/devx
+/docs/ @iotaledger/devx
 
 # Changes to the genesis builder should be approved by Konstantinos or Mirko at least
 /crates/sui-genesis-builder/ @kodemartin @miker83z
