@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useBackgroundClient } from '_src/ui/app/hooks/useBackgroundClient';
 import { Button } from '_src/ui/app/shared/ButtonUI';
 import FieldLabel from '_src/ui/app/shared/field-label';
@@ -29,7 +32,6 @@ export type PasswordExportDialogProps = {
     showBackButton?: boolean;
     spacing?: boolean;
     background?: boolean;
-    legacyAccounts?: boolean;
 };
 
 /** @deprecated - use UnlockAccountModal instead **/
@@ -42,7 +44,6 @@ export function PasswordInputDialog({
     onPasswordVerified,
     onBackClicked,
     showBackButton = false,
-    legacyAccounts = false,
 }: PasswordExportDialogProps) {
     const navigate = useNavigate();
     const backgroundService = useBackgroundClient();
@@ -51,7 +52,7 @@ export function PasswordInputDialog({
             initialValues={{ password: '' }}
             onSubmit={async ({ password }, { setFieldError }) => {
                 try {
-                    await backgroundService.verifyPassword({ password, legacyAccounts });
+                    await backgroundService.verifyPassword({ password });
                     try {
                         await onPasswordVerified(password);
                     } catch (e) {

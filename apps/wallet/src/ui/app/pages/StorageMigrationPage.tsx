@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 
@@ -38,7 +41,6 @@ export function StorageMigrationPage() {
                             await migrationMutation.mutateAsync({ password });
                         }}
                         title="Please insert your wallet password"
-                        legacyAccounts
                     />
                 ) : (
                     <div className="flex flex-1 items-center">

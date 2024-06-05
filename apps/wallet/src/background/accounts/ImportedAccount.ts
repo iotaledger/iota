@@ -1,11 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
-import {
-    fromExportedKeypair,
-    type LegacyExportedKeyPair,
-} from '_src/shared/utils/from-exported-keypair';
+import { fromExportedKeypair } from '_src/shared/utils/from-exported-keypair';
 
 import {
     Account,
@@ -16,8 +16,8 @@ import {
     type SigningAccount,
 } from './Account';
 
-type SessionStorageData = { keyPair: LegacyExportedKeyPair | string };
-type EncryptedData = { keyPair: LegacyExportedKeyPair | string };
+type SessionStorageData = { keyPair: string };
+type EncryptedData = { keyPair: string };
 
 export interface ImportedAccountSerialized extends SerializedAccount {
     type: 'imported';
