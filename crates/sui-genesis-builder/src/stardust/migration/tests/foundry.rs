@@ -6,7 +6,7 @@ use iota_sdk::{
     types::block::output::{
         feature::Irc30Metadata, AliasId, FoundryOutput, Output, SimpleTokenScheme,
     },
-    U256,
+    Url, U256,
 };
 use move_core_types::language_storage::TypeTag;
 use sui_protocol_config::ProtocolConfigValue::u64;
@@ -189,7 +189,11 @@ fn foundry_with_exceeding_circulating_supply() -> Result<()> {
     let (header, foundry) = create_foundry(
         1_000_000,
         SimpleTokenScheme::new(U256::from(u64::MAX), U256::from(0), U256::MAX).unwrap(),
-        Irc30Metadata::new("Dogecoin", "DOGE❤", 0),
+        Irc30Metadata::new("Dogecoin", "DOGE❤", 123)
+            .with_description("Much wow")
+            .with_url(Url::parse("https://dogecoin.com").unwrap())
+            .with_logo_url(Url::parse("https://dogecoin.com/logo.png").unwrap())
+            .with_logo("0x54654"),
         AliasId::null(),
     );
 
@@ -235,11 +239,14 @@ fn foundry_with_exceeding_circulating_supply() -> Result<()> {
         .expect("should be a move object");
 
     let coin_metadata = CoinMetadata::from_bcs_bytes(coin_metadata.contents()).unwrap();
-    assert_eq!(coin_metadata.decimals, 0);
+    assert_eq!(coin_metadata.decimals, 123);
     assert_eq!(coin_metadata.name, "Dogecoin");
     assert_eq!(coin_metadata.symbol, "doge");
-    assert_eq!(coin_metadata.description, "");
-    assert!(coin_metadata.icon_url.is_none());
+    assert_eq!(coin_metadata.description, "Much wow");
+    assert_eq!(
+        coin_metadata.icon_url.unwrap().to_string(),
+        "https://dogecoin.com/logo.png"
+    );
 
     // Check the max supply policy object.
     let max_supply_policy = max_supply_policy_object

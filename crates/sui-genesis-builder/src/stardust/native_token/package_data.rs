@@ -139,7 +139,7 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
                 maximum_supply: token_scheme_u64.maximum_supply(),
                 coin_name: irc_30_metadata.name().to_owned(),
                 coin_description: irc_30_metadata.description().clone().unwrap_or_default(),
-                icon_url: irc_30_metadata.url().clone(),
+                icon_url: irc_30_metadata.logo_url().clone(),
                 alias_address: *output.alias_address(),
             },
         };
