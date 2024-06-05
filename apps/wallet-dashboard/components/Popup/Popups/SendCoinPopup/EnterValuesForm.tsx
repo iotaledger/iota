@@ -28,7 +28,6 @@ function EnterValuesForm({
 }: EnterValuesProps): JSX.Element {
     const client = useSuiClient();
     const { data: _gasBudget } = useQuery({
-        // eslint-disable-next-line @tanstack/query/exhaustive-deps
         queryKey: [
             'transaction-gas-budget-estimate',
             {
@@ -36,15 +35,11 @@ function EnterValuesForm({
                 amount,
                 coin,
                 senderAddress,
-                coinDecimals: COIN_DECIMALS,
+                client,
             },
         ],
         queryFn: async () => {
-            if (!amount || !recipientAddress || !coin || !senderAddress) {
-                return null;
-            }
-
-            const tx = createTokenTransferTransaction({
+            const transaction = createTokenTransferTransaction({
                 recipientAddress,
                 amount,
                 coinType: SUI_TYPE_ARG,
@@ -52,10 +47,11 @@ function EnterValuesForm({
                 coins: [coin],
             });
 
-            tx.setSender(senderAddress);
-            await tx.build({ client });
-            return tx.blockData.gasConfig.budget;
+            transaction.setSender(senderAddress);
+            await transaction.build({ client });
+            return transaction.blockData.gasConfig.budget;
         },
+        enabled: !amount || !recipientAddress || !coin || !senderAddress,
     });
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -71,7 +67,7 @@ function EnterValuesForm({
             ...prevFormData,
             gasBudget: _gasBudget?.toString() || '',
         }));
-    }, [_gasBudget, setFormData, amount]);
+    }, [_gasBudget, setFormData]);
 
     return (
         <div className="flex flex-col gap-4">
