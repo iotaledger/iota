@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 mod executor;
+#[allow(clippy::module_inception)]
 mod migration;
 #[cfg(test)]
 mod tests;

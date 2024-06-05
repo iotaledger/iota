@@ -16,7 +16,6 @@ import { setAttributes } from '_src/shared/experimentation/features';
 import store from '_store';
 import { thunkExtras } from '_store/thunk-extras';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
-import { KioskClientProvider } from '@mysten/core/src/components/KioskClientProvider';
 import { SuiClientProvider } from '@mysten/dapp-kit';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import cn from 'clsx';
@@ -90,24 +89,22 @@ function AppWrapper() {
                                         walletApiProvider.instance.fullNode,
                                 }}
                             >
-                                <KioskClientProvider>
-                                    <AccountsFormProvider>
-                                        <UnlockAccountProvider>
-                                            <div
-                                                className={cn(
-                                                    'relative flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col flex-nowrap items-center justify-center overflow-hidden',
-                                                    isFullscreen && 'rounded-xl shadow-lg',
-                                                )}
-                                            >
-                                                <ErrorBoundary>
-                                                    <App />
-                                                </ErrorBoundary>
-                                                <div id="overlay-portal-container"></div>
-                                                <div id="toaster-portal-container"></div>
-                                            </div>
-                                        </UnlockAccountProvider>
-                                    </AccountsFormProvider>
-                                </KioskClientProvider>
+                                <AccountsFormProvider>
+                                    <UnlockAccountProvider>
+                                        <div
+                                            className={cn(
+                                                'relative flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col flex-nowrap items-center justify-center overflow-hidden',
+                                                isFullscreen && 'rounded-xl shadow-lg',
+                                            )}
+                                        >
+                                            <ErrorBoundary>
+                                                <App />
+                                            </ErrorBoundary>
+                                            <div id="overlay-portal-container"></div>
+                                            <div id="toaster-portal-container"></div>
+                                        </div>
+                                    </UnlockAccountProvider>
+                                </AccountsFormProvider>
                             </SuiClientProvider>
                         </PersistQueryClientProvider>
                     </Fragment>
