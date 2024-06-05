@@ -110,7 +110,7 @@ fn adjust_native_token_module(package_path: &Path, package: &NativeTokenPackageD
         byte_string.push_str("            vector<u8>[");
 
         for (idx, byte) in string.as_bytes().into_iter().enumerate() {
-            byte_string.push_str(&format!("0x{byte:x}"));
+            byte_string.push_str(&format!("{byte:#x}"));
 
             if idx != string.as_bytes().len() - 1 {
                 byte_string.push_str(", ");
