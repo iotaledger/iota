@@ -40,6 +40,7 @@ use crate::stardust::{
 };
 
 mod alias;
+mod basic;
 mod executor;
 mod foundry;
 mod nft;

@@ -317,7 +317,7 @@ pub(super) trait NativeTokenKind {
 
 impl NativeTokenKind for (TypeTag, Coin) {
     fn token_type(&self) -> String {
-        self.0.to_canonical_string(false)
+        self.0.to_canonical_string(true)
     }
 
     fn value(&self) -> u64 {
