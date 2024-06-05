@@ -1,7 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useActiveAddress } from '_app/hooks/useActiveAddress';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Button } from '_app/shared/ButtonUI';
 import { Collapsible } from '_app/shared/collapse';
 import { Link } from '_app/shared/Link';
@@ -17,7 +19,6 @@ import { useExplorerLink } from '_src/ui/app/hooks/useExplorerLink';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import PageTitle from '_src/ui/app/shared/PageTitle';
 import { Text } from '_src/ui/app/shared/text';
-import { useGetKioskContents } from '@mysten/core';
 import { ArrowRight16, ArrowUpRight12 } from '@mysten/icons';
 import { formatAddress } from '@mysten/sui.js/utils';
 import cl from 'clsx';
@@ -30,19 +31,12 @@ type NftFields = {
 function NFTDetailsPage() {
     const [searchParams] = useSearchParams();
     const nftId = searchParams.get('objectId');
-    const accountAddress = useActiveAddress();
-    const { data: objectData, isPending: isNftLoading } = useOwnedNFT(nftId || '', accountAddress);
+    const { data: objectData, isPending: isNftLoading } = useOwnedNFT(nftId || '');
     const isTransferable =
         !!objectData &&
         objectData.content?.dataType === 'moveObject' &&
         objectData.content?.hasPublicTransfer;
     const { nftFields, fileExtensionType, filePath } = useNFTBasicData(objectData);
-    const address = useActiveAddress();
-    const { data } = useGetKioskContents(address);
-
-    const isContainedInKiosk = data?.lookup.get(nftId!);
-    const kioskItem = data?.list.find((k) => k.data?.objectId === nftId);
-
     const navigate = useNavigate();
     const buyNLargeConfig = useConfig();
     const { objectType } = useBuyNLargeAsset();
@@ -212,39 +206,21 @@ function NFTDetailsPage() {
                                             </LabelValuesContainer>
                                         </Collapsible>
                                     ) : null}
-
-                                    {isContainedInKiosk && kioskItem?.isLocked ? (
-                                        <div className="mb-3 flex flex-col gap-2">
-                                            <Button
-                                                after={<ArrowUpRight12 />}
-                                                variant="outline"
-                                                href="https://docs.sui.io/build/sui-kiosk"
-                                                text="Learn more about Kiosks"
-                                            />
-                                            <Button
-                                                after={<ArrowUpRight12 />}
-                                                variant="outline"
-                                                href={`https://sui.hyperspace.xyz/wallet/sui/${accountAddress}?tokenAddress=${nftId}`}
-                                                text="Marketplace"
-                                            />
-                                        </div>
-                                    ) : (
-                                        <div className="mb-3 flex flex-1 items-end">
-                                            <Button
-                                                variant="primary"
-                                                size="tall"
-                                                disabled={!isTransferable}
-                                                to={`/nft-transfer/${nftId}`}
-                                                title={
-                                                    isTransferable
-                                                        ? undefined
-                                                        : "Unable to send. NFT doesn't have public transfer method"
-                                                }
-                                                text="Send NFT"
-                                                after={<ArrowRight16 />}
-                                            />
-                                        </div>
-                                    )}
+                                    <div className="mb-3 flex flex-1 items-end">
+                                        <Button
+                                            variant="primary"
+                                            size="tall"
+                                            disabled={!isTransferable}
+                                            to={`/nft-transfer/${nftId}`}
+                                            title={
+                                                isTransferable
+                                                    ? undefined
+                                                    : "Unable to send. NFT doesn't have public transfer method"
+                                            }
+                                            text="Send NFT"
+                                            after={<ArrowRight16 />}
+                                        />
+                                    </div>
                                 </>
                             ) : (
                                 <Button

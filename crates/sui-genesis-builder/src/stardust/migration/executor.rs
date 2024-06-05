@@ -48,8 +48,8 @@ use crate::{
             verification::created_objects::CreatedObjects, PACKAGE_DEPS,
         },
         types::{
-            snapshot::OutputHeader, stardust_to_sui_address, stardust_to_sui_address_owner,
-            timelock, token_scheme::SimpleTokenSchemeU64, Nft,
+            foundry::create_foundry_gas_coin, snapshot::OutputHeader, stardust_to_sui_address,
+            stardust_to_sui_address_owner, timelock, token_scheme::SimpleTokenSchemeU64, Nft,
         },
     },
 };
@@ -236,7 +236,7 @@ impl Executor {
             for object in written.values() {
                 if object.is_coin() {
                     minted_coin_id = Some(object.id());
-                    created_objects.set_coin(object.id())?;
+                    created_objects.set_minted_coin(object.id())?;
                 } else if object.type_().map_or(false, |t| t.is_coin_metadata()) {
                     created_objects.set_coin_metadata(object.id())?
                 } else if object.type_().map_or(false, |t| {
@@ -267,6 +267,18 @@ impl Executor {
                     SimpleTokenSchemeU64::try_from(foundry.token_scheme().as_simple())?,
                 ),
             );
+
+            // Create the foundry gas coin object.
+            let gas_coin = create_foundry_gas_coin(
+                &header.output_id(),
+                foundry,
+                &self.tx_context,
+                foundry_package.version(),
+                &self.protocol_config,
+            )?;
+            created_objects.set_coin(gas_coin.id())?;
+            self.store.insert_object(gas_coin);
+
             self.store.finish(
                 written
                     .into_iter()
@@ -373,7 +385,7 @@ impl Executor {
             let mut builder = ProgrammableTransactionBuilder::new();
             let bag = pt::bag_new(&mut builder);
             for token in native_tokens.iter() {
-                let Some(foundry_ledger_data) = self.native_tokens.get(token.token_id()) else {
+                let Some(foundry_ledger_data) = self.native_tokens.get_mut(token.token_id()) else {
                     anyhow::bail!("foundry for native token has not been published");
                 };
 
@@ -391,6 +403,11 @@ impl Executor {
                 let adjusted_amount = foundry_ledger_data
                     .token_scheme_u64
                     .adjust_tokens(token.amount());
+
+                foundry_ledger_data.minted_value = foundry_ledger_data
+                    .minted_value
+                    .checked_sub(adjusted_amount)
+                    .ok_or_else(|| anyhow::anyhow!("underflow splitting native token balance"))?;
 
                 let balance = pt::coin_balance_split(
                     &mut builder,
@@ -461,7 +478,7 @@ impl Executor {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             for token in native_tokens.iter() {
-                let Some(foundry_ledger_data) = self.native_tokens.get(token.token_id()) else {
+                let Some(foundry_ledger_data) = self.native_tokens.get_mut(token.token_id()) else {
                     anyhow::bail!("foundry for native token has not been published");
                 };
 
@@ -478,6 +495,12 @@ impl Executor {
                 let adjusted_amount = foundry_ledger_data
                     .token_scheme_u64
                     .adjust_tokens(token.amount());
+
+                foundry_ledger_data.minted_value = foundry_ledger_data
+                    .minted_value
+                    .checked_sub(adjusted_amount)
+                    .ok_or_else(|| anyhow::anyhow!("underflow splitting native token balance"))?;
+
                 builder.pay(vec![object_ref], vec![owner], vec![adjusted_amount])?;
             }
 
@@ -664,6 +687,21 @@ impl Executor {
     }
 }
 
+#[cfg(test)]
+impl Executor {
+    /// Set the [`TxContext`] of the [`Executor`].
+    pub(crate) fn with_tx_context(mut self, tx_context: TxContext) -> Self {
+        self.tx_context = tx_context;
+        self
+    }
+
+    /// Set the [`InMemoryStorage`] of the [`Executor`].
+    pub(crate) fn with_store(mut self, store: InMemoryStorage) -> Self {
+        self.store = store;
+        self
+    }
+}
+
 mod pt {
     use super::*;
     use crate::stardust::migration::NATIVE_TOKEN_BAG_KEY_TYPE;
@@ -729,6 +767,7 @@ pub(crate) struct FoundryLedgerData {
     pub(crate) coin_type_origin: TypeOrigin,
     pub(crate) package_id: ObjectID,
     pub(crate) token_scheme_u64: SimpleTokenSchemeU64,
+    pub(crate) minted_value: u64,
 }
 
 impl FoundryLedgerData {
@@ -748,6 +787,7 @@ impl FoundryLedgerData {
             // There must be only one type created in the foundry package.
             coin_type_origin: foundry_package.type_origin_table()[0].clone(),
             package_id: foundry_package.id(),
+            minted_value: token_scheme_u64.circulating_supply(),
             token_scheme_u64,
         }
     }

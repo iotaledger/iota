@@ -3,6 +3,8 @@ title: Trustless Token Swap
 hide_table_of_contents: true
 ---
 
+import AppExamplesSwapSource from "../../../_snippets/app-examples-swap-source.mdx";
+
 This guide and example demonstrate an atomic swap on Sui, which is similar to an escrow but does not require a trusted third party. Instead, this example uses a [shared object](../../../concepts/object-ownership/shared.mdx) to act as the escrow between two Sui users wanting to trade. Shared objects are a unique concept to Sui. Any transaction and any signer can modify it, given the changes meet the requirements set forth by the package that defined the type.
 
 :::info
@@ -17,7 +19,7 @@ The guide is split into three parts:
 1. [Indexing and API Service](./trustless-token-swap/indexer-api.mdx): A service that indexes chain state to discover trades, and an API service to read this data.
 1. [Frontend](./trustless-token-swap/frontend.mdx): Enables users to list objects for sale and to accept trades.
 
-{@include: ../../../snippets/app-examples-swap-source.mdx}
+<AppExamplesSwapSource />
 
 ## Prerequisites
 

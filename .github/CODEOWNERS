@@ -1,0 +1,18 @@
+# Default fallback, if no other path below this matches someone from the `move` team has to review
+* @iotaledger/l1-core
+
+# Everything within the SDK folder 
+/sdk/ @iotaledger/boxfish @iotaledger/l1-core @iotaledger/tooling
+
+# Docs are for DevEx to approve upon
+/docs/ @iotaledger/devx
+
+# Changes to the genesis builder should be approved by Konstantinos or Mirko at least
+/crates/sui-genesis-builder/ @kodemartin @miker83z
+
+# Frontend apps to be looked after by Boxfish Studio or the tooling team
+/apps/ @iotaledger/boxfish @iotaledger/tooling
+/dapps/ @iotaledger/boxfish @iotaledger/tooling
+
+# Protect this CODEOWNERS file, with some fallback in case of unavailability
+/.github/CODEOWNERS @luca-moser @lzpap @miker83z @fijter
