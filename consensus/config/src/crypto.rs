@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! Here we select the cryptographic types that are used by default in the code
 //! base. The whole code base should only:
 //! - refer to those aliases and not use the individual scheme implementations

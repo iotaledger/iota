@@ -1,6 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import React from 'react';
 import { Activity } from '@/lib/interfaces';
 import formatTimestamp from '@/lib/utils/time';

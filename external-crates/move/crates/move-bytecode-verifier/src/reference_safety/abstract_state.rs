@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module defines the abstract state for the type and memory safety
 //! analysis.
 use std::collections::{BTreeMap, BTreeSet};

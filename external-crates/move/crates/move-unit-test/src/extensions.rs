@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module manages native extensions supported by the unit testing
 //! framework. Such extensions are enabled by cfg features and must be compiled
 //! into the test to be usable.

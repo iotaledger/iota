@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -12,7 +15,7 @@ use bytes::Bytes;
 use consensus_config::{AuthorityIndex, Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
 use parking_lot::RwLock;
 use prometheus::Registry;
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 use tokio::time::sleep;
 use tracing::{info, warn};
 
@@ -38,7 +41,7 @@ use crate::{
     CommitConsumer,
 };
 
-/// ConsensusAuthority is used by Sui to manage the lifetime of AuthorityNode.
+/// ConsensusAuthority is used by Iota to manage the lifetime of AuthorityNode.
 /// It hides the details of the implementation from the caller,
 /// MysticetiManager.
 #[allow(private_interfaces)]
@@ -403,7 +406,7 @@ mod tests {
     use parking_lot::Mutex;
     use prometheus::Registry;
     use rstest::rstest;
-    use sui_protocol_config::ProtocolConfig;
+    use iota_protocol_config::ProtocolConfig;
     use tempfile::TempDir;
     use tokio::{sync::mpsc::unbounded_channel, time::sleep};
 

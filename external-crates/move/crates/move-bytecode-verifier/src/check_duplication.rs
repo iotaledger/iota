@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module implements a checker for verifying that each vector in a
 //! CompiledModule contains distinct values. Successful verification implies
 //! that an index in vector can be used to uniquely name the entry at that

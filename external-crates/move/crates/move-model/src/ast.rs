@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! Contains AST definitions for the specification language fragments of the
 //! Move language. Note that in this crate, specs are represented in AST form,
 //! whereas code is represented as bytecodes. Therefore we do not need an AST

@@ -1,7 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { PublicKey } from '@mysten/sui.js/cryptography';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import type { PublicKey } from '@iota/iota.js/cryptography';
 
 import { poseidonHash } from './poseidon.js';
 
@@ -11,7 +14,7 @@ const MAX_AUD_VALUE_LENGTH = 145;
 const PACK_WIDTH = 248;
 
 export function getExtendedEphemeralPublicKey(publicKey: PublicKey) {
-    return publicKey.toSuiPublicKey();
+    return publicKey.toIotaPublicKey();
 }
 
 /**

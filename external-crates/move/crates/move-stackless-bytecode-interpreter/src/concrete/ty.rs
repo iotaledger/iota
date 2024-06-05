@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! The type system in move-model is a fat type system that is designed to cover
 //! all cases that can possibly appear in the whole bytecode transformation
 //! pipeline. Natually, this means that some types are no longer applicable when

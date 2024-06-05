@@ -1,8 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 import { Text } from '_app/shared/text';
 import { DescriptionItem } from '_pages/approval-request/transaction-request/DescriptionList';
-import { MAX_FLOAT, SUI_USDC_AVERAGE_CONVERSION_RATE } from '_pages/swap/constants';
+import { MAX_FLOAT, IOTA_USDC_AVERAGE_CONVERSION_RATE } from '_pages/swap/constants';
 import { useSwapData } from '_pages/swap/utils';
 import BigNumber from 'bignumber.js';
 
@@ -40,8 +43,8 @@ export function AverageSection({
                     )
                         .shiftedBy(
                             isAsk
-                                ? SUI_USDC_AVERAGE_CONVERSION_RATE
-                                : -SUI_USDC_AVERAGE_CONVERSION_RATE,
+                                ? IOTA_USDC_AVERAGE_CONVERSION_RATE
+                                : -IOTA_USDC_AVERAGE_CONVERSION_RATE,
                         )
                         .decimalPlaces(MAX_FLOAT)
                         .toString()}{' '}

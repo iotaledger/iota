@@ -1,12 +1,15 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import React from 'react';
 import Image from 'next/image';
-import { useAppsBackend } from '@mysten/core';
+import { useAppsBackend } from '@iota/core';
 import { useQuery } from '@tanstack/react-query';
 import { AppListItem } from './AppList.types';
-import { getDefaultNetwork } from '@mysten/sui.js/client';
+import { getDefaultNetwork } from '@iota/iota.js/client';
 
 const AppListItem = (props: AppListItem) => {
     return (

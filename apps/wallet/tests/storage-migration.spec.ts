@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { expect, test } from './fixtures';
 
 test('do storage migration', async ({ page, extensionUrl }) => {
@@ -26,8 +29,8 @@ test('do storage migration', async ({ page, extensionUrl }) => {
                 },
             ],
             last_account_index: 2,
-            sui_Env: null,
-            sui_Env_RPC: null,
+            iota_Env: null,
+            iota_Env_RPC: null,
             v: -1,
             vault: {
                 data: '{"data":"/y+fvdpw6ps/lJkczX6B5jTC1/LyOGVFjFO06b1wHL6m1HQMk/EnTiFbwiE1MlaTtxN2NdrWouPfnCaMxfEGmg8TPrgreK5d8929JipdITYRNxlZDY7pW6wRB10LQrRkFawXUhg8vnMYeaL/V6G0NKAdsGyW5MyrzYfdADPzUhF3fLw4Gt90MhIdX/QNLRJJAjENY/RuuQHeCi2hC6qEyFXFFot9aBymDVysln9Ti6pfhctcdjdqbfY/PARLz6Uec6df6u+hehkDoBDwhcTysox4la8/WXzPrqs8rbw2d07g/NRZQFXE6Ancd3pE5Hgh7JrDSplCHaswXe1S/rWwismignzwtpDwzEQZT9VSCvfTka0eA+0vI0/lvsNusscgb81GKWuXV49feSBE6CJ7fvQFAji2DybveFj3udYKy3rC4EpdJFwJU+ze2ZO5hlqXcKToPc/x+z/fPXNSfU9rppw0N6T4Fx++IP6q94tvtAz3ZPZGN+ArgjFFYUQhzyuwCtC6TqJ6XdRq3ZlgYb0UNHviThrmpIBCJH/xPeMdeaYD3XFCHetnwTpfkl+xnv8=","iv":"xe674n8dsybLdtK7121KDw==","salt":"f7v0/BRTLtoI+kS3R832pioFR6qtwB6nZgACkco/H5Q="}',

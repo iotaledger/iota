@@ -1,7 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { type DisplayFieldsResponse } from '@mysten/sui.js/client';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { type DisplayFieldsResponse } from '@iota/iota.js/client';
 import { useState } from 'react';
 
 import { ObjectLink } from '~/ui/InternalLink';

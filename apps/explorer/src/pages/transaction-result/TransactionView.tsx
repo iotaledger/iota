@@ -1,7 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { type SuiTransactionBlockResponse } from '@mysten/sui.js/client';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
 import clsx from 'clsx';
 import { type ReactNode, useState } from 'react';
 
@@ -24,7 +27,7 @@ function TabsContentContainer({ value, children }: { value: string; children: Re
     );
 }
 
-export function TransactionView({ transaction }: { transaction: SuiTransactionBlockResponse }) {
+export function TransactionView({ transaction }: { transaction: IotaTransactionBlockResponse }) {
     const isMediumOrAbove = useBreakpoint('md');
     const [isCollapsed, setIsCollapsed] = useState(false);
 

@@ -1,7 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB64 } from '@mysten/bcs';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { fromB64 } from '@iota/bcs';
 import { describe, expect, test } from 'vitest';
 
 import { getZkLoginSignature, parseZkLoginSignature } from '../../../src/zklogin/signature';

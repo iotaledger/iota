@@ -1,8 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { formatDate } from '@mysten/core';
-import { Heading, Text } from '@mysten/ui';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { formatDate } from '@iota/core';
+import { Heading, Text } from '@iota/ui';
 import clsx from 'clsx';
 
 import { getElapsedTime, useEpochProgress } from '~/pages/epochs/utils';

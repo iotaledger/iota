@@ -1,11 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { walletApiProvider } from '_app/ApiProvider';
 import type { RootState } from '_redux/RootReducer';
 import type { NetworkEnvType } from '_src/shared/api-env';
 import type { AppThunkConfig } from '_store/thunk-extras';
-import { getDefaultNetwork, type Network } from '@mysten/sui.js/client';
+import { getDefaultNetwork, type Network } from '@iota/iota.js/client';
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 

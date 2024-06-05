@@ -1,8 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCurrentAccount, useSuiClientInfiniteQuery } from "@mysten/dapp-kit";
-import { SuiObjectDisplay } from "@/components/SuiObjectDisplay";
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { useCurrentAccount, useIotaClientInfiniteQuery } from "@iota/dapp-kit";
+import { IotaObjectDisplay } from "@/components/IotaObjectDisplay";
 import { Button } from "@radix-ui/themes";
 import { LockClosedIcon } from "@radix-ui/react-icons";
 import { InfiniteScrollArea } from "@/components/InfiniteScrollArea";
@@ -18,7 +21,7 @@ export function LockOwnedObjects() {
   const { mutate: lockObjectMutation, isPending } = useLockObjectMutation();
 
   const { data, fetchNextPage, isFetchingNextPage, hasNextPage, refetch } =
-    useSuiClientInfiniteQuery(
+    useIotaClientInfiniteQuery(
       "getOwnedObjects",
       {
         owner: account?.address!,
@@ -47,7 +50,7 @@ export function LockOwnedObjects() {
       loading={isFetchingNextPage}
     >
       {data?.map((obj) => (
-        <SuiObjectDisplay object={obj.data!}>
+        <IotaObjectDisplay object={obj.data!}>
           <div className="text-right flex items-center justify-between">
             <p className="text-sm">
               Lock the item so it can be used for escrows.
@@ -68,7 +71,7 @@ export function LockOwnedObjects() {
               Lock Item
             </Button>
           </div>
-        </SuiObjectDisplay>
+        </IotaObjectDisplay>
       ))}
     </InfiniteScrollArea>
   );

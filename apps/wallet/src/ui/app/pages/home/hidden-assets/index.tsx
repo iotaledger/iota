@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import Alert from '_components/alert';
 import { ErrorBoundary } from '_components/error-boundary';
 import Loading from '_components/loading';
@@ -9,8 +12,8 @@ import { NFTDisplayCard } from '_components/nft-display';
 import { ampli } from '_src/shared/analytics/ampli';
 import { Button } from '_src/ui/app/shared/ButtonUI';
 import PageTitle from '_src/ui/app/shared/PageTitle';
-import { useMultiGetObjects } from '@mysten/core';
-import { EyeClose16 } from '@mysten/icons';
+import { useMultiGetObjects } from '@iota/core';
+import { EyeClose16 } from '@iota/icons';
 import { keepPreviousData } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
@@ -104,7 +107,7 @@ function HiddenNftsPage() {
                                     </Link>
                                     <div className="h-8 w-8">
                                         <Button
-                                            variant="secondarySui"
+                                            variant="secondaryIota"
                                             size="icon"
                                             onClick={() => {
                                                 showAsset(objectId);

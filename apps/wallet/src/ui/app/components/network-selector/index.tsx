@@ -1,12 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useAppDispatch, useAppSelector } from '_hooks';
 import { changeActiveNetwork } from '_redux/slices/app';
 import { ampli } from '_src/shared/analytics/ampli';
 import { getCustomNetwork } from '_src/shared/api-env';
-import { Check24 } from '@mysten/icons';
-import { getAllNetworks, Network, type NetworkConfiguration } from '@mysten/sui.js/client';
+import { Check24 } from '@iota/icons';
+import { getAllNetworks, Network, type NetworkConfiguration } from '@iota/iota.js/client';
 import cl from 'clsx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useMemo, useState } from 'react';

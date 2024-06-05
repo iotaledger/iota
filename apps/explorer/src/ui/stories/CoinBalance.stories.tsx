@@ -1,25 +1,28 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { SuiClientProvider } from '@mysten/dapp-kit';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { IotaClientProvider } from '@iota/dapp-kit';
 import { type Meta, type StoryObj } from '@storybook/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { CoinBalance, type CoinBalanceProps } from '../CoinBalance';
-import { Network, SupportedNetworks, createSuiClient } from '~/utils/api/DefaultRpcClient';
+import { Network, SupportedNetworks, createIotaClient } from '~/utils/api/DefaultRpcClient';
 
 export default {
     component: CoinBalance,
     decorators: [
         (Story) => (
             <QueryClientProvider client={new QueryClient()}>
-                <SuiClientProvider
+                <IotaClientProvider
                     networks={SupportedNetworks}
                     defaultNetwork={Network.Local}
-                    createClient={createSuiClient}
+                    createClient={createIotaClient}
                 >
                     <Story />
-                </SuiClientProvider>
+                </IotaClientProvider>
             </QueryClientProvider>
         ),
     ],
@@ -28,7 +31,7 @@ export default {
 export const Default: StoryObj<CoinBalanceProps> = {
     args: {
         amount: 1000,
-        coinType: '0x2::sui::SUI',
+        coinType: '0x2::iota::IOTA',
     },
 };
 

@@ -1,18 +1,21 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
 import Loading from '_components/loading';
 import { filterAndSortTokenBalances } from '_helpers';
 import { useCoinsReFetchingConfig } from '_hooks';
-import { useSuiClientQuery } from '@mysten/dapp-kit';
-import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
+import { useIotaClientQuery } from '@iota/dapp-kit';
+import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import { Link } from 'react-router-dom';
 
 import { CoinItem } from './CoinItem';
 
 export function ActiveCoinsCard({
-    activeCoinType = SUI_TYPE_ARG,
+    activeCoinType = IOTA_TYPE_ARG,
     showActiveCoin = true,
 }: {
     activeCoinType: string;
@@ -21,7 +24,7 @@ export function ActiveCoinsCard({
     const selectedAddress = useActiveAddress();
 
     const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
-    const { data: coins, isPending } = useSuiClientQuery(
+    const { data: coins, isPending } = useIotaClientQuery(
         'getAllBalances',
         { owner: selectedAddress! },
         {

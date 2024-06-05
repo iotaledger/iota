@@ -1,11 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSuiClient } from '@mysten/dapp-kit';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 
 export function useGetTransaction(transactionId: string) {
-    const client = useSuiClient();
+    const client = useIotaClient();
     return useQuery({
         queryKey: ['transactions-by-id', transactionId],
         queryFn: async () =>

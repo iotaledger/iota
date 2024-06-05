@@ -1,12 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { SuiObjectData } from '@mysten/sui.js/client';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import type { IotaObjectData } from '@iota/iota.js/client';
 
 import useFileExtensionType from './useFileExtensionType';
 import useMediaUrl from './useMediaUrl';
 
-export default function useNFTBasicData(nftObj: SuiObjectData | null) {
+export default function useNFTBasicData(nftObj: IotaObjectData | null) {
     const nftObjectID = nftObj?.objectId || null;
     const filePath = useMediaUrl(nftObj?.content || null);
     let objType = null;

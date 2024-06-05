@@ -1,7 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { formatBalance } from '@mysten/core';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { formatBalance } from '@iota/core';
 import BigNumber from 'bignumber.js';
 import { mixed, object } from 'yup';
 

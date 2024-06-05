@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type SignMessageApprovalRequest } from '_payloads/transactions/ApprovalRequest';
 import { toUtf8OrB64 } from '_src/shared/utils';
 import { useMemo } from 'react';

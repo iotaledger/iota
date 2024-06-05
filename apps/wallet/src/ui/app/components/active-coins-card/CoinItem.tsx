@@ -1,9 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Text } from '_app/shared/text';
 import { CoinIcon } from '_components/coin-icon';
-import { useFormatCoin } from '@mysten/core';
+import { useFormatCoin } from '@iota/core';
 import { type ReactNode } from 'react';
 
 type CoinItemProps = {
@@ -26,7 +29,7 @@ export function CoinItem({
     const [formatted, symbol, { data: coinMeta }] = useFormatCoin(balance, coinType);
 
     return (
-        <div className="flex w-full items-center justify-center gap-2.5 rounded py-3 pl-1.5 pr-2 hover:bg-sui/10">
+        <div className="flex w-full items-center justify-center gap-2.5 rounded py-3 pl-1.5 pr-2 hover:bg-iota/10">
             <CoinIcon coinType={coinType} size={isActive ? 'sm' : 'md'} />
             <div className="flex flex-1 items-center justify-between gap-1.5">
                 <div className="max-w-token-width">

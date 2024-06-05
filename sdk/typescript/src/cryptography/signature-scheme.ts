@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 export const SIGNATURE_SCHEME_TO_FLAG = {
     ED25519: 0x00,
     Secp256k1: 0x01,

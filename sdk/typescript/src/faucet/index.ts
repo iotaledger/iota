@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import type { NetworkId } from '../client/index.js';
 import { getNetwork } from '../client/index.js';
 
@@ -71,7 +74,7 @@ async function faucetRequest({ host, path, body, headers, method }: FaucetReques
     }
 }
 
-export async function requestSuiFromFaucetV0(input: {
+export async function requestIotaFromFaucetV0(input: {
     host: string;
     recipient: string;
     headers?: HeadersInit;
@@ -89,7 +92,7 @@ export async function requestSuiFromFaucetV0(input: {
     });
 }
 
-export async function requestSuiFromFaucetV1(input: {
+export async function requestIotaFromFaucetV1(input: {
     host: string;
     recipient: string;
     headers?: HeadersInit;

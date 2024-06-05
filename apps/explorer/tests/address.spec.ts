@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { expect, test } from '@playwright/test';
 
 import { faucet, split_coin } from './utils/localnet';
@@ -14,7 +17,7 @@ test('address page', async ({ page }) => {
 test('owned objects (coins) are displayed', async ({ page }) => {
     const address = await faucet();
     await page.goto(`/address/${address}`);
-    await expect(await page.getByTestId('ownedcoinlabel')).toContainText('SUI');
+    await expect(await page.getByTestId('ownedcoinlabel')).toContainText('IOTA');
 });
 
 // TODO: rewrite this test after the removal of devnet_nft

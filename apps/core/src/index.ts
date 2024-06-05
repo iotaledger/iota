@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 export * from './api/SentryHttpTransport';
 export * from './hooks/useFormatCoin';
 export * from './hooks/useTimeAgo';
@@ -32,7 +35,7 @@ export * from './hooks/useGetKioskContents';
 export * from './hooks/useZodForm';
 export * from './utils/kiosk';
 export * from './hooks/useElementDimensions';
-export * from './hooks/useSuiCoinData';
+export * from './hooks/useIotaCoinData';
 export * from './hooks/useLocalStorage';
 export * from './hooks/useGetDelegatedStake';
 export * from './hooks/useTokenPrice';

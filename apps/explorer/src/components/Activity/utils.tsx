@@ -1,10 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { type EpochMetricsPage } from '@mysten/sui.js/client';
-import { Text } from '@mysten/ui';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 
-import { SuiAmount } from '../Table/SuiAmount';
+import { type EpochMetricsPage } from '@iota/iota.js/client';
+import { Text } from '@iota/ui';
+
+import { IotaAmount } from '../Table/IotaAmount';
 import { TxTimeType } from '../tx-time/TxTimeType';
 import { HighlightedTableCol } from '~/components/Table/HighlightedTableCol';
 import { CheckpointSequenceLink, EpochLink } from '~/ui/InternalLink';
@@ -19,7 +22,7 @@ export const genTableDataFromEpochsData = (results: EpochMetricsPage) => ({
             </HighlightedTableCol>
         ),
         transactions: <Text variant="bodySmall/medium">{epoch.epochTotalTransactions}</Text>,
-        stakeRewards: <SuiAmount amount={epoch.endOfEpochInfo?.totalStakeRewardsDistributed} />,
+        stakeRewards: <IotaAmount amount={epoch.endOfEpochInfo?.totalStakeRewardsDistributed} />,
         checkpointSet: (
             <div>
                 <CheckpointSequenceLink sequence={epoch.firstCheckpointId.toString()} />
@@ -31,7 +34,7 @@ export const genTableDataFromEpochsData = (results: EpochMetricsPage) => ({
         ),
         storageNetInflow: (
             <div className="pl-3">
-                <SuiAmount amount={getEpochStorageFundFlow(epoch.endOfEpochInfo).netInflow} />
+                <IotaAmount amount={getEpochStorageFundFlow(epoch.endOfEpochInfo).netInflow} />
             </div>
         ),
         time: <TxTimeType timestamp={Number(epoch.endOfEpochInfo?.epochEndTimestamp ?? 0)} />,

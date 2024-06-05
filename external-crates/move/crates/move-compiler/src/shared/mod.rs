@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
@@ -31,7 +34,7 @@ use crate::{
     editions::{check_feature_or_error as edition_check_feature, Edition, FeatureGate, Flavor},
     expansion::ast as E,
     naming::ast as N,
-    sui_mode,
+    iota_mode,
     typing::visitor::{TypingVisitor, TypingVisitorObj},
 };
 
@@ -257,8 +260,8 @@ impl CompilationEnv {
     ) -> Self {
         use crate::diagnostics::codes::{TypeSafety, UnusedItem};
         visitors.extend([
-            sui_mode::id_leak::IDLeakVerifier.visitor(),
-            sui_mode::typing::SuiTypeChecks.visitor(),
+            iota_mode::id_leak::IDLeakVerifier.visitor(),
+            iota_mode::typing::IotaTypeChecks.visitor(),
         ]);
         let known_filters_: BTreeMap<FilterName, BTreeSet<WarningFilter>> = BTreeMap::from([
             (

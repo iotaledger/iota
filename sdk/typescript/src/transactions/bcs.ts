@@ -1,7 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { TypeName } from '@mysten/bcs';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import type { TypeName } from '@iota/bcs';
 
 export const ARGUMENT_INNER = 'Argument';
 export const VECTOR = 'vector';

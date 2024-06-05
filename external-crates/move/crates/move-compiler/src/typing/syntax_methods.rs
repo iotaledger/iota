@@ -1,6 +1,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module verifies the usage of the "syntax method" functions. These
 //! functions are declared as 'syntax' but have not been ensured to be
 //! type-compatible or otherwise adhere to our trait-like constraints around

@@ -1,15 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 /// Create a simple Token with Denylist for every action; all four default
 /// actions are allowed as long as the user is not on the denylist.
 module examples::simple_token {
     use std::option;
-    use sui::transfer;
-    use sui::coin::{Self, TreasuryCap};
-    use sui::tx_context::{sender, TxContext};
+    use iota::transfer;
+    use iota::coin::{Self, TreasuryCap};
+    use iota::tx_context::{sender, TxContext};
 
-    use sui::token::{Self, TokenPolicy, TokenPolicyCap};
+    use iota::token::{Self, TokenPolicy, TokenPolicyCap};
 
     // import rules and use them for this app
     use examples::denylist_rule::Denylist;
@@ -73,11 +76,11 @@ module examples::simple_token {
 /// We don't test the currency itself but rather use the same set of regulations
 /// on a test currency.
 module examples::simple_token_tests {
-    use sui::coin;
-    use sui::tx_context::TxContext;
+    use iota::coin;
+    use iota::tx_context::TxContext;
 
-    use sui::token::{Self, TokenPolicy, TokenPolicyCap};
-    use sui::token_test_utils::{Self as test, TEST};
+    use iota::token::{Self, TokenPolicy, TokenPolicyCap};
+    use iota::token_test_utils::{Self as test, TEST};
 
     use examples::simple_token::set_rules;
     use examples::denylist_rule as denylist;

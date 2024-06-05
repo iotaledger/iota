@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use move_binary_format::CompiledModule;
 use move_bytecode_verifier::{
     ability_field_requirements, constants, instantiation_loops::InstantiationLoopChecker,

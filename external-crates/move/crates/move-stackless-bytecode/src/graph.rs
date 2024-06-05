@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 // This module implements a technique to compute the natural loops of a graph.
 // The implementation is based on the computation of the dominance relation
 // of a graph using the technique method in this paper:

@@ -1,9 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 module dynamic_fields::example {
-    use sui::dynamic_object_field as ofield;
-    use sui::object::{Self, UID};
+    use iota::dynamic_object_field as ofield;
+    use iota::object::{Self, UID};
 
     struct Parent has key {
         id: UID,
@@ -47,7 +50,7 @@ module dynamic_fields::example {
     }
 
     // === Tests ===
-    #[test_only] use sui::test_scenario;
+    #[test_only] use iota::test_scenario;
 
     #[test]
     fun test_add_delete() {

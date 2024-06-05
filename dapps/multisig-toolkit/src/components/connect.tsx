@@ -1,14 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import {
     ConnectModal,
     useAccounts,
     useCurrentAccount,
     useDisconnectWallet,
     useSwitchAccount,
-} from '@mysten/dapp-kit';
-import { formatAddress } from '@mysten/sui.js/utils';
+} from '@iota/dapp-kit';
+import { formatAddress } from '@iota/iota.js/utils';
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { useState } from 'react';
 

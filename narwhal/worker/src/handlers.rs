@@ -2,6 +2,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use std::{collections::HashSet, time::Duration};
 
 use anemo::{types::response::StatusCode, Network};
@@ -12,7 +15,7 @@ use fastcrypto::hash::Hash;
 use itertools::Itertools;
 use network::{client::NetworkClient, WorkerToPrimaryClient};
 use store::{rocks::DBMap, Map};
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 use tracing::{debug, trace};
 use types::{
     now, validate_batch_version, Batch, BatchAPI, BatchDigest, FetchBatchesRequest,

@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { ALL_PERMISSION_TYPES, isValidPermissionTypes } from '_payloads/permissions';
 import type { Permission, PermissionResponse, PermissionType } from '_payloads/permissions';
 import mitt from 'mitt';

@@ -1,10 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 module first_package::example {
-    use sui::object::{Self, UID};
-    use sui::transfer;
-    use sui::tx_context::{Self, TxContext};
+    use iota::object::{Self, UID};
+    use iota::transfer;
+    use iota::tx_context::{Self, TxContext};
 
     struct Sword has key, store {
         id: UID,
@@ -58,7 +61,7 @@ module first_package::example {
     }
 
     // === Tests ===
-    #[test_only] use sui::test_scenario as ts;
+    #[test_only] use iota::test_scenario as ts;
 
     #[test_only] const ADMIN: address = @0xAD;
     #[test_only] const ALICE: address = @0xA;

@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module implements a checker for verifying signature tokens used in types of function
 //! parameters, locals, and fields of structs are well-formed. References can only occur at the
 //! top-level in all tokens.  Additionally, references cannot occur at all in field types.

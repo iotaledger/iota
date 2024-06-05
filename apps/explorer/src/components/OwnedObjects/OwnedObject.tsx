@@ -1,7 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { type SuiObjectResponse } from '@mysten/sui.js/client';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { type IotaObjectResponse } from '@iota/iota.js/client';
 
 import { useResolveVideo } from '~/hooks/useResolveVideo';
 import { ObjectDetails } from '~/ui/ObjectDetails';
@@ -9,7 +12,7 @@ import { parseObjectType } from '~/utils/objectUtils';
 import { trimStdLibPrefix } from '~/utils/stringUtils';
 
 type OwnedObjectTypes = {
-    obj: SuiObjectResponse;
+    obj: IotaObjectResponse;
 };
 
 export default function OwnedObject({ obj }: OwnedObjectTypes) {

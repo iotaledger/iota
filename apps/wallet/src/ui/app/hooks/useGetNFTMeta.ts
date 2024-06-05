@@ -1,7 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useGetObject } from '@mysten/core';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { useGetObject } from '@iota/core';
 import { useMemo } from 'react';
 
 export type NFTMetadata = {

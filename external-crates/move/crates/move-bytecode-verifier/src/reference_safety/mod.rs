@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module defines the transfer functions for verifying reference safety of
 //! a procedure body. The checks include (but are not limited to)
 //! - verifying that there are no dangling references,

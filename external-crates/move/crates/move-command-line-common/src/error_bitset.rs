@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 const BITSET_VALUE_UNAVAILABLE: u16 = u16::MAX;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module implements a checker for verifying that a script or entry
 //! function a valid signature, which entails
 //! - (DEPRECATED) All signer arguments are occur before non-signer arguments

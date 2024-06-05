@@ -1,5 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 import BottomMenuLayout, { Content, Menu } from '_app/shared/bottom-menu-layout';
 import { Button } from '_app/shared/ButtonUI';
 import { InputWithActionButton } from '_app/shared/InputWithAction';
@@ -10,7 +13,7 @@ import { IconButton } from '_components/IconButton';
 import Overlay from '_components/overlay';
 import { DescriptionItem } from '_pages/approval-request/transaction-request/DescriptionList';
 import { type FormValues } from '_pages/swap/constants';
-import { Settings16 } from '@mysten/icons/src';
+import { Settings16 } from '@iota/icons/src';
 import { useFormContext } from 'react-hook-form';
 
 const MAX_SLIPPAGE_COPY =

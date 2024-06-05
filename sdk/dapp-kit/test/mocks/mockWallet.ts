@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import type {
     IdentifierRecord,
     ReadonlyWalletAccount,
@@ -8,8 +11,8 @@ import type {
     StandardEventsOnMethod,
     Wallet,
     WalletWithRequiredFeatures,
-} from '@mysten/wallet-standard';
-import { SUPPORTED_CHAINS } from '@mysten/wallet-standard';
+} from '@iota/wallet-standard';
+import { SUPPORTED_CHAINS } from '@iota/wallet-standard';
 import type { Mock } from 'vitest';
 
 export class MockWallet implements Wallet {

@@ -8,7 +8,7 @@ import { Button } from '_app/shared/ButtonUI';
 import { normalizeMnemonics, validateMnemonics } from '_src/shared/utils/bip39';
 import { PasswordInput } from '_src/ui/app/shared/forms/controls/PasswordInput';
 import { Text } from '_src/ui/app/shared/text';
-import { useZodForm } from '@mysten/core';
+import { useZodForm } from '@iota/core';
 import { type SubmitHandler } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
@@ -115,7 +115,7 @@ export function ImportRecoveryPhraseForm({
                     );
                 })}
             </div>
-            <div className="sticky -bottom-7.5 -mx-6 -mb-7.5 flex flex-col gap-2.5 bg-sui-lightest px-6 pb-7.5 pt-3">
+            <div className="sticky -bottom-7.5 -mx-6 -mb-7.5 flex flex-col gap-2.5 bg-iota-lightest px-6 pb-7.5 pt-3">
                 {touchedFields.recoveryPhrase && errors.recoveryPhrase && (
                     <Alert>{errors.recoveryPhrase.message}</Alert>
                 )}

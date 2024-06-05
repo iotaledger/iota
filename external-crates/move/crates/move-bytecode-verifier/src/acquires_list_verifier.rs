@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module implements a checker for verifying properties about the acquires
 //! list on function definitions. Function definitions must annotate the global
 //! resources (declared in that module) accesssed by `BorrowGlobal`, `MoveFrom`,

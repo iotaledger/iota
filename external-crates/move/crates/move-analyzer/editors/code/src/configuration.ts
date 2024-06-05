@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import * as os from 'os';
 import * as vscode from 'vscode';
 import * as Path from 'path';
@@ -29,7 +32,7 @@ export class Configuration {
 
     constructor() {
         this.configuration = vscode.workspace.getConfiguration('move');
-        this.defaultServerDir = vscode.Uri.joinPath(vscode.Uri.file(os.homedir()), '.sui', 'bin');
+        this.defaultServerDir = vscode.Uri.joinPath(vscode.Uri.file(os.homedir()), '.iota', 'bin');
         if (process.platform === 'win32') {
             this.serverName = 'move-analyzer.exe';
         } else {

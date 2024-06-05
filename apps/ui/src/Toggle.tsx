@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Root, Thumb, type SwitchProps } from '@radix-ui/react-switch';
 
 export function Toggle(props: Omit<SwitchProps, 'className'>) {

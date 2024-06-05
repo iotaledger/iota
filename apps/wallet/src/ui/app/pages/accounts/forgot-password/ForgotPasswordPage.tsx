@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type PasswordRecoveryData } from '_src/shared/messaging/messages/payloads/MethodPayload';
 import { createContext, useCallback, useContext, useState } from 'react';
 import { Outlet } from 'react-router-dom';
@@ -31,7 +34,7 @@ export function ForgotPasswordPage() {
         setRecoveryData([]);
     }, []);
     return (
-        <div className="flex h-full w-full flex-col flex-nowrap items-center gap-6 overflow-auto rounded-20 bg-sui-lightest px-6 py-10 shadow-wallet-content">
+        <div className="flex h-full w-full flex-col flex-nowrap items-center gap-6 overflow-auto rounded-20 bg-iota-lightest px-6 py-10 shadow-wallet-content">
             <forgotPasswordContext.Provider value={{ value: recoveryData, add, clear }}>
                 <Outlet />
             </forgotPasswordContext.Provider>

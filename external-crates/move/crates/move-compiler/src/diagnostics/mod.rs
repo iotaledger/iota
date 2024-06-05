@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 pub mod codes;
 
 use std::{
@@ -657,7 +660,7 @@ macro_rules! diag {
 pub const ICE_BUG_REPORT_MESSAGE: &str = "The Move compiler has encountered an internal compiler error.\n \
     Please report this this issue to the Mysten Labs Move language team,\n \
     including this error and any relevant code, to the Mysten Labs issue tracker\n \
-    at : https://github.com/MystenLabs/sui/issues";
+    at : https://github.com/iotaledger/iota/issues";
 
 #[macro_export]
 macro_rules! ice {

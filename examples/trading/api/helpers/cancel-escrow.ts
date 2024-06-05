@@ -1,10 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { TransactionBlock } from '@mysten/sui.js/transactions';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { TransactionBlock } from '@iota/iota.js/transactions';
 
 import { CONFIG } from '../config';
-import { getActiveAddress, signAndExecute } from '../sui-utils';
+import { getActiveAddress, signAndExecute } from '../iota-utils';
 
 /// Demo PTB to cancel an escrow.
 export const cancelEscrow = async (escrowId: string) => {

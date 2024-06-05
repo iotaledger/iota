@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! Provides a model for a set of Move modules (and scripts, which
 //! are handled like modules). The model allows to access many different aspects
 //! of the Move code: all declared functions and types, their associated
@@ -82,7 +85,7 @@ pub const SCRIPT_BYTECODE_FUN_NAME: &str = "<SELF>";
 /// A prefix used for structs which are backing specification ("ghost") memory.
 pub const GHOST_MEMORY_PREFIX: &str = "Ghost$";
 
-const SUI_FRAMEWORK_ADDRESS: AccountAddress = address_from_single_byte(2);
+const IOTA_FRAMEWORK_ADDRESS: AccountAddress = address_from_single_byte(2);
 
 const fn address_from_single_byte(b: u8) -> AccountAddress {
     let mut addr = [0u8; AccountAddress::LENGTH];
@@ -164,10 +167,10 @@ impl Default for Loc {
     }
 }
 
-/// Return true if `f` is a Sui framework function declared in `module` with a
+/// Return true if `f` is a Iota framework function declared in `module` with a
 /// name in `names`
 fn is_framework_function(f: &FunctionRef, module: &str, names: Vec<&str>) -> bool {
-    *f.module_id.address() == SUI_FRAMEWORK_ADDRESS
+    *f.module_id.address() == IOTA_FRAMEWORK_ADDRESS
         && f.module_id.name().to_string() == module
         && names.contains(&f.function_ident.as_str())
 }

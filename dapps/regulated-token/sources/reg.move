@@ -1,12 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 module regulated_token::reg {
     use std::option;
-    use sui::tx_context::{sender, TxContext};
-    use sui::transfer;
-    use sui::coin::{Self, TreasuryCap};
-    use sui::token::{Self, Token, TokenPolicy};
+    use iota::tx_context::{sender, TxContext};
+    use iota::transfer;
+    use iota::coin::{Self, TreasuryCap};
+    use iota::token::{Self, Token, TokenPolicy};
 
     use regulated_token::denylist_rule::{Self as denylist, Denylist};
 

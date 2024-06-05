@@ -1,7 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Placeholder } from '@mysten/ui';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { Placeholder } from '@iota/ui';
 import { useMemo } from 'react';
 
 import { TableCard } from './TableCard';

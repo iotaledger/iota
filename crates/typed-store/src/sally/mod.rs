@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! Storage Atomicity Layer Library (aka Sally) is a wrapper around pluggable
 //! storage backends which implement a common key value interface. It enables
 //! users to switch storage backends in their code with simple options. It is

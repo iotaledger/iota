@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
     sync::Arc,
@@ -603,7 +606,7 @@ mod test {
     use std::{collections::BTreeSet, time::Duration};
 
     use consensus_config::{local_committee_and_keys, AuthorityIndex, Parameters, Stake};
-    use sui_protocol_config::ProtocolConfig;
+    use iota_protocol_config::ProtocolConfig;
     use tokio::{
         sync::mpsc::{unbounded_channel, UnboundedReceiver},
         time::sleep,

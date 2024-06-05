@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 // This plugin gets the descriptions from yaml header and
 // adds them to global data as
 // { id: docID, description: YAML header }
@@ -11,7 +14,7 @@ import matter from "gray-matter";
 
 const descriptionPlugin = (context, options) => {
   return {
-    name: "sui-description-plugin",
+    name: "iota-description-plugin",
 
     async loadContent() {
       const c = context.siteConfig.presets.filter((s) => s[0] === "classic");
@@ -27,7 +30,7 @@ const descriptionPlugin = (context, options) => {
           if (file.isDirectory()) {
             recurseFiles(fp, files);
           } else if (file.isFile() && path.extname(file.name) === ".mdx") {
-            if (!fp.match(/\/sui-api\/sui-graphql\//) && !fp.match(/_snippets/))
+            if (!fp.match(/\/iota-api\/iota-graphql\//) && !fp.match(/_snippets/))
               files.push(fp);
           }
         });

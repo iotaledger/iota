@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 
@@ -21,6 +24,6 @@ export function useInitialPageView(activeNetwork: string) {
 
     // Log an initial page view event
     useEffect(() => {
-        ampli.openedSuiExplorer();
+        ampli.openedIotaExplorer();
     }, []);
 }

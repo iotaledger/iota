@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 export function fromHEX(hexStr: string): Uint8Array {
     const normalized = hexStr.startsWith('0x') ? hexStr.slice(2) : hexStr;
     const padded = normalized.length % 2 === 0 ? normalized : `0${normalized}}`;

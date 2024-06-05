@@ -1,7 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Text } from '@mysten/ui';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { Text } from '@iota/ui';
 import { type Meta, type StoryObj } from '@storybook/react';
 
 import { ProgressCircle, type ProgressCircleProps } from '../ProgressCircle';

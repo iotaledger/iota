@@ -1,27 +1,30 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFormatCoin, CoinFormat, formatBalance } from '@mysten/core';
-import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
-import { Text } from '@mysten/ui';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { useFormatCoin, CoinFormat, formatBalance } from '@iota/core';
+import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { Text } from '@iota/ui';
 
 type StakeColumnProps = {
     stake: bigint | number | string;
     hideCoinSymbol?: boolean;
-    inMIST?: boolean;
+    inMICROS?: boolean;
 };
 
-export function StakeColumn({ stake, hideCoinSymbol, inMIST = false }: StakeColumnProps) {
+export function StakeColumn({ stake, hideCoinSymbol, inMICROS = false }: StakeColumnProps) {
     const coinFormat = hideCoinSymbol ? CoinFormat.FULL : CoinFormat.ROUNDED;
-    const [amount, symbol] = useFormatCoin(stake, SUI_TYPE_ARG, coinFormat);
+    const [amount, symbol] = useFormatCoin(stake, IOTA_TYPE_ARG, coinFormat);
     return (
         <div className="flex items-end gap-0.5">
             <Text variant="bodySmall/medium" color="steel-darker">
-                {inMIST ? formatBalance(stake, 0, coinFormat) : amount}
+                {inMICROS ? formatBalance(stake, 0, coinFormat) : amount}
             </Text>
             {!hideCoinSymbol && (
                 <Text variant="captionSmall/medium" color="steel-dark">
-                    {inMIST ? 'MIST' : symbol}
+                    {inMICROS ? 'MICROS' : symbol}
                 </Text>
             )}
         </div>

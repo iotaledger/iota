@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 /**
  * This file contains what VS Code's documentation refers to as "the test script," which downloads,
  * unzips, launches a VS Code instance with our extension installed, and executes the "test runner."
@@ -33,7 +36,7 @@ async function runVSCodeTest(vscodeVersion: string): Promise<void> {
         const extensionDevelopmentPath = path.resolve(__dirname, '..', '..');
 
         // The `--extensionTestsPath` argument passed to VS Code. This should point to a JavaScript
-        // program that is considered to be the "test suite" for the extension.
+        // program that is considered to be the "test iotate" for the extension.
         const extensionTestsPath = path.resolve(__dirname, 'index.js');
 
         // The workspace
@@ -59,7 +62,7 @@ async function runVSCodeTest(vscodeVersion: string): Promise<void> {
             fse.mkdirsSync(userDataDir);
         }
 
-        // Download VS Code, unzip it, and run the "test suite" program.
+        // Download VS Code, unzip it, and run the "test iotate" program.
         await runTests({
             vscodeExecutablePath: vscodeExecutablePath,
             extensionDevelopmentPath,

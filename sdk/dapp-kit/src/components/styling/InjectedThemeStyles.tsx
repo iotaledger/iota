@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 
 import { styleDataAttributeSelector } from '../../constants/styleDataAttribute.js';

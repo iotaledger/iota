@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module implements a checker to verify control flow in bytecode version 5 and below. The
 //! following properties are ensured:
 //! - All forward jumps do not enter into the middle of a loop

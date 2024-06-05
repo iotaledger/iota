@@ -1,8 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { formatDate, formatAmountParts } from '@mysten/core';
-import { Text, Heading } from '@mysten/ui';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { formatDate, formatAmountParts } from '@iota/core';
+import { Text, Heading } from '@iota/ui';
 import { format, isToday, isYesterday } from 'date-fns';
 import { useMemo } from 'react';
 

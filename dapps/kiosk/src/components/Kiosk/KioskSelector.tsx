@@ -1,9 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Listbox, Transition } from '@headlessui/react';
-import { KioskOwnerCap } from '@mysten/kiosk';
-import { formatAddress } from '@mysten/sui.js/utils';
+import { KioskOwnerCap } from '@iota/kiosk';
+import { formatAddress } from '@iota/iota.js/utils';
 import classNames from 'clsx';
 import { Fragment } from 'react';
 

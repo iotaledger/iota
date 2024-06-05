@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 function base64UrlCharTo6Bits(base64UrlChar: string): number[] {
     if (base64UrlChar.length !== 1) {
         throw new Error('Invalid base64Url character: ' + base64UrlChar);

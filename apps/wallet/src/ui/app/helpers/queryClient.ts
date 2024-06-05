@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { QueryClient } from '@tanstack/react-query';
 import { type PersistedClient, type Persister } from '@tanstack/react-query-persist-client';
 import { del, get, set } from 'idb-keyval';

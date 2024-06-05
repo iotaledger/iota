@@ -1,9 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSuiClientQuery } from '@mysten/dapp-kit';
-import { ArrowRight12 } from '@mysten/icons';
-import { Text } from '@mysten/ui';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { useIotaClientQuery } from '@iota/dapp-kit';
+import { ArrowRight12 } from '@iota/icons';
+import { Text } from '@iota/ui';
 import { useMemo, useState } from 'react';
 
 import { genTableDataFromCheckpointsData } from './utils';
@@ -32,7 +35,7 @@ export function CheckpointsTable({
 }: Props) {
     const [limit, setLimit] = useState(initialLimit);
 
-    const countQuery = useSuiClientQuery('getLatestCheckpointSequenceNumber');
+    const countQuery = useIotaClientQuery('getLatestCheckpointSequenceNumber');
 
     const checkpoints = useGetCheckpoints(initialCursor, limit);
 

@@ -9,7 +9,7 @@ import {
     toSerializedSignature,
     type Keypair,
     type SerializedSignature,
-} from '@mysten/sui.js/cryptography';
+} from '@iota/iota.js/cryptography';
 import { blake2b } from '@noble/hashes/blake2b';
 
 import { setupAutoLockAlarm } from '../auto-lock-accounts';

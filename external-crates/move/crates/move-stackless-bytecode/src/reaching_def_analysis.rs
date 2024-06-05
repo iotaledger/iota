@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 // Reaching definition analysis with subsequent copy propagation.
 //
 // This analysis and transformation only propagates definitions, leaving dead

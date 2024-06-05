@@ -1,10 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import Overlay from '_components/overlay';
 import { useActiveAddress, useCoinsReFetchingConfig } from '_hooks';
 import { TokenRow } from '_pages/home/tokens/TokensDetails';
-import { useSuiClientQuery } from '@mysten/dapp-kit';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Fragment } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -15,7 +18,7 @@ function ToAsset({ coinType, onClick }: { coinType: string; onClick: (coinType: 
 
     const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
 
-    const { data: coinBalance } = useSuiClientQuery(
+    const { data: coinBalance } = useIotaClientQuery(
         'getBalance',
         { coinType: coinType, owner: accountAddress! },
         { enabled: !!accountAddress, refetchInterval, staleTime },

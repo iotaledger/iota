@@ -1,9 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useGetObject } from '@mysten/core';
-import { ObjectDetailsHeader } from '@mysten/icons';
-import { LoadingIndicator } from '@mysten/ui';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { useGetObject } from '@iota/core';
+import { ObjectDetailsHeader } from '@iota/icons';
+import { LoadingIndicator } from '@iota/ui';
 import clsx from 'clsx';
 import { useParams } from 'react-router-dom';
 

@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 /**
  * Custom Prism.js extension for Move;
  * See extension guide here: https://prismjs.com/extending.html
@@ -308,7 +311,7 @@
     },
 
     /** Just some, non-object, most commonly used */
-    "sui-native-types": {
+    "iota-native-types": {
       pattern: /\b(Option|String|UID|ID|VecSet|VecMap)\b/,
       alias: "symbol",
     },

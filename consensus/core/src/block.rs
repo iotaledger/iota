@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use std::{
     fmt,
     hash::{Hash, Hasher},
@@ -42,7 +45,7 @@ pub fn timestamp_utc_ms() -> BlockTimestampMs {
     }
 }
 
-/// Sui transaction in serialised bytes
+/// Iota transaction in serialised bytes
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize, Default, Debug)]
 pub struct Transaction {
     data: Bytes,

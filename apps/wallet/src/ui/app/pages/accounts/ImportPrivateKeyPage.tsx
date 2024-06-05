@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Text } from '_app/shared/text';
 import { useNavigate } from 'react-router-dom';
 
@@ -13,7 +16,7 @@ export function ImportPrivateKeyPage() {
     const [, setAccountsFormValues] = useAccountsFormContext();
 
     return (
-        <div className="flex h-full w-full flex-col items-center rounded-20 bg-sui-lightest px-6 py-10 shadow-wallet-content">
+        <div className="flex h-full w-full flex-col items-center rounded-20 bg-iota-lightest px-6 py-10 shadow-wallet-content">
             <Text variant="caption" color="steel-dark" weight="semibold">
                 Wallet Setup
             </Text>

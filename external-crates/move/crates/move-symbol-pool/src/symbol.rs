@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use std::{borrow::Cow, cmp::Ordering, fmt, num::NonZeroU64, ops::Deref};
 
 use serde::{de::Deserialize, ser::Serialize};

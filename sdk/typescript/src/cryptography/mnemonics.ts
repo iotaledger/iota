@@ -4,7 +4,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { toHEX } from '@mysten/bcs';
+import { toHEX } from '@iota/bcs';
 import { mnemonicToSeedSync as bip39MnemonicToSeedSync } from '@scure/bip39';
 
 /**

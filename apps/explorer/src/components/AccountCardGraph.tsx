@@ -1,9 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { formatAmount, formatDate } from '@mysten/core';
-import { type AllEpochsAddressMetrics } from '@mysten/sui.js/client';
-import { Heading, LoadingIndicator, Text } from '@mysten/ui';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { formatAmount, formatDate } from '@iota/core';
+import { type AllEpochsAddressMetrics } from '@iota/iota.js/client';
+import { Heading, LoadingIndicator, Text } from '@iota/ui';
 import { ParentSize } from '@visx/responsive';
 import clsx from 'clsx';
 import { useMemo } from 'react';

@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use move_binary_format::{binary_views::BinaryIndexedView, file_format::empty_module};
 use move_bytecode_source_map::mapping::SourceMapping;
 use move_ir_types::location::Spanned;

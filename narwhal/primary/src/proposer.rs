@@ -2,6 +2,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, VecDeque},
@@ -15,7 +18,7 @@ use mysten_metrics::{
     spawn_logged_monitored_task,
 };
 use storage::ProposerStore;
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,

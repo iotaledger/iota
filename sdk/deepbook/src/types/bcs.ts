@@ -1,7 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { bcs } from '@mysten/sui.js/bcs';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { bcs } from '@iota/iota.js/bcs';
 
 bcs.registerStructType('Order', {
     orderId: 'u64',

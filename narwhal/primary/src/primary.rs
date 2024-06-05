@@ -2,6 +2,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use std::{
     cmp::Reverse,
     collections::{btree_map::Entry, BTreeMap, BTreeSet, BinaryHeap, HashMap},
@@ -45,7 +48,7 @@ use network::{
 use parking_lot::Mutex;
 use prometheus::Registry;
 use storage::{CertificateStore, PayloadStore, ProposerStore, VoteDigestStore};
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,

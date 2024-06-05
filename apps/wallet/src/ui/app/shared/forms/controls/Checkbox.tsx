@@ -1,7 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Check12 } from '@mysten/icons';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { Check12 } from '@iota/icons';
 import * as RadixCheckbox from '@radix-ui/react-checkbox';
 import { forwardRef } from 'react';
 import type { ComponentProps, ReactNode } from 'react';

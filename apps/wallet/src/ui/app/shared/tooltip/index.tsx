@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import {
     arrow,
     autoUpdate,
@@ -16,7 +19,7 @@ import {
     useRole,
 } from '@floating-ui/react';
 import type { Placement } from '@floating-ui/react';
-import { Info16 } from '@mysten/icons';
+import { Info16 } from '@iota/icons';
 import clsx from 'clsx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useRef, useState } from 'react';

@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Button } from '_src/ui/app/shared/ButtonUI';
 import {
     Dialog,
@@ -10,7 +13,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '_src/ui/app/shared/Dialog';
-import { useZodForm } from '@mysten/core';
+import { useZodForm } from '@iota/core';
 import { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { v4 as uuidV4 } from 'uuid';

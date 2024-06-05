@@ -1,7 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useZodForm } from '@mysten/core';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { useZodForm } from '@iota/core';
 import { forwardRef, useRef, type ComponentProps } from 'react';
 import toast from 'react-hot-toast';
 import { z } from 'zod';

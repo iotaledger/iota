@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Button } from '_app/shared/ButtonUI';
 import { Heading } from '_app/shared/heading';
 import { Text } from '_app/shared/text';
@@ -26,17 +29,17 @@ export function WelcomePage() {
     const navigate = useNavigate();
     return (
         <Loading loading={isInitializedLoading || isFullscreenGuardLoading}>
-            <div className="flex h-full flex-col items-center overflow-auto rounded-20 bg-sui-lightest px-7 py-6 shadow-wallet-content">
+            <div className="flex h-full flex-col items-center overflow-auto rounded-20 bg-iota-lightest px-7 py-6 shadow-wallet-content">
                 <div className="shrink-0">
                     <Logo />
                 </div>
                 <div className="mx-auto mt-2 text-center">
                     <Heading variant="heading2" color="gray-90" as="h1" weight="bold">
-                        Welcome to Sui Wallet
+                        Welcome to Iota Wallet
                     </Heading>
                     <div className="mt-2">
                         <Text variant="pBody" color="steel-dark" weight="medium">
-                            Connecting you to the decentralized web and Sui network.
+                            Connecting you to the decentralized web and Iota network.
                         </Text>
                     </div>
                 </div>

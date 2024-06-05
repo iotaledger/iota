@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! This is a module that records Tokio-tracing [span](https://docs.rs/tracing/latest/tracing/span/index.html)
 //! latencies into Prometheus histograms directly.
 //! The name of the Prometheus histogram is

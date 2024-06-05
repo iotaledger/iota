@@ -1,9 +1,9 @@
 ---
 title: Asset Tokenization
-description: Learn how to tokenize assets on the Sui blockchain. Asset tokenization refers to the process of representing real-world assets, such as real estate, art, commodities, stocks, or other valuable assets, as digital tokens on the blockchain network.
+description: Learn how to tokenize assets on the Iota blockchain. Asset tokenization refers to the process of representing real-world assets, such as real estate, art, commodities, stocks, or other valuable assets, as digital tokens on the blockchain network.
 ---
 
-import InitializeSuiClientCli from "../../../_snippets/initialize-sui-client-cli.mdx";
+import InitializeIotaClientCli from "../../../_snippets/initialize-iota-client-cli.mdx";
 
 Asset tokenization refers to the process of representing real-world assets, such as real estate, art, commodities, stocks, or other valuable assets, as digital tokens on the blockchain network. This involves converting the ownership or rights of an asset into digital tokens, which are then recorded and managed on the blockchain.
 
@@ -39,7 +39,7 @@ This pattern is similar to the [ERC1155](https://eips.ethereum.org/EIPS/eip-1155
 
 ## Move packages
 
-As with all smart contracts on Sui, Move provides the logic that powers asset tokenization.
+As with all smart contracts on Iota, Move provides the logic that powers asset tokenization.
 
 ### asset_tokenization package
 
@@ -58,7 +58,7 @@ Select a module to view its details:
 
 The `tokenized_asset` module operates in a manner similar to the `coin` library. 
 
-When it receives a new [one-time witness](concepts/sui-move-concepts/one-time-witness.mdx) type, it creates a unique representation of a fractional asset. This module employs similar implementations to some methods found in the `Coin` module. It encompasses functionalities pertinent to asset tokenization, including new asset creation, minting, splitting, joining, and burning.
+When it receives a new [one-time witness](concepts/iota-move-concepts/one-time-witness.mdx) type, it creates a unique representation of a fractional asset. This module employs similar implementations to some methods found in the `Coin` module. It encompasses functionalities pertinent to asset tokenization, including new asset creation, minting, splitting, joining, and burning.
 
 
         
@@ -571,7 +571,7 @@ public fun kiosk_join<T>(
 
 	kiosk::list<TokenizedAsset<T>>(kiosk, kiosk_cap, ta2_id, 0);
 	let (ta1, promise_ta1) = kiosk::borrow_val(kiosk, kiosk_cap, ta1_id);
-	let coin = coin::zero<SUI>(ctx);
+	let coin = coin::zero<IOTA>(ctx);
 	let (ta2, request) = kiosk::purchase(kiosk, ta2_id, coin);
 	
 	let tp_ref = proxy::transfer_policy(protected_tp);
@@ -650,7 +650,7 @@ public fun burn_with_ticket<T>(
 
 # Deployment
 
-<InitializeSuiClientCli />
+<InitializeIotaClientCli />
 
 ## Publishing
 
@@ -659,7 +659,7 @@ The `.env.template` file denotes variables that the script automatically fills i
 You can see a reference here:
 
 ```
-SUI_NETWORK = rpc endpoint of the network of your choice | auto filled by publish script
+IOTA_NETWORK = rpc endpoint of the network of your choice | auto filled by publish script
 ASSET_TOKENIZATION_PACKAGE_ID = Created by publishing `asset_tokenization` package | auto filled by publish script
 REGISTRY = Created by publishing `asset_tokenization` package | auto filled by publish script
 
@@ -696,7 +696,7 @@ Select a package for specific instructions.
 In a terminal or console at the `move/asset_tokenization` directory of the project enter:
 
 ```bash
-sui client publish --gas-budget <GAS-BUDGET>
+iota client publish --gas-budget <GAS-BUDGET>
 ```
 
 For the gas budget, use a standard value such as `20000000`.
@@ -704,8 +704,8 @@ For the gas budget, use a standard value such as `20000000`.
 The package should successfully deploy, and you then see:
 
 ```bash
-UPDATING GIT DEPENDENCY https://github.com/MystenLabs/sui.git
-INCLUDING DEPENDENCY Sui
+UPDATING GIT DEPENDENCY https://github.com/iotaledger/iota.git
+INCLUDING DEPENDENCY Iota
 INCLUDING DEPENDENCY MoveStdlib
 BUILDING asset_tokenization
 Successfully verified dependencies on-chain against source.
@@ -719,7 +719,7 @@ Afterward, it's necessary to modify the `Move.toml` file. Under the `[package]` 
 
 ### Automatically
 
-The fields that are automatically filled are: `SUI_NETWORK`, `ASSET_TOKENIZATION_PACKAGE_ID` and `REGISTRY`. 
+The fields that are automatically filled are: `IOTA_NETWORK`, `ASSET_TOKENIZATION_PACKAGE_ID` and `REGISTRY`. 
 
 To publish with the bash script run:
 
@@ -741,7 +741,7 @@ For more details regarding this process, please consult the setup folder's [READ
 In a terminal or console at the `move/template` directory of the project enter:
 
 ```bash
-sui client publish --gas-budget <GAS-BUDGET>
+iota client publish --gas-budget <GAS-BUDGET>
 ```
 
 For the gas budget, use a standard value such as `20000000`.
@@ -749,9 +749,9 @@ For the gas budget, use a standard value such as `20000000`.
 The package should successfully deploy, and you then see:
 
 ```bash
-UPDATING GIT DEPENDENCY https://github.com/MystenLabs/sui.git
+UPDATING GIT DEPENDENCY https://github.com/iotaledger/iota.git
 INCLUDING DEPENDENCY asset_tokenization
-INCLUDING DEPENDENCY Sui
+INCLUDING DEPENDENCY Iota
 INCLUDING DEPENDENCY MoveStdlib
 BUILDING template
 Successfully verified dependencies on-chain against source.
@@ -781,7 +781,7 @@ For more details regarding this process, please consult the setup folder's [READ
 
 :::tip
 
-You can find a public facing reference to the WASM library in the [move-binary-format-wasm](https://github.com/MystenLabs/sui/tree/main/sdk/move-binary-format-wasm) Sui repo subfolder.
+You can find a public facing reference to the WASM library in the [move-binary-format-wasm](https://github.com/iotaledger/iota/tree/main/sdk/move-binary-format-wasm) Iota repo subfolder.
 
 :::
 
@@ -908,15 +908,15 @@ const tx = new TransactionBlock();
   const [upgradeCap] = tx.publish({
     modules: [[...fromHEX(bytesToPublish)], [...fromHEX(genesis_bytecode)]],
     dependencies: [
-      normalizeSuiObjectId("0x1"),
-      normalizeSuiObjectId("0x2"),
-      normalizeSuiObjectId(packageId),
+      normalizeIotaObjectId("0x1"),
+      normalizeIotaObjectId("0x2"),
+      normalizeIotaObjectId(packageId),
     ],
   });
 
   tx.transferObjects(
     [upgradeCap],
-    tx.pure(signer.getPublicKey().toSuiAddress(), "address")
+    tx.pure(signer.getPublicKey().toIotaAddress(), "address")
   );
 ...
 ```
@@ -939,7 +939,7 @@ In a terminal or console within the project's setup directory, utilize the follo
     
     After executing the command, the console displays the effects of the transaction.
 
-    By searching the transaction digest on a Sui network explorer, you can locate the created objects. Subsequently, select and save the `TransferPolicy ID` and the `ProtectedTP ID` from these objects into the respective fields within your .env file.
+    By searching the transaction digest on a Iota network explorer, you can locate the created objects. Subsequently, select and save the `TransferPolicy ID` and the `ProtectedTP ID` from these objects into the respective fields within your .env file.
     
 - **Add Rules**
     

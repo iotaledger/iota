@@ -1,15 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import Alert from '_components/alert';
 import Loading from '_components/loading';
 import Overlay from '_components/overlay';
 import { ReceiptCard } from '_src/ui/app/components/receipt-card';
 import { useActiveAddress } from '_src/ui/app/hooks/useActiveAddress';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
-import { useSuiClient } from '@mysten/dapp-kit';
-import { Check32 } from '@mysten/icons';
-import { type SuiTransactionBlockResponse } from '@mysten/sui.js/client';
+import { useIotaClient } from '@iota/dapp-kit';
+import { Check32 } from '@iota/icons';
+import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
@@ -23,9 +26,9 @@ function ReceiptPage() {
     // get tx results from url params
     const transactionId = searchParams.get('txdigest');
     const fromParam = searchParams.get('from');
-    const client = useSuiClient();
+    const client = useIotaClient();
 
-    const { data, isPending, isError } = useQuery<SuiTransactionBlockResponse>({
+    const { data, isPending, isError } = useQuery<IotaTransactionBlockResponse>({
         queryKey: ['transactions-by-id', transactionId],
         queryFn: async () => {
             return client.getTransactionBlock({
@@ -76,7 +79,7 @@ function ReceiptPage() {
                 setShowModal={setShowModal}
                 title={pageTitle}
                 closeOverlay={closeReceipt}
-                closeIcon={<Check32 fill="currentColor" className="h-8 w-8 text-sui-light" />}
+                closeIcon={<Check32 fill="currentColor" className="h-8 w-8 text-iota-light" />}
             >
                 {isError ? (
                     <div className="mb-2 h-fit">

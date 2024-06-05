@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import Alert from '_components/alert';
 import type { ReactNode } from 'react';
 import { ErrorBoundary as ReactErrorBoundary } from 'react-error-boundary';

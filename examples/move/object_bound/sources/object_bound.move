@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 /// Implements a soul-bound primitive for objects. Unlike a typical Soulbound
 /// concept used with accounts, the object bound can not be directly referenced
 /// or mutated by its object owner.
@@ -9,9 +12,9 @@
 /// used to receive and then send the object back to its object-owner.
 module obo::object_bound {
     use std::option::{Self, Option};
-    use sui::tx_context::TxContext;
-    use sui::object::{Self, ID, UID};
-    use sui::transfer::{Self, Receiving};
+    use iota::tx_context::TxContext;
+    use iota::object::{Self, ID, UID};
+    use iota::transfer::{Self, Receiving};
 
     /// Trying to return a different object than the one that was borrowed.
     const EDontMessWithMe: u64 = 0;

@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 // Copyright 2021 Parity Technologies
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or

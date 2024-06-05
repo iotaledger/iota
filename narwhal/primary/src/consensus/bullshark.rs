@@ -1,12 +1,15 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 use std::{collections::VecDeque, sync::Arc};
 
 use config::{Committee, Stake};
 use fastcrypto::hash::Hash;
 use storage::ConsensusStore;
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 use tokio::time::Instant;
 use tracing::{debug, error_span};
 use types::{Certificate, CertificateAPI, CommittedSubDag, HeaderAPI, ReputationScores, Round};

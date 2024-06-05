@@ -1,5 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 import { expect, test, type Page } from '@playwright/test';
 
 import { faucet, split_coin } from './utils/localnet';

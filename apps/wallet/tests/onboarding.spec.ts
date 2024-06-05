@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { expect, test } from './fixtures';
 import { createWallet, importWallet } from './utils/auth';
 import { generateKeypair } from './utils/localnet';
@@ -16,7 +19,7 @@ test('import wallet', async ({ page, extensionUrl }) => {
     importWallet(page, extensionUrl, mnemonic);
     await page.getByRole('navigation').getByRole('link', { name: 'Home' }).click();
     await expect(
-        page.getByText(keypair.getPublicKey().toSuiAddress().slice(0, 6)).first(),
+        page.getByText(keypair.getPublicKey().toIotaAddress().slice(0, 6)).first(),
     ).toBeVisible();
 });
 

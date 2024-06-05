@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useQuery } from '@tanstack/react-query';
 import { useLayoutEffect, useState } from 'react';
 
@@ -27,7 +30,7 @@ export function useAutoConnectWallet(): 'disabled' | 'idle' | 'attempted' {
 
     const { data, isError } = useQuery({
         queryKey: [
-            '@mysten/dapp-kit',
+            '@iota/dapp-kit',
             'autoconnect',
             {
                 isConnected,

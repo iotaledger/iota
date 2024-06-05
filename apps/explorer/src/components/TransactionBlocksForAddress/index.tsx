@@ -1,8 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { type TransactionFilter } from '@mysten/sui.js/client';
-import { Heading, RadioGroup, RadioGroupItem } from '@mysten/ui';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { type TransactionFilter } from '@iota/iota.js/client';
+import { Heading, RadioGroup, RadioGroupItem } from '@iota/ui';
 import { type Dispatch, type SetStateAction, useReducer, useState } from 'react';
 
 import { genTableDataFromTxData } from '../transactions/TxCardUtils';

@@ -1,9 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSuiClient, useSuiClientInfiniteQuery } from '@mysten/dapp-kit';
-import { ArrowRight12 } from '@mysten/icons';
-import { Text } from '@mysten/ui';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { useIotaClient, useIotaClientInfiniteQuery } from '@iota/dapp-kit';
+import { ArrowRight12 } from '@iota/icons';
+import { Text } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
@@ -27,7 +30,7 @@ export function EpochsActivityTable({
     initialLimit = DEFAULT_EPOCHS_LIMIT,
 }: Props) {
     const [limit, setLimit] = useState(initialLimit);
-    const client = useSuiClient();
+    const client = useIotaClient();
 
     const { data: count } = useQuery({
         queryKey: ['epochs', 'current'],
@@ -35,7 +38,7 @@ export function EpochsActivityTable({
         select: (epoch) => Number(epoch.epoch) + 1,
     });
 
-    const epochMetricsQuery = useSuiClientInfiniteQuery('getEpochMetrics', {
+    const epochMetricsQuery = useIotaClientInfiniteQuery('getEpochMetrics', {
         limit,
         descendingOrder: true,
     });

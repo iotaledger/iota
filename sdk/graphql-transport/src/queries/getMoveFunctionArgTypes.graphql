@@ -1,7 +1,10 @@
 # Copyright (c) Mysten Labs, Inc.
 # SPDX-License-Identifier: Apache-2.0
 
-query getMoveFunctionArgTypes($packageId: SuiAddress!, $module: String!, $function: String!) {
+# Modifications Copyright (c) 2024 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
+query getMoveFunctionArgTypes($packageId: IotaAddress!, $module: String!, $function: String!) {
     object(address: $packageId) {
         asMovePackage {
             module(name: $module) {

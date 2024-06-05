@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { SuiObjectChange } from '@mysten/sui.js/src/client';
+import { IotaObjectChange } from '@iota/iota.js/src/client';
 
 import { ObjectLink } from '../ObjectLink';
 import { PreviewCard } from '../PreviewCard';
@@ -31,7 +31,10 @@ const objectTypes: Record<string, Record<string, string>> = {
 };
 
 // SPDX-License-Identifier: Apache-2.0
-export function ObjectChanges({ objects }: { objects: SuiObjectChange[] }) {
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+export function ObjectChanges({ objects }: { objects: IotaObjectChange[] }) {
     return (
         <div className="grid grid-cols-1 gap-5">
             {objects.map((object, index) => (
@@ -41,7 +44,7 @@ export function ObjectChanges({ objects }: { objects: SuiObjectChange[] }) {
     );
 }
 
-function ChangedObject({ object }: { object: SuiObjectChange }) {
+function ChangedObject({ object }: { object: IotaObjectChange }) {
     const objectType = objectTypes[object.type];
 
     return (

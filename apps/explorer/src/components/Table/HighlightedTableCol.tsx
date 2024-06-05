@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import clsx from 'clsx';
 import { type ReactNode } from 'react';
 
@@ -8,7 +11,7 @@ export function HighlightedTableCol({ children, first }: { children: ReactNode; 
     return (
         <div
             className={clsx(
-                'mr-3 flex h-full items-center rounded hover:bg-sui-light',
+                'mr-3 flex h-full items-center rounded hover:bg-iota-light',
                 !first && '-ml-3',
             )}
         >

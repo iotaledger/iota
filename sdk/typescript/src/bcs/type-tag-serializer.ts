@@ -1,9 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { splitGenericParameters } from '@mysten/bcs';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 
-import { normalizeSuiAddress } from '../utils/sui-types.js';
+import { splitGenericParameters } from '@iota/bcs';
+
+import { normalizeIotaAddress } from '../utils/iota-types.js';
 import type { TypeTag } from './index.js';
 
 const VECTOR_REGEX = /^vector<(.+)>$/;
@@ -39,7 +42,7 @@ export class TypeTagSerializer {
 
         const structMatch = str.match(STRUCT_REGEX);
         if (structMatch) {
-            const address = normalizeAddress ? normalizeSuiAddress(structMatch[1]) : structMatch[1];
+            const address = normalizeAddress ? normalizeIotaAddress(structMatch[1]) : structMatch[1];
             return {
                 struct: {
                     address,

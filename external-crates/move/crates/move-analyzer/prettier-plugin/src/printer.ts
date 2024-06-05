@@ -1,6 +1,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import type { AstPath, Doc, ParserOptions } from 'prettier';
 import * as prettier from 'prettier';
 import { SyntaxNode } from 'web-tree-sitter'

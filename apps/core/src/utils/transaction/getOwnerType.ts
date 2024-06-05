@@ -1,9 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { SuiObjectChange } from '@mysten/sui.js/client';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 
-export const getOwnerType = (change: SuiObjectChange) => {
+import type { IotaObjectChange } from '@iota/iota.js/client';
+
+export const getOwnerType = (change: IotaObjectChange) => {
     if (!('owner' in change)) return '';
     if (typeof change.owner === 'object') {
         if ('AddressOwner' in change.owner) return 'AddressOwner';

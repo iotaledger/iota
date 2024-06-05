@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 export {};
 
 // import {
@@ -8,7 +11,7 @@ export {};
 //     getTransferObjectEvent,
 //     isEventType,
 //     type TransactionEvents,
-// } from '@mysten/sui.js';
+// } from '@iota/iota.js';
 
 // export type CoinsMetaProps = {
 //     amount: number;

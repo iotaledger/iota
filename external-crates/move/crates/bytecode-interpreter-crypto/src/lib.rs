@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! This file duplicates the code in the diem-crypto crate to support
 //! - native function implementation for the stackless bytecode interpreter, and
 //! - decoupling of Move crates from Diem crates.

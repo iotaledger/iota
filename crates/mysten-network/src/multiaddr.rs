@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use std::{
     borrow::Cow,
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
@@ -362,7 +365,7 @@ mod test {
 
     #[test]
     fn test_to_socket_addr_unsupported_protocol() {
-        let multi_addr_dns = Multiaddr(multiaddr!(Dnsaddr("mysten.sui"), Tcp(10500u16)));
+        let multi_addr_dns = Multiaddr(multiaddr!(Dnsaddr("mysten.iota"), Tcp(10500u16)));
         let _ = multi_addr_dns
             .to_socket_addr()
             .expect_err("DNS is unsupported");
@@ -374,8 +377,8 @@ mod test {
         assert_eq!(Some("127.0.0.1".to_string()), multi_addr_ip4.hostname());
         assert_eq!(Some(10500u16), multi_addr_ip4.port());
 
-        let multi_addr_dns = Multiaddr(multiaddr!(Dns("mysten.sui"), Tcp(10501u16)));
-        assert_eq!(Some("mysten.sui".to_string()), multi_addr_dns.hostname());
+        let multi_addr_dns = Multiaddr(multiaddr!(Dns("mysten.iota"), Tcp(10501u16)));
+        assert_eq!(Some("mysten.iota".to_string()), multi_addr_dns.hostname());
         assert_eq!(Some(10501u16), multi_addr_dns.port());
     }
 
@@ -394,13 +397,13 @@ mod test {
         .unwrap();
         assert_eq!("[f:f:f:f:f:f:f:1]:10500".to_string(), addr_ip6.to_string());
 
-        let addr_dns = Multiaddr(multiaddr!(Dns("mysten.sui"), Udp(10501u16)))
+        let addr_dns = Multiaddr(multiaddr!(Dns("mysten.iota"), Udp(10501u16)))
             .to_anemo_address()
             .unwrap();
-        assert_eq!("mysten.sui:10501".to_string(), addr_dns.to_string());
+        assert_eq!("mysten.iota:10501".to_string(), addr_dns.to_string());
 
         let addr_invalid =
-            Multiaddr(multiaddr!(Dns("mysten.sui"), Tcp(10501u16))).to_anemo_address();
+            Multiaddr(multiaddr!(Dns("mysten.iota"), Tcp(10501u16))).to_anemo_address();
         assert!(addr_invalid.is_err());
     }
 
@@ -419,7 +422,7 @@ mod test {
         assert_eq!(Some("::".to_string()), multi_addr_ip6.hostname());
         assert_eq!(Some(10500u16), multi_addr_ip4.port());
 
-        let multi_addr_dns = Multiaddr(multiaddr!(Dns("mysten.sui"), Tcp(10501u16))).with_zero_ip();
+        let multi_addr_dns = Multiaddr(multiaddr!(Dns("mysten.iota"), Tcp(10501u16))).with_zero_ip();
         assert_eq!(Some("0.0.0.0".to_string()), multi_addr_dns.hostname());
         assert_eq!(Some(10501u16), multi_addr_dns.port());
     }
@@ -440,7 +443,7 @@ mod test {
         assert_eq!(Some(10500u16), multi_addr_ip4.port());
 
         let multi_addr_dns =
-            Multiaddr(multiaddr!(Dns("mysten.sui"), Tcp(10501u16))).with_localhost_ip();
+            Multiaddr(multiaddr!(Dns("mysten.iota"), Tcp(10501u16))).with_localhost_ip();
         assert_eq!(Some("127.0.0.1".to_string()), multi_addr_dns.hostname());
         assert_eq!(Some(10501u16), multi_addr_dns.port());
     }

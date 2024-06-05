@@ -1,12 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 module bridge::eth {
     use std::option;
 
-    use sui::coin;
-    use sui::transfer;
-    use sui::tx_context::{Self, TxContext};
+    use iota::coin;
+    use iota::transfer;
+    use iota::tx_context::{Self, TxContext};
 
     friend bridge::treasury;
 
@@ -15,7 +18,7 @@ module bridge::eth {
     fun init(witness: ETH, ctx: &mut TxContext) {
         let (treasury_cap, metadata) = coin::create_currency(
             witness,
-            // ETC DP limited to 8 on Sui
+            // ETC DP limited to 8 on Iota
             8,
             b"ETH",
             b"Ethereum",

@@ -1,12 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { act, renderHook, waitFor } from '@testing-library/react';
 
 import { useAutoConnectWallet } from '../../src/hooks/wallet/useAutoConnectWallet.js';
 import { useConnectWallet, useCurrentWallet } from '../../src/index.js';
 import { createMockAccount } from '../mocks/mockAccount.js';
-import { suiFeatures } from '../mocks/mockFeatures.js';
+import { iotaFeatures } from '../mocks/mockFeatures.js';
 import { createWalletProviderContextWrapper, registerMockWallet } from '../test-utils.js';
 
 function withResolvers<T = any>() {
@@ -35,7 +38,7 @@ describe('useAutoConnectWallet', () => {
         const { unregister, mockWallet } = registerMockWallet({
             walletName: 'Mock Wallet 1',
             accounts: [createMockAccount(), createMockAccount()],
-            features: suiFeatures,
+            features: iotaFeatures,
         });
 
         const wrapper = createWalletProviderContextWrapper({

@@ -1,7 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { type SuiSignMessageOutput } from '@mysten/wallet-standard';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { type IotaSignMessageOutput } from '@iota/wallet-standard';
 
 import { isBasePayload, type BasePayload } from '../BasePayload';
 import { type Payload } from '../Payload';
@@ -12,7 +15,7 @@ export interface SignMessageRequest extends BasePayload {
         message: string; // base64
         accountAddress: string;
     };
-    return?: SuiSignMessageOutput;
+    return?: IotaSignMessageOutput;
 }
 
 export function isSignMessageRequest(payload: Payload): payload is SignMessageRequest {

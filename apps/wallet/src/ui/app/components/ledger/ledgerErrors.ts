@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 interface LedgerTransportStatusError extends Error {
     name: 'TransportStatusError';
     statusCode: number;
@@ -36,7 +39,7 @@ export function convertErrorToLedgerConnectionFailedError(error: unknown) {
     );
 }
 
-// When something goes wrong in the Sui application itself, a TransportStatusError is
+// When something goes wrong in the Iota application itself, a TransportStatusError is
 // thrown. Unfortunately, @ledgerhq/errors doesn't expose this error in the form of a
 // custom Error class. This makes identification of what went wrong less straightforward
 export function isLedgerTransportStatusError(error: unknown): error is LedgerTransportStatusError {

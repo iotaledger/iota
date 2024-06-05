@@ -1,6 +1,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 #![no_main]
 use move_binary_format::file_format::{
     empty_module, AbilitySet, Bytecode, CodeUnit, Constant, FieldDefinition, FunctionDefinition,

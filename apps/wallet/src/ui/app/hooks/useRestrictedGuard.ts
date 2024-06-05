@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -19,11 +22,11 @@ export function useRestrictedGuard() {
         queryFn: async () => {
             // NOTE: We use fetch directly here instead of the RPC layer because we don't want this instrumented,
             // and we also need to work with the response object directly.
-            const res = await fetch('https://wallet-rpc.testnet.sui.io/', {
+            const res = await fetch('https://wallet-rpc.testnet.iota.io/', {
                 method: 'POST',
                 body: JSON.stringify({
                     id: 1,
-                    method: 'sui_getLatestCheckpointSequenceNumber',
+                    method: 'iota_getLatestCheckpointSequenceNumber',
                     jsonrpc: '2.0',
                     params: [],
                 }),

@@ -1,8 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { getFullnodeUrl, SuiClient } from '@mysten/sui.js/client';
-import { parseSerializedSignature } from '@mysten/sui.js/cryptography';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { parseSerializedSignature } from '@iota/iota.js/cryptography';
 import { useMutation } from '@tanstack/react-query';
 import { AlertCircle } from 'lucide-react';
 import { useState } from 'react';
@@ -23,10 +26,10 @@ export default function ExecuteTransaction() {
     const [signature, setSignature] = useState('');
 
     const rpcUrl = getFullnodeUrl(network);
-    const client = new SuiClient({
+    const client = new IotaClient({
         url: rpcUrl,
     });
-    //const client = useSuiClient();
+    //const client = useIotaClient();
 
     const {
         mutate,
@@ -122,14 +125,14 @@ export default function ExecuteTransaction() {
                 <TabsContent value="digest">
                     <Card key={digest}>
                         <CardHeader>
-                            <CardTitle>Sui Transaction Digest</CardTitle>
+                            <CardTitle>Iota Transaction Digest</CardTitle>
                             <CardDescription>
                                 View TX Digest on{' '}
                                 <a
                                     className="text-blue-500"
-                                    href={`https://suiexplorer.com/txblock/${digest}`}
+                                    href={`https://iotaexplorer.com/txblock/${digest}`}
                                 >
-                                    Sui Explorer
+                                    Iota Explorer
                                 </a>
                             </CardDescription>
                         </CardHeader>

@@ -2649,7 +2649,7 @@ dependencies = [
  "rstest",
  "serde",
  "shared-crypto",
- "sui-protocol-config",
+ "iota-protocol-config",
  "tap",
  "telemetry-subscribers",
  "tempfile",
@@ -3322,9 +3322,9 @@ dependencies = [
  "once_cell",
  "serde",
  "serde_json",
- "sui-indexer",
- "sui-json-rpc-types",
- "sui-types",
+ "iota-indexer",
+ "iota-json-rpc-types",
+ "iota-types",
  "tracing",
 ]
 
@@ -7729,7 +7729,7 @@ dependencies = [
  "narwhal-types",
  "prometheus",
  "serde",
- "sui-protocol-config",
+ "iota-protocol-config",
  "telemetry-subscribers",
  "tempfile",
  "thiserror",
@@ -7763,7 +7763,7 @@ dependencies = [
  "prometheus",
  "quinn-proto",
  "rand 0.8.5",
- "sui-macros",
+ "iota-macros",
  "tokio",
  "tower",
  "tracing",
@@ -7800,9 +7800,9 @@ dependencies = [
  "reqwest",
  "serde-reflection",
  "serde_yaml 0.8.26",
- "sui-keys",
- "sui-protocol-config",
- "sui-types",
+ "iota-keys",
+ "iota-protocol-config",
+ "iota-types",
  "telemetry-subscribers",
  "thiserror",
  "tokio",
@@ -7852,8 +7852,8 @@ dependencies = [
  "proptest",
  "rand 0.8.5",
  "reqwest",
- "sui-macros",
- "sui-protocol-config",
+ "iota-macros",
+ "iota-protocol-config",
  "tap",
  "telemetry-subscribers",
  "tempfile",
@@ -7879,7 +7879,7 @@ dependencies = [
  "narwhal-types",
  "parking_lot 0.12.1",
  "prometheus",
- "sui-macros",
+ "iota-macros",
  "tap",
  "tempfile",
  "tokio",
@@ -7910,7 +7910,7 @@ dependencies = [
  "once_cell",
  "prometheus",
  "rand 0.8.5",
- "sui-protocol-config",
+ "iota-protocol-config",
  "telemetry-subscribers",
  "tempfile",
  "tokio",
@@ -7956,7 +7956,7 @@ dependencies = [
  "serde",
  "serde_test",
  "serde_with",
- "sui-protocol-config",
+ "iota-protocol-config",
  "thiserror",
  "tokio",
  "tonic 0.11.0",
@@ -7994,7 +7994,7 @@ dependencies = [
  "prometheus",
  "rand 0.8.5",
  "reqwest",
- "sui-protocol-config",
+ "iota-protocol-config",
  "tap",
  "telemetry-subscribers",
  "tempfile",
@@ -11483,16 +11483,16 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "shared-crypto",
- "sui-config",
- "sui-execution",
- "sui-framework",
- "sui-genesis-builder",
- "sui-keys",
- "sui-protocol-config",
- "sui-storage",
- "sui-swarm-config",
- "sui-transaction-checks",
- "sui-types",
+ "iota-config",
+ "iota-execution",
+ "iota-framework",
+ "iota-genesis-builder",
+ "iota-keys",
+ "iota-protocol-config",
+ "iota-storage",
+ "iota-swarm-config",
+ "iota-transaction-checks",
+ "iota-types",
  "tracing",
 ]
 
@@ -11859,7 +11859,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "734676eb262c623cec13c3155096e08d1f8f29adce39ba17948b18dad1e54142"
 
 [[package]]
-name = "sui"
+name = "iota"
 version = "1.22.0"
 dependencies = [
  "anemo",
@@ -11908,25 +11908,25 @@ dependencies = [
  "shell-words",
  "shlex",
  "signature 1.6.4",
- "sui-config",
- "sui-execution",
- "sui-genesis-builder",
- "sui-json",
- "sui-json-rpc-types",
- "sui-keys",
- "sui-macros",
- "sui-move",
- "sui-move-build",
- "sui-protocol-config",
- "sui-replay",
- "sui-sdk",
- "sui-simulator",
- "sui-source-validation",
- "sui-swarm",
- "sui-swarm-config",
- "sui-test-transaction-builder",
- "sui-transaction-builder",
- "sui-types",
+ "iota-config",
+ "iota-execution",
+ "iota-genesis-builder",
+ "iota-json",
+ "iota-json-rpc-types",
+ "iota-keys",
+ "iota-macros",
+ "iota-move",
+ "iota-move-build",
+ "iota-protocol-config",
+ "iota-replay",
+ "iota-sdk",
+ "iota-simulator",
+ "iota-source-validation",
+ "iota-swarm",
+ "iota-swarm-config",
+ "iota-test-transaction-builder",
+ "iota-transaction-builder",
+ "iota-types",
  "tabled",
  "tap",
  "telemetry-subscribers",
@@ -11939,7 +11939,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-adapter-latest"
+name = "iota-adapter-latest"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -11956,24 +11956,24 @@ dependencies = [
  "move-vm-types",
  "parking_lot 0.12.1",
  "serde",
- "sui-macros",
- "sui-move-natives-latest",
- "sui-protocol-config",
- "sui-types",
- "sui-verifier-latest",
+ "iota-macros",
+ "iota-move-natives-latest",
+ "iota-protocol-config",
+ "iota-types",
+ "iota-verifier-latest",
  "tracing",
 ]
 
 [[package]]
-name = "sui-adapter-transactional-tests"
+name = "iota-adapter-transactional-tests"
 version = "0.1.0"
 dependencies = [
  "datatest-stable",
- "sui-transactional-test-runner",
+ "iota-transactional-test-runner",
 ]
 
 [[package]]
-name = "sui-adapter-v0"
+name = "iota-adapter-v0"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -11991,16 +11991,16 @@ dependencies = [
  "once_cell",
  "parking_lot 0.12.1",
  "serde",
- "sui-macros",
- "sui-move-natives-v0",
- "sui-protocol-config",
- "sui-types",
- "sui-verifier-v0",
+ "iota-macros",
+ "iota-move-natives-v0",
+ "iota-protocol-config",
+ "iota-types",
+ "iota-verifier-v0",
  "tracing",
 ]
 
 [[package]]
-name = "sui-adapter-v1"
+name = "iota-adapter-v1"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -12017,16 +12017,16 @@ dependencies = [
  "move-vm-types",
  "parking_lot 0.12.1",
  "serde",
- "sui-macros",
- "sui-move-natives-v1",
- "sui-protocol-config",
- "sui-types",
- "sui-verifier-v1",
+ "iota-macros",
+ "iota-move-natives-v1",
+ "iota-protocol-config",
+ "iota-types",
+ "iota-verifier-v1",
  "tracing",
 ]
 
 [[package]]
-name = "sui-adapter-v2"
+name = "iota-adapter-v2"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -12043,16 +12043,16 @@ dependencies = [
  "move-vm-types",
  "parking_lot 0.12.1",
  "serde",
- "sui-macros",
- "sui-move-natives-v2",
- "sui-protocol-config",
- "sui-types",
- "sui-verifier-v2",
+ "iota-macros",
+ "iota-move-natives-v2",
+ "iota-protocol-config",
+ "iota-types",
+ "iota-verifier-v2",
  "tracing",
 ]
 
 [[package]]
-name = "sui-analytics-indexer"
+name = "iota-analytics-indexer"
 version = "1.22.0"
 dependencies = [
  "anyhow",
@@ -12084,14 +12084,14 @@ dependencies = [
  "snowflake-api",
  "strum 0.24.1",
  "strum_macros 0.24.3",
- "sui-analytics-indexer-derive",
- "sui-config",
- "sui-indexer",
- "sui-json-rpc-types",
- "sui-package-resolver",
- "sui-rest-api",
- "sui-storage",
- "sui-types",
+ "iota-analytics-indexer-derive",
+ "iota-config",
+ "iota-indexer",
+ "iota-json-rpc-types",
+ "iota-package-resolver",
+ "iota-rest-api",
+ "iota-storage",
+ "iota-types",
  "tap",
  "telemetry-subscribers",
  "tempfile",
@@ -12105,7 +12105,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-analytics-indexer-derive"
+name = "iota-analytics-indexer-derive"
 version = "1.22.0"
 dependencies = [
  "proc-macro2 1.0.78",
@@ -12114,7 +12114,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-archival"
+name = "iota-archival"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -12134,12 +12134,12 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "serde_json",
- "sui-config",
- "sui-macros",
- "sui-simulator",
- "sui-storage",
- "sui-swarm-config",
- "sui-types",
+ "iota-config",
+ "iota-macros",
+ "iota-simulator",
+ "iota-storage",
+ "iota-swarm-config",
+ "iota-types",
  "telemetry-subscribers",
  "tempfile",
  "tokio",
@@ -12147,18 +12147,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-authority-aggregation"
+name = "iota-authority-aggregation"
 version = "0.1.0"
 dependencies = [
  "futures",
  "mysten-metrics",
- "sui-types",
+ "iota-types",
  "tokio",
  "tracing",
 ]
 
 [[package]]
-name = "sui-aws-orchestrator"
+name = "iota-aws-orchestrator"
 version = "0.0.1"
 dependencies = [
  "async-trait",
@@ -12180,16 +12180,16 @@ dependencies = [
  "russh-keys",
  "serde",
  "serde_json",
- "sui-config",
- "sui-swarm-config",
- "sui-types",
+ "iota-config",
+ "iota-swarm-config",
+ "iota-types",
  "tempfile",
  "thiserror",
  "tokio",
 ]
 
 [[package]]
-name = "sui-benchmark"
+name = "iota-benchmark"
 version = "0.0.0"
 dependencies = [
  "anyhow",
@@ -12214,21 +12214,21 @@ dependencies = [
  "serde_json",
  "strum 0.24.1",
  "strum_macros 0.24.3",
- "sui-config",
- "sui-core",
- "sui-framework",
- "sui-framework-snapshot",
- "sui-json-rpc-types",
- "sui-keys",
- "sui-macros",
- "sui-network",
- "sui-protocol-config",
- "sui-sdk",
- "sui-simulator",
- "sui-storage",
- "sui-swarm-config",
- "sui-test-transaction-builder",
- "sui-types",
+ "iota-config",
+ "iota-core",
+ "iota-framework",
+ "iota-framework-snapshot",
+ "iota-json-rpc-types",
+ "iota-keys",
+ "iota-macros",
+ "iota-network",
+ "iota-protocol-config",
+ "iota-sdk",
+ "iota-simulator",
+ "iota-storage",
+ "iota-swarm-config",
+ "iota-test-transaction-builder",
+ "iota-types",
  "sysinfo",
  "telemetry-subscribers",
  "test-cluster",
@@ -12239,7 +12239,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-bridge"
+name = "iota-bridge"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -12269,12 +12269,12 @@ dependencies = [
  "serde_json",
  "serde_with",
  "shared-crypto",
- "sui-common",
- "sui-config",
- "sui-json-rpc-types",
- "sui-sdk",
- "sui-test-transaction-builder",
- "sui-types",
+ "iota-common",
+ "iota-config",
+ "iota-json-rpc-types",
+ "iota-sdk",
+ "iota-test-transaction-builder",
+ "iota-types",
  "tap",
  "telemetry-subscribers",
  "tempfile",
@@ -12287,7 +12287,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-cluster-test"
+name = "iota-cluster-test"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -12303,20 +12303,20 @@ dependencies = [
  "reqwest",
  "serde_json",
  "shared-crypto",
- "sui",
- "sui-config",
- "sui-core",
- "sui-faucet",
- "sui-graphql-rpc",
- "sui-indexer",
- "sui-json",
- "sui-json-rpc-types",
- "sui-keys",
- "sui-sdk",
- "sui-swarm",
- "sui-swarm-config",
- "sui-test-transaction-builder",
- "sui-types",
+ "iota",
+ "iota-config",
+ "iota-core",
+ "iota-faucet",
+ "iota-graphql-rpc",
+ "iota-indexer",
+ "iota-json",
+ "iota-json-rpc-types",
+ "iota-keys",
+ "iota-sdk",
+ "iota-swarm",
+ "iota-swarm-config",
+ "iota-test-transaction-builder",
+ "iota-types",
  "telemetry-subscribers",
  "tempfile",
  "test-cluster",
@@ -12326,18 +12326,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-common"
+name = "iota-common"
 version = "0.1.0"
 dependencies = [
  "futures",
  "mysten-metrics",
- "sui-types",
+ "iota-types",
  "tokio",
  "tracing",
 ]
 
 [[package]]
-name = "sui-config"
+name = "iota-config"
 version = "0.0.0"
 dependencies = [
  "anemo",
@@ -12357,15 +12357,15 @@ dependencies = [
  "serde",
  "serde_with",
  "serde_yaml 0.8.26",
- "sui-keys",
- "sui-protocol-config",
- "sui-types",
+ "iota-keys",
+ "iota-protocol-config",
+ "iota-types",
  "tempfile",
  "tracing",
 ]
 
 [[package]]
-name = "sui-core"
+name = "iota-core"
 version = "0.1.0"
 dependencies = [
  "anemo",
@@ -12433,23 +12433,23 @@ dependencies = [
  "shared-crypto",
  "signature 1.6.4",
  "static_assertions",
- "sui-archival",
- "sui-authority-aggregation",
- "sui-config",
- "sui-execution",
- "sui-framework",
- "sui-genesis-builder",
- "sui-json-rpc-types",
- "sui-macros",
- "sui-move-build",
- "sui-network",
- "sui-protocol-config",
- "sui-simulator",
- "sui-storage",
- "sui-swarm-config",
- "sui-test-transaction-builder",
- "sui-transaction-checks",
- "sui-types",
+ "iota-archival",
+ "iota-authority-aggregation",
+ "iota-config",
+ "iota-execution",
+ "iota-framework",
+ "iota-genesis-builder",
+ "iota-json-rpc-types",
+ "iota-macros",
+ "iota-move-build",
+ "iota-network",
+ "iota-protocol-config",
+ "iota-simulator",
+ "iota-storage",
+ "iota-swarm-config",
+ "iota-test-transaction-builder",
+ "iota-transaction-checks",
+ "iota-types",
  "tap",
  "telemetry-subscribers",
  "tempfile",
@@ -12467,7 +12467,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-cost"
+name = "iota-cost"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -12478,18 +12478,18 @@ dependencies = [
  "serde",
  "strum 0.24.1",
  "strum_macros 0.24.3",
- "sui-config",
- "sui-json-rpc-types",
- "sui-move-build",
- "sui-swarm-config",
- "sui-test-transaction-builder",
- "sui-types",
+ "iota-config",
+ "iota-json-rpc-types",
+ "iota-move-build",
+ "iota-swarm-config",
+ "iota-test-transaction-builder",
+ "iota-types",
  "test-cluster",
  "tokio",
 ]
 
 [[package]]
-name = "sui-data-ingestion"
+name = "iota-data-ingestion"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -12511,10 +12511,10 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml 0.8.26",
- "sui-archival",
- "sui-data-ingestion-core",
- "sui-storage",
- "sui-types",
+ "iota-archival",
+ "iota-data-ingestion-core",
+ "iota-storage",
+ "iota-types",
  "telemetry-subscribers",
  "tempfile",
  "tokio",
@@ -12523,7 +12523,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-data-ingestion-core"
+name = "iota-data-ingestion-core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -12537,8 +12537,8 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "serde_json",
- "sui-storage",
- "sui-types",
+ "iota-storage",
+ "iota-types",
  "tap",
  "telemetry-subscribers",
  "tempfile",
@@ -12548,7 +12548,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-e2e-tests"
+name = "iota-e2e-tests"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -12573,26 +12573,26 @@ dependencies = [
  "serde",
  "serde_json",
  "shared-crypto",
- "sui",
- "sui-config",
- "sui-core",
- "sui-framework",
- "sui-json-rpc",
- "sui-json-rpc-api",
- "sui-json-rpc-types",
- "sui-keys",
- "sui-macros",
- "sui-move-build",
- "sui-node",
- "sui-protocol-config",
- "sui-sdk",
- "sui-simulator",
- "sui-storage",
- "sui-swarm",
- "sui-swarm-config",
- "sui-test-transaction-builder",
- "sui-tool",
- "sui-types",
+ "iota",
+ "iota-config",
+ "iota-core",
+ "iota-framework",
+ "iota-json-rpc",
+ "iota-json-rpc-api",
+ "iota-json-rpc-types",
+ "iota-keys",
+ "iota-macros",
+ "iota-move-build",
+ "iota-node",
+ "iota-protocol-config",
+ "iota-sdk",
+ "iota-simulator",
+ "iota-storage",
+ "iota-swarm",
+ "iota-swarm-config",
+ "iota-test-transaction-builder",
+ "iota-tool",
+ "iota-types",
  "telemetry-subscribers",
  "tempfile",
  "test-cluster",
@@ -12601,14 +12601,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-enum-compat-util"
+name = "iota-enum-compat-util"
 version = "0.1.0"
 dependencies = [
  "serde_yaml 0.8.26",
 ]
 
 [[package]]
-name = "sui-execution"
+name = "iota-execution"
 version = "0.1.0"
 dependencies = [
  "cargo_metadata 0.15.4",
@@ -12623,24 +12623,24 @@ dependencies = [
  "move-vm-runtime-v1",
  "move-vm-runtime-v2",
  "petgraph 0.5.1",
- "sui-adapter-latest",
- "sui-adapter-v0",
- "sui-adapter-v1",
- "sui-adapter-v2",
- "sui-move-natives-latest",
- "sui-move-natives-v0",
- "sui-move-natives-v1",
- "sui-move-natives-v2",
- "sui-protocol-config",
- "sui-types",
- "sui-verifier-latest",
- "sui-verifier-v0",
- "sui-verifier-v1",
- "sui-verifier-v2",
+ "iota-adapter-latest",
+ "iota-adapter-v0",
+ "iota-adapter-v1",
+ "iota-adapter-v2",
+ "iota-move-natives-latest",
+ "iota-move-natives-v0",
+ "iota-move-natives-v1",
+ "iota-move-natives-v2",
+ "iota-protocol-config",
+ "iota-types",
+ "iota-verifier-latest",
+ "iota-verifier-v0",
+ "iota-verifier-v1",
+ "iota-verifier-v2",
 ]
 
 [[package]]
-name = "sui-execution-cut"
+name = "iota-execution-cut"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -12653,7 +12653,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-faucet"
+name = "iota-faucet"
 version = "1.22.0"
 dependencies = [
  "anyhow",
@@ -12671,12 +12671,12 @@ dependencies = [
  "scopeguard",
  "serde",
  "shared-crypto",
- "sui",
- "sui-config",
- "sui-json-rpc-types",
- "sui-keys",
- "sui-sdk",
- "sui-types",
+ "iota",
+ "iota-config",
+ "iota-json-rpc-types",
+ "iota-keys",
+ "iota-sdk",
+ "iota-types",
  "tap",
  "telemetry-subscribers",
  "tempfile",
@@ -12693,7 +12693,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-framework"
+name = "iota-framework"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -12705,13 +12705,13 @@ dependencies = [
  "once_cell",
  "regex",
  "serde",
- "sui-move-build",
- "sui-types",
+ "iota-move-build",
+ "iota-types",
  "tracing",
 ]
 
 [[package]]
-name = "sui-framework-snapshot"
+name = "iota-framework-snapshot"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -12719,14 +12719,14 @@ dependencies = [
  "git-version",
  "serde",
  "serde_json",
- "sui-framework",
- "sui-protocol-config",
- "sui-types",
+ "iota-framework",
+ "iota-protocol-config",
+ "iota-types",
  "tokio",
 ]
 
 [[package]]
-name = "sui-framework-tests"
+name = "iota-framework-tests"
 version = "0.1.0"
 dependencies = [
  "move-bytecode-verifier",
@@ -12734,17 +12734,17 @@ dependencies = [
  "move-package",
  "move-unit-test",
  "prometheus",
- "sui-adapter-latest",
- "sui-framework",
- "sui-move",
- "sui-move-build",
- "sui-protocol-config",
- "sui-types",
- "sui-verifier-latest",
+ "iota-adapter-latest",
+ "iota-framework",
+ "iota-move",
+ "iota-move-build",
+ "iota-protocol-config",
+ "iota-types",
+ "iota-verifier-latest",
 ]
 
 [[package]]
-name = "sui-genesis-builder"
+name = "iota-genesis-builder"
 version = "0.0.0"
 dependencies = [
  "anyhow",
@@ -12774,34 +12774,34 @@ dependencies = [
  "serde_with",
  "serde_yaml 0.8.26",
  "shared-crypto",
- "sui-adapter-v2",
- "sui-config",
- "sui-execution",
- "sui-framework",
- "sui-framework-snapshot",
- "sui-move-build",
- "sui-move-natives-v2",
- "sui-protocol-config",
- "sui-simulator",
- "sui-types",
+ "iota-adapter-v2",
+ "iota-config",
+ "iota-execution",
+ "iota-framework",
+ "iota-framework-snapshot",
+ "iota-move-build",
+ "iota-move-natives-v2",
+ "iota-protocol-config",
+ "iota-simulator",
+ "iota-types",
  "tempfile",
  "thiserror",
  "tracing",
 ]
 
 [[package]]
-name = "sui-graphql-e2e-tests"
+name = "iota-graphql-e2e-tests"
 version = "0.1.0"
 dependencies = [
  "datatest-stable",
  "msim",
- "sui-graphql-rpc",
- "sui-transactional-test-runner",
+ "iota-graphql-rpc",
+ "iota-transactional-test-runner",
  "tokio",
 ]
 
 [[package]]
-name = "sui-graphql-rpc"
+name = "iota-graphql-rpc"
 version = "2024.2.0"
 dependencies = [
  "anyhow",
@@ -12848,18 +12848,18 @@ dependencies = [
  "shared-crypto",
  "similar",
  "simulacrum",
- "sui-framework",
- "sui-graphql-rpc-client",
- "sui-graphql-rpc-headers",
- "sui-indexer",
- "sui-json-rpc",
- "sui-json-rpc-types",
- "sui-package-resolver",
- "sui-protocol-config",
- "sui-rest-api",
- "sui-sdk",
- "sui-swarm-config",
- "sui-types",
+ "iota-framework",
+ "iota-graphql-rpc-client",
+ "iota-graphql-rpc-headers",
+ "iota-indexer",
+ "iota-json-rpc",
+ "iota-json-rpc-types",
+ "iota-package-resolver",
+ "iota-protocol-config",
+ "iota-rest-api",
+ "iota-sdk",
+ "iota-swarm-config",
+ "iota-types",
  "tap",
  "telemetry-subscribers",
  "test-cluster",
@@ -12874,7 +12874,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-graphql-rpc-client"
+name = "iota-graphql-rpc-client"
 version = "0.1.0"
 dependencies = [
  "async-graphql",
@@ -12882,19 +12882,19 @@ dependencies = [
  "hyper",
  "reqwest",
  "serde_json",
- "sui-graphql-rpc-headers",
+ "iota-graphql-rpc-headers",
  "thiserror",
 ]
 
 [[package]]
-name = "sui-graphql-rpc-headers"
+name = "iota-graphql-rpc-headers"
 version = "0.1.0"
 dependencies = [
  "axum",
 ]
 
 [[package]]
-name = "sui-indexer"
+name = "iota-indexer"
 version = "1.22.0"
 dependencies = [
  "anyhow",
@@ -12925,20 +12925,20 @@ dependencies = [
  "serde_json",
  "serde_with",
  "simulacrum",
- "sui-json",
- "sui-json-rpc",
- "sui-json-rpc-api",
- "sui-json-rpc-types",
- "sui-keys",
- "sui-move-build",
- "sui-open-rpc",
- "sui-package-resolver",
- "sui-protocol-config",
- "sui-rest-api",
- "sui-sdk",
- "sui-test-transaction-builder",
- "sui-transaction-builder",
- "sui-types",
+ "iota-json",
+ "iota-json-rpc",
+ "iota-json-rpc-api",
+ "iota-json-rpc-types",
+ "iota-keys",
+ "iota-move-build",
+ "iota-open-rpc",
+ "iota-package-resolver",
+ "iota-protocol-config",
+ "iota-rest-api",
+ "iota-sdk",
+ "iota-test-transaction-builder",
+ "iota-transaction-builder",
+ "iota-types",
  "tap",
  "telemetry-subscribers",
  "test-cluster",
@@ -12949,7 +12949,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-json"
+name = "iota-json"
 version = "0.0.0"
 dependencies = [
  "anyhow",
@@ -12961,14 +12961,14 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "sui-framework",
- "sui-move-build",
- "sui-types",
+ "iota-framework",
+ "iota-move-build",
+ "iota-types",
  "test-fuzz",
 ]
 
 [[package]]
-name = "sui-json-rpc"
+name = "iota-json-rpc"
 version = "0.0.0"
 dependencies = [
  "anyhow",
@@ -12997,16 +12997,16 @@ dependencies = [
  "serde_json",
  "shared-crypto",
  "signature 1.6.4",
- "sui-core",
- "sui-json",
- "sui-json-rpc-api",
- "sui-json-rpc-types",
- "sui-open-rpc",
- "sui-open-rpc-macros",
- "sui-protocol-config",
- "sui-storage",
- "sui-transaction-builder",
- "sui-types",
+ "iota-core",
+ "iota-json",
+ "iota-json-rpc-api",
+ "iota-json-rpc-types",
+ "iota-open-rpc",
+ "iota-open-rpc-macros",
+ "iota-protocol-config",
+ "iota-storage",
+ "iota-transaction-builder",
+ "iota-types",
  "tap",
  "telemetry-subscribers",
  "thiserror",
@@ -13018,7 +13018,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-json-rpc-api"
+name = "iota-json-rpc-api"
 version = "0.0.0"
 dependencies = [
  "anyhow",
@@ -13027,17 +13027,17 @@ dependencies = [
  "mysten-metrics",
  "once_cell",
  "prometheus",
- "sui-json",
- "sui-json-rpc-types",
- "sui-open-rpc",
- "sui-open-rpc-macros",
- "sui-types",
+ "iota-json",
+ "iota-json-rpc-types",
+ "iota-open-rpc",
+ "iota-open-rpc-macros",
+ "iota-types",
  "tap",
  "tracing",
 ]
 
 [[package]]
-name = "sui-json-rpc-tests"
+name = "iota-json-rpc-tests"
 version = "0.0.0"
 dependencies = [
  "anyhow",
@@ -13049,23 +13049,23 @@ dependencies = [
  "prometheus",
  "rand 0.8.5",
  "reqwest",
- "sui-config",
- "sui-core",
- "sui-json",
- "sui-json-rpc",
- "sui-json-rpc-api",
- "sui-json-rpc-types",
- "sui-keys",
- "sui-macros",
- "sui-move-build",
- "sui-open-rpc",
- "sui-open-rpc-macros",
- "sui-protocol-config",
- "sui-sdk",
- "sui-simulator",
- "sui-swarm-config",
- "sui-test-transaction-builder",
- "sui-types",
+ "iota-config",
+ "iota-core",
+ "iota-json",
+ "iota-json-rpc",
+ "iota-json-rpc-api",
+ "iota-json-rpc-types",
+ "iota-keys",
+ "iota-macros",
+ "iota-move-build",
+ "iota-open-rpc",
+ "iota-open-rpc-macros",
+ "iota-protocol-config",
+ "iota-sdk",
+ "iota-simulator",
+ "iota-swarm-config",
+ "iota-test-transaction-builder",
+ "iota-types",
  "telemetry-subscribers",
  "test-cluster",
  "tokio",
@@ -13073,7 +13073,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-json-rpc-types"
+name = "iota-json-rpc-types"
 version = "0.0.0"
 dependencies = [
  "anyhow",
@@ -13091,17 +13091,17 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "sui-enum-compat-util",
- "sui-json",
- "sui-macros",
- "sui-protocol-config",
- "sui-types",
+ "iota-enum-compat-util",
+ "iota-json",
+ "iota-macros",
+ "iota-protocol-config",
+ "iota-types",
  "tabled",
  "tracing",
 ]
 
 [[package]]
-name = "sui-keys"
+name = "iota-keys"
 version = "0.0.0"
 dependencies = [
  "anyhow",
@@ -13114,13 +13114,13 @@ dependencies = [
  "shared-crypto",
  "signature 1.6.4",
  "slip10_ed25519",
- "sui-types",
+ "iota-types",
  "tempfile",
  "tiny-bip39",
 ]
 
 [[package]]
-name = "sui-light-client"
+name = "iota-light-client"
 version = "0.0.0"
 dependencies = [
  "anyhow",
@@ -13133,28 +13133,28 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml 0.8.26",
- "sui-config",
- "sui-json",
- "sui-json-rpc-types",
- "sui-package-resolver",
- "sui-rest-api",
- "sui-sdk",
- "sui-types",
+ "iota-config",
+ "iota-json",
+ "iota-json-rpc-types",
+ "iota-package-resolver",
+ "iota-rest-api",
+ "iota-sdk",
+ "iota-types",
  "tokio",
 ]
 
 [[package]]
-name = "sui-macros"
+name = "iota-macros"
 version = "0.7.0"
 dependencies = [
  "futures",
  "once_cell",
- "sui-proc-macros",
+ "iota-proc-macros",
  "tracing",
 ]
 
 [[package]]
-name = "sui-metric-checker"
+name = "iota-metric-checker"
 version = "0.0.0"
 dependencies = [
  "anyhow",
@@ -13175,7 +13175,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-move"
+name = "iota-move"
 version = "1.22.0"
 dependencies = [
  "anyhow",
@@ -13202,14 +13202,14 @@ dependencies = [
  "rand 0.8.5",
  "serde_json",
  "serde_yaml 0.8.26",
- "sui-core",
- "sui-macros",
- "sui-move-build",
- "sui-move-natives-latest",
- "sui-node",
- "sui-protocol-config",
- "sui-simulator",
- "sui-types",
+ "iota-core",
+ "iota-macros",
+ "iota-move-build",
+ "iota-move-natives-latest",
+ "iota-node",
+ "iota-protocol-config",
+ "iota-simulator",
+ "iota-types",
  "telemetry-subscribers",
  "tempfile",
  "tokio",
@@ -13217,7 +13217,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-move-build"
+name = "iota-move-build"
 version = "1.22.0"
 dependencies = [
  "anyhow",
@@ -13233,14 +13233,14 @@ dependencies = [
  "move-package",
  "move-symbol-pool",
  "serde-reflection",
- "sui-protocol-config",
- "sui-types",
- "sui-verifier-latest",
+ "iota-protocol-config",
+ "iota-types",
+ "iota-verifier-latest",
  "tempfile",
 ]
 
 [[package]]
-name = "sui-move-natives-latest"
+name = "iota-move-natives-latest"
 version = "0.1.0"
 dependencies = [
  "bcs",
@@ -13254,13 +13254,13 @@ dependencies = [
  "move-vm-runtime",
  "move-vm-types",
  "smallvec",
- "sui-protocol-config",
- "sui-types",
+ "iota-protocol-config",
+ "iota-types",
  "tracing",
 ]
 
 [[package]]
-name = "sui-move-natives-v0"
+name = "iota-move-natives-v0"
 version = "0.1.0"
 dependencies = [
  "bcs",
@@ -13274,13 +13274,13 @@ dependencies = [
  "move-vm-runtime-v0",
  "move-vm-types",
  "smallvec",
- "sui-protocol-config",
- "sui-types",
+ "iota-protocol-config",
+ "iota-types",
  "tracing",
 ]
 
 [[package]]
-name = "sui-move-natives-v1"
+name = "iota-move-natives-v1"
 version = "0.1.0"
 dependencies = [
  "bcs",
@@ -13294,13 +13294,13 @@ dependencies = [
  "move-vm-runtime-v1",
  "move-vm-types",
  "smallvec",
- "sui-protocol-config",
- "sui-types",
+ "iota-protocol-config",
+ "iota-types",
  "tracing",
 ]
 
 [[package]]
-name = "sui-move-natives-v2"
+name = "iota-move-natives-v2"
 version = "0.1.0"
 dependencies = [
  "bcs",
@@ -13314,13 +13314,13 @@ dependencies = [
  "move-vm-runtime-v2",
  "move-vm-types",
  "smallvec",
- "sui-protocol-config",
- "sui-types",
+ "iota-protocol-config",
+ "iota-types",
  "tracing",
 ]
 
 [[package]]
-name = "sui-network"
+name = "iota-network"
 version = "0.0.0"
 dependencies = [
  "anemo",
@@ -13341,11 +13341,11 @@ dependencies = [
  "prometheus",
  "rand 0.8.5",
  "serde",
- "sui-archival",
- "sui-config",
- "sui-storage",
- "sui-swarm-config",
- "sui-types",
+ "iota-archival",
+ "iota-config",
+ "iota-storage",
+ "iota-swarm-config",
+ "iota-types",
  "tap",
  "telemetry-subscribers",
  "tempfile",
@@ -13357,7 +13357,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-node"
+name = "iota-node"
 version = "1.22.0"
 dependencies = [
  "anemo",
@@ -13382,21 +13382,21 @@ dependencies = [
  "reqwest",
  "serde",
  "snap",
- "sui-archival",
- "sui-config",
- "sui-core",
- "sui-json-rpc",
- "sui-json-rpc-api",
- "sui-macros",
- "sui-network",
- "sui-protocol-config",
- "sui-rest-api",
- "sui-simulator",
- "sui-snapshot",
- "sui-storage",
- "sui-telemetry",
- "sui-tls",
- "sui-types",
+ "iota-archival",
+ "iota-config",
+ "iota-core",
+ "iota-json-rpc",
+ "iota-json-rpc-api",
+ "iota-macros",
+ "iota-network",
+ "iota-protocol-config",
+ "iota-rest-api",
+ "iota-simulator",
+ "iota-snapshot",
+ "iota-storage",
+ "iota-telemetry",
+ "iota-tls",
+ "iota-types",
  "tap",
  "telemetry-subscribers",
  "tokio",
@@ -13407,7 +13407,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-open-rpc"
+name = "iota-open-rpc"
 version = "1.22.0"
 dependencies = [
  "anyhow",
@@ -13420,18 +13420,18 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "sui-json",
- "sui-json-rpc",
- "sui-json-rpc-api",
- "sui-json-rpc-types",
- "sui-protocol-config",
- "sui-types",
+ "iota-json",
+ "iota-json-rpc",
+ "iota-json-rpc-api",
+ "iota-json-rpc-types",
+ "iota-protocol-config",
+ "iota-types",
  "tokio",
  "versions",
 ]
 
 [[package]]
-name = "sui-open-rpc-macros"
+name = "iota-open-rpc-macros"
 version = "0.1.0"
 dependencies = [
  "derive-syn-parse",
@@ -13443,7 +13443,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-oracle"
+name = "iota-oracle"
 version = "1.22.0"
 dependencies = [
  "anyhow",
@@ -13460,12 +13460,12 @@ dependencies = [
  "serde",
  "serde_json",
  "shared-crypto",
- "sui-config",
- "sui-json-rpc-types",
- "sui-keys",
- "sui-move-build",
- "sui-sdk",
- "sui-types",
+ "iota-config",
+ "iota-json-rpc-types",
+ "iota-keys",
+ "iota-move-build",
+ "iota-sdk",
+ "iota-types",
  "tap",
  "telemetry-subscribers",
  "tokio",
@@ -13473,7 +13473,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-package-resolver"
+name = "iota-package-resolver"
 version = "0.1.0"
 dependencies = [
  "async-trait",
@@ -13487,27 +13487,27 @@ dependencies = [
  "move-core-types",
  "serde",
  "serde_json",
- "sui-move-build",
- "sui-rest-api",
- "sui-types",
+ "iota-move-build",
+ "iota-rest-api",
+ "iota-types",
  "thiserror",
  "tokio",
  "tower",
 ]
 
 [[package]]
-name = "sui-proc-macros"
+name = "iota-proc-macros"
 version = "0.7.0"
 dependencies = [
  "msim-macros",
  "proc-macro2 1.0.78",
  "quote 1.0.35",
- "sui-enum-compat-util",
+ "iota-enum-compat-util",
  "syn 2.0.48",
 ]
 
 [[package]]
-name = "sui-protocol-config"
+name = "iota-protocol-config"
 version = "0.1.0"
 dependencies = [
  "clap",
@@ -13515,12 +13515,12 @@ dependencies = [
  "schemars",
  "serde",
  "serde_with",
- "sui-protocol-config-macros",
+ "iota-protocol-config-macros",
  "tracing",
 ]
 
 [[package]]
-name = "sui-protocol-config-macros"
+name = "iota-protocol-config-macros"
 version = "0.1.0"
 dependencies = [
  "proc-macro2 1.0.78",
@@ -13529,7 +13529,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-proxy"
+name = "iota-proxy"
 version = "0.0.2"
 dependencies = [
  "anyhow",
@@ -13562,8 +13562,8 @@ dependencies = [
  "serde_with",
  "serde_yaml 0.8.26",
  "snap",
- "sui-tls",
- "sui-types",
+ "iota-tls",
+ "iota-types",
  "telemetry-subscribers",
  "tokio",
  "tower",
@@ -13572,7 +13572,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-replay"
+name = "iota-replay"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -13598,17 +13598,17 @@ dependencies = [
  "shared-crypto",
  "shellexpand",
  "similar",
- "sui-config",
- "sui-core",
- "sui-execution",
- "sui-framework",
- "sui-json-rpc",
- "sui-json-rpc-api",
- "sui-json-rpc-types",
- "sui-protocol-config",
- "sui-sdk",
- "sui-storage",
- "sui-types",
+ "iota-config",
+ "iota-core",
+ "iota-execution",
+ "iota-framework",
+ "iota-json-rpc",
+ "iota-json-rpc-api",
+ "iota-json-rpc-types",
+ "iota-protocol-config",
+ "iota-sdk",
+ "iota-storage",
+ "iota-types",
  "tabled",
  "tempfile",
  "thiserror",
@@ -13617,7 +13617,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-rest-api"
+name = "iota-rest-api"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -13630,14 +13630,14 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "sui-types",
+ "iota-types",
  "tap",
  "thiserror",
  "tokio",
 ]
 
 [[package]]
-name = "sui-rosetta"
+name = "iota-rosetta"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -13661,14 +13661,14 @@ dependencies = [
  "signature 1.6.4",
  "strum 0.24.1",
  "strum_macros 0.24.3",
- "sui-config",
- "sui-json-rpc-types",
- "sui-keys",
- "sui-move-build",
- "sui-node",
- "sui-sdk",
- "sui-swarm-config",
- "sui-types",
+ "iota-config",
+ "iota-json-rpc-types",
+ "iota-keys",
+ "iota-move-build",
+ "iota-node",
+ "iota-sdk",
+ "iota-swarm-config",
+ "iota-types",
  "telemetry-subscribers",
  "tempfile",
  "test-cluster",
@@ -13679,7 +13679,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-rpc-loadgen"
+name = "iota-rpc-loadgen"
 version = "1.22.0"
 dependencies = [
  "anyhow",
@@ -13695,11 +13695,11 @@ dependencies = [
  "shellexpand",
  "strum 0.24.1",
  "strum_macros 0.24.3",
- "sui-json-rpc",
- "sui-json-rpc-types",
- "sui-keys",
- "sui-sdk",
- "sui-types",
+ "iota-json-rpc",
+ "iota-json-rpc-types",
+ "iota-keys",
+ "iota-sdk",
+ "iota-types",
  "telemetry-subscribers",
  "test-cluster",
  "tokio",
@@ -13708,7 +13708,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-sdk"
+name = "iota-sdk"
 version = "1.22.0"
 dependencies = [
  "anyhow",
@@ -13729,13 +13729,13 @@ dependencies = [
  "serde_json",
  "serde_with",
  "shared-crypto",
- "sui-config",
- "sui-json",
- "sui-json-rpc-api",
- "sui-json-rpc-types",
- "sui-keys",
- "sui-transaction-builder",
- "sui-types",
+ "iota-config",
+ "iota-json",
+ "iota-json-rpc-api",
+ "iota-json-rpc-types",
+ "iota-keys",
+ "iota-transaction-builder",
+ "iota-types",
  "tempfile",
  "thiserror",
  "tokio",
@@ -13743,7 +13743,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-simulator"
+name = "iota-simulator"
 version = "0.7.0"
 dependencies = [
  "anemo",
@@ -13756,9 +13756,9 @@ dependencies = [
  "narwhal-network",
  "rand 0.8.5",
  "serde",
- "sui-framework",
- "sui-move-build",
- "sui-types",
+ "iota-framework",
+ "iota-move-build",
+ "iota-types",
  "telemetry-subscribers",
  "tempfile",
  "tower",
@@ -13766,7 +13766,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-single-node-benchmark"
+name = "iota-single-node-benchmark"
 version = "0.1.0"
 dependencies = [
  "async-trait",
@@ -13784,23 +13784,23 @@ dependencies = [
  "serde_json",
  "strum 0.24.1",
  "strum_macros 0.24.3",
- "sui-config",
- "sui-core",
- "sui-macros",
- "sui-move-build",
- "sui-protocol-config",
- "sui-simulator",
- "sui-storage",
- "sui-test-transaction-builder",
- "sui-transaction-checks",
- "sui-types",
+ "iota-config",
+ "iota-core",
+ "iota-macros",
+ "iota-move-build",
+ "iota-protocol-config",
+ "iota-simulator",
+ "iota-storage",
+ "iota-test-transaction-builder",
+ "iota-transaction-checks",
+ "iota-types",
  "telemetry-subscribers",
  "tokio",
  "tracing",
 ]
 
 [[package]]
-name = "sui-snapshot"
+name = "iota-snapshot"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -13816,11 +13816,11 @@ dependencies = [
  "prometheus",
  "serde",
  "serde_json",
- "sui-config",
- "sui-core",
- "sui-protocol-config",
- "sui-storage",
- "sui-types",
+ "iota-config",
+ "iota-core",
+ "iota-protocol-config",
+ "iota-storage",
+ "iota-types",
  "tempfile",
  "tokio",
  "tokio-stream",
@@ -13828,7 +13828,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-source-validation"
+name = "iota-source-validation"
 version = "1.22.0"
 dependencies = [
  "anyhow",
@@ -13844,11 +13844,11 @@ dependencies = [
  "move-package",
  "move-symbol-pool",
  "rand 0.8.5",
- "sui-json-rpc-types",
- "sui-move-build",
- "sui-sdk",
- "sui-test-transaction-builder",
- "sui-types",
+ "iota-json-rpc-types",
+ "iota-move-build",
+ "iota-sdk",
+ "iota-test-transaction-builder",
+ "iota-types",
  "tar",
  "tempfile",
  "test-cluster",
@@ -13859,7 +13859,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-source-validation-service"
+name = "iota-source-validation-service"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -13879,12 +13879,12 @@ dependencies = [
  "prometheus",
  "reqwest",
  "serde",
- "sui",
- "sui-json-rpc-types",
- "sui-move",
- "sui-move-build",
- "sui-sdk",
- "sui-source-validation",
+ "iota",
+ "iota-json-rpc-types",
+ "iota-move",
+ "iota-move-build",
+ "iota-sdk",
+ "iota-source-validation",
  "telemetry-subscribers",
  "tempfile",
  "test-cluster",
@@ -13897,7 +13897,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-storage"
+name = "iota-storage"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -13935,13 +13935,13 @@ dependencies = [
  "rocksdb",
  "serde",
  "serde_json",
- "sui-config",
- "sui-json-rpc-types",
- "sui-macros",
- "sui-protocol-config",
- "sui-simulator",
- "sui-test-transaction-builder",
- "sui-types",
+ "iota-config",
+ "iota-json-rpc-types",
+ "iota-macros",
+ "iota-protocol-config",
+ "iota-simulator",
+ "iota-test-transaction-builder",
+ "iota-types",
  "tap",
  "telemetry-subscribers",
  "tempfile",
@@ -13954,7 +13954,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-surfer"
+name = "iota-surfer"
 version = "1.22.0"
 dependencies = [
  "async-trait",
@@ -13967,14 +13967,14 @@ dependencies = [
  "move-package",
  "prometheus",
  "rand 0.8.5",
- "sui-core",
- "sui-json-rpc-types",
- "sui-macros",
- "sui-move-build",
- "sui-protocol-config",
- "sui-simulator",
- "sui-swarm-config",
- "sui-types",
+ "iota-core",
+ "iota-json-rpc-types",
+ "iota-macros",
+ "iota-move-build",
+ "iota-protocol-config",
+ "iota-simulator",
+ "iota-swarm-config",
+ "iota-types",
  "telemetry-subscribers",
  "test-cluster",
  "tokio",
@@ -13982,7 +13982,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-swarm"
+name = "iota-swarm"
 version = "0.0.0"
 dependencies = [
  "anyhow",
@@ -13991,13 +13991,13 @@ dependencies = [
  "mysten-network",
  "prometheus",
  "rand 0.8.5",
- "sui-config",
- "sui-macros",
- "sui-node",
- "sui-protocol-config",
- "sui-simulator",
- "sui-swarm-config",
- "sui-types",
+ "iota-config",
+ "iota-macros",
+ "iota-node",
+ "iota-protocol-config",
+ "iota-simulator",
+ "iota-swarm-config",
+ "iota-types",
  "tap",
  "telemetry-subscribers",
  "tempfile",
@@ -14007,7 +14007,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-swarm-config"
+name = "iota-swarm-config"
 version = "0.0.0"
 dependencies = [
  "anemo",
@@ -14022,50 +14022,50 @@ dependencies = [
  "serde_with",
  "serde_yaml 0.8.26",
  "shared-crypto",
- "sui-config",
- "sui-execution",
- "sui-genesis-builder",
- "sui-macros",
- "sui-protocol-config",
- "sui-simulator",
- "sui-types",
+ "iota-config",
+ "iota-execution",
+ "iota-genesis-builder",
+ "iota-macros",
+ "iota-protocol-config",
+ "iota-simulator",
+ "iota-types",
  "tempfile",
  "tracing",
 ]
 
 [[package]]
-name = "sui-telemetry"
+name = "iota-telemetry"
 version = "0.1.0"
 dependencies = [
  "reqwest",
  "serde",
- "sui-core",
+ "iota-core",
  "tracing",
 ]
 
 [[package]]
-name = "sui-test-transaction-builder"
+name = "iota-test-transaction-builder"
 version = "0.1.0"
 dependencies = [
  "bcs",
  "move-core-types",
  "shared-crypto",
- "sui-genesis-builder",
- "sui-move-build",
- "sui-sdk",
- "sui-types",
+ "iota-genesis-builder",
+ "iota-move-build",
+ "iota-sdk",
+ "iota-types",
 ]
 
 [[package]]
-name = "sui-test-validator"
+name = "iota-test-validator"
 version = "0.0.0"
 dependencies = [
  "anyhow",
  "axum",
  "clap",
  "http",
- "sui-cluster-test",
- "sui-faucet",
+ "iota-cluster-test",
+ "iota-faucet",
  "telemetry-subscribers",
  "tokio",
  "tower",
@@ -14074,7 +14074,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-tls"
+name = "iota-tls"
 version = "0.0.0"
 dependencies = [
  "anyhow",
@@ -14095,7 +14095,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-tool"
+name = "iota-tool"
 version = "1.22.0"
 dependencies = [
  "anemo",
@@ -14126,17 +14126,17 @@ dependencies = [
  "serde_json",
  "strum 0.24.1",
  "strum_macros 0.24.3",
- "sui-archival",
- "sui-config",
- "sui-core",
- "sui-indexer",
- "sui-network",
- "sui-protocol-config",
- "sui-replay",
- "sui-sdk",
- "sui-snapshot",
- "sui-storage",
- "sui-types",
+ "iota-archival",
+ "iota-config",
+ "iota-core",
+ "iota-indexer",
+ "iota-network",
+ "iota-protocol-config",
+ "iota-replay",
+ "iota-sdk",
+ "iota-snapshot",
+ "iota-storage",
+ "iota-types",
  "telemetry-subscribers",
  "tempfile",
  "tokio",
@@ -14145,7 +14145,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-transaction-builder"
+name = "iota-transaction-builder"
 version = "0.0.0"
 dependencies = [
  "anyhow",
@@ -14154,28 +14154,28 @@ dependencies = [
  "futures",
  "move-binary-format",
  "move-core-types",
- "sui-json",
- "sui-json-rpc-types",
- "sui-protocol-config",
- "sui-types",
+ "iota-json",
+ "iota-json-rpc-types",
+ "iota-protocol-config",
+ "iota-types",
 ]
 
 [[package]]
-name = "sui-transaction-checks"
+name = "iota-transaction-checks"
 version = "0.1.0"
 dependencies = [
  "fastcrypto-zkp",
  "once_cell",
- "sui-config",
- "sui-execution",
- "sui-macros",
- "sui-protocol-config",
- "sui-types",
+ "iota-config",
+ "iota-execution",
+ "iota-macros",
+ "iota-protocol-config",
+ "iota-types",
  "tracing",
 ]
 
 [[package]]
-name = "sui-transactional-test-runner"
+name = "iota-transactional-test-runner"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -14203,19 +14203,19 @@ dependencies = [
  "rocksdb",
  "serde_json",
  "simulacrum",
- "sui-config",
- "sui-core",
- "sui-framework",
- "sui-framework-snapshot",
- "sui-graphql-rpc",
- "sui-json-rpc",
- "sui-json-rpc-api",
- "sui-json-rpc-types",
- "sui-protocol-config",
- "sui-rest-api",
- "sui-storage",
- "sui-swarm-config",
- "sui-types",
+ "iota-config",
+ "iota-core",
+ "iota-framework",
+ "iota-framework-snapshot",
+ "iota-graphql-rpc",
+ "iota-json-rpc",
+ "iota-json-rpc-api",
+ "iota-json-rpc-types",
+ "iota-protocol-config",
+ "iota-rest-api",
+ "iota-storage",
+ "iota-swarm-config",
+ "iota-types",
  "telemetry-subscribers",
  "tempfile",
  "tokio",
@@ -14224,7 +14224,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-types"
+name = "iota-types"
 version = "0.1.0"
 dependencies = [
  "anemo",
@@ -14278,9 +14278,9 @@ dependencies = [
  "static_assertions",
  "strum 0.24.1",
  "strum_macros 0.24.3",
- "sui-enum-compat-util",
- "sui-macros",
- "sui-protocol-config",
+ "iota-enum-compat-util",
+ "iota-macros",
+ "iota-protocol-config",
  "tap",
  "thiserror",
  "tonic 0.11.0",
@@ -14289,7 +14289,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-upgrade-compatibility-transactional-tests"
+name = "iota-upgrade-compatibility-transactional-tests"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -14299,11 +14299,11 @@ dependencies = [
  "move-command-line-common",
  "move-compiler",
  "move-package",
- "sui-move-build",
+ "iota-move-build",
 ]
 
 [[package]]
-name = "sui-verifier-latest"
+name = "iota-verifier-latest"
 version = "0.1.0"
 dependencies = [
  "move-abstract-stack",
@@ -14312,20 +14312,20 @@ dependencies = [
  "move-bytecode-verifier",
  "move-core-types",
  "move-vm-config",
- "sui-protocol-config",
- "sui-types",
+ "iota-protocol-config",
+ "iota-types",
 ]
 
 [[package]]
-name = "sui-verifier-transactional-tests"
+name = "iota-verifier-transactional-tests"
 version = "0.1.0"
 dependencies = [
  "datatest-stable",
- "sui-transactional-test-runner",
+ "iota-transactional-test-runner",
 ]
 
 [[package]]
-name = "sui-verifier-v0"
+name = "iota-verifier-v0"
 version = "0.1.0"
 dependencies = [
  "move-abstract-stack",
@@ -14334,12 +14334,12 @@ dependencies = [
  "move-bytecode-verifier-v0",
  "move-core-types",
  "move-vm-config",
- "sui-protocol-config",
- "sui-types",
+ "iota-protocol-config",
+ "iota-types",
 ]
 
 [[package]]
-name = "sui-verifier-v1"
+name = "iota-verifier-v1"
 version = "0.1.0"
 dependencies = [
  "move-abstract-stack",
@@ -14348,11 +14348,11 @@ dependencies = [
  "move-bytecode-verifier-v1",
  "move-core-types",
  "move-vm-config",
- "sui-types",
+ "iota-types",
 ]
 
 [[package]]
-name = "sui-verifier-v2"
+name = "iota-verifier-v2"
 version = "0.1.0"
 dependencies = [
  "move-abstract-stack",
@@ -14361,12 +14361,12 @@ dependencies = [
  "move-bytecode-verifier-v2",
  "move-core-types",
  "move-vm-config",
- "sui-protocol-config",
- "sui-types",
+ "iota-protocol-config",
+ "iota-types",
 ]
 
 [[package]]
-name = "suins-indexer"
+name = "iotans-indexer"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -14387,10 +14387,10 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml 0.8.26",
- "sui-data-ingestion-core",
- "sui-json-rpc",
- "sui-storage",
- "sui-types",
+ "iota-data-ingestion-core",
+ "iota-json-rpc",
+ "iota-storage",
+ "iota-types",
  "telemetry-subscribers",
  "tempfile",
  "tokio",
@@ -14399,7 +14399,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "suiop-cli"
+name = "iotaop-cli"
 version = "0.1.9"
 dependencies = [
  "anyhow",
@@ -14738,22 +14738,22 @@ dependencies = [
  "move-binary-format",
  "prometheus",
  "rand 0.8.5",
- "sui-config",
- "sui-core",
- "sui-framework",
- "sui-json-rpc",
- "sui-json-rpc-api",
- "sui-json-rpc-types",
- "sui-keys",
- "sui-macros",
- "sui-node",
- "sui-protocol-config",
- "sui-sdk",
- "sui-simulator",
- "sui-swarm",
- "sui-swarm-config",
- "sui-test-transaction-builder",
- "sui-types",
+ "iota-config",
+ "iota-core",
+ "iota-framework",
+ "iota-json-rpc",
+ "iota-json-rpc-api",
+ "iota-json-rpc-types",
+ "iota-keys",
+ "iota-macros",
+ "iota-node",
+ "iota-protocol-config",
+ "iota-sdk",
+ "iota-simulator",
+ "iota-swarm",
+ "iota-swarm-config",
+ "iota-test-transaction-builder",
+ "iota-types",
  "tokio",
  "tracing",
 ]
@@ -15519,10 +15519,10 @@ dependencies = [
  "proptest",
  "proptest-derive",
  "rand 0.8.5",
- "sui-core",
- "sui-move-build",
- "sui-protocol-config",
- "sui-types",
+ "iota-core",
+ "iota-move-build",
+ "iota-protocol-config",
+ "iota-types",
  "tokio",
  "tracing",
 ]
@@ -15619,7 +15619,7 @@ dependencies = [
  "rocksdb",
  "rstest",
  "serde",
- "sui-macros",
+ "iota-macros",
  "syn 1.0.107",
  "tap",
  "tempfile",

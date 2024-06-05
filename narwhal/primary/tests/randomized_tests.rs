@@ -1,5 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 use std::{
     collections::{BTreeSet, HashMap, HashSet, VecDeque},
     num::NonZeroUsize,
@@ -22,7 +25,7 @@ use rand::{
     Rng, SeedableRng,
 };
 use storage::ConsensusStore;
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 use test_utils::{latest_protocol_version, mock_certificate_with_rand, CommitteeFixture};
 #[allow(unused_imports)]
 use tokio::sync::mpsc::channel;

@@ -1,5 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 mod narwhal {
     #![allow(clippy::derive_partial_eq_without_eq)]
     tonic::include_proto!("narwhal");

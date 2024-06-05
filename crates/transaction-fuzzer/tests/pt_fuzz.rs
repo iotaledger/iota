@@ -1,14 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use proptest::{prelude::*, strategy::ValueTree};
-use sui_types::{
+use iota_types::{
     base_types::ObjectRef,
     effects::TransactionEffectsAPI,
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::Owner,
     transaction::{CallArg, ObjectArg, ProgrammableTransaction},
-    MOVE_STDLIB_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID,
+    MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID,
 };
 use transaction_fuzzer::{
     account_universe::{AccountCurrent, AccountData},
@@ -38,7 +41,7 @@ fn publish_coin_factory(
 ) -> (ObjectRef, ObjectRef) {
     let effects = exec.publish(
         "coin_factory",
-        vec![MOVE_STDLIB_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID],
+        vec![MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID],
         account,
     );
     let package = effects

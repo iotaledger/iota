@@ -1,8 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { ChevronUp12 } from '@mysten/icons';
-import { Text } from '@mysten/ui';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { ChevronUp12 } from '@iota/icons';
+import { Text } from '@iota/ui';
 import clsx from 'clsx';
 import { type ReactNode, useMemo, useState, createContext, useContext } from 'react';
 

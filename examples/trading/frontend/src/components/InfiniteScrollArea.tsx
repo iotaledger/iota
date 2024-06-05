@@ -1,5 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 import { Button } from "@radix-ui/themes";
 import { ReactNode, useEffect, useRef } from "react";
 import { Loading } from "./Loading";

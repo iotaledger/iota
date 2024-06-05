@@ -1144,7 +1144,7 @@ packages:
       '@babel/core': ^7.0.0-0
 
   '@babel/plugin-transform-react-jsx@7.23.4':
-    resolution: {integrity: sha512-5xOpoPguCZCRbo/JeHlloSkTA8Bld1J/E1/kLfD1nsuiW1m8tduTA1ERCgIZokDflX/IBzKcqR3l7VlRgiIfHA==}
+    resolution: {integrity: sha512-5xOpoPguCZCRbo/JeHlloSkTA8Bld1J/E1/kLfD1niotaW1m8tduTA1ERCgIZokDflX/IBzKcqR3l7VlRgiIfHA==}
     engines: {node: '>=6.9.0'}
     peerDependencies:
       '@babel/core': ^7.0.0-0
@@ -1420,7 +1420,7 @@ packages:
         optional: true
 
   '@docusaurus/core@3.3.2':
-    resolution: {integrity: sha512-PzKMydKI3IU1LmeZQDi+ut5RSuilbXnA8QdowGeJEgU8EJjmx3rBHNT1LxQxOVqNEwpWi/csLwd9bn7rUjggPA==}
+    resolution: {integrity: sha512-PzKMydKI3IU1LmeZQDi+ut5RIotalbXnA8QdowGeJEgU8EJjmx3rBHNT1LxQxOVqNEwpWi/csLwd9bn7rUjggPA==}
     engines: {node: '>=18.0'}
     hasBin: true
     peerDependencies:
@@ -5747,7 +5747,7 @@ packages:
     engines: {node: '>=0.10.0'}
 
   require-like@0.1.2:
-    resolution: {integrity: sha512-oyrU88skkMtDdauHDuKVrgR+zuItqr6/c//FXzvmxRGMexSDc6hNvJInGW3LL46n+8b50RykrvwSUIIQH2LQ5A==}
+    resolution: {integrity: sha512-oyrU88skkMtDdauHDuKVrgR+zuItqr6/c//FXzvmxRGMexSDc6hNvJInGW3LL46n+8b50RykrvwIOTAIQH2LQ5A==}
 
   requires-port@1.0.0:
     resolution: {integrity: sha512-KigOCHcocU3XODJxsu8i/j8T9tzT4adHiecwORRQ0ZZFcp7ahwXuRU1m+yuO90C5ZUyGeGfocHDI14M3L3yDAQ==}

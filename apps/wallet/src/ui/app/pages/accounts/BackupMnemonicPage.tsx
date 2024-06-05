@@ -1,13 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Button } from '_app/shared/ButtonUI';
 import { CardLayout } from '_app/shared/card-layout';
 import { Text } from '_app/shared/text';
 import Alert from '_components/alert';
 import Loading from '_components/loading';
 import { HideShowDisplayBox } from '_src/ui/app/components/HideShowDisplayBox';
-import { ArrowLeft16, Check12 } from '@mysten/icons';
+import { ArrowLeft16, Check12 } from '@iota/icons';
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 
@@ -113,7 +116,7 @@ export function BackupMnemonicPage() {
                             <div className="flex-1" />
                             {isOnboardingFlow ? (
                                 <div className="mb- mt-5 flex w-full text-left">
-                                    <label className="relative mb-0 mr-5 flex h-5 cursor-pointer items-center justify-center gap-1.25 text-sui-dark">
+                                    <label className="relative mb-0 mr-5 flex h-5 cursor-pointer items-center justify-center gap-1.25 text-iota-dark">
                                         <input
                                             type="checkbox"
                                             name="agree"
@@ -142,7 +145,7 @@ export function BackupMnemonicPage() {
                             variant="primary"
                             disabled={!passwordCopied && isOnboardingFlow}
                             to="/"
-                            text="Open Sui Wallet"
+                            text="Open Iota Wallet"
                             after={
                                 <ArrowLeft16 className="rotate-135 text-pBodySmall font-normal" />
                             }

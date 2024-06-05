@@ -1,5 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 use std::{borrow::Borrow, collections::BTreeMap, error::Error, ops::RangeBounds};
 
 use async_trait::async_trait;

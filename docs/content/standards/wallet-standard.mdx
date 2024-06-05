@@ -3,17 +3,17 @@ title: Wallet Standard
 description: The Wallet Standard defines how wallets can automatically be discovered and interacted with from dApps.
 ---
 
-Browser extension wallets built for Sui are defined using the [Wallet Standard](https://github.com/wallet-standard/wallet-standard/). This is a cross-chain standard that defines how wallets can automatically be discovered and interacted with from dApps.
+Browser extension wallets built for Iota are defined using the [Wallet Standard](https://github.com/wallet-standard/wallet-standard/). This is a cross-chain standard that defines how wallets can automatically be discovered and interacted with from dApps.
 
-If you are building a wallet, we publish a helper library `@mysten/wallet-standard` which provides types and utilities that make it simple to get started.
+If you are building a wallet, we publish a helper library `@iota/wallet-standard` which provides types and utilities that make it simple to get started.
 
 ### Creating a wallet interface
 
 You need to create a class that represents your wallet. You can use the `Wallet` interface from
-`@mysten/wallet-standard` to help ensure your class adheres to the standard.
+`@iota/wallet-standard` to help ensure your class adheres to the standard.
 
 ```tsx
-import { SUI_DEVNET_CHAIN, Wallet } from '@mysten/wallet-standard';
+import { IOTA_DEVNET_CHAIN, Wallet } from '@iota/wallet-standard';
 
 class YourWallet implements Wallet {
 	get version() {
@@ -26,27 +26,27 @@ class YourWallet implements Wallet {
 	get icon() {
 		return 'some-icon-data-url';
 	}
-	// Return the Sui chains that your wallet supports.
+	// Return the Iota chains that your wallet supports.
 	get chains() {
-		return [SUI_DEVNET_CHAIN];
+		return [IOTA_DEVNET_CHAIN];
 	}
 }
 ```
 
 ### Implementing features
 
-Features are standard methods consumers can use to interact with a wallet. To be listed in the Sui
+Features are standard methods consumers can use to interact with a wallet. To be listed in the Iota
 wallet adapter, you must implement the following features in your wallet:
 
 - `standard:connect` - Used to initiate a connection to the wallet.
 - `standard:events` - Used to listen for changes that happen within the wallet, such as accounts
   being added or removed.
-- `sui:signPersonalMessage` - Used to prompt the user to sign a personal message, and return the
+- `iota:signPersonalMessage` - Used to prompt the user to sign a personal message, and return the
   message signature back to the dApp. This can be used to verify the user’s public key.
-- `sui:signTransactionBlock` - Used to prompt the user to sign a transaction block, and return the
+- `iota:signTransactionBlock` - Used to prompt the user to sign a transaction block, and return the
   serialized transaction block and signature back to the dApp. This method does not submit the
   transaction block for execution.
-- `sui:signAndExecuteTransactionBlock` - Used to prompt the user to sign a transaction, then submit
+- `iota:signAndExecuteTransactionBlock` - Used to prompt the user to sign a transaction, then submit
   it for execution to the blockchain.
 
 You can implement these features in your wallet class under the `features` property:
@@ -57,16 +57,16 @@ import {
   ConnectMethod,
   EventsFeature,
   EventsOnMethod,
-  SuiFeatures,
-  SuiSignPersonalMessageMethod,
-  SuiSignTransactionBlockMethod,
-  SuiSignAndExecuteTransactionBlockMethod
-} from "@mysten/wallet-standard";
+  IotaFeatures,
+  IotaSignPersonalMessageMethod,
+  IotaSignTransactionBlockMethod,
+  IotaSignAndExecuteTransactionBlockMethod
+} from "@iota/wallet-standard";
 
 class YourWallet implements Wallet {
 	/* ... existing code from above ... */
 
-  get features(): ConnectFeature & EventsFeature & SuiFeatures {
+  get features(): ConnectFeature & EventsFeature & IotaFeatures {
     return {
       "standard:connect": {
         version: "1.0.0",
@@ -76,15 +76,15 @@ class YourWallet implements Wallet {
         version: "1.0.0",
         on: this.#on,
       },
-			"sui:signPersonalMessage": {
+			"iota:signPersonalMessage": {
         version: "1.0.0",
 				signPersonalMessage: this.#signPersonalMessage,
 			},
-      "sui:signTransactionBlock": {
+      "iota:signTransactionBlock": {
         version: "1.0.0",
         signTransactionBlock: this.#signTransactionBlock,
       },
-      "sui:signAndExecuteTransactionBlock": {
+      "iota:signAndExecuteTransactionBlock": {
         version: "1.0.0",
         signAndExecuteTransactionBlock: this.#signAndExecuteTransactionBlock,
       },
@@ -99,15 +99,15 @@ class YourWallet implements Wallet {
     // Your wallet's connect implementation
   };
 
-	#signPersonalMessage: SuiSignPersonalMessageMethod = () => {
+	#signPersonalMessage: IotaSignPersonalMessageMethod = () => {
     // Your wallet's signTransaction implementation
   };
 
-  #signTransactionBlock: SuiSignTransactionBlockMethod = () => {
+  #signTransactionBlock: IotaSignTransactionBlockMethod = () => {
     // Your wallet's signTransaction implementation
   };
 
-  #signAndExecuteTransactionBlock: SuiSignAndExecuteTransactionBlockMethod = () => {
+  #signAndExecuteTransactionBlock: IotaSignAndExecuteTransactionBlockMethod = () => {
     // Your wallet's signAndExecuteTransaction implementation
   };
 }
@@ -123,7 +123,7 @@ The accounts can use the `ReadonlyWalletAccount` class to easily construct an ac
 required interface.
 
 ```tsx
-import { ReadonlyWalletAccount } from '@mysten/wallet-standard';
+import { ReadonlyWalletAccount } from '@iota/wallet-standard';
 
 class YourWallet implements Wallet {
 	get accounts() {
@@ -132,16 +132,16 @@ class YourWallet implements Wallet {
 			(walletAccount) =>
 				// Return
 				new ReadonlyWalletAccount({
-					address: walletAccount.suiAddress,
+					address: walletAccount.iotaAddress,
 					publicKey: walletAccount.pubkey,
-					// The Sui chains that your wallet supports.
-					chains: [SUI_DEVNET_CHAIN],
+					// The Iota chains that your wallet supports.
+					chains: [IOTA_DEVNET_CHAIN],
 					// The features that this account supports. This can be a subset of the wallet's supported features.
 					// These features must exist on the wallet as well.
 					features: [
-						'sui:signPersonalMessage',
-						'sui:signTransactionBlock',
-						'sui:signAndExecuteTransactionBlock',
+						'iota:signPersonalMessage',
+						'iota:signTransactionBlock',
+						'iota:signAndExecuteTransactionBlock',
 					],
 				}),
 		);
@@ -155,7 +155,7 @@ Once you have a compatible interface for your wallet, you register it using the 
 function.
 
 ```tsx
-import { registerWallet } from '@mysten/wallet-standard';
+import { registerWallet } from '@iota/wallet-standard';
 
 registerWallet(new YourWallet());
 ```

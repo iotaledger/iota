@@ -1,7 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { WalletWithFeatures, WalletWithRequiredFeatures } from '@mysten/wallet-standard';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import type { WalletWithFeatures, WalletWithRequiredFeatures } from '@iota/wallet-standard';
 import type { ReactNode } from 'react';
 import { useRef } from 'react';
 import type { StateStorage } from 'zustand/middleware';

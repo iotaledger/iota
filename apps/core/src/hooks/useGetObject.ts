@@ -1,8 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSuiClient } from '@mysten/dapp-kit';
-import { normalizeSuiAddress } from '@mysten/sui.js/utils';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { useIotaClient } from '@iota/dapp-kit';
+import { normalizeIotaAddress } from '@iota/iota.js/utils';
 import { useQuery } from '@tanstack/react-query';
 
 const defaultOptions = {
@@ -15,8 +18,8 @@ const defaultOptions = {
 };
 
 export function useGetObject(objectId?: string | null) {
-    const client = useSuiClient();
-    const normalizedObjId = objectId && normalizeSuiAddress(objectId);
+    const client = useIotaClient();
+    const normalizedObjId = objectId && normalizeIotaAddress(objectId);
     return useQuery({
         queryKey: ['object', normalizedObjId],
         queryFn: () =>

@@ -1,7 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { KioskListing } from '@mysten/kiosk';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { KioskListing } from '@iota/kiosk';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 

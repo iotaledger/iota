@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module implements the checker for verifying correctness of function
 //! bodies. The overall verification is split between stack_usage_verifier.rs
 //! and abstract_interpreter.rs. CodeUnitVerifier simply orchestrates calls into

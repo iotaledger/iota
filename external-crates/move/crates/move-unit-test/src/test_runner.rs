@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use std::{collections::BTreeMap, io::Write, marker::Send, sync::Mutex, time::Instant};
 
 use anyhow::Result;

@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module defines the transfer functions for verifying consistency of each bytecode
 //! instruction, in particular, for the bytecode instructions that come in both generic and
 //! non-generic flavors. It also checks constraints on instructions like VecPack/VecUnpack.

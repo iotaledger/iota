@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! The obvious approach to abstracting a set of concrete paths is using a set
 //! of abstract paths. An access path trie represents a set of paths in a way
 //! that avoids redundant representations of the same memory. Root nodes are

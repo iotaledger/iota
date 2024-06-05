@@ -1,17 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type NetworkEnvType } from '_src/shared/api-env';
 import { fetchWithSentry } from '_src/shared/utils';
-import { Network } from '@mysten/sui.js/client';
-import { type PublicKey } from '@mysten/sui.js/cryptography';
-import { Ed25519Keypair } from '@mysten/sui.js/keypairs/ed25519';
+import { Network } from '@iota/iota.js/client';
+import { type PublicKey } from '@iota/iota.js/cryptography';
+import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
 import {
     generateNonce,
     generateRandomness,
     getExtendedEphemeralPublicKey,
     type getZkLoginSignature,
-} from '@mysten/zklogin';
+} from '@iota/zklogin';
 import { randomBytes } from '@noble/hashes/utils';
 import { base64url } from 'jose';
 import { v4 as uuidV4 } from 'uuid';

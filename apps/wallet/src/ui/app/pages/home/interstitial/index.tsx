@@ -1,9 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { ampli } from '_src/shared/analytics/ampli';
 import ExternalLink from '_src/ui/app/components/external-link';
-import { X32 } from '@mysten/icons';
+import { X32 } from '@iota/icons';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 

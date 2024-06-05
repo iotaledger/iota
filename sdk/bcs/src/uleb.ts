@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 // Helper utility: write number as an ULEB array.
 // Original code is taken from: https://www.npmjs.com/package/uleb128 (no longer exists)
 export function ulebEncode(num: number): number[] {

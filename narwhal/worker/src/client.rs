@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     net::Ipv4Addr,
@@ -89,7 +92,7 @@ impl LazyNarwhalClient {
 
     pub async fn get(&self) -> Arc<ArcSwap<LocalNarwhalClient>> {
         // Narwhal may not have started and created LocalNarwhalClient, so retry in a
-        // loop. Retries should only happen on Sui process start.
+        // loop. Retries should only happen on Iota process start.
         const NARWHAL_WORKER_START_TIMEOUT: Duration = Duration::from_secs(30);
         if let Ok(client) = timeout(NARWHAL_WORKER_START_TIMEOUT, async {
             loop {

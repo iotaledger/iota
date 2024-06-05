@@ -1,11 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 /// Demonstrates wrapping objects using the `Option` type.
 module simple_warrior::example {
     use std::option::{Self, Option};
-    use sui::object::{Self, UID};
-    use sui::tx_context::TxContext;
+    use iota::object::{Self, UID};
+    use iota::tx_context::TxContext;
 
     struct Sword has key, store {
         id: UID,
@@ -42,7 +45,7 @@ module simple_warrior::example {
     }
 
     // === Tests ===
-    #[test_only] use sui::test_scenario as ts;
+    #[test_only] use iota::test_scenario as ts;
 
     #[test]
     fun test_equip_empty() {

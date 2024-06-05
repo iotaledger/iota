@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use move_cli::base::test::{run_move_unit_tests, UnitTestResult};
 use move_core_types::account_address::AccountAddress;
 use move_stdlib::{

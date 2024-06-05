@@ -1,11 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Button, type ButtonProps } from '_app/shared/ButtonUI';
 import { useAppSelector } from '_hooks';
 import { getCustomNetwork } from '_src/shared/api-env';
-import { getNetwork } from '@mysten/sui.js/client';
-import { FaucetRateLimitError } from '@mysten/sui.js/faucet';
+import { getNetwork } from '@iota/iota.js/client';
+import { FaucetRateLimitError } from '@iota/iota.js/faucet';
 import { toast } from 'react-hot-toast';
 
 import FaucetMessageInfo from './FaucetMessageInfo';
@@ -46,7 +49,7 @@ function FaucetRequestButton({ variant = 'primary', size = 'narrow' }: FaucetReq
                 });
             }}
             loading={mutation.isMutating}
-            text={`Request ${networkConfig?.name} SUI Tokens`}
+            text={`Request ${networkConfig?.name} IOTA Tokens`}
         />
     ) : null;
 }

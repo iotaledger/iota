@@ -1,8 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { X12 } from '@mysten/icons';
-import { Text, IconButton } from '@mysten/ui';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { X12 } from '@iota/icons';
+import { Text, IconButton } from '@iota/ui';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { type ReactNode } from 'react';
 
@@ -16,7 +19,7 @@ const bannerStyles = cva(
                 positive: 'bg-success-light text-success-dark',
                 warning: 'bg-warning-light text-warning-dark',
                 error: 'bg-issue-light text-issue-dark',
-                message: 'bg-sui-light text-hero',
+                message: 'bg-iota-light text-hero',
                 neutralGrey: 'bg-steel text-white',
                 neutralWhite: 'bg-white/80 text-steel-darker',
             },
@@ -67,7 +70,7 @@ const bannerStyles = cva(
             {
                 variant: 'message',
                 border: true,
-                class: 'border border-sui/30',
+                class: 'border border-iota/30',
             },
             {
                 variant: 'neutralGrey',

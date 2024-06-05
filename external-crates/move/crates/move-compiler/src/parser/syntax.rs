@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 // In the informal grammar comments in this file, Comma<T> is shorthand for:
 //      (<T> ",")* <T>?
 // Note that this allows an optional trailing comma.

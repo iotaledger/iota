@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! This file implements several value representations to track values produced
 //! and consumed during the statement interpretation and expression evaluation
 //! process. The value representations are carefully designed to match the type

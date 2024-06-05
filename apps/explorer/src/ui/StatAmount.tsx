@@ -1,7 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Heading, Text } from '@mysten/ui';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { Heading, Text } from '@iota/ui';
 
 import { Amount, type AmountProps } from '~/ui/Amount';
 import { DateCard } from '~/ui/DateCard';

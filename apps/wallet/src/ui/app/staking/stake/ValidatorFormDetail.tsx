@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Card } from '_app/shared/card';
 import Alert from '_components/alert';
 import LoadingIndicator from '_components/loading/LoadingIndicator';
@@ -15,14 +18,14 @@ import {
     formatPercentageDisplay,
     useGetDelegatedStake,
     useGetValidatorsApy,
-} from '@mysten/core';
-import { useSuiClientQuery } from '@mysten/dapp-kit';
+} from '@iota/core';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import { useActiveAddress } from '../../hooks/useActiveAddress';
-import { getStakeSuiBySuiId } from '../getStakeSuiBySuiId';
-import { getTokenStakeSuiForValidator } from '../getTokenStakeSuiForValidator';
+import { getStakeIotaByIotaId } from '../getStakeIotaByIotaId';
+import { getTokenStakeIotaForValidator } from '../getTokenStakeIotaForValidator';
 import { StakeAmount } from '../home/StakeAmount';
 import { ValidatorLogo } from '../validators/ValidatorLogo';
 
@@ -40,7 +43,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
         data: system,
         isPending: loadingValidators,
         isError: errorValidators,
-    } = useSuiClientQuery('getLatestSuiSystemState');
+    } = useIotaClientQuery('getLatestIotaSystemState');
 
     const {
         data: stakeData,
@@ -57,23 +60,23 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
 
     const validatorData = useMemo(() => {
         if (!system) return null;
-        return system.activeValidators.find((av) => av.suiAddress === validatorAddress);
+        return system.activeValidators.find((av) => av.iotaAddress === validatorAddress);
     }, [validatorAddress, system]);
 
     //TODO: verify this is the correct validator stake balance
-    const totalValidatorStake = validatorData?.stakingPoolSuiBalance || 0;
+    const totalValidatorStake = validatorData?.stakingPoolIotaBalance || 0;
 
     const totalStake = useMemo(() => {
         if (!stakeData) return 0n;
         return unstake
-            ? getStakeSuiBySuiId(stakeData, stakeIdParams)
-            : getTokenStakeSuiForValidator(stakeData, validatorAddress);
+            ? getStakeIotaByIotaId(stakeData, stakeIdParams)
+            : getTokenStakeIotaForValidator(stakeData, validatorAddress);
     }, [stakeData, stakeIdParams, unstake, validatorAddress]);
 
     const totalValidatorsStake = useMemo(() => {
         if (!system) return 0;
         return system.activeValidators.reduce(
-            (acc, curr) => (acc += BigInt(curr.stakingPoolSuiBalance)),
+            (acc, curr) => (acc += BigInt(curr.stakingPoolIotaBalance)),
             0n,
         );
     }, [system]);
@@ -82,7 +85,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
         if (!system || !validatorData) return null;
 
         return calculateStakeShare(
-            BigInt(validatorData.stakingPoolSuiBalance),
+            BigInt(validatorData.stakingPoolIotaBalance),
             BigInt(totalValidatorsStake),
         );
     }, [system, totalValidatorsStake, validatorData]);
@@ -129,7 +132,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
                         !unstake && (
                             <>
                                 <Text variant="body" weight="medium" color="steel-darker">
-                                    Your Staked SUI
+                                    Your Staked IOTA
                                 </Text>
 
                                 <StakeAmount balance={totalStake} variant="body" />
@@ -177,7 +180,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
                                     </Text>
                                     <IconTooltip
                                         noFullWidth
-                                        tip="The total SUI staked on the network by this validator and its delegators, to validate the network and earn rewards."
+                                        tip="The total IOTA staked on the network by this validator and its delegators, to validate the network and earn rewards."
                                     />
                                 </div>
                                 <StakeAmount balance={totalValidatorStake} variant="body" />

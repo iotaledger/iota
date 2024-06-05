@@ -91,7 +91,7 @@ export function RecoverManyPage() {
                     }
                     setRecoverInfo(null);
                 }}
-                background="bg-sui-lightest"
+                background="bg-iota-lightest"
             >
                 <div className="flex h-full w-full flex-col flex-nowrap gap-4 text-center">
                     <Text variant="pBody" color="gray-90">

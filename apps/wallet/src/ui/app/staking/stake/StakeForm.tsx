@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Card } from '_app/shared/card';
 import { Text } from '_app/shared/text';
 import NumberInput from '_components/number-input';
@@ -9,7 +12,7 @@ import {
     NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_STARTS,
 } from '_src/shared/constants';
 import { CountDownTimer } from '_src/ui/app/shared/countdown-timer';
-import { useCoinMetadata, useFormatCoin, useGetTimeBeforeEpochNumber } from '@mysten/core';
+import { useCoinMetadata, useFormatCoin, useGetTimeBeforeEpochNumber } from '@iota/core';
 import { Field, Form, useFormikContext } from 'formik';
 import { memo, useCallback, useMemo } from 'react';
 
@@ -65,7 +68,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
         <Form className="flex flex-1 flex-col flex-nowrap items-center" autoComplete="off">
             <div className="mb-3 mt-3.5 flex w-full flex-col items-center justify-between gap-1.5">
                 <Text variant="caption" color="gray-85" weight="semibold">
-                    Enter the amount of SUI to stake
+                    Enter the amount of IOTA to stake
                 </Text>
                 <Text variant="bodySmall" color="steel" weight="medium">
                     Available - {maxToken} {symbol}

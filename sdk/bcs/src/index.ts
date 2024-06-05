@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 /*
  * BCS implementation {@see https://github.com/diem/bcs } for JavaScript.
  * Intended to be used for Move applications; supports both NodeJS and browser.

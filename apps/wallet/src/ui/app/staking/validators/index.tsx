@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import Alert from '_components/alert';
 import Loading from '_components/loading';
 import Overlay from '_components/overlay';
@@ -8,7 +11,7 @@ import {
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
 } from '_src/shared/constants';
-import { useGetDelegatedStake } from '@mysten/core';
+import { useGetDelegatedStake } from '@iota/core';
 import { useNavigate } from 'react-router-dom';
 
 import { useActiveAddress } from '../../hooks/useActiveAddress';
@@ -30,7 +33,7 @@ export function Validators() {
 
     const navigate = useNavigate();
 
-    const pageTitle = stakedValidators?.length ? 'Stake & Earn SUI' : 'Select a Validator';
+    const pageTitle = stakedValidators?.length ? 'Stake & Earn IOTA' : 'Select a Validator';
 
     return (
         <Overlay

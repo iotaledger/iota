@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import * as RadixDialog from '@radix-ui/react-dialog';
 import { cx } from 'class-variance-authority';
 import * as React from 'react';

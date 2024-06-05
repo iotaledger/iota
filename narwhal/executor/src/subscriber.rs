@@ -1,5 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -13,7 +16,7 @@ use fastcrypto::hash::Hash;
 use futures::{stream::FuturesOrdered, StreamExt};
 use mysten_metrics::{metered_channel, spawn_logged_monitored_task};
 use network::{client::NetworkClient, PrimaryToWorkerClient};
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info};
 use types::{

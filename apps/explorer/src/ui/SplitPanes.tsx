@@ -1,7 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { ChevronLeft12, ChevronUp12 } from '@mysten/icons';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { ChevronLeft12, ChevronUp12 } from '@iota/icons';
 import { cva, type VariantProps } from 'class-variance-authority';
 import clsx from 'clsx';
 import { type ReactNode, useRef, useState } from 'react';

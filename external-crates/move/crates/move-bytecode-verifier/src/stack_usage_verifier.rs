@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module implements a checker for verifying that basic blocks in the
 //! bytecode instruction sequence of a function use the evaluation stack in a
 //! balanced manner. Every basic block, except those that end in Ret (return to

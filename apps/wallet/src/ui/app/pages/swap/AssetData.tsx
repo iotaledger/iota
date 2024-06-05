@@ -1,11 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 import { Heading } from '_app/shared/heading';
 import { Text } from '_app/shared/text';
 import { ButtonOrLink } from '_app/shared/utils/ButtonOrLink';
 import { CoinIcon } from '_components/coin-icon';
 import { DescriptionItem } from '_pages/approval-request/transaction-request/DescriptionList';
-import { ChevronDown16 } from '@mysten/icons';
+import { ChevronDown16 } from '@iota/icons';
 
 export function AssetData({
     tokenBalance,

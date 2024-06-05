@@ -1,8 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { isSuiNSName } from '@mysten/core';
-import { formatAddress, formatDigest } from '@mysten/sui.js/utils';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { isIotaNSName } from '@iota/core';
+import { formatAddress, formatDigest } from '@iota/iota.js/utils';
 import { type ReactNode } from 'react';
 
 import { Link, type LinkProps } from '~/ui/Link';
@@ -41,7 +44,7 @@ export const EpochLink = createInternalLink('epoch', 'epoch');
 export const CheckpointLink = createInternalLink('checkpoint', 'digest', formatAddress);
 export const CheckpointSequenceLink = createInternalLink('checkpoint', 'sequence');
 export const AddressLink = createInternalLink('address', 'address', (addressOrNs) => {
-    if (isSuiNSName(addressOrNs)) {
+    if (isIotaNSName(addressOrNs)) {
         return addressOrNs;
     }
     return formatAddress(addressOrNs);

@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use anyhow::Result;
 use move_core_types::{account_address::AccountAddress, errmap::ErrorMapping};
 use move_stdlib::natives::{all_natives, nursery_natives, GasParameters, NurseryGasParameters};

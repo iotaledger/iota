@@ -1,9 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useGetDynamicFields, useOnScreen } from '@mysten/core';
-import { type DynamicFieldInfo } from '@mysten/sui.js/client';
-import { LoadingIndicator } from '@mysten/ui';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { useGetDynamicFields, useOnScreen } from '@iota/core';
+import { type DynamicFieldInfo } from '@iota/iota.js/client';
+import { LoadingIndicator } from '@iota/ui';
 import { useRef, useEffect, useState, useMemo } from 'react';
 
 import { UnderlyingObjectCard } from './UnderlyingObjectCard';

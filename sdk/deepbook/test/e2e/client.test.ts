@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { DeepBookClient } from '../../src';
@@ -11,7 +14,7 @@ import {
     executeTransactionBlock,
     setupDeepbookAccount,
     setupPool,
-    setupSuiClient,
+    setupIotaClient,
     TestToolbox,
 } from './setup';
 
@@ -26,7 +29,7 @@ describe('Interacting with the pool', () => {
     let accountCapId2: string;
 
     beforeAll(async () => {
-        toolbox = await setupSuiClient();
+        toolbox = await setupIotaClient();
     });
 
     it('test creating a pool', async () => {
@@ -191,10 +194,10 @@ describe('Interacting with the pool', () => {
         expect(openOrdersAfter.length).toBe(0);
     });
 
-    it('Test parsing sui coin id', async () => {
+    it('Test parsing iota coin id', async () => {
         const deepbook = new DeepBookClient(toolbox.client, accountCapId);
         const resp = await toolbox.client.getCoins({
-            owner: toolbox.keypair.getPublicKey().toSuiAddress(),
+            owner: toolbox.keypair.getPublicKey().toIotaAddress(),
             coinType: pool.baseAsset,
         });
         const baseCoin = resp.data[0].coinObjectId;

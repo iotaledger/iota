@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type Config } from 'tailwindcss';
 import colors from 'tailwindcss/colors';
 import { fontFamily } from 'tailwindcss/defaultTheme';
@@ -35,7 +38,7 @@ export default {
                 35: '#FEFEFE',
             },
 
-            sui: {
+            iota: {
                 DEFAULT: '#6fbcf0',
                 bright: '#2A38EB',
                 light: '#E1F3FF',

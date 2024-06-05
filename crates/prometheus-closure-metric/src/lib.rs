@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 // Copyright 2014 The Prometheus Authors
 // Copyright 2019 TiKV Project Authors. Licensed under Apache-2.0.
 

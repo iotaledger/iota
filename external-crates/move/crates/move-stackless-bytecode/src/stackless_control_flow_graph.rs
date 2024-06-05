@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! Adapted from control_flow_graph for Bytecode, this module defines the
 //! control-flow graph on Stackless Bytecode used in analysis as part of Move
 //! prover.

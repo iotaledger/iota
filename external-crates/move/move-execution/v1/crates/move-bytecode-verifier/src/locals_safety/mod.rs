@@ -2,6 +2,9 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module defines the transfer functions for verifying local safety of a procedure body.
 //! It is concerned with the assignment state of a local variable at the time of usage, which is
 //! a control flow sensitive check.

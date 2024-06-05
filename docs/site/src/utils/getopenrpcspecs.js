@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
@@ -20,7 +23,7 @@ const downloadFile = (branch) => {
     }
     axios({
         method: "get",
-        url: `https://raw.githubusercontent.com/MystenLabs/sui/${branch}/crates/sui-open-rpc/spec/openrpc.json`,
+        url: `https://raw.githubusercontent.com/iotaledger/iota/${branch}/crates/iota-open-rpc/spec/openrpc.json`,
         responseType: "blob"
     }).then((res) => {
         if (fs.existsSync(path.join(__dirname, `../open-spec/${branch}/openrpc_backup.json`))){

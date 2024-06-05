@@ -1,5 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 import React from "react";
 import { isMultiColumnFooterLinks } from "@docusaurus/theme-common";
 import FooterLinksMultiColumn from "@theme/Footer/Links/MultiColumn";

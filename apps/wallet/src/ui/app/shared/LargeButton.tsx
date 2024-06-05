@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import LoadingIndicator from '_components/loading/LoadingIndicator';
 import clsx from 'clsx';
 import { forwardRef, type ReactNode, type Ref } from 'react';
@@ -57,8 +60,8 @@ export const LargeButton = forwardRef(
                     'group flex items-center justify-between rounded-md border border-solid border-transparent px-8 py-2 no-underline',
                     disabled
                         ? 'pointer-events-none bg-hero-darkest/5'
-                        : 'bg-white/80 hover:border-sui/10',
-                    primary ? '!bg-sui-primaryBlue2023' : '',
+                        : 'bg-white/80 hover:border-iota/10',
+                    primary ? '!bg-iota-primaryBlue2023' : '',
                     spacing === 'sm' && '!p-3',
                     className,
                 )}

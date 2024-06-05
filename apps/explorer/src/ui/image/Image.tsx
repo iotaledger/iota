@@ -1,8 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { EyeClose16, NftTypeImage24 } from '@mysten/icons';
-import { LoadingIndicator } from '@mysten/ui';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { EyeClose16, NftTypeImage24 } from '@iota/icons';
+import { LoadingIndicator } from '@iota/ui';
 import { cva, cx, type VariantProps } from 'class-variance-authority';
 import clsx from 'clsx';
 import { useAnimate } from 'framer-motion';

@@ -1,7 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import preset from '@mysten/core/tailwind.config';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import preset from '@iota/core/tailwind.config';
 import { type Config } from 'tailwindcss';
 
 export default {

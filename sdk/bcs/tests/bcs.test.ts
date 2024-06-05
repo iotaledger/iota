@@ -1,20 +1,23 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { describe, expect, it } from 'vitest';
 
-import { BCS, fromB64, getSuiMoveConfig } from './../src/index';
+import { BCS, fromB64, getIotaMoveConfig } from './../src/index';
 
 describe('BCS: Primitives', () => {
     it('should de/ser primitives: u8', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
 
         expect(bcs.de('u8', fromB64('AQ=='))).toEqual(1);
         expect(bcs.de('u8', fromB64('AA=='))).toEqual(0);
     });
 
     it('should ser/de u64', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
 
         const exp = 'AO/Nq3hWNBI=';
         const num = '1311768467750121216';
@@ -25,7 +28,7 @@ describe('BCS: Primitives', () => {
     });
 
     it('should ser/de u128', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
 
         const sample = 'AO9ld3CFjD48AAAAAAAAAA==';
         const num = BigInt('1111311768467750121216');
@@ -35,7 +38,7 @@ describe('BCS: Primitives', () => {
     });
 
     it('should de/ser custom objects', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
 
         bcs.registerStructType('Coin', {
             value: BCS.U64,
@@ -57,7 +60,7 @@ describe('BCS: Primitives', () => {
     });
 
     it('should de/ser vectors', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
 
         // Rust-bcs generated vector with 1000 u8 elements (FF)
         const sample = largebcsVec();
@@ -74,7 +77,7 @@ describe('BCS: Primitives', () => {
     });
 
     it('should de/ser enums', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
 
         bcs.registerStructType('Coin', { value: 'u64' });
         bcs.registerEnumType('Enum', {
@@ -101,7 +104,7 @@ describe('BCS: Primitives', () => {
 
     it('should de/ser addresses', () => {
         const bcs = new BCS(
-            Object.assign(getSuiMoveConfig(), {
+            Object.assign(getIotaMoveConfig(), {
                 addressLength: 16,
                 addressEncoding: 'hex',
             }),
@@ -127,7 +130,7 @@ describe('BCS: Primitives', () => {
     });
 
     it('should support growing size', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
 
         bcs.registerStructType('Coin', {
             value: BCS.U64,
@@ -149,7 +152,7 @@ describe('BCS: Primitives', () => {
     });
 
     it('should error when attempting to grow beyond the allowed size', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
 
         bcs.registerStructType('Coin', {
             value: BCS.U64,

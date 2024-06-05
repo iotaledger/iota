@@ -1,8 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { registerWallet } from '@mysten/wallet-standard';
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 
-import { SuiWallet } from './WalletStandardInterface';
+import { registerWallet } from '@iota/wallet-standard';
 
-registerWallet(new SuiWallet());
+import { IotaWallet } from './WalletStandardInterface';
+
+registerWallet(new IotaWallet());

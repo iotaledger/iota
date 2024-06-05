@@ -1,6 +1,9 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 use std::{collections::HashMap, net::Ipv4Addr, sync::Arc, thread::sleep, time::Duration};
 
 use anemo::{
@@ -26,7 +29,7 @@ use network::{
     metrics::MetricsMakeCallbackHandler,
 };
 use store::rocks::DBMap;
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 use tap::TapFallible;
 use tokio::task::JoinHandle;
 use tower::ServiceBuilder;
