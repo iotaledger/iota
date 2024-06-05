@@ -371,8 +371,6 @@ impl UnlockObjectTestResult {
 }
 
 enum ExpectedAssets {
-    // TODO: Remove lint exception once the variant is used
-    #[allow(dead_code)]
     BalanceBag,
     BalanceBagObject,
 }
