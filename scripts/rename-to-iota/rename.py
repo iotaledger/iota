@@ -35,7 +35,7 @@ REPLACE_MAP = (
 
 REPLACE_DICT = dict(REPLACE_MAP)
 
-# I list of things to not replace if they occur, especially words containing 'mist'
+# A list of things to not replace if they occur, especially words containing 'mist'
 CASE_INSENSITIVE_IGNORE_REPLACE = ('mistakes', 'optimistic', 'optimist', 'optimistically', 'testsuite', 'test_suite', 'test-suite', 'lawsuit', 'suitable', 'mistic', 'minimist', 'headlessui')
 
 # Make a mapping of to ignore file name replacements for use later on
