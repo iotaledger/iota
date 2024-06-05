@@ -196,7 +196,9 @@ mod tests {
     };
 
     use super::*;
-    use crate::stardust::native_token::package_builder;
+    use crate::stardust::{
+        native_token::package_builder, types::token_scheme::MAX_ALLOWED_U64_SUPPLY,
+    };
 
     #[test]
     fn foundry_output_with_default_metadata() -> Result<()> {
@@ -274,7 +276,7 @@ mod tests {
 
     #[test]
     fn foundry_output_with_exceeding_max_supply() -> Result<()> {
-        let minted_tokens = U256::from(u64::MAX).add(1);
+        let minted_tokens = U256::from(MAX_ALLOWED_U64_SUPPLY).add(1);
         let melted_tokens = U256::from(1);
         let maximum_supply = U256::MAX;
 
@@ -308,7 +310,10 @@ mod tests {
             native_token_data.module().circulating_supply,
             minted_tokens.sub(melted_tokens).as_u64()
         );
-        assert_eq!(native_token_data.module().maximum_supply, u64::MAX);
+        assert_eq!(
+            native_token_data.module().maximum_supply,
+            MAX_ALLOWED_U64_SUPPLY
+        );
 
         // Step 3: Verify the conversion
         assert!(package_builder::build_and_compile(native_token_data).is_ok());
@@ -349,8 +354,14 @@ mod tests {
         // Step 2: Convert the FoundryOutput to NativeTokenPackageData.
         let native_token_data = NativeTokenPackageData::try_from(&output)?;
 
-        assert_eq!(native_token_data.module().circulating_supply, u64::MAX);
-        assert_eq!(native_token_data.module().maximum_supply, u64::MAX);
+        assert_eq!(
+            native_token_data.module().circulating_supply,
+            MAX_ALLOWED_U64_SUPPLY
+        );
+        assert_eq!(
+            native_token_data.module().maximum_supply,
+            MAX_ALLOWED_U64_SUPPLY
+        );
 
         // Step 3: Verify the conversion
         assert!(package_builder::build_and_compile(native_token_data).is_ok());

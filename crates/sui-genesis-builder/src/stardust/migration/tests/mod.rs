@@ -3,6 +3,7 @@
 
 use std::{collections::HashMap, str::FromStr};
 
+use anyhow::{anyhow, bail, ensure};
 use iota_sdk::types::block::{
     address::AliasAddress,
     output::{
@@ -54,10 +55,10 @@ fn random_output_header() -> OutputHeader {
 
 fn run_migration(
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
-) -> (Executor, HashMap<OutputId, CreatedObjects>) {
-    let mut migration = Migration::new(1).unwrap();
-    migration.run_migration(outputs).unwrap();
-    migration.into_parts()
+) -> anyhow::Result<(Executor, HashMap<OutputId, CreatedObjects>)> {
+    let mut migration = Migration::new(1)?;
+    migration.run_migration(outputs)?;
+    Ok(migration.into_parts())
 }
 
 fn create_foundry(
@@ -65,18 +66,16 @@ fn create_foundry(
     token_scheme: SimpleTokenScheme,
     irc_30_metadata: Irc30Metadata,
     alias_id: AliasId,
-) -> (OutputHeader, FoundryOutput) {
+) -> anyhow::Result<(OutputHeader, FoundryOutput)> {
     let builder =
         FoundryOutputBuilder::new_with_amount(iota_amount, 1, TokenScheme::Simple(token_scheme))
             .add_unlock_condition(ImmutableAliasAddressUnlockCondition::new(
                 AliasAddress::new(alias_id),
             ))
-            .add_feature(Feature::Metadata(
-                MetadataFeature::new(irc_30_metadata).unwrap(),
-            ));
-    let foundry_output = builder.finish().unwrap();
+            .add_feature(Feature::Metadata(MetadataFeature::new(irc_30_metadata)?));
+    let foundry_output = builder.finish()?;
 
-    (random_output_header(), foundry_output)
+    Ok((random_output_header(), foundry_output))
 }
 
 /// Test that an Object owned by another Object (not to be confused with
@@ -92,8 +91,8 @@ fn object_migration_with_object_owner(
     output_owner_module_name: &IdentStr,
     output_owned_module_name: &IdentStr,
     unlock_condition_function: &IdentStr,
-) {
-    let (mut executor, objects_map) = run_migration(outputs);
+) -> anyhow::Result<()> {
+    let (mut executor, objects_map) = run_migration(outputs)?;
 
     // Find the corresponding objects to the migrated outputs.
     let owner_created_objects = objects_map
@@ -105,20 +104,18 @@ fn object_migration_with_object_owner(
 
     let owner_output_object_ref = executor
         .store()
-        .get_object(owner_created_objects.output().unwrap())
-        .unwrap()
+        .get_object(owner_created_objects.output()?)
+        .ok_or_else(|| anyhow!("missing owner-created output"))?
         .compute_object_reference();
     let owned_output_object_ref = executor
         .store()
-        .get_object(owned_created_objects.output().unwrap())
-        .unwrap()
+        .get_object(owned_created_objects.output()?)
+        .ok_or_else(|| anyhow!("missing owned created output"))?
         .compute_object_reference();
 
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        let owner_arg = builder
-            .obj(ObjectArg::ImmOrOwnedObject(owner_output_object_ref))
-            .unwrap();
+        let owner_arg = builder.obj(ObjectArg::ImmOrOwnedObject(owner_output_object_ref))?;
 
         let extracted_assets = builder.programmable_move_call(
             STARDUST_PACKAGE_ID,
@@ -129,15 +126,13 @@ fn object_migration_with_object_owner(
         );
 
         let Argument::Result(result_idx) = extracted_assets else {
-            panic!("expected Argument::Result");
+            bail!("expected Argument::Result");
         };
         let balance_arg = Argument::NestedResult(result_idx, 0);
         let bag_arg = Argument::NestedResult(result_idx, 1);
         let owned_arg = Argument::NestedResult(result_idx, 2);
 
-        let receiving_owned_arg = builder
-            .obj(ObjectArg::Receiving(owned_output_object_ref))
-            .unwrap();
+        let receiving_owned_arg = builder.obj(ObjectArg::Receiving(owned_output_object_ref))?;
         let received_owned_output = builder.programmable_move_call(
             STARDUST_PACKAGE_ID,
             ident_str!("address_unlock_condition").into(),
@@ -150,7 +145,9 @@ fn object_migration_with_object_owner(
             SUI_FRAMEWORK_PACKAGE_ID,
             ident_str!("coin").into(),
             ident_str!("from_balance").into(),
-            vec![TypeTag::from_str(&format!("{SUI_FRAMEWORK_PACKAGE_ID}::sui::SUI")).unwrap()],
+            vec![TypeTag::from_str(&format!(
+                "{SUI_FRAMEWORK_PACKAGE_ID}::sui::SUI"
+            ))?],
             vec![balance_arg],
         );
 
@@ -177,7 +174,7 @@ fn object_migration_with_object_owner(
             vec![received_owned_output],
         );
         let Argument::Result(result_idx) = extracted_assets else {
-            panic!("expected Argument::Result");
+            bail!("expected Argument::Result");
         };
         let balance_arg = Argument::NestedResult(result_idx, 0);
         let bag_arg = Argument::NestedResult(result_idx, 1);
@@ -187,7 +184,9 @@ fn object_migration_with_object_owner(
             SUI_FRAMEWORK_PACKAGE_ID,
             ident_str!("coin").into(),
             ident_str!("from_balance").into(),
-            vec![TypeTag::from_str(&format!("{SUI_FRAMEWORK_PACKAGE_ID}::sui::SUI")).unwrap()],
+            vec![TypeTag::from_str(&format!(
+                "{SUI_FRAMEWORK_PACKAGE_ID}::sui::SUI"
+            ))?],
             vec![balance_arg],
         );
 
@@ -218,7 +217,8 @@ fn object_migration_with_object_owner(
             .chain(executor.load_packages(PACKAGE_DEPS))
             .collect(),
     );
-    executor.execute_pt_unmetered(input_objects, pt).unwrap();
+    executor.execute_pt_unmetered(input_objects, pt)?;
+    Ok(())
 }
 
 /// Test that an Output that owns Native Tokens can extract those tokens from
@@ -228,10 +228,10 @@ fn extract_native_token_from_bag(
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
     module_name: &IdentStr,
     native_token: NativeToken,
-) {
+) -> anyhow::Result<()> {
     let native_token_id: &TokenId = native_token.token_id();
 
-    let (mut executor, objects_map) = run_migration(outputs);
+    let (mut executor, objects_map) = run_migration(outputs)?;
 
     // Find the corresponding objects to the migrated output.
     let output_created_objects = objects_map
@@ -240,20 +240,21 @@ fn extract_native_token_from_bag(
 
     let output_object_ref = executor
         .store()
-        .get_object(output_created_objects.output().unwrap())
-        .unwrap()
+        .get_object(output_created_objects.output()?)
+        .ok_or_else(|| anyhow!("missing output-created output"))?
         .compute_object_reference();
 
     // Recreate the key under which the tokens are stored in the bag.
-    let foundry_ledger_data = executor.native_tokens().get(native_token_id).unwrap();
+    let foundry_ledger_data = executor
+        .native_tokens()
+        .get(native_token_id)
+        .ok_or_else(|| anyhow!("missing native token {native_token_id}"))?;
     let token_type = foundry_ledger_data.canonical_coin_type();
-    let token_type_tag = token_type.parse::<TypeTag>().unwrap();
+    let token_type_tag = token_type.parse::<TypeTag>()?;
 
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        let inner_object_arg = builder
-            .obj(ObjectArg::ImmOrOwnedObject(output_object_ref))
-            .unwrap();
+        let inner_object_arg = builder.obj(ObjectArg::ImmOrOwnedObject(output_object_ref))?;
 
         let extracted_assets = builder.programmable_move_call(
             STARDUST_PACKAGE_ID,
@@ -264,7 +265,7 @@ fn extract_native_token_from_bag(
         );
 
         let Argument::Result(result_idx) = extracted_assets else {
-            panic!("expected Argument::Result");
+            bail!("expected Argument::Result");
         };
         let balance_arg = Argument::NestedResult(result_idx, 0);
         let bag_arg = Argument::NestedResult(result_idx, 1);
@@ -283,7 +284,7 @@ fn extract_native_token_from_bag(
         builder.transfer_arg(SuiAddress::default(), coin_arg);
         builder.transfer_arg(SuiAddress::default(), inner_arg);
 
-        let token_type_arg = builder.pure(token_type.clone()).unwrap();
+        let token_type_arg = builder.pure(token_type.clone())?;
         let balance_arg = builder.programmable_move_call(
             SUI_FRAMEWORK_PACKAGE_ID,
             ident_str!("bag").into(),
@@ -326,8 +327,7 @@ fn extract_native_token_from_bag(
             .chain(executor.load_packages(PACKAGE_DEPS))
             .collect(),
     );
-    let InnerTemporaryStore { written, .. } =
-        executor.execute_pt_unmetered(input_objects, pt).unwrap();
+    let InnerTemporaryStore { written, .. } = executor.execute_pt_unmetered(input_objects, pt)?;
 
     let coin_token_struct_tag = Coin::type_(token_type_tag);
     let coin_token = written
@@ -337,10 +337,17 @@ fn extract_native_token_from_bag(
                 .map(|tag| tag == coin_token_struct_tag)
                 .unwrap_or(false)
         })
-        .and_then(|obj| obj.as_coin_maybe())
-        .expect("coin token object should exist");
+        .ok_or_else(|| anyhow!("missing coin object"))
+        .and_then(|obj| {
+            obj.as_coin_maybe()
+                .ok_or_else(|| anyhow!("object is not a coin"))
+        })?;
 
-    assert_eq!(coin_token.balance.value(), native_token.amount().as_u64());
+    ensure!(
+        coin_token.balance.value() == native_token.amount().as_u64(),
+        "coin token balance does not match original native token amount"
+    );
+    Ok(())
 }
 
 enum UnlockObjectTestResult {
@@ -366,8 +373,8 @@ fn unlock_object_test(
     module_name: &IdentStr,
     epoch_start_timestamp_ms: u64,
     expected_test_result: UnlockObjectTestResult,
-) {
-    let (migration_executor, objects_map) = run_migration(outputs);
+) -> anyhow::Result<()> {
+    let (migration_executor, objects_map) = run_migration(outputs)?;
 
     // Recreate the TxContext and Executor so we can set a timestamp greater than 0.
     let tx_context = TxContext::new(
@@ -416,7 +423,7 @@ fn unlock_object_test(
         );
 
         let Argument::Result(result_idx) = extracted_assets else {
-            panic!("expected Argument::Result");
+            bail!("expected Argument::Result");
         };
         let balance_arg = Argument::NestedResult(result_idx, 0);
         let bag_arg = Argument::NestedResult(result_idx, 1);
@@ -448,32 +455,32 @@ fn unlock_object_test(
     let result = executor.execute_pt_unmetered(input_objects, pt);
 
     match (result, expected_test_result) {
-        (Ok(_), UnlockObjectTestResult::Success) => (),
+        (Ok(_), UnlockObjectTestResult::Success) => Ok(()),
         (Ok(_), UnlockObjectTestResult::Failure(_)) => {
-            panic!("expected test failure, but test suceeded")
+            bail!("expected test failure, but test suceeded")
         }
         (Err(err), UnlockObjectTestResult::Success) => {
-            panic!("expected test success, but test failed: {err}")
+            bail!("expected test success, but test failed: {err}")
         }
         (Err(err), UnlockObjectTestResult::Failure(expected_sub_status)) => {
             for cause in err.chain() {
                 match cause.downcast_ref::<VMError>() {
                     Some(vm_error) => {
-                        assert_eq!(vm_error.major_status(), StatusCode::ABORTED);
+                        ensure!(vm_error.major_status() == StatusCode::ABORTED);
                         let actual_sub_status = vm_error
                             .sub_status()
                             .expect("sub_status should be set for aborts");
-                        assert_eq!(
-                            actual_sub_status, expected_sub_status,
+                        ensure!(
+                            actual_sub_status == expected_sub_status,
                             "actual vm sub_status {actual_sub_status} did not match expected sub_status {expected_sub_status}"
                         );
                         // Finish test successfully.
-                        return;
+                        return Ok(());
                     }
                     None => continue,
                 }
             }
-            panic!(
+            bail!(
                 "expected test failure, but failed to find expected VMError in error chain, got: {err}"
             );
         }
