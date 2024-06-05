@@ -35,7 +35,6 @@ export function AccountDropdownMenu({ currentAccount }: AccountDropdownMenuProps
     const accounts = useAccounts();
 
     return (
-        // eslint-disable-next-line prettier/prettier
         <DropdownMenu.Root modal={false}>
             <StyleMarker>
                 <DropdownMenu.Trigger asChild>

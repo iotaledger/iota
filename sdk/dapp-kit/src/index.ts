@@ -31,3 +31,4 @@ export * from './themes/lightTheme.js';
 export * from './types.js';
 
 export type { Theme, ThemeVars, DynamicTheme } from './themes/themeContract.js';
+export { getSelectedAccount } from './utils/getSelectedAccount.js';

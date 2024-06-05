@@ -3,15 +3,15 @@
 
 import type { StandardConnectOutput } from '@wallet-standard/core';
 
-export type StandardReconnectForceVersion = '1.0.0';
+export type SuiReconnectForceVersion = '1.0.0';
 
-export const StandardReconnectForce = 'standard:reconnectForce';
+export const SuiReconnectForce = 'sui:reconnectForce';
 
 export type StandardReconnectForceFeature = {
     /** Name of the feature. */
-    readonly [StandardReconnectForce]: {
+    readonly [SuiReconnectForce]: {
         /** Version of the feature implemented by the Wallet. */
-        readonly version: StandardReconnectForceVersion;
+        readonly version: SuiReconnectForceVersion;
         /** Method to call to use the feature. */
         readonly reconnect: (input: { origin: string }) => Promise<StandardConnectOutput>;
     };

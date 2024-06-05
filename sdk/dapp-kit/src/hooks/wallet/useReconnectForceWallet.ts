@@ -11,25 +11,31 @@ import { walletMutationKeys } from '../../constants/walletMutationKeys.js';
 import { WalletNotConnectedError } from '../../errors/walletErrors.js';
 import { useCurrentWallet } from './useCurrentWallet.js';
 import { useWalletStore } from './useWalletStore.js';
-import { isSupportedChain } from '@mysten/wallet-standard';
-import type { StandardConnectInput, StandardConnectOutput } from '@mysten/wallet-standard';
 import type {
-    WalletAccount,
+    StandardConnectInput,
+    StandardConnectOutput,
     StandardReconnectForceFeature,
     WalletWithRequiredFeatures,
 } from '@mysten/wallet-standard';
+import { isSupportedChain } from '@mysten/wallet-standard';
+import { getSelectedAccount } from '../../utils/getSelectedAccount.js';
 
-type UseDisconnectWalletError = WalletNotConnectedError | Error;
+type UseReconnectForceError = WalletNotConnectedError | Error;
 
-type ConnectWalletArgs = {
+type ReconnectForceWalletArgs = {
     /** An optional account address to connect to. Defaults to the first authorized account. */
     accountAddress?: string;
 } & StandardConnectInput;
 
-type ConnectWalletResult = StandardConnectOutput;
+type ReconnectForceWalletResult = StandardConnectOutput;
 
-type UseDisconnectWalletMutationOptions = Omit<
-    UseMutationOptions<ConnectWalletResult, UseDisconnectWalletError, ConnectWalletArgs, unknown>,
+type UseReconnectForceWalletMutationOptions = Omit<
+    UseMutationOptions<
+        ReconnectForceWalletResult,
+        UseReconnectForceError,
+        ReconnectForceWalletArgs,
+        unknown
+    >,
     'mutationFn'
 >;
 
@@ -39,10 +45,10 @@ type UseDisconnectWalletMutationOptions = Omit<
 export function useReconnectForceWallet({
     mutationKey,
     ...mutationOptions
-}: UseDisconnectWalletMutationOptions = {}): UseMutationResult<
+}: UseReconnectForceWalletMutationOptions = {}): UseMutationResult<
     StandardConnectOutput,
     WalletNotConnectedError | Error,
-    ConnectWalletArgs,
+    ReconnectForceWalletArgs,
     unknown
 > {
     const { currentWallet } = useCurrentWallet();
@@ -59,7 +65,7 @@ export function useReconnectForceWallet({
                 const connectResult = await (
                     currentWallet.features as unknown as WalletWithRequiredFeatures &
                         StandardReconnectForceFeature
-                )['standard:reconnectForce']?.reconnect({
+                )['sui:reconnectForce']?.reconnect({
                     origin: window.location.origin,
                 });
                 const connectedSuiAccounts = connectResult.accounts.filter((account) =>
@@ -76,19 +82,4 @@ export function useReconnectForceWallet({
         },
         ...mutationOptions,
     });
-}
-
-function getSelectedAccount(connectedAccounts: readonly WalletAccount[], accountAddress?: string) {
-    if (connectedAccounts.length === 0) {
-        return null;
-    }
-
-    if (accountAddress) {
-        const selectedAccount = connectedAccounts.find(
-            (account) => account.address === accountAddress,
-        );
-        return selectedAccount ?? connectedAccounts[0];
-    }
-
-    return connectedAccounts[0];
 }

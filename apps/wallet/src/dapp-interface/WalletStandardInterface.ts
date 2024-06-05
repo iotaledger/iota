@@ -60,7 +60,7 @@ type WalletEventsMap = {
 const name = process.env.APP_NAME || 'Sui Wallet';
 
 export type StandardReconnectForceFeature = {
-    'standard:reconnectForce': {
+    'sui:reconnectForce': {
         version: string;
         reconnect: (input: never) => Promise<StandardConnectOutput>;
     };
@@ -101,7 +101,7 @@ export class SuiWallet implements Wallet {
                 connect: this.#connect,
             },
 
-            'standard:reconnectForce': {
+            'sui:reconnectForce': {
                 version: '1.0.0',
                 reconnect: this.#reconnectForce,
             },
