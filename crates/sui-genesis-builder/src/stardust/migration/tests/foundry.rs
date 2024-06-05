@@ -187,7 +187,7 @@ fn foundry_with_simple_metadata() -> Result<()> {
     Ok(())
 }
 
-/// The test should test the migration of a foundry output with a metadata
+/// Tests the migration of a foundry output with a metadata
 /// containing non-ascii characters, overflowing circulating and maximum
 /// supplies - basically not the usual cases.
 #[test]
