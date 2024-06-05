@@ -96,6 +96,11 @@ fn adjust_native_token_module(package_path: &Path, package: &NativeTokenPackageD
         None => "option::none<Url>()".to_string(),
     };
 
+    // Converts a string x to a string y representing the bytes of x as hexadecimal
+    // values, which can be used as a piece of Move code.
+    //
+    // Example: It converts "abc" to "vector<u8>[0x61, 0x62, 0x63]" plus the
+    // original human-readable string in a comment.
     let format_byte_string = |string: &str| -> String {
         let mut byte_string = String::new();
         byte_string.push_str("/* The utf-8 bytes of '");
