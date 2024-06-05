@@ -12744,7 +12744,6 @@ dependencies = [
  "move-vm-runtime-v2",
  "num-rational",
  "packable",
- "prefix-hex",
  "prometheus",
  "rand 0.8.5",
  "rand_regex",

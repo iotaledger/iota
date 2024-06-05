@@ -27,7 +27,7 @@ const descriptionPlugin = (context, options) => {
           if (file.isDirectory()) {
             recurseFiles(fp, files);
           } else if (file.isFile() && path.extname(file.name) === ".mdx") {
-            if (!fp.match(/\/sui-api\/sui-graphql\//) && !fp.match(/snippets/))
+            if (!fp.match(/\/sui-api\/sui-graphql\//) && !fp.match(/_snippets/))
               files.push(fp);
           }
         });

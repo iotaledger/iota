@@ -2,6 +2,8 @@
 title: Publish a Package
 ---
 
+import AddressPrefix from "../../../_snippets/address-prefix.mdx";
+
 Before you can call functions in a Move package (beyond an emulated Sui execution scenario), that package must be available on the Sui network. When you publish a package, you are actually creating an immutable Sui object on the network that anyone can access.
 
 To publish your package to the Sui network, use the `publish` CLI command in the root of your package. Use the `--gas-budget` flag to set a value for the maximum amount of gas the transaction can cost. If the cost of the transaction is more than the budget you set, the transaction fails and your package doesn't publish.  
@@ -110,7 +112,7 @@ $ sui client ptb \
 
 :::info 
 
-{@include: ../../../snippets/address-prefix.mdx}
+<AddressPrefix />
 
 :::
 

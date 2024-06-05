@@ -65,13 +65,11 @@ pub(super) fn verify_foundry_output(
         minted_coin_id
     );
 
-    let circulating_supply =
-        truncate_to_max_allowed_u64_supply(output.token_scheme().as_simple().circulating_supply());
     ensure!(
-        minted_coin.value() == circulating_supply,
-        "coin amount mismatch: found {}, expected {}",
+        minted_coin.value() == foundry_data.minted_value,
+        "minted coin amount mismatch: found {}, expected {}",
         minted_coin.value(),
-        circulating_supply
+        foundry_data.minted_value
     );
 
     // Package
@@ -200,6 +198,8 @@ pub(super) fn verify_foundry_output(
         expected_package_data.module().maximum_supply,
         max_supply_policy.maximum_supply
     );
+    let circulating_supply =
+        truncate_to_max_allowed_u64_supply(output.token_scheme().as_simple().circulating_supply());
     ensure!(
         max_supply_policy.treasury_cap.total_supply.value == circulating_supply,
         "treasury total supply mismatch: found {}, expected {}",

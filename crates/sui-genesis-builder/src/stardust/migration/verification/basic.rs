@@ -4,29 +4,66 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, ensure, Result};
-use iota_sdk::types::block::output::{BasicOutput, TokenId};
+use iota_sdk::types::block::output::{BasicOutput, OutputId, TokenId};
 use sui_types::{
-    balance::Balance, coin::Coin, dynamic_field::Field, in_memory_storage::InMemoryStorage, TypeTag,
+    balance::Balance, coin::Coin, dynamic_field::Field, in_memory_storage::InMemoryStorage,
+    timelock::timelock::TimeLock, TypeTag,
 };
 
-use crate::stardust::migration::{
-    executor::FoundryLedgerData,
-    verification::{
-        created_objects::CreatedObjects,
-        util::{
-            verify_expiration_unlock_condition, verify_metadata_feature, verify_native_tokens,
-            verify_parent, verify_sender_feature, verify_storage_deposit_unlock_condition,
-            verify_tag_feature, verify_timelock_unlock_condition,
+use crate::stardust::{
+    migration::{
+        executor::FoundryLedgerData,
+        verification::{
+            created_objects::CreatedObjects,
+            util::{
+                verify_expiration_unlock_condition, verify_metadata_feature, verify_native_tokens,
+                verify_parent, verify_sender_feature, verify_storage_deposit_unlock_condition,
+                verify_tag_feature, verify_timelock_unlock_condition,
+            },
         },
     },
+    types::timelock::is_timelocked_vested_reward,
 };
 
 pub(super) fn verify_basic_output(
+    output_id: OutputId,
     output: &BasicOutput,
     created_objects: &CreatedObjects,
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
+    target_milestone_timestamp: u32,
     storage: &InMemoryStorage,
 ) -> Result<()> {
+    // If this is a timelocked vested reward, a `Timelock<Balance>` is created.
+    if is_timelocked_vested_reward(output_id, output, target_milestone_timestamp) {
+        let created_timelock = created_objects
+            .output()
+            .and_then(|id| {
+                storage
+                    .get_object(id)
+                    .ok_or_else(|| anyhow!("missing timelock object"))
+            })?
+            .to_rust::<TimeLock<Balance>>()
+            .ok_or_else(|| anyhow!("invalid timelock object"))?;
+
+        // Locked timestamp
+        ensure!(
+            created_timelock.expiration_timestamp_ms == target_milestone_timestamp as u64,
+            "timelock timestamp mismatch: found {}, expected {}",
+            created_timelock.expiration_timestamp_ms,
+            target_milestone_timestamp
+        );
+
+        // Amount
+        ensure!(
+            created_timelock.locked.value() == output.amount(),
+            "locked amount mismatch: found {}, expected {}",
+            created_timelock.locked.value(),
+            output.amount()
+        );
+
+        return Ok(());
+    }
+
     // If the output has multiple unlock conditions, then a genesis object should
     // have been created.
     if output.unlock_conditions().len() > 1 {
@@ -35,7 +72,7 @@ pub(super) fn verify_basic_output(
             .and_then(|id| {
                 storage
                     .get_object(id)
-                    .ok_or_else(|| anyhow!("missing object"))
+                    .ok_or_else(|| anyhow!("missing basic output object"))
             })?
             .to_rust::<crate::stardust::types::output::BasicOutput>()
             .ok_or_else(|| anyhow!("invalid basic output object"))?;
