@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { cva, type VariantProps } from 'class-variance-authority';
 
 import type { ReactNode } from 'react';
@@ -42,7 +45,12 @@ export interface DescriptionItemProps
     children: ReactNode;
 }
 
-export function DescriptionItem({ title, align, labelWidth, children }: DescriptionItemProps) {
+export function DescriptionItem({
+    title,
+    align,
+    labelWidth,
+    children,
+}: DescriptionItemProps): JSX.Element {
     return (
         <div className={descriptionItemStyles({ align })}>
             <dt className={descriptionItemLabelStyles({ labelWidth })}>{title}</dt>
@@ -55,6 +63,6 @@ export type DescriptionListProps = {
     children: ReactNode;
 };
 
-export function DescriptionList({ children }: DescriptionListProps) {
+export function DescriptionList({ children }: DescriptionListProps): JSX.Element {
     return <dl className="mt-4 flex flex-col gap-4">{children}</dl>;
 }

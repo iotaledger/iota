@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { ChevronRight16 } from '@mysten/icons';
 import { Heading } from '@mysten/ui';
 import * as Collapsible from '@radix-ui/react-collapsible';
@@ -18,7 +21,12 @@ interface CollapsibleCardHeaderProps {
     collapsible?: boolean;
 }
 
-function CollapsibleCardHeader({ open, size, title, collapsible }: CollapsibleCardHeaderProps) {
+function CollapsibleCardHeader({
+    open,
+    size,
+    title,
+    collapsible,
+}: CollapsibleCardHeaderProps): JSX.Element | null {
     if (!title) {
         return null;
     }

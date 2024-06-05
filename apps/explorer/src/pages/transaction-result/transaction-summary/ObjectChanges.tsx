@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import {
     ObjectChangeLabels,
     type SuiObjectChangeWithDisplay,
@@ -27,6 +30,13 @@ import { AddressLink, ObjectLink } from '~/ui/InternalLink';
 import { CollapsibleCard } from '~/ui/collapsible/CollapsibleCard';
 import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
 
+interface ItemProps {
+    label: string;
+    packageId?: string;
+    moduleName?: string;
+    typeName?: string;
+}
+
 enum ItemLabel {
     Package = 'package',
     Module = 'module',
@@ -35,17 +45,7 @@ enum ItemLabel {
 
 const DEFAULT_ITEMS_TO_SHOW = 5;
 
-function Item({
-    label,
-    packageId,
-    moduleName,
-    typeName,
-}: {
-    label: ItemLabel;
-    packageId?: string;
-    moduleName?: string;
-    typeName?: string;
-}) {
+function Item({ label, packageId, moduleName, typeName }: ItemProps): JSX.Element | null {
     return (
         <div
             className={clsx(
@@ -72,13 +72,12 @@ function Item({
     );
 }
 
-function ObjectDetailPanel({
-    panelContent,
-    headerContent,
-}: {
+interface ObjectDetailPanelProps {
     panelContent: ReactNode;
     headerContent?: ReactNode;
-}) {
+}
+
+function ObjectDetailPanel({ panelContent, headerContent }: ObjectDetailPanelProps): JSX.Element {
     const [open, setOpen] = useState(false);
     return (
         <Collapsible.Root open={open} onOpenChange={setOpen}>
@@ -104,15 +103,13 @@ function ObjectDetailPanel({
     );
 }
 
-function ObjectDetail({
-    objectType,
-    objectId,
-    display,
-}: {
+interface ObjectDetailProps {
     objectType: string;
     objectId: string;
     display?: DisplayFieldsResponse;
-}) {
+}
+
+function ObjectDetail({ objectType, objectId, display }: ObjectDetailProps): JSX.Element | null {
     const separator = '::';
     const objectTypeSplit = objectType?.split(separator) || [];
     const typeName = objectTypeSplit.slice(2).join(separator);
@@ -155,7 +152,11 @@ interface ObjectChangeEntriesProps {
     isDisplay?: boolean;
 }
 
-function ObjectChangeEntries({ changeEntries, type, isDisplay }: ObjectChangeEntriesProps) {
+function ObjectChangeEntries({
+    changeEntries,
+    type,
+    isDisplay,
+}: ObjectChangeEntriesProps): JSX.Element {
     const title = ObjectChangeLabels[type];
     let expandableItems = [];
 
@@ -236,18 +237,15 @@ function ObjectChangeEntries({ changeEntries, type, isDisplay }: ObjectChangeEnt
     );
 }
 
-interface ObjectChangeEntriesCardsProps {
-    data: ObjectChangesByOwner;
-    type: SuiObjectChangeTypes;
+interface ObjectChangeEntriesCardFooterProps {
+    ownerType: string;
+    ownerAddress: string;
 }
 
 function ObjectChangeEntriesCardFooter({
     ownerType,
     ownerAddress,
-}: {
-    ownerType: string;
-    ownerAddress: string;
-}) {
+}: ObjectChangeEntriesCardFooterProps): JSX.Element {
     const { data: suinsDomainName } = useResolveSuiNSName(ownerAddress);
 
     return (
@@ -265,6 +263,11 @@ function ObjectChangeEntriesCardFooter({
             {ownerType === 'Shared' && <ObjectLink objectId={ownerAddress} label="Shared" />}
         </div>
     );
+}
+
+interface ObjectChangeEntriesCardsProps {
+    data: ObjectChangesByOwner;
+    type: SuiObjectChangeTypes;
 }
 
 export function ObjectChangeEntriesCards({ data, type }: ObjectChangeEntriesCardsProps) {
@@ -314,7 +317,7 @@ interface ObjectChangesProps {
     objectSummary: ObjectChangeSummary;
 }
 
-export function ObjectChanges({ objectSummary }: ObjectChangesProps) {
+export function ObjectChanges({ objectSummary }: ObjectChangesProps): JSX.Element | null {
     if (!objectSummary) return null;
 
     return (

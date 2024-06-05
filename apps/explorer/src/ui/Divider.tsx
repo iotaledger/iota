@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { cva, type VariantProps } from 'class-variance-authority';
 
 const dividerStyles = cva('', {
@@ -23,6 +26,6 @@ const dividerStyles = cva('', {
 
 export type DividerProps = VariantProps<typeof dividerStyles>;
 
-export function Divider({ vertical, color }: DividerProps) {
+export function Divider({ vertical, color }: DividerProps): JSX.Element {
     return <div className={dividerStyles({ vertical, color })} />;
 }

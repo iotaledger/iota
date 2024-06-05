@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { ChevronRight12 } from '@mysten/icons';
 import * as Collapsible from '@radix-ui/react-collapsible';
 import { cva, type VariantProps } from 'class-variance-authority';
@@ -33,7 +36,7 @@ export function DisclosureBox({
     children,
     preview,
     variant,
-}: DisclosureBoxProps) {
+}: DisclosureBoxProps): JSX.Element {
     const [open, setOpen] = useState(defaultOpen);
     return (
         <div className={disclosureBoxStyles({ variant })}>

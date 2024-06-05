@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { ChevronRight12 } from '@mysten/icons';
 import { type SuiEvent } from '@mysten/sui.js/client';
 import { parseStructTag, formatAddress } from '@mysten/sui.js/utils';
@@ -15,7 +18,7 @@ import { DescriptionItem } from '~/ui/DescriptionList';
 import { Divider } from '~/ui/Divider';
 import { ObjectLink } from '~/ui/InternalLink';
 
-function Event({ event, divider }: { event: SuiEvent; divider: boolean }) {
+function Event({ event, divider }: { event: SuiEvent; divider: boolean }): JSX.Element {
     const [open, setOpen] = useState(false);
     const { address, module, name } = parseStructTag(event.type);
     const objectLinkLabel = [formatAddress(address), module, name].join('::');

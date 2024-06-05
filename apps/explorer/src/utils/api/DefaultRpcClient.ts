@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { SentryHttpTransport } from '@mysten/core';
 import {
     SuiClient,
@@ -20,7 +23,7 @@ delete SupportedNetworks[Network.Custom];
 const defaultClientMap: Map<NetworkId, SuiClient> = new Map();
 
 // NOTE: This class should not be used directly in React components, prefer to use the useSuiClient() hook instead
-export const createSuiClient = (network: NetworkId) => {
+export const createSuiClient = (network: NetworkId): SuiClient => {
     const existingClient = defaultClientMap.get(network);
     if (existingClient) return existingClient;
 

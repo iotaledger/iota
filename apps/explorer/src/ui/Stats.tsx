@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Heading, Text } from '@mysten/ui';
 import clsx from 'clsx';
 
@@ -30,7 +33,7 @@ export function Stats({
     size = 'md',
     orientation = 'vertical',
     color = 'steel-darker',
-}: StatsProps) {
+}: StatsProps): JSX.Element {
     return (
         <div
             className={clsx(

@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useFormatCoin, CoinFormat } from '@mysten/core';
 
 import { Amount, type AmountProps } from '~/ui/Amount';
@@ -9,7 +12,7 @@ export interface CoinBalanceProps extends Omit<AmountProps, 'symbol'> {
     coinType?: string | null;
 }
 
-export function CoinBalance({ amount, coinType, format, ...props }: CoinBalanceProps) {
+export function CoinBalance({ amount, coinType, format, ...props }: CoinBalanceProps): JSX.Element {
     const [formattedAmount, symbol] = useFormatCoin(amount, coinType, format || CoinFormat.FULL);
 
     // format balance if no symbol is provided

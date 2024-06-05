@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { ChevronLeft12, ChevronUp12 } from '@mysten/icons';
 import { cva, type VariantProps } from 'class-variance-authority';
 import clsx from 'clsx';
@@ -87,7 +90,7 @@ function ResizeHandle({
     togglePanelCollapse,
     noHoverHidden,
     size,
-}: ResizeHandleProps) {
+}: ResizeHandleProps): JSX.Element {
     const [isDragging, setIsDragging] = useState(false);
 
     const ChevronButton = isHorizontal ? ChevronLeft12 : ChevronUp12;
@@ -152,7 +155,7 @@ function SplitPanel({
     dividerSize,
     onCollapse,
     ...props
-}: SplitPanelProps) {
+}: SplitPanelProps): JSX.Element {
     const ref = useRef<ImperativePanelHandle>(null);
     const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -197,7 +200,12 @@ export interface SplitPanesProps extends PanelGroupProps {
     onCollapse?: (isCollapsed: boolean) => void;
 }
 
-export function SplitPanes({ splitPanels, dividerSize, onCollapse, ...props }: SplitPanesProps) {
+export function SplitPanes({
+    splitPanels,
+    dividerSize,
+    onCollapse,
+    ...props
+}: SplitPanesProps): JSX.Element {
     const { direction } = props;
 
     return (

@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { cva, type VariantProps } from 'class-variance-authority';
 import { type ReactNode } from 'react';
 
@@ -65,7 +68,7 @@ export function Link({
     display,
     gap,
     ...props
-}: LinkProps) {
+}: LinkProps): JSX.Element {
     return (
         <ButtonOrLink className={linkStyles({ variant, size, uppercase })} {...props}>
             <div className={linkContentStyles({ gap, display })}>

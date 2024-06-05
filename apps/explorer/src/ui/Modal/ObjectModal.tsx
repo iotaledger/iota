@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { X12 } from '@mysten/icons';
 import { Text, Heading, IconButton } from '@mysten/ui';
 
@@ -26,7 +29,7 @@ export function ObjectModal({
     video,
     // NOTE: Leave false only if ObjectModal is paired with an Image component
     moderate = false,
-}: ObjectModalProps) {
+}: ObjectModalProps): JSX.Element {
     return (
         <Modal open={open} onClose={onClose}>
             <div className="flex flex-col gap-5">

@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Text, Toggle } from '@mysten/ui';
 import * as RadixDropdownMenu from '@radix-ui/react-dropdown-menu';
 import { type ReactNode } from 'react';
@@ -18,7 +21,7 @@ export function DropdownMenu({
     trigger,
     align,
     ...radixRootProps
-}: DropdownMenuProps) {
+}: DropdownMenuProps): JSX.Element {
     return (
         <RadixDropdownMenu.Root {...radixRootProps}>
             <RadixDropdownMenu.Trigger className="text-steel hover:text-steel-dark data-[state=open]:text-steel-dark">
@@ -44,7 +47,7 @@ export type DropdownMenuCheckboxItemProps = Omit<
 export function DropdownMenuCheckboxItem({
     checked = false,
     ...radixRootProps
-}: DropdownMenuCheckboxItemProps) {
+}: DropdownMenuCheckboxItemProps): JSX.Element {
     return (
         <RadixDropdownMenu.CheckboxItem {...radixRootProps} asChild>
             <div className="flex cursor-pointer select-none items-center gap-4 rounded-md p-2 text-steel-dark outline-none transition-colors data-[highlighted]:bg-sui-light/50 data-[highlighted]:text-steel-darker">

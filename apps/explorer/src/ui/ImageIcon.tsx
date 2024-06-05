@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { cva, type VariantProps } from 'class-variance-authority';
 import { useState } from 'react';
 
@@ -31,7 +34,11 @@ export interface ImageIconProps extends VariantProps<typeof imageStyle> {
     alt?: string;
 }
 
-function FallBackAvatar({ fallback }: { fallback: string }) {
+interface FallBackAvatarProps {
+    fallback: string;
+}
+
+function FallBackAvatar({ fallback }: FallBackAvatarProps): JSX.Element {
     return (
         <div className="flex h-full w-full items-center justify-center bg-gradient-to-r from-gradient-blue-start to-gradient-blue-end">
             {fallback?.slice(0, 2)}
@@ -39,7 +46,13 @@ function FallBackAvatar({ fallback }: { fallback: string }) {
     );
 }
 
-export function ImageIcon({ src, label, alt = label, fallback, ...styleProps }: ImageIconProps) {
+export function ImageIcon({
+    src,
+    label,
+    alt = label,
+    fallback,
+    ...styleProps
+}: ImageIconProps): JSX.Element {
     const [error, setError] = useState(false);
     return (
         <div role="img" className={imageStyle(styleProps)} aria-label={label}>

@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { cva, type VariantProps } from 'class-variance-authority';
 import { type ReactNode } from 'react';
 
@@ -27,7 +30,7 @@ export interface BadgeProps extends VariantProps<typeof badgeStyles> {
     children?: ReactNode;
 }
 
-export function Badge({ variant, children }: BadgeProps) {
+export function Badge({ variant, children }: BadgeProps): JSX.Element {
     return (
         <div className={badgeStyles({ variant })}>
             {variant === 'current' && <div className="h-2 w-2 rounded-full bg-success" />}

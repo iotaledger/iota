@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { formatDate } from '@mysten/core';
 import { Text } from '@mysten/ui';
 
@@ -9,7 +12,7 @@ export interface DateCardProps {
 }
 
 // TODO - add format options
-export function DateCard({ date }: DateCardProps) {
+export function DateCard({ date }: DateCardProps): JSX.Element | null {
     const dateStr = formatDate(date, ['month', 'day', 'year', 'hour', 'minute']);
 
     if (!dateStr) {

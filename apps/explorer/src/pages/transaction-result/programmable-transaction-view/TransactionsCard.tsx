@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type SuiTransaction } from '@mysten/sui.js/client';
 
 import { Transaction } from './Transaction';
@@ -11,7 +14,7 @@ interface TransactionsCardProps {
     transactions: SuiTransaction[];
 }
 
-export function TransactionsCard({ transactions }: TransactionsCardProps) {
+export function TransactionsCard({ transactions }: TransactionsCardProps): JSX.Element | null {
     if (!transactions?.length) {
         return null;
     }

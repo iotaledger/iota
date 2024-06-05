@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { wrapCreateBrowserRouter } from '@sentry/react';
 import { createBrowserRouter, Navigate, useLocation, useParams } from 'react-router-dom';
 
@@ -16,7 +19,11 @@ import { ValidatorPageResult } from './validators/Validators';
 import { Layout } from '~/components/Layout';
 import { IdPage } from '~/pages/id-page';
 
-function RedirectWithId({ base }: { base: string }) {
+interface RedirectWithIdProps {
+    base: string;
+}
+
+function RedirectWithId({ base }: RedirectWithIdProps): JSX.Element {
     const params = useParams();
     const { search } = useLocation();
     return <Navigate to={`/${base}/${params.id}${search}`} replace />;

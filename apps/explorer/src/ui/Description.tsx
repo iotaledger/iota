@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Text, type TextProps } from '@mysten/ui';
 import clsx from 'clsx';
 import { type ReactNode } from 'react';
@@ -19,7 +22,7 @@ export function Description({
     titleVariant = 'pBodySmall/medium',
     titleColor = 'steel-dark',
     alignItems = 'start',
-}: DescriptionProps) {
+}: DescriptionProps): JSX.Element {
     return (
         <div
             className={clsx(

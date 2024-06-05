@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type DisplayFieldsResponse } from '@mysten/sui.js/client';
 import { useState } from 'react';
 
@@ -8,13 +11,12 @@ import { ObjectLink } from '~/ui/InternalLink';
 import { ObjectModal } from '~/ui/Modal/ObjectModal';
 import { Image } from '~/ui/image/Image';
 
-export function ObjectDisplay({
-    objectId,
-    display,
-}: {
+interface ObjectDisplayProps {
     objectId: string;
     display: DisplayFieldsResponse;
-}) {
+}
+
+export function ObjectDisplay({ objectId, display }: ObjectDisplayProps): JSX.Element | null {
     const [open, handleOpen] = useState(false);
     if (!display.data) return null;
     const { description, name, image_url: imageUrl } = display.data ?? {};

@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { ArrowRight12 } from '@mysten/icons';
 import {
     type ColumnDef,
@@ -21,7 +24,7 @@ export interface TableCardProps<DataType extends object> {
     defaultSorting?: SortingState;
 }
 
-function AscDescIcon({ sorting }: { sorting: 'asc' | 'desc' }) {
+function AscDescIcon({ sorting }: { sorting: 'asc' | 'desc' }): JSX.Element {
     return (
         <ArrowRight12
             fill="currentColor"
@@ -36,7 +39,7 @@ export function TableCard<DataType extends object>({
     columns,
     sortTable,
     defaultSorting,
-}: TableCardProps<DataType>) {
+}: TableCardProps<DataType>): JSX.Element {
     const [sorting, setSorting] = useState<SortingState>(defaultSorting || []);
 
     // Use Columns to create a table

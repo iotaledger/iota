@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 /**
  * This is an App UI Component, which is responsible for network selection.
  * It's as context un-aware as it reasonably can be, being a controlled component.
@@ -49,7 +52,12 @@ interface SelectableNetworkProps extends ComponentProps<'div'> {
     onClick(): void;
 }
 
-function SelectableNetwork({ state, children, onClick, ...props }: SelectableNetworkProps) {
+function SelectableNetwork({
+    state,
+    children,
+    onClick,
+    ...props
+}: SelectableNetworkProps): JSX.Element {
     return (
         <div
             role="button"
@@ -83,13 +91,12 @@ const CustomRPCSchema = z.object({
     url: z.string().url(),
 });
 
-function CustomRPCInput({
-    value,
-    onChange,
-}: {
+interface CustomRPCInputProps {
     value: string;
     onChange(networkUrl: string): void;
-}) {
+}
+
+function CustomRPCInput({ value, onChange }: CustomRPCInputProps): JSX.Element {
     const { register, handleSubmit, formState } = useZodForm({
         schema: CustomRPCSchema,
         mode: 'all',
@@ -131,15 +138,13 @@ function CustomRPCInput({
     );
 }
 
-function NetworkVersion({
-    label,
-    version,
-    binaryVersion,
-}: {
+interface NetworkVersionProps {
     label: string;
     version: number | string;
     binaryVersion: string;
-}) {
+}
+
+function NetworkVersion({ label, version, binaryVersion }: NetworkVersionProps): JSX.Element {
     return (
         <div className="flex flex-col justify-between gap-1 px-4 py-3">
             <Text variant="subtitleSmall/medium" color="steel-dark">
@@ -152,7 +157,11 @@ function NetworkVersion({
     );
 }
 
-function NetworkSelectPanel({ networks, onChange, value }: Omit<NetworkSelectProps, 'version'>) {
+function NetworkSelectPanel({
+    networks,
+    onChange,
+    value,
+}: Omit<NetworkSelectProps, 'version'>): JSX.Element {
     const isCustomNetwork = !networks.find(({ id }) => id === value);
     const [customOpen, setCustomOpen] = useState(isCustomNetwork);
 
@@ -199,7 +208,7 @@ function NetworkSelectPanel({ networks, onChange, value }: Omit<NetworkSelectPro
     );
 }
 
-function ResponsiveIcon() {
+function ResponsiveIcon(): JSX.Element {
     return (
         <div>
             <HamburgerRest16 className="hidden md:block" />
@@ -214,7 +223,7 @@ export function NetworkSelect({
     version,
     binaryVersion,
     onChange,
-}: NetworkSelectProps) {
+}: NetworkSelectProps): JSX.Element {
     const { x, y, refs, strategy } = useFloating({
         placement: 'bottom-end',
         middleware: [offset(5), flip(), shift()],

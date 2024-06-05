@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import clsx from 'clsx';
 import { motion, type Variants } from 'framer-motion';
 
@@ -26,7 +29,7 @@ export interface ProgressBarProps {
     animate?: boolean;
 }
 
-export function ProgressBar({ progress, animate }: ProgressBarProps) {
+export function ProgressBar({ progress, animate }: ProgressBarProps): JSX.Element {
     const isAnimated = animate && progress > ANIMATION_START_THRESHOLD;
 
     return (

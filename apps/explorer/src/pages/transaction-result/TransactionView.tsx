@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type SuiTransactionBlockResponse } from '@mysten/sui.js/client';
 import clsx from 'clsx';
 import { type ReactNode, useState } from 'react';
@@ -16,7 +19,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
 
 import styles from './TransactionResult.module.css';
 
-function TabsContentContainer({ value, children }: { value: string; children: ReactNode }) {
+interface TabsContentContainerProps {
+    value: string;
+    children: ReactNode;
+}
+
+function TabsContentContainer({ value, children }: TabsContentContainerProps): JSX.Element {
     return (
         <TabsContent value={value}>
             <div className="mt-6 md:mt-10">{children}</div>
@@ -24,7 +32,11 @@ function TabsContentContainer({ value, children }: { value: string; children: Re
     );
 }
 
-export function TransactionView({ transaction }: { transaction: SuiTransactionBlockResponse }) {
+interface TransactionViewProps {
+    transaction: SuiTransactionBlockResponse;
+}
+
+export function TransactionView({ transaction }: TransactionViewProps): JSX.Element {
     const isMediumOrAbove = useBreakpoint('md');
     const [isCollapsed, setIsCollapsed] = useState(false);
 

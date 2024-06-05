@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import {
     type MoveCallSuiTransaction,
     type SuiArgument,
@@ -18,7 +21,11 @@ export interface TransactionProps<T> {
     data: T;
 }
 
-function TransactionContent({ children }: { children?: ReactNode }) {
+interface TransactionContentProps {
+    children?: ReactNode;
+}
+
+function TransactionContent({ children }: TransactionContentProps): JSX.Element {
     return (
         <Text variant="pBody/normal" color="steel-dark">
             {children}
@@ -26,7 +33,9 @@ function TransactionContent({ children }: { children?: ReactNode }) {
     );
 }
 
-function ArrayArgument({ data }: TransactionProps<(SuiArgument | SuiArgument[])[] | undefined>) {
+function ArrayArgument({
+    data,
+}: TransactionProps<(SuiArgument | SuiArgument[])[] | undefined>): JSX.Element {
     return (
         <TransactionContent>
             {data && (
@@ -38,7 +47,7 @@ function ArrayArgument({ data }: TransactionProps<(SuiArgument | SuiArgument[])[
     );
 }
 
-function MoveCall({ data }: TransactionProps<MoveCallSuiTransaction>) {
+function MoveCall({ data }: TransactionProps<MoveCallSuiTransaction>): JSX.Element {
     const {
         module,
         package: movePackage,
@@ -67,7 +76,9 @@ function MoveCall({ data }: TransactionProps<MoveCallSuiTransaction>) {
 export function Transaction({
     type,
     data,
-}: TransactionProps<(SuiArgument | SuiArgument[])[] | MoveCallSuiTransaction | SuiMovePackage>) {
+}: TransactionProps<
+    (SuiArgument | SuiArgument[])[] | MoveCallSuiTransaction | SuiMovePackage
+>): JSX.Element {
     if (type === 'MoveCall') {
         return (
             <ErrorBoundary>

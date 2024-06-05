@@ -1,5 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { ArrowUpRight16 } from '@mysten/icons';
 import { Text, Heading } from '@mysten/ui';
 import { cva } from 'class-variance-authority';
@@ -35,7 +39,7 @@ export function ObjectDetails({
     type,
     variant = 'small',
     noTypeRender,
-}: ObjectDetailsProps) {
+}: ObjectDetailsProps): JSX.Element {
     const [open, setOpen] = useState(false);
     const openPreview = () => setOpen(true);
 

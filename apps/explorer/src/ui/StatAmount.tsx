@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Heading, Text } from '@mysten/ui';
 
 import { Amount, type AmountProps } from '~/ui/Amount';
@@ -11,7 +14,7 @@ export interface StatAmountProps extends Omit<AmountProps, 'size'> {
     date?: Date | number | null;
 }
 
-export function StatAmount({ dollarAmount, date, ...props }: StatAmountProps) {
+export function StatAmount({ dollarAmount, date, ...props }: StatAmountProps): JSX.Element {
     return (
         <div className="flex flex-col justify-start gap-2 text-gray-75">
             <div className="flex flex-col items-baseline gap-2.5 text-gray-100">

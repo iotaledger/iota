@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Text } from '@mysten/ui';
 
 import { ObjectLink } from '~/ui/InternalLink';
@@ -9,7 +12,7 @@ import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
 
 import type { OwnedObjectRef } from '@mysten/sui.js/client';
 
-export function UpgradedSystemPackages({ data }: { data: OwnedObjectRef[] }) {
+export function UpgradedSystemPackages({ data }: { data: OwnedObjectRef[] }): JSX.Element | null {
     if (!data?.length) return null;
 
     return (

@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useTransactionSummary } from '@mysten/core';
 import {
     type ProgrammableTransaction,
@@ -17,7 +20,7 @@ interface Props {
     transaction: SuiTransactionBlockResponse;
 }
 
-export function TransactionData({ transaction }: Props) {
+export function TransactionData({ transaction }: Props): JSX.Element {
     const recognizedPackagesList = useRecognizedPackages();
     const summary = useTransactionSummary({
         transaction,

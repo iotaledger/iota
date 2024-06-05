@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { ChevronUp12 } from '@mysten/icons';
 import { Text } from '@mysten/ui';
 import clsx from 'clsx';
@@ -18,7 +21,7 @@ type ExpandableListContextType = {
 
 const ExpandableListContext = createContext<ExpandableListContextType | null>(null);
 
-export function ExpandableListItems() {
+export function ExpandableListItems(): JSX.Element {
     const listContext = useContext(ExpandableListContext);
 
     if (!listContext) {
@@ -35,7 +38,7 @@ export function ExpandableListItems() {
     return <>{itemsDisplayed}</>;
 }
 
-export function ExpandableListControl() {
+export function ExpandableListControl(): JSX.Element | null {
     const listContext = useContext(ExpandableListContext);
 
     if (!listContext) {
@@ -79,7 +82,7 @@ export function ExpandableList({
     defaultItemsToShow,
     itemsLabel,
     children,
-}: ExpandableListProps) {
+}: ExpandableListProps): JSX.Element {
     const [showAll, setShowAll] = useState(false);
 
     const handleShowAllClick = () => setShowAll((prevShowAll: boolean) => !prevShowAll);

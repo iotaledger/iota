@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useTransactionSummary } from '@mysten/core';
 import { type SuiTransactionBlockResponse } from '@mysten/sui.js/client';
 
@@ -13,7 +16,7 @@ interface TransactionSummaryProps {
     transaction: SuiTransactionBlockResponse;
 }
 
-export function TransactionSummary({ transaction }: TransactionSummaryProps) {
+export function TransactionSummary({ transaction }: TransactionSummaryProps): JSX.Element {
     const recognizedPackagesList = useRecognizedPackages();
     const summary = useTransactionSummary({
         transaction,

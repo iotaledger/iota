@@ -1,9 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 const IPFS_START_STRING = 'https://ipfs.io/ipfs/';
 
-export function hexToAscii(hex: string) {
+export function hexToAscii(hex: string): string | undefined {
     if (!hex || typeof hex != 'string') return;
     hex = hex.replace(/^0x/, '');
 
@@ -18,7 +21,7 @@ export const trimStdLibPrefix = (str: string): string => str.replace(/^0x2::/, '
 
 export const findIPFSvalue = (url: string): string | undefined => url.match(/^ipfs:\/\/(.*)/)?.[1];
 
-export function transformURL(url: string) {
+export function transformURL(url: string): string {
     const found = findIPFSvalue(url);
     if (!found) {
         return url;
@@ -26,7 +29,7 @@ export function transformURL(url: string) {
     return `${IPFS_START_STRING}${found}`;
 }
 
-export async function extractFileType(displayString: string, signal: AbortSignal) {
+export async function extractFileType(displayString: string, signal: AbortSignal): Promise<string> {
     // First check Content-Type in header:
     const result = await fetch(transformURL(displayString), {
         signal: signal,
@@ -47,7 +50,7 @@ export async function extractFileType(displayString: string, signal: AbortSignal
     }
 }
 
-export async function genFileTypeMsg(displayString: string, signal: AbortSignal) {
+export async function genFileTypeMsg(displayString: string, signal: AbortSignal): Promise<string> {
     return extractFileType(displayString, signal)
         .then((result) => (result === 'Image' ? result : result.toUpperCase()))
         .then((result) => `1 ${result} File`)

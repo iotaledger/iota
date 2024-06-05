@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import {
     useFloating,
     autoUpdate,
@@ -32,7 +35,7 @@ interface TooltipProps {
     placement?: Placement;
 }
 
-export function Tooltip({ tip, children, onOpen, placement = 'top' }: TooltipProps) {
+export function Tooltip({ tip, children, onOpen, placement = 'top' }: TooltipProps): JSX.Element {
     const [open, setOpen] = useState(false);
     const arrowRef = useRef(null);
 

@@ -1,5 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Search16 } from '@mysten/icons';
 import { Text, Combobox, ComboboxInput, ComboboxList } from '@mysten/ui';
 
@@ -25,7 +29,7 @@ export function Search({
     options = [],
     isLoading = false,
     queryValue,
-}: SearchProps) {
+}: SearchProps): JSX.Element {
     return (
         <Combobox value={queryValue} onValueChange={onChange}>
             <div className="relative flex h-10 items-center">

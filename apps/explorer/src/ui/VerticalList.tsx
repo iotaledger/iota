@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import clsx from 'clsx';
 import { type ReactNode } from 'react';
 
@@ -10,7 +13,7 @@ export interface ListItemProps {
     onClick?(): void;
 }
 
-export function ListItem({ active, children, onClick }: ListItemProps) {
+export function ListItem({ active, children, onClick }: ListItemProps): JSX.Element {
     return (
         <li className="list-none">
             <button
@@ -33,6 +36,6 @@ export interface VerticalListProps {
     children: ReactNode;
 }
 
-export function VerticalList({ children }: VerticalListProps) {
+export function VerticalList({ children }: VerticalListProps): JSX.Element {
     return <ul className="m-0 flex flex-col gap-1 p-0">{children}</ul>;
 }

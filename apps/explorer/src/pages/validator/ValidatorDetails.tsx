@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useGetValidatorsApy, useGetValidatorsEvents } from '@mysten/core';
 import { useSuiClientQuery } from '@mysten/dapp-kit';
 import { type SuiSystemStateSummary } from '@mysten/sui.js/client';
@@ -24,7 +27,7 @@ const getAtRiskRemainingEpochs = (
     return atRisk ? VALIDATOR_LOW_STAKE_GRACE_PERIOD - Number(atRisk[1]) : null;
 };
 
-function ValidatorDetails() {
+function ValidatorDetails(): JSX.Element {
     const { id } = useParams();
     const { data, isPending } = useSuiClientQuery('getLatestSuiSystemState');
 

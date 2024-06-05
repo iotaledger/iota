@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type SuiTransactionBlockResponse } from '@mysten/sui.js/client';
 import {
     parseSerializedSignature,
@@ -21,13 +24,12 @@ type SignaturePubkeyPair = {
     signature: Uint8Array;
 } & ({ address: string } | { publicKey: PublicKey });
 
-function SignaturePanel({
-    title,
-    signature: data,
-}: {
+interface SignaturePanelProps {
     title: string;
     signature: SignaturePubkeyPair;
-}) {
+}
+
+function SignaturePanel({ title, signature: data }: SignaturePanelProps): JSX.Element {
     const { signature, signatureScheme } = data;
     return (
         <TabHeader title={title}>
