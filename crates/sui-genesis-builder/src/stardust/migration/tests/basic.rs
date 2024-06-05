@@ -136,8 +136,6 @@ fn basic_migration_with_native_token() {
         (foundry_header, foundry_output.into()),
         (header, stardust_basic.into()),
     ];
-    // let mut migration = Migration::new(1).unwrap();
-    // migration.run_migration(outputs.clone()).unwrap();
 
     extract_native_token_from_bag(
         output_id,
