@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type SuiObjectResponse } from '@mysten/sui.js/client';
 import { formatAddress } from '@mysten/sui.js/utils';
 import { Placeholder, Text } from '@mysten/ui';
@@ -13,19 +16,21 @@ import { ObjectVideoImage } from '~/ui/ObjectVideoImage';
 import { parseObjectType } from '~/utils/objectUtils';
 import { trimStdLibPrefix } from '~/utils/stringUtils';
 
+interface ListViewItemProps {
+    assetCell?: ReactNode;
+    typeCell?: ReactNode;
+    objectIdCell?: ReactNode;
+    objectId: string;
+    loading?: boolean;
+}
+
 function ListViewItem({
     assetCell,
     typeCell,
     objectIdCell,
     objectId,
     loading,
-}: {
-    assetCell?: ReactNode;
-    typeCell?: ReactNode;
-    objectIdCell?: ReactNode;
-    objectId: string;
-    loading?: boolean;
-}) {
+}: ListViewItemProps): JSX.Element {
     const listViewItemContent = (
         <div className="group mb-2 flex items-center justify-between rounded-lg p-1 hover:bg-hero/5">
             <div className="flex max-w-[66%] basis-8/12 items-center gap-3 md:max-w-[25%] md:basis-3/12 md:pr-5">
@@ -49,7 +54,7 @@ function ListViewItem({
     return <ObjectLink objectId={objectId} display="block" label={listViewItemContent} />;
 }
 
-function ListViewItemContainer({ obj }: { obj: SuiObjectResponse }) {
+function ListViewItemContainer({ obj }: { obj: SuiObjectResponse }): JSX.Element {
     const video = useResolveVideo(obj);
     const displayMeta = obj.data?.display?.data;
     const name = displayMeta?.name ?? displayMeta?.description ?? '';
@@ -101,7 +106,7 @@ interface ListViewProps {
     loading?: boolean;
 }
 
-export function ListView({ data, loading }: ListViewProps) {
+export function ListView({ data, loading }: ListViewProps): JSX.Element {
     return (
         <div className="flex flex-col overflow-auto">
             {(!!data?.length || loading) && (

@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useGetObject } from '@mysten/core';
 import { Banner } from '~/ui/Banner';
 import { Divider } from '~/ui/Divider';
@@ -18,7 +21,11 @@ import { useQuery } from '@tanstack/react-query';
 
 const LEFT_RIGHT_PANEL_MIN_SIZE = 30;
 
-function OwnedObjectsSection({ address }: { address: string }) {
+interface OwnedObjectsSectionProps {
+    address: string;
+}
+
+function OwnedObjectsSection({ address }: OwnedObjectsSectionProps): JSX.Element {
     const isMediumOrAbove = useBreakpoint('md');
 
     const leftPane = {
@@ -66,7 +73,12 @@ function OwnedObjectsSection({ address }: { address: string }) {
     );
 }
 
-function TransactionsSection({ address, isObject }: { address: string; isObject: boolean }) {
+interface TransactionsSectionProps {
+    address: string;
+    isObject: boolean;
+}
+
+function TransactionsSection({ address, isObject }: TransactionsSectionProps): JSX.Element {
     const client = useSuiClient();
 
     const {
@@ -109,7 +121,12 @@ function TransactionsSection({ address, isObject }: { address: string; isObject:
     );
 }
 
-export function PageContent({ address, error }: { address: string; error?: Error | null }) {
+interface PageContentProps {
+    address: string;
+    error?: Error | null;
+}
+
+export function PageContent({ address, error }: PageContentProps): JSX.Element {
     const { data } = useGetObject(address);
     const isObject = !!data?.data;
 

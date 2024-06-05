@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useGetDynamicFields, useGetObject } from '@mysten/core';
 import { useSuiClientQuery } from '@mysten/dapp-kit';
 import { type SuiObjectResponse } from '@mysten/sui.js/client';
@@ -12,7 +15,11 @@ import { ObjectFieldsCard } from '~/components/Object/ObjectFieldsCard';
 import TransactionBlocksForAddress from '~/components/TransactionBlocksForAddress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
 
-function FieldsContainer({ children }: { children: ReactNode }) {
+interface FieldsContainerProps {
+    children: ReactNode;
+}
+
+function FieldsContainer({ children }: FieldsContainerProps): JSX.Element {
     return (
         <div className="mt-4 flex flex-col gap-5 rounded-xl border border-gray-45 bg-objectCard py-6 pl-6 pr-4">
             {children}
@@ -62,7 +69,11 @@ function useObjectFieldsCard(id: string) {
     };
 }
 
-export function FieldsContent({ objectId }: { objectId: string }) {
+interface FieldsContentProps {
+    objectId: string;
+}
+
+export function FieldsContent({ objectId }: FieldsContentProps) {
     const {
         normalizedStructData,
         suiObjectResponseData,
@@ -116,7 +127,11 @@ export function FieldsContent({ objectId }: { objectId: string }) {
     );
 }
 
-export function TokenView({ data }: { data: SuiObjectResponse }) {
+interface TokenViewProps {
+    data: SuiObjectResponse;
+}
+
+export function TokenView({ data }: TokenViewProps): JSX.Element {
     // eslint-disable-next-line @typescript-eslint/no-non-null-asserted-optional-chain
     const objectId = data.data?.objectId!;
 

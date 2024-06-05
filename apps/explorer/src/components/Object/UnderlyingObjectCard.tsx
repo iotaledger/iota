@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useSuiClientQuery } from '@mysten/dapp-kit';
 import { LoadingIndicator } from '@mysten/ui';
 
@@ -19,7 +22,7 @@ export function UnderlyingObjectCard({
     parentId,
     name,
     dynamicFieldType,
-}: UnderlyingObjectCardProps) {
+}: UnderlyingObjectCardProps): JSX.Element | null {
     const { data, isPending, isError, isFetched } = useSuiClientQuery('getDynamicFieldObject', {
         parentId,
         name,

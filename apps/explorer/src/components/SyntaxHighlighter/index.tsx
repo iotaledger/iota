@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useOnScreen } from '@mysten/core';
 import { useRef, useEffect, useState } from 'react';
 import Highlight, { defaultProps } from 'prism-react-renderer';
@@ -14,7 +17,7 @@ interface Props {
 }
 const MAX_LINES = 500;
 // Use scroll to load more lines of code to prevent performance issues with large code blocks
-export function SyntaxHighlighter({ code, language }: Props) {
+export function SyntaxHighlighter({ code, language }: Props): JSX.Element {
     const observerElem = useRef<HTMLDivElement | null>(null);
     const { isIntersecting } = useOnScreen(observerElem);
     const [loadedLines, setLoadedLines] = useState(MAX_LINES);

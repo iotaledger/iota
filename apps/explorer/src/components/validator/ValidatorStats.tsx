@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type SuiValidatorSummary } from '@mysten/sui.js/client';
 import { Heading } from '@mysten/ui';
 
@@ -21,7 +24,7 @@ export function ValidatorStats({
     epochRewards,
     apy,
     tallyingScore,
-}: StatsCardProps) {
+}: StatsCardProps): JSX.Element {
     // TODO: add missing fields
     // const numberOfDelegators = 0;
     //  const networkStakingParticipation = 0;

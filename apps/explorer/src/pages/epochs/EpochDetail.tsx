@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useFormatCoin } from '@mysten/core';
 import { useSuiClientQuery } from '@mysten/dapp-kit';
 import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
@@ -22,12 +25,11 @@ import { TableCard } from '~/ui/TableCard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
 import { getEpochStorageFundFlow } from '~/utils/getStorageFundFlow';
 
-function SuiStats({
-    amount,
-    ...props
-}: Omit<StatsProps, 'children'> & {
+interface SuiStatsProps {
     amount: bigint | number | string | undefined | null;
-}) {
+}
+
+function SuiStats({ amount, ...props }: SuiStatsProps & StatsProps): JSX.Element {
     const [formattedAmount, symbol] = useFormatCoin(amount, SUI_TYPE_ARG);
 
     return (

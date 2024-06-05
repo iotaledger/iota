@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useFormatCoin } from '@mysten/core';
 import { type CoinStruct } from '@mysten/sui.js/client';
 import { Text } from '@mysten/ui';
@@ -11,7 +14,7 @@ type CoinItemProps = {
     coin: CoinStruct;
 };
 
-export default function CoinItem({ coin }: CoinItemProps) {
+export default function CoinItem({ coin }: CoinItemProps): JSX.Element {
     const [formattedBalance, symbol] = useFormatCoin(coin.balance, coin.coinType);
     return (
         <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 shadow-panel">

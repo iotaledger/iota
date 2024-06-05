@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type SuiObjectResponse } from '@mysten/sui.js/client';
 
 import { useResolveVideo } from '~/hooks/useResolveVideo';
@@ -12,7 +15,7 @@ type OwnedObjectTypes = {
     obj: SuiObjectResponse;
 };
 
-export default function OwnedObject({ obj }: OwnedObjectTypes) {
+export default function OwnedObject({ obj }: OwnedObjectTypes): JSX.Element {
     const video = useResolveVideo(obj);
     const displayMeta = obj.data?.display?.data;
 

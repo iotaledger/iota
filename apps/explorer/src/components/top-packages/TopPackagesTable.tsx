@@ -1,5 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type MoveCallMetric } from '@mysten/sui.js/client';
 import { Text } from '@mysten/ui';
 import { useMemo } from 'react';
@@ -13,7 +17,7 @@ interface TopPackagesTableProps {
     isLoading: boolean;
 }
 
-function TxnCountHeader() {
+function TxnCountHeader(): JSX.Element {
     return (
         <div className="w-full text-right">
             <Text variant="bodySmall/medium">Transactions</Text>

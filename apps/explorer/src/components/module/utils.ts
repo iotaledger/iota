@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import type { SuiMoveNormalizedType } from '@mysten/sui.js/client';
 
 /**
@@ -52,10 +55,15 @@ export function normalizedFunctionParameterTypeToString(
     return str;
 }
 
+interface NormalizedFunctionParameterTypeDetails {
+    isTxContext: boolean;
+    paramTypeText: string;
+}
+
 export function getNormalizedFunctionParameterTypeDetails(
     param: SuiMoveNormalizedType,
     functionTypeArgNames?: string[],
-) {
+): NormalizedFunctionParameterTypeDetails {
     const paramTypeText = normalizedFunctionParameterTypeToString(param, functionTypeArgNames);
     return {
         isTxContext: paramTypeText === '0x2::tx_context::TxContext',

@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useState } from 'react';
 
 import { genTableDataFromTxData } from '~/components/transactions/TxCardUtils';
@@ -11,7 +14,7 @@ import { TableCard } from '~/ui/TableCard';
 
 const DEFAULT_TRANSACTIONS_LIMIT = 20;
 
-export function CheckpointTransactionBlocks({ id }: { id: string }) {
+export function CheckpointTransactionBlocks({ id }: { id: string }): JSX.Element {
     const [limit, setLimit] = useState(DEFAULT_TRANSACTIONS_LIMIT);
     const transactions = useGetTransactionBlocks(
         {

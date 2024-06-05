@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useMediaQuery } from '~/hooks/useMediaQuery';
 
 /**
@@ -14,6 +17,6 @@ export const BREAK_POINT = {
     '2xl': 1536,
 };
 
-export function useBreakpoint(breakpoint: keyof typeof BREAK_POINT) {
+export function useBreakpoint(breakpoint: keyof typeof BREAK_POINT): boolean {
     return useMediaQuery(`(min-width: ${BREAK_POINT[breakpoint]}px)`);
 }

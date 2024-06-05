@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type SuiMoveNormalizedType } from '@mysten/sui.js/client';
 import { Text } from '@mysten/ui';
 
@@ -20,7 +23,12 @@ const TYPE_ADDRESS = 'Address';
 const TYPE_URL = '0x2::url::Url';
 const TYPE_OBJECT_ID = ['0x2::object::UID', '0x2::object::ID'];
 
-export function FieldItem({ value, type, truncate = false, objectType }: FieldItemProps) {
+export function FieldItem({
+    value,
+    type,
+    truncate = false,
+    objectType,
+}: FieldItemProps): JSX.Element {
     // for object types, use SyntaxHighlighter
     if (typeof value === 'object') {
         return <SyntaxHighlighter code={JSON.stringify(value, null, 2)} language="json" />;

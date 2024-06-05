@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type SuiMoveNormalizedType } from '@mysten/sui.js/client';
 import { normalizeSuiAddress } from '@mysten/sui.js/utils';
 import cl from 'clsx';
@@ -54,7 +57,7 @@ function unwrapTypeReference(type: SuiMoveNormalizedType): null | TypeReference 
     return null;
 }
 
-function ModuleView({ id, name, code }: Props) {
+function ModuleView({ id, name, code }: Props): JSX.Element {
     const { data: normalizedModule } = useNormalizedMoveModule(id, name);
     const normalizedModuleReferences = useMemo(() => {
         const typeReferences: Record<string, TypeReference> = {};

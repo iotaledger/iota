@@ -1,17 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { CoinFormat, useFormatCoin } from '@mysten/core';
 import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
 import { Text } from '@mysten/ui';
 
-export function SuiAmount({
-    amount,
-    full = false,
-}: {
+interface SuiAmountProps {
     amount?: bigint | number | string | null;
     full?: boolean;
-}) {
+}
+
+export function SuiAmount({ amount, full = false }: SuiAmountProps): JSX.Element {
     const [formattedAmount, coinType] = useFormatCoin(
         amount,
         SUI_TYPE_ARG,

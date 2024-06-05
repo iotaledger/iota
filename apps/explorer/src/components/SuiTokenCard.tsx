@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { COIN_GECKO_SUI_URL, useSuiCoinData } from '@mysten/core';
 import { Sui } from '@mysten/icons';
 import { Text } from '@mysten/ui';
@@ -8,7 +11,7 @@ import { Text } from '@mysten/ui';
 import { Card } from '~/ui/Card';
 import { ButtonOrLink } from '~/ui/utils/ButtonOrLink';
 
-export function SuiTokenCard() {
+export function SuiTokenCard(): JSX.Element {
     const { data } = useSuiCoinData();
     const { currentPrice } = data || {};
 

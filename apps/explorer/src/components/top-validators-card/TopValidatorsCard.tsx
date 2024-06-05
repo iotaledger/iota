@@ -1,11 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useSuiClientQuery } from '@mysten/dapp-kit';
 import { ArrowRight12 } from '@mysten/icons';
 import { type SuiValidatorSummary } from '@mysten/sui.js/client';
 import { Text } from '@mysten/ui';
-import { useMemo } from 'react';
+import { type ReactNode, useMemo } from 'react';
 
 import { StakeColumn } from './StakeColumn';
 import { HighlightedTableCol } from '~/components/Table/HighlightedTableCol';
@@ -27,15 +30,29 @@ export function processValidators(set: SuiValidatorSummary[]) {
         logo: av.imageUrl,
     }));
 }
+interface ValidatorData {
+    name: ReactNode;
+    stake: ReactNode;
+    delegation: ReactNode;
+    address: ReactNode;
+}
 
-const validatorsTable = (
+interface TableColumn {
+    header: string;
+    accessorKey: keyof ValidatorData;
+}
+
+interface ValidatorsTableData {
+    data: ValidatorData[];
+    columns: TableColumn[];
+}
+
+function validatorsTable(
     validatorsData: SuiValidatorSummary[],
     limit?: number,
     showIcon?: boolean,
-) => {
-    const validators = processValidators(validatorsData).sort((a, b) =>
-        Math.random() > 0.5 ? -1 : 1,
-    );
+): ValidatorsTableData {
+    const validators = processValidators(validatorsData).sort(() => (Math.random() > 0.5 ? -1 : 1));
 
     const validatorsItems = limit ? validators.splice(0, limit) : validators;
 
@@ -47,7 +64,6 @@ const validatorsTable = (
                         {showIcon && (
                             <ImageIcon src={logo} size="sm" fallback={name} label={name} circle />
                         )}
-
                         <ValidatorLink
                             address={address}
                             label={name}
@@ -99,14 +115,14 @@ const validatorsTable = (
             },
         ],
     };
-};
+}
 
 type TopValidatorsCardProps = {
     limit?: number;
     showIcon?: boolean;
 };
 
-export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps) {
+export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): JSX.Element {
     const { data, isPending, isSuccess, isError } = useSuiClientQuery('getLatestSuiSystemState');
 
     const tableData = useMemo(

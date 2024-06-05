@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import clsx from 'clsx';
 import { type ReactNode } from 'react';
 
@@ -23,7 +26,7 @@ export function ProgrammableTxnBlockCard({
     count,
     initialClose,
     defaultItemsToShow,
-}: ProgrammableTxnBlockCardProps) {
+}: ProgrammableTxnBlockCardProps): JSX.Element | null {
     if (!items?.length) {
         return null;
     }

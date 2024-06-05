@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { CoinFormat, useFormatCoin, useResolveSuiNSName } from '@mysten/core';
 import { ArrowUpRight16, Info16 } from '@mysten/icons';
 import { type ObjectOwner, type SuiObjectResponse } from '@mysten/sui.js/client';
@@ -33,7 +36,7 @@ interface HeroVideoImageProps {
     video?: string | null;
 }
 
-function HeroVideoImage({ title, subtitle, src, video }: HeroVideoImageProps) {
+function HeroVideoImage({ title, subtitle, src, video }: HeroVideoImageProps): JSX.Element {
     const [open, setOpen] = useState(false);
 
     return (
@@ -57,7 +60,11 @@ function HeroVideoImage({ title, subtitle, src, video }: HeroVideoImageProps) {
     );
 }
 
-function ObjectViewCard({ children }: { children: ReactNode }) {
+interface ObjectLinkProps {
+    children?: ReactNode;
+}
+
+function ObjectViewCard({ children }: ObjectLinkProps): JSX.Element {
     return (
         <Card bg="white/80" spacing="lg" height="full">
             <div className="flex flex-col gap-4">{children}</div>
@@ -65,7 +72,11 @@ function ObjectViewCard({ children }: { children: ReactNode }) {
     );
 }
 
-function LinkWebsite({ value }: { value: string }) {
+interface LinkWebsiteProps {
+    value: string;
+}
+
+function LinkWebsite({ value }: LinkWebsiteProps): JSX.Element | null {
     const urlData = getDisplayUrl(value);
 
     if (!urlData) {
@@ -83,22 +94,21 @@ function LinkWebsite({ value }: { value: string }) {
     );
 }
 
+interface DescriptionCardProps {
+    name?: string | null;
+    display?: {
+        [key: string]: string;
+    } | null;
+    objectType: string;
+    objectId: string;
+}
+
 function DescriptionCard({
     name,
     display,
     objectType,
     objectId,
-}: {
-    name?: string | null;
-    display?:
-        | {
-              [key: string]: string;
-          }
-        | null
-        | undefined;
-    objectType: string;
-    objectId: string;
-}) {
+}: DescriptionCardProps): JSX.Element {
     const { address, module, typeParams, ...rest } = parseStructTag(objectType);
 
     const formattedTypeParams = typeParams.map((typeParam) => {
@@ -162,7 +172,12 @@ function DescriptionCard({
     );
 }
 
-function VersionCard({ version, digest }: { version?: string; digest: string }) {
+interface VersionCardProps {
+    version?: string;
+    digest: string;
+}
+
+function VersionCard({ version, digest }: VersionCardProps): JSX.Element {
     return (
         <ObjectViewCard>
             <Description title="Version">
@@ -178,23 +193,25 @@ function VersionCard({ version, digest }: { version?: string; digest: string }) 
     );
 }
 
-function AddressOwner({ address }: { address: string }) {
+interface AddressOwnerProps {
+    address: string;
+}
+
+function AddressOwner({ address }: AddressOwnerProps): JSX.Element {
     const { data: suinsDomainName } = useResolveSuiNSName(address);
 
     return <AddressLink address={address} label={suinsDomainName} />;
 }
 
-function OwnerCard({
-    objOwner,
-    display,
-    storageRebate,
-}: {
+interface OwnerCardProps {
     objOwner?: ObjectOwner | null;
     display?: {
         [key: string]: string;
     } | null;
     storageRebate?: string | null;
-}) {
+}
+
+function OwnerCard({ objOwner, display, storageRebate }: OwnerCardProps): JSX.Element | null {
     const [storageRebateFormatted] = useFormatCoin(storageRebate, SUI_TYPE_ARG, CoinFormat.FULL);
 
     if (!objOwner && !display) {
@@ -254,7 +271,7 @@ interface ObjectViewProps {
     data: SuiObjectResponse;
 }
 
-export function ObjectView({ data }: ObjectViewProps) {
+export function ObjectView({ data }: ObjectViewProps): JSX.Element {
     const [fileType, setFileType] = useState<undefined | string>(undefined);
     const display = data.data?.display?.data;
     const imgUrl = parseImageURL(display);

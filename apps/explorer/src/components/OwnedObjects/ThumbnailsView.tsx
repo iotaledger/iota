@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type SuiObjectResponse } from '@mysten/sui.js/client';
 import { formatAddress } from '@mysten/sui.js/utils';
 import { Placeholder, Text } from '@mysten/ui';
@@ -11,7 +14,7 @@ import { ObjectVideoImage } from '~/ui/ObjectVideoImage';
 import { parseObjectType } from '~/utils/objectUtils';
 import { trimStdLibPrefix } from '~/utils/stringUtils';
 
-function Thumbnail({ obj }: { obj: SuiObjectResponse }) {
+function Thumbnail({ obj }: { obj: SuiObjectResponse }): JSX.Element {
     const video = useResolveVideo(obj);
     const displayMeta = obj.data?.display?.data;
     const src = displayMeta?.image_url || '';
@@ -48,7 +51,7 @@ function Thumbnail({ obj }: { obj: SuiObjectResponse }) {
     );
 }
 
-function ThumbnailsOnlyLoading({ limit }: { limit: number }) {
+function ThumbnailsOnlyLoading({ limit }: { limit: number }): JSX.Element {
     return (
         <>
             {new Array(limit).fill(0).map((_, index) => (
@@ -66,7 +69,7 @@ interface ThumbnailsViewViewProps {
     loading?: boolean;
 }
 
-export function ThumbnailsView({ data, loading, limit }: ThumbnailsViewViewProps) {
+export function ThumbnailsView({ data, loading, limit }: ThumbnailsViewViewProps): JSX.Element {
     return (
         <div className="flex flex-row flex-wrap gap-2 overflow-auto md:gap-4">
             {loading ? (

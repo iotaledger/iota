@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useGetObject } from '@mysten/core';
 import { ObjectDetailsHeader } from '@mysten/icons';
 import { LoadingIndicator } from '@mysten/ui';
@@ -18,7 +21,7 @@ import { PageHeader } from '~/ui/PageHeader';
 
 const PACKAGE_TYPE_NAME = 'Move Package';
 
-export function ObjectResult() {
+export function ObjectResult(): JSX.Element {
     const { id: objID } = useParams();
     const { data, isPending, isError, isFetched } = useGetObject(objID!);
 

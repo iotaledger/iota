@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useFormatCoin } from '@mysten/core';
 import { ArrowShowAndHideRight12, Warning16 } from '@mysten/icons';
 import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
@@ -21,7 +24,7 @@ type OwnedCoinViewProps = {
     id: string;
 };
 
-export default function OwnedCoinView({ coin, id }: OwnedCoinViewProps) {
+export default function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Element {
     const isSuiCoin = coin.coinType === SUI_TYPE_ARG;
     const [open, setOpen] = useState(isSuiCoin);
     const [formattedTotalBalance, symbol] = useFormatCoin(coin.totalBalance, coin.coinType);

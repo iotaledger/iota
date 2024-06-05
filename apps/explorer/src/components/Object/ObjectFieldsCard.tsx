@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Search24 } from '@mysten/icons';
 import { type SuiMoveNormalizedStruct, type SuiObjectResponse } from '@mysten/sui.js/client';
 import { Text, LoadingIndicator, Combobox, ComboboxInput, ComboboxList } from '@mysten/ui';
@@ -33,7 +36,7 @@ export function ObjectFieldsCard({
     loading,
     error,
     objectType,
-}: ObjectFieldsProps) {
+}: ObjectFieldsProps): JSX.Element | null {
     const [query, setQuery] = useState('');
     const [activeFieldName, setActiveFieldName] = useState('');
     const [openFieldsName, setOpenFieldsName] = useState<{

@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useGetKioskContents, useGetOwnedObjects, useLocalStorage } from '@mysten/core';
 import { ThumbnailsOnly16, ViewList16, ViewSmallThumbnails16 } from '@mysten/icons';
 import { Heading, IconButton, RadioGroup, RadioGroupItem, Text } from '@mysten/ui';
@@ -18,6 +21,11 @@ const SHOW_PAGINATION_MAX_ITEMS = 9;
 const OWNED_OBJECTS_LOCAL_STORAGE_VIEW_MODE = 'owned-objects/viewMode';
 const OWNED_OBJECTS_LOCAL_STORAGE_FILTER = 'owned-objects/filter';
 
+interface ItemsRangeFromCurrentPage {
+    start: number;
+    end: number;
+}
+
 enum FilterValue {
     All = 'all',
     Kiosks = 'kiosks',
@@ -34,7 +42,10 @@ const VIEW_MODES = [
     { icon: <ThumbnailsOnly16 />, value: ObjectViewMode.Thumbnail },
 ];
 
-function getItemsRangeFromCurrentPage(currentPage: number, itemsPerPage: number) {
+function getItemsRangeFromCurrentPage(
+    currentPage: number,
+    itemsPerPage: number,
+): ItemsRangeFromCurrentPage {
     const start = currentPage * itemsPerPage + 1;
     const end = start + itemsPerPage - 1;
     return { start, end };
@@ -45,7 +56,7 @@ function getShowPagination(
     itemsLength: number,
     currentPage: number,
     isFetching: boolean,
-) {
+): boolean {
     if (filter === FilterValue.Kiosks) {
         return false;
     }
@@ -57,7 +68,7 @@ function getShowPagination(
     return currentPage !== 0 || itemsLength > SHOW_PAGINATION_MAX_ITEMS;
 }
 
-export function OwnedObjects({ id }: { id: string }) {
+export function OwnedObjects({ id }: { id: string }): JSX.Element {
     const [limit, setLimit] = useState(50);
     const [filter, setFilter] = useLocalStorage<string | undefined>(
         OWNED_OBJECTS_LOCAL_STORAGE_FILTER,

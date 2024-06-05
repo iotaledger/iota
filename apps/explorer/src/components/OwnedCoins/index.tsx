@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { getCoinSymbol } from '@mysten/core';
 import { useSuiClientQuery } from '@mysten/dapp-kit';
 import { Info16 } from '@mysten/icons';
@@ -23,7 +26,7 @@ enum CoinFilter {
     Unrecognized = 'unrecognizedBalances',
 }
 
-export function OwnedCoins({ id }: { id: string }) {
+export function OwnedCoins({ id }: { id: string }): JSX.Element {
     const [currentSlice, setCurrentSlice] = useState(1);
     const [limit, setLimit] = useState(20);
     const [filterValue, setFilterValue] = useState(CoinFilter.Recognized);

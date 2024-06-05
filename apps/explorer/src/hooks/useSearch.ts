@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { isSuiNSName, useSuiNSEnabled } from '@mysten/core';
 import { useSuiClientQuery, useSuiClient } from '@mysten/dapp-kit';
 import { type SuiClient, type SuiSystemStateSummary } from '@mysten/sui.js/client';
@@ -16,7 +19,10 @@ const isGenesisLibAddress = (value: string): boolean => /^(0x|0X)0{0,39}[12]$/.t
 
 type Results = { id: string; label: string; type: string }[];
 
-const getResultsForTransaction = async (client: SuiClient, query: string) => {
+const getResultsForTransaction = async (
+    client: SuiClient,
+    query: string,
+): Promise<Results | null> => {
     if (!isValidTransactionDigest(query)) return null;
     const txdata = await client.getTransactionBlock({ digest: query });
     return [
@@ -28,7 +34,7 @@ const getResultsForTransaction = async (client: SuiClient, query: string) => {
     ];
 };
 
-const getResultsForObject = async (client: SuiClient, query: string) => {
+const getResultsForObject = async (client: SuiClient, query: string): Promise<Results | null> => {
     const normalized = normalizeSuiObjectId(query);
     if (!isValidSuiObjectId(normalized)) return null;
 
@@ -44,7 +50,10 @@ const getResultsForObject = async (client: SuiClient, query: string) => {
     ];
 };
 
-const getResultsForCheckpoint = async (client: SuiClient, query: string) => {
+const getResultsForCheckpoint = async (
+    client: SuiClient,
+    query: string,
+): Promise<Results | null> => {
     // Checkpoint digests have the same format as transaction digests:
     if (!isValidTransactionDigest(query)) return null;
 
@@ -60,7 +69,11 @@ const getResultsForCheckpoint = async (client: SuiClient, query: string) => {
     ];
 };
 
-const getResultsForAddress = async (client: SuiClient, query: string, suiNSEnabled: boolean) => {
+const getResultsForAddress = async (
+    client: SuiClient,
+    query: string,
+    suiNSEnabled: boolean,
+): Promise<Results | null> => {
     if (suiNSEnabled && isSuiNSName(query)) {
         const resolved = await client.resolveNameServiceAddress({ name: query.toLowerCase() });
         if (!resolved) return null;
@@ -102,7 +115,7 @@ const getResultsForAddress = async (client: SuiClient, query: string, suiNSEnabl
 const getResultsForValidatorByPoolIdOrSuiAddress = async (
     systemStateSummery: SuiSystemStateSummary | null,
     query: string,
-) => {
+): Promise<Results | null> => {
     const normalized = normalizeSuiObjectId(query);
     if ((!isValidSuiAddress(normalized) && !isValidSuiObjectId(normalized)) || !systemStateSummery)
         return null;
@@ -123,7 +136,7 @@ const getResultsForValidatorByPoolIdOrSuiAddress = async (
     ];
 };
 
-export function useSearch(query: string) {
+export function useSearch(query: string): ReturnType<typeof useQuery> {
     const client = useSuiClient();
     const { data: systemStateSummery } = useSuiClientQuery('getLatestSuiSystemState');
     const suiNSEnabled = useSuiNSEnabled();

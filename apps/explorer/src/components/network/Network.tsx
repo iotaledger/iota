@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useSuiClientQuery } from '@mysten/dapp-kit';
 import { useContext } from 'react';
 
@@ -9,7 +12,7 @@ import { NetworkSelect, type NetworkOption } from '~/ui/header/NetworkSelect';
 import { ampli } from '~/utils/analytics/ampli';
 import { getAllNetworks } from '@mysten/sui.js/client';
 
-export default function WrappedNetworkSelect() {
+export default function WrappedNetworkSelect(): JSX.Element {
     const [network, setNetwork] = useContext(NetworkContext);
     const { data } = useSuiClientQuery('getLatestSuiSystemState');
     const { data: binaryVersion } = useSuiClientQuery('getRpcApiVersion');

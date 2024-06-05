@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useCoinMetadata } from '@mysten/core';
 import { Sui, Unstaked } from '@mysten/icons';
 import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
@@ -22,7 +25,7 @@ const imageStyle = cva(['flex rounded-2xl'], {
     },
 });
 
-function SuiCoin() {
+function SuiCoin(): JSX.Element {
     return (
         <Sui className="flex h-full w-full items-center justify-center rounded-2xl bg-sui p-1.5 text-body text-white" />
     );
@@ -32,7 +35,7 @@ type NonSuiCoinProps = {
     coinType: string;
 };
 
-function NonSuiCoin({ coinType }: NonSuiCoinProps) {
+function NonSuiCoin({ coinType }: NonSuiCoinProps): JSX.Element {
     const { data: coinMeta } = useCoinMetadata(coinType);
     return (
         <div className="flex h-full w-full items-center justify-center rounded-2xl bg-gray-40 text-hero-darkest text-opacity-30">
@@ -57,7 +60,7 @@ export interface CoinIconProps extends VariantProps<typeof imageStyle> {
     coinType: string;
 }
 
-export function CoinIcon({ coinType, ...styleProps }: CoinIconProps) {
+export function CoinIcon({ coinType, ...styleProps }: CoinIconProps): JSX.Element {
     return (
         <div className={imageStyle(styleProps)}>
             {coinType === SUI_TYPE_ARG ? <SuiCoin /> : <NonSuiCoin coinType={coinType} />}

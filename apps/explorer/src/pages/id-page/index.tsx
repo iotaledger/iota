@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useParams } from 'react-router-dom';
 import {
     isSuiNSName,
@@ -16,15 +19,13 @@ import { ErrorBoundary } from '~/components/error-boundary/ErrorBoundary';
 import { ObjectView } from '~/pages/object-result/views/ObjectView';
 import { PageContent } from '~/pages/id-page/PageContent';
 
-function Header({
-    address,
-    loading,
-    error,
-}: {
+interface HeaderProps {
     address: string;
     loading?: boolean;
     error?: Error | null;
-}) {
+}
+
+function Header({ address, loading, error }: HeaderProps): JSX.Element {
     const { data: domainName, isLoading, error: resolveSuinsError } = useResolveSuiNSName(address);
     const { data, isPending, error: getObjectError } = useGetObject(address!);
     const isObject = !!data?.data;
@@ -53,7 +54,11 @@ function Header({
     );
 }
 
-function PageLayoutContainer({ address }: { address: string }) {
+interface PageLayoutContainerProps {
+    address: string;
+}
+
+function PageLayoutContainer({ address }: PageLayoutContainerProps): JSX.Element {
     const { id } = useParams();
     const isSuiNSAddress = isSuiNSName(id!);
     const {
@@ -75,7 +80,7 @@ function PageLayoutContainer({ address }: { address: string }) {
     );
 }
 
-export function IdPage() {
+export function IdPage(): JSX.Element {
     const { id } = useParams();
 
     return <PageLayoutContainer address={id!} />;

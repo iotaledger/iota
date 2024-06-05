@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
@@ -18,7 +21,7 @@ export const FILTER_TO_API_FILTER: Record<DateFilter, ApiDateFilter> = {
     '30D': 'rank30Days',
 };
 
-export function TopPackagesCard() {
+export function TopPackagesCard(): JSX.Element {
     const rpc = useEnhancedRpcClient();
     const [selectedFilter, setSelectedFilter] = useState<DateFilter>('3D');
 

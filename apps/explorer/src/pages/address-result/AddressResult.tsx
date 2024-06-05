@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { isSuiNSName, useResolveSuiNSAddress, useResolveSuiNSName } from '@mysten/core';
 import { Domain32 } from '@mysten/icons';
 import { LoadingIndicator } from '@mysten/ui';
@@ -21,7 +24,13 @@ import { TotalStaked } from './TotalStaked';
 const LEFT_RIGHT_PANEL_MIN_SIZE = 30;
 const TOP_PANEL_MIN_SIZE = 20;
 
-function AddressResultPageHeader({ address, loading }: { address: string; loading?: boolean }) {
+function AddressResultPageHeader({
+    address,
+    loading,
+}: {
+    address: string;
+    loading?: boolean;
+}): JSX.Element {
     const { data: domainName, isLoading } = useResolveSuiNSName(address);
 
     return (
@@ -36,13 +45,13 @@ function AddressResultPageHeader({ address, loading }: { address: string; loadin
     );
 }
 
-function SuiNSAddressResultPageHeader({ name }: { name: string }) {
+function SuiNSAddressResultPageHeader({ name }: { name: string }): JSX.Element {
     const { data: address, isLoading } = useResolveSuiNSAddress(name);
 
     return <AddressResultPageHeader address={address ?? name} loading={isLoading} />;
 }
 
-function AddressResult({ address }: { address: string }) {
+function AddressResult({ address }: { address: string }): JSX.Element {
     const isMediumOrAbove = useBreakpoint('md');
 
     const leftPane = {
@@ -126,7 +135,7 @@ function AddressResult({ address }: { address: string }) {
     );
 }
 
-function SuiNSAddressResult({ name }: { name: string }) {
+function SuiNSAddressResult({ name }: { name: string }): JSX.Element {
     const { isFetched, data } = useResolveSuiNSAddress(name);
 
     if (!isFetched) {
@@ -137,7 +146,7 @@ function SuiNSAddressResult({ name }: { name: string }) {
     return <AddressResult address={data ?? name} />;
 }
 
-export default function AddressResultPage() {
+export default function AddressResultPage(): JSX.Element {
     const { id } = useParams();
     const isSuiNSAddress = isSuiNSName(id!);
 

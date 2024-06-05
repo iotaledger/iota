@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { formatAmount, formatDate } from '@mysten/core';
 import { useSuiClientQuery } from '@mysten/dapp-kit';
 import { Heading, Text, LoadingIndicator } from '@mysten/ui';
@@ -12,15 +15,17 @@ import { FormattedStatsAmount } from './HomeMetrics/FormattedStatsAmount';
 import { ErrorBoundary } from './error-boundary/ErrorBoundary';
 import { Card } from '~/ui/Card';
 
-function TooltipContent({
-    data: { epochTotalTransactions, epochStartTimestamp, epoch },
-}: {
+interface TooltipContentProps {
     data: {
         epochTotalTransactions: number;
         epochStartTimestamp: number;
         epoch: number;
     };
-}) {
+}
+
+function TooltipContent({
+    data: { epochTotalTransactions, epochStartTimestamp, epoch },
+}: TooltipContentProps): JSX.Element {
     const dateFormatted = formatDate(new Date(epochStartTimestamp), ['day', 'month']);
     const totalFormatted = formatAmount(epochTotalTransactions);
     return (

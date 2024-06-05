@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useGetDynamicFields, useOnScreen } from '@mysten/core';
 import { type DynamicFieldInfo } from '@mysten/sui.js/client';
 import { LoadingIndicator } from '@mysten/ui';
@@ -10,17 +13,19 @@ import { UnderlyingObjectCard } from './UnderlyingObjectCard';
 import { FieldsCard, FieldCollapsible, FieldsContainer } from '~/components/Object/FieldsUtils';
 import { ObjectLink } from '~/ui/InternalLink';
 
+interface DynamicFieldRowProps {
+    id: string;
+    result: DynamicFieldInfo;
+    noMarginBottom: boolean;
+    defaultOpen: boolean;
+}
+
 function DynamicFieldRow({
     id,
     result,
     noMarginBottom,
     defaultOpen,
-}: {
-    id: string;
-    result: DynamicFieldInfo;
-    noMarginBottom: boolean;
-    defaultOpen: boolean;
-}) {
+}: DynamicFieldRowProps): JSX.Element {
     const [open, onOpenChange] = useState(defaultOpen);
 
     return (

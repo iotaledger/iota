@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useEffect, useRef, type ReactNode } from 'react';
 
 interface ScrollToViewCardProps {
@@ -8,7 +11,7 @@ interface ScrollToViewCardProps {
     inView: boolean;
 }
 
-export function ScrollToViewCard({ children, inView }: ScrollToViewCardProps) {
+export function ScrollToViewCard({ children, inView }: ScrollToViewCardProps): JSX.Element {
     const scrollViewRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {

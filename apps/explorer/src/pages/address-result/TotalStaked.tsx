@@ -1,13 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useFormatCoin, useGetDelegatedStake } from '@mysten/core';
 import { useMemo } from 'react';
 import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
 import { Text, Heading } from '@mysten/ui';
 import { Sui } from '@mysten/icons';
 
-export function TotalStaked({ address }: { address: string }) {
+export function TotalStaked({ address }: { address: string }): JSX.Element | null {
     const { data: delegatedStake } = useGetDelegatedStake({
         address,
     });

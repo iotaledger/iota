@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useSuiClient } from '@mysten/dapp-kit';
 import { type SuiTransactionBlockResponse } from '@mysten/sui.js/client';
 import { LoadingIndicator, Text } from '@mysten/ui';
@@ -15,17 +18,19 @@ interface Props {
     type: 'object' | 'address';
 }
 
+interface TransactionsForAddressTable {
+    data: SuiTransactionBlockResponse[];
+    isPending: boolean;
+    isError: boolean;
+    address: string;
+}
+
 export function TransactionsForAddressTable({
     data,
     isPending,
     isError,
     address,
-}: {
-    data: SuiTransactionBlockResponse[];
-    isPending: boolean;
-    isError: boolean;
-    address: string;
-}) {
+}: TransactionsForAddressTable): JSX.Element {
     if (isPending) {
         return (
             <div>
@@ -58,7 +63,7 @@ export function TransactionsForAddressTable({
     return <TableCard data={tableData.data} columns={tableData.columns} />;
 }
 
-export function TransactionsForAddress({ address, type }: Props) {
+export function TransactionsForAddress({ address, type }: Props): JSX.Element {
     const client = useSuiClient();
 
     const { data, isPending, isError } = useQuery({

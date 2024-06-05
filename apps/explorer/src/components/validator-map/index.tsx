@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useAppsBackend } from '@mysten/core';
 import { useSuiClientQuery } from '@mysten/dapp-kit';
 import { Heading, Text, Placeholder } from '@mysten/ui';
@@ -19,7 +22,12 @@ type ValidatorsMap = Record<string, ValidatorMapValidator>;
 
 const numberFormatter = new Intl.NumberFormat('en');
 
-function NodeStat({ title, children }: { title: string; children: ReactNode }) {
+interface NodeStatProps {
+    title: string;
+    children: ReactNode;
+}
+
+function NodeStat({ title, children }: NodeStatProps): JSX.Element {
     return (
         <div className="space-y-1.5">
             <Heading variant="heading2/semibold" color="steel-darker">
@@ -37,7 +45,7 @@ interface Props {
 }
 
 // NOTE: This component is lazy imported, so it needs to be default exported:
-export default function ValidatorMap({ minHeight }: Props) {
+export default function ValidatorMap({ minHeight }: Props): JSX.Element {
     const [network] = useNetwork();
     const { data: systemState, isError: systemStateError } =
         useSuiClientQuery('getLatestSuiSystemState');

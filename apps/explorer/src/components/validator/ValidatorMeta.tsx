@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { ArrowUpRight12 } from '@mysten/icons';
 import { type SuiValidatorSummary } from '@mysten/sui.js/client';
 import { Heading, Text } from '@mysten/ui';
@@ -14,7 +17,7 @@ type ValidatorMetaProps = {
     validatorData: SuiValidatorSummary;
 };
 
-export function ValidatorMeta({ validatorData }: ValidatorMetaProps) {
+export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Element {
     const validatorPublicKey = validatorData.protocolPubkeyBytes;
     const validatorName = validatorData.name;
     const logo = validatorData.imageUrl;

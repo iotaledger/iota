@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useFormatCoin, formatBalance, CoinFormat } from '@mysten/core';
 import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
 import { Heading, Text } from '@mysten/ui';
@@ -11,7 +14,11 @@ type DelegationAmountProps = {
     inMIST?: boolean;
 };
 
-export function DelegationAmount({ amount, isStats, inMIST = false }: DelegationAmountProps) {
+export function DelegationAmount({
+    amount,
+    isStats,
+    inMIST = false,
+}: DelegationAmountProps): JSX.Element {
     const [formattedAmount, symbol] = useFormatCoin(amount, SUI_TYPE_ARG);
     const delegationAmount = inMIST ? formatBalance(amount, 0, CoinFormat.FULL) : formattedAmount;
     const delegationSymbol = inMIST ? 'MIST' : symbol;

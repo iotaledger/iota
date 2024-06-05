@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useTooltipPosition } from '@visx/tooltip';
 import clsx from 'clsx';
 import { type ReactNode } from 'react';
@@ -9,7 +12,7 @@ export type GraphTooltipContentProps = {
     children: ReactNode;
 };
 
-export function GraphTooltipContent({ children }: GraphTooltipContentProps) {
+export function GraphTooltipContent({ children }: GraphTooltipContentProps): JSX.Element {
     const { isFlippedHorizontally } = useTooltipPosition();
     return (
         <div

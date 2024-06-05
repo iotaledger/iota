@@ -1,10 +1,21 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useTimeAgo } from '@mysten/core';
 import { useSuiClientQuery } from '@mysten/dapp-kit';
 
-export function useEpochProgress(suffix: string = 'left') {
+interface EpochProgress {
+    epoch?: number;
+    progress: number;
+    label: string;
+    end: number;
+    start: number;
+}
+
+export function useEpochProgress(suffix: string = 'left'): EpochProgress {
     const { data } = useSuiClientQuery('getLatestSuiSystemState');
     const start = data?.epochStartTimestampMs ? Number(data.epochStartTimestampMs) : undefined;
     const duration = data?.epochDurationMs ? Number(data.epochDurationMs) : undefined;
@@ -16,7 +27,12 @@ export function useEpochProgress(suffix: string = 'left') {
     });
 
     if (!start || !end) {
-        return {};
+        return {
+            progress: 0,
+            label: '',
+            end: 0,
+            start: 0,
+        };
     }
 
     const progress =
@@ -35,7 +51,7 @@ export function useEpochProgress(suffix: string = 'left') {
     }
 
     return {
-        epoch: data?.epoch,
+        epoch: Number(data?.epoch),
         progress,
         label,
         end,

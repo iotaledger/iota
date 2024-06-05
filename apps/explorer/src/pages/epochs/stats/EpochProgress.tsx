@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { formatDate } from '@mysten/core';
 import { Heading, Text } from '@mysten/ui';
 import clsx from 'clsx';
@@ -16,7 +19,7 @@ export interface EpochProgressProps {
     inProgress?: boolean;
 }
 
-export function EpochProgress({ epoch, start, end, inProgress }: EpochProgressProps) {
+export function EpochProgress({ epoch, start, end, inProgress }: EpochProgressProps): JSX.Element {
     const { progress, label } = useEpochProgress();
 
     const elapsedTime = !inProgress && start && end ? getElapsedTime(start, end) : undefined;

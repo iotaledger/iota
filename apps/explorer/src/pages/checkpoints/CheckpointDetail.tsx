@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useSuiClient } from '@mysten/dapp-kit';
 import { Text, LoadingIndicator } from '@mysten/ui';
 import { useQuery } from '@tanstack/react-query';
@@ -15,7 +18,7 @@ import { EpochLink } from '~/ui/InternalLink';
 import { PageHeader } from '~/ui/PageHeader';
 import { TabHeader, Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
 
-export default function CheckpointDetail() {
+export default function CheckpointDetail(): JSX.Element {
     const { id } = useParams<{ id: string }>();
     const digestOrSequenceNumber = /^\d+$/.test(id!) ? parseInt(id!, 10) : id;
 

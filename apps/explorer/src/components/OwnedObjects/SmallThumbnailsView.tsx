@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { type SuiObjectResponse } from '@mysten/sui.js/client';
 import { formatAddress } from '@mysten/sui.js/utils';
 import { Placeholder } from '@mysten/ui';
@@ -19,7 +22,12 @@ interface Props {
     loading?: boolean;
 }
 
-function OwnObjectContainer({ id, children }: { id: string; children: ReactNode }) {
+interface OwnObjectContainerProps {
+    id: string;
+    children: ReactNode;
+}
+
+function OwnObjectContainer({ id, children }: OwnObjectContainerProps): JSX.Element {
     return (
         <div className="w-full min-w-smallThumbNailsViewContainerMobile basis-1/2 pb-3 pr-4 md:min-w-smallThumbNailsViewContainer md:basis-1/4">
             <div className="rounded-lg p-2 hover:bg-hero/5">
@@ -29,7 +37,7 @@ function OwnObjectContainer({ id, children }: { id: string; children: ReactNode 
     );
 }
 
-function SmallThumbnailsViewLoading({ limit }: { limit: number }) {
+function SmallThumbnailsViewLoading({ limit }: { limit: number }): JSX.Element {
     return (
         <>
             {new Array(limit).fill(0).map((_, index) => (
@@ -41,7 +49,7 @@ function SmallThumbnailsViewLoading({ limit }: { limit: number }) {
     );
 }
 
-function SmallThumbnail({ obj }: { obj: SuiObjectResponse }) {
+function SmallThumbnail({ obj }: { obj: SuiObjectResponse }): JSX.Element {
     const video = useResolveVideo(obj);
     const displayMeta = obj.data?.display?.data;
     const src = displayMeta?.image_url || '';
@@ -73,7 +81,7 @@ function SmallThumbnail({ obj }: { obj: SuiObjectResponse }) {
     );
 }
 
-export function SmallThumbnailsView({ data, loading, limit }: Props) {
+export function SmallThumbnailsView({ data, loading, limit }: Props): JSX.Element {
     return (
         <div className="flex flex-row flex-wrap overflow-auto">
             {loading && <SmallThumbnailsViewLoading limit={limit} />}

@@ -1,6 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Activity } from '../../components/Activity';
 import { ErrorBoundary } from '../../components/error-boundary/ErrorBoundary';
 import { PageLayout } from '~/components/Layout/PageLayout';
@@ -8,7 +11,7 @@ import { useSearchParamsMerged } from '~/ui/utils/LinkWithQuery';
 
 const TRANSACTIONS_LIMIT = 20;
 
-export function Recent() {
+export function Recent(): JSX.Element {
     const [searchParams] = useSearchParamsMerged();
 
     return (
