@@ -38,6 +38,7 @@ function EnterValuesForm({
                 <input
                     type="number"
                     id="amount"
+                    name="amount"
                     min="1"
                     value={amount}
                     onChange={handleChange}
@@ -46,7 +47,8 @@ function EnterValuesForm({
                 <label htmlFor="address">Address: </label>
                 <input
                     type="text"
-                    id="address"
+                    id="recipientAddress"
+                    name="recipientAddress"
                     value={recipientAddress}
                     onChange={handleChange}
                     placeholder="Enter the address to send coins"

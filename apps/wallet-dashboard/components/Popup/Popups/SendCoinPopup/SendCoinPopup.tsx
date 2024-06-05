@@ -30,8 +30,6 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
         senderAddress,
     });
 
-    console.log('formData', formData);
-
     const handleNext = () => {
         setStep(Steps.ReviewValues);
     };
