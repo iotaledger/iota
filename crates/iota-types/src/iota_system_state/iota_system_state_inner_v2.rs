@@ -18,12 +18,12 @@ use crate::{
     collection_types::{Bag, Table, TableVec, VecMap, VecSet},
     committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata},
     error::IotaError,
-    storage::ObjectStore,
     iota_system_state::{
         epoch_start_iota_system_state::EpochStartSystemState,
         get_validators_from_table_vec,
         iota_system_state_inner_v1::{StakeSubsidyV1, StorageFundV1, ValidatorSetV1},
     },
+    storage::ObjectStore,
 };
 
 /// Rust version of the Move iota::iota_system::SystemParametersV2 type
@@ -62,7 +62,8 @@ pub struct SystemParametersV2 {
     pub extra_fields: Bag,
 }
 
-/// Rust version of the Move iota_system::iota_system::IotaSystemStateInnerV2 type
+/// Rust version of the Move iota_system::iota_system::IotaSystemStateInnerV2
+/// type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct IotaSystemStateInnerV2 {
     pub epoch: u64,

@@ -9,9 +9,6 @@ use std::{
 };
 
 use fastcrypto::encoding::{Encoding, Hex};
-use reqwest::Client;
-use serde::{de::DeserializeOwned, Serialize};
-use serde_json::Value;
 use iota_config::local_ip_utils;
 use iota_keys::keystore::{AccountKeystore, Keystore};
 use iota_rosetta::{
@@ -21,13 +18,16 @@ use iota_rosetta::{
         ConstructionCombineRequest, ConstructionCombineResponse, ConstructionMetadataRequest,
         ConstructionMetadataResponse, ConstructionPayloadsRequest, ConstructionPayloadsResponse,
         ConstructionPreprocessRequest, ConstructionPreprocessResponse, ConstructionSubmitRequest,
-        NetworkIdentifier, Signature, SignatureType, SubAccount, SubAccountType, IotaEnv,
+        IotaEnv, NetworkIdentifier, Signature, SignatureType, SubAccount, SubAccountType,
         TransactionIdentifierResponse,
     },
     RosettaOfflineServer, RosettaOnlineServer,
 };
 use iota_sdk::IotaClient;
 use iota_types::{base_types::IotaAddress, crypto::IotaSignature};
+use reqwest::Client;
+use serde::{de::DeserializeOwned, Serialize};
+use serde_json::Value;
 use tokio::task::JoinHandle;
 
 pub async fn start_rosetta_test_server(

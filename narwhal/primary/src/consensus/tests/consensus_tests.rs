@@ -5,9 +5,9 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use fastcrypto::hash::Hash;
+use iota_protocol_config::ProtocolConfig;
 use prometheus::Registry;
 use storage::NodeStorage;
-use iota_protocol_config::ProtocolConfig;
 use telemetry_subscribers::TelemetryGuards;
 use test_utils::{latest_protocol_version, temp_dir, CommitteeFixture};
 use tokio::sync::watch;

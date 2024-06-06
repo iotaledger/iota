@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_binary_format::CompiledModule;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{error::IotaResult, execution_config_utils::to_binary_config};
+use move_binary_format::CompiledModule;
 
 pub trait Verifier {
     /// Run the bytecode verifier with a meter limit

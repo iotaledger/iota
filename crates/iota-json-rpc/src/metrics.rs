@@ -5,6 +5,9 @@
 use std::{collections::HashSet, net::SocketAddr};
 
 use hyper::body::HttpBody;
+use iota_json_rpc_api::{
+    CLIENT_SDK_TYPE_HEADER, CLIENT_TARGET_API_VERSION_HEADER, TRANSIENT_ERROR_CODE,
+};
 use jsonrpsee::{
     server::logger::{HttpRequest, Logger, MethodKind, TransportProtocol},
     types::Params,
@@ -12,9 +15,6 @@ use jsonrpsee::{
 use prometheus::{
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry, HistogramVec, IntCounterVec, IntGaugeVec,
-};
-use iota_json_rpc_api::{
-    CLIENT_SDK_TYPE_HEADER, CLIENT_TARGET_API_VERSION_HEADER, TRANSIENT_ERROR_CODE,
 };
 use tokio::time::Instant;
 

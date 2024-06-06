@@ -21,6 +21,11 @@ use futures::{
     FutureExt, StreamExt,
 };
 use indicatif::{ProgressBar, ProgressStyle};
+use iota_types::{
+    committee::Committee,
+    quorum_driver_types::QuorumDriverError,
+    transaction::{Transaction, TransactionDataAPI},
+};
 use prometheus::{
     register_counter_vec_with_registry, register_gauge_vec_with_registry,
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
@@ -28,11 +33,6 @@ use prometheus::{
     Registry,
 };
 use rand::seq::SliceRandom;
-use iota_types::{
-    committee::Committee,
-    quorum_driver_types::QuorumDriverError,
-    transaction::{Transaction, TransactionDataAPI},
-};
 use sysinfo::{CpuExt, System, SystemExt};
 use tokio::{
     sync::{

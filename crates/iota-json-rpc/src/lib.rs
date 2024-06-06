@@ -9,13 +9,13 @@ use hyper::{
     header::{HeaderName, HeaderValue},
     Body, Method, Request,
 };
-use jsonrpsee::RpcModule;
-pub use object_changes::*;
-use prometheus::Registry;
 use iota_json_rpc_api::{
     CLIENT_SDK_TYPE_HEADER, CLIENT_SDK_VERSION_HEADER, CLIENT_TARGET_API_VERSION_HEADER,
 };
 use iota_open_rpc::{Module, Project};
+use jsonrpsee::RpcModule;
+pub use object_changes::*;
+use prometheus::Registry;
 use tokio::runtime::Handle;
 use tower_http::{
     cors::{AllowOrigin, CorsLayer},

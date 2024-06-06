@@ -6,8 +6,6 @@
 use core::default::Default;
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
-use move_core_types::account_address::AccountAddress;
-use move_symbol_pool::Symbol;
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_types::{
     crypto::{AccountKeyPair, AuthorityKeyPair, Signature},
@@ -16,6 +14,8 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     utils::to_sender_signed_transaction,
 };
+use move_core_types::account_address::AccountAddress;
+use move_symbol_pool::Symbol;
 
 use super::{test_authority_builder::TestAuthorityBuilder, *};
 use crate::{checkpoints::CheckpointServiceNoop, consensus_handler::SequencedConsensusTransaction};
@@ -194,7 +194,8 @@ pub async fn init_state_with_objects<I: IntoIterator<Item = Object>>(
     objects: I,
 ) -> Arc<AuthorityState> {
     let dir = tempfile::TempDir::new().unwrap();
-    let network_config = iota_swarm_config::network_config_builder::ConfigBuilder::new(&dir).build();
+    let network_config =
+        iota_swarm_config::network_config_builder::ConfigBuilder::new(&dir).build();
     let genesis = network_config.genesis;
     let keypair = network_config.validator_configs[0]
         .protocol_key_pair()

@@ -21,7 +21,6 @@ use std::num::NonZeroUsize;
 
 use fastcrypto::traits::KeyPair;
 use insta::assert_yaml_snapshot;
-use rand::{rngs::StdRng, SeedableRng};
 use iota_config::{
     genesis::{GenesisCeremonyParameters, TokenDistributionScheduleBuilder},
     node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
@@ -32,10 +31,11 @@ use iota_types::{
     base_types::IotaAddress,
     crypto::{
         generate_proof_of_possession, get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair,
-        NetworkKeyPair, IotaKeyPair,
+        IotaKeyPair, NetworkKeyPair,
     },
     multiaddr::Multiaddr,
 };
+use rand::{rngs::StdRng, SeedableRng};
 
 #[test]
 #[cfg_attr(msim, ignore)]

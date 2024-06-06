@@ -5,17 +5,17 @@
 use std::collections::BTreeMap;
 
 use fastcrypto::traits::ToFromBytes;
+use iota_types::{
+    base_types::{AuthorityName, EpochId, ObjectID},
+    committee::Committee,
+    iota_serde::BigInt,
+    iota_system_state::iota_system_state_summary::IotaValidatorSummary,
+    messages_checkpoint::CheckpointSequenceNumber,
+};
 use move_core_types::identifier::Identifier;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DisplayFromStr};
-use iota_types::{
-    base_types::{AuthorityName, EpochId, ObjectID},
-    committee::Committee,
-    messages_checkpoint::CheckpointSequenceNumber,
-    iota_serde::BigInt,
-    iota_system_state::iota_system_state_summary::IotaValidatorSummary,
-};
 
 use crate::Page;
 

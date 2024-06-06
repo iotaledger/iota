@@ -2,11 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk::types::block::output::{BasicOutput, OutputId};
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk::types::block::output::{BasicOutput, OutputId};
 use iota_types::{
     balance::Balance,
-    base_types::{MoveObjectType, ObjectID, SequenceNumber, IotaAddress, TxContext},
+    base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
     id::UID,
     object::{Data, MoveObject, Object, Owner},
     timelock::timelock::TimeLock,

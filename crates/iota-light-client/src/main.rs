@@ -13,7 +13,6 @@ use std::{
 use anyhow::anyhow;
 use async_trait::async_trait;
 use clap::{Parser, Subcommand};
-use move_core_types::account_address::AccountAddress;
 use iota_config::genesis::Genesis;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
@@ -30,6 +29,7 @@ use iota_types::{
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSummary, EndOfEpochData},
     object::{Data, Object},
 };
+use move_core_types::account_address::AccountAddress;
 
 /// A light client for the Iota blockchain
 #[derive(Parser, Debug)]

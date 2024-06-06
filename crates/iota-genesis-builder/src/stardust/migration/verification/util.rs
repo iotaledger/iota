@@ -14,7 +14,7 @@ use iota_sdk::{
 };
 use iota_types::{
     balance::Balance,
-    base_types::{ObjectID, IotaAddress},
+    base_types::{IotaAddress, ObjectID},
     coin::Coin,
     collection_types::Bag,
     dynamic_field::Field,

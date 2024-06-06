@@ -4,11 +4,10 @@
 
 use std::{collections::BTreeSet, path::PathBuf, str::FromStr, sync::Arc};
 
-use move_core_types::{ident_str, language_storage::StructTag};
 use iota_move_build::BuildConfig;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, IotaAddress},
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{get_key_pair, AccountKeyPair},
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
@@ -21,8 +20,9 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::ObjectStore,
     transaction::{Argument, ObjectArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
-    MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID,
+    IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
 };
+use move_core_types::{ident_str, language_storage::StructTag};
 
 use crate::authority::{
     authority_test_utils::build_test_modules_with_dep_addr,

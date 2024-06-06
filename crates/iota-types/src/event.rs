@@ -18,10 +18,10 @@ use serde_json::Value;
 use serde_with::{serde_as, Bytes};
 
 use crate::{
-    base_types::{ObjectID, IotaAddress, TransactionDigest},
+    base_types::{IotaAddress, ObjectID, TransactionDigest},
     error::{IotaError, IotaResult},
-    object::bounded_visitor::BoundedVisitor,
     iota_serde::{BigInt, Readable},
+    object::bounded_visitor::BoundedVisitor,
     IOTA_SYSTEM_ADDRESS,
 };
 
@@ -39,8 +39,8 @@ pub struct EventEnvelope {
     /// Move event's json value
     pub parsed_json: Value,
 }
-/// Unique ID of a Iota Event, the ID is a combination of tx seq number and event
-/// seq number, the ID is local to this particular fullnode and will be
+/// Unique ID of a Iota Event, the ID is a combination of tx seq number and
+/// event seq number, the ID is local to this particular fullnode and will be
 /// different from other fullnode.
 #[serde_as]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Hash)]

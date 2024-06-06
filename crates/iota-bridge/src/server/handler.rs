@@ -9,8 +9,8 @@ use std::{num::NonZeroUsize, str::FromStr, sync::Arc};
 use async_trait::async_trait;
 use axum::Json;
 use ethers::{providers::JsonRpcClient, types::TxHash};
-use lru::LruCache;
 use iota_types::digests::TransactionDigest;
+use lru::LruCache;
 use tap::TapFallible;
 use tokio::sync::{oneshot, Mutex};
 use tracing::{info, instrument};
@@ -328,10 +328,10 @@ mod tests {
     use super::*;
     use crate::{
         eth_mock_provider::EthMockProvider,
-        events::{init_all_struct_tags, MoveTokenBridgeEvent, IotaToEthTokenBridgeV1},
+        events::{init_all_struct_tags, IotaToEthTokenBridgeV1, MoveTokenBridgeEvent},
         iota_mock_client::IotaMockClient,
         test_utils::{
-            get_test_log_and_action, get_test_iota_to_eth_bridge_action, mock_last_finalized_block,
+            get_test_iota_to_eth_bridge_action, get_test_log_and_action, mock_last_finalized_block,
         },
         types::{
             BridgeActionType, BridgeChainId, EmergencyAction, EmergencyActionType,
@@ -366,8 +366,12 @@ mod tests {
             .await;
         assert!(entry_.unwrap().lock().await.is_none());
 
-        let action =
-            get_test_iota_to_eth_bridge_action(Some(iota_tx_digest), Some(iota_event_idx), None, None);
+        let action = get_test_iota_to_eth_bridge_action(
+            Some(iota_tx_digest),
+            Some(iota_event_idx),
+            None,
+            None,
+        );
         let sig = BridgeAuthoritySignInfo::new(&action, &signer);
         let signed_action = SignedBridgeAction::new_from_data_and_sig(action.clone(), sig);
         entry.lock().await.replace(Ok(signed_action));

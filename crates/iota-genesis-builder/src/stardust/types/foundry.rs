@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk::types::block::output::{FoundryOutput, OutputId};
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk::types::block::output::{FoundryOutput, OutputId};
 use iota_types::{
     base_types::{ObjectID, SequenceNumber, TxContext},
     id::UID,

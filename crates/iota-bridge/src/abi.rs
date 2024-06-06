@@ -7,8 +7,8 @@ use ethers::{
     contract::{abigen, EthLogDecode},
     types::Address as EthAddress,
 };
-use serde::{Deserialize, Serialize};
 use iota_types::base_types::IotaAddress;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     error::{BridgeError, BridgeResult},

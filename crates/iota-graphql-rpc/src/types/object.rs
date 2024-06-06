@@ -9,11 +9,6 @@ use async_graphql::{
     *,
 };
 use diesel::{CombineDsl, ExpressionMethods, OptionalExtension, QueryDsl};
-use move_core_types::{
-    annotated_value::{MoveStruct, MoveTypeLayout},
-    language_storage::StructTag,
-};
-use serde::{Deserialize, Serialize};
 use iota_indexer::{
     models::objects::{StoredDeletedHistoryObject, StoredHistoryObject, StoredObject},
     schema::{objects, objects_history, objects_snapshot},
@@ -27,6 +22,11 @@ use iota_types::{
     },
     TypeTag,
 };
+use move_core_types::{
+    annotated_value::{MoveStruct, MoveTypeLayout},
+    language_storage::StructTag,
+};
+use serde::{Deserialize, Serialize};
 
 use super::{
     balance::{self, Balance},
@@ -38,12 +38,12 @@ use super::{
     digest::Digest,
     display::{Display, DisplayEntry},
     dynamic_field::{DynamicField, DynamicFieldName},
+    iota_address::IotaAddress,
+    iotans_registration::{DomainFormat, IotansRegistration},
     move_object::MoveObject,
     move_package::MovePackage,
     owner::{Owner, OwnerImpl},
     stake::StakedIota,
-    iota_address::IotaAddress,
-    iotans_registration::{DomainFormat, IotansRegistration},
     transaction_block,
     transaction_block::{TransactionBlock, TransactionBlockFilter},
     type_filter::{ExactTypeFilter, TypeFilter},
@@ -1372,9 +1372,9 @@ impl From<&Object> for OwnerImpl {
     }
 }
 
-/// Parse a `IotaAddress` from its stored representation.  Failure is an internal
-/// error: the database should never contain a malformed address (containing the
-/// wrong number of bytes).
+/// Parse a `IotaAddress` from its stored representation.  Failure is an
+/// internal error: the database should never contain a malformed address
+/// (containing the wrong number of bytes).
 fn addr(bytes: impl AsRef<[u8]>) -> Result<IotaAddress, Error> {
     IotaAddress::from_bytes(bytes.as_ref()).map_err(|e| {
         let bytes = bytes.as_ref().to_vec();

@@ -17,15 +17,15 @@ use super::{
 };
 use crate::{
     balance::Balance,
-    base_types::{ObjectID, IotaAddress},
+    base_types::{IotaAddress, ObjectID},
     collection_types::{Bag, Table, TableVec, VecMap, VecSet},
     committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata},
     crypto::{verify_proof_of_possession, AuthorityPublicKeyBytes},
     error::IotaError,
     id::ID,
+    iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
     multiaddr::Multiaddr,
     storage::ObjectStore,
-    iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
 };
 
 const E_METADATA_INVALID_POP: u64 = 0;

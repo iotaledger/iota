@@ -12,6 +12,19 @@ use std::{
 use anyhow::anyhow;
 use colored::Colorize;
 use fastcrypto::encoding::Base64;
+use iota_protocol_config::ProtocolConfig;
+use iota_types::{
+    base_types::{
+        IotaAddress, ObjectDigest, ObjectID, ObjectInfo, ObjectRef, ObjectType, SequenceNumber,
+        TransactionDigest,
+    },
+    error::{ExecutionError, IotaObjectResponseError, UserInputError, UserInputResult},
+    gas_coin::GasCoin,
+    iota_serde::{BigInt, IotaStructTag, SequenceNumber as AsSequenceNumber},
+    messages_checkpoint::CheckpointSequenceNumber,
+    move_package::{MovePackage, TypeOrigin, UpgradeInfo},
+    object::{Data, MoveObject, Object, ObjectInner, ObjectRead, Owner},
+};
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{
     annotated_value::{MoveStruct, MoveStructLayout},
@@ -22,21 +35,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_with::{serde_as, DisplayFromStr};
-use iota_protocol_config::ProtocolConfig;
-use iota_types::{
-    base_types::{
-        ObjectDigest, ObjectID, ObjectInfo, ObjectRef, ObjectType, SequenceNumber, IotaAddress,
-        TransactionDigest,
-    },
-    error::{ExecutionError, IotaObjectResponseError, UserInputError, UserInputResult},
-    gas_coin::GasCoin,
-    messages_checkpoint::CheckpointSequenceNumber,
-    move_package::{MovePackage, TypeOrigin, UpgradeInfo},
-    object::{Data, MoveObject, Object, ObjectInner, ObjectRead, Owner},
-    iota_serde::{BigInt, SequenceNumber as AsSequenceNumber, IotaStructTag},
-};
 
-use crate::{Page, IotaMoveStruct, IotaMoveValue};
+use crate::{IotaMoveStruct, IotaMoveValue, Page};
 
 #[derive(Serialize, Deserialize, Debug, JsonSchema, Clone, PartialEq, Eq)]
 pub struct IotaObjectResponse {
@@ -77,7 +77,8 @@ impl Ord for IotaObjectResponse {
                 }
                 Ordering::Equal
             }
-            // In this ordering those with data will come before IotaObjectResponses that are errors.
+            // In this ordering those with data will come before IotaObjectResponses that are
+            // errors.
             (Some(_), None) => Ordering::Less,
             (None, Some(_)) => Ordering::Greater,
             // IotaObjectResponses that are errors are just considered equal.
@@ -1240,7 +1241,10 @@ pub struct IotaObjectResponseQuery {
 }
 
 impl IotaObjectResponseQuery {
-    pub fn new(filter: Option<IotaObjectDataFilter>, options: Option<IotaObjectDataOptions>) -> Self {
+    pub fn new(
+        filter: Option<IotaObjectDataFilter>,
+        options: Option<IotaObjectDataOptions>,
+    ) -> Self {
         Self { filter, options }
     }
 

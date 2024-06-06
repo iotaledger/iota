@@ -6,18 +6,18 @@ use async_graphql::{
     connection::{Connection, CursorType, Edge},
     *,
 };
-use move_core_types::annotated_value::{self as A, MoveStruct};
 use iota_indexer::{models::objects::StoredHistoryObject, types::OwnerType};
 use iota_package_resolver::Resolver;
 use iota_types::dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo, DynamicFieldType};
+use move_core_types::annotated_value::{self as A, MoveStruct};
 
 use super::{
     base64::Base64,
     cursor::{Page, Target},
+    iota_address::IotaAddress,
     move_object::MoveObject,
     move_value::MoveValue,
     object::{self, deserialize_move_struct, Object, ObjectKind, ObjectLookupKey},
-    iota_address::IotaAddress,
     type_filter::ExactTypeFilter,
 };
 use crate::{

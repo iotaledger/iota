@@ -13,9 +13,9 @@ use anemo::{
     Network, Peer, PeerId, Request, Response,
 };
 use futures::StreamExt;
-use serde::{Deserialize, Serialize};
 use iota_config::p2p::{AccessType, DiscoveryConfig, P2pConfig, SeedPeer};
 use iota_types::multiaddr::Multiaddr;
+use serde::{Deserialize, Serialize};
 use tap::{Pipe, TapFallible};
 use tokio::{
     sync::{broadcast::error::RecvError, oneshot, watch},

@@ -7,10 +7,6 @@ use std::{
     sync::Arc,
 };
 
-use move_core_types::{
-    annotated_value::{MoveTypeLayout, MoveValue},
-    language_storage::TypeTag,
-};
 use iota_execution::Executor;
 use iota_types::{
     execution_mode::ExecutionResult,
@@ -19,6 +15,10 @@ use iota_types::{
         write_sep, Argument, CallArg, CallArg::Pure, Command, ObjectArg, ProgrammableMoveCall,
         ProgrammableTransaction,
     },
+};
+use move_core_types::{
+    annotated_value::{MoveTypeLayout, MoveValue},
+    language_storage::TypeTag,
 };
 use tabled::{
     builder::Builder as TableBuilder,

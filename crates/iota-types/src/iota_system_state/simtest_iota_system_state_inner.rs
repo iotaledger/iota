@@ -16,12 +16,12 @@ use crate::{
     committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata},
     crypto::AuthorityPublicKeyBytes,
     error::IotaError,
-    storage::ObjectStore,
     iota_system_state::{
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartValidatorInfoV1},
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
         AdvanceEpochParams, IotaSystemStateTrait,
     },
+    storage::ObjectStore,
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]

@@ -21,8 +21,8 @@ use axum::{
     headers,
     http::{HeaderName, HeaderValue},
 };
-use once_cell::sync::Lazy;
 use iota_graphql_rpc_headers::LIMITS_HEADER;
+use once_cell::sync::Lazy;
 use tokio::sync::Mutex;
 use tracing::info;
 use uuid::Uuid;

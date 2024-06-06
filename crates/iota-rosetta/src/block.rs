@@ -12,7 +12,7 @@ use crate::{
         BlockRequest, BlockResponse, BlockTransactionRequest, BlockTransactionResponse,
         Transaction, TransactionIdentifier,
     },
-    Error, OnlineServerContext, IotaEnv,
+    Error, IotaEnv, OnlineServerContext,
 };
 
 /// This module implements the [Rosetta Block API](https://www.rosetta-api.org/docs/BlockApi.html)

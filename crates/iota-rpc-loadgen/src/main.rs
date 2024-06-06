@@ -13,9 +13,9 @@ use std::{
 
 use anyhow::Result;
 use clap::Parser;
-use payload::AddressQueryType;
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_types::crypto::{EncodeDecodeBase64, IotaKeyPair};
+use payload::AddressQueryType;
 use tracing::info;
 
 use crate::{

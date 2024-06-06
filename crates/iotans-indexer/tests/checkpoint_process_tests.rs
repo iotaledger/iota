@@ -16,8 +16,8 @@ const TEST_SUBDOMAIN_REGISTRATION_TYPE: &str = "0x22fa05f21b1ad71442491220bb9338
 ///
 /// Checkpoint 22279187: Adds 3 different names (1 SLD, 1 leaf, 1 node). Deletes
 /// none. Checkpoint 22279365: Removes 1 leaf name. Adds 1 leaf name.
-/// Checkpoint 22279496: Replaces the name added on `22279365` (new.test.iota) by
-/// removing it and then adding it as a node name. Checkpoint 22279944: Adds
+/// Checkpoint 22279496: Replaces the name added on `22279365` (new.test.iota)
+/// by removing it and then adding it as a node name. Checkpoint 22279944: Adds
 /// `remove.test.iota`. Checkpoint 22280030: Adds `remove.test.iota` as a
 /// replacement (the previous one expired!).                      [This was only
 /// simulated using a dummy contract and cannot happen in realistic scenarios.]

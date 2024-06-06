@@ -9,8 +9,6 @@ mod checked {
 
     use std::{collections::HashSet, sync::Arc};
 
-    use move_binary_format::{access::ModuleAccess, CompiledModule};
-    use move_vm_runtime::move_vm::MoveVM;
     use iota_protocol_config::{check_limit_by_meter, LimitThresholdCrossed, ProtocolConfig};
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
@@ -24,7 +22,7 @@ mod checked {
             BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME,
             BALANCE_MODULE_NAME,
         },
-        base_types::{ObjectRef, IotaAddress, TransactionDigest, TxContext},
+        base_types::{IotaAddress, ObjectRef, TransactionDigest, TxContext},
         clock::{CLOCK_MODULE_NAME, CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME},
         committee::EpochId,
         effects::TransactionEffects,
@@ -36,15 +34,15 @@ mod checked {
         gas::{GasCostSummary, IotaGasStatus},
         gas_coin::GAS,
         inner_temporary_store::InnerTemporaryStore,
+        iota_system_state::{
+            AdvanceEpochParams, ADVANCE_EPOCH_FUNCTION_NAME, ADVANCE_EPOCH_SAFE_MODE_FUNCTION_NAME,
+            IOTA_SYSTEM_MODULE_NAME,
+        },
         messages_checkpoint::CheckpointTimestamp,
         metrics::LimitsMetrics,
         object::{Object, ObjectInner, OBJECT_START_VERSION},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         storage::BackingStore,
-        iota_system_state::{
-            AdvanceEpochParams, ADVANCE_EPOCH_FUNCTION_NAME, ADVANCE_EPOCH_SAFE_MODE_FUNCTION_NAME,
-            IOTA_SYSTEM_MODULE_NAME,
-        },
         transaction::{
             Argument, AuthenticatorStateExpire, AuthenticatorStateUpdate, CallArg, ChangeEpoch,
             CheckedInputObjects, Command, EndOfEpochTransactionKind, GenesisTransaction, ObjectArg,
@@ -53,6 +51,8 @@ mod checked {
         IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
         IOTA_SYSTEM_PACKAGE_ID,
     };
+    use move_binary_format::{access::ModuleAccess, CompiledModule};
+    use move_vm_runtime::move_vm::MoveVM;
     use tracing::{info, instrument, trace, warn};
 
     use crate::{
@@ -354,8 +354,8 @@ mod checked {
     ) -> Result<(), ExecutionError> {
         let mut result: std::result::Result<(), iota_types::error::ExecutionError> = Ok(());
         if !is_genesis_tx && !Mode::skip_conservation_checks() {
-            // ensure that this transaction did not create or destroy IOTA, try to recover if
-            // the check fails
+            // ensure that this transaction did not create or destroy IOTA, try to recover
+            // if the check fails
             let conservation_result = {
                 temporary_store
                     .check_iota_conserved(simple_conservation_checks, cost_summary)

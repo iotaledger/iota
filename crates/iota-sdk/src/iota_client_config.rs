@@ -5,13 +5,15 @@
 use std::fmt::{Display, Formatter, Write};
 
 use anyhow::anyhow;
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 use iota_config::Config;
 use iota_keys::keystore::{AccountKeystore, Keystore};
 use iota_types::base_types::*;
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 
-use crate::{IotaClient, IotaClientBuilder, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_URL, IOTA_TESTNET_URL};
+use crate::{
+    IotaClient, IotaClientBuilder, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_URL, IOTA_TESTNET_URL,
+};
 
 #[serde_as]
 #[derive(Serialize, Deserialize)]

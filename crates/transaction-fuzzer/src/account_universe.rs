@@ -7,9 +7,9 @@
 
 use std::{fmt, sync::Arc};
 
+use iota_types::{storage::ObjectStore, transaction::Transaction};
 use once_cell::sync::Lazy;
 use proptest::{prelude::*, strategy::Union};
-use iota_types::{storage::ObjectStore, transaction::Transaction};
 
 use crate::executor::{ExecutionResult, Executor};
 

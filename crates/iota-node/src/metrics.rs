@@ -4,6 +4,7 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use axum::http::header;
+use iota_network::tonic::Code;
 use mysten_metrics::RegistryService;
 use mysten_network::metrics::MetricsCallbackProvider;
 use prometheus::{
@@ -11,7 +12,6 @@ use prometheus::{
     register_int_gauge_vec_with_registry, Encoder, HistogramVec, IntCounterVec, IntGaugeVec,
     Registry, PROTOBUF_FORMAT,
 };
-use iota_network::tonic::Code;
 use tracing::error;
 
 pub struct MetricsPushClient {

@@ -13,8 +13,8 @@ use byteorder::{BigEndian, ReadBytesExt};
 use fastcrypto::groups::bls12381;
 use fastcrypto_tbls::dkg;
 use fastcrypto_zkp::bn254::zk_login::{JwkId, JWK};
-use serde::{Deserialize, Serialize};
 use iota_protocol_config::SupportedProtocolVersions;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     base_types::{AuthorityName, ConciseableName, ObjectRef, TransactionDigest},

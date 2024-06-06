@@ -7,13 +7,13 @@ use std::{ffi::OsString, fs, path::PathBuf, time::Duration};
 use anyhow::Result;
 use backoff::backoff::Backoff;
 use futures::StreamExt;
-use mysten_metrics::spawn_monitored_task;
-use notify::{RecursiveMode, Watcher};
-use object_store::{path::Path, ObjectStore};
 use iota_storage::blob::Blob;
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
 };
+use mysten_metrics::spawn_monitored_task;
+use notify::{RecursiveMode, Watcher};
+use object_store::{path::Path, ObjectStore};
 use tap::pipe::Pipe;
 use tokio::{
     sync::{mpsc, mpsc::error::TryRecvError, oneshot},

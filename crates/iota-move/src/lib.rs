@@ -5,10 +5,10 @@
 use std::path::PathBuf;
 
 use clap::Parser;
+use iota_move_build::set_iota_flavor;
 #[cfg(feature = "unit_test")]
 use move_cli::base::test::UnitTestResult;
 use move_package::BuildConfig;
-use iota_move_build::set_iota_flavor;
 
 #[cfg(feature = "build")]
 pub mod build;

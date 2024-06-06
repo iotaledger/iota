@@ -13,7 +13,6 @@ use std::{
 
 use anyhow::Result;
 use futures::future::try_join_all;
-use rand::rngs::OsRng;
 use iota_config::{
     node::{AuthorityOverloadConfig, DBCheckpointConfig, RunWithRange},
     NodeConfig,
@@ -30,6 +29,7 @@ use iota_swarm_config::{
     node_config_builder::FullnodeConfigBuilder,
 };
 use iota_types::{base_types::AuthorityName, object::Object};
+use rand::rngs::OsRng;
 use tempfile::TempDir;
 use tracing::info;
 

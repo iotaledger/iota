@@ -17,7 +17,7 @@ use crate::{
         AccountBalanceRequest, AccountBalanceResponse, AccountCoinsRequest, AccountCoinsResponse,
         Amount, Coin, SubAccount, SubAccountType, SubBalance,
     },
-    OnlineServerContext, IotaEnv,
+    IotaEnv, OnlineServerContext,
 };
 
 /// Get an array of all AccountBalances for an AccountIdentifier and the

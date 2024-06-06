@@ -18,13 +18,13 @@ use super::{
     cursor::Page,
     display::DisplayEntry,
     dynamic_field::{DynamicField, DynamicFieldName},
+    iota_address::IotaAddress,
+    iotans_registration::{DomainFormat, IotansRegistration, IotansRegistrationDowncastError},
     move_type::MoveType,
     move_value::MoveValue,
     object::{self, Object, ObjectFilter, ObjectImpl, ObjectLookupKey, ObjectOwner, ObjectStatus},
     owner::OwnerImpl,
     stake::StakedIotaDowncastError,
-    iota_address::IotaAddress,
-    iotans_registration::{DomainFormat, IotansRegistration, IotansRegistrationDowncastError},
     transaction_block::{self, TransactionBlock, TransactionBlockFilter},
     type_filter::ExactTypeFilter,
 };
@@ -405,7 +405,10 @@ impl MoveObject {
     }
 
     /// Attempts to convert the Move object into a `IotansRegistration` object.
-    async fn as_iotans_registration(&self, ctx: &Context<'_>) -> Result<Option<IotansRegistration>> {
+    async fn as_iotans_registration(
+        &self,
+        ctx: &Context<'_>,
+    ) -> Result<Option<IotansRegistration>> {
         let cfg: &NameServiceConfig = ctx.data_unchecked();
         let tag = IotansRegistration::type_(cfg.package_address.into());
 

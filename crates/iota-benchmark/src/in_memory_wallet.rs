@@ -4,14 +4,14 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use move_core_types::{identifier::Identifier, language_storage::TypeTag};
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, IotaAddress},
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::AccountKeyPair,
     object::Owner,
     transaction::{CallArg, Command, Transaction, TransactionData, TransactionDataAPI},
     utils::to_sender_signed_transaction,
 };
+use move_core_types::{identifier::Identifier, language_storage::TypeTag};
 
 use crate::{
     convert_move_call_args, workloads::Gas, BenchMoveCallArg, ExecutionEffects,
@@ -63,7 +63,8 @@ impl IotaAccount {
 /// objects, and immutable objects
 #[derive(Debug, Default)]
 pub struct InMemoryWallet {
-    accounts: BTreeMap<IotaAddress, IotaAccount>, // TODO: track shared and immutable objects as well
+    accounts: BTreeMap<IotaAddress, IotaAccount>, /* TODO: track shared and immutable objects as
+                                                   * well */
 }
 
 impl InMemoryWallet {

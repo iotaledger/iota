@@ -12,8 +12,6 @@ use std::{
     },
 };
 
-use prometheus::default_registry;
-use rand::{rngs::StdRng, SeedableRng};
 use iota_framework::BuiltInFramework;
 use iota_macros::{register_fail_point_async, sim_test};
 use iota_test_transaction_builder::TestTransactionBuilder;
@@ -24,6 +22,8 @@ use iota_types::{
     object::{MoveObject, Owner, OBJECT_START_VERSION},
     storage::ChildObjectResolver,
 };
+use prometheus::default_registry;
+use rand::{rngs::StdRng, SeedableRng};
 use tempfile::tempdir;
 
 use super::*;

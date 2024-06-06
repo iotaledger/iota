@@ -6,8 +6,6 @@ use std::sync::Arc;
 
 use fastcrypto::traits::KeyPair;
 use futures::future::join_all;
-use prometheus::Registry;
-use rand::{thread_rng, Rng};
 use iota_macros::sim_test;
 use iota_types::{
     committee::Committee,
@@ -16,6 +14,8 @@ use iota_types::{
     messages_checkpoint::{CheckpointContents, CheckpointSummary, SignedCheckpointSummary},
     transaction::CertifiedTransaction,
 };
+use prometheus::Registry;
+use rand::{thread_rng, Rng};
 
 use crate::{
     signature_verifier::*,

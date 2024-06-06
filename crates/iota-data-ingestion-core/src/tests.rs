@@ -6,8 +6,6 @@ use std::{path::PathBuf, time::Duration};
 
 use anyhow::Result;
 use async_trait::async_trait;
-use prometheus::Registry;
-use rand::{prelude::StdRng, SeedableRng};
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
     crypto::KeypairTraits,
@@ -19,6 +17,8 @@ use iota_types::{
     },
     utils::make_committee_key,
 };
+use prometheus::Registry;
+use rand::{prelude::StdRng, SeedableRng};
 use tempfile::NamedTempFile;
 use tokio::sync::oneshot;
 
