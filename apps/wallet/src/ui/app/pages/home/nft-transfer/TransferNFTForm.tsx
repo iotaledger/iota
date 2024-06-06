@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Modifications Copyright (c) 2024 IOTA Stiftung
@@ -13,10 +14,10 @@ import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessage
 import { useActiveAddress } from '_src/ui/app/hooks';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 import { useSigner } from '_src/ui/app/hooks/useSigner';
-import { isSuiNSName, useSuiNSEnabled } from '@mysten/core';
-import { useSuiClient } from '@mysten/dapp-kit';
-import { ArrowRight16 } from '@mysten/icons';
-import { TransactionBlock } from '@mysten/sui.js/transactions';
+import { isIotaNSName, useIotaNSEnabled } from '@iota/core';
+import { useIotaClient } from '@iota/dapp-kit';
+import { ArrowRight16 } from '@iota/icons';
+import { TransactionBlock } from '@iota/iota.js/transactions';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Field, Form, Formik } from 'formik';
 import { toast } from 'react-hot-toast';
@@ -32,11 +33,11 @@ export function TransferNFTForm({
     objectType?: string | null;
 }) {
     const activeAddress = useActiveAddress();
-    const rpc = useSuiClient();
-    const suiNSEnabled = useSuiNSEnabled();
+    const rpc = useIotaClient();
+    const iotaNSEnabled = useIotaNSEnabled();
     const validationSchema = createValidationSchema(
         rpc,
-        suiNSEnabled,
+        iotaNSEnabled,
         activeAddress || '',
         objectId,
     );
@@ -51,12 +52,12 @@ export function TransferNFTForm({
                 throw new Error('Missing data');
             }
 
-            if (suiNSEnabled && isSuiNSName(to)) {
+            if (iotaNSEnabled && isIotaNSName(to)) {
                 const address = await rpc.resolveNameServiceAddress({
                     name: to,
                 });
                 if (!address) {
-                    throw new Error('SuiNS name not found.');
+                    throw new Error('IotaNS name not found.');
                 }
                 to = address;
             }

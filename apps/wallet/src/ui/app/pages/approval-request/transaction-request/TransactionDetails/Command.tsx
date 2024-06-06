@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Text } from '_src/ui/app/shared/text';
-import { ChevronDown12, ChevronRight12 } from '@mysten/icons';
-import { TypeTagSerializer, type TypeTag } from '@mysten/sui.js/bcs';
-import { type TransactionArgument, type Transactions } from '@mysten/sui.js/transactions';
-import { formatAddress, normalizeSuiAddress, toB64 } from '@mysten/sui.js/utils';
+import { ChevronDown12, ChevronRight12 } from '@iota/icons';
+import { TypeTagSerializer, type TypeTag } from '@iota/iota.js/bcs';
+import { type TransactionArgument, type Transactions } from '@iota/iota.js/transactions';
+import { formatAddress, normalizeIotaAddress, toB64 } from '@iota/iota.js/utils';
 import { useState } from 'react';
 
 type TransactionType = ReturnType<(typeof Transactions)[keyof typeof Transactions]>;
@@ -72,7 +73,7 @@ function convertCommandToString({ kind, ...command }: TransactionType) {
             if (key === 'target') {
                 const [packageId, moduleName, functionName] = value.split('::');
                 return [
-                    `package: ${formatAddress(normalizeSuiAddress(packageId))}`,
+                    `package: ${formatAddress(normalizeIotaAddress(packageId))}`,
                     `module: ${moduleName}`,
                     `function: ${functionName}`,
                 ].join(', ');

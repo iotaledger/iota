@@ -4,7 +4,7 @@ description = "WASM variant of the move-binary-format which allows bytecode temp
 version = "0.1.0"
 authors = ["Mysten Labs <build@mystenlabs.com>"]
 edition = "2021"
-repository = "https://github.com/mystenlabs/sui.git"
+repository = "https://github.com/iotaledger/iota.git"
 license = "Apache-2.0"
 publish = false
 

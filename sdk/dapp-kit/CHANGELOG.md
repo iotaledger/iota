@@ -1,13 +1,13 @@
-# @mysten/dapp-kit
+# @iota/dapp-kit
 
 ## 0.12.7
 
 ### Patch Changes
 
 - Updated dependencies [6984dd1e38]
-  - @mysten/sui.js@0.51.1
-  - @mysten/wallet-standard@0.11.1
-  - @mysten/zksend@0.4.1
+  - @iota/iota.js@0.51.1
+  - @iota/wallet-standard@0.11.1
+  - @iota/zksend@0.4.1
 
 ## 0.12.6
 
@@ -18,21 +18,21 @@
 - Updated dependencies [c05a4e8cb7]
 - Updated dependencies [c05a4e8cb7]
 - Updated dependencies [c05a4e8cb7]
-  - @mysten/zksend@0.4.0
+  - @iota/zksend@0.4.0
 
 ## 0.12.5
 
 ### Patch Changes
 
 - Updated dependencies [b82832279b]
-  - @mysten/zksend@0.3.1
+  - @iota/zksend@0.3.1
 
 ## 0.12.4
 
 ### Patch Changes
 
 - Updated dependencies [3b1da3967a]
-  - @mysten/zksend@0.3.0
+  - @iota/zksend@0.3.0
 
 ## 0.12.3
 
@@ -40,9 +40,9 @@
 
 - Updated dependencies [0cafa94027]
 - Updated dependencies [437f0ca2ef]
-  - @mysten/sui.js@0.51.0
-  - @mysten/wallet-standard@0.11.0
-  - @mysten/zksend@0.2.3
+  - @iota/iota.js@0.51.0
+  - @iota/wallet-standard@0.11.0
+  - @iota/zksend@0.2.3
 
 ## 0.12.2
 
@@ -51,16 +51,16 @@
 - 4830361fa4: Updated typescript version
 - Updated dependencies [4830361fa4]
 - Updated dependencies [4fd676671b]
-  - @mysten/wallet-standard@0.10.3
-  - @mysten/sui.js@0.50.1
-  - @mysten/zksend@0.2.2
+  - @iota/wallet-standard@0.10.3
+  - @iota/iota.js@0.50.1
+  - @iota/zksend@0.2.2
 
 ## 0.12.1
 
 ### Patch Changes
 
 - Updated dependencies [f069e3a13d]
-  - @mysten/zksend@0.2.1
+  - @iota/zksend@0.2.1
 
 ## 0.12.0
 
@@ -98,17 +98,17 @@
 - Updated dependencies [a34f1cb67d]
 - Updated dependencies [ae9ae17eea]
 - Updated dependencies [220a766d86]
-  - @mysten/sui.js@0.50.0
-  - @mysten/zksend@0.2.0
-  - @mysten/wallet-standard@0.10.2
+  - @iota/iota.js@0.50.0
+  - @iota/zksend@0.2.0
+  - @iota/wallet-standard@0.10.2
 
 ## 0.11.1
 
 ### Patch Changes
 
 - Updated dependencies [9ac0a4ec01]
-  - @mysten/wallet-standard@0.10.1
-  - @mysten/sui.js@0.49.1
+  - @iota/wallet-standard@0.10.1
+  - @iota/iota.js@0.49.1
 
 ## 0.11.0
 
@@ -120,8 +120,8 @@
 
 - 9ba167b0af: Default storage to memory storage when local storage isn't available during SSR
 - Updated dependencies [e5f9e3ba21]
-  - @mysten/wallet-standard@0.10.0
-  - @mysten/sui.js@0.49.0
+  - @iota/wallet-standard@0.10.0
+  - @iota/iota.js@0.49.0
 
 ## 0.10.3
 
@@ -132,18 +132,18 @@
 - d55db38647: Set a high z-index for the account dropdown so that it doesn't get hidden
 - Updated dependencies [dd362ec1d6]
 - Updated dependencies [165ad6b21d]
-  - @mysten/wallet-standard@0.9.0
-  - @mysten/sui.js@0.48.1
+  - @iota/wallet-standard@0.9.0
+  - @iota/iota.js@0.48.1
 
 ## 0.10.2
 
 ### Patch Changes
 
 - 2ae1a6a108: Early return on `useAutoConnectWallet` to improve account switching performance
-- b30fecbbca: Fix missing export of useSuiClientQueries
+- b30fecbbca: Fix missing export of useIotaClientQueries
 - Updated dependencies [cdcfa76c43]
-  - @mysten/sui.js@0.48.0
-  - @mysten/wallet-standard@0.8.11
+  - @iota/iota.js@0.48.0
+  - @iota/wallet-standard@0.8.11
 
 ## 0.10.1
 
@@ -155,7 +155,7 @@
 
 ### Minor Changes
 
-- 47b137d03: Add new useSuiClientQueries hook to support variable client queries
+- 47b137d03: Add new useIotaClientQueries hook to support variable client queries
 
 ## 0.9.1
 
@@ -165,20 +165,20 @@
 - Updated dependencies [9ac7e2f3d]
 - Updated dependencies [0259aec82]
 - Updated dependencies [64d45ba27]
-  - @mysten/sui.js@0.47.0
-  - @mysten/wallet-standard@0.8.10
+  - @iota/iota.js@0.47.0
+  - @iota/wallet-standard@0.8.10
 
 ## 0.9.0
 
 ### Minor Changes
 
-- c5d4db238: Have useSignPersonalMessage fall back to use sui:signMessage
+- c5d4db238: Have useSignPersonalMessage fall back to use iota:signMessage
 
 ### Patch Changes
 
 - Updated dependencies [652bcdd92]
-  - @mysten/sui.js@0.46.1
-  - @mysten/wallet-standard@0.8.9
+  - @iota/iota.js@0.46.1
+  - @iota/wallet-standard@0.8.9
 
 ## 0.8.0
 
@@ -193,8 +193,8 @@
 - Updated dependencies [8d1e74e52]
 - Updated dependencies [093554a0d]
 - Updated dependencies [3718a230b]
-  - @mysten/sui.js@0.46.0
-  - @mysten/wallet-standard@0.8.8
+  - @iota/iota.js@0.46.0
+  - @iota/wallet-standard@0.8.8
 
 ## 0.7.0
 
@@ -206,8 +206,8 @@
 ### Patch Changes
 
 - Updated dependencies [30b47b758]
-  - @mysten/sui.js@0.45.1
-  - @mysten/wallet-standard@0.8.7
+  - @iota/iota.js@0.45.1
+  - @iota/wallet-standard@0.8.7
 
 ## 0.6.0
 
@@ -225,11 +225,11 @@
 
 ### Patch Changes
 
-- 09c103002: fix pagination in useSuiClientInfiniteQuery
-- e0578094b: Fix typing of data for useSuiClientInfiniteQuery
+- 09c103002: fix pagination in useIotaClientInfiniteQuery
+- e0578094b: Fix typing of data for useIotaClientInfiniteQuery
 - Updated dependencies [b9afb5567]
-  - @mysten/sui.js@0.45.0
-  - @mysten/wallet-standard@0.8.6
+  - @iota/iota.js@0.45.0
+  - @iota/wallet-standard@0.8.6
 
 ## 0.5.0
 
@@ -241,7 +241,7 @@
 
 ### Minor Changes
 
-- b7c304696: Show account label or suiNS domain in connect button
+- b7c304696: Show account label or iotaNS domain in connect button
 
 ## 0.3.0
 
@@ -256,24 +256,24 @@
 
 - Updated dependencies [b48289346]
 - Updated dependencies [11cf4e68b]
-  - @mysten/wallet-standard@0.8.5
-  - @mysten/sui.js@0.44.0
+  - @iota/wallet-standard@0.8.5
+  - @iota/iota.js@0.44.0
 
 ## 0.2.4
 
 ### Patch Changes
 
 - Updated dependencies [004fb1991]
-  - @mysten/sui.js@0.43.3
-  - @mysten/wallet-standard@0.8.4
+  - @iota/iota.js@0.43.3
+  - @iota/wallet-standard@0.8.4
 
 ## 0.2.3
 
 ### Patch Changes
 
 - Updated dependencies [9b052166d]
-  - @mysten/sui.js@0.43.2
-  - @mysten/wallet-standard@0.8.3
+  - @iota/iota.js@0.43.2
+  - @iota/wallet-standard@0.8.3
 
 ## 0.2.2
 
@@ -287,8 +287,8 @@
 
 - Updated dependencies [faa13ded9]
 - Updated dependencies [c5684bb52]
-  - @mysten/sui.js@0.43.1
-  - @mysten/wallet-standard@0.8.2
+  - @iota/iota.js@0.43.1
+  - @iota/wallet-standard@0.8.2
 
 ## 0.2.0
 
@@ -296,13 +296,13 @@
 
 - b29f66f18: Add theme definitions for our UI components
 - 1227ee1ce: Theme UI components based on provided theme and add design polish
-- 8e9590a8c: Exclude non-Sui accounts from the accounts state when someone connects a multi-chain wallet
+- 8e9590a8c: Exclude non-Iota accounts from the accounts state when someone connects a multi-chain wallet
 
 ## 0.1.0
 
 ### Minor Changes
 
-- c51db090a: update useSuiClientQuery hooks and remove generated RPC hooks
+- c51db090a: update useIotaClientQuery hooks and remove generated RPC hooks
 - ccfc810c0: Require wallets to have some default characteristics in order to be recognized
 
 ### Patch Changes
@@ -312,8 +312,8 @@
 - Updated dependencies [e4484852b]
 - Updated dependencies [71e0a3197]
 - Updated dependencies [1bc430161]
-  - @mysten/sui.js@0.43.0
-  - @mysten/wallet-standard@0.8.1
+  - @iota/iota.js@0.43.0
+  - @iota/wallet-standard@0.8.1
 
 ## 0.0.5
 
@@ -322,22 +322,22 @@
 - Updated dependencies [fd8589806]
 - Updated dependencies [fd8589806]
 - Updated dependencies [8b9e5f737]
-  - @mysten/wallet-standard@0.8.0
-  - @mysten/sui.js@0.42.0
+  - @iota/wallet-standard@0.8.0
+  - @iota/iota.js@0.42.0
 
 ## 0.0.4
 
 ### Patch Changes
 
-- @mysten/sui.js@0.41.2
-- @mysten/wallet-standard@0.7.2
+- @iota/iota.js@0.41.2
+- @iota/wallet-standard@0.7.2
 
 ## 0.0.3
 
 ### Patch Changes
 
 - Updated dependencies [24c21e1f0]
-  - @mysten/sui.js@0.41.1
+  - @iota/iota.js@0.41.1
 
 ## 0.0.2
 
@@ -345,7 +345,7 @@
 
 - Updated dependencies [ba8e3b857]
 - Updated dependencies [f4b7b3474]
-  - @mysten/sui.js@0.41.0
+  - @iota/iota.js@0.41.0
 
 ## 0.0.1
 
@@ -353,4 +353,4 @@
 
 - Updated dependencies [a503cad34]
 - Updated dependencies [8281e3d25]
-  - @mysten/sui.js@0.40.0
+  - @iota/iota.js@0.40.0

@@ -1,6 +1,4 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
@@ -18,9 +16,9 @@
  * Build: 1.0.0
  * Runtime: browser:typescript-ampli-v2
  *
- * [View Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest)
+ * [View Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest)
  *
- * [Full Setup Instructions](https://data.amplitude.com/mystenlabs/Sui%20Wallet/implementation/web)
+ * [Full Setup Instructions](https://data.amplitude.com/mystenlabs/Iota%20Wallet/implementation/web)
  */
 
 import * as amplitude from '@amplitude/analytics-browser';
@@ -76,7 +74,7 @@ export interface IdentifyProperties {
      */
     activeAccountType?: string;
     /**
-     * The Sui Network that the user is currently interacting with.
+     * The Iota Network that the user is currently interacting with.
      */
     activeNetwork: string;
     /**
@@ -137,7 +135,7 @@ export interface ClickedCollectibleCardProperties {
      */
     collectibleType: string;
     /**
-     * The ID of an object on Sui.
+     * The ID of an object on Iota.
      */
     objectId: string;
     sourceScreen?: string;
@@ -156,7 +154,7 @@ export interface ClickedHideAssetProperties {
      */
     collectibleType: string;
     /**
-     * The ID of an object on Sui.
+     * The ID of an object on Iota.
      */
     objectId: string;
 }
@@ -175,9 +173,9 @@ export interface ClickedImportPrivateKeyProperties {
     sourceFlow: string;
 }
 
-export interface ClickedStakeSuiProperties {
+export interface ClickedStakeIotaProperties {
     /**
-     * Whether or not the user is already staking some SUI.
+     * Whether or not the user is already staking some IOTA.
      */
     isCurrentlyStaking: boolean;
     /**
@@ -196,7 +194,7 @@ export interface ClickedSwapCoinProperties {
      */
     sourceFlow: string;
     /**
-     * The total balance in SUI of the selected coin that the user has.
+     * The total balance in IOTA of the selected coin that the user has.
      *
      * | Rule | Value |
      * |---|---|
@@ -205,9 +203,9 @@ export interface ClickedSwapCoinProperties {
     totalBalance: number;
 }
 
-export interface ClickedUnstakeSuiProperties {
+export interface ClickedUnstakeIotaProperties {
     /**
-     * The amount of SUI staked.
+     * The amount of IOTA staked.
      *
      * | Rule | Value |
      * |---|---|
@@ -318,7 +316,7 @@ export interface SelectedCoinProperties {
      */
     coinType: string;
     /**
-     * The total balance in SUI of the selected coin that the user has.
+     * The total balance in IOTA of the selected coin that the user has.
      *
      * | Rule | Value |
      * |---|---|
@@ -352,14 +350,14 @@ export interface SentCoinsProperties {
 
 export interface SentCollectibleProperties {
     /**
-     * The ID of an object on Sui.
+     * The ID of an object on Iota.
      */
     objectId: string;
 }
 
-export interface StakedSuiProperties {
+export interface StakedIotaProperties {
     /**
-     * The amount of SUI staked.
+     * The amount of IOTA staked.
      *
      * | Rule | Value |
      * |---|---|
@@ -382,7 +380,7 @@ export interface SwappedCoinProperties {
     fromCoinType: string;
     toCoinType: string;
     /**
-     * The total balance in SUI of the selected coin that the user has.
+     * The total balance in IOTA of the selected coin that the user has.
      *
      * | Rule | Value |
      * |---|---|
@@ -409,7 +407,7 @@ export interface UnpinnedCoinProperties {
     coinType: string;
 }
 
-export interface UnstakedSuiProperties {
+export interface UnstakedIotaProperties {
     /**
      * The address of the selected validator.
      */
@@ -492,10 +490,10 @@ export class ClickedImportPrivateKey implements BaseEvent {
     }
 }
 
-export class ClickedStakeSui implements BaseEvent {
-    event_type = 'clicked stake SUI';
+export class ClickedStakeIota implements BaseEvent {
+    event_type = 'clicked stake IOTA';
 
-    constructor(public event_properties: ClickedStakeSuiProperties) {
+    constructor(public event_properties: ClickedStakeIotaProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -508,10 +506,10 @@ export class ClickedSwapCoin implements BaseEvent {
     }
 }
 
-export class ClickedUnstakeSui implements BaseEvent {
-    event_type = 'clicked unstake SUI';
+export class ClickedUnstakeIota implements BaseEvent {
+    event_type = 'clicked unstake IOTA';
 
-    constructor(public event_properties: ClickedUnstakeSuiProperties) {
+    constructor(public event_properties: ClickedUnstakeIotaProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -620,10 +618,10 @@ export class SentCollectible implements BaseEvent {
     }
 }
 
-export class StakedSui implements BaseEvent {
-    event_type = 'staked SUI';
+export class StakedIota implements BaseEvent {
+    event_type = 'staked IOTA';
 
-    constructor(public event_properties: StakedSuiProperties) {
+    constructor(public event_properties: StakedIotaProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -660,10 +658,10 @@ export class UnpinnedCoin implements BaseEvent {
     }
 }
 
-export class UnstakedSui implements BaseEvent {
-    event_type = 'unstaked SUI';
+export class UnstakedIota implements BaseEvent {
+    event_type = 'unstaked IOTA';
 
-    constructor(public event_properties: UnstakedSuiProperties) {
+    constructor(public event_properties: UnstakedIotaProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -792,7 +790,7 @@ export class Ampli {
   /**
    * added accounts
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/added%20accounts)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/added%20accounts)
    *
    * When users successfully add new accounts to the wallet.
    *
@@ -811,7 +809,7 @@ export class Ampli {
   /**
    * clicked bullshark quests cta
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/clicked%20bullshark%20quests%20cta)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20bullshark%20quests%20cta)
    *
    * When users click the call-to-action for the Bullshark Quests interstitial/banner.
    *
@@ -828,7 +826,7 @@ export class Ampli {
   /**
    * clicked collectible card
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/clicked%20collectible%20card)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20collectible%20card)
    *
    * When users click to view a collectible in the wallet.
    *
@@ -847,7 +845,7 @@ export class Ampli {
   /**
    * clicked create new account
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/clicked%20create%20new%20account)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20create%20new%20account)
    *
    * When users click the button to create a new passphrase account.
    *
@@ -864,7 +862,7 @@ export class Ampli {
   /**
    * clicked create new wallet
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/clicked%20create%20new%20wallet)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20create%20new%20wallet)
    *
    * When users click to create a new wallet during onboarding.
    *
@@ -881,7 +879,7 @@ export class Ampli {
   /**
    * clicked get started
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/clicked%20get%20started)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20get%20started)
    *
    * When users click "Get Started" after installing the wallet.
    *
@@ -898,7 +896,7 @@ export class Ampli {
   /**
    * clicked hide asset
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/clicked%20hide%20asset)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20hide%20asset)
    *
    * Event has no description in tracking plan.
    *
@@ -915,7 +913,7 @@ export class Ampli {
   /**
    * clicked import existing wallet
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/clicked%20import%20existing%20wallet)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20import%20existing%20wallet)
    *
    * When users click to import an existing wallet during onboarding.
    *
@@ -932,7 +930,7 @@ export class Ampli {
   /**
    * clicked import passphrase
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/clicked%20import%20passphrase)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20import%20passphrase)
    *
    * When users click to import an account via passphrase.
    *
@@ -949,7 +947,7 @@ export class Ampli {
   /**
    * clicked import private key
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/clicked%20import%20private%20key)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20import%20private%20key)
    *
    * When users click the button to import an account via private key.
    *
@@ -964,28 +962,28 @@ export class Ampli {
   }
 
   /**
-   * clicked stake SUI
+   * clicked stake IOTA
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/clicked%20stake%20SUI)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20stake%20IOTA)
    *
-   * When users click to stake SUI in the wallet.
+   * When users click to stake IOTA in the wallet.
    *
    * Owner: Jon Shek
    *
    * @param properties The event's properties (e.g. isCurrentlyStaking)
    * @param options Amplitude event options.
    */
-  clickedStakeSui(
-    properties: ClickedStakeSuiProperties,
+  clickedStakeIota(
+    properties: ClickedStakeIotaProperties,
     options?: EventOptions,
   ) {
-    return this.track(new ClickedStakeSui(properties), options);
+    return this.track(new ClickedStakeIota(properties), options);
   }
 
   /**
    * clicked swap coin
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/clicked%20swap%20coin)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20swap%20coin)
    *
    * When users click to swap a coin in the wallet
    *
@@ -1000,28 +998,28 @@ export class Ampli {
   }
 
   /**
-   * clicked unstake SUI
+   * clicked unstake IOTA
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/clicked%20unstake%20SUI)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20unstake%20IOTA)
    *
-   * When users click to unstake SUI.
+   * When users click to unstake IOTA.
    *
    * Owner: Jon Shek
    *
    * @param properties The event's properties (e.g. stakedAmount)
    * @param options Amplitude event options.
    */
-  clickedUnstakeSui(
-    properties: ClickedUnstakeSuiProperties,
+  clickedUnstakeIota(
+    properties: ClickedUnstakeIotaProperties,
     options?: EventOptions,
   ) {
-    return this.track(new ClickedUnstakeSui(properties), options);
+    return this.track(new ClickedUnstakeIota(properties), options);
   }
 
   /**
    * connected hardware wallet
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/connected%20hardware%20wallet)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/connected%20hardware%20wallet)
    *
    * When users successfully connect their hardware wallet.
    *
@@ -1040,7 +1038,7 @@ export class Ampli {
   /**
    * created new wallet
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/created%20new%20wallet)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/created%20new%20wallet)
    *
    * When users successfully create a new wallet during onboarding.
    *
@@ -1057,7 +1055,7 @@ export class Ampli {
   /**
    * disconnected application
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/disconnected%20application)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/disconnected%20application)
    *
    * When users disconnect from an application in the wallet.
    *
@@ -1076,7 +1074,7 @@ export class Ampli {
   /**
    * imported existing account
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/imported%20existing%20account)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/imported%20existing%20account)
    *
    * When users successfully import an existing account during onboarding.
    *
@@ -1095,7 +1093,7 @@ export class Ampli {
   /**
    * opened application
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/opened%20application)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/opened%20application)
    *
    * When users click to open an application from the wallet.
    *
@@ -1114,7 +1112,7 @@ export class Ampli {
   /**
    * opened connect ledger flow
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/opened%20connect%20ledger%20flow)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/opened%20connect%20ledger%20flow)
    *
    * When users open the "Connect Ledger Wallet" flow.
    *
@@ -1133,7 +1131,7 @@ export class Ampli {
   /**
    * opened wallet extension
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/opened%20wallet%20extension)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/opened%20wallet%20extension)
    *
    * When users first open the wallet extension.
    *
@@ -1150,7 +1148,7 @@ export class Ampli {
   /**
    * pinned coin
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/pinned%20coin)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/pinned%20coin)
    *
    * When users pin an unrecognized coin on the home page.
    *
@@ -1169,7 +1167,7 @@ export class Ampli {
   /**
    * responded to connection request
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/responded%20to%20connection%20request)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/responded%20to%20connection%20request)
    *
    * When users respond to a connection request in the wallet.
    *
@@ -1188,7 +1186,7 @@ export class Ampli {
   /**
    * responded to transaction request
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/responded%20to%20transaction%20request)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/responded%20to%20transaction%20request)
    *
    * When users respond to a transaction request from an application.
    *
@@ -1207,7 +1205,7 @@ export class Ampli {
   /**
    * selected coin
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/selected%20coin)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/selected%20coin)
    *
    * When users select a specific coin from the home screen.
    *
@@ -1226,7 +1224,7 @@ export class Ampli {
   /**
    * selected validator
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/selected%20validator)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/selected%20validator)
    *
    * When users select a validator in the staking flow.
    *
@@ -1245,7 +1243,7 @@ export class Ampli {
   /**
    * sent coins
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/sent%20coins)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/sent%20coins)
    *
    * When users successfully send coins to someone.
    *
@@ -1264,7 +1262,7 @@ export class Ampli {
   /**
    * sent collectible
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/sent%20collectible)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/sent%20collectible)
    *
    * Owner: William Robertson
    *
@@ -1279,28 +1277,28 @@ export class Ampli {
   }
 
   /**
-   * staked SUI
+   * staked IOTA
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/staked%20SUI)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/staked%20IOTA)
    *
-   * When users successfully stake SUI with a validator.
+   * When users successfully stake IOTA with a validator.
    *
    * Owner: Jon Shek
    *
    * @param properties The event's properties (e.g. stakedAmount)
    * @param options Amplitude event options.
    */
-  stakedSui(
-    properties: StakedSuiProperties,
+  stakedIota(
+    properties: StakedIotaProperties,
     options?: EventOptions,
   ) {
-    return this.track(new StakedSui(properties), options);
+    return this.track(new StakedIota(properties), options);
   }
 
   /**
    * swapped coin
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/swapped%20coin)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/swapped%20coin)
    *
    * When users complete swapping 1 coin to another
    *
@@ -1317,7 +1315,7 @@ export class Ampli {
   /**
    * switched account
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/switched%20account)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/switched%20account)
    *
    * When users switch their active account in the wallet.
    *
@@ -1336,7 +1334,7 @@ export class Ampli {
   /**
    * switched network
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/switched%20network)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/switched%20network)
    *
    * When users switch between different network connections.
    *
@@ -1355,7 +1353,7 @@ export class Ampli {
   /**
    * unpinned coin
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/unpinned%20coin)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/unpinned%20coin)
    *
    * When users un-pin a recognized coin on the home page.
    *
@@ -1372,28 +1370,28 @@ export class Ampli {
   }
 
   /**
-   * unstaked SUI
+   * unstaked IOTA
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/unstaked%20SUI)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/unstaked%20IOTA)
    *
-   * When users successfully un-stake SUI.
+   * When users successfully un-stake IOTA.
    *
    * Owner: Jon Shek
    *
    * @param properties The event's properties (e.g. validatorAddress)
    * @param options Amplitude event options.
    */
-  unstakedSui(
-    properties: UnstakedSuiProperties,
+  unstakedIota(
+    properties: UnstakedIotaProperties,
     options?: EventOptions,
   ) {
-    return this.track(new UnstakedSui(properties), options);
+    return this.track(new UnstakedIota(properties), options);
   }
 
   /**
    * viewed ledger tutorial
    *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/viewed%20ledger%20tutorial)
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/viewed%20ledger%20tutorial)
    *
    * When users click the link to get help with connecting their Ledger wallet.
    *

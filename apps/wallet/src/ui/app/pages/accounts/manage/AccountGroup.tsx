@@ -1,6 +1,4 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
@@ -26,7 +24,7 @@ import {
 import { Heading } from '_src/ui/app/shared/heading';
 import { Text } from '_src/ui/app/shared/text';
 import { ButtonOrLink, type ButtonOrLinkProps } from '_src/ui/app/shared/utils/ButtonOrLink';
-import { ArrowBgFill16, Plus12 } from '@mysten/icons';
+import { ArrowBgFill16, Plus12 } from '@iota/icons';
 import * as CollapsiblePrimitive from '@radix-ui/react-collapsible';
 import { useMutation } from '@tanstack/react-query';
 import { forwardRef, useState } from 'react';
@@ -106,7 +104,7 @@ function AccountFooter({ accountID, showExport }: { accountID: string; showExpor
                     {totalAccounts === 1 ? (
                         <div className="text-center">
                             <DialogDescription>
-                                Removing this account will require you to set up your Sui wallet
+                                Removing this account will require you to set up your Iota wallet
                                 again.
                             </DialogDescription>
                         </div>

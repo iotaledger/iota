@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB64 } from '@mysten/bcs';
+import { fromB64 } from '@iota/bcs';
 import type { Infer, Struct } from 'superstruct';
 import {
     any,
@@ -22,7 +23,7 @@ import {
 import type { TypeTag } from '../bcs/index.js';
 import { bcs } from '../bcs/index.js';
 import { TypeTagSerializer } from '../bcs/type-tag-serializer.js';
-import { normalizeSuiObjectId } from '../utils/sui-types.js';
+import { normalizeIotaObjectId } from '../utils/iota-types.js';
 import { Inputs } from './Inputs.js';
 import { create } from './utils.js';
 
@@ -110,7 +111,7 @@ export const PublishTransaction = object({
 export type PublishTransaction = Infer<typeof PublishTransaction>;
 
 // Keep in sync with constants in
-// crates/sui-framework/packages/sui-framework/sources/package.move
+// crates/iota-framework/packages/iota-framework/sources/package.move
 export enum UpgradePolicy {
     COMPATIBLE = 0,
     ADDITIVE = 128,
@@ -218,7 +219,7 @@ export const Transactions = {
                 modules: modules.map((module) =>
                     typeof module === 'string' ? Array.from(fromB64(module)) : module,
                 ),
-                dependencies: dependencies.map((dep) => normalizeSuiObjectId(dep)),
+                dependencies: dependencies.map((dep) => normalizeIotaObjectId(dep)),
             },
             PublishTransaction,
         );
@@ -240,7 +241,7 @@ export const Transactions = {
                 modules: modules.map((module) =>
                     typeof module === 'string' ? Array.from(fromB64(module)) : module,
                 ),
-                dependencies: dependencies.map((dep) => normalizeSuiObjectId(dep)),
+                dependencies: dependencies.map((dep) => normalizeIotaObjectId(dep)),
                 packageId,
                 ticket,
             },

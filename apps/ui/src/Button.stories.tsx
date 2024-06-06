@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CheckFill16, Search16 } from '@mysten/icons';
+import { CheckFill16, Search16 } from '@iota/icons';
 import type { Meta, StoryObj } from '@storybook/react';
 
 import { Button } from './Button';

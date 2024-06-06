@@ -1,8 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 'use client';
 
-import { useCurrentAccount, useCurrentWallet } from '@mysten/dapp-kit';
+import { useCurrentAccount, useCurrentWallet } from '@iota/dapp-kit';
 import { AccountBalance, AllCoins } from '@/components';
 
 function HomeDashboardPage(): JSX.Element {

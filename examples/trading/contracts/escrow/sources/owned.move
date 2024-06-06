@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// An escrow for atomic swap of objects using single-owner transactions that
@@ -33,9 +34,9 @@
 ///      `Locked` object that the respective objects resided in immediately
 ///      before being sent to the custodian.
 module escrow::owned {
-    use sui::object::{Self, ID, UID};
-    use sui::transfer;
-    use sui::tx_context::{Self, TxContext};
+    use iota::object::{Self, ID, UID};
+    use iota::transfer;
+    use iota::tx_context::{Self, TxContext};
 
     use escrow::lock::{Self, Locked, Key};
 
@@ -167,9 +168,9 @@ module escrow::owned {
     }
 
     // === Tests ===
-    #[test_only] use sui::coin::{Self, Coin};
-    #[test_only] use sui::sui::SUI;
-    #[test_only] use sui::test_scenario::{Self as ts, Scenario};
+    #[test_only] use iota::coin::{Self, Coin};
+    #[test_only] use iota::iota::IOTA;
+    #[test_only] use iota::test_scenario::{Self as ts, Scenario};
 
     #[test_only] const ALICE: address = @0xA;
     #[test_only] const BOB: address = @0xB;
@@ -177,8 +178,8 @@ module escrow::owned {
     #[test_only] const DIANE: address = @0xD;
 
     #[test_only]
-    fun test_coin(ts: &mut Scenario): Coin<SUI> {
-        coin::mint_for_testing<SUI>(42, ts::ctx(ts))
+    fun test_coin(ts: &mut Scenario): Coin<IOTA> {
+        coin::mint_for_testing<IOTA>(42, ts::ctx(ts))
     }
 
     #[test]
@@ -213,7 +214,7 @@ module escrow::owned {
         {
             ts::next_tx(&mut ts, ALICE);
             let k1: Key = ts::take_from_sender(&ts);
-            let l1: Locked<Coin<SUI>> = ts::take_from_sender(&ts);
+            let l1: Locked<Coin<IOTA>> = ts::take_from_sender(&ts);
             create(k1, l1, ik2, BOB, CUSTODIAN, ts::ctx(&mut ts));
         };
 
@@ -221,14 +222,14 @@ module escrow::owned {
         {
             ts::next_tx(&mut ts, BOB);
             let k2: Key = ts::take_from_sender(&ts);
-            let l2: Locked<Coin<SUI>> = ts::take_from_sender(&ts);
+            let l2: Locked<Coin<IOTA>> = ts::take_from_sender(&ts);
             create(k2, l2, ik1, ALICE, CUSTODIAN, ts::ctx(&mut ts));
         };
 
         // The custodian makes the swap
         {
             ts::next_tx(&mut ts, CUSTODIAN);
-            swap<Coin<SUI>, Coin<SUI>>(
+            swap<Coin<IOTA>, Coin<IOTA>>(
                 ts::take_from_sender(&ts),
                 ts::take_from_sender(&ts),
             );
@@ -239,13 +240,13 @@ module escrow::owned {
 
         // Alice gets the object from Bob
         {
-            let c: Coin<SUI> = ts::take_from_address_by_id(&ts, ALICE, i2);
+            let c: Coin<IOTA> = ts::take_from_address_by_id(&ts, ALICE, i2);
             ts::return_to_address(ALICE, c);
         };
 
         // Bob gets the object from Alice
         {
-            let c: Coin<SUI> = ts::take_from_address_by_id(&ts, BOB, i1);
+            let c: Coin<IOTA> = ts::take_from_address_by_id(&ts, BOB, i1);
             ts::return_to_address(BOB, c);
         };
 
@@ -281,7 +282,7 @@ module escrow::owned {
         {
             ts::next_tx(&mut ts, ALICE);
             let k1: Key = ts::take_from_sender(&ts);
-            let l1: Locked<Coin<SUI>> = ts::take_from_sender(&ts);
+            let l1: Locked<Coin<IOTA>> = ts::take_from_sender(&ts);
             create(k1, l1, ik2, BOB, CUSTODIAN, ts::ctx(&mut ts));
         };
 
@@ -289,14 +290,14 @@ module escrow::owned {
         {
             ts::next_tx(&mut ts, BOB);
             let k2: Key = ts::take_from_sender(&ts);
-            let l2: Locked<Coin<SUI>> = ts::take_from_sender(&ts);
+            let l2: Locked<Coin<IOTA>> = ts::take_from_sender(&ts);
             create(k2, l2, ik1, DIANE, CUSTODIAN, ts::ctx(&mut ts));
         };
 
         // When the custodian tries to match up the swap, it will fail.
         {
             ts::next_tx(&mut ts, CUSTODIAN);
-            swap<Coin<SUI>, Coin<SUI>>(
+            swap<Coin<IOTA>, Coin<IOTA>>(
                 ts::take_from_sender(&ts),
                 ts::take_from_sender(&ts),
             );
@@ -334,21 +335,21 @@ module escrow::owned {
         {
             ts::next_tx(&mut ts, ALICE);
             let k1: Key = ts::take_from_sender(&ts);
-            let l1: Locked<Coin<SUI>> = ts::take_from_sender(&ts);
+            let l1: Locked<Coin<IOTA>> = ts::take_from_sender(&ts);
             create(k1, l1, ik1, BOB, CUSTODIAN, ts::ctx(&mut ts));
         };
 
         {
             ts::next_tx(&mut ts, BOB);
             let k2: Key = ts::take_from_sender(&ts);
-            let l2: Locked<Coin<SUI>> = ts::take_from_sender(&ts);
+            let l2: Locked<Coin<IOTA>> = ts::take_from_sender(&ts);
             create(k2, l2, ik1, ALICE, CUSTODIAN, ts::ctx(&mut ts));
         };
 
         // When the custodian tries to match up the swap, it will fail.
         {
             ts::next_tx(&mut ts, CUSTODIAN);
-            swap<Coin<SUI>, Coin<SUI>>(
+            swap<Coin<IOTA>, Coin<IOTA>>(
                 ts::take_from_sender(&ts),
                 ts::take_from_sender(&ts),
             );
@@ -388,7 +389,7 @@ module escrow::owned {
         {
             ts::next_tx(&mut ts, ALICE);
             let k1: Key = ts::take_from_sender(&ts);
-            let l1: Locked<Coin<SUI>> = ts::take_from_sender(&ts);
+            let l1: Locked<Coin<IOTA>> = ts::take_from_sender(&ts);
             create(k1, l1, ik2, BOB, CUSTODIAN, ts::ctx(&mut ts));
         };
 
@@ -397,7 +398,7 @@ module escrow::owned {
         {
             ts::next_tx(&mut ts, BOB);
             let k: Key = ts::take_from_sender(&ts);
-            let l: Locked<Coin<SUI>> = ts::take_from_sender(&ts);
+            let l: Locked<Coin<IOTA>> = ts::take_from_sender(&ts);
             let c = lock::unlock(l, k);
 
             let _dust = coin::split(&mut c, 1, ts::ctx(&mut ts));
@@ -409,7 +410,7 @@ module escrow::owned {
         // behaviour.
         {
             ts::next_tx(&mut ts, CUSTODIAN);
-            swap<Coin<SUI>, Coin<SUI>>(
+            swap<Coin<IOTA>, Coin<IOTA>>(
                 ts::take_from_sender(&ts),
                 ts::take_from_sender(&ts),
             );
@@ -436,14 +437,14 @@ module escrow::owned {
         // Custodian sends it back
         {
             ts::next_tx(&mut ts, CUSTODIAN);
-            return_to_sender<Coin<SUI>>(ts::take_from_sender(&ts));
+            return_to_sender<Coin<IOTA>>(ts::take_from_sender(&ts));
         };
 
         ts::next_tx(&mut ts, @0x0);
 
         // Alice can then access it.
         {
-            let c: Coin<SUI> = ts::take_from_address_by_id(&ts, ALICE, cid);
+            let c: Coin<IOTA> = ts::take_from_address_by_id(&ts, ALICE, cid);
             ts::return_to_address(ALICE, c)
         };
 

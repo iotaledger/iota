@@ -1,12 +1,12 @@
-# @mysten/enoki
+# @iota/enoki
 
 ## 0.2.1
 
 ### Patch Changes
 
 - Updated dependencies [6984dd1e38]
-  - @mysten/sui.js@0.51.1
-  - @mysten/zklogin@0.5.1
+  - @iota/iota.js@0.51.1
+  - @iota/zklogin@0.5.1
 
 ## 0.2.0
 
@@ -21,8 +21,8 @@
 - f704211291: Add EnokiClientError to expose error details
 - Updated dependencies [0cafa94027]
 - Updated dependencies [3a84c3ab21]
-  - @mysten/sui.js@0.51.0
-  - @mysten/zklogin@0.5.0
+  - @iota/iota.js@0.51.0
+  - @iota/zklogin@0.5.0
 
 ## 0.1.3
 
@@ -30,8 +30,8 @@
 
 - 4830361fa4: Updated typescript version
 - Updated dependencies [4830361fa4]
-  - @mysten/sui.js@0.50.1
-  - @mysten/zklogin@0.4.3
+  - @iota/iota.js@0.50.1
+  - @iota/zklogin@0.4.3
 
 ## 0.1.2
 
@@ -45,16 +45,16 @@
 - Updated dependencies [13e922d9b1]
 - Updated dependencies [a34f1cb67d]
 - Updated dependencies [220a766d86]
-  - @mysten/sui.js@0.50.0
-  - @mysten/zklogin@0.4.2
+  - @iota/iota.js@0.50.0
+  - @iota/zklogin@0.4.2
 
 ## 0.1.1
 
 ### Patch Changes
 
 - Updated dependencies [9ac0a4ec01]
-  - @mysten/sui.js@0.49.1
-  - @mysten/zklogin@0.4.1
+  - @iota/iota.js@0.49.1
+  - @iota/zklogin@0.4.1
 
 ## 0.1.0
 
@@ -65,16 +65,16 @@
 ### Patch Changes
 
 - Updated dependencies [e5f9e3ba21]
-  - @mysten/sui.js@0.49.0
-  - @mysten/zklogin@0.4.0
+  - @iota/iota.js@0.49.0
+  - @iota/zklogin@0.4.0
 
 ## 0.0.8
 
 ### Patch Changes
 
 - Updated dependencies [dd362ec1d6]
-  - @mysten/sui.js@0.48.1
-  - @mysten/zklogin@0.3.10
+  - @iota/iota.js@0.48.1
+  - @iota/zklogin@0.3.10
 
 ## 0.0.7
 
@@ -82,8 +82,8 @@
 
 - dd485449a7: Update to new two-step API
 - Updated dependencies [cdcfa76c43]
-  - @mysten/sui.js@0.48.0
-  - @mysten/zklogin@0.3.9
+  - @iota/iota.js@0.48.0
+  - @iota/zklogin@0.3.9
 
 ## 0.0.6
 
@@ -96,7 +96,7 @@
 ### Patch Changes
 
 - Updated dependencies [0e3d0dfae]
-  - @mysten/zklogin@0.3.8
+  - @iota/zklogin@0.3.8
 
 ## 0.0.4
 
@@ -120,5 +120,5 @@
 - Updated dependencies [9ac7e2f3d]
 - Updated dependencies [0259aec82]
 - Updated dependencies [64d45ba27]
-  - @mysten/sui.js@0.47.0
-  - @mysten/zklogin@0.3.7
+  - @iota/iota.js@0.47.0
+  - @iota/zklogin@0.3.7

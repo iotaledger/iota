@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useRecognizedPackages } from '_src/ui/app/hooks/useRecognizedPackages';
-import { useTransactionSummary } from '@mysten/core';
-import { type SuiTransactionBlockResponse } from '@mysten/sui.js/client';
+import { useTransactionSummary } from '@iota/core';
+import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
 
 import { DateCard } from '../../shared/date-card';
 import { TransactionSummary } from '../../shared/transaction-summary';
@@ -14,7 +15,7 @@ import { StatusIcon } from './StatusIcon';
 import { UnStakeTxnCard } from './UnstakeTxnCard';
 
 type ReceiptCardProps = {
-    txn: SuiTransactionBlockResponse;
+    txn: IotaTransactionBlockResponse;
     activeAddress: string;
 };
 
@@ -53,7 +54,7 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
                     success={summary?.status === 'success'}
                     timestamp={txn.timestampMs ?? undefined}
                 />
-                <section className="-mx-5 min-h-full bg-sui/10">
+                <section className="-mx-5 min-h-full bg-iota/10">
                     <div className="px-5 py-10">
                         <div className="flex flex-col gap-4">
                             {stakedTxn ? <StakeTxnCard event={stakedTxn} /> : null}

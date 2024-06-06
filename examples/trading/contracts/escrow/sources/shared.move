@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// An escrow for atomic swap of objects using shared objects without a trusted
@@ -27,11 +28,11 @@
 ///
 ///    - The key supplied in the swap unlocks the `Locked<U>`.
 module escrow::shared {
-    use sui::object::{Self, ID, UID};
-    use sui::transfer;
-    use sui::tx_context::{Self, TxContext};
-    use sui::event;
-    use sui::dynamic_object_field::{Self as dof};
+    use iota::object::{Self, ID, UID};
+    use iota::transfer;
+    use iota::tx_context::{Self, TxContext};
+    use iota::event;
+    use iota::dynamic_object_field::{Self as dof};
 
     use escrow::lock::{Self, Locked, Key};
 
@@ -170,17 +171,17 @@ module escrow::shared {
     }
 
     // === Tests ===
-    #[test_only] use sui::coin::{Self, Coin};
-    #[test_only] use sui::sui::SUI;
-    #[test_only] use sui::test_scenario::{Self as ts, Scenario};
+    #[test_only] use iota::coin::{Self, Coin};
+    #[test_only] use iota::iota::IOTA;
+    #[test_only] use iota::test_scenario::{Self as ts, Scenario};
 
     #[test_only] const ALICE: address = @0xA;
     #[test_only] const BOB: address = @0xB;
     #[test_only] const DIANE: address = @0xD;
 
     #[test_only]
-    fun test_coin(ts: &mut Scenario): Coin<SUI> {
-        coin::mint_for_testing<SUI>(42, ts::ctx(ts))
+    fun test_coin(ts: &mut Scenario): Coin<IOTA> {
+        coin::mint_for_testing<IOTA>(42, ts::ctx(ts))
     }
 
     #[test]
@@ -215,8 +216,8 @@ module escrow::shared {
             ts::next_tx(&mut ts, BOB);
             let escrow = ts::take_shared(&ts);
             let k2: Key = ts::take_from_sender(&ts);
-            let l2: Locked<Coin<SUI>> = ts::take_from_sender(&ts);
-            let c = swap<Coin<SUI>, Coin<SUI>>(
+            let l2: Locked<Coin<IOTA>> = ts::take_from_sender(&ts);
+            let c = swap<Coin<IOTA>, Coin<IOTA>>(
                 escrow,
                 k2,
                 l2,
@@ -231,13 +232,13 @@ module escrow::shared {
 
         // Alice gets the object from Bob
         {
-            let c: Coin<SUI> = ts::take_from_address_by_id(&ts, ALICE, i2);
+            let c: Coin<IOTA> = ts::take_from_address_by_id(&ts, ALICE, i2);
             ts::return_to_address(ALICE, c);
         };
 
         // Bob gets the object from Alice
         {
-            let c: Coin<SUI> = ts::take_from_address_by_id(&ts, BOB, i1);
+            let c: Coin<IOTA> = ts::take_from_address_by_id(&ts, BOB, i1);
             ts::return_to_address(BOB, c);
         };
 
@@ -271,8 +272,8 @@ module escrow::shared {
             ts::next_tx(&mut ts, DIANE);
             let escrow = ts::take_shared(&ts);
             let k2: Key = ts::take_from_sender(&ts);
-            let l2: Locked<Coin<SUI>> = ts::take_from_sender(&ts);
-            let c = swap<Coin<SUI>, Coin<SUI>>(
+            let l2: Locked<Coin<IOTA>> = ts::take_from_sender(&ts);
+            let c = swap<Coin<IOTA>, Coin<IOTA>>(
                 escrow,
                 k2,
                 l2,
@@ -314,8 +315,8 @@ module escrow::shared {
             ts::next_tx(&mut ts, BOB);
             let escrow = ts::take_shared(&ts);
             let k2: Key = ts::take_from_sender(&ts);
-            let l2: Locked<Coin<SUI>> = ts::take_from_sender(&ts);
-            let c = swap<Coin<SUI>, Coin<SUI>>(
+            let l2: Locked<Coin<IOTA>> = ts::take_from_sender(&ts);
+            let c = swap<Coin<IOTA>, Coin<IOTA>>(
                 escrow,
                 k2,
                 l2,
@@ -357,14 +358,14 @@ module escrow::shared {
         {
             ts::next_tx(&mut ts, BOB);
             let k: Key = ts::take_from_sender(&ts);
-            let l: Locked<Coin<SUI>> = ts::take_from_sender(&ts);
+            let l: Locked<Coin<IOTA>> = ts::take_from_sender(&ts);
             let c = lock::unlock(l, k);
 
             let _dust = coin::split(&mut c, 1, ts::ctx(&mut ts));
             let (l, k) = lock::lock(c, ts::ctx(&mut ts));
 
             let escrow = ts::take_shared(&ts);
-            let c = swap<Coin<SUI>, Coin<SUI>>(
+            let c = swap<Coin<IOTA>, Coin<IOTA>>(
                 escrow,
                 k,
                 l,
@@ -395,7 +396,7 @@ module escrow::shared {
         {
             ts::next_tx(&mut ts, ALICE);
             let escrow = ts::take_shared(&ts);
-            let c = return_to_sender<Coin<SUI>>(escrow, ts::ctx(&mut ts));
+            let c = return_to_sender<Coin<IOTA>>(escrow, ts::ctx(&mut ts));
 
             transfer::public_transfer(c, ALICE);
         };
@@ -404,7 +405,7 @@ module escrow::shared {
 
         // Alice can then access it.
         {
-            let c: Coin<SUI> = ts::take_from_address_by_id(&ts, ALICE, cid);
+            let c: Coin<IOTA> = ts::take_from_address_by_id(&ts, ALICE, cid);
             ts::return_to_address(ALICE, c)
         };
 
@@ -439,7 +440,7 @@ module escrow::shared {
         {
             ts::next_tx(&mut ts, ALICE);
             let escrow = ts::take_shared(&ts);
-            let c = return_to_sender<Coin<SUI>>(escrow, ts::ctx(&mut ts));
+            let c = return_to_sender<Coin<IOTA>>(escrow, ts::ctx(&mut ts));
             transfer::public_transfer(c, ALICE);
         };
 
@@ -448,8 +449,8 @@ module escrow::shared {
             ts::next_tx(&mut ts, BOB);
             let escrow = ts::take_shared(&ts);
             let k2: Key = ts::take_from_sender(&ts);
-            let l2: Locked<Coin<SUI>> = ts::take_from_sender(&ts);
-            let c = swap<Coin<SUI>, Coin<SUI>>(
+            let l2: Locked<Coin<IOTA>> = ts::take_from_sender(&ts);
+            let c = swap<Coin<IOTA>, Coin<IOTA>>(
                 escrow,
                 k2,
                 l2,

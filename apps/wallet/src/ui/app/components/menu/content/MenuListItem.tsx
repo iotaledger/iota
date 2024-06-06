@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ChevronRight16 } from '@mysten/icons';
+import { ChevronRight16 } from '@iota/icons';
 import clsx from 'clsx';
 import type { MouseEventHandler, ReactNode } from 'react';
 import { Link } from 'react-router-dom';

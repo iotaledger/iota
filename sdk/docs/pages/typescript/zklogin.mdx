@@ -6,13 +6,13 @@ Utilities for working with zlLogin. Currently contains functionality to create a
 signatures and compute zkLogin addresses.
 
 <Callout type="info">
-    Note: `@mysten/zklogin` package contains more utilities to help with computing address etc.
+    Note: `@iota/zklogin` package contains more utilities to help with computing address etc.
 </Callout>
 
 To parse a serialized zkLogin signature
 
 ```typescript
-import { parseZkLoginSignature } '@mysten/sui.js/zklogin';
+import { parseZkLoginSignature } '@iota/iota.js/zklogin';
 
 const parsedSignature = await parseZkLoginSignature('BQNNMTY4NjAxMzAyO....');
 ```
@@ -20,7 +20,7 @@ const parsedSignature = await parseZkLoginSignature('BQNNMTY4NjAxMzAyO....');
 Use `getZkLoginSignature` to serialize a zkLogin signature.
 
 ```typescript
-import { getZkLoginSignature } '@mysten/sui.js/zklogin';
+import { getZkLoginSignature } '@iota/iota.js/zklogin';
 
 const serializedSignature = await getZkLoginSignature({ inputs, maxEpoch, userSignature });
 ```
@@ -28,7 +28,7 @@ const serializedSignature = await getZkLoginSignature({ inputs, maxEpoch, userSi
 To compute the address for a given address seed and iss you can use `computeZkLoginAddressFromSeed`
 
 ```typescript
-import { computeZkLoginAddressFromSeed } '@mysten/sui.js/zklogin';
+import { computeZkLoginAddressFromSeed } '@iota/iota.js/zklogin';
 
 const address = await computeZkLoginAddressFromSeed(0n, 'https://accounts.google.com');
 ```
