@@ -8,11 +8,6 @@ use anyhow::{anyhow, Result};
 use arrow_array::{Array, Int32Array};
 use clap::*;
 use gcp_bigquery_client::{model::query_request::QueryRequest, Client};
-use num_enum::{IntoPrimitive, TryFromPrimitive};
-use object_store::path::Path;
-use serde::{Deserialize, Serialize};
-use snowflake_api::{QueryResult, SnowflakeApi};
-use strum_macros::EnumIter;
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_indexer::framework::Handler;
 use iota_rest_api::CheckpointData;
@@ -23,6 +18,11 @@ use iota_types::{
     base_types::EpochId, dynamic_field::DynamicFieldType,
     messages_checkpoint::CheckpointSequenceNumber,
 };
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+use object_store::path::Path;
+use serde::{Deserialize, Serialize};
+use snowflake_api::{QueryResult, SnowflakeApi};
+use strum_macros::EnumIter;
 use tracing::info;
 
 use crate::{

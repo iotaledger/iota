@@ -25,7 +25,7 @@ use iota_json_rpc_types::ObjectChange;
 use iota_sdk::wallet_context::WalletContext;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{ObjectRef, IotaAddress},
+    base_types::{IotaAddress, ObjectRef},
     crypto::get_key_pair,
     digests::TransactionDigest,
     object::Owner,
@@ -39,13 +39,13 @@ use crate::{
     crypto::{BridgeAuthorityKeyPair, BridgeAuthorityPublicKey, BridgeAuthoritySignInfo},
     eth_mock_provider::EthMockProvider,
     events::{EmittedIotaToEthTokenBridgeV1, IotaBridgeEvent},
-    server::mock_handler::{run_mock_server, BridgeRequestMockHandler},
     iota_transaction_builder::{
-        get_bridge_package_id, get_root_bridge_object_arg, get_iota_token_type_tag,
+        get_bridge_package_id, get_iota_token_type_tag, get_root_bridge_object_arg,
     },
+    server::mock_handler::{run_mock_server, BridgeRequestMockHandler},
     types::{
         BridgeAction, BridgeAuthority, BridgeChainId, BridgeInnerDynamicField,
-        EthToIotaBridgeAction, SignedBridgeAction, IotaToEthBridgeAction, TokenId,
+        EthToIotaBridgeAction, IotaToEthBridgeAction, SignedBridgeAction, TokenId,
     },
 };
 

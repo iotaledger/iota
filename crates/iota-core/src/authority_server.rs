@@ -7,12 +7,6 @@ use std::{io, sync::Arc};
 
 use anyhow::Result;
 use async_trait::async_trait;
-use mysten_metrics::{histogram::Histogram as MystenHistogram, spawn_monitored_task};
-use narwhal_worker::LazyNarwhalClient;
-use prometheus::{
-    register_int_counter_vec_with_registry, register_int_counter_with_registry, IntCounter,
-    IntCounterVec, Registry,
-};
 use iota_network::{
     api::{Validator, ValidatorServer},
     tonic,
@@ -21,6 +15,7 @@ use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEvents},
     error::*,
     fp_ensure,
+    iota_system_state::IotaSystemState,
     message_envelope::Message,
     messages_checkpoint::{
         CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
@@ -32,8 +27,13 @@ use iota_types::{
         TransactionInfoResponse,
     },
     multiaddr::Multiaddr,
-    iota_system_state::IotaSystemState,
     transaction::*,
+};
+use mysten_metrics::{histogram::Histogram as MystenHistogram, spawn_monitored_task};
+use narwhal_worker::LazyNarwhalClient;
+use prometheus::{
+    register_int_counter_vec_with_registry, register_int_counter_with_registry, IntCounter,
+    IntCounterVec, Registry,
 };
 use tap::TapFallible;
 use tokio::task::JoinHandle;

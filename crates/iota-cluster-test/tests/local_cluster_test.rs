@@ -14,12 +14,12 @@ async fn cluster_test() {
 #[cfg(feature = "pg_integration")]
 #[tokio::test]
 async fn test_iota_cluster() {
-    use reqwest::StatusCode;
     use iota_cluster_test::{
         cluster::{Cluster, LocalNewCluster},
         config::Env,
     };
     use iota_graphql_rpc::client::simple_client::SimpleClient;
+    use reqwest::StatusCode;
     use tokio::time::sleep;
     let fullnode_rpc_port: u16 = 9020;
     let indexer_rpc_port: u16 = 9124;

@@ -8,8 +8,8 @@ use anyhow::Result;
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{ObjectRef, IotaAddress},
-    crypto::{AccountKeyPair, KeypairTraits, IotaKeyPair},
+    base_types::{IotaAddress, ObjectRef},
+    crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits},
     object::Owner,
     transaction::{Transaction, TransactionData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER},
     utils::to_sender_signed_transaction,

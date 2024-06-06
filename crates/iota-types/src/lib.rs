@@ -8,7 +8,7 @@
     rust_2021_compatibility
 )]
 
-use base_types::{ObjectID, SequenceNumber, IotaAddress};
+use base_types::{IotaAddress, ObjectID, SequenceNumber};
 use move_binary_format::{
     binary_views::BinaryIndexedView,
     file_format::{AbilitySet, SignatureToken},
@@ -60,6 +60,8 @@ pub mod governance;
 pub mod id;
 pub mod in_memory_storage;
 pub mod inner_temporary_store;
+pub mod iota_serde;
+pub mod iota_system_state;
 pub mod message_envelope;
 pub mod messages_checkpoint;
 pub mod messages_consensus;
@@ -76,8 +78,6 @@ pub mod quorum_driver_types;
 pub mod randomness_state;
 pub mod signature;
 pub mod storage;
-pub mod iota_serde;
-pub mod iota_system_state;
 pub mod timelock;
 pub mod transaction;
 pub mod transfer;
@@ -452,8 +452,9 @@ mod tests {
         let expected = expect!["0x2::iota::IOTA"];
         expected.assert_eq(&result.to_string());
 
-        let expected =
-            expect!["0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA"];
+        let expected = expect![
+            "0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA"
+        ];
         expected.assert_eq(&result.to_canonical_string(/* with_prefix */ true));
     }
 
@@ -467,8 +468,9 @@ mod tests {
         let expected = expect!["0x2::iota::IOTA"];
         expected.assert_eq(&result.to_string());
 
-        let expected =
-            expect!["0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA"];
+        let expected = expect![
+            "0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA"
+        ];
         expected.assert_eq(&result.to_canonical_string(/* with_prefix */ true));
     }
 
@@ -502,9 +504,10 @@ mod tests {
 
     #[test]
     fn test_complex_struct_tag_with_short_addr() {
-        let result =
-            parse_iota_struct_tag("0xe7::vec_coin::VecCoin<vector<0x2::coin::Coin<0x2::iota::IOTA>>>")
-                .expect("should not error");
+        let result = parse_iota_struct_tag(
+            "0xe7::vec_coin::VecCoin<vector<0x2::coin::Coin<0x2::iota::IOTA>>>",
+        )
+        .expect("should not error");
 
         let expected = expect!["0xe7::vec_coin::VecCoin<vector<0x2::coin::Coin<0x2::iota::IOTA>>>"];
         expected.assert_eq(&result.to_string());

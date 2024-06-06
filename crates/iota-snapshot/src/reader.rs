@@ -25,7 +25,6 @@ use futures::{
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use integer_encoding::VarIntReader;
-use object_store::path::Path;
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_core::authority::{
     authority_store_tables::{AuthorityPerpetualTables, LiveObject},
@@ -43,6 +42,7 @@ use iota_types::{
     accumulator::Accumulator,
     base_types::{ObjectDigest, ObjectID, ObjectRef, SequenceNumber},
 };
+use object_store::path::Path;
 use tokio::{
     sync::Mutex,
     task::JoinHandle,

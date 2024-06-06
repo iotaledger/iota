@@ -9,11 +9,11 @@ use std::{
 };
 
 use futures::{future::BoxFuture, stream::FuturesUnordered, Future, StreamExt};
-use mysten_metrics::monitored_future;
 use iota_types::{
     base_types::ConciseableName,
     committee::{CommitteeTrait, StakeUnit},
 };
+use mysten_metrics::monitored_future;
 use tokio::time::timeout;
 use tracing::instrument::Instrument;
 

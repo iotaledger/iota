@@ -8,7 +8,7 @@ use anyhow::{anyhow, bail, ensure};
 use iota_sdk::types::block::output as stardust;
 use iota_types::{
     balance::Balance,
-    base_types::{ObjectID, IotaAddress},
+    base_types::{IotaAddress, ObjectID},
     dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo, Field},
     in_memory_storage::InMemoryStorage,
     object::Owner,

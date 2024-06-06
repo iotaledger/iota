@@ -11,9 +11,9 @@ use std::{
 use async_trait::async_trait;
 use bytes::Bytes;
 use consensus_config::{AuthorityIndex, Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
+use iota_protocol_config::ProtocolConfig;
 use parking_lot::RwLock;
 use prometheus::Registry;
-use iota_protocol_config::ProtocolConfig;
 use tokio::time::sleep;
 use tracing::{info, warn};
 
@@ -401,10 +401,10 @@ mod tests {
 
     use async_trait::async_trait;
     use consensus_config::{local_committee_and_keys, Parameters};
+    use iota_protocol_config::ProtocolConfig;
     use parking_lot::Mutex;
     use prometheus::Registry;
     use rstest::rstest;
-    use iota_protocol_config::ProtocolConfig;
     use tempfile::TempDir;
     use tokio::{sync::mpsc::unbounded_channel, time::sleep};
 

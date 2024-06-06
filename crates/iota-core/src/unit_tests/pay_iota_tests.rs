@@ -6,7 +6,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use futures::future::join_all;
 use iota_types::{
-    base_types::{dbg_addr, ObjectID, ObjectRef, IotaAddress},
+    base_types::{dbg_addr, IotaAddress, ObjectID, ObjectRef},
     crypto::{get_key_pair, AccountKeyPair},
     effects::{SignedTransactionEffects, TransactionEffectsAPI},
     error::{IotaError, UserInputError},

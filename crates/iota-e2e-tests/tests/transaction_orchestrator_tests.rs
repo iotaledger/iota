@@ -4,7 +4,6 @@
 
 use std::{sync::Arc, time::Duration};
 
-use prometheus::Registry;
 use iota_core::{
     authority::EffectsNotifyRead, authority_client::NetworkAuthorityClient,
     transaction_orchestrator::TransactiondOrchestrator,
@@ -23,6 +22,7 @@ use iota_types::{
     },
     transaction::Transaction,
 };
+use prometheus::Registry;
 use test_cluster::TestClusterBuilder;
 use tokio::time::timeout;
 use tracing::info;

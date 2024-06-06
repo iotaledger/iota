@@ -5,13 +5,13 @@
 use std::{collections::HashSet, fmt::Debug};
 
 use futures::future::join_all;
-use itertools::Itertools;
 use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponse, IotaTransactionBlockEffectsAPI,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
 use iota_sdk::IotaClient;
 use iota_types::base_types::{ObjectID, TransactionDigest};
+use itertools::Itertools;
 use tracing::{error, log::warn};
 
 const LOADGEN_QUERY_MAX_RESULT_LIMIT: usize = 25;
@@ -76,7 +76,7 @@ pub(crate) async fn check_transactions(
                 .multi_get_transactions_with_options(
                     digests.to_vec(),
                     IotaTransactionBlockResponseOptions::full_content(), /* todo(Will) support
-                                                                         * options for this */
+                                                                          * options for this */
                 )
                 .await
         }))

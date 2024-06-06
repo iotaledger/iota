@@ -8,9 +8,9 @@ use anyhow::Result;
 use async_trait::async_trait;
 use dashmap::DashSet;
 use futures::future::join_all;
-use itertools::Itertools;
 use iota_json_rpc_types::CheckpointId;
 use iota_types::base_types::TransactionDigest;
+use itertools::Itertools;
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, log::warn};
 

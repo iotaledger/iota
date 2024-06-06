@@ -10,18 +10,18 @@ use fastcrypto::{
     encoding::{Base64, Encoding, Hex},
     traits::ToFromBytes,
 };
-use rand::{rngs::StdRng, SeedableRng};
-use shared_crypto::intent::{Intent, IntentScope};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore};
 use iota_types::{
-    base_types::{ObjectDigest, ObjectID, SequenceNumber, IotaAddress},
+    base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
     crypto::{
         get_key_pair, get_key_pair_from_rng, AuthorityKeyPair, Ed25519IotaSignature,
-        EncodeDecodeBase64, Secp256k1IotaSignature, Secp256r1IotaSignature, Signature,
-        SignatureScheme, IotaKeyPair, IotaSignatureInner,
+        EncodeDecodeBase64, IotaKeyPair, IotaSignatureInner, Secp256k1IotaSignature,
+        Secp256r1IotaSignature, Signature, SignatureScheme,
     },
     transaction::{TransactionData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER},
 };
+use rand::{rngs::StdRng, SeedableRng};
+use shared_crypto::intent::{Intent, IntentScope};
 use tempfile::TempDir;
 use tokio::test;
 
@@ -200,8 +200,8 @@ async fn test_load_keystore_err() {
 
 #[test]
 async fn test_private_keys_import_export() -> Result<(), anyhow::Error> {
-    // private key in Bech32, private key in Hex, private key in Base64, derived Iota
-    // address in Hex
+    // private key in Bech32, private key in Hex, private key in Base64, derived
+    // Iota address in Hex
     const TEST_CASES: &[(&str, &str, &str, &str)] = &[
         (
             "iotaprivkey1qzwant3kaegmjy4qxex93s0jzvemekkjmyv3r2sjwgnv2y479pgsywhveae",

@@ -10,20 +10,20 @@ use std::{
 };
 
 use indexmap::IndexSet;
-use move_binary_format::{file_format::Visibility, normalized::Type};
-use move_core_types::language_storage::StructTag;
-use rand::rngs::StdRng;
 use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI};
 use iota_move_build::BuildConfig;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     execution_config_utils::to_binary_config,
     object::{Object, Owner},
     storage::WriteKind,
     transaction::{CallArg, ObjectArg, TransactionData, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
     Identifier, IOTA_FRAMEWORK_ADDRESS,
 };
+use move_binary_format::{file_format::Visibility, normalized::Type};
+use move_core_types::language_storage::StructTag;
+use rand::rngs::StdRng;
 use test_cluster::TestCluster;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info};

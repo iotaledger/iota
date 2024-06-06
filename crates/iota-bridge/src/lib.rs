@@ -11,13 +11,13 @@ pub mod error;
 pub mod eth_client;
 pub mod eth_syncer;
 pub mod events;
+pub mod iota_client;
+pub mod iota_syncer;
+pub mod iota_transaction_builder;
 pub mod node;
 pub mod orchestrator;
 pub mod server;
 pub mod storage;
-pub mod iota_client;
-pub mod iota_syncer;
-pub mod iota_transaction_builder;
 pub mod types;
 
 #[cfg(test)]

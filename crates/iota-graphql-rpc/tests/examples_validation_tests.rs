@@ -6,14 +6,14 @@
 mod tests {
     use std::{cmp::max, path::PathBuf, sync::Arc};
 
-    use rand::{rngs::StdRng, SeedableRng};
-    use serial_test::serial;
-    use simulacrum::Simulacrum;
     use iota_graphql_rpc::{
         config::{ConnectionConfig, Limits},
         examples::{load_examples, ExampleQuery, ExampleQueryGroup},
         test_infra::cluster::{ExecutorCluster, DEFAULT_INTERNAL_DATA_SOURCE_PORT},
     };
+    use rand::{rngs::StdRng, SeedableRng};
+    use serial_test::serial;
+    use simulacrum::Simulacrum;
 
     fn bad_examples() -> ExampleQueryGroup {
         ExampleQueryGroup {

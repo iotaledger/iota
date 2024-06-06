@@ -9,9 +9,9 @@ use std::{
 };
 
 use clap::*;
+use iota_protocol_config_macros::{ProtocolConfigAccessors, ProtocolConfigFeatureFlagsGetters};
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
-use iota_protocol_config_macros::{ProtocolConfigAccessors, ProtocolConfigFeatureFlagsGetters};
 use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
@@ -86,8 +86,8 @@ const MAX_PROTOCOL_VERSION: u64 = 42;
 //             Add support for receiving objects off of other objects in devnet
 // only. Version 28: Add iota::zklogin::verify_zklogin_id and related functions
 // to iota framework.             Enable transaction effects v2 in devnet.
-// Version 29: Add verify_legacy_zklogin_address flag to iota framework, this add
-// ability to verify             transactions from a legacy zklogin address.
+// Version 29: Add verify_legacy_zklogin_address flag to iota framework, this
+// add ability to verify             transactions from a legacy zklogin address.
 // Version 30: Enable Narwhal CertificateV2
 //             Add support for random beacon.
 //             Enable transaction effects v2 in testnet.

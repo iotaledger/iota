@@ -3,22 +3,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::encoding::Base64;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 use iota_types::{
     base_types::TransactionDigest,
     committee::EpochId,
     crypto::AggregateAuthoritySignature,
     digests::CheckpointDigest,
     gas::GasCostSummary,
+    iota_serde::BigInt,
     message_envelope::Message,
     messages_checkpoint::{
         CheckpointCommitment, CheckpointContents, CheckpointSequenceNumber, CheckpointSummary,
         CheckpointTimestamp, EndOfEpochData,
     },
-    iota_serde::BigInt,
 };
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 
 use crate::Page;
 pub type CheckpointPage = Page<Checkpoint, BigInt<u64>>;

@@ -5,6 +5,12 @@
 use std::str::FromStr;
 
 use anyhow::anyhow;
+use iota_types::{
+    base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
+    gas_coin::GasCoin,
+    object::{MoveObject, Owner},
+    parse_iota_struct_tag, IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_ADDRESS,
+};
 use move_core_types::{
     annotated_value::{MoveStruct, MoveValue},
     ident_str,
@@ -12,14 +18,8 @@ use move_core_types::{
     language_storage::{StructTag, TypeTag},
 };
 use serde_json::json;
-use iota_types::{
-    base_types::{ObjectDigest, ObjectID, SequenceNumber, IotaAddress},
-    gas_coin::GasCoin,
-    object::{MoveObject, Owner},
-    parse_iota_struct_tag, MOVE_STDLIB_ADDRESS, IOTA_FRAMEWORK_ADDRESS,
-};
 
-use crate::{ObjectChange, IotaMoveStruct, IotaMoveValue};
+use crate::{IotaMoveStruct, IotaMoveValue, ObjectChange};
 
 #[test]
 fn test_move_value_to_iota_coin() {

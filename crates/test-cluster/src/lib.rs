@@ -12,11 +12,6 @@ use std::{
 };
 
 use futures::{future::join_all, StreamExt};
-use jsonrpsee::{
-    http_client::{HttpClient, HttpClientBuilder},
-    ws_client::{WsClient, WsClientBuilder},
-};
-use rand::{distributions::*, rngs::OsRng, seq::SliceRandom};
 use iota_config::{
     node::{AuthorityOverloadConfig, DBCheckpointConfig, RunWithRange},
     Config, NodeConfig, PersistedConfig, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME,
@@ -45,22 +40,27 @@ use iota_swarm_config::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{AuthorityName, ConciseableName, ObjectID, ObjectRef, IotaAddress},
+    base_types::{AuthorityName, ConciseableName, IotaAddress, ObjectID, ObjectRef},
     committee::{Committee, CommitteeTrait, EpochId},
-    crypto::{KeypairTraits, IotaKeyPair},
+    crypto::{IotaKeyPair, KeypairTraits},
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
     governance::MIN_VALIDATOR_JOINING_STAKE_MICROS,
-    message_envelope::Message,
-    object::Object,
     iota_system_state::{
         epoch_start_iota_system_state::EpochStartSystemStateTrait, IotaSystemState,
         IotaSystemStateTrait,
     },
+    message_envelope::Message,
+    object::Object,
     transaction::{
         CertifiedTransaction, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
     },
 };
+use jsonrpsee::{
+    http_client::{HttpClient, HttpClientBuilder},
+    ws_client::{WsClient, WsClientBuilder},
+};
+use rand::{distributions::*, rngs::OsRng, seq::SliceRandom};
 use tokio::{
     task::JoinHandle,
     time::{sleep, timeout, Instant},
@@ -487,26 +487,30 @@ impl TestCluster {
     pub async fn wait_for_authenticator_state_update(&self) {
         timeout(
             Duration::from_secs(60),
-            self.fullnode_handle.iota_node.with_async(|node| async move {
-                let mut txns = node.state().subscription_handler.subscribe_transactions(
-                    TransactionFilter::ChangedObject(ObjectID::from_hex_literal("0x7").unwrap()),
-                );
-                let state = node.state();
+            self.fullnode_handle
+                .iota_node
+                .with_async(|node| async move {
+                    let mut txns = node.state().subscription_handler.subscribe_transactions(
+                        TransactionFilter::ChangedObject(
+                            ObjectID::from_hex_literal("0x7").unwrap(),
+                        ),
+                    );
+                    let state = node.state();
 
-                while let Some(tx) = txns.next().await {
-                    let digest = *tx.transaction_digest();
-                    let tx = state
-                        .get_cache_reader()
-                        .get_transaction_block(&digest)
-                        .unwrap()
-                        .unwrap();
-                    match &tx.data().intent_message().value.kind() {
-                        TransactionKind::EndOfEpochTransaction(_) => (),
-                        TransactionKind::AuthenticatorStateUpdate(_) => break,
-                        _ => panic!("{:?}", tx),
+                    while let Some(tx) = txns.next().await {
+                        let digest = *tx.transaction_digest();
+                        let tx = state
+                            .get_cache_reader()
+                            .get_transaction_block(&digest)
+                            .unwrap()
+                            .unwrap();
+                        match &tx.data().intent_message().value.kind() {
+                            TransactionKind::EndOfEpochTransaction(_) => (),
+                            TransactionKind::AuthenticatorStateUpdate(_) => break,
+                            _ => panic!("{:?}", tx),
+                        }
                     }
-                }
-            }),
+                }),
         )
         .await
         .expect("Timed out waiting for authenticator state update");

@@ -5,6 +5,18 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use async_trait::async_trait;
+use iota_core::authority::AuthorityState;
+use iota_json_rpc_api::{MoveUtilsOpenRpc, MoveUtilsServer};
+use iota_json_rpc_types::{
+    IotaMoveNormalizedFunction, IotaMoveNormalizedModule, IotaMoveNormalizedStruct,
+    MoveFunctionArgType, ObjectValueKind,
+};
+use iota_open_rpc::Module;
+use iota_types::{
+    base_types::ObjectID,
+    move_package::normalize_modules,
+    object::{Data, ObjectRead},
+};
 use jsonrpsee::{core::RpcResult, RpcModule};
 #[cfg(test)]
 use mockall::automock;
@@ -13,18 +25,6 @@ use move_binary_format::{
     normalized::{Module as NormalizedModule, Type},
 };
 use move_core_types::identifier::Identifier;
-use iota_core::authority::AuthorityState;
-use iota_json_rpc_api::{MoveUtilsOpenRpc, MoveUtilsServer};
-use iota_json_rpc_types::{
-    MoveFunctionArgType, ObjectValueKind, IotaMoveNormalizedFunction, IotaMoveNormalizedModule,
-    IotaMoveNormalizedStruct,
-};
-use iota_open_rpc::Module;
-use iota_types::{
-    base_types::ObjectID,
-    move_package::normalize_modules,
-    object::{Data, ObjectRead},
-};
 use tap::TapFallible;
 use tracing::{error, instrument, warn};
 

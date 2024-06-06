@@ -21,7 +21,7 @@ use iota_core::{
 };
 use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};
 use iota_types::{
-    base_types::{AuthorityName, ObjectRef, IotaAddress, TransactionDigest},
+    base_types::{AuthorityName, IotaAddress, ObjectRef, TransactionDigest},
     committee::Committee,
     crypto::{AccountKeyPair, AuthoritySignature, Signer},
     effects::{TransactionEffects, TransactionEffectsAPI},

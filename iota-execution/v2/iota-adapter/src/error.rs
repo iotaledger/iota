@@ -2,6 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_types::{
+    error::{ExecutionError, IotaError},
+    execution_status::{ExecutionFailureStatus, MoveLocation, MoveLocationOpt},
+};
 use move_binary_format::{
     access::ModuleAccess,
     errors::{Location, VMError},
@@ -12,10 +16,6 @@ use move_core_types::{
     vm_status::{StatusCode, StatusType},
 };
 use move_vm_runtime::move_vm::MoveVM;
-use iota_types::{
-    error::{ExecutionError, IotaError},
-    execution_status::{ExecutionFailureStatus, MoveLocation, MoveLocationOpt},
-};
 
 pub(crate) fn convert_vm_error<S: MoveResolver<Err = IotaError>>(
     error: VMError,

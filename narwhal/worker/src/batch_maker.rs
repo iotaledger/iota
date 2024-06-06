@@ -12,13 +12,13 @@ use byteorder::{BigEndian, ReadBytesExt};
 use config::WorkerId;
 use fastcrypto::hash::Hash;
 use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
+use iota_protocol_config::ProtocolConfig;
 use mysten_metrics::{
     metered_channel::{Receiver, Sender},
     monitored_scope, spawn_logged_monitored_task,
 };
 use network::{client::NetworkClient, WorkerToPrimaryClient};
 use store::{rocks::DBMap, Map};
-use iota_protocol_config::ProtocolConfig;
 use tokio::{
     task::JoinHandle,
     time::{sleep, Duration, Instant},

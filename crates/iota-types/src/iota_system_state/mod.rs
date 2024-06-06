@@ -6,9 +6,9 @@ use std::fmt;
 
 use anyhow::Result;
 use enum_dispatch::enum_dispatch;
+use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 
 use self::{
     iota_system_state_inner_v1::{IotaSystemStateInnerV1, ValidatorV1},
@@ -20,12 +20,12 @@ use crate::{
     dynamic_field::{get_dynamic_field_from_store, get_dynamic_field_object_from_store, Field},
     error::IotaError,
     id::UID,
-    object::{MoveObject, Object},
-    storage::ObjectStore,
     iota_system_state::{
         epoch_start_iota_system_state::EpochStartSystemState,
         iota_system_state_inner_v2::IotaSystemStateInnerV2,
     },
+    object::{MoveObject, Object},
+    storage::ObjectStore,
     versioned::Versioned,
     MoveTypeTagTrait, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_STATE_OBJECT_ID,
 };
@@ -239,7 +239,9 @@ pub fn get_iota_system_state_wrapper(
         .get_object(&IOTA_SYSTEM_STATE_OBJECT_ID)?
         // Don't panic here on None because object_store is a generic store.
         .ok_or_else(|| {
-            IotaError::IotaSystemStateReadError("IotaSystemStateWrapper object not found".to_owned())
+            IotaError::IotaSystemStateReadError(
+                "IotaSystemStateWrapper object not found".to_owned(),
+            )
         })?;
     let move_object = wrapper.data.try_as_move().ok_or_else(|| {
         IotaError::IotaSystemStateReadError(

@@ -18,6 +18,7 @@ use config::{AuthorityIdentifier, Committee, WorkerCache};
 use crypto::NetworkPublicKey;
 use fastcrypto::hash::Hash as _;
 use futures::{stream::FuturesOrdered, StreamExt};
+use iota_protocol_config::ProtocolConfig;
 use itertools::Itertools;
 use mysten_common::sync::notify_once::NotifyOnce;
 use mysten_metrics::{
@@ -28,7 +29,6 @@ use mysten_network::anemo_ext::{NetworkExt, WaitingPeer};
 use network::{client::NetworkClient, PrimaryToWorkerClient, RetryConfig};
 use parking_lot::Mutex;
 use storage::{CertificateStore, PayloadStore};
-use iota_protocol_config::ProtocolConfig;
 use tokio::{
     sync::{broadcast, oneshot, watch, MutexGuard},
     task::{spawn_blocking, JoinSet},

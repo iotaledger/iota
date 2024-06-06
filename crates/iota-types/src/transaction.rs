@@ -13,6 +13,7 @@ use std::{
 
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
+use iota_protocol_config::{ProtocolConfig, SupportedProtocolVersions};
 use itertools::Either;
 use move_core_types::{
     ident_str,
@@ -23,7 +24,6 @@ use nonempty::{nonempty, NonEmpty};
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use strum::IntoStaticStr;
-use iota_protocol_config::{ProtocolConfig, SupportedProtocolVersions};
 use tap::Pipe;
 use tracing::trace;
 
@@ -33,8 +33,8 @@ use crate::{
     committee::{EpochId, ProtocolVersion},
     crypto::{
         default_hash, AuthoritySignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo,
-        DefaultHash, Ed25519IotaSignature, EmptySignInfo, RandomnessRound, Signature, Signer,
-        IotaSignatureInner, ToFromBytes,
+        DefaultHash, Ed25519IotaSignature, EmptySignInfo, IotaSignatureInner, RandomnessRound,
+        Signature, Signer, ToFromBytes,
     },
     digests::{CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest},
     execution::SharedInput,
@@ -1597,7 +1597,11 @@ impl TransactionData {
         })
     }
 
-    pub fn new_with_gas_data(kind: TransactionKind, sender: IotaAddress, gas_data: GasData) -> Self {
+    pub fn new_with_gas_data(
+        kind: TransactionKind,
+        sender: IotaAddress,
+        gas_data: GasData,
+    ) -> Self {
         TransactionData::V1(TransactionDataV1 {
             kind,
             sender,

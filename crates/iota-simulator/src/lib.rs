@@ -11,14 +11,14 @@ pub use ::rand as rand_crate;
 pub use anemo;
 pub use anemo_tower;
 pub use fastcrypto;
+pub use iota_framework;
+pub use iota_move_build;
+pub use iota_types;
 pub use lru;
 pub use move_package;
 #[cfg(msim)]
 pub use msim::*;
 pub use narwhal_network;
-pub use iota_framework;
-pub use iota_move_build;
-pub use iota_types;
 pub use telemetry_subscribers;
 pub use tempfile;
 pub use tower;

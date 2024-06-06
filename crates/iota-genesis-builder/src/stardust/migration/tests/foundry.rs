@@ -3,21 +3,21 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{anyhow, Result};
+use iota_protocol_config::ProtocolConfigValue::u64;
 use iota_sdk::{
     types::block::output::{
         feature::Irc30Metadata, AliasId, FoundryOutput, Output, SimpleTokenScheme,
     },
     Url, U256,
 };
-use move_core_types::language_storage::TypeTag;
-use iota_protocol_config::ProtocolConfigValue::u64;
 use iota_types::{
     balance::Balance,
-    base_types::{MoveObjectType, ObjectID, IotaAddress},
+    base_types::{IotaAddress, MoveObjectType, ObjectID},
     coin::CoinMetadata,
     gas_coin::GAS,
     object::Object,
 };
+use move_core_types::language_storage::TypeTag;
 
 use crate::stardust::{
     migration::tests::{create_foundry, run_migration},

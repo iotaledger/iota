@@ -10,8 +10,8 @@ use shared_crypto::intent::{
 use crate::{
     base_types::{dbg_addr, ObjectID},
     crypto::{
-        get_key_pair, AccountKeyPair, AuthorityKeyPair, AuthoritySignature, Signature,
-        SignatureScheme, IotaAuthoritySignature, IotaSignature,
+        get_key_pair, AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
+        IotaSignature, Signature, SignatureScheme,
     },
     object::Object,
     transaction::{Transaction, TransactionData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER},

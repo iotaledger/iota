@@ -4,7 +4,7 @@
 
 use anyhow::anyhow;
 use fastcrypto::traits::EncodeDecodeBase64;
-use iota_types::crypto::{AuthorityKeyPair, NetworkKeyPair, IotaKeyPair};
+use iota_types::crypto::{AuthorityKeyPair, IotaKeyPair, NetworkKeyPair};
 
 /// Write Base64 encoded `flag || privkey` to file.
 pub fn write_keypair_to_file<P: AsRef<std::path::Path>>(

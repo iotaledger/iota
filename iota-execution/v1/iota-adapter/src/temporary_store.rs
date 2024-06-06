@@ -4,14 +4,10 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
-use move_core_types::{
-    account_address::AccountAddress, language_storage::StructTag, resolver::ResourceResolver,
-};
-use parking_lot::RwLock;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::{
-        ObjectID, ObjectRef, SequenceNumber, IotaAddress, TransactionDigest, VersionDigest,
+        IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest, VersionDigest,
     },
     committee::EpochId,
     digests::ObjectDigest,
@@ -25,16 +21,20 @@ use iota_types::{
     fp_bail,
     gas::GasCostSummary,
     inner_temporary_store::InnerTemporaryStore,
+    iota_system_state::{get_iota_system_state_wrapper, AdvanceEpochParams},
     is_system_package,
     object::{Data, Object, Owner},
     storage::{
         BackingPackageStore, BackingStore, ChildObjectResolver, PackageObject, ParentSync, Storage,
     },
-    iota_system_state::{get_iota_system_state_wrapper, AdvanceEpochParams},
     transaction::InputObjects,
     type_resolver::LayoutResolver,
     IOTA_SYSTEM_STATE_OBJECT_ID,
 };
+use move_core_types::{
+    account_address::AccountAddress, language_storage::StructTag, resolver::ResourceResolver,
+};
+use parking_lot::RwLock;
 
 use crate::gas_charger::GasCharger;
 
@@ -934,8 +934,8 @@ impl<'backing> TemporaryStore<'backing> {
     /// 1. all IOTA in storage rebate fields of input objects should flow either
     ///    to the transaction storage rebate, or the transaction non-refundable
     ///    storage rebate
-    /// 2. all IOTA charged for storage should flow into the storage rebate field
-    ///    of some output object
+    /// 2. all IOTA charged for storage should flow into the storage rebate
+    ///    field of some output object
     ///
     /// This function is intended to be called *after* we have charged for
     /// gas + applied the storage rebate to the gas object, but *before* we

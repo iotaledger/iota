@@ -8,9 +8,9 @@ use std::{
     str::FromStr,
 };
 
-use serde::{Deserialize, Serialize};
 use iota_swarm_config::genesis_config::GenesisConfig;
 use iota_types::{base_types::IotaAddress, multiaddr::Multiaddr};
+use serde::{Deserialize, Serialize};
 
 use super::{ProtocolCommands, ProtocolMetrics};
 use crate::{
@@ -158,9 +158,12 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
     where
         I: IntoIterator<Item = Instance>,
     {
-        let genesis_path: PathBuf = [&self.working_dir, &iota_config::IOTA_GENESIS_FILENAME.into()]
-            .iter()
-            .collect();
+        let genesis_path: PathBuf = [
+            &self.working_dir,
+            &iota_config::IOTA_GENESIS_FILENAME.into(),
+        ]
+        .iter()
+        .collect();
         let keystore_path: PathBuf = [
             &self.working_dir,
             &iota_config::IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME.into(),

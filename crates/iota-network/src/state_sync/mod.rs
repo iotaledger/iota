@@ -69,7 +69,6 @@ use std::{
 
 use anemo::{types::PeerEvent, PeerId, Request, Response, Result};
 use futures::{stream::FuturesOrdered, FutureExt, StreamExt};
-use rand::Rng;
 use iota_config::p2p::StateSyncConfig;
 use iota_types::{
     committee::Committee,
@@ -80,6 +79,7 @@ use iota_types::{
     },
     storage::WriteStore,
 };
+use rand::Rng;
 use tap::{Pipe, TapFallible, TapOptional};
 use tokio::{
     sync::{broadcast, mpsc, oneshot, watch},
@@ -101,9 +101,9 @@ pub use generated::{
     state_sync_client::StateSyncClient,
     state_sync_server::{StateSync, StateSyncServer},
 };
-pub use server::{GetCheckpointAvailabilityResponse, GetCheckpointSummaryRequest};
 use iota_archival::reader::ArchiveReaderBalancer;
 use iota_storage::verify_checkpoint;
+pub use server::{GetCheckpointAvailabilityResponse, GetCheckpointSummaryRequest};
 
 use self::{metrics::Metrics, server::CheckpointContentsDownloadLimitLayer};
 

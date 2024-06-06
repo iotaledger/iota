@@ -14,12 +14,12 @@ use async_trait::async_trait;
 use diesel::{
     dsl::max, upsert::excluded, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl,
 };
-use itertools::Itertools;
-use move_bytecode_utils::module_cache::SyncModuleCache;
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
     object::ObjectRead,
 };
+use itertools::Itertools;
+use move_bytecode_utils::module_cache::SyncModuleCache;
 use tap::Tap;
 use tracing::info;
 

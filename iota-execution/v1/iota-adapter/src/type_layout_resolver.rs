@@ -2,11 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::{
-    account_address::AccountAddress, annotated_value as A, language_storage::StructTag,
-    resolver::ResourceResolver,
-};
-use move_vm_runtime::move_vm::MoveVM;
 use iota_types::{
     base_types::ObjectID,
     error::{IotaError, IotaResult},
@@ -14,6 +9,11 @@ use iota_types::{
     storage::{BackingPackageStore, PackageObject},
     type_resolver::LayoutResolver,
 };
+use move_core_types::{
+    account_address::AccountAddress, annotated_value as A, language_storage::StructTag,
+    resolver::ResourceResolver,
+};
+use move_vm_runtime::move_vm::MoveVM;
 
 use crate::programmable_transactions::{context::load_type_from_struct, linkage_view::LinkageView};
 

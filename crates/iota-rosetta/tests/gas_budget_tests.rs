@@ -5,9 +5,6 @@
 use std::time::Duration;
 
 use fastcrypto::encoding::{Encoding, Hex};
-use rosetta_client::start_rosetta_test_server;
-use serde::Deserialize;
-use serde_json::json;
 use iota_keys::keystore::AccountKeystore;
 use iota_rosetta::{
     operations::Operations,
@@ -15,11 +12,14 @@ use iota_rosetta::{
         ConstructionCombineRequest, ConstructionCombineResponse, ConstructionMetadataRequest,
         ConstructionMetadataResponse, ConstructionPayloadsRequest, ConstructionPayloadsResponse,
         ConstructionPreprocessRequest, ConstructionPreprocessResponse, ConstructionSubmitRequest,
-        NetworkIdentifier, PreprocessMetadata, Signature, SignatureType, IotaEnv,
+        IotaEnv, NetworkIdentifier, PreprocessMetadata, Signature, SignatureType,
         TransactionIdentifierResponse,
     },
 };
 use iota_types::crypto::IotaSignature;
+use rosetta_client::start_rosetta_test_server;
+use serde::Deserialize;
+use serde_json::json;
 use test_cluster::TestClusterBuilder;
 
 use crate::rosetta_client::RosettaEndpoint;

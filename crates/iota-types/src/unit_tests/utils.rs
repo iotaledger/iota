@@ -14,7 +14,7 @@ use crate::{
     committee::Committee,
     crypto::{
         get_key_pair, get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair,
-        AuthorityPublicKeyBytes, DefaultHash, Signature, SignatureScheme, Signer, IotaKeyPair,
+        AuthorityPublicKeyBytes, DefaultHash, IotaKeyPair, Signature, SignatureScheme, Signer,
     },
     gas::GasCostSummary,
     messages_checkpoint::{

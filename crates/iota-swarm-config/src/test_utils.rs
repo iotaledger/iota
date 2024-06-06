@@ -4,19 +4,19 @@
 
 use std::collections::HashMap;
 
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use iota_types::{
     base_types::AuthorityName,
     committee::{Committee, EpochId, StakeUnit},
     crypto::{
-        AuthorityKeyPair, AuthoritySignInfo, AuthoritySignature, KeypairTraits,
-        IotaAuthoritySignature,
+        AuthorityKeyPair, AuthoritySignInfo, AuthoritySignature, IotaAuthoritySignature,
+        KeypairTraits,
     },
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointDigest, CheckpointSequenceNumber, CheckpointSummary,
         EndOfEpochData, FullCheckpointContents, VerifiedCheckpoint, VerifiedCheckpointContents,
     },
 };
+use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 
 use crate::network_config::NetworkConfig;
 

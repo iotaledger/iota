@@ -12,10 +12,6 @@ use async_trait::async_trait;
 use embedded_reconfig_observer::EmbeddedReconfigObserver;
 use fullnode_reconfig_observer::FullNodeReconfigObserver;
 use futures::{stream::FuturesUnordered, StreamExt};
-use mysten_metrics::GaugeGuard;
-use prometheus::Registry;
-use rand::Rng;
-use roaring::RoaringBitmap;
 use iota_config::genesis::Genesis;
 use iota_core::{
     authority_aggregator::{AuthorityAggregator, AuthorityAggregatorBuilder},
@@ -27,13 +23,16 @@ use iota_core::{
     },
 };
 use iota_json_rpc_types::{
-    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery, IotaTransactionBlockEffects,
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponseOptions,
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
+    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
+    IotaTransactionBlockResponseOptions,
 };
 use iota_network::{DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC};
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_types::{
-    base_types::{AuthorityName, ConciseableName, ObjectID, ObjectRef, SequenceNumber, IotaAddress},
+    base_types::{
+        AuthorityName, ConciseableName, IotaAddress, ObjectID, ObjectRef, SequenceNumber,
+    },
     committee::{Committee, CommitteeTrait, EpochId},
     crypto::{
         AggregateAuthenticator, AggregateAuthoritySignature, AuthorityQuorumSignInfo,
@@ -43,12 +42,16 @@ use iota_types::{
     error::IotaError,
     gas::GasCostSummary,
     gas_coin::GasCoin,
+    iota_system_state::{iota_system_state_summary::IotaSystemStateSummary, IotaSystemStateTrait},
     message_envelope::Envelope,
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    iota_system_state::{iota_system_state_summary::IotaSystemStateSummary, IotaSystemStateTrait},
     transaction::{Argument, CallArg, CertifiedTransaction, ObjectArg, Transaction},
 };
+use mysten_metrics::GaugeGuard;
+use prometheus::Registry;
+use rand::Rng;
+use roaring::RoaringBitmap;
 use tokio::{
     task::JoinSet,
     time::{sleep, timeout},
@@ -218,7 +221,8 @@ pub trait ValidatorProxy {
         account_address: IotaAddress,
     ) -> Result<Vec<(u64, Object)>, anyhow::Error>;
 
-    async fn get_latest_system_state_object(&self) -> Result<IotaSystemStateSummary, anyhow::Error>;
+    async fn get_latest_system_state_object(&self)
+    -> Result<IotaSystemStateSummary, anyhow::Error>;
 
     async fn execute_transaction_block(&self, tx: Transaction) -> anyhow::Result<ExecutionEffects>;
 
@@ -344,7 +348,9 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
         unimplemented!("Not available for local proxy");
     }
 
-    async fn get_latest_system_state_object(&self) -> Result<IotaSystemStateSummary, anyhow::Error> {
+    async fn get_latest_system_state_object(
+        &self,
+    ) -> Result<IotaSystemStateSummary, anyhow::Error> {
         let auth_agg = self.qd.authority_aggregator().load();
         Ok(auth_agg
             .get_latest_system_state_object_for_testing()
@@ -713,7 +719,9 @@ impl ValidatorProxy for FullNodeProxy {
         Ok(values_objects)
     }
 
-    async fn get_latest_system_state_object(&self) -> Result<IotaSystemStateSummary, anyhow::Error> {
+    async fn get_latest_system_state_object(
+        &self,
+    ) -> Result<IotaSystemStateSummary, anyhow::Error> {
         Ok(self
             .iota_client
             .governance_api()

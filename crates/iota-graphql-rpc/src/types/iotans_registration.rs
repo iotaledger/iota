@@ -5,13 +5,13 @@
 use std::str::FromStr;
 
 use async_graphql::{connection::Connection, *};
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
-use serde::{Deserialize, Serialize};
 use iota_indexer::models::objects::StoredHistoryObject;
 use iota_json_rpc::name_service::{
     Domain as NativeDomain, NameRecord, NameServiceConfig, NameServiceError,
 };
 use iota_types::{base_types::IotaAddress as NativeIotaAddress, dynamic_field::Field, id::UID};
+use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
+use serde::{Deserialize, Serialize};
 
 use super::{
     balance::{self, Balance},
@@ -22,13 +22,13 @@ use super::{
     cursor::Page,
     display::DisplayEntry,
     dynamic_field::{DynamicField, DynamicFieldName},
+    iota_address::IotaAddress,
     move_object::{MoveObject, MoveObjectImpl},
     move_value::MoveValue,
     object::{self, Object, ObjectFilter, ObjectImpl, ObjectLookupKey, ObjectOwner, ObjectStatus},
     owner::OwnerImpl,
     stake::StakedIota,
     string_input::impl_string_input,
-    iota_address::IotaAddress,
     transaction_block::{self, TransactionBlock, TransactionBlockFilter},
     type_filter::ExactTypeFilter,
 };
@@ -470,7 +470,9 @@ impl NameService {
         // second element for the parent's `NameRecord`.
         let mut object_ids = vec![IotaAddress::from(config.record_field_id(&domain.0))];
         if domain.0.is_subdomain() {
-            object_ids.push(IotaAddress::from(config.record_field_id(&domain.0.parent())));
+            object_ids.push(IotaAddress::from(
+                config.record_field_id(&domain.0.parent()),
+            ));
         }
 
         // Create a page with a bound of `object_ids` length to fetch the relevant
