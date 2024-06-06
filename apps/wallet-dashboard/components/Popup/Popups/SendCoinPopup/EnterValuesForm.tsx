@@ -30,13 +30,11 @@ function EnterValuesForm({
     const { data: _gasBudget } = useQuery({
         queryKey: [
             'transaction-gas-budget-estimate',
-            {
-                recipientAddress,
-                amount,
-                coin,
-                senderAddress,
-                client,
-            },
+            recipientAddress,
+            amount,
+            coin,
+            senderAddress,
+            client,
         ],
         queryFn: async () => {
             const transaction = createTokenTransferTransaction({
