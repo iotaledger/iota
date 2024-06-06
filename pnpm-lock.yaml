@@ -1525,6 +1525,9 @@ importers:
       '@vanilla-extract/vite-plugin':
         specifier: ^3.9.0
         version: 3.9.0(@types/node@20.4.2)(sass@1.63.6)(terser@5.31.0)(ts-node@10.9.1(@types/node@20.4.2)(typescript@5.3.3))(vite@4.4.11(@types/node@20.4.2)(sass@1.63.6)(terser@5.31.0))
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.4.5
       jsdom:
         specifier: ^23.0.0
         version: 23.0.0
@@ -1774,6 +1777,9 @@ importers:
       '@mysten/build-scripts':
         specifier: workspace:*
         version: link:../build-scripts
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.4.5
       ts-node:
         specifier: ^10.9.1
         version: 10.9.1(@swc/core@1.3.92)(@types/node@20.4.2)(typescript@5.3.3)
@@ -15320,8 +15326,8 @@ snapshots:
     dependencies:
       '@babel/core': 7.23.9
       '@babel/helper-annotate-as-pure': 7.22.5
-      '@babel/helper-environment-visitor': 7.22.20
-      '@babel/helper-function-name': 7.23.0
+      '@babel/helper-environment-visitor': 7.22.5
+      '@babel/helper-function-name': 7.22.5
       '@babel/helper-member-expression-to-functions': 7.22.5
       '@babel/helper-optimise-call-expression': 7.22.5
       '@babel/helper-replace-supers': 7.22.5
