@@ -2,14 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-    Account24,
-    ArrowRight16,
-    Info16,
-    Iota,
-    Unstaked,
-    WalletActionStake24,
-} from '@iota/icons';
+import { Account24, ArrowRight16, Info16, Iota, Unstaked, WalletActionStake24 } from '@iota/icons';
 import cl from 'clsx';
 
 import LoadingIndicator from '../loading/LoadingIndicator';

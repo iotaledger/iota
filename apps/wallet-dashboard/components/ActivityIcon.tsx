@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ActivityState } from '@/lib/interfaces';
-import { Account24, ArrowRight16, Iota, Swap16, Unstaked, WalletActionStake24 } from '@iota/icons';
+import { Account24, ArrowRight16, Iota, Unstaked, WalletActionStake24 } from '@iota/icons';
 
 const icons = {
     Send: (
@@ -29,7 +29,6 @@ const icons = {
     ),
     Unstaked: <Unstaked className="text-gradient-blue-start text-heading3" />,
     Rewards: <Iota className="text-gradient-blue-start text-body" />,
-    Swapped: <Swap16 className="text-gradient-blue-start text-heading6" />,
     PersonalMessage: (
         <Account24 fill="currentColor" className="text-gradient-blue-start text-body" />
     ),

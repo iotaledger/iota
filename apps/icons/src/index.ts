@@ -153,7 +153,6 @@ export { default as IotaMainnet } from './IotaMainnet';
 export { default as IotaTestnet } from './IotaTestnet';
 export { default as IotaTokensStack } from './IotaTokensStack';
 export { default as Support24 } from './Support24';
-export { default as Swap16 } from './Swap16';
 export { default as Tag16 } from './Tag16';
 export { default as ThumbDownFill12 } from './ThumbDownFill12';
 export { default as ThumbDownFill24 } from './ThumbDownFill24';
