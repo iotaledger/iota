@@ -9,16 +9,19 @@ module timelock::timelocked_balance {
 
     use timelock::timelock::{Self, TimeLock};
 
-    /// For when trying to join two timelocks with different expiration time.
+    /// For when trying to join two time-locked balances with different expiration time.
     const EDifferentExpirationTime: u64 = 0;
+    /// For when trying to join two time-locked balances with different labels.
+    const EDifferentLabels: u64 = 1;
 
     /// Join two `TimeLock<Balance<T>>` together.
     public fun join<T>(self: &mut TimeLock<Balance<T>>, other: TimeLock<Balance<T>>) {
         // Check the preconditions.
         assert!(self.expiration_timestamp_ms() == other.expiration_timestamp_ms(), EDifferentExpirationTime);
+        assert!(self.label() == other.label(), EDifferentLabels);
 
         // Unpack the time-locked balance.
-        let (value, _) = timelock::unpack(other);
+        let (value, _, _) = timelock::unpack(other);
 
         // Join the balances.
         self.locked_mut().join(value);
@@ -46,6 +49,6 @@ module timelock::timelocked_balance {
         let value = self.locked_mut().split(value);
 
         // Pack the splitted balance into a timelock.
-        timelock::pack(value, self.expiration_timestamp_ms(), ctx)
+        timelock::pack(value, self.expiration_timestamp_ms(), self.label(), ctx)
     }
 }

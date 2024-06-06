@@ -15,6 +15,8 @@ title: Module `0x10cf::timelocked_staking`
 
 <pre><code><b>use</b> <a href="timelock.md#0x10cf_timelock">0x10cf::timelock</a>;
 <b>use</b> <a href="timelocked_staked_iota.md#0x10cf_timelocked_staked_iota">0x10cf::timelocked_staked_iota</a>;
+<b>use</b> <a href="../move-stdlib/option.md#0x1_option">0x1::option</a>;
+<b>use</b> <a href="../move-stdlib/string.md#0x1_string">0x1::string</a>;
 <b>use</b> <a href="../iota-framework/balance.md#0x2_balance">0x2::balance</a>;
 <b>use</b> <a href="../iota-framework/coin.md#0x2_coin">0x2::coin</a>;
 <b>use</b> <a href="../iota-framework/iota.md#0x2_iota">0x2::iota</a>;
@@ -101,7 +103,7 @@ The non-entry version of <code>request_add_stake</code>, which returns the time-
     <b>assert</b>!(<a href="timelocked_balance.md#0x10cf_timelocked_balance">timelocked_balance</a>.is_locked(ctx), <a href="timelocked_staking.md#0x10cf_timelocked_staking_ETimeLockShouldNotBeExpired">ETimeLockShouldNotBeExpired</a>);
 
     // Unpack the time-locked <a href="../iota-framework/balance.md#0x2_balance">balance</a>.
-    <b>let</b> (<a href="../iota-framework/balance.md#0x2_balance">balance</a>, expiration_timestamp_ms) = <a href="timelock.md#0x10cf_timelock_unpack">timelock::unpack</a>(<a href="timelocked_balance.md#0x10cf_timelocked_balance">timelocked_balance</a>);
+    <b>let</b> (<a href="../iota-framework/balance.md#0x2_balance">balance</a>, expiration_timestamp_ms, label) = <a href="timelock.md#0x10cf_timelock_unpack">timelock::unpack</a>(<a href="timelocked_balance.md#0x10cf_timelocked_balance">timelocked_balance</a>);
 
     // Stake the time-locked <a href="../iota-framework/balance.md#0x2_balance">balance</a>.
     <b>let</b> staked_iota = <a href="../iota-system/iota_system.md#0x3_iota_system">iota_system</a>.<a href="timelocked_staking.md#0x10cf_timelocked_staking_request_add_stake_non_entry">request_add_stake_non_entry</a>(
@@ -114,7 +116,8 @@ The non-entry version of <code>request_add_stake</code>, which returns the time-
     <a href="timelocked_staked_iota.md#0x10cf_timelocked_staked_iota_create">timelocked_staked_iota::create</a>(
         staked_iota,
         expiration_timestamp_ms,
-        ctx
+        label,
+        ctx,
     )
 }
 </code></pre>
@@ -289,7 +292,7 @@ instead of transferring it to the sender.
     ctx: &<b>mut</b> TxContext,
 ) : (TimeLock&lt;Balance&lt;IOTA&gt;&gt;, Balance&lt;IOTA&gt;) {
     // Unpack the `TimelockedStakedIota` instance.
-    <b>let</b> (staked_iota, expiration_timestamp_ms) = <a href="timelocked_staked_iota.md#0x10cf_timelocked_staked_iota">timelocked_staked_iota</a>.unpack();
+    <b>let</b> (staked_iota, expiration_timestamp_ms, label) = <a href="timelocked_staked_iota.md#0x10cf_timelocked_staked_iota">timelocked_staked_iota</a>.unpack();
 
     // Store the original stake amount.
     <b>let</b> principal = staked_iota.staked_iota_amount();
@@ -302,7 +305,7 @@ instead of transferring it to the sender.
     <b>let</b> principal = withdraw_stake.split(principal);
 
     // Pack and <b>return</b> a time-locked <a href="../iota-framework/balance.md#0x2_balance">balance</a>, and the reward.
-    (<a href="timelock.md#0x10cf_timelock_pack">timelock::pack</a>(principal, expiration_timestamp_ms, ctx), withdraw_stake)
+    (<a href="timelock.md#0x10cf_timelock_pack">timelock::pack</a>(principal, expiration_timestamp_ms, label, ctx), withdraw_stake)
 }
 </code></pre>
 
