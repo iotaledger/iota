@@ -1,13 +1,14 @@
 // Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useGetAllCoins } from '@mysten/core/src/hooks/useGetAllCoins';
-import { useCurrentAccount } from '@mysten/dapp-kit';
-import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
+import { useGetAllCoins } from '@iota/core/src/hooks/useGetAllCoins';
+import { useCurrentAccount } from '@iota/dapp-kit';
+import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 
 export const AllCoins = () => {
     const account = useCurrentAccount();
-    const { data } = useGetAllCoins(SUI_TYPE_ARG, account?.address);
+    const { data } = useGetAllCoins(IOTA_TYPE_ARG, account?.address);
 
     return (
         <div>

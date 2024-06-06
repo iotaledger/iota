@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Text } from '_src/ui/app/shared/text';
-import { useResolveSuiNSName } from '@mysten/core';
-import { ArrowUpRight12, Copy12 } from '@mysten/icons';
-import { formatAddress } from '@mysten/sui.js/utils';
+import { useResolveIotaNSName } from '@iota/core';
+import { ArrowUpRight12, Copy12 } from '@iota/icons';
+import { formatAddress } from '@iota/iota.js/utils';
 import cn from 'clsx';
 import { forwardRef, type ReactNode } from 'react';
 
@@ -51,7 +52,7 @@ export const AccountItem = forwardRef<HTMLDivElement, AccountItemProps>(
     ) => {
         const { data: accounts } = useAccounts();
         const account = accounts?.find((account) => account.id === accountID);
-        const { data: domainName } = useResolveSuiNSName(account?.address);
+        const { data: domainName } = useResolveIotaNSName(account?.address);
         const accountName =
             account?.nickname ?? domainName ?? formatAddress(account?.address || '');
         const copyAddress = useCopyToClipboard(account?.address || '', {

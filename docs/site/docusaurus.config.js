@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { themes } from "prism-react-renderer";
@@ -10,13 +11,13 @@ require("dotenv").config();
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: "Sui Documentation",
+  title: "Iota Documentation",
   tagline:
-    "Sui is a next-generation smart contract platform with high throughput, low latency, and an asset-oriented programming model powered by Move",
+    "Iota is a next-generation smart contract platform with high throughput, low latency, and an asset-oriented programming model powered by Move",
   favicon: "/img/favicon.ico",
 
   // Set the production url of your site here
-  url: "https://docs.sui.io",
+  url: "https://docs.iota.io",
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: "/",
@@ -53,9 +54,9 @@ const config = {
       "@graphql-markdown/docusaurus",
       {
         schema:
-          "../../crates/sui-graphql-rpc/schema/current_progress_schema.graphql",
+          "../../crates/iota-graphql-rpc/schema/current_progress_schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
-        baseURL: "references/sui-api/sui-graphql/reference",
+        baseURL: "references/iota-api/iota-graphql/reference",
         loaders: {
           GraphQLFileLoader: "@graphql-tools/graphql-file-loader",
         },
@@ -85,7 +86,7 @@ const config = {
           routeBasePath: "/",
           sidebarPath: require.resolve("./sidebars.js"),
           // the double docs below is a fix for having the path set to ../content
-          editUrl: "https://github.com/MystenLabs/sui/tree/main/docs/docs",
+          editUrl: "https://github.com/iotaledger/iota/tree/main/docs/docs",
           /*disableVersioning: true,
           lastVersion: "current",
           versions: {
@@ -144,7 +145,7 @@ const config = {
         // Public API key: it is safe to commit it
         apiKey: "7f24db6c4ec06d6905592deb228f4460",
 
-        indexName: "sui",
+        indexName: "iota",
 
         // Optional: see doc section below
         contextualSearch: false,
@@ -166,17 +167,17 @@ const config = {
 
         //... other Algolia params
       },
-      image: "img/sui-doc-og.png",
+      image: "img/iota-doc-og.png",
       docs: {
         sidebar: {
           autoCollapseCategories: false,
         },
       },
       navbar: {
-        title: "Sui Documentation",
+        title: "Iota Documentation",
         logo: {
-          alt: "Sui Docs Logo",
-          src: "img/sui-logo.svg",
+          alt: "Iota Docs Logo",
+          src: "img/iota-logo.svg",
         },
         items: [
           {
@@ -211,12 +212,12 @@ const config = {
       },
       footer: {
         logo: {
-          alt: "Sui Logo",
-          src: "img/sui-logo-footer.svg",
-          href: "https://sui.io",
+          alt: "Iota Logo",
+          src: "img/iota-logo-footer.svg",
+          href: "https://iota.io",
         },
         style: "dark",
-        copyright: `© ${new Date().getFullYear()} Sui Foundation | Documentation distributed under <a href="https://github.com/sui-foundation/sui-docs/blob/main/LICENSE">CC BY 4.0</a>`,
+        copyright: `© ${new Date().getFullYear()} Iota Foundation | Documentation distributed under <a href="https://github.com/iota-foundation/iota-docs/blob/main/LICENSE">CC BY 4.0</a>`,
       },
       prism: {
         theme: themes.github,

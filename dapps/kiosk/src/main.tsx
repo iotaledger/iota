@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 
-import '@mysten/dapp-kit/dist/index.css';
+import '@iota/dapp-kit/dist/index.css';
 import './index.css';
 
 import { RouterProvider } from 'react-router-dom';

@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 #![warn(
     future_incompatible,
@@ -34,7 +35,7 @@ pub mod utils;
 pub type Epoch = u64;
 
 // Opaque bytes uniquely identifying the current chain. Analogue of the
-// type in `sui-types` crate.
+// type in `iota-types` crate.
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct ChainIdentifier([u8; 32]);
 

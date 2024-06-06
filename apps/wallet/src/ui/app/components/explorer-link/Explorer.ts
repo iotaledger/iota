@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { getUrlWithDeviceId } from '_src/shared/analytics/amplitude';
-import { getNetwork, Network } from '@mysten/sui.js/client';
+import { getNetwork, Network } from '@iota/iota.js/client';
 
 function getExplorerUrl(path: string, network: Network, customExplorer: string) {
     const networkConfig = getNetwork(network);

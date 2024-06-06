@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { AccountIcon } from '_components/accounts/AccountIcon';
 import { LockUnlockButton } from '_components/accounts/LockUnlockButton';
 import { useUnlockAccount } from '_components/accounts/UnlockAccountContext';
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
-import { useResolveSuiNSName } from '@mysten/core';
-import { CheckFill16 } from '@mysten/icons';
-import { formatAddress } from '@mysten/sui.js/utils';
+import { useResolveIotaNSName } from '@iota/core';
+import { CheckFill16 } from '@iota/icons';
+import { formatAddress } from '@iota/iota.js/utils';
 import clsx from 'clsx';
 
 interface Props {
@@ -18,7 +19,7 @@ interface Props {
 }
 
 export function AccountItemApproveConnection({ account, selected, disabled, showLock }: Props) {
-    const { data: domainName } = useResolveSuiNSName(account?.address);
+    const { data: domainName } = useResolveIotaNSName(account?.address);
     const accountName = account?.nickname ?? domainName ?? formatAddress(account?.address || '');
     const { unlockAccount, lockAccount, isPending, accountToUnlock } = useUnlockAccount();
 

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { type Meta, type StoryObj } from '@storybook/react';
@@ -34,7 +35,7 @@ const splitPanels = [
     },
     {
         panel: (
-            <div key={3} className="h-full w-[1000px] bg-sui">
+            <div key={3} className="h-full w-[1000px] bg-iota">
                 Third
             </div>
         ),

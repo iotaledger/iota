@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { PublicKey } from '@mysten/sui.js/cryptography';
-import { MultiSigPublicKey, publicKeyFromSuiBytes } from '@mysten/sui.js/multisig';
+import { PublicKey } from '@iota/iota.js/cryptography';
+import { MultiSigPublicKey, publicKeyFromIotaBytes } from '@iota/iota.js/multisig';
 import { useState } from 'react';
 import { FieldValues, useFieldArray, useForm } from 'react-hook-form';
 
@@ -19,7 +20,7 @@ export default function MultiSigAddressGenerator() {
     const [msAddress, setMSAddress] = useState('');
     const { register, control, handleSubmit } = useForm({
         defaultValues: {
-            pubKeys: [{ pubKey: 'Sui Pubkey', weight: '' }],
+            pubKeys: [{ pubKey: 'Iota Pubkey', weight: '' }],
             threshold: 1,
         },
     });
@@ -32,15 +33,15 @@ export default function MultiSigAddressGenerator() {
     const onSubmit = (data: FieldValues) => {
         const pks: { publicKey: PublicKey; weight: number }[] = [];
         data.pubKeys.forEach((item: Record<string, unknown>) => {
-            const pk = publicKeyFromSuiBytes(item.pubKey as string);
+            const pk = publicKeyFromIotaBytes(item.pubKey as string);
             pks.push({ publicKey: pk, weight: item.weight as number });
         });
         const multiSigPublicKey = MultiSigPublicKey.fromPublicKeys({
             threshold: data.threshold,
             publicKeys: pks,
         });
-        const multisigSuiAddress = multiSigPublicKey.toSuiAddress();
-        setMSAddress(multisigSuiAddress);
+        const multisigIotaAddress = multiSigPublicKey.toIotaAddress();
+        setMSAddress(multisigIotaAddress);
     };
 
     // if you want to control your fields with watch
@@ -57,9 +58,9 @@ export default function MultiSigAddressGenerator() {
             </h2>
 
             <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)}>
-                <p>The following demo allow you to create Sui MultiSig addresses.</p>
+                <p>The following demo allow you to create Iota MultiSig addresses.</p>
                 <code>
-                    Sui Pubkeys for playing with
+                    Iota Pubkeys for playing with
                     <p>ABr818VXt+6PLPRoA7QnsHBfRpKJdWZPjt7ppiTl6Fkq</p>
                     <p>ANRdB4M6Hj73R+gRM4N6zUPNidLuatB9uccOzHBc/0bP</p>
                 </code>
@@ -103,7 +104,7 @@ export default function MultiSigAddressGenerator() {
                     <Button
                         type="button"
                         onClick={() => {
-                            append({ pubKey: 'Sui Pubkey', weight: '' });
+                            append({ pubKey: 'Iota Pubkey', weight: '' });
                         }}
                     >
                         New PubKey
@@ -132,9 +133,9 @@ export default function MultiSigAddressGenerator() {
             {msAddress && (
                 <Card key={msAddress}>
                     <CardHeader>
-                        <CardTitle>Sui MultiSig Address</CardTitle>
+                        <CardTitle>Iota MultiSig Address</CardTitle>
                         <CardDescription>
-                            https://docs.sui.io/testnet/learn/cryptography/sui-multisig
+                            https://docs.iota.io/testnet/learn/cryptography/iota-multisig
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -151,24 +152,24 @@ export default function MultiSigAddressGenerator() {
 }
 
 /*
-➜  multisig-toolkit git:(jnaulty/multisig-create-address) ✗ sui keytool multi-sig-address --pks ABr818VXt+6PLPRoA7QnsHBfRpKJdWZPjt7ppiTl6Fkq ANRdB4M6Hj73R+gRM4N6zUPNidLuatB9uccOzHBc/0bP --weights 1 2 --threshold 2
+➜  multisig-toolkit git:(jnaulty/multisig-create-address) ✗ iota keytool multi-sig-address --pks ABr818VXt+6PLPRoA7QnsHBfRpKJdWZPjt7ppiTl6Fkq ANRdB4M6Hj73R+gRM4N6zUPNidLuatB9uccOzHBc/0bP --weights 1 2 --threshold 2
 MultiSig address: 0x27b17213bc702893bb3e92ba84071589a6331f35f066ad15b666b9527a288c16
 Participating parties:
-                Sui Address                 |                Public Key (Base64)                 | Weight
+                Iota Address                 |                Public Key (Base64)                 | Weight
 ----------------------------------------------------------------------------------------------------
  0x504f656b7bc467f6eb1d05dc26447477921f05e5ea88c5715682ad28835268ce | ABr818VXt+6PLPRoA7QnsHBfRpKJdWZPjt7ppiTl6Fkq  |   1
  0x611f6a023c5d1c98b4de96e9da64daffaeb372fed0176536168908e50f6e07c0 | ANRdB4M6Hj73R+gRM4N6zUPNidLuatB9uccOzHBc/0bP  |   2
-➜  multisig-toolkit git:(jnaulty/multisig-create-address) ✗ sui keytool multi-sig-address --pks ABr818VXt+6PLPRoA7QnsHBfRpKJdWZPjt7ppiTl6Fkq ANRdB4M6Hj73R+gRM4N6zUPNidLuatB9uccOzHBc/0bP --weights 1 1 --threshold 2
+➜  multisig-toolkit git:(jnaulty/multisig-create-address) ✗ iota keytool multi-sig-address --pks ABr818VXt+6PLPRoA7QnsHBfRpKJdWZPjt7ppiTl6Fkq ANRdB4M6Hj73R+gRM4N6zUPNidLuatB9uccOzHBc/0bP --weights 1 1 --threshold 2
 MultiSig address: 0x9134bd58a25a6b48811d1c65770dd1d01e113931ed35c13f1a3c26ed7eccf9bc
 Participating parties:
-                Sui Address                 |                Public Key (Base64)                 | Weight
+                Iota Address                 |                Public Key (Base64)                 | Weight
 ----------------------------------------------------------------------------------------------------
  0x504f656b7bc467f6eb1d05dc26447477921f05e5ea88c5715682ad28835268ce | ABr818VXt+6PLPRoA7QnsHBfRpKJdWZPjt7ppiTl6Fkq  |   1
  0x611f6a023c5d1c98b4de96e9da64daffaeb372fed0176536168908e50f6e07c0 | ANRdB4M6Hj73R+gRM4N6zUPNidLuatB9uccOzHBc/0bP  |   1
-➜  multisig-toolkit git:(jnaulty/multisig-create-address) ✗ sui keytool multi-sig-address --pks ABr818VXt+6PLPRoA7QnsHBfRpKJdWZPjt7ppiTl6Fkq ANRdB4M6Hj73R+gRM4N6zUPNidLuatB9uccOzHBc/0bP --weights 1 1 --threshold 1
+➜  multisig-toolkit git:(jnaulty/multisig-create-address) ✗ iota keytool multi-sig-address --pks ABr818VXt+6PLPRoA7QnsHBfRpKJdWZPjt7ppiTl6Fkq ANRdB4M6Hj73R+gRM4N6zUPNidLuatB9uccOzHBc/0bP --weights 1 1 --threshold 1
 MultiSig address: 0xda3f8c1ba647d63b89a396a64eeac835d25a59323a1b8fd4697424f62374b0de
 Participating parties:
-                Sui Address                 |                Public Key (Base64)                 | Weight
+                Iota Address                 |                Public Key (Base64)                 | Weight
 ----------------------------------------------------------------------------------------------------
  0x504f656b7bc467f6eb1d05dc26447477921f05e5ea88c5715682ad28835268ce | ABr818VXt+6PLPRoA7QnsHBfRpKJdWZPjt7ppiTl6Fkq  |   1
  0x611f6a023c5d1c98b4de96e9da64daffaeb372fed0176536168908e50f6e07c0 | ANRdB4M6Hj73R+gRM4N6zUPNidLuatB9uccOzHBc/0bP  |   1

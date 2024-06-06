@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -45,7 +46,7 @@ use network::{
 use parking_lot::Mutex;
 use prometheus::Registry;
 use storage::{CertificateStore, PayloadStore, ProposerStore, VoteDigestStore};
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,

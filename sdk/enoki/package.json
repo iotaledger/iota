@@ -1,5 +1,5 @@
 {
-    "name": "@mysten/enoki",
+    "name": "@iota/enoki",
     "version": "0.2.1",
     "description": "TODO: Description",
     "license": "Apache-2.0",
@@ -37,14 +37,14 @@
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/mystenlabs/sui.git"
+        "url": "git+https://github.com/iotaledger/iota.git"
     },
     "bugs": {
-        "url": "https://github.com/mystenlabs/sui/issues"
+        "url": "https://github.com/iotaledger/iota/issues"
     },
-    "homepage": "https://github.com/mystenlabs/sui#readme",
+    "homepage": "https://github.com/iotaledger/iota#readme",
     "devDependencies": {
-        "@mysten/build-scripts": "workspace:*",
+        "@iota/build-scripts": "workspace:*",
         "@types/node": "^20.4.2",
         "@types/react": "^18.2.15",
         "@types/react-dom": "^18.2.7",
@@ -55,8 +55,8 @@
         "vite": "^4.4.4"
     },
     "dependencies": {
-        "@mysten/sui.js": "workspace:*",
-        "@mysten/zklogin": "workspace:*",
+        "@iota/iota.js": "workspace:*",
+        "@iota/zklogin": "workspace:*",
         "@nanostores/react": "^0.7.1",
         "jose": "^5.2.3",
         "nanostores": "^0.9.3"

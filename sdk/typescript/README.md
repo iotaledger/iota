@@ -1,13 +1,13 @@
 # Docs site
 
-For more complete docs, visit the [Sui TypeScript SDK docs](https://sdk.mystenlabs.com/)
+For more complete docs, visit the [Iota TypeScript SDK docs](https://sdk.mystenlabs.com/)
 
-# Sui TypeScript SDK
+# Iota TypeScript SDK
 
-This is the Sui TypeScript SDK built on the Sui
-[JSON RPC API](https://github.com/MystenLabs/sui/blob/main/docs/content/references/sui-api.mdx). It
+This is the Iota TypeScript SDK built on the Iota
+[JSON RPC API](https://github.com/iotaledger/iota/blob/main/docs/content/references/iota-api.mdx). It
 provides utility classes and functions for applications to sign transactions and interact with the
-Sui network.
+Iota network.
 
 WARNING: Note that we are still iterating on the RPC and SDK API before TestNet, therefore please
 expect frequent breaking changes in the short-term. We expect the API to stabilize after the
@@ -15,30 +15,30 @@ upcoming TestNet launch.
 
 ## Working with Devnet
 
-The SDK will be published to [npm registry](https://www.npmjs.com/package/@mysten/sui.js) with the
+The SDK will be published to [npm registry](https://www.npmjs.com/package/@iota/iota.js) with the
 same bi-weekly release cycle as the Devnet validators and
-[RPC Server](https://github.com/MystenLabs/sui/blob/main/docs/content/references/sui-api.mdx). To
+[RPC Server](https://github.com/iotaledger/iota/blob/main/docs/content/references/iota-api.mdx). To
 use the SDK in your project, you can do:
 
 ```bash
-$ npm install @mysten/sui.js
+$ npm install @iota/iota.js
 ```
 
 You can also use your preferred npm client, such as yarn or pnpm.
 
 ## Working with local network
 
-Note that the `latest` tag for the [published SDK](https://www.npmjs.com/package/@mysten/sui.js)
+Note that the `latest` tag for the [published SDK](https://www.npmjs.com/package/@iota/iota.js)
 might go out of sync with the RPC server on the `main` branch until the next release. If you're
 developing against a local network, we recommend using the `experimental`-tagged packages, which
 contain the latest changes from `main`.
 
 ```bash
-npm install @mysten/sui.js@experimental
+npm install @iota/iota.js@experimental
 ```
 
 Refer to the
-[JSON RPC](https://github.com/MystenLabs/sui/blob/main/docs/content/references/sui-api.mdx) topic
+[JSON RPC](https://github.com/iotaledger/iota/blob/main/docs/content/references/iota-api.mdx) topic
 for instructions about how to start a local network and local RPC server.
 
 ## Building Locally
@@ -52,12 +52,12 @@ $ pnpm install
 $ pnpm sdk build
 ```
 
-> All `pnpm` commands below are intended to be run in the root of the Sui repo.
+> All `pnpm` commands below are intended to be run in the root of the Iota repo.
 
 ## Type Doc
 
 You can view the generated [Type Doc](https://typedoc.org/) for the
-[current release of the SDK](https://www.npmjs.com/package/@mysten/sui.js) at
+[current release of the SDK](https://www.npmjs.com/package/@iota/iota.js) at
 http://typescript-sdk-docs.s3-website-us-east-1.amazonaws.com/.
 
 For the latest docs for the `main` branch, run `pnpm doc` and open the
@@ -68,16 +68,16 @@ For the latest docs for the `main` branch, run `pnpm doc` and open the
 To run unit tests
 
 ```
-pnpm --filter @mysten/sui.js test:unit
+pnpm --filter @iota/iota.js test:unit
 ```
 
 To run E2E tests against local network
 
 ```
-pnpm --filter @mysten/sui.js prepare:e2e
+pnpm --filter @iota/iota.js prepare:e2e
 
 // This will run all e2e tests
-pnpm --filter @mysten/sui.js test:e2e
+pnpm --filter @iota/iota.js test:e2e
 
 // Alternatively you can choose to run only one test file
 npx vitest txn-builder.test.ts
@@ -96,22 +96,22 @@ https://stackoverflow.com/questions/52676244/node-version-not-updating-after-nvm
 To run E2E tests against Devnet
 
 ```
-VITE_FAUCET_URL='https://faucet.devnet.sui.io:443/gas' VITE_FULLNODE_URL='https://fullnode.devnet.sui.io' pnpm --filter @mysten/sui.js exec vitest e2e
+VITE_FAUCET_URL='https://faucet.devnet.iota.io:443/gas' VITE_FULLNODE_URL='https://fullnode.devnet.iota.io' pnpm --filter @iota/iota.js exec vitest e2e
 ```
 
-## Connecting to Sui Network
+## Connecting to Iota Network
 
-The `SuiClient` class provides a connection to the JSON-RPC Server and should be used for all
+The `IotaClient` class provides a connection to the JSON-RPC Server and should be used for all
 read-only operations. The default URLs to connect with the RPC server are:
 
 -   local: http://127.0.0.1:9000
--   Devnet: https://fullnode.devnet.sui.io
+-   Devnet: https://fullnode.devnet.iota.io
 
 ```typescript
-import { getFullnodeUrl, SuiClient } from '@mysten/sui.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
 
 // create a client connected to devnet
-const client = new SuiClient({ url: getFullnodeUrl('devnet') });
+const client = new IotaClient({ url: getFullnodeUrl('devnet') });
 
 // get coins owned by an address
 await client.getCoins({
@@ -119,15 +119,15 @@ await client.getCoins({
 });
 ```
 
-For local development, you can run `cargo run --bin sui-test-validator` to spin up a local network
+For local development, you can run `cargo run --bin iota-test-validator` to spin up a local network
 with a local validator, a fullnode, and a faucet server. Refer to
-[this guide](https://docs.sui.io/build/sui-local-network) for more information.
+[this guide](https://docs.iota.io/build/iota-local-network) for more information.
 
 ```typescript
-import { getFullnodeUrl, SuiClient } from '@mysten/sui.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
 
 // create a client connected to devnet
-const client = new SuiClient({ url: getFullnodeUrl('localnet') });
+const client = new IotaClient({ url: getFullnodeUrl('localnet') });
 
 // get coins owned by an address
 await client.getCoins({
@@ -138,11 +138,11 @@ await client.getCoins({
 You can also construct your own in custom connections, with the URL for your own fullnode
 
 ```typescript
-import { getFullnodeUrl, SuiClient } from '@mysten/sui.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
 
 // create a client connected to devnet
-const client = new SuiClient({
-    url: 'https://fullnode.devnet.sui.io',
+const client = new IotaClient({
+    url: 'https://fullnode.devnet.iota.io',
 });
 
 // get coins owned by an address
@@ -153,12 +153,12 @@ await client.getCoins({
 
 ## Getting coins from the faucet
 
-You can request sui from the faucet when running against devnet, testnet, or localnet
+You can request iota from the faucet when running against devnet, testnet, or localnet
 
 ```typescript
-import { getFaucetHost, requestSuiFromFaucetV0 } from '@mysten/sui.js/faucet';
+import { getFaucetHost, requestIotaFromFaucetV0 } from '@iota/iota.js/faucet';
 
-await requestSuiFromFaucetV0({
+await requestIotaFromFaucetV0({
     host: getFaucetHost('testnet'),
     recipient: '0xcc2bd176a478baea9a0de7a24cd927661cc6e860d5bacecb9a138ef20dbab231',
 });
@@ -167,18 +167,18 @@ await requestSuiFromFaucetV0({
 ## Writing APIs
 
 For a primer for building transactions, refer to
-[this guide](https://docs.sui.io/build/prog-trans-ts-sdk).
+[this guide](https://docs.iota.io/build/prog-trans-ts-sdk).
 
 ### Transfer Object
 
 ```typescript
-import { getFullnodeUrl, SuiClient } from '@mysten/sui.js/client';
-import { Ed25519Keypair } from '@mysten/sui.js/keypairs/ed25519';
-import { TransactionBlock } from '@mysten/sui.js/transactions';
+import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
+import { TransactionBlock } from '@iota/iota.js/transactions';
 
 // Generate a new Ed25519 Keypair
 const keypair = new Ed25519Keypair();
-const client = new SuiClient({
+const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
 });
 
@@ -194,24 +194,24 @@ const result = await client.signAndExecuteTransactionBlock({
 console.log({ result });
 ```
 
-### Transfer Sui
+### Transfer Iota
 
-To transfer `1000` MIST to another address:
+To transfer `1000` MICROS to another address:
 
 ```typescript
-import { getFullnodeUrl, SuiClient } from '@mysten/sui.js/client';
-import { Ed25519Keypair } from '@mysten/sui.js/keypairs/ed25519';
-import { TransactionBlock } from '@mysten/sui.js/transactions';
+import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
+import { TransactionBlock } from '@iota/iota.js/transactions';
 
 // Generate a new Ed25519 Keypair
 const keypair = new Ed25519Keypair();
-const client = new SuiClient({
+const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
 });
 
 const tx = new TransactionBlock();
 const [coin] = tx.splitCoins(tx.gas, [1000]);
-tx.transferObjects([coin], keypair.getPublicKey().toSuiAddress());
+tx.transferObjects([coin], keypair.getPublicKey().toIotaAddress());
 const result = await client.signAndExecuteTransactionBlock({
     signer: keypair,
     transactionBlock: tx,
@@ -222,13 +222,13 @@ console.log({ result });
 ### Merge coins
 
 ```typescript
-import { getFullnodeUrl, SuiClient } from '@mysten/sui.js/client';
-import { Ed25519Keypair } from '@mysten/sui.js/keypairs/ed25519';
-import { TransactionBlock } from '@mysten/sui.js/transactions';
+import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
+import { TransactionBlock } from '@iota/iota.js/transactions';
 
 // Generate a new Ed25519 Keypair
 const keypair = new Ed25519Keypair();
-const client = new SuiClient({
+const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
 });
 
@@ -246,13 +246,13 @@ console.log({ result });
 ### Move Call
 
 ```typescript
-import { getFullnodeUrl, SuiClient } from '@mysten/sui.js/client';
-import { Ed25519Keypair } from '@mysten/sui.js/keypairs/ed25519';
-import { TransactionBlock } from '@mysten/sui.js/transactions';
+import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
+import { TransactionBlock } from '@iota/iota.js/transactions';
 
 // Generate a new Ed25519 Keypair
 const keypair = new Ed25519Keypair();
-const client = new SuiClient({
+const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
 });
 const packageObjectId = '0x...';
@@ -273,14 +273,14 @@ console.log({ result });
 To publish a package:
 
 ```typescript
-import { getFullnodeUrl, SuiClient } from '@mysten/sui.js/client';
-import { Ed25519Keypair } from '@mysten/sui.js/keypairs/ed25519';
-import { TransactionBlock } from '@mysten/sui.js/transactions';
+import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
+import { TransactionBlock } from '@iota/iota.js/transactions';
 
 const { execSync } = require('child_process');
 // Generate a new Ed25519 Keypair
 const keypair = new Ed25519Keypair();
-const client = new SuiClient({
+const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
 });
 const { modules, dependencies } = JSON.parse(
@@ -309,9 +309,9 @@ Fetch objects owned by the address
 `0xcc2bd176a478baea9a0de7a24cd927661cc6e860d5bacecb9a138ef20dbab231`
 
 ```typescript
-import { getFullnodeUrl, SuiClient } from '@mysten/sui.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
 
-const client = new SuiClient({
+const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
 });
 const objects = await client.getOwnedObjects({
@@ -325,9 +325,9 @@ Fetch object details for the object with id
 `0xe19739da1a701eadc21683c5b127e62b553e833e8a15a4f292f4f48b4afea3f2`
 
 ```typescript
-import { getFullnodeUrl, SuiClient } from '@mysten/sui.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
 
-const client = new SuiClient({
+const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
 });
 const txn = await client.getObject({
@@ -351,9 +351,9 @@ const txns = await client.multiGetObjects({
 Fetch transaction details from transaction digests:
 
 ```typescript
-import { getFullnodeUrl, SuiClient } from '@mysten/sui.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
 
-const client = new SuiClient({
+const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
 });
 const txn = await client.getTransactionBlock({
@@ -419,9 +419,9 @@ Fetch coins of type `0x65b0553a591d7b13376e03a408e112c706dc0909a79080c810b93b06f
 owned by an address:
 
 ```typescript
-import { getFullnodeUrl, SuiClient } from '@mysten/sui.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
 
-const client = new SuiClient({
+const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
 });
 const coins = await client.getCoins({
@@ -433,9 +433,9 @@ const coins = await client.getCoins({
 Fetch all coin objects owned by an address:
 
 ```typescript
-import { getFullnodeUrl, SuiClient } from '@mysten/sui.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
 
-const client = new SuiClient({
+const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
 });
 const allCoins = await client.getAllCoins({
@@ -446,12 +446,12 @@ const allCoins = await client.getAllCoins({
 Fetch the total coin balance for one coin type, owned by an address:
 
 ```typescript
-import { getFullnodeUrl, SuiClient } from '@mysten/sui.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
 
-const client = new SuiClient({
+const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
 });
-// If coin type is not specified, it defaults to 0x2::sui::SUI
+// If coin type is not specified, it defaults to 0x2::iota::IOTA
 const coinBalance = await client.getBalance({
     owner: '0xcc2bd176a478baea9a0de7a24cd927661cc6e860d5bacecb9a138ef20dbab231',
     coinType: '0x65b0553a591d7b13376e03a408e112c706dc0909a79080c810b93b06f922c458::usdc::USDC',
@@ -464,9 +464,9 @@ Querying events created by transactions sent by account
 `0xcc2bd176a478baea9a0de7a24cd927661cc6e860d5bacecb9a138ef20dbab231`
 
 ```typescript
-import { getFullnodeUrl, SuiClient } from '@mysten/sui.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
 
-const client = new SuiClient({
+const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
 });
 const events = client.queryEvents({
@@ -479,12 +479,12 @@ Subscribe to all events created by transactions sent by account
 `0xcc2bd176a478baea9a0de7a24cd927661cc6e860d5bacecb9a138ef20dbab231`
 
 ```typescript
-import { getFullnodeUrl, SuiClient } from '@mysten/sui.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
 
-const client = new SuiClient({
+const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
 });
-// calls RPC method 'suix_subscribeEvent' with params:
+// calls RPC method 'iotax_subscribeEvent' with params:
 // [ { Sender: '0xbff6ccc8707aa517b4f1b95750a2a8c666012df3' } ]
 const unsubscribe = await client.subscribeEvent({
     filter: {
@@ -502,9 +502,9 @@ await unsubscribe();
 Subscribe to all events created by a package's `nft` module
 
 ```typescript
-import { getFullnodeUrl, SuiClient } from '@mysten/sui.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
 
-const client = new SuiClient({
+const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
 });
 const somePackage = '0x...';

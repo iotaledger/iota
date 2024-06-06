@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Slot } from '@radix-ui/react-slot';
@@ -10,7 +11,7 @@ import { LoadingIndicator } from './LoadingIndicator';
 const buttonStyles = cva(['inline-flex flex-nowrap items-center justify-center gap-2 relative'], {
     variants: {
         variant: {
-            primary: 'bg-sui-dark text-sui-light hover:text-white border-none',
+            primary: 'bg-iota-dark text-iota-light hover:text-white border-none',
             secondary: 'bg-gray-90 text-gray-50 hover:text-white border-none',
             outline:
                 'bg-white border border-steel text-steel-dark hover:text-steel-darker hover:border-steel-dark active:text-steel active:border-steel disabled:border-gray-45 disabled:text-steel-dark',

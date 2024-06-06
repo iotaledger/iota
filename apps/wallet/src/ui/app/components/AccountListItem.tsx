@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
-import { useResolveSuiNSName } from '@mysten/core';
-import { Check12, Copy12 } from '@mysten/icons';
-import { formatAddress } from '@mysten/sui.js/utils';
+import { useResolveIotaNSName } from '@iota/core';
+import { Check12, Copy12 } from '@iota/icons';
+import { formatAddress } from '@iota/iota.js/utils';
 
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 import { Text } from '../shared/text';
@@ -21,12 +22,12 @@ export function AccountListItem({ account, onAccountSelected }: AccountItemProps
     const copy = useCopyToClipboard(address, {
         copySuccessMessage: 'Address Copied',
     });
-    const { data: domainName } = useResolveSuiNSName(address);
+    const { data: domainName } = useResolveIotaNSName(address);
 
     return (
         <li>
             <button
-                className="group flex w-full cursor-pointer appearance-none items-center gap-2.5 rounded-md border-0 bg-transparent p-2.5 text-left transition-colors hover:bg-sui/10 focus-visible:ring-1"
+                className="group flex w-full cursor-pointer appearance-none items-center gap-2.5 rounded-md border-0 bg-transparent p-2.5 text-left transition-colors hover:bg-iota/10 focus-visible:ring-1"
                 onClick={() => {
                     onAccountSelected(account);
                 }}

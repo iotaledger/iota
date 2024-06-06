@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use std::{sync::Arc, time::Instant};
 
@@ -17,7 +18,7 @@ use primary::{
 };
 use prometheus::{IntGauge, Registry};
 use storage::NodeStorage;
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 use tokio::{
     sync::{watch, RwLock},
     task::JoinHandle,

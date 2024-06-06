@@ -8,7 +8,7 @@ import { Callout } from 'nextra/components';
 </Callout>
 
 Using the zkSend SDK, you can allow users to connect to the zkSend wallet from your dApp. The wallet
-is provided through the [Wallet Standard](https://docs.sui.io/standards/wallet-standard), and should
+is provided through the [Wallet Standard](https://docs.iota.io/standards/wallet-standard), and should
 appear automatically in your existing wallet connection UI.
 
 ## Considerations
@@ -34,7 +34,7 @@ your application's lifecycle.
     -   `origin`: The origin of the zkSend website. Defaults to `https://zksend.com`.
 
 ```ts
-import { registerZkSendWallet } from '@mysten/zksend';
+import { registerZkSendWallet } from '@iota/zksend';
 
 registerZkSendWallet('Your dApp Name');
 ```
@@ -50,7 +50,7 @@ We intentionally do not support `signAndExecuteTransactionBlock`, and suggest th
 use `signTransactionBlock`, and submit the signed transaction within your dApp instead. This
 provides better control around execution, and avoids potential issues around data inconsistency. If
 you believe you have a strong reason for using `signAndExecuteTransactionBlock`, please
-[open an issue](https://github.com/MystenLabs/sui/issues/new/choose).
+[open an issue](https://github.com/iotaledger/iota/issues/new/choose).
 
 ## Detecting the zkSend wallet
 
@@ -61,8 +61,8 @@ For example, if you are using `dapp-kit`, you can use the `useCurrentWallet` hoo
 wallet, and check if it is the zkSend wallet.
 
 ```ts
-import { useCurrentWallet } from '@mysten/dapp-kit';
-import { ZKSEND_WALLET_NAME } from '@mysten/zksend';
+import { useCurrentWallet } from '@iota/dapp-kit';
+import { ZKSEND_WALLET_NAME } from '@iota/zksend';
 
 function ZkSendOnly() {
     const { curentWallet } = useCurrentWallet();

@@ -1,7 +1,7 @@
 # Move
 
 Provides language support for the Move programming language. For information about Move visit the
-language [documentation](https://docs.sui.io/concepts/sui-move-concepts).
+language [documentation](https://docs.iota.io/concepts/iota-move-concepts).
 
 # How to Install
 
@@ -32,28 +32,28 @@ that you have Rust development already [installed](https://www.rust-lang.org/too
 This can be done in two steps:
 
 1. Install the move-analyzer installation prerequisites for your platform. They are the same
-as prerequisites for Sui installation - for Linux, macOS and Windows these prerequisites and
+as prerequisites for Iota installation - for Linux, macOS and Windows these prerequisites and
 their installation instructions can be found
-[here](https://docs.sui.io/guides/developer/getting-started/sui-install#additional-prerequisites-by-operating-system)
-2. Invoke `cargo install --git https://github.com/MystenLabs/sui move-analyzer` to install the
+[here](https://docs.iota.io/guides/developer/getting-started/iota-install#additional-prerequisites-by-operating-system)
+2. Invoke `cargo install --git https://github.com/iotaledger/iota move-analyzer` to install the
 `move-analyzer` language server in your Cargo binary directory, which is typically located
 in the `~/.cargo/bin` (macOS/Linux) or `C:\Users\USER\.cargo\bin` (Windows) directory.
-3. Copy the move-analyzer binary to `~/.sui/bin` (macOS/Linux) or `C:\Users\USER\.sui\bin`
+3. Copy the move-analyzer binary to `~/.iota/bin` (macOS/Linux) or `C:\Users\USER\.iota\bin`
 (Windows), which is its default location (create this directory if it does not exist).
 
 ## What if I want to use a move-analyzer binary in a different location?
 
 If you are on Windows, the following answer assumes that your Windows user name is `USER`.
 
-If your `move-analyzer` binary is in a different directory than the default one (`~/.sui/bin`
-on macOS or Linux, or `C:\Users\USER\.sui\bin` on Windows), you may have the extension look
+If your `move-analyzer` binary is in a different directory than the default one (`~/.iota/bin`
+on macOS or Linux, or `C:\Users\USER\.iota\bin` on Windows), you may have the extension look
 for the binary at this new location by using VSCode's settings (`⌘,` on macOS, or use the menu
 item *Code > Preferences > Settings*). Search for the `move.server.path` workspace setting,
 set it to the new location of the `move-analyzer` binary, and restart VSCode.
 
 ## What if everything else fails?
 
-Check [Sui Developer Forum](https://forums.sui.io/c/technical-support) to see if the problem
+Check [Iota Developer Forum](https://forums.iota.io/c/technical-support) to see if the problem
 has already been reported and, if not, report it there.
 
 # Features

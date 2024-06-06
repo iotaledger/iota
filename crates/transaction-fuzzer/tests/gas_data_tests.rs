@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use proptest::{arbitrary::*, test_runner::TestCaseError};
-use sui_types::{
+use iota_types::{
     base_types::dbg_addr,
     crypto::KeypairTraits,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -12,7 +13,7 @@ use sui_types::{
 use tracing::debug;
 use transaction_fuzzer::{executor::Executor, run_proptest, GasDataGenConfig, GasDataWithObjects};
 
-/// Send transfer sui txn with provided random gas data and gas objects to an
+/// Send transfer iota txn with provided random gas data and gas objects to an
 /// authority.
 fn test_with_random_gas_data(
     gas_data_test: GasDataWithObjects,
@@ -27,7 +28,7 @@ fn test_with_random_gas_data(
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         let recipient = dbg_addr(2);
-        builder.transfer_sui(recipient, None);
+        builder.transfer_iota(recipient, None);
         builder.finish()
     };
     let kind = TransactionKind::ProgrammableTransaction(pt);

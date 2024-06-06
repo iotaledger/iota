@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashMap;
@@ -21,7 +22,7 @@ pub fn version() -> String {
 /// Deserialize the `Uint8Array`` bytecode into a JSON object.
 ///
 /// ```javascript
-/// import * as template from '@mysten/move-binary-template';
+/// import * as template from '@iota/move-binary-template';
 ///
 /// const json = template.deserialize( binary );
 /// console.log( json, json.identifiers );
@@ -36,7 +37,7 @@ pub fn deserialize(binary: &[u8]) -> Result<JsValue, JsErr> {
 /// Returns the updated bytecode.
 ///
 /// ```javascript
-/// import * as template from '@mysten/move-binary-template';
+/// import * as template from '@iota/move-binary-template';
 ///
 /// const updated = template.update_identifiers( binary, {
 ///     'TEMPLATE': 'NEW_VALUE',
@@ -127,8 +128,8 @@ pub fn update_identifiers(binary: &[u8], map: JsValue) -> Result<Box<[u8]>, JsEr
 /// capitalized version of the type: U8, Address, Vector(Bool), Vector(U8), etc.
 ///
 /// ```javascript
-/// import * as template from '@mysten/move-binary-template';
-/// import { bcs } from '@mysten/bcs';
+/// import * as template from '@iota/move-binary-template';
+/// import { bcs } from '@iota/bcs';
 ///
 /// let binary = template.update_constants(
 ///     binary, // Uint8Array
@@ -175,7 +176,7 @@ pub struct Constant {
 /// with their type and BCS value.
 ///
 /// ```javascript
-/// import * as template from '@mysten/move-binary-template';
+/// import * as template from '@iota/move-binary-template';
 ///
 /// let consts = template.get_constants(binary);
 /// ```

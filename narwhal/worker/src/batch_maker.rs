@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[cfg(feature = "benchmark")]
@@ -17,7 +18,7 @@ use mysten_metrics::{
 };
 use network::{client::NetworkClient, WorkerToPrimaryClient};
 use store::{rocks::DBMap, Map};
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 use tokio::{
     task::JoinHandle,
     time::{sleep, Duration, Instant},

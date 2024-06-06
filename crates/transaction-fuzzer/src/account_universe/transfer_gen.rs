@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Copyright (c) The Diem Core Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::Arc;
@@ -9,10 +10,10 @@ use std::sync::Arc;
 use once_cell::sync::Lazy;
 use proptest::prelude::*;
 use proptest_derive::Arbitrary;
-use sui_protocol_config::ProtocolConfig;
-use sui_types::{
-    base_types::{ObjectRef, SuiAddress},
-    error::{SuiError, UserInputError},
+use iota_protocol_config::ProtocolConfig;
+use iota_types::{
+    base_types::{ObjectRef, IotaAddress},
+    error::{IotaError, UserInputError},
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -130,7 +131,7 @@ impl TransactionSponsorship {
         accounts: &mut AccountTriple,
         exec: &mut Executor,
         gas_coins: u32,
-    ) -> (Vec<ObjectRef>, (u64, Object), SuiAddress) {
+    ) -> (Vec<ObjectRef>, (u64, Object), IotaAddress) {
         match self {
             TransactionSponsorship::None => {
                 let gas_object = accounts.account_1.new_gas_object(exec);
@@ -407,10 +408,10 @@ impl AUTransactionGen for P2PTransferGenRandomGasRandomPriceRandomSponsorship {
             account_2: recipient,
             ..
         } = &account_triple;
-        // construct a p2p transfer of a random amount of SUI
+        // construct a p2p transfer of a random amount of IOTA
         let txn = {
             let mut builder = ProgrammableTransactionBuilder::new();
-            builder.transfer_sui(recipient.initial_data.account.address, Some(self.amount));
+            builder.transfer_iota(recipient.initial_data.account.address, Some(self.amount));
             builder.finish()
         };
         let sender_address = sender.initial_data.account.address;
@@ -450,7 +451,7 @@ impl AUTransactionGen for P2PTransferGenRandomGasRandomPriceRandomSponsorship {
             RunInfo {
                 too_many_gas_coins: true,
                 ..
-            } => Err(SuiError::UserInputError {
+            } => Err(IotaError::UserInputError {
                 error: UserInputError::SizeLimitExceeded {
                     limit: "maximum number of gas payment objects".to_string(),
                     value: "256".to_string(),
@@ -459,7 +460,7 @@ impl AUTransactionGen for P2PTransferGenRandomGasRandomPriceRandomSponsorship {
             RunInfo {
                 gas_price_too_low: true,
                 ..
-            } => Err(SuiError::UserInputError {
+            } => Err(IotaError::UserInputError {
                 error: UserInputError::GasPriceUnderRGP {
                     gas_price: self.gas_price,
                     reference_gas_price: exec.get_reference_gas_price(),
@@ -468,7 +469,7 @@ impl AUTransactionGen for P2PTransferGenRandomGasRandomPriceRandomSponsorship {
             RunInfo {
                 gas_price_too_high: true,
                 ..
-            } => Err(SuiError::UserInputError {
+            } => Err(IotaError::UserInputError {
                 error: UserInputError::GasPriceTooHigh {
                     max_gas_price: PROTOCOL_CONFIG.max_gas_price(),
                 },
@@ -476,7 +477,7 @@ impl AUTransactionGen for P2PTransferGenRandomGasRandomPriceRandomSponsorship {
             RunInfo {
                 gas_budget_too_low: true,
                 ..
-            } => Err(SuiError::UserInputError {
+            } => Err(IotaError::UserInputError {
                 error: UserInputError::GasBudgetTooLow {
                     gas_budget: self.gas,
                     min_budget: PROTOCOL_CONFIG.base_tx_cost_fixed() * self.gas_price,
@@ -485,7 +486,7 @@ impl AUTransactionGen for P2PTransferGenRandomGasRandomPriceRandomSponsorship {
             RunInfo {
                 gas_budget_too_high: true,
                 ..
-            } => Err(SuiError::UserInputError {
+            } => Err(IotaError::UserInputError {
                 error: UserInputError::GasBudgetTooHigh {
                     gas_budget: self.gas,
                     max_budget: PROTOCOL_CONFIG.max_tx_gas(),
@@ -494,7 +495,7 @@ impl AUTransactionGen for P2PTransferGenRandomGasRandomPriceRandomSponsorship {
             RunInfo {
                 enough_max_gas: false,
                 ..
-            } => Err(SuiError::UserInputError {
+            } => Err(IotaError::UserInputError {
                 error: UserInputError::GasBalanceTooLow {
                     gas_balance: gas_balance as u128,
                     needed_gas_amount: self.gas as u128,
@@ -503,7 +504,7 @@ impl AUTransactionGen for P2PTransferGenRandomGasRandomPriceRandomSponsorship {
             RunInfo {
                 wrong_gas_owner: true,
                 ..
-            } => Err(SuiError::UserInputError {
+            } => Err(IotaError::UserInputError {
                 error: UserInputError::IncorrectUserSignature {
                     error: format!(
                         "Object {} is owned by account address {}, but given owner/signer address is {}",

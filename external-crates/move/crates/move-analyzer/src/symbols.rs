@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module is responsible for building symbolication information on top of
@@ -1013,7 +1014,7 @@ pub fn get_symbols(
     let build_config = move_package::BuildConfig {
         test_mode: true,
         install_dir: Some(tempdir().unwrap().path().to_path_buf()),
-        default_flavor: Some(Flavor::Sui),
+        default_flavor: Some(Flavor::Iota),
         lint_flag: lint.into(),
         ..Default::default()
     };
@@ -6331,7 +6332,7 @@ fn implicit_uses_test() {
         76,
         18,
         "object.move",
-        "struct sui::object::UID{\n\tid: sui::object::ID\n}",
+        "struct iota::object::UID{\n\tid: iota::object::ID\n}",
         Some((76, 18, "object.move")),
     );
     // implicit struct as parameter type
@@ -6345,7 +6346,7 @@ fn implicit_uses_test() {
         20,
         18,
         "tx_context.move",
-        "struct sui::tx_context::TxContext{\n\tepoch: u64,\n\tepoch_timestamp_ms: u64,\n\tids_created: u64,\n\tsender: address,\n\ttx_hash: vector<u8>\n}",
+        "struct iota::tx_context::TxContext{\n\tepoch: u64,\n\tepoch_timestamp_ms: u64,\n\tids_created: u64,\n\tsender: address,\n\ttx_hash: vector<u8>\n}",
         Some((20, 18, "tx_context.move")),
     );
     // implicit module name in function call
@@ -6359,7 +6360,7 @@ fn implicit_uses_test() {
         4,
         12,
         "object.move",
-        "module sui::object",
+        "module iota::object",
         None,
     );
 }

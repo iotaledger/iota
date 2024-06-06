@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { bcs } from '@mysten/sui.js/bcs';
-import { toB64 } from '@mysten/sui.js/utils';
+import { bcs } from '@iota/iota.js/bcs';
+import { toB64 } from '@iota/iota.js/utils';
 import type {
     StandardConnectFeature,
     StandardConnectMethod,
@@ -11,13 +12,13 @@ import type {
     StandardEventsFeature,
     StandardEventsListeners,
     StandardEventsOnMethod,
-    SuiSignPersonalMessageFeature,
-    SuiSignPersonalMessageMethod,
-    SuiSignTransactionBlockFeature,
-    SuiSignTransactionBlockMethod,
+    IotaSignPersonalMessageFeature,
+    IotaSignPersonalMessageMethod,
+    IotaSignTransactionBlockFeature,
+    IotaSignTransactionBlockMethod,
     Wallet,
-} from '@mysten/wallet-standard';
-import { getWallets, ReadonlyWalletAccount, SUPPORTED_CHAINS } from '@mysten/wallet-standard';
+} from '@iota/wallet-standard';
+import { getWallets, ReadonlyWalletAccount, SUPPORTED_CHAINS } from '@iota/wallet-standard';
 import type { Emitter } from 'mitt';
 import mitt from 'mitt';
 
@@ -60,8 +61,8 @@ export class ZkSendWallet implements Wallet {
     get features(): StandardConnectFeature &
         StandardDisconnectFeature &
         StandardEventsFeature &
-        SuiSignTransactionBlockFeature &
-        SuiSignPersonalMessageFeature {
+        IotaSignTransactionBlockFeature &
+        IotaSignPersonalMessageFeature {
         return {
             'standard:connect': {
                 version: '1.0.0',
@@ -75,11 +76,11 @@ export class ZkSendWallet implements Wallet {
                 version: '1.0.0',
                 on: this.#on,
             },
-            'sui:signTransactionBlock': {
+            'iota:signTransactionBlock': {
                 version: '1.0.0',
                 signTransactionBlock: this.#signTransactionBlock,
             },
-            'sui:signPersonalMessage': {
+            'iota:signPersonalMessage': {
                 version: '1.0.0',
                 signPersonalMessage: this.#signPersonalMessage,
             },
@@ -105,7 +106,7 @@ export class ZkSendWallet implements Wallet {
         }
     }
 
-    #signTransactionBlock: SuiSignTransactionBlockMethod = async ({
+    #signTransactionBlock: IotaSignTransactionBlockMethod = async ({
         transactionBlock,
         account,
     }) => {
@@ -126,7 +127,7 @@ export class ZkSendWallet implements Wallet {
         };
     };
 
-    #signPersonalMessage: SuiSignPersonalMessageMethod = async ({ message, account }) => {
+    #signPersonalMessage: IotaSignPersonalMessageMethod = async ({ message, account }) => {
         const bytes = toB64(bcs.vector(bcs.u8()).serialize(message).toBytes());
         const popup = new ZkSendPopup({ name: this.#name, origin: this.#origin });
         const response = await popup.createRequest({
@@ -152,7 +153,7 @@ export class ZkSendWallet implements Wallet {
                 new ReadonlyWalletAccount({
                     address,
                     chains: [SUPPORTED_CHAINS[0]],
-                    features: ['sui:signTransactionBlock', 'sui:signPersonalMessage'],
+                    features: ['iota:signTransactionBlock', 'iota:signPersonalMessage'],
                     // NOTE: zkSend doesn't support getting public keys, and zkLogin accounts don't have meaningful public keys anyway
                     publicKey: new Uint8Array(),
                 }),

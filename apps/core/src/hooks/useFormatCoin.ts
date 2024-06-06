@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSuiClient } from '@mysten/dapp-kit';
-import { CoinMetadata } from '@mysten/sui.js/client';
-import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
+import { useIotaClient } from '@iota/dapp-kit';
+import { CoinMetadata } from '@iota/iota.js/client';
+import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
@@ -45,7 +46,7 @@ const SYMBOL_TRUNCATE_LENGTH = 5;
 const NAME_TRUNCATE_LENGTH = 10;
 
 export function useCoinMetadata(coinType?: string | null) {
-    const client = useSuiClient();
+    const client = useIotaClient();
     return useQuery({
         queryKey: ['coin-metadata', coinType],
         queryFn: async () => {
@@ -55,15 +56,15 @@ export function useCoinMetadata(coinType?: string | null) {
                 );
             }
 
-            // Optimize the known case of SUI to avoid a network call:
-            if (coinType === SUI_TYPE_ARG) {
+            // Optimize the known case of IOTA to avoid a network call:
+            if (coinType === IOTA_TYPE_ARG) {
                 const metadata: CoinMetadata = {
                     id: null,
                     decimals: 9,
                     description: '',
                     iconUrl: null,
-                    name: 'Sui',
-                    symbol: 'SUI',
+                    name: 'Iota',
+                    symbol: 'IOTA',
                 };
 
                 return metadata;
