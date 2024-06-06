@@ -3,14 +3,6 @@
 
 import { getDefaultNetwork, Network } from '@iota/iota.js/client';
 
-// Copyright (c) 2024 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
-
-//[object Object]
-// SPDX-License-Identifier: Apache-2.0
-//[object Object]
-// Modifications Copyright (c) 2024 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
 const walletDapps = [
     {
         name: 'IotaFrens',
