@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import {
     type BalanceChangeSummary,
@@ -6,10 +7,10 @@ import {
     useFormatCoin,
     useCoinMetadata,
     type BalanceChange,
-    useResolveSuiNSName,
+    useResolveIotaNSName,
     getRecognizedUnRecognizedTokenChanges,
-} from '@mysten/core';
-import { Heading, Text } from '@mysten/ui';
+} from '@iota/core';
+import { Heading, Text } from '@iota/ui';
 import clsx from 'clsx';
 import { useMemo } from 'react';
 
@@ -75,7 +76,7 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }) {
 }
 
 function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner: string }) {
-    const { data: suinsDomainName } = useResolveSuiNSName(owner);
+    const { data: iotansDomainName } = useResolveIotaNSName(owner);
     const { recognizedTokenChanges, unRecognizedTokenChanges } = useMemo(
         () => getRecognizedUnRecognizedTokenChanges(changes),
         [changes],
@@ -99,7 +100,7 @@ function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner
                             Owner
                         </Text>
                         <Text variant="pBody/medium" color="hero-dark">
-                            <AddressLink label={suinsDomainName || undefined} address={owner} />
+                            <AddressLink label={iotansDomainName || undefined} address={owner} />
                         </Text>
                     </div>
                 ) : null

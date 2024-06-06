@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Text } from '@mysten/ui';
+import { Text } from '@iota/ui';
 import { type ReactNode } from 'react';
 
 import { ExpandableList } from '../ExpandableList';

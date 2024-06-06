@@ -2,24 +2,24 @@
 title: Connect to a Local Network
 ---
 
-Use a Sui local network to test your dApps against the latest changes to Sui, and to prepare for the next Sui release to the Devnet or Testnet network. To set up a local network, Sui provides the `sui-test-validator` binary. The `sui-test-validator` starts a local network that includes a Sui Full node, a Sui validator, and a Sui faucet. You can use the included faucet to get test SUI to use on the local network.
+Use a Iota local network to test your dApps against the latest changes to Iota, and to prepare for the next Iota release to the Devnet or Testnet network. To set up a local network, Iota provides the `iota-test-validator` binary. The `iota-test-validator` starts a local network that includes a Iota Full node, a Iota validator, and a Iota faucet. You can use the included faucet to get test IOTA to use on the local network.
 
-If you haven't already, you need to [install Sui](./sui-install.mdx) on your system.
+If you haven't already, you need to [install Iota](./iota-install.mdx) on your system.
 
 ## Start the local network
 
-To start the local network, run the following command from your `sui` root folder.
+To start the local network, run the following command from your `iota` root folder.
 
 ```bash
-RUST_LOG="off,sui_node=info" cargo run --bin sui-test-validator
+RUST_LOG="off,iota_node=info" cargo run --bin iota-test-validator
 ```
 
-The command starts the `sui-test-validator`. The `RUST_LOG`=`off,sui_node=info` turns off logging for all components except
-sui-node. If you want to see more detailed logs, you can remove `RUST_LOG` from the command.
+The command starts the `iota-test-validator`. The `RUST_LOG`=`off,iota_node=info` turns off logging for all components except
+iota-node. If you want to see more detailed logs, you can remove `RUST_LOG` from the command.
 
-**Important:** Each time you start the `sui-test-validator`, the network starts as a new network with no previous data. The local network is not persistent.
+**Important:** Each time you start the `iota-test-validator`, the network starts as a new network with no previous data. The local network is not persistent.
 
-To customize your local Sui network, such as changing the port used, include additional parameters in the command to start `sui-test-validator`:
+To customize your local Iota network, such as changing the port used, include additional parameters in the command to start `iota-test-validator`:
 
 ```
 OPTIONS:
@@ -27,13 +27,13 @@ OPTIONS:
             The duration for epochs (defaults to one minute) [default: 60000]
 
         --faucet-port <FAUCET_PORT>
-            Port to start the Sui faucet on [default: 9123]
+            Port to start the Iota faucet on [default: 9123]
 
         --fullnode-rpc-port <FULLNODE_RPC_PORT>
             Port to start the Fullnode RPC server on [default: 9000]
 ```
 
-Use `sui-test-validator --help` to see these options in your console.
+Use `iota-test-validator --help` to see these options in your console.
 
 ### Access your local Full node
 
@@ -45,7 +45,7 @@ curl --location --request POST 'http://127.0.0.1:9000' \
 --data-raw '{
   "jsonrpc": "2.0",
   "id": 1,
-  "method": "sui_getTotalTransactionBlocks",
+  "method": "iota_getTotalTransactionBlocks",
   "params": []
 }'
 ```
@@ -60,18 +60,18 @@ If successful, the response resembles the following:
 }
 ```
 
-## Connect the Sui Client CLI to your local network
+## Connect the Iota Client CLI to your local network
 
-You can use the Sui Client CLI with any Sui network. By default it connects to Sui Devnet. To connect to your local network, create a new environment alias named `local` that sets the RPC URL the client uses to your local network.
+You can use the Iota Client CLI with any Iota network. By default it connects to Iota Devnet. To connect to your local network, create a new environment alias named `local` that sets the RPC URL the client uses to your local network.
 
 ```shell
-sui client new-env --alias local --rpc http://127.0.0.1:9000
+iota client new-env --alias local --rpc http://127.0.0.1:9000
 ```
 
 Next, use the following command to set the active environment to the new `local` environment you created.
 
 ```
-sui client switch --env local
+iota client switch --env local
 ```
 
 The command returns:
@@ -81,7 +81,7 @@ The command returns:
 You can check the current active environment with the following command:
 
 ```bash
-sui client active-env
+iota client active-env
 ```
 
 The command returns:
@@ -90,28 +90,28 @@ The command returns:
 
 ## Show the current active address
 
-The Sui Client CLI uses the active address for command if you don't specify one. Use the following command to show the active address on your local network.
+The Iota Client CLI uses the active address for command if you don't specify one. Use the following command to show the active address on your local network.
 
 ```
-sui client active-address
+iota client active-address
 ```
 
 The command returns an address:
 
 `0xbc33e6e4818f9f2ef77d020b35c24be738213e64d9e58839ee7b4222029610de`
 
-Use the active address to get test SUI to use on your local network. Use the `sui client addresses` command to see all of the addresses on your local network.
+Use the active address to get test IOTA to use on your local network. Use the `iota client addresses` command to see all of the addresses on your local network.
 
 **Note:** The address returned when you run the command is unique and does not match the one used in this example.
 
 ## Use the local faucet {#use-the-local-faucet}
 
-Transactions on your local network require SUI coins to pay for gas fees just like other networks. To send coins to a Sui Wallet connected to your local network, see [Set up a local Sui Wallet](#set-up-a-local-sui-wallet). You can use the address for the local Sui Wallet with the faucet.
+Transactions on your local network require IOTA coins to pay for gas fees just like other networks. To send coins to a Iota Wallet connected to your local network, see [Set up a local Iota Wallet](#set-up-a-local-iota-wallet). You can use the address for the local Iota Wallet with the faucet.
 
-Sui CLI provides the `sui client faucet` command to get coins from the faucet. In the most basic case, run `sui client faucet` and wait up to 60 seconds for the coins to reach your wallet. Use `sui client gas` to check for the new coins.
+Iota CLI provides the `iota client faucet` command to get coins from the faucet. In the most basic case, run `iota client faucet` and wait up to 60 seconds for the coins to reach your wallet. Use `iota client gas` to check for the new coins.
 
 :::info
-The `faucet` command uses the active address and the active network environment by default. If you need to pass in a different address or faucet server URL, check the `help` menu. If you're using a different network than a local network or the public ones (fullnode.network.sui.io), you will have to pass the URL to the faucet server.
+The `faucet` command uses the active address and the active network environment by default. If you need to pass in a different address or faucet server URL, check the `help` menu. If you're using a different network than a local network or the public ones (fullnode.network.iota.io), you will have to pass the URL to the faucet server.
 :::
 
 
@@ -120,7 +120,7 @@ The `faucet` command uses the active address and the active network environment 
 After you get coins from the faucet, use the following command to view the coin objects for the address:
 
 ```shell
-sui client gas
+iota client gas
 ```
 
 The response resembles the following, but with different IDs:
@@ -137,7 +137,7 @@ The response resembles the following, but with different IDs:
 ╰────────────────────────────────────────────────────────────────────┴────────────╯
 ```
 
-## Install Sui Wallet locally
+## Install Iota Wallet locally
 
 To install and use the apps locally, you must first install [pnpm](https://pnpm.io/installation). Use the instructions appropriate for your operating system.
 
@@ -147,7 +147,7 @@ After you install `pnpm`, use the following command to install the required depe
 pnpm install
 ```
 
-After the installation completes, run the following command to install Sui Wallet:
+After the installation completes, run the following command to install Iota Wallet:
 
 ```shell
 pnpm turbo build
@@ -155,29 +155,29 @@ pnpm turbo build
 
 If you encounter an error from turbo build, confirm that there is no `package-lock.json`. If the file exists, remove it and then run the command again.
 
-## Set up a local Sui Wallet
+## Set up a local Iota Wallet
 
-You can also use a local Sui Wallet to test with your local network.
+You can also use a local Iota Wallet to test with your local network.
 
-**Note:** To run the command you must have `pnpm` installed. See [Install Sui Wallet locally](#install-sui-wallet-locally) for details.
+**Note:** To run the command you must have `pnpm` installed. See [Install Iota Wallet locally](#install-iota-wallet-locally) for details.
 
-Before you start the Sui Wallet app, update its default environment to point to your local network. To do so, first make a copy of `sui/apps/wallet/configs/environment/.env.defaults` and rename it to `.env` in the same directory. In your `.env` file, edit the first line to read `API_ENV=local` and then save the file.
+Before you start the Iota Wallet app, update its default environment to point to your local network. To do so, first make a copy of `iota/apps/wallet/configs/environment/.env.defaults` and rename it to `.env` in the same directory. In your `.env` file, edit the first line to read `API_ENV=local` and then save the file.
 
-Run the following command from the `sui` root folder to start Sui Wallet on your local network:
+Run the following command from the `iota` root folder to start Iota Wallet on your local network:
 
 ```bash
 pnpm wallet dev
 ```
 
-### Add local Sui Wallet to Chrome
+### Add local Iota Wallet to Chrome
 
-After you build your local version of Sui Wallet, you can add the extension to Chrome:
+After you build your local version of Iota Wallet, you can add the extension to Chrome:
 
 1. Open a Chrome browser to `chrome://extensions`.
 1. Click the **Developer mode** toggle to enable, if it's not already on.
-1. Click the **Load unpacked** button and select your `sui/apps/wallet/dist` directory.
+1. Click the **Load unpacked** button and select your `iota/apps/wallet/dist` directory.
 
-Consult the Sui Wallet [Readme](https://github.com/MystenLabs/sui/blob/main/apps/wallet/README.md#install-the-extension-to-chrome) for more information on working with a locally built wallet on Chrome.
+Consult the Iota Wallet [Readme](https://github.com/iotaledger/iota/blob/main/apps/wallet/README.md#install-the-extension-to-chrome) for more information on working with a locally built wallet on Chrome.
 
 ## Generate example data
 
@@ -185,13 +185,13 @@ Use the TypeScript SDK to add example data to your network.
 
 **Note:** To run the command you must complete the `Pre-requisites for Building Apps locally` section first.
 
-Run the following command from the `sui` root folder:
+Run the following command from the `iota` root folder:
 
 ```bash
-pnpm --filter @mysten/sui.js test:e2e
+pnpm --filter @iota/iota.js test:e2e
 ```
 
-For additional information about example data for testing, see [https://github.com/MystenLabs/sui/tree/main/sdk/typescript#testing](https://github.com/MystenLabs/sui/tree/main/sdk/typescript#testing).
+For additional information about example data for testing, see [https://github.com/iotaledger/iota/tree/main/sdk/typescript#testing](https://github.com/iotaledger/iota/tree/main/sdk/typescript#testing).
 
 ## Troubleshooting
 
@@ -201,6 +201,6 @@ If you do not use [Node.js 18](https://nodejs.org/de/blog/announcements/v18-rele
 
 To resolve this, switch or update to Node.js 18 and then try again.
 
-## Test with the Sui TypeScript SDK
+## Test with the Iota TypeScript SDK
 
-The published version of the Sui TypeScript SDK might be an earlier version than the version of Sui you installed for your local network. To make sure you're using the latest version of the SDK, use the `experimental`-tagged version (for example, `0.0.0-experimental-20230317184920`) in the [Current Tags](https://www.npmjs.com/package/@mysten/sui.js/v/0.0.0-experimental-20230127130009?activeTab=versions) section of the Sui NPM registry.
+The published version of the Iota TypeScript SDK might be an earlier version than the version of Iota you installed for your local network. To make sure you're using the latest version of the SDK, use the `experimental`-tagged version (for example, `0.0.0-experimental-20230317184920`) in the [Current Tags](https://www.npmjs.com/package/@iota/iota.js/v/0.0.0-experimental-20230127130009?activeTab=versions) section of the Iota NPM registry.

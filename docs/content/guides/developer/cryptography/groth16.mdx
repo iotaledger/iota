@@ -6,7 +6,7 @@ A zero-knowledge proof allows a prover to validate that a statement is true with
 
 Zero-knowledge succinct non-interactive argument of knowledge (zk-SNARKs) are a family of zero-knowledge proofs that are non-interactive, have succinct proof size and efficient verification time. An important and widely used variant of them is pairing-based zk-SNARKs like the [Groth16](https://eprint.iacr.org/2016/260.pdf) proof system, which is one of the most efficient and widely used.
 
-The Move API in Sui enables you to verify any statement that can be expressed in a NP-complete language efficiently using Groth16 zk-SNARKs over either the BN254 or BLS12-381 elliptic curve constructions.
+The Move API in Iota enables you to verify any statement that can be expressed in a NP-complete language efficiently using Groth16 zk-SNARKs over either the BN254 or BLS12-381 elliptic curve constructions.
 
 There are high-level languages for expressing these statements, such as [Circom](https://docs.circom.io), used in the following example.
 
@@ -14,7 +14,7 @@ Groth16 requires a trusted setup for each circuit to generate the verification k
 
 ## Usage
 
-The following example demonstrates how to create a Groth16 proof from a statement written in Circom and then verify it using the Sui Move API. The API currently supports up to eight public inputs.
+The following example demonstrates how to create a Groth16 proof from a statement written in Circom and then verify it using the Iota Move API. The API currently supports up to eight public inputs.
 
 ### Create circuit
 
@@ -42,7 +42,7 @@ This outputs the constraints in R1CS format and the circuit in Wasm format.
 
 ### Generate proof
 
-To generate a proof verifiable in Sui, you need to generate a witness. This example uses Arkworks' [ark-circom](https://github.com/gakonst/ark-circom) Rust library. The code constructs a witness for the circuit and generates a proof for it for a given input. Finally, it verifies that the proof is correct.
+To generate a proof verifiable in Iota, you need to generate a witness. This example uses Arkworks' [ark-circom](https://github.com/gakonst/ark-circom) Rust library. The code constructs a witness for the circuit and generates a proof for it for a given input. Finally, it verifies that the proof is correct.
 
 ```rust
 use ark_bn254::Bn254;
@@ -84,9 +84,9 @@ fn main() {
 ```
 The proof shows that an input (7) which, when hashed with the Poseidon hash function, gives a certain output (which in this case is `inputs[0] = 7061949393491957813657776856458368574501817871421526214197139795307327923534`).
 
-### Verification in Sui
+### Verification in Iota
 
-The API in Sui for verifying a proof expects a special processed verification key, where only a subset of the values are used. Ideally, computation for this prepared verification key happens only once per circuit. You can perform this processing using the `sui::groth16::prepare_verifying_key` method of the Sui Move API with a serialization of the `params.vk` value used previously.
+The API in Iota for verifying a proof expects a special processed verification key, where only a subset of the values are used. Ideally, computation for this prepared verification key happens only once per circuit. You can perform this processing using the `iota::groth16::prepare_verifying_key` method of the Iota Move API with a serialization of the `params.vk` value used previously.
 
 The output of the `prepare_verifying_key` function is a vector with four byte arrays, which corresponds to the `vk_gamma_abc_g1_bytes`, `alpha_g1_beta_g2_bytes`, `gamma_g2_neg_pc_bytes`, `delta_g2_neg_pc_bytes`.
 
@@ -106,8 +106,8 @@ The following example smart contract prepares a verification key and verifies th
 
 ```rust
 module test::groth16_test {
-    use sui::groth16;
-    use sui::event;
+    use iota::groth16;
+    use iota::event;
 
     /// Event on whether the proof is verified
     struct VerifiedEvent has copy, drop {

@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { PublicKey } from '@mysten/sui.js/cryptography';
-import type { ZkLoginSignatureInputs } from '@mysten/sui.js/zklogin';
+import type { PublicKey } from '@iota/iota.js/cryptography';
+import type { ZkLoginSignatureInputs } from '@iota/iota.js/zklogin';
 
 import type { AuthProvider } from '../EnokiFlow.js';
 

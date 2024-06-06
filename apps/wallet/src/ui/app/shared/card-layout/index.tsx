@@ -1,22 +1,23 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Heading } from '_app/shared/heading';
 import { Text } from '_app/shared/text';
-import { Sui, ThumbUpFill32 } from '@mysten/icons';
+import { Iota, ThumbUpFill32 } from '@iota/icons';
 import type { ReactNode } from 'react';
 
 export type CardLayoutProps = {
     title?: string;
     subtitle?: string;
     headerCaption?: string;
-    icon?: 'success' | 'sui';
+    icon?: 'success' | 'iota';
     children: ReactNode | ReactNode[];
 };
 
 export function CardLayout({ children, title, subtitle, headerCaption, icon }: CardLayoutProps) {
     return (
-        <div className="flex max-h-popup-height w-full max-w-popup-width flex-grow flex-col flex-nowrap items-center overflow-auto rounded-20 bg-sui-lightest p-7.5 pt-10 shadow-wallet-content">
+        <div className="flex max-h-popup-height w-full max-w-popup-width flex-grow flex-col flex-nowrap items-center overflow-auto rounded-20 bg-iota-lightest p-7.5 pt-10 shadow-wallet-content">
             {icon === 'success' ? (
                 <div className="mb-2.5 flex h-12 w-12 items-center justify-center rounded-full border-2 border-dotted border-success p-1">
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-success">
@@ -24,9 +25,9 @@ export function CardLayout({ children, title, subtitle, headerCaption, icon }: C
                     </div>
                 </div>
             ) : null}
-            {icon === 'sui' ? (
-                <div className="mb-7 flex h-16 w-16 flex-col flex-nowrap items-center justify-center rounded-full bg-sui">
-                    <Sui className="text-4xl text-white" />
+            {icon === 'iota' ? (
+                <div className="mb-7 flex h-16 w-16 flex-col flex-nowrap items-center justify-center rounded-full bg-iota">
+                    <Iota className="text-4xl text-white" />
                 </div>
             ) : null}
             {headerCaption ? (

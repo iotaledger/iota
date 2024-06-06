@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_macros::fail_point;
 use store::{
     reopen,
     rocks::{open_cf, DBMap, MetricConf, ReadWriteOptions},
     Map,
 };
-use sui_macros::fail_point;
 use types::Header;
 
 use crate::StoreResult;

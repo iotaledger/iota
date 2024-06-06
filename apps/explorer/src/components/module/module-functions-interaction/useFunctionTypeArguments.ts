@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo } from 'react';
 
-import type { SuiMoveAbilitySet } from '@mysten/sui.js/client';
+import type { IotaMoveAbilitySet } from '@iota/iota.js/client';
 
-export function useFunctionTypeArguments(typeArguments: SuiMoveAbilitySet[]) {
+export function useFunctionTypeArguments(typeArguments: IotaMoveAbilitySet[]) {
     return useMemo(
         () =>
             typeArguments.map(

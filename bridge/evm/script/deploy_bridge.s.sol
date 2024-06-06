@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: MIT
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.20;
 
 import "forge-std/Script.sol";
@@ -9,7 +12,7 @@ import "../contracts/BridgeCommittee.sol";
 import "../contracts/BridgeVault.sol";
 import "../contracts/utils/BridgeConfig.sol";
 import "../contracts/BridgeLimiter.sol";
-import "../contracts/SuiBridge.sol";
+import "../contracts/IotaBridge.sol";
 import "../test/mocks/MockTokens.sol";
 
 contract DeployBridge is Script {
@@ -39,7 +42,7 @@ contract DeployBridge is Script {
             // update config with mock addresses
             config.supportedTokens = new address[](4);
             // In BridgeConfig.sol `supportedTokens is shifted by one
-            // and the first token is SUI.
+            // and the first token is IOTA.
             config.supportedTokens[0] = address(wBTC);
             config.supportedTokens[1] = config.WETH;
             config.supportedTokens[2] = address(USDC);
@@ -101,24 +104,24 @@ contract DeployBridge is Script {
         uint8[] memory _destinationChains = new uint8[](1);
         _destinationChains[0] = 1;
 
-        // deploy Sui Bridge
+        // deploy Iota Bridge
 
-        address suiBridge = Upgrades.deployUUPSProxy(
-            "SuiBridge.sol",
+        address iotaBridge = Upgrades.deployUUPSProxy(
+            "IotaBridge.sol",
             abi.encodeCall(
-                SuiBridge.initialize, (bridgeCommittee, address(vault), limiter, config.WETH)
+                IotaBridge.initialize, (bridgeCommittee, address(vault), limiter, config.WETH)
             )
         );
 
         // transfer vault ownership to bridge
-        vault.transferOwnership(suiBridge);
+        vault.transferOwnership(iotaBridge);
         // transfer limiter ownership to bridge
         BridgeLimiter instance = BridgeLimiter(limiter);
-        instance.transferOwnership(suiBridge);
+        instance.transferOwnership(iotaBridge);
 
         // print deployed addresses for post deployment setup
         console.log("[Deployed] BridgeConfig:", address(bridgeConfig));
-        console.log("[Deployed] SuiBridge:", suiBridge);
+        console.log("[Deployed] IotaBridge:", iotaBridge);
         console.log("[Deployed] BridgeLimiter:", limiter);
         console.log("[Deployed] BridgeCommittee:", bridgeCommittee);
         console.log("[Deployed] BridgeVault:", address(vault));

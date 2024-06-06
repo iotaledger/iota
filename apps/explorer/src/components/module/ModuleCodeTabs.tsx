@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
-import { Text } from '@mysten/ui';
+import { Text } from '@iota/ui';
 
 import ModuleView from './ModuleView';
 import { useVerifiedSourceCode } from '~/hooks/useVerifiedSourceCode';

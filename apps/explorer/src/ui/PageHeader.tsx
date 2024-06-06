@@ -1,11 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Flag16, Info12 } from '@mysten/icons';
-import { Heading, Placeholder, Text } from '@mysten/ui';
+import { Flag16, Info12 } from '@iota/icons';
+import { Heading, Placeholder, Text } from '@iota/ui';
 
 import { ReactComponent as CallIcon } from './icons/transactions/call.svg';
 import { Banner } from '~/ui/Banner';
