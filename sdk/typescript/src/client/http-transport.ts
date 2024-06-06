@@ -41,7 +41,9 @@ export interface IotaTransportSubscribeOptions<T> {
 
 export interface IotaTransport {
     request<T = unknown>(input: IotaTransportRequestOptions): Promise<T>;
-    subscribe<T = unknown>(input: IotaTransportSubscribeOptions<T>): Promise<() => Promise<boolean>>;
+    subscribe<T = unknown>(
+        input: IotaTransportSubscribeOptions<T>,
+    ): Promise<() => Promise<boolean>>;
 }
 
 export class IotaHTTPTransport implements IotaTransport {

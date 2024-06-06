@@ -68,7 +68,9 @@ function MoveCall({ data }: TransactionProps<MoveCallIotaTransaction>) {
 export function Transaction({
     type,
     data,
-}: TransactionProps<(IotaArgument | IotaArgument[])[] | MoveCallIotaTransaction | IotaMovePackage>) {
+}: TransactionProps<
+    (IotaArgument | IotaArgument[])[] | MoveCallIotaTransaction | IotaMovePackage
+>) {
     if (type === 'MoveCall') {
         return (
             <ErrorBoundary>
