@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useParams } from 'react-router-dom';
 import {
-    isSuiNSName,
+    isIotaNSName,
     useGetObject,
-    useResolveSuiNSAddress,
-    useResolveSuiNSName,
-} from '@mysten/core';
+    useResolveIotaNSAddress,
+    useResolveIotaNSName,
+} from '@iota/core';
 import { PageLayout } from '~/components/Layout/PageLayout';
 import { PageHeader } from '~/ui/PageHeader';
-import { ObjectDetailsHeader } from '@mysten/icons';
+import { ObjectDetailsHeader } from '@iota/icons';
 import { TotalStaked } from '~/pages/address-result/TotalStaked';
 import { ErrorBoundary } from '~/components/error-boundary/ErrorBoundary';
 import { ObjectView } from '~/pages/object-result/views/ObjectView';
@@ -25,10 +26,10 @@ function Header({
     loading?: boolean;
     error?: Error | null;
 }) {
-    const { data: domainName, isLoading, error: resolveSuinsError } = useResolveSuiNSName(address);
+    const { data: domainName, isLoading, error: resolveIotansError } = useResolveIotaNSName(address);
     const { data, isPending, error: getObjectError } = useGetObject(address!);
     const isObject = !!data?.data;
-    const errorText = getObjectError?.message ?? resolveSuinsError?.message ?? error?.message;
+    const errorText = getObjectError?.message ?? resolveIotansError?.message ?? error?.message;
 
     return (
         <div>
@@ -55,22 +56,22 @@ function Header({
 
 function PageLayoutContainer({ address }: { address: string }) {
     const { id } = useParams();
-    const isSuiNSAddress = isSuiNSName(id!);
+    const isIotaNSAddress = isIotaNSName(id!);
     const {
         data,
         isLoading,
-        error: suinsAddressError,
-    } = useResolveSuiNSAddress(address, isSuiNSAddress);
+        error: iotansAddressError,
+    } = useResolveIotaNSAddress(address, isIotaNSAddress);
 
     return (
         <PageLayout
             loading={isLoading}
-            isError={!!suinsAddressError}
+            isError={!!iotansAddressError}
             gradient={{
                 size: 'md',
                 content: <Header address={address} />,
             }}
-            content={<PageContent address={data || address} error={suinsAddressError} />}
+            content={<PageContent address={data || address} error={iotansAddressError} />}
         />
     );
 }

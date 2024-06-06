@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use std::{
     cmp::Ordering,
@@ -15,7 +16,7 @@ use mysten_common::sync::notify_read::NotifyRead;
 use parking_lot::Mutex;
 use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
 use store::{rocks::DBMap, Map, TypedStoreError::RocksDBError};
-use sui_macros::fail_point;
+use iota_macros::fail_point;
 use tap::Tap;
 use types::{Certificate, CertificateDigest, Round};
 

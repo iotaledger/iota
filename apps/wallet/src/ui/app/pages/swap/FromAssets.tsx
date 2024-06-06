@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import Loading from '_components/loading';
@@ -12,7 +13,7 @@ import {
 } from '_hooks';
 import { TokenRow } from '_pages/home/tokens/TokensDetails';
 import { DeepBookContextProvider } from '_shared/deepBook/context';
-import { useSuiClientQuery } from '@mysten/dapp-kit';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -21,7 +22,7 @@ function FromAssetsComponent() {
     const selectedAddress = useActiveAddress();
     const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
 
-    const { data: coins, isPending } = useSuiClientQuery(
+    const { data: coins, isPending } = useIotaClientQuery(
         'getAllBalances',
         { owner: selectedAddress! },
         {

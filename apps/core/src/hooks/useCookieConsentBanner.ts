@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect } from 'react';
@@ -34,6 +35,8 @@ async function loadCookieConsentBanner<T>(
     options: CookieConsentConfig,
 ) {
     await import('vanilla-cookieconsent');
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
     await import('vanilla-cookieconsent/dist/cookieconsent.css');
     await options.onBeforeLoad();
 

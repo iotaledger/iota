@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Heading, type HeadingProps } from '@mysten/ui';
+import { Heading, type HeadingProps } from '@iota/ui';
 import { type ReactNode } from 'react';
 
 export interface TableHeaderProps extends Pick<HeadingProps, 'as'> {

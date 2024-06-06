@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { LoadingIndicator, RadioGroup, RadioGroupItem } from '@mysten/ui';
+import { LoadingIndicator, RadioGroup, RadioGroupItem } from '@iota/ui';
 import { useState } from 'react';
 import { type Direction } from 'react-resizable-panels';
 
@@ -47,11 +48,20 @@ function PkgView({ data }: { data: DataType }) {
                 : txnData?.transaction?.data.sender,
     };
 
-    const checkIsPropertyType = (value: unknown) => ['number', 'string'].includes(typeof value);
+    const filterProperties = (
+        entry: [string, unknown],
+    ): entry is [string, number] | [string, string] =>
+        ['number', 'string'].includes(typeof entry[1]);
 
-    const properties = Object.entries(viewedData.data?.contents)
+    const mapProperties = ([key, value]: [string, number] | [string, string]): [string, string] => [
+        key,
+        value.toString(),
+    ];
+
+    const properties = Object.entries(viewedData.data.contents ?? {})
         .filter(([key, _]) => key !== 'name')
-        .filter(([_, value]) => checkIsPropertyType(value));
+        .filter(filterProperties)
+        .map(mapProperties);
 
     return (
         <div>

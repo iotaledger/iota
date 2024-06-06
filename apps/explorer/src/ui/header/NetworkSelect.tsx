@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /**
@@ -10,9 +11,9 @@
 
 import { autoUpdate, flip, FloatingPortal, offset, shift, useFloating } from '@floating-ui/react';
 import { Popover } from '@headlessui/react';
-import { useZodForm } from '@mysten/core';
-import { HamburgerRest16 } from '@mysten/icons';
-import { Text } from '@mysten/ui';
+import { useZodForm } from '@iota/core';
+import { HamburgerRest16 } from '@iota/icons';
+import { Text } from '@iota/ui';
 import clsx from 'clsx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
@@ -143,7 +144,7 @@ function NetworkVersion({
     return (
         <div className="flex flex-col justify-between gap-1 px-4 py-3">
             <Text variant="subtitleSmall/medium" color="steel-dark">
-                Sui {label}
+                Iota {label}
             </Text>
             <Text variant="subtitleSmall/medium" color="steel-dark">
                 v{binaryVersion} (Protocol {version})

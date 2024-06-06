@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -9,7 +10,7 @@ use std::{
 
 use config::AuthorityIdentifier;
 use storage::ConsensusStore;
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 use test_utils::{latest_protocol_version, mock_certificate, CommitteeFixture};
 use types::{Certificate, CommittedSubDag, ReputationScores, Round};
 

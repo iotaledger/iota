@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! A `Simulacrum` of Sui.
+//! A `Simulacrum` of Iota.
 //!
 //! The word simulacrum is latin for "likeness, semblance", it is also a spell
 //! in D&D which creates a copy of a creature which then follows the player's
 //! commands and wishes. As such this crate provides the [`Simulacrum`] type
-//! which is a implementation or instantiation of a sui blockchain, one which
+//! which is a implementation or instantiation of a iota blockchain, one which
 //! doesn't do anything unless acted upon.
 //!
 //! [`Simulacrum`]: crate::Simulacrum
@@ -16,20 +17,20 @@ use std::{num::NonZeroUsize, sync::Arc};
 use anyhow::{anyhow, Result};
 use fastcrypto::traits::Signer;
 use rand::rngs::OsRng;
-use sui_config::{genesis, transaction_deny_config::TransactionDenyConfig};
-use sui_protocol_config::ProtocolVersion;
-use sui_swarm_config::{
+use iota_config::{genesis, transaction_deny_config::TransactionDenyConfig};
+use iota_protocol_config::ProtocolVersion;
+use iota_swarm_config::{
     genesis_config::AccountConfig, network_config::NetworkConfig,
     network_config_builder::ConfigBuilder,
 };
-use sui_types::{
-    base_types::{AuthorityName, ObjectID, SuiAddress, VersionNumber},
+use iota_types::{
+    base_types::{AuthorityName, ObjectID, IotaAddress, VersionNumber},
     committee::Committee,
     crypto::AuthoritySignature,
     digests::ConsensusCommitDigest,
     effects::TransactionEffects,
     error::ExecutionError,
-    gas_coin::{GasCoin, MIST_PER_SUI},
+    gas_coin::{GasCoin, MICROS_PER_IOTA},
     inner_temporary_store::InnerTemporaryStore,
     messages_checkpoint::{EndOfEpochData, VerifiedCheckpoint},
     mock_checkpoint_builder::{MockCheckpointBuilder, ValidatorKeypairProvider},
@@ -37,7 +38,7 @@ use sui_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::VerifyParams,
     storage::{ObjectStore, ReadStore},
-    sui_system_state::epoch_start_sui_system_state::EpochStartSystemState,
+    iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
     transaction::{
         EndOfEpochTransactionKind, GasData, Transaction, TransactionData, TransactionKind,
         VerifiedTransaction,
@@ -49,9 +50,9 @@ use self::{epoch_state::EpochState, store::in_mem_store::KeyStore};
 mod epoch_state;
 pub mod store;
 
-/// A `Simulacrum` of Sui.
+/// A `Simulacrum` of Iota.
 ///
-/// This type represents a simulated instantiation of a Sui blockchain that
+/// This type represents a simulated instantiation of a Iota blockchain that
 /// needs to be driven manually, that is time doesn't advance and checkpoints
 /// are not formed unless explicitly requested.
 ///
@@ -137,7 +138,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let checkpoint_builder = MockCheckpointBuilder::new(config.genesis.checkpoint());
 
         let genesis = &config.genesis;
-        let epoch_state = EpochState::new(genesis.sui_system_object());
+        let epoch_state = EpochState::new(genesis.iota_system_object());
 
         Self {
             rng,
@@ -310,22 +311,22 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         self.epoch_state.reference_gas_price()
     }
 
-    /// Request that `amount` Mist be sent to `address` from a faucet account.
+    /// Request that `amount` Micros be sent to `address` from a faucet account.
     ///
     /// ```
     /// use simulacrum::Simulacrum;
-    /// use sui_types::{base_types::SuiAddress, gas_coin::MIST_PER_SUI};
+    /// use iota_types::{base_types::IotaAddress, gas_coin::MICROS_PER_IOTA};
     ///
     /// # fn main() {
     /// let mut simulacrum = Simulacrum::new();
-    /// let address = SuiAddress::generate(simulacrum.rng());
-    /// simulacrum.request_gas(address, MIST_PER_SUI).unwrap();
+    /// let address = IotaAddress::generate(simulacrum.rng());
+    /// simulacrum.request_gas(address, MICROS_PER_IOTA).unwrap();
     ///
-    /// // `account` now has a Coin<SUI> object with single SUI in it.
+    /// // `account` now has a Coin<IOTA> object with single IOTA in it.
     /// // ...
     /// # }
     /// ```
-    pub fn request_gas(&mut self, address: SuiAddress, amount: u64) -> Result<TransactionEffects> {
+    pub fn request_gas(&mut self, address: IotaAddress, amount: u64) -> Result<TransactionEffects> {
         // For right now we'll just use the first account as the `faucet` account. We
         // may want to explicitly cordon off the faucet account from the rest of
         // the accounts though.
@@ -334,29 +335,29 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             .store()
             .owned_objects(*sender)
             .find(|object| {
-                object.is_gas_coin() && object.get_coin_value_unsafe() > amount + MIST_PER_SUI
+                object.is_gas_coin() && object.get_coin_value_unsafe() > amount + MICROS_PER_IOTA
             })
             .ok_or_else(|| {
-                anyhow!("unable to find a coin with enough to satisfy request for {amount} Mist")
+                anyhow!("unable to find a coin with enough to satisfy request for {amount} Micros")
             })?;
 
-        let gas_data = sui_types::transaction::GasData {
+        let gas_data = iota_types::transaction::GasData {
             payment: vec![object.compute_object_reference()],
             owner: *sender,
             price: self.reference_gas_price(),
-            budget: MIST_PER_SUI,
+            budget: MICROS_PER_IOTA,
         };
 
         let pt = {
             let mut builder =
-                sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder::new();
-            builder.transfer_sui(address, Some(amount));
+                iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder::new();
+            builder.transfer_iota(address, Some(amount));
             builder.finish()
         };
 
-        let kind = sui_types::transaction::TransactionKind::ProgrammableTransaction(pt);
+        let kind = iota_types::transaction::TransactionKind::ProgrammableTransaction(pt);
         let tx_data =
-            sui_types::transaction::TransactionData::new_with_gas_data(kind, *sender, gas_data);
+            iota_types::transaction::TransactionData::new_with_gas_data(kind, *sender, gas_data);
         let tx = Transaction::from_data_and_signer(tx_data, vec![key]);
 
         self.execute_transaction(tx).map(|x| x.0)
@@ -395,7 +396,7 @@ impl<T, V: store::SimulatorStore> ObjectStore for Simulacrum<T, V> {
     fn get_object(
         &self,
         object_id: &ObjectID,
-    ) -> Result<Option<Object>, sui_types::storage::error::Error> {
+    ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(store::SimulatorStore::get_object(&self.store, object_id))
     }
 
@@ -403,7 +404,7 @@ impl<T, V: store::SimulatorStore> ObjectStore for Simulacrum<T, V> {
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
-    ) -> Result<Option<Object>, sui_types::storage::error::Error> {
+    ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         self.store.get_object_by_key(object_id, version)
     }
 }
@@ -411,30 +412,30 @@ impl<T, V: store::SimulatorStore> ObjectStore for Simulacrum<T, V> {
 impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
     fn get_committee(
         &self,
-        _epoch: sui_types::committee::EpochId,
-    ) -> sui_types::storage::error::Result<Option<std::sync::Arc<Committee>>> {
+        _epoch: iota_types::committee::EpochId,
+    ) -> iota_types::storage::error::Result<Option<std::sync::Arc<Committee>>> {
         todo!()
     }
 
-    fn get_latest_checkpoint(&self) -> sui_types::storage::error::Result<VerifiedCheckpoint> {
+    fn get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         Ok(self.store().get_highest_checkpint().unwrap())
     }
 
     fn get_highest_verified_checkpoint(
         &self,
-    ) -> sui_types::storage::error::Result<VerifiedCheckpoint> {
+    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         todo!()
     }
 
     fn get_highest_synced_checkpoint(
         &self,
-    ) -> sui_types::storage::error::Result<VerifiedCheckpoint> {
+    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         todo!()
     }
 
     fn get_lowest_available_checkpoint(
         &self,
-    ) -> sui_types::storage::error::Result<sui_types::messages_checkpoint::CheckpointSequenceNumber>
+    ) -> iota_types::storage::error::Result<iota_types::messages_checkpoint::CheckpointSequenceNumber>
     {
         // TODO wire this up to the underlying sim store, for now this will work since
         // we never prune the sim store
@@ -443,15 +444,15 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
 
     fn get_checkpoint_by_digest(
         &self,
-        digest: &sui_types::messages_checkpoint::CheckpointDigest,
-    ) -> sui_types::storage::error::Result<Option<VerifiedCheckpoint>> {
+        digest: &iota_types::messages_checkpoint::CheckpointDigest,
+    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         Ok(self.store().get_checkpoint_by_digest(digest))
     }
 
     fn get_checkpoint_by_sequence_number(
         &self,
-        sequence_number: sui_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> sui_types::storage::error::Result<Option<VerifiedCheckpoint>> {
+        sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         Ok(self
             .store()
             .get_checkpoint_by_sequence_number(sequence_number))
@@ -459,55 +460,55 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
 
     fn get_checkpoint_contents_by_digest(
         &self,
-        digest: &sui_types::messages_checkpoint::CheckpointContentsDigest,
-    ) -> sui_types::storage::error::Result<Option<sui_types::messages_checkpoint::CheckpointContents>>
+        digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
+    ) -> iota_types::storage::error::Result<Option<iota_types::messages_checkpoint::CheckpointContents>>
     {
         Ok(self.store().get_checkpoint_contents(digest))
     }
 
     fn get_checkpoint_contents_by_sequence_number(
         &self,
-        _sequence_number: sui_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> sui_types::storage::error::Result<Option<sui_types::messages_checkpoint::CheckpointContents>>
+        _sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+    ) -> iota_types::storage::error::Result<Option<iota_types::messages_checkpoint::CheckpointContents>>
     {
         todo!()
     }
 
     fn get_transaction(
         &self,
-        tx_digest: &sui_types::digests::TransactionDigest,
-    ) -> sui_types::storage::error::Result<Option<Arc<VerifiedTransaction>>> {
+        tx_digest: &iota_types::digests::TransactionDigest,
+    ) -> iota_types::storage::error::Result<Option<Arc<VerifiedTransaction>>> {
         Ok(self.store().get_transaction(tx_digest).map(Arc::new))
     }
 
     fn get_transaction_effects(
         &self,
-        tx_digest: &sui_types::digests::TransactionDigest,
-    ) -> sui_types::storage::error::Result<Option<TransactionEffects>> {
+        tx_digest: &iota_types::digests::TransactionDigest,
+    ) -> iota_types::storage::error::Result<Option<TransactionEffects>> {
         Ok(self.store().get_transaction_effects(tx_digest))
     }
 
     fn get_events(
         &self,
-        event_digest: &sui_types::digests::TransactionEventsDigest,
-    ) -> sui_types::storage::error::Result<Option<sui_types::effects::TransactionEvents>> {
+        event_digest: &iota_types::digests::TransactionEventsDigest,
+    ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEvents>> {
         Ok(self.store().get_transaction_events(event_digest))
     }
 
     fn get_full_checkpoint_contents_by_sequence_number(
         &self,
-        _sequence_number: sui_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> sui_types::storage::error::Result<
-        Option<sui_types::messages_checkpoint::FullCheckpointContents>,
+        _sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
         todo!()
     }
 
     fn get_full_checkpoint_contents(
         &self,
-        _digest: &sui_types::messages_checkpoint::CheckpointContentsDigest,
-    ) -> sui_types::storage::error::Result<
-        Option<sui_types::messages_checkpoint::FullCheckpointContents>,
+        _digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
         todo!()
     }
@@ -517,10 +518,10 @@ impl Simulacrum {
     /// Generate a random transfer transaction.
     /// TODO: This is here today to make it easier to write tests. But we should
     /// utilize all the existing code for generating transactions in
-    /// sui-test-transaction-builder by defining a trait
+    /// iota-test-transaction-builder by defining a trait
     /// that both WalletContext and Simulacrum implement. Then we can remove
     /// this function.
-    pub fn transfer_txn(&mut self, recipient: SuiAddress) -> (Transaction, u64) {
+    pub fn transfer_txn(&mut self, recipient: IotaAddress) -> (Transaction, u64) {
         let (sender, key) = self.keystore().accounts().next().unwrap();
         let sender = *sender;
 
@@ -534,7 +535,7 @@ impl Simulacrum {
 
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
-            builder.transfer_sui(recipient, Some(transfer_amount));
+            builder.transfer_iota(recipient, Some(transfer_amount));
             builder.finish()
         };
 
@@ -556,8 +557,8 @@ mod tests {
     use std::time::Duration;
 
     use rand::{rngs::StdRng, SeedableRng};
-    use sui_types::{
-        base_types::SuiAddress, effects::TransactionEffectsAPI, gas_coin::GasCoin,
+    use iota_types::{
+        base_types::IotaAddress, effects::TransactionEffectsAPI, gas_coin::GasCoin,
         transaction::TransactionDataAPI,
     };
 
@@ -632,7 +633,7 @@ mod tests {
     #[test]
     fn transfer() {
         let mut sim = Simulacrum::new();
-        let recipient = SuiAddress::random_for_testing_only();
+        let recipient = IotaAddress::random_for_testing_only();
         let (tx, transfer_amount) = sim.transfer_txn(recipient);
 
         let gas_id = tx.data().transaction_data().gas_data().payment[0].0;

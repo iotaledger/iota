@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import BottomMenuLayout, { Content, Menu } from '_app/shared/bottom-menu-layout';
@@ -11,8 +12,8 @@ import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessage
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 import { useSigner } from '_src/ui/app/hooks/useSigner';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
-import { useCoinMetadata } from '@mysten/core';
-import { ArrowLeft16, ArrowRight16 } from '@mysten/icons';
+import { useCoinMetadata } from '@iota/core';
+import { ArrowLeft16, ArrowRight16 } from '@iota/icons';
 // import * as Sentry from '@sentry/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
@@ -114,7 +115,7 @@ function TransferCoinPage() {
                                 coinType={coinType}
                                 amount={formData.amount}
                                 to={formData.to}
-                                approximation={formData.isPayAllSui}
+                                approximation={formData.isPayAllIota}
                                 gasBudget={formData.gasBudgetEst}
                             />
                         </Content>

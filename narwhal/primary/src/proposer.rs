@@ -1,5 +1,6 @@
 // Copyright(C) Facebook, Inc. and its affiliates.
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -15,7 +16,7 @@ use mysten_metrics::{
     spawn_logged_monitored_task,
 };
 use storage::ProposerStore;
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,

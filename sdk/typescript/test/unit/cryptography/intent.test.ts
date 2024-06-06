@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from 'vitest';
@@ -17,7 +18,7 @@ describe('Intent', () => {
 
         expect(intentMessage[0]).toEqual(IntentScope.PersonalMessage);
         expect(intentMessage[1]).toEqual(IntentVersion.V0);
-        expect(intentMessage[2]).toEqual(AppId.Sui);
+        expect(intentMessage[2]).toEqual(AppId.Iota);
         expect(intentMessage.slice(3)).toEqual(data);
     });
 });
