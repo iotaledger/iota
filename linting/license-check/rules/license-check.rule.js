@@ -18,14 +18,9 @@ function checkHeader(node, context) {
 
     const hasIotaCopyrightHeader = firstComment?.includes(IOTA_COPYRIGHT_HEADER);
     const hasOldCopyrightHeader = firstComment?.includes(OLD_COPYRIGHT_HEADER);
-    const hasLicenseIdentifier = comments?.[1]?.value.includes(LICENSE_IDENTIFIER);
 
     // Check if the file has any license header.
-    if (
-        (!hasIotaCopyrightHeader && !hasOldCopyrightHeader) ||
-        !firstComment ||
-        !hasLicenseIdentifier
-    ) {
+    if ((!hasIotaCopyrightHeader && !hasOldCopyrightHeader) || !firstComment) {
         context.report({
             node,
             message: MISSING_HEADER_MESSAGE,
@@ -44,7 +39,7 @@ function checkHeader(node, context) {
                 fix(fixer) {
                     return fixer.insertTextAfter(
                         comments[0],
-                        `\n// ${MODIFICATION_COPYRIGHT_HEADER}\n`,
+                        `\n// ${MODIFICATION_COPYRIGHT_HEADER}`,
                     );
                 },
             });
