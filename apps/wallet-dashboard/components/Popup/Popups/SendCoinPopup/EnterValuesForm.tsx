@@ -4,16 +4,11 @@
 import { CoinStruct } from '@mysten/sui.js/client';
 import { FormDataValues } from './SendCoinPopup';
 import Button from '@/components/Button';
-import { useSuiClient } from '@mysten/dapp-kit';
-import { useQuery } from '@tanstack/react-query';
-import { createTokenTransferTransaction } from '@/lib/utils';
-import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
-import { useEffect } from 'react';
-import { COIN_DECIMALS } from '@/lib/constants';
 
 interface EnterValuesProps {
     coin: CoinStruct;
     formData: FormDataValues;
+    gasBudget: string;
     setFormData: React.Dispatch<React.SetStateAction<FormDataValues>>;
     onClose: () => void;
     handleNext: () => void;
@@ -21,37 +16,12 @@ interface EnterValuesProps {
 
 function EnterValuesForm({
     coin,
-    formData: { amount, recipientAddress, senderAddress, gasBudget },
+    formData: { amount, recipientAddress },
+    gasBudget,
     setFormData,
     onClose,
     handleNext,
 }: EnterValuesProps): JSX.Element {
-    const client = useSuiClient();
-    const { data: _gasBudget } = useQuery({
-        queryKey: [
-            'transaction-gas-budget-estimate',
-            recipientAddress,
-            amount,
-            coin,
-            senderAddress,
-            client,
-        ],
-        queryFn: async () => {
-            const transaction = createTokenTransferTransaction({
-                recipientAddress,
-                amount,
-                coinType: SUI_TYPE_ARG,
-                coinDecimals: COIN_DECIMALS,
-                coins: [coin],
-            });
-
-            transaction.setSender(senderAddress);
-            await transaction.build({ client });
-            return transaction.blockData.gasConfig.budget;
-        },
-        enabled: !amount || !recipientAddress || !coin || !senderAddress,
-    });
-
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setFormData((prevFormData) => ({
@@ -59,13 +29,6 @@ function EnterValuesForm({
             [name]: value,
         }));
     };
-
-    useEffect(() => {
-        setFormData((prevFormData) => ({
-            ...prevFormData,
-            gasBudget: _gasBudget?.toString() || '',
-        }));
-    }, [_gasBudget, setFormData]);
 
     return (
         <div className="flex flex-col gap-4">
@@ -92,18 +55,7 @@ function EnterValuesForm({
                     onChange={handleChange}
                     placeholder="Enter the address to send coins"
                 />
-                {gasBudget ? (
-                    <div className="my-2 flex w-full justify-between gap-2 px-2">
-                        <label htmlFor="address">Estimated Gas Fees: </label>
-                        <input
-                            type="text"
-                            id="gasBudget"
-                            name="gasBudget"
-                            value={gasBudget}
-                            onChange={handleChange}
-                        />
-                    </div>
-                ) : null}
+                <p>Gas fee: {gasBudget || '--'}</p>
             </div>
             <div className="mt-4 flex justify-around">
                 <Button onClick={onClose}>Cancel</Button>

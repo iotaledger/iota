@@ -31,8 +31,10 @@ export default function RootLayout({
                 <PopupProvider>
                     <QueryClientProvider client={queryClient}>
                         <SuiClientProvider networks={allNetworks} defaultNetwork="testnet">
-                            <WalletProvider>{children}</WalletProvider>
-                            <Popup />
+                            <WalletProvider>
+                                {children}
+                                <Popup />
+                            </WalletProvider>
                         </SuiClientProvider>
                     </QueryClientProvider>
                 </PopupProvider>
