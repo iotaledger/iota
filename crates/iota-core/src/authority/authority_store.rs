@@ -7,10 +7,6 @@ use std::{cmp::Ordering, iter, mem, ops::Not, sync::Arc, thread};
 use either::Either;
 use fastcrypto::hash::{HashFunction, MultisetHash, Sha3_256};
 use futures::stream::FuturesUnordered;
-use itertools::izip;
-use move_core_types::resolver::ModuleResolver;
-use mysten_common::sync::notify_read::NotifyRead;
-use serde::{Deserialize, Serialize};
 use iota_macros::fail_point_arg;
 use iota_storage::mutex_table::{MutexGuard, MutexTable, RwLockGuard, RwLockTable};
 use iota_types::{
@@ -22,12 +18,16 @@ use iota_types::{
     execution::TypeLayoutStore,
     fp_bail, fp_ensure,
     gas_coin::TOTAL_SUPPLY_MICROS,
+    iota_system_state::get_iota_system_state,
     message_envelope::Message,
     storage::{
         get_module, BackingPackageStore, MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore,
     },
-    iota_system_state::get_iota_system_state,
 };
+use itertools::izip;
+use move_core_types::resolver::ModuleResolver;
+use mysten_common::sync::notify_read::NotifyRead;
+use serde::{Deserialize, Serialize};
 use tokio::{
     sync::{RwLockReadGuard, RwLockWriteGuard},
     time::Instant,
@@ -114,8 +114,8 @@ impl AuthorityStoreMetrics {
 /// ALL_OBJ_VER determines whether we want to store all past
 /// versions of every object in the store. Authority doesn't store
 /// them, but other entities such as replicas will.
-/// S is a template on Authority signature state. This allows IotaDataStore to be
-/// used on either authorities or non-authorities. Specifically, when storing
+/// S is a template on Authority signature state. This allows IotaDataStore to
+/// be used on either authorities or non-authorities. Specifically, when storing
 /// transactions and effects, S allows IotaDataStore to either store the
 /// authority signed version or unsigned version.
 pub struct AuthorityStore {

@@ -8,7 +8,6 @@ use fastcrypto::{
     encoding::{Encoding, Hex},
     traits::KeyPair,
 };
-use narwhal_config::{NetworkAdminServerParameters, PrometheusMetricsParameters};
 use iota_config::{
     local_ip_utils,
     node::{
@@ -23,9 +22,10 @@ use iota_config::{
 };
 use iota_protocol_config::SupportedProtocolVersions;
 use iota_types::{
-    crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair, IotaKeyPair},
+    crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair},
     multiaddr::Multiaddr,
 };
+use narwhal_config::{NetworkAdminServerParameters, PrometheusMetricsParameters};
 
 use crate::{
     genesis_config::{ValidatorGenesisConfig, ValidatorGenesisConfigBuilder},
@@ -156,7 +156,9 @@ impl ValidatorConfigBuilder {
 
         NodeConfig {
             protocol_key_pair: AuthorityKeyPairWithPath::new(validator.key_pair),
-            network_key_pair: KeyPairWithPath::new(IotaKeyPair::Ed25519(validator.network_key_pair)),
+            network_key_pair: KeyPairWithPath::new(IotaKeyPair::Ed25519(
+                validator.network_key_pair,
+            )),
             account_key_pair: KeyPairWithPath::new(validator.account_key_pair),
             worker_key_pair: KeyPairWithPath::new(IotaKeyPair::Ed25519(validator.worker_key_pair)),
             db_path,

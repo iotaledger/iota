@@ -12,30 +12,11 @@ mod checked {
         sync::Arc,
     };
 
-    use move_binary_format::{
-        access::ModuleAccess,
-        compatibility::{Compatibility, InclusionCheck},
-        errors::{Location, PartialVMResult, VMResult},
-        file_format::{AbilitySet, CodeOffset, FunctionDefinitionIndex, LocalIndex, Visibility},
-        normalized, CompiledModule,
-    };
-    use move_core_types::{
-        account_address::AccountAddress,
-        identifier::IdentStr,
-        language_storage::{ModuleId, TypeTag},
-        u256::U256,
-    };
-    use move_vm_runtime::{
-        move_vm::MoveVM,
-        session::{LoadedFunctionInstantiation, SerializedReturnValues},
-    };
-    use move_vm_types::loaded_data::runtime_types::{StructType, Type};
-    use serde::{de::DeserializeSeed, Deserialize};
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
         base_types::{
-            MoveObjectType, ObjectID, IotaAddress, TxContext, TxContextKind, RESOLVED_ASCII_STR,
+            IotaAddress, MoveObjectType, ObjectID, TxContext, TxContextKind, RESOLVED_ASCII_STR,
             RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME,
         },
         coin::Coin,
@@ -61,6 +42,25 @@ mod checked {
         private_generics::{EVENT_MODULE, PRIVATE_TRANSFER_FUNCTIONS, TRANSFER_MODULE},
         INIT_FN_NAME,
     };
+    use move_binary_format::{
+        access::ModuleAccess,
+        compatibility::{Compatibility, InclusionCheck},
+        errors::{Location, PartialVMResult, VMResult},
+        file_format::{AbilitySet, CodeOffset, FunctionDefinitionIndex, LocalIndex, Visibility},
+        normalized, CompiledModule,
+    };
+    use move_core_types::{
+        account_address::AccountAddress,
+        identifier::IdentStr,
+        language_storage::{ModuleId, TypeTag},
+        u256::U256,
+    };
+    use move_vm_runtime::{
+        move_vm::MoveVM,
+        session::{LoadedFunctionInstantiation, SerializedReturnValues},
+    };
+    use move_vm_types::loaded_data::runtime_types::{StructType, Type};
+    use serde::{de::DeserializeSeed, Deserialize};
     use tracing::instrument;
 
     use crate::{

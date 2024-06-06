@@ -4,9 +4,6 @@
 
 use async_graphql::*;
 use im::hashmap::HashMap as ImHashMap;
-use shared_crypto::intent::{
-    AppId, Intent, IntentMessage, IntentScope, IntentVersion, PersonalMessage,
-};
 use iota_types::{
     authenticator_state::{ActiveJwk, AuthenticatorStateInner},
     crypto::ToFromBytes,
@@ -14,6 +11,9 @@ use iota_types::{
     signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
     transaction::TransactionData,
     TypeTag, IOTA_AUTHENTICATOR_STATE_ADDRESS,
+};
+use shared_crypto::intent::{
+    AppId, Intent, IntentMessage, IntentScope, IntentVersion, PersonalMessage,
 };
 use tracing::warn;
 

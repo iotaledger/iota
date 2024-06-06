@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_types::{coin::TreasuryCap, id::UID};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use iota_types::{coin::TreasuryCap, id::UID};
 
 /// The policy wrapper that ensures the supply of a `Coin` never exceeds the
 /// maximum supply.

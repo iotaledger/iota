@@ -2,15 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::account_address::AccountAddress;
-use proptest::{arbitrary::*, collection::vec, prelude::*};
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     digests::ObjectDigest,
     transaction::{
         GasData, TransactionData, TransactionDataV1, TransactionExpiration, TransactionKind,
     },
 };
+use move_core_types::account_address::AccountAddress;
+use proptest::{arbitrary::*, collection::vec, prelude::*};
 
 use crate::{
     account_universe::{gas_budget_selection_strategy, gas_price_selection_strategy},

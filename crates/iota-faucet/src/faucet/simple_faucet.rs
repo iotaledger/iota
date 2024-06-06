@@ -13,23 +13,23 @@ use std::{
 
 use async_recursion::async_recursion;
 use async_trait::async_trait;
-use mysten_metrics::spawn_monitored_task;
-use prometheus::Registry;
-use shared_crypto::intent::Intent;
 use iota_json_rpc_types::{
-    OwnedObjectRef, IotaObjectDataOptions, IotaTransactionBlockEffectsAPI,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaObjectDataOptions, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, OwnedObjectRef,
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::wallet_context::WalletContext;
 use iota_types::{
-    base_types::{ObjectID, IotaAddress, TransactionDigest},
+    base_types::{IotaAddress, ObjectID, TransactionDigest},
     gas_coin::GasCoin,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{Transaction, TransactionData},
 };
+use mysten_metrics::spawn_monitored_task;
+use prometheus::Registry;
+use shared_crypto::intent::Intent;
 use tap::tap::TapFallible;
 use tokio::{
     sync::{
@@ -126,8 +126,9 @@ impl SimpleFaucet {
         let (producer, consumer) = mpsc::channel(coins.len());
         let (batch_producer, batch_consumer) = mpsc::channel(coins.len());
 
-        let (sender, mut receiver) =
-            mpsc::channel::<(Uuid, IotaAddress, Vec<u64>)>(config.max_request_queue_length as usize);
+        let (sender, mut receiver) = mpsc::channel::<(Uuid, IotaAddress, Vec<u64>)>(
+            config.max_request_queue_length as usize,
+        );
 
         // This is to handle the case where there is only 1 coin, we want it to go to
         // the normal queue
@@ -592,7 +593,9 @@ impl SimpleFaucet {
         let mut retry_delay = Duration::from_millis(500);
 
         loop {
-            let res = self.execute_pay_iota_txn(tx, coin_id, recipient, uuid).await;
+            let res = self
+                .execute_pay_iota_txn(tx, coin_id, recipient, uuid)
+                .await;
 
             if let Ok(res) = res {
                 return res;

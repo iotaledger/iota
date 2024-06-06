@@ -22,7 +22,6 @@ use fastcrypto::{
     ed25519::Ed25519KeyPair,
     traits::{KeyPair, ToFromBytes},
 };
-use move_core_types::ident_str;
 use iota_config::{
     local_ip_utils,
     node::{AuthorityKeyPairWithPath, KeyPairWithPath},
@@ -32,13 +31,14 @@ use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockResponseOptio
 use iota_keys::keypair_file::read_keypair_from_file;
 use iota_sdk::{rpc_types::IotaTransactionBlockEffectsAPI, IotaClient, IotaClientBuilder};
 use iota_types::{
-    base_types::{ObjectRef, IotaAddress},
+    base_types::{IotaAddress, ObjectRef},
     committee::EpochId,
     crypto::{generate_proof_of_possession, get_authority_key_pair, get_key_pair, IotaKeyPair},
     multiaddr::{Multiaddr, Protocol},
     transaction::{CallArg, Transaction, TransactionData, TEST_ONLY_GAS_UNIT_FOR_GENERIC},
     IOTA_SYSTEM_PACKAGE_ID,
 };
+use move_core_types::ident_str;
 use tracing::info;
 
 #[derive(Parser)]
@@ -367,7 +367,10 @@ async fn execute_tx(
     Ok(())
 }
 
-async fn wait_for_next_epoch(iota_client: &IotaClient, target_epoch: EpochId) -> anyhow::Result<()> {
+async fn wait_for_next_epoch(
+    iota_client: &IotaClient,
+    target_epoch: EpochId,
+) -> anyhow::Result<()> {
     loop {
         let epoch_id = current_epoch(iota_client).await?;
         if epoch_id > target_epoch {

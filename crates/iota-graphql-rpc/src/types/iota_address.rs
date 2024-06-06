@@ -5,9 +5,9 @@
 use std::str::FromStr;
 
 use async_graphql::*;
+use iota_types::base_types::{IotaAddress as NativeIotaAddress, ObjectID};
 use move_core_types::account_address::AccountAddress;
 use serde::{Deserialize, Serialize};
-use iota_types::base_types::{ObjectID, IotaAddress as NativeIotaAddress};
 use thiserror::Error;
 
 const IOTA_ADDRESS_LENGTH: usize = 32;
@@ -33,7 +33,10 @@ pub(crate) enum FromStrError {
 
 #[derive(Error, Debug, Eq, PartialEq)]
 pub(crate) enum FromVecError {
-    #[error("Expected IotaAddress with {} bytes, received {0}", IOTA_ADDRESS_LENGTH)]
+    #[error(
+        "Expected IotaAddress with {} bytes, received {0}",
+        IOTA_ADDRESS_LENGTH
+    )]
     WrongLength(usize),
 }
 

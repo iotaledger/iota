@@ -10,7 +10,9 @@ use iota_types::{base_types::IotaAddress, object::Owner};
 /// This is intended as the only conversion function to go from Stardust to Iota
 /// addresses, so there is only one place to potentially update it if we decide
 /// to change it later.
-pub fn stardust_to_iota_address(stardust_address: impl Into<Address>) -> anyhow::Result<IotaAddress> {
+pub fn stardust_to_iota_address(
+    stardust_address: impl Into<Address>,
+) -> anyhow::Result<IotaAddress> {
     stardust_address.into().to_string().parse()
 }
 

@@ -7,9 +7,9 @@ use std::{collections::BTreeMap, net::SocketAddr};
 use async_graphql::{Response, ServerError, Value};
 use axum::http::HeaderName;
 use hyper::HeaderMap;
+use iota_graphql_rpc_headers::VERSION_HEADER;
 use reqwest::Response as ReqwestResponse;
 use serde_json::json;
-use iota_graphql_rpc_headers::VERSION_HEADER;
 
 use super::ClientError;
 

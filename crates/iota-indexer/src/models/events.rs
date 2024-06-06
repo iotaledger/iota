@@ -5,16 +5,16 @@
 use std::str::FromStr;
 
 use diesel::prelude::*;
-use move_bytecode_utils::module_cache::GetModule;
-use move_core_types::identifier::Identifier;
 use iota_json_rpc_types::{IotaEvent, IotaMoveStruct};
 use iota_types::{
-    base_types::{ObjectID, IotaAddress},
+    base_types::{IotaAddress, ObjectID},
     digests::TransactionDigest,
     event::EventID,
     object::{bounded_visitor::BoundedVisitor, MoveObject},
     parse_iota_struct_tag,
 };
+use move_bytecode_utils::module_cache::GetModule;
+use move_core_types::identifier::Identifier;
 
 use crate::{errors::IndexerError, schema::events, types::IndexedEvent};
 
@@ -135,8 +135,8 @@ impl StoredEvent {
 
 #[cfg(test)]
 mod tests {
-    use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
     use iota_types::event::Event;
+    use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
 
     use super::*;
 

@@ -11,6 +11,7 @@ use std::{
 };
 
 use fastcrypto::encoding::Hex;
+use iota_protocol_config::ProtocolVersion;
 use move_core_types::{
     account_address::AccountAddress,
     language_storage::{StructTag, TypeTag},
@@ -23,11 +24,10 @@ use serde::{
     Deserialize, Serialize,
 };
 use serde_with::{serde_as, Bytes, DeserializeAs, DisplayFromStr, SerializeAs};
-use iota_protocol_config::ProtocolVersion;
 
 use crate::{
-    parse_iota_struct_tag, parse_iota_type_tag, DEEPBOOK_ADDRESS, STARDUST_ADDRESS,
-    IOTA_CLOCK_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_STATE_ADDRESS,
+    parse_iota_struct_tag, parse_iota_type_tag, DEEPBOOK_ADDRESS, IOTA_CLOCK_ADDRESS,
+    IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_STATE_ADDRESS, STARDUST_ADDRESS,
     TIMELOCK_ADDRESS,
 };
 

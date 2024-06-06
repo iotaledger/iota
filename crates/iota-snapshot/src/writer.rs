@@ -17,7 +17,6 @@ use anyhow::{anyhow, Context, Result};
 use byteorder::{BigEndian, ByteOrder};
 use futures::StreamExt;
 use integer_encoding::VarInt;
-use object_store::{path::Path, DynObjectStore};
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_core::authority::{
     authority_store_tables::{AuthorityPerpetualTables, LiveObject},
@@ -32,6 +31,7 @@ use iota_types::{
     base_types::{ObjectID, ObjectRef},
     iota_system_state::{get_iota_system_state, IotaSystemStateTrait},
 };
+use object_store::{path::Path, DynObjectStore};
 use tokio::{
     sync::{
         mpsc,

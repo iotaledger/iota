@@ -4,8 +4,6 @@
 
 use std::{path::PathBuf, sync::Arc, time::Instant};
 
-use move_bytecode_verifier::meter::Scope;
-use prometheus::Registry;
 use iota_adapter::adapter::run_metered_move_bytecode_verifier;
 use iota_framework::BuiltInFramework;
 use iota_move_build::{CompiledPackage, IotaPackageHooks};
@@ -15,6 +13,8 @@ use iota_types::{
     metrics::BytecodeVerifierMetrics,
 };
 use iota_verifier::{default_verifier_config, meter::IotaVerifierMeter};
+use move_bytecode_verifier::meter::Scope;
+use prometheus::Registry;
 
 fn build(path: PathBuf) -> IotaResult<CompiledPackage> {
     let mut config = iota_move_build::BuildConfig::new_for_testing();
@@ -212,8 +212,8 @@ fn test_metered_move_bytecode_verifier() {
     // Check shared meter logic works across all publish in PT
     let mut packages = vec![];
     let with_unpublished_deps = false;
-    let path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../iota_programmability/examples/basics");
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../iota_programmability/examples/basics");
     let package = build(path).unwrap();
     packages.push(package.get_dependency_sorted_modules(with_unpublished_deps));
     packages.push(package.get_dependency_sorted_modules(with_unpublished_deps));

@@ -18,8 +18,8 @@ use fastcrypto::{
     },
     traits::{KeyPair, RecoverableSigner, ToFromBytes, VerifyRecoverable},
 };
-use serde::{Deserialize, Serialize};
 use iota_types::{base_types::ConciseableName, message_envelope::VerifiedEnvelope};
+use serde::{Deserialize, Serialize};
 use tap::TapFallible;
 
 use crate::{
@@ -175,16 +175,16 @@ mod tests {
 
     use ethers::types::Address as EthAddress;
     use fastcrypto::traits::{KeyPair, ToFromBytes};
-    use prometheus::Registry;
     use iota_types::{base_types::IotaAddress, crypto::get_key_pair, digests::TransactionDigest};
+    use prometheus::Registry;
 
     use super::*;
     use crate::{
         events::EmittedIotaToEthTokenBridgeV1,
         test_utils::{get_test_authority_and_key, get_test_iota_to_eth_bridge_action},
         types::{
-            BridgeAction, BridgeAuthority, BridgeChainId, SignedBridgeAction, IotaToEthBridgeAction,
-            TokenId,
+            BridgeAction, BridgeAuthority, BridgeChainId, IotaToEthBridgeAction,
+            SignedBridgeAction, TokenId,
         },
     };
 

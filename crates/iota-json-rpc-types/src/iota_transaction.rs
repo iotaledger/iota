@@ -6,6 +6,34 @@ use std::fmt::{self, Display, Formatter, Write};
 
 use enum_dispatch::enum_dispatch;
 use fastcrypto::encoding::Base64;
+use iota_json::{primitive_type, IotaJsonValue};
+use iota_types::{
+    authenticator_state::ActiveJwk,
+    base_types::{EpochId, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
+    crypto::IotaSignature,
+    digests::{ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    error::{ExecutionError, IotaError, IotaResult},
+    execution_status::ExecutionStatus,
+    gas::GasCostSummary,
+    iota_serde::{
+        BigInt, IotaTypeTag as AsIotaTypeTag, Readable, SequenceNumber as AsSequenceNumber,
+    },
+    messages_checkpoint::CheckpointSequenceNumber,
+    object::{MoveObject, Owner},
+    parse_iota_type_tag,
+    quorum_driver_types::ExecuteTransactionRequestType,
+    signature::GenericSignature,
+    storage::{DeleteKind, WriteKind},
+    transaction::{
+        Argument, CallArg, ChangeEpoch, Command, EndOfEpochTransactionKind, GenesisObject,
+        InputObjectKind, ObjectArg, ProgrammableMoveCall, ProgrammableTransaction,
+        SenderSignedData, TransactionData, TransactionDataAPI, TransactionKind,
+        VersionedProtocolMessage,
+    },
+    type_resolver::LayoutResolver,
+    IOTA_FRAMEWORK_ADDRESS,
+};
 use move_binary_format::{access::ModuleAccess, binary_views::BinaryIndexedView, CompiledModule};
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{
@@ -17,40 +45,14 @@ use mysten_metrics::monitored_scope;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use iota_json::{primitive_type, IotaJsonValue};
-use iota_types::{
-    authenticator_state::ActiveJwk,
-    base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, IotaAddress, TransactionDigest},
-    crypto::IotaSignature,
-    digests::{ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
-    error::{ExecutionError, IotaError, IotaResult},
-    execution_status::ExecutionStatus,
-    gas::GasCostSummary,
-    messages_checkpoint::CheckpointSequenceNumber,
-    object::{MoveObject, Owner},
-    parse_iota_type_tag,
-    quorum_driver_types::ExecuteTransactionRequestType,
-    signature::GenericSignature,
-    storage::{DeleteKind, WriteKind},
-    iota_serde::{BigInt, Readable, SequenceNumber as AsSequenceNumber, IotaTypeTag as AsIotaTypeTag},
-    transaction::{
-        Argument, CallArg, ChangeEpoch, Command, EndOfEpochTransactionKind, GenesisObject,
-        InputObjectKind, ObjectArg, ProgrammableMoveCall, ProgrammableTransaction,
-        SenderSignedData, TransactionData, TransactionDataAPI, TransactionKind,
-        VersionedProtocolMessage,
-    },
-    type_resolver::LayoutResolver,
-    IOTA_FRAMEWORK_ADDRESS,
-};
 use tabled::{
     builder::Builder as TableBuilder,
     settings::{style::HorizontalLine, Panel as TablePanel, Style as TableStyle},
 };
 
 use crate::{
-    balance_changes::BalanceChange, object_changes::ObjectChange,
-    iota_transaction::GenericSignature::Signature, Filter, Page, IotaEvent, IotaObjectRef,
+    balance_changes::BalanceChange, iota_transaction::GenericSignature::Signature,
+    object_changes::ObjectChange, Filter, IotaEvent, IotaObjectRef, Page,
 };
 
 // similar to EpochId of iota-types but BigInt
@@ -841,7 +843,9 @@ impl TryFrom<TransactionEffects> for IotaTransactionBlockEffects {
                 mutated: to_owned_ref(effect.mutated().to_vec()),
                 unwrapped: to_owned_ref(effect.unwrapped().to_vec()),
                 deleted: to_iota_object_ref(effect.deleted().to_vec()),
-                unwrapped_then_deleted: to_iota_object_ref(effect.unwrapped_then_deleted().to_vec()),
+                unwrapped_then_deleted: to_iota_object_ref(
+                    effect.unwrapped_then_deleted().to_vec(),
+                ),
                 wrapped: to_iota_object_ref(effect.wrapped().to_vec()),
                 gas_object: OwnedObjectRef {
                     owner: effect.gas_object().1,

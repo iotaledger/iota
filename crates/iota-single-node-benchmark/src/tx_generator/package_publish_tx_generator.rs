@@ -4,14 +4,14 @@
 
 use std::{collections::HashMap, fs, path::PathBuf};
 
-use move_package::source_package::manifest_parser::parse_move_manifest_from_file;
-use serde::{Deserialize, Serialize};
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};
 use iota_types::{
     base_types::ObjectID,
     transaction::{Transaction, DEFAULT_VALIDATOR_GAS_PRICE},
 };
+use move_package::source_package::manifest_parser::parse_move_manifest_from_file;
+use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::{

@@ -6,37 +6,37 @@ use std::{cmp::max, collections::BTreeMap, sync::Arc};
 
 use async_trait::async_trait;
 use cached::{proc_macro::cached, SizedCache};
-use itertools::Itertools;
-use jsonrpsee::{core::RpcResult, RpcModule};
-use mysten_metrics::spawn_monitored_task;
 use iota_core::authority::AuthorityState;
 use iota_json_rpc_api::{GovernanceReadApiOpenRpc, GovernanceReadApiServer, JsonRpcMetrics};
 use iota_json_rpc_types::{
-    DelegatedStake, DelegatedTimelockedStake, Stake, StakeStatus, IotaCommittee, TimelockedStake,
+    DelegatedStake, DelegatedTimelockedStake, IotaCommittee, Stake, StakeStatus, TimelockedStake,
     ValidatorApy, ValidatorApys,
 };
 use iota_open_rpc::Module;
 use iota_types::{
-    base_types::{ObjectID, IotaAddress},
+    base_types::{IotaAddress, ObjectID},
     committee::EpochId,
     dynamic_field::get_dynamic_field_from_store,
     error::{IotaError, UserInputError},
     governance::StakedIota,
     id::ID,
-    object::{Object, ObjectRead},
     iota_serde::BigInt,
     iota_system_state::{
         get_validator_from_table, iota_system_state_summary::IotaSystemStateSummary,
-        PoolTokenExchangeRate, IotaSystemState, IotaSystemStateTrait,
+        IotaSystemState, IotaSystemStateTrait, PoolTokenExchangeRate,
     },
+    object::{Object, ObjectRead},
     timelock::timelocked_staked_iota::TimelockedStakedIota,
 };
+use itertools::Itertools;
+use jsonrpsee::{core::RpcResult, RpcModule};
+use mysten_metrics::spawn_monitored_task;
 use tracing::{info, instrument};
 
 use crate::{
     authority_state::StateRead,
-    error::{Error, RpcInterimResult, IotaRpcInputError},
-    with_tracing, ObjectProvider, IotaRpcModule,
+    error::{Error, IotaRpcInputError, RpcInterimResult},
+    with_tracing, IotaRpcModule, ObjectProvider,
 };
 
 #[derive(Clone)]
@@ -549,7 +549,8 @@ async fn exchange_rates(
     _current_epoch: EpochId,
 ) -> RpcInterimResult<Vec<ValidatorExchangeRates>> {
     let system_state = state.get_system_state()?;
-    let system_state_summary: IotaSystemStateSummary = system_state.into_iota_system_state_summary();
+    let system_state_summary: IotaSystemStateSummary =
+        system_state.into_iota_system_state_summary();
 
     // Get validator rate tables
     let mut tables = vec![];

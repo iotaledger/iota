@@ -10,7 +10,6 @@ use std::{
 };
 
 use expect_test::expect;
-use move_core_types::account_address::AccountAddress;
 use iota_json_rpc_types::{
     get_new_package_obj_from_response, get_new_package_upgrade_cap_from_response,
 };
@@ -18,11 +17,12 @@ use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
 use iota_sdk::wallet_context::WalletContext;
 use iota_test_transaction_builder::{make_publish_transaction, make_publish_transaction_with_deps};
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, IotaAddress, TransactionDigest},
+    base_types::{IotaAddress, ObjectID, ObjectRef, TransactionDigest},
     move_package::UpgradePolicy,
     transaction::TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
     IOTA_SYSTEM_STATE_OBJECT_ID,
 };
+use move_core_types::account_address::AccountAddress;
 use test_cluster::TestClusterBuilder;
 
 use crate::{BytecodeSourceVerifier, SourceMode, CURRENT_COMPILER_VERSION};

@@ -3,12 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::*;
-use prometheus::Registry;
 use iota_analytics_indexer::{
     analytics_metrics::AnalyticsMetrics, errors::AnalyticsIndexerError, make_analytics_processor,
     AnalyticsIndexerConfig,
 };
 use iota_indexer::{framework::IndexerBuilder, metrics::IndexerMetrics};
+use prometheus::Registry;
 use tracing::info;
 
 #[tokio::main]

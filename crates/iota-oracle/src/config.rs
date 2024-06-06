@@ -4,9 +4,9 @@
 
 use std::{collections::HashMap, net::SocketAddr, time::Duration};
 
-use serde::{Deserialize, Serialize};
 use iota_config::Config;
 use iota_types::base_types::ObjectID;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]

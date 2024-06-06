@@ -4,6 +4,13 @@
 
 use anyhow::{bail, ensure};
 use clap::{self, Args, Parser};
+use iota_types::{
+    base_types::{IotaAddress, SequenceNumber},
+    move_package::UpgradePolicy,
+    object::{Object, Owner},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::{Argument, CallArg, ObjectArg},
+};
 use move_command_line_common::{
     parser::{parse_u256, parse_u64, Parser as MoveCLParser},
     values::{ParsableValue, ParsedValue, ValueToken},
@@ -15,13 +22,6 @@ use move_core_types::{
 };
 use move_symbol_pool::Symbol;
 use move_transactional_test_runner::tasks::{RunCommand, SyntaxChoice};
-use iota_types::{
-    base_types::{SequenceNumber, IotaAddress},
-    move_package::UpgradePolicy,
-    object::{Object, Owner},
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{Argument, CallArg, ObjectArg},
-};
 
 use crate::test_adapter::{FakeID, IotaTestAdapter};
 
@@ -233,9 +233,11 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::FromArgMatches
             Some(("transfer-object", matches)) => {
                 IotaSubcommand::TransferObject(TransferObjectCommand::from_arg_matches(matches)?)
             }
-            Some(("consensus-commit-prologue", matches)) => IotaSubcommand::ConsensusCommitPrologue(
-                ConsensusCommitPrologueCommand::from_arg_matches(matches)?,
-            ),
+            Some(("consensus-commit-prologue", matches)) => {
+                IotaSubcommand::ConsensusCommitPrologue(
+                    ConsensusCommitPrologueCommand::from_arg_matches(matches)?,
+                )
+            }
             Some(("programmable", matches)) => IotaSubcommand::ProgrammableTransaction(
                 ProgrammableTransactionCommand::from_arg_matches(matches)?,
             ),
@@ -248,9 +250,9 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::FromArgMatches
             Some(("set-address", matches)) => {
                 IotaSubcommand::SetAddress(SetAddressCommand::from_arg_matches(matches)?)
             }
-            Some(("create-checkpoint", matches)) => {
-                IotaSubcommand::CreateCheckpoint(CreateCheckpointCommand::from_arg_matches(matches)?)
-            }
+            Some(("create-checkpoint", matches)) => IotaSubcommand::CreateCheckpoint(
+                CreateCheckpointCommand::from_arg_matches(matches)?,
+            ),
             Some(("advance-epoch", matches)) => {
                 IotaSubcommand::AdvanceEpoch(AdvanceEpochCommand::from_arg_matches(matches)?)
             }
@@ -573,7 +575,10 @@ impl ParsableValue for IotaExtraValueArgs {
             ))
         } else {
             Ok(IotaValue::MoveValue(MoveValue::Vector(
-                elems.into_iter().map(IotaValue::assert_move_value).collect(),
+                elems
+                    .into_iter()
+                    .map(IotaValue::assert_move_value)
+                    .collect(),
             )))
         }
     }

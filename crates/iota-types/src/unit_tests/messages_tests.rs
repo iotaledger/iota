@@ -19,8 +19,8 @@ use crate::{
     crypto::{
         bcs_signable_test::{get_obligation_input, Foo},
         get_key_pair, AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes,
-        AuthoritySignInfoTrait, Secp256k1IotaSignature, IotaAuthoritySignature, IotaKeyPair,
-        IotaSignature, IotaSignatureInner, VerificationObligation,
+        AuthoritySignInfoTrait, IotaAuthoritySignature, IotaKeyPair, IotaSignature,
+        IotaSignatureInner, Secp256k1IotaSignature, VerificationObligation,
     },
     digests::TransactionEventsDigest,
     effects::{SignedTransactionEffects, TestEffectsBuilder, TransactionEffectsAPI},

@@ -13,9 +13,6 @@ use std::{
 };
 
 use anyhow::{anyhow, Context, Result};
-use more_asserts as ma;
-use object_store::DynObjectStore;
-use prometheus::Registry;
 use iota_config::{
     node::ArchiveReaderConfig,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
@@ -26,6 +23,9 @@ use iota_types::{
     messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents},
     storage::{ReadStore, SharedInMemoryStore, SingleCheckpointSharedInMemoryStore},
 };
+use more_asserts as ma;
+use object_store::DynObjectStore;
+use prometheus::Registry;
 use tempfile::tempdir;
 
 use crate::{

@@ -277,11 +277,11 @@ pub fn overload_monitor_accept_tx(
 mod tests {
     use std::sync::Arc;
 
+    use iota_macros::sim_test;
     use rand::{
         rngs::{OsRng, StdRng},
         Rng, SeedableRng,
     };
-    use iota_macros::sim_test;
     use tokio::{
         sync::{
             mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},

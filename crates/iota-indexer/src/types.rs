@@ -2,28 +2,28 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::language_storage::StructTag;
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 use iota_json_rpc_types::{
-    ObjectChange, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
 };
 use iota_types::{
-    base_types::{ObjectDigest, ObjectID, SequenceNumber, IotaAddress},
+    base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
     crypto::AggregateAuthoritySignature,
     digests::TransactionDigest,
     dynamic_field::DynamicFieldInfo,
     effects::TransactionEffects,
     event::SystemEpochInfoEvent,
+    iota_serde::IotaStructTag,
+    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointDigest, EndOfEpochData,
     },
     move_package::MovePackage,
     object::{Object, Owner},
-    iota_serde::IotaStructTag,
-    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     transaction::SenderSignedData,
 };
+use move_core_types::language_storage::StructTag;
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 
 use crate::errors::IndexerError;
 

@@ -7,7 +7,6 @@ use std::{collections::BTreeMap, future, sync::Arc, time::Instant};
 use fastcrypto::encoding::Base64;
 use futures::{stream, StreamExt};
 use futures_core::Stream;
-use jsonrpsee::core::client::Subscription;
 use iota_json_rpc_api::{
     CoinReadApiClient, GovernanceReadApiClient, IndexerApiClient, MoveUtilsClient, ReadApiClient,
     WriteApiClient,
@@ -15,24 +14,25 @@ use iota_json_rpc_api::{
 use iota_json_rpc_types::{
     Balance, Checkpoint, CheckpointId, CheckpointPage, Coin, CoinPage, DelegatedStake,
     DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldPage,
-    EventFilter, EventPage, ObjectsPage, ProtocolConfigResponse, IotaCoinMetadata, IotaCommittee,
-    IotaData, IotaEvent, IotaGetPastObjectRequest, IotaLoadedChildObjectsResponse,
-    IotaMoveNormalizedModule, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
-    IotaPastObjectResponse, IotaTransactionBlockEffects, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery, TransactionBlocksPage,
+    EventFilter, EventPage, IotaCoinMetadata, IotaCommittee, IotaData, IotaEvent,
+    IotaGetPastObjectRequest, IotaLoadedChildObjectsResponse, IotaMoveNormalizedModule,
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery, IotaPastObjectResponse,
+    IotaTransactionBlockEffects, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaTransactionBlockResponseQuery, ObjectsPage, ProtocolConfigResponse, TransactionBlocksPage,
     TransactionFilter,
 };
 use iota_types::{
     balance::Supply,
-    base_types::{ObjectID, SequenceNumber, IotaAddress, TransactionDigest},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, TransactionDigest},
     dynamic_field::DynamicFieldName,
     event::EventID,
-    messages_checkpoint::CheckpointSequenceNumber,
-    quorum_driver_types::ExecuteTransactionRequestType,
     iota_serde::BigInt,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
+    messages_checkpoint::CheckpointSequenceNumber,
+    quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{Transaction, TransactionData, TransactionKind},
 };
+use jsonrpsee::core::client::Subscription;
 
 use crate::{
     error::{Error, IotaRpcResult},
@@ -109,7 +109,7 @@ impl ReadApi {
     /// use std::str::FromStr;
     ///
     /// use iota_sdk::IotaClientBuilder;
-    /// use iota_types::base_types::{ObjectID, IotaAddress};
+    /// use iota_types::base_types::{IotaAddress, ObjectID};
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
@@ -177,7 +177,7 @@ impl ReadApi {
     ///
     /// use iota_json_rpc_types::IotaObjectDataOptions;
     /// use iota_sdk::IotaClientBuilder;
-    /// use iota_types::base_types::{ObjectID, IotaAddress};
+    /// use iota_types::base_types::{IotaAddress, ObjectID};
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
@@ -243,7 +243,7 @@ impl ReadApi {
     ///
     /// use iota_json_rpc_types::{IotaGetPastObjectRequest, IotaObjectDataOptions};
     /// use iota_sdk::IotaClientBuilder;
-    /// use iota_types::base_types::{ObjectID, IotaAddress};
+    /// use iota_types::base_types::{IotaAddress, ObjectID};
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
@@ -491,8 +491,8 @@ impl ReadApi {
             .get_transaction_block(digest, Some(options))
             .await?)
     }
-    /// Return a list of [IotaTransactionBlockResponse] based on the given vector
-    /// of [TransactionDigest], or an error upon failure.
+    /// Return a list of [IotaTransactionBlockResponse] based on the given
+    /// vector of [TransactionDigest], or an error upon failure.
     ///
     /// If only one transaction data is needed, use the
     /// [get_transaction_with_options](ReadApi::get_transaction_with_options)
@@ -733,8 +733,8 @@ impl ReadApi {
     /// error upon failure.
     ///
     /// Loaded child objects
-    /// ([IotaLoadedChildObject](iota_json_rpc_types::IotaLoadedChildObject)) are
-    /// the non-input objects that the transaction at the digest loaded
+    /// ([IotaLoadedChildObject](iota_json_rpc_types::IotaLoadedChildObject))
+    /// are the non-input objects that the transaction at the digest loaded
     /// in response to dynamic field accesses.
     pub async fn get_loaded_child_objects(
         &self,
@@ -1246,8 +1246,8 @@ impl GovernanceApi {
         Ok(self.api.http.get_stakes(owner).await?)
     }
 
-    /// Return the [IotaCommittee] information for the given `epoch`, or an error
-    /// upon failure.
+    /// Return the [IotaCommittee] information for the given `epoch`, or an
+    /// error upon failure.
     ///
     /// The argument `epoch` is the known epoch id or `None` for the current
     /// epoch.

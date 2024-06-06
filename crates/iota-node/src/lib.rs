@@ -23,13 +23,6 @@ use arc_swap::ArcSwap;
 use fastcrypto_zkp::bn254::zk_login::{JwkId, OIDCProvider, JWK};
 use futures::TryFutureExt;
 pub use handle::IotaNodeHandle;
-use mysten_metrics::{spawn_monitored_task, RegistryService};
-use mysten_network::server::ServerBuilder;
-use narwhal_network::metrics::{
-    MetricsMakeCallbackHandler, NetworkConnectionMetrics, NetworkMetrics,
-};
-use narwhal_worker::LazyNarwhalClient;
-use prometheus::Registry;
 use iota_archival::{reader::ArchiveReaderBalancer, writer::ArchiveWriter};
 use iota_config::{
     node::{ConsensusProtocol, DBCheckpointConfig, RunWithRange},
@@ -101,14 +94,21 @@ use iota_types::{
     crypto::{KeypairTraits, RandomnessRound},
     digests::ChainIdentifier,
     error::{IotaError, IotaResult},
-    message_envelope::get_google_jwk_bytes,
-    messages_consensus::{check_total_jwk_size, AuthorityCapabilities, ConsensusTransaction},
-    quorum_driver_types::QuorumDriverEffectsQueueResult,
     iota_system_state::{
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
         IotaSystemState, IotaSystemStateTrait,
     },
+    message_envelope::get_google_jwk_bytes,
+    messages_consensus::{check_total_jwk_size, AuthorityCapabilities, ConsensusTransaction},
+    quorum_driver_types::QuorumDriverEffectsQueueResult,
 };
+use mysten_metrics::{spawn_monitored_task, RegistryService};
+use mysten_network::server::ServerBuilder;
+use narwhal_network::metrics::{
+    MetricsMakeCallbackHandler, NetworkConnectionMetrics, NetworkMetrics,
+};
+use narwhal_worker::LazyNarwhalClient;
+use prometheus::Registry;
 use tap::tap::TapFallible;
 use tokio::{
     runtime::Handle,
@@ -191,14 +191,14 @@ mod simulator {
     }
 }
 
-#[cfg(msim)]
-pub use simulator::set_jwk_injector;
-#[cfg(msim)]
-use simulator::*;
 use iota_core::{
     consensus_handler::ConsensusHandlerInitializer, mysticeti_adapter::LazyMysticetiClient,
 };
 use iota_types::execution_config_utils::to_binary_config;
+#[cfg(msim)]
+pub use simulator::set_jwk_injector;
+#[cfg(msim)]
+use simulator::*;
 
 pub struct IotaNode {
     config: NodeConfig,
@@ -701,7 +701,8 @@ impl IotaNode {
         };
 
         let connection_monitor_status = Arc::new(connection_monitor_status);
-        let iota_node_metrics = Arc::new(IotaNodeMetrics::new(&registry_service.default_registry()));
+        let iota_node_metrics =
+            Arc::new(IotaNodeMetrics::new(&registry_service.default_registry()));
 
         let validator_components = if state.is_validator(&epoch_store) {
             let components = Self::construct_validator_components(

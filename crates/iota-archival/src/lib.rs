@@ -26,10 +26,6 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use bytes::Bytes;
 use fastcrypto::hash::{HashFunction, Sha3_256};
 use indicatif::{ProgressBar, ProgressStyle};
-use num_enum::{IntoPrimitive, TryFromPrimitive};
-use object_store::path::Path;
-use prometheus::Registry;
-use serde::{Deserialize, Serialize};
 use iota_config::{
     genesis::Genesis, node::ArchiveReaderConfig, object_storage_config::ObjectStoreConfig,
 };
@@ -47,6 +43,10 @@ use iota_types::{
     messages_checkpoint::{FullCheckpointContents, VerifiedCheckpointContents},
     storage::{SingleCheckpointSharedInMemoryStore, WriteStore},
 };
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+use object_store::path::Path;
+use prometheus::Registry;
+use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 
 use crate::reader::{ArchiveReader, ArchiveReaderMetrics};

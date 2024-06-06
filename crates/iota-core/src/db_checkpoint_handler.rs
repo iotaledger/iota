@@ -7,8 +7,6 @@ use std::{fs, num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
 use anyhow::Result;
 use bytes::Bytes;
 use futures::future::try_join_all;
-use object_store::{path::Path, DynObjectStore};
-use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
 use iota_config::{
     node::AuthorityStorePruningConfig,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
@@ -20,6 +18,8 @@ use iota_storage::{
         path_to_filesystem, put, run_manifest_update_loop, write_snapshot_manifest,
     },
 };
+use object_store::{path::Path, DynObjectStore};
+use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
 use tracing::{debug, error, info};
 use typed_store::rocks::MetricConf;
 
@@ -387,11 +387,11 @@ impl DBCheckpointHandler {
 mod tests {
     use std::fs;
 
-    use itertools::Itertools;
     use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
     use iota_storage::object_store::util::{
         find_all_dirs_with_epoch_prefix, find_missing_epochs_dirs, path_to_filesystem,
     };
+    use itertools::Itertools;
     use tempfile::TempDir;
 
     use crate::db_checkpoint_handler::{

@@ -4,7 +4,6 @@
 
 use std::{collections::BTreeSet, sync::Arc, time::Duration};
 
-use itertools::Itertools;
 use iota_config::node::AuthorityOverloadConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -19,6 +18,7 @@ use iota_types::{
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
     },
 };
+use itertools::Itertools;
 use tokio::{
     sync::mpsc::UnboundedReceiver,
     time::{sleep, timeout},

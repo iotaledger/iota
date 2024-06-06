@@ -15,17 +15,10 @@ use std::{
     },
 };
 
-use itertools::Itertools;
-use move_core_types::{
-    identifier::Identifier,
-    language_storage::{ModuleId, StructTag, TypeTag},
-};
-use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use iota_json_rpc_types::{IotaObjectDataFilter, TransactionFilter};
 use iota_types::{
     base_types::{
-        ObjectDigest, ObjectID, ObjectInfo, ObjectRef, SequenceNumber, IotaAddress,
+        IotaAddress, ObjectDigest, ObjectID, ObjectInfo, ObjectRef, SequenceNumber,
         TransactionDigest, TxSequenceNumber,
     },
     digests::TransactionEventsDigest,
@@ -37,6 +30,13 @@ use iota_types::{
     object::{Object, Owner},
     parse_iota_struct_tag,
 };
+use itertools::Itertools;
+use move_core_types::{
+    identifier::Identifier,
+    language_storage::{ModuleId, StructTag, TypeTag},
+};
+use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tokio::{sync::OwnedMutexGuard, task::spawn_blocking};
 use tracing::{debug, trace};
 use typed_store::{
@@ -1445,13 +1445,17 @@ impl IndexStore {
                 .await
                 .unwrap()
                 .map_err(|e| {
-                    IotaError::ExecutionError(format!("Failed to read all balance from DB: {:?}", e))
+                    IotaError::ExecutionError(format!(
+                        "Failed to read all balance from DB: {:?}",
+                        e
+                    ))
                 })
             })
             .await
     }
 
-    /// Read balance for a `IotaAddress` and `CoinType` from the backend database
+    /// Read balance for a `IotaAddress` and `CoinType` from the backend
+    /// database
     pub fn get_balance_from_db(
         metrics: Arc<IndexStoreMetrics>,
         coin_index: DBMap<CoinIndexKey, CoinInfo>,
@@ -1490,13 +1494,14 @@ impl IndexStore {
                 total_balance += coin_info.balance as i128;
                 coin_object_count += 1;
             }
-            let coin_type =
-                TypeTag::Struct(Box::new(parse_iota_struct_tag(&coin_type).map_err(|e| {
+            let coin_type = TypeTag::Struct(Box::new(parse_iota_struct_tag(&coin_type).map_err(
+                |e| {
                     IotaError::ExecutionError(format!(
                         "Failed to parse event sender address: {:?}",
                         e
                     ))
-                })?));
+                },
+            )?));
             balances.insert(
                 coin_type,
                 TotalBalance {
@@ -1602,16 +1607,16 @@ impl IndexStore {
 mod tests {
     use std::{collections::BTreeMap, env::temp_dir};
 
-    use move_core_types::account_address::AccountAddress;
-    use prometheus::Registry;
     use iota_types::{
-        base_types::{ObjectInfo, ObjectType, IotaAddress},
+        base_types::{IotaAddress, ObjectInfo, ObjectType},
         digests::TransactionDigest,
         effects::TransactionEvents,
         gas_coin::GAS,
         object,
         object::Owner,
     };
+    use move_core_types::account_address::AccountAddress;
+    use prometheus::Registry;
 
     use crate::{indexes::ObjectIndexChanges, IndexStore};
 

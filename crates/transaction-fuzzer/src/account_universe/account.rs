@@ -7,12 +7,12 @@
 
 use std::sync::Arc;
 
-use proptest::prelude::*;
 use iota_types::{
-    base_types::{ObjectID, IotaAddress},
+    base_types::{IotaAddress, ObjectID},
     crypto::{get_key_pair, AccountKeyPair},
     object::Object,
 };
+use proptest::prelude::*;
 
 use crate::executor::Executor;
 

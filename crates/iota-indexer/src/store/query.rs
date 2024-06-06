@@ -216,12 +216,12 @@ fn to_outer_clauses(filter: &IotaObjectDataFilter) -> Option<String> {
 mod test {
     use std::str::FromStr;
 
-    use move_core_types::ident_str;
     use iota_json_rpc_types::IotaObjectDataFilter;
     use iota_types::{
-        base_types::{ObjectID, IotaAddress},
+        base_types::{IotaAddress, ObjectID},
         parse_iota_struct_tag,
     };
+    use move_core_types::ident_str;
 
     use crate::store::query::DBFilter;
 

@@ -20,6 +20,13 @@
 //! - its only instance in existence is passed as an argument to the module
 //!   initializer
 //! - it is never instantiated anywhere in its defining module
+use iota_types::{
+    base_types::{TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME},
+    bridge::BRIDGE_SUPPORTED_ASSET,
+    error::ExecutionError,
+    move_package::{is_test_fun, FnInfoMap},
+    BRIDGE_ADDRESS, IOTA_FRAMEWORK_ADDRESS,
+};
 use move_binary_format::{
     access::ModuleAccess,
     binary_views::BinaryIndexedView,
@@ -29,13 +36,6 @@ use move_binary_format::{
     },
 };
 use move_core_types::{ident_str, language_storage::ModuleId};
-use iota_types::{
-    base_types::{TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME},
-    bridge::BRIDGE_SUPPORTED_ASSET,
-    error::ExecutionError,
-    move_package::{is_test_fun, FnInfoMap},
-    BRIDGE_ADDRESS, IOTA_FRAMEWORK_ADDRESS,
-};
 
 use crate::{verification_failure, INIT_FN_NAME};
 

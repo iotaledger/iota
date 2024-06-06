@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module contains the transactional test runner instantiation for the Iota
-//! adapter
+//! This module contains the transactional test runner instantiation for the
+//! Iota adapter
 
 pub mod args;
 pub mod programmable_transaction_test_parser;
@@ -12,10 +12,6 @@ pub mod test_adapter;
 
 use std::{path::Path, sync::Arc};
 
-pub use move_transactional_test_runner::framework::run_test_impl;
-use rand::rngs::StdRng;
-use simulacrum::{Simulacrum, SimulatorStore};
-use simulator_persisted_store::PersistedStore;
 use iota_core::authority::{
     authority_test_utils::send_and_confirm_transaction_with_execution_error, AuthorityState,
 };
@@ -23,20 +19,24 @@ use iota_json_rpc::authority_state::StateRead;
 use iota_json_rpc_types::{DevInspectResults, EventFilter};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    base_types::{ObjectID, IotaAddress, VersionNumber},
+    base_types::{IotaAddress, ObjectID, VersionNumber},
     digests::{TransactionDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
     event::Event,
     executable_transaction::{ExecutableTransaction, VerifiedExecutableTransaction},
-    messages_checkpoint::{CheckpointContentsDigest, VerifiedCheckpoint},
-    object::Object,
-    storage::{ObjectStore, ReadStore},
     iota_system_state::{
         epoch_start_iota_system_state::EpochStartSystemStateTrait, IotaSystemStateTrait,
     },
+    messages_checkpoint::{CheckpointContentsDigest, VerifiedCheckpoint},
+    object::Object,
+    storage::{ObjectStore, ReadStore},
     transaction::{InputObjects, Transaction, TransactionDataAPI, TransactionKind},
 };
+pub use move_transactional_test_runner::framework::run_test_impl;
+use rand::rngs::StdRng;
+use simulacrum::{Simulacrum, SimulatorStore};
+use simulator_persisted_store::PersistedStore;
 use test_adapter::{IotaTestAdapter, PRE_COMPILED};
 
 #[cfg_attr(not(msim), tokio::main)]
@@ -295,8 +295,9 @@ impl ReadStore for ValidatorWithFullnode {
     fn get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<Option<iota_types::messages_checkpoint::CheckpointContents>>
-    {
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::CheckpointContents>,
+    > {
         self.validator
             .get_checkpoint_store()
             .get_checkpoint_contents(digest)
@@ -306,8 +307,9 @@ impl ReadStore for ValidatorWithFullnode {
     fn get_checkpoint_contents_by_sequence_number(
         &self,
         _sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<Option<iota_types::messages_checkpoint::CheckpointContents>>
-    {
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::CheckpointContents>,
+    > {
         todo!()
     }
 

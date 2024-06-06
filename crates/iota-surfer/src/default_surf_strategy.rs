@@ -3,13 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
-use move_binary_format::normalized::Type;
-use move_core_types::language_storage::StructTag;
-use rand::{seq::SliceRandom, Rng};
 use iota_types::{
     base_types::ObjectRef,
     transaction::{CallArg, ObjectArg},
 };
+use move_binary_format::normalized::Type;
+use move_core_types::language_storage::StructTag;
+use rand::{seq::SliceRandom, Rng};
 use tokio::sync::watch;
 use tracing::debug;
 

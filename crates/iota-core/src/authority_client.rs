@@ -7,12 +7,12 @@ use std::{collections::BTreeMap, time::Duration};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use mysten_network::config::Config;
 use iota_network::{api::ValidatorClient, tonic, tonic::transport::Channel};
 use iota_types::{
     base_types::AuthorityName,
     committee::CommitteeWithNetworkMetadata,
     error::IotaError,
+    iota_system_state::IotaSystemState,
     messages_checkpoint::{
         CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
     },
@@ -21,9 +21,9 @@ use iota_types::{
         ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse,
     },
     multiaddr::Multiaddr,
-    iota_system_state::IotaSystemState,
     transaction::*,
 };
+use mysten_network::config::Config;
 
 #[async_trait]
 pub trait AuthorityAPI {

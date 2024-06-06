@@ -16,8 +16,6 @@ use std::{
 use anyhow::{anyhow, Context, Result};
 use bytes::{buf::Reader, Buf, Bytes};
 use futures::{StreamExt, TryStreamExt};
-use prometheus::{register_int_counter_vec_with_registry, IntCounterVec, Registry};
-use rand::seq::SliceRandom;
 use iota_config::node::ArchiveReaderConfig;
 use iota_storage::{
     compute_sha3_checksum_for_bytes, make_iterator,
@@ -32,6 +30,8 @@ use iota_types::{
     },
     storage::WriteStore,
 };
+use prometheus::{register_int_counter_vec_with_registry, IntCounterVec, Registry};
+use rand::seq::SliceRandom;
 use tokio::sync::{oneshot, oneshot::Sender, Mutex};
 use tracing::info;
 

@@ -86,7 +86,8 @@ async fn test_get_transaction_block() -> Result<(), anyhow::Error> {
     //     let response: IotaTransactionBlockResponse = http_client
     //         .get_transaction_block(
     //             tx_digest,
-    //             Some(IotaTransactionBlockResponseOptions::new().with_raw_input()),
+    //
+    // Some(IotaTransactionBlockResponseOptions::new().with_raw_input()),
     //         )
     //         .await?;
     //     assert!(tx_responses.iter().any(
@@ -320,7 +321,10 @@ async fn test_get_fullnode_transaction() -> Result<(), anyhow::Error> {
     for tx_resp in tx.data {
         let response: IotaTransactionBlockResponse = client
             .read_api()
-            .get_transaction_with_options(tx_resp.digest, IotaTransactionBlockResponseOptions::new())
+            .get_transaction_with_options(
+                tx_resp.digest,
+                IotaTransactionBlockResponseOptions::new(),
+            )
             .await
             .unwrap();
         assert_eq!(tx_resp.digest, response.digest);

@@ -7,8 +7,8 @@ pub use checked::*;
 
 #[iota_macros::with_checked_arithmetic]
 mod checked {
-    use move_core_types::vm_status::StatusCode;
     use iota_protocol_config::*;
+    use move_core_types::vm_status::StatusCode;
 
     use crate::{
         error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult},

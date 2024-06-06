@@ -16,6 +16,13 @@ use std::{
 use anyhow::{anyhow, bail, ensure};
 use colored::Colorize;
 use futures::future;
+use iota_move_build::CompiledPackage;
+use iota_sdk::{
+    apis::ReadApi,
+    error::Error,
+    rpc_types::{IotaObjectDataOptions, IotaRawData, IotaRawMoveObject, IotaRawMovePackage},
+};
+use iota_types::{base_types::ObjectID, error::IotaObjectResponseError};
 use move_binary_format::{access::ModuleAccess, CompiledModule};
 use move_bytecode_source_map::utils::source_map_from_file;
 use move_command_line_common::{
@@ -43,13 +50,6 @@ use move_package::{
     },
 };
 use move_symbol_pool::Symbol;
-use iota_move_build::CompiledPackage;
-use iota_sdk::{
-    apis::ReadApi,
-    error::Error,
-    rpc_types::{IotaObjectDataOptions, IotaRawData, IotaRawMoveObject, IotaRawMovePackage},
-};
-use iota_types::{base_types::ObjectID, error::IotaObjectResponseError};
 use tar::Archive;
 use tempfile::TempDir;
 use thiserror::Error;
@@ -493,7 +493,7 @@ fn current_toolchain() -> ToolchainVersion {
     ToolchainVersion {
         compiler_version: CURRENT_COMPILER_VERSION.into(),
         edition: Edition::LEGACY, // does not matter, unused for current_toolchain
-        flavor: Flavor::Iota,      // does not matter, unused for current_toolchain
+        flavor: Flavor::Iota,     // does not matter, unused for current_toolchain
     }
 }
 

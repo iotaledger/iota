@@ -4,10 +4,6 @@
 
 use std::{collections::HashSet, path::PathBuf, sync::Arc};
 
-use move_binary_format::CompiledModule;
-use move_bytecode_verifier_latest::meter::Scope;
-use move_vm_config::verifier::VerifierConfig;
-use move_vm_runtime_latest::move_vm::MoveVM;
 use iota_adapter_latest::{
     adapter::{new_move_vm, run_metered_move_bytecode_verifier},
     execution_engine::{execute_genesis_state_update, execute_transaction_to_effects},
@@ -16,7 +12,7 @@ use iota_adapter_latest::{
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    base_types::{ObjectRef, IotaAddress, TxContext},
+    base_types::{IotaAddress, ObjectRef, TxContext},
     committee::EpochId,
     digests::TransactionDigest,
     effects::TransactionEffects,
@@ -31,6 +27,10 @@ use iota_types::{
     type_resolver::LayoutResolver,
 };
 use iota_verifier_latest::{default_verifier_config, meter::IotaVerifierMeter};
+use move_binary_format::CompiledModule;
+use move_bytecode_verifier_latest::meter::Scope;
+use move_vm_config::verifier::VerifierConfig;
+use move_vm_runtime_latest::move_vm::MoveVM;
 
 use crate::{
     executor, verifier,

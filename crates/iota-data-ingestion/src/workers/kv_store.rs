@@ -20,10 +20,10 @@ use aws_sdk_dynamodb::{
 use aws_sdk_s3 as s3;
 use aws_sdk_s3::config::{Credentials, Region};
 use backoff::{backoff::Backoff, ExponentialBackoff};
-use serde::{Deserialize, Serialize};
 use iota_data_ingestion_core::Worker;
 use iota_storage::http_key_value_store::TaggedKey;
 use iota_types::{full_checkpoint_content::CheckpointData, storage::ObjectKey};
+use serde::{Deserialize, Serialize};
 
 const TIMEOUT: Duration = Duration::from_secs(60);
 
