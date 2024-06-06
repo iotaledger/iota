@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { Checkpoint, EndOfEpochData } from '@mysten/sui.js/client';
+import type { Checkpoint, EndOfEpochData } from '@iota/iota.js/client';
 
 import type { Rpc_Checkpoint_FieldsFragment } from '../generated/queries.js';
 

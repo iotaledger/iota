@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module display_test::boars {
-    use sui::object::{Self, UID};
+    use iota::object::{Self, UID};
     use std::option::{Self, Option};
-    use sui::tx_context::{TxContext, sender};
-    use sui::transfer;
-    use sui::package;
-    use sui::url::{Self, Url};
-    use sui::display;
+    use iota::tx_context::{TxContext, sender};
+    use iota::transfer;
+    use iota::package;
+    use iota::url::{Self, Url};
+    use iota::display;
     use std::string::{utf8, String};
 
     /// For when a witness type passed is not an OTW.
@@ -34,7 +35,7 @@ module display_test::boars {
     }
 
     fun init(otw: BOARS, ctx: &mut TxContext) {
-        assert!(sui::types::is_one_time_witness(&otw), ENotOneTimeWitness);
+        assert!(iota::types::is_one_time_witness(&otw), ENotOneTimeWitness);
 
         let pub = package::claim(otw, ctx);
         let display = display::new<Boar>(&pub, ctx);

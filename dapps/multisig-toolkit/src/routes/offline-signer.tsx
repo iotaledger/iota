@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import {
     useCurrentAccount,
     useSignTransactionBlock,
-    useSuiClient,
-    useSuiClientContext,
-} from '@mysten/dapp-kit';
-import { TransactionBlock } from '@mysten/sui.js/transactions';
+    useIotaClient,
+    useIotaClientContext,
+} from '@iota/dapp-kit';
+import { TransactionBlock } from '@iota/iota.js/transactions';
 import { useMutation } from '@tanstack/react-query';
 import { AlertCircle, Terminal } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -22,8 +23,8 @@ import { Textarea } from '@/components/ui/textarea';
 export default function OfflineSigner() {
     const currentAccount = useCurrentAccount();
 
-    const client = useSuiClient();
-    const { selectNetwork } = useSuiClientContext();
+    const client = useIotaClient();
+    const { selectNetwork } = useIotaClientContext();
 
     const { mutateAsync: signTransactionBlock } = useSignTransactionBlock();
     const [tab, setTab] = useState<'transaction' | 'signature'>('transaction');

@@ -4,20 +4,20 @@
 **/.idea/
 
 # OSX
-.DS_Store
+.DS_Store/
 
 # Rust build directory
-**/target
+**/target/
 .pre-commit*
 
 # Move build directory
-build
-!crates/sui-single-node-benchmark/tests/data/package_publish_from_bytecode/package_a/build
-!crates/sui-single-node-benchmark/tests/data/package_publish_from_bytecode/package_b/build
-storage
-!consensus/core/src/storage
-!crates/sui-types/src/storage
-!narwhal/storage
+build/
+!crates/sui-single-node-benchmark/tests/data/package_publish_from_bytecode/package_a/build/
+!crates/sui-single-node-benchmark/tests/data/package_publish_from_bytecode/package_b/build/
+storage/
+!consensus/core/src/storage/
+!crates/sui-types/src/storage/
+!narwhal/storage/
 
 # Move-related files
 Move.lock
@@ -41,7 +41,7 @@ Move.lock
 .pyc
 
 # Node.js
-node_modules
+node_modules/
 .tsbuildinfo
 *.tsbuildinfo
 .turbo
@@ -76,3 +76,4 @@ docs/content/references/sui-api/sui-graphql/*
 docs/content/references/framework/**
 
 lcov.info
+**/venv/

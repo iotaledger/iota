@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useElementDimensions, useGetCoins, useOnScreen } from '@mysten/core';
-import { LoadingIndicator } from '@mysten/ui';
+import { useElementDimensions, useGetCoins, useOnScreen } from '@iota/core';
+import { LoadingIndicator } from '@iota/ui';
 import clsx from 'clsx';
 import { useEffect, useRef } from 'react';
 

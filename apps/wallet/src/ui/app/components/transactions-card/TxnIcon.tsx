@@ -1,7 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Account24, ArrowRight16, Info16, Sui, Unstaked, WalletActionStake24 } from '@mysten/icons';
+import {
+    Account24,
+    ArrowRight16,
+    Info16,
+    Iota,
+    Unstaked,
+    WalletActionStake24,
+} from '@iota/icons';
 import cl from 'clsx';
 
 import LoadingIndicator from '../loading/LoadingIndicator';
@@ -29,7 +37,7 @@ const icons = {
         <WalletActionStake24 className="bg-transparent text-heading2 text-gradient-blue-start" />
     ),
     Unstaked: <Unstaked className="text-heading3 text-gradient-blue-start" />,
-    Rewards: <Sui className="text-body text-gradient-blue-start" />,
+    Rewards: <Iota className="text-body text-gradient-blue-start" />,
     Failed: <Info16 className="text-heading6 text-issue-dark" />,
     Loading: <LoadingIndicator />,
     PersonalMessage: (

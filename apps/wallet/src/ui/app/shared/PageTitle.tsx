@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ArrowLeft16 } from '@mysten/icons';
+import { ArrowLeft16 } from '@iota/icons';
 import { type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 

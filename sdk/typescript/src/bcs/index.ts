@@ -1,21 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { BcsType, BcsTypeOptions } from '@mysten/bcs';
+import type { BcsType, BcsTypeOptions } from '@iota/bcs';
 import {
     bcs,
     BCS as BcsRegistry,
     fromB58,
     fromB64,
     fromHEX,
-    getSuiMoveConfig,
+    getIotaMoveConfig,
     toB58,
     toB64,
     toHEX,
-} from '@mysten/bcs';
+} from '@iota/bcs';
 
 import type { MoveCallTransaction } from '../transactions/Transactions.js';
-import { normalizeSuiAddress, SUI_ADDRESS_LENGTH } from '../utils/sui-types.js';
+import { normalizeIotaAddress, IOTA_ADDRESS_LENGTH } from '../utils/iota-types.js';
 import { TypeTagSerializer } from './type-tag-serializer.js';
 
 export { TypeTagSerializer } from './type-tag-serializer.js';
@@ -34,7 +35,7 @@ export type SharedObjectRef = {
     mutable: boolean;
 };
 
-export type SuiObjectRef = {
+export type IotaObjectRef = {
     /** Base64 string representing the object digest */
     objectId: string;
     /** Object version */
@@ -47,9 +48,9 @@ export type SuiObjectRef = {
  * An object argument.
  */
 export type ObjectArg =
-    | { ImmOrOwned: SuiObjectRef }
+    | { ImmOrOwned: IotaObjectRef }
     | { Shared: SharedObjectRef }
-    | { Receiving: SuiObjectRef };
+    | { Receiving: IotaObjectRef };
 
 /**
  * A pure argument.
@@ -97,7 +98,7 @@ export type StructTag = {
 };
 
 /**
- * Sui TypeTag object. A decoupled `0x...::module::Type<???>` parameter.
+ * Iota TypeTag object. A decoupled `0x...::module::Type<???>` parameter.
  */
 export type TypeTag =
     | { bool: null | true }
@@ -118,7 +119,7 @@ export type TypeTag =
  * The GasData to be used in the transaction.
  */
 export type GasData = {
-    payment: SuiObjectRef[];
+    payment: IotaObjectRef[];
     owner: string; // Gas Object's owner
     price: number;
     budget: number;
@@ -132,7 +133,7 @@ export type GasData = {
 export type TransactionExpiration = { None: null } | { Epoch: number };
 
 const bcsRegistry = new BcsRegistry({
-    ...getSuiMoveConfig(),
+    ...getIotaMoveConfig(),
     types: {
         enums: {
             'Option<T>': {
@@ -191,10 +192,10 @@ function enumKind<T extends object, Input extends object>(type: BcsType<T, Input
     });
 }
 
-const Address = bcs.bytes(SUI_ADDRESS_LENGTH).transform({
+const Address = bcs.bytes(IOTA_ADDRESS_LENGTH).transform({
     input: (val: string | Uint8Array) =>
-        typeof val === 'string' ? fromHEX(normalizeSuiAddress(val)) : val,
-    output: (val) => normalizeSuiAddress(toHEX(val)),
+        typeof val === 'string' ? fromHEX(normalizeIotaAddress(val)) : val,
+    output: (val) => normalizeIotaAddress(toHEX(val)),
 });
 
 const ObjectDigest = bcs.vector(bcs.u8()).transform({
@@ -203,7 +204,7 @@ const ObjectDigest = bcs.vector(bcs.u8()).transform({
     output: (value) => toB58(new Uint8Array(value)),
 });
 
-const SuiObjectRef = bcs.struct('SuiObjectRef', {
+const IotaObjectRef = bcs.struct('IotaObjectRef', {
     objectId: Address,
     version: bcs.u64(),
     digest: ObjectDigest,
@@ -216,9 +217,9 @@ const SharedObjectRef = bcs.struct('SharedObjectRef', {
 });
 
 const ObjectArg = bcs.enum('ObjectArg', {
-    ImmOrOwned: SuiObjectRef,
+    ImmOrOwned: IotaObjectRef,
     Shared: SharedObjectRef,
-    Receiving: SuiObjectRef,
+    Receiving: IotaObjectRef,
 });
 
 const CallArg = bcs.enum('CallArg', {
@@ -267,7 +268,7 @@ const ProgrammableMoveCall = bcs
             );
 
             return {
-                package: normalizeSuiAddress(pkg),
+                package: normalizeIotaAddress(pkg),
                 module,
                 function: fun,
                 type_arguments,
@@ -362,7 +363,7 @@ const StructTag = bcs.struct('StructTag', {
 });
 
 const GasData = bcs.struct('GasData', {
-    payment: bcs.vector(SuiObjectRef),
+    payment: bcs.vector(IotaObjectRef),
     owner: Address,
     price: bcs.u64(),
     budget: bcs.u64(),
@@ -391,7 +392,7 @@ const IntentVersion = bcs.enum('IntentVersion', {
 });
 
 const AppId = bcs.enum('AppId', {
-    Sui: null,
+    Iota: null,
 });
 
 const Intent = bcs.struct('Intent', {
@@ -451,7 +452,7 @@ const SenderSignedData = bcs.vector(SenderSignedTransaction, {
     name: 'SenderSignedData',
 });
 
-const suiBcs = {
+const iotaBcs = {
     ...bcs,
     U8: bcs.u8(),
     U16: bcs.u16(),
@@ -479,7 +480,7 @@ const suiBcs = {
     SenderSignedTransaction,
     SharedObjectRef,
     StructTag,
-    SuiObjectRef,
+    IotaObjectRef,
     Transaction,
     TransactionData,
     TransactionDataV1,
@@ -523,7 +524,7 @@ bcsRegistry.registerBcsType('enumKind', (T) => enumKind(T));
     SenderSignedData,
     SharedObjectRef,
     StructTag,
-    SuiObjectRef,
+    IotaObjectRef,
     Transaction,
     TransactionData,
     TransactionDataV1,
@@ -534,4 +535,4 @@ bcsRegistry.registerBcsType('enumKind', (T) => enumKind(T));
     bcsRegistry.registerBcsType(type.name, () => type);
 });
 
-export { suiBcs as bcs, bcsRegistry };
+export { iotaBcs as bcs, bcsRegistry };

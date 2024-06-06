@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIsWalletDefiEnabled } from '_app/hooks/useIsWalletDefiEnabled';
@@ -30,12 +31,12 @@ import {
     useCoinMetadata,
     useFormatCoin,
     useGetDelegatedStake,
-    useResolveSuiNSName,
-} from '@mysten/core';
-import { useSuiClientQuery } from '@mysten/dapp-kit';
-import { Info12, Pin16, Unpin16 } from '@mysten/icons';
-import { Network, type CoinBalance as CoinBalanceType } from '@mysten/sui.js/client';
-import { formatAddress, parseStructTag, SUI_TYPE_ARG } from '@mysten/sui.js/utils';
+    useResolveIotaNSName,
+} from '@iota/core';
+import { useIotaClientQuery } from '@iota/dapp-kit';
+import { Info12, Pin16, Unpin16 } from '@iota/icons';
+import { Network, type CoinBalance as CoinBalanceType } from '@iota/iota.js/client';
+import { formatAddress, parseStructTag, IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useEffect, useState, type ReactNode } from 'react';
@@ -112,7 +113,7 @@ export function TokenRow({
     return (
         <Tag
             className={clsx(
-                'group flex items-center rounded border-transparent bg-transparent py-3 pl-1.5 pr-2 hover:bg-sui/10',
+                'group flex items-center rounded border-transparent bg-transparent py-3 pl-1.5 pr-2 hover:bg-iota/10',
                 onClick && 'hover:cursor-pointer',
             )}
             onClick={onClick}
@@ -287,17 +288,17 @@ function getFallbackSymbol(coinType: string) {
 function TokenDetails({ coinType }: TokenDetailsProps) {
     const isDefiWalletEnabled = useIsWalletDefiEnabled();
     const [interstitialDismissed, setInterstitialDismissed] = useState<boolean>(false);
-    const activeCoinType = coinType || SUI_TYPE_ARG;
+    const activeCoinType = coinType || IOTA_TYPE_ARG;
     const activeAccount = useActiveAccount();
     const activeAccountAddress = activeAccount?.address;
-    const { data: domainName } = useResolveSuiNSName(activeAccountAddress);
+    const { data: domainName } = useResolveIotaNSName(activeAccountAddress);
     const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
     const {
         data: coinBalance,
         isError,
         isPending,
         isFetched,
-    } = useSuiClientQuery(
+    } = useIotaClientQuery(
         'getBalance',
         { coinType: activeCoinType, owner: activeAccountAddress! },
         { enabled: !!activeAccountAddress, refetchInterval, staleTime },
@@ -322,7 +323,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
         data: coinBalances,
         isPending: coinBalancesLoading,
         isFetched: coinBalancesFetched,
-    } = useSuiClientQuery(
+    } = useIotaClientQuery(
         'getAllBalances',
         { owner: activeAccountAddress! },
         {
@@ -372,7 +373,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
             />
         );
     }
-    const accountHasSui = coinBalances?.some(({ coinType }) => coinType === SUI_TYPE_ARG);
+    const accountHasIota = coinBalances?.some(({ coinType }) => coinType === IOTA_TYPE_ARG);
 
     if (!activeAccountAddress) {
         return null;
@@ -423,7 +424,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                                         <CoinBalance amount={tokenBalance} type={activeCoinType} />
                                     </div>
 
-                                    {!accountHasSui ? (
+                                    {!accountHasIota ? (
                                         <div className="flex flex-col gap-5">
                                             <div className="flex flex-col flex-nowrap items-center justify-center px-2.5 text-center">
                                                 <Text
@@ -432,8 +433,8 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                                                     weight="normal"
                                                 >
                                                     {isMainnet
-                                                        ? 'Buy SUI to get started'
-                                                        : 'To send transactions on the Sui network, you need SUI in your wallet.'}
+                                                        ? 'Buy IOTA to get started'
+                                                        : 'To send transactions on the Iota network, you need IOTA in your wallet.'}
                                                 </Text>
                                             </div>
                                             <FaucetRequestButton />
@@ -462,7 +463,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                                             Send
                                         </LargeButton>
 
-                                        {!accountHasSui && (
+                                        {!accountHasIota && (
                                             <LargeButton disabled to="/stake" center>
                                                 Stake
                                             </LargeButton>
@@ -470,7 +471,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                                     </div>
 
                                     <div className="w-full">
-                                        {accountHasSui || delegatedStake?.length ? (
+                                        {accountHasIota || delegatedStake?.length ? (
                                             <TokenIconLink
                                                 disabled={!tokenBalance}
                                                 accountAddress={activeAccountAddress}

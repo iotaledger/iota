@@ -2,18 +2,18 @@
 title: Coin Flip
 ---
 
-import InitializeSuiClientCli from "../../../_snippets/initialize-sui-client-cli.mdx";
+import InitializeIotaClientCli from "../../../_snippets/initialize-iota-client-cli.mdx";
 import PublishToDevnetWithCoins from "../../../_snippets/publish-to-devnet-with-coins.mdx";
 
 This guide demonstrates writing a module (smart contract) in Move, deploying it on Devnet, and adding a TypeScript frontend to communicate with the module.
 
-Satoshi Coin Flip is a dApp that utilizes verifiable random functions (VRFs) to create a fair coin game on the Sui blockchain. The user (human) plays against the house (module) and places a bet on either heads or tails. The user then either receives double their bet, or gets nothing, depending on the outcome of the game.
+Satoshi Coin Flip is a dApp that utilizes verifiable random functions (VRFs) to create a fair coin game on the Iota blockchain. The user (human) plays against the house (module) and places a bet on either heads or tails. The user then either receives double their bet, or gets nothing, depending on the outcome of the game.
 
-This guide assumes you have [installed Sui](../getting-started/sui-install.mdx) and understand Sui fundamentals.
+This guide assumes you have [installed Iota](../getting-started/iota-install.mdx) and understand Iota fundamentals.
 
 ## Backend
 
-As with all Sui dApps, a Move package on chain powers the logic of Satoshi Coin Flip. The following instruction walks you through creating and publishing the module.
+As with all Iota dApps, a Move package on chain powers the logic of Satoshi Coin Flip. The following instruction walks you through creating and publishing the module.
 
 ### House module
 
@@ -28,7 +28,7 @@ The full source code for the Move modules, including comments and on overview of
 Before you get started, you must initialize a Move package. Open a terminal or console in the directory you want to store the example and run the following command to create an empty package with the name `satoshi_flip`:
 
 ```shell
-sui move new satoshi_flip
+iota move new satoshi_flip
 ```
 
 With that done, it's time to jump into some code. Create a new file in the `sources` directory with the name `house_data.move` and populate the file with the following code:
@@ -36,13 +36,13 @@ With that done, it's time to jump into some code. Create a new file in the `sour
 ```move title='house_data.move'
 module satoshi_flip::house_data {
 
-    use sui::object::{Self, UID};
-    use sui::balance::{Self, Balance};
-    use sui::sui::SUI;
-    use sui::coin::{Self, Coin};
-    use sui::package::{Self};
-    use sui::tx_context::{Self, TxContext};
-    use sui::transfer::{Self};
+    use iota::object::{Self, UID};
+    use iota::balance::{Self, Balance};
+    use iota::iota::IOTA;
+    use iota::coin::{Self, Coin};
+    use iota::package::{Self};
+    use iota::tx_context::{Self, TxContext};
+    use iota::transfer::{Self};
 
     const ECallerNotHouse: u64 = 0;
     const EInsufficientBalance: u64 = 1;
@@ -54,7 +54,7 @@ module satoshi_flip::house_data {
 There are few details to take note of in this code:
 
 1. The first line declares the module name as `house_data` within the package `satoshi_flip`.
-1. Seven lines begin with the `use` keyword, which enables this module to use types and functions declared in other modules (in this case, they are all coming from the Sui standard library).
+1. Seven lines begin with the `use` keyword, which enables this module to use types and functions declared in other modules (in this case, they are all coming from the Iota standard library).
 1. Two error codes. These codes are used in assertions and unit tests to ensure that the program is running as intended.
 1. Two [`friend`, or trusted, modules](guides/developer/dev-cheat-sheet.mdx#general).
 
@@ -63,12 +63,12 @@ Next, add some more code to this module:
 ```move title='house_data.move'
     struct HouseData has key {
         id: UID,
-        balance: Balance<SUI>,
+        balance: Balance<IOTA>,
         house: address,
         public_key: vector<u8>,
         max_stake: u64,
         min_stake: u64,
-        fees: Balance<SUI>,
+        fees: Balance<IOTA>,
         base_fee_in_bp: u16
     }
 
@@ -90,14 +90,14 @@ Next, add some more code to this module:
 ```
 
 - The first struct, `HouseData`, stores the most essential information pertaining to the game.
-- The second struct, `HouseCap`, is a [capability](concepts/sui-move-concepts/patterns/capabilities.mdx) that initializes the house data.
-- The third struct, `HOUSE_DATA`, is a [one-time witness](concepts/sui-move-concepts/one-time-witness.mdx) that ensures only a single instance of this `HouseData` ever exists.
-- The [`init` function](concepts/sui-move-concepts/init.mdx) creates and sends the `Publisher` and `HouseCap` objects to the sender.
+- The second struct, `HouseCap`, is a [capability](concepts/iota-move-concepts/patterns/capabilities.mdx) that initializes the house data.
+- The third struct, `HOUSE_DATA`, is a [one-time witness](concepts/iota-move-concepts/one-time-witness.mdx) that ensures only a single instance of this `HouseData` ever exists.
+- The [`init` function](concepts/iota-move-concepts/init.mdx) creates and sends the `Publisher` and `HouseCap` objects to the sender.
 
 So far, you've set up the data structures within the module. Now, create a function that initializes the house data and shares the `HouseData` object:
 
 ```move title='house_data.move'
-    public fun initialize_house_data(house_cap: HouseCap, coin: Coin<SUI>, public_key: vector<u8>, ctx: &mut TxContext) {
+    public fun initialize_house_data(house_cap: HouseCap, coin: Coin<IOTA>, public_key: vector<u8>, ctx: &mut TxContext) {
         assert!(coin::value(&coin) > 0, EInsufficientBalance);
 
         let house_data = HouseData {
@@ -105,8 +105,8 @@ So far, you've set up the data structures within the module. Now, create a funct
             balance: coin::into_balance(coin),
             house: tx_context::sender(ctx),
             public_key,
-            max_stake: 50_000_000_000, // 50 SUI.
-            min_stake: 1_000_000_000, // 1 SUI.
+            max_stake: 50_000_000_000, // 50 IOTA.
+            min_stake: 1_000_000_000, // 1 IOTA.
             fees: balance::zero(),
             base_fee_in_bp: 100 // 1% in basis points.
         };
@@ -121,7 +121,7 @@ So far, you've set up the data structures within the module. Now, create a funct
 With the house data initialized, you also need to add some functions that enable some important administrative tasks for the house to perform:
 
 ```move title='house_data.move'
-    public fun top_up(house_data: &mut HouseData, coin: Coin<SUI>, _: &mut TxContext) {
+    public fun top_up(house_data: &mut HouseData, coin: Coin<IOTA>, _: &mut TxContext) {
         coin::put(&mut house_data.balance, coin)
     }
 
@@ -152,7 +152,7 @@ With the house data initialized, you also need to add some functions that enable
 
 All of these functions contain an `assert!` call that ensures only the house can call them:
 
-- `top_up`: Add to the balance of the house to ensure that there is enough SUI for future games.
+- `top_up`: Add to the balance of the house to ensure that there is enough IOTA for future games.
 - `withdraw`: Withdraw the entire balance of the house object.
 - `claim_fees`: Withdraw the accumulated fees of the house object.
 - `update_max_stake`, `update_min_stake`: Update the maximum and minimum stake allowed in the game, respectively.
@@ -162,11 +162,11 @@ You have established the data structure of this module, but without the appropri
 ```move title='house_data.move'
 	// --------------- Mutable References ---------------
 
-    public(friend) fun borrow_balance_mut(house_data: &mut HouseData): &mut Balance<SUI> {
+    public(friend) fun borrow_balance_mut(house_data: &mut HouseData): &mut Balance<IOTA> {
         &mut house_data.balance
     }
 
-    public(friend) fun borrow_fees_mut(house_data: &mut HouseData): &mut Balance<SUI> {
+    public(friend) fun borrow_fees_mut(house_data: &mut HouseData): &mut Balance<IOTA> {
         &mut house_data.fees
     }
 
@@ -225,10 +225,10 @@ In the same `sources` directory, now create a file named `counter_nft.move`. A `
 ```move title='counter_nft.move'
 module satoshi_flip::counter_nft {
     use std::vector;
-    use sui::object::{Self, UID};
-    use sui::tx_context::{Self, TxContext};
-    use sui::transfer::{Self};
-    use sui::bcs::{Self};
+    use iota::object::{Self, UID};
+    use iota::tx_context::{Self, TxContext};
+    use iota::transfer::{Self};
+    use iota::bcs::{Self};
 
     struct Counter has key {
         id: UID,
@@ -297,16 +297,16 @@ module satoshi_flip::single_player_satoshi {
     use std::string::{Self, String};
     use std::vector;
 
-    use sui::coin::{Self, Coin};
-    use sui::balance::{Self, Balance};
-    use sui::sui::SUI;
-    use sui::bls12381::bls12381_min_pk_verify;
-    use sui::object::{Self, UID, ID};
-    use sui::tx_context::{Self, TxContext};
-    use sui::transfer;
-    use sui::event::emit;
-    use sui::hash::{blake2b256};
-    use sui::dynamic_object_field::{Self as dof};
+    use iota::coin::{Self, Coin};
+    use iota::balance::{Self, Balance};
+    use iota::iota::IOTA;
+    use iota::bls12381::bls12381_min_pk_verify;
+    use iota::object::{Self, UID, ID};
+    use iota::tx_context::{Self, TxContext};
+    use iota::transfer;
+    use iota::event::emit;
+    use iota::hash::{blake2b256};
+    use iota::dynamic_object_field::{Self as dof};
 
     use satoshi_flip::counter_nft::{Self, Counter};
     use satoshi_flip::house_data::{Self as hd, HouseData};
@@ -352,7 +352,7 @@ Add a struct to the module:
     struct Game has key, store {
         id: UID,
         guess_placed_epoch: u64,
-        total_stake: Balance<SUI>,
+        total_stake: Balance<IOTA>,
         guess: String,
         player: address,
         vrf_input: vector<u8>,
@@ -502,7 +502,7 @@ The rest of the functions are accessors and helper functions used to retrieve va
     }
 
     /// Internal helper function used to create a new game
-    fun internal_start_game(guess: String, counter: &mut Counter, coin: Coin<SUI>, house_data: &mut HouseData, fee_bp: u16, ctx: &mut TxContext): (ID, Game) {
+    fun internal_start_game(guess: String, counter: &mut Counter, coin: Coin<IOTA>, house_data: &mut HouseData, fee_bp: u16, ctx: &mut TxContext): (ID, Game) {
         map_guess(guess);
         let user_stake = coin::value(&coin);
         assert!(user_stake <= hd::max_stake(house_data), EStakeTooHigh);
@@ -560,7 +560,7 @@ Now that you have written our contracts, it's time to deploy them.
 
 ## Deployment
 
-<InitializeSuiClientCli />
+<InitializeIotaClientCli />
 
 <PublishToDevnetWithCoins />
 
@@ -570,11 +570,11 @@ The package should successfully deploy. Now, it's time to create a frontend that
 
 :::info
 
-The full source code for the frontend is available at the [Satoshi Coin Flip Frontend Example repository](https://github.com/sui-foundation/satoshi-coin-flip-frontend-example).
+The full source code for the frontend is available at the [Satoshi Coin Flip Frontend Example repository](https://github.com/iota-foundation/satoshi-coin-flip-frontend-example).
 
 :::
 
-To expose the backend you have created to your users, you need a frontend (UI). In this section, you create a React frontend project using the [Sui Typescript SDK](https://sdk.mystenlabs.com/typescript) and the [Sui dApp Kit](https://sdk.mystenlabs.com/dapp-kit) that interacts with the deployed smart contracts.
+To expose the backend you have created to your users, you need a frontend (UI). In this section, you create a React frontend project using the [Iota Typescript SDK](https://sdk.mystenlabs.com/typescript) and the [Iota dApp Kit](https://sdk.mystenlabs.com/dapp-kit) that interacts with the deployed smart contracts.
 
 ### Initialize the project
 
@@ -587,7 +587,7 @@ The following instructions are using `pnpm` as the package manager. Follow the [
 First, initialize your frontend project. To do this rapidly, use the [`create-dapp` tool](https://sdk.mystenlabs.com/dapp-kit/create-dapp) to bootstrap the project using [dApp Kit](https://sdk.mystenlabs.com/dapp-kit). Run the following command in your terminal or console:
 
 ```
-pnpm create @mysten/dapp
+pnpm create @iota/dapp
 ```
 
 This CLI command prompts you through a couple of steps:
@@ -595,7 +595,7 @@ This CLI command prompts you through a couple of steps:
 1. It asks you the starter template that you want to use. Currently, there are two variants:
 
    1. `react-client-dapp`: This starter template contains the minimum dApp Kit template code that you can start with. This variant is meant for developers already familiar with the dApp Kit and who don't want unnecessary template code.
-   1. `react-e2e-counter`: This starter template contains a simple counter Sui Move smart contract with the frontend template code interacting with it. This variant is meant for developers trying to learn how to use dApp Kit.
+   1. `react-e2e-counter`: This starter template contains a simple counter Iota Move smart contract with the frontend template code interacting with it. This variant is meant for developers trying to learn how to use dApp Kit.
 
 1. It prompts you to name your project folder.
 
@@ -620,14 +620,14 @@ The UI interacts with the [Single Player smart contract](guides/developer/app-ex
 
 :::info
 
-The following frontend code snippets include only the most relevant sections. Refer to the [Satoshi Coin Flip Frontend Example repository](https://github.com/sui-foundation/satoshi-coin-flip-frontend-example) for complete source code.
+The following frontend code snippets include only the most relevant sections. Refer to the [Satoshi Coin Flip Frontend Example repository](https://github.com/iota-foundation/satoshi-coin-flip-frontend-example) for complete source code.
 
 :::
 
 As is common in other React projects, `App.tsx` is where you implement the outer layout:
 
 ```typescript title='App.tsx'
-import { ConnectButton, useCurrentAccount } from '@mysten/dapp-kit';
+import { ConnectButton, useCurrentAccount } from '@iota/dapp-kit';
 import { InfoCircledIcon } from '@radix-ui/react-icons';
 import { Box, Callout, Container, Flex, Grid, Heading } from '@radix-ui/themes';
 
@@ -695,7 +695,7 @@ Like other dApps, you need a "connect wallet" button to enable connecting users'
 
 `useCurrentAccount()` is a React hook the dApp Kit also provides to query the current connected wallet; returning `null` if there isn't a wallet connection. Leverage this behavior to prevent a user from proceeding further if they haven’t connected their wallet yet.
 
-There are two constants that you need to put into `constants.ts` to make the app work – `PACKAGE_ID` and `HOUSECAP_ID`. You can get these from the terminal or console after running the Sui CLI command to publish the package.
+There are two constants that you need to put into `constants.ts` to make the app work – `PACKAGE_ID` and `HOUSECAP_ID`. You can get these from the terminal or console after running the Iota CLI command to publish the package.
 
 After ensuring that the user has connected their wallet, you can display the two columns described in the previous section: `PlayerSesh` and `HouseSesh` components.
 
@@ -711,7 +711,7 @@ Okay, that’s a good start to have an overview of the project. Time to move to 
     // Split gas coin into house stake coin
     // SDK will take care for us abstracting away of up-front coin selections
     const [houseStakeCoin] = txb.splitCoins(txb.gas, [
-      MIST_PER_SUI * BigInt(houseStake),
+      MICROS_PER_IOTA * BigInt(houseStake),
     ]);
     // Calling smart contract function
     txb.moveCall({
@@ -740,7 +740,7 @@ Okay, that’s a good start to have an overview of the project. Time to move to 
         onError: (err) => {
           toast.error(err.message);
         },
-        onSuccess: (result: SuiTransactionBlockResponse) => {
+        onSuccess: (result: IotaTransactionBlockResponse) => {
           let houseDataObjId;
 
 
@@ -763,7 +763,7 @@ Okay, that’s a good start to have an overview of the project. Time to move to 
   }}
 ```
 
-To use a [programmable transaction block](/concepts/transactions/prog-txn-blocks.mdx) (PTB) in Sui, create a `TransactionBlock`. To initiate a Move call, you must know the global identifier of a public function in your smart contract. The global identifier usually takes the following form:
+To use a [programmable transaction block](/concepts/transactions/prog-txn-blocks.mdx) (PTB) in Iota, create a `TransactionBlock`. To initiate a Move call, you must know the global identifier of a public function in your smart contract. The global identifier usually takes the following form:
 
 ```
 ${PACKAGE_ID}::${MODULE_NAME}::${FUNCTION_NAME}
@@ -778,8 +778,8 @@ ${PACKAGE_ID}::house_data::initialize_house_data
 There are a few parameters that you need to pass into `initialize_house_data()` Move function: the `HouseCap` ID, the House stake, and the House BLS public key:
 
 - Import the `HouseCap` ID from `constants.ts`, which you set up in the previous section.
-- Use `TransactionBlock::splitCoin` for the House stake to create a new coin with a defined amount split from the Gas Coin `txb.gas`. Think of the gas coin as one singular coin available for gas payment from your account (which might cover the entire remaining balance of your account). This is useful for Sui payments - instead of manually selecting the coins for gas payment or manually splitting/merging to have the coin with correct amount for your Move call, the gas coin is the single entry point for this, with all the heavy lifting delegated to the SDK behind the scenes.
-- Pass the BLS public key as bytes `vector<u8>`. When providing inputs that are not on-chain objects, serialize them as BCS using a combination of `txb.pure` and `bcs` imported from `@mysten/sui.js/bcs`.
+- Use `TransactionBlock::splitCoin` for the House stake to create a new coin with a defined amount split from the Gas Coin `txb.gas`. Think of the gas coin as one singular coin available for gas payment from your account (which might cover the entire remaining balance of your account). This is useful for Iota payments - instead of manually selecting the coins for gas payment or manually splitting/merging to have the coin with correct amount for your Move call, the gas coin is the single entry point for this, with all the heavy lifting delegated to the SDK behind the scenes.
+- Pass the BLS public key as bytes `vector<u8>`. When providing inputs that are not on-chain objects, serialize them as BCS using a combination of `txb.pure` and `bcs` imported from `@iota/iota.js/bcs`.
 
 Now sign and execute the transaction block. dApp Kit provides a React hook `useSignAndExecuteTransactionBlock()` to streamline this process. This hook, when executed, prompts the UI for you to approve, sign, and execute the transaction block. You can configure the hook with the `showObjectChanges` option to return the newly-created `HouseData` shared object as the result of the transaction block. This `HouseData` object is important as you use it as input for later Move calls, so save its ID somewhere.
 
@@ -788,15 +788,15 @@ Great, now you know how to initialize the `HouseData` shared object. Move to the
 In this game, the users must create a `Counter` object to start the game. So there should be a place in the Player column UI to list the existing `Counter` object information for the player to choose. It seems likely that you will reuse the fetching logic for the `Counter` object in several places in your UI, so it’s good practice to isolate this logic into a React hook, which you call `useFetchCounterNft()` in `useFetchCounterNft.ts`:
 
 ```typescript title='containers/Player/useFetchCounterNft.ts'
-import { useCurrentAccount, useSuiClientQuery } from '@mysten/dapp-kit';
+import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
 
 import 'react';
 
 import { PACKAGE_ID } from '../../constants';
 
 // React hook to fetch CounterNFT owned by connected wallet
-// This hook is to demonstrate how to use `@mysten/dapp-kit` React hook to query data
-// besides using SuiClient directly
+// This hook is to demonstrate how to use `@iota/dapp-kit` React hook to query data
+// besides using IotaClient directly
 export function useFetchCounterNft() {
 	const account = useCurrentAccount();
 
@@ -806,7 +806,7 @@ export function useFetchCounterNft() {
 
 	// Fetch CounterNFT owned by current connected wallet
 	// Only fetch the 1st one
-	const { data, isLoading, isError, error, refetch } = useSuiClientQuery(
+	const { data, isLoading, isError, error, refetch } = useIotaClientQuery(
 		'getOwnedObjects',
 		{
 			owner: account.address,
@@ -839,7 +839,7 @@ export function useFetchCounterNft() {
 }
 ```
 
-This hook logic is very basic: if there is no current connected wallet, return empty data; otherwise, fetch the `Counter` object and return it. dApp Kit provides a React hook, `useSuiClientQuery()`, that enables interaction with [Sui RPC](references/sui-api.mdx) methods. Different RPC methods require different parameters. To fetch the object owned by a known address, use the [`getOwnedObjects` query](/sui-api-ref#suix_getownedobjects).
+This hook logic is very basic: if there is no current connected wallet, return empty data; otherwise, fetch the `Counter` object and return it. dApp Kit provides a React hook, `useIotaClientQuery()`, that enables interaction with [Iota RPC](references/iota-api.mdx) methods. Different RPC methods require different parameters. To fetch the object owned by a known address, use the [`getOwnedObjects` query](/iota-api-ref#iotax_getownedobjects).
 
 Now, pass the address of the connected wallet, as well as the global identifier for the `Counter`. This is in similar format to the global identifier type for function calls:
 
@@ -922,7 +922,7 @@ Great, now you can create the game with the created `Counter` object. Isolate th
 const txb = new TransactionBlock();
 
 // Player stake
-const [stakeCoin] = txb.splitCoins(txb.gas, [MIST_PER_SUI * BigInt(stake)]);
+const [stakeCoin] = txb.splitCoins(txb.gas, [MICROS_PER_IOTA * BigInt(stake)]);
 
 // Create the game with CounterNFT
 txb.moveCall({
@@ -943,7 +943,7 @@ execCreateGame(
 		onError: (err) => {
 			toast.error(err.message);
 		},
-		onSuccess: (result: SuiTransactionBlockResponse) => {
+		onSuccess: (result: IotaTransactionBlockResponse) => {
 			toast.success(`Digest: ${result.digest}`);
 		},
 	},
@@ -960,7 +960,7 @@ All of this logic is in `HouseFinishGame.tsx`:
 ```typescript title='containers/House/HouseFinishGame.tsx'
 // This component will help the House to automatically finish the game whenever new game is started
 export function HouseFinishGame() {
-	const suiClient = useSuiClient();
+	const iotaClient = useIotaClient();
 	const { mutate: execFinishGame } = useSignAndExecuteTransactionBlock();
 
 	const [housePrivHex] = useContext(HouseKeypairContext);
@@ -968,7 +968,7 @@ export function HouseFinishGame() {
 
 	useEffect(() => {
 		// Subscribe to NewGame event
-		const unsub = suiClient.subscribeEvent({
+		const unsub = iotaClient.subscribeEvent({
 			filter: {
 				MoveEventType: `${PACKAGE_ID}::single_player_satoshi::NewGame`,
 			},
@@ -1007,7 +1007,7 @@ export function HouseFinishGame() {
 							onError: (err) => {
 								toast.error(err.message);
 							},
-							onSuccess: (result: SuiTransactionBlockResponse) => {
+							onSuccess: (result: IotaTransactionBlockResponse) => {
 								toast.success(`Digest: ${result.digest}`);
 							},
 						},
@@ -1021,15 +1021,15 @@ export function HouseFinishGame() {
 		return () => {
 			(async () => (await unsub)())();
 		};
-	}, [housePrivHex, houseDataId, suiClient]);
+	}, [housePrivHex, houseDataId, iotaClient]);
 
 	return null;
 }
 ```
 
-To get the underlying `SuiClient` instance from the SDK, use `useSuiClient()`. You want to subscribe to events whenever the `HouseFinishGame` component loads. To do this, use the React hook `useEffect()` from the core React library.
+To get the underlying `IotaClient` instance from the SDK, use `useIotaClient()`. You want to subscribe to events whenever the `HouseFinishGame` component loads. To do this, use the React hook `useEffect()` from the core React library.
 
-`SuiClient` exposes a method called `subscribeEvent()` that enables you to subscribe to a variety of event types. `SuiClient::subscribeEvent()` is actually a thin wrapper around the RPC method [`suix_subscribeEvent`](/sui-api-ref#suix_subscribeevent).
+`IotaClient` exposes a method called `subscribeEvent()` that enables you to subscribe to a variety of event types. `IotaClient::subscribeEvent()` is actually a thin wrapper around the RPC method [`iotax_subscribeEvent`](/iota-api-ref#iotax_subscribeevent).
 
 The logic is that whenever a new game starts, you want to settle the game immediately. The necessary event to achieve this is the Move event type called `single_player_satoshi::NewGame`. If you inspect the parsed payload of the event through `event.parsedJson`, you can see the corresponding event fields declared in the smart contract. In this case, you just need to use two fields, the Game ID and the VRF input.
 
@@ -1037,4 +1037,4 @@ The next steps are similar to the previous Move calls, but you have to use the B
 
 Last but not least, remember to unsubscribe from the event whenever the `HouseFinishGame` component dismounts. This is important as you might not want to subscribe to the same event multiple times.
 
-Congratulations, you completed the frontend. You can carry the lessons learned here forward when using the dApp Kit to build your next Sui project.
+Congratulations, you completed the frontend. You can carry the lessons learned here forward when using the dApp Kit to build your next Iota project.

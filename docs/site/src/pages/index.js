@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import React from "react";
@@ -32,17 +33,17 @@ export default function Home() {
 
   return (
     <Layout>
-      <div className="bg-sui-black overflow-hidden">
-        <div className="w-full mt-24 mb-12 mx-auto bg-sui-black">
+      <div className="bg-iota-black overflow-hidden">
+        <div className="w-full mt-24 mb-12 mx-auto bg-iota-black">
           <div className={styles.heroText}>
-            <h1 className="h1 center-text text-white">Sui Documentation</h1>
+            <h1 className="h1 center-text text-white">Iota Documentation</h1>
             <h2 className="h2 text-gray center-text h3">
-              Discover the power of Sui through examples, guides, and concepts
+              Discover the power of Iota through examples, guides, and concepts
             </h2>
           </div>
         </div>
         <div className="flex flex-row flex-wrap justify-center gap-2 max-w-[1066px] mx-auto">
-          <HomeCard title="About Sui">
+          <HomeCard title="About Iota">
             <Link className={styles.cardLink} to="./concepts/tokenomics">
               Tokenomics
             </Link>
@@ -60,10 +61,10 @@ export default function Home() {
             >
               Getting started
             </Link>
-            <Link className={styles.cardLink} to="./guides/developer/sui-101">
-              Sui Developer Basics
+            <Link className={styles.cardLink} to="./guides/developer/iota-101">
+              Iota Developer Basics
             </Link>
-            <Link className={styles.cardLink} to="./concepts/sui-move-concepts">
+            <Link className={styles.cardLink} to="./concepts/iota-move-concepts">
               Move
             </Link>
           </HomeCard>
@@ -76,31 +77,31 @@ export default function Home() {
             </Link>
             <Link
               className={styles.cardLink}
-              to="./guides/operator/sui-full-node"
+              to="./guides/operator/iota-full-node"
             >
-              Run a Sui Full node
+              Run a Iota Full node
               <span className="block bg-auto bg-[url(../static/img/index/right-arrow.svg)]"></span>
             </Link>
           </HomeCard>
           <HomeCard title="References" aux>
             <Link
               className={styles.cardLink}
-              to="https://sdk.mystenlabs.com/dapp-kit?ref=blog.sui.io"
+              to="https://sdk.mystenlabs.com/dapp-kit?ref=blog.iota.io"
             >
-              Sui dApp Kit
+              Iota dApp Kit
             </Link>
-            <Link className={styles.cardLink} to="/references/sui-api">
-              Sui API
+            <Link className={styles.cardLink} to="/references/iota-api">
+              Iota API
             </Link>
             <Link
               className={styles.cardLink}
-              to="https://github.com/MystenLabs/sui/tree/main/crates/sui-framework/docs"
+              to="https://github.com/iotaledger/iota/tree/main/crates/iota-framework/docs"
             >
-              Sui framework (GitHub)
+              Iota framework (GitHub)
             </Link>
             <Link
               className={styles.cardLink}
-              to="https://github.com/MystenLabs/sui/tree/main/crates/sui-sdk"
+              to="https://github.com/iotaledger/iota/tree/main/crates/iota-sdk"
             >
               Rust SDK (GitHub)
             </Link>
@@ -108,18 +109,18 @@ export default function Home() {
           <HomeCard title="Resources" aux>
             <Link
               className={styles.cardLink}
-              to="https://sui.directory/?_project_type=api%2Cdeveloper-tools%2Cinfrastructure%2Csdk"
+              to="https://iota.directory/?_project_type=api%2Cdeveloper-tools%2Cinfrastructure%2Csdk"
             >
-              Sui ecosystem directory
+              Iota ecosystem directory
             </Link>
-            <Link className={styles.cardLink} to="https://blog.sui.io/">
-              Sui blog
+            <Link className={styles.cardLink} to="https://blog.iota.io/">
+              Iota blog
             </Link>
             <Link
               className={styles.cardLink}
               to="guides/developer/dev-cheat-sheet"
             >
-              Sui dev cheat sheet
+              Iota dev cheat sheet
             </Link>
           </HomeCard>
           <HomeCardCTA>
@@ -127,7 +128,7 @@ export default function Home() {
               className={styles.cardCTALink}
               to="/guides/developer/first-app"
             >
-              <span>Build your dApp on Sui</span>
+              <span>Build your dApp on Iota</span>
               <svg
                 width="11"
                 height="11"
@@ -145,9 +146,9 @@ export default function Home() {
         </div>
 
         <div className={styles.sectionHeader}>
-          <h2 className="h1 text-white font-twkeverett">Why Sui?</h2>
+          <h2 className="h1 text-white font-twkeverett">Why Iota?</h2>
           <h3 className="h3 text-gray text-center">
-            Sui is the first internet-scale programmable blockchain platform
+            Iota is the first internet-scale programmable blockchain platform
           </h3>
         </div>
         <div className={styles.why}>
@@ -329,8 +330,8 @@ export default function Home() {
           <div className={styles.TwoColItem}>
             <span>Scalability</span>
             <p>
-              Sui scales horizontally to meet the demands of applications.
-              Network capacity grows in proportion to the increase in Sui
+              Iota scales horizontally to meet the demands of applications.
+              Network capacity grows in proportion to the increase in Iota
               validators' processing power by adding workers, resulting in low
               gas fees even during high network traffic. This scalability
               characteristic is in sharp contrast to other blockchains with
@@ -364,11 +365,11 @@ export default function Home() {
           <div className={styles.TwoColItem}>
             <span>Built for Web3</span>
             <p>
-              Sui aims to be the most accessible smart contract platform,
+              Iota aims to be the most accessible smart contract platform,
               empowering developers to create great user experiences in web3. To
-              usher in the next billion users, Sui empowers developers with
-              various tools to take advantage of the power of the Sui
-              blockchain. The Sui Development Kit (SDK) will enable developers
+              usher in the next billion users, Iota empowers developers with
+              various tools to take advantage of the power of the Iota
+              blockchain. The Iota Development Kit (SDK) will enable developers
               to build without boundaries.
             </p>
           </div>

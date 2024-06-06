@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ArrowUpRight12 } from '@mysten/icons';
-import { type SuiValidatorSummary } from '@mysten/sui.js/client';
-import { Heading, Text } from '@mysten/ui';
+import { ArrowUpRight12 } from '@iota/icons';
+import { type IotaValidatorSummary } from '@iota/iota.js/client';
+import { Heading, Text } from '@iota/ui';
 
 import { CopyToClipboard } from '~/ui/CopyToClipboard';
 import { DescriptionList, DescriptionItem } from '~/ui/DescriptionList';
@@ -11,7 +12,7 @@ import { ImageIcon } from '~/ui/ImageIcon';
 import { AddressLink } from '~/ui/InternalLink';
 
 type ValidatorMetaProps = {
-    validatorData: SuiValidatorSummary;
+    validatorData: IotaValidatorSummary;
 };
 
 export function ValidatorMeta({ validatorData }: ValidatorMetaProps) {
@@ -34,7 +35,7 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps) {
                             href={projectUrl}
                             target="_blank"
                             rel="noreferrer noopener"
-                            className="mt-2.5 inline-flex items-center gap-1.5 text-body font-medium text-sui-dark no-underline"
+                            className="mt-2.5 inline-flex items-center gap-1.5 text-body font-medium text-iota-dark no-underline"
                         >
                             {projectUrl.replace(/\/$/, '')}
                             <ArrowUpRight12 className="text-steel" />
@@ -68,11 +69,11 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps) {
                     </DescriptionItem>
                     <DescriptionItem title="Address" align="start">
                         <div className="flex items-start gap-1">
-                            <AddressLink address={validatorData.suiAddress} noTruncate />
+                            <AddressLink address={validatorData.iotaAddress} noTruncate />
                             <CopyToClipboard
                                 size="md"
                                 color="steel"
-                                copyText={validatorData.suiAddress}
+                                copyText={validatorData.iotaAddress}
                             />
                         </div>
                     </DescriptionItem>

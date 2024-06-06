@@ -17,9 +17,9 @@ serde = { version = "1.0.144", features = ["derive", "rc"] }
 serde_json = { version = "1.0.95", features = ["preserve_order", "arbitrary_precision"] }
 tracing = "0.1.37"
 base64 = "0.21.2"
-sui-types.workspace = true
-sui-indexer.workspace = true
+iota-types.workspace = true
+iota-indexer.workspace = true
 move-core-types.workspace = true
 move-bytecode-utils.workspace = true
-sui-json-rpc-types.workspace = true
+iota-json-rpc-types.workspace = true
 once_cell.workspace = true

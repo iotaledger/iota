@@ -89,7 +89,7 @@
 
 .itemviewcontent .itemviewcontentitem a,
 .itemviewcontent .itemviewcontentitem span {
-    @apply break-all font-mono text-sm text-sui-dark;
+    @apply break-all font-mono text-sm text-iota-dark;
 }
 
 @media (min-width: 40em) {
