@@ -1,10 +1,10 @@
-# Sui Programmable Transaction Blocks Basics
+# Iota Programmable Transaction Blocks Basics
 
-This example starts by constructing a transaction block to send SUI. To construct transactions
+This example starts by constructing a transaction block to send IOTA. To construct transactions
 blocks, import the `TransactionBlock` class and construct it:
 
 ```tsx
-import { TransactionBlock } from '@mysten/sui.js/transactions';
+import { TransactionBlock } from '@iota/iota.js/transactions';
 
 const txb = new TransactionBlock();
 ```
@@ -17,7 +17,7 @@ You can then add transactions to the transaction block.
 const [coin] = txb.splitCoins(txb.gas, [100]);
 
 // transfer the split coin to a specific address
-txb.transferObjects([coin], '0xSomeSuiAddress');
+txb.transferObjects([coin], '0xSomeIotaAddress');
 ```
 
 You can attach multiple transactions of the same type to a transaction block, as well. For example,
@@ -29,7 +29,7 @@ interface Transfer {
     amount: number;
 }
 
-// procure a list of some Sui transfers to make
+// procure a list of some Iota transfers to make
 const transfers: Transfer[] = getTransfers();
 
 const txb = new TransactionBlock();
@@ -59,7 +59,7 @@ Programmable Transaction blocks have two key concepts: inputs and transactions.
 
 Transactions are steps of execution in the transaction block. Each Transaction in a TransactionBlock
 takes a set of inputs, and produces results. The inputs for a transaction depend on the kind of
-transaction. Sui supports following transactions:
+transaction. Iota supports following transactions:
 
 -   `txb.splitCoins(coin, amounts)` - Creates new coins with the defined amounts, split from the
     provided coin. Returns the coins so that it can be used in subsequent transactions.
@@ -70,7 +70,7 @@ transaction. Sui supports following transactions:
 -   `txb.transferObjects(objects, address)` - Transfers a list of objects to the specified address.
     -   Example: `txb.transferObjects([txb.object(thing1), txb.object(thing2)], myAddress)`
 -   `txb.moveCall({ target, arguments, typeArguments  })` - Executes a Move call. Returns whatever
-    the Sui Move call returns.
+    the Iota Move call returns.
     -   Example:
         `txb.moveCall({ target: '0x2::devnet_nft::mint', arguments: [txb.pure.string(name), txb.pure.string(description), txb.pure.string(image)] })`
 -   `txb.makeMoveVec({ type, objects })` - Constructs a vector of objects that can be passed into a
@@ -94,7 +94,7 @@ calling the transaction method. appropriate Move type automatically.
 // the amount to split off the gas coin is provided as a pure javascript number
 const [coin] = txb.splitCoins(txb.gas, [100]);
 // the address for the transfer is provided as a pure javascript string
-txb.transferObjects([coin], '0xSomeSuiAddress');
+txb.transferObjects([coin], '0xSomeIotaAddress');
 ```
 
 #### Pure values
@@ -110,8 +110,8 @@ contains functions for each of the supported types.
 ```ts
 const [coin] = txb.splitCoins(txb.gas, [txb.pure.u64(100)]);
 const [coin] = txb.splitCoins(txb.gas, [txb.pure(bcs.U64.serialize(100))]);
-txb.transferObjects([coin], txb.pure.address('0xSomeSuiAddress'));
-txb.transferObjects([coin], txb.pure(bcs.Address.serialize('0xSomeSuiAddress')));
+txb.transferObjects([coin], txb.pure.address('0xSomeIotaAddress'));
+txb.transferObjects([coin], txb.pure(bcs.Address.serialize('0xSomeIotaAddress')));
 ```
 
 #### Object references
@@ -143,7 +143,7 @@ txb.moveCall({
 });
 ```
 
-When building a transaction block, Sui expects all objects to be fully resolved, including the
+When building a transaction block, Iota expects all objects to be fully resolved, including the
 object version. The SDK automatically looks up the current version of objects for any provided
 object reference when building a transaction block. If the object reference is used as a receiving
 argument to a `moveCall`, the object reference is automatically converted to a receiving transaction
@@ -204,7 +204,7 @@ const txb = new TransactionBlock();
 await txb.build({ client });
 ```
 
-In most cases, building requires your SuiClient to fully resolve input values.
+In most cases, building requires your IotaClient to fully resolve input values.
 
 If you have transaction block bytes, you can also convert them back into a `TransactionBlock` class:
 

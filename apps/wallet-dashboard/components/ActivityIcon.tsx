@@ -1,8 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { ActivityAction, ActivityState } from '@/lib/interfaces';
-import { Account24, ArrowRight16, Sui, Swap16, Unstaked, WalletActionStake24 } from '@mysten/icons';
+import { Account24, ArrowRight16, Iota, Swap16, Unstaked, WalletActionStake24 } from '@iota/icons';
 
 const icons = {
     [ActivityAction.Send]: (
@@ -27,7 +28,7 @@ const icons = {
         <WalletActionStake24 className="text-gradient-blue-start text-heading2 bg-transparent" />
     ),
     [ActivityAction.Unstaked]: <Unstaked className="text-gradient-blue-start text-heading3" />,
-    [ActivityAction.Rewards]: <Sui className="text-gradient-blue-start text-body" />,
+    [ActivityAction.Rewards]: <Iota className="text-gradient-blue-start text-body" />,
     [ActivityAction.Swapped]: <Swap16 className="text-gradient-blue-start text-heading6" />,
     [ActivityAction.PersonalMessage]: (
         <Account24 fill="currentColor" className="text-gradient-blue-start text-body" />

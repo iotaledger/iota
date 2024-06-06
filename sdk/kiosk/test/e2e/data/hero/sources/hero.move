@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module hero::hero {
-    use sui::tx_context::{TxContext};
-    use sui::object::{Self, UID};
-    use sui::package;
+    use iota::tx_context::{TxContext};
+    use iota::object::{Self, UID};
+    use iota::package;
 
     struct Hero has key, store {
         id: UID,

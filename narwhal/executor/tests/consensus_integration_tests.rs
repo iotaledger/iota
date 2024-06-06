@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use std::{collections::BTreeSet, sync::Arc};
 
@@ -145,7 +146,7 @@ async fn test_recovery() {
         .unwrap();
 
         // we expect to have recovered all the certificates from the last commit. The
-        // Sui executor engine will not execute twice the same certificate.
+        // Iota executor engine will not execute twice the same certificate.
         assert_eq!(consensus_output.len(), 1);
         assert!(
             consensus_output[0].len()

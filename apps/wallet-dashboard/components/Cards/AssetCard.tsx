@@ -1,15 +1,16 @@
 // Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 'use client';
 
-import { SuiObjectData } from '@mysten/sui.js/client';
+import { IotaObjectData } from '@iota/iota.js/client';
 import React from 'react';
 import { Box } from '@/components/index';
 import Image from 'next/image';
 
 interface AssetCardProps {
-    asset: SuiObjectData;
+    asset: IotaObjectData;
 }
 
 function AssetCard({ asset }: AssetCardProps): JSX.Element {

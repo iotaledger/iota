@@ -1,7 +1,7 @@
 {
-    "name": "@mysten/dapp-kit",
+    "name": "@iota/dapp-kit",
     "author": "Mysten Labs <build@mystenlabs.com>",
-    "description": "A collection of React hooks and components for interacting with the Sui blockchain and wallets.",
+    "description": "A collection of React hooks and components for interacting with the Iota blockchain and wallets.",
     "homepage": "https://sdk.mystenlabs.com/typescript",
     "version": "0.12.7",
     "license": "Apache-2.0",
@@ -42,7 +42,7 @@
         "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix"
     },
     "bugs": {
-        "url": "https://github.com/MystenLabs/sui/issues/new"
+        "url": "https://github.com/iotaledger/iota/issues/new"
     },
     "publishConfig": {
         "access": "public"
@@ -58,7 +58,7 @@
         }
     ],
     "devDependencies": {
-        "@mysten/build-scripts": "workspace:*",
+        "@iota/build-scripts": "workspace:*",
         "@size-limit/preset-small-lib": "^8.2.6",
         "@tanstack/react-query": "^5.0.0",
         "@testing-library/dom": "^9.3.1",
@@ -79,9 +79,9 @@
         "vitest": "^0.33.0"
     },
     "dependencies": {
-        "@mysten/sui.js": "workspace:*",
-        "@mysten/wallet-standard": "workspace:*",
-        "@mysten/zksend": "workspace:*",
+        "@iota/iota.js": "workspace:*",
+        "@iota/wallet-standard": "workspace:*",
+        "@iota/zksend": "workspace:*",
         "@radix-ui/react-dialog": "^1.0.4",
         "@radix-ui/react-dropdown-menu": "^2.0.5",
         "@radix-ui/react-slot": "^1.0.2",

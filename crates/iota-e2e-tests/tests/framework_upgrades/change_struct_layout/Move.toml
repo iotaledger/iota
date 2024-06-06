@@ -1,0 +1,11 @@
+[package]
+name = "IotaExtraChangeStructLayout"
+version = "0.0.1"
+
+[dependencies]
+IotaSystem = { local = "../../../../iota-framework/packages/iota-system" }
+Iota = { local = "../../../../iota-framework/packages/iota-framework" }
+MoveStdlib = { local = "../../../../iota-framework/packages/move-stdlib" }
+
+[addresses]
+iota_system = "0x3"

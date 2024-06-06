@@ -3,6 +3,9 @@
 # Copyright (c) The Move Contributors
 # SPDX-License-Identifier: Apache-2.0
 
+# Modifications Copyright (c) 2024 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
 # A script to check whether a local commit related to Move repo is ready for a PR.
 
 set -e

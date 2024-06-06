@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFormatCoin } from '@mysten/core';
-import { type CoinStruct } from '@mysten/sui.js/client';
-import { Text } from '@mysten/ui';
+import { useFormatCoin } from '@iota/core';
+import { type CoinStruct } from '@iota/iota.js/client';
+import { Text } from '@iota/ui';
 
 import { ObjectLink } from '~/ui/InternalLink';
 

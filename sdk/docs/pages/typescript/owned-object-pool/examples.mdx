@@ -3,15 +3,15 @@
 import { Callout } from 'nextra/components';
 
 <Callout type="info">
-    Sui Owned Object Pools (SuiOOP) is a beta library. Enhancements and changes are likely during
+    Iota Owned Object Pools (IotaOOP) is a beta library. Enhancements and changes are likely during
     development.
 </Callout>
 
-These examples demonstrate some possible use cases for the Sui Owned Object Pool library.
+These examples demonstrate some possible use cases for the Iota Owned Object Pool library.
 
 ## Use case 1: Parallel coin transfers service—Multiple Coins
 
-Assume that you have a service that needs to make payments of size 50000000 MIST to multiple
+Assume that you have a service that needs to make payments of size 50000000 MICROS to multiple
 recipients in parallel.
 
 Before creating an `ExecutorServiceHandler` instance that executes each incoming transaction, you
@@ -28,12 +28,12 @@ Here is the code that creates the coins by splitting a single coin 20 times and 
 coins to your address:
 
 ```ts
-import { SuiClient } from '@mysten/sui.js/client/';
-import type { SuiObjectRef, SuiObjectResponse } from '@mysten/sui.js/client/';
-import { TransactionBlock } from '@mysten/sui.js/transactions';
+import { IotaClient } from '@iota/iota.js/client/';
+import type { IotaObjectRef, IotaObjectResponse } from '@iota/iota.js/client/';
+import { TransactionBlock } from '@iota/iota.js/transactions';
 
-const client = new SuiClient({
-    url: 'https://fullnode.testnet.sui.io:443',
+const client = new IotaClient({
+    url: 'https://fullnode.testnet.iota.io:443',
 });
 
 const objectId: string = '<your-coin-object-id>'; // A
@@ -46,7 +46,7 @@ for (let i = 0; i < numberOfCoinsToCreate; i++) {
 }
 
 async function splitCoinAndTransferToSelf(
-    client: SuiClient,
+    client: IotaClient,
     coinObjectId: string,
     yourAddressSecretKey: string,
 ) {
@@ -59,9 +59,9 @@ async function splitCoinAndTransferToSelf(
             newcoins1,
             // newcoins2
         ],
-        txb.pure(getKeyPair(yourAddressSecretKey).getPublicKey().toSuiAddress()),
+        txb.pure(getKeyPair(yourAddressSecretKey).getPublicKey().toIotaAddress()),
     );
-    txb.setGasPayment([toSuiObjectRef(coinToPay)]);
+    txb.setGasPayment([toIotaObjectRef(coinToPay)]);
     txb.setGasBudget(100000000);
     await client
         .signAndExecuteTransactionBlock({
@@ -94,7 +94,7 @@ created needs to have a set of coins that the sum of their balances is greater t
 this.
 
 ```ts
-import { DefaultSplitStrategy, ExecutorServiceHandler } from 'suioop';
+import { DefaultSplitStrategy, ExecutorServiceHandler } from 'iotaoop';
 
 // Setup the executor service
 const eshandler = await ExecutorServiceHandler.initialize(adminKeypair, client);
@@ -109,7 +109,7 @@ for (let i = 0; i < 10; i++) {
         eshandler.execute(
             txb,
             client,
-            new DefaultSplitStrategy(300000000), // Each pool contains coins with a total balance of 300000000 MIST
+            new DefaultSplitStrategy(300000000), // Each pool contains coins with a total balance of 300000000 MICROS
         ),
     );
 }
@@ -136,9 +136,9 @@ account.
 
 To do this, you can either use the `createAdminCap` function in your smart contract, or generate
 multiple admin caps on package publishing. You can test this by using the
-[`move_examples/nft_app` example](https://github.com/MystenLabs/Sui_Owned_Object_Pools/tree/main/move_examples/nft_app).
+[`move_examples/nft_app` example](https://github.com/MystenLabs/Iota_Owned_Object_Pools/tree/main/move_examples/nft_app).
 Notice how multiple `AdminCaps` are created in
-[`genesis.move`](https://github.com/MystenLabs/Sui_Owned_Object_Pools/blob/main/move_examples/nft_app/sources/genesis.move):
+[`genesis.move`](https://github.com/MystenLabs/Iota_Owned_Object_Pools/blob/main/move_examples/nft_app/sources/genesis.move):
 
 ```ts
 // ...
@@ -175,7 +175,7 @@ function mintNFTTxb(
             target: `${env.NFT_APP_PACKAGE_ID}::hero_nft::mint_hero`,
         });
 
-        txb.transferObjects([hero], txb.pure(adminKeypair.getPublicKey().toSuiAddress()));
+        txb.transferObjects([hero], txb.pure(adminKeypair.getPublicKey().toIotaAddress()));
         txb.setGasBudget(10000000);
         return txb;
     };
@@ -188,7 +188,7 @@ and execute the transactions.
 
 ```ts
 const eshandler = await ExecutorServiceHandler.initialize(adminKeypair, client);
-const promises: Promise<SuiTransactionBlockResponse>[] = [];
+const promises: Promise<IotaTransactionBlockResponse>[] = [];
 let txb: TransactionBlockWithLambda;
 for (let i = 0; i < NUMBER_OF_TRANSACTION_TO_EXECUTE; i++) {
     txb = mintNFTTxb(env, adminKeypair);

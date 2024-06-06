@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { getFullnodeUrl, SuiClient } from '@mysten/sui.js/client';
-import { TransactionBlock } from '@mysten/sui.js/transactions';
+import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { TransactionBlock } from '@iota/iota.js/transactions';
 import { useState } from 'react';
 
 import { useAuthCallback, useEnokiFlow, useZkLogin } from '../src/react.tsx';
@@ -48,7 +49,7 @@ export function App() {
                             const result = await flow.sponsorAndExecuteTransactionBlock({
                                 network: 'testnet',
                                 // @ts-expect-error: Type references not quite doing their thing:
-                                client: new SuiClient({ url: getFullnodeUrl('testnet') }),
+                                client: new IotaClient({ url: getFullnodeUrl('testnet') }),
                                 // @ts-expect-error: Type references not quite doing their thing:
                                 transactionBlock,
                             });

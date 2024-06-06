@@ -1,17 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { bcs } from '@mysten/sui.js/bcs';
+import { bcs } from '@iota/iota.js/bcs';
 import {
     type DryRunTransactionBlockResponse,
     type ExecuteTransactionRequestType,
-    type SuiClient,
-    type SuiTransactionBlockResponse,
-    type SuiTransactionBlockResponseOptions,
-} from '@mysten/sui.js/client';
-import { IntentScope, messageWithIntent } from '@mysten/sui.js/cryptography';
-import { isTransactionBlock, type TransactionBlock } from '@mysten/sui.js/transactions';
-import { fromB64, toB64 } from '@mysten/sui.js/utils';
+    type IotaClient,
+    type IotaTransactionBlockResponse,
+    type IotaTransactionBlockResponseOptions,
+} from '@iota/iota.js/client';
+import { IntentScope, messageWithIntent } from '@iota/iota.js/cryptography';
+import { isTransactionBlock, type TransactionBlock } from '@iota/iota.js/transactions';
+import { fromB64, toB64 } from '@iota/iota.js/utils';
 
 export type SignedTransaction = {
     transactionBlockBytes: string;
@@ -24,9 +25,9 @@ export type SignedMessage = {
 };
 
 export abstract class WalletSigner {
-    client: SuiClient;
+    client: IotaClient;
 
-    constructor(client: SuiClient) {
+    constructor(client: IotaClient) {
         this.client = client;
     }
 
@@ -93,11 +94,11 @@ export abstract class WalletSigner {
     async signAndExecuteTransactionBlock(
         input: {
             transactionBlock: Uint8Array | TransactionBlock;
-            options?: SuiTransactionBlockResponseOptions;
+            options?: IotaTransactionBlockResponseOptions;
             requestType?: ExecuteTransactionRequestType;
         },
         clientIdentifier?: string,
-    ): Promise<SuiTransactionBlockResponse> {
+    ): Promise<IotaTransactionBlockResponse> {
         const bytes = await this.prepareTransactionBlock(input.transactionBlock);
         const signed = await this.signTransactionBlock({
             transactionBlock: bytes,
