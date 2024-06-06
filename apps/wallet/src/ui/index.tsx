@@ -89,7 +89,7 @@ function AppWrapper() {
                                         walletApiProvider.instance.fullNode,
                                 }}
                             >
-                                 <KioskClientProvider>
+                                <KioskClientProvider>
                                     <AccountsFormProvider>
                                         <UnlockAccountProvider>
                                             <div

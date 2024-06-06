@@ -23,8 +23,6 @@ function HiddenNftsPage() {
     const { hiddenAssetIds, showAsset } = useHiddenAssets();
     const kioskClient = useKioskClient();
 
-
-
     const { data, isLoading, isPending, isError, error } = useMultiGetObjects(
         hiddenAssetIds,
         {

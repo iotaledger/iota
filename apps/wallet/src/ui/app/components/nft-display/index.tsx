@@ -62,14 +62,14 @@ export function NFTDisplayCard({
     const nftImageUrl = nftMeta?.imageUrl || '';
     const video = useResolveVideo(objectData);
     const fileExtensionType = useFileExtensionType(nftImageUrl);
-     const kioskClient = useKioskClient();
+    const kioskClient = useKioskClient();
     const isOwnerToken = isKioskOwnerToken(kioskClient.network, objectData);
     const shouldShowLabel = !wideView && orientation !== 'horizontal';
 
     return (
         <div className={nftDisplayCardStyles({ animateHover, wideView, orientation })}>
             <Loading loading={isPending}>
-            {objectData?.data && isOwnerToken ? (
+                {objectData?.data && isOwnerToken ? (
                     <Kiosk
                         object={objectData}
                         borderRadius={borderRadius}

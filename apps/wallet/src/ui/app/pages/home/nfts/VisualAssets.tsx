@@ -24,15 +24,15 @@ export default function VisualAssets({ items }: { items: IotaObjectData[] }) {
         <div className="grid w-full grid-cols-2 gap-x-3.5 gap-y-4">
             {items.map((object) => (
                 <Link
-                to={
-                    isKioskOwnerToken(kioskClient.network, object)
-                        ? `/kiosk?${new URLSearchParams({
-                              kioskId: getKioskIdFromOwnerCap(object),
-                          })}`
-                        : `/nft-details?${new URLSearchParams({
-                              objectId: object.objectId,
-                          }).toString()}`
-                }
+                    to={
+                        isKioskOwnerToken(kioskClient.network, object)
+                            ? `/kiosk?${new URLSearchParams({
+                                  kioskId: getKioskIdFromOwnerCap(object),
+                              })}`
+                            : `/nft-details?${new URLSearchParams({
+                                  objectId: object.objectId,
+                              }).toString()}`
+                    }
                     onClick={() => {
                         ampli.clickedCollectibleCard({
                             objectId: object.objectId,
