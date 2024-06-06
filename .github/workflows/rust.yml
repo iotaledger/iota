@@ -7,13 +7,13 @@ on:
       - 'devnet'
       - 'testnet'
       - 'mainnet'
-      - 'releases/sui-*-release'
+      - 'releases/iota-*-release'
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -98,12 +98,7 @@ jobs:
       # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
       # non-deterministic `test` job.
       SUI_SKIP_SIMTESTS: 1
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - [ubuntu-ghcloud]
-      fail-fast: false
+    runs-on: [ubuntu-latest]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
       - uses: taiki-e/install-action@nextest
@@ -127,12 +122,7 @@ jobs:
       # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
       # non-deterministic `test` job.
       SUI_SKIP_SIMTESTS: 1
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - [ubuntu-ghcloud]
-      fail-fast: false
+    runs-on: [ubuntu-latest]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
       - uses: taiki-e/install-action@nextest
