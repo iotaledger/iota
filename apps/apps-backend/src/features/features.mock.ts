@@ -57,14 +57,6 @@ const walletDapps = [
         tags: ['DeFi'],
     },
     {
-        name: 'Kriya',
-        description:
-            '1-stop DeFi protocol on Iota. Native AMM for Swaps, Limit Orders powered by deepbook, strategy vaults and leveraged perps',
-        link: 'https://app.kriya.finance/',
-        icon: 'https://mysten-fe-assets.s3.us-west-2.amazonaws.com/wallet-dapps-assets/kriya_rounded_logo.png',
-        tags: ['DeFi'],
-    },
-    {
         name: 'Scallop',
         description: 'Next generation Money Market',
         link: 'https://app.scallop.io/',
@@ -185,18 +177,6 @@ export const developmentFeatures = {
                 '0xba097bfb05f1af3b1b022ad4fe597bcce53ff068a323b901dae0e96f3af68a7d',
                 '0xe0b97bff42fcef320b5f148db69033b9f689555348b2e90f1da72b0644fa37d0',
             ],
-        },
-    },
-    buynlarge: {
-        defaultValue: {
-            enabled: true,
-            objectType:
-                '0x61c9c39fd86185ad60d738d4e52bd08bda071d366acde07e07c3916a2d75a816::distribution::DEEPWrapper',
-            sheetTitle: 'Deepbook Airdrop',
-            sheetDescription:
-                'Thank you for being a Deepbook user. This exclusive NFT is your claim to DEEP tokens. More information will be coming soon!',
-            homeDescription: 'You are eligible for Deepbook airdrop! Learn more.',
-            homeImage: 'https://images.deepbook.tech/in-app-icon.png',
         },
     },
     'token-name-overrides': {
