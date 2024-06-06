@@ -5,7 +5,6 @@
 use std::{path::PathBuf, sync::Arc};
 
 use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
-use move_core_types::ident_str;
 use iota_config::{
     certificate_deny_config::CertificateDenyConfigBuilder,
     transaction_deny_config::{TransactionDenyConfig, TransactionDenyConfigBuilder},
@@ -16,7 +15,7 @@ use iota_swarm_config::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, IotaAddress},
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult, UserInputError},
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
@@ -30,6 +29,7 @@ use iota_types::{
         to_sender_signed_transaction_with_multi_signers,
     },
 };
+use move_core_types::ident_str;
 
 use crate::{
     authority::{

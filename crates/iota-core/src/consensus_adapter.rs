@@ -20,6 +20,15 @@ use futures::{
     future::{select, Either},
     pin_mut, FutureExt,
 };
+use iota_protocol_config::ProtocolConfig;
+use iota_simulator::{anemo::PeerId, narwhal_network::connectivity::ConnectionStatus};
+use iota_types::{
+    base_types::{AuthorityName, TransactionDigest},
+    committee::{Committee, CommitteeTrait},
+    error::{IotaError, IotaResult},
+    fp_ensure,
+    messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
+};
 use itertools::Itertools;
 use mysten_metrics::{spawn_monitored_task, GaugeGuard, GaugeGuardFutureExt};
 use narwhal_types::{TransactionProto, TransactionsClient};
@@ -32,15 +41,6 @@ use prometheus::{
     IntGaugeVec, Registry,
 };
 use rand::{rngs::StdRng, SeedableRng};
-use iota_protocol_config::ProtocolConfig;
-use iota_simulator::{anemo::PeerId, narwhal_network::connectivity::ConnectionStatus};
-use iota_types::{
-    base_types::{AuthorityName, TransactionDigest},
-    committee::{Committee, CommitteeTrait},
-    error::{IotaError, IotaResult},
-    fp_ensure,
-    messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
-};
 use tap::prelude::*;
 use tokio::{
     sync::{Semaphore, SemaphorePermit},
@@ -1088,12 +1088,12 @@ mod adapter_tests {
     use std::{sync::Arc, time::Duration};
 
     use fastcrypto::traits::KeyPair;
-    use rand::{rngs::StdRng, Rng, SeedableRng};
     use iota_types::{
         base_types::TransactionDigest,
         committee::Committee,
         crypto::{get_key_pair_from_rng, AuthorityKeyPair, AuthorityPublicKeyBytes},
     };
+    use rand::{rngs::StdRng, Rng, SeedableRng};
 
     use super::position_submit_certificate;
     use crate::consensus_adapter::{

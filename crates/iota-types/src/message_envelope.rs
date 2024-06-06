@@ -9,10 +9,10 @@ use std::{
 };
 
 use fastcrypto::traits::KeyPair;
+use iota_protocol_config::ProtocolConfig;
 use once_cell::sync::OnceCell;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use shared_crypto::intent::{Intent, IntentScope};
-use iota_protocol_config::ProtocolConfig;
 
 use crate::{
     base_types::AuthorityName,

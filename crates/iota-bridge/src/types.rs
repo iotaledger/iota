@@ -7,10 +7,6 @@ use std::collections::{BTreeMap, BTreeSet};
 pub use ethers::types::H256 as EthTransactionHash;
 use ethers::types::{Address as EthAddress, Log, H256};
 use fastcrypto::hash::{HashFunction, Keccak256};
-use num_enum::TryFromPrimitive;
-use rand::{seq::SliceRandom, Rng};
-use serde::{Deserialize, Serialize};
-use shared_crypto::intent::IntentScope;
 use iota_types::{
     base_types::{IotaAddress, IOTA_ADDRESS_LENGTH},
     collection_types::{Bag, LinkedTable, LinkedTableNode, VecMap},
@@ -20,6 +16,10 @@ use iota_types::{
     error::IotaResult,
     message_envelope::{Envelope, Message, VerifiedEnvelope},
 };
+use num_enum::TryFromPrimitive;
+use rand::{seq::SliceRandom, Rng};
+use serde::{Deserialize, Serialize};
+use shared_crypto::intent::IntentScope;
 
 use crate::{
     abi::EthToIotaTokenBridgeV1,
@@ -717,11 +717,11 @@ mod tests {
         hash::HashFunction,
         traits::{KeyPair, ToFromBytes},
     };
-    use prometheus::Registry;
     use iota_types::{
         base_types::{IotaAddress, TransactionDigest},
         crypto::get_key_pair,
     };
+    use prometheus::Registry;
 
     use super::*;
     use crate::{test_utils::get_test_authority_and_key, types::TokenId};

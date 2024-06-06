@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use iota_json_rpc_types::ObjectChange;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     effects::ObjectRemoveKind,
     object::Owner,
     storage::WriteKind,

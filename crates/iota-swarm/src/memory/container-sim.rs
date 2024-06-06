@@ -7,10 +7,10 @@ use std::{
     sync::{Arc, Weak},
 };
 
-use prometheus::Registry;
 use iota_config::NodeConfig;
 use iota_node::{IotaNode, IotaNodeHandle};
 use iota_types::base_types::ConciseableName;
+use prometheus::Registry;
 use tokio::sync::watch;
 use tracing::{info, trace};
 

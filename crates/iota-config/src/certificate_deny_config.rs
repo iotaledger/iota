@@ -4,9 +4,9 @@
 
 use std::collections::HashSet;
 
+use iota_types::base_types::TransactionDigest;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
-use iota_types::base_types::TransactionDigest;
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]

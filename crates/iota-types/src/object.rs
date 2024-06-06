@@ -10,6 +10,7 @@ use std::{
     sync::Arc,
 };
 
+use iota_protocol_config::ProtocolConfig;
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
 use move_core_types::{
@@ -19,13 +20,12 @@ use move_core_types::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
-use iota_protocol_config::ProtocolConfig;
 
 use self::{balance_traversal::BalanceTraversal, bounded_visitor::BoundedVisitor};
 use crate::{
     base_types::{
-        MoveObjectType, ObjectDigest, ObjectID, ObjectIDParseError, ObjectRef, SequenceNumber,
-        IotaAddress, TransactionDigest,
+        IotaAddress, MoveObjectType, ObjectDigest, ObjectID, ObjectIDParseError, ObjectRef,
+        SequenceNumber, TransactionDigest,
     },
     coin::{Coin, CoinMetadata, TreasuryCap},
     crypto::{default_hash, deterministic_random_account_key},
@@ -364,7 +364,10 @@ impl MoveObject {
 
     /// Get the total amount of IOTA embedded in `self`. Intended for testing
     /// purposes
-    pub fn get_total_iota(&self, layout_resolver: &mut dyn LayoutResolver) -> Result<u64, IotaError> {
+    pub fn get_total_iota(
+        &self,
+        layout_resolver: &mut dyn LayoutResolver,
+    ) -> Result<u64, IotaError> {
         let balances = self.get_coin_balances(layout_resolver)?;
         Ok(balances.get(&GAS::type_tag()).copied().unwrap_or(0))
     }
@@ -903,7 +906,10 @@ impl ObjectInner {
 impl Object {
     /// Get the total amount of IOTA embedded in `self`, including both Move
     /// objects and the storage rebate
-    pub fn get_total_iota(&self, layout_resolver: &mut dyn LayoutResolver) -> Result<u64, IotaError> {
+    pub fn get_total_iota(
+        &self,
+        layout_resolver: &mut dyn LayoutResolver,
+    ) -> Result<u64, IotaError> {
         Ok(self.storage_rebate
             + match &self.data {
                 Data::Move(m) => m.get_total_iota(layout_resolver)?,

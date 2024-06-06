@@ -11,12 +11,12 @@ use async_graphql::{
 };
 use diesel::{CombineDsl, ExpressionMethods, OptionalExtension, QueryDsl};
 use fastcrypto::encoding::{Base58, Encoding};
-use serde::{Deserialize, Serialize};
 use iota_indexer::{
     models::checkpoints::StoredCheckpoint,
     schema::{checkpoints, objects_snapshot},
 };
 use iota_types::messages_checkpoint::CheckpointDigest;
+use serde::{Deserialize, Serialize};
 
 use super::{
     base64::Base64,

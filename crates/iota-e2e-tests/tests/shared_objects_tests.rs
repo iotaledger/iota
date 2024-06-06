@@ -8,7 +8,6 @@ use std::{
 };
 
 use futures::{future::join_all, join};
-use rand::distributions::Distribution;
 use iota_config::node::AuthorityOverloadConfig;
 use iota_core::{authority::EffectsNotifyRead, consensus_adapter::position_submit_certificate};
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
@@ -24,6 +23,7 @@ use iota_types::{
     messages_grpc::{LayoutGenerationOption, ObjectInfoRequest},
     transaction::{CallArg, ObjectArg},
 };
+use rand::distributions::Distribution;
 use test_cluster::TestClusterBuilder;
 use tokio::time::sleep;
 
@@ -315,8 +315,8 @@ async fn shared_object_deletion_multi_certs() {
         .unwrap();
 }
 
-/// End-to-end shared transaction test for a Iota validator. It does not test the
-/// client or wallet, but tests the end-to-end flow from Iota to consensus.
+/// End-to-end shared transaction test for a Iota validator. It does not test
+/// the client or wallet, but tests the end-to-end flow from Iota to consensus.
 #[sim_test]
 async fn call_shared_object_contract() {
     let test_cluster = TestClusterBuilder::new().build().await;

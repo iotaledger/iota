@@ -6,11 +6,11 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, ensure, Result};
 use iota_sdk::types::block::output::{FoundryOutput, TokenId};
-use move_core_types::language_storage::ModuleId;
 use iota_types::{
     base_types::IotaAddress, coin::CoinMetadata, in_memory_storage::InMemoryStorage, object::Owner,
     Identifier,
 };
+use move_core_types::language_storage::ModuleId;
 
 use crate::stardust::{
     migration::{

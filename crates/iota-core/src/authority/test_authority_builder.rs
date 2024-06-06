@@ -5,7 +5,6 @@
 use std::{path::PathBuf, sync::Arc};
 
 use fastcrypto::traits::KeyPair;
-use prometheus::Registry;
 use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::{
     certificate_deny_config::CertificateDenyConfig,
@@ -25,10 +24,11 @@ use iota_types::{
     crypto::AuthorityKeyPair,
     digests::ChainIdentifier,
     executable_transaction::VerifiedExecutableTransaction,
-    object::Object,
     iota_system_state::IotaSystemStateTrait,
+    object::Object,
     transaction::VerifiedTransaction,
 };
+use prometheus::Registry;
 use tempfile::tempdir;
 
 use crate::{

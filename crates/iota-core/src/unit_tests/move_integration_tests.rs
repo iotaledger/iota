@@ -5,12 +5,6 @@
 
 use std::{collections::HashSet, env, path::PathBuf, str::FromStr};
 
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::{IdentStr, Identifier},
-    language_storage::{StructTag, TypeTag},
-    u256::U256,
-};
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_types::{
     base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
@@ -21,6 +15,12 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     utils::to_sender_signed_transaction,
     IOTA_FRAMEWORK_PACKAGE_ID,
+};
+use move_core_types::{
+    account_address::AccountAddress,
+    identifier::{IdentStr, Identifier},
+    language_storage::{StructTag, TypeTag},
+    u256::U256,
 };
 
 use super::*;

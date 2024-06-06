@@ -10,9 +10,6 @@ use std::{
 use anyhow::anyhow;
 use arc_swap::Guard;
 use async_trait::async_trait;
-#[cfg(test)]
-use mockall::automock;
-use move_core_types::language_storage::TypeTag;
 use iota_core::{
     authority::{authority_per_epoch_store::AuthorityPerEpochStore, AuthorityState},
     execution_cache::ExecutionCacheRead,
@@ -30,7 +27,7 @@ use iota_storage::{
     },
 };
 use iota_types::{
-    base_types::{MoveObjectType, ObjectID, ObjectInfo, ObjectRef, SequenceNumber, IotaAddress},
+    base_types::{IotaAddress, MoveObjectType, ObjectID, ObjectInfo, ObjectRef, SequenceNumber},
     committee::{Committee, EpochId},
     digests::{ChainIdentifier, TransactionDigest, TransactionEventsDigest},
     dynamic_field::DynamicFieldInfo,
@@ -38,17 +35,20 @@ use iota_types::{
     error::{IotaError, UserInputError},
     event::EventID,
     governance::StakedIota,
+    iota_serde::BigInt,
+    iota_system_state::IotaSystemState,
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
         VerifiedCheckpoint,
     },
     object::{Object, ObjectRead, PastObjectRead},
     storage::{BackingPackageStore, ObjectStore, WriteKind},
-    iota_serde::BigInt,
-    iota_system_state::IotaSystemState,
     timelock::timelocked_staked_iota::TimelockedStakedIota,
     transaction::{Transaction, TransactionData, TransactionKind},
 };
+#[cfg(test)]
+use mockall::automock;
+use move_core_types::language_storage::TypeTag;
 use thiserror::Error;
 use tokio::task::JoinError;
 

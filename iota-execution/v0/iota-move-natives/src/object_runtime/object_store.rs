@@ -7,14 +7,6 @@ use std::{
     sync::Arc,
 };
 
-use move_binary_format::errors::{PartialVMError, PartialVMResult};
-use move_core_types::{
-    annotated_value as A, effects::Op, runtime_value as R, vm_status::StatusCode,
-};
-use move_vm_types::{
-    loaded_data::runtime_types::Type,
-    values::{GlobalValue, StructRef, Value},
-};
 use iota_protocol_config::{check_limit_by_meter, LimitThresholdCrossed};
 use iota_types::{
     base_types::{MoveObjectType, ObjectID, SequenceNumber},
@@ -22,6 +14,14 @@ use iota_types::{
     metrics::LimitsMetrics,
     object::{Data, MoveObject, Object, Owner},
     storage::ChildObjectResolver,
+};
+use move_binary_format::errors::{PartialVMError, PartialVMResult};
+use move_core_types::{
+    annotated_value as A, effects::Op, runtime_value as R, vm_status::StatusCode,
+};
+use move_vm_types::{
+    loaded_data::runtime_types::Type,
+    values::{GlobalValue, StructRef, Value},
 };
 
 use super::get_all_uids;

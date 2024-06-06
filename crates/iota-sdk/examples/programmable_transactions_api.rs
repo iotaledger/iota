@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 mod utils;
-use shared_crypto::intent::Intent;
 use iota_config::{iota_config_dir, IOTA_KEYSTORE_FILENAME};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_sdk::{
@@ -14,6 +13,7 @@ use iota_sdk::{
         transaction::{Argument, Command, Transaction, TransactionData},
     },
 };
+use shared_crypto::intent::Intent;
 use utils::setup_for_write;
 
 // This example shows how to use programmable transactions to chain multiple

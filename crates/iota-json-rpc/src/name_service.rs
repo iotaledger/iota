@@ -4,16 +4,16 @@
 
 use std::{fmt, marker::PhantomData, str::FromStr};
 
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
-use serde::{Deserialize, Serialize};
 use iota_types::{
-    base_types::{ObjectID, IotaAddress},
+    base_types::{IotaAddress, ObjectID},
     collection_types::VecMap,
     dynamic_field::Field,
     id::{ID, UID},
     object::{MoveObject, Object},
     TypeTag,
 };
+use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
+use serde::{Deserialize, Serialize};
 
 const NAME_SERVICE_DOMAIN_MODULE: &IdentStr = ident_str!("domain");
 const NAME_SERVICE_DOMAIN_STRUCT: &IdentStr = ident_str!("Domain");

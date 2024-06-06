@@ -14,17 +14,17 @@ use std::{
 use anyhow::{anyhow, bail, ensure, Context};
 use bip32::DerivationPath;
 use bip39::{Language, Mnemonic, Seed};
+use iota_types::{
+    base_types::IotaAddress,
+    crypto::{
+        enum_dispatch, get_key_pair_from_rng, EncodeDecodeBase64, IotaKeyPair, PublicKey,
+        Signature, SignatureScheme,
+    },
+};
 use rand::{rngs::StdRng, SeedableRng};
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use shared_crypto::intent::{Intent, IntentMessage};
-use iota_types::{
-    base_types::IotaAddress,
-    crypto::{
-        enum_dispatch, get_key_pair_from_rng, EncodeDecodeBase64, PublicKey, Signature,
-        SignatureScheme, IotaKeyPair,
-    },
-};
 
 use crate::{
     key_derive::{derive_key_pair_from_path, generate_new_key},
@@ -39,11 +39,13 @@ pub enum Keystore {
 }
 #[enum_dispatch]
 pub trait AccountKeystore: Send + Sync {
-    fn add_key(&mut self, alias: Option<String>, keypair: IotaKeyPair) -> Result<(), anyhow::Error>;
+    fn add_key(&mut self, alias: Option<String>, keypair: IotaKeyPair)
+    -> Result<(), anyhow::Error>;
     fn keys(&self) -> Vec<PublicKey>;
     fn get_key(&self, address: &IotaAddress) -> Result<&IotaKeyPair, anyhow::Error>;
 
-    fn sign_hashed(&self, address: &IotaAddress, msg: &[u8]) -> Result<Signature, signature::Error>;
+    fn sign_hashed(&self, address: &IotaAddress, msg: &[u8])
+    -> Result<Signature, signature::Error>;
 
     fn sign_secure<T>(
         &self,
@@ -201,7 +203,11 @@ impl<'de> Deserialize<'de> for FileBasedKeystore {
 }
 
 impl AccountKeystore for FileBasedKeystore {
-    fn sign_hashed(&self, address: &IotaAddress, msg: &[u8]) -> Result<Signature, signature::Error> {
+    fn sign_hashed(
+        &self,
+        address: &IotaAddress,
+        msg: &[u8],
+    ) -> Result<Signature, signature::Error> {
         Ok(Signature::new_hashed(
             msg,
             self.keys.get(address).ok_or_else(|| {
@@ -226,7 +232,11 @@ impl AccountKeystore for FileBasedKeystore {
         ))
     }
 
-    fn add_key(&mut self, alias: Option<String>, keypair: IotaKeyPair) -> Result<(), anyhow::Error> {
+    fn add_key(
+        &mut self,
+        alias: Option<String>,
+        keypair: IotaKeyPair,
+    ) -> Result<(), anyhow::Error> {
         let address: IotaAddress = (&keypair.public()).into();
         let alias = self.create_alias(alias)?;
         self.aliases.insert(
@@ -469,7 +479,11 @@ pub struct InMemKeystore {
 }
 
 impl AccountKeystore for InMemKeystore {
-    fn sign_hashed(&self, address: &IotaAddress, msg: &[u8]) -> Result<Signature, signature::Error> {
+    fn sign_hashed(
+        &self,
+        address: &IotaAddress,
+        msg: &[u8],
+    ) -> Result<Signature, signature::Error> {
         Ok(Signature::new_hashed(
             msg,
             self.keys.get(address).ok_or_else(|| {
@@ -494,7 +508,11 @@ impl AccountKeystore for InMemKeystore {
         ))
     }
 
-    fn add_key(&mut self, alias: Option<String>, keypair: IotaKeyPair) -> Result<(), anyhow::Error> {
+    fn add_key(
+        &mut self,
+        alias: Option<String>,
+        keypair: IotaKeyPair,
+    ) -> Result<(), anyhow::Error> {
         let address: IotaAddress = (&keypair.public()).into();
         let alias = alias.unwrap_or_else(|| {
             random_name(

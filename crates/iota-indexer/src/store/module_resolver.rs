@@ -6,14 +6,14 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
-use move_core_types::{
-    account_address::AccountAddress, language_storage::ModuleId, resolver::ModuleResolver,
-};
 use iota_package_resolver::{error::Error as PackageResolverError, Package, PackageStore};
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
     move_package::MovePackage,
     object::Object,
+};
+use move_core_types::{
+    account_address::AccountAddress, language_storage::ModuleId, resolver::ModuleResolver,
 };
 
 use crate::{

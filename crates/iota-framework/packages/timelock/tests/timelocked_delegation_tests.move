@@ -4,6 +4,7 @@
 
 #[test_only]
 module timelock::timelocked_stake_tests {
+
     use iota::balance;
     use iota::balance::Balance;
     use iota::coin::Coin;
@@ -30,9 +31,13 @@ module timelock::timelocked_stake_tests {
         unstake,
     };
 
+    use timelock::labeler::LabelerCap;
     use timelock::timelock::{Self, TimeLock};
     use timelock::timelocked_staked_iota::{Self, TimelockedStakedIota};
     use timelock::timelocked_staking;
+
+    use timelock::test_label_one::{Self, TEST_LABEL_ONE};
+    use timelock::test_label_two::{Self, TEST_LABEL_TWO};
 
     const VALIDATOR_ADDR_1: address = @0x1;
     const VALIDATOR_ADDR_2: address = @0x2;
@@ -120,7 +125,6 @@ module timelock::timelocked_stake_tests {
         let scenario = &mut scenario_val;
         // Create two instances of staked iota w/ different epoch activations
         stake_timelocked_with(STAKER_ADDR_1, VALIDATOR_ADDR_1, 60, 10, scenario);
-        advance_epoch(scenario);
         stake_timelocked_with(STAKER_ADDR_1, VALIDATOR_ADDR_1, 60, 20, scenario);
 
         // Verify that these cannot be merged
@@ -133,6 +137,122 @@ module timelock::timelocked_stake_tests {
             part1.join(part2);
 
             scenario.return_to_sender(part1);
+        };
+        scenario_val.end();
+    }
+
+    #[test]
+    fun test_join_same_labels() {
+        set_up_iota_system_state();
+
+        let mut scenario_val = test_scenario::begin(STAKER_ADDR_1);
+        let scenario = &mut scenario_val;
+
+        set_up_timelock_labeler_caps(STAKER_ADDR_1, scenario);
+
+        // Create two instances of labeled staked iota w/ different amounts
+        scenario.next_tx(STAKER_ADDR_1);
+        {
+            let labeler_one = scenario.take_from_sender<LabelerCap<TEST_LABEL_ONE>>();
+
+            stake_labeled_timelocked_with(&labeler_one, STAKER_ADDR_1, VALIDATOR_ADDR_1, 60, 10, scenario);
+            stake_labeled_timelocked_with(&labeler_one, STAKER_ADDR_1, VALIDATOR_ADDR_1, 50, 10, scenario);
+
+            scenario.return_to_sender(labeler_one);
+        };
+
+        // Verify that these can be merged
+        scenario.next_tx(STAKER_ADDR_1);
+        {
+            let staked_iota_ids = scenario.ids_for_sender<TimelockedStakedIota>();
+            let mut part1 = scenario.take_from_sender_by_id<TimelockedStakedIota>(staked_iota_ids[0]);
+            let part2 = scenario.take_from_sender_by_id<TimelockedStakedIota>(staked_iota_ids[1]);
+
+            part1.join(part2);
+
+            assert_eq(part1.staked_iota_amount(), 110 * MICROS_PER_IOTA);
+            assert_eq(part1.expiration_timestamp_ms(), 10);
+            assert_eq(part1.is_labeled_with<TEST_LABEL_ONE>(), true);
+
+            scenario.return_to_sender(part1);
+        };
+        scenario_val.end();
+    }
+
+    #[test]
+    #[expected_failure(abort_code = timelocked_staked_iota::EIncompatibleTimelockedStakedIota)]
+    fun test_join_different_labels() {
+        set_up_iota_system_state();
+
+        let mut scenario_val = test_scenario::begin(STAKER_ADDR_1);
+        let scenario = &mut scenario_val;
+
+        set_up_timelock_labeler_caps(STAKER_ADDR_1, scenario);
+
+        // Create two instances of labeled staked iota w/ different labels
+        scenario.next_tx(STAKER_ADDR_1);
+        {
+            let labeler_one = scenario.take_from_sender<LabelerCap<TEST_LABEL_ONE>>();
+            let labeler_two = scenario.take_from_sender<LabelerCap<TEST_LABEL_TWO>>();
+
+            stake_labeled_timelocked_with(&labeler_one, STAKER_ADDR_1, VALIDATOR_ADDR_1, 60, 10, scenario);
+            stake_labeled_timelocked_with(&labeler_two, STAKER_ADDR_1, VALIDATOR_ADDR_1, 60, 10, scenario);
+
+            scenario.return_to_sender(labeler_one);
+            scenario.return_to_sender(labeler_two);
+        };
+
+        // Verify that these cannot be merged
+        scenario.next_tx(STAKER_ADDR_1);
+        {
+            let staked_iota_ids = scenario.ids_for_sender<TimelockedStakedIota>();
+            let mut part1 = scenario.take_from_sender_by_id<TimelockedStakedIota>(staked_iota_ids[0]);
+            let part2 = scenario.take_from_sender_by_id<TimelockedStakedIota>(staked_iota_ids[1]);
+
+            part1.join(part2);
+
+            scenario.return_to_sender(part1);
+        };
+        scenario_val.end();
+    }
+
+    #[test]
+    fun test_split_with_labels() {
+        set_up_iota_system_state();
+
+        let mut scenario_val = test_scenario::begin(STAKER_ADDR_1);
+        let scenario = &mut scenario_val;
+
+        set_up_timelock_labeler_caps(STAKER_ADDR_1, scenario);
+
+        // Create one instance of labeled staked iota
+        scenario.next_tx(STAKER_ADDR_1);
+        {
+            let labeler_one = scenario.take_from_sender<LabelerCap<TEST_LABEL_ONE>>();
+
+            stake_labeled_timelocked_with(&labeler_one, STAKER_ADDR_1, VALIDATOR_ADDR_1, 60, 10, scenario);
+
+            scenario.return_to_sender(labeler_one);
+
+            advance_epoch(scenario);
+        };
+
+        // Verify that it can be splitted
+        scenario.next_tx(STAKER_ADDR_1);
+        {
+            let mut original = scenario.take_from_sender<TimelockedStakedIota>();
+            let splitted = original.split(20 * MICROS_PER_IOTA, scenario.ctx());
+
+            assert_eq(original.staked_iota_amount(), 40 * MICROS_PER_IOTA);
+            assert_eq(original.expiration_timestamp_ms(), 10);
+            assert_eq(original.is_labeled_with<TEST_LABEL_ONE>(), true);
+
+            assert_eq(splitted.staked_iota_amount(), 20 * MICROS_PER_IOTA);
+            assert_eq(splitted.expiration_timestamp_ms(), 10);
+            assert_eq(splitted.is_labeled_with<TEST_LABEL_ONE>(), true);
+
+            scenario.return_to_sender(original);
+            test_utils::destroy(splitted);
         };
         scenario_val.end();
     }
@@ -233,6 +353,81 @@ module timelock::timelocked_stake_tests {
         {
             let mut system_state = scenario.take_shared<IotaSystemState>();
             assert_eq(system_state.validator_stake_amount(VALIDATOR_ADDR_1), 100 * MICROS_PER_IOTA);
+            test_scenario::return_shared(system_state);
+        };
+        scenario_val.end();
+    }
+
+    #[test]
+    fun test_add_remove_labeled_stake_flow() {
+        set_up_iota_system_state();
+        let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
+        let scenario = &mut scenario_val;
+
+        set_up_timelock_labeler_caps(STAKER_ADDR_1, scenario);
+
+        scenario.next_tx(STAKER_ADDR_1);
+        {
+            let labeler_one = scenario.take_from_sender<LabelerCap<TEST_LABEL_ONE>>();
+
+            let mut system_state = scenario.take_shared<IotaSystemState>();
+            let system_state_mut_ref = &mut system_state;
+
+            let ctx = scenario.ctx();
+
+            // Create a stake to VALIDATOR_ADDR_1.
+            timelocked_staking::request_add_stake(
+                system_state_mut_ref,
+                timelock::lock_with_label(&labeler_one, balance::create_for_testing(60 * MICROS_PER_IOTA), 10, ctx),
+                VALIDATOR_ADDR_1,
+                ctx
+            );
+
+            assert_eq(system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_1), 100 * MICROS_PER_IOTA);
+            assert_eq(system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_2), 100 * MICROS_PER_IOTA);
+
+            test_scenario::return_shared(system_state);
+
+            scenario.return_to_sender(labeler_one);
+        };
+
+        advance_epoch(scenario);
+
+        scenario.next_tx(STAKER_ADDR_1);
+        {
+            let staked_iota = scenario.take_from_sender<TimelockedStakedIota>();
+            assert_eq(staked_iota.amount(), 60 * MICROS_PER_IOTA);
+
+            let mut system_state = scenario.take_shared<IotaSystemState>();
+            let system_state_mut_ref = &mut system_state;
+
+            assert_eq(system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_1), 160 * MICROS_PER_IOTA);
+            assert_eq(system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_2), 100 * MICROS_PER_IOTA);
+
+            // Unstake from VALIDATOR_ADDR_1
+            timelocked_staking::request_withdraw_stake(system_state_mut_ref, staked_iota, scenario.ctx());
+
+            assert_eq(system_state_mut_ref.validator_stake_amount(VALIDATOR_ADDR_1), 160 * MICROS_PER_IOTA);
+            test_scenario::return_shared(system_state);
+        };
+
+        advance_epoch(scenario);
+
+        scenario.next_tx(STAKER_ADDR_1);
+        {
+            let mut system_state = scenario.take_shared<IotaSystemState>();
+
+            assert_eq(system_state.validator_stake_amount(VALIDATOR_ADDR_1), 100 * MICROS_PER_IOTA);
+
+            // Check the time-locked balance.
+            let timelock = scenario.take_from_sender<TimeLock<Balance<IOTA>>>();
+
+            assert_eq(timelock.locked().value(), 60 * MICROS_PER_IOTA);
+            assert_eq(timelock.expiration_timestamp_ms(), 10);
+            assert_eq(timelock.is_labeled_with<Balance<IOTA>, TEST_LABEL_ONE>(), true);
+
+            scenario.return_to_sender(timelock);
+
             test_scenario::return_shared(system_state);
         };
         scenario_val.end();
@@ -734,6 +929,13 @@ module timelock::timelocked_stake_tests {
         scenario_val.end();
     }
 
+    fun set_up_timelock_labeler_caps(to: address, scenario: &mut Scenario) {
+        scenario.next_tx(to);
+
+        test_label_one::assign_labeler_cap(to, scenario.ctx());
+        test_label_two::assign_labeler_cap(to, scenario.ctx());
+    }
+
     fun set_up_iota_system_state_with_storage_fund() {
         let mut scenario_val = test_scenario::begin(@0x0);
         let scenario = &mut scenario_val;
@@ -764,6 +966,32 @@ module timelock::timelocked_stake_tests {
             timelock::lock(balance::create_for_testing(amount * MICROS_PER_IOTA), expiration_timestamp_ms, ctx),
             validator,
             ctx);
+        test_scenario::return_shared(system_state);
+    }
+
+    fun stake_labeled_timelocked_with<L>(
+        cap: &LabelerCap<L>,
+        staker: address,
+        validator: address,
+        amount: u64,
+        expiration_timestamp_ms: u64,
+        scenario: &mut Scenario
+    ) {
+        scenario.next_tx(staker);
+
+        let mut system_state = scenario.take_shared<IotaSystemState>();
+        let ctx = scenario.ctx();
+
+        timelocked_staking::request_add_stake(
+            &mut system_state,
+            timelock::lock_with_label(
+                cap,
+                balance::create_for_testing(amount * MICROS_PER_IOTA),
+                expiration_timestamp_ms,
+                ctx),
+            validator,
+            ctx);
+
         test_scenario::return_shared(system_state);
     }
 

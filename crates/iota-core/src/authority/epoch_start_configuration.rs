@@ -5,20 +5,20 @@
 use std::fmt;
 
 use enum_dispatch::enum_dispatch;
-use serde::{Deserialize, Serialize};
 use iota_types::{
     authenticator_state::get_authenticator_state_obj_initial_shared_version,
     base_types::SequenceNumber,
     deny_list::get_deny_list_obj_initial_shared_version,
     epoch_data::EpochData,
     error::IotaResult,
-    messages_checkpoint::{CheckpointDigest, CheckpointTimestamp},
-    randomness_state::get_randomness_state_obj_initial_shared_version,
-    storage::ObjectStore,
     iota_system_state::epoch_start_iota_system_state::{
         EpochStartSystemState, EpochStartSystemStateTrait,
     },
+    messages_checkpoint::{CheckpointDigest, CheckpointTimestamp},
+    randomness_state::get_randomness_state_obj_initial_shared_version,
+    storage::ObjectStore,
 };
+use serde::{Deserialize, Serialize};
 
 #[enum_dispatch]
 pub trait EpochStartConfigTrait {

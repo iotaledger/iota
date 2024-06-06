@@ -7,7 +7,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use iota_core::test_utils::make_pay_iota_transaction;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     crypto::get_key_pair,
     digests::ObjectDigest,
     gas_coin::MICROS_PER_IOTA,
@@ -28,9 +28,9 @@ use crate::{
     ExecutionEffects, ValidatorProxy,
 };
 
-/// Value of each address's "primary coin" in micros. The first transaction gives
-/// each address a coin worth PRIMARY_COIN_VALUE, and all subsequent transfers
-/// send TRANSFER_AMOUNT coins each time
+/// Value of each address's "primary coin" in micros. The first transaction
+/// gives each address a coin worth PRIMARY_COIN_VALUE, and all subsequent
+/// transfers send TRANSFER_AMOUNT coins each time
 const PRIMARY_COIN_VALUE: u64 = 100 * MICROS_PER_IOTA;
 
 /// Number of micros sent to each address on each batch transfer
@@ -76,7 +76,11 @@ impl Payload for BatchPaymentTestPayload {
     }
 
     fn make_transaction(&mut self) -> Transaction {
-        let addrs = self.state.addresses().cloned().collect::<Vec<IotaAddress>>();
+        let addrs = self
+            .state
+            .addresses()
+            .cloned()
+            .collect::<Vec<IotaAddress>>();
         let num_recipients = addrs.len();
         let sender = if self.num_payments == 0 {
             // first tx--use the address that has gas

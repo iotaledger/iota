@@ -8,7 +8,6 @@ use std::{
 };
 
 use async_trait::async_trait;
-use move_core_types::language_storage::TypeTag;
 use iota_json_rpc_types::BalanceChange;
 use iota_types::{
     base_types::{ObjectID, ObjectRef, SequenceNumber},
@@ -21,6 +20,7 @@ use iota_types::{
     storage::WriteKind,
     transaction::InputObjectKind,
 };
+use move_core_types::language_storage::TypeTag;
 use tokio::sync::RwLock;
 
 pub async fn get_balance_changes_from_effect<P: ObjectProvider<Error = E>, E>(

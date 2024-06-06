@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, Bytes};
 use iota_types::{
     base_types::{MoveObjectType, ObjectDigest, SequenceNumber, TransactionDigest},
     coin::Coin,
@@ -13,6 +11,8 @@ use iota_types::{
     object::{Data, MoveObject, Object, ObjectInner, Owner},
     storage::ObjectKey,
 };
+use serde::{Deserialize, Serialize};
+use serde_with::{serde_as, Bytes};
 
 pub type ObjectContentDigest = ObjectDigest;
 

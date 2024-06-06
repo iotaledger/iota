@@ -5,7 +5,6 @@
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use clap::{ArgGroup, Parser};
-use mysten_common::sync::async_once_cell::AsyncOnceCell;
 use iota_config::{node::RunWithRange, Config, NodeConfig};
 use iota_core::runtime::IotaRuntimes;
 use iota_node::metrics;
@@ -14,6 +13,7 @@ use iota_telemetry::send_telemetry_event;
 use iota_types::{
     committee::EpochId, messages_checkpoint::CheckpointSequenceNumber, multiaddr::Multiaddr,
 };
+use mysten_common::sync::async_once_cell::AsyncOnceCell;
 use tokio::{sync::broadcast, time::sleep};
 use tracing::{error, info};
 

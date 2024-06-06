@@ -4,8 +4,6 @@
 
 use anyhow::bail;
 use fastcrypto::traits::ToFromBytes;
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 use iota_types::{
     base_types::IotaAddress,
     crypto::{
@@ -14,6 +12,8 @@ use iota_types::{
     },
     multiaddr::Multiaddr,
 };
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 
 const MAX_VALIDATOR_METADATA_LENGTH: usize = 256;
 

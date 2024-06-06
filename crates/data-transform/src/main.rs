@@ -13,9 +13,6 @@ use std::{
 use anyhow::anyhow;
 use data_transform::*;
 use diesel::{prelude::*, RunQueryDsl};
-use move_bytecode_utils::module_cache::SyncModuleCache;
-use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
-use once_cell::sync::Lazy;
 use iota_indexer::{
     db::new_pg_connection_pool, errors::IndexerError,
     store::module_resolver::IndexerStorePackageModuleResolver,
@@ -25,6 +22,9 @@ use iota_types::{
     object::{bounded_visitor::BoundedVisitor, MoveObject},
     parse_iota_struct_tag,
 };
+use move_bytecode_utils::module_cache::SyncModuleCache;
+use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
+use once_cell::sync::Lazy;
 use tracing::debug;
 
 use self::models::*;
@@ -280,7 +280,8 @@ fn main() {
                 }
 
                 // JSON parsing starts here
-                let type_ = parse_iota_struct_tag(&event.event_type).expect("cannot load StructTag");
+                let type_ =
+                    parse_iota_struct_tag(&event.event_type).expect("cannot load StructTag");
 
                 let layout = MoveObject::get_layout_from_struct_tag(type_.clone(), &module_cache);
 

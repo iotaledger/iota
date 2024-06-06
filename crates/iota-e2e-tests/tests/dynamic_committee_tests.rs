@@ -9,25 +9,25 @@ use std::{
 
 use anyhow::Result;
 use async_trait::async_trait;
-use move_core_types::ident_str;
-use rand::{rngs::StdRng, Rng, SeedableRng};
 use iota_core::authority::AuthorityState;
 use iota_macros::*;
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, IotaAddress},
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     effects::{TransactionEffects, TransactionEffectsAPI},
-    object::{Object, Owner},
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
-    storage::ObjectStore,
     iota_system_state::{
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
         IotaSystemStateTrait,
     },
+    object::{Object, Owner},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    storage::ObjectStore,
     transaction::{Argument, Command, ObjectArg, ProgrammableTransaction},
     IOTA_SYSTEM_PACKAGE_ID,
 };
+use move_core_types::ident_str;
+use rand::{rngs::StdRng, Rng, SeedableRng};
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::info;
 
@@ -129,7 +129,11 @@ impl StressTestRunner {
             .clone()
     }
 
-    pub async fn run(&self, sender: IotaAddress, pt: ProgrammableTransaction) -> TransactionEffects {
+    pub async fn run(
+        &self,
+        sender: IotaAddress,
+        pt: ProgrammableTransaction,
+    ) -> TransactionEffects {
         let rgp = self.test_cluster.get_reference_gas_price().await;
         let gas_object = self
             .test_cluster

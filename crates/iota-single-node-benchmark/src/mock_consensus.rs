@@ -4,7 +4,6 @@
 
 use std::{mem, sync::Arc};
 
-use prometheus::IntCounter;
 use iota_core::{
     authority::{authority_per_epoch_store::AuthorityPerEpochStore, AuthorityState},
     checkpoints::CheckpointServiceNoop,
@@ -12,6 +11,7 @@ use iota_core::{
     consensus_handler::SequencedConsensusTransaction,
 };
 use iota_types::{error::IotaResult, messages_consensus::ConsensusTransaction};
+use prometheus::IntCounter;
 use tokio::{sync::mpsc, task::JoinHandle};
 
 pub(crate) struct MockConsensusClient {

@@ -21,9 +21,9 @@ use crate::{
     base_types::{EpochId, IotaAddress},
     crypto::{CompressedSignature, PublicKey, SignatureScheme},
     error::IotaError,
+    iota_serde::IotaBitmap,
     multisig::{MultiSig, MultiSigPublicKey},
     signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
-    iota_serde::IotaBitmap,
 };
 
 pub type WeightUnit = u8;

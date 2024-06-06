@@ -4,8 +4,8 @@
 
 use std::sync::Arc;
 
-use mysten_metrics::{metered_channel, metered_channel::channel_with_total};
 use iota_protocol_config::ProtocolConfig;
+use mysten_metrics::{metered_channel, metered_channel::channel_with_total};
 use tap::tap::TapFallible;
 use thiserror::Error;
 use tokio::sync::oneshot;

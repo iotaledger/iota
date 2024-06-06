@@ -20,13 +20,13 @@ use axum::{
 };
 use clap::Parser;
 use http::Method;
-use mysten_metrics::spawn_monitored_task;
 use iota_config::{iota_config_dir, IOTA_CLIENT_CONFIG};
 use iota_faucet::{
     BatchFaucetResponse, BatchStatusFaucetResponse, Faucet, FaucetConfig, FaucetError,
     FaucetRequest, FaucetResponse, RequestMetricsLayer, SimpleFaucet,
 };
 use iota_sdk::wallet_context::WalletContext;
+use mysten_metrics::spawn_monitored_task;
 use tower::{limit::RateLimitLayer, ServiceBuilder};
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{info, warn};

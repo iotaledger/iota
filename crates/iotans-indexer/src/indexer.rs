@@ -7,14 +7,14 @@ use std::{
     str::FromStr,
 };
 
-use move_core_types::language_storage::StructTag;
 use iota_json_rpc::name_service::{Domain, NameRecord, SubDomainRegistration};
 use iota_types::{
-    base_types::{ObjectID, IotaAddress},
+    base_types::{IotaAddress, ObjectID},
     dynamic_field::Field,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     object::Object,
 };
+use move_core_types::language_storage::StructTag;
 
 use crate::models::VerifiedDomain;
 

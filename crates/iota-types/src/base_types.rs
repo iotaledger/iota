@@ -35,8 +35,8 @@ use crate::{
     balance::Balance,
     coin::{Coin, CoinMetadata, TreasuryCap, COIN_MODULE_NAME, COIN_STRUCT_NAME},
     crypto::{
-        AuthorityPublicKeyBytes, DefaultHash, PublicKey, SignatureScheme, IotaPublicKey,
-        IotaSignature,
+        AuthorityPublicKeyBytes, DefaultHash, IotaPublicKey, IotaSignature, PublicKey,
+        SignatureScheme,
     },
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     effects::{TransactionEffects, TransactionEffectsAPI},
@@ -45,16 +45,16 @@ use crate::{
     gas_coin::{GasCoin, GAS},
     governance::{StakedIota, STAKED_IOTA_STRUCT_NAME, STAKING_POOL_MODULE_NAME},
     id::RESOLVED_IOTA_ID,
+    iota_serde::{to_iota_struct_tag_string, HexAccountAddress, Readable},
     messages_checkpoint::CheckpointTimestamp,
     multisig::MultiSigPublicKey,
     object::{Object, Owner},
     parse_iota_struct_tag,
     signature::GenericSignature,
-    iota_serde::{to_iota_struct_tag_string, HexAccountAddress, Readable},
     timelock::{timelock, timelock::TimeLock, timelocked_staked_iota::TimelockedStakedIota},
     transaction::{Transaction, VerifiedTransaction},
     zk_login_authenticator::ZkLoginAuthenticator,
-    MOVE_STDLIB_ADDRESS, IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
+    IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,
 };
 pub use crate::{
     committee::EpochId,
@@ -738,8 +738,8 @@ impl From<&MultiSigPublicKey> for IotaAddress {
     }
 }
 
-/// Iota address for [struct ZkLoginAuthenticator] is defined as the black2b hash
-/// of [zklogin_flag || iss_bytes_length || iss_bytes ||
+/// Iota address for [struct ZkLoginAuthenticator] is defined as the black2b
+/// hash of [zklogin_flag || iss_bytes_length || iss_bytes ||
 /// unpadded_address_seed_in_bytes].
 impl TryFrom<&ZkLoginAuthenticator> for IotaAddress {
     type Error = IotaError;

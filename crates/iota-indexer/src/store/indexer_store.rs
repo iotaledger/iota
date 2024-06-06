@@ -5,12 +5,12 @@
 use std::{any::Any, collections::BTreeMap, sync::Arc};
 
 use async_trait::async_trait;
-use move_binary_format::CompiledModule;
-use move_bytecode_utils::module_cache::GetModule;
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
     object::ObjectRead,
 };
+use move_binary_format::CompiledModule;
+use move_bytecode_utils::module_cache::GetModule;
 
 use crate::{
     errors::IndexerError,

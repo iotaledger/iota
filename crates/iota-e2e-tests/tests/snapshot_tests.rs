@@ -73,7 +73,7 @@ async fn basic_read_cmd_snapshot_tests() -> Result<(), anyhow::Error> {
         "iota client object 0x0000000000000000000000000000000000000000000000000000000000000000", /* non-existent object */
         "iota client tx-block Duwr9uSk9ZvAndEa8oDHunx345i6oyrp3e78MYHVAbYdv", // valid tx digest
         "iota client tx-block EgMTHQygMi6SRsBqrPHAEKZCNrpShXurCp9rcb9qbSg8",  /* non-existent tx
-                                                                              * digest */
+                                                                               * digest */
     ];
     assert_json_snapshot!(run_one(cmds, context).await?);
     Ok(())

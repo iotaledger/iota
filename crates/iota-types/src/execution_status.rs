@@ -4,10 +4,10 @@
 
 use std::fmt::{Display, Formatter};
 
+use iota_macros::EnumVariantOrder;
 use move_binary_format::file_format::{CodeOffset, TypeParameterIndex};
 use move_core_types::language_storage::ModuleId;
 use serde::{Deserialize, Serialize};
-use iota_macros::EnumVariantOrder;
 use thiserror::Error;
 
 use crate::ObjectID;

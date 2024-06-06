@@ -2,21 +2,21 @@
 //! package.
 
 use anyhow::Result;
-use iota_sdk::types::block::address::Address;
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk::types::block::address::Address;
 use iota_types::{
     balance::Balance,
-    base_types::{MoveObjectType, ObjectID, SequenceNumber, IotaAddress, TxContext},
+    base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
     coin::Coin,
     collection_types::Bag,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
     STARDUST_PACKAGE_ID,
 };
+use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 
 use super::{snapshot::OutputHeader, stardust_to_iota_address};
 
@@ -43,7 +43,8 @@ impl ExpirationUnlockCondition {
         expiration_unlock_condition: &iota_sdk::types::block::output::unlock_condition::ExpirationUnlockCondition,
     ) -> anyhow::Result<Self> {
         let owner = stardust_to_iota_address(owner_address)?;
-        let return_address = stardust_to_iota_address(expiration_unlock_condition.return_address())?;
+        let return_address =
+            stardust_to_iota_address(expiration_unlock_condition.return_address())?;
         let unix_time = expiration_unlock_condition.timestamp();
 
         Ok(Self {

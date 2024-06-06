@@ -36,8 +36,10 @@ pub trait CheckpointOutput: Sync + Send + 'static {
 
 #[async_trait]
 pub trait CertifiedCheckpointOutput: Sync + Send + 'static {
-    async fn certified_checkpoint_created(&self, summary: &CertifiedCheckpointSummary)
-    -> IotaResult;
+    async fn certified_checkpoint_created(
+        &self,
+        summary: &CertifiedCheckpointSummary,
+    ) -> IotaResult;
 }
 
 pub struct SubmitCheckpointToConsensus<T> {

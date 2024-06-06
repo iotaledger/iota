@@ -16,7 +16,6 @@ use std::{num::NonZeroUsize, sync::Arc};
 
 use anyhow::{anyhow, Result};
 use fastcrypto::traits::Signer;
-use rand::rngs::OsRng;
 use iota_config::{genesis, transaction_deny_config::TransactionDenyConfig};
 use iota_protocol_config::ProtocolVersion;
 use iota_swarm_config::{
@@ -24,7 +23,7 @@ use iota_swarm_config::{
     network_config_builder::ConfigBuilder,
 };
 use iota_types::{
-    base_types::{AuthorityName, ObjectID, IotaAddress, VersionNumber},
+    base_types::{AuthorityName, IotaAddress, ObjectID, VersionNumber},
     committee::Committee,
     crypto::AuthoritySignature,
     digests::ConsensusCommitDigest,
@@ -32,18 +31,19 @@ use iota_types::{
     error::ExecutionError,
     gas_coin::{GasCoin, MICROS_PER_IOTA},
     inner_temporary_store::InnerTemporaryStore,
+    iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
     messages_checkpoint::{EndOfEpochData, VerifiedCheckpoint},
     mock_checkpoint_builder::{MockCheckpointBuilder, ValidatorKeypairProvider},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::VerifyParams,
     storage::{ObjectStore, ReadStore},
-    iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
     transaction::{
         EndOfEpochTransactionKind, GasData, Transaction, TransactionData, TransactionKind,
         VerifiedTransaction,
     },
 };
+use rand::rngs::OsRng;
 
 pub use self::store::{in_mem_store::InMemoryStore, SimulatorStore};
 use self::{epoch_state::EpochState, store::in_mem_store::KeyStore};
@@ -314,8 +314,8 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     /// Request that `amount` Micros be sent to `address` from a faucet account.
     ///
     /// ```
-    /// use simulacrum::Simulacrum;
     /// use iota_types::{base_types::IotaAddress, gas_coin::MICROS_PER_IOTA};
+    /// use simulacrum::Simulacrum;
     ///
     /// # fn main() {
     /// let mut simulacrum = Simulacrum::new();
@@ -461,16 +461,18 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
     fn get_checkpoint_contents_by_digest(
         &self,
         digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<Option<iota_types::messages_checkpoint::CheckpointContents>>
-    {
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::CheckpointContents>,
+    > {
         Ok(self.store().get_checkpoint_contents(digest))
     }
 
     fn get_checkpoint_contents_by_sequence_number(
         &self,
         _sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<Option<iota_types::messages_checkpoint::CheckpointContents>>
-    {
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::CheckpointContents>,
+    > {
         todo!()
     }
 
@@ -556,11 +558,11 @@ impl Simulacrum {
 mod tests {
     use std::time::Duration;
 
-    use rand::{rngs::StdRng, SeedableRng};
     use iota_types::{
         base_types::IotaAddress, effects::TransactionEffectsAPI, gas_coin::GasCoin,
         transaction::TransactionDataAPI,
     };
+    use rand::{rngs::StdRng, SeedableRng};
 
     use super::*;
 

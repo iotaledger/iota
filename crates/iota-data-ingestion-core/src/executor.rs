@@ -6,11 +6,11 @@ use std::{path::PathBuf, pin::Pin};
 
 use anyhow::Result;
 use futures::Future;
-use mysten_metrics::spawn_monitored_task;
-use prometheus::Registry;
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
 };
+use mysten_metrics::spawn_monitored_task;
+use prometheus::Registry;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::{

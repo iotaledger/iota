@@ -7,28 +7,28 @@
 
 use std::sync::Arc;
 
-use mysten_metrics::spawn_logged_monitored_task;
-use shared_crypto::intent::{Intent, IntentMessage};
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
 };
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, IotaAddress},
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     committee::VALIDITY_THRESHOLD,
-    crypto::{Signature, IotaKeyPair},
+    crypto::{IotaKeyPair, Signature},
     digests::TransactionDigest,
     gas_coin::GasCoin,
     object::Owner,
     transaction::Transaction,
 };
+use mysten_metrics::spawn_logged_monitored_task;
+use shared_crypto::intent::{Intent, IntentMessage};
 use tracing::{error, info, warn};
 
 use crate::{
     client::bridge_authority_aggregator::BridgeAuthorityAggregator,
     error::BridgeError,
-    storage::BridgeOrchestratorTables,
     iota_client::{IotaClient, IotaClientInner},
     iota_transaction_builder::build_transaction,
+    storage::BridgeOrchestratorTables,
     types::{BridgeAction, BridgeActionStatus, VerifiedCertifiedBridgeAction},
 };
 
@@ -315,7 +315,8 @@ where
 
             // TODO check gas coin balance here. If gas balance too low, do not proceed.
             let (_gas_coin, gas_object_ref) =
-                Self::get_gas_data_assert_ownership(iota_address, gas_object_id, &iota_client).await;
+                Self::get_gas_data_assert_ownership(iota_address, gas_object_id, &iota_client)
+                    .await;
             let ceriticate_clone = certificate.clone();
             let tx_data = match build_transaction(iota_address, &gas_object_ref, ceriticate_clone) {
                 Ok(tx_data) => tx_data,
@@ -450,12 +451,12 @@ mod tests {
     use std::collections::BTreeMap;
 
     use fastcrypto::traits::KeyPair;
-    use prometheus::Registry;
     use iota_json_rpc_types::IotaTransactionBlockResponse;
     use iota_types::{
         base_types::random_object_ref, crypto::get_key_pair, gas_coin::GasCoin,
         transaction::TransactionData,
     };
+    use prometheus::Registry;
 
     use super::*;
     use crate::{
@@ -463,8 +464,8 @@ mod tests {
             BridgeAuthorityKeyPair, BridgeAuthorityPublicKeyBytes,
             BridgeAuthorityRecoverableSignature,
         },
-        server::mock_handler::BridgeRequestMockHandler,
         iota_mock_client::IotaMockClient,
+        server::mock_handler::BridgeRequestMockHandler,
         test_utils::{
             get_test_authorities_and_run_mock_bridge_server, get_test_iota_to_eth_bridge_action,
             sign_action_with_key,
@@ -972,8 +973,13 @@ mod tests {
             None,
         );
 
-        let sigs =
-            mock_bridge_authority_sigs(mocks, &action, secrets, iota_tx_digest, iota_tx_event_index);
+        let sigs = mock_bridge_authority_sigs(
+            mocks,
+            &action,
+            secrets,
+            iota_tx_digest,
+            iota_tx_event_index,
+        );
         let certified_action = CertifiedBridgeAction::new_from_data_and_sig(
             action,
             BridgeCommitteeValiditySignInfo { signatures: sigs },

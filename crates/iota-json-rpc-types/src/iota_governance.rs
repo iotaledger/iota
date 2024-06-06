@@ -2,14 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 use iota_types::{
-    base_types::{AuthorityName, EpochId, ObjectID, IotaAddress},
+    base_types::{AuthorityName, EpochId, IotaAddress, ObjectID},
     committee::{Committee, StakeUnit},
     iota_serde::BigInt,
 };
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 
 /// RPC representation of the [Committee] type.
 #[serde_as]

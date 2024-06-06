@@ -29,9 +29,6 @@ use std::{
 };
 
 use futures::stream::FuturesOrdered;
-use itertools::izip;
-use mysten_metrics::{spawn_monitored_task, MonitoredFutureExt};
-use prometheus::Registry;
 use iota_config::node::{CheckpointExecutorConfig, RunWithRange};
 use iota_macros::{fail_point, fail_point_async};
 use iota_types::{
@@ -44,6 +41,9 @@ use iota_types::{
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     transaction::{TransactionDataAPI, TransactionKind, VerifiedTransaction},
 };
+use itertools::izip;
+use mysten_metrics::{spawn_monitored_task, MonitoredFutureExt};
+use prometheus::Registry;
 use tap::{TapFallible, TapOptional};
 use tokio::{
     sync::broadcast::{self, error::RecvError},

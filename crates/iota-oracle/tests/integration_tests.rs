@@ -4,14 +4,13 @@
 
 use std::{path::PathBuf, str::FromStr};
 
-use shared_crypto::intent::Intent;
-use iota_json_rpc_types::{ObjectChange, IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
+use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI, ObjectChange};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_move_build::BuildConfig;
 use iota_sdk::{
     rpc_types::IotaTransactionBlockResponseOptions,
     types::{
-        base_types::{ObjectID, IotaAddress},
+        base_types::{IotaAddress, ObjectID},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         transaction::{CallArg, ObjectArg, Transaction, TransactionData},
@@ -23,6 +22,7 @@ use iota_types::{
     base_types::{ObjectRef, SequenceNumber},
     parse_iota_type_tag, TypeTag,
 };
+use shared_crypto::intent::Intent;
 
 // Integration tests for IOTA Oracle, these test can be run manually on local or
 // remote testnet.

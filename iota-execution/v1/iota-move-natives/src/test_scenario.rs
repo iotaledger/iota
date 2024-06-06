@@ -7,6 +7,11 @@ use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
 };
 
+use iota_types::{
+    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    id::UID,
+    object::Owner,
+};
 use linked_hash_map::LinkedHashMap;
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
@@ -24,11 +29,6 @@ use move_vm_types::{
     values::{self, StructRef, Value},
 };
 use smallvec::smallvec;
-use iota_types::{
-    base_types::{ObjectID, SequenceNumber, IotaAddress},
-    id::UID,
-    object::Owner,
-};
 
 use crate::{
     get_nth_struct_field, legacy_test_cost,

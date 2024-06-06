@@ -6,8 +6,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 use futures::future::join_all;
 use iota_json_rpc_types::{
-    Page, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
-    IotaTransactionBlockResponseQuery, TransactionBlocksPage, TransactionFilter,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaTransactionBlockResponseQuery, Page, TransactionBlocksPage, TransactionFilter,
 };
 use iota_sdk::IotaClient;
 use iota_types::base_types::TransactionDigest;
