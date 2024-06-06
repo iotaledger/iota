@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { fromB58, toB58 } from './b58.js';
@@ -22,7 +23,7 @@ import { BcsWriter } from './writer.js';
  */
 export type TypeName = string | [string, ...(TypeName | string)[]];
 
-const SUI_ADDRESS_LENGTH = 32;
+const IOTA_ADDRESS_LENGTH = 32;
 
 export interface TypeInterface {
     encode: (
@@ -306,7 +307,7 @@ export class BCS {
      *
      * @example
      * ```
-     * let bcs = new BCS(getSuiMoveConfig());
+     * let bcs = new BCS(getIotaMoveConfig());
      * bcs.registerAlias('ObjectDigest', BCS.BASE58);
      * let b58_digest = bcs.de('ObjectDigest', '<digest_bytes>', 'base64');
      * ```
@@ -487,7 +488,7 @@ export class BCS {
     /**
      * Register an address type which is a sequence of U8s of specified length.
      * @example
-     * bcs.registerAddressType('address', SUI_ADDRESS_LENGTH);
+     * bcs.registerAddressType('address', IOTA_ADDRESS_LENGTH);
      * let addr = bcs.de('address', 'c3aca510c785c7094ac99aeaa1e69d493122444df50bb8a99dfa790c654a79af');
      *
      * @param name Name of the address type.
@@ -1013,9 +1014,9 @@ export class BCS {
     /**
      * Parse a type name and get the type's generics.
      * @example
-     * let { typeName, typeParams } = parseTypeName('Option<Coin<SUI>>');
+     * let { typeName, typeParams } = parseTypeName('Option<Coin<IOTA>>');
      * // typeName: Option
-     * // typeParams: [ 'Coin<SUI>' ]
+     * // typeParams: [ 'Coin<IOTA>' ]
      *
      * @param name Name of the type to process
      * @returns Object with typeName and typeParams listed as Array
@@ -1191,16 +1192,16 @@ export function getRustConfig(): BcsConfig {
     return {
         genericSeparators: ['<', '>'],
         vectorType: 'Vec',
-        addressLength: SUI_ADDRESS_LENGTH,
+        addressLength: IOTA_ADDRESS_LENGTH,
         addressEncoding: 'hex',
     };
 }
 
-export function getSuiMoveConfig(): BcsConfig {
+export function getIotaMoveConfig(): BcsConfig {
     return {
         genericSeparators: ['<', '>'],
         vectorType: 'vector',
-        addressLength: SUI_ADDRESS_LENGTH,
+        addressLength: IOTA_ADDRESS_LENGTH,
         addressEncoding: 'hex',
     };
 }

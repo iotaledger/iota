@@ -1,0 +1,9 @@
+[package]
+name = "ecommerce"
+version = "0.0.1"
+
+[dependencies]
+Iota = { local = "../../../crates/iota-framework/packages/iota-framework" }
+
+[addresses]
+ecommerce =  "0x0"

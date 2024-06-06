@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from '@playwright/test';
 
 test('home page', async ({ page }) => {
     await page.goto('/');
-    await expect(page).toHaveTitle(/Sui Explorer/);
+    await expect(page).toHaveTitle(/Iota Explorer/);
     await expect(page.getByTestId('home-page')).toBeVisible();
 });
 

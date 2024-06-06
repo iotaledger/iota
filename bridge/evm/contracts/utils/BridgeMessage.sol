@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: MIT
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.20;
 
 /// @title BridgeMessage
-/// @notice This library defines the message format and constants for the Sui native bridge. It also
+/// @notice This library defines the message format and constants for the Iota native bridge. It also
 /// provides functions to encode and decode bridge messages and their payloads.
 /// @dev This library only utilizes internal functions to enable upgradeability via the OpenZeppelin
 /// UUPS proxy pattern (external libraries are not supported).
@@ -61,13 +64,13 @@ library BridgeMessage {
     uint32 public constant TOKEN_PRICE_STAKE_REQUIRED = 5001;
 
     // token Ids
-    uint8 public constant SUI = 0;
+    uint8 public constant IOTA = 0;
     uint8 public constant BTC = 1;
     uint8 public constant ETH = 2;
     uint8 public constant USDC = 3;
     uint8 public constant USDT = 4;
 
-    string public constant MESSAGE_PREFIX = "SUI_BRIDGE_MESSAGE";
+    string public constant MESSAGE_PREFIX = "IOTA_BRIDGE_MESSAGE";
 
     /* ========== INTERNAL FUNCTIONS ========== */
 
@@ -117,7 +120,7 @@ library BridgeMessage {
     /// @dev The function will revert if the payload length is invalid.
     ///     TokenTransfer payload is 64 bytes.
     ///     byte 0       : sender address length
-    ///     bytes 1-32   : sender address (as we only support Sui now, it has to be 32 bytes long)
+    ///     bytes 1-32   : sender address (as we only support Iota now, it has to be 32 bytes long)
     ///     bytes 33     : target chain id
     ///     byte 34      : target address length
     ///     bytes 35-54  : target address
@@ -136,7 +139,7 @@ library BridgeMessage {
 
         require(
             senderAddressLength == 32,
-            "BridgeMessage: Invalid sender address length, Sui address must be 32 bytes"
+            "BridgeMessage: Invalid sender address length, Iota address must be 32 bytes"
         );
 
         // used to offset already read bytes

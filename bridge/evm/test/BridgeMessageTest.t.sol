@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: MIT
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.20;
 
 import "./BridgeBaseTest.t.sol";
@@ -11,7 +14,7 @@ contract BridgeMessageTest is BridgeBaseTest {
         );
 
         uint64 nonce = 0;
-        uint8 suiChainId = 1;
+        uint8 iotaChainId = 1;
 
         bytes memory payload = abi.encodePacked(
             hex"2080ab1ee086210a3a37355300ca24672e81062fcdb5ced6618dab203f6a3b291c0b14b18f79fe671db47393315ffdb377da4ea1b7af96010084d71700000000"
@@ -22,7 +25,7 @@ contract BridgeMessageTest is BridgeBaseTest {
                 messageType: BridgeMessage.TOKEN_TRANSFER,
                 version: 1,
                 nonce: nonce,
-                chainID: suiChainId,
+                chainID: iotaChainId,
                 payload: payload
             })
         );

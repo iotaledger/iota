@@ -2,6 +2,9 @@
 # Copyright (c) Mysten Labs, Inc.
 # SPDX-License-Identifier: Apache-2.0
 
+# Modifications Copyright (c) 2024 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
 if ! cosign version &> /dev/null
 then
     echo "cosign in not installed, Please install cosign for binary verification."
@@ -11,8 +14,8 @@ fi
 
 commit_sha=$1
 binary_name=$2
-pub_key=https://sui-private.s3.us-west-2.amazonaws.com/sui_security_release.pem
-url=https://sui-releases.s3-accelerate.amazonaws.com/$commit_sha
+pub_key=https://iota-private.s3.us-west-2.amazonaws.com/iota_security_release.pem
+url=https://iota-releases.s3-accelerate.amazonaws.com/$commit_sha
 
 echo "[+] Downloading binary '$binary_name' for $commit_sha ..."
 curl $url/$binary_name -o $binary_name

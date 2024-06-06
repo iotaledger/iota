@@ -1,6 +1,4 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
@@ -8,7 +6,7 @@ import { type AccountSourceSerializedUI } from '_src/background/account-sources/
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
 import { type ZkLoginProvider } from '_src/background/accounts/zklogin/providers';
 import { type Status } from '_src/background/legacy-accounts/storage-migration';
-import { type SerializedSignature } from '@mysten/sui.js/cryptography';
+import { type SerializedSignature } from '@iota/iota.js/cryptography';
 
 import { isBasePayload } from './BasePayload';
 import type { Payload } from './Payload';

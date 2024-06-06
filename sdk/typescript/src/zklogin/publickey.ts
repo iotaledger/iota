@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB64 } from '@mysten/bcs';
+import { fromB64 } from '@iota/bcs';
 
 import { PublicKey } from '../cryptography/publickey.js';
 import type { PublicKeyInitData } from '../cryptography/publickey.js';
@@ -46,7 +47,7 @@ export class ZkLoginPublicIdentifier extends PublicKey {
     }
 
     /**
-     * Return the Sui address associated with this ZkLogin public identifier
+     * Return the Iota address associated with this ZkLogin public identifier
      */
     flag(): number {
         return SIGNATURE_SCHEME_TO_FLAG['ZkLogin'];
