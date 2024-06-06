@@ -9,8 +9,6 @@ use futures::{
     future::{join_all, BoxFuture},
     FutureExt,
 };
-use mysten_common::sync::notify_read::NotifyRead;
-use prometheus::Registry;
 use iota_config::node::AuthorityStorePruningConfig;
 use iota_protocol_config::ProtocolVersion;
 use iota_storage::package_object_cache::PackageObjectCache;
@@ -20,13 +18,15 @@ use iota_types::{
     digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult},
+    iota_system_state::{get_iota_system_state, IotaSystemState},
     message_envelope::Message,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
     storage::{MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, PackageObject},
-    iota_system_state::{get_iota_system_state, IotaSystemState},
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
+use mysten_common::sync::notify_read::NotifyRead;
+use prometheus::Registry;
 use tap::TapFallible;
 use tracing::instrument;
 use typed_store::Map;

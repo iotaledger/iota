@@ -11,9 +11,9 @@
 use std::sync::Arc;
 
 use ethers::types::Address as EthAddress;
-use mysten_metrics::spawn_logged_monitored_task;
 use iota_json_rpc_types::IotaEvent;
 use iota_types::Identifier;
+use mysten_metrics::spawn_logged_monitored_task;
 use tokio::task::JoinHandle;
 use tracing::{info, warn};
 
@@ -24,8 +24,8 @@ use crate::{
     },
     error::BridgeResult,
     events::IotaBridgeEvent,
-    storage::BridgeOrchestratorTables,
     iota_client::{IotaClient, IotaClientInner},
+    storage::BridgeOrchestratorTables,
     types::EthLog,
 };
 

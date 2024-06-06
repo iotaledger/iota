@@ -11,11 +11,11 @@ use std::str::FromStr;
 
 use ethers::types::Address as EthAddress;
 use fastcrypto::encoding::{Encoding, Hex};
+use iota_json_rpc_types::IotaEvent;
+use iota_types::{base_types::IotaAddress, digests::TransactionDigest};
 use move_core_types::language_storage::StructTag;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
-use iota_json_rpc_types::IotaEvent;
-use iota_types::{base_types::IotaAddress, digests::TransactionDigest};
 
 use crate::{
     error::{BridgeError, BridgeResult},
@@ -191,14 +191,14 @@ pub mod tests {
     use std::str::FromStr;
 
     use ethers::types::Address as EthAddress;
-    use move_core_types::language_storage::StructTag;
     use iota_json_rpc_types::IotaEvent;
     use iota_types::{
-        base_types::{ObjectID, IotaAddress},
+        base_types::{IotaAddress, ObjectID},
         digests::TransactionDigest,
         event::EventID,
         Identifier,
     };
+    use move_core_types::language_storage::StructTag;
 
     use super::{get_bridge_event_struct_tag, EmittedIotaToEthTokenBridgeV1, MoveTokenBridgeEvent};
     use crate::types::{

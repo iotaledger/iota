@@ -12,10 +12,8 @@ use std::{
 use anyhow::{anyhow, bail};
 use clap::*;
 use fastcrypto::traits::KeyPair;
-use move_package::BuildConfig;
-use rand::rngs::OsRng;
 use iota_config::{
-    node::Genesis, p2p::SeedPeer, iota_config_dir, Config, PersistedConfig, FULL_NODE_DB_PATH,
+    iota_config_dir, node::Genesis, p2p::SeedPeer, Config, PersistedConfig, FULL_NODE_DB_PATH,
     IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG,
     IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
 };
@@ -33,7 +31,9 @@ use iota_swarm_config::{
     network_config_builder::ConfigBuilder,
     node_config_builder::FullnodeConfigBuilder,
 };
-use iota_types::crypto::{SignatureScheme, IotaKeyPair};
+use iota_types::crypto::{IotaKeyPair, SignatureScheme};
+use move_package::BuildConfig;
+use rand::rngs::OsRng;
 use tracing::info;
 
 use crate::{
@@ -390,12 +390,16 @@ async fn genesis(
                 }
             } else {
                 fs::remove_dir_all(iota_config_dir).map_err(|err| {
-                    anyhow!(err)
-                        .context(format!("Cannot remove Iota config dir {:?}", iota_config_dir))
+                    anyhow!(err).context(format!(
+                        "Cannot remove Iota config dir {:?}",
+                        iota_config_dir
+                    ))
                 })?;
                 fs::create_dir(iota_config_dir).map_err(|err| {
-                    anyhow!(err)
-                        .context(format!("Cannot create Iota config dir {:?}", iota_config_dir))
+                    anyhow!(err).context(format!(
+                        "Cannot create Iota config dir {:?}",
+                        iota_config_dir
+                    ))
                 })?;
             }
         } else if files.len() != 2 || !client_path.exists() || !keystore_path.exists() {

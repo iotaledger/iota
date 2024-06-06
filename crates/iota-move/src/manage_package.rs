@@ -5,8 +5,8 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use move_package::BuildConfig;
 use iota_types::base_types::ObjectID;
+use move_package::BuildConfig;
 
 /// Record addresses (Object IDs) for where this package is published on chain
 /// (this command sets variables in Move.lock).

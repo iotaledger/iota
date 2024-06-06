@@ -6,19 +6,16 @@ use std::{str::FromStr, time::Duration};
 
 use anyhow::bail;
 use futures::{future, stream::StreamExt};
-use reqwest::Client;
-use serde_json::json;
-use shared_crypto::intent::Intent;
 use iota_config::{
     iota_config_dir, Config, PersistedConfig, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME,
 };
 use iota_json_rpc_types::{Coin, IotaObjectDataOptions};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_sdk::{
-    rpc_types::IotaTransactionBlockResponseOptions,
     iota_client_config::{IotaClientConfig, IotaEnv},
+    rpc_types::IotaTransactionBlockResponseOptions,
     types::{
-        base_types::{ObjectID, IotaAddress},
+        base_types::{IotaAddress, ObjectID},
         crypto::SignatureScheme::ED25519,
         digests::TransactionDigest,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -28,6 +25,9 @@ use iota_sdk::{
     wallet_context::WalletContext,
     IotaClient, IotaClientBuilder,
 };
+use reqwest::Client;
+use serde_json::json;
+use shared_crypto::intent::Intent;
 use tracing::info;
 
 #[derive(serde::Deserialize)]
@@ -71,8 +71,8 @@ pub async fn setup_for_write() -> Result<(IotaClient, IotaAddress, IotaAddress),
     Ok((client, active_address, *recipient))
 }
 
-/// Return a iota client to interact with the APIs and an active address from the
-/// local wallet.
+/// Return a iota client to interact with the APIs and an active address from
+/// the local wallet.
 ///
 /// This function sets up a wallet in case there is no wallet locally,
 /// and ensures that the active address of the wallet has IOTA on it.

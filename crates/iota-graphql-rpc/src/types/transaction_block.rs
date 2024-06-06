@@ -9,7 +9,6 @@ use async_graphql::{
 };
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl};
 use fastcrypto::encoding::{Base58, Encoding};
-use serde::{Deserialize, Serialize};
 use iota_indexer::{
     models::transactions::StoredTransaction,
     schema::{
@@ -26,6 +25,7 @@ use iota_types::{
         TransactionDataAPI, TransactionExpiration,
     },
 };
+use serde::{Deserialize, Serialize};
 
 use super::{
     address::Address,

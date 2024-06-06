@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
+use iota_package_resolver::Resolver;
+use iota_types::object::bounded_visitor::BoundedVisitor;
 use move_core_types::{
     account_address::AccountAddress,
     annotated_value as A, ident_str,
@@ -10,10 +12,8 @@ use move_core_types::{
     language_storage::{StructTag, TypeTag},
 };
 use serde::{Deserialize, Serialize};
-use iota_package_resolver::Resolver;
-use iota_types::object::bounded_visitor::BoundedVisitor;
 
-use super::{base64::Base64, big_int::BigInt, move_type::MoveType, iota_address::IotaAddress};
+use super::{base64::Base64, big_int::BigInt, iota_address::IotaAddress, move_type::MoveType};
 use crate::{
     context_data::package_cache::PackageCache,
     error::Error,

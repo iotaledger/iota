@@ -6,7 +6,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use futures::stream::FuturesUnordered;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, IotaAddress, IOTA_ADDRESS_LENGTH},
+    base_types::{IotaAddress, ObjectID, ObjectRef, IOTA_ADDRESS_LENGTH},
     crypto::{get_account_key_pair, AccountKeyPair},
     object::Object,
 };

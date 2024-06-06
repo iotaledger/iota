@@ -19,7 +19,7 @@ use iota_swarm::memory::Swarm;
 use iota_swarm_config::{genesis_config::GenesisConfig, network_config::NetworkConfig};
 use iota_types::{
     base_types::IotaAddress,
-    crypto::{get_key_pair, AccountKeyPair, KeypairTraits, IotaKeyPair},
+    crypto::{get_key_pair, AccountKeyPair, IotaKeyPair, KeypairTraits},
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::info;

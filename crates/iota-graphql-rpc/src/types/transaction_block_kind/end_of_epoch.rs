@@ -6,7 +6,6 @@ use async_graphql::{
     connection::{Connection, CursorType, Edge},
     *,
 };
-use move_binary_format::{errors::PartialVMResult, CompiledModule};
 use iota_types::{
     digests::TransactionDigest,
     object::Object as NativeObject,
@@ -16,6 +15,7 @@ use iota_types::{
         EndOfEpochTransactionKind as NativeEndOfEpochTransactionKind,
     },
 };
+use move_binary_format::{errors::PartialVMResult, CompiledModule};
 
 use crate::{
     consistency::ConsistentIndexCursor,
@@ -25,9 +25,9 @@ use crate::{
         cursor::{JsonCursor, Page},
         date_time::DateTime,
         epoch::Epoch,
+        iota_address::IotaAddress,
         move_package::MovePackage,
         object::Object,
-        iota_address::IotaAddress,
     },
 };
 

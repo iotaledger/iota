@@ -2,14 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The IotaSyncer module is responsible for synchronizing Events emitted on Iota
-//! blockchain from concerned bridge packages.
+//! The IotaSyncer module is responsible for synchronizing Events emitted on
+//! Iota blockchain from concerned bridge packages.
 
 use std::{collections::HashMap, sync::Arc};
 
-use mysten_metrics::spawn_logged_monitored_task;
 use iota_json_rpc_types::IotaEvent;
 use iota_types::{event::EventID, Identifier};
+use mysten_metrics::spawn_logged_monitored_task;
 use tokio::{
     task::JoinHandle,
     time::{self, Duration},
@@ -17,9 +17,9 @@ use tokio::{
 
 use crate::{
     error::BridgeResult,
-    retry_with_max_elapsed_time,
     iota_client::{IotaClient, IotaClientInner},
     iota_transaction_builder::get_bridge_package_id,
+    retry_with_max_elapsed_time,
 };
 
 // TODO: use the right package id
@@ -94,7 +94,11 @@ where
         loop {
             interval.tick().await;
             let Ok(Ok(events)) = retry_with_max_elapsed_time!(
-                iota_client.query_events_by_module(*get_bridge_package_id(), module.clone(), cursor),
+                iota_client.query_events_by_module(
+                    *get_bridge_package_id(),
+                    module.clone(),
+                    cursor
+                ),
                 Duration::from_secs(10)
             ) else {
                 tracing::error!("Failed to query events from iota client after retry");
@@ -123,9 +127,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use prometheus::Registry;
     use iota_json_rpc_types::EventPage;
     use iota_types::{digests::TransactionDigest, event::EventID, Identifier};
+    use prometheus::Registry;
     use tokio::time::timeout;
 
     use super::*;

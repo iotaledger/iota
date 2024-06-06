@@ -7,10 +7,6 @@ mod tests {
     use std::{sync::Arc, time::Duration};
 
     use fastcrypto::encoding::{Base64, Encoding};
-    use rand::{rngs::StdRng, SeedableRng};
-    use serde_json::json;
-    use serial_test::serial;
-    use simulacrum::Simulacrum;
     use iota_graphql_rpc::{
         client::{simple_client::GraphqlQueryVariable, ClientError},
         config::ConnectionConfig,
@@ -22,6 +18,10 @@ mod tests {
         transaction::{CallArg, ObjectArg, TransactionDataAPI},
         DEEPBOOK_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
     };
+    use rand::{rngs::StdRng, SeedableRng};
+    use serde_json::json;
+    use serial_test::serial;
+    use simulacrum::Simulacrum;
     use tokio::time::sleep;
 
     #[tokio::test]

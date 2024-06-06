@@ -11,15 +11,15 @@ use axum::{
     Json,
 };
 use fastcrypto::error::FastCryptoError;
+use iota_types::error::IotaError;
 use serde::{Serialize, Serializer};
 use serde_json::{json, Value};
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{Display, EnumDiscriminants, EnumIter};
-use iota_types::error::IotaError;
 use thiserror::Error;
 use typed_store::TypedStoreError;
 
-use crate::types::{BlockHash, OperationType, PublicKey, IotaEnv};
+use crate::types::{BlockHash, IotaEnv, OperationType, PublicKey};
 
 /// Iota-Rosetta specific error types.
 /// This contains all the errors returns by the iota-rosetta server.

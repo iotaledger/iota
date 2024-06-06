@@ -5,10 +5,10 @@
 use std::{fs, path::PathBuf};
 
 use clap::Parser;
+use iota_move_build::{check_invalid_dependencies, check_unpublished_dependencies, BuildConfig};
 use move_cli::base;
 use move_package::{source_package::layout::SourcePackageLayout, BuildConfig as MoveBuildConfig};
 use serde_json::json;
-use iota_move_build::{check_invalid_dependencies, check_unpublished_dependencies, BuildConfig};
 
 const LAYOUTS_DIR: &str = "layouts";
 const STRUCT_LAYOUTS_FILENAME: &str = "struct_layouts.yaml";

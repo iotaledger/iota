@@ -9,6 +9,11 @@ use std::{
 };
 
 use colored::Colorize;
+use iota_macros::EnumVariantOrder;
+use iota_types::{
+    base_types::{IotaAddress, ObjectID},
+    iota_serde::IotaStructTag,
+};
 use itertools::Itertools;
 use move_binary_format::{
     file_format::{Ability, AbilitySet, StructTypeParameter, Visibility},
@@ -26,11 +31,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use serde_with::serde_as;
-use iota_macros::EnumVariantOrder;
-use iota_types::{
-    base_types::{ObjectID, IotaAddress},
-    iota_serde::IotaStructTag,
-};
 use tracing::warn;
 
 pub type IotaMoveTypeParameterIndex = u16;
@@ -269,9 +269,9 @@ impl From<NormalizedType> for IotaMoveNormalizedType {
             NormalizedType::Reference(r) => {
                 IotaMoveNormalizedType::Reference(Box::new(IotaMoveNormalizedType::from(*r)))
             }
-            NormalizedType::MutableReference(mr) => {
-                IotaMoveNormalizedType::MutableReference(Box::new(IotaMoveNormalizedType::from(*mr)))
-            }
+            NormalizedType::MutableReference(mr) => IotaMoveNormalizedType::MutableReference(
+                Box::new(IotaMoveNormalizedType::from(*mr)),
+            ),
         }
     }
 }
@@ -488,7 +488,10 @@ fn indent<T: Display>(d: &T, indent: usize) -> String {
         .join("\n")
 }
 
-fn try_convert_type(type_: &StructTag, fields: &[(Identifier, MoveValue)]) -> Option<IotaMoveValue> {
+fn try_convert_type(
+    type_: &StructTag,
+    fields: &[(Identifier, MoveValue)],
+) -> Option<IotaMoveValue> {
     let struct_name = format!(
         "0x{}::{}::{}",
         type_.address.short_str_lossless(),

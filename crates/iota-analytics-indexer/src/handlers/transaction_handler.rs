@@ -184,9 +184,9 @@ impl TransactionHandler {
 #[cfg(test)]
 mod tests {
     use fastcrypto::encoding::{Base64, Encoding};
-    use simulacrum::Simulacrum;
     use iota_indexer::framework::Handler;
     use iota_types::{base_types::IotaAddress, storage::ReadStore};
+    use simulacrum::Simulacrum;
 
     use crate::handlers::transaction_handler::TransactionHandler;
 

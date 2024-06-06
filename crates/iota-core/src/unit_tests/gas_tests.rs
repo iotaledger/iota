@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::{account_address::AccountAddress, ident_str};
-use once_cell::sync::Lazy;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::dbg_addr,
@@ -15,6 +13,8 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     utils::to_sender_signed_transaction,
 };
+use move_core_types::{account_address::AccountAddress, ident_str};
+use once_cell::sync::Lazy;
 
 use super::{
     authority_tests::{init_state_with_ids, send_and_confirm_transaction},

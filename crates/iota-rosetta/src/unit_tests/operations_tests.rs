@@ -2,13 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::annotated_value::MoveTypeLayout;
 use iota_json_rpc_types::IotaCallArg;
 use iota_types::{
-    base_types::{ObjectDigest, ObjectID, SequenceNumber, IotaAddress},
+    base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, TransactionData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER},
 };
+use move_core_types::annotated_value::MoveTypeLayout;
 
 use crate::{operations::Operations, types::ConstructionMetadata};
 

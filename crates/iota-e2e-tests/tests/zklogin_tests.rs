@@ -3,7 +3,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use shared_crypto::intent::{Intent, IntentMessage};
 use iota_core::authority_client::AuthorityAPI;
 use iota_macros::sim_test;
 use iota_test_transaction_builder::TestTransactionBuilder;
@@ -20,6 +19,7 @@ use iota_types::{
     zk_login_authenticator::ZkLoginAuthenticator,
     IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
 };
+use shared_crypto::intent::{Intent, IntentMessage};
 use test_cluster::TestClusterBuilder;
 
 async fn do_zklogin_test(address: IotaAddress, legacy: bool) -> IotaResult {

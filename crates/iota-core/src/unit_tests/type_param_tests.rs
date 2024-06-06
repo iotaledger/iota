@@ -4,12 +4,12 @@
 
 use std::str::FromStr;
 
-use move_core_types::language_storage::TypeTag;
 use iota_types::{
     base_types::ObjectID,
     crypto::{get_key_pair, AccountKeyPair},
     effects::TransactionEffectsAPI,
 };
+use move_core_types::language_storage::TypeTag;
 
 use crate::authority::{
     authority_tests::{call_move, init_state_with_ids, TestCallArg},

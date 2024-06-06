@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
+use iota_package_resolver::Resolver;
 use move_binary_format::file_format::AbilitySet;
 use move_core_types::{annotated_value as A, language_storage::TypeTag};
 use serde::{Deserialize, Serialize};
-use iota_package_resolver::Resolver;
 
 use super::open_move_type::MoveAbility;
 use crate::{context_data::package_cache::PackageCache, error::Error};

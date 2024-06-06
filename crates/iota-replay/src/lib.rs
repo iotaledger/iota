@@ -9,13 +9,13 @@ use clap::Parser;
 use config::ReplayableNetworkConfigSet;
 use fuzz::{ReplayFuzzer, ReplayFuzzerConfig};
 use fuzz_mutations::base_fuzzers;
-use move_vm_config::runtime::get_default_output_filepath;
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_protocol_config::Chain;
 use iota_types::{
     digests::{get_mainnet_chain_identifier, get_testnet_chain_identifier, TransactionDigest},
     message_envelope::Message,
 };
+use move_vm_config::runtime::get_default_output_filepath;
 use tracing::{error, info, warn};
 use transaction_provider::{FuzzStartPoint, TransactionSource};
 

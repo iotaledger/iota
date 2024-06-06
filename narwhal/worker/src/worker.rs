@@ -18,6 +18,7 @@ use anemo_tower::{
 };
 use config::{Authority, AuthorityIdentifier, Committee, Parameters, WorkerCache, WorkerId};
 use crypto::{traits::KeyPair as _, NetworkKeyPair, NetworkPublicKey};
+use iota_protocol_config::ProtocolConfig;
 use mysten_metrics::{metered_channel::channel_with_total, spawn_logged_monitored_task};
 use mysten_network::{multiaddr::Protocol, Multiaddr};
 use network::{
@@ -27,7 +28,6 @@ use network::{
     metrics::MetricsMakeCallbackHandler,
 };
 use store::rocks::DBMap;
-use iota_protocol_config::ProtocolConfig;
 use tap::TapFallible;
 use tokio::task::JoinHandle;
 use tower::ServiceBuilder;

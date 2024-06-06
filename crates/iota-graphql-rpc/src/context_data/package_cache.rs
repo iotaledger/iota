@@ -6,12 +6,12 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
-use move_core_types::account_address::AccountAddress;
 use iota_indexer::{errors::IndexerError, indexer_reader::IndexerReader, schema::objects};
 use iota_package_resolver::{
     error::Error as PackageResolverError, Package, PackageStore, PackageStoreWithLruCache, Result,
 };
 use iota_types::{base_types::SequenceNumber, object::Object};
+use move_core_types::account_address::AccountAddress;
 use thiserror::Error;
 
 const STORE: &str = "PostgresDB";

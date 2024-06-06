@@ -15,7 +15,7 @@ pub mod workload_configuration;
 use std::sync::Arc;
 
 use iota_types::{
-    base_types::{ObjectRef, IotaAddress},
+    base_types::{IotaAddress, ObjectRef},
     crypto::AccountKeyPair,
 };
 use workload::*;

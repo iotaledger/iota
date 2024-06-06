@@ -8,10 +8,10 @@ use std::{
 };
 
 use arc_swap::ArcSwap;
-use narwhal_types::TimestampMs;
-use parking_lot::Mutex;
 use iota_protocol_config::Chain;
 use iota_types::digests::ChainIdentifier;
+use narwhal_types::TimestampMs;
+use parking_lot::Mutex;
 use tracing::{debug, warn};
 
 use crate::authority::AuthorityMetrics;

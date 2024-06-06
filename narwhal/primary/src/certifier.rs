@@ -8,11 +8,11 @@ use config::{AuthorityIdentifier, Committee};
 use crypto::{NetworkPublicKey, Signature};
 use fastcrypto::signature_service::SignatureService;
 use futures::{stream::FuturesUnordered, StreamExt};
+use iota_macros::fail_point_async;
+use iota_protocol_config::ProtocolConfig;
 use mysten_metrics::{metered_channel::Receiver, monitored_future, spawn_logged_monitored_task};
 use mysten_network::anemo_ext::NetworkExt;
 use storage::CertificateStore;
-use iota_macros::fail_point_async;
-use iota_protocol_config::ProtocolConfig;
 use tokio::{
     sync::oneshot,
     task::{JoinHandle, JoinSet},

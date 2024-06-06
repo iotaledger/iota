@@ -6,14 +6,11 @@ use std::ops::Deref;
 
 use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
 use fastcrypto_zkp::bn254::zk_login::{parse_jwks, OIDCProvider, ZkLoginInputs};
-use mysten_network::Multiaddr;
-use rand::{rngs::StdRng, SeedableRng};
-use shared_crypto::intent::{Intent, IntentMessage};
 use iota_macros::sim_test;
 use iota_types::{
     authenticator_state::ActiveJwk,
     base_types::dbg_addr,
-    crypto::{get_key_pair, AccountKeyPair, Signature, IotaKeyPair},
+    crypto::{get_key_pair, AccountKeyPair, IotaKeyPair, Signature},
     error::{IotaError, UserInputError},
     multisig::{MultiSig, MultiSigPublicKey},
     signature::GenericSignature,
@@ -25,6 +22,9 @@ use iota_types::{
     zk_login_authenticator::ZkLoginAuthenticator,
     zk_login_util::DEFAULT_JWK_BYTES,
 };
+use mysten_network::Multiaddr;
+use rand::{rngs::StdRng, SeedableRng};
+use shared_crypto::intent::{Intent, IntentMessage};
 
 macro_rules! assert_matches {
     ($expression:expr, $pattern:pat $(if $guard: expr)?) => {

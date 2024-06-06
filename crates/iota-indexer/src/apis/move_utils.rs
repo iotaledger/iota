@@ -5,16 +5,16 @@
 use std::collections::BTreeMap;
 
 use async_trait::async_trait;
-use jsonrpsee::{core::RpcResult, RpcModule};
-use move_binary_format::binary_config::BinaryConfig;
 use iota_json_rpc::{error::IotaRpcInputError, IotaRpcModule};
 use iota_json_rpc_api::MoveUtilsServer;
 use iota_json_rpc_types::{
-    MoveFunctionArgType, ObjectValueKind, IotaMoveNormalizedFunction, IotaMoveNormalizedModule,
-    IotaMoveNormalizedStruct, IotaMoveNormalizedType,
+    IotaMoveNormalizedFunction, IotaMoveNormalizedModule, IotaMoveNormalizedStruct,
+    IotaMoveNormalizedType, MoveFunctionArgType, ObjectValueKind,
 };
 use iota_open_rpc::Module;
 use iota_types::{base_types::ObjectID, move_package::normalize_modules};
+use jsonrpsee::{core::RpcResult, RpcModule};
+use move_binary_format::binary_config::BinaryConfig;
 
 use crate::indexer_reader::IndexerReader;
 

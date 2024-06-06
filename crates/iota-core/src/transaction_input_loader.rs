@@ -4,8 +4,6 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use itertools::izip;
-use once_cell::unsync::OnceCell;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
@@ -16,6 +14,8 @@ use iota_types::{
         ReceivingObjectReadResult, ReceivingObjectReadResultKind, ReceivingObjects, TransactionKey,
     },
 };
+use itertools::izip;
+use once_cell::unsync::OnceCell;
 use tracing::instrument;
 
 use crate::execution_cache::ExecutionCacheRead;

@@ -5,10 +5,10 @@
 use std::{path::PathBuf, time::Duration};
 
 use clap::Parser;
-use mysten_metrics::start_prometheus_server;
 use iota_config::Config;
 use iota_oracle::{config::OracleNodeConfig, OracleNode};
 use iota_sdk::wallet_context::WalletContext;
+use mysten_metrics::start_prometheus_server;
 
 #[derive(Parser)]
 #[clap(rename_all = "kebab-case")]

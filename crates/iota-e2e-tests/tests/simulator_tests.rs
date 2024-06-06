@@ -8,15 +8,15 @@ use futures::{
     stream::{FuturesOrdered, FuturesUnordered},
     StreamExt,
 };
+use iota_core::authority::EffectsNotifyRead;
+use iota_macros::*;
+use iota_protocol_config::ProtocolConfig;
+use iota_test_transaction_builder::make_transfer_iota_transaction;
 use rand::{
     distributions::{Distribution, Uniform},
     rngs::OsRng,
     Rng,
 };
-use iota_core::authority::EffectsNotifyRead;
-use iota_macros::*;
-use iota_protocol_config::ProtocolConfig;
-use iota_test_transaction_builder::make_transfer_iota_transaction;
 use test_cluster::TestClusterBuilder;
 use tokio::time::{sleep, Duration, Instant};
 use tracing::{debug, trace};

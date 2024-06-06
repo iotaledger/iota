@@ -12,9 +12,9 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use csv::{Writer, WriterBuilder};
-use serde::Serialize;
 use iota_storage::object_store::util::path_to_filesystem;
 use iota_types::base_types::EpochId;
+use serde::Serialize;
 
 use crate::{writers::AnalyticsWriter, FileFormat, FileType, ParquetSchema};
 

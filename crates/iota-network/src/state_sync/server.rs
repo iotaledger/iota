@@ -10,7 +10,6 @@ use std::{
 use anemo::{rpc::Status, types::response::StatusCode, Request, Response, Result};
 use dashmap::DashMap;
 use futures::future::BoxFuture;
-use serde::{Deserialize, Serialize};
 use iota_types::{
     digests::{CheckpointContentsDigest, CheckpointDigest},
     messages_checkpoint::{
@@ -19,6 +18,7 @@ use iota_types::{
     },
     storage::WriteStore,
 };
+use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, OwnedSemaphorePermit, Semaphore};
 
 use super::{PeerHeights, StateSync, StateSyncMessage};
