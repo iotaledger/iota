@@ -68,7 +68,7 @@ export function useReconnectForceWallet({
                 const connectResult = await (
                     currentWallet.features as unknown as WalletWithRequiredFeatures &
                         StandardReconnectForceFeature
-                )['sui:reconnectForce']?.reconnect({
+                )['iota:reconnectForce']?.reconnect({
                     origin: window.location.origin,
                 });
                 const connectedSuiAccounts = connectResult.accounts.filter((account) =>

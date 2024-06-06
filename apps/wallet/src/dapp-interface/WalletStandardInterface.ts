@@ -58,7 +58,7 @@ type WalletEventsMap = {
 const name = process.env.APP_NAME || 'Iota Wallet';
 
 export type StandardReconnectForceFeature = {
-    'sui:reconnectForce': {
+    'iota:reconnectForce': {
         version: string;
         reconnect: (input: never) => Promise<StandardConnectOutput>;
     };
@@ -96,7 +96,7 @@ export class IotaWallet implements Wallet {
                 connect: this.#connect,
             },
 
-            'sui:reconnectForce': {
+            'iota:reconnectForce': {
                 version: '1.0.0',
                 reconnect: this.#reconnectForce,
             },
