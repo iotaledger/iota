@@ -12,15 +12,15 @@ use diesel::{
     sql_types::{BigInt as SqlBigInt, Nullable, Text},
     OptionalExtension, QueryableByName,
 };
-use serde::{Deserialize, Serialize};
 use iota_indexer::types::OwnerType;
 use iota_types::{parse_iota_type_tag, TypeTag};
+use serde::{Deserialize, Serialize};
 
 use super::{
     big_int::BigInt,
     cursor::{self, Page, RawPaginated, Target},
-    move_type::MoveType,
     iota_address::IotaAddress,
+    move_type::MoveType,
 };
 use crate::{
     consistency::{consistent_range, Checkpointed},

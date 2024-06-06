@@ -11,8 +11,8 @@ use iota_swarm_config::test_utils::{empty_contents, CommitteeFixture};
 use iota_types::{
     committee::ProtocolVersion,
     gas::GasCostSummary,
-    messages_checkpoint::{ECMHLiveObjectSetDigest, EndOfEpochData, VerifiedCheckpoint},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
+    messages_checkpoint::{ECMHLiveObjectSetDigest, EndOfEpochData, VerifiedCheckpoint},
 };
 use tempfile::tempdir;
 use tokio::{sync::broadcast, time::timeout};

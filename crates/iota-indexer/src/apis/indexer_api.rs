@@ -3,30 +3,29 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
-use jsonrpsee::{
-    core::RpcResult,
-    types::{SubscriptionEmptyError, SubscriptionResult},
-    RpcModule, SubscriptionSink,
-};
 use iota_json_rpc::{
     name_service::{Domain, NameRecord, NameServiceConfig},
     IotaRpcModule,
 };
 use iota_json_rpc_api::{cap_page_limit, IndexerApiServer};
 use iota_json_rpc_types::{
-    DynamicFieldPage, EventFilter, EventPage, ObjectsPage, Page, IotaObjectResponse,
-    IotaObjectResponseQuery, IotaTransactionBlockResponseQuery, TransactionBlocksPage,
-    TransactionFilter,
+    DynamicFieldPage, EventFilter, EventPage, IotaObjectResponse, IotaObjectResponseQuery,
+    IotaTransactionBlockResponseQuery, ObjectsPage, Page, TransactionBlocksPage, TransactionFilter,
 };
 use iota_open_rpc::Module;
 use iota_types::{
-    base_types::{ObjectID, IotaAddress},
+    base_types::{IotaAddress, ObjectID},
     digests::TransactionDigest,
     dynamic_field::{DynamicFieldName, Field},
     error::IotaObjectResponseError,
     event::EventID,
     object::ObjectRead,
     TypeTag,
+};
+use jsonrpsee::{
+    core::RpcResult,
+    types::{SubscriptionEmptyError, SubscriptionResult},
+    RpcModule, SubscriptionSink,
 };
 
 use crate::{indexer_reader::IndexerReader, IndexerError};

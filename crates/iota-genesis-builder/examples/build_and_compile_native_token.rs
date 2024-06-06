@@ -4,16 +4,13 @@
 
 //! Example demonstrating building and compiling two native token packages.
 
-use iota_sdk::{
-    types::block::{
-        address::AliasAddress,
-        output::{AliasId, FoundryId},
-    },
-    Url,
-};
 use iota_genesis_builder::stardust::native_token::{
     package_builder,
     package_data::{NativeTokenModuleData, NativeTokenPackageData},
+};
+use iota_sdk::types::block::{
+    address::AliasAddress,
+    output::{AliasId, FoundryId},
 };
 
 fn main() -> anyhow::Result<()> {
@@ -29,7 +26,7 @@ fn main() -> anyhow::Result<()> {
             100_000_000_000,
             "Dogecoin",
             "Much wow",
-            Some(Url::parse("https://raw.githubusercontent.com/dogecoin/dogecoin/master/share/pixmaps/dogecoin256.png").unwrap()),
+            Some("https://raw.githubusercontent.com/dogecoin/dogecoin/master/share/pixmaps/dogecoin256.png".to_string()),
             AliasAddress::new(AliasId::new([0; AliasId::LENGTH]))
         ),
     );

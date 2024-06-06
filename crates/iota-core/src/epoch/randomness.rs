@@ -18,19 +18,19 @@ use fastcrypto::{
 };
 use fastcrypto_tbls::{dkg, nodes, nodes::PartyId};
 use futures::{stream::FuturesUnordered, StreamExt};
-use narwhal_types::Round;
-use rand::{
-    rngs::{OsRng, StdRng},
-    SeedableRng,
-};
 use iota_network::randomness;
 use iota_types::{
     base_types::AuthorityName,
     committee::{Committee, EpochId, StakeUnit},
     crypto::{AuthorityKeyPair, RandomnessRound},
     error::{IotaError, IotaResult},
-    messages_consensus::ConsensusTransaction,
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
+    messages_consensus::ConsensusTransaction,
+};
+use narwhal_types::Round;
+use rand::{
+    rngs::{OsRng, StdRng},
+    SeedableRng,
 };
 use tokio::{sync::OnceCell, task::JoinHandle};
 use tracing::{debug, error, info, warn};

@@ -4,6 +4,7 @@
 
 use std::collections::VecDeque;
 
+use iota_types::{base_types::MoveObjectType, dynamic_field::derive_dynamic_field_id};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
     account_address::AccountAddress,
@@ -19,7 +20,6 @@ use move_vm_types::{
     values::{StructRef, Value},
 };
 use smallvec::smallvec;
-use iota_types::{base_types::MoveObjectType, dynamic_field::derive_dynamic_field_id};
 use tracing::instrument;
 
 use crate::{

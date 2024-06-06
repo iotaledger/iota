@@ -11,10 +11,10 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use arrow_array::{ArrayRef, BooleanArray, Int64Array, RecordBatch, StringArray, UInt64Array};
-use parquet::{arrow::ArrowWriter, basic::Compression, file::properties::WriterProperties};
-use serde::Serialize;
 use iota_storage::object_store::util::path_to_filesystem;
 use iota_types::base_types::EpochId;
+use parquet::{arrow::ArrowWriter, basic::Compression, file::properties::WriterProperties};
+use serde::Serialize;
 
 use crate::{AnalyticsWriter, FileFormat, FileType, ParquetSchema, ParquetValue};
 

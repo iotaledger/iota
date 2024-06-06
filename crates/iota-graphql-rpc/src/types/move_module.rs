@@ -6,19 +6,19 @@ use async_graphql::{
     connection::{Connection, CursorType, Edge},
     *,
 };
+use iota_package_resolver::Module as ParsedMoveModule;
 use move_binary_format::{access::ModuleAccess, binary_views::BinaryIndexedView};
 use move_disassembler::disassembler::Disassembler;
 use move_ir_types::location::Loc;
-use iota_package_resolver::Module as ParsedMoveModule;
 
 use super::{
     base64::Base64,
     cursor::{JsonCursor, Page},
+    iota_address::IotaAddress,
     move_function::MoveFunction,
     move_package::MovePackage,
     move_struct::MoveStruct,
     object::ObjectLookupKey,
-    iota_address::IotaAddress,
 };
 use crate::{
     consistency::{ConsistentIndexCursor, ConsistentNamedCursor},

@@ -7,10 +7,10 @@ use std::collections::BTreeMap;
 use effects_v1::TransactionEffectsV1;
 pub use effects_v2::UnchangedSharedKind;
 use enum_dispatch::enum_dispatch;
+use iota_protocol_config::ProtocolConfig;
 pub use object_change::{EffectsObjectChange, ObjectIn, ObjectOut};
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::IntentScope;
-use iota_protocol_config::ProtocolConfig;
 pub use test_effects_builder::TestEffectsBuilder;
 
 use self::effects_v2::TransactionEffectsV2;

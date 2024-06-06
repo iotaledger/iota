@@ -25,22 +25,6 @@ use fastcrypto::{
     encoding::{Base58, Encoding},
     hash::MultisetHash,
 };
-use itertools::Itertools;
-use move_binary_format::{binary_config::BinaryConfig, CompiledModule};
-use move_core_types::{annotated_value::MoveStructLayout, language_storage::ModuleId};
-use mysten_metrics::{
-    monitored_scope, spawn_monitored_task, TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX,
-};
-use once_cell::sync::OnceCell;
-use parking_lot::Mutex;
-use prometheus::{
-    register_histogram_vec_with_registry, register_histogram_with_registry,
-    register_int_counter_vec_with_registry, register_int_counter_with_registry,
-    register_int_gauge_vec_with_registry, register_int_gauge_with_registry, Histogram, IntCounter,
-    IntCounterVec, IntGauge, IntGaugeVec, Registry,
-};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use shared_crypto::intent::{AppId, Intent, IntentMessage, IntentScope, IntentVersion};
 use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::{
     certificate_deny_config::CertificateDenyConfig,
@@ -91,6 +75,10 @@ use iota_types::{
         InnerTemporaryStore, ObjectMap, TemporaryModuleResolver, TemporaryPackageStore, TxCoins,
         WrittenObjects,
     },
+    iota_system_state::{
+        epoch_start_iota_system_state::EpochStartSystemStateTrait, get_iota_system_state,
+        IotaSystemState, IotaSystemStateTrait,
+    },
     is_system_package,
     message_envelope::Message,
     messages_checkpoint::{
@@ -111,14 +99,26 @@ use iota_types::{
     storage::{
         BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore, WriteKind,
     },
-    iota_system_state::{
-        epoch_start_iota_system_state::EpochStartSystemStateTrait, get_iota_system_state,
-        IotaSystemState, IotaSystemStateTrait,
-    },
     transaction::*,
     type_resolver::LayoutResolver,
     TypeTag, IOTA_SYSTEM_ADDRESS,
 };
+use itertools::Itertools;
+use move_binary_format::{binary_config::BinaryConfig, CompiledModule};
+use move_core_types::{annotated_value::MoveStructLayout, language_storage::ModuleId};
+use mysten_metrics::{
+    monitored_scope, spawn_monitored_task, TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX,
+};
+use once_cell::sync::OnceCell;
+use parking_lot::Mutex;
+use prometheus::{
+    register_histogram_vec_with_registry, register_histogram_with_registry,
+    register_int_counter_vec_with_registry, register_int_counter_with_registry,
+    register_int_gauge_vec_with_registry, register_int_gauge_with_registry, Histogram, IntCounter,
+    IntCounterVec, IntGauge, IntGaugeVec, Registry,
+};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use shared_crypto::intent::{AppId, Intent, IntentMessage, IntentScope, IntentVersion};
 use tap::{TapFallible, TapOptional};
 use tokio::{
     sync::{mpsc, mpsc::unbounded_channel, oneshot, RwLock},
@@ -883,14 +883,15 @@ impl AuthorityState {
             )
             .await?;
 
-        let (_gas_status, checked_input_objects) = iota_transaction_checks::check_transaction_input(
-            epoch_store.protocol_config(),
-            epoch_store.reference_gas_price(),
-            tx_data,
-            input_objects,
-            &receiving_objects,
-            &self.metrics.bytecode_verifier_metrics,
-        )?;
+        let (_gas_status, checked_input_objects) =
+            iota_transaction_checks::check_transaction_input(
+                epoch_store.protocol_config(),
+                epoch_store.reference_gas_price(),
+                tx_data,
+                input_objects,
+                &receiving_objects,
+                &self.metrics.bytecode_verifier_metrics,
+            )?;
 
         if epoch_store.coin_deny_list_state_enabled() {
             self.check_coin_deny(tx_data.sender(), &checked_input_objects, &receiving_objects)?;
@@ -3590,7 +3591,9 @@ impl AuthorityState {
     }
 
     #[cfg(msim)]
-    pub fn get_highest_pruned_checkpoint_for_testing(&self) -> IotaResult<CheckpointSequenceNumber> {
+    pub fn get_highest_pruned_checkpoint_for_testing(
+        &self,
+    ) -> IotaResult<CheckpointSequenceNumber> {
         self.database_for_testing()
             .perpetual_tables
             .get_highest_pruned_checkpoint()
@@ -4974,12 +4977,12 @@ pub mod framework_injection {
         collections::{BTreeMap, BTreeSet},
     };
 
-    use move_binary_format::CompiledModule;
     use iota_framework::{BuiltInFramework, SystemPackage};
     use iota_types::{
         base_types::{AuthorityName, ObjectID},
         is_system_package,
     };
+    use move_binary_format::CompiledModule;
 
     type FrameworkOverrideConfig = BTreeMap<ObjectID, PackageOverrideConfig>;
 

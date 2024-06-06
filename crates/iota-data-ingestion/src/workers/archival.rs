@@ -12,8 +12,6 @@ use anyhow::Result;
 use async_trait::async_trait;
 use byteorder::{BigEndian, ByteOrder};
 use bytes::Bytes;
-use object_store::{path::Path, ObjectStore};
-use serde::{Deserialize, Serialize};
 use iota_archival::{
     create_file_metadata_from_bytes, finalize_manifest, read_manifest_from_bytes, FileType,
     Manifest, CHECKPOINT_FILE_MAGIC, SUMMARY_FILE_MAGIC,
@@ -28,6 +26,8 @@ use iota_types::{
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::{CheckpointSequenceNumber, FullCheckpointContents},
 };
+use object_store::{path::Path, ObjectStore};
+use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

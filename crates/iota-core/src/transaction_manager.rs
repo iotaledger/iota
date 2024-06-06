@@ -10,9 +10,6 @@ use std::{
 };
 
 use indexmap::IndexMap;
-use lru::LruCache;
-use mysten_metrics::monitored_scope;
-use parking_lot::RwLock;
 use iota_types::{
     base_types::{ObjectID, SequenceNumber, TransactionDigest},
     committee::EpochId,
@@ -24,6 +21,9 @@ use iota_types::{
     storage::InputKey,
     transaction::{SenderSignedData, TransactionDataAPI, VerifiedCertificate},
 };
+use lru::LruCache;
+use mysten_metrics::monitored_scope;
+use parking_lot::RwLock;
 use tap::TapOptional;
 use tokio::{sync::mpsc::UnboundedSender, time::Instant};
 use tracing::{error, info, instrument, trace, warn};

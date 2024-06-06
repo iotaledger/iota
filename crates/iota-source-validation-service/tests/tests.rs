@@ -14,15 +14,13 @@ use std::{
 };
 
 use expect_test::expect;
-use move_core_types::account_address::AccountAddress;
-use move_symbol_pool::Symbol;
-use reqwest::Client;
 use iota::client_commands::{IotaClientCommandResult, IotaClientCommands};
 use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI};
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::{
     rpc_types::{
-        OwnedObjectRef, IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockEffectsV1,
+        IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockEffectsV1,
+        OwnedObjectRef,
     },
     types::{base_types::ObjectID, object::Owner, transaction::TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
     wallet_context::WalletContext,
@@ -31,8 +29,11 @@ use iota_source_validation_service::{
     host_port, initialize, serve, start_prometheus_server, verify_packages, watch_for_upgrades,
     AddressLookup, AppState, Branch, CloneCommand, Config, DirectorySource, ErrorResponse, Network,
     NetworkLookup, Package, PackageSource, RepositorySource, SourceInfo, SourceLookup,
-    SourceResponse, SourceServiceMetrics, METRICS_HOST_PORT, IOTA_SOURCE_VALIDATION_VERSION_HEADER,
+    SourceResponse, SourceServiceMetrics, IOTA_SOURCE_VALIDATION_VERSION_HEADER, METRICS_HOST_PORT,
 };
+use move_core_types::account_address::AccountAddress;
+use move_symbol_pool::Symbol;
+use reqwest::Client;
 use test_cluster::TestClusterBuilder;
 use tokio::sync::oneshot;
 

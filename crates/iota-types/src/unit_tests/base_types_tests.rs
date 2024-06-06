@@ -9,9 +9,9 @@ use std::str::FromStr;
 
 use base_types_tests::timelock::TimeLock;
 use fastcrypto::{encoding::Base58, traits::EncodeDecodeBase64};
+use iota_protocol_config::ProtocolConfig;
 use move_binary_format::file_format;
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
-use iota_protocol_config::ProtocolConfig;
 
 use super::*;
 use crate::{
@@ -19,7 +19,7 @@ use crate::{
     crypto::{
         bcs_signable_test::{Bar, Foo},
         get_key_pair, get_key_pair_from_bytes, AccountKeyPair, AuthorityKeyPair,
-        AuthoritySignature, Signature, IotaAuthoritySignature, IotaSignature,
+        AuthoritySignature, IotaAuthoritySignature, IotaSignature, Signature,
     },
     digests::Digest,
     gas_coin::GasCoin,

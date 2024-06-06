@@ -8,18 +8,18 @@ use std::{
     str::FromStr,
 };
 
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::{IdentStr, Identifier},
-    language_storage::{ModuleId, StructTag},
-    resolver::{LinkageResolver, ModuleResolver, ResourceResolver},
-};
 use iota_types::{
     base_types::ObjectID,
     error::{ExecutionError, IotaError, IotaResult},
     execution::IotaResolver,
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
     storage::{get_module, BackingPackageStore, PackageObject},
+};
+use move_core_types::{
+    account_address::AccountAddress,
+    identifier::{IdentStr, Identifier},
+    language_storage::{ModuleId, StructTag},
+    resolver::{LinkageResolver, ModuleResolver, ResourceResolver},
 };
 
 /// Exposes module and linkage resolution to the Move runtime.  The first by

@@ -54,8 +54,8 @@ use crate::{
     base_types::{AuthorityName, ConciseableName, IotaAddress},
     committee::{Committee, CommitteeTrait, EpochId, StakeUnit},
     error::{IotaError, IotaResult},
+    iota_serde::{IotaBitmap, Readable},
     signature::GenericSignature,
-    iota_serde::{Readable, IotaBitmap},
 };
 
 #[cfg(test)]
@@ -222,8 +222,8 @@ impl IotaKeyPair {
     }
 
     /// Decode a IotaKeyPair from `flag || privkey` in Bech32 starting with
-    /// "iotaprivkey" to IotaKeyPair. The public key is computed directly from the
-    /// private key bytes.
+    /// "iotaprivkey" to IotaKeyPair. The public key is computed directly from
+    /// the private key bytes.
     pub fn decode(value: &str) -> Result<Self, eyre::Report> {
         let bytes = Bech32::decode(value, IOTA_PRIV_KEY_PREFIX)?;
         Self::from_bytes(&bytes)
@@ -585,10 +585,10 @@ pub fn random_committee_key_pairs_of_size(size: usize) -> Vec<AuthorityKeyPair> 
     (0..size)
         .map(|_| {
             // TODO: We are generating the keys 4 times to match exactly as how we generate
-            // keys in ConfigBuilder::build (iota-config/src/network_config_builder). This is
-            // because we are using these key generation functions as fixtures
-            // and we call them independently in different paths and exact the
-            // results to be the same. We should eliminate them.
+            // keys in ConfigBuilder::build (iota-config/src/network_config_builder). This
+            // is because we are using these key generation functions as
+            // fixtures and we call them independently in different paths and
+            // exact the results to be the same. We should eliminate them.
             let key_pair = get_key_pair_from_rng::<AuthorityKeyPair, _>(&mut rng);
             get_key_pair_from_rng::<AuthorityKeyPair, _>(&mut rng);
             get_key_pair_from_rng::<AccountKeyPair, _>(&mut rng);

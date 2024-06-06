@@ -6,6 +6,11 @@ use std::env;
 
 use async_trait::async_trait;
 use hyper::{header::HeaderValue, HeaderMap};
+use iota_config::local_ip_utils;
+use iota_json_rpc::{IotaRpcModule, JsonRpcServerBuilder};
+use iota_json_rpc_api::CLIENT_TARGET_API_VERSION_HEADER;
+use iota_open_rpc::Module;
+use iota_open_rpc_macros::open_rpc;
 use jsonrpsee::{
     core::{client::ClientT, RpcResult},
     http_client::HttpClientBuilder,
@@ -13,11 +18,6 @@ use jsonrpsee::{
     rpc_params, RpcModule,
 };
 use prometheus::Registry;
-use iota_config::local_ip_utils;
-use iota_json_rpc::{JsonRpcServerBuilder, IotaRpcModule};
-use iota_json_rpc_api::CLIENT_TARGET_API_VERSION_HEADER;
-use iota_open_rpc::Module;
-use iota_open_rpc_macros::open_rpc;
 
 #[tokio::test]
 async fn test_rpc_backward_compatibility() {

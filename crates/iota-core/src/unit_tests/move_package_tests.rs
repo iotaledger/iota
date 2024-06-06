@@ -4,7 +4,6 @@
 
 use std::{collections::BTreeMap, path::PathBuf};
 
-use move_binary_format::file_format::CompiledModule;
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_types::{
@@ -15,6 +14,7 @@ use iota_types::{
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
     object::{Data, Object, OBJECT_START_VERSION},
 };
+use move_binary_format::file_format::CompiledModule;
 
 macro_rules! type_origin_table {
     {} => { Vec::new() };

@@ -12,9 +12,6 @@ use std::{
 use anyhow::{bail, Context};
 use camino::Utf8Path;
 use fastcrypto::{hash::HashFunction, traits::KeyPair};
-use move_binary_format::CompiledModule;
-use move_core_types::ident_str;
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use iota_config::genesis::{
     Genesis, GenesisCeremonyParameters, GenesisChainParameters, TokenDistributionSchedule,
     UnsignedGenesis,
@@ -24,7 +21,7 @@ use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_types::{
     base_types::{
-        ExecutionDigests, ObjectID, SequenceNumber, IotaAddress, TransactionDigest, TxContext,
+        ExecutionDigests, IotaAddress, ObjectID, SequenceNumber, TransactionDigest, TxContext,
     },
     committee::Committee,
     crypto::{
@@ -40,17 +37,20 @@ use iota_types::{
     governance::StakedIota,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
+    iota_system_state::{get_iota_system_state, IotaSystemState, IotaSystemStateTrait},
     message_envelope::Message,
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary},
     metrics::LimitsMetrics,
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    iota_system_state::{get_iota_system_state, IotaSystemState, IotaSystemStateTrait},
     transaction::{
         CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectReadResult, Transaction,
     },
     IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
 };
+use move_binary_format::CompiledModule;
+use move_core_types::ident_str;
+use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use tracing::trace;
 use validator_info::{GenesisValidatorInfo, GenesisValidatorMetadata, ValidatorInfo};
 
@@ -484,7 +484,8 @@ impl Builder {
                     })
                     .map(|(k, _)| *k)
                     .expect("all allocations should be present");
-                let staked_iota_object = staked_iota_objects.remove(&staked_iota_object_id).unwrap();
+                let staked_iota_object =
+                    staked_iota_objects.remove(&staked_iota_object_id).unwrap();
                 assert_eq!(
                     staked_iota_object.0.owner,
                     Owner::AddressOwner(allocation.recipient_address)

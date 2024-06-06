@@ -5,13 +5,13 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use rand::seq::IteratorRandom;
 use iota_core::test_utils::make_transfer_object_transaction;
 use iota_types::{
-    base_types::{ObjectRef, IotaAddress},
+    base_types::{IotaAddress, ObjectRef},
     crypto::{get_key_pair, AccountKeyPair},
     transaction::Transaction,
 };
+use rand::seq::IteratorRandom;
 use tracing::error;
 
 use crate::{

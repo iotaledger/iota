@@ -11,8 +11,8 @@ use tabled::{
 };
 
 use crate::{
-    displays::Pretty, IotaArgument, IotaCallArg, IotaCommand, IotaObjectArg, IotaProgrammableMoveCall,
-    IotaProgrammableTransactionBlock,
+    displays::Pretty, IotaArgument, IotaCallArg, IotaCommand, IotaObjectArg,
+    IotaProgrammableMoveCall, IotaProgrammableTransactionBlock,
 };
 
 impl<'a> Display for Pretty<'a, IotaProgrammableTransactionBlock> {

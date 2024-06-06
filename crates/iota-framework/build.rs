@@ -9,10 +9,10 @@ use std::{
 };
 
 use anyhow::Result;
+use iota_move_build::{BuildConfig, IotaPackageHooks};
 use move_binary_format::CompiledModule;
 use move_compiler::editions::Edition;
 use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
-use iota_move_build::{BuildConfig, IotaPackageHooks};
 
 const DOCS_DIR: &str = "docs";
 

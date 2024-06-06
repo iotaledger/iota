@@ -4,8 +4,8 @@
 
 use std::{collections::BTreeMap, env, sync::Arc};
 
-use rustyline::{completion::Completer, history::History, Context};
 use iota_types::base_types::ObjectID;
+use rustyline::{completion::Completer, history::History, Context};
 
 use crate::shell::{
     split_and_unescape, substitute_env_variables, CacheKey, CommandStructure, CompletionCache,

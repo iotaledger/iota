@@ -19,7 +19,6 @@ use iota_sdk::{
     },
     U256,
 };
-use move_core_types::ident_str;
 use iota_types::{
     base_types::ObjectID,
     dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo},
@@ -27,6 +26,7 @@ use iota_types::{
     object::{Object, Owner},
     TypeTag,
 };
+use move_core_types::ident_str;
 
 use super::ExpectedAssets;
 use crate::stardust::{

@@ -11,9 +11,9 @@ use iota_types::{
     coin::CoinMetadata,
     gas_coin::{GasCoin, MICROS_PER_IOTA, TOTAL_SUPPLY_MICROS},
     governance::StakedIota,
+    iota_system_state::IotaValidatorGenesis,
     move_package::MovePackage,
     object::{MoveObject, Owner},
-    iota_system_state::IotaValidatorGenesis,
 };
 
 const STR_ALL: &str = "All";
@@ -117,7 +117,8 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
     examine_total_supply(&iota_distribution, false);
 
     // Main loop for inspection
-    let main_options: Vec<&str> = vec![STR_IOTA_DISTRIBUTION, STR_VALIDATORS, STR_OBJECTS, STR_EXIT];
+    let main_options: Vec<&str> =
+        vec![STR_IOTA_DISTRIBUTION, STR_VALIDATORS, STR_OBJECTS, STR_EXIT];
     loop {
         let ans = Select::new(
             "Select one main category to examine ('Exit' to exit the program):",

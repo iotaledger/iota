@@ -3,12 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::error::FastCryptoError;
-use jsonrpsee::{core::Error as RpcError, types::error::CallError};
 use iota_json_rpc::name_service::NameServiceError;
 use iota_types::{
     base_types::ObjectIDParseError,
     error::{IotaError, IotaObjectResponseError, UserInputError},
 };
+use jsonrpsee::{core::Error as RpcError, types::error::CallError};
 use thiserror::Error;
 
 #[derive(Debug, Error)]

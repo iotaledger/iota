@@ -6,11 +6,11 @@ use std::{path::PathBuf, sync::Arc, time::Instant};
 use async_trait::async_trait;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::traits::KeyPair as _;
-use mysten_metrics::RegistryService;
-use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
 use iota_config::{ConsensusConfig, NodeConfig};
 use iota_protocol_config::ProtocolVersion;
 use iota_types::committee::EpochId;
+use mysten_metrics::RegistryService;
+use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
 use tokio::sync::{Mutex, MutexGuard};
 
 use crate::{

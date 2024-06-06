@@ -6,6 +6,11 @@ use std::collections::BTreeMap;
 
 use fastcrypto::error::FastCryptoError;
 use hyper::header::InvalidHeaderValue;
+use iota_json_rpc_api::{TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSIENT_ERROR_CODE};
+use iota_types::{
+    error::{IotaError, IotaObjectResponseError, UserInputError},
+    quorum_driver_types::QuorumDriverError,
+};
 use itertools::Itertools;
 use jsonrpsee::{
     core::Error as RpcError,
@@ -13,11 +18,6 @@ use jsonrpsee::{
         error::{CallError, INTERNAL_ERROR_CODE},
         ErrorObject,
     },
-};
-use iota_json_rpc_api::{TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSIENT_ERROR_CODE};
-use iota_types::{
-    error::{IotaError, IotaObjectResponseError, UserInputError},
-    quorum_driver_types::QuorumDriverError,
 };
 use thiserror::Error;
 use tokio::task::JoinError;
@@ -316,13 +316,13 @@ impl From<IotaRpcInputError> for RpcError {
 #[cfg(test)]
 mod tests {
     use expect_test::expect;
-    use jsonrpsee::types::ErrorObjectOwned;
     use iota_types::{
         base_types::{AuthorityName, ObjectID, ObjectRef, SequenceNumber},
         committee::StakeUnit,
         crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes},
         digests::{ObjectDigest, TransactionDigest},
     };
+    use jsonrpsee::types::ErrorObjectOwned;
 
     use super::*;
 

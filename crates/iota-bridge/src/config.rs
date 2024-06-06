@@ -12,17 +12,17 @@ use std::{
 use anyhow::anyhow;
 use ethers::types::Address as EthAddress;
 use fastcrypto::traits::EncodeDecodeBase64;
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 use iota_config::Config;
 use iota_sdk::IotaClient as IotaSdkClient;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, IotaAddress},
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::IotaKeyPair,
     event::EventID,
     object::Owner,
     Identifier,
 };
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 use tracing::info;
 
 use crate::{
@@ -56,8 +56,9 @@ pub struct BridgeNodeConfig {
     /// is None, then use `bridge_authority_key_path_base64_raw` as client key.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bridge_client_key_path_base64_iota_key: Option<PathBuf>,
-    /// Whether to run client. If true, `bridge_client_key_path_base64_iota_key`,
-    /// `bridge_client_gas_object` and `db_path` needs to be provided.
+    /// Whether to run client. If true,
+    /// `bridge_client_key_path_base64_iota_key`, `bridge_client_gas_object`
+    /// and `db_path` needs to be provided.
     pub run_client: bool,
     /// The gas object to use for paying for gas fees for the client. It needs
     /// to be owned by the address associated with bridge client key.
@@ -154,7 +155,11 @@ impl BridgeNodeConfig {
                 read_bridge_authority_key(&self.bridge_authority_key_path_base64_raw)?;
             Ok(IotaKeyPair::from(bridge_client_key))
         } else {
-            read_bridge_client_key(self.bridge_client_key_path_base64_iota_key.as_ref().unwrap())
+            read_bridge_client_key(
+                self.bridge_client_key_path_base64_iota_key
+                    .as_ref()
+                    .unwrap(),
+            )
         }?;
 
         let client_iota_address = IotaAddress::from(&bridge_client_key.public());
@@ -211,7 +216,8 @@ impl BridgeNodeConfig {
                 for (module, cursor) in overrides {
                     let module = Identifier::from_str(module)?;
                     if iota_bridge_modules.contains(&module) {
-                        iota_bridge_modules_last_processed_event_id_override.insert(module, *cursor);
+                        iota_bridge_modules_last_processed_event_id_override
+                            .insert(module, *cursor);
                     } else {
                         return Err(anyhow!(
                             "Override start tx digest for module {:?} is not in `iota_bridge_modules`",

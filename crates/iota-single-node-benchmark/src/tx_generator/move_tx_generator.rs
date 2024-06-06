@@ -4,13 +4,13 @@
 
 use std::collections::HashMap;
 
-use move_core_types::identifier::Identifier;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, IotaAddress},
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, ObjectArg, Transaction, DEFAULT_VALIDATOR_GAS_PRICE},
 };
+use move_core_types::identifier::Identifier;
 
 use crate::{mock_account::Account, tx_generator::TxGenerator};
 

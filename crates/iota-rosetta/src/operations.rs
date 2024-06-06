@@ -5,12 +5,6 @@
 use std::{collections::HashMap, ops::Not, str::FromStr, vec};
 
 use anyhow::anyhow;
-use move_core_types::{
-    ident_str,
-    language_storage::{ModuleId, StructTag},
-    resolver::ModuleResolver,
-};
-use serde::{Deserialize, Serialize};
 use iota_json_rpc_types::{
     BalanceChange, IotaArgument, IotaCallArg, IotaCommand, IotaProgrammableMoveCall,
     IotaProgrammableTransactionBlock,
@@ -20,14 +14,20 @@ use iota_sdk::rpc_types::{
     IotaTransactionBlockKind, IotaTransactionBlockResponse,
 };
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, IotaAddress},
+    base_types::{IotaAddress, ObjectID, SequenceNumber},
     gas_coin::{GasCoin, GAS},
     governance::{ADD_STAKE_FUN_NAME, WITHDRAW_STAKE_FUN_NAME},
-    object::Owner,
     iota_system_state::IOTA_SYSTEM_MODULE_NAME,
+    object::Owner,
     transaction::TransactionData,
     IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID,
 };
+use move_core_types::{
+    ident_str,
+    language_storage::{ModuleId, StructTag},
+    resolver::ModuleResolver,
+};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     types::{
@@ -290,7 +290,9 @@ impl Operations {
         ) -> Option<Vec<KnownValue>> {
             let addr = match recipient {
                 IotaArgument::Input(i) => inputs[i as usize].pure()?.to_iota_address().ok()?,
-                IotaArgument::GasCoin | IotaArgument::Result(_) | IotaArgument::NestedResult(_, _) => {
+                IotaArgument::GasCoin
+                | IotaArgument::Result(_)
+                | IotaArgument::NestedResult(_, _) => {
                     return None;
                 }
             };

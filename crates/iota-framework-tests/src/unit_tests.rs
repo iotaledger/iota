@@ -4,11 +4,11 @@
 
 use std::{fs, io, path::PathBuf};
 
+use iota_move::unit_test::run_move_unit_tests;
+use iota_move_build::BuildConfig;
 use move_cli::base::test::UnitTestResult;
 use move_package::LintFlag;
 use move_unit_test::UnitTestingConfig;
-use iota_move::unit_test::run_move_unit_tests;
-use iota_move_build::BuildConfig;
 
 const FILTER_ENV: &str = "FILTER";
 

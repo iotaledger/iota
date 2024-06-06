@@ -9,6 +9,18 @@ mod checked {
     use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
     use anyhow::Result;
+    use iota_move_natives::{object_runtime, object_runtime::ObjectRuntime, NativesCostTable};
+    use iota_protocol_config::ProtocolConfig;
+    use iota_types::{
+        base_types::*,
+        error::{ExecutionError, ExecutionErrorKind, IotaError},
+        execution_config_utils::to_binary_config,
+        metrics::{BytecodeVerifierMetrics, LimitsMetrics},
+        storage::ChildObjectResolver,
+    };
+    use iota_verifier::{
+        check_for_verifier_timeout, verifier::iota_verify_module_metered_check_timeout_only,
+    };
     use move_binary_format::{access::ModuleAccess, file_format::CompiledModule};
     use move_bytecode_verifier::{meter::Meter, verify_module_with_config_metered};
     use move_core_types::account_address::AccountAddress;
@@ -21,18 +33,6 @@ mod checked {
     use move_vm_runtime::{
         move_vm::MoveVM, native_extensions::NativeContextExtensions,
         native_functions::NativeFunctionTable,
-    };
-    use iota_move_natives::{object_runtime, object_runtime::ObjectRuntime, NativesCostTable};
-    use iota_protocol_config::ProtocolConfig;
-    use iota_types::{
-        base_types::*,
-        error::{ExecutionError, ExecutionErrorKind, IotaError},
-        execution_config_utils::to_binary_config,
-        metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-        storage::ChildObjectResolver,
-    };
-    use iota_verifier::{
-        check_for_verifier_timeout, verifier::iota_verify_module_metered_check_timeout_only,
     };
     use tracing::instrument;
 

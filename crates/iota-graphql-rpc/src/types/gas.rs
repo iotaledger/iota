@@ -13,8 +13,8 @@ use super::{
     address::Address,
     big_int::BigInt,
     cursor::Page,
-    object::{self, ObjectFilter, ObjectKey, ObjectLookupKey},
     iota_address::IotaAddress,
+    object::{self, ObjectFilter, ObjectKey, ObjectLookupKey},
 };
 use crate::types::object::Object;
 

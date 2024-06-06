@@ -4,7 +4,7 @@
 
 use async_graphql::*;
 
-use super::{object::ObjectRef, iota_address::IotaAddress};
+use super::{iota_address::IotaAddress, object::ObjectRef};
 
 /// The optional extra data a user can provide to a transaction dry run.
 /// `sender` defaults to `0x0`. If gasObjects` is not present, or is an empty
