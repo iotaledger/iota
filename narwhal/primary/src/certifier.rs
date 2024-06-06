@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use std::{sync::Arc, time::Duration};
 
@@ -7,11 +8,11 @@ use config::{AuthorityIdentifier, Committee};
 use crypto::{NetworkPublicKey, Signature};
 use fastcrypto::signature_service::SignatureService;
 use futures::{stream::FuturesUnordered, StreamExt};
+use iota_macros::fail_point_async;
+use iota_protocol_config::ProtocolConfig;
 use mysten_metrics::{metered_channel::Receiver, monitored_future, spawn_logged_monitored_task};
 use mysten_network::anemo_ext::NetworkExt;
 use storage::CertificateStore;
-use sui_macros::fail_point_async;
-use sui_protocol_config::ProtocolConfig;
 use tokio::{
     sync::oneshot,
     task::{JoinHandle, JoinSet},

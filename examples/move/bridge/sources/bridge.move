@@ -1,22 +1,23 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module bridge::bridge {
     use std::option;
     use std::option::{none, Option, some};
-    use sui::object::{Self, UID};
-    use sui::address;
-    use sui::balance;
-    use sui::coin::{Self, Coin};
-    use sui::coin::TreasuryCap;
-    use sui::event::emit;
-    use sui::linked_table::{Self, LinkedTable};
-    use sui::transfer;
-    use sui::tx_context::{Self, TxContext};
-    use sui::vec_map::{Self, VecMap};
-    use sui::versioned::{Self, Versioned};
+    use iota::object::{Self, UID};
+    use iota::address;
+    use iota::balance;
+    use iota::coin::{Self, Coin};
+    use iota::coin::TreasuryCap;
+    use iota::event::emit;
+    use iota::linked_table::{Self, LinkedTable};
+    use iota::transfer;
+    use iota::tx_context::{Self, TxContext};
+    use iota::vec_map::{Self, VecMap};
+    use iota::versioned::{Self, Versioned};
 
-    use bridge::chain_ids::{Self, sui_local_test};
+    use bridge::chain_ids::{Self, iota_local_test};
     use bridge::committee::{Self, BridgeCommittee};
     use bridge::message::{Self, BridgeMessage, BridgeMessageKey};
     use bridge::message_types;
@@ -73,7 +74,7 @@ module bridge::bridge {
     const EUnexpectedOperation: u64 = 11;
     const EInvalidBridgeRoute: u64 = 12;
 
-    const EInvariantSuiInitializedTokenTransferShouldNotBeClaimed: u64 = 13;
+    const EInvariantIotaInitializedTokenTransferShouldNotBeClaimed: u64 = 13;
     const EMessageNotFoundInRecords: u64 = 14;
 
     const CURRENT_VERSION: u64 = 1;
@@ -101,7 +102,7 @@ module bridge::bridge {
         let bridge_inner = BridgeInner {
             bridge_version: CURRENT_VERSION,
             // TODO: how do we make this configurable?
-            chain_id: sui_local_test(),
+            chain_id: iota_local_test(),
             sequence_nums: vec_map::empty<u8, u64>(),
             committee: committee::create(ctx),
             treasury: treasury,
@@ -199,7 +200,7 @@ module bridge::bridge {
         });
     }
 
-    // Record bridge message approvals in Sui, called by the bridge client
+    // Record bridge message approvals in Iota, called by the bridge client
     // If already approved, return early instead of aborting.
     public fun approve_bridge_message(
         self: &mut Bridge,
@@ -211,11 +212,11 @@ module bridge::bridge {
 
         // TODO: use borrow mut
 
-        // retrieve pending message if source chain is Sui, the initial message must exist on chain.
+        // retrieve pending message if source chain is Iota, the initial message must exist on chain.
         if (message::message_type(&message) == message_types::token() && message::source_chain(&message) == inner.chain_id) {
             let record = linked_table::remove(&mut inner.bridge_records, key);
             assert!(record.message == message, EMalformedMessageError);
-            assert!(!record.claimed, EInvariantSuiInitializedTokenTransferShouldNotBeClaimed);
+            assert!(!record.claimed, EInvariantIotaInitializedTokenTransferShouldNotBeClaimed);
 
             // If record already has verified signatures, it means the message has been approved.
             // Then we push this message back to bridge_records and exit early.

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use std::{sync::Arc, time::Instant};
 
@@ -7,6 +8,7 @@ use config::{AuthorityIdentifier, Committee, Parameters, WorkerCache};
 use crypto::{KeyPair, NetworkKeyPair, PublicKey};
 use executor::{get_restored_consensus_output, ExecutionState, Executor, SubscriberResult};
 use fastcrypto::traits::{KeyPair as _, VerifyingKey};
+use iota_protocol_config::ProtocolConfig;
 use mysten_metrics::{metered_channel, RegistryID, RegistryService};
 use network::client::NetworkClient;
 use primary::{
@@ -17,7 +19,6 @@ use primary::{
 };
 use prometheus::{IntGauge, Registry};
 use storage::NodeStorage;
-use sui_protocol_config::ProtocolConfig;
 use tokio::{
     sync::{watch, RwLock},
     task::JoinHandle,

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![allow(clippy::mutable_key_type)]
@@ -155,13 +156,13 @@ fn update_primary_network_info_test() {
 // 1. Docker/validators/parameters.json for starting Narwhal cluster with Docker
 //    Compose.
 // 2. benchmark/fabfile.py for benchmarking a Narwhal cluster locally.
-// 3. Sui configurations & snapshot tests when upgrading Narwhal in Sui to
+// 3. Iota configurations & snapshot tests when upgrading Narwhal in Iota to
 //    include the change.
 
 #[test]
 fn parameters_snapshot_matches() {
     // This configuration is load-bearing in the NW benchmarks,
-    // and in Sui (prod config + shared object bench base). If this test breaks,
+    // and in Iota (prod config + shared object bench base). If this test breaks,
     // config needs to change in all of these.
 
     // Avoid default which bind to random ports.
@@ -224,7 +225,7 @@ fn parameters_import_snapshot_matches() {
 #[test]
 fn commmittee_snapshot_matches() {
     // The shape of this configuration is load-bearing in the NW benchmarks,
-    // and in Sui (prod)
+    // and in Iota (prod)
     let rng = StdRng::from_seed([0; 32]);
     let fixture = CommitteeFixture::builder().rng(rng).build();
     let committee = fixture.committee();
@@ -238,7 +239,7 @@ fn commmittee_snapshot_matches() {
 #[test]
 fn workers_snapshot_matches() {
     // The shape of this configuration is load-bearing in the NW benchmarks,
-    // and in Sui (prod)
+    // and in Iota (prod)
     let rng = StdRng::from_seed([0; 32]);
     let fixture = CommitteeFixture::builder().rng(rng).build();
     let worker_cache = fixture.worker_cache();

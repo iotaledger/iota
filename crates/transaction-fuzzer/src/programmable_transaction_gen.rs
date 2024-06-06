@@ -1,17 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{cmp, str::FromStr};
 
-use move_core_types::identifier::Identifier;
-use once_cell::sync::Lazy;
-use proptest::{collection::vec, prelude::*};
-use sui_protocol_config::ProtocolConfig;
-use sui_types::{
-    base_types::{ObjectID, ObjectRef, SuiAddress},
+use iota_protocol_config::ProtocolConfig;
+use iota_types::{
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{Argument, CallArg, Command, ProgrammableTransaction},
 };
+use move_core_types::identifier::Identifier;
+use once_cell::sync::Lazy;
+use proptest::{collection::vec, prelude::*};
 
 static PROTOCOL_CONFIG: Lazy<ProtocolConfig> =
     Lazy::new(ProtocolConfig::get_for_max_version_UNSAFE);
@@ -185,7 +186,7 @@ pub fn arg_len_strategy_input_match() -> impl Strategy<Value = usize> {
 }
 
 prop_compose! {
-    pub fn gen_many_input_match(recipient: SuiAddress, package: ObjectID, cap: ObjectRef)
+    pub fn gen_many_input_match(recipient: IotaAddress, package: ObjectID, cap: ObjectRef)
         (mut command_sketches in vec(gen_command_input_match(), 1..=MAX_COMMANDS_INPUT_MATCH)) -> ProgrammableTransaction {
             let mut builder = ProgrammableTransactionBuilder::new();
             let mut prev_cmd_num = -1;
@@ -210,7 +211,7 @@ fn gen_input(
     prev_command: Option<&CommandSketch>,
     cmd: &CommandSketch,
     prev_cmd_num: i64,
-    recipient: SuiAddress,
+    recipient: IotaAddress,
     package: ObjectID,
     cap: ObjectRef,
 ) -> (Command, i64) {
@@ -241,7 +242,7 @@ pub fn gen_transfer_input(
     prev_command: Option<&CommandSketch>,
     cmd: &CommandSketch,
     prev_cmd_num: i64,
-    recipient: SuiAddress,
+    recipient: IotaAddress,
     package: ObjectID,
     cap: ObjectRef,
 ) -> (Command, i64) {

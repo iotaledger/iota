@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB64 } from '@mysten/bcs';
+import { fromB64 } from '@iota/bcs';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { sha256 } from '@noble/hashes/sha256';
 
@@ -57,7 +58,7 @@ export class Secp256k1PublicKey extends PublicKey {
     }
 
     /**
-     * Return the Sui address associated with this Secp256k1 public key
+     * Return the Iota address associated with this Secp256k1 public key
      */
     flag(): number {
         return SIGNATURE_SCHEME_TO_FLAG['Secp256k1'];

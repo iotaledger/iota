@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { useRecognizedCoins } from '_app/hooks/deepbook';
 import { Button } from '_app/shared/ButtonUI';
@@ -8,7 +9,7 @@ import Alert from '_components/alert';
 import { AssetData } from '_pages/swap/AssetData';
 import {
     Coins,
-    SUI_CONVERSION_RATE,
+    IOTA_CONVERSION_RATE,
     USDC_CONVERSION_RATE,
     type FormValues,
 } from '_pages/swap/constants';
@@ -16,8 +17,8 @@ import { MaxSlippage, MaxSlippageModal } from '_pages/swap/MaxSlippage';
 import { ToAssets } from '_pages/swap/ToAssets';
 import { getUSDCurrency, useSwapData } from '_pages/swap/utils';
 import { useDeepBookContext } from '_shared/deepBook/context';
-import { type BalanceChange } from '@mysten/sui.js/client';
-import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
+import { type BalanceChange } from '@iota/iota.js/client';
+import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import BigNumber from 'bignumber.js';
 import clsx from 'clsx';
 import { useEffect, useState } from 'react';
@@ -46,7 +47,7 @@ export function ToAssetSection({
     const recognizedCoins = useRecognizedCoins();
     const [isToAssetOpen, setToAssetOpen] = useState(false);
     const [isSlippageModalOpen, setSlippageModalOpen] = useState(false);
-    const isAsk = activeCoinType === SUI_TYPE_ARG;
+    const isAsk = activeCoinType === IOTA_TYPE_ARG;
 
     const { formattedBaseBalance, formattedQuoteBalance, baseCoinMetadata, quoteCoinMetadata } =
         useSwapData({
@@ -69,11 +70,11 @@ export function ToAssetSection({
     )?.amount;
 
     const toAssetAmountAsNum = new BigNumber(rawToAssetAmount || '0')
-        .shiftedBy(isAsk ? -SUI_CONVERSION_RATE : -USDC_CONVERSION_RATE)
+        .shiftedBy(isAsk ? -IOTA_CONVERSION_RATE : -USDC_CONVERSION_RATE)
         .toNumber();
 
     useEffect(() => {
-        const newToAsset = isAsk ? coinsMap[Coins.USDC] : SUI_TYPE_ARG;
+        const newToAsset = isAsk ? coinsMap[Coins.USDC] : IOTA_TYPE_ARG;
         setValue('toAssetType', newToAsset);
     }, [coinsMap, isAsk, setValue]);
 
@@ -88,7 +89,7 @@ export function ToAssetSection({
         <div
             className={clsx(
                 'flex flex-col gap-4 rounded-xl border border-solid border-hero-darkest/20 p-5',
-                { 'bg-sui-primaryBlue2023/10': isValid },
+                { 'bg-iota-primaryBlue2023/10': isValid },
             )}
         >
             <ToAssets

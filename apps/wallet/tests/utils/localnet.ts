@@ -1,13 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import 'tsconfig-paths/register';
 
-import { requestSuiFromFaucetV0 } from '@mysten/sui.js/faucet';
-import { Ed25519Keypair } from '@mysten/sui.js/keypairs/ed25519';
+import { requestIotaFromFaucetV0 } from '@iota/iota.js/faucet';
+import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
 import * as bip39 from '@scure/bip39';
 import { wordlist } from '@scure/bip39/wordlists/english';
 
@@ -23,6 +21,6 @@ export async function generateKeypair() {
 
 const FAUCET_HOST = 'http://127.0.0.1:9123';
 
-export async function requestSuiFromFaucet(recipient: string) {
-    await requestSuiFromFaucetV0({ host: FAUCET_HOST, recipient });
+export async function requestIotaFromFaucet(recipient: string) {
+    await requestIotaFromFaucetV0({ host: FAUCET_HOST, recipient });
 }

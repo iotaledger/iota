@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -93,7 +94,7 @@ deps_digest = "0"
 [move.toolchain-version]
 compiler-version = "0.0.0"
 edition = "legacy"
-flavor = "sui"
+flavor = "iota"
 "#;
     fs::write(lock_path.clone(), lock_contents).unwrap();
 
@@ -156,7 +157,7 @@ flavor = "sui"
         [move.toolchain-version]
         compiler-version = "0.0.0"
         edition = "legacy"
-        flavor = "sui"
+        flavor = "iota"
     "#]];
     expected.assert_eq(&contents);
 }
@@ -177,7 +178,7 @@ fn update_lock_file_toolchain_version() {
     lock.commit(&lock_path).unwrap();
 
     let build_config = BuildConfig {
-        default_flavor: Some(Flavor::Sui),
+        default_flavor: Some(Flavor::Iota),
         default_edition: Some(Edition::E2024_ALPHA),
         lock_file: Some(lock_path.clone()),
         ..Default::default()
@@ -194,7 +195,7 @@ fn update_lock_file_toolchain_version() {
     let expected = expect![[r#"
         compiler-version = "0.0.1"
         edition = "2024.alpha"
-        flavor = "sui"
+        flavor = "iota"
     "#]];
     expected.assert_eq(&toml);
 }

@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { useActiveAccount } from '_app/hooks/useActiveAccount';
 import { useCoinsReFetchingConfig } from '_hooks';
-import { roundFloat, useFormatCoin } from '@mysten/core';
-import { useSuiClientQuery } from '@mysten/dapp-kit';
-import { type DeepBookClient } from '@mysten/deepbook';
-import { type BalanceChange } from '@mysten/sui.js/client';
+import { roundFloat, useFormatCoin } from '@iota/core';
+import { useIotaClientQuery } from '@iota/dapp-kit';
+import { type DeepBookClient } from '@iota/deepbook';
+import { type BalanceChange } from '@iota/iota.js/client';
 import BigNumber from 'bignumber.js';
 
 export function useSwapData({
@@ -19,14 +20,14 @@ export function useSwapData({
     const activeAccountAddress = activeAccount?.address;
     const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
 
-    const { data: baseCoinBalanceData, isPending: baseCoinBalanceDataLoading } = useSuiClientQuery(
+    const { data: baseCoinBalanceData, isPending: baseCoinBalanceDataLoading } = useIotaClientQuery(
         'getBalance',
         { coinType: baseCoinType, owner: activeAccountAddress! },
         { enabled: !!activeAccountAddress, refetchInterval, staleTime },
     );
 
     const { data: quoteCoinBalanceData, isPending: quoteCoinBalanceDataLoading } =
-        useSuiClientQuery(
+        useIotaClientQuery(
             'getBalance',
             { coinType: quoteCoinType, owner: activeAccountAddress! },
             { enabled: !!activeAccountAddress, refetchInterval, staleTime },
