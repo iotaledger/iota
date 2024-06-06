@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
-use iota_types::crypto::{Ed25519IotaSignature, SignatureScheme, IotaSignatureInner};
+use iota_types::crypto::{Ed25519IotaSignature, IotaSignatureInner, SignatureScheme};
 use tempfile::TempDir;
 #[test]
 fn mnemonic_test() {

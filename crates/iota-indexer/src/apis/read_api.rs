@@ -3,14 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
-use jsonrpsee::{core::RpcResult, RpcModule};
 use iota_json_rpc::{error::IotaRpcInputError, IotaRpcModule};
 use iota_json_rpc_api::{ReadApiServer, QUERY_MAX_RESULT_LIMIT};
 use iota_json_rpc_types::{
-    Checkpoint, CheckpointId, CheckpointPage, ProtocolConfigResponse, IotaEvent,
-    IotaGetPastObjectRequest, IotaLoadedChildObjectsResponse, IotaObjectDataOptions,
-    IotaObjectResponse, IotaPastObjectResponse, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions,
+    Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest,
+    IotaLoadedChildObjectsResponse, IotaObjectDataOptions, IotaObjectResponse,
+    IotaPastObjectResponse, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    ProtocolConfigResponse,
 };
 use iota_open_rpc::Module;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
@@ -18,9 +17,10 @@ use iota_types::{
     base_types::{ObjectID, SequenceNumber},
     digests::{ChainIdentifier, TransactionDigest},
     error::IotaObjectResponseError,
-    object::ObjectRead,
     iota_serde::BigInt,
+    object::ObjectRead,
 };
+use jsonrpsee::{core::RpcResult, RpcModule};
 
 use crate::{errors::IndexerError, indexer_reader::IndexerReader};
 

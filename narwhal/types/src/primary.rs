@@ -22,13 +22,13 @@ use fastcrypto::{
     traits::{AggregateAuthenticator, Signer, VerifyingKey},
 };
 use indexmap::IndexMap;
+use iota_protocol_config::ProtocolConfig;
 use mysten_util_mem::MallocSizeOf;
 use once_cell::sync::OnceCell;
 use proptest_derive::Arbitrary;
 use roaring::RoaringBitmap;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use iota_protocol_config::ProtocolConfig;
 use tracing::warn;
 
 use crate::{

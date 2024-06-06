@@ -12,9 +12,6 @@ use std::{
 use anyhow::{anyhow, Ok};
 use clap::{Parser, ValueEnum};
 use comfy_table::{Cell, ContentArrangement, Row, Table};
-use prometheus::Registry;
-use rocksdb::MultiThreaded;
-use strum_macros::EnumString;
 use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::node::AuthorityStorePruningConfig;
 use iota_core::{
@@ -31,6 +28,9 @@ use iota_core::{
 };
 use iota_storage::{mutex_table::RwLockTable, IndexStoreTables};
 use iota_types::base_types::{EpochId, ObjectID};
+use prometheus::Registry;
+use rocksdb::MultiThreaded;
+use strum_macros::EnumString;
 use tracing::info;
 use typed_store::{
     rocks::{default_db_options, MetricConf},

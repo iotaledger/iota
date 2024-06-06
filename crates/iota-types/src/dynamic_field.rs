@@ -21,13 +21,13 @@ use serde_with::{serde_as, DisplayFromStr};
 use shared_crypto::intent::HashingIntentScope;
 
 use crate::{
-    base_types::{ObjectDigest, IotaAddress},
+    base_types::{IotaAddress, ObjectDigest},
     crypto::DefaultHash,
     error::{IotaError, IotaResult},
     id::UID,
+    iota_serde::{IotaTypeTag, Readable},
     object::Object,
     storage::ObjectStore,
-    iota_serde::{Readable, IotaTypeTag},
     MoveTypeTagTrait, ObjectID, SequenceNumber, IOTA_FRAMEWORK_ADDRESS,
 };
 
@@ -128,7 +128,10 @@ impl DynamicFieldInfo {
         }
     }
 
-    pub fn try_extract_field_name(tag: &StructTag, type_: &DynamicFieldType) -> IotaResult<TypeTag> {
+    pub fn try_extract_field_name(
+        tag: &StructTag,
+        type_: &DynamicFieldType,
+    ) -> IotaResult<TypeTag> {
         match (type_, tag.type_params.first()) {
             (DynamicFieldType::DynamicField, Some(name_type)) => Ok(name_type.clone()),
             (DynamicFieldType::DynamicObject, Some(TypeTag::Struct(s))) => Ok(s

@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use narwhal_config::committee::AuthorityIdentifier;
 use iota_types::{base_types::AuthorityName, committee::StakeUnit};
+use narwhal_config::committee::AuthorityIdentifier;
 
 use crate::consensus_types::AuthorityIndex;
 

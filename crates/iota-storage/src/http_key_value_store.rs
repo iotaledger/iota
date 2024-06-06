@@ -13,7 +13,6 @@ use hyper::{
     Client, Uri,
 };
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
-use serde::{Deserialize, Serialize};
 use iota_types::{
     base_types::{ObjectID, SequenceNumber, VersionNumber},
     digests::{
@@ -28,6 +27,7 @@ use iota_types::{
     storage::ObjectKey,
     transaction::Transaction,
 };
+use serde::{Deserialize, Serialize};
 use tap::TapFallible;
 use tracing::{error, info, instrument, trace, warn};
 use url::Url;

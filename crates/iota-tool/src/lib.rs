@@ -25,8 +25,6 @@ use futures::{
     StreamExt, TryStreamExt,
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use itertools::Itertools;
-use prometheus::Registry;
 use iota_archival::{
     reader::{ArchiveReader, ArchiveReaderMetrics},
     verify_archive_with_checksums, verify_archive_with_genesis_config,
@@ -70,6 +68,8 @@ use iota_types::{
     object::Owner,
     storage::{ReadStore, SharedInMemoryStore},
 };
+use itertools::Itertools;
+use prometheus::Registry;
 use tokio::{sync::mpsc, task::JoinHandle, time::Instant};
 use tracing::info;
 use typed_store::rocks::MetricConf;
@@ -522,8 +522,8 @@ async fn get_object_impl(
 }
 
 pub(crate) fn make_anemo_config() -> anemo_cli::Config {
-    use narwhal_types::*;
     use iota_network::{discovery::*, state_sync::*};
+    use narwhal_types::*;
 
     // TODO: implement `ServiceInfo` generation in anemo-build and use here.
     anemo_cli::Config::new()

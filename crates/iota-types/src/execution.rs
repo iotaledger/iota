@@ -11,7 +11,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     coin::Coin,
     digests::{ObjectDigest, TransactionDigest},
     error::{ExecutionError, ExecutionErrorKind, IotaError},

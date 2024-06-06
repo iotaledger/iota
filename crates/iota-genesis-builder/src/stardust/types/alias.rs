@@ -2,19 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk::types::block::output::AliasOutput as StardustAlias;
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk::types::block::output::AliasOutput as StardustAlias;
 use iota_types::{
     balance::Balance,
-    base_types::{ObjectID, SequenceNumber, IotaAddress, TxContext},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, TxContext},
     collection_types::Bag,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
     STARDUST_PACKAGE_ID,
 };
+use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 
 use super::stardust_to_iota_address;
 

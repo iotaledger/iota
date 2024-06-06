@@ -6,8 +6,8 @@ use async_graphql::*;
 use iota_types::base_types::ObjectRef as NativeObjectRef;
 
 use super::{
-    object::{Object, ObjectLookupKey},
     iota_address::IotaAddress,
+    object::{Object, ObjectLookupKey},
 };
 
 // A helper type representing the read of a specific version of an object.

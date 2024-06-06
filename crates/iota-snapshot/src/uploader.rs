@@ -6,8 +6,6 @@ use std::{num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::Result;
 use bytes::Bytes;
-use object_store::DynObjectStore;
-use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_core::{
     authority::authority_store_tables::AuthorityPerpetualTables,
@@ -20,6 +18,8 @@ use iota_storage::{
     },
     FileCompression,
 };
+use object_store::DynObjectStore;
+use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
 use tracing::{debug, error, info};
 
 use crate::writer::StateSnapshotWriterV1;

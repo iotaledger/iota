@@ -2,15 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use proptest::{prelude::*, strategy::ValueTree};
 use iota_types::{
     base_types::ObjectRef,
     effects::TransactionEffectsAPI,
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::Owner,
     transaction::{CallArg, ObjectArg, ProgrammableTransaction},
-    MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID,
+    IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
 };
+use proptest::{prelude::*, strategy::ValueTree};
 use transaction_fuzzer::{
     account_universe::{AccountCurrent, AccountData},
     executor::Executor,

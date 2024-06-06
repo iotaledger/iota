@@ -5,11 +5,11 @@
 use std::{env, fmt};
 
 use fastcrypto::encoding::{Base58, Encoding};
+use iota_protocol_config::Chain;
 use once_cell::sync::{Lazy, OnceCell};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
-use iota_protocol_config::Chain;
 use tracing::info;
 
 use crate::{error::IotaError, iota_serde::Readable};
@@ -165,7 +165,8 @@ pub static TESTNET_CHAIN_IDENTIFIER: OnceCell<ChainIdentifier> = OnceCell::new()
 /// For testing purposes or bootstrapping regenesis chaing configuration, you
 /// can set this environment variable to force protocol config to use a specific
 /// Chain.
-const IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE_ENV_VAR_NAME: &str = "IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE";
+const IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE_ENV_VAR_NAME: &str =
+    "IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE";
 
 static IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE: Lazy<Option<Chain>> = Lazy::new(|| {
     if let Ok(s) = env::var(IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE_ENV_VAR_NAME) {

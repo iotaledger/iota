@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::{connection::Connection, *};
-use move_core_types::language_storage::StructTag;
 use iota_json_rpc_types::{Stake as RpcStakedIota, StakeStatus as RpcStakeStatus};
 use iota_types::{base_types::MoveObjectType, governance::StakedIota as NativeStakedIota};
+use move_core_types::language_storage::StructTag;
 
 use super::{
     balance::{self, Balance},
@@ -16,13 +16,13 @@ use super::{
     display::DisplayEntry,
     dynamic_field::{DynamicField, DynamicFieldName},
     epoch::Epoch,
+    iota_address::IotaAddress,
+    iotans_registration::{DomainFormat, IotansRegistration},
     move_object::{MoveObject, MoveObjectImpl},
     move_value::MoveValue,
     object,
     object::{Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
     owner::OwnerImpl,
-    iota_address::IotaAddress,
-    iotans_registration::{DomainFormat, IotansRegistration},
     transaction_block::{self, TransactionBlock, TransactionBlockFilter},
     type_filter::ExactTypeFilter,
 };

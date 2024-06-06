@@ -10,13 +10,6 @@ use std::{
 };
 
 use anyhow::anyhow;
-use mysten_metrics::{monitored_scope, spawn_monitored_task};
-use once_cell::sync::Lazy;
-use prometheus::{
-    register_int_counter_with_registry, register_int_gauge_with_registry, IntCounter, IntGauge,
-    Registry,
-};
-use rocksdb::LiveFile;
 use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::node::AuthorityStorePruningConfig;
 use iota_storage::mutex_table::RwLockTable;
@@ -27,6 +20,13 @@ use iota_types::{
     messages_checkpoint::{CheckpointContents, CheckpointDigest, CheckpointSequenceNumber},
     storage::ObjectKey,
 };
+use mysten_metrics::{monitored_scope, spawn_monitored_task};
+use once_cell::sync::Lazy;
+use prometheus::{
+    register_int_counter_with_registry, register_int_gauge_with_registry, IntCounter, IntGauge,
+    Registry,
+};
+use rocksdb::LiveFile;
 use tokio::{
     sync::oneshot::{self, Sender},
     time::Instant,
@@ -716,8 +716,6 @@ impl AuthorityStorePruner {
 mod tests {
     use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 
-    use more_asserts as ma;
-    use prometheus::Registry;
     use iota_storage::mutex_table::RwLockTable;
     use iota_types::{
         base_types::{ObjectDigest, ObjectID, SequenceNumber},
@@ -725,6 +723,8 @@ mod tests {
         object::Object,
         storage::ObjectKey,
     };
+    use more_asserts as ma;
+    use prometheus::Registry;
     use tracing::log::info;
     use typed_store::{
         rocks::{util::reference_count_merge_operator, DBMap, MetricConf, ReadWriteOptions},
@@ -1038,14 +1038,14 @@ mod tests {
 mod pprof_tests {
     use std::sync::Arc;
 
-    use pprof::Symbol;
-    use prometheus::Registry;
     use iota_types::{
         base_types::{ObjectDigest, ObjectID, SequenceNumber, VersionNumber},
         effects::{TransactionEffects, TransactionEffectsAPI},
         object::Object,
         storage::ObjectKey,
     };
+    use pprof::Symbol;
+    use prometheus::Registry;
     use tracing::log::{error, info};
     use typed_store::{rocks::DBMap, Map};
 

@@ -2,10 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_types::transaction::Transaction;
 pub use move_tx_generator::MoveTxGenerator;
 pub use package_publish_tx_generator::PackagePublishTxGenerator;
 pub use root_object_create_tx_generator::RootObjectCreateTxGenerator;
-use iota_types::transaction::Transaction;
 
 use crate::mock_account::Account;
 

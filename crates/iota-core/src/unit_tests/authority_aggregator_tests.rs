@@ -8,9 +8,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use move_core_types::{account_address::AccountAddress, ident_str};
-use rand::{rngs::StdRng, SeedableRng};
-use shared_crypto::intent::{Intent, IntentScope};
 use iota_authority_aggregation::quorum_map_then_reduce_with_timeout;
 use iota_framework::BuiltInFramework;
 use iota_macros::sim_test;
@@ -29,6 +26,9 @@ use iota_types::{
     transaction::*,
     utils::{create_fake_transaction, to_sender_signed_transaction},
 };
+use move_core_types::{account_address::AccountAddress, ident_str};
+use rand::{rngs::StdRng, SeedableRng};
+use shared_crypto::intent::{Intent, IntentScope};
 use tokio::time::Instant;
 
 use super::*;
@@ -39,7 +39,7 @@ use crate::{
         LocalAuthorityClientFaultConfig, MockAuthorityApi,
     },
     test_utils::{
-        init_local_authorities, make_transfer_object_transaction, make_transfer_iota_transaction,
+        init_local_authorities, make_transfer_iota_transaction, make_transfer_object_transaction,
     },
 };
 
@@ -1304,7 +1304,12 @@ async fn test_handle_transaction_response() {
                 AggregatorProcessTransactionError::RetryableTransaction { .. }
             )
         },
-        |e| matches!(e, IotaError::UserInputError { .. } | IotaError::RpcError(..)),
+        |e| {
+            matches!(
+                e,
+                IotaError::UserInputError { .. } | IotaError::RpcError(..)
+            )
+        },
     )
     .await;
 
@@ -1328,7 +1333,12 @@ async fn test_handle_transaction_response() {
                 AggregatorProcessTransactionError::RetryableTransaction { .. }
             )
         },
-        |e| matches!(e, IotaError::UserInputError { .. } | IotaError::RpcError(..)),
+        |e| {
+            matches!(
+                e,
+                IotaError::UserInputError { .. } | IotaError::RpcError(..)
+            )
+        },
     )
     .await;
 
@@ -1352,7 +1362,12 @@ async fn test_handle_transaction_response() {
                 AggregatorProcessTransactionError::RetryableTransaction { .. }
             )
         },
-        |e| matches!(e, IotaError::UserInputError { .. } | IotaError::RpcError(..)),
+        |e| {
+            matches!(
+                e,
+                IotaError::UserInputError { .. } | IotaError::RpcError(..)
+            )
+        },
     )
     .await;
 
@@ -1375,7 +1390,12 @@ async fn test_handle_transaction_response() {
                 AggregatorProcessTransactionError::FatalTransaction { .. }
             )
         },
-        |e| matches!(e, IotaError::UserInputError { .. } | IotaError::RpcError(..)),
+        |e| {
+            matches!(
+                e,
+                IotaError::UserInputError { .. } | IotaError::RpcError(..)
+            )
+        },
     )
     .await;
 
@@ -1398,7 +1418,12 @@ async fn test_handle_transaction_response() {
                 AggregatorProcessTransactionError::FatalTransaction { .. }
             )
         },
-        |e| matches!(e, IotaError::UserInputError { .. } | IotaError::RpcError(..)),
+        |e| {
+            matches!(
+                e,
+                IotaError::UserInputError { .. } | IotaError::RpcError(..)
+            )
+        },
     )
     .await;
 
@@ -1426,7 +1451,12 @@ async fn test_handle_transaction_response() {
                 AggregatorProcessTransactionError::FatalTransaction { .. }
             )
         },
-        |e| matches!(e, IotaError::UserInputError { .. } | IotaError::RpcError(..)),
+        |e| {
+            matches!(
+                e,
+                IotaError::UserInputError { .. } | IotaError::RpcError(..)
+            )
+        },
     )
     .await;
 }
@@ -1646,7 +1676,8 @@ async fn test_handle_conflicting_transaction_response() {
         |e| {
             matches!(
                 e,
-                IotaError::ObjectLockConflict { .. } | IotaError::ByzantineAuthoritySuspicion { .. }
+                IotaError::ObjectLockConflict { .. }
+                    | IotaError::ByzantineAuthoritySuspicion { .. }
             )
         },
     )

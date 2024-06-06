@@ -30,11 +30,11 @@ use axum::{
 };
 use http::{HeaderValue, Method, Request};
 use hyper::{server::conn::AddrIncoming as HyperAddrIncoming, Body, Server as HyperServer};
-use mysten_metrics::spawn_monitored_task;
-use mysten_network::callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler};
 use iota_graphql_rpc_headers::{LIMITS_HEADER, VERSION_HEADER};
 use iota_package_resolver::{PackageStoreWithLruCache, Resolver};
 use iota_sdk::IotaClientBuilder;
+use mysten_metrics::spawn_monitored_task;
+use mysten_network::callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler};
 use tokio::{join, sync::OnceCell};
 use tokio_util::sync::CancellationToken;
 use tower::{Layer, Service};
@@ -65,7 +65,7 @@ use crate::{
         move_object::IMoveObject,
         object::IObject,
         owner::IOwner,
-        query::{Query, IotaGraphQLSchema},
+        query::{IotaGraphQLSchema, Query},
     },
 };
 

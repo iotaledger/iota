@@ -6,9 +6,9 @@ use std::path::PathBuf;
 
 use clap::*;
 use colored::Colorize;
-use move_package::BuildConfig as MoveBuildConfig;
 use iota_move::execute_move_command;
 use iota_types::exit_main;
+use move_package::BuildConfig as MoveBuildConfig;
 use tracing::debug;
 
 const GIT_REVISION: &str = {

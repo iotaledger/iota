@@ -5,17 +5,17 @@ use std::{path::PathBuf, sync::Arc};
 
 use async_trait::async_trait;
 use fastcrypto::traits::KeyPair;
-use mysten_metrics::RegistryService;
-use narwhal_config::{Parameters, WorkerId};
-use narwhal_network::client::NetworkClient;
-use narwhal_node::{
-    primary_node::PrimaryNode, worker_node::WorkerNodes, CertificateStoreCacheMetrics, NodeStorage,
-};
 use iota_config::NodeConfig;
 use iota_types::{
     committee::EpochId,
     crypto::{AuthorityKeyPair, NetworkKeyPair},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
+};
+use mysten_metrics::RegistryService;
+use narwhal_config::{Parameters, WorkerId};
+use narwhal_network::client::NetworkClient;
+use narwhal_node::{
+    primary_node::PrimaryNode, worker_node::WorkerNodes, CertificateStoreCacheMetrics, NodeStorage,
 };
 use tokio::sync::Mutex;
 

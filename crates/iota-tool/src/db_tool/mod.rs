@@ -6,7 +6,6 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, bail};
 use clap::Parser;
-use narwhal_storage::NodeStorage;
 use iota_core::{
     authority::{
         authority_per_epoch_store::AuthorityEpochTables,
@@ -21,6 +20,7 @@ use iota_types::{
     messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
     storage::ObjectStore,
 };
+use narwhal_storage::NodeStorage;
 use typed_store::rocks::MetricConf;
 
 use self::{
@@ -366,16 +366,16 @@ pub fn reset_db_to_genesis(path: &Path) -> anyhow::Result<()> {
     // Download the snapshot for the epoch you want to restore to the local disk.
     // You will find one snapshot per epoch in the S3 bucket. We need to place the
     // snapshot in the dir where config is pointing to. If db-config in
-    // fullnode.yaml is /opt/iota/db/authorities_db and we want to restore from epoch
-    // 10, we want to copy the snapshot to /opt/iota/db/authorities_dblike this:
-    // aws s3 cp s3://myBucket/dir /opt/iota/db/authorities_db/ --recursive —exclude
-    // “*” —include “epoch_10*” Mark downloaded snapshot as live: mv
-    // /opt/iota/db/authorities_db/epoch_10  /opt/iota/db/authorities_db/live
-    // Reset the downloaded db to execute from genesis with: cargo run --package
-    // iota-tool -- db-tool --db-path /opt/iota/db/authorities_db/live reset-db
-    // Start the iota full node: cargo run --release --bin iota-node -- --config-path
-    // ~/db_checkpoints/fullnode.yaml A sample fullnode.yaml config would be:
-    // ---
+    // fullnode.yaml is /opt/iota/db/authorities_db and we want to restore from
+    // epoch 10, we want to copy the snapshot to /opt/iota/db/authorities_dblike
+    // this: aws s3 cp s3://myBucket/dir /opt/iota/db/authorities_db/
+    // --recursive —exclude “*” —include “epoch_10*” Mark downloaded snapshot as
+    // live: mv /opt/iota/db/authorities_db/epoch_10
+    // /opt/iota/db/authorities_db/live Reset the downloaded db to execute from
+    // genesis with: cargo run --package iota-tool -- db-tool --db-path
+    // /opt/iota/db/authorities_db/live reset-db Start the iota full node: cargo
+    // run --release --bin iota-node -- --config-path ~/db_checkpoints/fullnode.
+    // yaml A sample fullnode.yaml config would be: ---
     // db-path:  /opt/iota/db/authorities_db
     // network-address: /ip4/0.0.0.0/tcp/8080/http
     // json-rpc-address: "0.0.0.0:9000"

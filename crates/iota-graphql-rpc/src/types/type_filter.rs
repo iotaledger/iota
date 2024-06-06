@@ -12,12 +12,12 @@ use diesel::{
     AppearsOnTable, BoolExpressionMethods, Expression, ExpressionMethods, QueryDsl, QuerySource,
     TextExpressionMethods,
 };
-use move_core_types::language_storage::StructTag;
 use iota_types::{
     parse_iota_address, parse_iota_fq_name, parse_iota_module_id, parse_iota_type_tag, TypeTag,
 };
+use move_core_types::language_storage::StructTag;
 
-use super::{string_input::impl_string_input, iota_address::IotaAddress};
+use super::{iota_address::IotaAddress, string_input::impl_string_input};
 use crate::{
     data::{DieselBackend, Query},
     filter,

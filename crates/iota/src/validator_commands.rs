@@ -16,9 +16,6 @@ use fastcrypto::{
     encoding::{Base64, Encoding},
     traits::{KeyPair, ToFromBytes},
 };
-use move_core_types::ident_str;
-use serde::Serialize;
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use iota_genesis_builder::validator_info::GenesisValidatorInfo;
 use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
@@ -33,21 +30,24 @@ use iota_keys::{
 };
 use iota_sdk::{wallet_context::WalletContext, IotaClient};
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, IotaAddress},
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{
         generate_proof_of_possession, get_authority_key_pair, AuthorityKeyPair, AuthorityPublicKey,
-        AuthorityPublicKeyBytes, NetworkKeyPair, NetworkPublicKey, Signable, SignatureScheme,
-        IotaKeyPair, DEFAULT_EPOCH_ID,
+        AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair, NetworkPublicKey, Signable,
+        SignatureScheme, DEFAULT_EPOCH_ID,
     },
-    multiaddr::Multiaddr,
-    object::Owner,
     iota_system_state::{
         iota_system_state_inner_v1::{UnverifiedValidatorOperationCapV1, ValidatorV1},
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
+    multiaddr::Multiaddr,
+    object::Owner,
     transaction::{CallArg, ObjectArg, Transaction, TransactionData},
     IOTA_SYSTEM_PACKAGE_ID,
 };
+use move_core_types::ident_str;
+use serde::Serialize;
+use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use tap::tap::TapOptional;
 
 use crate::fire_drill::get_gas_obj_ref;
@@ -570,7 +570,10 @@ async fn get_validator_summary_from_cap_id(
 ) -> anyhow::Result<(ValidatorStatus, IotaValidatorSummary)> {
     let resp = client
         .read_api()
-        .get_object_with_options(operation_cap_id, IotaObjectDataOptions::default().with_bcs())
+        .get_object_with_options(
+            operation_cap_id,
+            IotaObjectDataOptions::default().with_bcs(),
+        )
         .await?;
     let bcs = resp.move_object_bcs().ok_or_else(|| {
         anyhow::anyhow!(

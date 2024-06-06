@@ -179,8 +179,8 @@ mod tests {
         hash::{HashFunction, Keccak256},
         traits::KeyPair,
     };
-    use prometheus::Registry;
     use iota_types::{base_types::IotaAddress, crypto::get_key_pair, digests::TransactionDigest};
+    use prometheus::Registry;
 
     use super::*;
     use crate::{
@@ -279,8 +279,12 @@ mod tests {
         let tx_digest = TransactionDigest::random();
         let event_idx = 4;
 
-        let action =
-            get_test_iota_to_eth_bridge_action(Some(tx_digest), Some(event_idx), Some(1), Some(100));
+        let action = get_test_iota_to_eth_bridge_action(
+            Some(tx_digest),
+            Some(event_idx),
+            Some(1),
+            Some(100),
+        );
         let sig = BridgeAuthoritySignInfo::new(&action, &secret);
         let signed_event = SignedBridgeAction::new_from_data_and_sig(action.clone(), sig.clone());
         mock_handler.add_iota_event_response(tx_digest, event_idx, Ok(signed_event.clone()));
@@ -293,8 +297,12 @@ mod tests {
 
         // mismatched action would fail, this could happen when the authority fetched
         // the wrong event
-        let action2 =
-            get_test_iota_to_eth_bridge_action(Some(tx_digest), Some(event_idx), Some(2), Some(200));
+        let action2 = get_test_iota_to_eth_bridge_action(
+            Some(tx_digest),
+            Some(event_idx),
+            Some(2),
+            Some(200),
+        );
         let wrong_sig = BridgeAuthoritySignInfo::new(&action2, &secret);
         let wrong_signed_action =
             SignedBridgeAction::new_from_data_and_sig(action2.clone(), wrong_sig.clone());

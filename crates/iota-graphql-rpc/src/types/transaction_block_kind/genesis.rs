@@ -16,8 +16,8 @@ use crate::{
     consistency::ConsistentIndexCursor,
     types::{
         cursor::{JsonCursor, Page},
-        object::Object,
         iota_address::IotaAddress,
+        object::Object,
     },
 };
 

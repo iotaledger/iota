@@ -14,8 +14,8 @@ use axum::{
     Router,
 };
 use humantime::parse_duration;
-use serde::Deserialize;
 use iota_types::error::IotaError;
+use serde::Deserialize;
 use telemetry_subscribers::TracingHandle;
 use tracing::info;
 

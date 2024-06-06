@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module contains the transactional test runner instantiation for the Iota
-//! adapter
+//! This module contains the transactional test runner instantiation for the
+//! Iota adapter
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -22,6 +22,46 @@ use fastcrypto::{
     ed25519::Ed25519KeyPair,
     encoding::{Base64, Encoding},
     traits::ToFromBytes,
+};
+use iota_core::authority::{test_authority_builder::TestAuthorityBuilder, AuthorityState};
+use iota_framework::DEFAULT_FRAMEWORK_PATH;
+use iota_graphql_rpc::{
+    config::ConnectionConfig,
+    test_infra::cluster::{serve_executor, ExecutorCluster, SnapshotLagConfig},
+};
+use iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
+use iota_json_rpc_types::{DevInspectResults, IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
+use iota_protocol_config::{Chain, ProtocolConfig};
+use iota_storage::{
+    key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
+};
+use iota_swarm_config::genesis_config::AccountConfig;
+use iota_types::{
+    base_types::{
+        IotaAddress, ObjectID, ObjectRef, SequenceNumber, VersionNumber, IOTA_ADDRESS_LENGTH,
+    },
+    crypto::{get_authority_key_pair, get_key_pair_from_rng, AccountKeyPair, RandomnessRound},
+    digests::{ConsensusCommitDigest, TransactionDigest, TransactionEventsDigest},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    event::Event,
+    execution_status::ExecutionStatus,
+    gas::GasCostSummary,
+    messages_checkpoint::{
+        CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,
+    },
+    move_package::MovePackage,
+    object::{self, bounded_visitor::BoundedVisitor, Object, GAS_VALUE_FOR_TESTING},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    storage::{ObjectStore, ReadStore},
+    transaction::{
+        Argument, CallArg, Command, ProgrammableTransaction, Transaction, TransactionData,
+        TransactionDataAPI, TransactionKind, VerifiedTransaction,
+    },
+    utils::to_sender_signed_transaction,
+    DEEPBOOK_ADDRESS, DEEPBOOK_PACKAGE_ID, IOTA_CLOCK_OBJECT_ID, IOTA_DENY_LIST_OBJECT_ID,
+    IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
+    IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_ADDRESS,
+    MOVE_STDLIB_PACKAGE_ID,
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
@@ -49,46 +89,6 @@ use move_transactional_test_runner::{
 use move_vm_runtime::session::SerializedReturnValues;
 use once_cell::sync::Lazy;
 use rand::{rngs::StdRng, Rng, SeedableRng};
-use iota_core::authority::{test_authority_builder::TestAuthorityBuilder, AuthorityState};
-use iota_framework::DEFAULT_FRAMEWORK_PATH;
-use iota_graphql_rpc::{
-    config::ConnectionConfig,
-    test_infra::cluster::{serve_executor, ExecutorCluster, SnapshotLagConfig},
-};
-use iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
-use iota_json_rpc_types::{DevInspectResults, IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
-use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_storage::{
-    key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
-};
-use iota_swarm_config::genesis_config::AccountConfig;
-use iota_types::{
-    base_types::{
-        ObjectID, ObjectRef, SequenceNumber, IotaAddress, VersionNumber, IOTA_ADDRESS_LENGTH,
-    },
-    crypto::{get_authority_key_pair, get_key_pair_from_rng, AccountKeyPair, RandomnessRound},
-    digests::{ConsensusCommitDigest, TransactionDigest, TransactionEventsDigest},
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
-    event::Event,
-    execution_status::ExecutionStatus,
-    gas::GasCostSummary,
-    messages_checkpoint::{
-        CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,
-    },
-    move_package::MovePackage,
-    object::{self, bounded_visitor::BoundedVisitor, Object, GAS_VALUE_FOR_TESTING},
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
-    storage::{ObjectStore, ReadStore},
-    transaction::{
-        Argument, CallArg, Command, ProgrammableTransaction, Transaction, TransactionData,
-        TransactionDataAPI, TransactionKind, VerifiedTransaction,
-    },
-    utils::to_sender_signed_transaction,
-    DEEPBOOK_ADDRESS, DEEPBOOK_PACKAGE_ID, MOVE_STDLIB_ADDRESS, MOVE_STDLIB_PACKAGE_ID,
-    IOTA_CLOCK_OBJECT_ID, IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
-    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID,
-    IOTA_SYSTEM_STATE_OBJECT_ID,
-};
 use tempfile::NamedTempFile;
 
 use crate::{
@@ -406,8 +406,8 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
             })
             .collect::<Result<_, _>>()?;
         let gas_price = gas_price.unwrap_or(self.gas_price);
-        // we are assuming that all packages depend on Move Stdlib and Iota Framework, so
-        // these don't have to be provided explicitly as parameters
+        // we are assuming that all packages depend on Move Stdlib and Iota Framework,
+        // so these don't have to be provided explicitly as parameters
         dependencies.extend([MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]);
         let data = |sender, gas| {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -1341,7 +1341,12 @@ impl<'a> IotaTestAdapter {
     fn sign_txn(
         &self,
         sender: Option<String>,
-        txn_data: impl FnOnce(/* sender */ IotaAddress, /* gas */ ObjectRef) -> TransactionData,
+        txn_data: impl FnOnce(
+            // sender
+            IotaAddress,
+            // gas
+            ObjectRef,
+        ) -> TransactionData,
     ) -> Transaction {
         let test_account = self.get_sender(sender);
         let gas_payment = self
@@ -1784,8 +1789,8 @@ impl<'a> IotaTestAdapter {
                 Ok(id)
             })
             .collect::<Result<_, _>>()?;
-        // we are assuming that all packages depend on Move Stdlib and Iota Framework, so
-        // these don't have to be provided explicitly as parameters
+        // we are assuming that all packages depend on Move Stdlib and Iota Framework,
+        // so these don't have to be provided explicitly as parameters
         if include_std {
             dependencies.extend([MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]);
         }
@@ -1881,7 +1886,12 @@ pub static PRE_COMPILED: Lazy<FullyCompiledProgram> = Lazy::new(|| {
     let fully_compiled_res = move_compiler::construct_pre_compiled_lib(
         vec![PackagePaths {
             name: Some(("iota-framework".into(), config)),
-            paths: vec![iota_system_sources, iota_sources, iota_deps, deepbook_sources],
+            paths: vec![
+                iota_system_sources,
+                iota_sources,
+                iota_deps,
+                deepbook_sources,
+            ],
             named_address_map: NAMED_ADDRESSES.clone(),
         }],
         None,

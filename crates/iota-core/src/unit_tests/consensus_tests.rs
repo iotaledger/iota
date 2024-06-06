@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::{account_address::AccountAddress, ident_str};
-use narwhal_types::{Empty, TransactionProto, Transactions, TransactionsServer};
 use iota_network::tonic;
 use iota_types::{
     base_types::ObjectID,
@@ -17,6 +15,8 @@ use iota_types::{
     utils::to_sender_signed_transaction,
     IOTA_FRAMEWORK_PACKAGE_ID,
 };
+use move_core_types::{account_address::AccountAddress, ident_str};
+use narwhal_types::{Empty, TransactionProto, Transactions, TransactionsServer};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 use super::*;
