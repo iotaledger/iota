@@ -73,7 +73,9 @@ fn create_foundry(
             .add_unlock_condition(ImmutableAliasAddressUnlockCondition::new(
                 AliasAddress::new(alias_id),
             ))
-            .add_feature(Feature::Metadata(MetadataFeature::new(irc_30_metadata)?));
+            .add_immutable_feature(Feature::Metadata(
+                MetadataFeature::new(irc_30_metadata).unwrap(),
+            ));
     let foundry_output = builder.finish()?;
 
     Ok((random_output_header(), foundry_output))

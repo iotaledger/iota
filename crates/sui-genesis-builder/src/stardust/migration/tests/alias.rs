@@ -268,7 +268,8 @@ fn alias_migration_with_native_tokens() {
         0,
         SimpleTokenScheme::new(U256::from(100_000), U256::from(0), U256::from(100_000_000))
             .unwrap(),
-        Irc30Metadata::new("Rustcoin", "Rust", 0),
+        Irc30Metadata::new("Rustcoin\u{245}", "Rust''\n\tCöin", 0)
+            .with_description("The description of Rustcöin.\n Nice!"),
         AliasId::null(),
     )
     .unwrap();
