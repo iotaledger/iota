@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { getFullnodeUrl, SuiClient } from '@mysten/sui.js/client';
-import { TransactionBlock } from '@mysten/sui.js/transactions';
+import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { TransactionBlock } from '@iota/iota.js/transactions';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { Mock } from 'vitest';
 
@@ -11,7 +12,7 @@ import {
     WalletNotConnectedError,
 } from '../../src/errors/walletErrors.js';
 import { useConnectWallet, useSignAndExecuteTransactionBlock } from '../../src/index.js';
-import { suiFeatures } from '../mocks/mockFeatures.js';
+import { iotaFeatures } from '../mocks/mockFeatures.js';
 import { createWalletProviderContextWrapper, registerMockWallet } from '../test-utils.js';
 
 describe('useSignAndExecuteTransactionBlock', () => {
@@ -19,7 +20,7 @@ describe('useSignAndExecuteTransactionBlock', () => {
         const wrapper = createWalletProviderContextWrapper();
         const { result } = renderHook(() => useSignAndExecuteTransactionBlock(), { wrapper });
 
-        result.current.mutate({ transactionBlock: new TransactionBlock(), chain: 'sui:testnet' });
+        result.current.mutate({ transactionBlock: new TransactionBlock(), chain: 'iota:testnet' });
 
         await waitFor(() => expect(result.current.error).toBeInstanceOf(WalletNotConnectedError));
     });
@@ -43,7 +44,7 @@ describe('useSignAndExecuteTransactionBlock', () => {
 
         result.current.useSignAndExecuteTransactionBlock.mutate({
             transactionBlock: new TransactionBlock(),
-            chain: 'sui:testnet',
+            chain: 'iota:testnet',
         });
         await waitFor(() =>
             expect(result.current.useSignAndExecuteTransactionBlock.error).toBeInstanceOf(
@@ -57,15 +58,15 @@ describe('useSignAndExecuteTransactionBlock', () => {
     test('signing and executing a transaction block from the currently connected account works successfully', async () => {
         const { unregister, mockWallet } = registerMockWallet({
             walletName: 'Mock Wallet 1',
-            features: suiFeatures,
+            features: iotaFeatures,
         });
 
-        const suiClient = new SuiClient({ url: getFullnodeUrl('localnet') });
-        const executeTransactionBlock = vi.spyOn(suiClient, 'executeTransactionBlock');
+        const iotaClient = new IotaClient({ url: getFullnodeUrl('localnet') });
+        const executeTransactionBlock = vi.spyOn(iotaClient, 'executeTransactionBlock');
 
         executeTransactionBlock.mockReturnValueOnce(Promise.resolve({ digest: '123' }));
 
-        const wrapper = createWalletProviderContextWrapper({}, suiClient);
+        const wrapper = createWalletProviderContextWrapper({}, iotaClient);
         const { result } = renderHook(
             () => ({
                 connectWallet: useConnectWallet(),
@@ -78,7 +79,7 @@ describe('useSignAndExecuteTransactionBlock', () => {
 
         await waitFor(() => expect(result.current.connectWallet.isSuccess).toBe(true));
 
-        const signTransactionBlockFeature = mockWallet.features['sui:signTransactionBlock'];
+        const signTransactionBlockFeature = mockWallet.features['iota:signTransactionBlock'];
         const signTransactionBlockMock = signTransactionBlockFeature!.signTransactionBlock as Mock;
 
         signTransactionBlockMock.mockReturnValueOnce({
@@ -88,7 +89,7 @@ describe('useSignAndExecuteTransactionBlock', () => {
 
         result.current.useSignAndExecuteTransactionBlock.mutate({
             transactionBlock: new TransactionBlock(),
-            chain: 'sui:testnet',
+            chain: 'iota:testnet',
         });
 
         await waitFor(() =>
@@ -97,7 +98,7 @@ describe('useSignAndExecuteTransactionBlock', () => {
         expect(result.current.useSignAndExecuteTransactionBlock.data).toStrictEqual({
             digest: '123',
         });
-        expect(suiClient.executeTransactionBlock).toHaveBeenCalledWith({
+        expect(iotaClient.executeTransactionBlock).toHaveBeenCalledWith({
             transactionBlock: 'abc',
             signature: '123',
         });

@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFormatCoin } from '@mysten/core';
-import { ArrowShowAndHideRight12, Warning16 } from '@mysten/icons';
-import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
-import { Text } from '@mysten/ui';
+import { useFormatCoin } from '@iota/core';
+import { ArrowShowAndHideRight12, Warning16 } from '@iota/icons';
+import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { Text } from '@iota/ui';
 import * as Collapsible from '@radix-ui/react-collapsible';
 import clsx from 'clsx';
 import { useState } from 'react';
@@ -22,8 +23,8 @@ type OwnedCoinViewProps = {
 };
 
 export default function OwnedCoinView({ coin, id }: OwnedCoinViewProps) {
-    const isSuiCoin = coin.coinType === SUI_TYPE_ARG;
-    const [open, setOpen] = useState(isSuiCoin);
+    const isIotaCoin = coin.coinType === IOTA_TYPE_ARG;
+    const [open, setOpen] = useState(isIotaCoin);
     const [formattedTotalBalance, symbol] = useFormatCoin(coin.totalBalance, coin.coinType);
 
     return (
@@ -52,7 +53,7 @@ export default function OwnedCoinView({ coin, id }: OwnedCoinViewProps) {
 
                     {!coin.isRecognized && (
                         <Tooltip
-                            tip="This coin has not been recognized by Sui Foundation."
+                            tip="This coin has not been recognized by Iota Foundation."
                             onOpen={() =>
                                 ampli.activatedTooltip({
                                     tooltipLabel: 'unrecognizedCoinWarning',

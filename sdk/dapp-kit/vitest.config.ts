@@ -1,6 +1,4 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
@@ -26,15 +24,15 @@ export default defineConfig({
     resolve: {
         alias: {
             // TODO: Figure out a better way to run tests that avoids these aliases:
-            '@mysten/wallet-standard': new URL('../wallet-standard/src', import.meta.url).pathname,
-            '@mysten/bcs': new URL('../bcs/src', import.meta.url).pathname,
-            '@mysten/sui.js/keypairs/ed25519': new URL(
+            '@iota/wallet-standard': new URL('../wallet-standard/src', import.meta.url).pathname,
+            '@iota/bcs': new URL('../bcs/src', import.meta.url).pathname,
+            '@iota/iota.js/keypairs/ed25519': new URL(
                 '../typescript/src/keypairs/ed25519',
                 import.meta.url,
             ).pathname,
-            '@mysten/sui.js/client': new URL('../typescript/src/client', import.meta.url).pathname,
-            '@mysten/sui.js/utils': new URL('../typescript/src/utils', import.meta.url).pathname,
-            '@mysten/sui.js/transactions': new URL(
+            '@iota/iota.js/client': new URL('../typescript/src/client', import.meta.url).pathname,
+            '@iota/iota.js/utils': new URL('../typescript/src/utils', import.meta.url).pathname,
+            '@iota/iota.js/transactions': new URL(
                 '../typescript/src/transactions',
                 import.meta.url,
             ).pathname,

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useNextMenuUrl } from '_components/menu/hooks';
@@ -10,7 +11,7 @@ import {
 import { useAutoLockMinutesMutation } from '_src/ui/app/hooks/useAutoLockMinutesMutation';
 import { Button } from '_src/ui/app/shared/ButtonUI';
 import { Form } from '_src/ui/app/shared/forms/Form';
-import { useZodForm } from '@mysten/core';
+import { useZodForm } from '@iota/core';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 

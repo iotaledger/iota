@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Modifications Copyright (c) 2024 IOTA Stiftung
@@ -33,7 +34,7 @@ export function StorageMigrationPage() {
             <CardLayout
                 title={data === 'inProgress' ? 'Storage migration in progress, please wait' : ''}
                 subtitle={data === 'required' ? 'Storage migration is required' : ''}
-                icon="sui"
+                icon="iota"
             >
                 {data === 'required' && !migrationMutation.isSuccess ? (
                     <PasswordInputDialog

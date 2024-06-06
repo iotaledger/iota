@@ -2,19 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Copyright (c) The Diem Core Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{fmt::Debug, path::PathBuf, sync::Arc};
 
-use sui_core::{
+use iota_core::{
     authority::{test_authority_builder::TestAuthorityBuilder, AuthorityState},
     test_utils::send_and_confirm_transaction,
 };
-use sui_move_build::BuildConfig;
-use sui_types::{
+use iota_move_build::BuildConfig;
+use iota_types::{
     base_types::ObjectID,
     effects::{TransactionEffects, TransactionEffectsAPI},
-    error::SuiError,
+    error::IotaError,
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::Object,
     transaction::{Transaction, TransactionData},
@@ -24,7 +25,7 @@ use tokio::runtime::Runtime;
 
 use crate::account_universe::{AccountCurrent, PUBLISH_BUDGET};
 
-pub type ExecutionResult = Result<ExecutionStatus, SuiError>;
+pub type ExecutionResult = Result<ExecutionStatus, IotaError>;
 
 fn build_test_modules(test_dir: &str) -> (Vec<u8>, Vec<Vec<u8>>) {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));

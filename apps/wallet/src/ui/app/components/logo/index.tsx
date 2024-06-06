@@ -1,19 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { SuiCustomRpc, SuiDevnet, SuiLocal, SuiMainnet, SuiTestnet } from '@mysten/icons';
-import { Network } from '@mysten/sui.js/client';
+import { IotaCustomRpc, IotaDevnet, IotaLocal, IotaMainnet, IotaTestnet } from '@iota/icons';
+import { Network } from '@iota/iota.js/client';
 
 type LogoProps = {
     network?: Network;
 };
 
 const networkLogos = {
-    [Network.Mainnet]: SuiMainnet,
-    [Network.Devnet]: SuiDevnet,
-    [Network.Testnet]: SuiTestnet,
-    [Network.Local]: SuiLocal,
-    [Network.Custom]: SuiCustomRpc,
+    [Network.Mainnet]: IotaMainnet,
+    [Network.Devnet]: IotaDevnet,
+    [Network.Testnet]: IotaTestnet,
+    [Network.Local]: IotaLocal,
+    [Network.Custom]: IotaCustomRpc,
 };
 
 const Logo = ({ network }: LogoProps) => {

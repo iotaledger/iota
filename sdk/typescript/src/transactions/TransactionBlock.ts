@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { SerializedBcs } from '@mysten/bcs';
-import { fromB64, isSerializedBcs } from '@mysten/bcs';
+import type { SerializedBcs } from '@iota/bcs';
+import { fromB64, isSerializedBcs } from '@iota/bcs';
 import { is, mask } from 'superstruct';
 
 import { bcs } from '../bcs/index.js';
-import type { ProtocolConfig, SuiClient, SuiMoveNormalizedType } from '../client/index.js';
+import type { ProtocolConfig, IotaClient, IotaMoveNormalizedType } from '../client/index.js';
 import type { SignatureWithBytes, Signer } from '../cryptography/index.js';
-import { SUI_TYPE_ARG } from '../utils/index.js';
-import { normalizeSuiAddress, normalizeSuiObjectId } from '../utils/sui-types.js';
+import { IOTA_TYPE_ARG } from '../utils/index.js';
+import { normalizeIotaAddress, normalizeIotaObjectId } from '../utils/iota-types.js';
 import {
     BuilderCallArg,
     getIdFromCallArg,
@@ -17,7 +18,7 @@ import {
     isMutableSharedObjectInput,
     ObjectCallArg,
     PureCallArg,
-    SuiObjectRef,
+    IotaObjectRef,
 } from './Inputs.js';
 import { createPure } from './pure.js';
 import { getPureSerializationType, isTxContext } from './serializer.js';
@@ -88,7 +89,7 @@ function createTransactionResult(index: number): TransactionResult {
     }) as TransactionResult;
 }
 
-function isReceivingType(normalizedType: SuiMoveNormalizedType): boolean {
+function isReceivingType(normalizedType: IotaMoveNormalizedType): boolean {
     const tag = extractStructTag(normalizedType);
     if (tag) {
         return (
@@ -100,7 +101,7 @@ function isReceivingType(normalizedType: SuiMoveNormalizedType): boolean {
     return false;
 }
 
-function expectClient(options: BuildOptions): SuiClient {
+function expectClient(options: BuildOptions): IotaClient {
     if (!options.client) {
         throw new Error(
             `No provider passed to Transaction#build, but transaction data was not sufficient to build offline.`,
@@ -110,7 +111,7 @@ function expectClient(options: BuildOptions): SuiClient {
     return options.client;
 }
 
-const TRANSACTION_BRAND = Symbol.for('@mysten/transaction');
+const TRANSACTION_BRAND = Symbol.for('@iota/transaction');
 
 const LIMITS = {
     // The maximum gas that is allowed.
@@ -137,7 +138,7 @@ const chunk = <T>(arr: T[], size: number): T[][] =>
     );
 
 interface BuildOptions {
-    client?: SuiClient;
+    client?: IotaClient;
     onlyTransactionKind?: boolean;
     /** Define a protocol config to build against, instead of having it fetched from the provider at build time. */
     protocolConfig?: ProtocolConfig;
@@ -219,8 +220,8 @@ export class TransactionBlock {
     setGasOwner(owner: string) {
         this.#blockData.gasConfig.owner = owner;
     }
-    setGasPayment(payments: SuiObjectRef[]) {
-        this.#blockData.gasConfig.payment = payments.map((payment) => mask(payment, SuiObjectRef));
+    setGasPayment(payments: IotaObjectRef[]) {
+        this.#blockData.gasConfig.payment = payments.map((payment) => mask(payment, IotaObjectRef));
     }
 
     #blockData: TransactionBlockDataBuilder;
@@ -325,7 +326,7 @@ export class TransactionBlock {
 
         return (
             inserted ??
-            this.#input('object', typeof value === 'string' ? normalizeSuiAddress(value) : value)
+            this.#input('object', typeof value === 'string' ? normalizeIotaAddress(value) : value)
         );
     }
 
@@ -538,7 +539,7 @@ export class TransactionBlock {
     /** Derive transaction digest */
     async getDigest(
         options: {
-            client?: SuiClient;
+            client?: IotaClient;
         } = {},
     ): Promise<string> {
         await this.#prepare(options);
@@ -577,7 +578,7 @@ export class TransactionBlock {
 
         const coins = await expectClient(options).getCoins({
             owner: gasOwner!,
-            coinType: SUI_TYPE_ARG,
+            coinType: IOTA_TYPE_ARG,
         });
 
         const paymentCoins = coins.data
@@ -629,13 +630,13 @@ export class TransactionBlock {
         const objectsToResolve: {
             id: string;
             input: TransactionBlockInput;
-            normalizedType?: SuiMoveNormalizedType;
+            normalizedType?: IotaMoveNormalizedType;
         }[] = [];
 
         inputs.forEach((input) => {
             if (input.type === 'object' && typeof input.value === 'string') {
                 // The input is a string that we need to resolve to an object reference:
-                objectsToResolve.push({ id: normalizeSuiAddress(input.value), input });
+                objectsToResolve.push({ id: normalizeIotaAddress(input.value), input });
                 return;
             }
         });
@@ -684,7 +685,7 @@ export class TransactionBlock {
                     const [packageId, moduleName, functionName] = moveCall.target.split('::');
 
                     const normalized = await expectClient(options).getNormalizedMoveFunction({
-                        package: normalizeSuiObjectId(packageId),
+                        package: normalizeIotaObjectId(packageId),
                         module: moduleName,
                         function: functionName,
                     });

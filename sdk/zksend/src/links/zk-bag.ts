@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import type {
     TransactionArgument,
     TransactionBlock,
     TransactionObjectArgument,
-} from '@mysten/sui.js/transactions';
+} from '@iota/iota.js/transactions';
 
 export interface ZkBagContractOptions {
     packageId: string;

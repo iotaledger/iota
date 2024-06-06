@@ -1,5 +1,5 @@
 {
-    "name": "sui-explorer",
+    "name": "iota-explorer",
     "private": true,
     "scripts": {
         "dev": "vite --port 3000",
@@ -30,11 +30,11 @@
         "@growthbook/growthbook": "^1.0.0",
         "@growthbook/growthbook-react": "^1.0.0",
         "@headlessui/react": "^1.7.15",
-        "@mysten/core": "workspace:*",
-        "@mysten/dapp-kit": "workspace:*",
-        "@mysten/icons": "workspace:*",
-        "@mysten/sui.js": "workspace:*",
-        "@mysten/ui": "workspace:*",
+        "@iota/core": "workspace:*",
+        "@iota/dapp-kit": "workspace:*",
+        "@iota/icons": "workspace:*",
+        "@iota/iota.js": "workspace:*",
+        "@iota/ui": "workspace:*",
         "@radix-ui/react-collapsible": "^1.0.3",
         "@radix-ui/react-dropdown-menu": "^2.0.5",
         "@radix-ui/react-popover": "^1.0.6",

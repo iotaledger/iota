@@ -9,7 +9,7 @@
 		"start": "npx ts-node --esm src/index.ts"
 	},
 	"dependencies": {
-		"@mysten/sui.js": "^0.39.0",
+		"@iota/iota.js": "^0.39.0",
 		"p-limit": "^4.0.0"
 	},
 	"devDependencies": {

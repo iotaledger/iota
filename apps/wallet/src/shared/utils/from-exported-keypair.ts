@@ -1,17 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type Keypair } from '@mysten/sui.js/cryptography';
-import { decodeSuiPrivateKey } from '@mysten/sui.js/cryptography/keypair';
-import { Ed25519Keypair } from '@mysten/sui.js/keypairs/ed25519';
-import { Secp256k1Keypair } from '@mysten/sui.js/keypairs/secp256k1';
-import { Secp256r1Keypair } from '@mysten/sui.js/keypairs/secp256r1';
+import { type Keypair } from '@iota/iota.js/cryptography';
+import {
+    decodeIotaPrivateKey,
+} from '@iota/iota.js/cryptography/keypair';
+import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
+import { Secp256k1Keypair } from '@iota/iota.js/keypairs/secp256k1';
+import { Secp256r1Keypair } from '@iota/iota.js/keypairs/secp256r1';
 
-export function fromExportedKeypair(secret: string): Keypair {
-    const decoded = decodeSuiPrivateKey(secret);
+export function fromExportedKeypair(
+    secret: string,
+): Keypair {
+    const decoded = decodeIotaPrivateKey(secret);
     const schema = decoded.schema;
     const secretKey = decoded.secretKey;
     switch (schema) {

@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Search24 } from '@mysten/icons';
-import { type SuiMoveNormalizedStruct, type SuiObjectResponse } from '@mysten/sui.js/client';
-import { Text, LoadingIndicator, Combobox, ComboboxInput, ComboboxList } from '@mysten/ui';
+import { Search24 } from '@iota/icons';
+import { type IotaMoveNormalizedStruct, type IotaObjectResponse } from '@iota/iota.js/client';
+import { Text, LoadingIndicator, Combobox, ComboboxInput, ComboboxList } from '@iota/ui';
 import clsx from 'clsx';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -19,8 +20,8 @@ const DEFAULT_FIELDS_COUNT_TO_SHOW_SEARCH = 10;
 
 interface ObjectFieldsProps {
     id: string;
-    normalizedStructData?: SuiMoveNormalizedStruct;
-    suiObjectResponseData?: SuiObjectResponse;
+    normalizedStructData?: IotaMoveNormalizedStruct;
+    iotaObjectResponseData?: IotaObjectResponse;
     loading: boolean;
     error: boolean;
     objectType?: string;
@@ -29,7 +30,7 @@ interface ObjectFieldsProps {
 export function ObjectFieldsCard({
     id,
     normalizedStructData,
-    suiObjectResponseData,
+    iotaObjectResponseData,
     loading,
     error,
     objectType,
@@ -88,8 +89,8 @@ export function ObjectFieldsCard({
     }
 
     const fieldsData =
-        suiObjectResponseData?.data?.content?.dataType === 'moveObject'
-            ? (suiObjectResponseData?.data?.content?.fields as Record<
+        iotaObjectResponseData?.data?.content?.dataType === 'moveObject'
+            ? (iotaObjectResponseData?.data?.content?.fields as Record<
                   string,
                   string | number | object
               >)
@@ -146,7 +147,7 @@ export function ObjectFieldsCard({
                         <button
                             type="button"
                             key={name}
-                            className="mt-0.5 rounded-lg border border-transparent p-2.5 hover:border-sui-primaryBlue2023/20 hover:bg-white/60"
+                            className="mt-0.5 rounded-lg border border-transparent p-2.5 hover:border-iota-primaryBlue2023/20 hover:bg-white/60"
                             onClick={() => onFieldsNameClick(name)}
                         >
                             <Description

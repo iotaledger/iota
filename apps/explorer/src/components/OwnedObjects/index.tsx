@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useGetKioskContents, useGetOwnedObjects, useLocalStorage } from '@mysten/core';
-import { ThumbnailsOnly16, ViewList16, ViewSmallThumbnails16 } from '@mysten/icons';
-import { Heading, IconButton, RadioGroup, RadioGroupItem, Text } from '@mysten/ui';
+import { useGetKioskContents, useGetOwnedObjects, useLocalStorage } from '@iota/core';
+import { ThumbnailsOnly16, ViewList16, ViewSmallThumbnails16 } from '@iota/icons';
+import { Heading, IconButton, RadioGroup, RadioGroupItem, Text } from '@iota/ui';
 import clsx from 'clsx';
 import { useEffect, useMemo, useState } from 'react';
 

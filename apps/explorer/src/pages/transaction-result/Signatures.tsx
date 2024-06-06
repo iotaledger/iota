@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type SuiTransactionBlockResponse } from '@mysten/sui.js/client';
+import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
 import {
     parseSerializedSignature,
     type SignatureScheme,
     type PublicKey,
-} from '@mysten/sui.js/cryptography';
-import { parsePartialSignatures } from '@mysten/sui.js/multisig';
-import { toB64, normalizeSuiAddress } from '@mysten/sui.js/utils';
-import { publicKeyFromRawBytes } from '@mysten/sui.js/verify';
-import { Text } from '@mysten/ui';
+} from '@iota/iota.js/cryptography';
+import { parsePartialSignatures } from '@iota/iota.js/multisig';
+import { toB64, normalizeIotaAddress } from '@iota/iota.js/utils';
+import { publicKeyFromRawBytes } from '@iota/iota.js/verify';
+import { Text } from '@iota/ui';
 
 import { DescriptionItem, DescriptionList } from '~/ui/DescriptionList';
 import { AddressLink } from '~/ui/InternalLink';
@@ -40,13 +41,13 @@ function SignaturePanel({
                 <DescriptionItem title="Address" align="start" labelWidth="sm">
                     <AddressLink
                         noTruncate
-                        address={'address' in data ? data.address : data.publicKey.toSuiAddress()}
+                        address={'address' in data ? data.address : data.publicKey.toIotaAddress()}
                     />
                 </DescriptionItem>
                 {'publicKey' in data ? (
-                    <DescriptionItem title="Sui Public Key" align="start" labelWidth="sm">
+                    <DescriptionItem title="Iota Public Key" align="start" labelWidth="sm">
                         <Text variant="pBody/medium" color="steel-darker">
-                            {data.publicKey.toSuiPublicKey()}
+                            {data.publicKey.toIotaPublicKey()}
                         </Text>
                     </DescriptionItem>
                 ) : null}
@@ -60,26 +61,26 @@ function SignaturePanel({
     );
 }
 
-function getSignatureFromAddress(signatures: SignaturePubkeyPair[], suiAddress: string) {
+function getSignatureFromAddress(signatures: SignaturePubkeyPair[], iotaAddress: string) {
     return signatures.find(
         (signature) =>
-            ('address' in signature ? signature.address : signature.publicKey.toSuiAddress()) ===
-            normalizeSuiAddress(suiAddress),
+            ('address' in signature ? signature.address : signature.publicKey.toIotaAddress()) ===
+            normalizeIotaAddress(iotaAddress),
     );
 }
 
 function getSignaturesExcludingAddress(
     signatures: SignaturePubkeyPair[],
-    suiAddress: string,
+    iotaAddress: string,
 ): SignaturePubkeyPair[] {
     return signatures.filter(
         (signature) =>
-            ('address' in signature ? signature.address : signature.publicKey.toSuiAddress()) !==
-            normalizeSuiAddress(suiAddress),
+            ('address' in signature ? signature.address : signature.publicKey.toIotaAddress()) !==
+            normalizeIotaAddress(iotaAddress),
     );
 }
 interface Props {
-    transaction: SuiTransactionBlockResponse;
+    transaction: IotaTransactionBlockResponse;
 }
 
 export function Signatures({ transaction }: Props) {

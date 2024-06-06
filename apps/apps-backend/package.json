@@ -10,7 +10,7 @@
         "lint": "eslint --max-warnings=0 \"{src,apps,libs,test}/**/*.ts\""
     },
     "dependencies": {
-        "@mysten/sui.js": "workspace:*",
+        "@iota/iota.js": "workspace:*",
         "@nestjs/common": "^10.0.0",
         "@nestjs/config": "^3.2.2",
         "@nestjs/core": "^10.0.0",
