@@ -4,11 +4,6 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use move_binary_format::CompiledModule;
-use move_bytecode_utils::module_cache::GetModule;
-use move_core_types::language_storage::ModuleId;
-use once_cell::unsync::OnceCell;
-use prometheus::core::{Atomic, AtomicU64};
 use iota_storage::package_object_cache::PackageObjectCache;
 use iota_types::{
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VersionNumber},
@@ -20,6 +15,11 @@ use iota_types::{
     },
     transaction::{InputObjectKind, InputObjects, ObjectReadResult, TransactionKey},
 };
+use move_binary_format::CompiledModule;
+use move_bytecode_utils::module_cache::GetModule;
+use move_core_types::language_storage::ModuleId;
+use once_cell::unsync::OnceCell;
+use prometheus::core::{Atomic, AtomicU64};
 
 // TODO: We won't need a special purpose InMemoryObjectStore once the
 // InMemoryCache is ready.

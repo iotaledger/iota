@@ -11,12 +11,12 @@ use std::sync::Arc;
 use anyhow::{anyhow, Context, Result};
 use chrono::{DateTime, Utc};
 use futures::{StreamExt, TryStreamExt};
+use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use object_store::{path::Path, Error, GetResult, GetResultPayload, ObjectMeta};
 use reqwest::{
     header::{HeaderMap, CONTENT_LENGTH, ETAG, LAST_MODIFIED},
     Client, Method,
 };
-use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 
 use crate::object_store::{
     http::{gcs::GoogleCloudStorage, local::LocalStorage, s3::AmazonS3},
@@ -127,8 +127,8 @@ fn header_meta(location: &Path, headers: &HeaderMap) -> Result<ObjectMeta> {
 mod tests {
     use std::fs;
 
-    use object_store::path::Path;
     use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
+    use object_store::path::Path;
     use tempfile::TempDir;
 
     use crate::object_store::http::HttpDownloaderBuilder;

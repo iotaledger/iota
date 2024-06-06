@@ -4,12 +4,12 @@
 
 use std::iter::Peekable;
 
+use iota_types::{base_types::ObjectID, Identifier};
 use move_command_line_common::{
     address::{NumericalAddress, ParsedAddress},
     parser::{parse_u128, parse_u16, parse_u256, parse_u32, parse_u64, parse_u8},
     types::{ParsedFqName, ParsedModuleId, ParsedStructType, ParsedType},
 };
-use iota_types::{base_types::ObjectID, Identifier};
 
 use super::{
     ast::{self as A, is_keyword, Argument, ModuleAccess, ParsedPTBCommand, ParsedProgram},

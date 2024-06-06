@@ -8,9 +8,9 @@ use std::{
 };
 
 use anyhow::{Error, Result};
-use itertools::Itertools;
 use iota_core::test_utils::{make_pay_iota_transaction, make_transfer_iota_transaction};
 use iota_types::{base_types::IotaAddress, crypto::AccountKeyPair};
+use itertools::Itertools;
 use tracing::info;
 
 use crate::{
@@ -109,7 +109,8 @@ impl BenchmarkBank {
         init_coin: &mut Gas,
         gas_price: u64,
     ) -> Result<UpdatedAndNewlyMintedGasCoins> {
-        let recipient_addresses: Vec<IotaAddress> = coin_configs.iter().map(|g| g.address).collect();
+        let recipient_addresses: Vec<IotaAddress> =
+            coin_configs.iter().map(|g| g.address).collect();
         let amounts: Vec<u64> = coin_configs.iter().map(|c| c.amount).collect();
 
         info!(

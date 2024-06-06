@@ -40,7 +40,7 @@ module timelock::timelocked_staking {
         assert!(timelocked_balance.is_locked(ctx), ETimeLockShouldNotBeExpired);
 
         // Unpack the time-locked balance.
-        let (balance, expiration_timestamp_ms) = timelock::unpack(timelocked_balance);
+        let (balance, expiration_timestamp_ms, label) = timelock::unpack(timelocked_balance);
 
         // Stake the time-locked balance.
         let staked_iota = iota_system.request_add_stake_non_entry(
@@ -53,7 +53,8 @@ module timelock::timelocked_staking {
         timelocked_staked_iota::create(
             staked_iota,
             expiration_timestamp_ms,
-            ctx
+            label,
+            ctx,
         )
     }
 
@@ -148,7 +149,7 @@ module timelock::timelocked_staking {
         ctx: &mut TxContext,
     ) : (TimeLock<Balance<IOTA>>, Balance<IOTA>) {
         // Unpack the `TimelockedStakedIota` instance.
-        let (staked_iota, expiration_timestamp_ms) = timelocked_staked_iota.unpack();
+        let (staked_iota, expiration_timestamp_ms, label) = timelocked_staked_iota.unpack();
 
         // Store the original stake amount.
         let principal = staked_iota.staked_iota_amount();
@@ -161,6 +162,6 @@ module timelock::timelocked_staking {
         let principal = withdraw_stake.split(principal);
 
         // Pack and return a time-locked balance, and the reward.
-        (timelock::pack(principal, expiration_timestamp_ms, ctx), withdraw_stake)
+        (timelock::pack(principal, expiration_timestamp_ms, label, ctx), withdraw_stake)
     }
 }

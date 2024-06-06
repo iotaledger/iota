@@ -11,12 +11,12 @@ use fastcrypto::{
     secp256r1::{Secp256r1KeyPair, Secp256r1PrivateKey},
     traits::{KeyPair, ToFromBytes},
 };
-use slip10_ed25519::derive_ed25519_private_key;
 use iota_types::{
     base_types::IotaAddress,
-    crypto::{SignatureScheme, IotaKeyPair},
+    crypto::{IotaKeyPair, SignatureScheme},
     error::IotaError,
 };
+use slip10_ed25519::derive_ed25519_private_key;
 
 pub const DERIVATION_PATH_COIN_TYPE: u32 = 4218;
 pub const DERVIATION_PATH_PURPOSE_ED25519: u32 = 44;

@@ -7,8 +7,6 @@ use std::sync::Arc;
 use criterion::*;
 use fastcrypto_zkp::bn254::zk_login_api::ZkLoginEnv;
 use futures::future::join_all;
-use prometheus::Registry;
-use rand::{prelude::*, seq::SliceRandom};
 use iota_core::{
     signature_verifier::*,
     test_utils::{make_cert_with_large_committee, make_dummy_tx},
@@ -18,6 +16,8 @@ use iota_types::{
     crypto::{get_key_pair, AccountKeyPair, AuthorityKeyPair},
     transaction::CertifiedTransaction,
 };
+use prometheus::Registry;
+use rand::{prelude::*, seq::SliceRandom};
 
 fn gen_certs(
     committee: &Committee,

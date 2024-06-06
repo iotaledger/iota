@@ -13,11 +13,11 @@ use iota_types::{
     effects::TransactionEffects,
     gas::IotaGasStatus,
     inner_temporary_store::InnerTemporaryStore,
-    metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     iota_system_state::{
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
         IotaSystemState, IotaSystemStateTrait,
     },
+    metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     transaction::{TransactionDataAPI, VerifiedTransaction},
 };
 

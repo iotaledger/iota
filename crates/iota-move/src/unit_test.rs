@@ -5,14 +5,6 @@
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
 use clap::Parser;
-use move_cli::base::{
-    self,
-    test::{self, UnitTestResult},
-};
-use move_package::BuildConfig;
-use move_unit_test::{extensions::set_extension_hook, UnitTestingConfig};
-use move_vm_runtime::native_extensions::NativeContextExtensions;
-use once_cell::sync::Lazy;
 use iota_move_build::decorate_warnings;
 use iota_move_natives::{object_runtime::ObjectRuntime, NativesCostTable};
 use iota_protocol_config::ProtocolConfig;
@@ -24,6 +16,14 @@ use iota_types::{
     object::Object,
     storage::ChildObjectResolver,
 };
+use move_cli::base::{
+    self,
+    test::{self, UnitTestResult},
+};
+use move_package::BuildConfig;
+use move_unit_test::{extensions::set_extension_hook, UnitTestingConfig};
+use move_vm_runtime::native_extensions::NativeContextExtensions;
+use once_cell::sync::Lazy;
 
 // Move unit tests will halt after executing this many steps. This is a
 // protection to avoid divergence

@@ -11,15 +11,15 @@ use serde_with::serde_as;
 
 use super::{IotaSystemState, IotaSystemStateTrait};
 use crate::{
-    base_types::{AuthorityName, ObjectID, IotaAddress},
+    base_types::{AuthorityName, IotaAddress, ObjectID},
     committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata},
     dynamic_field::get_dynamic_field_from_store,
     error::IotaError,
     id::ID,
-    multiaddr::Multiaddr,
-    storage::ObjectStore,
     iota_serde::{BigInt, Readable},
     iota_system_state::get_validator_from_table,
+    multiaddr::Multiaddr,
+    storage::ObjectStore,
 };
 
 /// This is the JSON-RPC type for the IOTA system state object.
@@ -428,8 +428,8 @@ impl Default for IotaValidatorSummary {
 }
 
 /// Given the staking pool id of a validator, return the validator's
-/// `IotaValidatorSummary`, works for validator candidates, active validators, as
-/// well as inactive validators.
+/// `IotaValidatorSummary`, works for validator candidates, active validators,
+/// as well as inactive validators.
 pub fn get_validator_by_pool_id<S>(
     object_store: &S,
     system_state: &IotaSystemState,

@@ -5,16 +5,16 @@
 use std::{fs::File, io::Write};
 
 use clap::{Parser, ValueEnum};
-use pretty_assertions::assert_str_eq;
 // temporarily remove api ref content for indexer methods
 // use iota_json_rpc::api::ExtendedApiOpenRpc;
 use iota_json_rpc::coin_api::CoinReadApi;
 use iota_json_rpc::{
-    governance_api::GovernanceReadApi, read_api::ReadApi, iota_rpc_doc,
+    governance_api::GovernanceReadApi, iota_rpc_doc, read_api::ReadApi,
     transaction_builder_api::TransactionBuilderApi,
     transaction_execution_api::TransactionExecutionApi, IotaRpcModule,
 };
 use iota_json_rpc_api::{IndexerApiOpenRpc, MoveUtilsOpenRpc};
+use pretty_assertions::assert_str_eq;
 
 use crate::examples::RpcExampleProvider;
 

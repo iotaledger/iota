@@ -6,17 +6,17 @@ use std::{sync::Arc, time::Duration};
 
 use bytes::Bytes;
 use fastcrypto::{bls12381, traits::KeyPair};
+use iota_swarm_config::network_config_builder::ConfigBuilder;
+use iota_types::{
+    iota_system_state::{
+        epoch_start_iota_system_state::EpochStartSystemStateTrait, IotaSystemStateTrait,
+    },
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary},
+};
 use mysten_metrics::RegistryService;
 use narwhal_config::{Epoch, WorkerCache};
 use narwhal_types::{TransactionProto, TransactionsClient};
 use prometheus::Registry;
-use iota_swarm_config::network_config_builder::ConfigBuilder;
-use iota_types::{
-    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary},
-    iota_system_state::{
-        epoch_start_iota_system_state::EpochStartSystemStateTrait, IotaSystemStateTrait,
-    },
-};
 use tokio::{
     sync::{broadcast, mpsc},
     time::{interval, sleep},

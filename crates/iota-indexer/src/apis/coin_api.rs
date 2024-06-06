@@ -3,19 +3,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
-use jsonrpsee::{core::RpcResult, RpcModule};
 use iota_json_rpc::{
     coin_api::{parse_to_struct_tag, parse_to_type_tag},
     IotaRpcModule,
 };
 use iota_json_rpc_api::{cap_page_limit, CoinReadApiServer};
-use iota_json_rpc_types::{Balance, CoinPage, Page, IotaCoinMetadata};
+use iota_json_rpc_types::{Balance, CoinPage, IotaCoinMetadata, Page};
 use iota_open_rpc::Module;
 use iota_types::{
     balance::Supply,
-    base_types::{ObjectID, IotaAddress},
+    base_types::{IotaAddress, ObjectID},
     gas_coin::{GAS, TOTAL_SUPPLY_MICROS},
 };
+use jsonrpsee::{core::RpcResult, RpcModule};
 
 use crate::indexer_reader::IndexerReader;
 

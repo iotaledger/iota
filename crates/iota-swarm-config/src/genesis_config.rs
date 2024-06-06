@@ -6,8 +6,6 @@ use std::net::{IpAddr, SocketAddr};
 
 use anyhow::Result;
 use fastcrypto::traits::KeyPair;
-use rand::{rngs::StdRng, SeedableRng};
-use serde::{Deserialize, Serialize};
 use iota_config::{
     genesis::{GenesisCeremonyParameters, TokenAllocation},
     local_ip_utils,
@@ -19,10 +17,12 @@ use iota_types::{
     base_types::IotaAddress,
     crypto::{
         generate_proof_of_possession, get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair,
-        AuthorityPublicKeyBytes, NetworkKeyPair, NetworkPublicKey, PublicKey, IotaKeyPair,
+        AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair, NetworkPublicKey, PublicKey,
     },
     multiaddr::Multiaddr,
 };
+use rand::{rngs::StdRng, SeedableRng};
+use serde::{Deserialize, Serialize};
 use tracing::info;
 
 // All information needed to build a NodeConfig for a state sync fullnode.

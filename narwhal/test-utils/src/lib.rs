@@ -23,6 +23,7 @@ use fastcrypto::{
     traits::{AllowedRng, KeyPair as _},
 };
 use indexmap::IndexMap;
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use mysten_network::Multiaddr;
 use once_cell::sync::OnceCell;
 use rand::{
@@ -31,7 +32,6 @@ use rand::{
     thread_rng, Rng, RngCore, SeedableRng,
 };
 use store::rocks::{DBMap, MetricConf, ReadWriteOptions};
-use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tracing::info;
 use types::{

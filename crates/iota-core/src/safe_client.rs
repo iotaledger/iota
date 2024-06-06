@@ -5,10 +5,6 @@
 
 use std::sync::Arc;
 
-use mysten_metrics::histogram::{Histogram, HistogramVec};
-use prometheus::{
-    core::GenericCounter, register_int_counter_vec_with_registry, IntCounterVec, Registry,
-};
 use iota_types::{
     base_types::*,
     committee::*,
@@ -16,6 +12,7 @@ use iota_types::{
     effects::{SignedTransactionEffects, TransactionEffectsAPI},
     error::{IotaError, IotaResult},
     fp_ensure,
+    iota_system_state::IotaSystemState,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber,
     },
@@ -24,8 +21,11 @@ use iota_types::{
         TransactionInfoRequest, TransactionStatus, VerifiedObjectInfoResponse,
     },
     messages_safe_client::PlainTransactionInfoResponse,
-    iota_system_state::IotaSystemState,
     transaction::*,
+};
+use mysten_metrics::histogram::{Histogram, HistogramVec};
+use prometheus::{
+    core::GenericCounter, register_int_counter_vec_with_registry, IntCounterVec, Registry,
 };
 use tap::TapFallible;
 use tracing::{debug, error};

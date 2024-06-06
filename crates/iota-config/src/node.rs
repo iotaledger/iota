@@ -12,23 +12,23 @@ use std::{
 };
 
 use anyhow::Result;
+use iota_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file};
+use iota_protocol_config::{Chain, SupportedProtocolVersions};
+use iota_types::{
+    base_types::{IotaAddress, ObjectID},
+    committee::EpochId,
+    crypto::{
+        get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes,
+        IotaKeyPair, KeypairTraits, NetworkKeyPair,
+    },
+    messages_checkpoint::CheckpointSequenceNumber,
+    multiaddr::Multiaddr,
+};
 use narwhal_config::Parameters as ConsensusParameters;
 use once_cell::sync::OnceCell;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use iota_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file};
-use iota_protocol_config::{Chain, SupportedProtocolVersions};
-use iota_types::{
-    base_types::{ObjectID, IotaAddress},
-    committee::EpochId,
-    crypto::{
-        get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes,
-        KeypairTraits, NetworkKeyPair, IotaKeyPair,
-    },
-    messages_checkpoint::CheckpointSequenceNumber,
-    multiaddr::Multiaddr,
-};
 use tracing::info;
 
 use crate::{
@@ -1007,9 +1007,11 @@ mod tests {
     use std::path::PathBuf;
 
     use fastcrypto::traits::KeyPair;
-    use rand::{rngs::StdRng, SeedableRng};
     use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
-    use iota_types::crypto::{get_key_pair_from_rng, AuthorityKeyPair, NetworkKeyPair, IotaKeyPair};
+    use iota_types::crypto::{
+        get_key_pair_from_rng, AuthorityKeyPair, IotaKeyPair, NetworkKeyPair,
+    };
+    use rand::{rngs::StdRng, SeedableRng};
 
     use super::Genesis;
     use crate::NodeConfig;

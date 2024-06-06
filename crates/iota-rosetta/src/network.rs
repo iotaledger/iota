@@ -5,9 +5,9 @@
 use axum::{extract::State, Extension, Json};
 use axum_extra::extract::WithRejection;
 use fastcrypto::encoding::Hex;
+use iota_types::base_types::ObjectID;
 use serde_json::json;
 use strum::IntoEnumIterator;
-use iota_types::base_types::ObjectID;
 
 use crate::{
     errors::{Error, ErrorType},
@@ -16,7 +16,7 @@ use crate::{
         NetworkRequest, NetworkStatusResponse, OperationStatus, OperationType, Peer, SyncStatus,
         Version,
     },
-    OnlineServerContext, IotaEnv,
+    IotaEnv, OnlineServerContext,
 };
 
 /// This module implements the [Rosetta Network API](https://www.rosetta-api.org/docs/NetworkApi.html)

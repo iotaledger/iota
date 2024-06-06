@@ -26,6 +26,17 @@ use crypto::{KeyPair, NetworkKeyPair};
 use eyre::{Context, Result};
 use fastcrypto::traits::{EncodeDecodeBase64, KeyPair as _};
 use futures::join;
+use iota_keys::keypair_file::{
+    read_authority_keypair_from_file, read_network_keypair_from_file,
+    write_authority_keypair_to_file, write_keypair_to_file,
+};
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_types::{
+    crypto::{
+        get_key_pair_from_rng, AuthorityKeyPair, AuthorityPublicKey, IotaKeyPair, NetworkPublicKey,
+    },
+    multiaddr::Multiaddr,
+};
 use mysten_metrics::start_prometheus_server;
 use narwhal_node as node;
 use narwhal_node::{
@@ -39,17 +50,6 @@ use node::{
 use prometheus::Registry;
 use rand::{rngs::StdRng, SeedableRng};
 use storage::{CertificateStoreCacheMetrics, NodeStorage};
-use iota_keys::keypair_file::{
-    read_authority_keypair_from_file, read_network_keypair_from_file,
-    write_authority_keypair_to_file, write_keypair_to_file,
-};
-use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_types::{
-    crypto::{
-        get_key_pair_from_rng, AuthorityKeyPair, AuthorityPublicKey, NetworkPublicKey, IotaKeyPair,
-    },
-    multiaddr::Multiaddr,
-};
 use telemetry_subscribers::TelemetryGuards;
 use tokio::{sync::mpsc::channel, time::Duration};
 // TODO: remove when old benchmark code is removed

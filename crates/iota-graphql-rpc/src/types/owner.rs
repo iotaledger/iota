@@ -11,19 +11,19 @@ use super::{
     coin_metadata::CoinMetadata,
     cursor::Page,
     dynamic_field::{DynamicField, DynamicFieldName},
+    iotans_registration::{DomainFormat, IotansRegistration, NameService},
     move_package::MovePackage,
     object::ObjectLookupKey,
     stake::StakedIota,
-    iotans_registration::{DomainFormat, NameService, IotansRegistration},
 };
 use crate::{
     data::Db,
     types::{
         balance::{self, Balance},
         coin::Coin,
+        iota_address::IotaAddress,
         move_object::MoveObject,
         object::{self, Object, ObjectFilter},
-        iota_address::IotaAddress,
         type_filter::ExactTypeFilter,
     },
 };
@@ -130,8 +130,8 @@ pub(crate) enum IOwner {
 }
 
 /// An Owner is an entity that can own an object. Each Owner is identified by a
-/// IotaAddress which represents either an Address (corresponding to a public key
-/// of an account) or an Object, but never both (it is not known up-front
+/// IotaAddress which represents either an Address (corresponding to a public
+/// key of an account) or an Object, but never both (it is not known up-front
 /// whether a given Owner is an Address or an Object).
 #[Object]
 impl Owner {

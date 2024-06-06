@@ -25,7 +25,7 @@ use crate::{
     base_types::IotaAddress,
     committee::EpochId,
     crypto::{
-        CompressedSignature, PublicKey, Signature, SignatureScheme, IotaSignature,
+        CompressedSignature, IotaSignature, PublicKey, Signature, SignatureScheme,
         ZkLoginAuthenticatorAsBytes,
     },
     error::{IotaError, IotaResult},
@@ -124,8 +124,8 @@ impl GenericSignature {
         matches!(self, GenericSignature::MultiSig(_))
     }
 
-    /// Parse [enum CompressedSignature] from trait IotaSignature `flag || sig ||
-    /// pk`. This is useful for the MultiSig to combine partial signature
+    /// Parse [enum CompressedSignature] from trait IotaSignature `flag || sig
+    /// || pk`. This is useful for the MultiSig to combine partial signature
     /// into a MultiSig public key.
     pub fn to_compressed(&self) -> Result<CompressedSignature, IotaError> {
         match self {

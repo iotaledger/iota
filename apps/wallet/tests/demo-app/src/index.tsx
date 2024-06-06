@@ -115,11 +115,13 @@ function App() {
                     setError(null);
                     const txb = getDemoTransaction(accounts[0]?.address || '');
                     try {
-                        await iotaWallet.features['iota:signTransactionBlock'].signTransactionBlock({
-                            transactionBlock: txb,
-                            account: getAccount(accounts[0], useWrongAccounts),
-                            chain: 'iota:unknown',
-                        });
+                        await iotaWallet.features['iota:signTransactionBlock'].signTransactionBlock(
+                            {
+                                transactionBlock: txb,
+                                account: getAccount(accounts[0], useWrongAccounts),
+                                chain: 'iota:unknown',
+                            },
+                        );
                     } catch (e) {
                         setError((e as Error).message);
                     }

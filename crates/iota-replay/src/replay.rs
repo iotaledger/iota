@@ -9,17 +9,6 @@ use std::{
 };
 
 use futures::executor::block_on;
-use move_binary_format::CompiledModule;
-use move_bytecode_utils::module_cache::GetModule;
-use move_core_types::{
-    account_address::AccountAddress,
-    language_storage::{ModuleId, StructTag},
-    resolver::{ModuleResolver, ResourceResolver},
-};
-use prometheus::Registry;
-use serde::{Deserialize, Serialize};
-use shared_crypto::intent::Intent;
-use similar::{ChangeTag, TextDiff};
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_core::{
     authority::{
@@ -37,20 +26,20 @@ use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffec
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress, VersionNumber},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, VersionNumber},
     committee::EpochId,
     digests::{ChainIdentifier, CheckpointDigest, ObjectDigest, TransactionDigest},
     error::{ExecutionError, IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
     gas::IotaGasStatus,
     inner_temporary_store::InnerTemporaryStore,
+    iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
     metrics::LimitsMetrics,
     object::{Data, Object, Owner},
     storage::{
         get_module, get_module_by_id, BackingPackageStore, ChildObjectResolver, ObjectStore,
         PackageObject, ParentSync,
     },
-    iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
     transaction::{
         CertifiedTransaction, CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
         ObjectReadResultKind, SenderSignedData, Transaction, TransactionData, TransactionDataAPI,
@@ -59,6 +48,17 @@ use iota_types::{
     },
     DEEPBOOK_PACKAGE_ID,
 };
+use move_binary_format::CompiledModule;
+use move_bytecode_utils::module_cache::GetModule;
+use move_core_types::{
+    account_address::AccountAddress,
+    language_storage::{ModuleId, StructTag},
+    resolver::{ModuleResolver, ResourceResolver},
+};
+use prometheus::Registry;
+use serde::{Deserialize, Serialize};
+use shared_crypto::intent::Intent;
+use similar::{ChangeTag, TextDiff};
 use tracing::{error, info, trace, warn};
 
 use crate::{
@@ -715,7 +715,8 @@ impl LocalExec {
     ) -> Result<ExecutionSandboxState, ReplayEngineError> {
         let tx_digest = &tx_info.tx_digest;
         // A lot of the logic here isnt designed for genesis
-        if *tx_digest == TransactionDigest::genesis_marker() || tx_info.sender == IotaAddress::ZERO {
+        if *tx_digest == TransactionDigest::genesis_marker() || tx_info.sender == IotaAddress::ZERO
+        {
             // Genesis.
             warn!(
                 "Genesis/system TX replay not supported: {}, skipping transaction",

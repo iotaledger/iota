@@ -4,12 +4,12 @@
 
 use std::fmt;
 
+use iota_types::{base_types::ObjectID, Identifier};
 use move_command_line_common::{
     address::{NumericalAddress, ParsedAddress},
     types::{ParsedFqName, ParsedModuleId, ParsedStructType, ParsedType},
 };
 use move_core_types::runtime_value::MoveValue;
-use iota_types::{base_types::ObjectID, Identifier};
 
 use super::error::{PTBResult, Span, Spanned};
 use crate::{error, sp};

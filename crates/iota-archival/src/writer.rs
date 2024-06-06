@@ -16,8 +16,6 @@ use std::{
 
 use anyhow::{anyhow, Context, Result};
 use byteorder::{BigEndian, ByteOrder, WriteBytesExt};
-use object_store::DynObjectStore;
-use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_storage::{
     blob::{Blob, BlobEncoding},
@@ -32,6 +30,8 @@ use iota_types::{
     },
     storage::WriteStore,
 };
+use object_store::DynObjectStore;
+use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
 use tokio::{
     sync::{
         mpsc,

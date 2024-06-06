@@ -17,10 +17,10 @@ use crate::{
     client::bridge_authority_aggregator::BridgeAuthorityAggregator,
     config::{BridgeClientConfig, BridgeNodeConfig},
     eth_syncer::EthSyncer,
+    iota_syncer::IotaSyncer,
     orchestrator::BridgeOrchestrator,
     server::{handler::BridgeRequestHandler, run_server},
     storage::BridgeOrchestratorTables,
-    iota_syncer::IotaSyncer,
 };
 
 pub async fn run_bridge_node(config: BridgeNodeConfig) -> anyhow::Result<()> {

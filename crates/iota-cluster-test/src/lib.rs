@@ -8,10 +8,6 @@ use cluster::{Cluster, ClusterFactory};
 use config::ClusterTestOpt;
 use futures::{stream::FuturesUnordered, StreamExt};
 use helper::ObjectChecker;
-use jsonrpsee::{
-    core::{client::ClientT, params::ArrayParams},
-    http_client::HttpClientBuilder,
-};
 use iota_faucet::CoinInfo;
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
@@ -22,10 +18,14 @@ use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
     base_types::{IotaAddress, TransactionDigest},
     gas_coin::GasCoin,
+    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     object::Owner,
     quorum_driver_types::ExecuteTransactionRequestType,
-    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     transaction::{Transaction, TransactionData},
+};
+use jsonrpsee::{
+    core::{client::ClientT, params::ArrayParams},
+    http_client::HttpClientBuilder,
 };
 use test_case::{
     coin_index_test::CoinIndexTest, coin_merge_split_test::CoinMergeSplitTest,

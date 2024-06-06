@@ -7,12 +7,9 @@
 
 use std::sync::Arc;
 
-use once_cell::sync::Lazy;
-use proptest::prelude::*;
-use proptest_derive::Arbitrary;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    base_types::{ObjectRef, IotaAddress},
+    base_types::{IotaAddress, ObjectRef},
     error::{IotaError, UserInputError},
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::Object,
@@ -20,6 +17,9 @@ use iota_types::{
     transaction::{GasData, Transaction, TransactionData, TransactionKind},
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
+use once_cell::sync::Lazy;
+use proptest::prelude::*;
+use proptest_derive::Arbitrary;
 
 use crate::{
     account_universe::{
