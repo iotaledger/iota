@@ -1,9 +1,9 @@
 ---
 title: Kiosk Apps
-description: Kiosk apps are a way to extend the functionality of Iota Kiosk while keeping the core functionality intact. You can develop apps to add new features to a kiosk without having to modify the core code or move the assets elsewhere. 
+description: Kiosk apps are a way to extend the functionality of IOTA Kiosk while keeping the core functionality intact. You can develop apps to add new features to a kiosk without having to modify the core code or move the assets elsewhere. 
 ---
 
-Kiosk apps are a way to extend the functionality of Iota Kiosk while keeping the core functionality intact. You can develop apps to add new features to a kiosk without having to modify the core code or move the assets elsewhere.
+Kiosk apps are a way to extend the functionality of IOTA Kiosk while keeping the core functionality intact. You can develop apps to add new features to a kiosk without having to modify the core code or move the assets elsewhere.
 
 There are two types of apps:
 
@@ -16,7 +16,7 @@ Basic Kiosk apps do not require Kiosk Apps API to function. They usually serve t
 
 ### UID access via the uid_mut
 
-Kiosk has an `id: UID` field like all objects on Iota, which allows this object to be uniquely identified and carry custom dynamic fields and dynamic object fields. The Kiosk itself is built around dynamic fields and features like place and list are built around dynamic object fields.
+Kiosk has an `id: UID` field like all objects on IOTA, which allows this object to be uniquely identified and carry custom dynamic fields and dynamic object fields. The Kiosk itself is built around dynamic fields and features like place and list are built around dynamic object fields.
 
 ### The uid_mut_as_owner function
 
@@ -84,7 +84,7 @@ module example::my_extension {
 
 ## App lifecycle
 
-These are the key points in the lifecycle of a Iota Kiosk app:
+These are the key points in the lifecycle of a IOTA Kiosk app:
 
 - You can only install an app with an explicit call in the `kiosk_extension` module.
 - A kiosk owner can revoke permissions of an app at any time by calling the `disable` function.
@@ -133,7 +133,7 @@ Permissions are represented as a `u128` integer storing a bitmap. Each of the bi
 
 :::info
 
-Currently, Iota Kiosk has only two permissions: `place` (first bit) and `lock` and `place` (second bit). The remaining bits are reserved for future use.
+Currently, IOTA Kiosk has only two permissions: `place` (first bit) and `lock` and `place` (second bit). The remaining bits are reserved for future use.
 
 :::
 

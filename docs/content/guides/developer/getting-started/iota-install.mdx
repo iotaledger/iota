@@ -1,16 +1,16 @@
 ---
-title: Install Iota
-description: Install the Iota framework and required prerequisites on your system, including the Iota command line interface to interact with the Iota network.
+title: Install IOTA
+description: Install the IOTA framework and required prerequisites on your system, including the IOTA command line interface to interact with the IOTA network.
 ---
 
 import MacosDeps from "../../../_snippets/macos-deps.mdx";
 import LinuxDeps from "../../../_snippets/linux-deps.mdx";
 
-The quickest way to install Iota is using the binaries delivered with every release. If you require more control over the install process, you can install from source. To take advantage of containerization, you can utilize the Docker images in the `docker` folder of the iota repository.
+The quickest way to install IOTA is using the binaries delivered with every release. If you require more control over the install process, you can install from source. To take advantage of containerization, you can utilize the Docker images in the `docker` folder of the iota repository.
 
 ## Supported operating systems {#supported-operating-systems}
 
-Iota supports the following operating systems:
+IOTA supports the following operating systems:
 
 - Linux - Ubuntu version 20.04 (Bionic Beaver)
 - macOS - macOS Monterey
@@ -18,7 +18,7 @@ Iota supports the following operating systems:
 
 ## Quick install using Homebrew or Chocolatey {#install-homebrew}
 
-Use one of the following commands for [Homebrew](https://brew.sh/) (MacOS, Linux, or Windows Subsystem for Linux) or [Chocolatey](https://chocolatey.org/) (Windows) to install Iota.
+Use one of the following commands for [Homebrew](https://brew.sh/) (MacOS, Linux, or Windows Subsystem for Linux) or [Chocolatey](https://chocolatey.org/) (Windows) to install IOTA.
 
 <Tabs groupId="operating-systems">
 
@@ -36,7 +36,7 @@ brew install iota
 choco install iota
 ```
 
-Find more [versions of Iota for Windows](https://community.chocolatey.org/packages/iota) on the Chocolatey community website.
+Find more [versions of IOTA for Windows](https://community.chocolatey.org/packages/iota) on the Chocolatey community website.
 
 </TabItem>
 
@@ -44,46 +44,46 @@ Find more [versions of Iota for Windows](https://community.chocolatey.org/packag
 
 ## Install from binaries {#install-binaries}
 
-Each Iota release provides a set of binaries for several operating systems. You can download these binaries from GitHub and use them to install Iota.
+Each IOTA release provides a set of binaries for several operating systems. You can download these binaries from GitHub and use them to install IOTA.
 
 1. Go to https://github.com/iotaledger/iota.
 1. In the right pane, find the **Releases** section.
 
-    ![Iota releases in GitHub](./images/releases.png)
+    ![IOTA releases in GitHub](./images/releases.png)
 1. Click the release tagged **Latest** to open the release's page.
 1. In the **Assets** section of the release, select the .tgz compressed file that corresponds to your operating system.
 1. Double-click the downloaded file. If the file doesn't automatically expand, manually unzip the file.
 1. Open the expanded folder and double-click the appropriate binary to install, beginning with iota-`<OS>`-`<ARCHITECTURE>`:
 
     - iota-faucet-`<OS>`-`<ARCHITECTURE>`: Local faucet to mint coins on local network.
-    - iota-indexer-`<OS>`-`<ARCHITECTURE>`: An indexer for a local Iota network.
-    - iota-`<OS>`-`<ARCHITECTURE>`: Main Iota binary.
+    - iota-indexer-`<OS>`-`<ARCHITECTURE>`: An indexer for a local IOTA network.
+    - iota-`<OS>`-`<ARCHITECTURE>`: Main IOTA binary.
     - iota-node-`<OS>`-`<ARCHITECTURE>`: Run a local node.
     - iota-test-validator-`<OS>`-`<ARCHITECTURE>`: Run test validators on a local network for development.
-    - iota-tool-`<OS>`-`<ARCHITECTURE>`: Provides utilities for Iota.
+    - iota-tool-`<OS>`-`<ARCHITECTURE>`: Provides utilities for IOTA.
 
-    The Iota binary takes several minutes to download and install files, so make sure you allocate enough time for it to complete. Actual time to complete depends on your network connection and computer specifications.
+    The IOTA binary takes several minutes to download and install files, so make sure you allocate enough time for it to complete. Actual time to complete depends on your network connection and computer specifications.
 
 
 ### Confirm the installation {#confirm-the-installation}
 
-To confirm that Iota installed correctly, type `iota` and press Enter. You should see a message about the Iota version installed and help for using Iota commands.
+To confirm that IOTA installed correctly, type `iota` and press Enter. You should see a message about the IOTA version installed and help for using IOTA commands.
 
 ## Install from source
 
-Follow the instructions in this topic to install the Rust crates (packages) required to interact with Iota networks, including the Iota CLI.
+Follow the instructions in this topic to install the Rust crates (packages) required to interact with IOTA networks, including the IOTA CLI.
 
-To install Iota from source, you first need to install its [prerequisites](#prerequisites) for your operating system. After installing the supporting technologies, you can install [Iota binaries from source](#install-iota-binaries-from-source).
+To install IOTA from source, you first need to install its [prerequisites](#prerequisites) for your operating system. After installing the supporting technologies, you can install [IOTA binaries from source](#install-iota-binaries-from-source).
 
 You can also download the [source code](./iota-environment) to have local access to files.
 
 ## Prerequisites {#prerequisites}
 
-Your system needs the following prerequisites available to successfully install Iota.
+Your system needs the following prerequisites available to successfully install IOTA.
 
 ### Rust and Cargo {#rust-and-cargo}
 
-Iota requires Rust and Cargo (Rust's package manager) on all supported operating systems. The suggested method to install Rust is with `rustup` using cURL.
+IOTA requires Rust and Cargo (Rust's package manager) on all supported operating systems. The suggested method to install Rust is with `rustup` using cURL.
 
 Some other commands in the installation instructions also require cURL to run. If you can't run the cURL command to install Rust, see the instructions to install cURL for your operating system in the following section before you install Rust.
 
@@ -97,7 +97,7 @@ If you use Windows 11, see information about using the [Rust installer](https://
 
 For additional installation options, see [Install Rust](https://www.rust-lang.org/tools/install).
 
-Iota uses the latest version of Cargo to build and manage dependencies. See the [Cargo installation](https://doc.rust-lang.org/cargo/getting-started/installation.html) page on the Rust website for more information.
+IOTA uses the latest version of Cargo to build and manage dependencies. See the [Cargo installation](https://doc.rust-lang.org/cargo/getting-started/installation.html) page on the Rust website for more information.
 
 Use the following command to update Rust with `rustup`:
 
@@ -329,7 +329,7 @@ Download [Protocol Buffers](https://github.com/protocolbuffers/protobuf/releases
 
 #### Additional tools for Windows {#additional-tools-windows}
 
-Iota requires the following additional tools on computers running Windows.
+IOTA requires the following additional tools on computers running Windows.
 
 - For Windows on ARM64 only - [Visual Studio 2022 Preview](https://visualstudio.microsoft.com/vs/preview/).
 - [C++ build tools](https://visualstudio.microsoft.com/downloads/) is required to [install Rust](#rust-and-cargo).
@@ -341,9 +341,9 @@ Iota requires the following additional tools on computers running Windows.
 
 </Tabs>
 
-## Install Iota binaries from source {#install-iota-binaries-from-source}
+## Install IOTA binaries from source {#install-iota-binaries-from-source}
 
-Run the following command to install Iota binaries from the `testnet` branch:
+Run the following command to install IOTA binaries from the `testnet` branch:
 
 ```shell
 cargo install --locked --git https://github.com/iotaledger/iota.git --branch testnet iota
@@ -357,11 +357,11 @@ To update to the latest stable version of Rust:
 rustup update stable
 ```
 
-The command installs Iota components in the `~/.cargo/bin` folder.
+The command installs IOTA components in the `~/.cargo/bin` folder.
 
-## Upgrade Iota binaries
+## Upgrade IOTA binaries
 
-If you previously installed the Iota binaries, you can update them to the most recent release with the same command you used to install them:
+If you previously installed the IOTA binaries, you can update them to the most recent release with the same command you used to install them:
 
 ```shell
 cargo install --locked --git https://github.com/iotaledger/iota.git --branch testnet iota
@@ -369,9 +369,9 @@ cargo install --locked --git https://github.com/iotaledger/iota.git --branch tes
 
 ## Next steps {#next-steps}
 
-Now that you have Iota installed, it's time to start developing. Check out the following topics to start working with Iota:
+Now that you have IOTA installed, it's time to start developing. Check out the following topics to start working with IOTA:
 
-- Read about the [Iota CLI](/references/cli.mdx), the most straightforward way to start exploring Iota networks.
+- Read about the [IOTA CLI](/references/cli.mdx), the most straightforward way to start exploring IOTA networks.
 - [Learn about the available networks](./connect.mdx) and connect to one.
 - [Get some coins](./get-coins.mdx) on a development network.
 - [Build your first dApp](../first-app.mdx) to start your on-chain journey.

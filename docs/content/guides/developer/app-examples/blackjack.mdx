@@ -2,7 +2,7 @@
 title: Blackjack
 ---
 
-The following documentation goes through an example implementation of the popular casino game blackjack on Iota. This guide walks through its components, providing a detailed look at the module's functions, structures, constants, and their significance in the overall gameplay mechanism.
+The following documentation goes through an example implementation of the popular casino game blackjack on IOTA. This guide walks through its components, providing a detailed look at the module's functions, structures, constants, and their significance in the overall gameplay mechanism.
 
 A deployed version of the blackjack game is online at [Mysten Blackjack](https://blackjack-iota.vercel.app/).
 
@@ -10,7 +10,7 @@ Building an on-chain blackjack game shares a lot of similarities with a coin fli
 
 :::info
 
-For more details on building a backend and deploying to Iota, check out the [Coin Flip app example](./coin-flip.mdx).
+For more details on building a backend and deploying to IOTA, check out the [Coin Flip app example](./coin-flip.mdx).
 
 You can also find the [full repository for this example here](https://github.com/MystenLabs/blackjack-iota).
 
@@ -61,7 +61,7 @@ The backend code is split in the following sub directories:
   The main code of the backend endpoints. Each file that is named `route.ts` is served as an endpoint, in the path defined by the project structure (see [Route Segments on NextJS App Router](https://nextjs.org/docs/app/building-your-application/routing#route-segments) for details)
 - [health/](https://github.com/MystenLabs/blackjack-iota/blob/main/app/src/app/api/health): A simple healthcheck endpoint to check the API availability
 - [helpers/](https://github.com/MystenLabs/blackjack-iota/blob/main/app/src/app/api/helpers): Multiple helper functions used in various endpoints
-- [services/](https://github.com/MystenLabs/blackjack-iota/blob/main/app/src/app/api/services): The core logic of the backend, that signs and executes the transactions on the Iota blockchain
+- [services/](https://github.com/MystenLabs/blackjack-iota/blob/main/app/src/app/api/services): The core logic of the backend, that signs and executes the transactions on the IOTA blockchain
 - [utils/](https://github.com/MystenLabs/blackjack-iota/blob/main/app/src/app/api/utils): Reusable methods for signing the transactions as the dealer, and sponsoring them with Shinami, to avoid gas coins equivocation
 
 ### High-Level endpoints specification
@@ -75,7 +75,7 @@ The backend code is split in the following sub directories:
 
 ### Need of usage of waitForTransactionBlock
 
-An interesting aspect of developing a dApp on Iota, that is coupled to using a full node with/without a load balancer, and requires attention by the developer, is the occurrence of read-after-write and write-after-write cases.
+An interesting aspect of developing a dApp on IOTA, that is coupled to using a full node with/without a load balancer, and requires attention by the developer, is the occurrence of read-after-write and write-after-write cases.
 
 #### Initial deal transaction
 
@@ -123,7 +123,7 @@ The main sub-directories are:
 
 ### Similarities
 
-- **Blockchain-Based Logic:** Both games are built on Iota, leveraging its capabilities for decentralized applications. The core game logic for each resides in Move modules, ensuring secure and verifiable gameplay.
+- **Blockchain-Based Logic:** Both games are built on IOTA, leveraging its capabilities for decentralized applications. The core game logic for each resides in Move modules, ensuring secure and verifiable gameplay.
 
 - **State Management:** In both games, state management is crucial. For blackjack, this involves managing the player and dealer's hands and scores using React state hooks. In Satoshi Coin Flip, the state is managed through Move structs like `HouseData`, which track the house's balance and other game-related details.
 

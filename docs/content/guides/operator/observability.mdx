@@ -4,19 +4,19 @@ sidebar_label: Observability
 draft: true
 ---
 
-Good observability capabilities are key to the development and growth of Iota. This is made more challenging by the distributed and asynchronous nature of Iota, with multiple client and validator processes distributed over a potentially global network.
+Good observability capabilities are key to the development and growth of IOTA. This is made more challenging by the distributed and asynchronous nature of IOTA, with multiple client and validator processes distributed over a potentially global network.
 
-The observability stack in Iota is based on the [Tokio tracing](https://tokio.rs/blog/2019-08-tracing) library. The rest of this document highlights specific aspects of achieving good observability through structured logging and metrics in Iota.
+The observability stack in IOTA is based on the [Tokio tracing](https://tokio.rs/blog/2019-08-tracing) library. The rest of this document highlights specific aspects of achieving good observability through structured logging and metrics in IOTA.
 
 :::info
 
-The output here is largely for the consumption of Iota operators, administrators, and developers. The content of logs and traces do not represent the authoritative, certified output of validators and are subject to potentially byzantine behavior.
+The output here is largely for the consumption of IOTA operators, administrators, and developers. The content of logs and traces do not represent the authoritative, certified output of validators and are subject to potentially byzantine behavior.
 
 :::
 
 ## Contexts, scopes, and tracing transaction flow {#context-scope-trace}
 
-In a distributed and asynchronous system like Iota, one cannot rely on looking at individual logs over time in a single thread. To solve this problem, use the approach of structured logging. Structured logging offers a way to tie together logs, events, and blocks of functionality across threads and process boundaries.
+In a distributed and asynchronous system like IOTA, one cannot rely on looking at individual logs over time in a single thread. To solve this problem, use the approach of structured logging. Structured logging offers a way to tie together logs, events, and blocks of functionality across threads and process boundaries.
 
 ### Spans and events {#spans-and-events}
 
@@ -72,7 +72,7 @@ For more details, see the [EnvFilter](https://docs.rs/tracing-subscriber/latest/
 
 ## Metrics {#metrics}
 
-Iota includes Prometheus-based metrics:
+IOTA includes Prometheus-based metrics:
 
 - `rpc_requests_by_route` and related for RPC Server API metrics and latencies (see `rpc-server.rs`)
 - Validator transaction metrics (see `AuthorityMetrics` in `authority.rs`)
@@ -120,14 +120,14 @@ To see nested spans visualized with [Jaeger](https://www.jaegertracing.io), do t
 docker run -d -p6831:6831/udp -p6832:6832/udp -p16686:16686 jaegertracing/all-in-one:latest
 ```
 
-1.  Run Iota like this (trace enables the most detailed spans):
+1.  Run IOTA like this (trace enables the most detailed spans):
 
 ```bash
 IOTA_TRACING_ENABLE=1 RUST_LOG="info,iota_core=trace" ./iota start
 ```
 
-1.  Run some transfers with Iota CLI client, or run the benchmarking tool.
-1.  Browse to `http://localhost:16686/` and select Iota as the service.
+1.  Run some transfers with IOTA CLI client, or run the benchmarking tool.
+1.  Browse to `http://localhost:16686/` and select IOTA as the service.
 
 :::info
 
@@ -139,19 +139,19 @@ Separate spans (that are not nested) are not connected as a single trace for now
 
 [Tokio-console](https://github.com/tokio-rs/console) is an awesome CLI tool designed to analyze and help debug Rust apps using Tokio, in real time! It relies on a special subscriber.
 
-1.  Build Iota using a special flag: `RUSTFLAGS="--cfg tokio_unstable" cargo build`.
-1.  Start Iota with `IOTA_TOKIO_CONSOLE` set to 1.
+1.  Build IOTA using a special flag: `RUSTFLAGS="--cfg tokio_unstable" cargo build`.
+1.  Start IOTA with `IOTA_TOKIO_CONSOLE` set to 1.
 1.  Clone the console repo and `cargo run` to launch the console.
 
 :::tip
 
-Adding Tokio-console support might significantly slow down Iota validators/gateways.
+Adding Tokio-console support might significantly slow down IOTA validators/gateways.
 
 :::
 
 ### Memory profiling {#memory-profiling}
 
-Iota uses the [jemalloc memory allocator](https://jemalloc.net/) by default on most platforms, and there is code that enables automatic memory profiling using jemalloc's sampling profiler, which is very lightweight and designed for production use. The profiling code spits out profiles at most every 5 minutes, and only when total memory has increased by a default 20%. Profiling files are named `jeprof.<TIMESTAMP>.<memorysize>MB.prof` so that it is easy to
+IOTA uses the [jemalloc memory allocator](https://jemalloc.net/) by default on most platforms, and there is code that enables automatic memory profiling using jemalloc's sampling profiler, which is very lightweight and designed for production use. The profiling code spits out profiles at most every 5 minutes, and only when total memory has increased by a default 20%. Profiling files are named `jeprof.<TIMESTAMP>.<memorysize>MB.prof` so that it is easy to
 correlate to metrics and incidents, for ease of debugging.
 
 For the memory profiling to work, you need to set the environment variable `_RJEM_MALLOC_CONF=prof:true`. If you use the [Docker image](https://hub.docker.com/r/mysten/iota-node) they are set automatically.
