@@ -1,19 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
-import { useSuiClient } from '@mysten/dapp-kit';
+import { useIotaClient } from '@iota/dapp-kit';
 
 import { walletApiProvider } from '../ApiProvider';
-import { useSuiLedgerClient } from '../components/ledger/SuiLedgerClientProvider';
+import { useIotaLedgerClient } from '../components/ledger/IotaLedgerClientProvider';
 import { LedgerSigner } from '../LedgerSigner';
 import { type WalletSigner } from '../WalletSigner';
 import { useBackgroundClient } from './useBackgroundClient';
 
 export function useSigner(account: SerializedUIAccount | null): WalletSigner | null {
-    const { connectToLedger } = useSuiLedgerClient();
-    const api = useSuiClient();
+    const { connectToLedger } = useIotaLedgerClient();
+    const api = useIotaClient();
     const background = useBackgroundClient();
     if (!account) {
         return null;

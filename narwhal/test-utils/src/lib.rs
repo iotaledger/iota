@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -30,7 +31,7 @@ use rand::{
     thread_rng, Rng, RngCore, SeedableRng,
 };
 use store::rocks::{DBMap, MetricConf, ReadWriteOptions};
-use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tracing::info;
 use types::{
@@ -94,7 +95,7 @@ macro_rules! test_channel {
 // situated in the channel you're passing as an argument to the primary
 // initialization is the replacement. If that gauge is a dummy gauge, such as
 // the one above, the initialization of the primary will panic (to protect the
-// production code against an erroneous mistake in editing this bootstrap
+// production code against an erroneous microsake in editing this bootstrap
 // logic).
 #[macro_export]
 macro_rules! test_committed_certificates_channel {

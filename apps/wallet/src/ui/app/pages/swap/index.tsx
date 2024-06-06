@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useActiveAccount } from '_app/hooks/useActiveAccount';
@@ -23,8 +24,8 @@ import { AverageSection } from '_pages/swap/AverageSection';
 import {
     Coins,
     initialValues,
-    SUI_CONVERSION_RATE,
-    SUI_USDC_AVERAGE_CONVERSION_RATE,
+    IOTA_CONVERSION_RATE,
+    IOTA_USDC_AVERAGE_CONVERSION_RATE,
     USDC_CONVERSION_RATE,
     type FormValues,
 } from '_pages/swap/constants';
@@ -37,11 +38,11 @@ import {
 } from '_pages/swap/utils';
 import { ampli } from '_shared/analytics/ampli';
 import { DeepBookContextProvider, useDeepBookContext } from '_shared/deepBook/context';
-import { useTransactionSummary, useZodForm } from '@mysten/core';
-import { useSuiClientQuery } from '@mysten/dapp-kit';
-import { ArrowDown12, ArrowRight16 } from '@mysten/icons';
-import { type DryRunTransactionBlockResponse } from '@mysten/sui.js/client';
-import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
+import { useTransactionSummary, useZodForm } from '@iota/core';
+import { useIotaClientQuery } from '@iota/dapp-kit';
+import { ArrowDown12, ArrowRight16 } from '@iota/icons';
+import { type DryRunTransactionBlockResponse } from '@iota/iota.js/client';
+import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import BigNumber from 'bignumber.js';
 import clsx from 'clsx';
@@ -68,8 +69,8 @@ function getSwapPageAtcText(
     coinsMap: Record<string, string>,
 ) {
     const toSymbol =
-        toAssetType === SUI_TYPE_ARG
-            ? Coins.SUI
+        toAssetType === IOTA_TYPE_ARG
+            ? Coins.IOTA
             : Object.entries(coinsMap).find(([key, value]) => value === toAssetType)?.[0] || '';
 
     return `Swap ${fromSymbol} to ${toSymbol}`;
@@ -92,12 +93,12 @@ export function SwapPageContent() {
     const allowedSwapCoinsList = useAllowedSwapCoinsList();
 
     const activeCoinType = searchParams.get('type');
-    const isAsk = activeCoinType === SUI_TYPE_ARG;
+    const isAsk = activeCoinType === IOTA_TYPE_ARG;
 
-    const baseCoinType = SUI_TYPE_ARG;
+    const baseCoinType = IOTA_TYPE_ARG;
     const quoteCoinType = coinsMap.USDC;
 
-    const poolId = mainnetPools.SUI_USDC[0];
+    const poolId = mainnetPools.IOTA_USDC[0];
 
     const {
         baseCoinBalanceData,
@@ -117,7 +118,7 @@ export function SwapPageContent() {
     const rawBaseBalance = baseCoinBalanceData?.totalBalance;
     const rawQuoteBalance = quoteCoinBalanceData?.totalBalance;
 
-    const { data: coinBalances } = useSuiClientQuery(
+    const { data: coinBalances } = useIotaClientQuery(
         'getAllBalances',
         { owner: activeAccountAddress! },
         {
@@ -244,7 +245,7 @@ export function SwapPageContent() {
     });
 
     const baseBalance = amount && new BigNumber(amount).shiftedBy(USDC_CONVERSION_RATE).toString();
-    const quoteBalance = amount && new BigNumber(amount).shiftedBy(SUI_CONVERSION_RATE).toString();
+    const quoteBalance = amount && new BigNumber(amount).shiftedBy(IOTA_CONVERSION_RATE).toString();
 
     const isPayAll = amount === (isAsk ? formattedBaseTokenBalance : formattedQuoteTokenBalance);
 
@@ -273,7 +274,7 @@ export function SwapPageContent() {
         totalBaseBalance: formattedBaseTokenBalance,
         totalQuoteBalance: formattedQuoteTokenBalance,
         baseConversionRate: USDC_CONVERSION_RATE,
-        quoteConversionRate: SUI_CONVERSION_RATE,
+        quoteConversionRate: IOTA_CONVERSION_RATE,
         enabled: isValid,
         amount,
     });
@@ -295,7 +296,7 @@ export function SwapPageContent() {
         quoteCoinType,
         isAsk,
         baseConversionRate: USDC_CONVERSION_RATE,
-        quoteConversionRate: SUI_CONVERSION_RATE,
+        quoteConversionRate: IOTA_CONVERSION_RATE,
     });
 
     const balance = getBalanceConversion({
@@ -305,7 +306,7 @@ export function SwapPageContent() {
     });
 
     const formattedBalance = new BigNumber(balance)
-        .shiftedBy(isAsk ? SUI_USDC_AVERAGE_CONVERSION_RATE : -SUI_USDC_AVERAGE_CONVERSION_RATE)
+        .shiftedBy(isAsk ? IOTA_USDC_AVERAGE_CONVERSION_RATE : -IOTA_USDC_AVERAGE_CONVERSION_RATE)
         .toNumber();
 
     const { mutate: handleSwap, isPending: isSwapLoading } = useMutation({
@@ -427,7 +428,7 @@ export function SwapPageContent() {
                                             onActionClicked={() => {
                                                 setValue(
                                                     'amount',
-                                                    activeCoinType === SUI_TYPE_ARG
+                                                    activeCoinType === IOTA_TYPE_ARG
                                                         ? formattedBaseTokenBalance
                                                         : formattedQuoteTokenBalance,
                                                     { shouldValidate: true },
@@ -443,9 +444,9 @@ export function SwapPageContent() {
                                         navigate(
                                             `/swap?${new URLSearchParams({
                                                 type:
-                                                    activeCoinType === SUI_TYPE_ARG
+                                                    activeCoinType === IOTA_TYPE_ARG
                                                         ? coinsMap.USDC
-                                                        : SUI_TYPE_ARG,
+                                                        : IOTA_TYPE_ARG,
                                             }).toString()}`,
                                         );
                                         reset();

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Plugin copies files from specified directories into the
@@ -11,19 +12,19 @@ import fs from "fs";
 
 const FRAMEWORK_PATH = path.join(
   __dirname,
-  "../../../../../crates/sui-framework/docs/sui-framework",
+  "../../../../../crates/iota-framework/docs/iota-framework",
 );
 const STDLIB_PATH = path.join(
   __dirname,
-  "../../../../../crates/sui-framework/docs/move-stdlib",
+  "../../../../../crates/iota-framework/docs/move-stdlib",
 );
 const DEEPBOOK_PATH = path.join(
   __dirname,
-  "../../../../../crates/sui-framework/docs/deepbook",
+  "../../../../../crates/iota-framework/docs/deepbook",
 );
-const SUISYS_PATH = path.join(
+const IOTASYS_PATH = path.join(
   __dirname,
-  "../../../../../crates/sui-framework/docs/sui-system",
+  "../../../../../crates/iota-framework/docs/iota-system",
 );
 const DOCS_PATH = path.join(
   __dirname,
@@ -33,7 +34,7 @@ const DOCS_PATH = path.join(
 
 const frameworkPlugin = (context, options) => {
   return {
-    name: "sui-framework-plugin",
+    name: "iota-framework-plugin",
 
     async loadContent() {
       // framework folder is added to gitignore, so should only exist locally.
@@ -65,12 +66,12 @@ const frameworkPlugin = (context, options) => {
       const frameworkFiles = recurseFiles(FRAMEWORK_PATH);
       const stdlibFiles = recurseFiles(STDLIB_PATH);
       const deepbookFiles = recurseFiles(DEEPBOOK_PATH);
-      const suisysFiles = recurseFiles(SUISYS_PATH);
+      const iotasysFiles = recurseFiles(IOTASYS_PATH);
       const allFiles = [
         frameworkFiles,
         stdlibFiles,
         deepbookFiles,
-        suisysFiles,
+        iotasysFiles,
       ];
       allFiles.forEach((theseFiles) => {
         theseFiles.forEach((file) => {
@@ -119,7 +120,7 @@ const frameworkPlugin = (context, options) => {
                     link: {
                       type: "generated-index",
                       slug: path.join("/references/framework", part),
-                      description: `Documentation for the modules in the sui/crates/sui-framework/packages/${part} crate. Select a module from the list to see its details.`,
+                      description: `Documentation for the modules in the iota/crates/iota-framework/packages/${part} crate. Select a module from the list to see its details.`,
                     },
                   }),
                   "utf8",

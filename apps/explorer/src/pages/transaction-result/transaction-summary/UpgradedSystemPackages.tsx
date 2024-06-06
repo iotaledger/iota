@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Text } from '@mysten/ui';
+import { Text } from '@iota/ui';
 
 import { ObjectLink } from '~/ui/InternalLink';
 import { CollapsibleCard } from '~/ui/collapsible/CollapsibleCard';
 import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
 
-import type { OwnedObjectRef } from '@mysten/sui.js/client';
+import type { OwnedObjectRef } from '@iota/iota.js/client';
 
 export function UpgradedSystemPackages({ data }: { data: OwnedObjectRef[] }) {
     if (!data?.length) return null;

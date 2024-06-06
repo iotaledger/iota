@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import Alert from '_components/alert';
@@ -9,9 +10,8 @@ import { NFTDisplayCard } from '_components/nft-display';
 import { ampli } from '_src/shared/analytics/ampli';
 import { Button } from '_src/ui/app/shared/ButtonUI';
 import PageTitle from '_src/ui/app/shared/PageTitle';
-import { getKioskIdFromOwnerCap, isKioskOwnerToken, useMultiGetObjects } from '@mysten/core';
-import { useKioskClient } from '@mysten/core/src/hooks/useKioskClient';
-import { EyeClose16 } from '@mysten/icons';
+import { useMultiGetObjects } from '@iota/core';
+import { EyeClose16 } from '@iota/icons';
 import { keepPreviousData } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
@@ -20,7 +20,6 @@ import { useHiddenAssets } from './HiddenAssetsProvider';
 
 function HiddenNftsPage() {
     const { hiddenAssetIds, showAsset } = useHiddenAssets();
-    const kioskClient = useKioskClient();
 
     const { data, isLoading, isPending, isError, error } = useMultiGetObjects(
         hiddenAssetIds,
@@ -85,15 +84,9 @@ function HiddenNftsPage() {
                                     key={objectId}
                                 >
                                     <Link
-                                        to={
-                                            isKioskOwnerToken(kioskClient.network, nft.data)
-                                                ? `/kiosk?${new URLSearchParams({
-                                                      kioskId: getKioskIdFromOwnerCap(nft.data!),
-                                                  })}`
-                                                : `/nft-details?${new URLSearchParams({
-                                                      objectId,
-                                                  }).toString()}`
-                                        }
+                                        to={`/nft-details?${new URLSearchParams({
+                                            objectId,
+                                        }).toString()}`}
                                         onClick={() => {
                                             ampli.clickedCollectibleCard({
                                                 objectId,
@@ -112,7 +105,7 @@ function HiddenNftsPage() {
                                     </Link>
                                     <div className="h-8 w-8">
                                         <Button
-                                            variant="secondarySui"
+                                            variant="secondaryIota"
                                             size="icon"
                                             onClick={() => {
                                                 showAsset(objectId);

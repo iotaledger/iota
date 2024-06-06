@@ -1,20 +1,21 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { SuiMoveNormalizedType } from '@mysten/sui.js/client';
+import type { IotaMoveNormalizedType } from '@iota/iota.js/client';
 
 /**
- * Converts a SuiMoveNormalizedType to string
+ * Converts a IotaMoveNormalizedType to string
  * @param param A parameter's normalized type of a function
  * @param functionTypeArgNames Parameters can be generic like 0x2::coin::Coin<T>.
- * T is provided on function level with the type_parameters field of SuiMoveNormalizedFunction that defines the abilities.
+ * T is provided on function level with the type_parameters field of IotaMoveNormalizedFunction that defines the abilities.
  * This parameter can be an array of strings that define the actual type or names like T1 that can be used to make the type of the parameter more specific. If
  * functionTypeArgNames or the index that the parameter expects are not defines then a default value T{index} is used.
  * @param str This function is recursive and this field is used to pass the already resolved type
  * @returns
  */
 export function normalizedFunctionParameterTypeToString(
-    param: SuiMoveNormalizedType,
+    param: IotaMoveNormalizedType,
     functionTypeArgNames?: string[],
     str = '',
 ): string {
@@ -53,7 +54,7 @@ export function normalizedFunctionParameterTypeToString(
 }
 
 export function getNormalizedFunctionParameterTypeDetails(
-    param: SuiMoveNormalizedType,
+    param: IotaMoveNormalizedType,
     functionTypeArgNames?: string[],
 ) {
     const paramTypeText = normalizedFunctionParameterTypeToString(param, functionTypeArgNames);

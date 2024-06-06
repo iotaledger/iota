@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import React from "react";
@@ -21,7 +22,7 @@ const Property = (props) => {
     : "";
   return (
     <div
-      className={`grid grid-cols-6 ml-4 even:bg-sui-ghost-white dark:even:bg-sui-ghost-dark`}
+      className={`grid grid-cols-6 ml-4 even:bg-iota-ghost-white dark:even:bg-iota-ghost-dark`}
     >
       <div className="rounded-tl-lg rounded-bl-lg col-span-2 p-2 overflow-x-auto">
         <p className="overflow-x-auto mb-0">
@@ -232,30 +233,30 @@ const Result = (props) => {
   const hasDesc = refObj.desc;
 
   return (
-    <div className="ml-4 p-4 text-sui-gray-80 dark:text-sui-gray-50 border dark:border-sui-gray-75 rounded-lg bg-sui-ghost-white dark:bg-sui-ghost-dark">
+    <div className="ml-4 p-4 text-iota-gray-80 dark:text-iota-gray-50 border dark:border-iota-gray-75 rounded-lg bg-iota-ghost-white dark:bg-iota-ghost-dark">
       <p className="font-bold">
         <PropType proptype={[result.name, result.schema]}></PropType>
       </p>
 
       {hasDesc && !hasRef && (
-        <p className="ml-4 p-2 text-sui-gray-100 dark:text-sui-gray-50 rounded-lg">
+        <p className="ml-4 p-2 text-iota-gray-100 dark:text-iota-gray-50 rounded-lg">
           <Markdown>{refObj.desc}</Markdown>
         </p>
       )}
       {hasRef && <Ref schema={ref}></Ref>}
       {hasRef && hasRefProps && (
         <div className="border-b pb-4">
-          <p className="font-bold mt-6 mb-2 ml-4 text-sui-gray-80 dark:text-sui-gray-50">
+          <p className="font-bold mt-6 mb-2 ml-4 text-iota-gray-80 dark:text-iota-gray-50">
             Properties
           </p>
           <div className={`grid grid-cols-6 ml-4 pb-2`}>
-            <div className="rounded-tl-lg rounded-bl-lg col-span-2 p-2 bg-sui-blue dark:bg-sui-blue-dark text-sui-gray-95 dark:text-sui-gray-50 font-bold">
+            <div className="rounded-tl-lg rounded-bl-lg col-span-2 p-2 bg-iota-blue dark:bg-iota-blue-dark text-iota-gray-95 dark:text-iota-gray-50 font-bold">
               Name&lt;Type&gt;
             </div>
-            <div className="p-2 bg-sui-blue dark:bg-sui-blue-dark text-sui-gray-95 dark:text-sui-gray-50 font-bold">
+            <div className="p-2 bg-iota-blue dark:bg-iota-blue-dark text-iota-gray-95 dark:text-iota-gray-50 font-bold">
               Required
             </div>
-            <div className="rounded-tr-lg rounded-br-lg col-span-3 p-2 bg-sui-blue dark:bg-sui-blue-dark text-sui-gray-95 dark:text-sui-gray-50 font-bold">
+            <div className="rounded-tr-lg rounded-br-lg col-span-3 p-2 bg-iota-blue dark:bg-iota-blue-dark text-iota-gray-95 dark:text-iota-gray-50 font-bold">
               Description
             </div>
           </div>

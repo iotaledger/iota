@@ -1,62 +1,63 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { execSync } from 'child_process';
 import type {
     DevInspectResults,
-    SuiObjectChangeCreated,
-    SuiObjectChangePublished,
-    SuiTransactionBlockResponse,
-} from '@mysten/sui.js/client';
-import { getFullnodeUrl, Network, SuiClient } from '@mysten/sui.js/client';
-import { FaucetRateLimitError, getFaucetHost, requestSuiFromFaucetV0 } from '@mysten/sui.js/faucet';
-import { Ed25519Keypair } from '@mysten/sui.js/keypairs/ed25519';
-import { TransactionBlock } from '@mysten/sui.js/transactions';
+    IotaObjectChangeCreated,
+    IotaObjectChangePublished,
+    IotaTransactionBlockResponse,
+} from '@iota/iota.js/client';
+import { getFullnodeUrl, Network, IotaClient } from '@iota/iota.js/client';
+import { FaucetRateLimitError, getFaucetHost, requestIotaFromFaucetV0 } from '@iota/iota.js/faucet';
+import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
+import { TransactionBlock } from '@iota/iota.js/transactions';
 import tmp from 'tmp';
 import { retry } from 'ts-retry-promise';
 import { expect } from 'vitest';
 
 import { DeepBookClient } from '../../src/index.js';
 import type { PoolSummary } from '../../src/types/index.js';
-import { FLOAT_SCALING_FACTOR, NORMALIZED_SUI_COIN_TYPE } from '../../src/utils/index.js';
+import { FLOAT_SCALING_FACTOR, NORMALIZED_IOTA_COIN_TYPE } from '../../src/utils/index.js';
 
 const DEFAULT_FAUCET_URL = import.meta.env.VITE_FAUCET_URL ?? getFaucetHost(Network.Local);
 const DEFAULT_FULLNODE_URL = import.meta.env.VITE_FULLNODE_URL ?? getFullnodeUrl(Network.Local);
-const SUI_BIN = import.meta.env.VITE_SUI_BIN ?? 'cargo run --bin sui';
+const IOTA_BIN = import.meta.env.VITE_IOTA_BIN ?? 'cargo run --bin iota';
 
 export const DEFAULT_TICK_SIZE = 1n * FLOAT_SCALING_FACTOR;
 export const DEFAULT_LOT_SIZE = 1n;
 
 export class TestToolbox {
     keypair: Ed25519Keypair;
-    client: SuiClient;
+    client: IotaClient;
 
-    constructor(keypair: Ed25519Keypair, client: SuiClient) {
+    constructor(keypair: Ed25519Keypair, client: IotaClient) {
         this.keypair = keypair;
         this.client = client;
     }
 
     address() {
-        return this.keypair.getPublicKey().toSuiAddress();
+        return this.keypair.getPublicKey().toIotaAddress();
     }
 
     public async getActiveValidators() {
-        return (await this.client.getLatestSuiSystemState()).activeValidators;
+        return (await this.client.getLatestIotaSystemState()).activeValidators;
     }
 }
 
-export function getClient(): SuiClient {
-    return new SuiClient({
+export function getClient(): IotaClient {
+    return new IotaClient({
         url: DEFAULT_FULLNODE_URL,
     });
 }
 
-// TODO: expose these testing utils from @mysten/sui.js
-export async function setupSuiClient() {
+// TODO: expose these testing utils from @iota/iota.js
+export async function setupIotaClient() {
     const keypair = Ed25519Keypair.generate();
-    const address = keypair.getPublicKey().toSuiAddress();
+    const address = keypair.getPublicKey().toIotaAddress();
     const client = getClient();
-    await retry(() => requestSuiFromFaucetV0({ host: DEFAULT_FAUCET_URL, recipient: address }), {
+    await retry(() => requestIotaFromFaucetV0({ host: DEFAULT_FAUCET_URL, recipient: address }), {
         backoff: 'EXPONENTIAL',
         // overall timeout in 60 seconds
         timeout: 1000 * 60,
@@ -67,11 +68,11 @@ export async function setupSuiClient() {
     return new TestToolbox(keypair, client);
 }
 
-// TODO: expose these testing utils from @mysten/sui.js
+// TODO: expose these testing utils from @iota/iota.js
 export async function publishPackage(packagePath: string, toolbox?: TestToolbox) {
     // TODO: We create a unique publish address per publish, but we really could share one for all publishes.
     if (!toolbox) {
-        toolbox = await setupSuiClient();
+        toolbox = await setupIotaClient();
     }
 
     // remove all controlled temporary objects on process exit
@@ -81,7 +82,7 @@ export async function publishPackage(packagePath: string, toolbox?: TestToolbox)
 
     const { modules, dependencies } = JSON.parse(
         execSync(
-            `${SUI_BIN} move build --dump-bytecode-as-base64 --path ${packagePath} --install-dir ${tmpobj.name}`,
+            `${IOTA_BIN} move build --dump-bytecode-as-base64 --path ${packagePath} --install-dir ${tmpobj.name}`,
             { encoding: 'utf-8' },
         ),
     );
@@ -106,7 +107,7 @@ export async function publishPackage(packagePath: string, toolbox?: TestToolbox)
 
     const packageId = ((publishTxn.objectChanges?.filter(
         (a) => a.type === 'published',
-    ) as SuiObjectChangePublished[]) ?? [])[0].packageId.replace(/^(0x)(0+)/, '0x') as string;
+    ) as IotaObjectChangePublished[]) ?? [])[0].packageId.replace(/^(0x)(0+)/, '0x') as string;
 
     expect(packageId).toBeTypeOf('string');
 
@@ -119,7 +120,7 @@ export async function setupPool(toolbox: TestToolbox): Promise<PoolSummary> {
     const packagePath = __dirname + '/./data/test_coin';
     const { packageId } = await publishPackage(packagePath, toolbox);
     const baseAsset = `${packageId}::test::TEST`;
-    const quoteAsset = NORMALIZED_SUI_COIN_TYPE;
+    const quoteAsset = NORMALIZED_IOTA_COIN_TYPE;
     const deepbook = new DeepBookClient(toolbox.client);
     const txb = deepbook.createPool(baseAsset, quoteAsset, DEFAULT_TICK_SIZE, DEFAULT_LOT_SIZE);
     const resp = await executeTransactionBlock(toolbox, txb);
@@ -138,14 +139,14 @@ export async function setupDeepbookAccount(toolbox: TestToolbox): Promise<string
 
     const accountCap = ((resp.objectChanges?.filter(
         (a) => a.type === 'created',
-    ) as SuiObjectChangeCreated[]) ?? [])[0].objectId;
+    ) as IotaObjectChangeCreated[]) ?? [])[0].objectId;
     return accountCap;
 }
 
 export async function executeTransactionBlock(
     toolbox: TestToolbox,
     txb: TransactionBlock,
-): Promise<SuiTransactionBlockResponse> {
+): Promise<IotaTransactionBlockResponse> {
     const resp = await toolbox.client.signAndExecuteTransactionBlock({
         signer: toolbox.keypair,
         transactionBlock: txb,

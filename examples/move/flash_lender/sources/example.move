@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// A flash loan that works for any Coin type
 module flash_lender::example {
-    use sui::balance::{Self, Balance};
-    use sui::coin::{Self, Coin};
-    use sui::object::{Self, ID, UID};
-    use sui::transfer;
-    use sui::tx_context::TxContext;
+    use iota::balance::{Self, Balance};
+    use iota::coin::{Self, Coin};
+    use iota::object::{Self, ID, UID};
+    use iota::transfer;
+    use iota::tx_context::TxContext;
 
     /// A shared object offering flash loans to any buyer willing to pay `fee`.
     struct FlashLender<phantom T> has key {
@@ -179,8 +180,8 @@ module flash_lender::example {
     }
 
     // === Tests ===
-    #[test_only] use sui::sui::SUI;
-    #[test_only] use sui::test_scenario as ts;
+    #[test_only] use iota::iota::IOTA;
+    #[test_only] use iota::test_scenario as ts;
 
     #[test_only] const ADMIN: address = @0xAD;
     #[test_only] const ALICE: address = @0xA;
@@ -192,7 +193,7 @@ module flash_lender::example {
         // Admin creates a flash lender with 100 coins and a fee of 1 coin.
         {
             ts::next_tx(&mut ts, ADMIN);
-            let coin = coin::mint_for_testing<SUI>(100, ts::ctx(&mut ts));
+            let coin = coin::mint_for_testing<IOTA>(100, ts::ctx(&mut ts));
             let bal = coin::into_balance(coin);
             let cap = new(bal, 1, ts::ctx(&mut ts));
             transfer::public_transfer(cap, ADMIN);
@@ -206,7 +207,7 @@ module flash_lender::example {
             let (loan, receipt) = loan(&mut lender, 10, ts::ctx(&mut ts));
 
             // Simulate Alice making enough profit to repay.
-            let profit = coin::mint_for_testing<SUI>(1, ts::ctx(&mut ts));
+            let profit = coin::mint_for_testing<IOTA>(1, ts::ctx(&mut ts));
             coin::join(&mut profit, loan);
 
             repay(&mut lender, profit, receipt);
@@ -217,7 +218,7 @@ module flash_lender::example {
         {
             ts::next_tx(&mut ts, ADMIN);
             let cap = ts::take_from_sender(&ts);
-            let lender: FlashLender<SUI> = ts::take_shared(&ts);
+            let lender: FlashLender<IOTA> = ts::take_shared(&ts);
 
             // Max loan increased because of the fee payment
             assert!(max_loan(&lender) == 101, 0);

@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type SuiObjectResponse } from '@mysten/sui.js/client';
-import { formatAddress } from '@mysten/sui.js/utils';
-import { Placeholder, Text } from '@mysten/ui';
+import { type IotaObjectResponse } from '@iota/iota.js/client';
+import { formatAddress } from '@iota/iota.js/utils';
+import { Placeholder, Text } from '@iota/ui';
 
 import { useResolveVideo } from '~/hooks/useResolveVideo';
 import { ObjectLink } from '~/ui/InternalLink';
@@ -11,7 +12,7 @@ import { ObjectVideoImage } from '~/ui/ObjectVideoImage';
 import { parseObjectType } from '~/utils/objectUtils';
 import { trimStdLibPrefix } from '~/utils/stringUtils';
 
-function Thumbnail({ obj }: { obj: SuiObjectResponse }) {
+function Thumbnail({ obj }: { obj: IotaObjectResponse }) {
     const video = useResolveVideo(obj);
     const displayMeta = obj.data?.display?.data;
     const src = displayMeta?.image_url || '';
@@ -62,7 +63,7 @@ function ThumbnailsOnlyLoading({ limit }: { limit: number }) {
 
 interface ThumbnailsViewViewProps {
     limit: number;
-    data?: SuiObjectResponse[];
+    data?: IotaObjectResponse[];
     loading?: boolean;
 }
 

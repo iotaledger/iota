@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Search24 } from '@mysten/icons';
-import { Combobox, ComboboxInput, ComboboxList } from '@mysten/ui';
+import { Search24 } from '@iota/icons';
+import { Combobox, ComboboxInput, ComboboxList } from '@iota/ui';
 import clsx from 'clsx';
 import { useState, useCallback, useEffect } from 'react';
 import { type Direction } from 'react-resizable-panels';

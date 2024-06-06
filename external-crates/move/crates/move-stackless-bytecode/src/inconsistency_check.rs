@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Instrument `assert false;` in strategic locations in the program such that
@@ -7,7 +8,7 @@
 //!
 //! The presence of inconsistency is a serious issue. If there is an
 //! inconsistency in the verification assumptions (perhaps due to a
-//! specification mistake or a Prover bug), any false post-condition can be
+//! specification microsake or a Prover bug), any false post-condition can be
 //! proved vacuously. The `InconsistencyCheckInstrumentationProcessor` adds
 //! an `assert false` before
 //! - every `return` and

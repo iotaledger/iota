@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { useSuiClient } from '@mysten/dapp-kit';
-import { SuiClient } from '@mysten/sui.js/client';
+import { useIotaClient } from '@iota/dapp-kit';
+import { IotaClient } from '@iota/iota.js/client';
 import { useMemo } from 'react';
 
 import { useNetwork } from '~/context';
@@ -10,10 +11,10 @@ import { Network } from '~/utils/api/DefaultRpcClient';
 // TODO: Use enhanced RPC locally by default
 export function useEnhancedRpcClient() {
     const [network] = useNetwork();
-    const client = useSuiClient();
+    const client = useIotaClient();
     const enhancedRpc = useMemo(() => {
         if (network === Network.Local) {
-            return new SuiClient({ url: 'http://localhost:9124' });
+            return new IotaClient({ url: 'http://localhost:9124' });
         }
 
         return client;

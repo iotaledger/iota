@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { ArrowUpRight16 } from '@mysten/icons';
-import { Text, Heading } from '@mysten/ui';
+import { ArrowUpRight16 } from '@iota/icons';
+import { Text, Heading } from '@iota/ui';
 import { cva } from 'class-variance-authority';
 import { useState } from 'react';
 

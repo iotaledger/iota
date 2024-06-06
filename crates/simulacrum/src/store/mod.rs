@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
 
-use sui_config::genesis;
-use sui_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress},
+use iota_config::genesis;
+use iota_types::{
+    base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress},
     committee::{Committee, EpochId},
     digests::{ObjectDigest, TransactionDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
-    error::{SuiResult, UserInputError},
+    error::{IotaResult, UserInputError},
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
         VerifiedCheckpoint,
@@ -24,8 +25,8 @@ use sui_types::{
 pub mod in_mem_store;
 
 pub trait SimulatorStore:
-    sui_types::storage::BackingPackageStore
-    + sui_types::storage::ObjectStore
+    iota_types::storage::BackingPackageStore
+    + iota_types::storage::ObjectStore
     + ParentSync
     + ChildObjectResolver
 {
@@ -84,11 +85,11 @@ pub trait SimulatorStore:
 
     fn get_object_at_version(&self, id: &ObjectID, version: SequenceNumber) -> Option<Object>;
 
-    fn get_system_state(&self) -> sui_types::sui_system_state::SuiSystemState;
+    fn get_system_state(&self) -> iota_types::iota_system_state::IotaSystemState;
 
-    fn get_clock(&self) -> sui_types::clock::Clock;
+    fn get_clock(&self) -> iota_types::clock::Clock;
 
-    fn owned_objects(&self, owner: SuiAddress) -> Box<dyn Iterator<Item = Object> + '_>;
+    fn owned_objects(&self, owner: IotaAddress) -> Box<dyn Iterator<Item = Object> + '_>;
 
     fn insert_checkpoint(&mut self, checkpoint: VerifiedCheckpoint);
 
@@ -119,14 +120,14 @@ pub trait SimulatorStore:
     fn backing_store(&self) -> &dyn BackingStore;
 
     // TODO: After we abstract object storage into the ExecutionCache trait, we can
-    // replace this with sui_core::TransactionInputLoad using an appropriate
+    // replace this with iota_core::TransactionInputLoad using an appropriate
     // cache implementation.
     fn read_objects_for_synchronous_execution(
         &self,
         _tx_digest: &TransactionDigest,
         input_object_kinds: &[InputObjectKind],
         receiving_object_refs: &[ObjectRef],
-    ) -> SuiResult<(InputObjects, ReceivingObjects)> {
+    ) -> IotaResult<(InputObjects, ReceivingObjects)> {
         let mut input_objects = Vec::new();
         for kind in input_object_kinds {
             let obj = match kind {
