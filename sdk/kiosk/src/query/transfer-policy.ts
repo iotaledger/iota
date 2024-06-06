@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { SuiClient } from '@mysten/sui.js/client';
-import { isValidSuiAddress } from '@mysten/sui.js/utils';
+import type { IotaClient } from '@iota/iota.js/client';
+import { isValidIotaAddress } from '@iota/iota.js/utils';
 
 import { bcs } from '../bcs.js';
 import type { TransferPolicy, TransferPolicyCap } from '../types/index.js';
@@ -23,7 +24,7 @@ import { getAllOwnedObjects, parseTransferPolicyCapObject } from '../utils.js';
  * @param type
  */
 export async function queryTransferPolicy(
-    client: SuiClient,
+    client: IotaClient,
     type: string,
 ): Promise<TransferPolicy[]> {
     // console.log('event type: %s', `${TRANSFER_POLICY_CREATED_EVENT}<${type}>`);
@@ -70,11 +71,11 @@ export async function queryTransferPolicy(
  * @returns TransferPolicyCap Object ID | undefined if not found.
  */
 export async function queryTransferPolicyCapsByType(
-    client: SuiClient,
+    client: IotaClient,
     address: string,
     type: string,
 ): Promise<TransferPolicyCap[]> {
-    if (!isValidSuiAddress(address)) return [];
+    if (!isValidIotaAddress(address)) return [];
 
     const filter = {
         MatchAll: [
@@ -104,10 +105,10 @@ export async function queryTransferPolicyCapsByType(
  * @returns TransferPolicyCap Object ID | undefined if not found.
  */
 export async function queryOwnedTransferPolicies(
-    client: SuiClient,
+    client: IotaClient,
     address: string,
 ): Promise<TransferPolicyCap[] | undefined> {
-    if (!isValidSuiAddress(address)) return;
+    if (!isValidIotaAddress(address)) return;
 
     const filter = {
         MatchAll: [

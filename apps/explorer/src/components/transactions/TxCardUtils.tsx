@@ -1,17 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { getTotalGasUsed } from '@mysten/core';
-import { X12, Dot12 } from '@mysten/icons';
-import { type SuiClient, type SuiTransactionBlockResponse } from '@mysten/sui.js/client';
+import { getTotalGasUsed } from '@iota/core';
+import { X12, Dot12 } from '@iota/icons';
+import { type IotaClient, type IotaTransactionBlockResponse } from '@iota/iota.js/client';
 
-import { SuiAmount } from '../Table/SuiAmount';
+import { IotaAmount } from '../Table/IotaAmount';
 import { TxTimeType } from '../tx-time/TxTimeType';
 import { HighlightedTableCol } from '~/components/Table/HighlightedTableCol';
 import { AddressLink, TransactionLink } from '~/ui/InternalLink';
 
 // Generate table data from the transaction data
-export const genTableDataFromTxData = (results: SuiTransactionBlockResponse[]) => ({
+export const genTableDataFromTxData = (results: IotaTransactionBlockResponse[]) => ({
     data: results.map((transaction) => {
         const status = transaction.effects?.status.status;
         const sender = transaction.transaction?.data.sender;
@@ -44,7 +45,7 @@ export const genTableDataFromTxData = (results: SuiTransactionBlockResponse[]) =
                 </div>
             ),
             gas: (
-                <SuiAmount amount={transaction.effects && getTotalGasUsed(transaction.effects!)} />
+                <IotaAmount amount={transaction.effects && getTotalGasUsed(transaction.effects!)} />
             ),
             sender: (
                 <HighlightedTableCol>
@@ -79,7 +80,7 @@ export const genTableDataFromTxData = (results: SuiTransactionBlockResponse[]) =
 
 const dedupe = (arr: string[]) => Array.from(new Set(arr));
 
-export const getDataOnTxDigests = (client: SuiClient, transactions: string[]) =>
+export const getDataOnTxDigests = (client: IotaClient, transactions: string[]) =>
     client
         .multiGetTransactionBlocks({
             digests: dedupe(transactions),

@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useTransactionSummary } from '@mysten/core';
+import { useTransactionSummary } from '@iota/core';
 import {
     type ProgrammableTransaction,
-    type SuiTransactionBlockResponse,
-} from '@mysten/sui.js/client';
+    type IotaTransactionBlockResponse,
+} from '@iota/iota.js/client';
 
 import { TransactionDetailCard } from './transaction-summary/TransactionDetailCard';
 import { GasBreakdown } from '~/components/GasBreakdown';
@@ -14,7 +15,7 @@ import { InputsCard } from '~/pages/transaction-result/programmable-transaction-
 import { TransactionsCard } from '~/pages/transaction-result/programmable-transaction-view/TransactionsCard';
 
 interface Props {
-    transaction: SuiTransactionBlockResponse;
+    transaction: IotaTransactionBlockResponse;
 }
 
 export function TransactionData({ transaction }: Props) {

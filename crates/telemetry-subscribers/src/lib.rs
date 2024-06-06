@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -391,7 +392,7 @@ impl TelemetryConfig {
             let config = sdk::trace::config()
                 .with_resource(Resource::new(vec![opentelemetry::KeyValue::new(
                     "service.name",
-                    "sui-node",
+                    "iota-node",
                 )]))
                 .with_sampler(Sampler::ParentBased(Box::new(sampler.clone())));
 
@@ -408,7 +409,7 @@ impl TelemetryConfig {
                     .with_span_processor(processor)
                     .build();
 
-                let tracer = p.tracer("sui-node");
+                let tracer = p.tracer("iota-node");
                 provider = Some(p);
 
                 tracing_opentelemetry::layer().with_tracer(tracer)

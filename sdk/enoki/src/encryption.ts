@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB64, toB64 } from '@mysten/sui.js/utils';
+import { fromB64, toB64 } from '@iota/iota.js/utils';
 
 /**
  * An interface

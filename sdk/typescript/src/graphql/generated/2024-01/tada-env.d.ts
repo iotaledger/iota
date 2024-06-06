@@ -207,7 +207,7 @@ export type introspection = {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "SCALAR",
-                "name": "SuiAddress",
+                "name": "IotaAddress",
                 "ofType": null
               }
             },
@@ -383,12 +383,12 @@ export type introspection = {
             ]
           },
           {
-            "name": "stakedSuis",
+            "name": "stakedIotas",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "OBJECT",
-                "name": "StakedSuiConnection",
+                "name": "StakedIotaConnection",
                 "ofType": null
               }
             },
@@ -428,7 +428,7 @@ export type introspection = {
             ]
           },
           {
-            "name": "defaultSuinsName",
+            "name": "defaultIotansName",
             "type": {
               "kind": "SCALAR",
               "name": "String",
@@ -437,12 +437,12 @@ export type introspection = {
             "args": []
           },
           {
-            "name": "suinsRegistrations",
+            "name": "iotansRegistrations",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "OBJECT",
-                "name": "SuinsRegistrationConnection",
+                "name": "IotansRegistrationConnection",
                 "ofType": null
               }
             },
@@ -1472,7 +1472,7 @@ export type introspection = {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "SCALAR",
-                "name": "SuiAddress",
+                "name": "IotaAddress",
                 "ofType": null
               }
             },
@@ -1648,12 +1648,12 @@ export type introspection = {
             ]
           },
           {
-            "name": "stakedSuis",
+            "name": "stakedIotas",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "OBJECT",
-                "name": "StakedSuiConnection",
+                "name": "StakedIotaConnection",
                 "ofType": null
               }
             },
@@ -1693,7 +1693,7 @@ export type introspection = {
             ]
           },
           {
-            "name": "defaultSuinsName",
+            "name": "defaultIotansName",
             "type": {
               "kind": "SCALAR",
               "name": "String",
@@ -1702,12 +1702,12 @@ export type introspection = {
             "args": []
           },
           {
-            "name": "suinsRegistrations",
+            "name": "iotansRegistrations",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "OBJECT",
-                "name": "SuinsRegistrationConnection",
+                "name": "IotansRegistrationConnection",
                 "ofType": null
               }
             },
@@ -2128,7 +2128,7 @@ export type introspection = {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "SCALAR",
-                "name": "SuiAddress",
+                "name": "IotaAddress",
                 "ofType": null
               }
             },
@@ -2304,12 +2304,12 @@ export type introspection = {
             ]
           },
           {
-            "name": "stakedSuis",
+            "name": "stakedIotas",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "OBJECT",
-                "name": "StakedSuiConnection",
+                "name": "StakedIotaConnection",
                 "ofType": null
               }
             },
@@ -2349,7 +2349,7 @@ export type introspection = {
             ]
           },
           {
-            "name": "defaultSuinsName",
+            "name": "defaultIotansName",
             "type": {
               "kind": "SCALAR",
               "name": "String",
@@ -2358,12 +2358,12 @@ export type introspection = {
             "args": []
           },
           {
-            "name": "suinsRegistrations",
+            "name": "iotansRegistrations",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "OBJECT",
-                "name": "SuinsRegistrationConnection",
+                "name": "IotansRegistrationConnection",
                 "ofType": null
               }
             },
@@ -3837,7 +3837,7 @@ export type introspection = {
             "name": "sender",
             "type": {
               "kind": "SCALAR",
-              "name": "SuiAddress",
+              "name": "IotaAddress",
               "ofType": null
             }
           },
@@ -4296,11 +4296,11 @@ export type introspection = {
           },
           {
             "kind": "OBJECT",
-            "name": "StakedSui"
+            "name": "StakedIota"
           },
           {
             "kind": "OBJECT",
-            "name": "SuinsRegistration"
+            "name": "IotansRegistration"
           }
         ]
       },
@@ -4455,11 +4455,11 @@ export type introspection = {
           },
           {
             "kind": "OBJECT",
-            "name": "StakedSui"
+            "name": "StakedIota"
           },
           {
             "kind": "OBJECT",
-            "name": "SuinsRegistration"
+            "name": "IotansRegistration"
           }
         ]
       },
@@ -4473,7 +4473,7 @@ export type introspection = {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "SCALAR",
-                "name": "SuiAddress",
+                "name": "IotaAddress",
                 "ofType": null
               }
             },
@@ -4649,12 +4649,12 @@ export type introspection = {
             ]
           },
           {
-            "name": "stakedSuis",
+            "name": "stakedIotas",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "OBJECT",
-                "name": "StakedSuiConnection",
+                "name": "StakedIotaConnection",
                 "ofType": null
               }
             },
@@ -4694,7 +4694,7 @@ export type introspection = {
             ]
           },
           {
-            "name": "defaultSuinsName",
+            "name": "defaultIotansName",
             "type": {
               "kind": "SCALAR",
               "name": "String",
@@ -4703,12 +4703,12 @@ export type introspection = {
             "args": []
           },
           {
-            "name": "suinsRegistrations",
+            "name": "iotansRegistrations",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "OBJECT",
-                "name": "SuinsRegistrationConnection",
+                "name": "IotansRegistrationConnection",
                 "ofType": null
               }
             },
@@ -4780,11 +4780,11 @@ export type introspection = {
           },
           {
             "kind": "OBJECT",
-            "name": "StakedSui"
+            "name": "StakedIota"
           },
           {
             "kind": "OBJECT",
-            "name": "SuinsRegistration"
+            "name": "IotansRegistration"
           }
         ]
       },
@@ -4837,7 +4837,7 @@ export type introspection = {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "SCALAR",
-                "name": "SuiAddress",
+                "name": "IotaAddress",
                 "ofType": null
               }
             },
@@ -4849,7 +4849,7 @@ export type introspection = {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "SCALAR",
-                "name": "SuiAddress",
+                "name": "IotaAddress",
                 "ofType": null
               }
             },
@@ -4969,7 +4969,7 @@ export type introspection = {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "SCALAR",
-                "name": "SuiAddress",
+                "name": "IotaAddress",
                 "ofType": null
               }
             },
@@ -5612,7 +5612,7 @@ export type introspection = {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "SCALAR",
-                "name": "SuiAddress",
+                "name": "IotaAddress",
                 "ofType": null
               }
             },
@@ -5788,12 +5788,12 @@ export type introspection = {
             ]
           },
           {
-            "name": "stakedSuis",
+            "name": "stakedIotas",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "OBJECT",
-                "name": "StakedSuiConnection",
+                "name": "StakedIotaConnection",
                 "ofType": null
               }
             },
@@ -5833,7 +5833,7 @@ export type introspection = {
             ]
           },
           {
-            "name": "defaultSuinsName",
+            "name": "defaultIotansName",
             "type": {
               "kind": "SCALAR",
               "name": "String",
@@ -5842,12 +5842,12 @@ export type introspection = {
             "args": []
           },
           {
-            "name": "suinsRegistrations",
+            "name": "iotansRegistrations",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "OBJECT",
-                "name": "SuinsRegistrationConnection",
+                "name": "IotansRegistrationConnection",
                 "ofType": null
               }
             },
@@ -6141,10 +6141,10 @@ export type introspection = {
             "args": []
           },
           {
-            "name": "asStakedSui",
+            "name": "asStakedIota",
             "type": {
               "kind": "OBJECT",
-              "name": "StakedSui",
+              "name": "StakedIota",
               "ofType": null
             },
             "args": []
@@ -6159,10 +6159,10 @@ export type introspection = {
             "args": []
           },
           {
-            "name": "asSuinsRegistration",
+            "name": "asIotansRegistration",
             "type": {
               "kind": "OBJECT",
-              "name": "SuinsRegistration",
+              "name": "IotansRegistration",
               "ofType": null
             },
             "args": []
@@ -6279,7 +6279,7 @@ export type introspection = {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "SCALAR",
-                "name": "SuiAddress",
+                "name": "IotaAddress",
                 "ofType": null
               }
             },
@@ -6455,12 +6455,12 @@ export type introspection = {
             ]
           },
           {
-            "name": "stakedSuis",
+            "name": "stakedIotas",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "OBJECT",
-                "name": "StakedSuiConnection",
+                "name": "StakedIotaConnection",
                 "ofType": null
               }
             },
@@ -6500,7 +6500,7 @@ export type introspection = {
             ]
           },
           {
-            "name": "defaultSuinsName",
+            "name": "defaultIotansName",
             "type": {
               "kind": "SCALAR",
               "name": "String",
@@ -6509,12 +6509,12 @@ export type introspection = {
             "args": []
           },
           {
-            "name": "suinsRegistrations",
+            "name": "iotansRegistrations",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "OBJECT",
-                "name": "SuinsRegistrationConnection",
+                "name": "IotansRegistrationConnection",
                 "ofType": null
               }
             },
@@ -7271,7 +7271,7 @@ export type introspection = {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "SCALAR",
-                "name": "SuiAddress",
+                "name": "IotaAddress",
                 "ofType": null
               }
             },
@@ -7447,12 +7447,12 @@ export type introspection = {
             ]
           },
           {
-            "name": "stakedSuis",
+            "name": "stakedIotas",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "OBJECT",
-                "name": "StakedSuiConnection",
+                "name": "StakedIotaConnection",
                 "ofType": null
               }
             },
@@ -7492,7 +7492,7 @@ export type introspection = {
             ]
           },
           {
-            "name": "defaultSuinsName",
+            "name": "defaultIotansName",
             "type": {
               "kind": "SCALAR",
               "name": "String",
@@ -7501,12 +7501,12 @@ export type introspection = {
             "args": []
           },
           {
-            "name": "suinsRegistrations",
+            "name": "iotansRegistrations",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "OBJECT",
-                "name": "SuinsRegistrationConnection",
+                "name": "IotansRegistrationConnection",
                 "ofType": null
               }
             },
@@ -7809,7 +7809,7 @@ export type introspection = {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "SCALAR",
-                "name": "SuiAddress",
+                "name": "IotaAddress",
                 "ofType": null
               }
             },
@@ -8042,7 +8042,7 @@ export type introspection = {
             "name": "owner",
             "type": {
               "kind": "SCALAR",
-              "name": "SuiAddress",
+              "name": "IotaAddress",
               "ofType": null
             }
           },
@@ -8054,7 +8054,7 @@ export type introspection = {
                 "kind": "NON_NULL",
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "SuiAddress",
+                  "name": "IotaAddress",
                   "ofType": null
                 }
               }
@@ -8086,7 +8086,7 @@ export type introspection = {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "SCALAR",
-                "name": "SuiAddress",
+                "name": "IotaAddress",
                 "ofType": null
               }
             }
@@ -8154,7 +8154,7 @@ export type introspection = {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "SCALAR",
-                "name": "SuiAddress",
+                "name": "IotaAddress",
                 "ofType": null
               }
             }
@@ -8228,7 +8228,7 @@ export type introspection = {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "SCALAR",
-                "name": "SuiAddress",
+                "name": "IotaAddress",
                 "ofType": null
               }
             },
@@ -8280,7 +8280,7 @@ export type introspection = {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "SCALAR",
-                "name": "SuiAddress",
+                "name": "IotaAddress",
                 "ofType": null
               }
             },
@@ -8456,12 +8456,12 @@ export type introspection = {
             ]
           },
           {
-            "name": "stakedSuis",
+            "name": "stakedIotas",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "OBJECT",
-                "name": "StakedSuiConnection",
+                "name": "StakedIotaConnection",
                 "ofType": null
               }
             },
@@ -8501,7 +8501,7 @@ export type introspection = {
             ]
           },
           {
-            "name": "defaultSuinsName",
+            "name": "defaultIotansName",
             "type": {
               "kind": "SCALAR",
               "name": "String",
@@ -8510,12 +8510,12 @@ export type introspection = {
             "args": []
           },
           {
-            "name": "suinsRegistrations",
+            "name": "iotansRegistrations",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "OBJECT",
-                "name": "SuinsRegistrationConnection",
+                "name": "IotansRegistrationConnection",
                 "ofType": null
               }
             },
@@ -9137,7 +9137,7 @@ export type introspection = {
                   "kind": "NON_NULL",
                   "ofType": {
                     "kind": "SCALAR",
-                    "name": "SuiAddress",
+                    "name": "IotaAddress",
                     "ofType": null
                   }
                 }
@@ -9261,7 +9261,7 @@ export type introspection = {
                   "kind": "NON_NULL",
                   "ofType": {
                     "kind": "SCALAR",
-                    "name": "SuiAddress",
+                    "name": "IotaAddress",
                     "ofType": null
                   }
                 }
@@ -9282,7 +9282,7 @@ export type introspection = {
                   "kind": "NON_NULL",
                   "ofType": {
                     "kind": "SCALAR",
-                    "name": "SuiAddress",
+                    "name": "IotaAddress",
                     "ofType": null
                   }
                 }
@@ -9311,7 +9311,7 @@ export type introspection = {
                   "kind": "NON_NULL",
                   "ofType": {
                     "kind": "SCALAR",
-                    "name": "SuiAddress",
+                    "name": "IotaAddress",
                     "ofType": null
                   }
                 }
@@ -9678,7 +9678,7 @@ export type introspection = {
             ]
           },
           {
-            "name": "resolveSuinsAddress",
+            "name": "resolveIotansAddress",
             "type": {
               "kind": "OBJECT",
               "name": "Address",
@@ -9769,7 +9769,7 @@ export type introspection = {
                   "kind": "NON_NULL",
                   "ofType": {
                     "kind": "SCALAR",
-                    "name": "SuiAddress",
+                    "name": "IotaAddress",
                     "ofType": null
                   }
                 }
@@ -9857,7 +9857,7 @@ export type introspection = {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "SCALAR",
-                "name": "SuiAddress",
+                "name": "IotaAddress",
                 "ofType": null
               }
             },
@@ -10174,7 +10174,7 @@ export type introspection = {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "SCALAR",
-                "name": "SuiAddress",
+                "name": "IotaAddress",
                 "ofType": null
               }
             },
@@ -10217,7 +10217,7 @@ export type introspection = {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "SCALAR",
-                "name": "SuiAddress",
+                "name": "IotaAddress",
                 "ofType": null
               }
             },
@@ -10260,7 +10260,7 @@ export type introspection = {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "SCALAR",
-                "name": "SuiAddress",
+                "name": "IotaAddress",
                 "ofType": null
               }
             },
@@ -10408,7 +10408,7 @@ export type introspection = {
       },
       {
         "kind": "OBJECT",
-        "name": "StakedSui",
+        "name": "StakedIota",
         "fields": [
           {
             "name": "address",
@@ -10416,7 +10416,7 @@ export type introspection = {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "SCALAR",
-                "name": "SuiAddress",
+                "name": "IotaAddress",
                 "ofType": null
               }
             },
@@ -10592,12 +10592,12 @@ export type introspection = {
             ]
           },
           {
-            "name": "stakedSuis",
+            "name": "stakedIotas",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "OBJECT",
-                "name": "StakedSuiConnection",
+                "name": "StakedIotaConnection",
                 "ofType": null
               }
             },
@@ -10637,7 +10637,7 @@ export type introspection = {
             ]
           },
           {
-            "name": "defaultSuinsName",
+            "name": "defaultIotansName",
             "type": {
               "kind": "SCALAR",
               "name": "String",
@@ -10646,12 +10646,12 @@ export type introspection = {
             "args": []
           },
           {
-            "name": "suinsRegistrations",
+            "name": "iotansRegistrations",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "OBJECT",
-                "name": "SuinsRegistrationConnection",
+                "name": "IotansRegistrationConnection",
                 "ofType": null
               }
             },
@@ -10969,7 +10969,7 @@ export type introspection = {
             "name": "poolId",
             "type": {
               "kind": "SCALAR",
-              "name": "SuiAddress",
+              "name": "IotaAddress",
               "ofType": null
             },
             "args": []
@@ -11010,7 +11010,7 @@ export type introspection = {
       },
       {
         "kind": "OBJECT",
-        "name": "StakedSuiConnection",
+        "name": "StakedIotaConnection",
         "fields": [
           {
             "name": "pageInfo",
@@ -11034,7 +11034,7 @@ export type introspection = {
                   "kind": "NON_NULL",
                   "ofType": {
                     "kind": "OBJECT",
-                    "name": "StakedSuiEdge",
+                    "name": "StakedIotaEdge",
                     "ofType": null
                   }
                 }
@@ -11052,7 +11052,7 @@ export type introspection = {
                   "kind": "NON_NULL",
                   "ofType": {
                     "kind": "OBJECT",
-                    "name": "StakedSui",
+                    "name": "StakedIota",
                     "ofType": null
                   }
                 }
@@ -11065,7 +11065,7 @@ export type introspection = {
       },
       {
         "kind": "OBJECT",
-        "name": "StakedSuiEdge",
+        "name": "StakedIotaEdge",
         "fields": [
           {
             "name": "node",
@@ -11073,7 +11073,7 @@ export type introspection = {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "OBJECT",
-                "name": "StakedSui",
+                "name": "StakedIota",
                 "ofType": null
               }
             },
@@ -11121,11 +11121,11 @@ export type introspection = {
       },
       {
         "kind": "SCALAR",
-        "name": "SuiAddress"
+        "name": "IotaAddress"
       },
       {
         "kind": "OBJECT",
-        "name": "SuinsRegistration",
+        "name": "IotansRegistration",
         "fields": [
           {
             "name": "address",
@@ -11133,7 +11133,7 @@ export type introspection = {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "SCALAR",
-                "name": "SuiAddress",
+                "name": "IotaAddress",
                 "ofType": null
               }
             },
@@ -11309,12 +11309,12 @@ export type introspection = {
             ]
           },
           {
-            "name": "stakedSuis",
+            "name": "stakedIotas",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "OBJECT",
-                "name": "StakedSuiConnection",
+                "name": "StakedIotaConnection",
                 "ofType": null
               }
             },
@@ -11354,7 +11354,7 @@ export type introspection = {
             ]
           },
           {
-            "name": "defaultSuinsName",
+            "name": "defaultIotansName",
             "type": {
               "kind": "SCALAR",
               "name": "String",
@@ -11363,12 +11363,12 @@ export type introspection = {
             "args": []
           },
           {
-            "name": "suinsRegistrations",
+            "name": "iotansRegistrations",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "OBJECT",
-                "name": "SuinsRegistrationConnection",
+                "name": "IotansRegistrationConnection",
                 "ofType": null
               }
             },
@@ -11682,7 +11682,7 @@ export type introspection = {
       },
       {
         "kind": "OBJECT",
-        "name": "SuinsRegistrationConnection",
+        "name": "IotansRegistrationConnection",
         "fields": [
           {
             "name": "pageInfo",
@@ -11706,7 +11706,7 @@ export type introspection = {
                   "kind": "NON_NULL",
                   "ofType": {
                     "kind": "OBJECT",
-                    "name": "SuinsRegistrationEdge",
+                    "name": "IotansRegistrationEdge",
                     "ofType": null
                   }
                 }
@@ -11724,7 +11724,7 @@ export type introspection = {
                   "kind": "NON_NULL",
                   "ofType": {
                     "kind": "OBJECT",
-                    "name": "SuinsRegistration",
+                    "name": "IotansRegistration",
                     "ofType": null
                   }
                 }
@@ -11737,7 +11737,7 @@ export type introspection = {
       },
       {
         "kind": "OBJECT",
-        "name": "SuinsRegistrationEdge",
+        "name": "IotansRegistrationEdge",
         "fields": [
           {
             "name": "node",
@@ -11745,7 +11745,7 @@ export type introspection = {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "OBJECT",
-                "name": "SuinsRegistration",
+                "name": "IotansRegistration",
                 "ofType": null
               }
             },
@@ -12401,7 +12401,7 @@ export type introspection = {
             "name": "signAddress",
             "type": {
               "kind": "SCALAR",
-              "name": "SuiAddress",
+              "name": "IotaAddress",
               "ofType": null
             }
           },
@@ -12409,7 +12409,7 @@ export type introspection = {
             "name": "recvAddress",
             "type": {
               "kind": "SCALAR",
-              "name": "SuiAddress",
+              "name": "IotaAddress",
               "ofType": null
             }
           },
@@ -12417,7 +12417,7 @@ export type introspection = {
             "name": "inputObject",
             "type": {
               "kind": "SCALAR",
-              "name": "SuiAddress",
+              "name": "IotaAddress",
               "ofType": null
             }
           },
@@ -12425,7 +12425,7 @@ export type introspection = {
             "name": "changedObject",
             "type": {
               "kind": "SCALAR",
-              "name": "SuiAddress",
+              "name": "IotaAddress",
               "ofType": null
             }
           },
@@ -12607,7 +12607,7 @@ export type introspection = {
             "name": "sender",
             "type": {
               "kind": "SCALAR",
-              "name": "SuiAddress",
+              "name": "IotaAddress",
               "ofType": null
             }
           },
@@ -12645,7 +12645,7 @@ export type introspection = {
             "name": "gasSponsor",
             "type": {
               "kind": "SCALAR",
-              "name": "SuiAddress",
+              "name": "IotaAddress",
               "ofType": null
             }
           }
@@ -12722,7 +12722,7 @@ export type introspection = {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "SCALAR",
-                "name": "SuiAddress",
+                "name": "IotaAddress",
                 "ofType": null
               }
             },
@@ -12863,7 +12863,7 @@ export type introspection = {
                   "kind": "NON_NULL",
                   "ofType": {
                     "kind": "SCALAR",
-                    "name": "SuiAddress",
+                    "name": "IotaAddress",
                     "ofType": null
                   }
                 }
@@ -12877,7 +12877,7 @@ export type introspection = {
               "kind": "NON_NULL",
               "ofType": {
                 "kind": "SCALAR",
-                "name": "SuiAddress",
+                "name": "IotaAddress",
                 "ofType": null
               }
             },
@@ -13014,7 +13014,7 @@ export type introspection = {
             "args": []
           },
           {
-            "name": "stakingPoolSuiBalance",
+            "name": "stakingPoolIotaBalance",
             "type": {
               "kind": "SCALAR",
               "name": "BigInt",
@@ -13050,7 +13050,7 @@ export type introspection = {
             "args": []
           },
           {
-            "name": "pendingTotalSuiWithdraw",
+            "name": "pendingTotalIotaWithdraw",
             "type": {
               "kind": "SCALAR",
               "name": "BigInt",
@@ -13384,7 +13384,7 @@ export type introspection = {
             "name": "pendingActiveValidatorsId",
             "type": {
               "kind": "SCALAR",
-              "name": "SuiAddress",
+              "name": "IotaAddress",
               "ofType": null
             },
             "args": []
@@ -13402,7 +13402,7 @@ export type introspection = {
             "name": "stakingPoolMappingsId",
             "type": {
               "kind": "SCALAR",
-              "name": "SuiAddress",
+              "name": "IotaAddress",
               "ofType": null
             },
             "args": []
@@ -13420,7 +13420,7 @@ export type introspection = {
             "name": "inactivePoolsId",
             "type": {
               "kind": "SCALAR",
-              "name": "SuiAddress",
+              "name": "IotaAddress",
               "ofType": null
             },
             "args": []
@@ -13438,7 +13438,7 @@ export type introspection = {
             "name": "validatorCandidatesId",
             "type": {
               "kind": "SCALAR",
-              "name": "SuiAddress",
+              "name": "IotaAddress",
               "ofType": null
             },
             "args": []

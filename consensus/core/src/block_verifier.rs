@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::BTreeSet, sync::Arc};
@@ -205,7 +206,7 @@ mod test {
         // Fails verification if any transaction is < 4 bytes.
         fn verify_batch(
             &self,
-            _protocol_config: &sui_protocol_config::ProtocolConfig,
+            _protocol_config: &iota_protocol_config::ProtocolConfig,
             transactions: &[&[u8]],
         ) -> Result<(), ValidationError> {
             for txn in transactions {

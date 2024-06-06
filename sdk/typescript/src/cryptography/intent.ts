@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// See: sui/crates/sui-types/src/intent.rs
+// See: iota/crates/iota-types/src/intent.rs
 export enum AppId {
-    Sui = 0,
+    Iota = 0,
 }
 
 export enum IntentVersion {
@@ -20,7 +21,7 @@ export enum IntentScope {
 export type Intent = [IntentScope, IntentVersion, AppId];
 
 function intentWithScope(scope: IntentScope): Intent {
-    return [scope, IntentVersion.V0, AppId.Sui];
+    return [scope, IntentVersion.V0, AppId.Iota];
 }
 
 /**

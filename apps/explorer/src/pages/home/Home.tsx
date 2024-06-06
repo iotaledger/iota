@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import clsx from 'clsx';
@@ -8,7 +9,7 @@ import { AccountsCardGraph } from '~/components/AccountCardGraph';
 import { Activity } from '~/components/Activity';
 import { CurrentEpoch, OnTheNetwork } from '~/components/HomeMetrics';
 import { PageLayout } from '~/components/Layout/PageLayout';
-import { SuiTokenCard } from '~/components/SuiTokenCard';
+import { IotaTokenCard } from '~/components/IotaTokenCard';
 import { TransactionsCardGraph } from '~/components/TransactionsCardGraph';
 import { ErrorBoundary } from '~/components/error-boundary/ErrorBoundary';
 import { TopPackagesCard } from '~/components/top-packages/TopPackagesCard';
@@ -24,7 +25,7 @@ const TRANSACTIONS_LIMIT = 25;
 
 function Home() {
     const [network] = useNetwork();
-    const isSuiTokenCardEnabled = network === Network.Mainnet;
+    const isIotaTokenCardEnabled = network === Network.Mainnet;
     return (
         <PageLayout
             gradient={{
@@ -33,7 +34,7 @@ function Home() {
                         data-testid="home-page"
                         className={clsx(
                             'home-page-grid-container-top',
-                            isSuiTokenCardEnabled && 'with-token',
+                            isIotaTokenCardEnabled && 'with-token',
                         )}
                     >
                         <div style={{ gridArea: 'network' }} className="overflow-hidden">
@@ -42,9 +43,9 @@ function Home() {
                         <div style={{ gridArea: 'epoch' }}>
                             <CurrentEpoch />
                         </div>
-                        {isSuiTokenCardEnabled ? (
+                        {isIotaTokenCardEnabled ? (
                             <div style={{ gridArea: 'token' }}>
-                                <SuiTokenCard />
+                                <IotaTokenCard />
                             </div>
                         ) : null}
                         <div style={{ gridArea: 'transactions' }}>

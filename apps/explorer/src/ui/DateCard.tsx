@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { formatDate } from '@mysten/core';
-import { Text } from '@mysten/ui';
+import { formatDate } from '@iota/core';
+import { Text } from '@iota/ui';
 
 export interface DateCardProps {
     date: Date | number;

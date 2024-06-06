@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Modifications Copyright (c) 2024 IOTA Stiftung
@@ -7,14 +8,14 @@
 import { ValidatorLogo } from '_app/staking/validators/ValidatorLogo';
 import { TxnAmount } from '_components/receipt-card/TxnAmount';
 import { Text } from '_src/ui/app/shared/text';
-import { useFormatCoin } from '@mysten/core';
-import type { SuiEvent } from '@mysten/sui.js/client';
-import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
+import { useFormatCoin } from '@iota/core';
+import type { IotaEvent } from '@iota/iota.js/client';
+import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 
 import { Card } from '../../shared/transaction-summary/Card';
 
 type UnStakeTxnCardProps = {
-    event: SuiEvent;
+    event: IotaEvent;
 };
 
 export function UnStakeTxnCard({ event }: UnStakeTxnCardProps) {
@@ -27,8 +28,8 @@ export function UnStakeTxnCard({ event }: UnStakeTxnCardProps) {
     const rewardAmount = eventJson?.reward_amount || 0;
     const validatorAddress = eventJson?.validator_address;
     const totalAmount = Number(principalAmount) + Number(rewardAmount);
-    const [formatPrinciple, symbol] = useFormatCoin(principalAmount, SUI_TYPE_ARG);
-    const [formatRewards] = useFormatCoin(rewardAmount || 0, SUI_TYPE_ARG);
+    const [formatPrinciple, symbol] = useFormatCoin(principalAmount, IOTA_TYPE_ARG);
+    const [formatRewards] = useFormatCoin(rewardAmount || 0, IOTA_TYPE_ARG);
 
     return (
         <Card>
@@ -44,13 +45,13 @@ export function UnStakeTxnCard({ event }: UnStakeTxnCardProps) {
                     </div>
                 )}
                 {totalAmount && (
-                    <TxnAmount amount={totalAmount} coinType={SUI_TYPE_ARG} label="Total" />
+                    <TxnAmount amount={totalAmount} coinType={IOTA_TYPE_ARG} label="Total" />
                 )}
 
                 <div className="flex w-full justify-between py-3.5">
                     <div className="flex items-baseline gap-1 text-steel">
                         <Text variant="body" weight="medium" color="steel-darker">
-                            Your SUI Stake
+                            Your IOTA Stake
                         </Text>
                     </div>
 

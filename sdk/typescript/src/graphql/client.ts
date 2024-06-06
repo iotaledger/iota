@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import type { TypedDocumentNode } from '@graphql-typed-document-node/core';
@@ -40,16 +41,16 @@ export type GraphQLResponseErrors = Array<{
     path?: (string | number)[];
 }>;
 
-export interface SuiGraphQLClientOptions<Queries extends Record<string, GraphQLDocument>> {
+export interface IotaGraphQLClientOptions<Queries extends Record<string, GraphQLDocument>> {
     url: string;
     fetch?: typeof fetch;
     headers?: Record<string, string>;
     queries?: Queries;
 }
 
-export class SuiGraphQLRequestError extends Error {}
+export class IotaGraphQLRequestError extends Error {}
 
-export class SuiGraphQLClient<Queries extends Record<string, GraphQLDocument>> {
+export class IotaGraphQLClient<Queries extends Record<string, GraphQLDocument>> {
     #url: string;
     #queries: Queries;
     #headers: Record<string, string>;
@@ -60,7 +61,7 @@ export class SuiGraphQLClient<Queries extends Record<string, GraphQLDocument>> {
         fetch: fetchFn = fetch,
         headers = {},
         queries = {} as Queries,
-    }: SuiGraphQLClientOptions<Queries>) {
+    }: IotaGraphQLClientOptions<Queries>) {
         this.#url = url;
         this.#queries = queries;
         this.#headers = headers;
@@ -88,7 +89,7 @@ export class SuiGraphQLClient<Queries extends Record<string, GraphQLDocument>> {
         });
 
         if (!res.ok) {
-            throw new SuiGraphQLRequestError(
+            throw new IotaGraphQLRequestError(
                 `GraphQL request failed: ${res.statusText} (${res.status})`,
             );
         }

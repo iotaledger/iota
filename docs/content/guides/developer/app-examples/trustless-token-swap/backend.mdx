@@ -3,13 +3,13 @@ title: Trustless Swap Backend
 sidebar_label: Backend
 ---
 
-import InitializeSuiClientCli from "../../../../_snippets/initialize-sui-client-cli.mdx";
+import InitializeIotaClientCli from "../../../../_snippets/initialize-iota-client-cli.mdx";
 import PublishToDevnetWithCoins from "../../../../_snippets/publish-to-devnet-with-coins.mdx";
 import AppExamplesSwapSource from "../../../../_snippets/app-examples-swap-source.mdx";
 
 :::note Multi-Page Guide
 
-This is the first in a [three-part guide](../trustless-token-swap.mdx) on how to build a trustless atomic swap on Sui.
+This is the first in a [three-part guide](../trustless-token-swap.mdx) on how to build a trustless atomic swap on Iota.
 
 :::
 
@@ -19,7 +19,7 @@ This particular protocol consists of three phases:
 2. The other party registers a publicly accessible, shared `Escrow` object. This effectively locks their object at a particular version as well, waiting for the first party to complete the swap. The second party is able to request their object is returned to them, to preserve liveness as well.
 3. The first party sends their locked object and its key to the shared `Escrow` object. This completes the swap, as long as all conditions are met: The sender of the swap transaction is the recipient of the `Escrow`, the key of the desired object (`exchange_key`) in the escrow matches the key supplied in the swap, and the key supplied in the swap unlocks the `Locked<U>`.
 
-Let's create a Sui project using the terminal command `sui move new escrow`. Create a file in the sources directory named `shared.move`, and let's go through the code together.
+Let's create a Iota project using the terminal command `iota move new escrow`. Create a file in the sources directory named `shared.move`, and let's go through the code together.
 
 ## shared.move
 
@@ -118,7 +118,7 @@ public fun swap<T: key + store, U: key + store>(
 }
 ```
 
-The `object::delete` function call is used to delete the shared `Escrow` object. Previously, Move supported only the deletion of owned objects, but [shared-object deletion has since been enabled](https://github.com/MystenLabs/sui/pull/16008).
+The `object::delete` function call is used to delete the shared `Escrow` object. Previously, Move supported only the deletion of owned objects, but [shared-object deletion has since been enabled](https://github.com/iotaledger/iota/pull/16008).
 
 #### `return_to_sender`
 
@@ -153,7 +153,7 @@ In conclusion, this code provides a robust and secure way to perform atomic swap
 
 ## Deployment
 
-<InitializeSuiClientCli />
+<InitializeIotaClientCli />
 
 <PublishToDevnetWithCoins />
 

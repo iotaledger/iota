@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type SuiMoveNormalizedType } from '@mysten/sui.js/client';
-import { Text } from '@mysten/ui';
+import { type IotaMoveNormalizedType } from '@iota/iota.js/client';
+import { Text } from '@iota/ui';
 
 import { getFieldTypeValue } from './utils';
 import { SyntaxHighlighter } from '~/components/SyntaxHighlighter';
@@ -11,7 +12,7 @@ import { Link } from '~/ui/Link';
 
 interface FieldItemProps {
     value: string | number | object | boolean;
-    type: SuiMoveNormalizedType | '';
+    type: IotaMoveNormalizedType | '';
     objectType: string;
     truncate?: boolean;
 }

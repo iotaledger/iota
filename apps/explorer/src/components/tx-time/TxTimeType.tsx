@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useTimeAgo } from '@mysten/core';
+import { useTimeAgo } from '@iota/core';
 
 type Prop = {
     timestamp: number | undefined;

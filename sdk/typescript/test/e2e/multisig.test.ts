@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB64 } from '@mysten/bcs';
+import { fromB64 } from '@iota/bcs';
 import { describe, expect, it } from 'vitest';
 
 import { Ed25519Keypair } from '../../src/keypairs/ed25519';
@@ -42,7 +43,7 @@ describe('MultiSig with zklogin signature', () => {
                 { publicKey: pkZklogin, weight: 1 },
             ],
         });
-        const multisigAddr = multiSigPublicKey.toSuiAddress();
+        const multisigAddr = multiSigPublicKey.toIotaAddress();
         const toolbox = await setupWithFundedAddress(kp, multisigAddr);
 
         // construct a transfer from the multisig address.
@@ -56,7 +57,7 @@ describe('MultiSig with zklogin signature', () => {
         // sign with the single keypair.
         const singleSig = (await kp.signTransactionBlock(bytes)).signature;
 
-        // construct default zklogin inputs defined in rust: https://github.com/MystenLabs/sui/blob/577537c76281b95ab8036b21e8ca5a25fde5d4b5/crates/sui-types/src/zk_login_util.rs
+        // construct default zklogin inputs defined in rust: https://github.com/iotaledger/iota/blob/577537c76281b95ab8036b21e8ca5a25fde5d4b5/crates/iota-types/src/zk_login_util.rs
         const zkLoginInputs = {
             addressSeed:
                 '20794788559620669596206457022966176986688727876128223628113916380927502737911',

@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::HashSet, time::Duration};
@@ -9,10 +10,10 @@ use anyhow::Result;
 use async_trait::async_trait;
 use config::{AuthorityIdentifier, Committee, WorkerCache, WorkerId};
 use fastcrypto::hash::Hash;
+use iota_protocol_config::ProtocolConfig;
 use itertools::Itertools;
 use network::{client::NetworkClient, WorkerToPrimaryClient};
 use store::{rocks::DBMap, Map};
-use sui_protocol_config::ProtocolConfig;
 use tracing::{debug, trace};
 use types::{
     now, validate_batch_version, Batch, BatchAPI, BatchDigest, FetchBatchesRequest,
