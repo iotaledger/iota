@@ -1,3 +1,6 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
@@ -5,11 +8,15 @@
 import { type DelegatedStake } from '@iota/iota.js/client';
 
 // Get Stake IOTA by stakeIotaId
-export const getStakeIotaByIotaId = (allDelegation: DelegatedStake[], stakeIotaId?: string | null) => {
+export const getStakeIotaByIotaId = (
+    allDelegation: DelegatedStake[],
+    stakeIotaId?: string | null,
+) => {
     return (
         allDelegation.reduce((acc, curr) => {
             const total = BigInt(
-                curr.stakes.find(({ stakedIotaId }) => stakedIotaId === stakeIotaId)?.principal || 0,
+                curr.stakes.find(({ stakedIotaId }) => stakedIotaId === stakeIotaId)?.principal ||
+                    0,
             );
             return total + acc;
         }, 0n) || 0n

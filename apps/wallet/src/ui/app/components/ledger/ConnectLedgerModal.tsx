@@ -1,3 +1,6 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
@@ -58,8 +61,8 @@ export function ConnectLedgerModal({ onClose, onConfirm, onError }: ConnectLedge
                     </div>
                     <div className="mt-4.5 break-words text-center">
                         <Text variant="pBodySmall" color="steel-darker" weight="normal">
-                            Connect your ledger to your computer, unlock it, and launch the Iota app.
-                            Click Continue when done.
+                            Connect your ledger to your computer, unlock it, and launch the Iota
+                            app. Click Continue when done.
                         </Text>
                         <div className="mt-2 flex items-center justify-center">
                             <Text variant="pBodySmall" color="steel-dark" weight="normal">
