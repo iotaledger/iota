@@ -22,7 +22,7 @@ function ActivityPage(): JSX.Element {
     })();
 
     if (error) {
-        return <div>{(error as Error)?.message}</div>;
+        return <div>{error?.message}</div>;
     }
 
     const virtualItem = (activity: Activity): JSX.Element => (

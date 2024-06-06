@@ -36,6 +36,21 @@ const guides = [
 			},
 			{
 				type: 'category',
+				label: 'From Solidity/EVM to Move',
+				collapsed: true,
+				link: {
+					type: 'doc',
+					id: 'guides/developer/evm-to-move',
+				},
+				items: [
+					'guides/developer/evm-to-move/why-move',
+					'guides/developer/evm-to-move/tooling-apis',
+					'guides/developer/evm-to-move/creating-token',
+					'guides/developer/evm-to-move/creating-nft',
+				],
+			},
+			{
+				type: 'category',
 				label: 'Your First Sui dApp',
 				link: {
 					type: 'doc',

@@ -24,6 +24,7 @@ pub(crate) fn verify_output(
     output: &Output,
     created_objects: &CreatedObjects,
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
+    target_milestone_timestamp: u32,
     storage: &InMemoryStorage,
 ) -> anyhow::Result<()> {
     match output {
@@ -34,9 +35,14 @@ pub(crate) fn verify_output(
             foundry_data,
             storage,
         ),
-        Output::Basic(output) => {
-            basic::verify_basic_output(output, created_objects, foundry_data, storage)
-        }
+        Output::Basic(output) => basic::verify_basic_output(
+            header.output_id(),
+            output,
+            created_objects,
+            foundry_data,
+            target_milestone_timestamp,
+            storage,
+        ),
         Output::Foundry(output) => {
             foundry::verify_foundry_output(output, created_objects, foundry_data, storage)
         }

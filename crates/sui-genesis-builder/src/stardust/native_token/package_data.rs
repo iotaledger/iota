@@ -14,7 +14,10 @@ use iota_sdk::{
     Url,
 };
 use rand::distributions::{Alphanumeric, DistString};
+use rand_pcg::Pcg64;
+use rand_seeder::Seeder;
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 
 use crate::stardust::{error::StardustError, types::token_scheme::SimpleTokenSchemeU64};
 
@@ -54,10 +57,13 @@ pub struct NativeTokenModuleData {
     pub module_name: String,
     pub otw_name: String,
     pub decimals: u8,
+    /// This must be a valid ASCII string.
     pub symbol: String,
     pub circulating_supply: u64,
     pub maximum_supply: u64,
+    /// This must be a valid UTF-8 string.
     pub coin_name: String,
+    /// This must be a valid UTF-8 string.
     pub coin_description: String,
     pub icon_url: Option<Url>,
     pub alias_address: AliasAddress,
@@ -97,25 +103,14 @@ impl NativeTokenModuleData {
 impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
     type Error = StardustError;
     fn try_from(output: &FoundryOutput) -> Result<Self, StardustError> {
-        let metadata =
-            output
-                .features()
-                .metadata()
-                .ok_or(StardustError::FoundryConversionError {
-                    foundry_id: output.id(),
-                    err: anyhow::anyhow!("metadata not found"),
-                })?;
-        let irc_30_metadata: Irc30Metadata =
-            serde_json::from_slice(metadata.data()).map_err(|e| {
-                StardustError::FoundryConversionError {
-                    foundry_id: output.id(),
-                    err: e.into(),
-                }
-            })?;
+        let irc_30_metadata = extract_irc30_metadata(output);
 
         // Derive a valid, lowercase move identifier from the symbol field in the irc30
         // metadata
-        let identifier = derive_lowercase_identifier(irc_30_metadata.symbol())?;
+        let identifier = derive_foundry_package_lowercase_identifier(
+            irc_30_metadata.symbol(),
+            output.id().as_slice(),
+        );
 
         let decimals = u8::try_from(*irc_30_metadata.decimals()).map_err(|e| {
             StardustError::FoundryConversionError {
@@ -139,7 +134,7 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
                 maximum_supply: token_scheme_u64.maximum_supply(),
                 coin_name: irc_30_metadata.name().to_owned(),
                 coin_description: irc_30_metadata.description().clone().unwrap_or_default(),
-                icon_url: irc_30_metadata.url().clone(),
+                icon_url: irc_30_metadata.logo_url().clone(),
                 alias_address: *output.alias_address(),
             },
         };
@@ -148,7 +143,50 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
     }
 }
 
-fn derive_lowercase_identifier(input: &str) -> Result<String, StardustError> {
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Irc30MetadataCompact {
+    /// The human-readable name of the native token.
+    name: String,
+    /// The symbol/ticker of the token.
+    symbol: String,
+    /// Number of decimals the token uses (divide the token amount by
+    /// `10^decimals` to get its user representation).
+    decimals: u32,
+}
+
+impl Irc30MetadataCompact {
+    fn new(name: String) -> Self {
+        Irc30MetadataCompact {
+            name: name.clone(),
+            symbol: name,
+            decimals: 0,
+        }
+    }
+
+    fn into_full_scheme(self) -> Irc30Metadata {
+        Irc30Metadata::new(self.name, self.symbol, self.decimals)
+    }
+}
+
+fn extract_irc30_metadata(output: &FoundryOutput) -> Irc30Metadata {
+    if let Some(metadata) = output.immutable_features().metadata() {
+        serde_json::from_slice(metadata.data()).unwrap_or_else(|_| {
+            serde_json::from_slice::<Irc30MetadataCompact>(metadata.data())
+                .unwrap_or_else(|_| {
+                    Irc30MetadataCompact::new(derive_foundry_package_lowercase_identifier(
+                        "",
+                        output.id().as_slice(),
+                    ))
+                })
+                .into_full_scheme()
+        })
+    } else {
+        let identifier = derive_foundry_package_lowercase_identifier("", output.id().as_slice());
+        Irc30Metadata::new(identifier.clone(), identifier, 0)
+    }
+}
+
+fn derive_foundry_package_lowercase_identifier(input: &str, seed: &[u8]) -> String {
     let input = input.to_ascii_lowercase();
 
     static VALID_IDENTIFIER_PATTERN: &str = r"[a-z][a-z0-9_]*";
@@ -165,18 +203,14 @@ fn derive_lowercase_identifier(input: &str) -> Result<String, StardustError> {
     // Ensure no trailing underscore at the end of the identifier
     let final_identifier = concatenated.trim_end_matches('_').to_string();
 
-    if !final_identifier.is_empty() {
-        if move_core_types::identifier::is_valid(&final_identifier) {
-            Ok(final_identifier)
-        } else {
-            Err(StardustError::InvalidMoveIdentifierDerived {
-                symbol: input,
-                identifier: final_identifier,
-            })
-        }
+    if move_core_types::identifier::is_valid(&final_identifier) {
+        final_identifier
     } else {
         // Generate a new valid random identifier if the identifier is empty.
-        Ok(Alphanumeric.sample_string(&mut rand::thread_rng(), 7))
+        let mut rng: Pcg64 = Seeder::from(seed).make_rng();
+        let mut identifier = String::from("foundry");
+        identifier.push_str(&Alphanumeric.sample_string(&mut rng, 7).to_lowercase());
+        identifier
     }
 }
 
@@ -196,7 +230,9 @@ mod tests {
     };
 
     use super::*;
-    use crate::stardust::native_token::package_builder;
+    use crate::stardust::{
+        native_token::package_builder, types::token_scheme::MAX_ALLOWED_U64_SUPPLY,
+    };
 
     #[test]
     fn foundry_output_with_default_metadata() -> Result<()> {
@@ -274,7 +310,7 @@ mod tests {
 
     #[test]
     fn foundry_output_with_exceeding_max_supply() -> Result<()> {
-        let minted_tokens = U256::from(u64::MAX).add(1);
+        let minted_tokens = U256::from(MAX_ALLOWED_U64_SUPPLY).add(1);
         let melted_tokens = U256::from(1);
         let maximum_supply = U256::MAX;
 
@@ -308,7 +344,10 @@ mod tests {
             native_token_data.module().circulating_supply,
             minted_tokens.sub(melted_tokens).as_u64()
         );
-        assert_eq!(native_token_data.module().maximum_supply, u64::MAX);
+        assert_eq!(
+            native_token_data.module().maximum_supply,
+            MAX_ALLOWED_U64_SUPPLY
+        );
 
         // Step 3: Verify the conversion
         assert!(package_builder::build_and_compile(native_token_data).is_ok());
@@ -349,8 +388,14 @@ mod tests {
         // Step 2: Convert the FoundryOutput to NativeTokenPackageData.
         let native_token_data = NativeTokenPackageData::try_from(&output)?;
 
-        assert_eq!(native_token_data.module().circulating_supply, u64::MAX);
-        assert_eq!(native_token_data.module().maximum_supply, u64::MAX);
+        assert_eq!(
+            native_token_data.module().circulating_supply,
+            MAX_ALLOWED_U64_SUPPLY
+        );
+        assert_eq!(
+            native_token_data.module().maximum_supply,
+            MAX_ALLOWED_U64_SUPPLY
+        );
 
         // Step 3: Verify the conversion
         assert!(package_builder::build_and_compile(native_token_data).is_ok());
@@ -361,22 +406,22 @@ mod tests {
     #[test]
     fn empty_identifier() {
         let identifier = "".to_string();
-        let result = derive_lowercase_identifier(&identifier).unwrap();
-        assert_eq!(7, result.len());
+        let result = derive_foundry_package_lowercase_identifier(&identifier, &[]);
+        assert_eq!(14, result.len());
     }
 
     #[test]
     fn identifier_with_only_invalid_chars() {
         let identifier = "!@#$%^".to_string();
-        let result = derive_lowercase_identifier(&identifier).unwrap();
-        assert_eq!(7, result.len());
+        let result = derive_foundry_package_lowercase_identifier(&identifier, &[]);
+        assert_eq!(14, result.len());
     }
 
     #[test]
     fn identifier_with_only_one_char() {
         let identifier = "a".to_string();
         assert_eq!(
-            derive_lowercase_identifier(&identifier).unwrap(),
+            derive_foundry_package_lowercase_identifier(&identifier, &[]),
             "a".to_string()
         );
     }
@@ -385,7 +430,7 @@ mod tests {
     fn identifier_with_whitespaces_and_ending_underscore() {
         let identifier = " a bc-d e_".to_string();
         assert_eq!(
-            derive_lowercase_identifier(&identifier).unwrap(),
+            derive_foundry_package_lowercase_identifier(&identifier, &[]),
             "abcde".to_string()
         );
     }
@@ -394,7 +439,7 @@ mod tests {
     fn identifier_with_minus() {
         let identifier = "hello-world".to_string();
         assert_eq!(
-            derive_lowercase_identifier(&identifier).unwrap(),
+            derive_foundry_package_lowercase_identifier(&identifier, &[]),
             "helloworld".to_string()
         );
     }
@@ -403,7 +448,7 @@ mod tests {
     fn identifier_with_multiple_invalid_chars() {
         let identifier = "#hello-move_world/token&".to_string();
         assert_eq!(
-            derive_lowercase_identifier(&identifier).unwrap(),
+            derive_foundry_package_lowercase_identifier(&identifier, &[]),
             "hellomove_worldtoken"
         );
     }
@@ -411,7 +456,7 @@ mod tests {
     fn valid_identifier() {
         let identifier = "valid_identifier".to_string();
         assert_eq!(
-            derive_lowercase_identifier(&identifier).unwrap(),
+            derive_foundry_package_lowercase_identifier(&identifier, &[]),
             identifier
         );
     }

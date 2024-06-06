@@ -1,7 +1,7 @@
 [package]
 name = "sui-genesis-builder"
 version = "0.0.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Stiftung"]
 license = "Apache-2.0"
 publish = false
 edition = "2021"
@@ -33,6 +33,8 @@ fs_extra = "1.3.0"
 iota-sdk = { version = "1.1.4", default-features = false, features = ["irc_27", "irc_30", "std"] }
 num-rational = "0.4"
 packable = { version = "0.8.3", default-features = false, features = ["io"] }
+rand_pcg = "0.3.1"
+rand_seeder = "0.2.3"
 
 schemars.workspace = true
 shared-crypto.workspace = true
@@ -52,7 +54,6 @@ sui-simulator.workspace = true
 insta.workspace = true
 tempfile.workspace = true
 sui-types = { workspace = true, features = ["test-utils"] }
-prefix-hex = "0.7.1"
 
 [[example]]
 name = "parse_full_snapshot"

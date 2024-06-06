@@ -25,7 +25,7 @@ export function useQueryTransactionsByAddress(address?: string) {
             }
 
             // combine from and to transactions
-            const [txnIds, fromTxnIds] = await Promise.all([
+            const [toTxnIds, fromTxnIds] = await Promise.all([
                 rpc.queryTransactionBlocks({
                     options: queryOptions,
                     filter: { ToAddress: address },
@@ -36,15 +36,15 @@ export function useQueryTransactionsByAddress(address?: string) {
                 }),
             ]);
 
-            const inserted = new Map();
+            const inserted = new Set();
             const uniqueList: SuiTransactionBlockResponse[] = [];
 
-            [...txnIds.data, ...fromTxnIds.data]
+            [...toTxnIds.data, ...fromTxnIds.data]
                 .sort((a, b) => Number(b.timestampMs ?? 0) - Number(a.timestampMs ?? 0))
                 .forEach((txb) => {
-                    if (inserted.get(txb.digest)) return;
+                    if (inserted.has(txb.digest)) return;
                     uniqueList.push(txb);
-                    inserted.set(txb.digest, true);
+                    inserted.add(txb.digest);
                 });
 
             return uniqueList;
