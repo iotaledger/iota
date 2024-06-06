@@ -9,12 +9,12 @@ use std::{
 
 use anyhow::{bail, Context, Result};
 use fastcrypto::{ed25519::Ed25519PublicKey, traits::ToFromBytes};
+use iota_tls::Allower;
+use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary;
 use multiaddr::Multiaddr;
 use once_cell::sync::Lazy;
 use prometheus::{register_counter_vec, register_histogram_vec, CounterVec, HistogramVec};
 use serde::Deserialize;
-use iota_tls::Allower;
-use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary;
 use tracing::{debug, error, info};
 
 static JSON_RPC_STATE: Lazy<CounterVec> = Lazy::new(|| {
@@ -262,10 +262,10 @@ fn extract(summary: IotaSystemStateSummary) -> impl Iterator<Item = (Ed25519Publ
 
 #[cfg(test)]
 mod tests {
-    use serde::Serialize;
     use iota_types::iota_system_state::iota_system_state_summary::{
         IotaSystemStateSummary, IotaValidatorSummary,
     };
+    use serde::Serialize;
 
     use super::*;
     use crate::admin::{generate_self_cert, CertKeyPair};

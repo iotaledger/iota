@@ -2,10 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use diesel::prelude::*;
-use move_bytecode_utils::module_cache::GetModule;
 use iota_json_rpc_types::{
-    BalanceChange, ObjectChange, IotaTransactionBlock, IotaTransactionBlockEffects,
-    IotaTransactionBlockEvents, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    BalanceChange, IotaTransactionBlock, IotaTransactionBlockEffects, IotaTransactionBlockEvents,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
 };
 use iota_types::{
     digests::TransactionDigest,
@@ -13,6 +12,7 @@ use iota_types::{
     event::Event,
     transaction::SenderSignedData,
 };
+use move_bytecode_utils::module_cache::GetModule;
 
 use crate::{
     errors::IndexerError,

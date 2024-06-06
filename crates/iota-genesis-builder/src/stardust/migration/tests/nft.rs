@@ -26,15 +26,15 @@ use iota_sdk::{
     },
     U256,
 };
-use move_core_types::ident_str;
 use iota_types::{
-    base_types::{ObjectID, IotaAddress},
+    base_types::{IotaAddress, ObjectID},
     collection_types::VecMap,
     dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo},
     id::UID,
     object::{Object, Owner},
     TypeTag,
 };
+use move_core_types::ident_str;
 
 use super::{unlock_object_test, ExpectedAssets, UnlockObjectTestResult};
 use crate::stardust::{

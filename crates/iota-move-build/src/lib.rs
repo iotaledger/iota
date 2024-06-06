@@ -12,6 +12,16 @@ use std::{
 };
 
 use fastcrypto::encoding::Base64;
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_types::{
+    base_types::ObjectID,
+    error::{IotaError, IotaResult},
+    is_system_package,
+    move_package::{FnInfo, FnInfoKey, FnInfoMap, MovePackage},
+    DEEPBOOK_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,
+    STARDUST_ADDRESS, TIMELOCK_ADDRESS,
+};
+use iota_verifier::{default_verifier_config, verifier as iota_bytecode_verifier};
 use move_binary_format::{
     access::ModuleAccess,
     normalized::{self, Type},
@@ -39,23 +49,13 @@ use move_package::{
 };
 use move_symbol_pool::Symbol;
 use serde_reflection::Registry;
-use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_types::{
-    base_types::ObjectID,
-    error::{IotaError, IotaResult},
-    is_system_package,
-    move_package::{FnInfo, FnInfoKey, FnInfoMap, MovePackage},
-    DEEPBOOK_ADDRESS, MOVE_STDLIB_ADDRESS, STARDUST_ADDRESS, IOTA_FRAMEWORK_ADDRESS,
-    IOTA_SYSTEM_ADDRESS, TIMELOCK_ADDRESS,
-};
-use iota_verifier::{default_verifier_config, verifier as iota_bytecode_verifier};
 
 #[cfg(test)]
 #[path = "unit_tests/build_tests.rs"]
 mod build_tests;
 
-/// Wrapper around the core Move `CompiledPackage` with some Iota-specific traits
-/// and info
+/// Wrapper around the core Move `CompiledPackage` with some Iota-specific
+/// traits and info
 #[derive(Debug, Clone)]
 pub struct CompiledPackage {
     pub package: MoveCompiledPackage,

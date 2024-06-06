@@ -9,10 +9,9 @@ use fastcrypto::{
     hash::HashFunction,
 };
 use futures::StreamExt;
-use shared_crypto::intent::{Intent, IntentMessage};
 use iota_json_rpc_types::{
-    StakeStatus, IotaObjectDataOptions, IotaTransactionBlockEffectsAPI,
-    IotaTransactionBlockResponseOptions,
+    IotaObjectDataOptions, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponseOptions,
+    StakeStatus,
 };
 use iota_sdk::rpc_types::IotaExecutionStatus;
 use iota_types::{
@@ -22,6 +21,7 @@ use iota_types::{
     signature::{GenericSignature, VerifyParams},
     transaction::{Transaction, TransactionData, TransactionDataAPI},
 };
+use shared_crypto::intent::{Intent, IntentMessage};
 
 use crate::{
     errors::Error,
@@ -34,7 +34,7 @@ use crate::{
         InternalOperation, MetadataOptions, SignatureType, SigningPayload, TransactionIdentifier,
         TransactionIdentifierResponse,
     },
-    OnlineServerContext, IotaEnv,
+    IotaEnv, OnlineServerContext,
 };
 
 /// This module implements the [Rosetta Construction API](https://www.rosetta-api.org/docs/ConstructionApi.html)
@@ -341,8 +341,8 @@ pub async fn metadata(
         None
     };
 
-    // If required amount is None (all IOTA) or failed to select coin (might not have
-    // enough IOTA), select all coins.
+    // If required amount is None (all IOTA) or failed to select coin (might not
+    // have enough IOTA), select all coins.
     let coins = if let Some(coins) = coins {
         coins
     } else {

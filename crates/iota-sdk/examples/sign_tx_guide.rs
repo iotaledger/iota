@@ -12,8 +12,6 @@ use fastcrypto::{
     secp256r1::Secp256r1KeyPair,
     traits::{EncodeDecodeBase64, KeyPair},
 };
-use rand::{rngs::StdRng, SeedableRng};
-use shared_crypto::intent::{Intent, IntentMessage};
 use iota_sdk::{
     rpc_types::IotaTransactionBlockResponseOptions,
     types::{
@@ -24,9 +22,11 @@ use iota_sdk::{
 };
 use iota_types::{
     base_types::IotaAddress,
-    crypto::{get_key_pair_from_rng, Signer, IotaKeyPair, IotaSignature, ToFromBytes},
+    crypto::{get_key_pair_from_rng, IotaKeyPair, IotaSignature, Signer, ToFromBytes},
     signature::GenericSignature,
 };
+use rand::{rngs::StdRng, SeedableRng};
+use shared_crypto::intent::{Intent, IntentMessage};
 
 use crate::utils::request_tokens_from_faucet;
 
@@ -79,7 +79,8 @@ async fn main() -> Result<(), anyhow::Error> {
             .map_err(|_| anyhow!("Invalid base64"))?;
 
     // import a keypair from a Bech32 encoded 33-byte `flag || private key`.
-    // this is the format of a private key exported from Iota Wallet or iota.keystore.
+    // this is the format of a private key exported from Iota Wallet or
+    // iota.keystore.
     let _skp_import_with_flag_0 = IotaKeyPair::decode(
         "iotaprivkey1qzdlfxn2qa2lj5uprl8pyhexs02sg2wrhdy7qaq50cqgnffw4c2477kg9h3",
     )

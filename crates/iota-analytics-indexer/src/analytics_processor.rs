@@ -11,13 +11,13 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use object_store::{path::Path, DynObjectStore};
-use serde::Serialize;
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_indexer::framework::Handler;
 use iota_rest_api::CheckpointData;
 use iota_storage::object_store::util::{copy_file, path_to_filesystem};
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use object_store::{path::Path, DynObjectStore};
+use serde::Serialize;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{error, info};
 

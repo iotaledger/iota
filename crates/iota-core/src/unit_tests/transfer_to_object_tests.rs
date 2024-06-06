@@ -4,9 +4,8 @@
 
 use std::{collections::HashSet, sync::Arc};
 
-use move_core_types::ident_str;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     crypto::{get_key_pair, AccountKeyPair},
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
@@ -19,6 +18,7 @@ use iota_types::{
         TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
     },
 };
+use move_core_types::ident_str;
 
 use crate::{
     authority::{

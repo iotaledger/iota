@@ -8,6 +8,20 @@ use futures::{
     future::{select, Either, Future},
     FutureExt,
 };
+use iota_storage::write_path_pending_tx_log::WritePathPendingTransactionLog;
+use iota_types::{
+    base_types::TransactionDigest,
+    effects::{TransactionEffectsAPI, VerifiedCertifiedTransactionEffects},
+    error::{IotaError, IotaResult},
+    executable_transaction::VerifiedExecutableTransaction,
+    iota_system_state::IotaSystemState,
+    quorum_driver_types::{
+        ExecuteTransactionRequest, ExecuteTransactionRequestType, ExecuteTransactionResponse,
+        FinalizedEffects, QuorumDriverEffectsQueueResult, QuorumDriverError, QuorumDriverResponse,
+        QuorumDriverResult,
+    },
+    transaction::VerifiedTransaction,
+};
 use mysten_common::sync::notify_read::NotifyRead;
 use mysten_metrics::{
     histogram::{Histogram, HistogramVec},
@@ -18,20 +32,6 @@ use prometheus::{
     core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge},
     register_int_counter_vec_with_registry, register_int_counter_with_registry,
     register_int_gauge_vec_with_registry, register_int_gauge_with_registry, Registry,
-};
-use iota_storage::write_path_pending_tx_log::WritePathPendingTransactionLog;
-use iota_types::{
-    base_types::TransactionDigest,
-    effects::{TransactionEffectsAPI, VerifiedCertifiedTransactionEffects},
-    error::{IotaError, IotaResult},
-    executable_transaction::VerifiedExecutableTransaction,
-    quorum_driver_types::{
-        ExecuteTransactionRequest, ExecuteTransactionRequestType, ExecuteTransactionResponse,
-        FinalizedEffects, QuorumDriverEffectsQueueResult, QuorumDriverError, QuorumDriverResponse,
-        QuorumDriverResult,
-    },
-    iota_system_state::IotaSystemState,
-    transaction::VerifiedTransaction,
 };
 use tokio::{
     sync::broadcast::{error::RecvError, Receiver},

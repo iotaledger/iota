@@ -16,7 +16,7 @@ use super::{
 use crate::is_system_package;
 use crate::{
     base_types::{
-        EpochId, ObjectDigest, ObjectID, ObjectRef, SequenceNumber, IotaAddress, TransactionDigest,
+        EpochId, IotaAddress, ObjectDigest, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
         VersionDigest,
     },
     digests::{EffectsAuxDataDigest, TransactionEventsDigest},

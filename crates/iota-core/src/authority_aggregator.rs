@@ -13,12 +13,6 @@ use std::{
 
 use fastcrypto::traits::ToFromBytes;
 use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
-use mysten_metrics::{histogram::Histogram, monitored_future, spawn_monitored_task, GaugeGuard};
-use mysten_network::config::Config;
-use prometheus::{
-    register_int_counter_vec_with_registry, register_int_counter_with_registry,
-    register_int_gauge_with_registry, IntCounter, IntCounterVec, IntGauge, Registry,
-};
 use iota_authority_aggregation::{quorum_map_then_reduce_with_timeout, AsyncResult, ReduceOutput};
 use iota_config::genesis::Genesis;
 use iota_network::{
@@ -37,6 +31,7 @@ use iota_types::{
     },
     error::{IotaError, IotaResult, UserInputError},
     fp_ensure,
+    iota_system_state::{IotaSystemState, IotaSystemStateTrait},
     message_envelope::Message,
     messages_grpc::{
         HandleCertificateResponseV2, LayoutGenerationOption, ObjectInfoRequest,
@@ -45,8 +40,13 @@ use iota_types::{
     messages_safe_client::PlainTransactionInfoResponse,
     object::Object,
     quorum_driver_types::GroupedErrors,
-    iota_system_state::{IotaSystemState, IotaSystemStateTrait},
     transaction::*,
+};
+use mysten_metrics::{histogram::Histogram, monitored_future, spawn_monitored_task, GaugeGuard};
+use mysten_network::config::Config;
+use prometheus::{
+    register_int_counter_vec_with_registry, register_int_counter_with_registry,
+    register_int_gauge_with_registry, IntCounter, IntCounterVec, IntGauge, Registry,
 };
 use thiserror::Error;
 use tokio::time::{sleep, timeout};

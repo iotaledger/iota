@@ -5,6 +5,18 @@
 use std::{path::Path, str::FromStr};
 
 use fastcrypto::encoding::{Encoding, Hex};
+use iota_framework::BuiltInFramework;
+use iota_move_build::BuildConfig;
+use iota_types::{
+    base_types::{
+        IotaAddress, ObjectID, TransactionDigest, STD_ASCII_MODULE_NAME, STD_ASCII_STRUCT_NAME,
+        STD_OPTION_MODULE_NAME, STD_OPTION_STRUCT_NAME,
+    },
+    dynamic_field::derive_dynamic_field_id,
+    gas_coin::GasCoin,
+    object::Object,
+    parse_iota_type_tag, MOVE_STDLIB_ADDRESS,
+};
 use move_core_types::{
     account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
@@ -14,18 +26,6 @@ use move_core_types::{
     u256::U256,
 };
 use serde_json::{json, Value};
-use iota_framework::BuiltInFramework;
-use iota_move_build::BuildConfig;
-use iota_types::{
-    base_types::{
-        ObjectID, IotaAddress, TransactionDigest, STD_ASCII_MODULE_NAME, STD_ASCII_STRUCT_NAME,
-        STD_OPTION_MODULE_NAME, STD_OPTION_STRUCT_NAME,
-    },
-    dynamic_field::derive_dynamic_field_id,
-    gas_coin::GasCoin,
-    object::Object,
-    parse_iota_type_tag, MOVE_STDLIB_ADDRESS,
-};
 use test_fuzz::runtime::num_traits::ToPrimitive;
 
 use super::{check_valid_homogeneous, resolve_move_function_args, IotaJsonValue, HEX_PREFIX};

@@ -6,13 +6,13 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::future::join_all;
-use rand::{seq::SliceRandom, Rng};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{ObjectDigest, ObjectID, SequenceNumber},
     crypto::get_key_pair,
     transaction::Transaction,
 };
+use rand::{seq::SliceRandom, Rng};
 use tracing::{debug, error, info};
 
 use crate::{

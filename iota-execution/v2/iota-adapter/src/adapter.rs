@@ -8,19 +8,6 @@ mod checked {
     use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
     use anyhow::Result;
-    use move_binary_format::{access::ModuleAccess, file_format::CompiledModule};
-    use move_bytecode_verifier::{meter::Meter, verify_module_with_config_metered};
-    use move_core_types::account_address::AccountAddress;
-    #[cfg(feature = "gas-profiler")]
-    use move_vm_config::runtime::VMProfilerConfig;
-    use move_vm_config::{
-        runtime::{VMConfig, VMRuntimeLimitsConfig},
-        verifier::VerifierConfig,
-    };
-    use move_vm_runtime::{
-        move_vm::MoveVM, native_extensions::NativeContextExtensions,
-        native_functions::NativeFunctionTable,
-    };
     use iota_move_natives::{object_runtime, object_runtime::ObjectRuntime, NativesCostTable};
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
@@ -33,6 +20,19 @@ mod checked {
     use iota_verifier::{
         check_for_verifier_timeout, default_verifier_config,
         verifier::iota_verify_module_metered_check_timeout_only,
+    };
+    use move_binary_format::{access::ModuleAccess, file_format::CompiledModule};
+    use move_bytecode_verifier::{meter::Meter, verify_module_with_config_metered};
+    use move_core_types::account_address::AccountAddress;
+    #[cfg(feature = "gas-profiler")]
+    use move_vm_config::runtime::VMProfilerConfig;
+    use move_vm_config::{
+        runtime::{VMConfig, VMRuntimeLimitsConfig},
+        verifier::VerifierConfig,
+    };
+    use move_vm_runtime::{
+        move_vm::MoveVM, native_extensions::NativeContextExtensions,
+        native_functions::NativeFunctionTable,
     };
     use tracing::instrument;
 

@@ -6,8 +6,8 @@ use std::{collections::VecDeque, sync::Arc};
 
 use config::{Committee, Stake};
 use fastcrypto::hash::Hash;
-use storage::ConsensusStore;
 use iota_protocol_config::ProtocolConfig;
+use storage::ConsensusStore;
 use tokio::time::Instant;
 use tracing::{debug, error_span};
 use types::{Certificate, CertificateAPI, CommittedSubDag, HeaderAPI, ReputationScores, Round};

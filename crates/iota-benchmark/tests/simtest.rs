@@ -15,7 +15,6 @@ mod test {
         time::{Duration, Instant},
     };
 
-    use rand::{distributions::uniform::SampleRange, thread_rng, Rng};
     use iota_benchmark::{
         bank::BenchmarkBank,
         drivers::{bench_driver::BenchDriver, driver::Driver, Interval},
@@ -42,10 +41,11 @@ mod test {
     use iota_simulator::{configs::*, tempfile::TempDir, SimConfig};
     use iota_storage::blob::Blob;
     use iota_types::{
-        base_types::{ObjectRef, IotaAddress},
+        base_types::{IotaAddress, ObjectRef},
         full_checkpoint_content::CheckpointData,
         messages_checkpoint::VerifiedCheckpoint,
     };
+    use rand::{distributions::uniform::SampleRange, thread_rng, Rng};
     use test_cluster::{TestCluster, TestClusterBuilder};
     use tracing::{error, info};
     use typed_store::traits::Map;

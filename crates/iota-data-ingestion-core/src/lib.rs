@@ -14,12 +14,12 @@ mod worker_pool;
 use anyhow::Result;
 use async_trait::async_trait;
 pub use executor::{setup_single_workflow, IndexerExecutor, MAX_CHECKPOINTS_IN_PROGRESS};
-pub use metrics::DataIngestionMetrics;
-pub use progress_store::{FileProgressStore, ProgressStore};
-pub use reader::ReaderOptions;
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
 };
+pub use metrics::DataIngestionMetrics;
+pub use progress_store::{FileProgressStore, ProgressStore};
+pub use reader::ReaderOptions;
 pub use util::create_remote_store_client;
 pub use worker_pool::WorkerPool;
 

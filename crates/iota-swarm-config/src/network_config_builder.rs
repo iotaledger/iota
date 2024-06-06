@@ -9,7 +9,6 @@ use std::{
     time::Duration,
 };
 
-use rand::rngs::OsRng;
 use iota_config::{
     genesis::{TokenAllocation, TokenDistributionScheduleBuilder},
     node::AuthorityOverloadConfig,
@@ -22,6 +21,7 @@ use iota_types::{
     crypto::{get_key_pair_from_rng, AccountKeyPair, KeypairTraits, PublicKey},
     object::Object,
 };
+use rand::rngs::OsRng;
 
 use crate::{
     genesis_config::{
@@ -466,7 +466,7 @@ mod test {
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
     use iota_types::{
         epoch_data::EpochData, gas::IotaGasStatus, in_memory_storage::InMemoryStorage,
-        metrics::LimitsMetrics, iota_system_state::IotaSystemStateTrait,
+        iota_system_state::IotaSystemStateTrait, metrics::LimitsMetrics,
         transaction::CheckedInputObjects,
     };
 
@@ -488,7 +488,8 @@ mod test {
         let builder = crate::network_config_builder::ConfigBuilder::new_with_temp_dir();
         let network_config = builder.build();
         let genesis = network_config.genesis;
-        let protocol_version = ProtocolVersion::new(genesis.iota_system_object().protocol_version());
+        let protocol_version =
+            ProtocolVersion::new(genesis.iota_system_object().protocol_version());
         let protocol_config = ProtocolConfig::get_for_version(protocol_version, Chain::Unknown);
 
         let genesis_transaction = genesis.transaction().clone();

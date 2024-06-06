@@ -8,7 +8,6 @@ use anyhow::Result;
 use async_trait::async_trait;
 use diesel::{dsl::sql, BoolExpressionMethods, Connection, ExpressionMethods, RunQueryDsl};
 use dotenvy::dotenv;
-use prometheus::Registry;
 use iota_data_ingestion_core::{
     DataIngestionMetrics, FileProgressStore, IndexerExecutor, ReaderOptions, Worker, WorkerPool,
 };
@@ -20,6 +19,7 @@ use iotans_indexer::{
     schema::domains,
     PgConnectionPool,
 };
+use prometheus::Registry;
 use tokio::sync::oneshot;
 
 struct IotansIndexerWorker {
@@ -146,7 +146,7 @@ async fn main() -> Result<()> {
             indexer: indexer_setup,
         },
         "iotans_indexing".to_string(), // task name used as a key in the progress store
-        100,                          // concurrency
+        100,                           // concurrency
     );
     executor.register(worker_pool).await?;
 

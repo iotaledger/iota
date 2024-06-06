@@ -5,15 +5,15 @@
 use std::{collections::HashMap, str::FromStr};
 
 use fastcrypto::traits::ToFromBytes;
-use move_core_types::ident_str;
-use once_cell::sync::OnceCell;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     gas_coin::GAS,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{ObjectArg, TransactionData},
     TypeTag,
 };
+use move_core_types::ident_str;
+use once_cell::sync::OnceCell;
 
 use crate::{
     error::{BridgeError, BridgeResult},

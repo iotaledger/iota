@@ -8,9 +8,6 @@ use std::{
 };
 
 use fastcrypto::hash::MultisetHash;
-use itertools::Itertools;
-use mysten_metrics::monitored_scope;
-use serde::Serialize;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     accumulator::Accumulator,
@@ -23,6 +20,9 @@ use iota_types::{
     messages_checkpoint::{CheckpointSequenceNumber, ECMHLiveObjectSetDigest},
     storage::{ObjectKey, ObjectStore},
 };
+use itertools::Itertools;
+use mysten_metrics::monitored_scope;
+use serde::Serialize;
 use tracing::debug;
 
 use crate::authority::{

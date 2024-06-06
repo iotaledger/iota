@@ -7,13 +7,13 @@ use anyhow::anyhow;
 use backoff::{future::retry, ExponentialBackoff};
 use chrono::{DateTime, Utc};
 use clap::*;
-use once_cell::sync::Lazy;
-use prometheus_http_query::Client;
 use iota_metric_checker::{
     fails_threshold_condition,
     query::{instant_query, range_query},
     timestamp_string_to_unix_seconds, Config, NowProvider, QueryType,
 };
+use once_cell::sync::Lazy;
+use prometheus_http_query::Client;
 
 #[derive(Parser)]
 pub struct Opts {

@@ -6,7 +6,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    base_types::{ObjectRef, IotaAddress, TxContext},
+    base_types::{IotaAddress, ObjectRef, TxContext},
     committee::EpochId,
     digests::TransactionDigest,
     effects::TransactionEffects,

@@ -6,9 +6,9 @@ use std::collections::BTreeMap;
 
 use axum::http::HeaderValue;
 use hyper::header;
+use iota_graphql_rpc_headers::LIMITS_HEADER;
 use reqwest::Response;
 use serde_json::Value;
-use iota_graphql_rpc_headers::LIMITS_HEADER;
 
 use super::response::GraphqlResponse;
 use crate::ClientError;

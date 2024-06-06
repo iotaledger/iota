@@ -2,14 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_binary_format::{
-    access::ModuleAccess,
-    binary_views::BinaryIndexedView,
-    file_format::{AbilitySet, Bytecode, FunctionDefinition, SignatureToken, Visibility},
-    CompiledModule,
-};
-use move_bytecode_utils::format_signature_token;
-use move_vm_config::verifier::VerifierConfig;
 use iota_types::{
     base_types::{TxContext, TxContextKind, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME},
     clock::Clock,
@@ -20,6 +12,14 @@ use iota_types::{
     transfer::Receiving,
     IOTA_FRAMEWORK_ADDRESS,
 };
+use move_binary_format::{
+    access::ModuleAccess,
+    binary_views::BinaryIndexedView,
+    file_format::{AbilitySet, Bytecode, FunctionDefinition, SignatureToken, Visibility},
+    CompiledModule,
+};
+use move_bytecode_utils::format_signature_token;
+use move_vm_config::verifier::VerifierConfig;
 
 use crate::{verification_failure, INIT_FN_NAME};
 

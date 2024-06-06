@@ -2,13 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use prometheus::Registry;
 use iota_core::{
     authority_aggregator::AuthAggMetrics,
     quorum_driver::reconfig_observer::{OnsiteReconfigObserver, ReconfigObserver},
     safe_client::SafeClientMetricsBase,
 };
 use iota_macros::sim_test;
+use prometheus::Registry;
 use test_cluster::TestClusterBuilder;
 use tracing::info;
 

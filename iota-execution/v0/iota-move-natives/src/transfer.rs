@@ -4,6 +4,7 @@
 
 use std::collections::VecDeque;
 
+use iota_types::{base_types::SequenceNumber, object::Owner};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
     account_address::AccountAddress, gas_algebra::InternalGas, language_storage::TypeTag,
@@ -14,7 +15,6 @@ use move_vm_types::{
     loaded_data::runtime_types::Type, natives::function::NativeResult, pop_arg, values::Value,
 };
 use smallvec::smallvec;
-use iota_types::{base_types::SequenceNumber, object::Owner};
 
 use super::object_runtime::{ObjectRuntime, TransferResult};
 use crate::NativesCostTable;

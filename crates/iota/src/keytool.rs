@@ -23,14 +23,6 @@ use fastcrypto_zkp::bn254::{
     zk_login_api::ZkLoginEnv,
 };
 use im::hashmap::HashMap as ImHashMap;
-use json_to_table::{json_to_table, Orientation};
-use num_bigint::BigUint;
-use rand::{rngs::StdRng, Rng, SeedableRng};
-use rusoto_core::Region;
-use rusoto_kms::{Kms, KmsClient, SignRequest};
-use serde::Serialize;
-use serde_json::json;
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope, PersonalMessage};
 use iota_keys::{
     key_derive::generate_new_key,
     keypair_file::{
@@ -43,8 +35,8 @@ use iota_types::{
     base_types::IotaAddress,
     committee::EpochId,
     crypto::{
-        get_authority_key_pair, DefaultHash, EncodeDecodeBase64, PublicKey, Signature,
-        SignatureScheme, IotaKeyPair,
+        get_authority_key_pair, DefaultHash, EncodeDecodeBase64, IotaKeyPair, PublicKey, Signature,
+        SignatureScheme,
     },
     error::IotaResult,
     multisig::{MultiSig, MultiSigPublicKey, ThresholdUnit, WeightUnit},
@@ -54,6 +46,14 @@ use iota_types::{
     zk_login_authenticator::ZkLoginAuthenticator,
     zk_login_util::get_zklogin_inputs,
 };
+use json_to_table::{json_to_table, Orientation};
+use num_bigint::BigUint;
+use rand::{rngs::StdRng, Rng, SeedableRng};
+use rusoto_core::Region;
+use rusoto_kms::{Kms, KmsClient, SignRequest};
+use serde::Serialize;
+use serde_json::json;
+use shared_crypto::intent::{Intent, IntentMessage, IntentScope, PersonalMessage};
 use tabled::{
     builder::Builder,
     settings::{object::Rows, Modify, Rotate, Width},
@@ -122,8 +122,8 @@ pub enum KeyToolCommand {
         word_length: Option<String>,
     },
 
-    /// Add a new key to Iota CLI Keystore using either the input mnemonic phrase
-    /// or a Bech32 encoded 33-byte `flag || privkey` starting with
+    /// Add a new key to Iota CLI Keystore using either the input mnemonic
+    /// phrase or a Bech32 encoded 33-byte `flag || privkey` starting with
     /// "iotaprivkey", the key scheme flag {ed25519 | secp256k1 | secp256r1}
     /// and an optional derivation path, default to m/44'/4218'/0'/0'/0' for
     /// ed25519 or m/54'/4218'/0'/0/0 for secp256k1 or m/74'/4218'/0'/0/0
@@ -202,9 +202,9 @@ pub enum KeyToolCommand {
     },
 
     /// Read the content at the provided file path. The accepted format can be
-    /// [enum IotaKeyPair] (Base64 encoded of 33-byte `flag || privkey`) or `type
-    /// AuthorityKeyPair` (Base64 encoded `privkey`). It prints its Base64
-    /// encoded public key and the key scheme flag.
+    /// [enum IotaKeyPair] (Base64 encoded of 33-byte `flag || privkey`) or
+    /// `type AuthorityKeyPair` (Base64 encoded `privkey`). It prints its
+    /// Base64 encoded public key and the key scheme flag.
     Show { file: PathBuf },
     /// Create signature using the private key for for the given address (or its
     /// alias) in iota keystore. Any signature commits to a [struct
@@ -1130,7 +1130,10 @@ impl KeyToolCommand {
                                 )?;
 
                                 let res = zk.verify_authenticator(
-                                    &IntentMessage::new(Intent::iota_transaction(), tx_data.clone()),
+                                    &IntentMessage::new(
+                                        Intent::iota_transaction(),
+                                        tx_data.clone(),
+                                    ),
                                     tx_data.execution_parts().1,
                                     Some(curr_epoch.unwrap()),
                                     &aux_verify_data,

@@ -9,11 +9,11 @@ pub use checked::*;
 pub mod checked {
 
     use enum_dispatch::enum_dispatch;
+    use iota_protocol_config::ProtocolConfig;
     use itertools::MultiUnzip;
     use schemars::JsonSchema;
     use serde::{Deserialize, Serialize};
     use serde_with::serde_as;
-    use iota_protocol_config::ProtocolConfig;
 
     use crate::{
         effects::{TransactionEffects, TransactionEffectsAPI},
@@ -22,8 +22,8 @@ pub mod checked {
             gas_predicates::gas_price_too_high, gas_v2::IotaGasStatus as IotaGasStatusV2,
             tables::GasStatus,
         },
-        object::Object,
         iota_serde::{BigInt, Readable},
+        object::Object,
         transaction::ObjectReadResult,
         ObjectID,
     };
@@ -100,8 +100,8 @@ pub mod checked {
             Self::V2(IotaGasStatusV2::new_unmetered())
         }
 
-        // This is the only public API on IotaGasStatus, all other gas related operations
-        // should go through `GasCharger`
+        // This is the only public API on IotaGasStatus, all other gas related
+        // operations should go through `GasCharger`
         pub fn check_gas_balance(
             &self,
             gas_objs: &[&ObjectReadResult],

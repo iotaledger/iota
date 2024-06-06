@@ -4,14 +4,10 @@
 
 use std::collections::{BTreeMap, HashSet};
 
-use move_core_types::{
-    account_address::AccountAddress, language_storage::StructTag, resolver::ResourceResolver,
-};
-use parking_lot::RwLock;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::{
-        ObjectDigest, ObjectID, ObjectRef, SequenceNumber, IotaAddress, TransactionDigest,
+        IotaAddress, ObjectDigest, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
         VersionDigest,
     },
     committee::EpochId,
@@ -24,17 +20,21 @@ use iota_types::{
     fp_bail,
     gas::GasCostSummary,
     inner_temporary_store::InnerTemporaryStore,
+    iota_system_state::{get_iota_system_state_wrapper, AdvanceEpochParams},
     is_system_package,
     object::{Data, Object, Owner},
     storage::{
         BackingPackageStore, BackingStore, ChildObjectResolver, DeleteKindWithOldVersion,
         ObjectChange, PackageObject, ParentSync, Storage, WriteKind,
     },
-    iota_system_state::{get_iota_system_state_wrapper, AdvanceEpochParams},
     transaction::InputObjects,
     type_resolver::LayoutResolver,
     IOTA_SYSTEM_STATE_OBJECT_ID,
 };
+use move_core_types::{
+    account_address::AccountAddress, language_storage::StructTag, resolver::ResourceResolver,
+};
+use parking_lot::RwLock;
 
 use crate::gas_charger::GasCharger;
 
@@ -868,8 +868,8 @@ impl<'backing> TemporaryStore<'backing> {
     /// 1. all IOTA in storage rebate fields of input objects should flow either
     ///    to the transaction storage rebate, or the transaction non-refundable
     ///    storage rebate
-    /// 2. all IOTA charged for storage should flow into the storage rebate field
-    ///    of some output object
+    /// 2. all IOTA charged for storage should flow into the storage rebate
+    ///    field of some output object
     ///
     /// If `do_expensive_checks` is true, this will also check a third
     /// invariant:
@@ -949,21 +949,21 @@ impl<'backing> TemporaryStore<'backing> {
             // TODO: re-enable once we fix the edge case with OOG, gas smashing,
             // and storage rebate
             // return Err(ExecutionError::invariant_violation(
-            // format!("IOTA conservation failed--{} IOTA in storage rebate field
-            // of input objects, {} IOTA in tx storage rebate or tx
-            // non-refundable storage rebate", total_input_rebate,
-            // gas_summary.non_refundable_storage_fee))
-            // );
+            // format!("IOTA conservation failed--{} IOTA in storage rebate
+            // field of input objects, {} IOTA in tx storage rebate
+            // or tx non-refundable storage rebate",
+            // total_input_rebate, gas_summary.
+            // non_refundable_storage_fee)) );
         }
 
-        // all IOTA charged for storage should flow into the storage rebate field of some
-        // output object
+        // all IOTA charged for storage should flow into the storage rebate field of
+        // some output object
         if gas_summary.storage_cost != total_output_rebate {
             // TODO: re-enable once we fix the edge case with OOG, gas smashing,
             // and storage rebate
             // return Err(ExecutionError::invariant_violation(
-            // format!("IOTA conservation failed--{} IOTA charged for storage, {}
-            // IOTA in storage rebate field of output objects",
+            // format!("IOTA conservation failed--{} IOTA charged for storage,
+            // {} IOTA in storage rebate field of output objects",
             // gas_summary.storage_cost,
             // total_output_rebate))
             // );

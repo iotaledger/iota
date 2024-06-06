@@ -4,7 +4,6 @@
 
 use std::sync::Arc;
 
-use parking_lot::Mutex;
 use iota_types::{
     base_types::TransactionDigest,
     committee::{Committee, EpochId},
@@ -19,6 +18,7 @@ use iota_types::{
     storage::{error::Error as StorageError, ObjectKey, ObjectStore, ReadStore, WriteStore},
     transaction::VerifiedTransaction,
 };
+use parking_lot::Mutex;
 
 use crate::{
     checkpoints::CheckpointStore,
@@ -227,8 +227,9 @@ impl ReadStore for RocksDbStore {
     fn get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<Option<iota_types::messages_checkpoint::CheckpointContents>>
-    {
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::CheckpointContents>,
+    > {
         self.checkpoint_store
             .get_checkpoint_contents(digest)
             .map_err(iota_types::storage::error::Error::custom)
@@ -237,8 +238,9 @@ impl ReadStore for RocksDbStore {
     fn get_checkpoint_contents_by_sequence_number(
         &self,
         _sequence_number: CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<Option<iota_types::messages_checkpoint::CheckpointContents>>
-    {
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::CheckpointContents>,
+    > {
         todo!()
     }
 }

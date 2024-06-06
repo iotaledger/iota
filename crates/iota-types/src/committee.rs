@@ -10,9 +10,9 @@ use std::{
 };
 
 use fastcrypto::traits::KeyPair;
+pub use iota_protocol_config::ProtocolVersion;
 use rand::{rngs::ThreadRng, seq::SliceRandom, Rng};
 use serde::{Deserialize, Serialize};
-pub use iota_protocol_config::ProtocolVersion;
 
 use super::base_types::*;
 use crate::{

@@ -5,15 +5,15 @@
 use std::{path::PathBuf, sync::Arc, thread::JoinHandle, time::Duration};
 
 use anyhow::{anyhow, bail, Context, Result};
-use prometheus::Registry;
-use rand::seq::SliceRandom;
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
-    base_types::{ConciseableName, ObjectID, IotaAddress},
+    base_types::{ConciseableName, IotaAddress, ObjectID},
     crypto::{deterministic_random_account_key, AccountKeyPair},
     gas_coin::TOTAL_SUPPLY_MICROS,
     object::Owner,
 };
+use prometheus::Registry;
+use rand::seq::SliceRandom;
 use test_cluster::TestClusterBuilder;
 use tokio::{
     runtime::Builder,

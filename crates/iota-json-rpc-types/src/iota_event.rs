@@ -7,6 +7,12 @@ use std::str::FromStr;
 use std::{fmt, fmt::Display};
 
 use fastcrypto::encoding::{Base58, Base64};
+use iota_types::{
+    base_types::{IotaAddress, ObjectID, TransactionDigest},
+    error::IotaResult,
+    event::{Event, EventEnvelope, EventID},
+    iota_serde::{BigInt, IotaStructTag},
+};
 use json_to_table::json_to_table;
 use move_core_types::{
     annotated_value::MoveStructLayout, identifier::Identifier, language_storage::StructTag,
@@ -16,12 +22,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use serde_with::{serde_as, DisplayFromStr};
-use iota_types::{
-    base_types::{ObjectID, IotaAddress, TransactionDigest},
-    error::IotaResult,
-    event::{Event, EventEnvelope, EventID},
-    iota_serde::{BigInt, IotaStructTag},
-};
 use tabled::settings::Style as TableStyle;
 
 use crate::{type_and_fields_from_move_struct, Page};

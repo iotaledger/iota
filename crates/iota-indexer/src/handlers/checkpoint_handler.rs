@@ -8,12 +8,6 @@ use std::{
 };
 
 use async_trait::async_trait;
-use itertools::Itertools;
-use move_core_types::{
-    annotated_value::{MoveStructLayout, MoveTypeLayout},
-    language_storage::{StructTag, TypeTag},
-};
-use mysten_metrics::{get_metrics, spawn_monitored_task};
 use iota_json_rpc_types::IotaMoveValue;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_rest_api::{CheckpointData, CheckpointTransaction};
@@ -22,13 +16,20 @@ use iota_types::{
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
     effects::{TransactionEffects, TransactionEffectsAPI},
     event::SystemEpochInfoEvent,
+    iota_system_state::{
+        get_iota_system_state, iota_system_state_summary::IotaSystemStateSummary,
+        IotaSystemStateTrait,
+    },
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents},
     object::{Object, Owner},
-    iota_system_state::{
-        get_iota_system_state, iota_system_state_summary::IotaSystemStateSummary, IotaSystemStateTrait,
-    },
     transaction::TransactionDataAPI,
 };
+use itertools::Itertools;
+use move_core_types::{
+    annotated_value::{MoveStructLayout, MoveTypeLayout},
+    language_storage::{StructTag, TypeTag},
+};
+use mysten_metrics::{get_metrics, spawn_monitored_task};
 use tap::tap::TapFallible;
 use tokio::sync::watch;
 use tracing::{error, info, warn};

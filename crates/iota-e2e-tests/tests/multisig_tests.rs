@@ -3,14 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::traits::EncodeDecodeBase64;
-use shared_crypto::intent::{Intent, IntentMessage};
 use iota_core::authority_client::AuthorityAPI;
 use iota_macros::sim_test;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::IotaAddress,
     crypto::{
-        get_key_pair, CompressedSignature, PublicKey, Signature, IotaKeyPair,
+        get_key_pair, CompressedSignature, IotaKeyPair, PublicKey, Signature,
         ZkLoginAuthenticatorAsBytes, ZkLoginPublicIdentifier,
     },
     error::{IotaError, IotaResult},
@@ -21,6 +20,7 @@ use iota_types::{
     utils::{keys, load_test_vectors, make_upgraded_multisig_tx},
     zk_login_authenticator::ZkLoginAuthenticator,
 };
+use shared_crypto::intent::{Intent, IntentMessage};
 use test_cluster::{TestCluster, TestClusterBuilder};
 async fn do_upgraded_multisig_test() -> IotaResult {
     let test_cluster = TestClusterBuilder::new().build().await;

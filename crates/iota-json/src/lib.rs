@@ -10,6 +10,18 @@ use std::{
 
 use anyhow::{anyhow, bail};
 use fastcrypto::encoding::{Encoding, Hex};
+use iota_types::{
+    base_types::{
+        is_primitive_type_tag, IotaAddress, ObjectID, TxContext, TxContextKind, RESOLVED_ASCII_STR,
+        RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, STD_ASCII_MODULE_NAME, STD_ASCII_STRUCT_NAME,
+        STD_OPTION_MODULE_NAME, STD_OPTION_STRUCT_NAME, STD_UTF8_MODULE_NAME, STD_UTF8_STRUCT_NAME,
+    },
+    id::{ID, RESOLVED_IOTA_ID},
+    move_package::MovePackage,
+    object::bounded_visitor::BoundedVisitor,
+    transfer::RESOLVED_RECEIVING_STRUCT,
+    MOVE_STDLIB_ADDRESS,
+};
 use move_binary_format::{
     access::ModuleAccess, binary_config::BinaryConfig, binary_views::BinaryIndexedView,
     file_format::SignatureToken,
@@ -28,18 +40,6 @@ use move_core_types::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Number, Value as JsonValue};
-use iota_types::{
-    base_types::{
-        is_primitive_type_tag, ObjectID, IotaAddress, TxContext, TxContextKind, RESOLVED_ASCII_STR,
-        RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, STD_ASCII_MODULE_NAME, STD_ASCII_STRUCT_NAME,
-        STD_OPTION_MODULE_NAME, STD_OPTION_STRUCT_NAME, STD_UTF8_MODULE_NAME, STD_UTF8_STRUCT_NAME,
-    },
-    id::{ID, RESOLVED_IOTA_ID},
-    move_package::MovePackage,
-    object::bounded_visitor::BoundedVisitor,
-    transfer::RESOLVED_RECEIVING_STRUCT,
-    MOVE_STDLIB_ADDRESS,
-};
 
 const HEX_PREFIX: &str = "0x";
 
@@ -508,7 +508,9 @@ pub fn check_valid_homogeneous(val: &JsonValue) -> Result<(), IotaJsonValueError
 /// Check via BFS
 /// The invariant is that all types at a given level must be the same or be
 /// empty
-fn check_valid_homogeneous_rec(curr_q: &mut VecDeque<&JsonValue>) -> Result<(), IotaJsonValueError> {
+fn check_valid_homogeneous_rec(
+    curr_q: &mut VecDeque<&JsonValue>,
+) -> Result<(), IotaJsonValueError> {
     if curr_q.is_empty() {
         // Nothing to do
         return Ok(());

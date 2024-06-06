@@ -22,16 +22,6 @@ use futures::{
     future::{join_all, select, Either},
     FutureExt,
 };
-use itertools::{izip, Itertools};
-use move_bytecode_utils::module_cache::SyncModuleCache;
-use mysten_common::sync::{notify_once::NotifyOnce, notify_read::NotifyRead};
-use mysten_metrics::monitored_scope;
-use narwhal_executor::ExecutionIndices;
-use narwhal_types::{Round, TimestampMs};
-use parking_lot::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
-use prometheus::IntCounter;
-use rocksdb::Options;
-use serde::{Deserialize, Serialize};
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_execution::{self, Executor};
 use iota_macros::fail_point;
@@ -50,6 +40,9 @@ use iota_types::{
     effects::TransactionEffects,
     error::{IotaError, IotaResult},
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
+    iota_system_state::epoch_start_iota_system_state::{
+        EpochStartSystemState, EpochStartSystemStateTrait,
+    },
     message_envelope::TrustedEnvelope,
     messages_checkpoint::{
         CheckpointContents, CheckpointSequenceNumber, CheckpointSignatureMessage, CheckpointSummary,
@@ -60,15 +53,22 @@ use iota_types::{
     },
     signature::GenericSignature,
     storage::{GetSharedLocks, InputKey},
-    iota_system_state::epoch_start_iota_system_state::{
-        EpochStartSystemState, EpochStartSystemStateTrait,
-    },
     transaction::{
         AuthenticatorStateUpdate, CertifiedTransaction, InputObjectKind, SenderSignedData,
         Transaction, TransactionDataAPI, TransactionKey, TransactionKind, VerifiedCertificate,
         VerifiedSignedTransaction, VerifiedTransaction,
     },
 };
+use itertools::{izip, Itertools};
+use move_bytecode_utils::module_cache::SyncModuleCache;
+use mysten_common::sync::{notify_once::NotifyOnce, notify_read::NotifyRead};
+use mysten_metrics::monitored_scope;
+use narwhal_executor::ExecutionIndices;
+use narwhal_types::{Round, TimestampMs};
+use parking_lot::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use prometheus::IntCounter;
+use rocksdb::Options;
+use serde::{Deserialize, Serialize};
 use tap::TapOptional;
 use tokio::{sync::OnceCell, time::Instant};
 use tracing::{debug, error, info, instrument, trace, warn};
@@ -1696,7 +1696,10 @@ impl AuthorityPerEpochStore {
         Ok(())
     }
 
-    pub fn remove_pending_consensus_transaction(&self, key: &ConsensusTransactionKey) -> IotaResult {
+    pub fn remove_pending_consensus_transaction(
+        &self,
+        key: &ConsensusTransactionKey,
+    ) -> IotaResult {
         self.tables()?.pending_consensus_transactions.remove(key)?;
         if let ConsensusTransactionKey::Certificate(cert) = key {
             self.pending_consensus_certificates.lock().remove(cert);

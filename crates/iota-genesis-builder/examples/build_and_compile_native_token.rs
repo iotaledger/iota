@@ -4,16 +4,16 @@
 
 //! Example demonstrating building and compiling two native token packages.
 
+use iota_genesis_builder::stardust::native_token::{
+    package_builder,
+    package_data::{NativeTokenModuleData, NativeTokenPackageData},
+};
 use iota_sdk::{
     types::block::{
         address::AliasAddress,
         output::{AliasId, FoundryId},
     },
     Url,
-};
-use iota_genesis_builder::stardust::native_token::{
-    package_builder,
-    package_data::{NativeTokenModuleData, NativeTokenPackageData},
 };
 
 fn main() -> anyhow::Result<()> {

@@ -417,8 +417,8 @@ pub async fn write_snapshot_manifest<S: ObjectStoreListExt + ObjectStorePutExt>(
 mod tests {
     use std::{fs, num::NonZeroUsize};
 
-    use object_store::path::Path;
     use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
+    use object_store::path::Path;
     use tempfile::TempDir;
 
     use crate::object_store::util::{

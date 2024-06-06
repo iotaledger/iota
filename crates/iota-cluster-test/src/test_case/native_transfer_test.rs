@@ -3,13 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
-use jsonrpsee::rpc_params;
 use iota_json_rpc_types::IotaTransactionBlockResponse;
 use iota_types::{
-    base_types::{ObjectID, IotaAddress},
+    base_types::{IotaAddress, ObjectID},
     crypto::{get_key_pair, AccountKeyPair},
     object::Owner,
 };
+use jsonrpsee::rpc_params;
 use tracing::info;
 
 use crate::{

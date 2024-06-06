@@ -6,7 +6,6 @@ use std::{collections::HashMap, num::NonZeroUsize, time::Duration};
 
 use anemo::{PeerId, Request};
 use anyhow::anyhow;
-use prometheus::Registry;
 use iota_archival::{reader::ArchiveReaderBalancer, writer::ArchiveWriter};
 use iota_config::{
     node::ArchiveReaderConfig,
@@ -18,6 +17,7 @@ use iota_types::{
     messages_checkpoint::CheckpointDigest,
     storage::{ReadStore, SharedInMemoryStore, WriteStore},
 };
+use prometheus::Registry;
 use tempfile::tempdir;
 use tokio::time::{timeout, Instant};
 
