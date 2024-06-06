@@ -1,0 +1,77 @@
+---
+id: zk-login-intent-scope
+title: ZkLoginIntentScope
+---
+
+
+
+
+export const Bullet = () => <><span style={{ fontWeight: 'normal', fontSize: '.5em', color: 'var(--ifm-color-secondary-darkest)' }}>&nbsp;●&nbsp;</span></>
+
+export const SpecifiedBy = (props) => <>Specification<a className="link" style={{ fontSize:'1.5em', paddingLeft:'4px' }} target="_blank" href={props.url} title={'Specified by ' + props.url}>⎘</a></>
+
+export const Badge = (props) => <><span className={props.class}>{props.text}</span></>
+
+import { useState } from 'react';
+
+export const Details = ({ dataOpen, dataClose, children, startOpen = false }) => {
+  const [open, setOpen] = useState(startOpen);
+  return (
+    <details {...(open ? { open: true } : {})} className="details" style={{ border:'none', boxShadow:'none', background:'var(--ifm-background-color)' }}>
+      <summary
+        onClick={(e) => {
+          e.preventDefault();
+          setOpen((open) => !open);
+        }}
+        style={{ listStyle:'none' }}
+      >
+      {open ? dataOpen : dataClose}
+      </summary>
+      {open && children}
+    </details>
+  );
+};
+
+
+
+
+
+
+
+
+An enum that specifies the intent scope to be used to parse the bytes for signature
+verification.
+
+
+```graphql
+enum ZkLoginIntentScope {
+  TRANSACTION_DATA
+  PERSONAL_MESSAGE
+}
+```
+
+
+
+
+### Values
+
+#### [<code style={{ fontWeight: 'normal' }}>ZkLoginIntentScope.<b>TRANSACTION_DATA</b></code>](#)  
+> 
+> 
+> Indicates that the bytes are to be parsed as transaction data bytes.
+> 
+
+#### [<code style={{ fontWeight: 'normal' }}>ZkLoginIntentScope.<b>PERSONAL_MESSAGE</b></code>](#)  
+> 
+> 
+> Indicates that the bytes are to be parsed as a personal message.
+> 
+
+
+
+
+
+### Member Of
+
+[`verifyZkloginSignature`](/references/iota-api/iota-graphql/reference/api/queries/verify-zklogin-signature)  <Badge class="badge badge--secondary" text="query"/>
+
