@@ -42,7 +42,10 @@ function checkHeader(node, context) {
                 node: comments[0],
                 message: MISSING_MODIFICATION_MESSAGE,
                 fix(fixer) {
-                    return fixer.insertTextAfter(comments[0], MODIFICATION_COPYRIGHT_HEADER);
+                    return fixer.insertTextAfter(
+                        comments[0],
+                        `\n// ${MODIFICATION_COPYRIGHT_HEADER}\n`,
+                    );
                 },
             });
         }
