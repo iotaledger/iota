@@ -11,8 +11,8 @@ use tracing_subscriber::FmtSubscriber;
 
 const OBJECT_SNAPSHOT_FILE_PATH: &str = "stardust_object_snapshot.bin";
 const BROTLI_COMPRESSOR_BUFFER_SIZE: usize = 4096;
-const BROTLI_COMPRESSOR_QUALITY: u32 = 11;
-const BROTLI_COMPRESSOR_LG_WINDOW_SIZE: u32 = 22;
+const BROTLI_COMPRESSOR_QUALITY: u32 = 11; // Compression levels go from 0 to 11, where 11 has the highest compression ratio but requires more time
+const BROTLI_COMPRESSOR_LG_WINDOW_SIZE: u32 = 22; // set LZ77 window size (0, 10-24) where bigger windows size improves density
 
 fn main() -> anyhow::Result<()> {
     // Initialize tracing
