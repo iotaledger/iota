@@ -80,6 +80,18 @@ use std::{
 };
 
 use async_trait::async_trait;
+pub use iota_json as json;
+use iota_json_rpc_api::{
+    CLIENT_SDK_TYPE_HEADER, CLIENT_SDK_VERSION_HEADER, CLIENT_TARGET_API_VERSION_HEADER,
+};
+pub use iota_json_rpc_types as rpc_types;
+use iota_json_rpc_types::{
+    IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
+    ObjectsPage,
+};
+use iota_transaction_builder::{DataReader, TransactionBuilder};
+pub use iota_types as types;
+use iota_types::base_types::{IotaAddress, ObjectID, ObjectInfo};
 use jsonrpsee::{
     core::client::ClientT,
     http_client::{HeaderMap, HeaderValue, HttpClient, HttpClientBuilder},
@@ -88,18 +100,6 @@ use jsonrpsee::{
 };
 use move_core_types::language_storage::StructTag;
 use serde_json::Value;
-pub use iota_json as json;
-use iota_json_rpc_api::{
-    CLIENT_SDK_TYPE_HEADER, CLIENT_SDK_VERSION_HEADER, CLIENT_TARGET_API_VERSION_HEADER,
-};
-pub use iota_json_rpc_types as rpc_types;
-use iota_json_rpc_types::{
-    ObjectsPage, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse,
-    IotaObjectResponseQuery,
-};
-use iota_transaction_builder::{DataReader, TransactionBuilder};
-pub use iota_types as types;
-use iota_types::base_types::{ObjectID, ObjectInfo, IotaAddress};
 
 use crate::{
     apis::{CoinReadApi, EventApi, GovernanceApi, QuorumDriverApi, ReadApi},
@@ -108,8 +108,8 @@ use crate::{
 
 pub mod apis;
 pub mod error;
-pub mod json_rpc_error;
 pub mod iota_client_config;
+pub mod json_rpc_error;
 pub mod wallet_context;
 
 pub const IOTA_COIN_TYPE: &str = "0x2::iota::IOTA";
@@ -184,8 +184,8 @@ impl IotaClientBuilder {
         self
     }
 
-    /// Returns a [IotaClient] object connected to the Iota network running at the
-    /// URI provided.
+    /// Returns a [IotaClient] object connected to the Iota network running at
+    /// the URI provided.
     ///
     /// # Examples
     ///
@@ -375,8 +375,8 @@ impl IotaClientBuilder {
     }
 }
 
-/// IotaClient is the basic type that provides all the necessary abstractions for
-/// interacting with the Iota network.
+/// IotaClient is the basic type that provides all the necessary abstractions
+/// for interacting with the Iota network.
 ///
 /// # Usage
 ///

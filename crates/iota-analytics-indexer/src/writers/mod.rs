@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
-use serde::Serialize;
 use iota_types::base_types::EpochId;
+use serde::Serialize;
 
 use crate::{FileFormat, ParquetSchema};
 

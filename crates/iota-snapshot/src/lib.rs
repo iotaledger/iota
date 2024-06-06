@@ -13,9 +13,6 @@ mod writer;
 use std::{path::PathBuf, sync::Arc};
 
 use anyhow::Result;
-use num_enum::{IntoPrimitive, TryFromPrimitive};
-use object_store::path::Path;
-use serde::{Deserialize, Serialize};
 use iota_core::{
     authority::{
         authority_store_tables::AuthorityPerpetualTables,
@@ -35,6 +32,9 @@ use iota_types::{
         IotaSystemStateTrait,
     },
 };
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+use object_store::path::Path;
+use serde::{Deserialize, Serialize};
 
 /// The following describes the format of an object file (*.obj) used for
 /// persisting live iota objects. The maximum size per .obj file is 128MB. State

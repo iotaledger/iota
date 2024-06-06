@@ -9,10 +9,9 @@ use fastcrypto::{
     encoding::{Base64, Encoding},
     hash::HashFunction,
 };
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use iota_types::{
     authenticator_state::{get_authenticator_state, AuthenticatorStateInner},
-    base_types::{ObjectID, IotaAddress},
+    base_types::{IotaAddress, ObjectID},
     clock::Clock,
     committee::{Committee, CommitteeWithNetworkMetadata, EpochId, ProtocolVersion},
     crypto::DefaultHash,
@@ -20,18 +19,19 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
     gas_coin::TOTAL_SUPPLY_MICROS,
+    iota_system_state::{
+        get_iota_system_state, get_iota_system_state_wrapper, IotaSystemState,
+        IotaSystemStateTrait, IotaSystemStateWrapper, IotaValidatorGenesis,
+    },
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, VerifiedCheckpoint,
     },
     object::Object,
     storage::ObjectStore,
-    iota_system_state::{
-        get_iota_system_state, get_iota_system_state_wrapper, IotaSystemState, IotaSystemStateTrait,
-        IotaSystemStateWrapper, IotaValidatorGenesis,
-    },
     transaction::Transaction,
     IOTA_RANDOMNESS_STATE_OBJECT_ID,
 };
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use tracing::trace;
 
 #[derive(Clone, Debug)]

@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_protocol_config::ProtocolVersion;
 use iota_sdk::types::block::{
     address::AliasAddress,
     output::{
@@ -9,7 +10,6 @@ use iota_sdk::types::block::{
         NativeToken, NativeTokens, SimpleTokenScheme, UnlockCondition,
     },
 };
-use iota_protocol_config::ProtocolVersion;
 use iota_types::{
     balance::Balance,
     dynamic_field::{derive_dynamic_field_id, Field},

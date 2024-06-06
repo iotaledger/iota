@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use super::{IDOperation, ObjectChange};
 use crate::{
     base_types::{
-        random_object_ref, EpochId, ObjectID, ObjectRef, SequenceNumber, IotaAddress,
+        random_object_ref, EpochId, IotaAddress, ObjectID, ObjectRef, SequenceNumber,
         TransactionDigest,
     },
     digests::{ObjectDigest, TransactionEventsDigest},

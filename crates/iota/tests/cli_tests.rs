@@ -12,12 +12,10 @@ use std::{
 };
 
 use expect_test::expect;
-use move_package::BuildConfig as MoveBuildConfig;
-use serde_json::json;
 use iota::{
     client_commands::{IotaClientCommandResult, IotaClientCommands, SwitchResponse},
-    key_identity::{get_identity_address, KeyIdentity},
     iota_commands::IotaCommand,
+    key_identity::{get_identity_address, KeyIdentity},
 };
 use iota_config::{
     PersistedConfig, IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME,
@@ -25,9 +23,9 @@ use iota_config::{
 };
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
-    OwnedObjectRef, IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse,
+    IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse,
     IotaObjectResponseQuery, IotaTransactionBlockDataAPI, IotaTransactionBlockEffects,
-    IotaTransactionBlockEffectsAPI,
+    IotaTransactionBlockEffectsAPI, OwnedObjectRef,
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
@@ -39,10 +37,10 @@ use iota_swarm_config::{
 };
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
-    base_types::{ObjectID, IotaAddress},
+    base_types::{IotaAddress, ObjectID},
     crypto::{
-        get_key_pair, Ed25519IotaSignature, Secp256k1IotaSignature, SignatureScheme, IotaKeyPair,
-        IotaSignatureInner,
+        get_key_pair, Ed25519IotaSignature, IotaKeyPair, IotaSignatureInner,
+        Secp256k1IotaSignature, SignatureScheme,
     },
     error::IotaObjectResponseError,
     gas_coin::GasCoin,
@@ -53,6 +51,8 @@ use iota_types::{
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
     },
 };
+use move_package::BuildConfig as MoveBuildConfig;
+use serde_json::json;
 use test_cluster::TestClusterBuilder;
 use tokio::time::sleep;
 
@@ -2131,7 +2131,9 @@ async fn test_active_address_command() -> Result<(), anyhow::Error> {
     let addr1 = context.active_address()?;
 
     // Run a command with address omitted
-    let os = IotaClientCommands::ActiveAddress {}.execute(context).await?;
+    let os = IotaClientCommands::ActiveAddress {}
+        .execute(context)
+        .await?;
 
     let a = if let IotaClientCommandResult::ActiveAddress(Some(v)) = os {
         v

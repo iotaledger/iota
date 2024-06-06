@@ -5,10 +5,9 @@
 
 use std::sync::Arc;
 
-use move_core_types::ident_str;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress, TransactionDigest},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
     committee::EpochId,
     crypto::{get_key_pair, AccountKeyPair},
     effects::{TransactionEffects, TransactionEffectsAPI},
@@ -24,6 +23,7 @@ use iota_types::{
         TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
     },
 };
+use move_core_types::ident_str;
 
 use crate::{
     authority::{

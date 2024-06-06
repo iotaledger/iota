@@ -2,19 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use iota_json_rpc_types::{
-    DynamicFieldPage, EventFilter, EventPage, ObjectsPage, Page, IotaEvent, IotaObjectResponse,
+    DynamicFieldPage, EventFilter, EventPage, IotaEvent, IotaObjectResponse,
     IotaObjectResponseQuery, IotaTransactionBlockEffects, IotaTransactionBlockResponseQuery,
-    TransactionBlocksPage, TransactionFilter,
+    ObjectsPage, Page, TransactionBlocksPage, TransactionFilter,
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::{
-    base_types::{ObjectID, IotaAddress},
+    base_types::{IotaAddress, ObjectID},
     digests::TransactionDigest,
     dynamic_field::DynamicFieldName,
     event::EventID,
 };
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 #[open_rpc(namespace = "iotax", tag = "Extended API")]
 #[rpc(server, client, namespace = "iotax")]

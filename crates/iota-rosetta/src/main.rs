@@ -18,18 +18,20 @@ use fastcrypto::{
     encoding::{Encoding, Hex},
     traits::EncodeDecodeBase64,
 };
-use serde_json::{json, Value};
-use iota_config::{iota_config_dir, Config, NodeConfig, IOTA_FULLNODE_CONFIG, IOTA_KEYSTORE_FILENAME};
+use iota_config::{
+    iota_config_dir, Config, NodeConfig, IOTA_FULLNODE_CONFIG, IOTA_KEYSTORE_FILENAME,
+};
 use iota_node::IotaNode;
 use iota_rosetta::{
-    types::{CurveType, PrefundedAccount, IotaEnv},
+    types::{CurveType, IotaEnv, PrefundedAccount},
     RosettaOfflineServer, RosettaOnlineServer, IOTA,
 };
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_types::{
     base_types::IotaAddress,
-    crypto::{KeypairTraits, IotaKeyPair, ToFromBytes},
+    crypto::{IotaKeyPair, KeypairTraits, ToFromBytes},
 };
+use serde_json::{json, Value};
 use tracing::{info, log::warn};
 
 #[derive(Parser)]

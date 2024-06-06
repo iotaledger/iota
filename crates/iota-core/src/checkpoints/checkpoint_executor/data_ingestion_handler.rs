@@ -54,7 +54,9 @@ pub(crate) fn store_checkpoint_locally(
         .multi_get_events(&event_digests)?
         .into_iter()
         .zip(&event_digests)
-        .map(|(event, digest)| event.ok_or(IotaError::TransactionEventsNotFound { digest: *digest }))
+        .map(|(event, digest)| {
+            event.ok_or(IotaError::TransactionEventsNotFound { digest: *digest })
+        })
         .collect::<IotaResult<Vec<_>>>()?;
 
     let events: HashMap<_, _> = event_digests.into_iter().zip(events).collect();

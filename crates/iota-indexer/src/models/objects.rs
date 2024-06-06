@@ -5,8 +5,6 @@
 use std::collections::HashMap;
 
 use diesel::prelude::*;
-use move_bytecode_utils::module_cache::GetModule;
-use serde::de::DeserializeOwned;
 use iota_json_rpc::coin_api::parse_to_struct_tag;
 use iota_json_rpc_types::{Balance, Coin as IotaCoin};
 use iota_types::{
@@ -15,6 +13,8 @@ use iota_types::{
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType, Field},
     object::{Object, ObjectRead},
 };
+use move_bytecode_utils::module_cache::GetModule;
+use serde::de::DeserializeOwned;
 
 use crate::{
     errors::IndexerError,
@@ -396,7 +396,6 @@ impl TryFrom<CoinBalance> for Balance {
 
 #[cfg(test)]
 mod tests {
-    use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
     use iota_types::{
         coin::Coin,
         digests::TransactionDigest,
@@ -404,6 +403,7 @@ mod tests {
         object::{Data, MoveObject, ObjectInner, Owner},
         Identifier, TypeTag,
     };
+    use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
 
     use super::*;
 

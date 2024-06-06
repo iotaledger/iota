@@ -42,10 +42,10 @@ mod tests {
         routing::post,
         Router,
     };
+    use iota_tls::{CertVerifier, TlsAcceptor};
     use multiaddr::Multiaddr;
     use prometheus::{Encoder, PROTOBUF_FORMAT};
     use protobuf::RepeatedField;
-    use iota_tls::{CertVerifier, TlsAcceptor};
 
     use super::*;
     use crate::{
@@ -82,7 +82,8 @@ mod tests {
     #[tokio::test]
     async fn axum_acceptor() {
         // generate self-signed certificates
-        let CertKeyPair(client_priv_cert, client_pub_key) = admin::generate_self_cert("iota".into());
+        let CertKeyPair(client_priv_cert, client_pub_key) =
+            admin::generate_self_cert("iota".into());
         let CertKeyPair(server_priv_cert, _) = admin::generate_self_cert("localhost".into());
 
         // create a fake rpc server

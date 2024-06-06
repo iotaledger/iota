@@ -5,8 +5,6 @@
 use std::{collections::HashSet, env, fs::File, io::Read, path::PathBuf};
 
 use expect_test::expect;
-use move_binary_format::CompiledModule;
-use move_package::source_package::manifest_parser;
 use iota_framework::BuiltInFramework;
 use iota_move_build::{check_unpublished_dependencies, gather_published_ids, BuildConfig};
 use iota_types::{
@@ -20,6 +18,8 @@ use iota_types::{
     transaction::{TransactionData, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
     utils::to_sender_signed_transaction,
 };
+use move_binary_format::CompiledModule;
+use move_package::source_package::manifest_parser;
 
 use crate::authority::{
     authority_tests::{call_move, init_state_with_ids, send_and_confirm_transaction},

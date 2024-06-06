@@ -5,14 +5,14 @@
 use std::{fmt::Debug, path::PathBuf, str::FromStr};
 
 use anyhow::anyhow;
-use move_core_types::language_storage::ModuleId;
-use serde::{de::DeserializeOwned, Serialize};
 use iota_storage::IndexStoreTables;
 use iota_types::{
-    base_types::{ObjectID, IotaAddress, TxSequenceNumber},
+    base_types::{IotaAddress, ObjectID, TxSequenceNumber},
     digests::TransactionDigest,
     Identifier, TypeTag,
 };
+use move_core_types::language_storage::ModuleId;
+use serde::{de::DeserializeOwned, Serialize};
 use typed_store::{
     rocks::{DBMap, MetricConf},
     traits::Map,

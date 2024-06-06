@@ -6,11 +6,6 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use cached::{proc_macro::cached, SizedCache};
-use jsonrpsee::{core::RpcResult, RpcModule};
-#[cfg(test)]
-use mockall::automock;
-use move_core_types::language_storage::{StructTag, TypeTag};
-use mysten_metrics::spawn_monitored_task;
 use iota_core::authority::AuthorityState;
 use iota_json_rpc_api::{cap_page_limit, CoinReadApiOpenRpc, CoinReadApiServer, JsonRpcMetrics};
 use iota_json_rpc_types::{Balance, CoinPage, IotaCoinMetadata};
@@ -18,19 +13,24 @@ use iota_open_rpc::Module;
 use iota_storage::{indexes::TotalBalance, key_value_store::TransactionKeyValueStore};
 use iota_types::{
     balance::Supply,
-    base_types::{ObjectID, IotaAddress},
+    base_types::{IotaAddress, ObjectID},
     coin::{CoinMetadata, TreasuryCap},
     effects::TransactionEffectsAPI,
     gas_coin::{GAS, TOTAL_SUPPLY_MICROS},
     object::Object,
     parse_iota_struct_tag,
 };
+use jsonrpsee::{core::RpcResult, RpcModule};
+#[cfg(test)]
+use mockall::automock;
+use move_core_types::language_storage::{StructTag, TypeTag};
+use mysten_metrics::spawn_monitored_task;
 use tap::TapFallible;
 use tracing::{debug, info, instrument};
 
 use crate::{
     authority_state::StateRead,
-    error::{Error, RpcInterimResult, IotaRpcInputError},
+    error::{Error, IotaRpcInputError, RpcInterimResult},
     with_tracing, IotaRpcModule,
 };
 
@@ -398,9 +398,6 @@ impl CoinReadInternal for CoinReadInternalImpl {
 #[cfg(test)]
 mod tests {
     use expect_test::expect;
-    use jsonrpsee::types::ErrorObjectOwned;
-    use mockall::{mock, predicate};
-    use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
     use iota_json_rpc_types::Coin;
     use iota_storage::{
         key_value_store::{
@@ -410,7 +407,7 @@ mod tests {
     };
     use iota_types::{
         balance::Supply,
-        base_types::{ObjectID, SequenceNumber, IotaAddress},
+        base_types::{IotaAddress, ObjectID, SequenceNumber},
         coin::TreasuryCap,
         digests::{ObjectDigest, TransactionDigest, TransactionEventsDigest},
         effects::TransactionEffects,
@@ -425,6 +422,9 @@ mod tests {
         utils::create_fake_transaction,
         TypeTag,
     };
+    use jsonrpsee::types::ErrorObjectOwned;
+    use mockall::{mock, predicate};
+    use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
 
     use super::*;
     use crate::authority_state::{MockStateRead, StateReadError};
@@ -685,8 +685,9 @@ mod tests {
             let cursor = coins[0].coin_object_id;
             let limit = 2;
 
-            let coin_type_tag =
-                TypeTag::Struct(Box::new(parse_iota_struct_tag(&coins[0].coin_type).unwrap()));
+            let coin_type_tag = TypeTag::Struct(Box::new(
+                parse_iota_struct_tag(&coins[0].coin_type).unwrap(),
+            ));
             let mut mock_state = MockStateRead::new();
             mock_state
                 .expect_get_owned_coins()
@@ -1180,8 +1181,8 @@ mod tests {
     }
 
     mod get_coin_metadata_tests {
-        use mockall::predicate;
         use iota_types::id::UID;
+        use mockall::predicate;
 
         use super::{super::*, *};
 
@@ -1286,8 +1287,8 @@ mod tests {
     }
 
     mod get_total_supply_tests {
-        use mockall::predicate;
         use iota_types::id::UID;
+        use mockall::predicate;
 
         use super::{super::*, *};
 

@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 use std::{fs, path::PathBuf, time::Duration};
 
-use itertools::Itertools;
 use iota_config::node::AuthorityStorePruningConfig;
+use itertools::Itertools;
 use tokio::sync::oneshot;
 use tracing::log::{error, info};
 use typed_store::rocks::safe_drop_db;

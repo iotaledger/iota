@@ -7,6 +7,7 @@ use std::sync::Arc;
 use axum::extract::{Json, State};
 use futures::StreamExt;
 use hyper::HeaderMap;
+use iota_json_rpc_api::CLIENT_TARGET_API_VERSION_HEADER;
 use jsonrpsee::{
     core::server::{
         helpers::{BoundedSubscriptions, MethodResponse, MethodSink},
@@ -22,7 +23,6 @@ use jsonrpsee::{
     },
 };
 use serde_json::value::RawValue;
-use iota_json_rpc_api::CLIENT_TARGET_API_VERSION_HEADER;
 
 use crate::routing_layer::RpcRouter;
 

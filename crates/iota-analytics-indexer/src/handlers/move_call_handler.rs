@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
-use move_core_types::identifier::IdentStr;
 use iota_indexer::framework::Handler;
 use iota_rest_api::CheckpointData;
 use iota_types::{base_types::ObjectID, transaction::TransactionDataAPI};
+use move_core_types::identifier::IdentStr;
 
 use crate::{handlers::AnalyticsHandler, tables::MoveCallEntry, FileType};
 

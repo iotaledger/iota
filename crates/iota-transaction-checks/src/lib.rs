@@ -15,7 +15,7 @@ mod checked {
 
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
-        base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress},
+        base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
         error::{IotaError, IotaResult, UserInputError, UserInputResult},
         executable_transaction::VerifiedExecutableTransaction,
         fp_bail, fp_ensure,

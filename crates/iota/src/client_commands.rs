@@ -19,20 +19,13 @@ use fastcrypto::{
     encoding::{Base64, Encoding},
     traits::ToFromBytes,
 };
-use json_to_table::json_to_table;
-use move_binary_format::CompiledModule;
-use move_core_types::language_storage::TypeTag;
-use move_package::BuildConfig as MoveBuildConfig;
-use prometheus::Registry;
-use serde::Serialize;
-use serde_json::{json, Value};
-use shared_crypto::intent::Intent;
 use iota_execution::verifier::VerifierOverrides;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     Coin, DynamicFieldPage, IotaCoinMetadata, IotaData, IotaExecutionStatus, IotaObjectData,
-    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery, IotaParsedData, IotaRawData,
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery, IotaParsedData,
+    IotaRawData, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions,
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_move::build::resolve_lock_file_path;
@@ -50,7 +43,7 @@ use iota_sdk::{
 };
 use iota_source_validation::{BytecodeSourceVerifier, SourceMode};
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, IotaAddress},
+    base_types::{IotaAddress, ObjectID, SequenceNumber},
     crypto::{EmptySignInfo, SignatureScheme},
     digests::TransactionDigest,
     dynamic_field::DynamicFieldInfo,
@@ -64,6 +57,14 @@ use iota_types::{
     signature::GenericSignature,
     transaction::{SenderSignedData, Transaction, TransactionData, TransactionDataAPI},
 };
+use json_to_table::json_to_table;
+use move_binary_format::CompiledModule;
+use move_core_types::language_storage::TypeTag;
+use move_package::BuildConfig as MoveBuildConfig;
+use prometheus::Registry;
+use serde::Serialize;
+use serde_json::{json, Value};
+use shared_crypto::intent::Intent;
 use tabled::{
     builder::Builder as TableBuilder,
     settings::{
@@ -641,8 +642,8 @@ pub enum IotaClientCommands {
         #[clap(long)]
         to: KeyIdentity,
 
-        /// Iota coin object to transfer, ID in 20 bytes Hex string. This is also
-        /// the gas object.
+        /// Iota coin object to transfer, ID in 20 bytes Hex string. This is
+        /// also the gas object.
         #[clap(long)]
         iota_coin_object_id: ObjectID,
 
@@ -1971,7 +1972,11 @@ impl Display for IotaClientCommandResult {
                 }
 
                 let mut builder = TableBuilder::default();
-                builder.set_header(vec!["gasCoinId", "microsBalance (MICROS)", "iotaBalance (IOTA)"]);
+                builder.set_header(vec![
+                    "gasCoinId",
+                    "microsBalance (MICROS)",
+                    "iotaBalance (IOTA)",
+                ]);
                 for coin in &gas_coins {
                     builder.push_record(vec![
                         coin.gas_coin_id.to_string(),
@@ -2311,8 +2316,8 @@ impl IotaClientCommandResult {
         use IotaClientCommandResult::*;
         match self {
             Upgrade(b) | Publish(b) | TransactionBlock(b) | Call(b) | Transfer(b)
-            | TransferIota(b) | Pay(b) | PayIota(b) | PayAllIota(b) | SplitCoin(b) | MergeCoin(b)
-            | ExecuteSignedTx(b) => Some(b),
+            | TransferIota(b) | Pay(b) | PayIota(b) | PayAllIota(b) | SplitCoin(b)
+            | MergeCoin(b) | ExecuteSignedTx(b) => Some(b),
             _ => None,
         }
     }

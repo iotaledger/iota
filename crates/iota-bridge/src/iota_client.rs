@@ -15,15 +15,13 @@ use async_trait::async_trait;
 use axum::response::sse::Event;
 use ethers::types::{Address, U256};
 use fastcrypto::traits::{KeyPair, ToFromBytes};
-use once_cell::sync::OnceCell;
-use serde::{Deserialize, Serialize};
 use iota_json_rpc_types::{
-    EventFilter, EventPage, Page, IotaData, IotaEvent, IotaObjectDataOptions,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    EventFilter, EventPage, IotaData, IotaEvent, IotaObjectDataOptions,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, Page,
 };
 use iota_sdk::{IotaClient as IotaSdkClient, IotaClientBuilder};
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, IotaAddress},
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     collection_types::LinkedTableNode,
     crypto::get_key_pair,
     digests::TransactionDigest,
@@ -36,6 +34,8 @@ use iota_types::{
     transaction::Transaction,
     Identifier, TypeTag,
 };
+use once_cell::sync::OnceCell;
+use serde::{Deserialize, Serialize};
 use tap::TapFallible;
 use tracing::{error, warn};
 
@@ -43,8 +43,8 @@ use crate::{
     crypto::BridgeAuthorityPublicKey,
     error::{BridgeError, BridgeResult},
     events::IotaBridgeEvent,
-    retry_with_max_elapsed_time,
     iota_transaction_builder::get_bridge_package_id,
+    retry_with_max_elapsed_time,
     types::{
         BridgeAction, BridgeActionStatus, BridgeAuthority, BridgeCommittee,
         BridgeInnerDynamicField, BridgeRecordDyanmicField, MoveTypeBridgeCommittee,
@@ -228,7 +228,8 @@ where
     }
 }
 
-/// Use a trait to abstract over the IotaSDKClient and IotaMockClient for testing.
+/// Use a trait to abstract over the IotaSDKClient and IotaMockClient for
+/// testing.
 #[async_trait]
 pub trait IotaClientInner: Send + Sync {
     type Error: Into<anyhow::Error> + Send + Sync + std::error::Error + 'static;
@@ -429,8 +430,8 @@ mod tests {
     use super::*;
     use crate::{
         events::{
-            init_all_struct_tags, EmittedIotaToEthTokenBridgeV1, MoveTokenBridgeEvent,
-            IotaToEthTokenBridgeV1,
+            init_all_struct_tags, EmittedIotaToEthTokenBridgeV1, IotaToEthTokenBridgeV1,
+            MoveTokenBridgeEvent,
         },
         iota_mock_client::IotaMockClient,
         test_utils::{

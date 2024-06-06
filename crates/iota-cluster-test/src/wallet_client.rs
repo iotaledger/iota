@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use shared_crypto::intent::Intent;
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{wallet_context::WalletContext, IotaClient, IotaClientBuilder};
 use iota_types::{
@@ -10,6 +9,7 @@ use iota_types::{
     crypto::{KeypairTraits, Signature},
     transaction::TransactionData,
 };
+use shared_crypto::intent::Intent;
 use tracing::{info, info_span, Instrument};
 
 use super::Cluster;

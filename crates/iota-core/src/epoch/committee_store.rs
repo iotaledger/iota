@@ -8,14 +8,14 @@ use std::{
     sync::Arc,
 };
 
-use parking_lot::RwLock;
-use rocksdb::Options;
 use iota_macros::nondeterministic;
 use iota_types::{
     base_types::ObjectID,
     committee::{Committee, EpochId},
     error::{IotaError, IotaResult},
 };
+use parking_lot::RwLock;
+use rocksdb::Options;
 use typed_store::{
     rocks::{default_db_options, DBMap, DBOptions, MetricConf},
     traits::{TableSummary, TypedStoreDebug},

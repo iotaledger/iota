@@ -7,30 +7,25 @@ use std::{collections::BTreeMap, result::Result, str::FromStr, sync::Arc};
 use anyhow::{anyhow, bail, ensure, Ok};
 use async_trait::async_trait;
 use futures::future::join_all;
-use move_binary_format::{
-    binary_config::BinaryConfig, binary_views::BinaryIndexedView, file_format::SignatureToken,
+use iota_json::{
+    is_receiving_argument, resolve_move_function_args, IotaJsonValue, ResolvedCallArg,
 };
-use move_core_types::{
-    identifier::Identifier,
-    language_storage::{StructTag, TypeTag},
-};
-use iota_json::{is_receiving_argument, resolve_move_function_args, ResolvedCallArg, IotaJsonValue};
 use iota_json_rpc_types::{
-    RPCTransactionRequestParams, IotaData, IotaObjectDataOptions, IotaObjectResponse, IotaRawData,
-    IotaTypeTag,
+    IotaData, IotaObjectDataOptions, IotaObjectResponse, IotaRawData, IotaTypeTag,
+    RPCTransactionRequestParams,
 };
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    base_types::{ObjectID, ObjectInfo, ObjectRef, ObjectType, IotaAddress},
+    base_types::{IotaAddress, ObjectID, ObjectInfo, ObjectRef, ObjectType},
     coin,
     error::UserInputError,
     fp_ensure,
     gas_coin::GasCoin,
     governance::{ADD_STAKE_MUL_COIN_FUN_NAME, WITHDRAW_STAKE_FUN_NAME},
+    iota_system_state::IOTA_SYSTEM_MODULE_NAME,
     move_package::MovePackage,
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    iota_system_state::IOTA_SYSTEM_MODULE_NAME,
     timelock::timelocked_staking::{
         ADD_TIMELOCKED_STAKE_FUN_NAME, TIMELOCKED_STAKING_MODULE_NAME,
         WITHDRAW_TIMELOCKED_STAKE_FUN_NAME,
@@ -39,6 +34,13 @@ use iota_types::{
         Argument, CallArg, Command, InputObjectKind, ObjectArg, TransactionData, TransactionKind,
     },
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, TIMELOCK_PACKAGE_ID,
+};
+use move_binary_format::{
+    binary_config::BinaryConfig, binary_views::BinaryIndexedView, file_format::SignatureToken,
+};
+use move_core_types::{
+    identifier::Identifier,
+    language_storage::{StructTag, TypeTag},
 };
 
 #[async_trait]
@@ -497,7 +499,10 @@ impl TransactionBuilder {
             .await?;
         let upgrade_cap = self
             .0
-            .get_object_with_options(upgrade_capability, IotaObjectDataOptions::new().with_owner())
+            .get_object_with_options(
+                upgrade_capability,
+                IotaObjectDataOptions::new().with_owner(),
+            )
             .await?
             .into_object()?;
         let cap_owner = upgrade_cap

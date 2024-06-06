@@ -4,8 +4,8 @@
 use std::{collections::HashMap, sync::Arc};
 
 use arc_swap::ArcSwap;
-use narwhal_config::Stake;
 use iota_types::base_types::AuthorityName;
+use narwhal_config::Stake;
 use tracing::debug;
 
 use crate::{
