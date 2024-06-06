@@ -1,82 +1,28 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { hasDisplayData, useGetOwnedObjects } from '@iota/core';
-import { type IotaObjectData } from '@iota/iota.js/client';
+import { useGetKioskContents, useGetObject } from '@iota/core';
 import { useMemo } from 'react';
 
-import { useBuyNLargeAsset } from '../components/buynlarge/useBuyNLargeAsset';
-import { useHiddenAssets } from '../pages/home/hidden-assets/HiddenAssetsProvider';
+export function useOwnedNFT(nftObjectId: string | null, address: string | null) {
+	const data = useGetObject(nftObjectId);
+	const { data: kioskData, isFetching: areKioskContentsLoading } = useGetKioskContents(address);
+	const { data: objectData, isPending } = data;
 
-type OwnedAssets = {
-    visual: IotaObjectData[];
-    other: IotaObjectData[];
-    hidden: IotaObjectData[];
-};
+	const objectDetails = useMemo(() => {
+		if (!objectData || !objectData.data || !address) return null;
+		const ownedKioskObjectIds = kioskData?.list.map(({ data }) => data?.objectId) || [];
+		const objectOwner = objectData.data.owner;
+		const data =
+			ownedKioskObjectIds.includes(objectData.data.objectId) ||
+			(objectOwner &&
+				objectOwner !== 'Immutable' &&
+				'AddressOwner' in objectOwner &&
+				objectOwner.AddressOwner === address)
+				? objectData.data
+				: null;
+		return data;
+	}, [address, objectData, kioskData]);
 
-export enum AssetFilterTypes {
-    visual = 'visual',
-    other = 'other',
-}
-
-export function useGetNFTs(address?: string | null) {
-    const { asset, objectType } = useBuyNLargeAsset();
-    const {
-        data,
-        isPending,
-        error,
-        isError,
-        isFetchingNextPage,
-        hasNextPage,
-        fetchNextPage,
-        isLoading,
-    } = useGetOwnedObjects(
-        address,
-        {
-            MatchNone: objectType
-                ? [{ StructType: '0x2::coin::Coin' }, { StructType: objectType }]
-                : [{ StructType: '0x2::coin::Coin' }],
-        },
-        50,
-    );
-    const { hiddenAssetIds } = useHiddenAssets();
-
-    const assets = useMemo(() => {
-        const ownedAssets: OwnedAssets = {
-            visual: [],
-            other: [],
-            hidden: [],
-        };
-
-        const groupedAssets = data?.pages
-            .flatMap((page) => page.data)
-            .filter(
-                (asset) => asset.data?.objectId && !hiddenAssetIds.includes(asset.data?.objectId),
-            )
-            .reduce((acc, curr) => {
-                if (hasDisplayData(curr)) acc.visual.push(curr.data as IotaObjectData);
-                if (!hasDisplayData(curr)) acc.other.push(curr.data as IotaObjectData);
-                if (curr.data?.objectId && hiddenAssetIds.includes(curr.data?.objectId))
-                    acc.hidden.push(curr.data as IotaObjectData);
-                return acc;
-            }, ownedAssets);
-
-        if (asset?.data) {
-            groupedAssets?.visual.unshift(asset.data);
-        }
-
-        return groupedAssets;
-    }, [hiddenAssetIds, data?.pages, asset]);
-
-    return {
-        data: assets,
-        isLoading,
-        hasNextPage,
-        isFetchingNextPage,
-        fetchNextPage,
-        isPending: isPending,
-        isError: isError,
-        error,
-    };
+	return { ...data, isPending: isPending || areKioskContentsLoading, data: objectDetails };
 }
