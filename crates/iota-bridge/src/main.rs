@@ -8,9 +8,9 @@ use std::{
 };
 
 use clap::Parser;
-use mysten_metrics::start_prometheus_server;
 use iota_bridge::{config::BridgeNodeConfig, node::run_bridge_node};
 use iota_config::Config;
+use mysten_metrics::start_prometheus_server;
 use tracing::info;
 
 // TODO consolidate this with iota-node/src/main.rs, but where to put it?

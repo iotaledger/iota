@@ -9,12 +9,12 @@ use std::{
 };
 
 use async_trait::async_trait;
-use mysten_metrics::spawn_monitored_task;
 use iota_config::genesis::Genesis;
 use iota_types::{
     crypto::AuthorityKeyPair,
     effects::{TransactionEffectsAPI, TransactionEvents},
     error::{IotaError, IotaResult},
+    iota_system_state::IotaSystemState,
     messages_checkpoint::{
         CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
     },
@@ -22,9 +22,9 @@ use iota_types::{
         HandleCertificateResponseV2, HandleTransactionResponse, ObjectInfoRequest,
         ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse,
     },
-    iota_system_state::IotaSystemState,
     transaction::{CertifiedTransaction, Transaction, VerifiedTransaction},
 };
+use mysten_metrics::spawn_monitored_task;
 
 use crate::{
     authority::{test_authority_builder::TestAuthorityBuilder, AuthorityState},

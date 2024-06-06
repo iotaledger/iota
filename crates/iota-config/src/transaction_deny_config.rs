@@ -4,9 +4,9 @@
 
 use std::collections::HashSet;
 
+use iota_types::base_types::{IotaAddress, ObjectID};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
-use iota_types::base_types::{ObjectID, IotaAddress};
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -33,8 +33,8 @@ pub struct TransactionDenyConfig {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     package_deny_list: Vec<ObjectID>,
 
-    /// A list of iota addresses that are not allowed to be used as the sender or
-    /// sponsor.
+    /// A list of iota addresses that are not allowed to be used as the sender
+    /// or sponsor.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     address_deny_list: Vec<IotaAddress>,
 

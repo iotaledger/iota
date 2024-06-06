@@ -15,9 +15,9 @@ use axum::{
 };
 use bytes::Buf;
 use hyper::header::CONTENT_ENCODING;
+use iota_tls::TlsConnectionInfo;
 use once_cell::sync::Lazy;
 use prometheus::{proto::MetricFamily, register_counter_vec, CounterVec};
-use iota_tls::TlsConnectionInfo;
 use tracing::error;
 
 use crate::{consumer::ProtobufDecoder, peers::IotaNodeProvider};

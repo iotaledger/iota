@@ -18,10 +18,10 @@ use crate::{
     types::{
         base64::Base64,
         cursor::{JsonCursor, Page},
+        iota_address::IotaAddress,
         move_function::MoveFunction,
         move_type::MoveType,
         object_read::ObjectRead,
-        iota_address::IotaAddress,
     },
 };
 

@@ -22,11 +22,6 @@ use futures::{
     future::{select, Either},
     FutureExt,
 };
-use itertools::Itertools;
-use mysten_metrics::{monitored_scope, spawn_monitored_task, MonitoredFutureExt};
-use parking_lot::Mutex;
-use rand::{rngs::OsRng, seq::SliceRandom};
-use serde::{Deserialize, Serialize};
 use iota_macros::fail_point;
 use iota_network::default_mysten_network_config;
 use iota_protocol_config::ProtocolVersion;
@@ -38,6 +33,10 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaResult,
     gas::GasCostSummary,
+    iota_system_state::{
+        epoch_start_iota_system_state::EpochStartSystemStateTrait, IotaSystemState,
+        IotaSystemStateTrait,
+    },
     message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointRequestV2, CheckpointResponseV2,
@@ -47,12 +46,13 @@ use iota_types::{
     },
     messages_consensus::ConsensusTransactionKey,
     signature::GenericSignature,
-    iota_system_state::{
-        epoch_start_iota_system_state::EpochStartSystemStateTrait, IotaSystemState,
-        IotaSystemStateTrait,
-    },
     transaction::{TransactionDataAPI, TransactionKey, TransactionKind},
 };
+use itertools::Itertools;
+use mysten_metrics::{monitored_scope, spawn_monitored_task, MonitoredFutureExt};
+use parking_lot::Mutex;
+use rand::{rngs::OsRng, seq::SliceRandom};
+use serde::{Deserialize, Serialize};
 use tokio::{
     sync::{watch, Notify},
     time::timeout,
@@ -1984,7 +1984,6 @@ mod tests {
     };
 
     use async_trait::async_trait;
-    use shared_crypto::intent::{Intent, IntentScope};
     use iota_macros::sim_test;
     use iota_types::{
         base_types::{ObjectID, SequenceNumber, TransactionEffectsDigest},
@@ -1995,6 +1994,7 @@ mod tests {
         object,
         transaction::{GenesisObject, VerifiedTransaction},
     };
+    use shared_crypto::intent::{Intent, IntentScope};
     use tokio::sync::mpsc;
 
     use super::*;

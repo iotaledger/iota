@@ -11,9 +11,6 @@ use std::{
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use futures::future::join_all;
-use move_core_types::{account_address::AccountAddress, ident_str};
-use prometheus::Registry;
-use shared_crypto::intent::{Intent, IntentScope};
 use iota_config::{genesis::Genesis, local_ip_utils, node::AuthorityOverloadConfig};
 use iota_framework::BuiltInFramework;
 use iota_genesis_builder::validator_info::ValidatorInfo;
@@ -22,14 +19,14 @@ use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::{
-        random_object_ref, AuthorityName, ExecutionDigests, ObjectID, ObjectRef, IotaAddress,
+        random_object_ref, AuthorityName, ExecutionDigests, IotaAddress, ObjectID, ObjectRef,
         TransactionDigest,
     },
     committee::Committee,
     crypto::{
         generate_proof_of_possession, get_key_pair, AccountKeyPair, AuthorityKeyPair,
-        AuthorityPublicKeyBytes, AuthoritySignInfo, AuthoritySignature, NetworkKeyPair, Signer,
-        IotaKeyPair,
+        AuthorityPublicKeyBytes, AuthoritySignInfo, AuthoritySignature, IotaKeyPair,
+        NetworkKeyPair, Signer,
     },
     effects::{SignedTransactionEffects, TestEffectsBuilder},
     error::IotaError,
@@ -41,6 +38,9 @@ use iota_types::{
     },
     utils::{create_fake_transaction, to_sender_signed_transaction},
 };
+use move_core_types::{account_address::AccountAddress, ident_str};
+use prometheus::Registry;
+use shared_crypto::intent::{Intent, IntentScope};
 use tokio::time::timeout;
 use tracing::{info, warn};
 

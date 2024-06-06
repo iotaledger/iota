@@ -11,12 +11,12 @@ use std::{
 
 use config::AuthorityIdentifier;
 use fastcrypto::hash::Hash;
+use iota_macros::fail_point;
 use lru::LruCache;
 use mysten_common::sync::notify_read::NotifyRead;
 use parking_lot::Mutex;
 use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
 use store::{rocks::DBMap, Map, TypedStoreError::RocksDBError};
-use iota_macros::fail_point;
 use tap::Tap;
 use types::{Certificate, CertificateDigest, Round};
 

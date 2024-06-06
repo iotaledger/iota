@@ -12,10 +12,10 @@ pub mod one_time_witness_verifier;
 pub mod private_generics;
 pub mod struct_with_key_verifier;
 
-use move_core_types::{ident_str, identifier::IdentStr, vm_status::StatusCode};
-use move_vm_config::verifier::VerifierConfig;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::error::{ExecutionError, ExecutionErrorKind};
+use move_core_types::{ident_str, identifier::IdentStr, vm_status::StatusCode};
+use move_vm_config::verifier::VerifierConfig;
 
 pub const INIT_FN_NAME: &IdentStr = ident_str!("init");
 pub const TEST_SCENARIO_MODULE_NAME: &str = "test_scenario";

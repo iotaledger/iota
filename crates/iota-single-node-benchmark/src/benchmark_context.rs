@@ -12,7 +12,7 @@ use futures::{stream::FuturesUnordered, StreamExt};
 use iota_config::node::RunWithRange;
 use iota_test_transaction_builder::PublishData;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, IotaAddress},
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     effects::{TransactionEffects, TransactionEffectsAPI},
     messages_grpc::HandleTransactionResponse,
     mock_checkpoint_builder::ValidatorKeypairProvider,

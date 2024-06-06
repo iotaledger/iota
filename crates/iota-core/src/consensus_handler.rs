@@ -11,22 +11,22 @@ use std::{
 
 use arc_swap::ArcSwap;
 use async_trait::async_trait;
-use lru::LruCache;
-use mysten_metrics::{monitored_scope, spawn_monitored_task};
-use narwhal_config::Committee;
-use narwhal_executor::{ExecutionIndices, ExecutionState};
-use narwhal_types::ConsensusOutput;
-use serde::{Deserialize, Serialize};
 use iota_macros::{fail_point_async, fail_point_if};
 use iota_types::{
     authenticator_state::ActiveJwk,
     base_types::{AuthorityName, EpochId, TransactionDigest},
     digests::ConsensusCommitDigest,
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
-    messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
+    messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
     transaction::{SenderSignedData, VerifiedTransaction},
 };
+use lru::LruCache;
+use mysten_metrics::{monitored_scope, spawn_monitored_task};
+use narwhal_config::Committee;
+use narwhal_executor::{ExecutionIndices, ExecutionState};
+use narwhal_types::ConsensusOutput;
+use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info, instrument, trace_span};
 
 use crate::{
@@ -826,24 +826,24 @@ impl SequencedConsensusTransaction {
 mod tests {
     use std::collections::BTreeSet;
 
+    use iota_protocol_config::{ConsensusTransactionOrdering, SupportedProtocolVersions};
+    use iota_types::{
+        base_types::{random_object_ref, AuthorityName, IotaAddress},
+        committee::Committee,
+        iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
+        messages_consensus::{
+            AuthorityCapabilities, ConsensusTransaction, ConsensusTransactionKind,
+        },
+        object::Object,
+        transaction::{
+            CertifiedTransaction, SenderSignedData, TransactionData, TransactionDataAPI,
+        },
+    };
     use narwhal_config::AuthorityIdentifier;
     use narwhal_test_utils::latest_protocol_version;
     use narwhal_types::{Batch, Certificate, CommittedSubDag, HeaderV1Builder, ReputationScores};
     use prometheus::Registry;
     use shared_crypto::intent::Intent;
-    use iota_protocol_config::{ConsensusTransactionOrdering, SupportedProtocolVersions};
-    use iota_types::{
-        base_types::{random_object_ref, AuthorityName, IotaAddress},
-        committee::Committee,
-        messages_consensus::{
-            AuthorityCapabilities, ConsensusTransaction, ConsensusTransactionKind,
-        },
-        object::Object,
-        iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
-        transaction::{
-            CertifiedTransaction, SenderSignedData, TransactionData, TransactionDataAPI,
-        },
-    };
 
     use super::*;
     use crate::{

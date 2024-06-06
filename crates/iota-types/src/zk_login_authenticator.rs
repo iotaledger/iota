@@ -16,7 +16,7 @@ use shared_crypto::intent::IntentMessage;
 
 use crate::{
     base_types::{EpochId, IotaAddress},
-    crypto::{DefaultHash, PublicKey, Signature, SignatureScheme, IotaSignature},
+    crypto::{DefaultHash, IotaSignature, PublicKey, Signature, SignatureScheme},
     digests::ZKLoginInputsDigest,
     error::{IotaError, IotaResult},
     signature::{AuthenticatorTrait, VerifyParams},

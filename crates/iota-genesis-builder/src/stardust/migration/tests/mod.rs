@@ -14,8 +14,6 @@ use iota_sdk::types::block::{
         SimpleTokenScheme, TokenId, TokenScheme,
     },
 };
-use move_binary_format::errors::VMError;
-use move_core_types::{ident_str, identifier::IdentStr, vm_status::StatusCode};
 use iota_types::{
     balance::Balance,
     base_types::{IotaAddress, TxContext},
@@ -27,8 +25,10 @@ use iota_types::{
     inner_temporary_store::InnerTemporaryStore,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{Argument, CheckedInputObjects, ObjectArg},
-    TypeTag, STARDUST_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID,
+    TypeTag, IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID,
 };
+use move_binary_format::errors::VMError;
+use move_core_types::{ident_str, identifier::IdentStr, vm_status::StatusCode};
 
 use super::MIGRATION_PROTOCOL_VERSION;
 use crate::stardust::{

@@ -4,11 +4,11 @@
 
 use std::str::FromStr;
 
+use iota_types::{base_types::ObjectType, iota_serde::IotaStructTag, parse_iota_struct_tag};
 use move_core_types::language_storage::StructTag;
 use serde::Serialize;
 use serde_json::Value;
 use serde_with::serde_as;
-use iota_types::{base_types::ObjectType, parse_iota_struct_tag, iota_serde::IotaStructTag};
 
 #[test]
 fn test_struct_tag_serde() {

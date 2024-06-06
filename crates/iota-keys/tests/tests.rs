@@ -11,7 +11,7 @@ use iota_keys::{
 };
 use iota_types::{
     base_types::{IotaAddress, IOTA_ADDRESS_LENGTH},
-    crypto::{DefaultHash, Ed25519IotaSignature, SignatureScheme, IotaSignatureInner},
+    crypto::{DefaultHash, Ed25519IotaSignature, IotaSignatureInner, SignatureScheme},
 };
 use tempfile::TempDir;
 
@@ -215,8 +215,9 @@ fn mnemonic_test() {
 #[test]
 fn iota_wallet_address_mnemonic_test() -> Result<(), anyhow::Error> {
     let phrase = "result crisp session latin must fruit genuine question prevent start coconut brave speak student dismiss";
-    let expected_address =
-        IotaAddress::from_str("0x936accb491f0facaac668baaedcf4d0cfc6da1120b66f77fa6a43af718669973")?;
+    let expected_address = IotaAddress::from_str(
+        "0x936accb491f0facaac668baaedcf4d0cfc6da1120b66f77fa6a43af718669973",
+    )?;
 
     let temp_dir = TempDir::new().unwrap();
     let keystore_path = temp_dir.path().join("iota.keystore");

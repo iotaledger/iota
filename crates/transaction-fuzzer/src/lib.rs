@@ -12,17 +12,17 @@ pub mod type_arg_fuzzer;
 use std::fmt::Debug;
 
 use executor::Executor;
-use proptest::{collection::vec, prelude::*, test_runner::TestRunner};
-use rand::{rngs::StdRng, SeedableRng};
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    base_types::{ObjectID, IotaAddress},
+    base_types::{IotaAddress, ObjectID},
     crypto::{get_key_pair, AccountKeyPair},
     digests::TransactionDigest,
     gas_coin::TOTAL_SUPPLY_MICROS,
     object::{MoveObject, Object, Owner, OBJECT_START_VERSION},
     transaction::GasData,
 };
+use proptest::{collection::vec, prelude::*, test_runner::TestRunner};
+use rand::{rngs::StdRng, SeedableRng};
 
 fn new_gas_coin_with_balance_and_owner(balance: u64, owner: Owner) -> Object {
     Object::new_move(

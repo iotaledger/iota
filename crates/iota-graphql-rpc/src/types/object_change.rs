@@ -6,8 +6,8 @@ use async_graphql::*;
 use iota_types::effects::{IDOperation, ObjectChange as NativeObjectChange};
 
 use super::{
-    object::{Object, ObjectLookupKey},
     iota_address::IotaAddress,
+    object::{Object, ObjectLookupKey},
 };
 
 pub(crate) struct ObjectChange {

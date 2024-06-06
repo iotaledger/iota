@@ -9,8 +9,8 @@ use async_graphql::{
 use iota_types::iota_system_state::iota_system_state_summary::IotaValidatorSummary as NativeIotaValidatorSummary;
 
 use super::{
-    address::Address, base64::Base64, big_int::BigInt, move_object::MoveObject,
-    object::ObjectLookupKey, iota_address::IotaAddress, validator_credentials::ValidatorCredentials,
+    address::Address, base64::Base64, big_int::BigInt, iota_address::IotaAddress,
+    move_object::MoveObject, object::ObjectLookupKey, validator_credentials::ValidatorCredentials,
 };
 use crate::{
     consistency::ConsistentIndexCursor,

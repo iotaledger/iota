@@ -5,9 +5,9 @@
 use std::fmt;
 
 use async_graphql::*;
+use iota_package_resolver::{OpenSignature, OpenSignatureBody, Reference};
 use move_binary_format::file_format::{Ability, AbilitySet, Visibility};
 use serde::{Deserialize, Serialize};
-use iota_package_resolver::{OpenSignature, OpenSignatureBody, Reference};
 
 pub(crate) struct OpenMoveType {
     signature: OpenMoveTypeSignature,
@@ -293,8 +293,8 @@ mod tests {
     use std::str::FromStr;
 
     use expect_test::expect;
-    use move_core_types::language_storage::StructTag;
     use iota_package_resolver::{DatatypeKey, DatatypeRef};
+    use move_core_types::language_storage::StructTag;
     use OpenSignatureBody as S;
 
     use super::*;

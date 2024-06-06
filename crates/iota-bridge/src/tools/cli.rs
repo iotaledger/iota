@@ -15,7 +15,7 @@ use iota_bridge::{
 };
 use iota_config::Config;
 use iota_types::{
-    base_types::{ObjectID, IotaAddress},
+    base_types::{IotaAddress, ObjectID},
     crypto::{get_key_pair, IotaKeyPair},
 };
 

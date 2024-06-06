@@ -4,11 +4,11 @@
 
 use std::path::Path;
 
-use serde::{Deserialize, Serialize};
 use iota_types::{
-    base_types::{ObjectID, IotaAddress},
+    base_types::{IotaAddress, ObjectID},
     transaction::TransactionData,
 };
+use serde::{Deserialize, Serialize};
 use tracing::info;
 use typed_store::{
     rocks::DBMap,

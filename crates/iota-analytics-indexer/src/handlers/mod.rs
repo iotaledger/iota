@@ -5,10 +5,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::{anyhow, Result};
-use move_core_types::{
-    annotated_value::{MoveStruct, MoveTypeLayout, MoveValue},
-    language_storage::{StructTag, TypeTag},
-};
 use iota_indexer::framework::Handler;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_types::{
@@ -16,6 +12,10 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     object::{bounded_visitor::BoundedVisitor, Object, Owner},
     transaction::{TransactionData, TransactionDataAPI},
+};
+use move_core_types::{
+    annotated_value::{MoveStruct, MoveTypeLayout, MoveValue},
+    language_storage::{StructTag, TypeTag},
 };
 
 use crate::{
@@ -279,13 +279,13 @@ fn parse_struct_field(
 mod tests {
     use std::{collections::BTreeMap, str::FromStr};
 
+    use iota_types::base_types::ObjectID;
     use move_core_types::{
         account_address::AccountAddress,
         annotated_value::{MoveStruct, MoveValue},
         identifier::Identifier,
         language_storage::StructTag,
     };
-    use iota_types::base_types::ObjectID;
 
     use crate::handlers::parse_struct;
 

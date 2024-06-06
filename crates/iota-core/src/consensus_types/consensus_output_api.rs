@@ -5,8 +5,8 @@ use std::fmt::Display;
 
 use consensus_core::BlockAPI;
 use fastcrypto::hash::Hash;
-use narwhal_types::{BatchAPI, CertificateAPI, ConsensusOutputDigest, HeaderAPI};
 use iota_types::{digests::ConsensusCommitDigest, messages_consensus::ConsensusTransaction};
+use narwhal_types::{BatchAPI, CertificateAPI, ConsensusOutputDigest, HeaderAPI};
 
 use crate::consensus_types::AuthorityIndex;
 

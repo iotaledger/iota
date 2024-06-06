@@ -58,8 +58,6 @@ mod sim_only_tests {
     use std::{path::PathBuf, sync::Arc};
 
     use fastcrypto::encoding::Base64;
-    use move_binary_format::CompiledModule;
-    use move_core_types::ident_str;
     use iota_core::authority::framework_injection;
     use iota_framework::BuiltInFramework;
     use iota_json_rpc_api::WriteApiClient;
@@ -68,25 +66,27 @@ mod sim_only_tests {
     use iota_move_build::{BuildConfig, CompiledPackage};
     use iota_protocol_config::SupportedProtocolVersions;
     use iota_types::{
-        base_types::{ConciseableName, ObjectID, ObjectRef, SequenceNumber, IotaAddress},
+        base_types::{ConciseableName, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
         digests::TransactionDigest,
         effects::{TransactionEffects, TransactionEffectsAPI},
         id::ID,
-        object::{Object, Owner},
-        programmable_transaction_builder::ProgrammableTransactionBuilder,
         iota_system_state::{
             epoch_start_iota_system_state::EpochStartSystemStateTrait, get_validator_from_table,
             IotaSystemState, IotaSystemStateTrait, IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V2,
             IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V2, IOTA_SYSTEM_STATE_SIM_TEST_V1,
         },
+        object::{Object, Owner},
+        programmable_transaction_builder::ProgrammableTransactionBuilder,
         transaction::{
             CallArg, Command, ObjectArg, ProgrammableMoveCall, ProgrammableTransaction,
             TransactionData, TransactionKind, TEST_ONLY_GAS_UNIT_FOR_GENERIC,
         },
-        MOVE_STDLIB_PACKAGE_ID, IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID,
-        IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID,
-        IOTA_SYSTEM_STATE_OBJECT_ID,
+        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
+        IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
+        MOVE_STDLIB_PACKAGE_ID,
     };
+    use move_binary_format::CompiledModule;
+    use move_core_types::ident_str;
     use test_cluster::TestCluster;
     use tokio::time::{sleep, Duration};
     use tracing::info;
@@ -996,8 +996,8 @@ mod sim_only_tests {
         framework_injection::set_override_cb(IOTA_SYSTEM_PACKAGE_ID, f)
     }
 
-    /// Get compiled modules for Iota System, built from fixture `fixture` in the
-    /// `framework_upgrades` directory.
+    /// Get compiled modules for Iota System, built from fixture `fixture` in
+    /// the `framework_upgrades` directory.
     fn iota_system_modules(fixture: &str) -> Vec<CompiledModule> {
         fixture_package(fixture)
             .get_iota_system_modules()

@@ -10,6 +10,14 @@ use std::{
 };
 
 use async_trait::async_trait;
+use iota_types::{
+    base_types::{is_primitive_type_tag, SequenceNumber},
+    is_system_package,
+    move_package::TypeOrigin,
+    object::Object,
+    transaction::{Argument, CallArg, Command, ProgrammableTransaction},
+    Identifier,
+};
 use lru::LruCache;
 use move_binary_format::{
     access::ModuleAccess,
@@ -25,14 +33,6 @@ use move_core_types::{
     account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     language_storage::{StructTag, TypeTag},
-};
-use iota_types::{
-    base_types::{is_primitive_type_tag, SequenceNumber},
-    is_system_package,
-    move_package::TypeOrigin,
-    object::Object,
-    transaction::{Argument, CallArg, Command, ProgrammableTransaction},
-    Identifier,
 };
 
 use crate::error::Error;
@@ -1402,14 +1402,14 @@ mod tests {
     };
 
     use async_trait::async_trait;
-    use move_binary_format::file_format::Ability;
-    use move_compiler::compiled_unit::NamedCompiledModule;
-    use move_core_types::ident_str;
     use iota_move_build::{BuildConfig, CompiledPackage};
     use iota_types::{
         base_types::random_object_ref,
         transaction::{ObjectArg, ProgrammableMoveCall},
     };
+    use move_binary_format::file_format::Ability;
+    use move_compiler::compiled_unit::NamedCompiledModule;
+    use move_core_types::ident_str;
 
     use super::*;
 

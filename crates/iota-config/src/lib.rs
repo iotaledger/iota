@@ -20,8 +20,8 @@ pub mod object_storage_config;
 pub mod p2p;
 pub mod transaction_deny_config;
 
-pub use node::{ConsensusConfig, NodeConfig};
 use iota_types::multiaddr::Multiaddr;
+pub use node::{ConsensusConfig, NodeConfig};
 
 const IOTA_DIR: &str = ".iota";
 pub const IOTA_CONFIG_DIR: &str = "iota_config";

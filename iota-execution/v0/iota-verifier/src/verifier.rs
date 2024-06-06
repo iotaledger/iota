@@ -4,10 +4,10 @@
 
 //! This module contains the public APIs supported by the bytecode verifier.
 
-use move_binary_format::file_format::CompiledModule;
-use move_bytecode_verifier::meter::{DummyMeter, Meter};
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{error::ExecutionError, move_package::FnInfoMap};
+use move_binary_format::file_format::CompiledModule;
+use move_bytecode_verifier::meter::{DummyMeter, Meter};
 
 use crate::{
     entry_points_verifier, global_storage_access_verifier, id_leak_verifier,

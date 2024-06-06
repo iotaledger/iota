@@ -13,9 +13,9 @@ use consensus_config::{
     ProtocolPublicKey,
 };
 use enum_dispatch::enum_dispatch;
+use iota_protocol_config::ProtocolVersion;
 use narwhal_config::{Committee as NarwhalCommittee, CommitteeBuilder, WorkerCache, WorkerIndex};
 use serde::{Deserialize, Serialize};
-use iota_protocol_config::ProtocolVersion;
 use tracing::{error, warn};
 
 use crate::{
@@ -330,10 +330,10 @@ impl EpochStartValidatorInfoV1 {
 #[cfg(test)]
 mod test {
     use fastcrypto::traits::KeyPair;
+    use iota_protocol_config::ProtocolVersion;
     use mysten_network::Multiaddr;
     use narwhal_crypto::NetworkKeyPair;
     use rand::thread_rng;
-    use iota_protocol_config::ProtocolVersion;
 
     use crate::{
         base_types::IotaAddress,

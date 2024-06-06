@@ -4,8 +4,6 @@
 
 use std::path::PathBuf;
 
-use move_core_types::ident_str;
-use shared_crypto::intent::{Intent, IntentMessage};
 use iota_genesis_builder::validator_info::GenesisValidatorMetadata;
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_sdk::{
@@ -16,14 +14,14 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     crypto::{get_key_pair, AccountKeyPair, Signature, Signer},
     digests::TransactionDigest,
+    iota_system_state::IOTA_SYSTEM_MODULE_NAME,
     multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
     multisig_legacy::{MultiSigLegacy, MultiSigPublicKeyLegacy},
     object::Owner,
     signature::GenericSignature,
-    iota_system_state::IOTA_SYSTEM_MODULE_NAME,
     transaction::{
         CallArg, ObjectArg, ProgrammableTransaction, Transaction, TransactionData,
         DEFAULT_VALIDATOR_GAS_PRICE, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
@@ -31,6 +29,8 @@ use iota_types::{
     },
     TypeTag, IOTA_SYSTEM_PACKAGE_ID,
 };
+use move_core_types::ident_str;
+use shared_crypto::intent::{Intent, IntentMessage};
 
 pub struct TestTransactionBuilder {
     test_data: TestTransactionData,

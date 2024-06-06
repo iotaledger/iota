@@ -3,14 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
-use move_core_types::language_storage::StructTag;
 use iota_json_rpc::transaction_builder_api::TransactionBuilderApi as IotaTransactionBuilderApi;
 use iota_json_rpc_types::{IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse};
 use iota_transaction_builder::DataReader;
 use iota_types::{
-    base_types::{ObjectID, ObjectInfo, IotaAddress},
+    base_types::{IotaAddress, ObjectID, ObjectInfo},
     object::Object,
 };
+use move_core_types::language_storage::StructTag;
 
 use super::governance_api::GovernanceReadApi;
 use crate::indexer_reader::IndexerReader;
