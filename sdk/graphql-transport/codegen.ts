@@ -5,7 +5,7 @@ import type { CodegenConfig } from '@graphql-codegen/cli';
 
 const header = `
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung 
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 /* eslint-disable */
 `.trimStart();

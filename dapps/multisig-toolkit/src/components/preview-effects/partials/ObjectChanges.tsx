@@ -30,7 +30,7 @@ const objectTypes: Record<string, Record<string, string>> = {
     transferred: {},
 };
 
-// Modifications Copyright (c) 2024 IOTA Stiftung 
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 export function ObjectChanges({ objects }: { objects: IotaObjectChange[] }) {
     return (
