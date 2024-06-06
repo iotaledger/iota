@@ -2,9 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// Modifications Copyright (c) 2024 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
-
 import { Text } from '_src/ui/app/shared/text';
 import { useResolveIotaNSName } from '@iota/core';
 import { ArrowUpRight12, Copy12 } from '@iota/icons';

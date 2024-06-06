@@ -2,9 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// Modifications Copyright (c) 2024 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
-
 import { Button } from '_app/shared/ButtonUI';
 import { useAccounts } from '_src/ui/app/hooks/useAccounts';
 import { Navigate, useNavigate } from 'react-router-dom';
