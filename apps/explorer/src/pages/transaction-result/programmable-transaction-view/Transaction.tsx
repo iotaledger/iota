@@ -1,3 +1,6 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
@@ -68,7 +71,9 @@ function MoveCall({ data }: TransactionProps<MoveCallIotaTransaction>) {
 export function Transaction({
     type,
     data,
-}: TransactionProps<(IotaArgument | IotaArgument[])[] | MoveCallIotaTransaction | IotaMovePackage>) {
+}: TransactionProps<
+    (IotaArgument | IotaArgument[])[] | MoveCallIotaTransaction | IotaMovePackage
+>) {
     if (type === 'MoveCall') {
         return (
             <ErrorBoundary>

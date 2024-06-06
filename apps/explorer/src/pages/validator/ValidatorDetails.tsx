@@ -1,3 +1,6 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
@@ -123,8 +126,8 @@ function ValidatorDetails() {
                                 }
                             >
                                 <Text variant="bodySmall/medium">
-                                    Staked IOTA is below the minimum IOTA stake threshold to remain a
-                                    validator.
+                                    Staked IOTA is below the minimum IOTA stake threshold to remain
+                                    a validator.
                                 </Text>
                             </Banner>
                         </div>

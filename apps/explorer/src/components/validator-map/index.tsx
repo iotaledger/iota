@@ -1,3 +1,6 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
@@ -40,8 +43,9 @@ interface Props {
 // NOTE: This component is lazy imported, so it needs to be default exported:
 export default function ValidatorMap({ minHeight }: Props) {
     const [network] = useNetwork();
-    const { data: systemState, isError: systemStateError } =
-        useIotaClientQuery('getLatestIotaSystemState');
+    const { data: systemState, isError: systemStateError } = useIotaClientQuery(
+        'getLatestIotaSystemState',
+    );
 
     const { request } = useAppsBackend();
 

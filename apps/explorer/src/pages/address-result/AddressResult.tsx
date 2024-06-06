@@ -1,3 +1,6 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
@@ -153,7 +156,11 @@ export default function AddressResultPage() {
                 ),
             }}
             content={
-                isIotaNSAddress ? <IotaNSAddressResult name={id!} /> : <AddressResult address={id!} />
+                isIotaNSAddress ? (
+                    <IotaNSAddressResult name={id!} />
+                ) : (
+                    <AddressResult address={id!} />
+                )
             }
         />
     );
