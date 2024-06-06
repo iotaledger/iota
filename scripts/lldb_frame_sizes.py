@@ -1,6 +1,9 @@
 # Copyright (c) Mysten Labs, Inc.
 # SPDX-License-Identifier: Apache-2.0
 
+# Modifications Copyright (c) 2024 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
 import lldb
 
 # = LLDB Frame Sizes =
@@ -11,7 +14,7 @@ import lldb
 #
 # == Usage ==
 #
-#     (lldb) command script import ./sui/scripts/lldb_frame_sizes
+#     (lldb) command script import ./iota/scripts/lldb_frame_sizes
 #     Loaded "frame-sizes" command.
 #     (lldb) ...
 #     

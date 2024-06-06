@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type SuiMoveNormalizedType } from '@mysten/sui.js/client';
+import { type IotaMoveNormalizedType } from '@iota/iota.js/client';
 
 type TypeReference =
     | {
           address: string;
           module: string;
           name: string;
-          typeArguments?: SuiMoveNormalizedType[];
+          typeArguments?: IotaMoveNormalizedType[];
       }
     | string
     | number;
@@ -23,7 +24,7 @@ function splitByCommaExcludingBrackets(input: string) {
     return input.split(regex).map((part) => part.trim());
 }
 
-export function extractSerializationType(type: SuiMoveNormalizedType | ''): TypeReference {
+export function extractSerializationType(type: IotaMoveNormalizedType | ''): TypeReference {
     if (typeof type === 'string') {
         return type;
     }
@@ -51,7 +52,7 @@ export function extractSerializationType(type: SuiMoveNormalizedType | ''): Type
     return type;
 }
 
-function getDisplayName(type: SuiMoveNormalizedType | '', objectType: string) {
+function getDisplayName(type: IotaMoveNormalizedType | '', objectType: string) {
     const normalizedType = extractSerializationType(type);
 
     if (typeof normalizedType === 'string') {
@@ -82,7 +83,7 @@ function getDisplayName(type: SuiMoveNormalizedType | '', objectType: string) {
     let typeParam = '';
 
     // For nested Structs type.typeArguments  append the typeArguments to the name
-    // Balance<XUS> || Balance<LSP<SUI, USDT>>
+    // Balance<XUS> || Balance<LSP<IOTA, USDT>>
     if (normalizedType.typeArguments?.length) {
         typeParam = `<${normalizedType.typeArguments
             .map((typeArg) => getDisplayName(typeArg, objectType))
@@ -92,7 +93,7 @@ function getDisplayName(type: SuiMoveNormalizedType | '', objectType: string) {
     return `${name}${typeParam}`;
 }
 
-export function getFieldTypeValue(type: SuiMoveNormalizedType | '', objectType: string) {
+export function getFieldTypeValue(type: IotaMoveNormalizedType | '', objectType: string) {
     const displayName = getDisplayName(type, objectType);
 
     const normalizedType = extractSerializationType(type);

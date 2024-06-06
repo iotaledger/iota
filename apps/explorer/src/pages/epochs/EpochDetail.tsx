@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFormatCoin } from '@mysten/core';
-import { useSuiClientQuery } from '@mysten/dapp-kit';
-import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
-import { LoadingIndicator } from '@mysten/ui';
+import { useFormatCoin } from '@iota/core';
+import { useIotaClientQuery } from '@iota/dapp-kit';
+import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { LoadingIndicator } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -22,13 +23,13 @@ import { TableCard } from '~/ui/TableCard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
 import { getEpochStorageFundFlow } from '~/utils/getStorageFundFlow';
 
-function SuiStats({
+function IotaStats({
     amount,
     ...props
 }: Omit<StatsProps, 'children'> & {
     amount: bigint | number | string | undefined | null;
 }) {
-    const [formattedAmount, symbol] = useFormatCoin(amount, SUI_TYPE_ARG);
+    const [formattedAmount, symbol] = useFormatCoin(amount, IOTA_TYPE_ARG);
 
     return (
         <Stats postfix={formattedAmount && symbol} {...props}>
@@ -40,7 +41,7 @@ function SuiStats({
 export default function EpochDetail() {
     const { id } = useParams();
     const enhancedRpc = useEnhancedRpcClient();
-    const { data: systemState } = useSuiClientQuery('getLatestSuiSystemState');
+    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
     const { data, isPending, isError } = useQuery({
         queryKey: ['epoch', id],
         queryFn: async () =>
@@ -106,33 +107,33 @@ export default function EpochDetail() {
                         </div>
 
                         <EpochStats label="Rewards">
-                            <SuiStats
+                            <IotaStats
                                 label="Total Stake"
                                 tooltip=""
                                 amount={epochData.endOfEpochInfo?.totalStake}
                             />
-                            <SuiStats
+                            <IotaStats
                                 label="Stake Subsidies"
                                 amount={epochData.endOfEpochInfo?.stakeSubsidyAmount}
                             />
-                            <SuiStats
+                            <IotaStats
                                 label="Stake Rewards"
                                 amount={epochData.endOfEpochInfo?.totalStakeRewardsDistributed}
                             />
-                            <SuiStats
+                            <IotaStats
                                 label="Gas Fees"
                                 amount={epochData.endOfEpochInfo?.totalGasFees}
                             />
                         </EpochStats>
 
                         <EpochStats label="Storage Fund Balance">
-                            <SuiStats
+                            <IotaStats
                                 label="Fund Size"
                                 amount={epochData.endOfEpochInfo?.storageFundBalance}
                             />
-                            <SuiStats label="Net Inflow" amount={netInflow} />
-                            <SuiStats label="Fund Inflow" amount={fundInflow} />
-                            <SuiStats label="Fund Outflow" amount={fundOutflow} />
+                            <IotaStats label="Net Inflow" amount={netInflow} />
+                            <IotaStats label="Fund Inflow" amount={fundInflow} />
+                            <IotaStats label="Fund Outflow" amount={fundOutflow} />
                         </EpochStats>
 
                         {isCurrentEpoch ? <ValidatorStatus /> : null}

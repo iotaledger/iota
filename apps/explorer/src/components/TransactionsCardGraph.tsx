@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { formatAmount, formatDate } from '@mysten/core';
-import { useSuiClientQuery } from '@mysten/dapp-kit';
-import { Heading, Text, LoadingIndicator } from '@mysten/ui';
+import { formatAmount, formatDate } from '@iota/core';
+import { useIotaClientQuery } from '@iota/dapp-kit';
+import { Heading, Text, LoadingIndicator } from '@iota/ui';
 import { ParentSize } from '@visx/responsive';
 import clsx from 'clsx';
 
@@ -39,7 +40,7 @@ function TooltipContent({
 }
 
 function useEpochTransactions() {
-    return useSuiClientQuery(
+    return useIotaClientQuery(
         'getEpochMetrics',
         {
             descendingOrder: true,
@@ -60,7 +61,7 @@ function useEpochTransactions() {
 }
 
 export function TransactionsCardGraph() {
-    const { data: totalTransactions } = useSuiClientQuery(
+    const { data: totalTransactions } = useIotaClientQuery(
         'getTotalTransactionBlocks',
         {},
         {

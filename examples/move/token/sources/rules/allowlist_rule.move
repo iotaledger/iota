@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// A simple allowlist rule - allows only the addresses on the allowlist to
@@ -6,9 +7,9 @@
 module examples::allowlist_rule {
     use std::option;
     use std::vector;
-    use sui::bag::{Self, Bag};
-    use sui::tx_context::TxContext;
-    use sui::token::{
+    use iota::bag::{Self, Bag};
+    use iota::tx_context::TxContext;
+    use iota::token::{
         Self,
         TokenPolicy,
         TokenPolicyCap,

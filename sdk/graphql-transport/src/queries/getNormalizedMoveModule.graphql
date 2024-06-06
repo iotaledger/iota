@@ -1,7 +1,10 @@
 # Copyright (c) Mysten Labs, Inc.
 # SPDX-License-Identifier: Apache-2.0
 
-query getNormalizedMoveModule($packageId: SuiAddress!, $module: String!) {
+# Modifications Copyright (c) 2024 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
+query getNormalizedMoveModule($packageId: IotaAddress!, $module: String!) {
     object(address: $packageId) {
         asMovePackage {
             module(name: $module) {
@@ -12,7 +15,7 @@ query getNormalizedMoveModule($packageId: SuiAddress!, $module: String!) {
 }
 
 query paginateMoveModuleLists(
-    $packageId: SuiAddress!
+    $packageId: IotaAddress!
     $module: String!
     $hasMoreFriends: Boolean!
     $hasMoreStructs: Boolean!

@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { Search16 } from '@mysten/icons';
-import { Text, Combobox, ComboboxInput, ComboboxList } from '@mysten/ui';
+import { Search16 } from '@iota/icons';
+import { Text, Combobox, ComboboxInput, ComboboxList } from '@iota/ui';
 
 export type SearchResult = {
     id: string;

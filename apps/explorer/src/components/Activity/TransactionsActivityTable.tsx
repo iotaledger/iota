@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSuiClient } from '@mysten/dapp-kit';
-import { ArrowRight12 } from '@mysten/icons';
-import { Text } from '@mysten/ui';
+import { useIotaClient } from '@iota/dapp-kit';
+import { ArrowRight12 } from '@iota/icons';
+import { Text } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 
@@ -31,7 +32,7 @@ export function TransactionsActivityTable({
     transactionKindFilter,
 }: Props) {
     const [limit, setLimit] = useState(initialLimit);
-    const client = useSuiClient();
+    const client = useIotaClient();
     const { data: count } = useQuery({
         queryKey: ['transactions', 'count'],
         queryFn: () => client.getTotalTransactionBlocks(),
