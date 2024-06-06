@@ -4,7 +4,11 @@
 
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { IotaClient, IotaObjectChangeCreated, IotaTransactionBlockResponse } from '../../src/client';
+import {
+    IotaClient,
+    IotaObjectChangeCreated,
+    IotaTransactionBlockResponse,
+} from '../../src/client';
 import type { Keypair } from '../../src/cryptography';
 import { normalizeIotaObjectId, IOTA_SYSTEM_STATE_OBJECT_ID } from '../../src/utils';
 import {
