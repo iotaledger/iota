@@ -4,8 +4,10 @@
 
 //! Contains the logic for the migration process.
 
-use std::{collections::HashMap, io::prelude::Write};
-use tracing::info;
+use std::{
+    collections::HashMap,
+    io::{prelude::Write, BufWriter},
+};
 
 use anyhow::Result;
 use fastcrypto::hash::HashFunction;
@@ -21,6 +23,7 @@ use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
     TIMELOCK_PACKAGE_ID,
 };
+use tracing::info;
 
 use crate::stardust::{
     migration::{
@@ -241,7 +244,7 @@ fn generate_package(foundry: &FoundryOutput) -> Result<CompiledPackage> {
 /// Serialize the objects stored in [`InMemoryStorage`] into a file using
 /// [`bcs`] encoding.
 fn create_snapshot(ledger: &[Object], writer: impl Write) -> Result<()> {
-    let mut writer = brotli::CompressorWriter::new(writer, 4096, 11, 22);
+    let mut writer = BufWriter::new(writer);
     writer.write_all(&bcs::to_bytes(&ledger)?)?;
     Ok(writer.flush()?)
 }

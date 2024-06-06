@@ -3,10 +3,16 @@
 
 //! Creating a stardust objects snapshot out of a Hornet snapshot.
 use std::fs::File;
-use tracing::{info, Level};
+
+use iota_genesis_builder::stardust::{migration::Migration, parse::FullSnapshotParser};
+use itertools::Itertools;
+use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
-use sui_genesis_builder::stardust::{migration::Migration, parse::FullSnapshotParser};
+const OBJECT_SNAPSHOT_FILE_PATH: &str = "stardust_object_snapshot.bin";
+const BROTLI_COMPRESSOR_BUFFER_SIZE: usize = 4096;
+const BROTLI_COMPRESSOR_QUALITY: u32 = 11;
+const BROTLI_COMPRESSOR_LG_WINDOW_SIZE: u32 = 22;
 
 fn main() -> anyhow::Result<()> {
     // Initialize tracing
@@ -20,16 +26,22 @@ fn main() -> anyhow::Result<()> {
         anyhow::bail!("please provide path to the Hornet full-snapshot file");
     };
     let file = File::open(path)?;
-    let object_snapshot = File::create("stardust_object_snapshot.bin")?;
 
     // Start the Hornet snapshot parser
     let parser = FullSnapshotParser::new(file)?;
 
-    // Run the migration using the parser output stream
-    Migration::new(parser.header.target_milestone_timestamp())?.run(
-        parser.outputs().collect::<Result<Vec<_>, _>>()?.into_iter(),
-        object_snapshot,
-    )?;
-    info!("Snapshot file written.");
+    // Prepare the migration using the parser output stream
+    let migration = Migration::new(parser.header.target_milestone_timestamp())?;
+    // Prepare the compressor writer for the objects snapshot
+    let object_snapshot_writer = brotli::CompressorWriter::new(
+        File::create(OBJECT_SNAPSHOT_FILE_PATH)?,
+        BROTLI_COMPRESSOR_BUFFER_SIZE,
+        BROTLI_COMPRESSOR_QUALITY,
+        BROTLI_COMPRESSOR_LG_WINDOW_SIZE,
+    );
+    // Run the migration and write the objects snapshot
+    parser
+        .outputs()
+        .process_results(|outputs| migration.run(outputs, object_snapshot_writer))??;
     Ok(())
 }
