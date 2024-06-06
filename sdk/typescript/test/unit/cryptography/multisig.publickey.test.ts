@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB64 } from '@mysten/bcs';
+import { fromB64 } from '@iota/bcs';
 import { blake2b } from '@noble/hashes/blake2b';
 import { bytesToHex } from '@noble/hashes/utils';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -20,7 +21,7 @@ import {
     MultiSigStruct,
     parsePartialSignatures,
 } from '../../../src/multisig/publickey';
-import { normalizeSuiAddress } from '../../../src/utils/sui-types.js';
+import { normalizeIotaAddress } from '../../../src/utils/iota-types.js';
 
 describe('Publickey', () => {
     let k1: Ed25519Keypair,
@@ -241,7 +242,7 @@ describe('Publickey', () => {
         ]);
     });
 
-    it('`toSuiAddress()` should return correct sui address associated with multisig publickey', async () => {
+    it('`toIotaAddress()` should return correct iota address associated with multisig publickey', async () => {
         const multiSigPublicKey = MultiSigPublicKey.fromPublicKeys({
             threshold: 3,
             publicKeys: [
@@ -257,17 +258,17 @@ describe('Publickey', () => {
         tmp.set(bcs.ser('u16', 3).toBytes(), 1);
         let i = 3;
         for (const { publicKey, weight } of multiSigPublicKey.getPublicKeys()) {
-            const bytes = publicKey.toSuiBytesForAddress();
+            const bytes = publicKey.toIotaBytesForAddress();
             tmp.set(bytes, i);
             i += bytes.length;
             tmp.set([weight], i++);
         }
-        const multisigSuiAddress = normalizeSuiAddress(
+        const multisigIotaAddress = normalizeIotaAddress(
             bytesToHex(blake2b(tmp.slice(0, i), { dkLen: 32 })),
         );
 
-        expect(multiSigPublicKey.toSuiAddress()).toEqual(multisigSuiAddress);
-        expect(multiSigPublicKey.toSuiAddress()).toEqual(
+        expect(multiSigPublicKey.toIotaAddress()).toEqual(multisigIotaAddress);
+        expect(multiSigPublicKey.toIotaAddress()).toEqual(
             '0xc365dd9d3ecbffe4f1b932b9ea7e98a6a37d2d07a1bae758fdbe502245a145c0',
         );
     });

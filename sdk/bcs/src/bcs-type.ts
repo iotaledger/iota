@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { toB58 } from './b58.js';
@@ -86,7 +87,7 @@ export class BcsType<T, Input = T> {
     }
 }
 
-const SERIALIZED_BCS_BRAND = Symbol.for('@mysten/serialized-bcs');
+const SERIALIZED_BCS_BRAND = Symbol.for('@iota/serialized-bcs');
 export function isSerializedBcs(obj: unknown): obj is SerializedBcs<unknown> {
     return !!obj && typeof obj === 'object' && (obj as any)[SERIALIZED_BCS_BRAND] === true;
 }
@@ -96,7 +97,7 @@ export class SerializedBcs<T, Input = T> {
     #bytes: Uint8Array;
 
     // Used to brand SerializedBcs so that they can be identified, even between multiple copies
-    // of the @mysten/bcs package are installed
+    // of the @iota/bcs package are installed
     get [SERIALIZED_BCS_BRAND]() {
         return true;
     }

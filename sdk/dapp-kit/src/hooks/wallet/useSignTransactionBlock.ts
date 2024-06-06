@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import type {
-    SuiSignTransactionBlockInput,
-    SuiSignTransactionBlockOutput,
-} from '@mysten/wallet-standard';
+    IotaSignTransactionBlockInput,
+    IotaSignTransactionBlockOutput,
+} from '@iota/wallet-standard';
 import type { UseMutationOptions, UseMutationResult } from '@tanstack/react-query';
 import { useMutation } from '@tanstack/react-query';
 
@@ -18,9 +19,9 @@ import type { PartialBy } from '../../types/utilityTypes.js';
 import { useCurrentAccount } from './useCurrentAccount.js';
 import { useCurrentWallet } from './useCurrentWallet.js';
 
-type UseSignTransactionBlockArgs = PartialBy<SuiSignTransactionBlockInput, 'account' | 'chain'>;
+type UseSignTransactionBlockArgs = PartialBy<IotaSignTransactionBlockInput, 'account' | 'chain'>;
 
-type UseSignTransactionBlockResult = SuiSignTransactionBlockOutput;
+type UseSignTransactionBlockResult = IotaSignTransactionBlockOutput;
 
 type UseSignTransactionBlockError =
     | WalletFeatureNotSupportedError
@@ -66,7 +67,7 @@ export function useSignTransactionBlock({
                 );
             }
 
-            const walletFeature = currentWallet.features['sui:signTransactionBlock'];
+            const walletFeature = currentWallet.features['iota:signTransactionBlock'];
             if (!walletFeature) {
                 throw new WalletFeatureNotSupportedError(
                     "This wallet doesn't support the `SignTransactionBlock` feature.",

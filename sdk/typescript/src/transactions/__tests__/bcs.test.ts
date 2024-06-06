@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { toB58 } from '@mysten/bcs';
+import { toB58 } from '@iota/bcs';
 import { expect, it } from 'vitest';
 
 import { bcs } from '../../bcs/index.js';
-import { normalizeSuiAddress } from '../../utils/sui-types.js';
+import { normalizeIotaAddress } from '../../utils/iota-types.js';
 import type { MoveCallTransaction, TransferObjectsTransaction } from '../index.js';
 import { PROGRAMMABLE_CALL, TRANSACTION } from '../index.js';
 
@@ -63,21 +64,21 @@ it('can serialize Option<T> types using the legacy registry API', () => {
 
 function ref(): { objectId: string; version: string; digest: string } {
     return {
-        objectId: normalizeSuiAddress((Math.random() * 100000).toFixed(0).padEnd(64, '0')),
+        objectId: normalizeIotaAddress((Math.random() * 100000).toFixed(0).padEnd(64, '0')),
         version: String((Math.random() * 10000).toFixed(0)),
         digest: toB58(new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9])),
     };
 }
 
 it('can serialize transaction data with a programmable transaction', () => {
-    const sui = normalizeSuiAddress('0x2');
+    const iota = normalizeIotaAddress('0x2');
     const txData = {
         V1: {
-            sender: normalizeSuiAddress('0xBAD'),
+            sender: normalizeIotaAddress('0xBAD'),
             expiration: { None: true },
             gasData: {
                 payment: [ref()],
-                owner: sui,
+                owner: iota,
                 price: '1',
                 budget: '1000000',
             },
@@ -114,8 +115,8 @@ it('can serialize transaction data with a programmable transaction', () => {
                     transactions: [
                         {
                             kind: 'MoveCall',
-                            target: `${sui}::display::new`,
-                            typeArguments: [`${sui}::capy::Capy`],
+                            target: `${iota}::display::new`,
+                            typeArguments: [`${iota}::capy::Capy`],
                             arguments: [
                                 // publisher object
                                 { kind: 'Input', index: 0 },
@@ -123,8 +124,8 @@ it('can serialize transaction data with a programmable transaction', () => {
                         },
                         {
                             kind: 'MoveCall',
-                            target: `${sui}::display::add_multiple`,
-                            typeArguments: [`${sui}::capy::Capy`],
+                            target: `${iota}::display::add_multiple`,
+                            typeArguments: [`${iota}::capy::Capy`],
                             arguments: [
                                 // result of the first transaction
                                 { kind: 'Result', index: 0 },
@@ -136,8 +137,8 @@ it('can serialize transaction data with a programmable transaction', () => {
                         },
                         {
                             kind: 'MoveCall',
-                            target: `${sui}::display::update_version`,
-                            typeArguments: [`${sui}::capy::Capy`],
+                            target: `${iota}::display::update_version`,
+                            typeArguments: [`${iota}::capy::Capy`],
                             arguments: [
                                 // result of the first transaction again
                                 { kind: 'Result', index: 0 },

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// The `lock` module offers an API for wrapping any object that has
@@ -7,10 +8,10 @@
 /// This is used to commit to swapping a particular object in a
 /// particular, fixed state during escrow.
 module escrow::lock {
-    use sui::object::{Self, ID, UID};
-    use sui::tx_context::{TxContext, sender};
-    use sui::event;
-    use sui::dynamic_object_field::{Self as dof};
+    use iota::object::{Self, ID, UID};
+    use iota::tx_context::{TxContext, sender};
+    use iota::event;
+    use iota::dynamic_object_field::{Self as dof};
 
     /// The `name` of the DOF that holds the Locked object.
     /// Allows better discoverability for the locked object.
@@ -95,13 +96,13 @@ module escrow::lock {
     }
 
     // === Tests ===
-    #[test_only] use sui::coin::{Self, Coin};
-    #[test_only] use sui::sui::SUI;
-    #[test_only] use sui::test_scenario::{Self as ts, Scenario};
+    #[test_only] use iota::coin::{Self, Coin};
+    #[test_only] use iota::iota::IOTA;
+    #[test_only] use iota::test_scenario::{Self as ts, Scenario};
 
     #[test_only]
-    fun test_coin(ts: &mut Scenario): Coin<SUI> {
-        coin::mint_for_testing<SUI>(42, ts::ctx(ts))
+    fun test_coin(ts: &mut Scenario): Coin<IOTA> {
+        coin::mint_for_testing<IOTA>(42, ts::ctx(ts))
     }
 
     #[test]

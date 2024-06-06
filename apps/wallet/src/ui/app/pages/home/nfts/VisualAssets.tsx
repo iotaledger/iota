@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { ErrorBoundary } from '_components/error-boundary';
@@ -6,13 +7,13 @@ import { ampli } from '_src/shared/analytics/ampli';
 import { useBuyNLargeAsset } from '_src/ui/app/components/buynlarge/useBuyNLargeAsset';
 import { NFTDisplayCard } from '_src/ui/app/components/nft-display';
 import { Button } from '_src/ui/app/shared/ButtonUI';
-import { EyeClose16 } from '@mysten/icons';
-import { type SuiObjectData } from '@mysten/sui.js/client';
+import { EyeClose16 } from '@iota/icons';
+import { type IotaObjectData } from '@iota/iota.js/client';
 import { Link } from 'react-router-dom';
 
 import { useHiddenAssets } from '../hidden-assets/HiddenAssetsProvider';
 
-export default function VisualAssets({ items }: { items: SuiObjectData[] }) {
+export default function VisualAssets({ items }: { items: IotaObjectData[] }) {
     const { hideAsset } = useHiddenAssets();
     const { objectType } = useBuyNLargeAsset();
 

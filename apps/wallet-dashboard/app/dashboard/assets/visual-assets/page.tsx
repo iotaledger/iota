@@ -1,14 +1,15 @@
 // Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 'use client';
 
 import React from 'react';
-import { SuiObjectData } from '@mysten/sui.js/client';
+import { IotaObjectData } from '@iota/iota.js/client';
 import { AssetCard, VirtualList } from '@/components/index';
 
 function VisualAssetsPage(): JSX.Element {
-    const virtualItem = (asset: SuiObjectData): JSX.Element => (
+    const virtualItem = (asset: IotaObjectData): JSX.Element => (
         <AssetCard key={asset.objectId} asset={asset} />
     );
 
@@ -26,7 +27,7 @@ function VisualAssetsPage(): JSX.Element {
     );
 }
 
-const HARCODED_VISUAL_ASSETS: SuiObjectData[] = [
+const HARCODED_VISUAL_ASSETS: IotaObjectData[] = [
     {
         digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51xy',
         objectId: '0x9303adf2c711dcc239rbd78c0d0666666df06e2b3a35837',

@@ -1,6 +1,4 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
@@ -125,7 +123,7 @@ export function RecoverManyPage() {
                     }
                     setRecoverInfo(null);
                 }}
-                background="bg-sui-lightest"
+                background="bg-iota-lightest"
             >
                 <div className="flex h-full w-full flex-col flex-nowrap gap-4 text-center">
                     {recoverInfo?.type === 'mnemonic' ? (

@@ -1,18 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSuiClientQuery } from '@mysten/dapp-kit';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useContext } from 'react';
 
 import { NetworkContext } from '../../context';
 import { NetworkSelect, type NetworkOption } from '~/ui/header/NetworkSelect';
 import { ampli } from '~/utils/analytics/ampli';
-import { getAllNetworks } from '@mysten/sui.js/client';
+import { getAllNetworks } from '@iota/iota.js/client';
 
 export default function WrappedNetworkSelect() {
     const [network, setNetwork] = useContext(NetworkContext);
-    const { data } = useSuiClientQuery('getLatestSuiSystemState');
-    const { data: binaryVersion } = useSuiClientQuery('getRpcApiVersion');
+    const { data } = useIotaClientQuery('getLatestIotaSystemState');
+    const { data: binaryVersion } = useIotaClientQuery('getRpcApiVersion');
 
     const networks = Object.values(getAllNetworks()).map((network) => ({
         id: network.id,

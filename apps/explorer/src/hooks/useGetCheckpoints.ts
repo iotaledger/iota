@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSuiClient } from '@mysten/dapp-kit';
-import { type CheckpointPage } from '@mysten/sui.js/client';
+import { useIotaClient } from '@iota/dapp-kit';
+import { type CheckpointPage } from '@iota/iota.js/client';
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 
 export const DEFAULT_CHECKPOINTS_LIMIT = 20;
 
 // Fetch transaction blocks
 export function useGetCheckpoints(cursor?: string, limit = DEFAULT_CHECKPOINTS_LIMIT) {
-    const client = useSuiClient();
+    const client = useIotaClient();
 
     return useInfiniteQuery<CheckpointPage>({
         queryKey: ['get-checkpoints', limit, cursor],

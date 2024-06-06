@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -442,7 +443,7 @@ mod tests {
         assert_eq!(metric_1.get_help(), "counter_1_desc");
 
         // AND add a second registry with a metric
-        let registry_2 = Registry::new_custom(Some("sui".to_string()), None).unwrap();
+        let registry_2 = Registry::new_custom(Some("iota".to_string()), None).unwrap();
         registry_2
             .register(Box::new(
                 IntCounter::new("counter_2", "counter_2_desc").unwrap(),
@@ -465,7 +466,7 @@ mod tests {
         assert_eq!(metric_1.get_help(), "counter_1_desc");
 
         let metric_2 = metrics.remove(0);
-        assert_eq!(metric_2.get_name(), "sui_counter_2");
+        assert_eq!(metric_2.get_name(), "iota_counter_2");
         assert_eq!(metric_2.get_help(), "counter_2_desc");
 
         // AND remove first registry
@@ -482,7 +483,7 @@ mod tests {
         assert_eq!(metric_default.get_help(), "counter_desc");
 
         let metric_1 = metrics.remove(0);
-        assert_eq!(metric_1.get_name(), "sui_counter_2");
+        assert_eq!(metric_1.get_name(), "iota_counter_2");
         assert_eq!(metric_1.get_help(), "counter_2_desc");
     }
 }

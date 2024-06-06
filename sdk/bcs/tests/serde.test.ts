@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from 'vitest';
 
-import { SUI_ADDRESS_LENGTH } from '../../typescript/src/utils';
-import { BCS, getSuiMoveConfig } from './../src/index';
+import { IOTA_ADDRESS_LENGTH } from '../../typescript/src/utils';
+import { BCS, getIotaMoveConfig } from './../src/index';
 
 describe('BCS: Serde', () => {
     it('should serialize primitives in both directions', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
 
         expect(serde(bcs, 'u8', '0').toString(10)).toEqual('0');
         expect(serde(bcs, 'u8', '200').toString(10)).toEqual('200');
@@ -45,9 +46,9 @@ describe('BCS: Serde', () => {
     });
 
     it('should serde structs', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
 
-        bcs.registerAddressType('address', SUI_ADDRESS_LENGTH, 'hex');
+        bcs.registerAddressType('address', IOTA_ADDRESS_LENGTH, 'hex');
         bcs.registerStructType('Beep', { id: 'address', value: 'u64' });
 
         const bytes = bcs
@@ -65,8 +66,8 @@ describe('BCS: Serde', () => {
     });
 
     it('should serde enums', () => {
-        const bcs = new BCS(getSuiMoveConfig());
-        bcs.registerAddressType('address', SUI_ADDRESS_LENGTH, 'hex');
+        const bcs = new BCS(getIotaMoveConfig());
+        bcs.registerAddressType('address', IOTA_ADDRESS_LENGTH, 'hex');
         bcs.registerEnumType('Enum', {
             with_value: 'address',
             no_value: null,
@@ -83,7 +84,7 @@ describe('BCS: Serde', () => {
     });
 
     it('should serde vectors natively', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
 
         {
             const value = ['0', '255', '100'];
@@ -129,7 +130,7 @@ describe('BCS: Serde', () => {
     });
 
     it('should structs and nested enums', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
 
         bcs.registerStructType('User', { age: 'u64', name: 'string' });
         bcs.registerStructType('Coin<T>', { balance: 'Balance<T>' });
@@ -163,9 +164,9 @@ describe('BCS: Serde', () => {
         }
     });
 
-    it('should serde SuiObjectRef', () => {
-        const bcs = new BCS(getSuiMoveConfig());
-        bcs.registerStructType('SuiObjectRef', {
+    it('should serde IotaObjectRef', () => {
+        const bcs = new BCS(getIotaMoveConfig());
+        bcs.registerStructType('IotaObjectRef', {
             objectId: 'address',
             version: 'u64',
             digest: 'ObjectDigest',
@@ -181,7 +182,7 @@ describe('BCS: Serde', () => {
             digest: 'hahahahahaha',
         };
 
-        expect(serde(bcs, 'SuiObjectRef', value)).toEqual(value);
+        expect(serde(bcs, 'IotaObjectRef', value)).toEqual(value);
     });
 });
 

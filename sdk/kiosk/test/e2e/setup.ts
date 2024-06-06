@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { execSync } from 'child_process';
 import type {
     DevInspectResults,
-    SuiObjectChangePublished,
-    SuiTransactionBlockResponse,
-} from '@mysten/sui.js/client';
-import { getFullnodeUrl, SuiClient } from '@mysten/sui.js/client';
-import { FaucetRateLimitError, getFaucetHost, requestSuiFromFaucetV0 } from '@mysten/sui.js/faucet';
-import { Ed25519Keypair } from '@mysten/sui.js/keypairs/ed25519';
-import { TransactionBlock } from '@mysten/sui.js/transactions';
+    IotaObjectChangePublished,
+    IotaTransactionBlockResponse,
+} from '@iota/iota.js/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+import { FaucetRateLimitError, getFaucetHost, requestIotaFromFaucetV0 } from '@iota/iota.js/faucet';
+import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
+import { TransactionBlock } from '@iota/iota.js/transactions';
 import tmp from 'tmp';
 import { retry } from 'ts-retry-promise';
 import { expect } from 'vitest';
@@ -23,38 +24,38 @@ const DEFAULT_FAUCET_URL = import.meta.env.VITE_FAUCET_URL ?? getFaucetHost('loc
 //@ts-expect-error env not found on meta
 const DEFAULT_FULLNODE_URL = import.meta.env.VITE_FULLNODE_URL ?? getFullnodeUrl('localnet');
 //@ts-expect-error env not found on meta
-const SUI_BIN = import.meta.env.VITE_SUI_BIN ?? 'cargo run --bin sui';
+const IOTA_BIN = import.meta.env.VITE_IOTA_BIN ?? 'cargo run --bin iota';
 
 export class TestToolbox {
     keypair: Ed25519Keypair;
-    client: SuiClient;
+    client: IotaClient;
 
-    constructor(keypair: Ed25519Keypair, client: SuiClient) {
+    constructor(keypair: Ed25519Keypair, client: IotaClient) {
         this.keypair = keypair;
         this.client = client;
     }
 
     address() {
-        return this.keypair.getPublicKey().toSuiAddress();
+        return this.keypair.getPublicKey().toIotaAddress();
     }
 
     public async getActiveValidators() {
-        return (await this.client.getLatestSuiSystemState()).activeValidators;
+        return (await this.client.getLatestIotaSystemState()).activeValidators;
     }
 }
 
-export function getClient(): SuiClient {
-    return new SuiClient({
+export function getClient(): IotaClient {
+    return new IotaClient({
         url: DEFAULT_FULLNODE_URL,
     });
 }
 
-// TODO: expose these testing utils from @mysten/sui.js
-export async function setupSuiClient() {
+// TODO: expose these testing utils from @iota/iota.js
+export async function setupIotaClient() {
     const keypair = Ed25519Keypair.generate();
-    const address = keypair.getPublicKey().toSuiAddress();
+    const address = keypair.getPublicKey().toIotaAddress();
     const client = getClient();
-    await retry(() => requestSuiFromFaucetV0({ host: DEFAULT_FAUCET_URL, recipient: address }), {
+    await retry(() => requestIotaFromFaucetV0({ host: DEFAULT_FAUCET_URL, recipient: address }), {
         backoff: 'EXPONENTIAL',
         // overall timeout in 60 seconds
         timeout: 1000 * 60,
@@ -65,11 +66,11 @@ export async function setupSuiClient() {
     return new TestToolbox(keypair, client);
 }
 
-// TODO: expose these testing utils from @mysten/sui.js
+// TODO: expose these testing utils from @iota/iota.js
 export async function publishPackage(packagePath: string, toolbox?: TestToolbox) {
     // TODO: We create a unique publish address per publish, but we really could share one for all publishes.
     if (!toolbox) {
-        toolbox = await setupSuiClient();
+        toolbox = await setupIotaClient();
     }
 
     // remove all controlled temporary objects on process exit
@@ -79,7 +80,7 @@ export async function publishPackage(packagePath: string, toolbox?: TestToolbox)
 
     const { modules, dependencies } = JSON.parse(
         execSync(
-            `${SUI_BIN} move build --dump-bytecode-as-base64 --path ${packagePath} --install-dir ${tmpobj.name}`,
+            `${IOTA_BIN} move build --dump-bytecode-as-base64 --path ${packagePath} --install-dir ${tmpobj.name}`,
             { encoding: 'utf-8' },
         ),
     );
@@ -104,7 +105,7 @@ export async function publishPackage(packagePath: string, toolbox?: TestToolbox)
 
     const packageId = ((publishTxn.objectChanges?.filter(
         (a) => a.type === 'published',
-    ) as SuiObjectChangePublished[]) ?? [])[0].packageId.replace(/^(0x)(0+)/, '0x') as string;
+    ) as IotaObjectChangePublished[]) ?? [])[0].packageId.replace(/^(0x)(0+)/, '0x') as string;
 
     expect(packageId).toBeTypeOf('string');
 
@@ -172,7 +173,7 @@ export async function createPersonalKiosk(toolbox: TestToolbox, kioskClient: Kio
     await executeTransactionBlock(toolbox, txb);
 }
 
-function getCreatedObjectIdByType(res: SuiTransactionBlockResponse, type: string): string {
+function getCreatedObjectIdByType(res: IotaTransactionBlockResponse, type: string): string {
     return res.objectChanges?.filter(
         (x) => x.type === 'created' && x.objectType.endsWith(type),
         //@ts-expect-error Silence the error here
@@ -196,7 +197,7 @@ export async function getPublisherObject(toolbox: TestToolbox): Promise<string> 
 export async function executeTransactionBlock(
     toolbox: TestToolbox,
     txb: TransactionBlock,
-): Promise<SuiTransactionBlockResponse> {
+): Promise<IotaTransactionBlockResponse> {
     const resp = await toolbox.client.signAndExecuteTransactionBlock({
         signer: toolbox.keypair,
         transactionBlock: txb,
