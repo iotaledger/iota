@@ -4,12 +4,12 @@
 
 use std::path::{Path, PathBuf};
 
+use iota_move_build::{BuildConfig, IotaPackageHooks};
 use move_binary_format::{
     compatibility::{Compatibility, InclusionCheck},
     file_format::AbilitySet,
     normalized, CompiledModule,
 };
-use iota_move_build::{BuildConfig, IotaPackageHooks};
 
 pub const TEST_DIR: &str = "tests";
 

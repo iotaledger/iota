@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::connection::CursorType;
-use serde::{Deserialize, Serialize};
 use iota_indexer::models::objects::StoredHistoryObject;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     data::Conn,

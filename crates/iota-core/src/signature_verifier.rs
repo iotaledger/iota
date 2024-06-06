@@ -11,12 +11,6 @@ use fastcrypto_zkp::bn254::{
 };
 use futures::pin_mut;
 use im::hashmap::HashMap as ImHashMap;
-use itertools::izip;
-use lru::LruCache;
-use mysten_metrics::monitored_scope;
-use parking_lot::{Mutex, MutexGuard, RwLock};
-use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
-use shared_crypto::intent::Intent;
 use iota_types::{
     committee::Committee,
     crypto::{AuthoritySignInfoTrait, VerificationObligation},
@@ -27,6 +21,12 @@ use iota_types::{
     signature::VerifyParams,
     transaction::{CertifiedTransaction, SenderSignedData, VerifiedCertificate},
 };
+use itertools::izip;
+use lru::LruCache;
+use mysten_metrics::monitored_scope;
+use parking_lot::{Mutex, MutexGuard, RwLock};
+use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
+use shared_crypto::intent::Intent;
 use tap::TapFallible;
 use tokio::{
     runtime::Handle,

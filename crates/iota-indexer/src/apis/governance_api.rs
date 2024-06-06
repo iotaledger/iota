@@ -6,22 +6,22 @@ use std::collections::BTreeMap;
 
 use async_trait::async_trait;
 use cached::{proc_macro::cached, SizedCache};
-use jsonrpsee::{core::RpcResult, RpcModule};
 use iota_json_rpc::{governance_api::ValidatorExchangeRates, IotaRpcModule};
 use iota_json_rpc_api::GovernanceReadApiServer;
 use iota_json_rpc_types::{
-    DelegatedStake, DelegatedTimelockedStake, EpochInfo, StakeStatus, IotaCommittee,
-    IotaObjectDataFilter, ValidatorApys,
+    DelegatedStake, DelegatedTimelockedStake, EpochInfo, IotaCommittee, IotaObjectDataFilter,
+    StakeStatus, ValidatorApys,
 };
 use iota_open_rpc::Module;
 use iota_types::{
-    base_types::{MoveObjectType, ObjectID, IotaAddress},
+    base_types::{IotaAddress, MoveObjectType, ObjectID},
     committee::EpochId,
     governance::StakedIota,
     iota_serde::BigInt,
     iota_system_state::{iota_system_state_summary::IotaSystemStateSummary, PoolTokenExchangeRate},
     timelock::timelocked_staked_iota::TimelockedStakedIota,
 };
+use jsonrpsee::{core::RpcResult, RpcModule};
 
 use crate::{errors::IndexerError, indexer_reader::IndexerReader};
 
@@ -367,9 +367,11 @@ async fn exchange_rates(
         {
             let dynamic_field = df
                 .to_dynamic_field::<EpochId, PoolTokenExchangeRate>()
-                .ok_or_else(|| iota_types::error::IotaError::ObjectDeserializationError {
-                    error: "dynamic field malformed".to_owned(),
-                })?;
+                .ok_or_else(
+                    || iota_types::error::IotaError::ObjectDeserializationError {
+                        error: "dynamic field malformed".to_owned(),
+                    },
+                )?;
 
             rates.push((dynamic_field.name, dynamic_field.value));
         }
@@ -435,7 +437,9 @@ impl GovernanceReadApiServer for GovernanceReadApi {
     }
 
     async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummary> {
-        self.get_latest_iota_system_state().await.map_err(Into::into)
+        self.get_latest_iota_system_state()
+            .await
+            .map_err(Into::into)
     }
 
     async fn get_reference_gas_price(&self) -> RpcResult<BigInt<u64>> {

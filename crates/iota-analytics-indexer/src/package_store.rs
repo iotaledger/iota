@@ -5,7 +5,6 @@
 use std::{path::Path, sync::Arc};
 
 use async_trait::async_trait;
-use move_core_types::account_address::AccountAddress;
 use iota_package_resolver::{
     error::Error as PackageResolverError, Package, PackageStore, PackageStoreWithLruCache, Result,
 };
@@ -14,6 +13,7 @@ use iota_types::{
     base_types::{ObjectID, SequenceNumber},
     object::Object,
 };
+use move_core_types::account_address::AccountAddress;
 use thiserror::Error;
 use typed_store::{
     rocks::{DBMap, MetricConf},

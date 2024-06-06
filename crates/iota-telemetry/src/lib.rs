@@ -8,8 +8,8 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use serde::{Deserialize, Serialize};
 use iota_core::authority::AuthorityState;
+use serde::{Deserialize, Serialize};
 use tracing::trace;
 
 pub(crate) const GA_API_SECRET: &str = "zeq-aYEzS0aGdRJ8kNZTEg";

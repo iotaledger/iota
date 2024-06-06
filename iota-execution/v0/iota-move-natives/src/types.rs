@@ -25,9 +25,9 @@ pub(crate) fn is_otw_struct(struct_layout: &MoveStructLayout, type_tag: &TypeTag
     // capitalized, and it has a single field of type bool, it means that it's a
     // one-time witness type. The remaining properties of a one-time witness
     // type are checked in the one_time_witness_verifier pass in
-    // the Iota bytecode verifier (a type with this name and with a single bool field
-    // that does not have all the remaining properties of a one-time witness
-    // type will cause a verifier error).
+    // the Iota bytecode verifier (a type with this name and with a single bool
+    // field that does not have all the remaining properties of a one-time
+    // witness type will cause a verifier error).
     matches!(
         type_tag,
         TypeTag::Struct(struct_tag) if has_one_bool_field && struct_tag.name.to_string() == struct_tag.module.to_string().to_ascii_uppercase())

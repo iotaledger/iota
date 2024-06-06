@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use proptest::{arbitrary::*, test_runner::TestCaseError};
 use iota_types::{
     base_types::dbg_addr,
     crypto::KeypairTraits,
@@ -10,6 +9,7 @@ use iota_types::{
     transaction::{TransactionData, TransactionKind},
     utils::to_sender_signed_transaction,
 };
+use proptest::{arbitrary::*, test_runner::TestCaseError};
 use tracing::debug;
 use transaction_fuzzer::{executor::Executor, run_proptest, GasDataGenConfig, GasDataWithObjects};
 

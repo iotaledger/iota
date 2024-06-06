@@ -24,9 +24,6 @@ use bytes::{Buf, Bytes};
 use fastcrypto::hash::{HashFunction, Sha3_256};
 use futures::StreamExt;
 pub use indexes::{IndexStore, IndexStoreTables};
-use itertools::Itertools;
-use num_enum::{IntoPrimitive, TryFromPrimitive};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use iota_types::{
     committee::Committee,
     messages_checkpoint::{
@@ -34,6 +31,9 @@ use iota_types::{
     },
     storage::WriteStore,
 };
+use itertools::Itertools;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing::debug;
 
 use crate::blob::BlobIter;

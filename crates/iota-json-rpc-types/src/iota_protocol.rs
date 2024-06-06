@@ -4,11 +4,11 @@
 
 use std::collections::BTreeMap;
 
+use iota_protocol_config::{ProtocolConfig, ProtocolConfigValue, ProtocolVersion};
+use iota_types::iota_serde::{AsProtocolVersion, BigInt, Readable};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DisplayFromStr};
-use iota_protocol_config::{ProtocolConfig, ProtocolConfigValue, ProtocolVersion};
-use iota_types::iota_serde::{AsProtocolVersion, BigInt, Readable};
 
 #[serde_as]
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, PartialEq)]

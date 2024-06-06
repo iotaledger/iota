@@ -4,12 +4,12 @@
 
 use std::path::Path;
 
-use rocksdb::Options;
-use serde::{Deserialize, Serialize};
 use iota_types::{
     accumulator::Accumulator, base_types::SequenceNumber, digests::TransactionEventsDigest,
     effects::TransactionEffects, storage::MarkerValue,
 };
+use rocksdb::Options;
+use serde::{Deserialize, Serialize};
 use typed_store::{
     metrics::SamplingInterval,
     rocks::{
@@ -346,7 +346,10 @@ impl AuthorityPerpetualTables {
         Ok(Some(transaction))
     }
 
-    pub fn get_effects(&self, digest: &TransactionDigest) -> IotaResult<Option<TransactionEffects>> {
+    pub fn get_effects(
+        &self,
+        digest: &TransactionDigest,
+    ) -> IotaResult<Option<TransactionEffects>> {
         let Some(effect_digest) = self.executed_effects.get(digest)? else {
             return Ok(None);
         };

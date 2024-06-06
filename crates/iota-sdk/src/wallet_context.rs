@@ -6,7 +6,6 @@ use std::{collections::BTreeSet, path::Path, sync::Arc};
 
 use anyhow::anyhow;
 use colored::Colorize;
-use shared_crypto::intent::Intent;
 use iota_config::{Config, PersistedConfig};
 use iota_json_rpc_types::{
     IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse,
@@ -14,10 +13,11 @@ use iota_json_rpc_types::{
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, IotaAddress},
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     gas_coin::GasCoin,
     transaction::{Transaction, TransactionData, TransactionDataAPI},
 };
+use shared_crypto::intent::Intent;
 use tokio::sync::RwLock;
 use tracing::warn;
 

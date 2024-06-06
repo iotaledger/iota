@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 
 use crate::{
-    base_types::{SequenceNumber, IotaAddress},
+    base_types::{IotaAddress, SequenceNumber},
     collection_types::{Bag, Table, VecSet},
     dynamic_field::get_dynamic_field_from_store,
     error::{UserInputError, UserInputResult},

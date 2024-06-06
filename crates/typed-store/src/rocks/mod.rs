@@ -22,6 +22,7 @@ use std::{
 
 use bincode::Options;
 use collectable::TryExtend;
+use iota_macros::{fail_point, nondeterministic};
 use itertools::Itertools;
 use prometheus::{Histogram, HistogramTimer};
 use rocksdb::{
@@ -32,7 +33,6 @@ use rocksdb::{
     Transaction, WriteBatch, WriteBatchWithTransaction, WriteOptions,
 };
 use serde::{de::DeserializeOwned, Serialize};
-use iota_macros::{fail_point, nondeterministic};
 use tap::TapFallible;
 use tokio::sync::oneshot;
 use tracing::{debug, error, info, instrument, warn};

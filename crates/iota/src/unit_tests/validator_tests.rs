@@ -4,12 +4,12 @@
 
 use anyhow::Ok;
 use fastcrypto::encoding::{Base64, Encoding};
-use shared_crypto::intent::{Intent, IntentMessage};
 use iota_types::{
     base_types::IotaAddress,
-    crypto::{Signature, IotaKeyPair},
+    crypto::{IotaKeyPair, Signature},
     transaction::{Transaction, TransactionData},
 };
+use shared_crypto::intent::{Intent, IntentMessage};
 use test_cluster::TestClusterBuilder;
 
 use crate::validator_commands::{

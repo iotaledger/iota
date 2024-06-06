@@ -5,15 +5,15 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use rand::seq::IteratorRandom;
 use iota_core::test_utils::make_transfer_iota_transaction;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{ObjectRef, IotaAddress},
+    base_types::{IotaAddress, ObjectRef},
     crypto::{get_key_pair, AccountKeyPair},
     gas_coin::MICROS_PER_IOTA,
     transaction::Transaction,
 };
+use rand::seq::IteratorRandom;
 use tracing::error;
 
 use crate::{

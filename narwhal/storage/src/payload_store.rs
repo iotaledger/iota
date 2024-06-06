@@ -5,13 +5,13 @@
 use std::sync::Arc;
 
 use config::WorkerId;
+use iota_macros::fail_point;
 use mysten_common::sync::notify_read::NotifyRead;
 use store::{
     reopen,
     rocks::{open_cf, DBMap, MetricConf, ReadWriteOptions},
     Map, TypedStoreError,
 };
-use iota_macros::fail_point;
 use types::BatchDigest;
 
 use crate::{NodeStorage, PayloadToken};

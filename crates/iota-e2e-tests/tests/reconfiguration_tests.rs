@@ -9,7 +9,6 @@ use std::{
 };
 
 use futures::future::join_all;
-use rand::rngs::OsRng;
 use iota_core::{
     authority::epoch_start_configuration::EpochFlag, consensus_adapter::position_submit_certificate,
 };
@@ -25,13 +24,14 @@ use iota_types::{
     error::IotaError,
     gas::GasCostSummary,
     governance::MIN_VALIDATOR_JOINING_STAKE_MICROS,
-    message_envelope::Message,
     iota_system_state::{
         get_validator_from_table, iota_system_state_summary::get_validator_by_pool_id,
         IotaSystemStateTrait,
     },
+    message_envelope::Message,
     transaction::{TransactionDataAPI, TransactionExpiration},
 };
+use rand::rngs::OsRng;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::time::sleep;
 

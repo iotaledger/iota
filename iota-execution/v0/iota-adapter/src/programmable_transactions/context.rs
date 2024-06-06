@@ -12,24 +12,13 @@ mod checked {
         sync::Arc,
     };
 
-    use move_binary_format::{
-        errors::{Location, VMError, VMResult},
-        file_format::{CodeOffset, FunctionDefinitionIndex, TypeParameterIndex},
-        CompiledModule,
-    };
-    use move_core_types::{
-        account_address::AccountAddress,
-        language_storage::{ModuleId, StructTag, TypeTag},
-    };
-    use move_vm_runtime::{move_vm::MoveVM, session::Session};
-    use move_vm_types::loaded_data::runtime_types::Type;
     use iota_move_natives::object_runtime::{
         self, get_all_uids, max_event_error, ObjectRuntime, RuntimeResults,
     };
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
         balance::Balance,
-        base_types::{MoveObjectType, ObjectID, SequenceNumber, IotaAddress, TxContext},
+        base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
         coin::Coin,
         error::{command_argument_error, ExecutionError, ExecutionErrorKind},
         event::Event,
@@ -50,6 +39,17 @@ mod checked {
         transaction::{Argument, CallArg, ObjectArg},
         type_resolver::TypeTagResolver,
     };
+    use move_binary_format::{
+        errors::{Location, VMError, VMResult},
+        file_format::{CodeOffset, FunctionDefinitionIndex, TypeParameterIndex},
+        CompiledModule,
+    };
+    use move_core_types::{
+        account_address::AccountAddress,
+        language_storage::{ModuleId, StructTag, TypeTag},
+    };
+    use move_vm_runtime::{move_vm::MoveVM, session::Session};
+    use move_vm_types::loaded_data::runtime_types::Type;
 
     use crate::{
         adapter::{missing_unwrapped_msg, new_native_extensions},
@@ -901,8 +901,8 @@ mod checked {
 
         /// Special case errors for type arguments to Move functions
         pub fn convert_type_argument_error(&self, idx: usize, error: VMError) -> ExecutionError {
-            use move_core_types::vm_status::StatusCode;
             use iota_types::execution_status::TypeArgumentError;
+            use move_core_types::vm_status::StatusCode;
             match error.major_status() {
                 StatusCode::NUMBER_OF_TYPE_ARGUMENTS_MISMATCH => {
                     ExecutionErrorKind::TypeArityMismatch.into()

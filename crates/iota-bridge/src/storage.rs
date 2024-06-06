@@ -119,9 +119,11 @@ impl BridgeOrchestratorTables {
         &self,
         identifiers: &[Identifier],
     ) -> BridgeResult<Vec<Option<EventID>>> {
-        self.iota_syncer_cursors.multi_get(identifiers).map_err(|e| {
-            BridgeError::StorageError(format!("Couldn't get iota_syncer_cursors: {:?}", e))
-        })
+        self.iota_syncer_cursors
+            .multi_get(identifiers)
+            .map_err(|e| {
+                BridgeError::StorageError(format!("Couldn't get iota_syncer_cursors: {:?}", e))
+            })
     }
 
     pub fn get_eth_event_cursors(
@@ -225,12 +227,20 @@ mod tests {
             tx_digest: TransactionDigest::random(),
             event_seq: 1,
         };
-        assert!(store.get_iota_event_cursors(&[iota_module.clone()]).unwrap()[0].is_none());
+        assert!(
+            store
+                .get_iota_event_cursors(&[iota_module.clone()])
+                .unwrap()[0]
+                .is_none()
+        );
         store
             .update_iota_event_cursor(iota_module.clone(), iota_cursor)
             .unwrap();
         assert_eq!(
-            store.get_iota_event_cursors(&[iota_module.clone()]).unwrap()[0].unwrap(),
+            store
+                .get_iota_event_cursors(&[iota_module.clone()])
+                .unwrap()[0]
+                .unwrap(),
             iota_cursor
         );
     }

@@ -2,10 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::{
-    account_address::AccountAddress, identifier::Identifier, language_storage::StructTag,
-};
-use proptest::{arbitrary::*, prelude::*};
 use iota_core::test_utils::send_and_confirm_transaction;
 use iota_types::{
     base_types::ObjectID,
@@ -16,6 +12,10 @@ use iota_types::{
     utils::to_sender_signed_transaction,
     TypeTag, IOTA_FRAMEWORK_PACKAGE_ID,
 };
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier, language_storage::StructTag,
+};
+use proptest::{arbitrary::*, prelude::*};
 
 use crate::{
     account_universe::AccountCurrent,

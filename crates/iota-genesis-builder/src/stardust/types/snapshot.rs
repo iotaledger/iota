@@ -1,5 +1,4 @@
 // Copyright (c) 2024 IOTA Stiftung
-// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Types representing blocks of data in a Stardust snapshot.
@@ -83,7 +82,7 @@ impl OutputHeader {
 
     /// Creates a new OutputHeader for testing.
     pub fn new_testing(
-        output_id_bytes: [u8; 32],
+        transaction_id_bytes: [u8; 32],
         block_id_bytes: [u8; 32],
         milestone_index: u32,
         milestone_timestamp: u32,
@@ -91,7 +90,7 @@ impl OutputHeader {
         use iota_sdk::types::block::payload::transaction::TransactionId;
 
         OutputHeader {
-            output_id: OutputId::new(TransactionId::new(output_id_bytes), 0).unwrap(),
+            output_id: OutputId::new(TransactionId::new(transaction_id_bytes), 0).unwrap(),
             block_id: BlockId::new(block_id_bytes),
             ms_index: MilestoneIndex::new(milestone_index),
             ms_ts: milestone_timestamp,

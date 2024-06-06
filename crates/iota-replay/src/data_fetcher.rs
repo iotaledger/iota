@@ -6,10 +6,6 @@ use std::{collections::BTreeMap, num::NonZeroUsize, str::FromStr};
 
 use async_trait::async_trait;
 use futures::future::join_all;
-use lru::LruCache;
-use move_core_types::parser::parse_struct_tag;
-use parking_lot::RwLock;
-use rand::Rng;
 use iota_core::authority::NodeStateDump;
 use iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
 use iota_json_rpc_types::{
@@ -26,6 +22,10 @@ use iota_types::{
         EndOfEpochTransactionKind, SenderSignedData, TransactionDataAPI, TransactionKind,
     },
 };
+use lru::LruCache;
+use move_core_types::parser::parse_struct_tag;
+use parking_lot::RwLock;
+use rand::Rng;
 use tracing::error;
 
 use crate::types::{ReplayEngineError, EPOCH_CHANGE_STRUCT_TAG};
@@ -597,7 +597,9 @@ fn convert_past_obj_response(resp: IotaPastObjectResponse) -> Result<Object, Rep
             version: r.version,
             digest: r.digest,
         }),
-        IotaPastObjectResponse::ObjectNotExists(id) => Err(ReplayEngineError::ObjectNotExist { id }),
+        IotaPastObjectResponse::ObjectNotExists(id) => {
+            Err(ReplayEngineError::ObjectNotExist { id })
+        }
         IotaPastObjectResponse::VersionNotFound(id, version) => {
             Err(ReplayEngineError::ObjectVersionNotFound { id, version })
         }

@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 use std::{str::FromStr, time::Duration};
 
-use shared_crypto::intent::Intent;
 use iota_config::{iota_config_dir, IOTA_CLIENT_CONFIG};
 use iota_faucet::FaucetError;
 use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
@@ -13,6 +12,7 @@ use iota_types::{
     base_types::ObjectID, gas_coin::GasCoin, quorum_driver_types::ExecuteTransactionRequestType,
     transaction::Transaction,
 };
+use shared_crypto::intent::Intent;
 use tracing::info;
 
 #[tokio::main]

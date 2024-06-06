@@ -9,16 +9,16 @@ use async_graphql::{
     *,
 };
 use diesel::{BoolExpressionMethods, ExpressionMethods, NullableExpressionMethods, QueryDsl};
-use serde::{Deserialize, Serialize};
 use iota_indexer::{
     models::{events::StoredEvent, transactions::StoredTransaction},
     schema::{events, transactions, tx_senders},
 };
 use iota_types::{
-    base_types::{ObjectID, IotaAddress as NativeIotaAddress},
+    base_types::{IotaAddress as NativeIotaAddress, ObjectID},
     event::Event as NativeEvent,
     parse_iota_struct_tag, Identifier,
 };
+use serde::{Deserialize, Serialize};
 
 use super::{
     address::Address,
@@ -27,9 +27,9 @@ use super::{
     cursor::{self, Page, Paginated, Target},
     date_time::DateTime,
     digest::Digest,
+    iota_address::IotaAddress,
     move_module::MoveModule,
     move_value::MoveValue,
-    iota_address::IotaAddress,
     type_filter::{ModuleFilter, TypeFilter},
 };
 use crate::{
@@ -311,8 +311,8 @@ impl Event {
 
         let package_id =
             ObjectID::from_bytes(&stored.package).map_err(|e| Error::Internal(e.to_string()))?;
-        let type_ =
-            parse_iota_struct_tag(&stored.event_type).map_err(|e| Error::Internal(e.to_string()))?;
+        let type_ = parse_iota_struct_tag(&stored.event_type)
+            .map_err(|e| Error::Internal(e.to_string()))?;
         let transaction_module =
             Identifier::from_str(&stored.module).map_err(|e| Error::Internal(e.to_string()))?;
         let contents = stored.bcs.clone();

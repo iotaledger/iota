@@ -12,9 +12,9 @@ use config::{AuthorityIdentifier, Committee, WorkerCache, WorkerId};
 use crypto::NetworkPublicKey;
 use fastcrypto::hash::Hash;
 use futures::{stream::FuturesOrdered, StreamExt};
+use iota_protocol_config::ProtocolConfig;
 use mysten_metrics::{metered_channel, spawn_logged_monitored_task};
 use network::{client::NetworkClient, PrimaryToWorkerClient};
-use iota_protocol_config::ProtocolConfig;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info};
 use types::{

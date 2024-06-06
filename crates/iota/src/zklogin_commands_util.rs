@@ -15,23 +15,23 @@ use fastcrypto_zkp::bn254::{
     utils::{gen_address_seed, get_proof, get_salt, get_zk_login_address},
     zk_login::ZkLoginInputs,
 };
-use rand::{rngs::StdRng, SeedableRng};
-use regex::Regex;
-use reqwest::Client;
-use serde_json::json;
-use shared_crypto::intent::Intent;
 use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
 use iota_keys::keystore::{AccountKeystore, Keystore};
 use iota_sdk::IotaClientBuilder;
 use iota_types::{
     base_types::IotaAddress,
     committee::EpochId,
-    crypto::{PublicKey, IotaKeyPair},
+    crypto::{IotaKeyPair, PublicKey},
     multisig::{MultiSig, MultiSigPublicKey},
     signature::GenericSignature,
     transaction::Transaction,
     zk_login_authenticator::ZkLoginAuthenticator,
 };
+use rand::{rngs::StdRng, SeedableRng};
+use regex::Regex;
+use reqwest::Client;
+use serde_json::json;
+use shared_crypto::intent::Intent;
 
 /// Read a line from stdin, parse the id_token field and return.
 pub fn read_cli_line() -> Result<String, anyhow::Error> {

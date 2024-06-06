@@ -7,16 +7,16 @@
 //! - The first field is named "id"
 //! - The first field has type `iota::object::UID`
 
-use move_binary_format::{
-    access::ModuleAccess,
-    binary_views::BinaryIndexedView,
-    file_format::{CompiledModule, SignatureToken},
-};
 use iota_types::{
     error::ExecutionError,
     fp_ensure,
     id::{OBJECT_MODULE_NAME, UID_STRUCT_NAME},
     IOTA_FRAMEWORK_ADDRESS,
+};
+use move_binary_format::{
+    access::ModuleAccess,
+    binary_views::BinaryIndexedView,
+    file_format::{CompiledModule, SignatureToken},
 };
 
 use crate::verification_failure;

@@ -6,8 +6,8 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use serde_json::{Number, Value};
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use serde_json::{Number, Value};
 
 use crate::progress_store::ProgressStore;
 

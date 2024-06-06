@@ -6,13 +6,13 @@ use std::{collections::HashSet, path::Path, sync::Arc};
 
 use async_trait::async_trait;
 use futures::{future::BoxFuture, FutureExt};
-use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
 use iota_protocol_config::ProtocolVersion;
 use iota_types::{
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
     digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
+    iota_system_state::IotaSystemState,
     messages_checkpoint::CheckpointSequenceNumber,
     object::{Object, Owner},
     storage::{
@@ -20,9 +20,9 @@ use iota_types::{
         BackingPackageStore, ChildObjectResolver, InputKey, MarkerValue, ObjectKey,
         ObjectOrTombstone, ObjectStore, PackageObject, ParentSync,
     },
-    iota_system_state::IotaSystemState,
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
+use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
 use tracing::instrument;
 
 use crate::{
@@ -103,8 +103,10 @@ pub trait ExecutionCacheRead: Send + Sync {
         version: SequenceNumber,
     ) -> IotaResult<Option<Object>>;
 
-    fn multi_get_objects_by_key(&self, object_keys: &[ObjectKey])
-    -> IotaResult<Vec<Option<Object>>>;
+    fn multi_get_objects_by_key(
+        &self,
+        object_keys: &[ObjectKey],
+    ) -> IotaResult<Vec<Option<Object>>>;
 
     fn object_exists_by_key(
         &self,
@@ -374,7 +376,10 @@ pub trait ExecutionCacheRead: Send + Sync {
         event_digests: &[TransactionEventsDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>>;
 
-    fn get_events(&self, digest: &TransactionEventsDigest) -> IotaResult<Option<TransactionEvents>> {
+    fn get_events(
+        &self,
+        digest: &TransactionEventsDigest,
+    ) -> IotaResult<Option<TransactionEvents>> {
         self.multi_get_events(&[*digest]).map(|mut events| {
             events
                 .pop()

@@ -212,10 +212,9 @@ fn assign_versions_for_certificate(
 mod tests {
     use std::collections::{BTreeMap, HashMap};
 
-    use shared_crypto::intent::Intent;
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        base_types::{ObjectID, SequenceNumber, IotaAddress},
+        base_types::{IotaAddress, ObjectID, SequenceNumber},
         crypto::RandomnessRound,
         digests::ObjectDigest,
         effects::TestEffectsBuilder,
@@ -227,6 +226,7 @@ mod tests {
         transaction::{ObjectArg, SenderSignedData, TransactionKey},
         IOTA_RANDOMNESS_STATE_OBJECT_ID,
     };
+    use shared_crypto::intent::Intent;
 
     use crate::authority::{
         epoch_start_configuration::EpochStartConfigTrait,

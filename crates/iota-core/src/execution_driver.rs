@@ -7,12 +7,12 @@ use std::{
     time::Duration,
 };
 
+use iota_macros::fail_point_async;
 use mysten_metrics::{monitored_scope, spawn_monitored_task};
 use rand::{
     rngs::{OsRng, StdRng},
     Rng, SeedableRng,
 };
-use iota_macros::fail_point_async;
 use tokio::{
     sync::{mpsc::UnboundedReceiver, oneshot, Semaphore},
     time::sleep,

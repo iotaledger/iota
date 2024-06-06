@@ -7,7 +7,6 @@ mod ingestion_tests {
     use std::{net::SocketAddr, sync::Arc, time::Duration};
 
     use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
-    use simulacrum::Simulacrum;
     use iota_indexer::{
         db::get_pg_pool_connection,
         errors::{Context, IndexerError},
@@ -17,6 +16,7 @@ mod ingestion_tests {
         test_utils::{start_test_indexer, ReaderWriterConfig},
     };
     use iota_types::{base_types::IotaAddress, effects::TransactionEffectsAPI, storage::ReadStore};
+    use simulacrum::Simulacrum;
     use tokio::task::JoinHandle;
 
     macro_rules! read_only_blocking {

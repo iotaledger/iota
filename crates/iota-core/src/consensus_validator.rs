@@ -6,12 +6,12 @@ use std::sync::Arc;
 
 use consensus_core::{TransactionVerifier, ValidationError};
 use eyre::WrapErr;
+use iota_protocol_config::ProtocolConfig;
+use iota_types::messages_consensus::{ConsensusTransaction, ConsensusTransactionKind};
 use mysten_metrics::monitored_scope;
 use narwhal_types::{validate_batch_version, BatchAPI};
 use narwhal_worker::TransactionValidator;
 use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
-use iota_protocol_config::ProtocolConfig;
-use iota_types::messages_consensus::{ConsensusTransaction, ConsensusTransactionKind};
 use tap::TapFallible;
 use tracing::{info, warn};
 
@@ -201,14 +201,14 @@ impl IotaTxValidatorMetrics {
 mod tests {
     use std::sync::Arc;
 
-    use narwhal_test_utils::latest_protocol_version;
-    use narwhal_types::{Batch, BatchV1};
-    use narwhal_worker::TransactionValidator;
     use iota_macros::sim_test;
     use iota_types::{
         crypto::Ed25519IotaSignature, messages_consensus::ConsensusTransaction, object::Object,
         signature::GenericSignature,
     };
+    use narwhal_test_utils::latest_protocol_version;
+    use narwhal_types::{Batch, BatchV1};
+    use narwhal_worker::TransactionValidator;
 
     use crate::{
         authority::test_authority_builder::TestAuthorityBuilder,
@@ -270,10 +270,11 @@ mod tests {
             .into_iter()
             .map(|mut cert| {
                 // set it to an all-zero user signature
-                cert.tx_signatures_mut_for_testing()[0] =
-                    GenericSignature::Signature(iota_types::crypto::Signature::Ed25519IotaSignature(
+                cert.tx_signatures_mut_for_testing()[0] = GenericSignature::Signature(
+                    iota_types::crypto::Signature::Ed25519IotaSignature(
                         Ed25519IotaSignature::default(),
-                    ));
+                    ),
+                );
                 bcs::to_bytes(&ConsensusTransaction::new_certificate_message(&name1, cert)).unwrap()
             })
             .collect();

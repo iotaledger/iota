@@ -105,7 +105,10 @@ const getResultsForValidatorByPoolIdOrIotaAddress = async (
     query: string,
 ) => {
     const normalized = normalizeIotaObjectId(query);
-    if ((!isValidIotaAddress(normalized) && !isValidIotaObjectId(normalized)) || !systemStateSummery)
+    if (
+        (!isValidIotaAddress(normalized) && !isValidIotaObjectId(normalized)) ||
+        !systemStateSummery
+    )
         return null;
 
     // find validator by pool id or iota address

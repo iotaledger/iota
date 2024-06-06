@@ -14,8 +14,6 @@ use diesel::{
     PgConnection, QueryDsl, RunQueryDsl, TextExpressionMethods,
 };
 use fastcrypto::encoding::{Encoding, Hex};
-use itertools::{any, Itertools};
-use move_core_types::{annotated_value::MoveStructLayout, language_storage::StructTag};
 use iota_json_rpc_types::{
     Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo, EventFilter,
     IotaCoinMetadata, IotaEvent, IotaObjectDataFilter, IotaTransactionBlockEffects,
@@ -23,17 +21,19 @@ use iota_json_rpc_types::{
 };
 use iota_types::{
     balance::Supply,
-    base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress, VersionNumber},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, VersionNumber},
     coin::{CoinMetadata, TreasuryCap},
     committee::EpochId,
     digests::{ObjectDigest, TransactionDigest},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName},
     event::EventID,
+    iota_system_state::{iota_system_state_summary::IotaSystemStateSummary, IotaSystemStateTrait},
     is_system_package,
     move_package::MovePackage,
     object::{MoveObject, Object, ObjectRead},
-    iota_system_state::{iota_system_state_summary::IotaSystemStateSummary, IotaSystemStateTrait},
 };
+use itertools::{any, Itertools};
+use move_core_types::{annotated_value::MoveStructLayout, language_storage::StructTag};
 
 use crate::{
     db::{PgConnectionConfig, PgConnectionPoolConfig, PgPoolConnection},

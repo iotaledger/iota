@@ -4,15 +4,11 @@
 
 use std::{collections::BTreeMap, num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
 
-use move_binary_format::CompiledModule;
-use move_bytecode_utils::module_cache::GetModule;
-use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
-use simulacrum::Simulacrum;
 use iota_config::genesis;
 use iota_protocol_config::ProtocolVersion;
 use iota_swarm_config::{genesis_config::AccountConfig, network_config_builder::ConfigBuilder};
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, IotaAddress, VersionNumber},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, VersionNumber},
     committee::{Committee, EpochId},
     crypto::AccountKeyPair,
     digests::{ObjectDigest, TransactionDigest, TransactionEventsDigest},
@@ -29,6 +25,10 @@ use iota_types::{
     },
     transaction::VerifiedTransaction,
 };
+use move_binary_format::CompiledModule;
+use move_bytecode_utils::module_cache::GetModule;
+use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
+use simulacrum::Simulacrum;
 use tempfile::tempdir;
 use typed_store::{
     metrics::SamplingInterval,
@@ -53,7 +53,8 @@ pub struct PersistedStoreInnerReadOnlyWrapper {
 #[derive(Debug, DBMapUtils)]
 pub struct PersistedStoreInner {
     // Checkpoint data
-    checkpoints: DBMap<CheckpointSequenceNumber, iota_types::messages_checkpoint::TrustedCheckpoint>,
+    checkpoints:
+        DBMap<CheckpointSequenceNumber, iota_types::messages_checkpoint::TrustedCheckpoint>,
     checkpoint_digest_to_sequence_number: DBMap<CheckpointDigest, CheckpointSequenceNumber>,
     checkpoint_contents: DBMap<CheckpointContentsDigest, CheckpointContents>,
 

@@ -4,15 +4,15 @@
 
 use std::{cmp, str::FromStr};
 
-use move_core_types::identifier::Identifier;
-use once_cell::sync::Lazy;
-use proptest::{collection::vec, prelude::*};
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, IotaAddress},
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{Argument, CallArg, Command, ProgrammableTransaction},
 };
+use move_core_types::identifier::Identifier;
+use once_cell::sync::Lazy;
+use proptest::{collection::vec, prelude::*};
 
 static PROTOCOL_CONFIG: Lazy<ProtocolConfig> =
     Lazy::new(ProtocolConfig::get_for_max_version_UNSAFE);

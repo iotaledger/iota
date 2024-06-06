@@ -6,6 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use derive_more::Display;
 use fastcrypto::hash::HashFunction;
+use iota_protocol_config::ProtocolConfig;
 use move_binary_format::{
     access::ModuleAccess, binary_config::BinaryConfig, binary_views::BinaryIndexedView,
     file_format::CompiledModule, normalized,
@@ -22,7 +23,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_with::{serde_as, Bytes};
-use iota_protocol_config::ProtocolConfig;
 
 use crate::{
     base_types::{ObjectID, SequenceNumber},
