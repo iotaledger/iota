@@ -1,3 +1,6 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! Rust types and logic for the Move counterparts in the `stardust` system
 //! package.
 
