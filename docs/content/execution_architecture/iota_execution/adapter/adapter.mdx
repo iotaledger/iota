@@ -30,7 +30,7 @@ This list of operations is done at the iota-node level. During execution of:
         certificate: &VerifiedExecutableTransaction,
         input_objects: InputObjects,
         epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> SuiResult<(InnerTemporaryStore, TransactionEffects, Option<ExecutionError>)>
+    ) -> IotaResult<(InnerTemporaryStore, TransactionEffects, Option<ExecutionError>)>
 ```
 
 Therefore, the adapter assumes these checks have already been performed.
