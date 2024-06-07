@@ -1,13 +1,13 @@
 ---
 title: Validator Tasks
-description: As a validator on Iota, there are some processes you need to perform to ensure your nodes are always optimized.
+description: As a validator on IOTA, there are some processes you need to perform to ensure your nodes are always optimized.
 ---
 
-This guide focuses on running the Iota node software as a validator.
+This guide focuses on running the IOTA node software as a validator.
 
 ## Requirements
 
-To run a Iota Validator a machine with the following is required:
+To run a IOTA Validator a machine with the following is required:
 - CPU: 24 physical cores (or 48 virtual cores)
 - Memory: 128 GB
 - Storage: 4 TB NVME
@@ -15,7 +15,7 @@ To run a Iota Validator a machine with the following is required:
 
 ## Deployment
 
-You can deploy Iota node in a number of ways.
+You can deploy IOTA node in a number of ways.
 
 There are pre-built container images available in [Docker Hub](https://hub.docker.com/r/mysten/iota-node/tags).
 
@@ -45,7 +45,7 @@ Configuration and guides are available for the following deployment options:
 
 ## Configuration
 
-Iota node runs with a single configuration file provided as an argument, example:
+IOTA node runs with a single configuration file provided as an argument, example:
 
 `./iota-node --config-path /opt/iota/config/validator.yaml`.
 
@@ -53,7 +53,7 @@ See [Validator](https://github.com/iotaledger/iota/blob/main/nre/config/validato
 
 ## Connectivity
 
-Iota node uses the following ports by default:
+IOTA node uses the following ports by default:
 
 | protocol/port | reachability     | purpose                           |
 | ------------- | ---------------- | --------------------------------- |
@@ -69,7 +69,7 @@ To run a validator successfully, it is critical that ports 8080-8084 are open as
 
 ## Storage
 
-All Iota node related data is stored by default under `/opt/iota/db/`. This is controlled in the Iota node configuration file.
+All IOTA node related data is stored by default under `/opt/iota/db/`. This is controlled in the IOTA node configuration file.
 
 ```shell
 $ cat /opt/iota/config/validator.yaml | grep db-path
@@ -79,7 +79,7 @@ $ cat /opt/iota/config/validator.yaml | grep db-path
 
 Ensure that you have an appropriately sized disk mounted for the database to write to.
 
-- To check the size of the local Iota node databases:
+- To check the size of the local IOTA node databases:
 
 ```shell
 du -sh /opt/iota/db/
@@ -87,7 +87,7 @@ du -sh /opt/iota/db/authorities_db
 du -sh /opt/iota/db/consensus_db
 ```
 
-- To delete the local Iota node databases:
+- To delete the local IOTA node databases:
 
 ```shell
 sudo systemctl stop iota-node
@@ -96,7 +96,7 @@ sudo rm -rf /opt/iota/db/authorities_db /opt/iota/db/consensus_db
 
 ## Key management
 
-The following keys are used by Iota node:
+The following keys are used by IOTA node:
 
 | key          | scheme   | purpose                         |
 | ------------ | -------- | ------------------------------- |
@@ -105,13 +105,13 @@ The following keys are used by Iota node:
 | network.key  | ed25519  | narwhal primary, iota state sync |
 | worker.key   | ed25519  | validate narwhal workers        |
 
-These are configured in the [Iota node configuration file](#configuration).
+These are configured in the [IOTA node configuration file](#configuration).
 
 ## Monitoring
 
 ### Metrics
 
-Iota node exposes metrics via a local HTTP interface. These can be scraped for use in a central monitoring system as well as viewed directly from the node.
+IOTA node exposes metrics via a local HTTP interface. These can be scraped for use in a central monitoring system as well as viewed directly from the node.
 
 - View all metrics:
 
@@ -125,7 +125,7 @@ curl -s http://localhost:9184/metrics
 curl http://localhost:9184/metrics | grep <METRIC>
 ```
 
-Iota node also pushes metrics to a central Iota metrics proxy.
+IOTA node also pushes metrics to a central IOTA metrics proxy.
 
 ### Logs
 
@@ -139,7 +139,7 @@ Depending on your deployment method, these are configured in the following place
 - [Native systemd](https://github.com/iotaledger/iota/blob/main/nre/systemd/iota-node.service)
 - [Docker Compose](https://github.com/iotaledger/iota/blob/main/nre/docker/docker-compose.yaml)
 
-To view and follow the Iota node logs:
+To view and follow the IOTA node logs:
 
 ```shell
 journalctl -u iota-node -f
@@ -171,24 +171,24 @@ curl localhost:1337/logging -d "info"
 
 Public dashboard for network wide visibility:
 
-- [Iota Testnet Validators](https://metrics.iota.io/public-dashboards/9b841d63c9bf43fe8acec4f0fa991f5e)
+- [IOTA Testnet Validators](https://metrics.iota.io/public-dashboards/9b841d63c9bf43fe8acec4f0fa991f5e)
 
 ## Software updates
 
-When an update is required to the Iota node software the following process can be used. Follow the relevant Systemd or Docker Compose runbook depending on your deployment type. It is highly unlikely that you will want to restart with a clean database.
+When an update is required to the IOTA node software the following process can be used. Follow the relevant Systemd or Docker Compose runbook depending on your deployment type. It is highly unlikely that you will want to restart with a clean database.
 
 - [Systemd](https://github.com/iotaledger/iota/blob/main/nre/systemd/README.md#updates)
 - [Docker Compose](https://github.com/iotaledger/iota/blob/main/nre/docker/README.md#updates)
 
 ## State sync
 
-Checkpoints in Iota contain the permanent history of the network. They are comparable to blocks in other blockchains with one big difference being that they are lagging instead of leading. All transactions are final and executed prior to being included in a checkpoint.
+Checkpoints in IOTA contain the permanent history of the network. They are comparable to blocks in other blockchains with one big difference being that they are lagging instead of leading. All transactions are final and executed prior to being included in a checkpoint.
 
 These checkpoints are synchronized between validators and fullnodes via a dedicated peer to peer state sync interface.
 
 Inter-validator state sync is always permitted however there are controls available to limit what fullnodes are allowed to sync from a specific validator.
 
-The default and recommended `max-concurrent-connections: 0` configuration does not affect inter-validator state sync, but will restrict all fullnodes from syncing. The Iota node [configuration](#configuration) can be modified to allow a known fullnode to sync from a validator:
+The default and recommended `max-concurrent-connections: 0` configuration does not affect inter-validator state sync, but will restrict all fullnodes from syncing. The IOTA node [configuration](#configuration) can be modified to allow a known fullnode to sync from a validator:
 
 ```shell
 p2p-config:
@@ -232,13 +232,13 @@ Other metadata (keys, addresses, and so on) only come into effect at the next ep
 
 To update metadata, a validator makes a MoveCall transaction that interacts with the System Object. For example:
 
-1. to update name to `new_validator_name`, use the Iota Client CLI to call `iota_system::update_validator_name`:
+1. to update name to `new_validator_name`, use the IOTA Client CLI to call `iota_system::update_validator_name`:
 
 ```bash
 iota client call --package 0x3 --module iota_system --function update_validator_name --args 0x5 \"new_validator_name\" --gas-budget 10000
 ```
 
-2. to update p2p address starting from next epoch to `/ip4/192.168.1.1`, use the Iota Client CLI to call `iota_system::update_validator_next_epoch_p2p_address`:
+2. to update p2p address starting from next epoch to `/ip4/192.168.1.1`, use the IOTA Client CLI to call `iota_system::update_validator_next_epoch_p2p_address`:
 
 ```bash
 iota client call --package 0x3 --module iota_system --function update_validator_next_epoch_p2p_address --args 0x5 "[4, 192, 168, 1, 1]" --gas-budget 10000
@@ -250,7 +250,7 @@ See the [full list of metadata update functions here](https://github.com/iotaled
 
 To avoid touching account keys too often and allowing them to be stored off-line, validators can delegate the operation ability to another address. This address can then update the reference gas price and tallying rule on behalf of the validator.
 
-Upon creating a `Validator`, an `UnverifiedValidatorOperationCap` is created as well and transferred to the validator address. The holder of this `Cap` object (short for "Capability") therefore could perform operational actions for this validator. To authorize another address to conduct these operations, a validator transfers the object to another address that they control. The transfer can be done by using Iota Client CLI: `iota client transfer`.
+Upon creating a `Validator`, an `UnverifiedValidatorOperationCap` is created as well and transferred to the validator address. The holder of this `Cap` object (short for "Capability") therefore could perform operational actions for this validator. To authorize another address to conduct these operations, a validator transfers the object to another address that they control. The transfer can be done by using IOTA Client CLI: `iota client transfer`.
 
 To rotate the delegatee address or revoke the authorization, the current holder of `Cap` transfers it to another address. In the event of compromised or lost keys, the validator could create a new `Cap` object to invalidate the incumbent one. This is done by calling `iota_system::rotate_operation_cap`:
 
@@ -260,7 +260,7 @@ iota client call --package 0x3 --module iota_system --function rotate_operation_
 
 By default the new `Cap` object is transferred to the validator address, which then could be transferred to the new delegatee address. At this point, the old `Cap` becomes invalidated and no longer represents eligibility.
 
-To get the current valid `Cap` object's ID of a validator, use the Iota Client CLI `iota client objects` command after setting the holder as the active address.
+To get the current valid `Cap` object's ID of a validator, use the IOTA Client CLI `iota client objects` command after setting the holder as the active address.
 
 ### Updating the gas price survey quote
 
@@ -282,7 +282,7 @@ After a validator is reported by `2f + 1` other validators by voting power, thei
 
 ### Joining the validator set
 
-In order for a Iota address to join the validator set, they need to first sign up as a validator candidate by calling `iota_system::request_add_validator_candidate` with their metadata and initial configs:
+In order for a IOTA address to join the validator set, they need to first sign up as a validator candidate by calling `iota_system::request_add_validator_candidate` with their metadata and initial configs:
 
 ```bash
 iota client call --package 0x3 --module iota_system --function request_add_validator_candidate --args 0x5 {protocol_pubkey_bytes} {network_pubkey_bytes} {worker_pubkey_bytes} {proof_of_possession} {name} {description} {image_url} {project_url} {net_address} {p2p_address} {primary_address} {worker_address} {gas_price} {commission_rate} --gas-budget 10000

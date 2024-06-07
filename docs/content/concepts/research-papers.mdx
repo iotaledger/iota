@@ -1,22 +1,22 @@
 ---
-title: Iota-Related Research Papers
+title: IOTA-Related Research Papers
 sidebar_label: Research Papers
 ---
 
-This document contains a list of research papers that are relevant to Iota and have been co-authored by at least one member of the team.
-Some of the ideas of these papers are currently being integrated into Iota, others are in our roadmap, and others are not in our roadmap
-but could be integrated in the future. Start with the [Iota Smart Contract Platform](/doc/iota.pdf) white paper, which contains
+This document contains a list of research papers that are relevant to IOTA and have been co-authored by at least one member of the team.
+Some of the ideas of these papers are currently being integrated into IOTA, others are in our roadmap, and others are not in our roadmap
+but could be integrated in the future. Start with the [IOTA Smart Contract Platform](/doc/iota.pdf) white paper, which contains
 our latest design inspired by previous works below.
 
 ## FastPay: High-Performance Byzantine Fault Tolerant Settlement {#fastpay}
 
 - **Link:** https://arxiv.org/abs/2003.11506
 - **Publication:** ACM Conference on Advances in Financial Technologies (AFT), 2020
-- **Relevance:** FastPay describes the core protocol at the heart of Iota.
+- **Relevance:** FastPay describes the core protocol at the heart of IOTA.
 - **Summary:** FastPay allows a set of distributed validators, some of which are Byzantine, to maintain a high-integrity and availability
   settlement system for pre-funded payments. It can be used to settle payments in a native unit of value (crypto-currency), or as a financial
-  side-infrastructure to support retail payments in fiat currencies. This is not the protocol Iota uses, yet it proposes the basic safety mechanism
-  that Iota extends. FastPay is based on Byzantine Consistent Broadcast as its core primitive, foregoing the expenses of full atomic commit channels
+  side-infrastructure to support retail payments in fiat currencies. This is not the protocol IOTA uses, yet it proposes the basic safety mechanism
+  that IOTA extends. FastPay is based on Byzantine Consistent Broadcast as its core primitive, foregoing the expenses of full atomic commit channels
   (consensus). The resulting system has low-latency for both confirmation and payment finality. Remarkably, each validator can be sharded across many
   machines to allow unbounded horizontal scalability.
 
@@ -24,7 +24,7 @@ our latest design inspired by previous works below.
 
 - **Link:** https://arxiv.org/abs/2105.11827
 - **Publication:** EuroSys, 2022
-- **Relevance:** The consensus system that we will likely use to support shared-objects in Iota.
+- **Relevance:** The consensus system that we will likely use to support shared-objects in IOTA.
 - **Summary:** We propose separating the task of reliable transaction dissemination from transaction ordering to enable high-performance Byzantine
   fault-tolerant quorum-based consensus. We design and evaluate a mempool protocol, Narwhal, specializing in high-throughput reliable dissemination
   and storage of causal histories of transactions. Narwhal tolerates an asynchronous network and maintains high performance despite failures. Narwhal
@@ -41,8 +41,8 @@ our latest design inspired by previous works below.
 
 - **Link:** https://arxiv.org/abs/2201.05671
 - **Publication:** Not published yet (under submission)
-- **Relevance:** Extends the FastPay design to support objects (rather than accounts), what Iota actually uses. An additional contribution of this paper is
-  to add strong privacy to FastPay transactions (but Iota does not plan to do this).
+- **Relevance:** Extends the FastPay design to support objects (rather than accounts), what IOTA actually uses. An additional contribution of this paper is
+  to add strong privacy to FastPay transactions (but IOTA does not plan to do this).
 - **Summary:** We introduce Zef, the first Byzantine-Fault Tolerant (BFT) protocol to support payments in anonymous digital coins at arbitrary scale. Zef
   follows the communication and security model of FastPay: both protocols are asynchronous, low-latency, linearly-scalable, and powered by partially-trusted
   sharded validators. Zef further introduces opaque coins represented as off-chain certificates that are bound to user accounts. In order to hide the face
@@ -57,7 +57,7 @@ our latest design inspired by previous works below.
 
 - **Link:** https://arxiv.org/abs/2201.05677
 - **Publication:** Not published yet (under submission)
-- **Relevance:** Provides a partially-synchronous consensus protocol running over Narwhal. Iota may want to use it instead of Tusk.
+- **Relevance:** Provides a partially-synchronous consensus protocol running over Narwhal. IOTA may want to use it instead of Tusk.
 - **Summary:** We present Bullshark, the first directed acyclic graph (DAG) based Byzantine Fault Tolerant (BFT) protocol that is optimized for partial synchrony.
   Bullshark inherits all the desired properties of its predecessor (DAG-Rider) such as optimal amortized complexity, asynchronous liveness, zero-overhead,
   and post-quantum safety; but at the same time Bullshark provides a practical low-latency fast-path that exploits synchronous periods. In addition, we introduce
@@ -68,7 +68,7 @@ our latest design inspired by previous works below.
 
 - **Link:** https://arxiv.org/abs/2110.00960
 - **Publication:** Financial Cryptography and Data Security (FC), 2022
-- **Relevance:** Provides a performant leader election algorithm for partially-synchronous consensus protocol (such as Bullshark). Iota may want to use it
+- **Relevance:** Provides a performant leader election algorithm for partially-synchronous consensus protocol (such as Bullshark). IOTA may want to use it
   alongside Bullshark to support shared objects.
 - **Summary:** Advances in blockchains have influenced the State-Machine-Replication (SMR) world and many state-of-the-art blockchain-SMR solutions are
   based on two pillars: Chaining and Leader-rotation. A predetermined round-robin mechanism used for Leader-rotation, however, has an undesirable behavior:
@@ -84,7 +84,7 @@ our latest design inspired by previous works below.
 
 - **Link:** https://arxiv.org/abs/2004.10617
 - **Publication:** International Conference on Principles of Distributed Systems (OPODIS), 2021
-- **Relevance:** Less related to Iota than the other papers, this provides a way to test implementations of consensus systems, such as Tusk and Bullshark.
+- **Relevance:** Less related to IOTA than the other papers, this provides a way to test implementations of consensus systems, such as Tusk and Bullshark.
   The paper is, however, theoretical and not on our roadmap.
 - **Summary:** This paper presents Twins, an automated unit test generator of Byzantine attacks. Twins implements three types of Byzantine behaviors: (i)
   leader equivocation, (ii) double voting, and (iii) losing internal state such as forgetting 'locks' guarding voted values. To emulate interesting attacks
@@ -102,7 +102,7 @@ our latest design inspired by previous works below.
 
 - **Link:** https://arxiv.org/abs/1906.12237
 - **Publication:** Not published
-- **Relevance:** Less related to Iota than the other papers, and the paper is in its early stages. It presents an algorithm to strengthen proof-of-Stake systems (like Iota). The paper is, however, theoretical and not on our roadmap.
+- **Relevance:** Less related to IOTA than the other papers, and the paper is in its early stages. It presents an algorithm to strengthen proof-of-Stake systems (like IOTA). The paper is, however, theoretical and not on our roadmap.
 - **Summary:** The Sybil attack plagues all peer-to-peer systems, and modern open distributed ledgers employ a number of tactics to prevent it from proof
   of work, or other resources such as space, stake or memory, to traditional admission control in permissioned settings. With SybilQuorum we propose an
   alternative approach to securing an open distributed ledger against Sybil attacks, and ensuring consensus amongst honest participants, leveraging social

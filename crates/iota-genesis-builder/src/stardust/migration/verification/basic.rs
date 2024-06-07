@@ -1,5 +1,4 @@
 // Copyright (c) 2024 IOTA Stiftung
-// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashMap;
@@ -7,8 +6,13 @@ use std::collections::HashMap;
 use anyhow::{anyhow, ensure, Result};
 use iota_sdk::types::block::output::{BasicOutput, OutputId, TokenId};
 use iota_types::{
-    balance::Balance, coin::Coin, dynamic_field::Field, in_memory_storage::InMemoryStorage,
-    object::Owner, timelock::timelock::TimeLock, TypeTag,
+    balance::Balance,
+    coin::Coin,
+    dynamic_field::Field,
+    in_memory_storage::InMemoryStorage,
+    object::Owner,
+    timelock::{stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE, timelock::TimeLock},
+    TypeTag,
 };
 
 use crate::stardust::{
@@ -49,18 +53,32 @@ pub(super) fn verify_basic_output(
 
         // Locked timestamp
         ensure!(
-            created_timelock.expiration_timestamp_ms == target_milestone_timestamp as u64,
+            created_timelock.expiration_timestamp_ms() == target_milestone_timestamp as u64,
             "timelock timestamp mismatch: found {}, expected {}",
-            created_timelock.expiration_timestamp_ms,
+            created_timelock.expiration_timestamp_ms(),
             target_milestone_timestamp
         );
 
         // Amount
         ensure!(
-            created_timelock.locked.value() == output.amount(),
+            created_timelock.locked().value() == output.amount(),
             "locked amount mismatch: found {}, expected {}",
-            created_timelock.locked.value(),
+            created_timelock.locked().value(),
             output.amount()
+        );
+
+        // Label
+        let label = created_timelock
+            .label()
+            .as_ref()
+            .ok_or_else(|| anyhow!("timelock label must be initialized"))?;
+        let expected_label = STARDUST_UPGRADE_LABEL_VALUE;
+
+        ensure!(
+            label == expected_label,
+            "timelock label mismatch: found {}, expected {}",
+            label,
+            expected_label
         );
 
         return Ok(());
