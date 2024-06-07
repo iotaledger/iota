@@ -2,9 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// Modifications Copyright (c) 2024 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
-
 import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
 import { fromExportedKeypair } from '_src/shared/utils/from-exported-keypair';
 
@@ -124,13 +121,13 @@ export class ImportedAccount
     async exportKeyPair(password: string): Promise<string> {
         const { encrypted } = await this.getStoredData();
         const { keyPair } = await decrypt<EncryptedData>(password, encrypted);
-        return fromExportedKeypair(keyPair, true).getSecretKey();
+        return fromExportedKeypair(keyPair).getSecretKey();
     }
 
     async #getKeyPair() {
         const ephemeralData = await this.getEphemeralValue();
         if (ephemeralData) {
-            return fromExportedKeypair(ephemeralData.keyPair, true);
+            return fromExportedKeypair(ephemeralData.keyPair);
         }
         return null;
     }
