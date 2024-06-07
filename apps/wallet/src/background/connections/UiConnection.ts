@@ -2,9 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// Modifications Copyright (c) 2024 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
-
 import { createMessage } from '_messages';
 import type { Message } from '_messages';
 import type { PortChannelName } from '_messaging/PortChannelName';
@@ -217,7 +214,8 @@ export class UiConnection extends Connection {
                     }
                     if (type === 'mnemonic') {
                         await accountSource.verifyRecoveryData(data.entropy);
-                    } else {
+                    }
+                    if (type === 'seed') {
                         await accountSource.verifyRecoveryData(data.seed);
                     }
                 }
@@ -247,7 +245,8 @@ export class UiConnection extends Connection {
                                     ),
                                 ),
                             });
-                        } else {
+                        }
+                        if (type === 'seed') {
                             await db.accountSources.update(accountSourceID, {
                                 encryptedData: await Dexie.waitFor(
                                     SeedAccountSource.createEncryptedData(data.seed, password),

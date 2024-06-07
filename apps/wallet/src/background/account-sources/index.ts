@@ -173,7 +173,8 @@ export async function accountSourcesHandleUIMessage(msg: Message, uiConnection: 
         }
         if (type === 'mnemonic') {
             await accountSource.verifyRecoveryData(payload.args.data.entropy);
-        } else {
+        }
+        if (type === 'seed') {
             await accountSource.verifyRecoveryData(payload.args.data.seed);
         }
         uiConnection.send(createMessage({ type: 'done' }, msg.id));
