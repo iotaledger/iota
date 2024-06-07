@@ -16,8 +16,8 @@ import type {
     StandardConnectOutput,
     StandardReconnectForceFeature,
     WalletWithRequiredFeatures,
-} from '@mysten/wallet-standard';
-import { isSupportedChain } from '@mysten/wallet-standard';
+} from '@iota/wallet-standard';
+import { isSupportedChain } from '@iota/wallet-standard';
 import { getSelectedAccount } from '../../utils/getSelectedAccount.js';
 
 type UseReconnectForceError = WalletNotConnectedError | Error;
