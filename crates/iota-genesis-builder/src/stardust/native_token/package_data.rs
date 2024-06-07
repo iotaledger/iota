@@ -140,6 +140,8 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(tag = "standard", rename = "IRC30")]
 pub struct Irc30MetadataAlternative {
     /// The human-readable name of the native token.
     name: String,
@@ -180,7 +182,17 @@ fn extract_irc30_metadata(output: &FoundryOutput) -> Irc30MetadataAlternative {
     output
         .immutable_features()
         .metadata()
-        .and_then(|metadata| serde_json::from_slice(metadata.data()).ok())
+        .and_then(|metadata| {
+            serde_json::from_slice::<Irc30MetadataAlternative>(metadata.data()).ok()
+        })
+        .and_then(|metadata| {
+            metadata
+                .logo_url
+                .as_ref()
+                .map(|url| url.is_ascii())
+                .unwrap_or(true)
+                .then_some(metadata)
+        })
         .unwrap_or_else(|| {
             Irc30MetadataAlternative::new_compact(derive_foundry_package_lowercase_identifier(
                 "",
