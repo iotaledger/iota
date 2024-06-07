@@ -7,45 +7,84 @@ use std::collections::HashMap;
 use anyhow::{anyhow, ensure};
 use iota_sdk::types::block::output::{NftOutput, OutputId, TokenId};
 use iota_types::{
-    balance::Balance, base_types::ObjectID, dynamic_field::Field,
+    balance::Balance,
+    base_types::ObjectID,
+    dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo, Field},
     in_memory_storage::InMemoryStorage,
+    object::Owner,
+    TypeTag,
 };
 
-use crate::stardust::migration::{
-    executor::FoundryLedgerData,
-    verification::{
-        created_objects::CreatedObjects,
-        util::{
-            verify_expiration_unlock_condition, verify_issuer_feature, verify_metadata_feature,
-            verify_native_tokens, verify_parent, verify_sender_feature,
-            verify_storage_deposit_unlock_condition, verify_tag_feature,
-            verify_timelock_unlock_condition,
+use crate::stardust::{
+    migration::{
+        executor::FoundryLedgerData,
+        verification::{
+            created_objects::CreatedObjects,
+            util::{
+                verify_address_owner, verify_expiration_unlock_condition, verify_issuer_feature,
+                verify_metadata_feature, verify_native_tokens, verify_parent,
+                verify_sender_feature, verify_storage_deposit_unlock_condition, verify_tag_feature,
+                verify_timelock_unlock_condition,
+            },
         },
     },
+    types::{NFT_DYNAMIC_OBJECT_FIELD_KEY, NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE},
 };
 
-pub(crate) fn verify_nft_output(
+pub(super) fn verify_nft_output(
     output_id: OutputId,
     output: &NftOutput,
     created_objects: &CreatedObjects,
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
 ) -> anyhow::Result<()> {
-    let created_output = created_objects
-        .output()
-        .and_then(|id| {
-            storage
-                .get_object(id)
-                .ok_or_else(|| anyhow!("missing nft output object for {output_id}"))
-        })?
+    let created_output_obj = created_objects.output().and_then(|id| {
+        storage
+            .get_object(id)
+            .ok_or_else(|| anyhow!("missing nft output object for {output_id}"))
+    })?;
+    let created_output = created_output_obj
         .to_rust::<crate::stardust::types::NftOutput>()
         .ok_or_else(|| anyhow!("invalid nft output object for {output_id}"))?;
 
-    let nft = storage
+    let created_nft_obj = storage
         .get_object(&ObjectID::new(*output.nft_id_non_null(&output_id)))
-        .ok_or_else(|| anyhow!("missing nft object for {output_id}"))?
+        .ok_or_else(|| anyhow!("missing nft object for {output_id}"))?;
+    let created_nft = created_nft_obj
         .to_rust::<crate::stardust::types::Nft>()
         .ok_or_else(|| anyhow!("invalid nft object for {output_id}"))?;
+
+    // Output Owner
+    // If there is an expiration unlock condition, the NFT is shared.
+    if output.unlock_conditions().expiration().is_some() {
+        ensure!(
+            matches!(created_output_obj.owner, Owner::Shared { .. }),
+            "nft output owner mismatch: found {:?}, expected Shared",
+            created_output_obj.owner,
+        );
+    } else {
+        verify_address_owner(output.address(), created_output_obj, "nft output")?;
+    }
+
+    // NFT Owner
+    let expected_nft_owner = Owner::ObjectOwner(
+        derive_dynamic_field_id(
+            created_output_obj.id(),
+            &DynamicFieldInfo::dynamic_object_field_wrapper(
+                NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE.parse::<TypeTag>()?,
+            )
+            .into(),
+            &bcs::to_bytes(NFT_DYNAMIC_OBJECT_FIELD_KEY)?,
+        )?
+        .into(),
+    );
+
+    ensure!(
+        created_nft_obj.owner == expected_nft_owner,
+        "nft owner mismatch: found {}, expected {}",
+        created_nft_obj.owner,
+        expected_nft_owner
+    );
 
     // Amount
     ensure!(
@@ -84,31 +123,52 @@ pub(crate) fn verify_nft_output(
     )?;
 
     // Metadata Feature
-    verify_metadata_feature(output.features().metadata(), nft.metadata.as_ref())?;
+    verify_metadata_feature(output.features().metadata(), created_nft.metadata.as_ref())?;
 
     // Tag Feature
-    verify_tag_feature(output.features().tag(), nft.tag.as_ref())?;
+    verify_tag_feature(output.features().tag(), created_nft.tag.as_ref())?;
 
     // Sender Feature
-    verify_sender_feature(output.features().sender(), nft.legacy_sender)?;
+    verify_sender_feature(output.features().sender(), created_nft.legacy_sender)?;
 
     // Issuer Feature
-    verify_issuer_feature(output.immutable_features().issuer(), nft.immutable_issuer)?;
+    verify_issuer_feature(
+        output.immutable_features().issuer(),
+        created_nft.immutable_issuer,
+    )?;
 
     // Immutable Metadata Feature
     ensure!(
-        crate::stardust::types::Nft::convert_immutable_metadata(output)? == nft.immutable_metadata,
+        crate::stardust::types::Nft::convert_immutable_metadata(output)?
+            == created_nft.immutable_metadata,
         "metadata mismatch: found {:x?}, expected {:x?}",
         crate::stardust::types::Nft::convert_immutable_metadata(output)?,
-        nft.immutable_metadata
+        created_nft.immutable_metadata
+    );
+
+    verify_parent(output.address(), storage)?;
+
+    ensure!(created_objects.coin().is_err(), "unexpected coin found");
+
+    ensure!(
+        created_objects.coin_metadata().is_err(),
+        "unexpected coin metadata found"
+    );
+
+    ensure!(
+        created_objects.minted_coin().is_err(),
+        "unexpected minted coin found"
+    );
+
+    ensure!(
+        created_objects.max_supply_policy().is_err(),
+        "unexpected max supply policy found"
     );
 
     ensure!(
         created_objects.package().is_err(),
         "unexpected package found"
     );
-
-    verify_parent(output.address(), storage)?;
 
     Ok(())
 }
