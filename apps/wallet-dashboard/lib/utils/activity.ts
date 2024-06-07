@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Activity, ActivityAction, ActivityState } from '@/lib/interfaces';
-import { ExecutionStatus, SuiTransactionBlockResponse } from '@mysten/sui.js/client';
+import { ExecutionStatus, SuiTransactionBlockResponse } from '@iota/iota.js/client';
 import { parseTimestamp } from './time';
 
 const getTransactionActivityState = (tx: SuiTransactionBlockResponse): ActivityState => {
