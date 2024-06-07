@@ -15,7 +15,11 @@ describe('Transaction Reading API', () => {
 
     beforeAll(async () => {
         toolbox = await setup();
-        transactions = await executePayIotaNTimes(toolbox.client, toolbox.keypair, NUM_TRANSACTIONS);
+        transactions = await executePayIotaNTimes(
+            toolbox.client,
+            toolbox.keypair,
+            NUM_TRANSACTIONS,
+        );
     });
 
     it('Get Total Transactions', async () => {

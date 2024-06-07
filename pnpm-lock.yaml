@@ -647,9 +647,6 @@ importers:
       '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
-      '@iota/deepbook':
-        specifier: workspace:*
-        version: link:../../sdk/deepbook
       '@iota/icons':
         specifier: workspace:*
         version: link:../icons

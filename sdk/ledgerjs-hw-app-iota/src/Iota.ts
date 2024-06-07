@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+/* eslint-disable no-restricted-globals */
 
 import type Transport from '@ledgerhq/hw-transport';
 import sha256 from 'fast-sha256';
