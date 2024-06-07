@@ -48,7 +48,7 @@ export function useTransferKioskItem({
                 throw new Error('Failed to find object in a kiosk');
             }
 
-            if (kiosk.type === KioskTypes.I && objectData?.data?.data?.type && kiosk?.ownerCap) {
+            if (kiosk.type === KioskTypes.IOTA && objectData?.data?.data?.type && kiosk?.ownerCap) {
                 const txb = new TransactionBlock();
 
                 new KioskTransaction({ transactionBlock: txb, kioskClient, cap: kiosk.ownerCap })
