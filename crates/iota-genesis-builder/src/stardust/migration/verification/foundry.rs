@@ -16,7 +16,10 @@ use crate::stardust::{
     migration::{
         executor::FoundryLedgerData,
         verification::{
-            util::{truncate_to_max_allowed_u64_supply, verify_parent},
+            util::{
+                truncate_to_max_allowed_u64_supply, verify_address_owner, verify_coin,
+                verify_parent,
+            },
             CreatedObjects,
         },
     },
@@ -34,30 +37,32 @@ pub(super) fn verify_foundry_output(
         .get(&output.token_id())
         .ok_or_else(|| anyhow!("missing foundry data"))?;
 
-    // Coin value.
-    let created_coin = created_objects
-        .coin()
-        .and_then(|id| {
-            storage
-                .get_object(id)
-                .ok_or_else(|| anyhow!("missing coin"))
-        })?
-        .as_coin_maybe()
-        .ok_or_else(|| anyhow!("expected a coin"))?;
-    ensure!(
-        created_coin.value() == output.amount(),
-        "coin amount mismatch: found {}, expected {}",
-        created_coin.value(),
-        output.amount()
-    );
+    let alias_address = output
+        .unlock_conditions()
+        .immutable_alias_address()
+        .expect("foundry outputs always have an immutable alias address")
+        .address();
+
+    // Coin value and owner
+    verify_coin(output.amount(), alias_address, created_objects, storage)?;
 
     // Minted coin value
     let minted_coin_id = created_objects.minted_coin()?;
-    let minted_coin = storage
+    let minted_coin_obj = storage
         .get_object(minted_coin_id)
-        .ok_or_else(|| anyhow!("missing coin"))?
+        .ok_or_else(|| anyhow!("missing coin"))?;
+    let minted_coin = minted_coin_obj
         .as_coin_maybe()
         .ok_or_else(|| anyhow!("expected a coin"))?;
+
+    // Minted coins are transferred to `0x0`
+    let expected_owner = Owner::AddressOwner(IotaAddress::default());
+    ensure!(
+        minted_coin_obj.owner == expected_owner,
+        "minted coin owner mismatch: found {}, expected {}",
+        minted_coin_obj.owner,
+        expected_owner
+    );
 
     ensure!(
         foundry_data.minted_coin_id == *minted_coin_id,
@@ -209,22 +214,14 @@ pub(super) fn verify_foundry_output(
     );
 
     // Alias Address Unlock Condition
-    let alias_address = output.alias_address().to_string().parse::<IotaAddress>()?;
-    ensure!(
-        max_supply_policy_obj.owner == Owner::AddressOwner(alias_address),
-        "unexpected max supply policy owner: expected {}, found {}",
-        alias_address,
-        max_supply_policy_obj.owner
-    );
+    verify_address_owner(alias_address, max_supply_policy_obj, "max supply policy")?;
 
-    verify_parent(
-        output
-            .unlock_conditions()
-            .immutable_alias_address()
-            .expect("foundry outputs always have an immutable alias address")
-            .address(),
-        storage,
-    )?;
+    verify_parent(alias_address, storage)?;
+
+    ensure!(
+        created_objects.output().is_err(),
+        "unexpected output object found"
+    );
 
     Ok(())
 }
