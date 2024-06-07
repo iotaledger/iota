@@ -153,7 +153,11 @@ export default function AddressResultPage() {
                 ),
             }}
             content={
-                isIotaNSAddress ? <IotaNSAddressResult name={id!} /> : <AddressResult address={id!} />
+                isIotaNSAddress ? (
+                    <IotaNSAddressResult name={id!} />
+                ) : (
+                    <AddressResult address={id!} />
+                )
             }
         />
     );

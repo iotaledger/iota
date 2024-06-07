@@ -8,7 +8,6 @@ xclippy = [
     "-Wclippy::all",
     "-Wclippy::disallowed_methods",
 ]
-xlint = "run --package x --bin x -- lint"
 xtest = "run --package x --bin x -- external-crates-tests"
 
 # Configuration specifically for running clippy on `external-crates/move/`.
@@ -25,6 +24,8 @@ move-clippy = [
     "-Aclippy::box_default",
     "-Aclippy::manual_slice_size_calculation",
 ]
+
+ci-license = "license-template --template .license_template"
 
 [build]
 rustflags = ["-C", "force-frame-pointers=yes", "-C", "force-unwind-tables=yes"]
