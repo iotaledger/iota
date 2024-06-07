@@ -199,25 +199,6 @@ export interface ClickedStakeIotaProperties {
     sourceFlow: string;
 }
 
-export interface ClickedSwapCoinProperties {
-    /**
-     * The type of a coin.
-     */
-    coinType: string;
-    /**
-     * The flow the user came from.
-     */
-    sourceFlow: string;
-    /**
-     * The total balance in IOTA of the selected coin that the user has.
-     *
-     * | Rule | Value |
-     * |---|---|
-     * | Type | number |
-     */
-    totalBalance: number;
-}
-
 export interface ClickedUnstakeIotaProperties {
     /**
      * The amount of IOTA staked.
@@ -385,25 +366,6 @@ export interface StakedIotaProperties {
     validatorAddress: string;
 }
 
-export interface SwappedCoinProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Type | number |
-     */
-    estimatedReturnBalance: number;
-    fromCoinType: string;
-    toCoinType: string;
-    /**
-     * The total balance in IOTA of the selected coin that the user has.
-     *
-     * | Rule | Value |
-     * |---|---|
-     * | Type | number |
-     */
-    totalBalance: number;
-}
-
 export interface SwitchedAccountProperties {
     /**
      * The type of account that is being switched to.
@@ -517,14 +479,6 @@ export class ClickedStakeIota implements BaseEvent {
     event_type = 'clicked stake IOTA';
 
     constructor(public event_properties: ClickedStakeIotaProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class ClickedSwapCoin implements BaseEvent {
-    event_type = 'clicked swap coin';
-
-    constructor(public event_properties: ClickedSwapCoinProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -645,14 +599,6 @@ export class StakedIota implements BaseEvent {
     event_type = 'staked IOTA';
 
     constructor(public event_properties: StakedIotaProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class SwappedCoin implements BaseEvent {
-    event_type = 'swapped coin';
-
-    constructor(public event_properties: SwappedCoinProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -1021,23 +967,6 @@ export class Ampli {
   }
 
   /**
-   * clicked swap coin
-   *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20swap%20coin)
-   *
-   * When users click to swap a coin in the wallet
-   *
-   * @param properties The event's properties (e.g. coinType)
-   * @param options Amplitude event options.
-   */
-  clickedSwapCoin(
-    properties: ClickedSwapCoinProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new ClickedSwapCoin(properties), options);
-  }
-
-  /**
    * clicked unstake IOTA
    *
    * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20unstake%20IOTA)
@@ -1333,23 +1262,6 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new StakedIota(properties), options);
-  }
-
-  /**
-   * swapped coin
-   *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/swapped%20coin)
-   *
-   * When users complete swapping 1 coin to another
-   *
-   * @param properties The event's properties (e.g. estimatedReturnBalance)
-   * @param options Amplitude event options.
-   */
-  swappedCoin(
-    properties: SwappedCoinProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new SwappedCoin(properties), options);
   }
 
   /**
