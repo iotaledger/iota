@@ -290,6 +290,7 @@ impl GovernanceReadApi {
                     principal: stake.principal(),
                     status,
                     expiration_timestamp_ms: stake.expiration_timestamp_ms(),
+                    label: stake.label().clone(),
                 })
             }
             delegated_stakes.push(DelegatedTimelockedStake {
