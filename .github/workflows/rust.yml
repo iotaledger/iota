@@ -7,13 +7,13 @@ on:
       - 'devnet'
       - 'testnet'
       - 'mainnet'
-      - 'releases/sui-*-release'
+      - 'releases/iota-*-release'
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -58,12 +58,12 @@ jobs:
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
       - uses: bmwill/rust-cache@v1 # Fork of 'Swatinem/rust-cache' which allows caching additional paths
-      - name: Install cargo-hakari, and cache the binary
-        uses: baptiste0928/cargo-install@1cd874a5478fdca35d868ccc74640c5aabbb8f1b # pin@v3.0.0
-        with:
-          crate: cargo-hakari
-          locked: true
-      - run: cargo xlint
+      
+      - name: Install cargo-license-template
+        run: cargo install --force cargo-license-template
+
+      - name: Run cargo-license-template
+        run: cargo ci-license
 
   release-notes-description-check:
     name: release-notes-check
@@ -77,7 +77,7 @@ jobs:
         run: |
           export PR_NUMBER=$(jq --raw-output .pull_request.number "$GITHUB_EVENT_PATH")
           export DESCRIPTION=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/MystenLabs/sui/pulls/${PR_NUMBER}" \
+            "https://api.github.com/repos/iotaledger/iota/pulls/${PR_NUMBER}" \
             | jq --raw-output .body)
 
           if [[ "${DESCRIPTION}" == *"[x]"*  ]]; then
@@ -97,20 +97,11 @@ jobs:
       # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
       # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
       # non-deterministic `test` job.
-      SUI_SKIP_SIMTESTS: 1
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - [ubuntu-ghcloud]
-      fail-fast: false
+      IOTA_SKIP_SIMTESTS: 1
+    runs-on: [ubuntu-latest]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
       - uses: taiki-e/install-action@nextest
-      - name: Set Swap Space
-        uses: pierotofy/set-swap-space@master
-        with:
-          swap-size-gb: 256
       - name: cargo test
         run: |
           cargo nextest run --profile ci
@@ -126,23 +117,14 @@ jobs:
       # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
       # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
       # non-deterministic `test` job.
-      SUI_SKIP_SIMTESTS: 1
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - [ubuntu-ghcloud]
-      fail-fast: false
+      IOTA_SKIP_SIMTESTS: 1
+    runs-on: [ubuntu-latest]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
       - uses: taiki-e/install-action@nextest
-      - name: Set Swap Space
-        uses: pierotofy/set-swap-space@master
-        with:
-          swap-size-gb: 256
       - name: benchmark (smoke)
         run: |
-          cargo run --package sui-benchmark --bin stress -- --log-path /tmp/stress.log --num-client-threads 10 --num-server-threads 24 --num-transfer-accounts 2 bench --target-qps 100 --num-workers 10  --transfer-object 50 --shared-counter 50 --run-duration 10s --stress-stat-collection
+          cargo run --package iota-benchmark --bin stress -- --log-path /tmp/stress.log --num-client-threads 10 --num-server-threads 24 --num-transfer-accounts 2 bench --target-qps 100 --num-workers 10  --transfer-object 50 --shared-counter 50 --run-duration 10s --stress-stat-collection
       - name: doctests
         run: |
           cargo test --doc
@@ -156,7 +138,7 @@ jobs:
           locked: true
       - name: Install nightly rustfmt
         run: rustup toolchain install nightly --component rustfmt --allow-downgrade
-      - name: sui-execution
+      - name: iota-execution
         run: |
           ./scripts/execution_layer.py generate-lib
       # Ensure there are no uncommitted changes in the repo after running tests
@@ -228,7 +210,7 @@ jobs:
       - uses: taiki-e/install-action@nextest
       - name: Run move tests
         run: |
-          cargo nextest run -p sui-framework-tests -- unit_tests::
+          cargo nextest run -p iota-framework-tests -- unit_tests::
 
   # # Disabled
   # rosetta-validation:
@@ -243,9 +225,9 @@ jobs:
   #       run: .github/scripts/rosetta/setup.sh
   #       shell: bash
 
-  #     - name: Start local Sui network
+  #     - name: Start local IOTA network
   #       run: |
-  #         sui start --no-full-node &
+  #         iota start --no-full-node &
   #       shell: bash
 
   #     - name: Start Rosetta servers
@@ -344,7 +326,7 @@ jobs:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
       - uses: mystenlabs/cargo-deny-action@main
 
-  sui-excution-cut:
+  iota-excution-cut:
     name: cutting a new execution layer
     needs: diff
     if: needs.diff.outputs.isRust == 'true'
@@ -360,7 +342,7 @@ jobs:
       - name: Make cut
         run: ./scripts/execution_layer.py cut for_ci_test
       - name: Check execution builds
-        run: cargo build -p sui-execution
+        run: cargo build -p iota-execution
 
 
   #indexer:
@@ -386,7 +368,7 @@ jobs:
   #    - name: integration-test-with-postgres
   #      #We only have 1 instance of postgres DB, can only run test in single thread
   #      run: |
-  #        cargo test --package sui-indexer --test integration_tests --features pg_integration -- --test-threads=1
+  #        cargo test --package iota-indexer --test integration_tests --features pg_integration -- --test-threads=1
   #      env:
   #        POSTGRES_HOST: localhost
   #        POSTGRES_PORT: 5432
@@ -415,7 +397,7 @@ jobs:
      - uses: taiki-e/install-action@nextest
      - name: Setup db
        run: |
-         PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U $POSTGRES_USER -c 'CREATE DATABASE sui_indexer;' -c 'ALTER SYSTEM SET max_connections = 500;'
+         PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U $POSTGRES_USER -c 'CREATE DATABASE iota_indexer;' -c 'ALTER SYSTEM SET max_connections = 500;'
        env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgrespw
@@ -423,11 +405,11 @@ jobs:
      - run: sleep 5
      - name: tests-requiring-postgres
        run: |
-         cargo nextest run --test-threads 1 --package sui-graphql-rpc --test e2e_tests --test examples_validation_tests --features pg_integration
-         cargo nextest run --test-threads 1 --package sui-graphql-rpc --lib --features pg_integration -- test_query_cost
-         cargo nextest run --test-threads 8 --package sui-graphql-e2e-tests --features pg_integration
-         cargo nextest run --test-threads 1 --package sui-cluster-test --test local_cluster_test --features pg_integration
-         cargo nextest run --test-threads 1 --package sui-indexer --test ingestion_tests --features pg_integration
+         cargo nextest run --test-threads 1 --package iota-graphql-rpc --test e2e_tests --test examples_validation_tests --features pg_integration
+         cargo nextest run --test-threads 1 --package iota-graphql-rpc --lib --features pg_integration -- test_query_cost
+         cargo nextest run --test-threads 8 --package iota-graphql-e2e-tests --features pg_integration
+         cargo nextest run --test-threads 1 --package iota-cluster-test --test local_cluster_test --features pg_integration
+         cargo nextest run --test-threads 1 --package iota-indexer --test ingestion_tests --features pg_integration
 
        env:
          POSTGRES_HOST: localhost

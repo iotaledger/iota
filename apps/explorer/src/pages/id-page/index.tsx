@@ -26,7 +26,11 @@ function Header({
     loading?: boolean;
     error?: Error | null;
 }) {
-    const { data: domainName, isLoading, error: resolveIotansError } = useResolveIotaNSName(address);
+    const {
+        data: domainName,
+        isLoading,
+        error: resolveIotansError,
+    } = useResolveIotaNSName(address);
     const { data, isPending, error: getObjectError } = useGetObject(address!);
     const isObject = !!data?.data;
     const errorText = getObjectError?.message ?? resolveIotansError?.message ?? error?.message;

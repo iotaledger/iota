@@ -18,9 +18,10 @@ describe('Invoke any RPC endpoint', () => {
         const gasObjectsExpected = await toolbox.client.getOwnedObjects({
             owner: toolbox.address(),
         });
-        const gasObjects = await toolbox.client.call<{ data: IotaGasData }>('iotax_getOwnedObjects', [
-            toolbox.address(),
-        ]);
+        const gasObjects = await toolbox.client.call<{ data: IotaGasData }>(
+            'iotax_getOwnedObjects',
+            [toolbox.address()],
+        );
         expect(gasObjects.data).toStrictEqual(gasObjectsExpected.data);
     });
 

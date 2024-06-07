@@ -1,5 +1,4 @@
 // Copyright (c) 2024 IOTA Stiftung
-// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::ProtocolConfig;
@@ -9,7 +8,10 @@ use iota_types::{
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
     id::UID,
     object::{Data, MoveObject, Object, Owner},
-    timelock::timelock::TimeLock,
+    timelock::{
+        label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
+        timelock::TimeLock,
+    },
 };
 
 /// All basic outputs whose IDs start with this prefix represent vested rewards
@@ -91,10 +93,13 @@ pub fn try_from_stardust(
         .expect("a vested reward should contain a timelock unlock condition");
     let expiration_timestamp_ms = Into::<u64>::into(timelock_uc.timestamp()) * 1000;
 
+    let label = Option::Some(label_struct_tag_to_string(stardust_upgrade_label_type()));
+
     Ok(iota_types::timelock::timelock::TimeLock::new(
         id,
         locked,
         expiration_timestamp_ms,
+        label,
     ))
 }
 
@@ -144,6 +149,7 @@ mod tests {
             BasicOutput, BasicOutputBuilder, NativeToken, OutputId, TokenId,
         },
     };
+    use iota_types::timelock::stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE;
 
     use crate::stardust::types::timelock::{self, VestedRewardError};
 
@@ -163,7 +169,7 @@ mod tests {
     #[test]
     fn is_timelocked_vested_reward_all_correct() {
         let output_id = OutputId::from_str(
-            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb1812345678",
+            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb18123456780000",
         )
         .unwrap();
         let output = vested_reward_output(10, 1000);
@@ -176,7 +182,7 @@ mod tests {
     #[test]
     fn is_timelocked_vested_reward_min_id() {
         let output_id = OutputId::from_str(
-            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb1800000000",
+            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb18000000000000",
         )
         .unwrap();
         let output = vested_reward_output(10, 1000);
@@ -189,7 +195,7 @@ mod tests {
     #[test]
     fn is_timelocked_vested_reward_max_id() {
         let output_id = OutputId::from_str(
-            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb18ffffffff",
+            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb18ffffffff0000",
         )
         .unwrap();
         let output = vested_reward_output(10, 1000);
@@ -202,7 +208,7 @@ mod tests {
     #[test]
     fn is_timelocked_vested_reward_incorrect_id() {
         let output_id = OutputId::from_str(
-            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb1712345678",
+            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb17123456780000",
         )
         .unwrap();
         let output = vested_reward_output(10, 1000);
@@ -215,7 +221,7 @@ mod tests {
     #[test]
     fn is_timelocked_vested_reward_no_timelock_unlock_condition() {
         let output_id = OutputId::from_str(
-            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb1812345678",
+            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb18123456780000",
         )
         .unwrap();
         let output = BasicOutputBuilder::new_with_amount(10)
@@ -236,7 +242,7 @@ mod tests {
     #[test]
     fn is_timelocked_vested_reward_bigger_milestone_time() {
         let output_id = OutputId::from_str(
-            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb1812345678",
+            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb18123456780000",
         )
         .unwrap();
         let output = vested_reward_output(10, 100);
@@ -249,7 +255,7 @@ mod tests {
     #[test]
     fn is_timelocked_vested_reward_same_milestone_time() {
         let output_id = OutputId::from_str(
-            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb1812345678",
+            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb18123456780000",
         )
         .unwrap();
         let output = vested_reward_output(10, 1000);
@@ -262,7 +268,7 @@ mod tests {
     #[test]
     fn timelock_from_stardust_all_correct() {
         let output_id = OutputId::from_str(
-            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb1812345678",
+            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb18123456780000",
         )
         .unwrap();
         let output = vested_reward_output(10, 1000);
@@ -271,12 +277,13 @@ mod tests {
 
         assert!(timelock.locked().value() == 10);
         assert!(timelock.expiration_timestamp_ms() == 1_000_000);
+        assert!(timelock.label().as_ref().unwrap() == STARDUST_UPGRADE_LABEL_VALUE);
     }
 
     #[test]
     fn timelock_from_stardust_with_expired_output() {
         let output_id = OutputId::from_str(
-            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb1812345678",
+            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb18123456780000",
         )
         .unwrap();
         let output = vested_reward_output(10, 1000);
@@ -289,7 +296,7 @@ mod tests {
     #[test]
     fn timelock_from_stardust_with_incorrect_id() {
         let output_id = OutputId::from_str(
-            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb1712345678",
+            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb17123456780000",
         )
         .unwrap();
         let output = vested_reward_output(10, 1000);
@@ -302,7 +309,7 @@ mod tests {
     #[test]
     fn timelock_from_stardust_without_timelock_unlock_condition() {
         let output_id = OutputId::from_str(
-            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb1812345678",
+            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb18123456780000",
         )
         .unwrap();
         let output = BasicOutputBuilder::new_with_amount(10)
@@ -334,7 +341,7 @@ mod tests {
     #[test]
     fn timelock_from_stardust_extra_unlock_condition() {
         let output_id = OutputId::from_str(
-            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb1812345678",
+            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb18123456780000",
         )
         .unwrap();
         let output = BasicOutputBuilder::new_with_amount(10)
@@ -370,7 +377,7 @@ mod tests {
     #[test]
     fn timelock_from_stardust_with_native_tokens() {
         let output_id = OutputId::from_str(
-            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb1812345678",
+            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb18123456780000",
         )
         .unwrap();
         let output = BasicOutputBuilder::new_with_amount(10)

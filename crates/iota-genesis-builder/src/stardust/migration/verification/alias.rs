@@ -1,5 +1,4 @@
 // Copyright (c) 2024 IOTA Stiftung
-// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashMap;
@@ -22,14 +21,13 @@ use crate::stardust::{
         verification::{
             created_objects::CreatedObjects,
             util::{
-                verify_issuer_feature, verify_metadata_feature, verify_native_tokens,
-                verify_sender_feature,
+                verify_address_owner, verify_issuer_feature, verify_metadata_feature,
+                verify_native_tokens, verify_sender_feature,
             },
         },
     },
     types::{
-        stardust_to_iota_address_owner, Alias, AliasOutput, ALIAS_DYNAMIC_OBJECT_FIELD_KEY,
-        ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE,
+        Alias, AliasOutput, ALIAS_DYNAMIC_OBJECT_FIELD_KEY, ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE,
     },
 };
 
@@ -42,29 +40,27 @@ pub(super) fn verify_alias_output(
 ) -> anyhow::Result<()> {
     let alias_id = ObjectID::new(*output.alias_id_non_null(&output_id));
 
-    let alias_output_obj = created_objects.output().and_then(|id| {
+    let created_output_obj = created_objects.output().and_then(|id| {
         storage
             .get_object(id)
             .ok_or_else(|| anyhow!("missing alias output object"))
     })?;
 
-    let alias_obj = storage
+    let created_alias_obj = storage
         .get_object(&alias_id)
         .ok_or_else(|| anyhow!("missing alias object"))?;
 
     // Alias Output Owner
-    let expected_alias_output_owner = stardust_to_iota_address_owner(output.governor_address())?;
-    ensure!(
-        alias_output_obj.owner == expected_alias_output_owner,
-        "alias output owner mismatch: found {}, expected {}",
-        alias_output_obj.owner,
-        expected_alias_output_owner
-    );
+    verify_address_owner(
+        output.governor_address(),
+        created_output_obj,
+        "alias output",
+    )?;
 
-    //  Alias Owner
+    // Alias Owner
     let expected_alias_owner = Owner::ObjectOwner(
         derive_dynamic_field_id(
-            alias_output_obj.id(),
+            created_output_obj.id(),
             &DynamicFieldInfo::dynamic_object_field_wrapper(
                 ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE.parse::<TypeTag>()?,
             )
@@ -75,25 +71,25 @@ pub(super) fn verify_alias_output(
     );
 
     ensure!(
-        alias_obj.owner == expected_alias_owner,
+        created_alias_obj.owner == expected_alias_owner,
         "alias owner mismatch: found {}, expected {}",
-        alias_obj.owner,
+        created_alias_obj.owner,
         expected_alias_owner
     );
 
-    let created_alias = alias_obj
+    let created_alias = created_alias_obj
         .to_rust::<Alias>()
         .ok_or_else(|| anyhow!("invalid alias object"))?;
 
-    let created_alias_output = alias_output_obj
+    let created_output = created_output_obj
         .to_rust::<AliasOutput>()
         .ok_or_else(|| anyhow!("invalid alias output object"))?;
 
     // Amount
     ensure!(
-        created_alias_output.iota.value() == output.amount(),
+        created_output.iota.value() == output.amount(),
         "amount mismatch: found {}, expected {}",
-        created_alias_output.iota.value(),
+        created_output.iota.value(),
         output.amount()
     );
 
@@ -101,7 +97,7 @@ pub(super) fn verify_alias_output(
     verify_native_tokens::<Field<String, Balance>>(
         output.native_tokens(),
         foundry_data,
-        created_alias_output.native_tokens,
+        created_output.native_tokens,
         created_objects.native_tokens().ok(),
         storage,
     )?;
@@ -169,6 +165,21 @@ pub(super) fn verify_alias_output(
     verify_parent(output.governor_address(), storage)?;
 
     ensure!(created_objects.coin().is_err(), "unexpected coin found");
+
+    ensure!(
+        created_objects.coin_metadata().is_err(),
+        "unexpected coin metadata found"
+    );
+
+    ensure!(
+        created_objects.minted_coin().is_err(),
+        "unexpected minted coin found"
+    );
+
+    ensure!(
+        created_objects.max_supply_policy().is_err(),
+        "unexpected max supply policy found"
+    );
 
     ensure!(
         created_objects.package().is_err(),
