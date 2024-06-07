@@ -2,13 +2,13 @@
 title: Event Query and Subscription
 ---
 
-Iota Full nodes support publish/subscribe using JSON-RPC notifications via the WebSocket API. You can use this service with Iota client to filter and subscribe to a real-time event stream generated from Move or from the Iota network.
+IOTA Full nodes support publish/subscribe using JSON-RPC notifications via the WebSocket API. You can use this service with IOTA client to filter and subscribe to a real-time event stream generated from Move or from the IOTA network.
 
-The client provides an [event filter](#event-filters) to limit the scope of events. Iota returns a notification with the event data and subscription ID for each event that matches the filter.
+The client provides an [event filter](#event-filters) to limit the scope of events. IOTA returns a notification with the event data and subscription ID for each event that matches the filter.
 
 # Event types
 
-A Iota node emits the following types of events:
+A IOTA node emits the following types of events:
 
 - [Move event](#move-event)
 - [Publish event](#publish-event)
@@ -193,9 +193,9 @@ None, Checkpoint events do not have any attributes. The event includes the Check
 }
 ```
 
-## Iota event query criteria {#iota-event-query-criteria}
+## IOTA event query criteria {#iota-event-query-criteria}
 
-You can use the `EventQuery` criteria object to query a Iota node and retrieve events that match query criteria.
+You can use the `EventQuery` criteria object to query a IOTA node and retrieve events that match query criteria.
 
 | Query       | Description                                               | JSON-RPC Parameter Example                                                                          |
 | ----------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
@@ -484,7 +484,7 @@ curl --location --request POST '127.0.0.1:9000' \
 }
 ```
 
-## Subscribe to Iota events {#subscribe-events}
+## Subscribe to IOTA events {#subscribe-events}
 
 When you subscribe to the events described in the preceding sections, you can apply event filters to match the events you want to filter.
 
@@ -506,7 +506,7 @@ You can use `EventFilter` to filter the events included in your subscription to 
 
 ### Combining filters {#combining-filters}
 
-Iota provides a few operators for combining filters:
+IOTA provides a few operators for combining filters:
 
 | Operator | Description                                                             | JSON-RPC Parameter Example                                                                          |
 | -------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |

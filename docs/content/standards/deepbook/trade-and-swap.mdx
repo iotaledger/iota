@@ -79,7 +79,7 @@ Tokens are created with different decimal precision. For example, IOTA has nine 
 six decimals of precision. To accommodate proper pricing within DeepBook, every decimal is scaled with 10^9 precision. All the decimals in DeepBook
 meet the equation: `10^9 \* (priceInRealWorld/priceInDeepBook) = (10^baseAssetDecimal) / (10^quoteAssetDecimal)`.
 
-Let's walk through an example between IOTA/USDC. For this example, assume Iota price is $1.10 and is the base asset
+Let's walk through an example between IOTA/USDC. For this example, assume IOTA price is $1.10 and is the base asset
 of the IOTA/USDC trading pair.
 
 Thus, the calculation is `10^9 \* (1.10/ P_d) = 1000`, where `P_d` should be the price of iota in the DeepBook IOTA/USDC trading pair. You can solve for `P_d = 1100000`,
@@ -114,13 +114,13 @@ Before placing a limit order, traders need to host a custodian account with asse
 ```mermaid
 flowchart LR
  A((user_address\n0x1234\ncustodian_cap_address\n0xABCD))
- subgraph Iota_blockchain
+ subgraph IOTA_blockchain
     direction TB
     B["account_balances: Table&lt;address, Account&lt;T>>"]
     C("<table><tbody><tr><td>0xABCD</td><td>5 IOTA</td></tr><tr><td>0xBCDE</td><td>12 IOTA</td></tr><tr><td>...</td><td>...</td></tr></tbody></table>")
  end
 
- A ----> Iota_blockchain
+ A ----> IOTA_blockchain
 ```
 
 **Function signature for `create_account` in Move contract**
@@ -353,7 +353,7 @@ public placeLimitOrder(
             overrides.txb.pure(isBid),
             overrides.txb.pure(Math.floor(expireTimestamp)),
             overrides.txb.pure(restriction),
-            overrides.txb.object(normalizeIotaObjectId(this.configs.clock)),
+            overrides.txb.object(normalizeIOTAObjectId(this.configs.clock)),
             typeof accountCap == "string" ? overrides.txb.object(accountCap) : accountCap,
         ],
     });
@@ -445,7 +445,7 @@ public async placeMarketOrder(
             arguments: [
                 overrides.txb.object(String(poolInfo.clob)),
                 _amount,
-                overrides.txb.object(normalizeIotaObjectId(this.configs.clock)),
+                overrides.txb.object(normalizeIOTAObjectId(this.configs.clock)),
                 _tokenOut,
             ],
         });
@@ -462,7 +462,7 @@ public async placeMarketOrder(
                 _amount,
                 _tokenIn,
                 _tokenOut,
-                overrides.txb.object(normalizeIotaObjectId(this.configs.clock)),
+                overrides.txb.object(normalizeIOTAObjectId(this.configs.clock)),
             ],
         });
     }
