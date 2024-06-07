@@ -24,7 +24,7 @@ const FeatureList: FeatureItem[] = [
     description: <></>,
   },
   {
-    title: "Built on Iota Move",
+    title: "Built on IOTA Move",
     Svg: require("@site/static/img/undraw_docusaurus_react.svg").default,
     description: <></>,
   },

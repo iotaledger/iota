@@ -167,7 +167,7 @@ const concepts = [
 	},
 	{
 		type: 'category',
-		label: 'Iota Architecture',
+		label: 'IOTA Architecture',
 		link: {
 			type: 'doc',
 			id: 'concepts/iota-architecture',

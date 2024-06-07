@@ -1,11 +1,11 @@
 ---
-title: Iota Move CLI
-description: The Iota CLI move command provides commands for working with Move source code directly from a terminal or console.
+title: IOTA Move CLI
+description: The IOTA CLI move command provides commands for working with Move source code directly from a terminal or console.
 ---
 
 import CliCheckInstall from "../../_snippets/cli-check-install.mdx";
 
-The Iota CLI `move` command provides several commands for working with Move source code. A typical usage of `iota move` is to compile and test the Move code, or to generate a new Move project by using `iota move new project_name`, which creates the needed directories and the `Move.toml` file.
+The IOTA CLI `move` command provides several commands for working with Move source code. A typical usage of `iota move` is to compile and test the Move code, or to generate a new Move project by using `iota move new project_name`, which creates the needed directories and the `Move.toml` file.
 
 <CliCheckInstall />
 
@@ -65,7 +65,7 @@ name = "smart_contract_test"
 version = "0.0.1"
 
 [dependencies]
-Iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/testnet" }
+IOTA = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/testnet" }
 
 [addresses]
 smart_contract_test = "0x0"
@@ -78,7 +78,7 @@ Use `iota move build` at the root of your Move project to build the package.
 ```shell
 $ iota move build
 UPDATING GIT DEPENDENCY https://github.com/iotaledger/iota.git
-INCLUDING DEPENDENCY Iota
+INCLUDING DEPENDENCY IOTA
 INCLUDING DEPENDENCY MoveStdlib
 BUILDING smart_contract_test
 ```
@@ -90,7 +90,7 @@ Use `iota move test` to run the tests in a Move package.
 ```shell
 $ iota move test
 UPDATING GIT DEPENDENCY https://github.com/iotaledger/iota.git
-INCLUDING DEPENDENCY Iota
+INCLUDING DEPENDENCY IOTA
 INCLUDING DEPENDENCY MoveStdlib
 BUILDING smart_contract_test
 Running Move unit tests
@@ -113,7 +113,7 @@ To get the a summary of the test coverage, you must first run the `iota move tes
 
 ```shell
 $ iota move test --coverage
-INCLUDING DEPENDENCY Iota
+INCLUDING DEPENDENCY IOTA
 INCLUDING DEPENDENCY MoveStdlib
 BUILDING first_package
 Running Move unit tests
