@@ -29,15 +29,13 @@ enum Steps {
 function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JSX.Element {
     const client = useIotaClient();
     const [step, setStep] = useState<Steps>(Steps.EnterValues);
-    const [isPending, setIsPending] = useState<boolean>(false);
     const [formData, setFormData] = useState<FormDataValues>({
         amount: '',
         recipientAddress: '',
     });
     const { data: coinMetadata } = useCoinMetadata();
-    const { mutateAsync: signAndExecuteTransactionBlock, error } =
+    const { mutateAsync: signAndExecuteTransactionBlock, error, isPending } =
         useSignAndExecuteTransactionBlock();
-
     const { data: transaction } = useQuery({
         queryKey: [
             'token-transfer-transaction',
@@ -69,11 +67,10 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
 
     async function executeTransfer() {
         if (!transaction) return;
-        setIsPending(true);
+
         const response = await signAndExecuteTransactionBlock({
             transactionBlock: transaction,
         });
-        setIsPending(false);
 
         if (response) {
             onClose();

@@ -9,7 +9,7 @@ import { TransactionBlock } from '@iota/iota.js/transactions';
 import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import { parseAmount } from '../helpers/parseAmount';
 
-interface Options {
+interface CreateTokenTransferTransactionOptions {
     coinType: string;
     recipientAddress: string;
     amount: string;
@@ -23,7 +23,7 @@ export function createTokenTransferTransaction({
     coins,
     coinType,
     coinDecimals,
-}: Options) {
+}: CreateTokenTransferTransactionOptions) {
     const tx = new TransactionBlock();
 
     // https://github.com/iotaledger/iota/issues/598
