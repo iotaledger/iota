@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Creating a stardust objects snapshot out of a Hornet snapshot.
+//! TIP that defines the Hornet snapshot file format:
+//! https://github.com/iotaledger/tips/blob/main/tips/TIP-0035/tip-0035.md
 use std::fs::File;
 
 use iota_genesis_builder::stardust::{migration::Migration, parse::FullSnapshotParser};

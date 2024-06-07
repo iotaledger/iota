@@ -12,6 +12,7 @@ bcs.workspace = true
 camino.workspace = true
 fastcrypto.workspace = true
 hex.workspace = true
+itertools.workspace = true
 move-binary-format.workspace = true
 move-compiler.workspace = true
 move-core-types.workspace = true

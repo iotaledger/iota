@@ -138,7 +138,9 @@ impl Migration {
         self.run_migration(outputs)?;
         info!("Migration ended.");
         info!("Writing snapshot file...");
-        create_snapshot(&self.into_objects(), writer)
+        create_snapshot(&self.into_objects(), writer)?;
+        info!("Snapshot file written.");
+        Ok(())
     }
 
     /// The migration objects.
