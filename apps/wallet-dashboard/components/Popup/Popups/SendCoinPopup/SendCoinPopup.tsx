@@ -3,9 +3,9 @@
 
 import React, { useState } from 'react';
 import { EnterValuesForm, ReviewValuesForm } from './';
-import { CoinStruct } from '@mysten/sui.js/client';
-import { useSignAndExecuteTransactionBlock, useSuiClient } from '@mysten/dapp-kit';
-import { useCoinMetadata } from '@mysten/core';
+import { CoinStruct } from '@iota/iota.js/client';
+import { useSignAndExecuteTransactionBlock, useIotaClient } from '@iota/dapp-kit';
+import { useCoinMetadata } from '@iota/core';
 import { useQuery } from '@tanstack/react-query';
 import { createTokenTransferTransaction } from '@/lib/utils';
 import { COIN_DECIMALS } from '@/lib/constants';
@@ -27,7 +27,7 @@ enum Steps {
 }
 
 function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JSX.Element {
-    const client = useSuiClient();
+    const client = useIotaClient();
     const [step, setStep] = useState<Steps>(Steps.EnterValues);
     const [isPending, setIsPending] = useState<boolean>(false);
     const [formData, setFormData] = useState<FormDataValues>({

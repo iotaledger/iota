@@ -4,7 +4,7 @@
 import React from 'react';
 import Button from './Button';
 import { usePopups } from '@/hooks';
-import type { CoinStruct } from '@mysten/sui.js/client';
+import type { CoinStruct } from '@iota/iota.js/client';
 import { SendCoinPopup } from './Popup';
 
 interface SendButtonProps {

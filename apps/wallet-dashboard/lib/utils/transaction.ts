@@ -4,9 +4,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type CoinStruct } from '@mysten/sui.js/client';
-import { TransactionBlock } from '@mysten/sui.js/transactions';
-import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
+import { type CoinStruct } from '@iota/iota.js/client';
+import { TransactionBlock } from '@iota/iota.js/transactions';
+import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import { parseAmount } from '../helpers/parseAmount';
 
 interface Options {
@@ -26,7 +26,7 @@ export function createTokenTransferTransaction({
 }: Options) {
     const tx = new TransactionBlock();
 
-    if (coinType === SUI_TYPE_ARG) {
+    if (coinType === IOTA_TYPE_ARG) {
         tx.transferObjects([tx.gas], recipientAddress);
         tx.setGasPayment(
             coins
@@ -44,7 +44,7 @@ export function createTokenTransferTransaction({
     const bigIntAmount = parseAmount(amount, coinDecimals);
     const [primaryCoin, ...mergeCoins] = coins.filter((coin) => coin.coinType === coinType);
 
-    if (coinType === SUI_TYPE_ARG) {
+    if (coinType === IOTA_TYPE_ARG) {
         const coin = tx.splitCoins(tx.gas, [bigIntAmount]);
         tx.transferObjects([coin], recipientAddress);
     } else {
