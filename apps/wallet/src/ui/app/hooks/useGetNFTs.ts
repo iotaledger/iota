@@ -57,7 +57,7 @@ export function useGetNFTs(address?: string | null) {
             )
             .reduce((acc, curr) => {
                 if (hasDisplayData(curr) || isKioskOwnerToken(kioskClient.network, curr))
-                acc.visual.push(curr.data as IotaObjectData);
+                    acc.visual.push(curr.data as IotaObjectData);
                 if (!hasDisplayData(curr)) acc.other.push(curr.data as IotaObjectData);
                 if (curr.data?.objectId && hiddenAssetIds.includes(curr.data?.objectId))
                     acc.hidden.push(curr.data as IotaObjectData);
