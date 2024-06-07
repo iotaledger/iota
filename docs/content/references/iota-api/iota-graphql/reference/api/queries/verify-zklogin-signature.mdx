@@ -1,0 +1,104 @@
+---
+id: verify-zklogin-signature
+title: verifyZkloginSignature
+---
+
+
+
+
+export const Bullet = () => <><span style={{ fontWeight: 'normal', fontSize: '.5em', color: 'var(--ifm-color-secondary-darkest)' }}>&nbsp;●&nbsp;</span></>
+
+export const SpecifiedBy = (props) => <>Specification<a className="link" style={{ fontSize:'1.5em', paddingLeft:'4px' }} target="_blank" href={props.url} title={'Specified by ' + props.url}>⎘</a></>
+
+export const Badge = (props) => <><span className={props.class}>{props.text}</span></>
+
+import { useState } from 'react';
+
+export const Details = ({ dataOpen, dataClose, children, startOpen = false }) => {
+  const [open, setOpen] = useState(startOpen);
+  return (
+    <details {...(open ? { open: true } : {})} className="details" style={{ border:'none', boxShadow:'none', background:'var(--ifm-background-color)' }}>
+      <summary
+        onClick={(e) => {
+          e.preventDefault();
+          setOpen((open) => !open);
+        }}
+        style={{ listStyle:'none' }}
+      >
+      {open ? dataOpen : dataClose}
+      </summary>
+      {open && children}
+    </details>
+  );
+};
+
+
+
+
+
+
+
+
+Verify a zkLogin signature based on the provided transaction or personal message
+based on current epoch, chain id, and latest JWKs fetched on-chain. If the
+signature is valid, the function returns a `ZkLoginVerifyResult` with success as
+true and an empty list of errors. If the signature is invalid, the function returns
+a `ZkLoginVerifyResult` with success as false with a list of errors.
+
+- `bytes` is either the personal message in raw bytes or transaction data bytes in
+BCS-encoded and then Base64-encoded.
+- `signature` is a serialized zkLogin signature that is Base64-encoded.
+- `intentScope` is an enum that specifies the intent scope to be used to parse bytes.
+- `author` is the address of the signer of the transaction or personal msg.
+
+
+```graphql
+verifyZkloginSignature(
+  bytes: Base64!
+  signature: Base64!
+  intentScope: ZkLoginIntentScope!
+  author: IotaAddress!
+): ZkLoginVerifyResult!
+```
+
+
+
+
+### Arguments
+
+#### [<code style={{ fontWeight: 'normal' }}>verifyZkloginSignature.<b>bytes</b></code>](#)<Bullet />[`Base64!`](/references/iota-api/iota-graphql/reference/types/scalars/base-64) <Badge class="badge badge--secondary" text="non-null"/> <Badge class="badge badge--secondary" text="scalar"/> 
+> 
+> 
+> 
+> 
+
+#### [<code style={{ fontWeight: 'normal' }}>verifyZkloginSignature.<b>signature</b></code>](#)<Bullet />[`Base64!`](/references/iota-api/iota-graphql/reference/types/scalars/base-64) <Badge class="badge badge--secondary" text="non-null"/> <Badge class="badge badge--secondary" text="scalar"/> 
+> 
+> 
+> 
+> 
+
+#### [<code style={{ fontWeight: 'normal' }}>verifyZkloginSignature.<b>intentScope</b></code>](#)<Bullet />[`ZkLoginIntentScope!`](/references/iota-api/iota-graphql/reference/types/enums/zk-login-intent-scope) <Badge class="badge badge--secondary" text="non-null"/> <Badge class="badge badge--secondary" text="enum"/> 
+> 
+> 
+> 
+> 
+
+#### [<code style={{ fontWeight: 'normal' }}>verifyZkloginSignature.<b>author</b></code>](#)<Bullet />[`IotaAddress!`](/references/iota-api/iota-graphql/reference/types/scalars/iota-address) <Badge class="badge badge--secondary" text="non-null"/> <Badge class="badge badge--secondary" text="scalar"/> 
+> 
+> 
+> 
+> 
+
+### Type
+
+#### [`ZkLoginVerifyResult`](/references/iota-api/iota-graphql/reference/types/objects/zk-login-verify-result) <Badge class="badge badge--secondary" text="object"/> 
+> 
+> 
+> The result of the zkLogin signature verification.
+> 
+
+
+
+
+

@@ -10,7 +10,7 @@ const references = [
 	},
 	{
 		type: 'category',
-		label: 'Iota RPC',
+		label: 'IOTA RPC',
 		collapsed: false,
 		link: {
 			type: 'doc',
@@ -41,7 +41,7 @@ const references = [
 	},
 	{
 		type: 'category',
-		label: 'Iota CLI',
+		label: 'IOTA CLI',
 		collapsed: false,
 		link: {
 			type: 'doc',
@@ -58,7 +58,7 @@ const references = [
 	},
 	{
 		type: 'category',
-		label: 'Iota SDKs',
+		label: 'IOTA SDKs',
 		collapsed: false,
 		link: {
 			type: 'doc',
@@ -72,18 +72,18 @@ const references = [
 			},
 			{
 				type: 'link',
-				label: 'Iota Go SDK',
+				label: 'IOTA Go SDK',
 				href: 'https://github.com/block-vision/iota-go-sdk',
 			},
 			{
 				type: 'link',
-				label: 'Iota Python SDK',
+				label: 'IOTA Python SDK',
 				href: 'https://github.com/FrankC01/pyiota',
 			},
 			'references/rust-sdk',
 			{
 				type: 'link',
-				label: 'Iota TypeScript SDK',
+				label: 'IOTA TypeScript SDK',
 				href: 'https://sdk.mystenlabs.com/typescript',
 			},
 		],

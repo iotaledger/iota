@@ -1,5 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { GrowthBook } from '@growthbook/growthbook';
 import { Network, getAppsBackend } from '@iota/iota.js/client';
 import Browser from 'webextension-polyfill';
@@ -27,7 +31,6 @@ export enum FEATURES {
     WALLET_INTERSTITIAL_CONFIG = 'wallet-interstitial-config',
     WALLET_DEFI = 'wallet-defi',
     WALLET_FEE_ADDRESS = 'wallet-fee-address',
-    DEEP_BOOK_CONFIGS = 'deep-book-configs',
 }
 
 export function setAttributes(network?: { network: Network; customRpc?: string | null }) {

@@ -1,6 +1,6 @@
 ---
-title: Iota Client PTB CLI
-description: The Iota Client PTB CLI enables a user to construct a PTB and execute it from the command line or a file.
+title: IOTA Client PTB CLI
+description: The IOTA Client PTB CLI enables a user to construct a PTB and execute it from the command line or a file.
 ---
 
 import AddressPrefix from "../../_snippets/address-prefix.mdx";
@@ -121,7 +121,7 @@ To call a specific function from a specific package, you can use the following c
 
 ### Publish
 
-Publishing a package is one of the most important commands you need when working with Iota. While the CLI has a standalone `publish` command, PTBs also support publishing and upgrading packages. One main difference is that with `iota client ptb`, you must explicitly transfer the `UpgradeCap` object that is returned when creating a package, or destroy it with a call to [`make_immutable`](/concepts/iota-move-concepts/packages.mdx). Here is an example on how to publish a Move project on chain using the `iota client ptb` command. It makes a call to the `iota::tx_context::sender` to acquire the sender and assigns the result of that call to the `sender` variable, and then calls the publish command. The result of `publish` is bounded to `upgrade_cap` variable, and then this object is transferred to the sender. 
+Publishing a package is one of the most important commands you need when working with IOTA. While the CLI has a standalone `publish` command, PTBs also support publishing and upgrading packages. One main difference is that with `iota client ptb`, you must explicitly transfer the `UpgradeCap` object that is returned when creating a package, or destroy it with a call to [`make_immutable`](/concepts/iota-move-concepts/packages.mdx). Here is an example on how to publish a Move project on chain using the `iota client ptb` command. It makes a call to the `iota::tx_context::sender` to acquire the sender and assigns the result of that call to the `sender` variable, and then calls the publish command. The result of `publish` is bounded to `upgrade_cap` variable, and then this object is transferred to the sender. 
 
 ```bash
 iota client ptb \
@@ -190,4 +190,4 @@ You cannot use the following words for variable names:
 
 ## JSON output
 
-Append the `--json` flag to commands to format responses in JSON instead of the more human-friendly default Iota CLI output. This can be useful for extremely large datasets, for example, as those results can have a troublesome display on smaller screens. In these cases, the `--json` flag is useful.
+Append the `--json` flag to commands to format responses in JSON instead of the more human-friendly default IOTA CLI output. This can be useful for extremely large datasets, for example, as those results can have a troublesome display on smaller screens. In these cases, the `--json` flag is useful.
