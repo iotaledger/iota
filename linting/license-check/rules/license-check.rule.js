@@ -10,7 +10,6 @@ const MISSING_HEADER_MESSAGE = 'Missing or incorrect license header.';
 const MISSING_MODIFICATION_MESSAGE = 'Add modification notice to the license header.';
 
 const IOTA_LICENSE_HEADER = `// ${IOTA_COPYRIGHT_HEADER}\n// ${LICENSE_IDENTIFIER}\n\n`;
-const MODIFICATION_HEADER = `\n\n// ${MODIFICATION_COPYRIGHT_HEADER}\n// ${LICENSE_IDENTIFIER}\n\n`;
 
 function checkHeader(node, context) {
     const sourceCode = context.getSourceCode();
@@ -19,14 +18,9 @@ function checkHeader(node, context) {
 
     const hasIotaCopyrightHeader = firstComment?.includes(IOTA_COPYRIGHT_HEADER);
     const hasOldCopyrightHeader = firstComment?.includes(OLD_COPYRIGHT_HEADER);
-    const hasLicenseIdentifier = comments?.[1]?.value.includes(LICENSE_IDENTIFIER);
 
     // Check if the file has any license header.
-    if (
-        (!hasIotaCopyrightHeader && !hasOldCopyrightHeader) ||
-        !firstComment ||
-        !hasLicenseIdentifier
-    ) {
+    if ((!hasIotaCopyrightHeader && !hasOldCopyrightHeader) || !firstComment) {
         context.report({
             node,
             message: MISSING_HEADER_MESSAGE,
@@ -37,13 +31,16 @@ function checkHeader(node, context) {
 
         // Check if the file has the old copyright notice and has the modification header.
     } else if (firstComment.includes(OLD_COPYRIGHT_HEADER)) {
-        const hasModificationNotice = comments[2]?.value?.includes(MODIFICATION_COPYRIGHT_HEADER);
+        const hasModificationNotice = comments[1]?.value?.includes(MODIFICATION_COPYRIGHT_HEADER);
         if (!hasModificationNotice) {
             context.report({
-                node: comments[1],
+                node: comments[0],
                 message: MISSING_MODIFICATION_MESSAGE,
                 fix(fixer) {
-                    return fixer.insertTextAfter(comments[1], MODIFICATION_HEADER);
+                    return fixer.insertTextAfter(
+                        comments[0],
+                        `\n// ${MODIFICATION_COPYRIGHT_HEADER}`,
+                    );
                 },
             });
         }
