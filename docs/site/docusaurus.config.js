@@ -11,9 +11,9 @@ require("dotenv").config();
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: "Iota Documentation",
+  title: "IOTA Documentation",
   tagline:
-    "Iota is a next-generation smart contract platform with high throughput, low latency, and an asset-oriented programming model powered by Move",
+    "IOTA is a next-generation smart contract platform with high throughput, low latency, and an asset-oriented programming model powered by Move",
   favicon: "/img/favicon.ico",
 
   // Set the production url of your site here
@@ -174,9 +174,9 @@ const config = {
         },
       },
       navbar: {
-        title: "Iota Documentation",
+        title: "IOTA Documentation",
         logo: {
-          alt: "Iota Docs Logo",
+          alt: "IOTA Docs Logo",
           src: "img/iota-logo.svg",
         },
         items: [
@@ -212,12 +212,12 @@ const config = {
       },
       footer: {
         logo: {
-          alt: "Iota Logo",
+          alt: "IOTA Logo",
           src: "img/iota-logo-footer.svg",
           href: "https://iota.io",
         },
         style: "dark",
-        copyright: `© ${new Date().getFullYear()} Iota Foundation | Documentation distributed under <a href="https://github.com/iota-foundation/iota-docs/blob/main/LICENSE">CC BY 4.0</a>`,
+        copyright: `© ${new Date().getFullYear()} IOTA Foundation | Documentation distributed under <a href="https://github.com/iota-foundation/iota-docs/blob/main/LICENSE">CC BY 4.0</a>`,
       },
       prism: {
         theme: themes.github,

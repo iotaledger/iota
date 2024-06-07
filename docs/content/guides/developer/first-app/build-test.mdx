@@ -16,7 +16,7 @@ A successful build returns a response similar to the following:
 
 ```shell
 UPDATING GIT DEPENDENCY https://github.com/iotaledger/iota.git
-INCLUDING DEPENDENCY Iota
+INCLUDING DEPENDENCY IOTA
 INCLUDING DEPENDENCY MoveStdlib
 BUILDING my_first_package
 ```
@@ -27,7 +27,7 @@ Now that you have designed your asset and its accessor functions, it's time to t
 
 ## Testing a package {#testing-a-package}
 
-Iota includes support for the Move testing framework. Using the framework, you can write unit tests that analyze Move code much like test frameworks for other languages, such as the built-in Rust testing framework or the JUnit framework for Java.
+IOTA includes support for the Move testing framework. Using the framework, you can write unit tests that analyze Move code much like test frameworks for other languages, such as the built-in Rust testing framework or the JUnit framework for Java.
 
 An individual Move unit test is encapsulated in a public function that has no parameters, no return values, and has the `#[test]` annotation. The testing framework executes such functions when you call the `iota move test` command from the package root (`my_move_package` directory as per the current running example):
 
@@ -38,7 +38,7 @@ $ iota move test
 If you execute this command for the package created in [Write a Package](./write-package.mdx), you see the following output. Unsurprisingly, the test result has an `OK` status because there are no tests written yet to fail.
 
 ```shell
-BUILDING Iota
+BUILDING IOTA
 BUILDING MoveStdlib
 BUILDING my_first_package
 Running Move unit tests
@@ -122,7 +122,7 @@ Run the test command again. Now the output shows a single successful test has ru
 
 ```shell
 BUILDING MoveStdlib
-BUILDING Iota
+BUILDING IOTA
 BUILDING my_first_package
 Running Move unit tests
 [ PASS    ] 0x0::my_module::test_sword_create
@@ -149,17 +149,17 @@ You can discover more testing options through:
 $ iota move test -h
 ```
 
-## Iota-specific testing
+## IOTA-specific testing
 
-The previous testing example uses Move but isn't specific to Iota beyond using some Iota packages, such as `iota::tx_context` and `iota::transfer`. While this style of testing is already useful for writing Move code for Iota, you might also want to test additional Iota-specific features. In particular, a Move call in Iota is encapsulated in a Iota transaction, and you might want to test interactions between different transactions within a single test (for example, one transaction creating an object and the other one transferring it).
+The previous testing example uses Move but isn't specific to IOTA beyond using some IOTA packages, such as `iota::tx_context` and `iota::transfer`. While this style of testing is already useful for writing Move code for IOTA, you might also want to test additional IOTA-specific features. In particular, a Move call in IOTA is encapsulated in a IOTA transaction, and you might want to test interactions between different transactions within a single test (for example, one transaction creating an object and the other one transferring it).
 
-Iota-specific testing is supported through the `test_scenario` module that provides Iota-related testing functionality otherwise unavailable in pure Move and its testing framework.
+IOTA-specific testing is supported through the `test_scenario` module that provides IOTA-related testing functionality otherwise unavailable in pure Move and its testing framework.
 
-The `test_scenario` module provides a scenario that emulates a series of Iota transactions, each with a potentially different user executing them. A test using this module typically starts the first transaction using the `test_scenario::begin` function. This function takes an address of the user executing the transaction as its argument and returns an instance of the `Scenario` struct representing a scenario.
+The `test_scenario` module provides a scenario that emulates a series of IOTA transactions, each with a potentially different user executing them. A test using this module typically starts the first transaction using the `test_scenario::begin` function. This function takes an address of the user executing the transaction as its argument and returns an instance of the `Scenario` struct representing a scenario.
 
-An instance of the `Scenario` struct contains a per-address object pool emulating Iota object storage, with helper functions provided to manipulate objects in the pool. After the first transaction finishes, subsequent test transactions start with the `test_scenario::next_tx` function. This function takes an instance of the `Scenario` struct representing the current scenario and an address of a user as arguments.
+An instance of the `Scenario` struct contains a per-address object pool emulating IOTA object storage, with helper functions provided to manipulate objects in the pool. After the first transaction finishes, subsequent test transactions start with the `test_scenario::next_tx` function. This function takes an instance of the `Scenario` struct representing the current scenario and an address of a user as arguments.
 
-Update your `my_module.move` file to include entry functions callable from Iota that implement `sword` creation and transfer. With these in place, you can then add a multi-transaction test that uses the `test_scenario` module to test these new capabilities. Put these functions after the accessors (Part 5 in comments).
+Update your `my_module.move` file to include entry functions callable from IOTA that implement `sword` creation and transfer. With these in place, you can then add a multi-transaction test that uses the `test_scenario` module to test these new capabilities. Put these functions after the accessors (Part 5 in comments).
 
 ```move
 public fun sword_create(magic: u64, strength: u64, recipient: address, ctx: &mut TxContext) {
@@ -183,7 +183,7 @@ public fun sword_transfer(sword: Sword, recipient: address, _ctx: &mut TxContext
 }
 ```
 
-The code of the new functions uses struct creation and Iota-internal modules (`TxContext` and `Transfer`) in a way similar to what you have seen in the previous sections. The important part is for the entry functions to have correct signatures.
+The code of the new functions uses struct creation and IOTA-internal modules (`TxContext` and `Transfer`) in a way similar to what you have seen in the previous sections. The important part is for the entry functions to have correct signatures.
 
 With the new entry functions included, add another test function to make sure they behave as expected.
 
@@ -236,7 +236,7 @@ With the new entry functions included, add another test function to make sure th
 There are some details of the new testing function to pay attention to. The first thing the code does is create some addresses that represent users participating in the testing scenario. The assumption is that there is one game administrator user and two regular users representing players. The test then creates a scenario by starting the first transaction on behalf of the administrator address.
 The administrator executes the second transaction. The transaction creates a `sword` where the `initial_owner` is the receiver.
 
-The initial owner then executes the third transaction (passed as an argument to the `test_scenario::next_tx` function), who then transfers the `sword` they now own to the final owner. In pure Move there is no notion of Iota storage; consequently, there is no easy way for the emulated Iota transaction to retrieve it from storage. This is where the `test_scenario` module helps - its `take_from_sender` function allows an address-owned object of a given type (`Sword`) executing the current transaction to be available for Move code manipulation. For now, assume that there is only one such object. In this case, the test transfers the object it retrieves from storage to another address.
+The initial owner then executes the third transaction (passed as an argument to the `test_scenario::next_tx` function), who then transfers the `sword` they now own to the final owner. In pure Move there is no notion of IOTA storage; consequently, there is no easy way for the emulated IOTA transaction to retrieve it from storage. This is where the `test_scenario` module helps - its `take_from_sender` function allows an address-owned object of a given type (`Sword`) executing the current transaction to be available for Move code manipulation. For now, assume that there is only one such object. In this case, the test transfers the object it retrieves from storage to another address.
 
 :::tip
 
@@ -246,12 +246,12 @@ Transaction effects, such as object creation and transfer become visible only af
 
 The final owner executes the fourth and final transaction that retrieves the `sword` object from storage and checks if it has the expected properties. Remember, as described in [Testing a package](#testing-a-package), in the pure Move testing scenario, after an object is available in Move code (after creation or retrieval from emulated storage), it cannot simply disappear.
 
-In the pure Move testing function, the function transfers the `sword` object to the fake address to handle the disappearing problem. The `test_scenario` package provides a more elegant solution, however, which is closer to what happens when Move code actually executes in the context of Iota - the package simply returns the `sword` to the object pool using the `test_scenario::return_to_sender` function. For scenarios where returning to the sender is not desirable or if you would like to simply destroy the object, the `test_utils` module also provides the generic `destroy<T>` function, that can be used on any type `T` regardless of its ability. It is advisable to check out other useful functions in the [`test_scenario`](https://github.com/iotaledger/iota/blob/main/crates/iota-framework/packages/iota-framework/sources/test/test_scenario.move) and [`test_utils`](https://github.com/iotaledger/iota/blob/main/crates/iota-framework/packages/iota-framework/sources/test/test_utils.move) modules as well.
+In the pure Move testing function, the function transfers the `sword` object to the fake address to handle the disappearing problem. The `test_scenario` package provides a more elegant solution, however, which is closer to what happens when Move code actually executes in the context of IOTA - the package simply returns the `sword` to the object pool using the `test_scenario::return_to_sender` function. For scenarios where returning to the sender is not desirable or if you would like to simply destroy the object, the `test_utils` module also provides the generic `destroy<T>` function, that can be used on any type `T` regardless of its ability. It is advisable to check out other useful functions in the [`test_scenario`](https://github.com/iotaledger/iota/blob/main/crates/iota-framework/packages/iota-framework/sources/test/test_scenario.move) and [`test_utils`](https://github.com/iotaledger/iota/blob/main/crates/iota-framework/packages/iota-framework/sources/test/test_utils.move) modules as well.
 
 Run the test command again to see two successful tests for our module:
 
 ```shell
-BUILDING Iota
+BUILDING IOTA
 BUILDING MoveStdlib
 BUILDING my_first_package
 Running Move unit tests
@@ -355,5 +355,5 @@ You can refer to the source code for the package (with all the tests and functio
 
 ## Related links
 
-- [Publish a Package](./publish.mdx): Continue the example by publishing your package to the Iota network.
-- [Package Upgrades](../../../concepts/iota-move-concepts/packages.mdx): Upgrading packages published on the Iota network. 
+- [Publish a Package](./publish.mdx): Continue the example by publishing your package to the IOTA network.
+- [Package Upgrades](../../../concepts/iota-move-concepts/packages.mdx): Upgrading packages published on the IOTA network. 

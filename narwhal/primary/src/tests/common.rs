@@ -1,8 +1,9 @@
-use std::num::NonZeroUsize;
-
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::num::NonZeroUsize;
+
 use config::{AuthorityIdentifier, WorkerId};
 use storage::{CertificateStore, CertificateStoreCache, PayloadStore, PayloadToken};
 use store::{

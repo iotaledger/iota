@@ -8,7 +8,7 @@
 /docs/ @iotaledger/devx
 
 # Changes to the genesis builder should be approved by Konstantinos or Mirko at least
-/crates/sui-genesis-builder/ @kodemartin @miker83z
+/crates/iota-genesis-builder/ @kodemartin @miker83z
 
 # Frontend apps to be looked after by Boxfish Studio or the tooling team
 /apps/ @iotaledger/boxfish @iotaledger/tooling

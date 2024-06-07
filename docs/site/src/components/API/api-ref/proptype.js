@@ -37,7 +37,7 @@ const PropType = (props) => {
     if (proptype[1].allOf.length == 1) {
       typeof proptype[1].allOf[0]["$ref"] !== "undefined"
         ? (allof = getRef(proptype[1].allOf[0]["$ref"]))
-        : (allof = "IotaERR");
+        : (allof = "IOTAERR");
     }
   }
 
@@ -55,7 +55,7 @@ const PropType = (props) => {
           } else if (typeof i.type !== "undefined") {
             a.push(i.type);
           } else {
-            a.push("IotaERR");
+            a.push("IOTAERR");
           }
         });
         array = a.join(", ");
