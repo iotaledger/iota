@@ -179,7 +179,6 @@ export { default as Wallet32 } from './Wallet32';
 export { default as WalletActionBuy24 } from './WalletActionBuy24';
 export { default as WalletActionSend24 } from './WalletActionSend24';
 export { default as WalletActionStake24 } from './WalletActionStake24';
-export { default as WalletActionSwap24 } from './WalletActionSwap24';
 export { default as Warning16 } from './Warning16';
 export { default as X12 } from './X12';
 export { default as X32 } from './X32';
