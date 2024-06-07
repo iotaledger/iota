@@ -26,20 +26,8 @@ export function createTokenTransferTransaction({
 }: Options) {
     const tx = new TransactionBlock();
 
-    if (coinType === IOTA_TYPE_ARG) {
-        tx.transferObjects([tx.gas], recipientAddress);
-        tx.setGasPayment(
-            coins
-                .filter((coin) => coin.coinType === coinType)
-                .map((coin) => ({
-                    objectId: coin.coinObjectId,
-                    digest: coin.digest,
-                    version: coin.version,
-                })),
-        );
-
-        return tx;
-    }
+    // https://github.com/iotaledger/iota/issues/598
+    // Optimization: Avoid splitting coins when sending full balances
 
     const bigIntAmount = parseAmount(amount, coinDecimals);
     const [primaryCoin, ...mergeCoins] = coins.filter((coin) => coin.coinType === coinType);
