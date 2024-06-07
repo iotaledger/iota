@@ -4,11 +4,11 @@ title: Distributed Counter
 
 import InfoPnpmRequired from "../../../_snippets/info-pnpm-required.mdx";
 
-This example walks you through building a basic distributed counter app, covering the full end-to-end flow connecting your Move code to your client app. The app allows you to create counters that anyone can increment, but only the owner can reset. This example assumes you already have a React App set with dApp Kit, and it's required `Providers` as described in [Client App with Iota TypeScript SDK](../first-app/client-tssdk.mdx).
+This example walks you through building a basic distributed counter app, covering the full end-to-end flow connecting your Move code to your client app. The app allows you to create counters that anyone can increment, but only the owner can reset. This example assumes you already have a React App set with dApp Kit, and it's required `Providers` as described in [Client App with IOTA TypeScript SDK](../first-app/client-tssdk.mdx).
 
 <InfoPnpmRequired />
 
-If haven't followed Client App with Iota TypeScript SDK, run the following command in a terminal or console to scaffold a new app:
+If haven't followed Client App with IOTA TypeScript SDK, run the following command in a terminal or console to scaffold a new app:
 
 ```bash
 pnpm create @iota/dapp --template react-client-dapp
@@ -43,7 +43,7 @@ mkdir move
 cd move
 ```
 
-Next, use the [Iota Client CLI](references/cli/client.mdx) to generate a new Move package. If you have [Iota installed](guides/developer/getting-started/iota-install.mdx), the Iota CLI is on your system. Run the following command in your terminal or console:
+Next, use the [IOTA Client CLI](references/cli/client.mdx) to generate a new Move package. If you have [IOTA installed](guides/developer/getting-started/iota-install.mdx), the IOTA CLI is on your system. Run the following command in your terminal or console:
 
 ```bash
 iota move new counter
@@ -88,18 +88,18 @@ module counter::counter {
 }
 ```
 
-Now that you have your Move code, you need to publish it. The Client App with Iota TypeScript SDK example and the app template use `testnet` by default, so configure your code to match the network you want to deploy to.
+Now that you have your Move code, you need to publish it. The Client App with IOTA TypeScript SDK example and the app template use `testnet` by default, so configure your code to match the network you want to deploy to.
 
-First, update the Iota dependency in Move.toml by changing the `rev` from `framework/testnet` to `framework/devnet`.
+First, update the IOTA dependency in Move.toml by changing the `rev` from `framework/testnet` to `framework/devnet`.
 
 ```toml
 ...
 [dependencies]
-Iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/devnet" }
+IOTA = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/devnet" }
 ...
 ```
 
-Next, configure the Iota CLI to use `devnet` as the active environment, as well. If you haven't already set up a `devnet` environment you can do so by running the following command in a terminal or console:
+Next, configure the IOTA CLI to use `devnet` as the active environment, as well. If you haven't already set up a `devnet` environment you can do so by running the following command in a terminal or console:
 
 ```bash
 iota client new-env --alias devnet --rpc https://fullnode.devnet.iota.io:443
@@ -119,7 +119,7 @@ iota client publish --gas-budget 10000000 counter
 
 :::info
 
-See [Iota Client CLI](/references/cli/client.mdx) for more information about `client` commands in the Iota CLI.
+See [IOTA Client CLI](/references/cli/client.mdx) for more information about `client` commands in the IOTA CLI.
 
 :::
 
@@ -246,14 +246,14 @@ function create() {
 }
 ```
 
-You now have a functional component that can create a new `Counter` object, but if you use it as is, you might run into some consistency issues where you successfully execute the `TransactionBlock`, but the data isn't yet indexed to read from an RPC node. To ensure the `TransactionBlock` is available, you can use the `waitForTransactionBlock` method of `IotaClient`.
-To get an instance of `IotaClient`, you can use the `useIotaClient` hook from dApp Kit:
+You now have a functional component that can create a new `Counter` object, but if you use it as is, you might run into some consistency issues where you successfully execute the `TransactionBlock`, but the data isn't yet indexed to read from an RPC node. To ensure the `TransactionBlock` is available, you can use the `waitForTransactionBlock` method of `IOTAClient`.
+To get an instance of `IOTAClient`, you can use the `useIOTAClient` hook from dApp Kit:
 
 ```ts
-import { useSignAndExecuteTransactionBlock, useIotaClient } from '@iota/dapp-kit';
+import { useSignAndExecuteTransactionBlock, useIOTAClient } from '@iota/dapp-kit';
 
 export function CreateCounter(props: { onCreated: (id: string) => void }) {
-	const iotaClient = useIotaClient();
+	const iotaClient = useIOTAClient();
 	const { mutate: signAndExecute } = useSignAndExecuteTransactionBlock();
 
 	return <button />;
@@ -301,14 +301,14 @@ Now that your users can create counters, you need a way to route to them. Routin
 
 ```ts
 import { ConnectButton, useCurrentAccount } from '@iota/dapp-kit';
-import { isValidIotaObjectId } from '@iota/iota.js/utils';
+import { isValidIOTAObjectId } from '@iota/iota.js/utils';
 import { useState } from 'react';
 
 export default function App() {
 	const currentAccount = useCurrentAccount();
 	const [counterId, setCounter] = useState(() => {
 		const hash = window.location.hash.slice(1);
-		return isValidIotaObjectId(hash) ? hash : null;
+		return isValidIOTAObjectId(hash) ? hash : null;
 	});
 
 	return (
@@ -346,12 +346,12 @@ For your counter, you want to display three elements:
 - A reset button, which calls the `set_value` Move function with `0`. This is only shown if the current user owns the counter.
 
 ```ts
-import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
-import { IotaObjectData } from '@iota/iota.js/client';
+import { useCurrentAccount, useIOTAClientQuery } from '@iota/dapp-kit';
+import { IOTAObjectData } from '@iota/iota.js/client';
 
 export function Counter({ id }: { id: string }) {
 	const currentAccount = useCurrentAccount();
-	const { data, refetch } = useIotaClientQuery('getObject', {
+	const { data, refetch } = useIOTAClientQuery('getObject', {
 		id,
 		options: {
 			showContent: true,
@@ -378,7 +378,7 @@ export function Counter({ id }: { id: string }) {
 	}
 }
 
-function getCounterFields(data: IotaObjectData) {
+function getCounterFields(data: IOTAObjectData) {
 	if (data.content?.dataType !== 'moveObject') {
 		return null;
 	}
@@ -387,25 +387,25 @@ function getCounterFields(data: IotaObjectData) {
 }
 ```
 
-This snippet has a few new concepts to examine. It uses the `useIotaClientQuery` hook to make the `getObject` RPC call. This returns a data object representing your counter. dApp Kit doesn't know which fields your counter object has, so define a `getCounterFields` helper that gets the counter fields, and adds a type-cast so that you can access the expected `value` and `owner` fields in your component.
+This snippet has a few new concepts to examine. It uses the `useIOTAClientQuery` hook to make the `getObject` RPC call. This returns a data object representing your counter. dApp Kit doesn't know which fields your counter object has, so define a `getCounterFields` helper that gets the counter fields, and adds a type-cast so that you can access the expected `value` and `owner` fields in your component.
 
-The code also adds an `executeMoveCall` function that still needs implementing. This works just like the `create` function you used to create the counter. Instead of using a callback prop like you did for `CreateCounter`, you can use the refetch provided by `useIotaClientQuery` to reload your `Counter` object after you've executed your PTB.
+The code also adds an `executeMoveCall` function that still needs implementing. This works just like the `create` function you used to create the counter. Instead of using a callback prop like you did for `CreateCounter`, you can use the refetch provided by `useIOTAClientQuery` to reload your `Counter` object after you've executed your PTB.
 
 ```ts
 import {
 	useCurrentAccount,
 	useSignAndExecuteTransactionBlock,
-	useIotaClient,
-	useIotaClientQuery,
+	useIOTAClient,
+	useIOTAClientQuery,
 } from '@iota/dapp-kit';
-import { IotaObjectData } from '@iota/iota.js/client';
+import { IOTAObjectData } from '@iota/iota.js/client';
 import { TransactionBlock } from '@iota/iota.js/transactions';
 
 import { COUNTER_PACKAGE_ID } from './constants';
 
 export function Counter({ id }: { id: string }) {
 	const currentAccount = useCurrentAccount();
-	const iotaClient = useIotaClient();
+	const iotaClient = useIOTAClient();
 	const { mutate: signAndExecute } = useSignAndExecuteTransactionBlock();
 
 	// ...

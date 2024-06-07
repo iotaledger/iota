@@ -11,7 +11,7 @@ import useDocusaurusContext from "@docusaurus/useDocusaurusContext";
 export default function JsonRpc() {
   const { siteConfig } = useDocusaurusContext();
   return (
-    <Layout title={`Iota API Reference | ${siteConfig.title}`}>
+    <Layout title={`IOTA API Reference | ${siteConfig.title}`}>
       <API />
     </Layout>
   );

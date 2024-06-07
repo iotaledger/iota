@@ -1,9 +1,9 @@
 ---
-title: Querying Iota RPC with GraphQL
-description: Intoductory guide to making queries of the Iota RPC using the GraphQL service.
+title: Querying IOTA RPC with GraphQL
+description: Intoductory guide to making queries of the IOTA RPC using the GraphQL service.
 ---
 
-The quickest way to access the GraphQL service for Iota RPC is through the online IDE that provides a complete toolbox for fetching data and executing transactions on the network. The online IDE provides features such as auto-completion (use Ctrl+Space or just start typing), built-in documentation (Book icon, top-left), multi-tabs, and more.
+The quickest way to access the GraphQL service for IOTA RPC is through the online IDE that provides a complete toolbox for fetching data and executing transactions on the network. The online IDE provides features such as auto-completion (use Ctrl+Space or just start typing), built-in documentation (Book icon, top-left), multi-tabs, and more.
 
 The online IDE is available for [Mainnet](https://iota-mainnet.mystenlabs.com/graphql) and [Testnet](https://iota-testnet.mystenlabs.com/graphql). This guide contains various queries that you can try directly in the IDE.
 
@@ -99,14 +99,14 @@ query {
 
 ## Finding all transactions that touched a given object
 
-This example finds all the transactions that touched (modified/transferred/deleted) a given object. This is useful for when we want to trace the flow of a Coin/StakeIota/NFT.
+This example finds all the transactions that touched (modified/transferred/deleted) a given object. This is useful for when we want to trace the flow of a Coin/StakeIOTA/NFT.
 
 :::info
 This example uses GraphQL [variables](../../../concepts/graphql-rpc.mdx#variables) and [pagination](../../../concepts/graphql-rpc.mdx#pagination). When using the online IDE, copy the variables JSON to the "Variables" window, below the main editor.
 :::
 
 ```graphql
-query ($objectID: IotaAddress!) {
+query ($objectID: IOTAAddress!) {
   transactionBlocks(filter: {changedObject: $objectID}) {
     nodes {
       sender {
@@ -158,7 +158,7 @@ This example makes usage of the filter `last`, which indicates that the user onl
 This example finds the balance changes of all the transactions where a given address called a staking-related function. This is useful when you want to get your staking or unstaking history.
 
 ```graphql
-query ($address: IotaAddress!) {
+query ($address: IOTAAddress!) {
   transactionBlocks(filter: {
     function: "0x3::iota_system::request_add_stake"
     signAddress: $address
@@ -249,7 +249,7 @@ This example uses [fragments](../../../concepts/graphql-rpc.mdx#fragments) and [
 :::
 
 ```graphql
-query ($id: IotaAddress!) {
+query ($id: IOTAAddress!) {
   owner(address: $id) {
     dynamicFields {
       nodes {
@@ -328,7 +328,7 @@ This example uses GraphQL [variables](../../../concepts/graphql-rpc.mdx#variable
 
 ## Executing a transaction
 
-Transaction execution takes in two arguments, `txBytes` and `signatures`. `txBytes` is the serialized unsigned transaction data, which can be generated when using the Iota CLI's `client call` [command](../../../references/cli/client.mdx), to call a Move function by passing the `--serialize-unsigned-transaction` flag. The `signatures` can be generated using Iota CLI's [keytool](../../../references/cli/keytool.mdx) command `iota keytool sign`. More information on Iota CLI can be found [here](/references/cli).
+Transaction execution takes in two arguments, `txBytes` and `signatures`. `txBytes` is the serialized unsigned transaction data, which can be generated when using the IOTA CLI's `client call` [command](../../../references/cli/client.mdx), to call a Move function by passing the `--serialize-unsigned-transaction` flag. The `signatures` can be generated using IOTA CLI's [keytool](../../../references/cli/keytool.mdx) command `iota keytool sign`. More information on IOTA CLI can be found [here](/references/cli).
 
 ```graphql
 mutation ($tx: String!, $sigs: [String!]!) {
@@ -369,6 +369,6 @@ Examples in the repository are designed to work with the version of GraphQL buil
 
 ## Related links
 
-- [GraphQL migration](../advanced/graphql-migration.mdx): Migrating to GraphQL guides you through migrating Iota RPC projects from JSON-RPC to GraphQL.
-- [GraphQL concepts](../../../concepts/graphql-rpc.mdx): GraphQL for Iota RPC examines the elements of GraphQL that you should know to get the most from the service.  
-- [GraphQL reference](../../../references/iota-graphql.mdx): Auto-generated GraphQL reference for Iota RPC.
+- [GraphQL migration](../advanced/graphql-migration.mdx): Migrating to GraphQL guides you through migrating IOTA RPC projects from JSON-RPC to GraphQL.
+- [GraphQL concepts](../../../concepts/graphql-rpc.mdx): GraphQL for IOTA RPC examines the elements of GraphQL that you should know to get the most from the service.  
+- [GraphQL reference](../../../references/iota-graphql.mdx): Auto-generated GraphQL reference for IOTA RPC.
