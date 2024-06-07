@@ -1,9 +1,9 @@
 ---
 title: Asset Tokenization
-description: Learn how to tokenize assets on the Iota blockchain. Asset tokenization refers to the process of representing real-world assets, such as real estate, art, commodities, stocks, or other valuable assets, as digital tokens on the blockchain network.
+description: Learn how to tokenize assets on the IOTA blockchain. Asset tokenization refers to the process of representing real-world assets, such as real estate, art, commodities, stocks, or other valuable assets, as digital tokens on the blockchain network.
 ---
 
-import InitializeIotaClientCli from "../../../_snippets/initialize-iota-client-cli.mdx";
+import InitializeIOTAClientCli from "../../../_snippets/initialize-iota-client-cli.mdx";
 
 Asset tokenization refers to the process of representing real-world assets, such as real estate, art, commodities, stocks, or other valuable assets, as digital tokens on the blockchain network. This involves converting the ownership or rights of an asset into digital tokens, which are then recorded and managed on the blockchain.
 
@@ -39,7 +39,7 @@ This pattern is similar to the [ERC1155](https://eips.ethereum.org/EIPS/eip-1155
 
 ## Move packages
 
-As with all smart contracts on Iota, Move provides the logic that powers asset tokenization.
+As with all smart contracts on IOTA, Move provides the logic that powers asset tokenization.
 
 ### asset_tokenization package
 
@@ -650,7 +650,7 @@ public fun burn_with_ticket<T>(
 
 # Deployment
 
-<InitializeIotaClientCli />
+<InitializeIOTAClientCli />
 
 ## Publishing
 
@@ -705,7 +705,7 @@ The package should successfully deploy, and you then see:
 
 ```bash
 UPDATING GIT DEPENDENCY https://github.com/iotaledger/iota.git
-INCLUDING DEPENDENCY Iota
+INCLUDING DEPENDENCY IOTA
 INCLUDING DEPENDENCY MoveStdlib
 BUILDING asset_tokenization
 Successfully verified dependencies on-chain against source.
@@ -751,7 +751,7 @@ The package should successfully deploy, and you then see:
 ```bash
 UPDATING GIT DEPENDENCY https://github.com/iotaledger/iota.git
 INCLUDING DEPENDENCY asset_tokenization
-INCLUDING DEPENDENCY Iota
+INCLUDING DEPENDENCY IOTA
 INCLUDING DEPENDENCY MoveStdlib
 BUILDING template
 Successfully verified dependencies on-chain against source.
@@ -781,7 +781,7 @@ For more details regarding this process, please consult the setup folder's [READ
 
 :::tip
 
-You can find a public facing reference to the WASM library in the [move-binary-format-wasm](https://github.com/iotaledger/iota/tree/main/sdk/move-binary-format-wasm) Iota repo subfolder.
+You can find a public facing reference to the WASM library in the [move-binary-format-wasm](https://github.com/iotaledger/iota/tree/main/sdk/move-binary-format-wasm) IOTA repo subfolder.
 
 :::
 
@@ -908,15 +908,15 @@ const tx = new TransactionBlock();
   const [upgradeCap] = tx.publish({
     modules: [[...fromHEX(bytesToPublish)], [...fromHEX(genesis_bytecode)]],
     dependencies: [
-      normalizeIotaObjectId("0x1"),
-      normalizeIotaObjectId("0x2"),
-      normalizeIotaObjectId(packageId),
+      normalizeIOTAObjectId("0x1"),
+      normalizeIOTAObjectId("0x2"),
+      normalizeIOTAObjectId(packageId),
     ],
   });
 
   tx.transferObjects(
     [upgradeCap],
-    tx.pure(signer.getPublicKey().toIotaAddress(), "address")
+    tx.pure(signer.getPublicKey().toIOTAAddress(), "address")
   );
 ...
 ```
@@ -939,7 +939,7 @@ In a terminal or console within the project's setup directory, utilize the follo
     
     After executing the command, the console displays the effects of the transaction.
 
-    By searching the transaction digest on a Iota network explorer, you can locate the created objects. Subsequently, select and save the `TransferPolicy ID` and the `ProtectedTP ID` from these objects into the respective fields within your .env file.
+    By searching the transaction digest on a IOTA network explorer, you can locate the created objects. Subsequently, select and save the `TransferPolicy ID` and the `ProtectedTP ID` from these objects into the respective fields within your .env file.
     
 - **Add Rules**
     

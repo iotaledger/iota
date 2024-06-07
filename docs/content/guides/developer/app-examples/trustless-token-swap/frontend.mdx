@@ -8,7 +8,7 @@ import AppExamplesSwapSource from "../../../../_snippets/app-examples-swap-sourc
 
 :::note Multi-Page Guide
 
-This is the third in a [three-part guide](../trustless-token-swap.mdx) on how to build a trustless atomic swap on Iota.
+This is the third in a [three-part guide](../trustless-token-swap.mdx) on how to build a trustless atomic swap on IOTA.
 
 :::
 
@@ -23,11 +23,11 @@ Before getting started, make sure you:
 - Understand [the mechanism behind the Escrow smart contract backend](../trustless-token-swap.mdx).
 - Check out [indexing service guide](./indexer-api.mdx) to learn how we index on-chain data and API endpoints exposed to serve data query requests.
 - Install [`pnpm` through this guide](https://pnpm.io/installation) as we will use it as our package manager.
-- Check out [Iota Typescript SDK](https://sdk.mystenlabs.com/typescript) for basic usage on how to interact with Iota with Typescript.
-- Check out [Iota dApp Kit](https://sdk.mystenlabs.com/dapp-kit) to learn basic building blocks for developing a dApp in the Iota ecosystem with React.js.
+- Check out [IOTA Typescript SDK](https://sdk.mystenlabs.com/typescript) for basic usage on how to interact with IOTA with Typescript.
+- Check out [IOTA dApp Kit](https://sdk.mystenlabs.com/dapp-kit) to learn basic building blocks for developing a dApp in the IOTA ecosystem with React.js.
 - Check out [React Router](https://reactrouter.com/en/main) as we use it to navigate between different routes in our UI website.
-- `dApp Kit` provides a set of hooks for making query and mutation calls to Iota blockchain. These hooks are thin wrappers around query and mutation hooks from `@tanstack/react-query`. Please check out [@tanstack/react-query](https://tanstack.com/query/latest/docs/framework/react/overview) to learn the basic usage for managing, caching, mutating server state.
-- This project is bootstrapped through `pnpm create @iota/dapp`. Please check out [@iota/create-dapp](https://sdk.mystenlabs.com/dapp-kit/create-dapp) for how to scaffold a React.js Iota dApp project quickly.
+- `dApp Kit` provides a set of hooks for making query and mutation calls to IOTA blockchain. These hooks are thin wrappers around query and mutation hooks from `@tanstack/react-query`. Please check out [@tanstack/react-query](https://tanstack.com/query/latest/docs/framework/react/overview) to learn the basic usage for managing, caching, mutating server state.
+- This project is bootstrapped through `pnpm create @iota/dapp`. Please check out [@iota/create-dapp](https://sdk.mystenlabs.com/dapp-kit/create-dapp) for how to scaffold a React.js IOTA dApp project quickly.
 
 ## Overview
 
@@ -39,7 +39,7 @@ The UI design consists of three parts:
 
 :::warning
 
-The following code snippets are not the full source code. The snippets are meant to focus on relevant logic important to the functionality of the example and features of Iota.
+The following code snippets are not the full source code. The snippets are meant to focus on relevant logic important to the functionality of the example and features of IOTA.
 
 :::
 
@@ -48,7 +48,7 @@ The following code snippets are not the full source code. The snippets are meant
 Set up and configure several providers at the root of your React.js tree to ensure different libraries including `dApp Kit`, `@tanstack/react-query`, `react-router-dom` work as expected.
 
 ```ts title='src/main.tsx'
-import { createNetworkConfig, IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
+import { createNetworkConfig, IOTAClientProvider, WalletProvider } from '@iota/dapp-kit';
 import { getFullnodeUrl } from '@iota/iota.js/client';
 import { Theme } from '@radix-ui/themes';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -69,11 +69,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 	<React.StrictMode>
 		<Theme appearance="light">
 			<QueryClientProvider client={queryClient}>
-				<IotaClientProvider networks={networkConfig} defaultNetwork="testnet">
+				<IOTAClientProvider networks={networkConfig} defaultNetwork="testnet">
 					<WalletProvider autoConnect>
 						<RouterProvider router={router} />
 					</WalletProvider>
-				</IotaClientProvider>
+				</IOTAClientProvider>
 			</QueryClientProvider>
 		</Theme>
 	</React.StrictMode>,
@@ -151,18 +151,18 @@ export type LockedListingQuery = {
 In the frontend, you might need to execute a transaction block in multiple places, hence it's better to extract the transaction execution logic and reuse it everywhere. Let's examine the execute transaction hook.
 
 ```ts title='src/hooks/useTransactionExecution.ts'
-import { useSignTransactionBlock, useIotaClient } from '@iota/dapp-kit';
-import { IotaTransactionBlockResponse } from '@iota/iota.js/client';
+import { useSignTransactionBlock, useIOTAClient } from '@iota/dapp-kit';
+import { IOTATransactionBlockResponse } from '@iota/iota.js/client';
 import { TransactionBlock } from '@iota/iota.js/transactions';
 import toast from 'react-hot-toast';
 
 export function useTransactionExecution() {
-	const client = useIotaClient();
+	const client = useIOTAClient();
 	const { mutateAsync: signTransactionBlock } = useSignTransactionBlock();
 
 	const executeTransaction = async (
 		txb: TransactionBlock,
-	): Promise<IotaTransactionBlockResponse | void> => {
+	): Promise<IOTATransactionBlockResponse | void> => {
 		try {
 			const signature = await signTransactionBlock({
 				transactionBlock: txb,
@@ -190,7 +190,7 @@ export function useTransactionExecution() {
 
 The hook logic is straightforward. A `TransactionBlock` is the input, sign it with the current connected wallet account, execute the transaction block, return the execution result, and finally display a basic toast message to indicate whether the transaction is successful or not.
 
-Use the `useIotaClient()` hook from `dApp Kit` to retrieve the Iota client instance configured in the [**Set up providers**](#set-up-providers) step. The `useSignTransactionBlock()` function is another hook from `dApp kit` that helps to sign the transaction block using the currently connected wallet. It displays the UI for users to review and sign their transactions with their selected wallet. To execute a transaction block, the `executeTransactionBlock()` on the Iota client instance of the Iota TypeScript SDK. Use `react-hot-toast` as another dependency to toast transaction status to users.
+Use the `useIOTAClient()` hook from `dApp Kit` to retrieve the IOTA client instance configured in the [**Set up providers**](#set-up-providers) step. The `useSignTransactionBlock()` function is another hook from `dApp kit` that helps to sign the transaction block using the currently connected wallet. It displays the UI for users to review and sign their transactions with their selected wallet. To execute a transaction block, the `executeTransactionBlock()` on the IOTA client instance of the IOTA TypeScript SDK. Use `react-hot-toast` as another dependency to toast transaction status to users.
 
 ## Generate demo data
 
@@ -240,9 +240,9 @@ export function useGenerateDemoData() {
 }
 ```
 
-As previously mentioned, the example uses `@tanstack/react-query` to query, cache, and mutate server state. Server state is data only available on remote servers, and the only way to retrieve or update this data is by interacting with these remote servers. In this case, it could be from an API or directly from Iota blockchain RPC.
+As previously mentioned, the example uses `@tanstack/react-query` to query, cache, and mutate server state. Server state is data only available on remote servers, and the only way to retrieve or update this data is by interacting with these remote servers. In this case, it could be from an API or directly from IOTA blockchain RPC.
 
-When you execute a transaction call to mutate data on the Iota blockchain, use the `useMutation()` hook. The `useMutation()` hook accepts several inputs, however, you only need two of them for this example. The first parameter, `mutationFn`, accepts the function to execute the main mutating logic, while the second parameter, `onSuccess`, is a callback that runs when the mutating logic succeeds.
+When you execute a transaction call to mutate data on the IOTA blockchain, use the `useMutation()` hook. The `useMutation()` hook accepts several inputs, however, you only need two of them for this example. The first parameter, `mutationFn`, accepts the function to execute the main mutating logic, while the second parameter, `onSuccess`, is a callback that runs when the mutating logic succeeds.
 
 The main mutating logic is fairly straightforward, executing a Move call of a package named `demo_bear::new` to create a dummy bear object and transfer it to the connected wallet account, all within the same `TransactionBlock`. The example reuses the `executeTransaction()` hook from the **Execute Transaction Hook** step to execute the transaction.
 
@@ -287,7 +287,7 @@ export function useLockObjectMutation() {
 	const executeTransaction = useTransactionExecution();
 
 	return useMutation({
-		mutationFn: async ({ object }: { object: IotaObjectData }) => {
+		mutationFn: async ({ object }: { object: IOTAObjectData }) => {
 			if (!account?.address) throw new Error('You need to connect your wallet!');
 			const txb = new TransactionBlock();
 
@@ -313,7 +313,7 @@ To unlock the object, execute the `unlock` Move function identified by `{PACKAGE
 export function useUnlockMutation() {
 	const account = useCurrentAccount();
 	const executeTransaction = useTransactionExecution();
-	const client = useIotaClient();
+	const client = useIOTAClient();
 	const queryClient = useQueryClient();
 
 	return useMutation({
@@ -324,7 +324,7 @@ export function useUnlockMutation() {
 		}: {
 			lockedId: string;
 			keyId: string;
-			iotaObject: IotaObjectData;
+			iotaObject: IOTAObjectData;
 		}) => {
 			if (!account?.address) throw new Error('You need to connect your wallet!');
 			const key = await client.getObject({
@@ -384,7 +384,7 @@ export function useCreateEscrowMutation() {
 	const executeTransaction = useTransactionExecution();
 
 	return useMutation({
-		mutationFn: async ({ object, locked }: { object: IotaObjectData; locked: ApiLockedObject }) => {
+		mutationFn: async ({ object, locked }: { object: IOTAObjectData; locked: ApiLockedObject }) => {
 			if (!currentAccount?.address) throw new Error('You need to connect your wallet!');
 
 			const txb = new TransactionBlock();
@@ -406,14 +406,14 @@ export function useCreateEscrowMutation() {
 
 ### Accept escrows
 
-To accept the escrow, create a mutation through the `useAcceptEscrowMutation` hook in `src/mutations/escrow.ts`. The implementation should be fairly familiar to you now. The accept function accepts the escrow `ApiEscrowObject` and the locked object `ApiLockedObject`. The `{PACKAGE_ID}::shared::swap` Move call is generic, thus it requires the type parameters of the escrowed and locked objects. Query the objects details by using `multiGetObjects` on Iota client instance. Lastly, execute the `{PACKAGE_ID}::shared::swap` Move call and transfer the returned escrowed item to the connected wallet account. When the mutation succeeds, invalidate the cache to allow automatic re-fetch of the data.
+To accept the escrow, create a mutation through the `useAcceptEscrowMutation` hook in `src/mutations/escrow.ts`. The implementation should be fairly familiar to you now. The accept function accepts the escrow `ApiEscrowObject` and the locked object `ApiLockedObject`. The `{PACKAGE_ID}::shared::swap` Move call is generic, thus it requires the type parameters of the escrowed and locked objects. Query the objects details by using `multiGetObjects` on IOTA client instance. Lastly, execute the `{PACKAGE_ID}::shared::swap` Move call and transfer the returned escrowed item to the connected wallet account. When the mutation succeeds, invalidate the cache to allow automatic re-fetch of the data.
 
 ```ts title='src/mutations/escrow.ts'
 import { ApiEscrowObject, ApiLockedObject } from '@/types/types';
 
 export function useAcceptEscrowMutation() {
 	const currentAccount = useCurrentAccount();
-	const client = useIotaClient();
+	const client = useIOTAClient();
 	const executeTransaction = useTransactionExecution();
 	const queryClient = useQueryClient();
 
@@ -483,7 +483,7 @@ export function useCancelEscrowMutation() {
 			iotaObject,
 		}: {
 			escrow: ApiEscrowObject;
-			iotaObject: IotaObjectData;
+			iotaObject: IOTAObjectData;
 		}) => {
 			if (!currentAccount?.address) throw new Error('You need to connect your wallet!');
 			const txb = new TransactionBlock();
@@ -520,7 +520,7 @@ The UI has a tab for users to manage their owned objects to be ready for escrow 
 Let's take a look at the **My Locked Objects** tab by examining `src/components/locked/OwnedLockedList.tsx`. Focus on the logic on how to retrieve this list.
 
 ```ts title='src/components/locked/OwnedLockedList.tsx'
-import { useCurrentAccount, useIotaClientInfiniteQuery } from '@iota/dapp-kit';
+import { useCurrentAccount, useIOTAClientInfiniteQuery } from '@iota/dapp-kit';
 
 import { InfiniteScrollArea } from '@/components/InfiniteScrollArea';
 import { CONSTANTS } from '@/constants';
@@ -534,7 +534,7 @@ import { LockedObject } from './LockedObject';
 export function OwnedLockedList() {
 	const account = useCurrentAccount();
 	const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
-		useIotaClientInfiniteQuery(
+		useIOTAClientInfiniteQuery(
 			'getOwnedObjects',
 			{
 				filter: {
@@ -565,11 +565,11 @@ export function OwnedLockedList() {
 }
 ```
 
-Fetch the owned `Locked` objects directly from Iota blockchain using the `useIotaClientInfiniteQuery()` hook from `dApp Kit`. This hook is a thin wrapper around Iota blockchain RPC calls, reference the documentation to learn more about these [RPC hooks](https://sdk.mystenlabs.com/dapp-kit/rpc-hooks). Basically, supply the RPC endpoint you want to execute, in this case it's the [`getOwnedObjects` endpoint](https://docs.iota.io/iota-api-ref#iotax_getownedobjects). Supply the connected wallet account and the `Locked` object struct type to the call. The struct type is usually identified by the format of `{PACKAGE_ID}::{{MODULE_NAME}}::{{STRUCT_TYPE}}`. The returned data is stored inside the cache at query key `getOwnedObjects`. Recall the previous section where you invalidate the data at this key after the mutation succeeds, the `useIotaClientInfiniteQuery()` hook automatically re-fetches the data, thus you don't have to worry about the out-dated data living in your frontend application.
+Fetch the owned `Locked` objects directly from IOTA blockchain using the `useIOTAClientInfiniteQuery()` hook from `dApp Kit`. This hook is a thin wrapper around IOTA blockchain RPC calls, reference the documentation to learn more about these [RPC hooks](https://sdk.mystenlabs.com/dapp-kit/rpc-hooks). Basically, supply the RPC endpoint you want to execute, in this case it's the [`getOwnedObjects` endpoint](https://docs.iota.io/iota-api-ref#iotax_getownedobjects). Supply the connected wallet account and the `Locked` object struct type to the call. The struct type is usually identified by the format of `{PACKAGE_ID}::{{MODULE_NAME}}::{{STRUCT_TYPE}}`. The returned data is stored inside the cache at query key `getOwnedObjects`. Recall the previous section where you invalidate the data at this key after the mutation succeeds, the `useIOTAClientInfiniteQuery()` hook automatically re-fetches the data, thus you don't have to worry about the out-dated data living in your frontend application.
 
 #### `LockedObject` and `Locked` component
 
-The `<LockedObject />` (`src/components/locked/LockedObject.tsx`) component is mainly responsible for mapping an on-chain `IotaObjectData` `Locked` object to its corresponding `ApiLockedObject`, which is finally delegated to the `<Locked />` component for rendering. The `<LockedObject />` fetches the locked item object ID if the prop `itemId` is not supplied by using `dApp Kit` `useIotaClientQuery()` hook to call the `getDynamicFieldObject` RPC endpoint. Recalling that in this smart contract, the locked item is put into a dynamic object field.
+The `<LockedObject />` (`src/components/locked/LockedObject.tsx`) component is mainly responsible for mapping an on-chain `IOTAObjectData` `Locked` object to its corresponding `ApiLockedObject`, which is finally delegated to the `<Locked />` component for rendering. The `<LockedObject />` fetches the locked item object ID if the prop `itemId` is not supplied by using `dApp Kit` `useIOTAClientQuery()` hook to call the `getDynamicFieldObject` RPC endpoint. Recalling that in this smart contract, the locked item is put into a dynamic object field.
 
 The `<Locked />` (`src/components/locked/partials/Locked.tsx`) component is mainly responsible for rendering the `ApiLockedObject`. It also consists of several on-chain interactions: unlock the locked objects and create an escrow out of the locked object.
 
@@ -588,7 +588,7 @@ export function LockedObject({
 	itemId,
 	hideControls,
 }: {
-	object: IotaObjectData;
+	object: IOTAObjectData;
 	itemId?: string;
 	hideControls?: boolean;
 }) {
@@ -598,13 +598,13 @@ export function LockedObject({
 		return object.owner.AddressOwner;
 	};
 
-	const getKeyId = (item: IotaObjectData) => {
+	const getKeyId = (item: IOTAObjectData) => {
 		if (!(item.content?.dataType === 'moveObject') || !('key' in item.content.fields)) return '';
 		return item.content.fields.key as string;
 	};
 
 	// Get the itemID for the locked object (We've saved it as a DOF on the SC).
-	const iotaObjectId = useIotaClientQuery(
+	const iotaObjectId = useIOTAClientQuery(
 		'getDynamicFieldObject',
 		{
 			parentId: object.objectId,
@@ -638,7 +638,7 @@ export function LockedObject({
 
 ### Lock owned object
 
-You have all the logic you need to implement this UI. Use the same `useIotaClientInfiniteQuery()` hook to query all the owned objects of the connected wallet. Filter out objects that do not exist in the Object Display `display.data.image_url` as you can assume the valid NFTs conform to the Object Display and have an image in the metadata. Lastly, use the lock mutation from `useLockObjectMutation()` hook whenever the user clicks the lock button.
+You have all the logic you need to implement this UI. Use the same `useIOTAClientInfiniteQuery()` hook to query all the owned objects of the connected wallet. Filter out objects that do not exist in the Object Display `display.data.image_url` as you can assume the valid NFTs conform to the Object Display and have an image in the metadata. Lastly, use the lock mutation from `useLockObjectMutation()` hook whenever the user clicks the lock button.
 
 ```ts title='src/components/locked/LockOwnedObjects.tsx'
 export function LockOwnedObjects() {
@@ -647,7 +647,7 @@ export function LockOwnedObjects() {
 	const { mutate: lockObjectMutation, isPending } = useLockObjectMutation();
 
 	const { data, fetchNextPage, isFetchingNextPage, hasNextPage, refetch } =
-		useIotaClientInfiniteQuery(
+		useIOTAClientInfiniteQuery(
 			'getOwnedObjects',
 			{
 				owner: account?.address!,
@@ -672,7 +672,7 @@ export function LockOwnedObjects() {
 			loading={isFetchingNextPage}
 		>
 			{data?.map((obj) => (
-				<IotaObjectDisplay object={obj.data!}>
+				<IOTAObjectDisplay object={obj.data!}>
 					<div className="text-right flex items-center justify-between">
 						<p className="text-sm">Lock the item so it can be used for escrows.</p>
 						<Button
@@ -691,7 +691,7 @@ export function LockOwnedObjects() {
 							Lock Item
 						</Button>
 					</div>
-				</IotaObjectDisplay>
+				</IOTAObjectDisplay>
 			))}
 		</InfiniteScrollArea>
 	);
@@ -708,7 +708,7 @@ The UI has a place for users to discover, create, and execute trades. The code o
 
 ### Requested escrows
 
-Let's take a look at the **Requested Escrows** tab by examining `src/components/escrows/EscrowList.tsx`. This time, the data is retrieved by using `useInfiniteQuery` directly from `react-query`. Fetch the data by calling the API service that you already implemented in the [Escrow Indexing and API Service Guide](./indexer-api.mdx). Call the `/escrows` endpoint to fetch all the escrows requested to you. The rationale behind using an API service to fetch the data is because the indexed data includes additional information that allows query efficiency and flexibility. You can fetch specific escrows satisfying different configured query clauses rather than limited query features of Iota blockchain RPC endpoints.
+Let's take a look at the **Requested Escrows** tab by examining `src/components/escrows/EscrowList.tsx`. This time, the data is retrieved by using `useInfiniteQuery` directly from `react-query`. Fetch the data by calling the API service that you already implemented in the [Escrow Indexing and API Service Guide](./indexer-api.mdx). Call the `/escrows` endpoint to fetch all the escrows requested to you. The rationale behind using an API service to fetch the data is because the indexed data includes additional information that allows query efficiency and flexibility. You can fetch specific escrows satisfying different configured query clauses rather than limited query features of IOTA blockchain RPC endpoints.
 
 ```ts title='src/components/escrows/EscrowList.tsx'
 import { constructUrlSearchParams, getNextPageParam } from '@/utils/helpers';
@@ -735,7 +735,7 @@ const { data, fetchNextPage, hasNextPage, isLoading, isFetchingNextPage } = useI
 
 The `Escrow` component renders the details of an escrow by providing `ApiEscrowObject` as a rendering property. There is some data you need to fetch to gather necessary escrow information for display in the UI:
 
-- Query the escrowed item object directly from Iota blockchain by using `useIotaClientQuery('getObject')` as this is the only way to have its Object Display metadata.
+- Query the escrowed item object directly from IOTA blockchain by using `useIOTAClientQuery('getObject')` as this is the only way to have its Object Display metadata.
 - Fetch the `ApiLockedObject` corresponding to the escrow's key ID from the API service as this is the most efficient way to fetch the locked object in a complex query.
 - Fetch the on-chain `Locked` object corresponding to the returned `ApiLockedObject` to pass it onto `<LockedObject />`.
 
@@ -747,7 +747,7 @@ export function Escrow({ escrow }: { escrow: ApiEscrowObject }) {
 	const { mutate: cancelEscrowMutation, isPending: pendingCancellation } =
 		useCancelEscrowMutation();
 
-	const iotaObject = useIotaClientQuery('getObject', {
+	const iotaObject = useIOTAClientQuery('getObject', {
 		id: escrow?.itemId,
 		options: {
 			showDisplay: true,
@@ -777,7 +777,7 @@ As the last step, reuse the `accept` and `cancel` escrow mutations in correspond
 
 ### Browse locked objects
 
-The `src/components/locked/ApiLockedList.tsx` component renders all the on-chain locked objects based on the `LockedListingQuery` property. Call the API service to fetch the `ApiLockedObject` data using the provided query parameters. One caveat around the API service is that the `creator` field of the `ApiLockedObject` could be stale because the `Locked` object has the `store` ability. This means that the object can be transferred freely, hence, the ownership might not be correctly tracked by the API service. That's why you still fetch from the Iota blockchain as an additional step to define the object with latest on-chain information to ensure its data correctness in regards to ownership.
+The `src/components/locked/ApiLockedList.tsx` component renders all the on-chain locked objects based on the `LockedListingQuery` property. Call the API service to fetch the `ApiLockedObject` data using the provided query parameters. One caveat around the API service is that the `creator` field of the `ApiLockedObject` could be stale because the `Locked` object has the `store` ability. This means that the object can be transferred freely, hence, the ownership might not be correctly tracked by the API service. That's why you still fetch from the IOTA blockchain as an additional step to define the object with latest on-chain information to ensure its data correctness in regards to ownership.
 
 ```ts title='src/components/locked/ApiLockedList.tsx'
 const { data, fetchNextPage, hasNextPage, isLoading, isFetchingNextPage } = useInfiniteQuery({

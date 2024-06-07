@@ -1,8 +1,8 @@
 ---
-title: Iota Validator CLI
+title: IOTA Validator CLI
 ---
 
-The Iota CLI `validator` command provides command-level access to validator features of the Iota network.
+The IOTA CLI `validator` command provides command-level access to validator features of the IOTA network.
 
 ## Commands
 
@@ -68,7 +68,7 @@ A8z83EqjmgwRNFV6sme6A5tTTTQPjiLgiW76neyvhLud
 │  └──                                                                                                                                                                                                                                                                                                                                                                                                                               	 │
 │                                                                                                                                                                                                                                                                                                                                                                                                                                    	 │
 │ Transaction Kind : Programmable                                                                                                                                                                                                                                                                                                                                                                                                    	 │
-│ Inputs: [Object(SharedObject { object_id: 0x0...005, initial_shared_version: SequenceNumber(1), mutable: true }), Object(ImmOrOwnedObject { object_id: 0x4...dbe, version: SequenceNumber(1), digest: o#82z9UUX9iD2Mq9zvciD56kmmDYqjF3iwaFadi3Mk16eJ }), Pure(IotaPureValue { value_type: Some(U64), value: "500" })]                                                                                                                   │
+│ Inputs: [Object(SharedObject { object_id: 0x0...005, initial_shared_version: SequenceNumber(1), mutable: true }), Object(ImmOrOwnedObject { object_id: 0x4...dbe, version: SequenceNumber(1), digest: o#82z9UUX9iD2Mq9zvciD56kmmDYqjF3iwaFadi3Mk16eJ }), Pure(IOTAPureValue { value_type: Some(U64), value: "500" })]                                                                                                                   │
 │ Commands: [                                                                                                                                                                                                                                                                                                                                                                                                                        	 │
 │   MoveCall(0x0...003::iota_system::request_set_gas_price(Input(0),Input(1),Input(2))),                                                                                                                                                                                                                                                                                     	                                                         │
 │ ]                                                                                                                                                                                                                                                                                                                                                                                                                                  	 │
@@ -162,7 +162,7 @@ $ iota validator display-metadata 0x3...de5
 
 ```shell
 0x3...de5's valdiator status: Active
-IotaValidatorSummary {
+IOTAValidatorSummary {
 	iota_address: 0x3...de5,
 	protocol_pubkey_bytes: [
     	167,
@@ -452,7 +452,7 @@ $ iota validator report-validator  0xf...3d9
 │  └──                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   	 │
 │                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        	 │
 │ Transaction Kind : Programmable                                                                                                                                                                                                                                                                                                                                                                                                                                                                        	 │
-│ Inputs: [Object(SharedObject { object_id: 0x0...005, initial_shared_version: SequenceNumber(1), mutable: true }), Object(ImmOrOwnedObject { object_id: 0x4...dbe, version: SequenceNumber(16), digest: o#4yDkecsKPe8SnacWdECmq1yVDt7MzvpXCxbRGs74PGaB }), Pure(IotaPureValue { value_type: Some(Address), value: "0xf...3d9" })]                                                                                                                                                                            │
+│ Inputs: [Object(SharedObject { object_id: 0x0...005, initial_shared_version: SequenceNumber(1), mutable: true }), Object(ImmOrOwnedObject { object_id: 0x4...dbe, version: SequenceNumber(16), digest: o#4yDkecsKPe8SnacWdECmq1yVDt7MzvpXCxbRGs74PGaB }), Pure(IOTAPureValue { value_type: Some(Address), value: "0xf...3d9" })]                                                                                                                                                                            │
 │ Commands: [                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            	 │
 │   MoveCall(0x0...003::iota_system::report_validator(Input(0),Input(1),Input(2))),                                                                                                                                                                                                                                                                                                                                                              	                                                         │
 │ ]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      	 │
@@ -532,7 +532,7 @@ Report or un-report a validator
 Usage: iota validator report-validator [OPTIONS] <reportee-address>
 
 Arguments:
-  <reportee-address>  The Iota Address of the validator is being reported or un-reported
+  <reportee-address>  The IOTA Address of the validator is being reported or un-reported
 
 Options:
   	--operation-cap-id <operation-cap-id>  Optional when sender is reporter validator itself and it holds the Cap object. Required when sender is not the reporter validator itself.

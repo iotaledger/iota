@@ -1,20 +1,20 @@
 ---
 title: Database Snapshots
-description: Database snapshots of the Iota network enable Full node operators a way to bootstrap a Full node without having to execute all the transactions that occurred after genesis.
+description: Database snapshots of the IOTA network enable Full node operators a way to bootstrap a Full node without having to execute all the transactions that occurred after genesis.
 ---
 
-Database snapshots provide a point-in-time view of a database's store. In Iota, the database snapshot captures a running database's view of the Iota network from a particular node at the end of an epoch. While validators can enable snapshots, they are typically most valuable for Full node operators.
+Database snapshots provide a point-in-time view of a database's store. In IOTA, the database snapshot captures a running database's view of the IOTA network from a particular node at the end of an epoch. While validators can enable snapshots, they are typically most valuable for Full node operators.
 
-Snapshots of the Iota network enable Full node operators a way to bootstrap a Full node without having to execute all the transactions that occurred after genesis. You can upload snapshots to remote object stores like S3, Google Cloud Storage, Azure Blob Storage, and similar services. These services typically run the export process in the background so there is no degradation in performance for your Full node. With snapshots stored in the cloud, you're more easily able to recover quickly from catastrophic failures in your system or hardware.
+Snapshots of the IOTA network enable Full node operators a way to bootstrap a Full node without having to execute all the transactions that occurred after genesis. You can upload snapshots to remote object stores like S3, Google Cloud Storage, Azure Blob Storage, and similar services. These services typically run the export process in the background so there is no degradation in performance for your Full node. With snapshots stored in the cloud, you're more easily able to recover quickly from catastrophic failures in your system or hardware.
 
-To maintain a healthy Iota network, Iota encourages the Iota community to bring up additional snapshots to ensure stronger data availability across the network.
+To maintain a healthy IOTA network, IOTA encourages the IOTA community to bring up additional snapshots to ensure stronger data availability across the network.
 
 ## Supported snapshot types
 
-Iota supports two types of snapshots:
+IOTA supports two types of snapshots:
 
 - **RocksDB snapshots** are a point-in-time view of a database store. This means that the snapshot keeps the state of the system at the moment it generates the snapshot, including non-pruned data, additional indices, and other data.
-- **Formal snapshots** are database agnostic with a minimalistic format, in other words they contain only the data necessary to restore a node to a valid state at the specified epoch, thus they have a much smaller storage footprint and are generally faster to restore from when compared to database snapshots. Formal snapshots are also supported natively by the Iota protocol. In this context, this means that we can cryptographically verify the contents of the formal snapshot against a commitment from the committee at the epoch we are restoring to. This verification happens automatically and by default during a Formal snapshot restore (unless explicitly bypassed). 
+- **Formal snapshots** are database agnostic with a minimalistic format, in other words they contain only the data necessary to restore a node to a valid state at the specified epoch, thus they have a much smaller storage footprint and are generally faster to restore from when compared to database snapshots. Formal snapshots are also supported natively by the IOTA protocol. In this context, this means that we can cryptographically verify the contents of the formal snapshot against a commitment from the committee at the epoch we are restoring to. This verification happens automatically and by default during a Formal snapshot restore (unless explicitly bypassed). 
 
 :::info
 
@@ -29,9 +29,9 @@ A single Full node can generate RocksDB snapshots, Formal snapshots, or both.
 
 Formal snapshots provide a mechanism for a node to restore to a canonical state (the state of a full pruned and compacted node at the end of an epoch) at some prior point in time without having to execute all the transactions that have occurred since genesis. Unlike existing database snapshots, these formal snapshots have the following properties:
 
-1. **Minimalism:** Formal snapshots currently contain only the end of epoch live object set (the set of all object versions eligible for use as input objects for future transactions). Iota syncs all other critical chain information from the chain or derives it. Thus, formal snapshots contain only the necessary data required for a node to startup at epoch boundary and participate in the network.
+1. **Minimalism:** Formal snapshots currently contain only the end of epoch live object set (the set of all object versions eligible for use as input objects for future transactions). IOTA syncs all other critical chain information from the chain or derives it. Thus, formal snapshots contain only the necessary data required for a node to startup at epoch boundary and participate in the network.
 1. **Agnosticism:** Formal snapshots are by nature agnostic to the underlying database choice or implementation of the protocol. As the live object set is protocol defined, so is the formal snapshot.
-1. **Verifiability:** Formal snapshots have first-class support in the core Iota protocol. As such, they must be trustless/verifiable by the node operator upon download. To support this, the protocol signs a commitment to the live object state at end of epoch, which formal snapshots are checked against at restore time. If this verification fails, the node state is moved back to the state before the snapshot restore attempt.
+1. **Verifiability:** Formal snapshots have first-class support in the core IOTA protocol. As such, they must be trustless/verifiable by the node operator upon download. To support this, the protocol signs a commitment to the live object state at end of epoch, which formal snapshots are checked against at restore time. If this verification fails, the node state is moved back to the state before the snapshot restore attempt.
 
 Because these snapshots do not contain indexes, they are most immediately useful for validators and state sync Full nodes (SSFNs). You can upload snapshots to remote object stores like S3, Google Cloud Storage, Azure Blob Storage, and similar services. These services typically run the export process in the background so there is no degradation in performance for your Full node. With snapshots stored in the cloud, you can recover from catastrophic failures in your system or hardware more efficiently.
 
@@ -117,7 +117,7 @@ To restore from a RocksDB snapshot, follow these steps:
 
 1. Make sure you update the ownership of the downloaded directory to the iota user (whichever linux user you run `iota-node` as)
    `sudo chown -R iota:iota  /opt/iota/db/authorities_db/full_node_db/live`.
-1. Start the Iota node.
+1. Start the IOTA node.
 
 :::info
 
@@ -128,7 +128,7 @@ When you restore a Full node from a snapshot, write it to the path `/opt/iota/db
 ### Restoring using Formal snapshots
 
 To restore using a Formal snapshot, use the `iota-tool` binary. `iota-tool` can be downloaded along with other iota binaries.
-See [Install Iota](../developer/getting-started/iota-install.mdx) for more details.
+See [Install IOTA](../developer/getting-started/iota-install.mdx) for more details.
 
 The following steps can be used to restore a node from a Formal snapshot:
 
