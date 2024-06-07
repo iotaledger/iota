@@ -281,16 +281,16 @@ iota client publish --gas-budget <GAS-BUDGET-AMOUNT>
 And receive the response:
 
 ```shell
-INCLUDING DEPENDENCY IOTA
+INCLUDING DEPENDENCY Iota
 INCLUDING DEPENDENCY MoveStdlib
 BUILDING MyFirstPackage
 Successfully verified dependencies on-chain against source.
 ----- Transaction Digest ----
 2bn3EtHvbVY4bM1887MvFiGWnqq1YZ2RKmbeK7TrRbLL
 ----- Transaction Data ----
-Transaction Signature: [Signature(Ed25519IOTASignature(Ed25519IOTASignature([0, 156, 133, 71, 156, 44, 204, 30, 31, 250, 204, 247, 60, 212, 249, 61, 112, 249, 148, 180, 83, 207, 236, 58, 99, 134, 5, 174, 115, 226, 41, 139, 192, 1, 183, 133, 38, 73, 254, 205, 190, 54, 210, 112, 144, 204, 137, 3, 8, 30, 165, 147, 120, 199, 227, 119, 53, 208, 28, 101, 34, 239, 102, 210, 1, 103, 111, 108, 165, 156, 100, 95, 13, 236, 27, 13, 127, 150, 50, 47, 155, 217, 27, 164, 61, 245, 254, 81, 182, 121, 231, 58, 150, 214, 46, 27, 222])))]
+Transaction Signature: [Signature(Ed25519IotaSignature(Ed25519IotaSignature([0, 156, 133, 71, 156, 44, 204, 30, 31, 250, 204, 247, 60, 212, 249, 61, 112, 249, 148, 180, 83, 207, 236, 58, 99, 134, 5, 174, 115, 226, 41, 139, 192, 1, 183, 133, 38, 73, 254, 205, 190, 54, 210, 112, 144, 204, 137, 3, 8, 30, 165, 147, 120, 199, 227, 119, 53, 208, 28, 101, 34, 239, 102, 210, 1, 103, 111, 108, 165, 156, 100, 95, 13, 236, 27, 13, 127, 150, 50, 47, 155, 217, 27, 164, 61, 245, 254, 81, 182, 121, 231, 58, 150, 214, 46, 27, 222])))]
 Transaction Kind : Programmable
-Inputs: [Pure(IOTAPureValue { value_type: Some(Address), value: "<PUBLISHER-ID>" })]
+Inputs: [Pure(IotaPureValue { value_type: Some(Address), value: "<PUBLISHER-ID>" })]
 Commands: [
   Publish(_,,0x00000000000000000000000000000000000000000000000000000000000000010x0000000000000000000000000000000000000000000000000000000000000002),
   TransferObjects([Result(0)],Input(0)),
@@ -412,7 +412,7 @@ iota client upgrade --gas-budget <GAS-BUDGET-AMOUNT> --upgrade-capability <UPGRA
 The console alerts you if the new package doesn't satisfy [requirements](#requirements), otherwise the compiler publishes the upgraded package to the network and returns its result:
 
 ```shell
-INCLUDING DEPENDENCY IOTA
+INCLUDING DEPENDENCY Iota
 INCLUDING DEPENDENCY MoveStdlib
 BUILDING MyFirstPackage
 Successfully verified dependencies on-chain against source.
