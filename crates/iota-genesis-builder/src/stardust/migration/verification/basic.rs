@@ -158,8 +158,9 @@ pub(super) fn verify_basic_output(
         // Sender Feature
         verify_sender_feature(output.features().sender(), created_output.sender)?;
 
-    // Otherwise the output contains only an address unlock condition and only a
-    // coin and possibly native tokens should have been created.
+    // Otherwise the output contains only an address unlock condition and
+    // only a coin and possibly native tokens should have been
+    // created.
     } else {
         ensure!(
             created_objects.output().is_err(),

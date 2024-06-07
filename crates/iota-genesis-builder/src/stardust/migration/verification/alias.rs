@@ -14,7 +14,6 @@ use iota_types::{
     TypeTag,
 };
 
-use super::util::verify_parent;
 use crate::stardust::{
     migration::{
         executor::FoundryLedgerData,
@@ -22,7 +21,7 @@ use crate::stardust::{
             created_objects::CreatedObjects,
             util::{
                 verify_address_owner, verify_issuer_feature, verify_metadata_feature,
-                verify_native_tokens, verify_sender_feature,
+                verify_native_tokens, verify_parent, verify_sender_feature,
             },
         },
     },

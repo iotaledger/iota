@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, ensure};
 use iota_sdk::types::block::output::{Output, OutputId, TokenId};
 use iota_types::in_memory_storage::InMemoryStorage;
 
@@ -25,9 +25,12 @@ pub(crate) fn verify_outputs<'a>(
     output_objects_map: &HashMap<OutputId, CreatedObjects>,
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     target_milestone_timestamp: u32,
+    total_supply: u64,
     storage: &InMemoryStorage,
 ) -> anyhow::Result<()> {
+    let mut total_value = 0;
     for (header, output) in outputs {
+        total_value += output.amount();
         let created_objects = output_objects_map
             .get(&header.output_id())
             .ok_or_else(|| anyhow!("missing created objects for output {}", header.output_id()))?;
@@ -40,6 +43,10 @@ pub(crate) fn verify_outputs<'a>(
             storage,
         )?;
     }
+    ensure!(
+        total_supply == total_value,
+        "total supply mismatch: found {total_value}, expected {total_supply}"
+    );
     Ok(())
 }
 
