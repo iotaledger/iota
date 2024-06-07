@@ -1,11 +1,11 @@
 ---
 title: Custom Indexer
-description: You can build custom indexers using the Sui micro-data ingestion framework. To create an indexer, you subscribe to a checkpoint stream with full checkpoint content. Establishing a custom indexer helps improve latency, allows pruning the data of your Sui Full node, and provides efficient assemblage of checkpoint data.
+description: You can build custom indexers using the Iota micro-data ingestion framework. To create an indexer, you subscribe to a checkpoint stream with full checkpoint content. Establishing a custom indexer helps improve latency, allows pruning the data of your Iota Full node, and provides efficient assemblage of checkpoint data.
 ---
 
-You can build custom indexers using the Sui micro-data ingestion framework. To create an indexer, you subscribe to a checkpoint stream with full checkpoint content. This stream can be one of the publicly available streams from Mysten Labs, one that you set up in your local environment, or a combination of the two.  
+You can build custom indexers using the Iota micro-data ingestion framework. To create an indexer, you subscribe to a checkpoint stream with full checkpoint content. This stream can be one of the publicly available streams from Mysten Labs, one that you set up in your local environment, or a combination of the two.  
 
-Establishing a custom indexer helps improve latency, allows pruning the data of your Sui Full node, and provides efficient assemblage of checkpoint data.
+Establishing a custom indexer helps improve latency, allows pruning the data of your Iota Full node, and provides efficient assemblage of checkpoint data.
 
 ## Interface and data format
 
@@ -18,7 +18,7 @@ trait Worker: Send + Sync {
 }
 ```
 
-In this example, the `CheckpointData` struct represents full checkpoint content. The struct contains checkpoint summary and contents, as well as detailed information about each individual transaction. The individual transaction data includes events and input/output objects. The full definition for this content is in the [full_checkpoint_content.rs](https://github.com/MystenLabs/sui/blob/releases/sui-graphql-rpc-v2024.1.0-release/crates/sui-types/src/full_checkpoint_content.rs) file of the `sui-types` crate.
+In this example, the `CheckpointData` struct represents full checkpoint content. The struct contains checkpoint summary and contents, as well as detailed information about each individual transaction. The individual transaction data includes events and input/output objects. The full definition for this content is in the [full_checkpoint_content.rs](https://github.com/iotaledger/iota/blob/releases/iota-graphql-rpc-v2024.1.0-release/crates/iota-types/src/full_checkpoint_content.rs) file of the `iota-types` crate.
 
 
 ## Checkpoint stream sources
@@ -29,8 +29,8 @@ Data ingestion for your indexer supports several checkpoint stream sources.
 
 The most straightforward stream source is to subscribe to a remote store of checkpoint contents. Mysten Labs provides the following buckets:
 
-- Testnet: `https://checkpoints.testnet.sui.io`
-- Mainnet: `https://checkpoints.mainnet.sui.io`
+- Testnet: `https://checkpoints.testnet.iota.io`
+- Mainnet: `https://checkpoints.mainnet.iota.io`
 
 ```mermaid
 flowchart LR
@@ -52,7 +52,7 @@ flowchart LR
 
 Colocate the data ingestion daemon with a Full node and enable checkpoint dumping on the latter to set up a local stream source. After enabling, the Full node starts dumping executed checkpoints as files to a local directory, and the data ingestion daemon subscribes to changes in the directory through an inotify-like mechanism. This approach allows minimizing ingestion latency (checkpoint are processed immediately after a checkpoint executor on a Full node) and getting rid of dependency on an externally managed bucket.
 
-To enable, add the following to your [Full node configuration](../../operator/sui-full-node.mdx) file:
+To enable, add the following to your [Full node configuration](../../operator/iota-full-node.mdx) file:
 
 ```yaml
 checkpoint-executor-config:
@@ -63,7 +63,7 @@ checkpoint-executor-config:
 
 ```mermaid
 flowchart LR
-  subgraph Sui
+  subgraph Iota
     A("fa:fa-server Full node");
     A-->B("fa:fa-folder Local directory");
     B-->C[("fa:fa-gears
@@ -87,7 +87,7 @@ Specify both a local and remote store as a fallback to ensure constant data flow
 
 ## Examples
 
-The Sui data ingestion framework provides a helper function to quickly bootstrap an indexer workflow.
+The Iota data ingestion framework provides a helper function to quickly bootstrap an indexer workflow.
 ```rust
 struct CustomWorker;
 
@@ -104,7 +104,7 @@ impl Worker for CustomWorker {
 async fn main() -> Result<()> {
     let (executor, term_sender) = setup_single_workflow(
         CustomWorker,
-        "https://checkpoints.mainnet.sui.io".to_string(),
+        "https://checkpoints.mainnet.iota.io".to_string(),
         0, /* initial checkpoint number */
         5, /* concurrency */
         None, /* extra reader options */
@@ -138,7 +138,7 @@ async fn main() -> Result<()> {
   executor.register(worker_pool).await?;
   executor.run(
       PathBuf::from("..."), // path to a local directory
-      Some("https://checkpoints.mainnet.sui.io".to_string()),
+      Some("https://checkpoints.mainnet.iota.io".to_string()),
       vec![], // optional remote store access options
       exit_receiver,
   ).await?;
@@ -157,7 +157,7 @@ The data ingestion executor can run multiple workflows simultaneously. For each 
 
 The concurrency parameter specifies how many threads the workflow uses. Having a concurrency value greater than 1 is helpful when tasks are idempotent and can be processed in parallel and out of order. The executor only updates the progress/watermark to a certain checkpoint when all preceding checkpoints are processed.
 
-Find more examples of custom ingestion pipelines in the Sui repository:
-* Sui data ingestion daemon that runs internal [pipelines](https://github.com/MystenLabs/sui/tree/main/crates/sui-data-ingestion/src/).
-* Sui Name Service's custom [indexer](https://github.com/MystenLabs/sui/tree/main/crates/suins-indexer/src).
+Find more examples of custom ingestion pipelines in the Iota repository:
+* Iota data ingestion daemon that runs internal [pipelines](https://github.com/iotaledger/iota/tree/main/crates/iota-data-ingestion/src/).
+* Iota Name Service's custom [indexer](https://github.com/iotaledger/iota/tree/main/crates/iotans-indexer/src).
 

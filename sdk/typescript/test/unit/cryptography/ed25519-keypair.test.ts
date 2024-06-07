@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB64, toB58 } from '@mysten/bcs';
+import { fromB64, toB58 } from '@iota/bcs';
 import nacl from 'tweetnacl';
 import { describe, expect, it } from 'vitest';
 
-import { decodeSuiPrivateKey } from '../../../src/cryptography/keypair';
+import { decodeIotaPrivateKey } from '../../../src/cryptography/keypair';
 import { Ed25519Keypair } from '../../../src/keypairs/ed25519';
 import { TransactionBlock } from '../../../src/transactions';
 import { verifyPersonalMessage, verifyTransactionBlock } from '../../../src/verify';
@@ -13,21 +14,21 @@ import { verifyPersonalMessage, verifyTransactionBlock } from '../../../src/veri
 const VALID_SECRET_KEY = 'mdqVWeFekT7pqy5T49+tV12jO0m+ESW7ki4zSU9JiCg=';
 const PRIVATE_KEY_SIZE = 32;
 
-// Test case generated against rust keytool cli. See https://github.com/MystenLabs/sui/blob/edd2cd31e0b05d336b1b03b6e79a67d8dd00d06b/crates/sui/src/unit_tests/keytool_tests.rs#L165
+// Test case generated against rust keytool cli. See https://github.com/iotaledger/iota/blob/edd2cd31e0b05d336b1b03b6e79a67d8dd00d06b/crates/iota/src/unit_tests/keytool_tests.rs#L165
 const TEST_CASES = [
     [
         'film crazy soon outside stand loop subway crumble thrive popular green nuclear struggle pistol arm wife phrase warfare march wheat nephew ask sunny firm',
-        'suiprivkey1qrqqxhsu3ndp96644fjk4z5ams5ulgmvprklngt2jhvg2ujn5w4q23vm2y8',
+        'iotaprivkey1qrqqxhsu3ndp96644fjk4z5ams5ulgmvprklngt2jhvg2ujn5w4q23vm2y8',
         '0x9f8e5379678525edf768d7b507dc1ba9016fc4f0eac976ab7f74077d95fba312',
     ],
     [
         'require decline left thought grid priority false tiny gasp angle royal system attack beef setup reward aunt skill wasp tray vital bounce inflict level',
-        'suiprivkey1qqcxaf57fnenvflpacacaumf6vl0rt0edddhytanvzhkqhwnjk0zsawjy3x',
+        'iotaprivkey1qqcxaf57fnenvflpacacaumf6vl0rt0edddhytanvzhkqhwnjk0zsawjy3x',
         '0x862738192e40540e0a5c9a5aca636f53b0cd76b0a9bef3386e05647feb4914ac',
     ],
     [
         'organ crash swim stick traffic remember army arctic mesh slice swear summer police vast chaos cradle squirrel hood useless evidence pet hub soap lake',
-        'suiprivkey1qzq39vxzm0gq7l8dc5dj5allpuww4mavhwhg8mua4cl3lj2c3fvhcsjgphc',
+        'iotaprivkey1qzq39vxzm0gq7l8dc5dj5allpuww4mavhwhg8mua4cl3lj2c3fvhcsjgphc',
         '0x2391788ca49c7f0f00699bc2bad45f80c343b4d1df024285c132259433d7ff31',
     ],
 ];
@@ -51,12 +52,12 @@ describe('ed25519-keypair', () => {
         for (const t of TEST_CASES) {
             // Keypair derived from mnemonic.
             const keypair = Ed25519Keypair.deriveKeypair(t[0]);
-            expect(keypair.getPublicKey().toSuiAddress()).toEqual(t[2]);
+            expect(keypair.getPublicKey().toIotaAddress()).toEqual(t[2]);
 
-            // Decode Sui private key from Bech32 string
-            const parsed = decodeSuiPrivateKey(t[1]);
+            // Decode Iota private key from Bech32 string
+            const parsed = decodeIotaPrivateKey(t[1]);
             const kp = Ed25519Keypair.fromSecretKey(parsed.secretKey);
-            expect(kp.getPublicKey().toSuiAddress()).toEqual(t[2]);
+            expect(kp.getPublicKey().toIotaAddress()).toEqual(t[2]);
 
             // Exported keypair matches the Bech32 encoded secret key.
             const exported = kp.export();
@@ -120,7 +121,7 @@ describe('ed25519-keypair', () => {
     it('signs TransactionBlocks', async () => {
         const keypair = new Ed25519Keypair();
         const txb = new TransactionBlock();
-        txb.setSender(keypair.getPublicKey().toSuiAddress());
+        txb.setSender(keypair.getPublicKey().toIotaAddress());
         txb.setGasPrice(5);
         txb.setGasBudget(100);
         txb.setGasPayment([

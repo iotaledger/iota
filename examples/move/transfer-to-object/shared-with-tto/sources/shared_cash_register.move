@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module shared_with_tto::shared_cash_register {
     use common::identified_payment::{Self, IdentifiedPayment, EarmarkedPayment};
-    use sui::sui::SUI;
-    use sui::coin::Coin;
-    use sui::object::{Self, UID};
-    use sui::transfer::{Self, Receiving};
-    use sui::tx_context::{Self, TxContext};
-    use sui::vec_set::{Self, VecSet};
+    use iota::iota::IOTA;
+    use iota::coin::Coin;
+    use iota::object::{Self, UID};
+    use iota::transfer::{Self, Receiving};
+    use iota::tx_context::{Self, TxContext};
+    use iota::vec_set::{Self, VecSet};
     use std::vector;
     use std::string::String;
 
@@ -89,7 +90,7 @@ module shared_with_tto::shared_cash_register {
     /// Process a payment that has been made, removing it from the register and
     /// returning the coin that can then be combined or sent elsewhere by the authorized individual.
     /// Payments can ony be processed by either an account in the / `authorized_individuals` set or by the owner of the cash register.
-    public fun process_payment(register: &mut CashRegister, payment_ticket: Receiving<IdentifiedPayment>, ctx: &TxContext): Coin<SUI> {
+    public fun process_payment(register: &mut CashRegister, payment_ticket: Receiving<IdentifiedPayment>, ctx: &TxContext): Coin<IOTA> {
         let sender = tx_context::sender(ctx);
         assert!(vec_set::contains(&register.authorized_individuals, &sender) || sender == register.register_owner, ENotAuthorized);
         let payment: IdentifiedPayment = transfer::public_receive(&mut register.id, payment_ticket);
@@ -98,7 +99,7 @@ module shared_with_tto::shared_cash_register {
     }
 
     /// Process a tip -- only the person who was tipped can process it despite it being sent to the shared object.
-    public fun process_tip(register: &mut CashRegister, earmarked_ticket: Receiving<EarmarkedPayment>, ctx: &TxContext): Coin<SUI> {
+    public fun process_tip(register: &mut CashRegister, earmarked_ticket: Receiving<EarmarkedPayment>, ctx: &TxContext): Coin<IOTA> {
         let payment: IdentifiedPayment = identified_payment::receive(&mut register.id, earmarked_ticket, ctx);
         let (_, coin) = identified_payment::unpack(payment);
         coin

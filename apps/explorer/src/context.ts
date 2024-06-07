@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import * as Sentry from '@sentry/react';
@@ -9,7 +10,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Network } from './utils/api/DefaultRpcClient';
 import { growthbook } from './utils/growthbook';
 import { queryClient } from './utils/queryClient';
-import { getDefaultNetwork } from '@mysten/sui.js/client';
+import { getDefaultNetwork } from '@iota/iota.js/client';
 
 export const NetworkContext = createContext<
     [Network | string, (network: Network | string) => void]

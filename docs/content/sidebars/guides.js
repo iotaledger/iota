@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 const guides = [
@@ -25,8 +26,8 @@ const guides = [
 					id: 'guides/developer/getting-started',
 				},
 				items: [
-					'guides/developer/getting-started/sui-environment',
-					'guides/developer/getting-started/sui-install',
+					'guides/developer/getting-started/iota-environment',
+					'guides/developer/getting-started/iota-install',
 					'guides/developer/getting-started/connect',
 					'guides/developer/getting-started/local-network',
 					'guides/developer/getting-started/get-address',
@@ -36,7 +37,22 @@ const guides = [
 			},
 			{
 				type: 'category',
-				label: 'Your First Sui dApp',
+				label: 'From Solidity/EVM to Move',
+				collapsed: true,
+				link: {
+					type: 'doc',
+					id: 'guides/developer/evm-to-move',
+				},
+				items: [
+					'guides/developer/evm-to-move/why-move',
+					'guides/developer/evm-to-move/tooling-apis',
+					'guides/developer/evm-to-move/creating-token',
+					'guides/developer/evm-to-move/creating-nft',
+				],
+			},
+			{
+				type: 'category',
+				label: 'Your First Iota dApp',
 				link: {
 					type: 'doc',
 					id: 'guides/developer/first-app',
@@ -51,38 +67,38 @@ const guides = [
 			},
 			{
 				type: 'category',
-				label: 'Sui 101',
+				label: 'Iota 101',
 				link: {
 					type: 'doc',
-					id: 'guides/developer/sui-101',
+					id: 'guides/developer/iota-101',
 				},
 				items: [
-					'guides/developer/sui-101/shared-owned',
+					'guides/developer/iota-101/shared-owned',
 					{
 						type: 'category',
 						label: 'Create Coins and Tokens',
 						link: {
 							type: 'doc',
-							id: 'guides/developer/sui-101/create-coin',
+							id: 'guides/developer/iota-101/create-coin',
 						},
 						items: [
-							'guides/developer/sui-101/create-coin/regulated',
-							'guides/developer/sui-101/create-coin/in-game-token',
-							'guides/developer/sui-101/create-coin/loyalty',
+							'guides/developer/iota-101/create-coin/regulated',
+							'guides/developer/iota-101/create-coin/in-game-token',
+							'guides/developer/iota-101/create-coin/loyalty',
 						],
 					},
-					'guides/developer/sui-101/create-nft',
-					'guides/developer/sui-101/using-events',
-					'guides/developer/sui-101/access-time',
-					'guides/developer/sui-101/sign-and-send-txn',
-					'guides/developer/sui-101/sponsor-txn',
+					'guides/developer/iota-101/create-nft',
+					'guides/developer/iota-101/using-events',
+					'guides/developer/iota-101/access-time',
+					'guides/developer/iota-101/sign-and-send-txn',
+					'guides/developer/iota-101/sponsor-txn',
 					{
 						type: 'category',
 						label: 'Working with PTBs',
 						items: [
-							'guides/developer/sui-101/building-ptb',
-							'guides/developer/sui-101/coin-mgt',
-							'guides/developer/sui-101/simulating-refs',
+							'guides/developer/iota-101/building-ptb',
+							'guides/developer/iota-101/coin-mgt',
+							'guides/developer/iota-101/simulating-refs',
 						],
 					},
 				],
@@ -181,7 +197,7 @@ const guides = [
 			id: 'guides/operator',
 		},
 		items: [
-			'guides/operator/sui-full-node',
+			'guides/operator/iota-full-node',
 			'guides/operator/validator-config',
 			'guides/operator/data-management',
 			'guides/operator/snapshots',

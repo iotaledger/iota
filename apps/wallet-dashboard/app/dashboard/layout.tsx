@@ -4,7 +4,7 @@
 
 import { Notifications, RouteLink } from '@/components/index';
 import React, { type PropsWithChildren } from 'react';
-import { ConnectButton } from '@mysten/dapp-kit';
+import { ConnectButton } from '@iota/dapp-kit';
 
 function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
     const routes = [

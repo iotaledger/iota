@@ -1,0 +1,7 @@
+[package]
+name = "Examples"
+version = "0.0.1"
+
+[dependencies]
+Iota = { local = "../../../../../../iota-framework/packages/iota-framework" }
+A = { local = "../a" }

@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type SuiEvent } from '@mysten/sui.js/client';
+import { type IotaEvent } from '@iota/iota.js/client';
 
-export function getValidatorMoveEvent(validatorsEvent: SuiEvent[], validatorAddress: string) {
+export function getValidatorMoveEvent(validatorsEvent: IotaEvent[], validatorAddress: string) {
     const event = validatorsEvent.find(
         ({ parsedJson }) =>
             (parsedJson as { validator_address?: unknown })!.validator_address === validatorAddress,

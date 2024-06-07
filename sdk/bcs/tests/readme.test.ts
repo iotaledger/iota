@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /**
@@ -8,12 +9,12 @@
 
 import { describe, it } from 'vitest';
 
-import { SUI_ADDRESS_LENGTH } from '../../typescript/src/utils';
-import { BCS, BcsWriter, getRustConfig, getSuiMoveConfig } from './../src/index';
+import { IOTA_ADDRESS_LENGTH } from '../../typescript/src/utils';
+import { BCS, BcsWriter, getRustConfig, getIotaMoveConfig } from './../src/index';
 
 describe('BCS: README Examples', () => {
     it('quick start', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
 
         // registering types
         bcs.registerAlias('UID', BCS.ADDRESS);
@@ -43,7 +44,7 @@ describe('BCS: README Examples', () => {
     it('Example: All options used', () => {
         const bcs = new BCS({
             vectorType: 'vector<T>',
-            addressLength: SUI_ADDRESS_LENGTH,
+            addressLength: IOTA_ADDRESS_LENGTH,
             addressEncoding: 'hex',
             genericSeparators: ['<', '>'],
             types: {
@@ -64,7 +65,7 @@ describe('BCS: README Examples', () => {
     });
 
     it('initialization', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
 
         // use bcs.ser() to serialize data
         const val = [1, 2, 3, 4];
@@ -86,7 +87,7 @@ describe('BCS: README Examples', () => {
     });
 
     it('Example: Primitive types', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
 
         // Integers
         const _u8 = bcs.ser(BCS.U8, 100).toBytes();
@@ -114,7 +115,7 @@ describe('BCS: README Examples', () => {
     });
 
     it('Example: Ser/de and Encoding', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
 
         // bcs.ser() returns an instance of BcsWriter which can be converted to bytes or a string
         const bcsWriter: BcsWriter = bcs.ser(BCS.STRING, 'this is a string');
@@ -140,7 +141,7 @@ describe('BCS: README Examples', () => {
     });
 
     it('Example: Alias', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
 
         // When registering alias simply specify a new name for the type
         bcs.registerAlias('ObjectDigest', BCS.BASE58);
@@ -155,7 +156,7 @@ describe('BCS: README Examples', () => {
     });
 
     it('Example: Struct', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
 
         // register a custom type (it becomes available for using)
         bcs.registerStructType('Balance', {
@@ -181,7 +182,7 @@ describe('BCS: README Examples', () => {
     });
 
     it('Example: Generics', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
 
         // Container -> the name of the type
         // T -> type parameter which has to be passed in `ser()` or `de()` methods
@@ -216,7 +217,7 @@ describe('BCS: README Examples', () => {
     });
 
     it('Example: Enum', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
 
         bcs.registerEnumType('Option<T>', {
             none: null,
@@ -252,7 +253,7 @@ describe('BCS: README Examples', () => {
     });
 
     it('Example: Inline Struct', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
 
         // Some value we want to serialize
         const coin = {

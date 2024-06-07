@@ -14,12 +14,15 @@ with open(factory_file, 'w') as f:
     f.write("// Copyright (c) Mysten Labs, Inc.\n")
     f.write("// SPDX-License-Identifier: Apache-2.0\n")
 
+     f.write("// Modifications Copyright (c) 2024 IOTA Stiftung
+     f.write("// SPDX-License-Identifier: Apache-2.0
+
     f.write("module coiner::coin_factory {\n")
     f.write("    use std::option;\n")
-    f.write("    use sui::coin::{Self, Coin, TreasuryCap};\n")
-    f.write("    use sui::transfer;\n")
+    f.write("    use iota::coin::{Self, Coin, TreasuryCap};\n")
+    f.write("    use iota::transfer;\n")
     f.write("    use std::vector;\n");
-    f.write("    use sui::tx_context::{Self, TxContext};\n")
+    f.write("    use iota::tx_context::{Self, TxContext};\n")
     f.write("\n")
     f.write("    struct COIN_FACTORY has drop {}\n")
     f.write("\n")

@@ -1,6 +1,9 @@
 # Copyright(C) Facebook, Inc. and its affiliates.
 # Copyright (c) Mysten Labs, Inc.
 # SPDX-License-Identifier: Apache-2.0
+
+# Modifications Copyright (c) 2024 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
 from fabric import task
 
 from benchmark.seed import SeedData

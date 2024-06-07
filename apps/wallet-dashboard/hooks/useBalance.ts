@@ -1,20 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSuiClient } from '@mysten/dapp-kit';
-import { CoinBalance } from '@mysten/sui.js/client';
-import { MIST_PER_SUI } from '@mysten/sui.js/utils';
+import { useIotaClient } from '@iota/dapp-kit';
+import { CoinBalance } from '@iota/iota.js/client';
+import { MICROS_PER_IOTA } from '@iota/iota.js/utils';
 import { useQuery } from '@tanstack/react-query';
 
 interface UseBalance extends CoinBalance {
-    suiBalance: number;
+    iotaBalance: number;
 }
 
 export function useBalance(coinType: string, address?: string | null) {
-    const client = useSuiClient();
+    const client = useIotaClient();
 
     return useQuery<UseBalance>({
         queryKey: ['get-balance', address, coinType],
@@ -25,7 +23,7 @@ export function useBalance(coinType: string, address?: string | null) {
             });
 
             return {
-                suiBalance: Number(data.totalBalance) / Number(MIST_PER_SUI),
+                iotaBalance: Number(data.totalBalance) / Number(MICROS_PER_IOTA),
                 ...data,
             };
         },

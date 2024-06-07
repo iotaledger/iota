@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { SuiClientProvider } from '@mysten/dapp-kit';
+import { IotaClientProvider } from '@iota/dapp-kit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 
@@ -16,9 +17,9 @@ export default {
         (Story) => (
             <MemoryRouter>
                 <QueryClientProvider client={new QueryClient()}>
-                    <SuiClientProvider>
+                    <IotaClientProvider>
                         <Story />
-                    </SuiClientProvider>
+                    </IotaClientProvider>
                 </QueryClientProvider>
             </MemoryRouter>
         ),

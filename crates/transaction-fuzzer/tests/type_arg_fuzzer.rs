@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_types::{base_types::ObjectRef, effects::TransactionEffectsAPI, object::Owner};
 use proptest::{collection::vec, prelude::*, strategy::ValueTree};
-use sui_types::{base_types::ObjectRef, effects::TransactionEffectsAPI, object::Owner};
 use transaction_fuzzer::{
     account_universe::{AccountCurrent, AccountData},
     executor::Executor,

@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import {SuiClient} from '@mysten/sui.js/client';
-import {BCS, fromB58, fromB64, getSuiMoveConfig} from "@mysten/bcs";
-import {TransactionBlock} from "@mysten/sui.js/transactions";
+import {IotaClient} from '@iota/iota.js/client';
+import {BCS, fromB58, fromB64, getIotaMoveConfig} from "@iota/bcs";
+import {TransactionBlock} from "@iota/iota.js/transactions";
 import pLimit from "p-limit";
 const limit = pLimit(5);
 
-let bcs = new BCS(getSuiMoveConfig());
+let bcs = new BCS(getIotaMoveConfig());
 bcs.registerStructType("Order", {
     order_id: "u64",
     client_order_id: "u64",
@@ -85,8 +86,8 @@ bcs.registerStructType("PoolCreated", {
     // We don't need other fields for the mev bot
 });
 
-// Create a client connected to the Sui network
-const client = new SuiClient({url: "https://sui-mainnet.mystenlabs.com/json-rpc"});
+// Create a client connected to the Iota network
+const client = new IotaClient({url: "https://iota-mainnet.mystenlabs.com/json-rpc"});
 
 // Retrieve all DeepBook pools using the PoolCreated events
 let allPools = await retrieveAllPools();
@@ -103,7 +104,7 @@ let allExpiredOrders = (await Promise.all(allExpiredOrdersPromises)).flat();
 // Create a transaction to clean up all expired orders and get the estimated storage fee rebate using devInspectTransactionBlock
 let {rebate, tx} = await createCleanUpTransaction(allExpiredOrders);
 
-console.log(`Total estimated storage fee rebate: ${rebate / 1e9} SUI`);
+console.log(`Total estimated storage fee rebate: ${rebate / 1e9} IOTA`);
 
 // Implementer Todo : sign and execute the transaction
 
