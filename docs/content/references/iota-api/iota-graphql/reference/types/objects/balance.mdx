@@ -1,0 +1,83 @@
+---
+id: balance
+title: Balance
+---
+
+
+
+
+export const Bullet = () => <><span style={{ fontWeight: 'normal', fontSize: '.5em', color: 'var(--ifm-color-secondary-darkest)' }}>&nbsp;●&nbsp;</span></>
+
+export const SpecifiedBy = (props) => <>Specification<a className="link" style={{ fontSize:'1.5em', paddingLeft:'4px' }} target="_blank" href={props.url} title={'Specified by ' + props.url}>⎘</a></>
+
+export const Badge = (props) => <><span className={props.class}>{props.text}</span></>
+
+import { useState } from 'react';
+
+export const Details = ({ dataOpen, dataClose, children, startOpen = false }) => {
+  const [open, setOpen] = useState(startOpen);
+  return (
+    <details {...(open ? { open: true } : {})} className="details" style={{ border:'none', boxShadow:'none', background:'var(--ifm-background-color)' }}>
+      <summary
+        onClick={(e) => {
+          e.preventDefault();
+          setOpen((open) => !open);
+        }}
+        style={{ listStyle:'none' }}
+      >
+      {open ? dataOpen : dataClose}
+      </summary>
+      {open && children}
+    </details>
+  );
+};
+
+
+
+
+
+
+
+
+The total balance for a particular coin type.
+
+
+```graphql
+type Balance {
+  coinType: MoveType!
+  coinObjectCount: Int
+  totalBalance: BigInt
+}
+```
+
+
+
+
+### Fields
+
+#### [<code style={{ fontWeight: 'normal' }}>Balance.<b>coinType</b></code>](#)<Bullet />[`MoveType!`](/references/iota-api/iota-graphql/reference/types/objects/move-type) <Badge class="badge badge--secondary" text="non-null"/> <Badge class="badge badge--secondary" text="object"/> 
+> 
+> 
+> Coin type for the balance, such as 0x2::iota::IOTA
+> 
+
+#### [<code style={{ fontWeight: 'normal' }}>Balance.<b>coinObjectCount</b></code>](#)<Bullet />[`Int`](/references/iota-api/iota-graphql/reference/types/scalars/int) <Badge class="badge badge--secondary" text="scalar"/> 
+> 
+> 
+> How many coins of this type constitute the balance
+> 
+
+#### [<code style={{ fontWeight: 'normal' }}>Balance.<b>totalBalance</b></code>](#)<Bullet />[`BigInt`](/references/iota-api/iota-graphql/reference/types/scalars/big-int) <Badge class="badge badge--secondary" text="scalar"/> 
+> 
+> 
+> Total balance across all coin objects of the coin type
+> 
+
+
+
+
+
+### Member Of
+
+[`Address`](/references/iota-api/iota-graphql/reference/types/objects/address)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`BalanceConnection`](/references/iota-api/iota-graphql/reference/types/objects/balance-connection)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`BalanceEdge`](/references/iota-api/iota-graphql/reference/types/objects/balance-edge)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`Coin`](/references/iota-api/iota-graphql/reference/types/objects/coin)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`CoinMetadata`](/references/iota-api/iota-graphql/reference/types/objects/coin-metadata)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`IotansRegistration`](/references/iota-api/iota-graphql/reference/types/objects/iotans-registration)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`IOwner`](/references/iota-api/iota-graphql/reference/types/interfaces/iowner)  <Badge class="badge badge--secondary" text="interface"/><Bullet />[`MoveObject`](/references/iota-api/iota-graphql/reference/types/objects/move-object)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`MovePackage`](/references/iota-api/iota-graphql/reference/types/objects/move-package)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`Object`](/references/iota-api/iota-graphql/reference/types/objects/object)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`Owner`](/references/iota-api/iota-graphql/reference/types/objects/owner)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`StakedIota`](/references/iota-api/iota-graphql/reference/types/objects/staked-iota)  <Badge class="badge badge--secondary" text="object"/>
+

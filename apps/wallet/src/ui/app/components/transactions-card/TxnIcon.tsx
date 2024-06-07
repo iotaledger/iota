@@ -2,15 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-    Account24,
-    ArrowRight16,
-    Info16,
-    Iota,
-    Swap16,
-    Unstaked,
-    WalletActionStake24,
-} from '@iota/icons';
+import { Account24, ArrowRight16, Info16, Iota, Unstaked, WalletActionStake24 } from '@iota/icons';
 import cl from 'clsx';
 
 import LoadingIndicator from '../loading/LoadingIndicator';
@@ -39,7 +31,6 @@ const icons = {
     ),
     Unstaked: <Unstaked className="text-heading3 text-gradient-blue-start" />,
     Rewards: <Iota className="text-body text-gradient-blue-start" />,
-    Swapped: <Swap16 className="text-heading6 text-gradient-blue-start" />,
     Failed: <Info16 className="text-heading6 text-issue-dark" />,
     Loading: <LoadingIndicator />,
     PersonalMessage: (

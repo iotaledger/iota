@@ -1,15 +1,15 @@
 ---
-title: Iota Object Display
-description: The Iota Object Display standard is a template engine that enables on-chain management of off-chain representation (display) for a type.
+title: IOTA Object Display
+description: The IOTA Object Display standard is a template engine that enables on-chain management of off-chain representation (display) for a type.
 ---
 
-The Iota Object Display standard is a template engine that enables on-chain management of off-chain representation (display) for a type. With it, you can substitute data for an object into a template string. The standard doesn’t limit the fields you can set. You can use the  `{property}` syntax to access all object properties, and then insert them as a part of the template string.
+The IOTA Object Display standard is a template engine that enables on-chain management of off-chain representation (display) for a type. With it, you can substitute data for an object into a template string. The standard doesn’t limit the fields you can set. You can use the  `{property}` syntax to access all object properties, and then insert them as a part of the template string.
 
-Use a `Publisher` object that you own to set `iota::display` for a type. For more information about `Publisher` objects, see [Publisher](https://examples.iota.io/basics/publisher.html) topic in *Iota Move by Example*.
+Use a `Publisher` object that you own to set `iota::display` for a type. For more information about `Publisher` objects, see [Publisher](https://examples.iota.io/basics/publisher.html) topic in *IOTA Move by Example*.
 
-In Iota Move, `Display<T>` represents an object that specifies a set of named templates for the type `T`. For example, for a type `0x2::capy::Capy` the display syntax is:  `Display<0x2::capy::Capy>`.
+In IOTA Move, `Display<T>` represents an object that specifies a set of named templates for the type `T`. For example, for a type `0x2::capy::Capy` the display syntax is:  `Display<0x2::capy::Capy>`.
 
-Iota Full nodes process all objects of the type `T` by matching the `Display` definition, and return the processed result when you query an object with the `{ showDisplay: true }` setting in the query.
+IOTA Full nodes process all objects of the type `T` by matching the `Display` definition, and return the processed result when you query an object with the `{ showDisplay: true }` setting in the query.
 
 ## Display properties
 
@@ -24,7 +24,7 @@ The basic set of properties suggested includes:
 - `creator` - A string that indicates the object creator.
 
 
-### An example Iota Hero module
+### An example IOTA Hero module
 The following code sample demonstrates how the `Display` for an example `Hero` module varies based on the `name`, `id`, and `image_url` properties of the type `Hero`.
 The following represents the template the `init` function defines:
 
@@ -33,14 +33,14 @@ The following represents the template the `init` function defines:
     "name": "{name}",
     "link": "https://iota-heroes.io/hero/{id}",
     "image_url": "ipfs://{image_url}",
-    "description": "A true Hero of the Iota ecosystem!",
+    "description": "A true Hero of the IOTA ecosystem!",
     "project_url": "https://iota-heroes.io",
-    "creator": "Unknown Iota Fan"
+    "creator": "Unknown IOTA Fan"
 }
 ```
 
 ```move
-/// Example of an unlimited "Iota Hero" collection - anyone can
+/// Example of an unlimited "IOTA Hero" collection - anyone can
 /// mint their Hero. Shows how to initialize the `Publisher` and how
 /// to use it to get the `Display<Hero>` object - a way to describe a
 /// type for the ecosystem.
@@ -89,11 +89,11 @@ module examples::my_hero {
             // For `image_url` use an IPFS template + `image_url` property.
             utf8(b"ipfs://{image_url}"),
             // Description is static for all `Hero` objects.
-            utf8(b"A true Hero of the Iota ecosystem!"),
+            utf8(b"A true Hero of the IOTA ecosystem!"),
             // Project URL is usually static
             utf8(b"https://iota-heroes.io"),
             // Creator field can be any
-            utf8(b"Unknown Iota Fan")
+            utf8(b"Unknown IOTA Fan")
         ];
 
         // Claim the `Publisher` for the package!
@@ -163,9 +163,9 @@ module iota::display {
 }
 ```
 
-## Iota utility objects
+## IOTA utility objects
 
-In Iota, utility objects enable authorization for capabilities. Almost all modules have features that can be accessed only with the required capability. Generic modules allow one capability per application, such as a marketplace. Some capabilities mark ownership of a shared object on-chain, or access the shared data from another account.
+In IOTA, utility objects enable authorization for capabilities. Almost all modules have features that can be accessed only with the required capability. Generic modules allow one capability per application, such as a marketplace. Some capabilities mark ownership of a shared object on-chain, or access the shared data from another account.
 With capabilities, it is important to provide a meaningful description of objects to facilitate user interface implementation. This helps avoid accidentally transferring the wrong object when objects are similar. It also provides a user-friendly description of items that users see.
 
 The following example demonstrates how to create a capy capability:
@@ -199,7 +199,7 @@ module capy::capy_items {
 
 ## Unique objects with dynamic representation
 
-Iota Capys use dynamic image generation. When a Capy is born, its attributes determine the Capy’s appearance, such as color or pattern. When a user puts an item on a Capy, the Capy’s appearance changes. When users put multiple items on a Capy, there’s a chance of a bonus for a combination of items.
+IOTA Capys use dynamic image generation. When a Capy is born, its attributes determine the Capy’s appearance, such as color or pattern. When a user puts an item on a Capy, the Capy’s appearance changes. When users put multiple items on a Capy, there’s a chance of a bonus for a combination of items.
 
 To implement this, the Capys game API service refreshes the image in response to a user-initiated change. The URL for a Capy is a template with the `capy.id`. But storing the full URL - as well as other fields in the Capy object due to their diverse population - also leads to users paying for excess storage and increased gas fees.
 
