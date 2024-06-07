@@ -24,8 +24,11 @@ use iota_types::{
 };
 
 use crate::stardust::{
-    migration::executor::FoundryLedgerData,
-    types::{output as migration_output, token_scheme::MAX_ALLOWED_U64_SUPPLY, Alias, Nft},
+    migration::{executor::FoundryLedgerData, verification::CreatedObjects},
+    types::{
+        output as migration_output, stardust_to_iota_address, stardust_to_iota_address_owner,
+        token_scheme::MAX_ALLOWED_U64_SUPPLY, Alias, Nft,
+    },
 };
 
 pub(super) fn verify_native_tokens<NtKind: NativeTokenKind>(
@@ -101,7 +104,7 @@ pub(super) fn verify_storage_deposit_unlock_condition(
 ) -> Result<()> {
     // Storage Deposit Return Unlock Condition
     if let Some(sdruc) = original {
-        let iota_return_address = sdruc.return_address().to_string().parse::<IotaAddress>()?;
+        let iota_return_address = stardust_to_iota_address(sdruc.return_address())?;
         if let Some(obj_sdruc) = created {
             ensure!(
                 obj_sdruc.return_address == iota_return_address,
@@ -157,11 +160,8 @@ pub(super) fn verify_expiration_unlock_condition(
     // Expiration Unlock Condition
     if let Some(expiration) = original {
         if let Some(obj_expiration) = created {
-            let iota_address = address.to_string().parse::<IotaAddress>()?;
-            let iota_return_address = expiration
-                .return_address()
-                .to_string()
-                .parse::<IotaAddress>()?;
+            let iota_address = stardust_to_iota_address(address)?;
+            let iota_return_address = stardust_to_iota_address(expiration.return_address())?;
             ensure!(
                 obj_expiration.owner == iota_address,
                 "expiration owner mismatch: found {}, expected {}",
@@ -236,7 +236,7 @@ pub(super) fn verify_sender_feature(
     created: Option<IotaAddress>,
 ) -> Result<()> {
     if let Some(sender) = original {
-        let iota_sender_address = sender.address().to_string().parse::<IotaAddress>()?;
+        let iota_sender_address = stardust_to_iota_address(sender.address())?;
         if let Some(obj_sender) = created {
             ensure!(
                 obj_sender == iota_sender_address,
@@ -258,7 +258,7 @@ pub(super) fn verify_issuer_feature(
     created: Option<IotaAddress>,
 ) -> Result<()> {
     if let Some(issuer) = original {
-        let iota_issuer_address = issuer.address().to_string().parse::<IotaAddress>()?;
+        let iota_issuer_address = stardust_to_iota_address(issuer.address())?;
         if let Some(obj_issuer) = created {
             ensure!(
                 obj_issuer == iota_issuer_address,
@@ -275,11 +275,26 @@ pub(super) fn verify_issuer_feature(
     Ok(())
 }
 
+pub(super) fn verify_address_owner(
+    owning_address: &Address,
+    obj: &Object,
+    name: &str,
+) -> Result<()> {
+    let expected_owner = stardust_to_iota_address_owner(owning_address)?;
+    ensure!(
+        obj.owner == expected_owner,
+        "{name} owner mismatch: found {}, expected {}",
+        obj.owner,
+        expected_owner
+    );
+    Ok(())
+}
+
 // Checks whether an object exists for this address and whether it is the
 // expected alias or nft object. We do not expect an object for Ed25519
 // addresses.
 pub(super) fn verify_parent(address: &Address, storage: &InMemoryStorage) -> Result<()> {
-    let object_id = ObjectID::from(address.to_string().parse::<IotaAddress>()?);
+    let object_id = ObjectID::from(stardust_to_iota_address(address)?);
     let parent = storage.get_object(&object_id);
     match address {
         Address::Alias(address) => {
@@ -304,6 +319,31 @@ pub(super) fn verify_parent(address: &Address, storage: &InMemoryStorage) -> Res
         }
     }
     Ok(())
+}
+
+pub(super) fn verify_coin(
+    output_amount: u64,
+    owning_address: &Address,
+    created_objects: &CreatedObjects,
+    storage: &InMemoryStorage,
+) -> Result<()> {
+    let created_coin_obj = created_objects.coin().and_then(|id| {
+        storage
+            .get_object(id)
+            .ok_or_else(|| anyhow!("missing coin"))
+    })?;
+    let created_coin = created_coin_obj
+        .as_coin_maybe()
+        .ok_or_else(|| anyhow!("expected a coin"))?;
+
+    ensure!(
+        created_coin.value() == output_amount,
+        "coin amount mismatch: found {}, expected {}",
+        created_coin.value(),
+        output_amount
+    );
+
+    verify_address_owner(owning_address, created_coin_obj, "coin")
 }
 
 pub(super) trait NativeTokenKind {
