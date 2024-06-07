@@ -8,7 +8,10 @@ use iota_types::{
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
     id::UID,
     object::{Data, MoveObject, Object, Owner},
-    timelock::timelock::TimeLock,
+    timelock::{
+        label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
+        timelock::TimeLock,
+    },
 };
 
 /// All basic outputs whose IDs start with this prefix represent vested rewards
@@ -90,10 +93,13 @@ pub fn try_from_stardust(
         .expect("a vested reward should contain a timelock unlock condition");
     let expiration_timestamp_ms = Into::<u64>::into(timelock_uc.timestamp()) * 1000;
 
+    let label = Option::Some(label_struct_tag_to_string(stardust_upgrade_label_type()));
+
     Ok(iota_types::timelock::timelock::TimeLock::new(
         id,
         locked,
         expiration_timestamp_ms,
+        label,
     ))
 }
 
@@ -143,6 +149,7 @@ mod tests {
             BasicOutput, BasicOutputBuilder, NativeToken, OutputId, TokenId,
         },
     };
+    use iota_types::timelock::stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE;
 
     use crate::stardust::types::timelock::{self, VestedRewardError};
 
@@ -270,6 +277,7 @@ mod tests {
 
         assert!(timelock.locked().value() == 10);
         assert!(timelock.expiration_timestamp_ms() == 1_000_000);
+        assert!(timelock.label().as_ref().unwrap() == STARDUST_UPGRADE_LABEL_VALUE);
     }
 
     #[test]

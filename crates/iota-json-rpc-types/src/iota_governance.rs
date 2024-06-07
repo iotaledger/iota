@@ -103,6 +103,7 @@ pub struct TimelockedStake {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
     pub expiration_timestamp_ms: u64,
+    pub label: Option<String>,
 }
 
 #[serde_as]
