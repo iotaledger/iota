@@ -8,7 +8,7 @@ use anyhow::{anyhow, ensure, Result};
 use iota_sdk::types::block::output::{BasicOutput, OutputId, TokenId};
 use iota_types::{
     balance::Balance, coin::Coin, dynamic_field::Field, in_memory_storage::InMemoryStorage,
-    timelock::timelock::TimeLock, TypeTag,
+    object::Owner, timelock::timelock::TimeLock, TypeTag,
 };
 
 use crate::stardust::{
@@ -17,9 +17,10 @@ use crate::stardust::{
         verification::{
             created_objects::CreatedObjects,
             util::{
-                verify_expiration_unlock_condition, verify_metadata_feature, verify_native_tokens,
-                verify_parent, verify_sender_feature, verify_storage_deposit_unlock_condition,
-                verify_tag_feature, verify_timelock_unlock_condition,
+                verify_address_owner, verify_coin, verify_expiration_unlock_condition,
+                verify_metadata_feature, verify_native_tokens, verify_parent,
+                verify_sender_feature, verify_storage_deposit_unlock_condition, verify_tag_feature,
+                verify_timelock_unlock_condition,
             },
         },
     },
@@ -68,15 +69,28 @@ pub(super) fn verify_basic_output(
     // If the output has multiple unlock conditions, then a genesis object should
     // have been created.
     if output.unlock_conditions().len() > 1 {
-        let created_output = created_objects
-            .output()
-            .and_then(|id| {
-                storage
-                    .get_object(id)
-                    .ok_or_else(|| anyhow!("missing basic output object"))
-            })?
+        ensure!(created_objects.coin().is_err(), "unexpected coin created");
+
+        let created_output_obj = created_objects.output().and_then(|id| {
+            storage
+                .get_object(id)
+                .ok_or_else(|| anyhow!("missing basic output object"))
+        })?;
+        let created_output = created_output_obj
             .to_rust::<crate::stardust::types::output::BasicOutput>()
             .ok_or_else(|| anyhow!("invalid basic output object"))?;
+
+        // Owner
+        // If there is an expiration unlock condition, the output is shared.
+        if output.unlock_conditions().expiration().is_some() {
+            ensure!(
+                matches!(created_output_obj.owner, Owner::Shared { .. }),
+                "basic output owner mismatch: found {:?}, expected Shared",
+                created_output_obj.owner,
+            );
+        } else {
+            verify_address_owner(output.address(), created_output_obj, "basic output")?;
+        }
 
         // Amount
         ensure!(
@@ -134,22 +148,8 @@ pub(super) fn verify_basic_output(
             "unexpected output object created for simple deposit"
         );
 
-        // Coin value.
-        let created_coin = created_objects
-            .coin()
-            .and_then(|id| {
-                storage
-                    .get_object(id)
-                    .ok_or_else(|| anyhow!("missing coin"))
-            })?
-            .as_coin_maybe()
-            .ok_or_else(|| anyhow!("expected a coin"))?;
-        ensure!(
-            created_coin.value() == output.amount(),
-            "coin amount mismatch: found {}, expected {}",
-            created_coin.value(),
-            output.amount()
-        );
+        // Coin value and owner
+        verify_coin(output.amount(), output.address(), created_objects, storage)?;
 
         // Native Tokens
         verify_native_tokens::<(TypeTag, Coin)>(
@@ -161,12 +161,27 @@ pub(super) fn verify_basic_output(
         )?;
     }
 
+    verify_parent(output.address(), storage)?;
+
+    ensure!(
+        created_objects.coin_metadata().is_err(),
+        "unexpected coin metadata found"
+    );
+
+    ensure!(
+        created_objects.minted_coin().is_err(),
+        "unexpected minted coin found"
+    );
+
+    ensure!(
+        created_objects.max_supply_policy().is_err(),
+        "unexpected max supply policy found"
+    );
+
     ensure!(
         created_objects.package().is_err(),
         "unexpected package found"
     );
-
-    verify_parent(output.address(), storage)?;
 
     Ok(())
 }
