@@ -1,20 +1,20 @@
 ---
-title: Iota Weather Oracle
+title: IOTA Weather Oracle
 description: Write a module (smart contract) in Move that fetches the weather data from the OpenWeather API every 10 minutes and updates the weather conditions for over 1,000 locations around the world.
 ---
 
-import InitializeIotaClientCli from "../../../_snippets/initialize-iota-client-cli.mdx";
+import InitializeIOTAClientCli from "../../../_snippets/initialize-iota-client-cli.mdx";
 import PublishToDevnetWithCoins from "../../../_snippets/publish-to-devnet-with-coins.mdx";
 
-This guide demonstrates writing a module (smart contract) in Move, deploying it on Devnet, and adding a backend, which fetches the weather data from the OpenWeather API every 10 minutes and updates the weather conditions for each city. The dApp created in this guide is called Iota Weather Oracle and it provides real-time weather data for over 1,000 locations around the world.
+This guide demonstrates writing a module (smart contract) in Move, deploying it on Devnet, and adding a backend, which fetches the weather data from the OpenWeather API every 10 minutes and updates the weather conditions for each city. The dApp created in this guide is called IOTA Weather Oracle and it provides real-time weather data for over 1,000 locations around the world.
 
 You can access and use the weather data from the OpenWeather API for various applications, such as randomness, betting, gaming, insurance, travel, education, or research. You can also mint a weather NFT based on the weather data of a city, using the `mint` function of the IOTA Weather Oracle smart contract.
 
-This guide assumes you have [installed Iota](../getting-started/iota-install.mdx) and understand Iota fundamentals.
+This guide assumes you have [installed IOTA](../getting-started/iota-install.mdx) and understand IOTA fundamentals.
 
 ## Move smart contract
 
-As with all Iota dApps, a Move package on chain powers the logic of Iota Weather Oracle. The following instruction walks you through creating and publishing the module.
+As with all IOTA dApps, a Move package on chain powers the logic of IOTA Weather Oracle. The following instruction walks you through creating and publishing the module.
 
 ### Weather Oracle module
 
@@ -95,7 +95,7 @@ fun init(otw: WEATHER, ctx: &mut TxContext) {
     transfer::share_object(WeatherOracle {
         id: object::new(ctx),
         address: tx_context::sender(ctx),
-        name: string::utf8(b"IotaMeteo"),
+        name: string::utf8(b"IOTAMeteo"),
         description: string::utf8(b"A weather oracle."),
     });
     transfer::public_transfer(cap, tx_context::sender(ctx)); // Transfer the admin capability to the sender.
@@ -148,9 +148,9 @@ public fun add_city(
 }
 ```
 
-The `add_city` function is a public function that allows the owner of the `AdminCap` of the Iota Weather Oracle smart contract to add a new `CityWeatherOracle`. The function requires the admin to provide a capability object that proves their permission to add a city. The function also requires a mutable reference to the oracle object, which is the main object that stores the weather data on the blockchain. The function takes several parameters that describe the city, such as the geoname ID, name, country, latitude, longitude, and positive latitude and longitude. The function then creates a new city weather oracle object, which is a sub-object that stores and updates the weather data for a specific city. The function initializes the city weather oracle object with the parameters provided by the admin, and sets the weather data to be zero or none. The function then adds a new dynamic object field to the oracle object, using the geoname ID as the key and the city weather oracle object as the value. This way, the function adds a new city to the oracle, and makes it ready to receive and update the weather data from the backend service.
+The `add_city` function is a public function that allows the owner of the `AdminCap` of the IOTA Weather Oracle smart contract to add a new `CityWeatherOracle`. The function requires the admin to provide a capability object that proves their permission to add a city. The function also requires a mutable reference to the oracle object, which is the main object that stores the weather data on the blockchain. The function takes several parameters that describe the city, such as the geoname ID, name, country, latitude, longitude, and positive latitude and longitude. The function then creates a new city weather oracle object, which is a sub-object that stores and updates the weather data for a specific city. The function initializes the city weather oracle object with the parameters provided by the admin, and sets the weather data to be zero or none. The function then adds a new dynamic object field to the oracle object, using the geoname ID as the key and the city weather oracle object as the value. This way, the function adds a new city to the oracle, and makes it ready to receive and update the weather data from the backend service.
 
-If you want to delete a city from the Iota Weather Oracle, call the `remove_city` function of the smart contract. The `remove_city` function allows the admin of the smart contract to remove a city from the oracle. The function requires the admin to provide a capability object that proves their permission to remove a city. The function also requires a mutable reference to the oracle object, which is the main object that stores and updates the weather data on the blockchain. The function takes the geoname ID of the city as a parameter, and deletes the city weather oracle object for the city. The function also removes the dynamic object field for the city from the oracle object. This way, the function deletes a city from the oracle, and frees up some storage space on the blockchain.
+If you want to delete a city from the IOTA Weather Oracle, call the `remove_city` function of the smart contract. The `remove_city` function allows the admin of the smart contract to remove a city from the oracle. The function requires the admin to provide a capability object that proves their permission to remove a city. The function also requires a mutable reference to the oracle object, which is the main object that stores and updates the weather data on the blockchain. The function takes the geoname ID of the city as a parameter, and deletes the city weather oracle object for the city. The function also removes the dynamic object field for the city from the oracle object. This way, the function deletes a city from the oracle, and frees up some storage space on the blockchain.
 
 ```rust title='weather.move'
 public fun remove_city(
@@ -181,7 +181,7 @@ public fun remove_city(
 }
 ```
 
-Now that you have implemented the `add_city` and `remove_city` functions, you can move on to the next step, which is to see how you can update the weather data for each city. The backend service fetches the weather data from the OpenWeather API every 10 minutes, and then passes the data to the `update` function of the Iota Weather Oracle smart contract. The `update` function takes the geoname ID and the new weather data of the city as parameters, and updates the city weather oracle object with the new data. This way, the weather data on the blockchain is always up to date and accurate.
+Now that you have implemented the `add_city` and `remove_city` functions, you can move on to the next step, which is to see how you can update the weather data for each city. The backend service fetches the weather data from the OpenWeather API every 10 minutes, and then passes the data to the `update` function of the IOTA Weather Oracle smart contract. The `update` function takes the geoname ID and the new weather data of the city as parameters, and updates the city weather oracle object with the new data. This way, the weather data on the blockchain is always up to date and accurate.
 
 ```rust title='weather.move'
 public fun update(
@@ -213,7 +213,7 @@ public fun update(
 }
 ```
 
-You have defined the data structure of the Iota Weather Oracle smart contract, but you need some functions to access and manipulate the data. Now, add some helper functions that read and return the weather data for a `WeatherOracle` object. These functions allow you to get the weather data for a specific city in the oracle. These functions also allow you to format and display the weather data in a user-friendly way.
+You have defined the data structure of the IOTA Weather Oracle smart contract, but you need some functions to access and manipulate the data. Now, add some helper functions that read and return the weather data for a `WeatherOracle` object. These functions allow you to get the weather data for a specific city in the oracle. These functions also allow you to format and display the weather data in a user-friendly way.
 
 ```rust title='weather.move'
 // --------------- Read-only References ---------------
@@ -405,19 +405,19 @@ And with that, your `weather.move` code is complete.
 
 ## Deployment
 
-<InitializeIotaClientCli />
+<InitializeIOTAClientCli />
 
 <PublishToDevnetWithCoins />
 
 ## Backend
 
-You have successfully deployed the Iota Weather Oracle smart contract on the blockchain. Now, it's time to create an Express backend that can interact with it. The Express backend performs the following tasks:
+You have successfully deployed the IOTA Weather Oracle smart contract on the blockchain. Now, it's time to create an Express backend that can interact with it. The Express backend performs the following tasks:
 
 - Initialize the smart contract with 1,000 cities using the `add_city` function of the smart contract. The backend passes the geoname ID, name, country, latitude, longitude, and positive latitude and longitude of each city as parameters to the function.
 - Fetch the weather data for each city from the OpenWeather API every 10 minutes, using the API key that you obtained from the website. The backend parses the JSON response and extracts the weather data for each city, such as the weather ID, temperature, pressure, humidity, visibility, wind speed, wind degree, wind gust, clouds, and timestamp.
 - Update the weather data for each city on the blockchain, using the `update` function of the smart contract. The backend passes the geoname ID and the new weather data of each city as parameters to the function.
 
-The Express backend uses the [Iota Typescript SDK](https://sdk.mystenlabs.com/typescript), a TypeScript library that enables you to interact with the Iota blockchain and smart contracts. With the Iota Typescript SDK, you can connect to the Iota network, sign and submit transactions, and query the state of the smart contract. You also use the OpenWeather API to fetch the weather data for each city and update the smart contract every 10 minutes. Additionally, you can mint weather NFTs, if you want to explore that feature of the smart contract.
+The Express backend uses the [IOTA Typescript SDK](https://sdk.mystenlabs.com/typescript), a TypeScript library that enables you to interact with the IOTA blockchain and smart contracts. With the IOTA Typescript SDK, you can connect to the IOTA network, sign and submit transactions, and query the state of the smart contract. You also use the OpenWeather API to fetch the weather data for each city and update the smart contract every 10 minutes. Additionally, you can mint weather NFTs, if you want to explore that feature of the smart contract.
 
 ### Initialize the project
 
@@ -705,4 +705,4 @@ The code in index.ts does the following:
     - Calls another async function called `getWeatherOracleDynamicFields`, which takes the package id, the module name, and the signer as arguments, and returns an array of weather oracle dynamic field objects that contain information such as name and object id.
     - Calls the `performUpdates` function with the cities and weather oracle dynamic fields arrays as arguments.
 
-Congratulations, you completed the Iota Weather Oracle tutorial. You can carry the lessons learned here forward when building your next Iota project.
+Congratulations, you completed the IOTA Weather Oracle tutorial. You can carry the lessons learned here forward when building your next IOTA project.

@@ -2,18 +2,18 @@
 title: Coin Flip
 ---
 
-import InitializeIotaClientCli from "../../../_snippets/initialize-iota-client-cli.mdx";
+import InitializeIOTAClientCli from "../../../_snippets/initialize-iota-client-cli.mdx";
 import PublishToDevnetWithCoins from "../../../_snippets/publish-to-devnet-with-coins.mdx";
 
 This guide demonstrates writing a module (smart contract) in Move, deploying it on Devnet, and adding a TypeScript frontend to communicate with the module.
 
-Satoshi Coin Flip is a dApp that utilizes verifiable random functions (VRFs) to create a fair coin game on the Iota blockchain. The user (human) plays against the house (module) and places a bet on either heads or tails. The user then either receives double their bet, or gets nothing, depending on the outcome of the game.
+Satoshi Coin Flip is a dApp that utilizes verifiable random functions (VRFs) to create a fair coin game on the IOTA blockchain. The user (human) plays against the house (module) and places a bet on either heads or tails. The user then either receives double their bet, or gets nothing, depending on the outcome of the game.
 
-This guide assumes you have [installed Iota](../getting-started/iota-install.mdx) and understand Iota fundamentals.
+This guide assumes you have [installed IOTA](../getting-started/iota-install.mdx) and understand IOTA fundamentals.
 
 ## Backend
 
-As with all Iota dApps, a Move package on chain powers the logic of Satoshi Coin Flip. The following instruction walks you through creating and publishing the module.
+As with all IOTA dApps, a Move package on chain powers the logic of Satoshi Coin Flip. The following instruction walks you through creating and publishing the module.
 
 ### House module
 
@@ -54,7 +54,7 @@ module satoshi_flip::house_data {
 There are few details to take note of in this code:
 
 1. The first line declares the module name as `house_data` within the package `satoshi_flip`.
-1. Seven lines begin with the `use` keyword, which enables this module to use types and functions declared in other modules (in this case, they are all coming from the Iota standard library).
+1. Seven lines begin with the `use` keyword, which enables this module to use types and functions declared in other modules (in this case, they are all coming from the IOTA standard library).
 1. Two error codes. These codes are used in assertions and unit tests to ensure that the program is running as intended.
 1. Two [`friend`, or trusted, modules](guides/developer/dev-cheat-sheet.mdx#general).
 
@@ -560,7 +560,7 @@ Now that you have written our contracts, it's time to deploy them.
 
 ## Deployment
 
-<InitializeIotaClientCli />
+<InitializeIOTAClientCli />
 
 <PublishToDevnetWithCoins />
 
@@ -574,7 +574,7 @@ The full source code for the frontend is available at the [Satoshi Coin Flip Fro
 
 :::
 
-To expose the backend you have created to your users, you need a frontend (UI). In this section, you create a React frontend project using the [Iota Typescript SDK](https://sdk.mystenlabs.com/typescript) and the [Iota dApp Kit](https://sdk.mystenlabs.com/dapp-kit) that interacts with the deployed smart contracts.
+To expose the backend you have created to your users, you need a frontend (UI). In this section, you create a React frontend project using the [IOTA Typescript SDK](https://sdk.mystenlabs.com/typescript) and the [IOTA dApp Kit](https://sdk.mystenlabs.com/dapp-kit) that interacts with the deployed smart contracts.
 
 ### Initialize the project
 
@@ -595,7 +595,7 @@ This CLI command prompts you through a couple of steps:
 1. It asks you the starter template that you want to use. Currently, there are two variants:
 
    1. `react-client-dapp`: This starter template contains the minimum dApp Kit template code that you can start with. This variant is meant for developers already familiar with the dApp Kit and who don't want unnecessary template code.
-   1. `react-e2e-counter`: This starter template contains a simple counter Iota Move smart contract with the frontend template code interacting with it. This variant is meant for developers trying to learn how to use dApp Kit.
+   1. `react-e2e-counter`: This starter template contains a simple counter IOTA Move smart contract with the frontend template code interacting with it. This variant is meant for developers trying to learn how to use dApp Kit.
 
 1. It prompts you to name your project folder.
 
@@ -695,7 +695,7 @@ Like other dApps, you need a "connect wallet" button to enable connecting users'
 
 `useCurrentAccount()` is a React hook the dApp Kit also provides to query the current connected wallet; returning `null` if there isn't a wallet connection. Leverage this behavior to prevent a user from proceeding further if they haven’t connected their wallet yet.
 
-There are two constants that you need to put into `constants.ts` to make the app work – `PACKAGE_ID` and `HOUSECAP_ID`. You can get these from the terminal or console after running the Iota CLI command to publish the package.
+There are two constants that you need to put into `constants.ts` to make the app work – `PACKAGE_ID` and `HOUSECAP_ID`. You can get these from the terminal or console after running the IOTA CLI command to publish the package.
 
 After ensuring that the user has connected their wallet, you can display the two columns described in the previous section: `PlayerSesh` and `HouseSesh` components.
 
@@ -740,7 +740,7 @@ Okay, that’s a good start to have an overview of the project. Time to move to 
         onError: (err) => {
           toast.error(err.message);
         },
-        onSuccess: (result: IotaTransactionBlockResponse) => {
+        onSuccess: (result: IOTATransactionBlockResponse) => {
           let houseDataObjId;
 
 
@@ -763,7 +763,7 @@ Okay, that’s a good start to have an overview of the project. Time to move to 
   }}
 ```
 
-To use a [programmable transaction block](/concepts/transactions/prog-txn-blocks.mdx) (PTB) in Iota, create a `TransactionBlock`. To initiate a Move call, you must know the global identifier of a public function in your smart contract. The global identifier usually takes the following form:
+To use a [programmable transaction block](/concepts/transactions/prog-txn-blocks.mdx) (PTB) in IOTA, create a `TransactionBlock`. To initiate a Move call, you must know the global identifier of a public function in your smart contract. The global identifier usually takes the following form:
 
 ```
 ${PACKAGE_ID}::${MODULE_NAME}::${FUNCTION_NAME}
@@ -778,7 +778,7 @@ ${PACKAGE_ID}::house_data::initialize_house_data
 There are a few parameters that you need to pass into `initialize_house_data()` Move function: the `HouseCap` ID, the House stake, and the House BLS public key:
 
 - Import the `HouseCap` ID from `constants.ts`, which you set up in the previous section.
-- Use `TransactionBlock::splitCoin` for the House stake to create a new coin with a defined amount split from the Gas Coin `txb.gas`. Think of the gas coin as one singular coin available for gas payment from your account (which might cover the entire remaining balance of your account). This is useful for Iota payments - instead of manually selecting the coins for gas payment or manually splitting/merging to have the coin with correct amount for your Move call, the gas coin is the single entry point for this, with all the heavy lifting delegated to the SDK behind the scenes.
+- Use `TransactionBlock::splitCoin` for the House stake to create a new coin with a defined amount split from the Gas Coin `txb.gas`. Think of the gas coin as one singular coin available for gas payment from your account (which might cover the entire remaining balance of your account). This is useful for IOTA payments - instead of manually selecting the coins for gas payment or manually splitting/merging to have the coin with correct amount for your Move call, the gas coin is the single entry point for this, with all the heavy lifting delegated to the SDK behind the scenes.
 - Pass the BLS public key as bytes `vector<u8>`. When providing inputs that are not on-chain objects, serialize them as BCS using a combination of `txb.pure` and `bcs` imported from `@iota/iota.js/bcs`.
 
 Now sign and execute the transaction block. dApp Kit provides a React hook `useSignAndExecuteTransactionBlock()` to streamline this process. This hook, when executed, prompts the UI for you to approve, sign, and execute the transaction block. You can configure the hook with the `showObjectChanges` option to return the newly-created `HouseData` shared object as the result of the transaction block. This `HouseData` object is important as you use it as input for later Move calls, so save its ID somewhere.
@@ -788,7 +788,7 @@ Great, now you know how to initialize the `HouseData` shared object. Move to the
 In this game, the users must create a `Counter` object to start the game. So there should be a place in the Player column UI to list the existing `Counter` object information for the player to choose. It seems likely that you will reuse the fetching logic for the `Counter` object in several places in your UI, so it’s good practice to isolate this logic into a React hook, which you call `useFetchCounterNft()` in `useFetchCounterNft.ts`:
 
 ```typescript title='containers/Player/useFetchCounterNft.ts'
-import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
+import { useCurrentAccount, useIOTAClientQuery } from '@iota/dapp-kit';
 
 import 'react';
 
@@ -796,7 +796,7 @@ import { PACKAGE_ID } from '../../constants';
 
 // React hook to fetch CounterNFT owned by connected wallet
 // This hook is to demonstrate how to use `@iota/dapp-kit` React hook to query data
-// besides using IotaClient directly
+// besides using IOTAClient directly
 export function useFetchCounterNft() {
 	const account = useCurrentAccount();
 
@@ -806,7 +806,7 @@ export function useFetchCounterNft() {
 
 	// Fetch CounterNFT owned by current connected wallet
 	// Only fetch the 1st one
-	const { data, isLoading, isError, error, refetch } = useIotaClientQuery(
+	const { data, isLoading, isError, error, refetch } = useIOTAClientQuery(
 		'getOwnedObjects',
 		{
 			owner: account.address,
@@ -839,7 +839,7 @@ export function useFetchCounterNft() {
 }
 ```
 
-This hook logic is very basic: if there is no current connected wallet, return empty data; otherwise, fetch the `Counter` object and return it. dApp Kit provides a React hook, `useIotaClientQuery()`, that enables interaction with [Iota RPC](references/iota-api.mdx) methods. Different RPC methods require different parameters. To fetch the object owned by a known address, use the [`getOwnedObjects` query](/iota-api-ref#iotax_getownedobjects).
+This hook logic is very basic: if there is no current connected wallet, return empty data; otherwise, fetch the `Counter` object and return it. dApp Kit provides a React hook, `useIOTAClientQuery()`, that enables interaction with [IOTA RPC](references/iota-api.mdx) methods. Different RPC methods require different parameters. To fetch the object owned by a known address, use the [`getOwnedObjects` query](/iota-api-ref#iotax_getownedobjects).
 
 Now, pass the address of the connected wallet, as well as the global identifier for the `Counter`. This is in similar format to the global identifier type for function calls:
 
@@ -943,7 +943,7 @@ execCreateGame(
 		onError: (err) => {
 			toast.error(err.message);
 		},
-		onSuccess: (result: IotaTransactionBlockResponse) => {
+		onSuccess: (result: IOTATransactionBlockResponse) => {
 			toast.success(`Digest: ${result.digest}`);
 		},
 	},
@@ -960,7 +960,7 @@ All of this logic is in `HouseFinishGame.tsx`:
 ```typescript title='containers/House/HouseFinishGame.tsx'
 // This component will help the House to automatically finish the game whenever new game is started
 export function HouseFinishGame() {
-	const iotaClient = useIotaClient();
+	const iotaClient = useIOTAClient();
 	const { mutate: execFinishGame } = useSignAndExecuteTransactionBlock();
 
 	const [housePrivHex] = useContext(HouseKeypairContext);
@@ -1007,7 +1007,7 @@ export function HouseFinishGame() {
 							onError: (err) => {
 								toast.error(err.message);
 							},
-							onSuccess: (result: IotaTransactionBlockResponse) => {
+							onSuccess: (result: IOTATransactionBlockResponse) => {
 								toast.success(`Digest: ${result.digest}`);
 							},
 						},
@@ -1027,9 +1027,9 @@ export function HouseFinishGame() {
 }
 ```
 
-To get the underlying `IotaClient` instance from the SDK, use `useIotaClient()`. You want to subscribe to events whenever the `HouseFinishGame` component loads. To do this, use the React hook `useEffect()` from the core React library.
+To get the underlying `IOTAClient` instance from the SDK, use `useIOTAClient()`. You want to subscribe to events whenever the `HouseFinishGame` component loads. To do this, use the React hook `useEffect()` from the core React library.
 
-`IotaClient` exposes a method called `subscribeEvent()` that enables you to subscribe to a variety of event types. `IotaClient::subscribeEvent()` is actually a thin wrapper around the RPC method [`iotax_subscribeEvent`](/iota-api-ref#iotax_subscribeevent).
+`IOTAClient` exposes a method called `subscribeEvent()` that enables you to subscribe to a variety of event types. `IOTAClient::subscribeEvent()` is actually a thin wrapper around the RPC method [`iotax_subscribeEvent`](/iota-api-ref#iotax_subscribeevent).
 
 The logic is that whenever a new game starts, you want to settle the game immediately. The necessary event to achieve this is the Move event type called `single_player_satoshi::NewGame`. If you inspect the parsed payload of the event through `event.parsedJson`, you can see the corresponding event fields declared in the smart contract. In this case, you just need to use two fields, the Game ID and the VRF input.
 
@@ -1037,4 +1037,4 @@ The next steps are similar to the previous Move calls, but you have to use the B
 
 Last but not least, remember to unsubscribe from the event whenever the `HouseFinishGame` component dismounts. This is important as you might not want to subscribe to the same event multiple times.
 
-Congratulations, you completed the frontend. You can carry the lessons learned here forward when using the dApp Kit to build your next Iota project.
+Congratulations, you completed the frontend. You can carry the lessons learned here forward when using the dApp Kit to build your next IOTA project.

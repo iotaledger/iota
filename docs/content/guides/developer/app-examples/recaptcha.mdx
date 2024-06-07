@@ -4,16 +4,16 @@ description: Write and deploy a smart contract in Move that uses reCAPTCHA to ve
 draft: true
 ---
 
-import InitializeIotaClientCli from "../../../_snippets/initialize-iota-client-cli.mdx";
+import InitializeIOTAClientCli from "../../../_snippets/initialize-iota-client-cli.mdx";
 import PublishToDevnetWithCoins from "../../../_snippets/publish-to-devnet-with-coins.mdx";
 
 This guide shows you how to write and deploy a smart contract in Move that uses reCAPTCHA to verify users are human (and not bots) before they interact with the contract. CAPTCHA is a method of bot mitigation that requires you to pass a challenge test to prove that you are human. CAPTCHA tests are effective in preventing bots from performing tasks, but the tests can become annoying or frustrating for legitimate users if they are too difficult or frequent. reCAPTCHA is a form of CAPTCHA testing.
 
-This guide assumes you have [installed Iota](../getting-started/iota-install.mdx) and understand Iota fundamentals.
+This guide assumes you have [installed IOTA](../getting-started/iota-install.mdx) and understand IOTA fundamentals.
 
 ## Move smart contract
 
-As with all Iota dApps, a Move package on chain powers the logic of the reCAPTCHA module. The following instruction walks you through creating and publishing the module.
+As with all IOTA dApps, a Move package on chain powers the logic of the reCAPTCHA module. The following instruction walks you through creating and publishing the module.
 
 ### reCAPTCHA module
 
@@ -213,7 +213,7 @@ And with that, your `recaptcha.move` code is complete.
 
 ## Deployment
 
-<InitializeIotaClientCli />
+<InitializeIOTAClientCli />
 
 <PublishToDevnetWithCoins />
 

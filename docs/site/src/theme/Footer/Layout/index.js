@@ -23,7 +23,7 @@ export default function FooterLayout({ style, links, logo, copyright }) {
         <div className={styles.footerLogo}>{logo}</div>
         <div className={styles.footerContent}>
           <div className={styles.footerLinks}>
-            <Link to="https://discord.gg/Iota">
+            <Link to="https://discord.gg/IOTA">
               <svg
                 width="32"
                 height="32"
