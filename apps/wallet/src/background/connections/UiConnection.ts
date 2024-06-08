@@ -43,6 +43,7 @@ import { type AccountType } from '../accounts/Account';
 import { accountsEvents } from '../accounts/events';
 import { getAutoLockMinutes, notifyUserActive, setAutoLockMinutes } from '../auto-lock-accounts';
 import { backupDB, getDB, settingsKeys } from '../db';
+import { clearStatus, doMigration, getStatus } from '../storage-migration';
 import NetworkEnv from '../NetworkEnv';
 import { Connection } from './Connection';
 
@@ -146,11 +147,28 @@ export class UiConnection extends Connection {
                 return;
             } else if (await accountsHandleUIMessage(msg, this)) {
                 return;
+            } else if (isMethodPayload(payload, 'getStorageMigrationStatus')) {
+                this.send(
+                    createMessage<MethodPayload<'storageMigrationStatus'>>(
+                        {
+                            method: 'storageMigrationStatus',
+                            type: 'method-payload',
+                            args: {
+                                status: await getStatus(),
+                            },
+                        },
+                        id,
+                    ),
+                );
+            } else if (isMethodPayload(payload, 'doStorageMigration')) {
+                await doMigration(payload.args.password);
+                this.send(createMessage({ type: 'done' }, id));
             } else if (isMethodPayload(payload, 'clearWallet')) {
                 await Browser.storage.local.clear();
                 await Browser.storage.local.set({
                     v: -1,
                 });
+                clearStatus();
                 const db = await getDB();
                 await db.delete();
                 await db.open();

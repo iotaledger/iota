@@ -5,6 +5,7 @@
 import { type AccountSourceSerializedUI } from '_src/background/account-sources/AccountSource';
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
 import { type ZkLoginProvider } from '_src/background/accounts/zklogin/providers';
+import { type Status } from '_src/background/storage-migration';
 import { type SerializedSignature } from '@iota/iota.js/cryptography';
 
 import { isBasePayload } from './BasePayload';
@@ -16,7 +17,6 @@ export type LedgerAccountsPublicKeys = {
     publicKey: string;
 }[];
 export type PasswordRecoveryData = { type: 'mnemonic'; accountSourceID: string; entropy: string };
-export type Status = 'required' | 'inProgress' | 'ready';
 
 type MethodPayloads = {
     getStoredEntities: { type: UIAccessibleEntityType };
