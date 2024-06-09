@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
-    "dev": "docusaurus graphql-to-doc; rm '../content/references/iota-api/iota-graphql/reference/generated.md'; docusaurus start",
-    "build": "docusaurus graphql-to-doc; rm '../content/references/iota-api/iota-graphql/reference/generated.md'; docusaurus build",
+    "dev": "docusaurus graphql-to-doc; rm '../content/references/iota-api/iota-graphql/reference/generated.md'; node src/utils/getopenrpcspecs.js; git clean -Xdf ../content/references/layer-2-smart-contracts/; ./scripts/get_wasp_references.sh; docusaurus start",
+    "build": "docusaurus graphql-to-doc; rm '../content/references/iota-api/iota-graphql/reference/generated.md'; node src/utils/getopenrpcspecs.js; git clean -Xdf ../content/references/layer-2-smart-contracts/; ./scripts/get_wasp_references.sh; docusaurus build",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
     "clear": "docusaurus clear",
