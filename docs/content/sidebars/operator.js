@@ -13,6 +13,61 @@ const operator = [
     'operator/validator-committee',
     'operator/validator-tasks',
     'operator/node-tools',
-
+    {
+        type: 'category',
+        label: 'IOTA EVM Network',
+        link: {
+            type: 'doc',
+            id: 'guides/operator/layer-2-smart-contracts-node/how-tos/running-a-node',
+        },
+        items: [
+            {
+                type: 'category',
+                label: 'How To',
+                collapsed: false,
+                items: [
+                    {
+                        type: 'doc',
+                        id: 'guides/operator/layer-2-smart-contracts-node/how-tos/running-a-node',
+                        label: 'Run a Node',
+                    },
+                    {
+                        type: 'doc',
+                        id: 'guides/operator/layer-2-smart-contracts-node/how-tos/running-an-access-node',
+                        label: 'Run an Access Node',
+                    },
+                    {
+                        id: 'guides/operator/layer-2-smart-contracts-node/how-tos/wasp-cli',
+                        label: 'Configure wasp-cli',
+                        type: 'doc',
+                    },
+                    {
+                        id: 'guides/operator/layer-2-smart-contracts-node/how-tos/setting-up-a-chain',
+                        label: 'Set Up a Chain',
+                        type: 'doc',
+                    },
+                    {
+                        id: 'guides/operator/layer-2-smart-contracts-node/how-tos/chain-management',
+                        label: 'Manage a Chain',
+                        type: 'doc',
+                    },
+                ],
+            },
+            {
+                type: 'category',
+                label: 'Reference',
+                items: [
+                    {
+                        type: 'doc',
+                        id: 'guides/operator/layer-2-smart-contracts-node/reference/configuration',
+                    },
+                    {
+                        type: 'doc',
+                        id: 'guides/operator/layer-2-smart-contracts-node/reference/metrics',
+                    },
+                ],
+            },
+        ],
+    },
 ];
 module.exports = operator;
