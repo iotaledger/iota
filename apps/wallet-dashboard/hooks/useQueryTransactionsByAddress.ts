@@ -1,12 +1,9 @@
-// Copyright (c) 2024 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
-
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSuiClient } from '@iota/dapp-kit';
-import { type SuiTransactionBlockResponse } from '@iota/iota.js/client';
+import { useIotaClient } from '@iota/dapp-kit';
+import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
 import { useQuery } from '@tanstack/react-query';
 
 export function useQueryTransactionsByAddress(address?: string) {
@@ -16,7 +13,7 @@ export function useQueryTransactionsByAddress(address?: string) {
         showEvents: true,
     };
 
-    const rpc = useSuiClient();
+    const rpc = useIotaClient();
 
     return useQuery({
         queryKey: ['transactions-by-address', address, queryOptions],
@@ -38,7 +35,7 @@ export function useQueryTransactionsByAddress(address?: string) {
             ]);
 
             const inserted = new Set();
-            const uniqueList: SuiTransactionBlockResponse[] = [];
+            const uniqueList: IotaTransactionBlockResponse[] = [];
 
             [...toTxnIds.data, ...fromTxnIds.data]
                 .sort((a, b) => Number(b.timestampMs ?? 0) - Number(a.timestampMs ?? 0))
