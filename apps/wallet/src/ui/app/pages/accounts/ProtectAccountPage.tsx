@@ -1,6 +1,4 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
@@ -83,7 +81,7 @@ export function ProtectAccountPage() {
     }
 
     return (
-        <div className="flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col items-center overflow-auto rounded-20 bg-sui-lightest px-6 py-10 shadow-wallet-content">
+        <div className="flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col items-center overflow-auto rounded-20 bg-iota-lightest px-6 py-10 shadow-wallet-content">
             <Loading loading={showVerifyPasswordView === null}>
                 {showVerifyPasswordView ? (
                     <VerifyPasswordModal

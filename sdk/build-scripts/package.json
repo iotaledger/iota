@@ -1,5 +1,5 @@
 {
-    "name": "@mysten/build-scripts",
+    "name": "@iota/build-scripts",
     "private": true,
     "author": "Mysten Labs <build@mystenlabs.com>",
     "description": "Build scripts for @mysten packages",

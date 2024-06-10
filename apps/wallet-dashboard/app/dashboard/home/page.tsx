@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 'use client';
 
-import { useCurrentAccount, useCurrentWallet } from '@mysten/dapp-kit';
 import { AccountBalance, AllCoins, Button, NewStakePopup } from '@/components';
 import { usePopups } from '@/hooks';
+import { useCurrentAccount, useCurrentWallet } from '@iota/dapp-kit';
 
 function HomeDashboardPage(): JSX.Element {
     const { connectionStatus } = useCurrentWallet();

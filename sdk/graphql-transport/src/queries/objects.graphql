@@ -1,8 +1,11 @@
 # Copyright (c) Mysten Labs, Inc.
 # SPDX-License-Identifier: Apache-2.0
 
+# Modifications Copyright (c) 2024 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
 query getOwnedObjects(
-    $owner: SuiAddress!
+    $owner: IotaAddress!
     $limit: Int
     $cursor: String
     $showBcs: Boolean = false
@@ -28,7 +31,7 @@ query getOwnedObjects(
 }
 
 query getObject(
-    $id: SuiAddress!
+    $id: IotaAddress!
     $showBcs: Boolean = false
     $showOwner: Boolean = false
     $showPreviousTransaction: Boolean = false
@@ -43,7 +46,7 @@ query getObject(
 }
 
 query tryGetPastObject(
-    $id: SuiAddress!
+    $id: IotaAddress!
     $version: Int
     $showBcs: Boolean = false
     $showOwner: Boolean = false
@@ -63,7 +66,7 @@ query tryGetPastObject(
 }
 
 query multiGetObjects(
-    $ids: [SuiAddress!]!
+    $ids: [IotaAddress!]!
     $limit: Int
     $cursor: String
     $showBcs: Boolean = false

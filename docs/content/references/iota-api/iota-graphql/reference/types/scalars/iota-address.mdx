@@ -1,0 +1,59 @@
+---
+id: iota-address
+title: IotaAddress
+---
+
+
+
+
+export const Bullet = () => <><span style={{ fontWeight: 'normal', fontSize: '.5em', color: 'var(--ifm-color-secondary-darkest)' }}>&nbsp;●&nbsp;</span></>
+
+export const SpecifiedBy = (props) => <>Specification<a className="link" style={{ fontSize:'1.5em', paddingLeft:'4px' }} target="_blank" href={props.url} title={'Specified by ' + props.url}>⎘</a></>
+
+export const Badge = (props) => <><span className={props.class}>{props.text}</span></>
+
+import { useState } from 'react';
+
+export const Details = ({ dataOpen, dataClose, children, startOpen = false }) => {
+  const [open, setOpen] = useState(startOpen);
+  return (
+    <details {...(open ? { open: true } : {})} className="details" style={{ border:'none', boxShadow:'none', background:'var(--ifm-background-color)' }}>
+      <summary
+        onClick={(e) => {
+          e.preventDefault();
+          setOpen((open) => !open);
+        }}
+        style={{ listStyle:'none' }}
+      >
+      {open ? dataOpen : dataClose}
+      </summary>
+      {open && children}
+    </details>
+  );
+};
+
+
+
+
+
+
+
+
+String containing 32B hex-encoded address, with a leading "0x". Leading zeroes can be omitted on input but will always appear in outputs (IotaAddress in output is guaranteed to be 66 characters long).
+
+
+```graphql
+scalar IotaAddress
+```
+
+
+
+
+
+
+
+
+### Member Of
+
+[`address`](/references/iota-api/iota-graphql/reference/api/queries/address)  <Badge class="badge badge--secondary" text="query"/><Bullet />[`Address`](/references/iota-api/iota-graphql/reference/types/objects/address)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`Coin`](/references/iota-api/iota-graphql/reference/types/objects/coin)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`CoinMetadata`](/references/iota-api/iota-graphql/reference/types/objects/coin-metadata)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`EventFilter`](/references/iota-api/iota-graphql/reference/types/inputs/event-filter)  <Badge class="badge badge--secondary" text="input"/><Bullet />[`IotansRegistration`](/references/iota-api/iota-graphql/reference/types/objects/iotans-registration)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`IOwner`](/references/iota-api/iota-graphql/reference/types/interfaces/iowner)  <Badge class="badge badge--secondary" text="interface"/><Bullet />[`Linkage`](/references/iota-api/iota-graphql/reference/types/objects/linkage)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`MoveCallTransaction`](/references/iota-api/iota-graphql/reference/types/objects/move-call-transaction)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`MoveObject`](/references/iota-api/iota-graphql/reference/types/objects/move-object)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`MovePackage`](/references/iota-api/iota-graphql/reference/types/objects/move-package)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`object`](/references/iota-api/iota-graphql/reference/api/queries/object)  <Badge class="badge badge--secondary" text="query"/><Bullet />[`Object`](/references/iota-api/iota-graphql/reference/types/objects/object)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`ObjectChange`](/references/iota-api/iota-graphql/reference/types/objects/object-change)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`ObjectFilter`](/references/iota-api/iota-graphql/reference/types/inputs/object-filter)  <Badge class="badge badge--secondary" text="input"/><Bullet />[`ObjectKey`](/references/iota-api/iota-graphql/reference/types/inputs/object-key)  <Badge class="badge badge--secondary" text="input"/><Bullet />[`ObjectRef`](/references/iota-api/iota-graphql/reference/types/inputs/object-ref)  <Badge class="badge badge--secondary" text="input"/><Bullet />[`OwnedOrImmutable`](/references/iota-api/iota-graphql/reference/types/objects/owned-or-immutable)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`owner`](/references/iota-api/iota-graphql/reference/api/queries/owner)  <Badge class="badge badge--secondary" text="query"/><Bullet />[`Owner`](/references/iota-api/iota-graphql/reference/types/objects/owner)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`PublishTransaction`](/references/iota-api/iota-graphql/reference/types/objects/publish-transaction)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`Receiving`](/references/iota-api/iota-graphql/reference/types/objects/receiving)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`SharedInput`](/references/iota-api/iota-graphql/reference/types/objects/shared-input)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`SharedObjectDelete`](/references/iota-api/iota-graphql/reference/types/objects/shared-object-delete)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`SharedObjectRead`](/references/iota-api/iota-graphql/reference/types/objects/shared-object-read)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`StakedIota`](/references/iota-api/iota-graphql/reference/types/objects/staked-iota)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`TransactionBlockFilter`](/references/iota-api/iota-graphql/reference/types/inputs/transaction-block-filter)  <Badge class="badge badge--secondary" text="input"/><Bullet />[`TransactionMetadata`](/references/iota-api/iota-graphql/reference/types/inputs/transaction-metadata)  <Badge class="badge badge--secondary" text="input"/><Bullet />[`TypeOrigin`](/references/iota-api/iota-graphql/reference/types/objects/type-origin)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`UpgradeTransaction`](/references/iota-api/iota-graphql/reference/types/objects/upgrade-transaction)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`ValidatorSet`](/references/iota-api/iota-graphql/reference/types/objects/validator-set)  <Badge class="badge badge--secondary" text="object"/><Bullet />[`verifyZkloginSignature`](/references/iota-api/iota-graphql/reference/api/queries/verify-zklogin-signature)  <Badge class="badge badge--secondary" text="query"/>
+

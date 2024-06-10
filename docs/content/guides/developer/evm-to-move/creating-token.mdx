@@ -37,9 +37,9 @@ The initial creation of `Coin` takes place by minting these coins. This is usual
 ```move title="examples/Exampletoken.move"
 module examples::exampletoken {
     use std::option;
-    use sui::coin;
-    use sui::transfer;
-    use sui::tx_context::{Self, TxContext};
+    use iota::coin;
+    use iota::transfer;
+    use iota::tx_context::{Self, TxContext};
 
     /// One-Time-Witness of kind: `Coin<package_object::exampletoken::EXAMPLETOKEN>`
     struct EXAMPLETOKEN has drop {}
@@ -66,7 +66,7 @@ module examples::exampletoken {
 
 There's a lot to unpack here; let's look at it piece by piece. In IOTA Move, there is no 'compiler version' defined within the module itself, like in Solidity.
 
-A `module` is defined (`exampletoken`) as part of the `examples` package (modules always reside in packages; a package can have one or more modules in one file or spread out over several files). Within the `module,` we first alias the functionality we wish to use from other modules with `use.` If you don't do this, you would have to explicitly call other modules through their full package path, which would be very verbose and cumbersome. We import an `option` module from the `std` package and some modules from the `sui` package. The `std` and `sui` names are actually mappings as well to other modules defined in the `Move.toml` file of the package as described in the [documentation](../../../guides/developer/first-app/write-package.mdx).
+A `module` is defined (`exampletoken`) as part of the `examples` package (modules always reside in packages; a package can have one or more modules in one file or spread out over several files). Within the `module,` we first alias the functionality we wish to use from other modules with `use.` If you don't do this, you would have to explicitly call other modules through their full package path, which would be very verbose and cumbersome. We import an `option` module from the `std` package and some modules from the `iota` package. The `std` and `iota` names are actually mappings as well to other modules defined in the `Move.toml` file of the package as described in the [documentation](../../../guides/developer/first-app/write-package.mdx).
 
 After the aliases, we see an empty struct defined:
 
@@ -74,7 +74,7 @@ After the aliases, we see an empty struct defined:
 struct EXAMPLETOKEN has drop {}
 ```
 
-This is the definition of the so-called [One-Time-Witness](../../../concepts/sui-move-concepts/one-time-witness.mdx). Together with the `init` function definition, this ensures that this `Coin` will only be created once and never more on this chain. 
+This is the definition of the so-called [One-Time-Witness](../../../concepts/iota-move-concepts/one-time-witness.mdx). Together with the `init` function definition, this ensures that this `Coin` will only be created once and never more on this chain. 
 
 The `init` function is called automatically when a package is published for every module. The One-Time-Witness and a `TxContext` object containing more information about the function call itself, like the address deploying the package (sender), are passed automatically.
 
@@ -95,7 +95,7 @@ The standard implementation of using `Coin`, `TreasuryCap`, and `Metadata` is pr
 We recommend new tokens to abstract the management of the token with the `CoinManager` to provide a more transparent and trustworthy token while retaining administrative power and gaining usable functionality. You can do this by simply creating a `CoinManager` within the `init` function of your module, creating your token by passing in the non-transferred/frozen `TreasuryCap` and `Metadata` objects:
 
 ```move title="examples/Exampletoken.move"
-use sui::coin_manager;
+use iota::coin_manager;
     
 fun init(witness: EXAMPLETOKEN, ctx: &mut TxContext) {
     let (treasurycap, metadata) = coin::create_currency(
@@ -138,7 +138,7 @@ To sum up the most important differences between the two approaches:
 | Tokens as a contract                                                                                                              | Tokens as (owned) objects                                                                                                                                                                                                                                            |
 | All state within the same contract                                                                                                | State spread out over various objects (`TreasuryCap`, `Metadata`, and various `Coin` objects)                                                                                                                                                                         |
 | Native token and ERC-20 are implemented differently                                                                               | Both the chain native asset and custom tokens are `Coin` objects and work the same.                                                                                                                                                                                  |
-| Token logic is usually abstracted in externally imported libraries                                                                | Token logic is part of the `sui-framework` `Coin` module                                                                                                                                                                                                             |
+| Token logic is usually abstracted in externally imported libraries                                                                | Token logic is part of the `iota-framework` `Coin` module                                                                                                                                                                                                             |
 | Admin functionality like minting is implemented in the contract itself and is fully customizable.                                          | Admin functionality is standardized using a `TreasuryCap`, which can be used, transferred, or burned predictably.                                                                                                                                             |
 | Token balances can only be found if you have the smart contract address of the tokens you want to know the balance for            | All tokens are known and available in your wallet, given they are transferred to you as objects.                                                                                                                                                                      |
 | Modifications can all take place within the smart contract itself                                                                 | Modification to logic, with things like restricting if a `Coin` can be transferred, needs a different approach where the `Coin` is wrapped inside another object that limits the standard functionality of `Coin` based on conditions defined in that wrapper object. |

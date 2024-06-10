@@ -1,0 +1,7 @@
+[package]
+name = "Iota"
+version = "0.0.1"
+published-at = "0x2"
+
+[addresses]
+iota = "0x2"

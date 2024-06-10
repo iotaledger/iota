@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import '@fontsource-variable/inter';
@@ -15,7 +16,7 @@ import { growthbook } from './utils/growthbook';
 import { queryClient } from './utils/queryClient';
 import './utils/sentry';
 
-import '@mysten/dapp-kit/dist/index.css';
+import '@iota/dapp-kit/dist/index.css';
 import './index.css';
 
 // Load Amplitude as early as we can:

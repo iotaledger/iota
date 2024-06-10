@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: MIT
+
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
@@ -6,7 +9,7 @@ import "./interfaces/IBridgeCommittee.sol";
 import "./utils/CommitteeUpgradeable.sol";
 
 /// @title BridgeCommittee
-/// @notice This contract manages the committee members of the SuiBridge. The committee members are
+/// @notice This contract manages the committee members of the IotaBridge. The committee members are
 /// responsible for signing messages used to update various bridge state including the committee itself.
 /// The contract also provides functions to manage a blocklist of committee members whose signatures are invalid
 /// once they are blocklisted.
