@@ -23,7 +23,7 @@ use iota_types::{
 };
 
 use crate::stardust::{
-    migration::{executor::FoundryLedgerData, verification::CreatedObjects},
+    migration::executor::FoundryLedgerData,
     types::{
         output as migration_output, stardust_to_iota_address, stardust_to_iota_address_owner,
         token_scheme::MAX_ALLOWED_U64_SUPPLY, Alias, Nft,
@@ -320,29 +320,14 @@ pub(super) fn verify_parent(address: &Address, storage: &InMemoryStorage) -> Res
     Ok(())
 }
 
-pub(super) fn verify_coin(
-    output_amount: u64,
-    owning_address: &Address,
-    created_objects: &CreatedObjects,
-    storage: &InMemoryStorage,
-) -> Result<()> {
-    let created_coin_obj = created_objects.coin().and_then(|id| {
-        storage
-            .get_object(id)
-            .ok_or_else(|| anyhow!("missing coin"))
-    })?;
-    let created_coin = created_coin_obj
-        .as_coin_maybe()
-        .ok_or_else(|| anyhow!("expected a coin"))?;
-
+pub(super) fn verify_coin(output_amount: u64, created_coin: &Coin) -> Result<()> {
     ensure!(
         created_coin.value() == output_amount,
         "coin amount mismatch: found {}, expected {}",
         created_coin.value(),
         output_amount
     );
-
-    verify_address_owner(owning_address, created_coin_obj, "coin")
+    Ok(())
 }
 
 pub(super) trait NativeTokenKind {

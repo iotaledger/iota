@@ -36,6 +36,7 @@ pub(super) fn verify_alias_output(
     created_objects: &CreatedObjects,
     foundry_data: &HashMap<stardust::TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
+    total_value: &mut u64,
 ) -> anyhow::Result<()> {
     let alias_id = ObjectID::new(*output.alias_id_non_null(&output_id));
 
@@ -91,6 +92,7 @@ pub(super) fn verify_alias_output(
         created_output.iota.value(),
         output.amount()
     );
+    *total_value += created_output.iota.value();
 
     // Native Tokens
     verify_native_tokens::<Field<String, Balance>>(
