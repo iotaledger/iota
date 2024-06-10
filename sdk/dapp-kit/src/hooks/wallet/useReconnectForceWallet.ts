@@ -1,6 +1,4 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
@@ -11,12 +9,7 @@ import { walletMutationKeys } from '../../constants/walletMutationKeys.js';
 import { WalletNotConnectedError } from '../../errors/walletErrors.js';
 import { useCurrentWallet } from './useCurrentWallet.js';
 import { useWalletStore } from './useWalletStore.js';
-import type {
-    StandardConnectInput,
-    StandardConnectOutput,
-    StandardReconnectForceFeature,
-    WalletWithRequiredFeatures,
-} from '@iota/wallet-standard';
+import type { StandardConnectInput, StandardConnectOutput } from '@iota/wallet-standard';
 import { isSupportedChain } from '@iota/wallet-standard';
 import { getSelectedAccount } from '../../utils/getSelectedAccount.js';
 
@@ -40,7 +33,7 @@ type UseReconnectForceWalletMutationOptions = Omit<
 >;
 
 /**
- * Mutation hook for disconnecting from an active wallet connection, if currently connected.
+ * Mutation hook for reconnecting again so the user can choose what accounts to use.
  */
 export function useReconnectForceWallet({
     mutationKey,
@@ -65,12 +58,16 @@ export function useReconnectForceWallet({
             try {
                 setConnectionStatus('connecting');
 
-                const connectResult = await (
-                    currentWallet.features as unknown as WalletWithRequiredFeatures &
-                        StandardReconnectForceFeature
-                )['iota:reconnectForce']?.reconnect({
+                const connectResult = await currentWallet.features[
+                    'iota:reconnectForce'
+                ]?.reconnect({
                     origin: window.location.origin,
                 });
+
+                if (!connectResult) {
+                    throw new Error('Connect result is undefined.');
+                }
+
                 const connectedSuiAccounts = connectResult.accounts.filter((account) =>
                     account.chains.some(isSupportedChain),
                 );

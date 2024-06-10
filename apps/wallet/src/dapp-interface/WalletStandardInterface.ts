@@ -43,7 +43,8 @@ import {
     type IotaSignPersonalMessageMethod,
     type IotaSignTransactionBlockMethod,
     type Wallet,
-    type StandardConnectOutput,
+    type IotaReconnectForceOutput,
+    type IotaReconnectForceFeature,
 } from '@iota/wallet-standard';
 import mitt, { type Emitter } from 'mitt';
 import { filter, map, type Observable } from 'rxjs';
@@ -56,13 +57,6 @@ type WalletEventsMap = {
 
 // NOTE: Because this runs in a content script, we can't fetch the manifest.
 const name = process.env.APP_NAME || 'Iota Wallet';
-
-export type StandardReconnectForceFeature = {
-    'iota:reconnectForce': {
-        version: string;
-        reconnect: (input: never) => Promise<StandardConnectOutput>;
-    };
-};
 
 export class IotaWallet implements Wallet {
     readonly #events: Emitter<WalletEventsMap>;
@@ -89,20 +83,22 @@ export class IotaWallet implements Wallet {
         return SUPPORTED_CHAINS;
     }
 
-    get features(): StandardConnectFeature & StandardEventsFeature & IotaFeatures & StandardReconnectForceFeature {
+    get features(): StandardConnectFeature &
+        StandardEventsFeature &
+        IotaFeatures &
+        IotaReconnectForceFeature {
         return {
             'standard:connect': {
                 version: '1.0.0',
                 connect: this.#connect,
             },
-
-            'iota:reconnectForce': {
-                version: '1.0.0',
-                reconnect: this.#reconnectForce,
-            },
             'standard:events': {
                 version: '1.0.0',
                 on: this.#on,
+            },
+            'iota:reconnectForce': {
+                version: '1.0.0',
+                reconnect: this.#reconnectForce,
             },
             'iota:signTransactionBlock': {
                 version: '1.0.0',
@@ -206,7 +202,7 @@ export class IotaWallet implements Wallet {
         return { accounts: this.accounts };
     };
 
-    #reconnectForce: (input: { origin: string }) => Promise<StandardConnectOutput> = async (
+    #reconnectForce: (input: { origin: string }) => Promise<IotaReconnectForceOutput> = async (
         input,
     ) => {
         await mapToPromise(
@@ -214,7 +210,7 @@ export class IotaWallet implements Wallet {
                 type: 'reconnect-force-request',
                 origin: input.origin,
             }),
-            (response) => response.result,
+            (response) => response,
         );
         await this.#connect({ silent: false });
         return { accounts: this.accounts };

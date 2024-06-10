@@ -14,6 +14,7 @@ import type { IotaSignAndExecuteTransactionBlockFeature } from './iotaSignAndExe
 import type { IotaSignMessageFeature } from './iotaSignMessage.js';
 import type { IotaSignPersonalMessageFeature } from './iotaSignPersonalMessage.js';
 import type { IotaSignTransactionBlockFeature } from './iotaSignTransactionBlock.js';
+import type { IotaReconnectForceFeature } from './iotaReconnectForce.js';
 
 /**
  * Wallet Standard features that are unique to Iota, and that all Iota wallets are expected to implement.
@@ -39,7 +40,8 @@ export type WalletWithRequiredFeatures = WalletWithFeatures<
     MinimallyRequiredFeatures &
         Partial<IotaFeatures> &
         Partial<StandardDisconnectFeature> &
-        IdentifierRecord<unknown>
+        IdentifierRecord<unknown> &
+        Partial<IotaReconnectForceFeature>
 >;
 
 export type MinimallyRequiredFeatures = StandardConnectFeature & StandardEventsFeature;
@@ -48,4 +50,4 @@ export * from './iotaSignMessage.js';
 export * from './iotaSignTransactionBlock.js';
 export * from './iotaSignAndExecuteTransactionBlock.js';
 export * from './iotaSignPersonalMessage.js';
-export * from './reconnectForce.js';
+export * from './iotaReconnectForce.js';

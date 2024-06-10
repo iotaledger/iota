@@ -2,9 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// Modifications Copyright (c) 2024 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
-
 import { createMessage } from '_messages';
 import type { Message } from '_messages';
 import type { PortChannelName } from '_messaging/PortChannelName';
@@ -84,11 +81,11 @@ export class ContentScriptConnection extends Connection {
                     this.permissionReply(permission, msg.id);
                 }
             } else if (isReconnectForceRequest(payload)) {
+                await Permissions.delete(payload.origin, []);
                 this.send(
                     createMessage<ReconnectForceResponse>(
                         {
                             type: 'reconnect-force-response',
-                            result: Permissions.delete(payload.origin, []).then(() => true),
                         },
                         msg.id,
                     ),

@@ -5,5 +5,4 @@ import { type BasePayload } from '_payloads';
 
 export interface ReconnectForceResponse extends BasePayload {
     type: 'reconnect-force-response';
-    result: Promise<boolean>;
 }
