@@ -5,7 +5,7 @@ import React from 'react';
 import Button from './Button';
 import { usePopups } from '@/hooks';
 import type { CoinStruct } from '@iota/iota.js/client';
-import { SendCoinPopup } from './Popup';
+import { SendCoinPopup } from '../Popup';
 
 interface SendCoinButtonProps {
     address: string;

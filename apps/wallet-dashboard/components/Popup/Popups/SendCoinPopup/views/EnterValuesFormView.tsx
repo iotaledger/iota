@@ -3,7 +3,7 @@
 
 import { CoinStruct } from '@iota/iota.js/client';
 import { FormDataValues } from '../SendCoinPopup';
-import Button from '@/components/Button';
+import { Button } from '@/components';
 
 interface EnterValuesFormProps {
     coin: CoinStruct;

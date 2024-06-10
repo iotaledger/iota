@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { FormDataValues } from '../SendCoinPopup';
-import Button from '@/components/Button';
+import { Button } from '@/components';
 
 interface ReviewValuesFormProps {
     formData: FormDataValues;
