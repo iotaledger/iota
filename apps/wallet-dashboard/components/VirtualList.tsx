@@ -10,9 +10,15 @@ interface VirtualListProps<T> {
     items: T[];
     estimateSize: () => number;
     render: (item: T) => ReactNode;
+    onClick?: (item: T) => void;
 }
 
-function VirtualList<T>({ items, estimateSize, render: render }: VirtualListProps<T>): JSX.Element {
+function VirtualList<T>({
+    items,
+    estimateSize,
+    render,
+    onClick,
+}: VirtualListProps<T>): JSX.Element {
     const containerRef = React.useRef<HTMLDivElement | null>(null);
     const virtualizer = useVirtualizer({
         count: items.length,
@@ -34,7 +40,7 @@ function VirtualList<T>({ items, estimateSize, render: render }: VirtualListProp
                 {virtualItems.map((virtualItem) => (
                     <div
                         key={virtualItem.key}
-                        className="absolute w-full pb-4 pr-4"
+                        className={`absolute w-full pb-4 pr-4 ${onClick ? 'cursor-pointer' : ''}`}
                         style={{
                             position: 'absolute',
                             top: 0,
@@ -43,6 +49,7 @@ function VirtualList<T>({ items, estimateSize, render: render }: VirtualListProp
                             height: `${virtualItem.size}px`,
                             transform: `translateY(${virtualItem.start}px)`,
                         }}
+                        onClick={() => onClick && onClick(items[virtualItem.index])}
                     >
                         {render(items[virtualItem.index])}
                     </div>
