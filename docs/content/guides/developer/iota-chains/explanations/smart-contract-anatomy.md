@@ -25,7 +25,7 @@ contracts coexisting on the same chain.
 
 The ISC [core contracts](core-contracts.md) and WASM contracts on the chain are identified by a _hname_ (pronounced 
 "aitch-name"), which is a `uint32` value calculated as a hash of the smart contract's instance name (a string).
-For example, the hname of the [`root`](../reference/core-contracts/root.md) core contract
+For example, the hname of the [`root`](../../../../references/iota-chains/core-contracts/root.md) core contract
 is `0xcebf5908`. This value uniquely identifies this contract in every chain. This does not apply to EVM contracts.
 
 ## State
@@ -65,7 +65,7 @@ There are two types of entry points:
 ## Execution Results
 
 After a request to a Smart Contract is executed (a call to a full entry point), a _receipt_ will be added to
-the [`blocklog`](../reference/core-contracts/blocklog.md) core contract. The receipt details the
+the [`blocklog`](../../../../references/iota-chains/core-contracts/blocklog.md) core contract. The receipt details the
 execution results
 of said request: whether it was successful, the block it was included in, and other information.
 Any events dispatched by the smart contract in context of this execution will also be added to the receipt.

@@ -13,8 +13,8 @@ tags:
 # First Example
 
 The following is an example of a _Solo_ test. It deploys a new chain and invokes some view calls in the
-[`root`](../../reference/core-contracts/root.md) and [`governance`](../../reference/core-contracts/governance.md)
-[core contracts](../../reference/core-contracts/overview.md).
+[`root`](../../../../../references/iota-chains/core-contracts/root.md) and [`governance`](../../../../../references/iota-chains/core-contracts/governance.md)
+[core contracts](../../../../../references/iota-chains/core-contracts/overview.md).
 
 ```go
 import (
@@ -81,7 +81,7 @@ The output of the test will be something like this:
 
 :::
 
-The [core contracts](../../reference/core-contracts/overview.md) listed in the log are automatically deployed on each
+The [core contracts](../../../../../references/iota-chains/core-contracts/overview.md) listed in the log are automatically deployed on each
 new chain. The log also shows their _contract IDs_.
 
 The output fragment in the log `state transition --> #1` means that the state of the chain has changed from block index

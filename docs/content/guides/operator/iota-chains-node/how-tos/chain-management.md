@@ -20,7 +20,7 @@ You can view the chain state using the dashboard (`<URL>/wasp/dashboard` when us
 ## Manage Chain Configuration and Validators
 
 You can manage the chain configuration and committee of validators by interacting with
-the [Governance contract](/isc/reference/core-contracts/governance).
+the [Governance contract](/isc/../../../references/iota-chains/core-contracts/governance).
 
 The “Chain Owner” is the only one who can perform administrative tasks.
 

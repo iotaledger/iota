@@ -84,7 +84,7 @@ From now on, all chain commands will target this chain.
 The `--quorum` flag indicates the minimum number of nodes required to form a _consensus_.
 The recommended formula to obtain this number is `floor(N*2/3)+1` where `N` is the number of nodes in your committee.
 
-The `--block-keep-amount` parameter determines how many blocks are stored in the [`blocklog`](/isc/reference/core-contracts/blocklog) core contract.
+The `--block-keep-amount` parameter determines how many blocks are stored in the [`blocklog`](/isc/../../../references/iota-chains/core-contracts/blocklog) core contract.
 
 After deployment, the chain must be activated by the node operators of all peers.
 
@@ -96,7 +96,7 @@ wasp-cli chain activate --chain=<name>
 ## Test If It Works
 
 You can check that the chain was deployed correctly in the Wasp node dashboard (`<URL>/wasp/dashboard` when using `node-docker-setup`).
-Note that the chain was deployed with some [core contracts](/isc/reference/core-contracts/overview).
+Note that the chain was deployed with some [core contracts](/isc/../../../references/iota-chains/core-contracts/overview).
 
 You should also have an EVM-JSONRPC server opened on:
 

@@ -14,7 +14,7 @@ tags:
 
 # EVM Compatibility in IOTA Smart Contracts
 
-The [`evm`](../reference/core-contracts/evm.md) [core contract](../reference/core-contracts/overview.md)
+The [`evm`](../../../../references/iota-chains/core-contracts/evm.md) [core contract](../../../../references/iota-chains/core-contracts/overview.md)
 provides EVM support in IOTA Smart Contracts. It stores the EVM state (account balances, state, code,
 etc.) and provides a way to execute EVM code to manipulate the state.
 

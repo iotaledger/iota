@@ -26,7 +26,7 @@ combination with Solo to deploy chains and smart contracts and simulate transact
 Solo directly interacts with the ISC code, and therfore uses all the ISC-specific data
 types directly. Our Wasm smart contracts cannot access these types directly, because they
 run in a separate, sandboxed environment. Therefore, WasmLib implements its
-[own versions](../../reference/wasm-lib-data-types.mdx) of these data types, and the _VM_ layer acts as a data type
+[own versions](../../../../../references/iota-chains/wasm-lib-data-types.mdx) of these data types, and the _VM_ layer acts as a data type
 translator between both systems.
 
 The impact of this type transformation used to be that to be able to write tests in the

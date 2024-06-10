@@ -15,14 +15,14 @@ tags:
 
 # The Core Contracts
 
-The [core contracs](../../explanations/core-contracts.md) are contracts deployed on every chain and are vital to interact with L1 and the chain itself. They can be called in Solidity through the [ISC Magic Contract](../../reference/magic-contract/introduction.md).
+The [core contracs](../../explanations/core-contracts.md) are contracts deployed on every chain and are vital to interact with L1 and the chain itself. They can be called in Solidity through the [ISC Magic Contract](../../../../../references/iota-chains/magic-contract/introduction.md).
 
 ## The ISC Magic Contract
 
 The Magic contract is an EVM contract deployed by default on every ISC chain, in the EVM genesis block, at
 address `0x1074000000000000000000000000000000000000`.
 The implementation of the Magic contract is baked-in in
-the [`evm`](../../reference/core-contracts/evm.md) [core contract](../../reference/core-contracts/overview.md);
+the [`evm`](../../../../../references/iota-chains/core-contracts/evm.md) [core contract](../../../../../references/iota-chains/core-contracts/overview.md);
 i.e. it is not a pure-Solidity contract.
 
 The Magic contract has several methods, which are categorized into specialized
@@ -45,7 +45,7 @@ tokens and native tokens on L2.
 
 :::info Reference Docs
 
-If you need further info about magic contracts interfaces you can check out the [magic contract docs](../../reference/magic-contract/introduction.md). 
+If you need further info about magic contracts interfaces you can check out the [magic contract docs](../../../../../references/iota-chains/magic-contract/introduction.md). 
 
 :::
 
@@ -53,7 +53,7 @@ If you need further info about magic contracts interfaces you can check out the 
 
 :::info Ease of use
 
-To make it easier for developers to use the core contracts, you should, in most cases, run the functions from the magic contract directly. For example, to get the native token balance, you could [call the `balanceNativeToken()`](./call-view.md) directly with `callView`, or use [`getl2balancenativetokens`](./basics/get-balance.md) of the magic contract, or (the suggested way) register your native token as [`ERC20`](../../reference/magic-contract/ERC20NativeTokens.md) and call the standard [`balanceof`](../../reference/magic-contract/ERC20NativeTokens.md#balanceof) function. What you use also depends on what you optimize for. For example, to save gas, it could be interesting for you to call core contracts from your favorite web3 library directly and compute other things off-chain.
+To make it easier for developers to use the core contracts, you should, in most cases, run the functions from the magic contract directly. For example, to get the native token balance, you could [call the `balanceNativeToken()`](./call-view.md) directly with `callView`, or use [`getl2balancenativetokens`](./basics/get-balance.md) of the magic contract, or (the suggested way) register your native token as [`ERC20`](../../../../../references/iota-chains/magic-contract/ERC20NativeTokens.md) and call the standard [`balanceof`](../../../../../references/iota-chains/magic-contract/ERC20NativeTokens.md#balanceof) function. What you use also depends on what you optimize for. For example, to save gas, it could be interesting for you to call core contracts from your favorite web3 library directly and compute other things off-chain.
 
 :::
 
