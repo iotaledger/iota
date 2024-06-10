@@ -20,6 +20,10 @@ export const superCoolFeature: IdentifierRecord<unknown> = {
 
 export const iotaFeatures: IotaFeatures = {
     ...signMessageFeature,
+    'iota:reconnectForce': {
+        version: '1.0.0',
+        reconnect: vi.fn(),
+    },
     'iota:signPersonalMessage': {
         version: '1.0.0',
         signPersonalMessage: vi.fn(),
