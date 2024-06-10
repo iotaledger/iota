@@ -8,9 +8,9 @@
 //!
 //! ```rust
 //! struct T {
-//!     id: UID,
-//!     balance: Balance,
-//!     ....
+//!     id: iota_types::id::UID,
+//!     balance: iota_types::balance::Balance,
+//!     // ...
 //! }
 //! ```
 
@@ -74,12 +74,12 @@ mod tests {
             timelock: Default::default(),
             expiration: Default::default(),
         };
-        Ok(output.to_genesis_object(
+        output.to_genesis_object(
             IotaAddress::ZERO,
             &ProtocolConfig::get_for_min_version(),
             &TxContext::random_for_testing_only(),
             1.into(),
-        )?)
+        )
     }
 
     #[test]
@@ -104,12 +104,12 @@ mod tests {
             iota,
             native_tokens: Default::default(),
         };
-        Ok(output.to_genesis_object(
+        output.to_genesis_object(
             Owner::AddressOwner(IotaAddress::ZERO),
             &ProtocolConfig::get_for_min_version(),
             &TxContext::random_for_testing_only(),
             1.into(),
-        )?)
+        )
     }
 
     #[test]
@@ -140,12 +140,12 @@ mod tests {
             tag: Default::default(),
             sender: Default::default(),
         };
-        Ok(output.to_genesis_object(
+        output.to_genesis_object(
             IotaAddress::ZERO,
             &ProtocolConfig::get_for_min_version(),
             &TxContext::random_for_testing_only(),
             1.into(),
-        )?)
+        )
     }
 
     #[test]
