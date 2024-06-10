@@ -41,7 +41,9 @@ export function generateTableDataFromEpochsData(results: EpochMetricsPage): Epoc
                 </HighlightedTableCol>
             ),
             transactions: <Text variant="bodySmall/medium">{epoch.epochTotalTransactions}</Text>,
-            stakeRewards: <IotaAmount amount={epoch.endOfEpochInfo?.totalStakeRewardsDistributed} />,
+            stakeRewards: (
+                <IotaAmount amount={epoch.endOfEpochInfo?.totalStakeRewardsDistributed} />
+            ),
             checkpointSet: (
                 <div>
                     <CheckpointSequenceLink sequence={epoch.firstCheckpointId.toString()} />

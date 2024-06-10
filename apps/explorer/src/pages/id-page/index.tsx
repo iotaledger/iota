@@ -24,7 +24,11 @@ interface HeaderProps {
 }
 
 function Header({ address, loading, error }: HeaderProps): JSX.Element {
-    const { data: domainName, isLoading, error: resolveIotansError } = useResolveIotaNSName(address);
+    const {
+        data: domainName,
+        isLoading,
+        error: resolveIotansError,
+    } = useResolveIotaNSName(address);
     const { data, isPending, error: getObjectError } = useGetObject(address!);
     const isObject = !!data?.data;
     const errorText = getObjectError?.message ?? resolveIotansError?.message ?? error?.message;

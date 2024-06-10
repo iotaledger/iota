@@ -67,7 +67,11 @@ const getResultsForCheckpoint = async (
     ];
 };
 
-const getResultsForAddress = async (client: IotaClient, query: string, iotaNSEnabled: boolean): Promise<Results | null> => {
+const getResultsForAddress = async (
+    client: IotaClient,
+    query: string,
+    iotaNSEnabled: boolean,
+): Promise<Results | null> => {
     if (iotaNSEnabled && isIotaNSName(query)) {
         const resolved = await client.resolveNameServiceAddress({ name: query.toLowerCase() });
         if (!resolved) return null;

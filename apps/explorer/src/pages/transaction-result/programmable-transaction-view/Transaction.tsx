@@ -31,7 +31,9 @@ function TransactionContent({ children }: TransactionContentProps): JSX.Element 
     );
 }
 
-function ArrayArgument({ data }: TransactionProps<(IotaArgument | IotaArgument[])[] | undefined>): JSX.Element {
+function ArrayArgument({
+    data,
+}: TransactionProps<(IotaArgument | IotaArgument[])[] | undefined>): JSX.Element {
     return (
         <TransactionContent>
             {data && (
