@@ -11,7 +11,8 @@ export function ForgotPasswordIndexPage() {
     const allAccountSources = useAccountSources();
     const navigate = useNavigate();
     const totalRecoverable =
-        allAccountSources.data?.filter(({ type }) => type === 'mnemonic').length || 0;
+        allAccountSources.data?.filter(({ type }) => type === 'mnemonic' || type === 'seed')
+            .length || 0;
     useEffect(() => {
         if (allAccountSources.isPending) {
             return;

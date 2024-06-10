@@ -8,9 +8,11 @@ import { IotaObjectData } from '@iota/iota.js/client';
 import { AssetCard, VirtualList } from '@/components/index';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { hasDisplayData, useGetOwnedObjects } from '@iota/core';
+import { useRouter } from 'next/navigation';
 
 function VisualAssetsPage(): JSX.Element {
     const account = useCurrentAccount();
+    const router = useRouter();
     const { data } = useGetOwnedObjects(account?.address);
     const visualAssets =
         data?.pages
@@ -22,11 +24,20 @@ function VisualAssetsPage(): JSX.Element {
         <AssetCard key={asset.objectId} asset={asset} />
     );
 
+    const handleClick = (objectId: string) => {
+        router.push(`/dashboard/assets/visual-assets/${objectId}`);
+    };
+
     return (
         <div className="flex h-full w-full flex-col items-center justify-center space-y-4">
             <h1>VISUAL ASSETS</h1>
             <div className="flex w-1/2">
-                <VirtualList items={visualAssets} estimateSize={() => 130} render={virtualItem} />
+                <VirtualList
+                    items={visualAssets}
+                    estimateSize={() => 130}
+                    render={virtualItem}
+                    onClick={(asset) => handleClick(asset.objectId)}
+                />
             </div>
         </div>
     );

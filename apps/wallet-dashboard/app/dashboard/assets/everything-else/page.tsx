@@ -8,9 +8,11 @@ import { IotaObjectData } from '@iota/iota.js/client';
 import { AssetCard, VirtualList } from '@/components/index';
 import { hasDisplayData, useGetOwnedObjects } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
+import { useRouter } from 'next/navigation';
 
 function EverythingElsePage(): JSX.Element {
     const account = useCurrentAccount();
+    const router = useRouter();
     const { data } = useGetOwnedObjects(account?.address);
     const nonVisualAssets =
         data?.pages
@@ -22,15 +24,19 @@ function EverythingElsePage(): JSX.Element {
         <AssetCard key={asset.objectId} asset={asset} />
     );
 
+    const handleClick = (objectId: string) => {
+        router.push(`/dashboard/assets/everything-else/${objectId}`);
+    };
+
     return (
         <div className="flex h-full w-full flex-col items-center justify-center space-y-4">
             <h1>EVERYTHING ELSE</h1>
-
             <div className="flex w-1/2">
                 <VirtualList
                     items={nonVisualAssets}
-                    estimateSize={() => 130}
+                    estimateSize={() => 140}
                     render={virtualItem}
+                    onClick={(asset) => handleClick(asset.objectId)}
                 />
             </div>
         </div>
