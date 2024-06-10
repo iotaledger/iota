@@ -78,17 +78,17 @@ Once you have deployed your contract, you can add your new custom token to your 
    [ShimmerEVM Explorer](https://explorer.evm.testnet.shimmer.network/)
    or  [EVM Testnet Explorer](https://explorer.evm.testnet.shimmer.network/) and use the search bar to find transaction.
 
-!['View on block explorer](/img/evm/how-tos/ERC20/metamask-get-transaction-or-go-to-block-explorer.png)
+!['View on block explorer](/img/iota-chains/evm/how-tos/ERC20/metamask-get-transaction-or-go-to-block-explorer.png)
 
 2. Copy the contract address from the transaction details, and import your custom ERC20 tokens into MetaMask.
 
-![Copy contract address](/img/evm/how-tos/ERC20/metamask-import-tokens.png)
+![Copy contract address](/img/iota-chains/evm/how-tos/ERC20/metamask-import-tokens.png)
 
 ## 3. Have some Fun
 
 Now you should see your token in MetaMask. You can send them to your friends without any fees or gas costs.
 
-![Copy contract address](/img/evm/how-tos/ERC20/metamask-erc20-balance.png)
+![Copy contract address](/img/iota-chains/evm/how-tos/ERC20/metamask-erc20-balance.png)
 
 You also can ask in the [Discord Chat Server](https://discord.iota.org) to send them around and discover what the
 community is building on IOTA Smart Contracts.

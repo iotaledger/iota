@@ -1,6 +1,6 @@
 ---
 description: Deploying Wasm smart contracts with Solo.
-image: /img/tutorial/send_request.png
+image: /img/iota-chains/tutorial/send_request.png
 tags:
   - testing
   - PostRequestSync

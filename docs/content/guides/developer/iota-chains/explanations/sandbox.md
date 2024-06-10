@@ -1,7 +1,7 @@
 ---
 description: 'Smart Contracts can only interact with the world by using the Sandbox interface which provides limited and
 deterministic access to the state through a key/value storage abstraction.'
-image: /img/sandbox.png
+image: /img/iota-chains/sandbox.png
 tags:
 
 - smart contracts
@@ -26,7 +26,7 @@ Instead of working on the state as a whole, each smart contract can only modify 
 The only way for smart contracts to access data is to use the sandbox interface, which is deterministic. It provides
 their internal state as a list of key/value pairs.
 
-![Sandbox](/img/sandbox.png)
+![Sandbox](/img/iota-chains/sandbox.png)
 
 Besides reading and writing to the contract state, the Sandbox interface allows smart contracts to access:
 

@@ -47,13 +47,13 @@ IOTA Smart Contracts (ISC) provide a sandboxed environment through an API, facil
 interactions with ISC functions. This API supports any Virtual Machine (VM) aiming to build a system for smart contract 
  code execution on ISC.
 
-![Wasp node ISC Host](/img/wasm_vm/IscHost.png)
+![Wasp node ISC Host](/img/iota-chains/wasm_vm/IscHost.png)
 
 You can use a [WebAssembly (Wasm)](https://webassembly.org/) VM as a compilation target, facilitated by the open-source
 [Wasmtime runtime](https://wasmtime.dev/). This setup encourages dynamic smart contract operations compiled to Wasm code, 
 promoting security and adaptability with different programming languages.
 
-![Wasm VM](/img/wasm_vm/WasmVM.png)
+![Wasm VM](/img/iota-chains/wasm_vm/WasmVM.png)
 
 The Wasm VM operates with self-contained `WasmLib` libraries linked to individual Wasm codes, optimizing the ISC sandbox
 functionality and smart contract state storage access.

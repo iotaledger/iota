@@ -37,7 +37,7 @@ As validator nodes execute the smart contracts, they tally these state changes a
 In turn ISC chains, each with their state and smart contracts, update their state collectively and interact with Layer 1
 and other L2 chains, offering a sophisticated multi-chain architecture.
 
-![IOTA Smart Contacts multichain architecture](/img/multichain.png 'Click to see the full-size image.')
+![IOTA Smart Contacts multichain architecture](/img/iota-chains/multichain.png 'Click to see the full-size image.')
 
 _IOTA Smart Contacts multichain architecture._
 
@@ -55,7 +55,7 @@ ISC Smart contracts can access the [Sandbox interface](explanations/sandbox.md).
 This interface provides access to the chain state, native assets, allows interaction with other contracts/chains, as 
 well as various utilities like cryptographic functions and event dispatching.
 
-![Sandbox](/img/sandbox.png)
+![Sandbox](/img/iota-chains/sandbox.png)
 
 ## Calling a Smart Contract
 

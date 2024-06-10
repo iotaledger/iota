@@ -1,6 +1,6 @@
 ---
 description: Invoking smart contracts with on-ledger and off-ledger requests with Solo.
-image: /img/tutorial/send_request.png
+image: /img/iota-chains/tutorial/send_request.png
 tags:
   - how-to
   - explanation
@@ -62,7 +62,7 @@ not necessary to manually deposit more funds for gas.
 
 ## On-Ledger Requests
 
-[![Generic process of posting an on-ledger request to the smart contract](/img/tutorial/send_request.png)](/img/tutorial/send_request.png)
+[![Generic process of posting an on-ledger request to the smart contract](/img/iota-chains/tutorial/send_request.png)](/img/iota-chains/tutorial/send_request.png)
 
 The diagram above depicts the generic process of posting an _on-ledger_ request to the smart contract.
 The same diagram is valid for the Solo environment and any other requester that sends an on-ledger request, e.g., the

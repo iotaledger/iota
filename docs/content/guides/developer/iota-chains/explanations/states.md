@@ -1,7 +1,7 @@
 ---
 description: 'The state of the chain consists of balances of native IOTA digital assets and a collection of key/value
 pairs which represents use case-specific data stored in the chain by its smart contracts outside the UTXO ledger.'
-image: /img/chain0.png
+image: /img/iota-chains/chain0.png
 tags:
 
 - state
@@ -107,7 +107,7 @@ produces the next one. The transaction includes the movement of the chain's asse
 At any moment in time, the data state of the chain is a result of applying the historical sequence of blocks, starting
 from the empty data state.
 
-![State transitions](/img/chain0.png)
+![State transitions](/img/iota-chains/chain0.png)
 
 On the L1 UTXO ledger, the state's history is represented as a sequence (chain) of UTXOs, each holding the chain’s
 assets in a particular state and the anchoring hash of the data state.
@@ -119,4 +119,4 @@ state hash).
 The ISC virtual machine (VM) computes the blocks and state outputs that anchor the state, which ensures that the state
 transitions are calculated deterministically and consistently.
 
-![Chain](/img/chain1.png)
+![Chain](/img/iota-chains/chain1.png)

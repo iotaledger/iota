@@ -1,7 +1,7 @@
 ---
 description: 'IOTA Smart Contracts chains keep a ledger of on-chain account balances. On-chain accounts are identified
 by an AgentID.'
-image: /img/tutorial/accounts.png
+image: /img/iota-chains/tutorial/accounts.png
 tags:
 
 - smart contracts
@@ -86,7 +86,7 @@ By calling this contract, it is possible to:
 The following diagram illustrates an example situation.
 The IDs and hnames are shortened for simplicity.
 
-[![Example situation. Two chains are deployed, with three smart contracts and one address.](/img/tutorial/accounts.png)](/img/tutorial/accounts.png)
+[![Example situation. Two chains are deployed, with three smart contracts and one address.](/img/iota-chains/tutorial/accounts.png)](/img/iota-chains/tutorial/accounts.png)
 
 Two chains are deployed, with IDs `chainA` and `chainB`.
 `chainA` has two smart contracts on it (with hnames `3037` and `2225`), and `chainB` has one smart contract (`7003`).

@@ -1,6 +1,6 @@
 ---
 description: Each smart contract instance has a program with a collection of entry points and a state.
-image: /img/tutorial/SC-structure.png
+image: /img/iota-chains/tutorial/SC-structure.png
 tags:
   - smart contracts
   - structure
@@ -19,7 +19,7 @@ It can support different _VM types_ (i.e., interpreters) simultaneously on the s
 For example, it is possible to have [Wasm](../getting-started/languages-and-vms.md#wasm-vm-for-isc) and [EVM/Solidity](../getting-started/languages-and-vms.md#evmsolidity-based-smart-contracts) smart
 contracts coexisting on the same chain.
 
-![Smart Contract Structure](/img/tutorial/SC-structure.png)
+![Smart Contract Structure](/img/iota-chains/tutorial/SC-structure.png)
 
 ## Identifying a Smart Contract
 

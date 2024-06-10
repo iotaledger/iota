@@ -1,6 +1,6 @@
 ---
 description: Calling smart contract view functions with Solo.
-image: /img/tutorial/call_view.png
+image: /img/iota-chains/tutorial/call_view.png
 tags:
   - how to
   - testing
@@ -22,7 +22,7 @@ res, err := chain.CallView("example1", "getString")
 
 The call returns a collection of key/value pairs `res` and an error result `err` in the typical Go fashion.
 
-[![Calling a view process](/img/tutorial/call_view.png)](/img/tutorial/call_view.png)
+[![Calling a view process](/img/iota-chains/tutorial/call_view.png)](/img/iota-chains/tutorial/call_view.png)
 
 The basic principle of calling a view is similar to sending a request to the smart contract. The essential difference is
 that calling a view does not constitute an asynchronous transaction; it is just a direct synchronous call to the view
