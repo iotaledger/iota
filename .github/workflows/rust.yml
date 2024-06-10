@@ -102,7 +102,7 @@ jobs:
     strategy:
       matrix:
         os:
-          - [ubuntu-ghcloud]
+          - [self-hosted-rust]
       fail-fast: false
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
@@ -127,7 +127,7 @@ jobs:
     strategy:
       matrix:
         os:
-          - [ubuntu-ghcloud]
+          - [self-hosted-rust]
       fail-fast: false
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
@@ -190,7 +190,7 @@ jobs:
     needs: diff
     if: needs.diff.outputs.isRust == 'true'
     timeout-minutes: 45
-    runs-on: [ubuntu-ghcloud]
+    runs-on: [self-hosted-rust]
     env:
       MSIM_WATCHDOG_TIMEOUT_MS: 60000
     steps:
@@ -214,7 +214,7 @@ jobs:
     needs: diff
     if: needs.diff.outputs.isRust == 'false' && needs.diff.outputs.isMove == 'true'
     timeout-minutes: 10
-    runs-on: [ubuntu-ghcloud]
+    runs-on: [self-hosted-rust]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
       - uses: taiki-e/install-action@nextest
@@ -227,7 +227,7 @@ jobs:
   #   needs: diff
   #   if: needs.diff.outputs.isRust == 'true'
   #   timeout-minutes: 45
-  #   runs-on: [ubuntu-ghcloud]
+  #   runs-on: [self-hosted-rust]
   #   steps:
   #     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
 
@@ -270,7 +270,7 @@ jobs:
     strategy:
       matrix:
         os:
-          - [ubuntu-ghcloud]
+          - [self-hosted-rust]
       fail-fast: false
     steps:
       - run: 'echo "No build required" '
@@ -287,7 +287,7 @@ jobs:
     strategy:
       matrix:
         os:
-          - [ubuntu-ghcloud]
+          - [self-hosted-rust]
       fail-fast: false
     steps:
       - run: 'echo "No build required" '
@@ -295,7 +295,7 @@ jobs:
   clippy:
     needs: diff
     if: needs.diff.outputs.isRust == 'true'
-    runs-on: [ubuntu-ghcloud]
+    runs-on: [self-hosted-rust]
     steps:
       - uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # pin@v3.0.0
         # this avoids rate-limiting
@@ -338,7 +338,7 @@ jobs:
     name: cutting a new execution layer
     needs: diff
     if: needs.diff.outputs.isRust == 'true'
-    runs-on: [ubuntu-ghcloud]
+    runs-on: [self-hosted-rust]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
       - name: Install cargo-hakari, and cache the binary
@@ -358,7 +358,7 @@ jobs:
   #  needs: diff
   #  if: needs.diff.outputs.isRust == 'true'
   #  timeout-minutes: 45
-  #  runs-on: [ubuntu-ghcloud]
+  #  runs-on: [self-hosted-rust]
   #  services:
   #    postgres:
   #      image: postgres
@@ -386,7 +386,7 @@ jobs:
    needs: diff
    if: needs.diff.outputs.isRust == 'true'
    timeout-minutes: 45
-   runs-on: [ubuntu-ghcloud]
+   runs-on: [self-hosted-rust]
    services:
      postgres:
        image: postgres
