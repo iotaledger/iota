@@ -4,5 +4,6 @@
 export { default as ActivityDetailsPopup } from './ActivityDetailsPopup';
 export { default as StakeDetailsPopup } from './StakeDetailsPopup';
 export { default as UnstakePopup } from './UnstakePopup';
+export { default as SendCoinPopup } from './SendCoinPopup/SendCoinPopup';
 
 export * from './SendCoinPopup';

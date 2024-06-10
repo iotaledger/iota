@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { CoinStruct } from '@iota/iota.js/client';
-import { FormDataValues } from './SendCoinPopup';
+import { FormDataValues } from '../SendCoinPopup';
 import Button from '@/components/Button';
 
 interface EnterValuesProps {

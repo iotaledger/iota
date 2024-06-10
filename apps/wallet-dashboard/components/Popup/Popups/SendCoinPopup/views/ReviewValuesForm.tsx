@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { FormDataValues } from './SendCoinPopup';
+import { FormDataValues } from '../SendCoinPopup';
 import Button from '@/components/Button';
 
 interface ReviewValuesProps {

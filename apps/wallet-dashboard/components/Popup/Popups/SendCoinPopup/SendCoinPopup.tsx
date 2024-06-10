@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React, { useState } from 'react';
-import { EnterValuesForm, ReviewValuesForm } from './';
+import { EnterValuesForm, ReviewValuesForm } from './views';
 import { CoinStruct } from '@iota/iota.js/client';
 
 export interface FormDataValues {
