@@ -6,7 +6,7 @@ import { useIotaClient } from '@iota/dapp-kit';
 import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
 import { useQuery } from '@tanstack/react-query';
 
-export function useQueryTransactionsByAddress(address?: string) {
+export function useQueryTransactionsByAddress(address?: string | null) {
     const queryOptions = {
         showInput: true,
         showEffects: true,

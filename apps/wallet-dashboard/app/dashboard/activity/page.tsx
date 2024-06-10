@@ -7,7 +7,7 @@ import React from 'react';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { VirtualList, ActivityTile } from '@/components';
 import { Activity } from '@/lib/interfaces';
-import { useQueryTransactionsByAddress } from '@/hooks/useQueryTransactionsByAddress';
+import { useQueryTransactionsByAddress } from '@iota/core';
 import { getTransactionActivity } from '@/lib/utils/activity';
 
 function ActivityPage(): JSX.Element {
