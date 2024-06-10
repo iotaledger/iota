@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Stake } from '@/lib/types';
-import { useGetDelegatedStake } from '@mysten/core';
-import { useCurrentAccount } from '@mysten/dapp-kit';
+import { useGetDelegatedStake } from '@iota/core';
+import { useCurrentAccount } from '@iota/dapp-kit';
 
 // Unit used to convert stake and rewards from raw values. This is temporary and will be removed once we have the correct conversion factor.
 const HARDCODED_CONVERSION_UNIT = 1000000000;
