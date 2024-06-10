@@ -5,7 +5,7 @@ import { CoinStruct } from '@iota/iota.js/client';
 import { FormDataValues } from '../SendCoinPopup';
 import Button from '@/components/Button';
 
-interface EnterValuesProps {
+interface EnterValuesFormProps {
     coin: CoinStruct;
     formData: FormDataValues;
     setFormData: React.Dispatch<React.SetStateAction<FormDataValues>>;
@@ -19,7 +19,7 @@ function EnterValuesFormView({
     setFormData,
     onClose,
     handleNext,
-}: EnterValuesProps): JSX.Element {
+}: EnterValuesFormProps): JSX.Element {
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setFormData((prevFormData) => ({

@@ -4,7 +4,7 @@
 import { FormDataValues } from '../SendCoinPopup';
 import Button from '@/components/Button';
 
-interface ReviewValuesProps {
+interface ReviewValuesFormProps {
     formData: FormDataValues;
     handleBack: () => void;
 }
@@ -12,7 +12,7 @@ interface ReviewValuesProps {
 function ReviewValuesFormView({
     formData: { amount, senderAddress, recipientAddress },
     handleBack,
-}: ReviewValuesProps): JSX.Element {
+}: ReviewValuesFormProps): JSX.Element {
     function onSend(): void {
         console.log('Sending coins');
     }
