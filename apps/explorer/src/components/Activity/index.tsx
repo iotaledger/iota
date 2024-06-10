@@ -2,9 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// Modifications Copyright (c) 2024 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
-
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
 // import { Filter16 } from '@iota/icons';
 import { Heading } from '@iota/ui';

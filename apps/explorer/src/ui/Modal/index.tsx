@@ -2,9 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// Modifications Copyright (c) 2024 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
-
 import { Dialog, Transition } from '@headlessui/react';
 import { X12 } from '@iota/icons';
 import { Heading } from '@iota/ui';
