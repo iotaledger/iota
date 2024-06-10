@@ -54,7 +54,7 @@ The Stardust NFT output representation.
 <code><a href="../iota-framework/balance.md#0x2_balance">balance</a>: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;T&gt;</code>
 </dt>
 <dd>
- The amount of coin tokens held by the output.
+ The amount of coins held by the output.
 </dd>
 <dt>
 <code>native_tokens: <a href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</a></code>

@@ -45,7 +45,7 @@ The Stardust storage deposit return unlock condition.
 <code>return_amount: u64</code>
 </dt>
 <dd>
- The amount of IOTA coins the consuming transaction should deposit to the address defined in Return Address.
+ The amount of coins the consuming transaction should deposit to the address defined in Return Address.
 </dd>
 </dl>
 

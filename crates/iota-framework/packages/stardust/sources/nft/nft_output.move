@@ -22,7 +22,7 @@ module stardust::nft_output {
         /// This is a "random" UID, not the NFTID from Stardust.
         id: UID,
 
-        /// The amount of coin tokens held by the output.
+        /// The amount of coins held by the output.
         balance: Balance<T>,
 
         /// The `Bag` holds native tokens, key-ed by the stringified type of the asset.

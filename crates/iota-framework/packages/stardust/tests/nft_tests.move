@@ -43,8 +43,8 @@ module stardust::nft_tests {
         native_tokens.add(type_name::get<TEST_A>().into_string(), test_a_balance);
         native_tokens.add(type_name::get<TEST_B>().into_string(), test_b_balance);
 
-        let mut nft_output = nft_output::create_for_testing<IOTA>(
-            balance::create_for_testing(10000),
+        let mut nft_output = nft_output::create_for_testing(
+            balance::create_for_testing<IOTA>(10000),
             native_tokens,
             option::some(storage_deposit_return_unlock_condition::create_for_testing(@0xB, 1000)),
             option::some(timelock_unlock_condition::create_for_testing(5)),

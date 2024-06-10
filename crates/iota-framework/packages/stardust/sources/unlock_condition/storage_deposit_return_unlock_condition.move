@@ -11,7 +11,7 @@ module stardust::storage_deposit_return_unlock_condition {
     public struct StorageDepositReturnUnlockCondition has store {
         /// The address to which the consuming transaction should deposit the amount defined in Return Amount.
         return_address: address,
-        /// The amount of IOTA coins the consuming transaction should deposit to the address defined in Return Address.
+        /// The amount of coins the consuming transaction should deposit to the address defined in Return Address.
         return_amount: u64,
     }
 

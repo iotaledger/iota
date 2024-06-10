@@ -49,7 +49,7 @@ Owned Object controlled by the Governor Address.
 <code><a href="../iota-framework/balance.md#0x2_balance">balance</a>: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;T&gt;</code>
 </dt>
 <dd>
- The amount of IOTA coins held by the output.
+ The amount of coins held by the output.
 </dd>
 <dt>
 <code>native_tokens: <a href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</a></code>
@@ -83,7 +83,7 @@ The Alias dynamic object field name.
 ## Function `extract_assets`
 
 The function extracts assets from a legacy <code><a href="alias_output.md#0x107a_alias_output_AliasOutput">AliasOutput</a></code>.
-- returns the IOTA Balance,
+- returns the coin Balance,
 - the native tokens Bag,
 - and the <code>Alias</code> object that persists the AliasID=ObjectID from Stardust.
 
@@ -102,7 +102,7 @@ The function extracts assets from a legacy <code><a href="alias_output.md#0x107a
     <b>let</b> <a href="alias.md#0x107a_alias">alias</a> = <a href="alias_output.md#0x107a_alias_output_load_alias">load_alias</a>(&<b>mut</b> output);
 
     // Unpack the output into its basic part.
-    <b>let</b> <a href="alias_output.md#0x107a_alias_output_AliasOutput">AliasOutput</a>&lt;T&gt; {
+    <b>let</b> <a href="alias_output.md#0x107a_alias_output_AliasOutput">AliasOutput</a> {
         id,
         <a href="../iota-framework/balance.md#0x2_balance">balance</a>,
         native_tokens

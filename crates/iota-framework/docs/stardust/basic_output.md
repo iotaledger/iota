@@ -54,7 +54,7 @@ way to handle the two possible addresses that can unlock the output.
 <code><a href="../iota-framework/balance.md#0x2_balance">balance</a>: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;T&gt;</code>
 </dt>
 <dd>
- The amount of IOTA coins held by the output.
+ The amount of coins held by the output.
 </dd>
 <dt>
 <code>native_tokens: <a href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</a></code>
@@ -111,7 +111,7 @@ way to handle the two possible addresses that can unlock the output.
 Extract the assets stored inside the output, respecting the unlock conditions.
 - The object will be deleted.
 - The <code>StorageDepositReturnUnlockCondition</code> will return the deposit.
-- Remaining assets (IOTA coins and native tokens) will be returned.
+- Remaining assets (coins and native tokens) will be returned.
 
 
 <pre><code><b>public</b> <b>fun</b> <a href="basic_output.md#0x107a_basic_output_extract_assets">extract_assets</a>&lt;T&gt;(output: <a href="basic_output.md#0x107a_basic_output_BasicOutput">basic_output::BasicOutput</a>&lt;T&gt;, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): (<a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;T&gt;, <a href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</a>)

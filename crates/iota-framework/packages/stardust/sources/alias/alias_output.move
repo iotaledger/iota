@@ -18,7 +18,7 @@ module stardust::alias_output {
         /// This is a "random" UID, not the AliasID from Stardust.
         id: UID,
 
-        /// The amount of IOTA coins held by the output.
+        /// The amount of coins held by the output.
         balance: Balance<T>,
 
         /// The `Bag` holds native tokens, key-ed by the stringified type of the asset.
@@ -29,7 +29,7 @@ module stardust::alias_output {
     // === Public-Mutative Functions ===
     
     /// The function extracts assets from a legacy `AliasOutput`.
-    ///    - returns the IOTA Balance,
+    ///    - returns the coin Balance,
     ///    - the native tokens Bag,
     ///    - and the `Alias` object that persists the AliasID=ObjectID from Stardust.
     public fun extract_assets<T>(mut output: AliasOutput<T>): (Balance<T>, Bag, Alias) {
@@ -37,7 +37,7 @@ module stardust::alias_output {
         let alias = load_alias(&mut output);
 
         // Unpack the output into its basic part.
-        let AliasOutput<T> {
+        let AliasOutput {
             id,
             balance,
             native_tokens

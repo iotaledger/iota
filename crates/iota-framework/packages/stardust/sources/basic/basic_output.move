@@ -26,7 +26,7 @@ module stardust::basic_output {
         /// Hash of the `outputId` that was migrated.
         id: UID,
 
-        /// The amount of IOTA coins held by the output.
+        /// The amount of coins held by the output.
         balance: Balance<T>,
 
         /// The `Bag` holds native tokens, key-ed by the stringified type of the asset.
@@ -55,7 +55,7 @@ module stardust::basic_output {
     /// Extract the assets stored inside the output, respecting the unlock conditions.
     ///  - The object will be deleted.
     ///  - The `StorageDepositReturnUnlockCondition` will return the deposit.
-    ///  - Remaining assets (IOTA coins and native tokens) will be returned.
+    ///  - Remaining assets (coins and native tokens) will be returned.
     public fun extract_assets<T>(output: BasicOutput<T>, ctx: &mut TxContext) : (Balance<T>, Bag) {
         // Unpack the output into its basic part.
         let BasicOutput {
