@@ -747,9 +747,15 @@ fn build_unsigned_genesis_data(
     // Get the correct system packages for our protocol version. If we cannot find
     // the snapshot that means that we must be at the latest version and we
     // should use the latest version of the framework.
-    let system_packages =
+    let mut system_packages =
         iota_framework_snapshot::load_bytecode_snapshot(parameters.protocol_version.as_u64())
             .unwrap_or_else(|_| BuiltInFramework::iter_system_packages().cloned().collect());
+
+    // TODO: Remove when we have bumped the protocol to include the stardust
+    // packages into the system packages.
+    //
+    // See also: https://github.com/iotaledger/kinesis/pull/149
+    system_packages.extend(BuiltInFramework::iter_stardust_packages().cloned());
 
     let mut genesis_ctx = create_genesis_context(
         &epoch_data,
