@@ -646,27 +646,24 @@ impl KeyToolCommand {
                         // Assume it is a mnemonic if it has spaces
                         let contains_spaces = input_string.contains(char::is_whitespace);
 
-                        if contains_spaces {
+                        let iota_address = if contains_spaces {
                             info!("Importing mnemonic to keystore");
-                            let iota_address = keystore.import_from_mnemonic(
+                            keystore.import_from_mnemonic(
                                 &input_string,
                                 key_scheme,
                                 derivation_path,
-                            )?;
-                            let skp = keystore.get_key(&iota_address)?;
-                            let key = Key::from(skp);
-                            CommandOutput::Import(key)
+                            )?
                         } else {
                             info!("Importing seed to keystore");
-                            let iota_address = keystore.import_from_seed(
+                            keystore.import_from_seed(
                                 &input_string,
                                 key_scheme,
                                 derivation_path,
-                            )?;
-                            let skp = keystore.get_key(&iota_address)?;
-                            let key = Key::from(skp);
-                            CommandOutput::Import(key)
-                        }
+                            )?
+                        };
+                        let skp = keystore.get_key(&iota_address)?;
+                        let key = Key::from(skp);
+                        CommandOutput::Import(key)
                     }
                 }
             }
