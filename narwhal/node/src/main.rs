@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 #![warn(
     future_incompatible,
@@ -25,6 +26,17 @@ use crypto::{KeyPair, NetworkKeyPair};
 use eyre::{Context, Result};
 use fastcrypto::traits::{EncodeDecodeBase64, KeyPair as _};
 use futures::join;
+use iota_keys::keypair_file::{
+    read_authority_keypair_from_file, read_network_keypair_from_file,
+    write_authority_keypair_to_file, write_keypair_to_file,
+};
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_types::{
+    crypto::{
+        get_key_pair_from_rng, AuthorityKeyPair, AuthorityPublicKey, IotaKeyPair, NetworkPublicKey,
+    },
+    multiaddr::Multiaddr,
+};
 use mysten_metrics::start_prometheus_server;
 use narwhal_node as node;
 use narwhal_node::{
@@ -38,17 +50,6 @@ use node::{
 use prometheus::Registry;
 use rand::{rngs::StdRng, SeedableRng};
 use storage::{CertificateStoreCacheMetrics, NodeStorage};
-use sui_keys::keypair_file::{
-    read_authority_keypair_from_file, read_network_keypair_from_file,
-    write_authority_keypair_to_file, write_keypair_to_file,
-};
-use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use sui_types::{
-    crypto::{
-        get_key_pair_from_rng, AuthorityKeyPair, AuthorityPublicKey, NetworkPublicKey, SuiKeyPair,
-    },
-    multiaddr::Multiaddr,
-};
 use telemetry_subscribers::TelemetryGuards;
 use tokio::{sync::mpsc::channel, time::Duration};
 // TODO: remove when old benchmark code is removed
@@ -214,7 +215,7 @@ async fn main() -> Result<(), eyre::Report> {
         }
         Commands::GenerateNetworkKeys { filename } => {
             let network_keypair: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
-            write_keypair_to_file(&SuiKeyPair::Ed25519(network_keypair), filename).unwrap();
+            write_keypair_to_file(&IotaKeyPair::Ed25519(network_keypair), filename).unwrap();
         }
         Commands::GetPubKey { filename } => {
             match read_network_keypair_from_file(filename) {
@@ -352,7 +353,7 @@ fn benchmark_genesis(
     for filename in primary_network_key_files {
         let network_keypair: NetworkKeyPair = get_key_pair_from_rng(&mut rng).1;
         let pk = network_keypair.public().to_string();
-        write_keypair_to_file(&SuiKeyPair::Ed25519(network_keypair), filename).unwrap();
+        write_keypair_to_file(&IotaKeyPair::Ed25519(network_keypair), filename).unwrap();
         primary_network_names.push(pk);
     }
 
@@ -404,7 +405,7 @@ fn benchmark_genesis(
     for filename in worker_key_files {
         let network_keypair: NetworkKeyPair = get_key_pair_from_rng(&mut rng).1;
         let pk = network_keypair.public().to_string();
-        write_keypair_to_file(&SuiKeyPair::Ed25519(network_keypair), filename).unwrap();
+        write_keypair_to_file(&IotaKeyPair::Ed25519(network_keypair), filename).unwrap();
         worker_names.push(pk);
     }
 

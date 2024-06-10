@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -29,7 +30,7 @@ describe('Test Move call with strings', () => {
     beforeAll(async () => {
         toolbox = await setup();
         const packagePath =
-            __dirname + '/../../../../crates/sui-core/src/unit_tests/data/entry_point_types';
+            __dirname + '/../../../../crates/iota-core/src/unit_tests/data/entry_point_types';
         ({ packageId } = await publishPackage(packagePath));
     });
 

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 export { default as useAppDispatch } from './useAppDispatch';
@@ -20,4 +21,3 @@ export { useSortedCoinsByCategories } from './useSortedCoinsByCategories';
 export * from './useTransactionData';
 export * from './useActiveAddress';
 export * from './useCoinsReFetchingConfig';
-export * from './deepbook';

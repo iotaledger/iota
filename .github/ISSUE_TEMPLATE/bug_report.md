@@ -1,5 +1,5 @@
 ---
-name: Report a bug in kinesis
+name: Report a bug in IOTA
 about: Create a report to help us improve
 title: ""
 labels: c-bug

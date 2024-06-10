@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Command } from 'cmdk';
@@ -33,7 +34,7 @@ function ComboboxItem({ item, onSelect }: ComboboxItemProps) {
     return (
         <Command.Item
             value={item.value}
-            className="group mb-2 cursor-pointer rounded-md px-2 py-1.5 last:mb-0 data-[selected]:bg-sui/10 data-[selected]:shadow-sm"
+            className="group mb-2 cursor-pointer rounded-md px-2 py-1.5 last:mb-0 data-[selected]:bg-iota/10 data-[selected]:shadow-sm"
             onSelect={() => onSelect()}
         >
             <div className="flex w-full items-center justify-between">

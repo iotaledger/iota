@@ -1,6 +1,9 @@
 # Copyright (c) Mysten Labs, Inc.
 # SPDX-License-Identifier: Apache-2.0
 
+# Modifications Copyright (c) 2024 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
 query getCurrentEpoch {
     epoch {
         epochId
@@ -72,7 +75,7 @@ fragment RPC_VALIDATOR_FIELDS on Validator {
     }
     pendingPoolTokenWithdraw
     pendingStake
-    pendingTotalSuiWithdraw
+    pendingTotalIotaWithdraw
     poolTokenBalance
     projectUrl
     rewardsPool
@@ -80,7 +83,7 @@ fragment RPC_VALIDATOR_FIELDS on Validator {
         address
     }
     stakingPoolActivationEpoch
-    stakingPoolSuiBalance
+    stakingPoolIotaBalance
     address {
         address
     }

@@ -1,58 +1,59 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type SuiLedgerClient from '@mysten/ledgerjs-hw-app-sui';
-import { type SuiClient } from '@mysten/sui.js/client';
+import type IotaLedgerClient from '@iota/ledgerjs-hw-app-iota';
+import { type IotaClient } from '@iota/iota.js/client';
 import {
     toSerializedSignature,
     type SerializedSignature,
     type SignatureScheme,
-} from '@mysten/sui.js/cryptography';
-import { Ed25519PublicKey } from '@mysten/sui.js/keypairs/ed25519';
+} from '@iota/iota.js/cryptography';
+import { Ed25519PublicKey } from '@iota/iota.js/keypairs/ed25519';
 
 import { WalletSigner } from './WalletSigner';
 
 export class LedgerSigner extends WalletSigner {
-    #suiLedgerClient: SuiLedgerClient | null;
-    readonly #connectToLedger: () => Promise<SuiLedgerClient>;
+    #iotaLedgerClient: IotaLedgerClient | null;
+    readonly #connectToLedger: () => Promise<IotaLedgerClient>;
     readonly #derivationPath: string;
     readonly #signatureScheme: SignatureScheme = 'ED25519';
 
     constructor(
-        connectToLedger: () => Promise<SuiLedgerClient>,
+        connectToLedger: () => Promise<IotaLedgerClient>,
         derivationPath: string,
-        client: SuiClient,
+        client: IotaClient,
     ) {
         super(client);
         this.#connectToLedger = connectToLedger;
-        this.#suiLedgerClient = null;
+        this.#iotaLedgerClient = null;
         this.#derivationPath = derivationPath;
     }
 
-    async #initializeSuiLedgerClient() {
-        if (!this.#suiLedgerClient) {
+    async #initializeIotaLedgerClient() {
+        if (!this.#iotaLedgerClient) {
             // We want to make sure that there's only one connection established per Ledger signer
             // instance since some methods make multiple calls like getAddress and signData
-            this.#suiLedgerClient = await this.#connectToLedger();
+            this.#iotaLedgerClient = await this.#connectToLedger();
         }
-        return this.#suiLedgerClient;
+        return this.#iotaLedgerClient;
     }
 
     async getAddress(): Promise<string> {
-        const ledgerClient = await this.#initializeSuiLedgerClient();
+        const ledgerClient = await this.#initializeIotaLedgerClient();
         const publicKeyResult = await ledgerClient.getPublicKey(this.#derivationPath);
         const publicKey = new Ed25519PublicKey(publicKeyResult.publicKey);
-        return publicKey.toSuiAddress();
+        return publicKey.toIotaAddress();
     }
 
     async getPublicKey(): Promise<Ed25519PublicKey> {
-        const ledgerClient = await this.#initializeSuiLedgerClient();
+        const ledgerClient = await this.#initializeIotaLedgerClient();
         const { publicKey } = await ledgerClient.getPublicKey(this.#derivationPath);
         return new Ed25519PublicKey(publicKey);
     }
 
     async signData(data: Uint8Array): Promise<SerializedSignature> {
-        const ledgerClient = await this.#initializeSuiLedgerClient();
+        const ledgerClient = await this.#initializeIotaLedgerClient();
         const { signature } = await ledgerClient.signTransaction(this.#derivationPath, data);
         const publicKey = await this.getPublicKey();
         return toSerializedSignature({
@@ -62,7 +63,7 @@ export class LedgerSigner extends WalletSigner {
         });
     }
 
-    connect(client: SuiClient) {
+    connect(client: IotaClient) {
         return new LedgerSigner(this.#connectToLedger, this.#derivationPath, client);
     }
 }

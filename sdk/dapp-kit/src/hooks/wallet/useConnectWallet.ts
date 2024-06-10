@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { isSupportedChain } from '@mysten/wallet-standard';
+import { isSupportedChain } from '@iota/wallet-standard';
 import type {
     StandardConnectInput,
     StandardConnectOutput,
     WalletAccount,
     WalletWithRequiredFeatures,
-} from '@mysten/wallet-standard';
+} from '@iota/wallet-standard';
 import type { UseMutationOptions, UseMutationResult } from '@tanstack/react-query';
 import { useMutation } from '@tanstack/react-query';
 
@@ -53,14 +54,14 @@ export function useConnectWallet({
                 const connectResult = await wallet.features['standard:connect'].connect(
                     connectArgs,
                 );
-                const connectedSuiAccounts = connectResult.accounts.filter((account) =>
+                const connectedIotaAccounts = connectResult.accounts.filter((account) =>
                     account.chains.some(isSupportedChain),
                 );
-                const selectedAccount = getSelectedAccount(connectedSuiAccounts, accountAddress);
+                const selectedAccount = getSelectedAccount(connectedIotaAccounts, accountAddress);
 
-                setWalletConnected(wallet, connectedSuiAccounts, selectedAccount);
+                setWalletConnected(wallet, connectedIotaAccounts, selectedAccount);
 
-                return { accounts: connectedSuiAccounts };
+                return { accounts: connectedIotaAccounts };
             } catch (error) {
                 setConnectionStatus('disconnected');
                 throw error;

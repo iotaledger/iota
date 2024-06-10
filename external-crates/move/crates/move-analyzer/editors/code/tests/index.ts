@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /**
@@ -23,7 +24,7 @@ export async function run(): Promise<void> {
     }
 
     /* eslint-disable */
-    const suite = new Mocha({
+    const iotate = new Mocha({
         ui: 'tdd',
         color: true,
         // The default timeout of 2000 miliseconds can sometimes be too quick, since the extension
@@ -33,19 +34,19 @@ export async function run(): Promise<void> {
 
     const testsRoot = path.resolve(__dirname, '..');
     return new Promise((resolve, reject) => {
-        // The test suite is composed of all files ending with '.test.js'.
+        // The test iotate is composed of all files ending with '.test.js'.
         glob('**/**.test.js', { cwd: testsRoot }, (err, files: ReadonlyArray<string>) => {
             if (err) {
                 return reject(err);
             }
 
-            // Add each file to the test suite.
-            files.forEach(f => suite.addFile(path.resolve(testsRoot, f)));
+            // Add each file to the test iotate.
+            files.forEach(f => iotate.addFile(path.resolve(testsRoot, f)));
 
-            // Run the test suite. Uncaught exceptions or a non-zero number of
-            // test rejectures is considered a test suite rejecture.
+            // Run the test iotate. Uncaught exceptions or a non-zero number of
+            // test rejectures is considered a test iotate rejecture.
             try {
-                return suite.run(failures => {
+                return iotate.run(failures => {
                     if (failures > 0) {
                         reject(new Error(`${failures} tests failed.`));
                     } else {

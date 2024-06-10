@@ -17,7 +17,7 @@ tokio = { workspace = true, features = ["sync", "rt", "macros"] }
 tracing.workspace = true
 types = { path = "../types", package = "narwhal-types" }
 store = { path = "../../crates/typed-store", package = "typed-store" }
-sui-macros.workspace = true
+iota-macros.workspace = true
 config = { path = "../config", package = "narwhal-config" }
 prometheus.workspace = true
 lru.workspace = true

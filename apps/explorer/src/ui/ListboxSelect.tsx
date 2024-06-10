@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { Listbox, Transition } from '@headlessui/react';
-import { Check12, ChevronDown16 } from '@mysten/icons';
-import { Text } from '@mysten/ui';
+import { Check12, ChevronDown16 } from '@iota/icons';
+import { Text } from '@iota/ui';
 import { Fragment } from 'react';
 
 export type ListboxSelectPros<T extends string = string> = {
@@ -36,7 +37,7 @@ export function ListboxSelect<T extends string>({
                         {options.map((aValue, index) => (
                             <Listbox.Option
                                 key={index}
-                                className="flex flex-1 cursor-pointer flex-nowrap items-center gap-4 rounded-sm p-2 hover:bg-sui-light/40"
+                                className="flex flex-1 cursor-pointer flex-nowrap items-center gap-4 rounded-sm p-2 hover:bg-iota-light/40"
                                 value={aValue}
                             >
                                 {({ selected }) => (

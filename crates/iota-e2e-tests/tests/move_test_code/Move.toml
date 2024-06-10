@@ -1,0 +1,9 @@
+[package]
+name = "move_test_code"
+version = "0.0.1"
+
+[dependencies]
+Iota = { local = "../../../iota-framework/packages/iota-framework" }
+
+[addresses]
+move_test_code = "0x0"

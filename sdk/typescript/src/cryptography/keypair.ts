@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { bcs, toB64 } from '@mysten/bcs';
+import { bcs, toB64 } from '@iota/bcs';
 import { blake2b } from '@noble/hashes/blake2b';
 import { bech32 } from 'bech32';
 
@@ -14,7 +15,7 @@ import { toSerializedSignature } from './signature.js';
 
 export const PRIVATE_KEY_SIZE = 32;
 export const LEGACY_PRIVATE_KEY_SIZE = 64;
-export const SUI_PRIVATE_KEY_PREFIX = 'suiprivkey';
+export const IOTA_PRIVATE_KEY_PREFIX = 'iotaprivkey';
 
 export type ParsedKeypair = {
     schema: SignatureScheme;
@@ -72,8 +73,8 @@ export abstract class Signer {
         );
     }
 
-    toSuiAddress(): string {
-        return this.getPublicKey().toSuiAddress();
+    toIotaAddress(): string {
+        return this.getPublicKey().toIotaAddress();
     }
 
     /**
@@ -103,7 +104,7 @@ export abstract class Keypair extends Signer {
      * @deprecated use {@link Keypair.getSecretKey} instead
      * This returns an exported keypair object, schema is the signature
      * scheme name, and the private key field is a Bech32 encoded string
-     * of 33-byte `flag || private_key` that starts with `suiprivkey`.
+     * of 33-byte `flag || private_key` that starts with `iotaprivkey`.
      */
     export(): ExportedKeypair {
         return {
@@ -115,12 +116,12 @@ export abstract class Keypair extends Signer {
 
 /**
  * This returns an ParsedKeypair object based by validating the
- * 33-byte Bech32 encoded string starting with `suiprivkey`, and
+ * 33-byte Bech32 encoded string starting with `iotaprivkey`, and
  * parse out the signature scheme and the private key in bytes.
  */
-export function decodeSuiPrivateKey(value: string): ParsedKeypair {
+export function decodeIotaPrivateKey(value: string): ParsedKeypair {
     const { prefix, words } = bech32.decode(value);
-    if (prefix !== SUI_PRIVATE_KEY_PREFIX) {
+    if (prefix !== IOTA_PRIVATE_KEY_PREFIX) {
         throw new Error('invalid private key prefix');
     }
     const extendedSecretKey = new Uint8Array(bech32.fromWords(words));
@@ -134,11 +135,11 @@ export function decodeSuiPrivateKey(value: string): ParsedKeypair {
 }
 
 /**
- * This returns a Bech32 encoded string starting with `suiprivkey`,
+ * This returns a Bech32 encoded string starting with `iotaprivkey`,
  * encoding 33-byte `flag || bytes` for the given the 32-byte private
  * key and its signature scheme.
  */
-export function encodeSuiPrivateKey(bytes: Uint8Array, scheme: SignatureScheme): string {
+export function encodeIotaPrivateKey(bytes: Uint8Array, scheme: SignatureScheme): string {
     if (bytes.length !== PRIVATE_KEY_SIZE) {
         throw new Error('Invalid bytes length');
     }
@@ -146,5 +147,5 @@ export function encodeSuiPrivateKey(bytes: Uint8Array, scheme: SignatureScheme):
     const privKeyBytes = new Uint8Array(bytes.length + 1);
     privKeyBytes.set([flag]);
     privKeyBytes.set(bytes, 1);
-    return bech32.encode(SUI_PRIVATE_KEY_PREFIX, bech32.toWords(privKeyBytes));
+    return bech32.encode(IOTA_PRIVATE_KEY_PREFIX, bech32.toWords(privKeyBytes));
 }

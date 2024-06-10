@@ -1,13 +1,14 @@
-// Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { SocialDiscord24, SocialLinkedin24, SocialTwitter24 } from '@mysten/icons';
+import { SocialDiscord24, SocialLinkedin24, SocialTwitter24 } from '@iota/icons';
 
 export const FOOTER_LINKS = [
     { title: 'Blog', href: 'https://mystenlabs.com/blog' },
     {
         title: 'Whitepaper',
-        href: 'https://github.com/MystenLabs/sui/blob/main/doc/paper/sui.pdf',
+        href: 'https://github.com/iotaledger/iota/blob/main/doc/paper/iota.pdf',
     },
     {
         title: 'Docs',

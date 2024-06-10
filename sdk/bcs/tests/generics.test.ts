@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from 'vitest';
 
-import { BCS, getSuiMoveConfig } from './../src/index';
+import { BCS, getIotaMoveConfig } from './../src/index';
 
 describe('BCS: Generics', () => {
     it('should handle generics', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
 
         bcs.registerEnumType('base::Option<T>', {
             none: null,
@@ -18,7 +19,7 @@ describe('BCS: Generics', () => {
     });
 
     it('should handle nested generics', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
 
         bcs.registerEnumType('base::Option<T>', {
             none: null,

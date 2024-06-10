@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::Arc;
 
 use config::WorkerId;
+use iota_macros::fail_point;
 use mysten_common::sync::notify_read::NotifyRead;
 use store::{
     reopen,
     rocks::{open_cf, DBMap, MetricConf, ReadWriteOptions},
     Map, TypedStoreError,
 };
-use sui_macros::fail_point;
 use types::BatchDigest;
 
 use crate::{NodeStorage, PayloadToken};

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { Heading } from '_src/ui/app/shared/heading';
 import { cva, type VariantProps } from 'class-variance-authority';
@@ -27,7 +28,7 @@ type CardProps = Props & AnchorHTMLAttributes<HTMLAnchorElement>;
 
 export const SummaryCardFooter = ({ children }: { children: ReactNode }) => {
     return (
-        <div className="-mx-4.5 -mb-4.5 flex items-center justify-between rounded-b-2xl bg-sui/10 px-4 py-2 ">
+        <div className="-mx-4.5 -mb-4.5 flex items-center justify-between rounded-b-2xl bg-iota/10 px-4 py-2 ">
             {children}
         </div>
     );
