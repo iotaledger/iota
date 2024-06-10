@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Modifications Copyright (c) 2024 IOTA Stiftung
@@ -24,6 +25,6 @@ export function useInitialPageView(activeNetwork: string): void {
 
     // Log an initial page view event
     useEffect(() => {
-        ampli.openedSuiExplorer();
+        ampli.openedIotaExplorer();
     }, []);
 }

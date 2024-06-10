@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module serializer::serializer_tests {
-    use sui::tx_context::{Self, TxContext};
-    use sui::transfer;
-    use sui::object::{Self, UID};
-    use sui::clock::Clock;
+    use iota::tx_context::{Self, TxContext};
+    use iota::transfer;
+    use iota::object::{Self, UID};
+    use iota::clock::Clock;
 
     struct MutableShared has key {
         id: UID,

@@ -1,19 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinFormat, useFormatCoin, useResolveSuiNSName } from '@mysten/core';
-import { ArrowUpRight16, Info16 } from '@mysten/icons';
-import { type ObjectOwner, type SuiObjectResponse } from '@mysten/sui.js/client';
+import { CoinFormat, useFormatCoin, useResolveIotaNSName } from '@iota/core';
+import { ArrowUpRight16, Info16 } from '@iota/icons';
+import { type ObjectOwner, type IotaObjectResponse } from '@iota/iota.js/client';
 import {
     formatAddress,
     normalizeStructTag,
     parseStructTag,
-    SUI_TYPE_ARG,
-} from '@mysten/sui.js/utils';
-import { Heading, Text } from '@mysten/ui';
+    IOTA_TYPE_ARG,
+} from '@iota/iota.js/utils';
+import { Heading, Text } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { type ReactNode, useEffect, useState } from 'react';
@@ -198,9 +196,9 @@ interface AddressOwnerProps {
 }
 
 function AddressOwner({ address }: AddressOwnerProps): JSX.Element {
-    const { data: suinsDomainName } = useResolveSuiNSName(address);
+    const { data: iotansDomainName } = useResolveIotaNSName(address);
 
-    return <AddressLink address={address} label={suinsDomainName} />;
+    return <AddressLink address={address} label={iotansDomainName} />;
 }
 
 interface OwnerCardProps {
@@ -212,7 +210,7 @@ interface OwnerCardProps {
 }
 
 function OwnerCard({ objOwner, display, storageRebate }: OwnerCardProps): JSX.Element | null {
-    const [storageRebateFormatted] = useFormatCoin(storageRebate, SUI_TYPE_ARG, CoinFormat.FULL);
+    const [storageRebateFormatted] = useFormatCoin(storageRebate, IOTA_TYPE_ARG, CoinFormat.FULL);
 
     if (!objOwner && !display) {
         return null;
@@ -260,7 +258,7 @@ function OwnerCard({ objOwner, display, storageRebate }: OwnerCardProps): JSX.El
 
             <Description title="Storage Rebate">
                 <Text variant="pBodySmall/medium" color="steel-darker">
-                    -{storageRebateFormatted} SUI
+                    -{storageRebateFormatted} IOTA
                 </Text>
             </Description>
         </ObjectViewCard>
@@ -268,7 +266,7 @@ function OwnerCard({ objOwner, display, storageRebate }: OwnerCardProps): JSX.El
 }
 
 interface ObjectViewProps {
-    data: SuiObjectResponse;
+    data: IotaObjectResponse;
 }
 
 export function ObjectView({ data }: ObjectViewProps): JSX.Element {

@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { SerializedBcs } from '@mysten/bcs';
+import type { SerializedBcs } from '@iota/bcs';
 
 import { bcs } from '../bcs/index.js';
 import type { TransactionBlockInput } from './Transactions.js';

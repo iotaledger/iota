@@ -6,7 +6,7 @@ Use the `useSignTransactionBlock` hook to prompt the user to sign a transaction 
 wallet.
 
 ```ts
-import { ConnectButton, useCurrentAccount, useSignTransactionBlock } from '@mysten/dapp-kit';
+import { ConnectButton, useCurrentAccount, useSignTransactionBlock } from '@iota/dapp-kit';
 import { useState } from 'react';
 
 function MyComponent() {
@@ -25,7 +25,7 @@ function MyComponent() {
                                 signTransactionBlock(
                                     {
                                         transactionBlock: new TransactionBlock(),
-                                        chain: 'sui:devnet',
+                                        chain: 'iota:devnet',
                                     },
                                     {
                                         onSuccess: (result) => {

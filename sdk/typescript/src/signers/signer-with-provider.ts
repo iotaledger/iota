@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB64, toB64 } from '@mysten/bcs';
+import { fromB64, toB64 } from '@iota/bcs';
 
 import { bcs } from '../bcs/index.js';
 import type {
     DevInspectResults,
     DryRunTransactionBlockResponse,
     ExecuteTransactionRequestType,
-    SuiClient,
-    SuiTransactionBlockResponse,
-    SuiTransactionBlockResponseOptions,
+    IotaClient,
+    IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions,
 } from '../client/index.js';
 import { IntentScope, messageWithIntent } from '../cryptography/intent.js';
 import type { SerializedSignature } from '../cryptography/signature.js';
@@ -23,7 +24,7 @@ import type { SignedMessage, SignedTransaction } from './types.js';
 ///////////////////////////////
 // Exported Abstracts
 export abstract class SignerWithProvider implements Signer {
-    readonly client: SuiClient;
+    readonly client: IotaClient;
 
     ///////////////////
     // Sub-classes MUST implement these
@@ -38,13 +39,13 @@ export abstract class SignerWithProvider implements Signer {
 
     // Returns a new instance of the Signer, connected to provider.
     // This MAY throw if changing providers is not supported.
-    abstract connect(client: SuiClient): SignerWithProvider;
+    abstract connect(client: IotaClient): SignerWithProvider;
 
     ///////////////////
     // Sub-classes MAY override these
 
-    constructor(client: SuiClient) {
-        this.client = client as SuiClient;
+    constructor(client: IotaClient) {
+        this.client = client as IotaClient;
     }
 
     /**
@@ -107,12 +108,12 @@ export abstract class SignerWithProvider implements Signer {
     async signAndExecuteTransactionBlock(input: {
         transactionBlock: Uint8Array | TransactionBlock;
         /** specify which fields to return (e.g., transaction, effects, events, etc). By default, only the transaction digest will be returned. */
-        options?: SuiTransactionBlockResponseOptions;
+        options?: IotaTransactionBlockResponseOptions;
         /** `WaitForEffectsCert` or `WaitForLocalExecution`, see details in `ExecuteTransactionRequestType`.
          * Defaults to `WaitForLocalExecution` if options.show_effects or options.show_events is true
          */
         requestType?: ExecuteTransactionRequestType;
-    }): Promise<SuiTransactionBlockResponse> {
+    }): Promise<IotaTransactionBlockResponse> {
         const { transactionBlockBytes, signature } = await this.signTransactionBlock({
             transactionBlock: input.transactionBlock,
         });
@@ -147,7 +148,7 @@ export abstract class SignerWithProvider implements Signer {
      * provided, including both the transaction effects and any return values.
      */
     async devInspectTransactionBlock(
-        input: Omit<Parameters<SuiClient['devInspectTransactionBlock']>[0], 'sender'>,
+        input: Omit<Parameters<IotaClient['devInspectTransactionBlock']>[0], 'sender'>,
     ): Promise<DevInspectResults> {
         const address = await this.getAddress();
         return this.client.devInspectTransactionBlock({

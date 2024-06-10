@@ -1,11 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
-import { useSuiClientContext } from '@mysten/dapp-kit';
+import { useIotaClientContext } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 import { Network } from '~/utils/api/DefaultRpcClient';
 
@@ -28,11 +26,8 @@ const networksWithSourceCodeVerification: Network[] = [
 /**
  * Hook that retrieves the source code for verified modules.
  */
-export function useVerifiedSourceCode({
-    packageId,
-    moduleName,
-}: UseVerifiedSourceCodeArgs): ReturnType<typeof useQuery> {
-    const { network } = useSuiClientContext();
+export function useVerifiedSourceCode({ packageId, moduleName }: UseVerifiedSourceCodeArgs): ReturnType<typeof useQuery> {
+    const { network } = useIotaClientContext();
     const isEnabled = useFeatureIsOn('module-source-verification');
 
     return useQuery({

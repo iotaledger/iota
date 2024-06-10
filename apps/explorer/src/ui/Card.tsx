@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Modifications Copyright (c) 2024 IOTA Stiftung
@@ -12,7 +13,7 @@ const cardStyles = cva('overflow-hidden', {
         bg: {
             default: 'bg-gray-40',
             highlight: 'bg-success-light',
-            lightBlue: 'bg-sui/10',
+            lightBlue: 'bg-iota/10',
             white: 'bg-white',
             'white/80': 'bg-white/80',
         },

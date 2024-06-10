@@ -1,19 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { getRefGasPrice } from '@mysten/core';
-import { useSuiClientQuery } from '@mysten/dapp-kit';
-import { Heading, Text } from '@mysten/ui';
+import { getRefGasPrice } from '@iota/core';
+import { useIotaClientQuery } from '@iota/dapp-kit';
+import { Heading, Text } from '@iota/ui';
 import { useMemo } from 'react';
 
 import { Card } from '~/ui/Card';
 import { RingChart, RingChartLegend } from '~/ui/RingChart';
 
 export function ValidatorStatus(): JSX.Element | null {
-    const { data } = useSuiClientQuery('getLatestSuiSystemState');
+    const { data } = useIotaClientQuery('getLatestIotaSystemState');
 
     const nextRefGasPrice = useMemo(
         () => getRefGasPrice(data?.activeValidators),
@@ -74,7 +72,7 @@ export function ValidatorStatus(): JSX.Element | null {
                         {nextRefGasPrice.toString()}
                     </Heading>
                     <Text variant="pBody/medium" color="steel-darker">
-                        MIST
+                        MICROS
                     </Text>
                 </div>
             </div>

@@ -1,13 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ChevronRight12 } from '@mysten/icons';
-import { type SuiEvent } from '@mysten/sui.js/client';
-import { parseStructTag, formatAddress } from '@mysten/sui.js/utils';
-import { Text } from '@mysten/ui';
+import { ChevronRight12 } from '@iota/icons';
+import { type IotaEvent } from '@iota/iota.js/client';
+import { parseStructTag, formatAddress } from '@iota/iota.js/utils';
+import { Text } from '@iota/ui';
 import * as Collapsible from '@radix-ui/react-collapsible';
 import clsx from 'clsx';
 import { useState } from 'react';
@@ -18,7 +16,7 @@ import { DescriptionItem } from '~/ui/DescriptionList';
 import { Divider } from '~/ui/Divider';
 import { ObjectLink } from '~/ui/InternalLink';
 
-function Event({ event, divider }: { event: SuiEvent; divider: boolean }): JSX.Element {
+function Event({ event, divider }: { event: IotaEvent; divider: boolean }): JSX.Element {
     const [open, setOpen] = useState(false);
     const { address, module, name } = parseStructTag(event.type);
     const objectLinkLabel = [formatAddress(address), module, name].join('::');
@@ -75,7 +73,7 @@ function Event({ event, divider }: { event: SuiEvent; divider: boolean }): JSX.E
 }
 
 interface EventsProps {
-    events: SuiEvent[];
+    events: IotaEvent[];
 }
 
 export function Events({ events }: EventsProps) {

@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { CONSTANTS } from "@/constants";
 import { InfiniteScrollArea } from "@/components/InfiniteScrollArea";
-import { useCurrentAccount, useSuiClientInfiniteQuery } from "@mysten/dapp-kit";
+import { useCurrentAccount, useIotaClientInfiniteQuery } from "@iota/dapp-kit";
 import { LockedObject } from "./LockedObject";
 
 /**
@@ -14,7 +15,7 @@ export function OwnedLockedList() {
   const account = useCurrentAccount();
 
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    useSuiClientInfiniteQuery(
+    useIotaClientInfiniteQuery(
       "getOwnedObjects",
       {
         filter: {

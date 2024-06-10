@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFormatCoin } from '@mysten/core';
-import { useSuiClient } from '@mysten/dapp-kit';
-import { TransactionBlock } from '@mysten/sui.js/transactions';
-import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
+import { useFormatCoin } from '@iota/core';
+import { useIotaClient } from '@iota/dapp-kit';
+import { TransactionBlock } from '@iota/iota.js/transactions';
+import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import { useQuery } from '@tanstack/react-query';
 
 export function useTransactionData(sender?: string | null, transaction?: TransactionBlock | null) {
-    const client = useSuiClient();
+    const client = useIotaClient();
     return useQuery({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
         queryKey: ['transaction-data', transaction?.serialize()],
@@ -31,7 +32,7 @@ export function useTransactionGasBudget(
 ) {
     const { data, ...rest } = useTransactionData(sender, transaction);
 
-    const [formattedGas] = useFormatCoin(data?.gasConfig.budget, SUI_TYPE_ARG);
+    const [formattedGas] = useFormatCoin(data?.gasConfig.budget, IOTA_TYPE_ARG);
 
     return {
         data: formattedGas,

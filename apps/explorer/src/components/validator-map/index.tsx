@@ -1,12 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useAppsBackend } from '@mysten/core';
-import { useSuiClientQuery } from '@mysten/dapp-kit';
-import { Heading, Text, Placeholder } from '@mysten/ui';
+import { useAppsBackend } from '@iota/core';
+import { useIotaClientQuery } from '@iota/dapp-kit';
+import { Heading, Text, Placeholder } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import { ParentSize } from '@visx/responsive';
 import { TooltipWithBounds, useTooltip } from '@visx/tooltip';
@@ -47,8 +45,9 @@ interface Props {
 // NOTE: This component is lazy imported, so it needs to be default exported:
 export default function ValidatorMap({ minHeight }: Props): JSX.Element {
     const [network] = useNetwork();
-    const { data: systemState, isError: systemStateError } =
-        useSuiClientQuery('getLatestSuiSystemState');
+    const { data: systemState, isError: systemStateError } = useIotaClientQuery(
+        'getLatestIotaSystemState',
+    );
 
     const { request } = useAppsBackend();
 
@@ -75,7 +74,7 @@ export default function ValidatorMap({ minHeight }: Props): JSX.Element {
         const countryMap: Record<string, number> = {};
         validatorData.forEach((validator) => {
             if (validator) {
-                validatorMap[validator.suiAddress] ??= {
+                validatorMap[validator.iotaAddress] ??= {
                     ...validator,
                 };
 

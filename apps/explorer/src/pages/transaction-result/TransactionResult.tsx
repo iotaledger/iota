@@ -1,10 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type SuiTransactionBlockResponse } from '@mysten/sui.js/client';
+import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
 import { useParams } from 'react-router-dom';
 
 import { TransactionView } from './TransactionView';
@@ -15,7 +13,7 @@ import { PageHeader } from '~/ui/PageHeader';
 import { StatusIcon } from '~/ui/StatusIcon';
 
 interface TransactionResultPageHeaderProps {
-    transaction?: SuiTransactionBlockResponse;
+    transaction?: IotaTransactionBlockResponse;
     error?: string;
     loading?: boolean;
 }

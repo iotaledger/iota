@@ -1,18 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-    type MoveCallSuiTransaction,
-    type SuiArgument,
-    type SuiMovePackage,
-} from '@mysten/sui.js/client';
-import { Text } from '@mysten/ui';
+    type MoveCallIotaTransaction,
+    type IotaArgument,
+    type IotaMovePackage,
+} from '@iota/iota.js/client';
+import { Text } from '@iota/ui';
 import { type ReactNode } from 'react';
 
-import { flattenSuiArguments } from './utils';
+import { flattenIotaArguments } from './utils';
 import { ErrorBoundary } from '~/components/error-boundary/ErrorBoundary';
 import { ObjectLink } from '~/ui/InternalLink';
 
@@ -33,21 +31,19 @@ function TransactionContent({ children }: TransactionContentProps): JSX.Element 
     );
 }
 
-function ArrayArgument({
-    data,
-}: TransactionProps<(SuiArgument | SuiArgument[])[] | undefined>): JSX.Element {
+function ArrayArgument({ data }: TransactionProps<(IotaArgument | IotaArgument[])[] | undefined>): JSX.Element {
     return (
         <TransactionContent>
             {data && (
                 <span className="break-all">
-                    <Text variant="pBody/medium">({flattenSuiArguments(data)})</Text>
+                    <Text variant="pBody/medium">({flattenIotaArguments(data)})</Text>
                 </span>
             )}
         </TransactionContent>
     );
 }
 
-function MoveCall({ data }: TransactionProps<MoveCallSuiTransaction>): JSX.Element {
+function MoveCall({ data }: TransactionProps<MoveCallIotaTransaction>): JSX.Element {
     const {
         module,
         package: movePackage,
@@ -59,11 +55,11 @@ function MoveCall({ data }: TransactionProps<MoveCallSuiTransaction>): JSX.Eleme
     return (
         <TransactionContent>
             <Text variant="pBody/medium">
-                (package: <ObjectLink objectId={movePackage} />, module:{' '}
+                package: <ObjectLink objectId={movePackage} />, module:{' '}
                 <ObjectLink objectId={`${movePackage}?module=${module}`} label={`'${module}'`} />,
                 function: <span className="break-all text-hero-dark">{func}</span>
                 {args && (
-                    <span className="break-all">, arguments: [{flattenSuiArguments(args!)}]</span>
+                    <span className="break-all">, arguments: [{flattenIotaArguments(args!)}]</span>
                 )}
                 {typeArgs && (
                     <span className="break-all">, type_arguments: [{typeArgs.join(', ')}]</span>
@@ -77,12 +73,12 @@ export function Transaction({
     type,
     data,
 }: TransactionProps<
-    (SuiArgument | SuiArgument[])[] | MoveCallSuiTransaction | SuiMovePackage
+    (IotaArgument | IotaArgument[])[] | MoveCallIotaTransaction | IotaMovePackage
 >): JSX.Element {
     if (type === 'MoveCall') {
         return (
             <ErrorBoundary>
-                <MoveCall type={type} data={data as MoveCallSuiTransaction} />
+                <MoveCall type={type} data={data as MoveCallIotaTransaction} />
             </ErrorBoundary>
         );
     }
@@ -91,7 +87,7 @@ export function Transaction({
         <ErrorBoundary>
             <ArrayArgument
                 type={type}
-                data={type !== 'Publish' ? (data as (SuiArgument | SuiArgument[])[]) : undefined}
+                data={type !== 'Publish' ? (data as (IotaArgument | IotaArgument[])[]) : undefined}
             />
         </ErrorBoundary>
     );

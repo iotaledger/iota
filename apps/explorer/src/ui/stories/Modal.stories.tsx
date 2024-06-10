@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { SuiClientProvider } from '@mysten/dapp-kit';
+import { IotaClientProvider } from '@iota/dapp-kit';
 import { type Meta, type StoryObj } from '@storybook/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -40,9 +41,9 @@ export default {
         (Story) => (
             <MemoryRouter>
                 <QueryClientProvider client={new QueryClient()}>
-                    <SuiClientProvider>
+                    <IotaClientProvider>
                         <Story />
-                    </SuiClientProvider>
+                    </IotaClientProvider>
                 </QueryClientProvider>
             </MemoryRouter>
         ),
@@ -60,10 +61,10 @@ export const Image: StoryObj<ObjectModalProps> = {
         return (
             <div>
                 <ObjectModal
-                    title="Sui"
+                    title="Iota"
                     open={open}
                     src="https://images.unsplash.com/photo-1562016600-ece13e8ba570?auto=format&fit=crop&w=738&q=80"
-                    alt="Sui"
+                    alt="Iota"
                     onClose={() => setOpen(false)}
                     subtitle="Still water runs deep."
                 />
@@ -81,11 +82,11 @@ export const Video: StoryObj<ObjectModalProps> = {
         return (
             <div>
                 <ObjectModal
-                    title="Sui"
+                    title="Iota"
                     open={open}
                     src="https://images.unsplash.com/photo-1562016600-ece13e8ba570?auto=format&fit=crop&w=738&q=80"
                     video="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.webm"
-                    alt="Sui"
+                    alt="Iota"
                     onClose={() => setOpen(false)}
                     subtitle="Still water runs deep."
                 />

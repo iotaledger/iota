@@ -1,5 +1,5 @@
 ---
-name: Request a feature for kinesis
+name: Request a feature for IOTA
 about: Request a feature
 ---
 

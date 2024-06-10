@@ -1,7 +1,7 @@
 {
-    "name": "@mysten/zklogin",
+    "name": "@iota/zklogin",
     "version": "0.5.1",
-    "description": "Utilities for interacting with zkLogin in Sui",
+    "description": "Utilities for interacting with zkLogin in Iota",
     "license": "Apache-2.0",
     "author": "Mysten Labs <build@mystenlabs.com>",
     "type": "commonjs",
@@ -34,21 +34,21 @@
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/mystenlabs/sui.git"
+        "url": "git+https://github.com/iotaledger/iota.git"
     },
     "bugs": {
-        "url": "https://github.com/mystenlabs/sui/issues"
+        "url": "https://github.com/iotaledger/iota/issues"
     },
-    "homepage": "https://github.com/mystenlabs/sui#readme",
+    "homepage": "https://github.com/iotaledger/iota#readme",
     "devDependencies": {
-        "@mysten/build-scripts": "workspace:*",
+        "@iota/build-scripts": "workspace:*",
         "@types/node": "^20.4.2",
         "typescript": "^5.3.3",
         "vitest": "^0.33.0"
     },
     "dependencies": {
-        "@mysten/bcs": "workspace:*",
-        "@mysten/sui.js": "workspace:*",
+        "@iota/bcs": "workspace:*",
+        "@iota/iota.js": "workspace:*",
         "@noble/hashes": "^1.3.1",
         "jose": "^5.2.3",
         "poseidon-lite": "^0.2.0"

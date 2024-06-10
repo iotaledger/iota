@@ -103,7 +103,7 @@ td.objectid {
 }
 
 .objecttypelink {
-    @apply text-sui-dark no-underline;
+    @apply text-iota-dark no-underline;
 }
 
 /* Clickable Header CSS */

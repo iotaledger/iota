@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { ImageIcon, type ImageIconProps } from '../ImageIcon';
@@ -20,8 +21,8 @@ export const extraLargeImage: StoryObj<ImageIconProps> = {
 export const largeIconNoImage: StoryObj<ImageIconProps> = {
     args: {
         src: null,
-        fallback: 'Sui',
-        label: 'Sui',
+        fallback: 'Iota',
+        label: 'Iota',
         size: 'lg',
     },
 };
@@ -29,8 +30,8 @@ export const largeIconNoImage: StoryObj<ImageIconProps> = {
 export const smallIconImage: StoryObj<ImageIconProps> = {
     args: {
         src: 'https://ipfs.io/ipfs/QmZPWWy5Si54R3d26toaqRiqvCH7HkGdXkxwUgCm2oKKM2?filename=img-sq-01.png',
-        label: 'Sui',
+        label: 'Iota',
         size: 'sm',
-        fallback: 'Sui',
+        fallback: 'Iota',
     },
 };

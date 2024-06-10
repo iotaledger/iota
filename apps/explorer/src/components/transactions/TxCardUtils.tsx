@@ -1,14 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { getTotalGasUsed } from '@mysten/core';
-import { X12, Dot12 } from '@mysten/icons';
-import { type SuiClient, type SuiTransactionBlockResponse } from '@mysten/sui.js/client';
+import { getTotalGasUsed } from '@iota/core';
+import { X12, Dot12 } from '@iota/icons';
+import { type IotaClient, type IotaTransactionBlockResponse } from '@iota/iota.js/client';
 
-import { SuiAmount } from '../Table/SuiAmount';
+import { IotaAmount } from '../Table/IotaAmount';
 import { TxTimeType } from '../tx-time/TxTimeType';
 import { HighlightedTableCol } from '~/components/Table/HighlightedTableCol';
 import { AddressLink, TransactionLink } from '~/ui/InternalLink';
@@ -29,7 +27,7 @@ interface TableColumn {
 
 // Generate table data from the transaction data
 
-export function genTableDataFromTxData(results: SuiTransactionBlockResponse[]): {
+export function genTableDataFromTxData(results: IotaTransactionBlockResponse[]): {
     data: TransactionData[];
     columns: TableColumn[];
 } {
@@ -67,7 +65,7 @@ export function genTableDataFromTxData(results: SuiTransactionBlockResponse[]): 
                     </div>
                 ),
                 gas: (
-                    <SuiAmount
+                    <IotaAmount
                         amount={transaction.effects ? getTotalGasUsed(transaction.effects) : 0}
                     />
                 ),
@@ -106,9 +104,9 @@ export function genTableDataFromTxData(results: SuiTransactionBlockResponse[]): 
 const dedupe = (arr: string[]) => Array.from(new Set(arr));
 
 export function getDataOnTxDigests(
-    client: SuiClient,
+    client: IotaClient,
     transactions: string[],
-): Promise<SuiTransactionBlockResponse[]> {
+): Promise<IotaTransactionBlockResponse[]> {
     return client
         .multiGetTransactionBlocks({
             digests: dedupe(transactions),

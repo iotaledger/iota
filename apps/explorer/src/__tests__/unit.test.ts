@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { timeAgo } from '@mysten/core';
+import { timeAgo } from '@iota/core';
 import { describe, it, expect } from 'vitest';
 
 const timeNow = 1735693990000;

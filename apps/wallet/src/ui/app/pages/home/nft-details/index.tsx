@@ -1,6 +1,4 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
@@ -19,8 +17,8 @@ import { useExplorerLink } from '_src/ui/app/hooks/useExplorerLink';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import PageTitle from '_src/ui/app/shared/PageTitle';
 import { Text } from '_src/ui/app/shared/text';
-import { ArrowRight16, ArrowUpRight12 } from '@mysten/icons';
-import { formatAddress } from '@mysten/sui.js/utils';
+import { ArrowRight16, ArrowUpRight12 } from '@iota/icons';
+import { formatAddress } from '@iota/iota.js/utils';
 import cl from 'clsx';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -123,13 +121,13 @@ function NFTDetailsPage() {
                                                 label="Owner"
                                                 value={
                                                     <Link
-                                                        color="suiDark"
+                                                        color="iotaDark"
                                                         weight="medium"
                                                         size="body"
                                                         mono
                                                         href={ownerExplorerLink}
                                                         text={formatAddress(ownerAddress)}
-                                                        title="View on Sui Explorer"
+                                                        title="View on Iota Explorer"
                                                     />
                                                 }
                                             />
@@ -139,13 +137,13 @@ function NFTDetailsPage() {
                                             value={
                                                 nftId ? (
                                                     <Link
-                                                        color="suiDark"
+                                                        color="iotaDark"
                                                         weight="medium"
                                                         size="body"
                                                         mono
                                                         href={objectExplorerLink || ''}
                                                         text={formatAddress(nftId)}
-                                                        title="View on Sui Explorer"
+                                                        title="View on Iota Explorer"
                                                     />
                                                 ) : null
                                             }

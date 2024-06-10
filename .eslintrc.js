@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module.exports = {
@@ -24,16 +25,24 @@ module.exports = {
     },
     root: true,
     ignorePatterns: [
-        'node_modules',
-        'build',
-        'dist',
         'coverage',
         'apps/icons/src',
         'next-env.d.ts',
         'doc/book',
         'external-crates',
         'storybook-static',
-        '.next',
+        '**/*.config.js',
+        '**/preprocess.mjs',
+        '**/storybook-static',
+        '**/node_modules',
+        'sdk/build-scripts/src/build-package.ts',
+        'sdk/build-scripts/src/build-dapp-kit.ts',
+        'sdk/create-dapp/bin/index.js',
+        '**/build',
+        '**/dist/',
+        '**/.next/',
+        '**/.swc/',
+        '**/out/'
     ],
     rules: {
         'no-case-declarations': 'off',
@@ -60,8 +69,13 @@ module.exports = {
             2,
             'line',
             [
-                { pattern: ' Copyright \\(c\\) (2024 IOTA Stiftung|Mysten Labs, Inc.)' },
-                ' SPDX-License-Identifier: Apache-2.0',
+                {
+                    pattern: ' Copyright \\(c\\) (2024 IOTA Stiftung|Mysten Labs, Inc.)?',
+                },
+                {
+                    pattern:
+                        ' ((SPDX-License-Identifier: Apache-2.0)|(Modifications Copyright \\(c\\) 2024 IOTA Stiftung))',
+                },
             ],
         ],
         '@typescript-eslint/no-unused-vars': [

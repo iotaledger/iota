@@ -1,11 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCopyToClipboard } from '@mysten/core';
-import { Check12, CheckStroke16, CheckStroke24, Copy12, Copy16, Copy24 } from '@mysten/icons';
+import { useCopyToClipboard } from '@iota/core';
+import { Check12, CheckStroke16, CheckStroke24, Copy12, Copy16, Copy24 } from '@iota/icons';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';

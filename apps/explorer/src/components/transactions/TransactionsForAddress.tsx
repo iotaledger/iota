@@ -1,12 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSuiClient } from '@mysten/dapp-kit';
-import { type SuiTransactionBlockResponse } from '@mysten/sui.js/client';
-import { LoadingIndicator, Text } from '@mysten/ui';
+import { useIotaClient } from '@iota/dapp-kit';
+import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
+import { LoadingIndicator, Text } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 
 import { genTableDataFromTxData } from './TxCardUtils';
@@ -19,7 +17,7 @@ interface Props {
 }
 
 interface TransactionsForAddressTable {
-    data: SuiTransactionBlockResponse[];
+    data: IotaTransactionBlockResponse[];
     isPending: boolean;
     isError: boolean;
     address: string;
@@ -30,7 +28,12 @@ export function TransactionsForAddressTable({
     isPending,
     isError,
     address,
-}: TransactionsForAddressTable): JSX.Element {
+}: {
+    data: IotaTransactionBlockResponse[];
+    isPending: boolean;
+    isError: boolean;
+    address: string;
+}): JSX.Element {
     if (isPending) {
         return (
             <div>
@@ -64,7 +67,7 @@ export function TransactionsForAddressTable({
 }
 
 export function TransactionsForAddress({ address, type }: Props): JSX.Element {
-    const client = useSuiClient();
+    const client = useIotaClient();
 
     const { data, isPending, isError } = useQuery({
         queryKey: ['transactions-for-address', address, type],
@@ -89,7 +92,7 @@ export function TransactionsForAddress({ address, type }: Props): JSX.Element {
             );
 
             const inserted = new Map();
-            const uniqueList: SuiTransactionBlockResponse[] = [];
+            const uniqueList: IotaTransactionBlockResponse[] = [];
 
             [...results[0].data, ...results[1].data]
                 .sort((a, b) => Number(b.timestampMs ?? 0) - Number(a.timestampMs ?? 0))

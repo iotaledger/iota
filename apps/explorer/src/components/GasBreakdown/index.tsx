@@ -1,6 +1,4 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
@@ -8,10 +6,10 @@ import {
     CoinFormat,
     type TransactionSummary,
     useFormatCoin,
-    useResolveSuiNSName,
-} from '@mysten/core';
-import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
-import { Heading, Text } from '@mysten/ui';
+    useResolveIotaNSName,
+} from '@iota/core';
+import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { Heading, Text } from '@iota/ui';
 
 import { CopyToClipboard } from '~/ui/CopyToClipboard';
 import { DescriptionItem } from '~/ui/DescriptionList';
@@ -25,7 +23,7 @@ interface GasProps {
 }
 
 function GasAmount({ amount }: GasProps): JSX.Element | null {
-    const [formattedAmount, symbol] = useFormatCoin(amount, SUI_TYPE_ARG, CoinFormat.FULL);
+    const [formattedAmount, symbol] = useFormatCoin(amount, IOTA_TYPE_ARG, CoinFormat.FULL);
 
     if (!amount) {
         return null;
@@ -44,14 +42,14 @@ function GasAmount({ amount }: GasProps): JSX.Element | null {
 
             <div className="flex flex-wrap items-center text-body font-medium text-steel">
                 ({BigInt(amount)?.toLocaleString()}
-                <div className="ml-0.5 text-subtitleSmall font-medium text-steel">MIST</div>)
+                <div className="ml-0.5 text-subtitleSmall font-medium text-steel">MICROS</div>)
             </div>
         </div>
     );
 }
 
 function TotalGasAmount({ amount }: GasProps): JSX.Element | null {
-    const [formattedAmount, symbol] = useFormatCoin(amount, SUI_TYPE_ARG, CoinFormat.FULL);
+    const [formattedAmount, symbol] = useFormatCoin(amount, IOTA_TYPE_ARG, CoinFormat.FULL);
 
     if (!amount) {
         return null;
@@ -73,7 +71,7 @@ function TotalGasAmount({ amount }: GasProps): JSX.Element | null {
                     {BigInt(amount)?.toLocaleString()}
                 </Heading>
                 <Text variant="body/medium" color="steel">
-                    MIST
+                    MICROS
                 </Text>
             </div>
         </div>
@@ -99,7 +97,7 @@ interface GasBreakdownProps {
 
 export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null {
     const gasData = summary?.gas;
-    const { data: suinsDomainName } = useResolveSuiNSName(gasData?.owner);
+    const { data: iotansDomainName } = useResolveIotaNSName(gasData?.owner);
 
     if (!gasData) {
         return null;
@@ -127,11 +125,11 @@ export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null
         >
             <CollapsibleSection>
                 {isSponsored && owner && (
-                    <div className="mb-4 flex items-center gap-2 rounded-xl bg-sui/10 px-3 py-2">
+                    <div className="mb-4 flex items-center gap-2 rounded-xl bg-iota/10 px-3 py-2">
                         <Text variant="pBody/medium" color="steel-darker">
                             Paid by
                         </Text>
-                        <AddressLink label={suinsDomainName || undefined} address={owner} />
+                        <AddressLink label={iotansDomainName || undefined} address={owner} />
                     </div>
                 )}
 

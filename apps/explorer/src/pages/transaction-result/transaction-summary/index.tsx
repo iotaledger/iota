@@ -1,11 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useTransactionSummary } from '@mysten/core';
-import { type SuiTransactionBlockResponse } from '@mysten/sui.js/client';
+import { useTransactionSummary } from '@iota/core';
+import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
 
 import { BalanceChanges } from './BalanceChanges';
 import { ObjectChanges } from './ObjectChanges';
@@ -13,7 +11,7 @@ import { UpgradedSystemPackages } from './UpgradedSystemPackages';
 import { useRecognizedPackages } from '~/hooks/useRecognizedPackages';
 
 interface TransactionSummaryProps {
-    transaction: SuiTransactionBlockResponse;
+    transaction: IotaTransactionBlockResponse;
 }
 
 export function TransactionSummary({ transaction }: TransactionSummaryProps): JSX.Element {

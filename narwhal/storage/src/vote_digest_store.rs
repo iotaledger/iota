@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use config::AuthorityIdentifier;
+use iota_macros::fail_point;
 use store::{
     reopen,
     rocks::{open_cf, DBMap, MetricConf, ReadWriteOptions},
     Map, TypedStoreError,
 };
-use sui_macros::fail_point;
 use types::{Vote, VoteAPI, VoteInfo};
 
 use crate::NodeStorage;

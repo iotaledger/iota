@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { execSync } from 'child_process';
@@ -178,7 +179,7 @@ async function buildImportDirectories({ exports, sideEffects }: PackageJSON) {
 
         await fs.writeFile(
             path.join(exportDir, 'package.json'),
-            `${JSON.stringify(pkg, null, '\t')}\n`,
+            `${JSON.stringify(pkg, null, 4)}\n`,
         );
     }
 
@@ -217,7 +218,7 @@ async function addPackageFiles(paths: string[]) {
 
     await fs.writeFile(
         path.join(process.cwd(), 'package.json'),
-        `${JSON.stringify(json, null, '\t')}\n`,
+        `${JSON.stringify(json, null, 4)}\n`,
     );
 }
 

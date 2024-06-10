@@ -5,11 +5,11 @@
 
 import { HARDCODED_NON_VISUAL_ASSETS } from '@/lib/mocks';
 import React from 'react';
-import { SuiObjectData } from '@mysten/sui.js/client';
+import { IotaObjectData } from '@iota/iota.js/client';
 import { AssetCard, VirtualList } from '@/components/index';
 
 function EverythingElsePage(): JSX.Element {
-    const virtualItem = (asset: SuiObjectData): JSX.Element => (
+    const virtualItem = (asset: IotaObjectData): JSX.Element => (
         <AssetCard key={asset.objectId} asset={asset} />
     );
 

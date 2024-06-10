@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 mod errors;
 mod state;
@@ -11,13 +12,13 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use config::{AuthorityIdentifier, Committee, WorkerCache};
 pub use errors::{SubscriberError, SubscriberResult};
+use iota_protocol_config::ProtocolConfig;
 use mockall::automock;
 use mysten_metrics::metered_channel;
 use network::client::NetworkClient;
 use prometheus::Registry;
 pub use state::ExecutionIndices;
 use storage::{CertificateStore, ConsensusStore};
-use sui_protocol_config::ProtocolConfig;
 use tokio::task::JoinHandle;
 use tracing::info;
 use types::{CertificateDigest, CommittedSubDag, ConditionalBroadcastReceiver, ConsensusOutput};
