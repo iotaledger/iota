@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 'use client';
 
-import { AmountBox, Box, List, Popup, StakeDetailsPopup } from '@/components/index';
+import { AmountBox, Box, List, NewStakePopup, StakeDetailsPopup, Button } from '@/components';
 import { usePopups } from '@/hooks';
 
 function StakingDashboardPage(): JSX.Element {
-    const { openPopup } = usePopups();
+    const { openPopup, closePopup } = usePopups();
 
     const HARCODED_STAKE_DATA = {
         title: 'Your Stake',
@@ -25,22 +25,32 @@ function StakingDashboardPage(): JSX.Element {
 
     // Use `Stake` when https://github.com/iotaledger/iota/pull/459 gets merged
     // @ts-expect-error TODO improve typing here
-    const handleOpenPopup = (stake) => {
+    const viewStakeDetails = (stake) => {
         openPopup(<StakeDetailsPopup stake={stake} />);
     };
 
+    const addNewStake = () => {
+        openPopup(<NewStakePopup onClose={closePopup} />);
+    };
+
     return (
-        <div className="flex items-center justify-center gap-4 pt-12">
-            <AmountBox title={HARCODED_STAKE_DATA.title} amount={HARCODED_STAKE_DATA.value} />
-            <AmountBox title={HARCODED_REWARDS_DATA.title} amount={HARCODED_REWARDS_DATA.value} />
-            <Box title={HARCODED_STAKING_LIST_TITLE}>
-                <List
-                    data={HARCODED_STAKING_LIST}
-                    onItemClick={handleOpenPopup}
-                    actionText="View Details"
+        <div className="flex flex-col items-center justify-center gap-4 pt-12">
+            <Button onClick={addNewStake}>New Stake</Button>
+            <div className="flex items-center justify-center gap-4">
+                {' '}
+                <AmountBox title={HARCODED_STAKE_DATA.title} amount={HARCODED_STAKE_DATA.value} />
+                <AmountBox
+                    title={HARCODED_REWARDS_DATA.title}
+                    amount={HARCODED_REWARDS_DATA.value}
                 />
-            </Box>
-            <Popup />
+                <Box title={HARCODED_STAKING_LIST_TITLE}>
+                    <List
+                        data={HARCODED_STAKING_LIST}
+                        onItemClick={viewStakeDetails}
+                        actionText="View Details"
+                    />
+                </Box>
+            </div>
         </div>
     );
 }
