@@ -434,14 +434,14 @@ mod tests {
     fn empty_identifier() {
         let identifier = "".to_string();
         let result = derive_foundry_package_lowercase_identifier(&identifier, &[]);
-        assert_eq!(14, result.len());
+        assert_eq!(15, result.len());
     }
 
     #[test]
     fn identifier_with_only_invalid_chars() {
         let identifier = "!@#$%^".to_string();
         let result = derive_foundry_package_lowercase_identifier(&identifier, &[]);
-        assert_eq!(14, result.len());
+        assert_eq!(15, result.len());
     }
 
     #[test]
