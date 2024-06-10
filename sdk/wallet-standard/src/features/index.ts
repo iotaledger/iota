@@ -23,7 +23,8 @@ export type IotaFeatures = IotaSignTransactionBlockFeature &
     IotaSignAndExecuteTransactionBlockFeature &
     IotaSignPersonalMessageFeature &
     // This deprecated feature should be removed once wallets update to the new method:
-    Partial<IotaSignMessageFeature>;
+    Partial<IotaSignMessageFeature> &
+    IotaReconnectForceFeature;
 
 export type WalletWithIotaFeatures = WalletWithFeatures<
     StandardConnectFeature &
@@ -40,8 +41,7 @@ export type WalletWithRequiredFeatures = WalletWithFeatures<
     MinimallyRequiredFeatures &
         Partial<IotaFeatures> &
         Partial<StandardDisconnectFeature> &
-        IdentifierRecord<unknown> &
-        Partial<IotaReconnectForceFeature>
+        IdentifierRecord<unknown>
 >;
 
 export type MinimallyRequiredFeatures = StandardConnectFeature & StandardEventsFeature;

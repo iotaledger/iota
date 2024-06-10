@@ -14,6 +14,7 @@ import type {
     IotaSignPersonalMessageMethod,
     IotaSignTransactionBlockMethod,
     Wallet,
+    IotaReconnectForceOutput,
 } from '@iota/wallet-standard';
 import { getWallets, ReadonlyWalletAccount, SUPPORTED_CHAINS } from '@iota/wallet-standard';
 import { useEffect } from 'react';
@@ -89,6 +90,10 @@ function registerUnsafeBurnerWallet(iotaClient: IotaClient) {
                     version: '1.0.0',
                     on: this.#on,
                 },
+                'iota:reconnectForce': {
+                    version: '1.0.0',
+                    reconnect: this.#reconnectForce,
+                },
                 'iota:signPersonalMessage': {
                     version: '1.0.0',
                     signPersonalMessage: this.#signPersonalMessage,
@@ -111,6 +116,11 @@ function registerUnsafeBurnerWallet(iotaClient: IotaClient) {
         #connect: StandardConnectMethod = async () => {
             return { accounts: this.accounts };
         };
+
+        #reconnectForce: (input: { origin: string }) => Promise<IotaReconnectForceOutput> =
+            async () => {
+                return { accounts: this.accounts };
+            };
 
         #signPersonalMessage: IotaSignPersonalMessageMethod = async (messageInput) => {
             const { bytes, signature } = await keypair.signPersonalMessage(messageInput.message);

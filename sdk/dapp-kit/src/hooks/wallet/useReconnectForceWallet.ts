@@ -6,28 +6,28 @@ import type { UseMutationOptions, UseMutationResult } from '@tanstack/react-quer
 import { useMutation } from '@tanstack/react-query';
 
 import { walletMutationKeys } from '../../constants/walletMutationKeys.js';
-import { WalletNotConnectedError } from '../../errors/walletErrors.js';
+import {
+    WalletFeatureNotSupportedError,
+    WalletNotConnectedError,
+} from '../../errors/walletErrors.js';
 import { useCurrentWallet } from './useCurrentWallet.js';
 import { useWalletStore } from './useWalletStore.js';
-import type { StandardConnectInput, StandardConnectOutput } from '@iota/wallet-standard';
+import type { IotaReconnectForceOutput } from '@iota/wallet-standard';
 import { isSupportedChain } from '@iota/wallet-standard';
 import { getSelectedAccount } from '../../utils/getSelectedAccount.js';
 
 type UseReconnectForceError = WalletNotConnectedError | Error;
 
-type ReconnectForceWalletArgs = {
-    /** An optional account address to connect to. Defaults to the first authorized account. */
-    accountAddress?: string;
-} & StandardConnectInput;
+type ReconnectForceWalletArgs = void;
 
-type ReconnectForceWalletResult = StandardConnectOutput;
+type ReconnectForceWalletResult = IotaReconnectForceOutput;
 
 type UseReconnectForceWalletMutationOptions = Omit<
     UseMutationOptions<
         ReconnectForceWalletResult,
         UseReconnectForceError,
         ReconnectForceWalletArgs,
-        unknown
+        undefined
     >,
     'mutationFn'
 >;
@@ -39,10 +39,10 @@ export function useReconnectForceWallet({
     mutationKey,
     ...mutationOptions
 }: UseReconnectForceWalletMutationOptions = {}): UseMutationResult<
-    StandardConnectOutput,
-    WalletNotConnectedError | Error,
+    ReconnectForceWalletResult,
+    UseReconnectForceError,
     ReconnectForceWalletArgs,
-    unknown
+    undefined
 > {
     const { currentWallet } = useCurrentWallet();
     const setWalletConnected = useWalletStore((state) => state.setWalletConnected);
@@ -58,14 +58,20 @@ export function useReconnectForceWallet({
             try {
                 setConnectionStatus('connecting');
 
-                const connectResult = await currentWallet.features[
-                    'iota:reconnectForce'
-                ]?.reconnect({
+                const walletFeature = currentWallet.features['iota:reconnectForce'];
+
+                if (!walletFeature) {
+                    throw new WalletFeatureNotSupportedError(
+                        "This wallet doesn't support the `reconnectForce` feature.",
+                    );
+                }
+
+                const connectResult = await walletFeature.reconnect({
                     origin: window.location.origin,
                 });
 
                 if (!connectResult) {
-                    throw new Error('Connect result is undefined.');
+                    throw new Error('Connect result is undefined');
                 }
 
                 const connectedSuiAccounts = connectResult.accounts.filter((account) =>
