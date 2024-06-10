@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { CoinStruct } from '@iota/iota.js/client';
-import { FormDataValues } from './SendCoinPopup';
-import Button from '@/components/Button';
+import { FormDataValues } from '../SendCoinPopup';
+import { Button } from '@/components';
 
-interface EnterValuesProps {
+interface EnterValuesFormProps {
     coin: CoinStruct;
     formData: FormDataValues;
     gasBudget: string;
@@ -14,14 +14,14 @@ interface EnterValuesProps {
     handleNext: () => void;
 }
 
-function EnterValuesForm({
+function EnterValuesFormView({
     coin,
     formData: { amount, recipientAddress },
     gasBudget,
     setFormData,
     onClose,
     handleNext,
-}: EnterValuesProps): JSX.Element {
+}: EnterValuesFormProps): JSX.Element {
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setFormData((prevFormData) => ({
@@ -67,4 +67,4 @@ function EnterValuesForm({
     );
 }
 
-export default EnterValuesForm;
+export default EnterValuesFormView;

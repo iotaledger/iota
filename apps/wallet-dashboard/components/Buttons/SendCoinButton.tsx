@@ -5,14 +5,14 @@ import React from 'react';
 import Button from './Button';
 import { usePopups } from '@/hooks';
 import type { CoinStruct } from '@iota/iota.js/client';
-import { SendCoinPopup } from './Popup';
+import { SendCoinPopup } from '../Popup';
 
-interface SendButtonProps {
+interface SendCoinButtonProps {
     address: string;
     coin: CoinStruct;
 }
 
-function SendButton({ address, coin }: SendButtonProps): JSX.Element {
+function SendCoinButton({ address, coin }: SendCoinButtonProps): JSX.Element {
     const { openPopup, closePopup } = usePopups();
 
     const openSendTokenPopup = () => {
@@ -22,4 +22,4 @@ function SendButton({ address, coin }: SendButtonProps): JSX.Element {
     return <Button onClick={openSendTokenPopup}>Send</Button>;
 }
 
-export default SendButton;
+export default SendCoinButton;

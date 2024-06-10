@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React, { useState } from 'react';
-import { EnterValuesForm, ReviewValuesForm } from './';
-import { CoinStruct } from '@iota/iota.js/client';
 import { useSignAndExecuteTransactionBlock, useIotaClient } from '@iota/dapp-kit';
 import { useCoinMetadata } from '@iota/core';
 import { useQuery } from '@tanstack/react-query';
 import { createTokenTransferTransaction } from '@/lib/utils';
 import { COIN_DECIMALS } from '@/lib/constants';
+import { EnterValuesFormView, ReviewValuesFormView } from './views';
+import { CoinStruct } from '@iota/iota.js/client';
 
 export interface FormDataValues {
     amount: string;
@@ -21,21 +21,24 @@ interface SendCoinPopupProps {
     onClose: () => void;
 }
 
-enum Steps {
+enum FormSteps {
     EnterValues,
     ReviewValues,
 }
 
 function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JSX.Element {
     const client = useIotaClient();
-    const [step, setStep] = useState<Steps>(Steps.EnterValues);
+    const [step, setStep] = useState<FormSteps>(FormSteps.EnterValues);
     const [formData, setFormData] = useState<FormDataValues>({
         amount: '',
         recipientAddress: '',
     });
     const { data: coinMetadata } = useCoinMetadata();
-    const { mutateAsync: signAndExecuteTransactionBlock, error, isPending } =
-        useSignAndExecuteTransactionBlock();
+    const {
+        mutateAsync: signAndExecuteTransactionBlock,
+        error,
+        isPending,
+    } = useSignAndExecuteTransactionBlock();
     const { data: transaction } = useQuery({
         queryKey: [
             'token-transfer-transaction',
@@ -78,17 +81,17 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
     }
 
     const handleNext = () => {
-        setStep(Steps.ReviewValues);
+        setStep(FormSteps.ReviewValues);
     };
 
     const handleBack = () => {
-        setStep(Steps.EnterValues);
+        setStep(FormSteps.EnterValues);
     };
 
     return (
         <>
-            {step === Steps.EnterValues && (
-                <EnterValuesForm
+            {step === FormSteps.EnterValues && (
+                <EnterValuesFormView
                     coin={coin}
                     onClose={onClose}
                     handleNext={handleNext}
@@ -97,8 +100,8 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
                     setFormData={setFormData}
                 />
             )}
-            {step === Steps.ReviewValues && (
-                <ReviewValuesForm
+            {step === FormSteps.ReviewValues && (
+                <ReviewValuesFormView
                     formData={formData}
                     handleBack={handleBack}
                     executeTransfer={executeTransfer}

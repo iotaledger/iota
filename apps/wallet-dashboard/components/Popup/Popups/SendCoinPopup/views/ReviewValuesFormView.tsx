@@ -1,10 +1,10 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { FormDataValues } from './SendCoinPopup';
-import Button from '@/components/Button';
+import { FormDataValues } from '../SendCoinPopup';
+import { Button } from '@/components';
 
-interface ReviewValuesProps {
+interface ReviewValuesFormProps {
     formData: FormDataValues;
     senderAddress: string;
     gasBudget: string;
@@ -14,7 +14,7 @@ interface ReviewValuesProps {
     handleBack: () => void;
 }
 
-function ReviewValuesForm({
+function ReviewValuesFormView({
     formData: { amount, recipientAddress },
     senderAddress,
     gasBudget,
@@ -22,7 +22,7 @@ function ReviewValuesForm({
     isPending,
     executeTransfer,
     handleBack,
-}: ReviewValuesProps): JSX.Element {
+}: ReviewValuesFormProps): JSX.Element {
     return (
         <div className="flex flex-col gap-4">
             <h1 className="mb-4 text-center text-xl">Review & Send</h1>
@@ -44,4 +44,4 @@ function ReviewValuesForm({
         </div>
     );
 }
-export default ReviewValuesForm;
+export default ReviewValuesFormView;
