@@ -139,9 +139,9 @@ module bridge::committee {
             &committee,
             msg,
             vector[hex::decode(
-                b"8ba030a450cb1e36f61e572645fc9da1dea5f79b6db663a21ab63286d7fc29af447433abdd0c0b35ab751154ac5b612ae64d3be810f0d9e10ff68e764514ced300"
+                b"1b32b99de249d2f0075246b72c9a7fb9359cc20f79c7d3568221dff401f4427b1fa4b8317adae7232542707c9de6d9f007bf8be58f5f49397d3c7ad5be387b1a01"
             ), hex::decode(
-                b"439379cc7b3ee3ebe1ff59d011dafc1caac47da6919b089c90f6a24e8c284b963b20f1f5421385456e57ac6b69c4b5f0d345aa09b8bc96d88d87051c7349e83801"
+                b"9925c68918d4a29670b77470fe43b3f3da1b4aff83d55676a4b75e6b0f2477fc4e2173ac8bfdb1e3cd0951b3738729136f7703b5b4bda86fd91c5c89be1f816901"
             )],
         );
 
@@ -162,9 +162,9 @@ module bridge::committee {
             &committee,
             msg,
             vector[hex::decode(
-                b"439379cc7b3ee3ebe1ff59d011dafc1caac47da6919b089c90f6a24e8c284b963b20f1f5421385456e57ac6b69c4b5f0d345aa09b8bc96d88d87051c7349e83801"
+                b"9925c68918d4a29670b77470fe43b3f3da1b4aff83d55676a4b75e6b0f2477fc4e2173ac8bfdb1e3cd0951b3738729136f7703b5b4bda86fd91c5c89be1f816901"
             ), hex::decode(
-                b"439379cc7b3ee3ebe1ff59d011dafc1caac47da6919b089c90f6a24e8c284b963b20f1f5421385456e57ac6b69c4b5f0d345aa09b8bc96d88d87051c7349e83801"
+                b"9925c68918d4a29670b77470fe43b3f3da1b4aff83d55676a4b75e6b0f2477fc4e2173ac8bfdb1e3cd0951b3738729136f7703b5b4bda86fd91c5c89be1f816901"
             )],
         );
         abort 0
@@ -196,7 +196,7 @@ module bridge::committee {
             &committee,
             msg,
             vector[hex::decode(
-                b"439379cc7b3ee3ebe1ff59d011dafc1caac47da6919b089c90f6a24e8c284b963b20f1f5421385456e57ac6b69c4b5f0d345aa09b8bc96d88d87051c7349e83801"
+                b"9925c68918d4a29670b77470fe43b3f3da1b4aff83d55676a4b75e6b0f2477fc4e2173ac8bfdb1e3cd0951b3738729136f7703b5b4bda86fd91c5c89be1f816901"
             )],
         );
         abort 0
@@ -206,7 +206,7 @@ module bridge::committee {
     fun setup_test(): BridgeCommittee {
         let members = vec_map::empty<vector<u8>, CommitteeMember>();
 
-        let bridge_pubkey_bytes = hex::decode(b"029bef8d556d80e43ae7e0becb3a7e6838b95defe45896ed6075bb9035d06c9964");
+        let bridge_pubkey_bytes = hex::decode(b"02337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c");
         vec_map::insert(&mut members, bridge_pubkey_bytes, CommitteeMember {
             iota_address: address::from_u256(1),
             bridge_pubkey_bytes,
@@ -215,7 +215,7 @@ module bridge::committee {
             blocklisted: false
         });
 
-        let bridge_pubkey_bytes = hex::decode(b"033e99a541db69bd32040dfe5037fbf5210dafa8151a71e21c5204b05d95ce0a62");
+        let bridge_pubkey_bytes = hex::decode(b"02708023b69a1c3a460c4c16ba36976fde0333c81eec253db9ae825782210f0d66");
         vec_map::insert(&mut members, bridge_pubkey_bytes, CommitteeMember {
             iota_address: address::from_u256(2),
             bridge_pubkey_bytes,
