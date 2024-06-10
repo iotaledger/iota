@@ -44,7 +44,6 @@ import {
     type IotaSignTransactionBlockMethod,
     type Wallet,
     type IotaReconnectForceOutput,
-    type IotaReconnectForceFeature,
 } from '@iota/wallet-standard';
 import mitt, { type Emitter } from 'mitt';
 import { filter, map, type Observable } from 'rxjs';
@@ -83,10 +82,7 @@ export class IotaWallet implements Wallet {
         return SUPPORTED_CHAINS;
     }
 
-    get features(): StandardConnectFeature &
-        StandardEventsFeature &
-        IotaFeatures &
-        IotaReconnectForceFeature {
+    get features(): StandardConnectFeature & StandardEventsFeature & IotaFeatures {
         return {
             'standard:connect': {
                 version: '1.0.0',
