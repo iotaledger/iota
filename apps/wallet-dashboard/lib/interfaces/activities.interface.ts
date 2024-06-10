@@ -9,7 +9,6 @@ export interface Activity {
         | 'Staked'
         | 'Unstaked'
         | 'Rewards'
-        | 'Swapped'
         | 'PersonalMessage';
     timestamp: number;
     state: ActivityState;
