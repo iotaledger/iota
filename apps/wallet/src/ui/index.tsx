@@ -13,7 +13,7 @@ import { setAttributes } from '_src/shared/experimentation/features';
 // import initSentry from '_src/ui/app/helpers/sentry';
 import store from '_store';
 import { thunkExtras } from '_store/thunk-extras';
-import { KioskClientProvider } from '@iota/core/src/components/KioskClientProvider';
+import { KioskClientProvider } from '@iota/core';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
 import { IotaClientProvider } from '@iota/dapp-kit';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';

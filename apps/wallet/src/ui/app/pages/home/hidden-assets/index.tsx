@@ -10,8 +10,12 @@ import { NFTDisplayCard } from '_components/nft-display';
 import { ampli } from '_src/shared/analytics/ampli';
 import { Button } from '_src/ui/app/shared/ButtonUI';
 import PageTitle from '_src/ui/app/shared/PageTitle';
-import { getKioskIdFromOwnerCap, isKioskOwnerToken, useMultiGetObjects } from '@iota/core';
-import { useKioskClient } from '@iota/core/src/hooks/useKioskClient';
+import {
+    useKioskClient,
+    getKioskIdFromOwnerCap,
+    isKioskOwnerToken,
+    useMultiGetObjects,
+} from '@iota/core';
 import { EyeClose16 } from '@iota/icons';
 import { keepPreviousData } from '@tanstack/react-query';
 import { useMemo } from 'react';

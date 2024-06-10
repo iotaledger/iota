@@ -1,17 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 import { useSigner } from '_src/ui/app/hooks/useSigner';
 import { useFeatureValue } from '@growthbook/growthbook-react';
 import {
+    useKioskClient,
     getKioskIdFromOwnerCap,
     KioskTypes,
     ORIGINBYTE_KIOSK_OWNER_TOKEN,
     useGetKioskContents,
     useGetObject,
 } from '@iota/core';
-import { useKioskClient } from '@iota/core/src/hooks/useKioskClient';
 import { useIotaClient } from '@iota/dapp-kit';
 import { KioskTransaction } from '@iota/kiosk';
 import { TransactionBlock } from '@iota/iota.js/transactions';

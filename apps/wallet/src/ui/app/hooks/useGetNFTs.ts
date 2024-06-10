@@ -2,8 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { hasDisplayData, isKioskOwnerToken, useGetOwnedObjects } from '@iota/core';
-import { useKioskClient } from '@iota/core/src/hooks/useKioskClient';
+import { hasDisplayData, isKioskOwnerToken, useGetOwnedObjects, useKioskClient } from '@iota/core';
 import { type IotaObjectData } from '@iota/iota.js/client';
 import { useMemo } from 'react';
 
