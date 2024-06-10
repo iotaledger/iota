@@ -3,7 +3,7 @@ title: Wallet Standard
 description: The Wallet Standard defines how wallets can automatically be discovered and interacted with from dApps.
 ---
 
-Browser extension wallets built for Iota are defined using the [Wallet Standard](https://github.com/wallet-standard/wallet-standard/). This is a cross-chain standard that defines how wallets can automatically be discovered and interacted with from dApps.
+Browser extension wallets built for IOTA are defined using the [Wallet Standard](https://github.com/wallet-standard/wallet-standard/). This is a cross-chain standard that defines how wallets can automatically be discovered and interacted with from dApps.
 
 If you are building a wallet, we publish a helper library `@iota/wallet-standard` which provides types and utilities that make it simple to get started.
 
@@ -26,7 +26,7 @@ class YourWallet implements Wallet {
 	get icon() {
 		return 'some-icon-data-url';
 	}
-	// Return the Iota chains that your wallet supports.
+	// Return the IOTA chains that your wallet supports.
 	get chains() {
 		return [IOTA_DEVNET_CHAIN];
 	}
@@ -35,7 +35,7 @@ class YourWallet implements Wallet {
 
 ### Implementing features
 
-Features are standard methods consumers can use to interact with a wallet. To be listed in the Iota
+Features are standard methods consumers can use to interact with a wallet. To be listed in the IOTA
 wallet adapter, you must implement the following features in your wallet:
 
 - `standard:connect` - Used to initiate a connection to the wallet.
@@ -57,16 +57,16 @@ import {
   ConnectMethod,
   EventsFeature,
   EventsOnMethod,
-  IotaFeatures,
-  IotaSignPersonalMessageMethod,
-  IotaSignTransactionBlockMethod,
-  IotaSignAndExecuteTransactionBlockMethod
+  IOTAFeatures,
+  IOTASignPersonalMessageMethod,
+  IOTASignTransactionBlockMethod,
+  IOTASignAndExecuteTransactionBlockMethod
 } from "@iota/wallet-standard";
 
 class YourWallet implements Wallet {
 	/* ... existing code from above ... */
 
-  get features(): ConnectFeature & EventsFeature & IotaFeatures {
+  get features(): ConnectFeature & EventsFeature & IOTAFeatures {
     return {
       "standard:connect": {
         version: "1.0.0",
@@ -99,15 +99,15 @@ class YourWallet implements Wallet {
     // Your wallet's connect implementation
   };
 
-	#signPersonalMessage: IotaSignPersonalMessageMethod = () => {
+	#signPersonalMessage: IOTASignPersonalMessageMethod = () => {
     // Your wallet's signTransaction implementation
   };
 
-  #signTransactionBlock: IotaSignTransactionBlockMethod = () => {
+  #signTransactionBlock: IOTASignTransactionBlockMethod = () => {
     // Your wallet's signTransaction implementation
   };
 
-  #signAndExecuteTransactionBlock: IotaSignAndExecuteTransactionBlockMethod = () => {
+  #signAndExecuteTransactionBlock: IOTASignAndExecuteTransactionBlockMethod = () => {
     // Your wallet's signAndExecuteTransaction implementation
   };
 }
@@ -134,7 +134,7 @@ class YourWallet implements Wallet {
 				new ReadonlyWalletAccount({
 					address: walletAccount.iotaAddress,
 					publicKey: walletAccount.pubkey,
-					// The Iota chains that your wallet supports.
+					// The IOTA chains that your wallet supports.
 					chains: [IOTA_DEVNET_CHAIN],
 					// The features that this account supports. This can be a subset of the wallet's supported features.
 					// These features must exist on the wallet as well.

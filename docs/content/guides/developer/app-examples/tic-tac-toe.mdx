@@ -2,7 +2,7 @@
 title: Tic-Tac-Toe
 ---
 
-This guide covers three different implementations of the game tic-tac-toe on Iota. The first example utilizes a centralized admin that marks the board on the users’ behalf. The second example utilizes a shared object that both users can mutate. And the third example utilizes a multisig, where instead of sharing the game board, it's in a 1-of-2 multisig of both users’ accounts. This guide compares and contrasts the design philosophies behind the three different games, as well as the pros and cons of each.
+This guide covers three different implementations of the game tic-tac-toe on IOTA. The first example utilizes a centralized admin that marks the board on the users’ behalf. The second example utilizes a shared object that both users can mutate. And the third example utilizes a multisig, where instead of sharing the game board, it's in a 1-of-2 multisig of both users’ accounts. This guide compares and contrasts the design philosophies behind the three different games, as well as the pros and cons of each.
 
 ## tic_tac_toe.move
 
@@ -134,7 +134,7 @@ An alternative version of this game, shared tic-tac-toe, uses shared objects for
 
 ## shared_tic_tac_toe.move
 
-In the previous version, the admin owned the game object, preventing players from directly changing the gameboard, as well as requiring two transactions for each marker placement. In this version, the game object is a shared object, allowing both players to access and modify it directly, enabling them to place markers in just one transaction. However, using a shared object generally incurs extra costs because Iota needs to sequence the operations from different transactions. In the context of this game, where players are expected to take turns, this shouldn't significantly impact performance. Overall, this shared object approach simplifies the implementation compared to the previous method.
+In the previous version, the admin owned the game object, preventing players from directly changing the gameboard, as well as requiring two transactions for each marker placement. In this version, the game object is a shared object, allowing both players to access and modify it directly, enabling them to place markers in just one transaction. However, using a shared object generally incurs extra costs because IOTA needs to sequence the operations from different transactions. In the context of this game, where players are expected to take turns, this shouldn't significantly impact performance. Overall, this shared object approach simplifies the implementation compared to the previous method.
 
 As the following code demonstrates, the `TicTacToe` object in this example is almost identical to the one before it. The only difference is that the `gameboard` is represented as `vector<vector<u8>>` instead of `vector<vector<Option<Mark>>>`. The reason for this approach is explained following the code.
 

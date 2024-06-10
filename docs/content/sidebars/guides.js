@@ -52,7 +52,7 @@ const guides = [
 			},
 			{
 				type: 'category',
-				label: 'Your First Iota dApp',
+				label: 'Your First IOTA dApp',
 				link: {
 					type: 'doc',
 					id: 'guides/developer/first-app',
@@ -67,7 +67,7 @@ const guides = [
 			},
 			{
 				type: 'category',
-				label: 'Iota 101',
+				label: 'IOTA 101',
 				link: {
 					type: 'doc',
 					id: 'guides/developer/iota-101',
