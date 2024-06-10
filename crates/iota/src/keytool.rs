@@ -123,8 +123,8 @@ pub enum KeyToolCommand {
     },
 
     /// Add a new key to Iota CLI Keystore using either the input mnemonic
-    /// phrase or a Bech32 encoded 33-byte `flag || privkey` starting with
-    /// "iotaprivkey", the key scheme flag {ed25519 | secp256k1 | secp256r1}
+    /// phrase, a Bech32 encoded 33-byte `flag || privkey` starting with
+    /// "iotaprivkey" or the seed, the key scheme flag {ed25519 | secp256k1 | secp256r1}
     /// and an optional derivation path, default to m/44'/4218'/0'/0'/0' for
     /// ed25519 or m/54'/4218'/0'/0/0 for secp256k1 or m/74'/4218'/0'/0/0
     /// for secp256r1. Supports mnemonic phrase of word length 12, 15,
@@ -643,15 +643,30 @@ impl KeyToolCommand {
                         CommandOutput::Import(key)
                     }
                     Err(_) => {
-                        info!("Importing mneomonics to keystore");
-                        let iota_address = keystore.import_from_mnemonic(
-                            &input_string,
-                            key_scheme,
-                            derivation_path,
-                        )?;
-                        let skp = keystore.get_key(&iota_address)?;
-                        let key = Key::from(skp);
-                        CommandOutput::Import(key)
+                        // Assume it is a mnemonic if it has spaces
+                        let contains_spaces = input_string.contains(' ');
+
+                        if contains_spaces {
+                            info!("Importing mnemonic to keystore");
+                            let iota_address = keystore.import_from_mnemonic(
+                                &input_string,
+                                key_scheme,
+                                derivation_path,
+                            )?;
+                            let skp = keystore.get_key(&iota_address)?;
+                            let key = Key::from(skp);
+                            CommandOutput::Import(key)
+                        } else {
+                            info!("Importing seed to keystore");
+                            let iota_address = keystore.import_from_seed(
+                                &input_string,
+                                key_scheme,
+                                derivation_path,
+                            )?;
+                            let skp = keystore.get_key(&iota_address)?;
+                            let key = Key::from(skp);
+                            CommandOutput::Import(key)
+                        }
                     }
                 }
             }

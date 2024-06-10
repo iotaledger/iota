@@ -144,6 +144,21 @@ pub trait AccountKeystore: Send + Sync {
             Err(e) => Err(anyhow!("error getting keypair {:?}", e)),
         }
     }
+
+    fn import_from_seed(
+        &mut self,
+        seed: &[u8],
+        key_scheme: SignatureScheme,
+        derivation_path: Option<DerivationPath>,
+    ) -> Result<IotaAddress, anyhow::Error> {
+        match derive_key_pair_from_path(seed, derivation_path, &key_scheme) {
+            Ok((address, kp)) => {
+                self.add_key(None, kp)?;
+                Ok(address)
+            }
+            Err(e) => Err(anyhow!("error getting keypair {:?}", e)),
+        }
+    }
 }
 
 impl Display for Keystore {
