@@ -13,7 +13,7 @@ interface EnterValuesProps {
     handleNext: () => void;
 }
 
-function EnterValuesForm({
+function EnterValuesFormView({
     coin: { balance, coinObjectId },
     formData: { amount, recipientAddress },
     setFormData,
@@ -64,4 +64,4 @@ function EnterValuesForm({
     );
 }
 
-export default EnterValuesForm;
+export default EnterValuesFormView;

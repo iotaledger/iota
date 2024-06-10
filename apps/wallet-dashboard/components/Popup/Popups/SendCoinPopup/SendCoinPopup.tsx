@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React, { useState } from 'react';
-import { EnterValuesForm, ReviewValuesForm } from './views';
+import { EnterValuesFormView, ReviewValuesFormView } from './views';
 import { CoinStruct } from '@iota/iota.js/client';
 
 export interface FormDataValues {
@@ -41,7 +41,7 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
     return (
         <>
             {step === Steps.EnterValues && (
-                <EnterValuesForm
+                <EnterValuesFormView
                     coin={coin}
                     onClose={onClose}
                     handleNext={handleNext}
@@ -50,7 +50,7 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
                 />
             )}
             {step === Steps.ReviewValues && (
-                <ReviewValuesForm formData={formData} handleBack={handleBack} />
+                <ReviewValuesFormView formData={formData} handleBack={handleBack} />
             )}
         </>
     );

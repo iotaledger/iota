@@ -9,7 +9,7 @@ interface ReviewValuesProps {
     handleBack: () => void;
 }
 
-function ReviewValuesForm({
+function ReviewValuesFormView({
     formData: { amount, senderAddress, recipientAddress },
     handleBack,
 }: ReviewValuesProps): JSX.Element {
@@ -32,4 +32,4 @@ function ReviewValuesForm({
         </div>
     );
 }
-export default ReviewValuesForm;
+export default ReviewValuesFormView;
