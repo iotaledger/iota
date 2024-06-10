@@ -1,14 +1,11 @@
 // Copyright (c) 2024 IOTA Stiftung
-// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_core_types::{
-    // annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
     identifier::IdentStr,
     language_storage::{StructTag, TypeTag},
 };
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{balance::Balance, base_types::ObjectID, id::UID, TIMELOCK_ADDRESS};
@@ -21,22 +18,25 @@ pub const TIMELOCK_MODULE_NAME: &IdentStr = ident_str!("timelock");
 pub const TIMELOCK_STRUCT_NAME: &IdentStr = ident_str!("TimeLock");
 
 /// Rust version of the Move stardust::timelock::TimeLock type.
-#[derive(Debug, Serialize, Deserialize, Clone, JsonSchema, Eq, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct TimeLock<T> {
-    pub id: UID,
+    id: UID,
     /// The locked object.
-    pub locked: T,
+    locked: T,
     /// This is the epoch time stamp of when the lock expires.
-    pub expiration_timestamp_ms: u64,
+    expiration_timestamp_ms: u64,
+    /// Timelock related label.
+    label: Option<String>,
 }
 
 impl<T> TimeLock<T> {
     /// Constructor.
-    pub fn new(id: UID, locked: T, expiration_timestamp_ms: u64) -> Self {
+    pub fn new(id: UID, locked: T, expiration_timestamp_ms: u64, label: Option<String>) -> Self {
         Self {
             id,
             locked,
             expiration_timestamp_ms,
+            label,
         }
     }
 
@@ -63,6 +63,11 @@ impl<T> TimeLock<T> {
     /// Get the TimeLock's `expiration_timestamp_ms`.
     pub fn expiration_timestamp_ms(&self) -> u64 {
         self.expiration_timestamp_ms
+    }
+
+    /// Get the TimeLock's `label``.
+    pub fn label(&self) -> &Option<String> {
+        &self.label
     }
 }
 

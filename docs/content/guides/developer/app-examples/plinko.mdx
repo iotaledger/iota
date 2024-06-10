@@ -2,7 +2,7 @@
 title: Plinko
 ---
 
-Plinko is an example implementation of the popular casino game. The Plinko game on Iota incorporates advanced cryptographic techniques to ensure fairness and transparency. Players drop Plinko balls onto a pegged board, where they randomly fall into slots representing different multipliers. This document details the game's mechanics, cryptographic features, and the methodology for calculating trace paths and verifying signatures.
+Plinko is an example implementation of the popular casino game. The Plinko game on IOTA incorporates advanced cryptographic techniques to ensure fairness and transparency. Players drop Plinko balls onto a pegged board, where they randomly fall into slots representing different multipliers. This document details the game's mechanics, cryptographic features, and the methodology for calculating trace paths and verifying signatures.
 
 Building an on-chain Plinko game shares a lot of similarities with the [Coin Flip](./coin-flip.mdx) game and [Blackjack](./blackjack.mdx) game. For that reason, this example covers only the smart contracts (Move modules) and frontend logic.
 
@@ -16,7 +16,7 @@ A version of the game is also deployed at [Mysten Plinko](https://plinko-poc.ver
 
 ## Gameplay
 
-The Plinko game, implemented through smart contracts on the Iota blockchain, incorporates cryptographic techniques to ensure fairness and transparency. Utilizing a blend of BLS signatures, hash functions, and verifiable random function (VRF) inputs, the game calculates the trace path for each ball, determining the game's outcome based on the number of Plink balls a player chooses to drop.
+The Plinko game, implemented through smart contracts on the IOTA blockchain, incorporates cryptographic techniques to ensure fairness and transparency. Utilizing a blend of BLS signatures, hash functions, and verifiable random function (VRF) inputs, the game calculates the trace path for each ball, determining the game's outcome based on the number of Plink balls a player chooses to drop.
 
 The game mechanics involve a player starting a game by specifying the number of balls and staking a certain amount. The backend generates a BLS signature for the game's randomness source, which is verified on-chain to ensure it's untampered. The game uses a Counter NFT for each round to generate a unique VRF input, ensuring each game's randomness is distinct and cannot be predicted or repeated. The number of Plinko balls, chosen by the player, directly influences the game's complexity and potential payout, as each ball's final position is determined by traversing a cryptographic trace path generated from the hashed BLS signature extended to accommodate the total number of balls.
 
@@ -27,7 +27,7 @@ sequenceDiagram
     participant Player as Player
     participant UI as Next.js Application
     participant API as Backend API
-    participant Blockchain as Iota Blockchain
+    participant Blockchain as IOTA Blockchain
 
     Note over Player, Blockchain: Plinko Game Interaction Flow
 
@@ -53,7 +53,7 @@ Follow the comments in each module's code to understand the logic each creates.
 
 ### plinko::plinko
 
-The `plinko::plinko` module combines various Iota blockchain features, such as coin handling, event emissions, and dynamic object fields, to create on-chain Plinko games.
+The `plinko::plinko` module combines various IOTA blockchain features, such as coin handling, event emissions, and dynamic object fields, to create on-chain Plinko games.
 
 ```move title="plinko.move"
 module plinko::plinko {
@@ -784,7 +784,7 @@ The [`PlinkoSettings` component](https://github.com/MystenLabs/plinko-poc/blob/m
 
 ## User interaction and feedback
 
-Game Initiation: After selecting the desired number of balls and setting the bet size for each, players can initiate a new game by pressing the **Play** button. This action starts the game, with the button becoming disabled during gameplay to prevent new games from being initiated until the current game concludes and the last ball has reached the end. Links are also provided for players to view game details on a Iota network explorer for transparency and engagement.
+Game Initiation: After selecting the desired number of balls and setting the bet size for each, players can initiate a new game by pressing the **Play** button. This action starts the game, with the button becoming disabled during gameplay to prevent new games from being initiated until the current game concludes and the last ball has reached the end. Links are also provided for players to view game details on a IOTA network explorer for transparency and engagement.
 
 ## Related links
 
