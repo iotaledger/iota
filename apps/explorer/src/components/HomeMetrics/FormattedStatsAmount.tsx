@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 import { formatAmountParts } from '@iota/core';
 
 import { Stats, type StatsProps } from '~/ui/Stats';
@@ -21,7 +22,7 @@ export function StatsWrapper(props: StatsProps): JSX.Element {
 export function FormattedStatsAmount({
     amount,
     ...props
-}: FormattedStatsAmountProps & StatsProps): JSX.Element {
+}: FormattedStatsAmountProps & Omit<StatsProps, 'children'>): JSX.Element {
     const [formattedAmount, postfix] = formatAmountParts(amount);
 
     return (
