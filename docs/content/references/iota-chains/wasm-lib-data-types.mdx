@@ -23,7 +23,7 @@ as human-readable text string.
 
 These are mostly simple built-in scalar data types as provided by most programming
 languages. Each integer data type has a clearly defined storage size. The
-[Schema Tool](../schema/how-tos/usage.mdx) will attempt to use the closest matching built-in data type when
+[Schema Tool](../../guides/developer/iota-chains/schema/how-tos/usage.mdx) will attempt to use the closest matching built-in data type when
 generating code for a specific language.
 
 - `BigInt` - An arbitrary-length unsigned integer.
@@ -55,7 +55,7 @@ WasmLib provides its own implementations for each of the ISC value data types.
 
 ## Full Matrix of WasmLib Types
 
-WasmLib implements a full set of [value proxies](../schema/proxies.mdx#value-proxies) for each
+WasmLib implements a full set of [value proxies](../../guides/developer/iota-chains/schema/proxies.mdx#value-proxies) for each
 predefined value type that provide access to data on the ISC host. But there is one aspect
 of this data that we have not considered yet. Some data provided by the host is mutable,
 whereas other data may be immutable. To facilitate this distinction, each value proxy type
@@ -97,8 +97,8 @@ The consistent naming makes it easy to remember the type names. Bool, Bytes, Str
 the integer types are the odd ones out. They are implemented in WasmLib by the closest
 equivalents in the chosen WasmLib implementation programming language.
 
-The [Schema Tool](../schema/how-tos/usage.mdx) will automatically generate the proper immutable proxies
+The [Schema Tool](../../guides/developer/iota-chains/schema/how-tos/usage.mdx) will automatically generate the proper immutable proxies
 from the schema definition. For example, View functions will only be able to access the
-[State](../schema/how-tos/state.mdx) map through immutable proxies. The same goes for the
-[Params](../schema/how-tos/params.mdx) map that was passed into a Func or View, and for the
-[Results](../schema/how-tos/results.mdx) map that was returned from a call to a Func or View.
+[State](../../guides/developer/iota-chains/schema/how-tos/state.mdx) map through immutable proxies. The same goes for the
+[Params](../../guides/developer/iota-chains/schema/how-tos/params.mdx) map that was passed into a Func or View, and for the
+[Results](../../guides/developer/iota-chains/schema/how-tos/results.mdx) map that was returned from a call to a Func or View.

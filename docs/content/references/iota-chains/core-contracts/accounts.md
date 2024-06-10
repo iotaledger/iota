@@ -17,7 +17,7 @@ The `accounts` contract is one of the [core contracts](overview.md) on each IOTA
 chain.
 
 This contract keeps a consistent ledger of on-chain accounts in its state,
-i.e. [the L2 ledger](../../explanations/how-accounts-work.md).
+i.e. [the L2 ledger](../../../guides/developer/iota-chains/explanations/how-accounts-work.md).
 
 ---
 
