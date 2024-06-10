@@ -1,30 +1,30 @@
 ---
 title: Coin Standard
-description: The Iota Coin standard enables you to create a broad range of fungible tokens on the Iota network to satisfy a number of use cases. The Coin standed on Iota is equivalent to the ERC-20 technical standard on Ethereum. 
+description: The IOTA Coin standard enables you to create a broad range of fungible tokens on the IOTA network to satisfy a number of use cases. The Coin standed on IOTA is equivalent to the ERC-20 technical standard on Ethereum. 
 sidebar_label: Coin
 ---
 
-The Coin standard is the technical standard used for smart contracts on Iota for creating coins on the Iota blockchain. The standardization of coin creation on Iota means that wallets, exchanges, and other smart contracts can manage coins created on Iota the same as they manage IOTA, without any additional processing logic. 
+The Coin standard is the technical standard used for smart contracts on IOTA for creating coins on the IOTA blockchain. The standardization of coin creation on IOTA means that wallets, exchanges, and other smart contracts can manage coins created on IOTA the same as they manage IOTA, without any additional processing logic. 
 
-See [Iota Tokenomics](../concepts/tokenomics.mdx) to learn more about the IOTA native coin and its use on the Iota network.
+See [IOTA Tokenomics](../concepts/tokenomics.mdx) to learn more about the IOTA native coin and its use on the IOTA network.
 
-Although coins on Iota follow the Coin standard, they can offer specialized abilities. For example, you can create a regulated token that allows its creator to add specific addresses to a deny list, so that the identified addresses cannot use the token as inputs to transactions.
+Although coins on IOTA follow the Coin standard, they can offer specialized abilities. For example, you can create a regulated token that allows its creator to add specific addresses to a deny list, so that the identified addresses cannot use the token as inputs to transactions.
 
-See the [coin module](https://github.com/iotaledger/iota/blob/main/crates/iota-framework/docs/iota-framework/coin.md) documentation for all available options when creating a coin-type token on Iota. 
+See the [coin module](https://github.com/iotaledger/iota/blob/main/crates/iota-framework/docs/iota-framework/coin.md) documentation for all available options when creating a coin-type token on IOTA. 
 
 ## Fungible tokens
 
-In the Iota blockchain ecosystem, the `Coin<T>` type represents open-loop fungible tokens (see `Token<T>` for closed-loop tokens). Coins are denominated by their type parameter, `T`, which is also associated with metadata (like name, symbol, decimal precision, and so on) that applies to all instances of `Coin<T>`. The `iota::coin` module exposes an interface over `Coin<T>` that treats it as fungible, meaning that a unit of `T` held in one instance of `Coin<T>` is interchangeable with any other unit of `T`, much like how traditional fiat currencies operate.
+In the IOTA blockchain ecosystem, the `Coin<T>` type represents open-loop fungible tokens (see `Token<T>` for closed-loop tokens). Coins are denominated by their type parameter, `T`, which is also associated with metadata (like name, symbol, decimal precision, and so on) that applies to all instances of `Coin<T>`. The `iota::coin` module exposes an interface over `Coin<T>` that treats it as fungible, meaning that a unit of `T` held in one instance of `Coin<T>` is interchangeable with any other unit of `T`, much like how traditional fiat currencies operate.
 
 :::info
 
-The documentation refers to fungible tokens created on Iota using the Coin standard as "coins". For fungible tokens created on Iota using the [Closed-Loop Token standard](./closed-loop-token.mdx), the documentation uses the term "tokens". In practice, the terms for both these objects are often interchangeable.
+The documentation refers to fungible tokens created on IOTA using the Coin standard as "coins". For fungible tokens created on IOTA using the [Closed-Loop Token standard](./closed-loop-token.mdx), the documentation uses the term "tokens". In practice, the terms for both these objects are often interchangeable.
 
 ::: 
 
 ## Treasury capability
 
-When you create a coin using the `coin::create_currency` function, the publisher of the smart contract that creates the coin receives a `TreasuryCap` object. The `TreasuryCap` object is required to mint new coins or to burn current ones. Consequently, only addresses that have access to this object are able to maintain the coin supply on the Iota network. 
+When you create a coin using the `coin::create_currency` function, the publisher of the smart contract that creates the coin receives a `TreasuryCap` object. The `TreasuryCap` object is required to mint new coins or to burn current ones. Consequently, only addresses that have access to this object are able to maintain the coin supply on the IOTA network. 
 
 The `TreasuryCap` object is transferable, so a third party can take over the management of a coin that you create if you transfer the `TreasuryCap`. After transferring the capability, however, you are no longer able to mint and burn tokens yourself.  
 
@@ -57,7 +57,7 @@ The fields of the metadata objects include the following:
 | `id` | The object ID of the metadata for the token. |
 | `decimals` | The number of decimals the token uses. If you set this field to `3`, then a token of value `1000` would display as `1.000`. |
 | `name` | Name of the coin. |
-| `symbol` | Symbol for the coin. This might be the same as `name`, but is typically fewer than five all capital letters. For example, `IOTA` is the `symbol` for the native coin on Iota but its `name` is also `IOTA`. | 
+| `symbol` | Symbol for the coin. This might be the same as `name`, but is typically fewer than five all capital letters. For example, `IOTA` is the `symbol` for the native coin on IOTA but its `name` is also `IOTA`. | 
 | `description` | A short description to describe the token. |
 | `icon_url` | The URL for the token's icon, used for display in wallets, explorers, and other apps. |
 
@@ -71,7 +71,7 @@ The fields of the metadata objects include the following:
         
 ## Minting and burning coins
 
-The `coin` module provides the logic for creating and destroying coins on the Iota network (as long as you own the associated `TreasuryCap`). These functions are the same for all coins and each requires the `TreasuryCap` as an input.    
+The `coin` module provides the logic for creating and destroying coins on the IOTA network (as long as you own the associated `TreasuryCap`). These functions are the same for all coins and each requires the `TreasuryCap` as an input.    
 
 ### Mint 
 
@@ -191,7 +191,7 @@ let builder = ptb.finish();
     - `SequenceNumber` is the `initial_shared_version` of the `DenyList` singleton.
 - `deny_cap` is the `ObjectRef` (`(ObjectID, SequenceNumber, ObjectDigest)`) of the `DenyCap<REGULATED_COIN>` the publisher has received.
 - `otw_type` is the `TypeTag` created from `<PACKAGE_ID>::regulated_coin::REGULATED_COIN` type.
-- `cmd.address()` returns the address to ban as a `IotaAddress`.
+- `cmd.address()` returns the address to ban as a `IOTAAddress`.
 
 </TabItem>
 
@@ -262,10 +262,10 @@ public entry fun <FUNCTION-NAME><T>(
 
 ## Related links
 
-Check out the following content for more information about coins and tokens on Iota:
+Check out the following content for more information about coins and tokens on IOTA:
 
 - [Create a Coin](../guides/developer/iota-101/create-coin.mdx): Guide for creating coins and regulated coins in your smart contracts.
-- [Closed-Loop Token Standard](./closed-loop-token.mdx): Details the Token standard on Iota.
-- [`coin` module rustdoc documentation](https://github.com/iotaledger/iota/blob/main/crates/iota-framework/docs/iota-framework/coin.md): Automated documentation output for the Iota framework `coin` module.
-- [`token` module rustdoc documentation](https://github.com/iotaledger/iota/blob/main/crates/iota-framework/docs/iota-framework/token.md): Automated documentation output for the Iota framework `token` module.
-- [Tokenomics](../concepts/tokenomics.mdx): Discover the Iota ecosystem and where IOTA coins fit within it.
+- [Closed-Loop Token Standard](./closed-loop-token.mdx): Details the Token standard on IOTA.
+- [`coin` module rustdoc documentation](https://github.com/iotaledger/iota/blob/main/crates/iota-framework/docs/iota-framework/coin.md): Automated documentation output for the IOTA framework `coin` module.
+- [`token` module rustdoc documentation](https://github.com/iotaledger/iota/blob/main/crates/iota-framework/docs/iota-framework/token.md): Automated documentation output for the IOTA framework `token` module.
+- [Tokenomics](../concepts/tokenomics.mdx): Discover the IOTA ecosystem and where IOTA coins fit within it.

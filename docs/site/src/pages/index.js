@@ -36,14 +36,14 @@ export default function Home() {
       <div className="bg-iota-black overflow-hidden">
         <div className="w-full mt-24 mb-12 mx-auto bg-iota-black">
           <div className={styles.heroText}>
-            <h1 className="h1 center-text text-white">Iota Documentation</h1>
+            <h1 className="h1 center-text text-white">IOTA Documentation</h1>
             <h2 className="h2 text-gray center-text h3">
-              Discover the power of Iota through examples, guides, and concepts
+              Discover the power of IOTA through examples, guides, and concepts
             </h2>
           </div>
         </div>
         <div className="flex flex-row flex-wrap justify-center gap-2 max-w-[1066px] mx-auto">
-          <HomeCard title="About Iota">
+          <HomeCard title="About IOTA">
             <Link className={styles.cardLink} to="./concepts/tokenomics">
               Tokenomics
             </Link>
@@ -62,7 +62,7 @@ export default function Home() {
               Getting started
             </Link>
             <Link className={styles.cardLink} to="./guides/developer/iota-101">
-              Iota Developer Basics
+              IOTA Developer Basics
             </Link>
             <Link className={styles.cardLink} to="./concepts/iota-move-concepts">
               Move
@@ -79,7 +79,7 @@ export default function Home() {
               className={styles.cardLink}
               to="./guides/operator/iota-full-node"
             >
-              Run a Iota Full node
+              Run a IOTA Full node
               <span className="block bg-auto bg-[url(../static/img/index/right-arrow.svg)]"></span>
             </Link>
           </HomeCard>
@@ -88,16 +88,16 @@ export default function Home() {
               className={styles.cardLink}
               to="https://sdk.mystenlabs.com/dapp-kit?ref=blog.iota.io"
             >
-              Iota dApp Kit
+              IOTA dApp Kit
             </Link>
             <Link className={styles.cardLink} to="/references/iota-api">
-              Iota API
+              IOTA API
             </Link>
             <Link
               className={styles.cardLink}
               to="https://github.com/iotaledger/iota/tree/main/crates/iota-framework/docs"
             >
-              Iota framework (GitHub)
+              IOTA framework (GitHub)
             </Link>
             <Link
               className={styles.cardLink}
@@ -111,16 +111,16 @@ export default function Home() {
               className={styles.cardLink}
               to="https://iota.directory/?_project_type=api%2Cdeveloper-tools%2Cinfrastructure%2Csdk"
             >
-              Iota ecosystem directory
+              IOTA ecosystem directory
             </Link>
             <Link className={styles.cardLink} to="https://blog.iota.io/">
-              Iota blog
+              IOTA blog
             </Link>
             <Link
               className={styles.cardLink}
               to="guides/developer/dev-cheat-sheet"
             >
-              Iota dev cheat sheet
+              IOTA dev cheat sheet
             </Link>
           </HomeCard>
           <HomeCardCTA>
@@ -128,7 +128,7 @@ export default function Home() {
               className={styles.cardCTALink}
               to="/guides/developer/first-app"
             >
-              <span>Build your dApp on Iota</span>
+              <span>Build your dApp on IOTA</span>
               <svg
                 width="11"
                 height="11"
@@ -146,9 +146,9 @@ export default function Home() {
         </div>
 
         <div className={styles.sectionHeader}>
-          <h2 className="h1 text-white font-twkeverett">Why Iota?</h2>
+          <h2 className="h1 text-white font-twkeverett">Why IOTA?</h2>
           <h3 className="h3 text-gray text-center">
-            Iota is the first internet-scale programmable blockchain platform
+            IOTA is the first internet-scale programmable blockchain platform
           </h3>
         </div>
         <div className={styles.why}>
@@ -330,8 +330,8 @@ export default function Home() {
           <div className={styles.TwoColItem}>
             <span>Scalability</span>
             <p>
-              Iota scales horizontally to meet the demands of applications.
-              Network capacity grows in proportion to the increase in Iota
+              IOTA scales horizontally to meet the demands of applications.
+              Network capacity grows in proportion to the increase in IOTA
               validators' processing power by adding workers, resulting in low
               gas fees even during high network traffic. This scalability
               characteristic is in sharp contrast to other blockchains with
@@ -365,11 +365,11 @@ export default function Home() {
           <div className={styles.TwoColItem}>
             <span>Built for Web3</span>
             <p>
-              Iota aims to be the most accessible smart contract platform,
+              IOTA aims to be the most accessible smart contract platform,
               empowering developers to create great user experiences in web3. To
-              usher in the next billion users, Iota empowers developers with
-              various tools to take advantage of the power of the Iota
-              blockchain. The Iota Development Kit (SDK) will enable developers
+              usher in the next billion users, IOTA empowers developers with
+              various tools to take advantage of the power of the IOTA
+              blockchain. The IOTA Development Kit (SDK) will enable developers
               to build without boundaries.
             </p>
           </div>
