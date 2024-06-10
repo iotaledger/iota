@@ -594,9 +594,9 @@ const developer = [
                         id: 'guides/developer/iota-chains/explanations/how-accounts-work',
                     },
                     {
-                        type: 'link',
+                        type: 'doc',
                         label: 'Core Contracts',
-                        href: '/isc/reference/core-contracts/overview',
+                        id: 'references/iota-chains/core-contracts/overview',
                     },
                 ],
             },

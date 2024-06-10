@@ -91,8 +91,8 @@ expected.
 
 #### Tools
 
-You can use the [EVM Testnet](/build/networks-endpoints/#shimmerevm-testnet) to conduct integration tests without
-incurring any fees or the [IOTA Sandbox](/iota-sandbox/getting-started/) if you want to run the tests locally.
+You can use the EVM Testnet to conduct integration tests without
+incurring any fees or the IOTA Sandbox if you want to run the tests locally.
 
 ## Manual Testing
 
@@ -100,9 +100,9 @@ Once you have a complete batch of [automated tests](#automated-testing), manuall
 behaves as expected in the real world is still good practice. However, to avoid incurring fees or deploying a faulty
 contract, you can manually test your contract using a sandboxed local network and the EVM Testnet.
 
-Testing using the [IOTA Sandbox](/iota-sandbox/getting-started/) serves well for the first stage of automated and manual
+Testing using the IOTA Sandbox serves well for the first stage of automated and manual
 integration tests, as you have complete control over the entire local network. Once you are confident about how your
-contract behaves locally, you can deploy and test on the [EVM Testnet](/build/networks-endpoints/#shimmerevm-testnet),
+contract behaves locally, you can deploy and test on the EVM Testnet,
 which replicates the IOTA EVM and ShimmerEVM networks, but also enables cost and risk-free interactions.
 
 

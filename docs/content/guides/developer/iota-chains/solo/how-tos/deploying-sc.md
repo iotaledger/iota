@@ -18,7 +18,7 @@ tags:
 
 :::note WASM VM
 
-For more information about how to create Wasm smart contracts, refer to the [Wasm VM chapter](../../getting-started/languages-and-vms.mdxwasm-vm-for-isc).
+For more information about how to create Wasm smart contracts, refer to the [Wasm VM chapter](../../getting-started/languages-and-vms.mdx#wasm-vm-for-isc).
 
 :::
 

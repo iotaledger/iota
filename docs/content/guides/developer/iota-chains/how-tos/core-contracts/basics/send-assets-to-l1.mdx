@@ -40,7 +40,7 @@ Then you take the allowance, which will transfer the assets from the caller to t
 ISC.sandbox.takeAllowedFunds(msg.sender, allowance);
 ```
 
-Finally, you can send the assets to the specified L1 address. This will create an output to hold said assets. You can use additional options to add the [timelock](/learn/protocols/stardust/core-concepts/output-unlock-conditions/#timelock) and [expiration](/learn/protocols/stardust/core-concepts/output-unlock-conditions/#expiration) unlock conditions to the output.
+Finally, you can send the assets to the specified L1 address. This will create an output to hold said assets. You can use additional options to add the timelock and expiration unlock conditions to the output.
 
 ```solidity
 ISCSendMetadata memory metadata;
