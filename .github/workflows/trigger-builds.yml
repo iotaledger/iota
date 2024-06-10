@@ -7,7 +7,7 @@ on:
       - 'devnet'
       - 'testnet'
       - 'mainnet'
-      - 'releases/sui-*-release'
+      - 'releases/iota-*-release'
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
@@ -15,21 +15,21 @@ jobs:
   docker-images:
     runs-on: ubuntu-latest
     steps:
-      - name: Dispatch Docker Builds in MystenLabs/sui-operations
+      - name: Dispatch Docker Builds in MystenLabs/iota-operations
         uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # pin@v3.0.0
         with:
-          repository: MystenLabs/sui-operations
+          repository: MystenLabs/iota-operations
           token: ${{ secrets.DOCKER_BINARY_BUILDS_DISPATCH }}
           event-type: build-docker-images
-          client-payload: '{"sui_commit": "${{ github.sha }}", "docker_hub_tag": "${{ github.ref }}"}'
+          client-payload: '{"iota_commit": "${{ github.sha }}", "docker_hub_tag": "${{ github.ref }}"}'
 
   release-binaries:
     runs-on: ubuntu-latest
     steps:
-      - name: Dispatch Release binaries builds in MystenLabs/sui-operations
+      - name: Dispatch Release binaries builds in MystenLabs/iota-operations
         uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # pin@v3.0.0
         with:
-          repository: MystenLabs/sui-operations
+          repository: MystenLabs/iota-operations
           token: ${{ secrets.DOCKER_BINARY_BUILDS_DISPATCH }}
           event-type: build-release-binaries
-          client-payload: '{"sui_commit": "${{ github.sha }}"}'
+          client-payload: '{"iota_commit": "${{ github.sha }}"}'
