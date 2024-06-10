@@ -1,4 +1,4 @@
-name: nightly
+name: Nightly binary build
 
 on:
   schedule:
@@ -30,7 +30,7 @@ env:
 jobs:
   release:
     name: build release binaries
-    runs-on: [ubuntu-ghcloud]
+    runs-on: [self-hosted-rust]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
       - name: cargo build

@@ -1,4 +1,4 @@
-name: End-to-end Tests
+name: TS End-to-end Tests
 on: pull_request
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -7,10 +7,10 @@ jobs:
   diff:
     runs-on: ubuntu-latest
     outputs:
-      isWallet: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'sui-wallet')) }}
-      isExplorer: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'sui-explorer')) }}
-      isTypescriptSDK: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@mysten/sui.js')) }}
-      isGraphQlTransport: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@mysten/graphql-transport')) }}
+      isWallet: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'iota-wallet')) }}
+      isExplorer: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'iota-explorer')) }}
+      isTypescriptSDK: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/iota.js')) }}
+      isGraphQlTransport: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/graphql-transport')) }}
       isRust: ${{ steps.diff.outputs.isRust }}
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
@@ -33,7 +33,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgrespw
-          POSTGRES_DB: sui_indexer_v2
+          POSTGRES_DB: iota_indexer_v2
           POSTGRES_HOST_AUTH_METHOD: trust
         options: >-
           --health-cmd pg_isready
@@ -49,7 +49,7 @@ jobs:
       - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4.0.0
         with:
           version: 9
-      - run: cargo build --bin sui-test-validator --bin sui --profile dev
+      - run: cargo build --bin iota-test-validator --bin iota --profile dev
       - name: Install Nodejs
         uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
         with:
@@ -58,16 +58,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Install Playwright Browsers
-        run: pnpm --filter sui-explorer playwright install --with-deps chromium
+        run: pnpm --filter iota-explorer playwright install --with-deps chromium
 
       - name: Set env
         run: |
-          echo "VITE_SUI_BIN=$PWD/target/debug/sui" >> $GITHUB_ENV
-          echo "E2E_RUN_LOCAL_NET_CMD=(RUST_LOG=info RUST_BACKTRACE=1 $(echo $PWD/target/debug/sui-test-validator) --with-indexer --pg-port 5432 --pg-db-name sui_indexer_v2 --graphql-host 127.0.0.1 --graphql-port 9125)" >> $GITHUB_ENV
+          echo "VITE_IOTA_BIN=$PWD/target/debug/iota" >> $GITHUB_ENV
+          echo "E2E_RUN_LOCAL_NET_CMD=(RUST_LOG=info RUST_BACKTRACE=1 $(echo $PWD/target/debug/iota-test-validator) --with-indexer --pg-port 5432 --pg-db-name iota_indexer_v2 --graphql-host 127.0.0.1 --graphql-port 9125)" >> $GITHUB_ENV
 
       - name: Run TS SDK e2e tests
         if: ${{ needs.diff.outputs.isTypescriptSDK == 'true' || needs.diff.outputs.isRust == 'true'}}
-        run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter @mysten/sui.js test:e2e'
+        run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter @mysten/iota.js test:e2e'
 
       - name: Run RPC/GrpahQL comaptability e2e tests
         if: ${{ needs.diff.outputs.isGraphQlTransport == 'true' || needs.diff.outputs.isRust == 'true'}}
@@ -75,12 +75,12 @@ jobs:
 
       - name: Build explorer
         if: ${{ needs.diff.outputs.isTypescriptSDK == 'true' || needs.diff.outputs.isExplorer == 'true' || needs.diff.outputs.isRust == 'true'}}
-        run: pnpm turbo --filter=sui-explorer build
+        run: pnpm turbo --filter=iota-explorer build
 
       - name: Run Explorer e2e tests
         # need to run Explorer e2e when its upstream(TS SDK and Rust) or itself is changed
         if: ${{ needs.diff.outputs.isTypescriptSDK == 'true' || needs.diff.outputs.isExplorer == 'true' || needs.diff.outputs.isRust == 'true'}}
-        run: pnpm --filter sui-explorer playwright test
+        run: pnpm --filter iota-explorer playwright test
       - uses: actions/upload-artifact@v3
         if: always()
         with:
@@ -89,7 +89,7 @@ jobs:
           retention-days: 30
 
       - name: Run Local net
-        run: cargo run --bin sui-test-validator -- --epoch-duration-ms 10000 &
+        run: cargo run --bin iota-test-validator -- --epoch-duration-ms 10000 &
       - name: Set Wallet env
         run: echo "API_ENV=local" > "$PWD/apps/wallet/configs/environment/.env"
       - name: Build Wallet
@@ -98,7 +98,7 @@ jobs:
         run: pnpm wallet build
       - name: Run Wallet e2e tests
         if: ${{ needs.diff.outputs.isWallet == 'true' || needs.diff.outputs.isRust == 'true' || needs.diff.outputs.isTypescriptSDK == 'true'}}
-        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- pnpm --filter sui-wallet playwright test
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- pnpm --filter iota-wallet playwright test
       - uses: actions/upload-artifact@v3
         if: always()
         with:
@@ -119,7 +119,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgrespw
-          POSTGRES_DB: sui_indexer_v2
+          POSTGRES_DB: iota_indexer_v2
           POSTGRES_HOST_AUTH_METHOD: trust
         options: >-
           --health-cmd pg_isready
@@ -148,7 +148,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgrespw
-          POSTGRES_DB: sui_indexer_v2
+          POSTGRES_DB: iota_indexer_v2
           POSTGRES_HOST_AUTH_METHOD: trust
         options: >-
           --health-cmd pg_isready

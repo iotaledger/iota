@@ -160,15 +160,23 @@ export async function accountSourcesHandleUIMessage(msg: Message, uiConnection: 
         return true;
     }
     if (isMethodPayload(payload, 'verifyPasswordRecoveryData')) {
-        const { accountSourceID, entropy } = payload.args.data;
+        const { accountSourceID, type } = payload.args.data;
         const accountSource = await getAccountSourceByID(accountSourceID);
         if (!accountSource) {
             throw new Error('Account source not found');
         }
-        if (!(accountSource instanceof MnemonicAccountSource)) {
+        if (
+            !(accountSource instanceof MnemonicAccountSource) &&
+            !(accountSource instanceof SeedAccountSource)
+        ) {
             throw new Error('Invalid account source type');
         }
-        await accountSource.verifyRecoveryData(entropy);
+        if (type === 'mnemonic') {
+            await accountSource.verifyRecoveryData(payload.args.data.entropy);
+        }
+        if (type === 'seed') {
+            await accountSource.verifyRecoveryData(payload.args.data.seed);
+        }
         uiConnection.send(createMessage({ type: 'done' }, msg.id));
         return true;
     }
