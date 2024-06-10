@@ -9,7 +9,7 @@ interface SelectValidatorViewProps {
     onSelect: (validator: string) => void;
 }
 
-function SelectValidator({ validators, onSelect }: SelectValidatorViewProps): JSX.Element {
+function SelectValidatorView({ validators, onSelect }: SelectValidatorViewProps): JSX.Element {
     return (
         <div>
             <h2>Select Validator</h2>
@@ -24,4 +24,4 @@ function SelectValidator({ validators, onSelect }: SelectValidatorViewProps): JS
     );
 }
 
-export default SelectValidator;
+export default SelectValidatorView;

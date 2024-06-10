@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React, { useState } from 'react';
-import { EnterAmount, SelectValidator } from './views';
+import { EnterAmountView, SelectValidatorView } from './views';
 
 interface NewStakePopupProps {
     onClose: () => void;
@@ -41,13 +41,13 @@ function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
     return (
         <div className="flex min-w-[300px] flex-col gap-2">
             {step === Steps.SelectValidator && (
-                <SelectValidator
+                <SelectValidatorView
                     validators={HARDCODED_VALIDATORS}
                     onSelect={handleValidatorSelect}
                 />
             )}
             {step === Steps.EnterAmount && (
-                <EnterAmount
+                <EnterAmountView
                     selectedValidator={selectedValidator}
                     amount={amount}
                     onChange={(e) => setAmount(e.target.value)}

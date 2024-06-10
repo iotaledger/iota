@@ -13,7 +13,7 @@ interface EnterAmountViewProps {
     isStakeDisabled: boolean;
 }
 
-function EnterAmount({
+function EnterAmountView({
     selectedValidator,
     amount,
     onChange,
@@ -40,4 +40,4 @@ function EnterAmount({
     );
 }
 
-export default EnterAmount;
+export default EnterAmountView;
