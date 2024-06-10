@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { EnterValuesForm, ReviewValuesForm } from './';
-import { CoinStruct } from '@mysten/sui.js/client';
+import { CoinStruct } from '@iota/iota.js/client';
 
 export interface FormDataValues {
     amount: string;

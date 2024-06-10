@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinStruct } from '@mysten/sui.js/client';
+import { CoinStruct } from '@iota/iota.js/client';
 import { FormDataValues } from './SendCoinPopup';
 import Button from '@/components/Button';
 
