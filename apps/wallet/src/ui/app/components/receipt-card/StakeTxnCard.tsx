@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { ValidatorLogo } from '_app/staking/validators/ValidatorLogo';
@@ -14,14 +15,14 @@ import {
     formatPercentageDisplay,
     useGetTimeBeforeEpochNumber,
     useGetValidatorsApy,
-} from '@mysten/core';
-import type { SuiEvent } from '@mysten/sui.js/client';
-import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
+} from '@iota/core';
+import type { IotaEvent } from '@iota/iota.js/client';
+import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 
 import { Card } from '../../shared/transaction-summary/Card';
 
 type StakeTxnCardProps = {
-    event: SuiEvent;
+    event: IotaEvent;
 };
 
 // For Staked Transaction use moveEvent Field to get the validator address, delegation amount, epoch
@@ -66,7 +67,7 @@ export function StakeTxnCard({ event }: StakeTxnCardProps) {
                     </div>
                 )}
                 {stakedAmount && (
-                    <TxnAmount amount={stakedAmount} coinType={SUI_TYPE_ARG} label="Stake" />
+                    <TxnAmount amount={stakedAmount} coinType={IOTA_TYPE_ARG} label="Stake" />
                 )}
                 <div className="flex flex-col">
                     <div className="flex w-full justify-between py-3.5">

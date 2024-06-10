@@ -5,13 +5,14 @@ import type { CodegenConfig } from '@graphql-codegen/cli';
 
 const header = `
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 /* eslint-disable */
 `.trimStart();
 
 const config: CodegenConfig = {
     overwrite: true,
-    schema: '../../crates/sui-graphql-rpc/schema/current_progress_schema.graphql',
+    schema: '../../crates/iota-graphql-rpc/schema/current_progress_schema.graphql',
     documents: ['src/queries/*.graphql'],
     ignoreNoDocuments: true,
     generates: {

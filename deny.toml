@@ -63,7 +63,7 @@ ignore = [
     # "RUSTSEC-2021-0145",
     # webpki
     "RUSTSEC-2023-0052",
-    # we don't do RSA signing on Sui (only verifying for zklogin)
+    # we don't do RSA signing on Iota (only verifying for zklogin)
     "RUSTSEC-2023-0071",
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score

@@ -1,0 +1,8 @@
+[package]
+name = "test_functions"
+
+[dependencies]
+Iota = { local = "../../../../iota-framework/packages/iota-framework" }
+
+[addresses]
+test_functions = "0x0"

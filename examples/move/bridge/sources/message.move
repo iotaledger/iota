@@ -1,26 +1,27 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module bridge::message {
     use std::vector;
 
-    use sui::bcs;
-    use sui::bcs::BCS;
+    use iota::bcs;
+    use iota::bcs::BCS;
 
     use bridge::message_types;
 
     #[test_only]
     use bridge::chain_ids;
     #[test_only]
-    use sui::address;
+    use iota::address;
     #[test_only]
-    use sui::balance;
+    use iota::balance;
     #[test_only]
-    use sui::coin;
+    use iota::coin;
     #[test_only]
-    use sui::hex;
+    use iota::hex;
     #[test_only]
-    use sui::test_scenario;
+    use iota::test_scenario;
 
     struct USDC has drop {}
 
@@ -235,7 +236,7 @@ module bridge::message {
     }
 
     #[test]
-    fun test_message_serialization_sui_to_eth() {
+    fun test_message_serialization_iota_to_eth() {
         let sender_address = address::from_u256(100);
         let scenario = test_scenario::begin(sender_address);
         let ctx = test_scenario::ctx(&mut scenario);
@@ -243,7 +244,7 @@ module bridge::message {
         let coin = coin::mint_for_testing<USDC>(12345, ctx);
 
         let token_bridge_message = create_token_bridge_message(
-            chain_ids::sui_testnet(), // source chain
+            chain_ids::iota_testnet(), // source chain
             10, // seq_num
             address::to_bytes(sender_address), // sender address
             chain_ids::eth_sepolia(), // target_chain
@@ -277,7 +278,7 @@ module bridge::message {
     }
 
     #[test]
-    fun test_message_serialization_eth_to_sui() {
+    fun test_message_serialization_eth_to_iota() {
         let address_1 = address::from_u256(100);
         let scenario = test_scenario::begin(address_1);
         let ctx = test_scenario::ctx(&mut scenario);
@@ -289,7 +290,7 @@ module bridge::message {
             10, // seq_num
             // Eth address is 20 bytes long
             hex::decode(b"00000000000000000000000000000000000000c8"), // eth sender address
-            chain_ids::sui_testnet(), // target_chain
+            chain_ids::iota_testnet(), // target_chain
             address::to_bytes(address_1), // target address
             3u8, // token_type
             balance::value(coin::balance(&coin)) // amount: u64
@@ -298,7 +299,7 @@ module bridge::message {
         // Test payload extraction
         let token_payload = TokenPayload {
             sender_address: hex::decode(b"00000000000000000000000000000000000000c8"),
-            target_chain: chain_ids::sui_testnet(),
+            target_chain: chain_ids::iota_testnet(),
             target_address: address::to_bytes(address_1),
             token_type: 3u8,
             amount: balance::value(coin::balance(&coin))

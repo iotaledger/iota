@@ -1,12 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { type AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
-import { getSuiClient } from '_src/shared/sui-client';
-import { getDefaultNetwork, Network, type SuiClient } from '@mysten/sui.js/client';
+import { getIotaClient } from '_src/shared/iota-client';
+import { getDefaultNetwork, Network, type IotaClient } from '@iota/iota.js/client';
 
 import type { BackgroundClient } from './background-client';
 import { BackgroundServiceSigner } from './background-client/BackgroundServiceSigner';
@@ -21,7 +19,7 @@ const accountTypesWithBackgroundSigner: AccountType[] = [
 ];
 
 export default class ApiProvider {
-    private _apiFullNodeProvider?: SuiClient;
+    private _apiFullNodeProvider?: IotaClient;
     private _signerByAddress: Map<string, WalletSigner> = new Map();
     network = getDefaultNetwork();
 
@@ -30,7 +28,7 @@ export default class ApiProvider {
         customRPC?: string | null,
     ) {
         this.network = network;
-        this._apiFullNodeProvider = getSuiClient(
+        this._apiFullNodeProvider = getIotaClient(
             network === Network.Custom
                 ? { network, customRpcUrl: customRPC || '' }
                 : { network, customRpcUrl: null },

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { fromExportedKeypair } from '_src/shared/utils/from-exported-keypair';
-import { type Keypair } from '@mysten/sui.js/cryptography';
+import { type Keypair } from '@iota/iota.js/cryptography';
 
 import { SeedAccountSource } from '../account-sources/SeedAccountSource';
 import {
@@ -60,7 +60,7 @@ export class SeedAccount
         return {
             type: 'seed-derived',
             sourceID,
-            address: keyPair.getPublicKey().toSuiAddress(),
+            address: keyPair.getPublicKey().toIotaAddress(),
             derivationPath,
             publicKey: keyPair.getPublicKey().toBase64(),
             lastUnlockedOn: null,

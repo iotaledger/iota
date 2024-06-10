@@ -1,17 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// Example of a game character with basic attributes, inventory, and
 /// associated logic.
 module hero::example {
-    use sui::balance::{Self, Balance};
-    use sui::coin::{Self, Coin};
-    use sui::event;
-    use sui::object::{Self, ID, UID};
-    use sui::math;
-    use sui::sui::SUI;
-    use sui::transfer;
-    use sui::tx_context::{Self, TxContext};
+    use iota::balance::{Self, Balance};
+    use iota::coin::{Self, Coin};
+    use iota::event;
+    use iota::object::{Self, ID, UID};
+    use iota::math;
+    use iota::iota::IOTA;
+    use iota::transfer;
+    use iota::tx_context::{Self, TxContext};
     use std::option::{Self, Option};
 
     /// Our hero!
@@ -63,7 +64,7 @@ module hero::example {
     /// payments for player actions for the admin to collect.
     struct Game has key {
         id: UID,
-        payments: Balance<SUI>,
+        payments: Balance<IOTA>,
     }
 
     /// Capability conveying the authority to create boars and potions, and take
@@ -131,7 +132,7 @@ module hero::example {
     /// you pay for it.
     public fun new_sword(
         game: &mut Game,
-        payment: Coin<SUI>,
+        payment: Coin<IOTA>,
         ctx: &mut TxContext
     ): Sword {
         let value = coin::value(&payment);
@@ -316,13 +317,13 @@ module hero::example {
         admin: &Admin,
         game: &mut Game,
         ctx: &mut TxContext,
-    ): Coin<SUI> {
+    ): Coin<IOTA> {
         assert!(admin.game_id == object::id(game), ENotAdmin);
         coin::from_balance(balance::withdraw_all(&mut game.payments), ctx)
     }
 
     // === Tests ===
-    #[test_only] use sui::test_scenario as ts;
+    #[test_only] use iota::test_scenario as ts;
 
     #[test]
     fun slay_boar_test() {

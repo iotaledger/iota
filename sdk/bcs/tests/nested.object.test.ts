@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from 'vitest';
 
-import { BCS, getSuiMoveConfig } from '../src/index';
+import { BCS, getIotaMoveConfig } from '../src/index';
 import { serde } from './utils';
 
 describe('BCS: Nested temp object', () => {
     it('should support object as a type', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
         const value = { name: { boop: 'beep', beep: '100' } };
 
         bcs.registerStructType('Beep', {
@@ -22,7 +23,7 @@ describe('BCS: Nested temp object', () => {
     });
 
     it('should support enum invariant as an object', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
         const value = {
             user: {
                 name: 'Bob',
@@ -42,7 +43,7 @@ describe('BCS: Nested temp object', () => {
     });
 
     it('should support a nested schema', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
         const value = {
             some: {
                 account: {

@@ -4,10 +4,10 @@
 'use client';
 
 import React from 'react';
-import { SuiObjectData } from '@mysten/sui.js/client';
+import { IotaObjectData } from '@iota/iota.js/client';
 import { AssetCard, VirtualList } from '@/components/index';
-import { hasDisplayData, useGetOwnedObjects } from '@mysten/core';
-import { useCurrentAccount } from '@mysten/dapp-kit';
+import { hasDisplayData, useGetOwnedObjects } from '@iota/core';
+import { useCurrentAccount } from '@iota/dapp-kit';
 
 function EverythingElsePage(): JSX.Element {
     const account = useCurrentAccount();
@@ -18,7 +18,7 @@ function EverythingElsePage(): JSX.Element {
             .filter((asset) => asset.data && asset.data.objectId && !hasDisplayData(asset))
             .map((response) => response.data!) ?? [];
 
-    const virtualItem = (asset: SuiObjectData): JSX.Element => (
+    const virtualItem = (asset: IotaObjectData): JSX.Element => (
         <AssetCard key={asset.objectId} asset={asset} />
     );
 

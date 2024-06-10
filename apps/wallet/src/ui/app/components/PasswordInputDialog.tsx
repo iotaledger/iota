@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useBackgroundClient } from '_src/ui/app/hooks/useBackgroundClient';
@@ -7,7 +8,7 @@ import FieldLabel from '_src/ui/app/shared/field-label';
 import { Heading } from '_src/ui/app/shared/heading';
 import { PasswordInputField } from '_src/ui/app/shared/input/password';
 import { Text } from '_src/ui/app/shared/text';
-import { ArrowLeft16, ArrowRight16 } from '@mysten/icons';
+import { ArrowLeft16, ArrowRight16 } from '@iota/icons';
 import classNames from 'clsx';
 import { ErrorMessage, Form, Formik } from 'formik';
 import { toast } from 'react-hot-toast';
@@ -86,7 +87,7 @@ export function PasswordInputDialog({
                         </FieldLabel>
                         <div className="mt-4 text-center">
                             <Text variant="pBodySmall" color="steel-dark" weight="normal">
-                                This is the password you currently use to lock and unlock your Sui
+                                This is the password you currently use to lock and unlock your Iota
                                 wallet.
                             </Text>
                         </div>

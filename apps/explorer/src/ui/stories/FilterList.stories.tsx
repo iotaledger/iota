@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { type Meta, type StoryObj } from '@storybook/react';
@@ -16,7 +17,7 @@ export const Default: StoryObj<FilterListProps> = {
         return <FilterList {...props} value={value} onChange={onChange} />;
     },
     args: {
-        options: ['MINT', 'SUI'],
+        options: ['MINT', 'IOTA'],
         disabled: false,
         size: 'sm',
         lessSpacing: true,
