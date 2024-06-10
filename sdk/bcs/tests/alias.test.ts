@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from 'vitest';
 
-import { BCS, getSuiMoveConfig } from '../src/index';
+import { BCS, getIotaMoveConfig } from '../src/index';
 import { serde } from './utils';
 
 describe('BCS: Aliases', () => {
     it('should support type aliases', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
         const value = 'this is a string';
 
         bcs.registerAlias('MyString', BCS.STRING);
@@ -16,7 +17,7 @@ describe('BCS: Aliases', () => {
     });
 
     it('should support recursive definitions in structs', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
         const value = { name: 'Billy' };
 
         bcs.registerAlias('UserName', BCS.STRING);
@@ -24,7 +25,7 @@ describe('BCS: Aliases', () => {
     });
 
     it('should spot recursive definitions', () => {
-        const bcs = new BCS(getSuiMoveConfig());
+        const bcs = new BCS(getIotaMoveConfig());
         const value = 'this is a string';
 
         bcs.registerAlias('MyString', BCS.STRING);

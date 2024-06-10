@@ -1,19 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { SharedObjectRef } from '../../src/bcs';
-import { SuiTransactionBlockResponse } from '../../src/client';
+import { IotaTransactionBlockResponse } from '../../src/client';
 import { BuilderCallArg, TransactionBlock } from '../../src/transactions';
 import { TransactionBlockDataBuilder } from '../../src/transactions/TransactionBlockData';
-import { SUI_SYSTEM_STATE_OBJECT_ID } from '../../src/utils';
+import { IOTA_SYSTEM_STATE_OBJECT_ID } from '../../src/utils';
 import { publishPackage, setup, TestToolbox } from './utils/setup';
 
 describe('Transaction Serialization and deserialization', () => {
     let toolbox: TestToolbox;
     let packageId: string;
-    let publishTxn: SuiTransactionBlockResponse;
+    let publishTxn: IotaTransactionBlockResponse;
     let sharedObjectId: string;
 
     beforeAll(async () => {
@@ -48,14 +49,14 @@ describe('Transaction Serialization and deserialization', () => {
     it.skip('Move Shared Object Call with mutable reference', async () => {
         const coins = await toolbox.getGasObjectsOwnedByAddress();
 
-        const [{ suiAddress: validatorAddress }] = await toolbox.getActiveValidators();
+        const [{ iotaAddress: validatorAddress }] = await toolbox.getActiveValidators();
 
         const tx = new TransactionBlock();
         const coin = coins.data[2];
         tx.moveCall({
-            target: '0x3::sui_system::request_add_stake',
+            target: '0x3::iota_system::request_add_stake',
             arguments: [
-                tx.object(SUI_SYSTEM_STATE_OBJECT_ID),
+                tx.object(IOTA_SYSTEM_STATE_OBJECT_ID),
                 tx.object(coin.coinObjectId),
                 tx.pure(validatorAddress),
             ],

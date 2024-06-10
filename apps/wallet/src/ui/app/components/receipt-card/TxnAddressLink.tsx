@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import ExplorerLink from '_components/explorer-link';
 import { ExplorerLinkType } from '_components/explorer-link/ExplorerLinkType';
-import { isSuiNSName } from '@mysten/core';
-import { formatAddress } from '@mysten/sui.js/utils';
+import { isIotaNSName } from '@iota/core';
+import { formatAddress } from '@iota/iota.js/utils';
 
 type TxnAddressLinkProps = {
     address: string;
@@ -15,10 +16,10 @@ export function TxnAddressLink({ address }: TxnAddressLinkProps) {
         <ExplorerLink
             type={ExplorerLinkType.address}
             address={address}
-            title="View on Sui Explorer"
+            title="View on Iota Explorer"
             showIcon={false}
         >
-            {isSuiNSName(address) ? address : formatAddress(address)}
+            {isIotaNSName(address) ? address : formatAddress(address)}
         </ExplorerLink>
     );
 }

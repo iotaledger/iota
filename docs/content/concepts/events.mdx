@@ -8,15 +8,15 @@ Events are the main way to track actions on chain. The following example include
 ```move
 /// Extended example of a shared object. Now with addition of events!
 module examples::donuts_with_events {
-    use sui::transfer;
-    use sui::sui::SUI;
-    use sui::coin::{Self, Coin};
-    use sui::object::{Self, ID, UID};
-    use sui::balance::{Self, Balance};
-    use sui::tx_context::{Self, TxContext};
+    use iota::transfer;
+    use iota::iota::IOTA;
+    use iota::coin::{Self, Coin};
+    use iota::object::{Self, ID, UID};
+    use iota::balance::{Self, Balance};
+    use iota::tx_context::{Self, TxContext};
 
     // This is the only dependency you need for events.
-    use sui::event;
+    use iota::event;
 
     /// For when Coin balance is too low.
     const ENotEnough: u64 = 0;
@@ -30,7 +30,7 @@ module examples::donuts_with_events {
     struct DonutShop has key {
         id: UID,
         price: u64,
-        balance: Balance<SUI>
+        balance: Balance<IOTA>
     }
 
     // ====== Events ======
@@ -62,7 +62,7 @@ module examples::donuts_with_events {
     /// Buy a donut.
     public fun buy_donut(
         shop: &mut DonutShop,
-        payment: &mut Coin<SUI>,
+        payment: &mut Coin<IOTA>,
         ctx: &mut TxContext,
     ): Donut {
         assert!(coin::value(payment) >= shop.price, ENotEnough);
@@ -90,7 +90,7 @@ module examples::donuts_with_events {
         _: &ShopOwnerCap,
         shop: &mut DonutShop,
         ctx: &mut TxContext,
-    ): Coin<SUI> {
+    ): Coin<IOTA> {
         let amount = balance::value(&shop.balance);
         let profits = coin::take(&mut shop.balance, amount, ctx);
 
@@ -104,4 +104,4 @@ module examples::donuts_with_events {
 
 ## Related links
 
-- [Using Events](/guides/developer/sui-101/using-events.mdx): A guide to leveraging Sui events in your smart contracts.
+- [Using Events](/guides/developer/iota-101/using-events.mdx): A guide to leveraging IOTA events in your smart contracts.

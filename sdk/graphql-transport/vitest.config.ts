@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { defineConfig } from 'vitest/config';
@@ -15,12 +16,12 @@ export default defineConfig({
     },
     resolve: {
         alias: {
-            '@mysten/bcs': new URL('../bcs/src', import.meta.url).toString(),
-            '@mysten/sui.js/transactions': new URL(
+            '@iota/bcs': new URL('../bcs/src', import.meta.url).toString(),
+            '@iota/iota.js/transactions': new URL(
                 '../typescript/src/transactions',
                 import.meta.url,
             ).toString(),
-            '@mysten/sui.js': new URL('../typescript/src', import.meta.url).toString(),
+            '@iota/iota.js': new URL('../typescript/src', import.meta.url).toString(),
         },
     },
 });

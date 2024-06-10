@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod account_universe;
@@ -11,17 +12,17 @@ pub mod type_arg_fuzzer;
 use std::fmt::Debug;
 
 use executor::Executor;
-use proptest::{collection::vec, prelude::*, test_runner::TestRunner};
-use rand::{rngs::StdRng, SeedableRng};
-use sui_protocol_config::ProtocolConfig;
-use sui_types::{
-    base_types::{ObjectID, SuiAddress},
+use iota_protocol_config::ProtocolConfig;
+use iota_types::{
+    base_types::{IotaAddress, ObjectID},
     crypto::{get_key_pair, AccountKeyPair},
     digests::TransactionDigest,
-    gas_coin::TOTAL_SUPPLY_MIST,
+    gas_coin::TOTAL_SUPPLY_MICROS,
     object::{MoveObject, Object, Owner, OBJECT_START_VERSION},
     transaction::GasData,
 };
+use proptest::{collection::vec, prelude::*, test_runner::TestRunner};
+use rand::{rngs::StdRng, SeedableRng};
 
 fn new_gas_coin_with_balance_and_owner(balance: u64, owner: Owner) -> Object {
     Object::new_move(
@@ -39,12 +40,12 @@ fn generate_random_gas_data(
                                   * obj-owned too */
     owned_by_sender: bool, // whether to set owned gas coins to be owned by the sender
 ) -> GasDataWithObjects {
-    let (sender, sender_key): (SuiAddress, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
     let mut rng = StdRng::from_seed(seed);
     let mut gas_objects = vec![];
     let mut object_refs = vec![];
 
-    let max_gas_balance = TOTAL_SUPPLY_MIST;
+    let max_gas_balance = TOTAL_SUPPLY_MICROS;
 
     let total_gas_balance = rng.gen_range(0..=max_gas_balance);
     let mut remaining_gas_balance = total_gas_balance;

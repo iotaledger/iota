@@ -2,6 +2,9 @@
 # Copyright (c) Mysten Labs, Inc.
 # SPDX-License-Identifier: Apache-2.0
 
+# Modifications Copyright (c) 2024 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
 # verify that git repo is clean
 if [[ -n $(git status -s) ]]; then
   echo "Working directory is not clean. Please commit all changes before running this script."

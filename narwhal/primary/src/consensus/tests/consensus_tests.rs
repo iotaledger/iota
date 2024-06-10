@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::BTreeSet, sync::Arc};
 
 use fastcrypto::hash::Hash;
+use iota_protocol_config::ProtocolConfig;
 use prometheus::Registry;
 use storage::NodeStorage;
-use sui_protocol_config::ProtocolConfig;
 use telemetry_subscribers::TelemetryGuards;
 use test_utils::{latest_protocol_version, temp_dir, CommitteeFixture};
 use tokio::sync::watch;

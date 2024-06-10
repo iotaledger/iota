@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Link } from '_src/ui/app/shared/Link';
@@ -59,7 +60,7 @@ export function LabelValueItem({
                 })}
             >
                 {href && display ? (
-                    <Link color="suiDark" weight="medium" size="body" href={href} text={display} />
+                    <Link color="iotaDark" weight="medium" size="body" href={href} text={display} />
                 ) : (
                     <Text color="steel-darker" weight="medium" truncate={!multiline}>
                         {display}
