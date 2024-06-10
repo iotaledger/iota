@@ -644,7 +644,7 @@ impl KeyToolCommand {
                     }
                     Err(_) => {
                         // Assume it is a mnemonic if it has spaces
-                        let contains_spaces = input_string.contains(' ');
+                        let contains_spaces = input_string.contains(char::is_whitespace);
 
                         if contains_spaces {
                             info!("Importing mnemonic to keystore");
