@@ -5,7 +5,6 @@ module stardust::storage_deposit_return_unlock_condition {
 
     use iota::balance::{Balance, split};
     use iota::coin::from_balance;
-    use iota::iota::IOTA;
     use iota::transfer::public_transfer;
 
     /// The Stardust storage deposit return unlock condition.
@@ -17,7 +16,7 @@ module stardust::storage_deposit_return_unlock_condition {
     }
 
     /// Check the unlock condition.
-    public fun unlock(condition: StorageDepositReturnUnlockCondition, funding: &mut Balance<IOTA>, ctx: &mut TxContext) {
+    public fun unlock<T>(condition: StorageDepositReturnUnlockCondition, funding: &mut Balance<T>, ctx: &mut TxContext) {
         // Aborts if `funding` is not enough.
         let return_balance = funding.split(condition.return_amount());
 

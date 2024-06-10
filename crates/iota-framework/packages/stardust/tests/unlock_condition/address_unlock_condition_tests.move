@@ -44,9 +44,9 @@ module stardust::address_unlock_condition_tests {
             0,
         );
 
-        let mut alias_output = alias_output::create_for_testing(
+        let mut alias_output = alias_output::create_for_testing<IOTA>(
             // iota
-            balance::create_for_testing<IOTA>(initial_iota_in_output),
+            balance::create_for_testing(initial_iota_in_output),
             // tokens
             bag::new(&mut ctx),
             &mut ctx,
