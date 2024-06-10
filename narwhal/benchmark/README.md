@@ -8,7 +8,7 @@ When running benchmarks, the codebase is automatically compiled with the feature
 
 ### Parametrize the benchmark
 
-After [cloning the repo and installing all dependencies](https://github.com/MystenLabs/sui/tree/main/narwhal#quick-start), you can use [Fabric](http://www.fabfile.org/) to run benchmarks on your local machine. Locate the task called `local` in the file [fabfile.py](https://github.com/MystenLabs/sui/blob/main/narwhal/benchmark/fabfile.py):
+After [cloning the repo and installing all dependencies](https://github.com/iotaledger/iota/tree/main/narwhal#quick-start), you can use [Fabric](http://www.fabfile.org/) to run benchmarks on your local machine. Locate the task called `local` in the file [fabfile.py](https://github.com/iotaledger/iota/blob/main/narwhal/benchmark/fabfile.py):
 
 ```python
 @task
@@ -166,18 +166,18 @@ This operation is manual (AWS exposes APIs to manipulate keys) and needs to be r
 
 ### Step 3. Configure the testbed
 
-The file [settings.json](https://github.com/MystenLabs/sui/blob/main/narwhal/benchmark/settings.json) (located in [narwhal/benchmarks](https://github.com/MystenLabs/sui/blob/main/narwhal/benchmark)) contains all the configuration parameters of the testbed to deploy. Its content looks as follows:
+The file [settings.json](https://github.com/iotaledger/iota/blob/main/narwhal/benchmark/settings.json) (located in [narwhal/benchmarks](https://github.com/iotaledger/iota/blob/main/narwhal/benchmark)) contains all the configuration parameters of the testbed to deploy. Its content looks as follows:
 
 ```json
 {
   "key": {
-    "name": "aws-sui",
-    "path": "/Users/username/.ssh/aws-sui.pem"
+    "name": "aws-iota",
+    "path": "/Users/username/.ssh/aws-iota.pem"
   },
   "port": 5000,
   "repo": {
-    "name": "sui",
-    "url": "https://github.com/mystenlabs/sui",
+    "name": "iota",
+    "url": "https://github.com/iotaledger/iota",
     "branch": "main"
   },
   "instances": {
@@ -216,8 +216,8 @@ The third block (`repo`) contains the information regarding the repository's nam
 
 ```json
 "repo": {
-    "name": "sui",
-    "url": "https://github.com/mystenlabs/sui",
+    "name": "iota",
+    "url": "https://github.com/iotaledger/iota",
     "branch": "main"
 },
 ```
@@ -239,14 +239,14 @@ If you require more nodes than data centers, the Python scripts will distribute 
 
 ### Step 4. Create a testbed
 
-The AWS instances are orchestrated with [Fabric](http://www.fabfile.org) from the file [fabfile.py](https://github.com/MystenLabs/sui/blob/main/narwhal/benchmark/fabfile.py) (located in [narwhal/benchmarks](https://github.com/MystenLabs/sui/blob/main/narwhal/benchmark)); you can list all possible commands as follows:
+The AWS instances are orchestrated with [Fabric](http://www.fabfile.org) from the file [fabfile.py](https://github.com/iotaledger/iota/blob/main/narwhal/benchmark/fabfile.py) (located in [narwhal/benchmarks](https://github.com/iotaledger/iota/blob/main/narwhal/benchmark)); you can list all possible commands as follows:
 
 ```
 $ cd narwhal/benchmark
 $ fab --list
 ```
 
-The command `fab create` creates new AWS instances; open [fabfile.py](https://github.com/MystenLabs/sui/blob/main/narwhal/benchmark/fabfile.py) and locate the `create` task:
+The command `fab create` creates new AWS instances; open [fabfile.py](https://github.com/iotaledger/iota/blob/main/narwhal/benchmark/fabfile.py) and locate the `create` task:
 
 ```python
 @task
@@ -278,7 +278,7 @@ The commands `fab stop` and `fab start` respectively stop and start the testbed 
 
 ### Step 5. Run a benchmark
 
-After setting up the testbed, running a benchmark on AWS is similar to running it locally (see [Run Local Benchmarks](https://github.com/MystenLabs/sui/tree/main/narwhal/benchmark#local-benchmarks)). Locate the task `remote` in [fabfile.py](https://github.com/MystenLabs/sui/blob/main/narwhal/benchmark/fabfile.py):
+After setting up the testbed, running a benchmark on AWS is similar to running it locally (see [Run Local Benchmarks](https://github.com/iotaledger/iota/tree/main/narwhal/benchmark#local-benchmarks)). Locate the task `remote` in [fabfile.py](https://github.com/iotaledger/iota/blob/main/narwhal/benchmark/fabfile.py):
 
 ```python
 @task
@@ -286,7 +286,7 @@ def remote(ctx):
     ...
 ```
 
-The benchmark parameters are similar to [local benchmarks](https://github.com/MystenLabs/sui/tree/main/narwhal/benchmark#local-benchmarks) but allow you to specify the number of nodes and the input rate as arrays to automate multiple benchmarks with a single command. The parameter `runs` specifies the number of times to repeat each benchmark (to later compute the average and stdev of the results), and the parameter `collocate` specifies whether to collocate all the node's workers and the primary on the same machine. If `collocate` is set to `False`, the script will run one node per data center (AWS region), with its primary and each of its worker running on a dedicated instance.
+The benchmark parameters are similar to [local benchmarks](https://github.com/iotaledger/iota/tree/main/narwhal/benchmark#local-benchmarks) but allow you to specify the number of nodes and the input rate as arrays to automate multiple benchmarks with a single command. The parameter `runs` specifies the number of times to repeat each benchmark (to later compute the average and stdev of the results), and the parameter `collocate` specifies whether to collocate all the node's workers and the primary on the same machine. If `collocate` is set to `False`, the script will run one node per data center (AWS region), with its primary and each of its worker running on a dedicated instance.
 
 ```python
 bench_params = {
@@ -309,7 +309,7 @@ Once you specified both `bench_params` and `node_params` as desired, run:
 $ fab remote
 ```
 
-This command first updates all machines with the latest commit of the GitHub repo and branch specified in your file [settings.json](https://github.com/MystenLabs/sui/blob/main/narwhal/benchmark/settings.json) (step 3); this ensures that benchmarks are always run with the latest version of the code. It then generates and uploads the configuration files to each machine, runs the benchmarks with the specified parameters, and downloads the logs. It finally parses the logs and prints the results into a folder called `results` (which is automatically created if it doesn't already exist). You can run `fab remote` multiple times without fear of overriding previous results; the command either appends new results to a file containing existing results or prints them in separate files. If anything goes wrong during a benchmark, you can always stop it by running `fab kill`.
+This command first updates all machines with the latest commit of the GitHub repo and branch specified in your file [settings.json](https://github.com/iotaledger/iota/blob/main/narwhal/benchmark/settings.json) (step 3); this ensures that benchmarks are always run with the latest version of the code. It then generates and uploads the configuration files to each machine, runs the benchmarks with the specified parameters, and downloads the logs. It finally parses the logs and prints the results into a folder called `results` (which is automatically created if it doesn't already exist). You can run `fab remote` multiple times without fear of overriding previous results; the command either appends new results to a file containing existing results or prints them in separate files. If anything goes wrong during a benchmark, you can always stop it by running `fab kill`.
 
 ### Step 6. Plot the results
 

@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { AutorefreshPause24, AutorefreshPlay24 } from '@mysten/icons';
+import { AutorefreshPause24, AutorefreshPlay24 } from '@iota/icons';
 import { motion } from 'framer-motion';
 import { useEffect } from 'react';
 

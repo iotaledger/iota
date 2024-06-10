@@ -1,21 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSuiClient } from '@mysten/dapp-kit';
-import { KioskClient, Network } from '@mysten/kiosk';
+import { useIotaClient } from '@iota/dapp-kit';
+import { KioskClient, Network } from '@iota/kiosk';
 import { createContext, ReactNode, useContext, useMemo } from 'react';
 
 export const KioskClientContext = createContext<KioskClient | undefined>(undefined);
 
 export function KisokClientProvider({ children }: { children: ReactNode }) {
-    const suiClient = useSuiClient();
+    const iotaClient = useIotaClient();
     const kioskClient = useMemo(
         () =>
             new KioskClient({
-                client: suiClient,
+                client: iotaClient,
                 network: Network.TESTNET,
             }),
-        [suiClient],
+        [iotaClient],
     );
 
     return (

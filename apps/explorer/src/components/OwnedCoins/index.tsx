@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { getCoinSymbol } from '@mysten/core';
-import { useSuiClientQuery } from '@mysten/dapp-kit';
-import { Info16 } from '@mysten/icons';
-import { type CoinBalance } from '@mysten/sui.js/client';
-import { normalizeSuiAddress } from '@mysten/sui.js/utils';
-import { Heading, Text, LoadingIndicator, RadioGroup, RadioGroupItem } from '@mysten/ui';
+import { getCoinSymbol } from '@iota/core';
+import { useIotaClientQuery } from '@iota/dapp-kit';
+import { Info16 } from '@iota/icons';
+import { type CoinBalance } from '@iota/iota.js/client';
+import { normalizeIotaAddress } from '@iota/iota.js/utils';
+import { Heading, Text, LoadingIndicator, RadioGroup, RadioGroupItem } from '@iota/ui';
 import { useMemo, useState } from 'react';
 
 import OwnedCoinView from './OwnedCoinView';
@@ -27,8 +28,8 @@ export function OwnedCoins({ id }: { id: string }) {
     const [currentSlice, setCurrentSlice] = useState(1);
     const [limit, setLimit] = useState(20);
     const [filterValue, setFilterValue] = useState(CoinFilter.Recognized);
-    const { isPending, data, isError } = useSuiClientQuery('getAllBalances', {
-        owner: normalizeSuiAddress(id),
+    const { isPending, data, isError } = useIotaClientQuery('getAllBalances', {
+        owner: normalizeIotaAddress(id),
     });
     const recognizedPackages = useRecognizedPackages();
 
@@ -52,10 +53,10 @@ export function OwnedCoins({ id }: { id: string }) {
         ) ?? { recognizedBalances: [], unrecognizedBalances: [] };
 
         const recognizedBalances = balanceData.recognizedBalances.sort((a, b) => {
-            // Make sure SUI always comes first
-            if (getCoinSymbol(a.coinType) === 'SUI') {
+            // Make sure IOTA always comes first
+            if (getCoinSymbol(a.coinType) === 'IOTA') {
                 return -1;
-            } else if (getCoinSymbol(b.coinType) === 'SUI') {
+            } else if (getCoinSymbol(b.coinType) === 'IOTA') {
                 return 1;
             } else {
                 return getCoinSymbol(a.coinType).localeCompare(
@@ -141,7 +142,7 @@ export function OwnedCoins({ id }: { id: string }) {
                                 <Info16 width="16px" />
                             </div>
                             <Text color="steel-darker" variant="body/medium">
-                                These coins have not been recognized by Sui Foundation.
+                                These coins have not been recognized by Iota Foundation.
                             </Text>
                         </div>
                     )}

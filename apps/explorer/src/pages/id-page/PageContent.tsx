@@ -1,10 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useGetObject } from '@mysten/core';
+import { useGetObject } from '@iota/core';
 import { Banner } from '~/ui/Banner';
 import { Divider } from '~/ui/Divider';
 import { FieldsContent } from '~/pages/object-result/views/TokenView';
@@ -16,7 +14,7 @@ import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { OwnedCoins } from '~/components/OwnedCoins';
 import { OwnedObjects } from '~/components/OwnedObjects';
 import { SplitPanes } from '~/ui/SplitPanes';
-import { useSuiClient } from '@mysten/dapp-kit';
+import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 import { LocalStorageSplitPaneKey } from '~/lib/enums';
 
@@ -71,7 +69,7 @@ function OwnedObjectsSection({ address }: { address: string }) {
 }
 
 function TransactionsSection({ address, isObject }: { address: string; isObject: boolean }) {
-    const client = useSuiClient();
+    const client = useIotaClient();
 
     const {
         data: transactionsForAddressData,

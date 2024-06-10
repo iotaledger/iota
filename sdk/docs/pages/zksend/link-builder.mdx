@@ -25,30 +25,30 @@ constructor takes an object with the following options:
     for more information.
     -   **`url`** - The url to redirect to after the link have been claimed.
     -   **`name`** - The name of your dApp. This will be shown to the user when claiming the link.
--   **`client`** (optional) - The `@mysten/sui.js` client used to fetch data to construct the link.
+-   **`client`** (optional) - The `@iota/iota.js` client used to fetch data to construct the link.
     If not provided, a default client will be used.
 
 ```ts
-import { ZkSendLinkBuilder } from '@mysten/zksend';
+import { ZkSendLinkBuilder } from '@iota/zksend';
 
 const link = new ZkSendLinkBuilder({
     sender: '0x...',
 });
 ```
 
-#### Adding SUI to the link
+#### Adding IOTA to the link
 
-You can add SUI to the link by calling `link.addClaimableMist()`. This method takes the following
+You can add IOTA to the link by calling `link.addClaimableMicros()`. This method takes the following
 params:
 
--   **`amount`** (required) - The amount of MIST (the base unit of SUI) to add to the link.
+-   **`amount`** (required) - The amount of MICROS (the base unit of IOTA) to add to the link.
 
-#### Adding non-SUI coins to the link
+#### Adding non-IOTA coins to the link
 
-You can add non-SUI coins to the link by calling `link.addClaimableBalance()`. This method takes the
+You can add non-IOTA coins to the link by calling `link.addClaimableBalance()`. This method takes the
 following params:
 
--   **`coinType`** (required) - The coin type of the coin to add to the link (e.g. `0x2::sui::SUI`).
+-   **`coinType`** (required) - The coin type of the coin to add to the link (e.g. `0x2::iota::IOTA`).
 -   **`amount`** (required) - The amount of the coin to add to the link. Represented in the base
     unit of the coin.
 
@@ -108,12 +108,12 @@ takes the following params:
 -   **`name`** - The name of your dApp. This will be shown to the user when claiming the link.
 
 When redirecting to the URL, if the user claims with zkLogin, then zkSend will automatically add a
-`zksend_address` query parameter to the URL, containing the Sui address of the user that claimed the
+`zksend_address` query parameter to the URL, containing the Iota address of the user that claimed the
 asset. The [zkSend wallet](./dapp.mdx) will automatically read this query parameter, and consider
 itself connected as a result of a claim redirect.
 
 ```ts
-import { ZkSendLinkBuilder } from '@mysten/zksend';
+import { ZkSendLinkBuilder } from '@iota/zksend';
 
 const link = new ZkSendLinkBuilder({
     sender: '0x...',
@@ -129,7 +129,7 @@ const link = new ZkSendLinkBuilder({
 To claim a link via the SDK you can use the `ZkSendLink` class:
 
 ```ts
-import { ZkSendLink } from '@mysten/zksend';
+import { ZkSendLink } from '@iota/zksend';
 
 // create a link instance from a URL
 const link = await ZkSendLink.fromUrl('https://zksend.com/claim#$abc...');
@@ -146,7 +146,7 @@ await link.claimAssets(addressOfClaimer);
 To list the links created by a specific address, you can use the `listCreatedLinks` function:
 
 ```ts
-import { listCreatedLinks } from '@mysten/zksend';
+import { listCreatedLinks } from '@iota/zksend';
 
 const { links, hasNextPage, cursor } = await listCreatedLinks({
     address: addressOfCreator,
@@ -162,7 +162,7 @@ If you lose a link you've created, you can re-generate the link (this can only d
 that originally created the link):
 
 ```ts
-import { listCreatedLinks } from '@mysten/zksend';
+import { listCreatedLinks } from '@iota/zksend';
 
 const { links, hasNextPage, cursor } = await listCreatedLinks({
     address: addressOfCreator,
@@ -190,10 +190,10 @@ const links = [];
 for (let i = 0; i < 10; i++) {
     const link = new ZkSendLinkBuilder({
         client,
-        sender: keypair.toSuiAddress(),
+        sender: keypair.toIotaAddress(),
     });
 
-    link.addClaimableMist(100n);
+    link.addClaimableMicros(100n);
     links.push(link);
 }
 

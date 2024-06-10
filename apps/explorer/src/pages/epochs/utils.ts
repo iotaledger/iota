@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useTimeAgo } from '@mysten/core';
-import { useSuiClientQuery } from '@mysten/dapp-kit';
+import { useTimeAgo } from '@iota/core';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 export function useEpochProgress(suffix: string = 'left') {
-    const { data } = useSuiClientQuery('getLatestSuiSystemState');
+    const { data } = useIotaClientQuery('getLatestIotaSystemState');
     const start = data?.epochStartTimestampMs ? Number(data.epochStartTimestampMs) : undefined;
     const duration = data?.epochDurationMs ? Number(data.epochDurationMs) : undefined;
     const end = start !== undefined && duration !== undefined ? start + duration : undefined;

@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Text } from '_app/shared/text';
-import { formatAddress } from '@mysten/sui.js/utils';
+import { formatAddress } from '@iota/iota.js/utils';
 
 type TxnTypeProps = {
     address: string;

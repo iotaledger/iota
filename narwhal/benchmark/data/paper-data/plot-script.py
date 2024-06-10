@@ -2,6 +2,9 @@
 # Copyright (c) Mysten Labs, Inc.
 # SPDX-License-Identifier: Apache-2.0
 
+# Modifications Copyright (c) 2024 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
 # This script produces the plot used in the paper [Narwhal and Tusk: A DAG-based
 # Mempool and Efficient BFT Consensus](https://arxiv.org/abs/2105.11827). Its
 # only dependency is [matplotlib](https://matplotlib.org/) v3.4.3.
