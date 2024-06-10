@@ -98,7 +98,12 @@ jobs:
       # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
       # non-deterministic `test` job.
       IOTA_SKIP_SIMTESTS: 1
-    runs-on: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - [ubuntu-ghcloud]
+      fail-fast: false
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
       - uses: taiki-e/install-action@nextest
@@ -118,7 +123,12 @@ jobs:
       # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
       # non-deterministic `test` job.
       IOTA_SKIP_SIMTESTS: 1
-    runs-on: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - [ubuntu-ghcloud]
+      fail-fast: false
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
       - uses: taiki-e/install-action@nextest
@@ -261,7 +271,6 @@ jobs:
       matrix:
         os:
           - [ubuntu-ghcloud]
-          - [windows-ghcloud]
       fail-fast: false
     steps:
       - run: 'echo "No build required" '
@@ -279,7 +288,6 @@ jobs:
       matrix:
         os:
           - [ubuntu-ghcloud]
-          - [windows-ghcloud]
       fail-fast: false
     steps:
       - run: 'echo "No build required" '
