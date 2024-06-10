@@ -8,7 +8,7 @@ export { default as Box } from './Box';
 export { default as AmountBox } from './AmountBox';
 export { default as List } from './List';
 export { default as Button } from './Button';
-export { default as SendButton } from './SendButton';
+export { default as SendCoinButton } from './SendCoinButton';
 export { default as Input } from './Input';
 export { default as VirtualList } from './VirtualList';
 

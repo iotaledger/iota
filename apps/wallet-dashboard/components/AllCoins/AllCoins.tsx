@@ -4,7 +4,7 @@
 import { useGetAllCoins } from '@iota/core/src/hooks/useGetAllCoins';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
-import { SendButton } from '@/components/index';
+import { SendCoinButton } from '@/components/index';
 
 export const AllCoins = () => {
     const account = useCurrentAccount();
@@ -21,7 +21,7 @@ export const AllCoins = () => {
                     >
                         {coin.balance} - {coin.coinObjectId}
                         {account?.address ? (
-                            <SendButton address={account.address} coin={coin} />
+                            <SendCoinButton address={account.address} coin={coin} />
                         ) : null}
                     </div>
                 );
