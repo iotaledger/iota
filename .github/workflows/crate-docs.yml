@@ -1,4 +1,4 @@
-name: Docs
+name: Crate Docs
 
 on:
   push:
