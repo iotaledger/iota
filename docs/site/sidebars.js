@@ -9,7 +9,7 @@ const standards = require("../content/sidebars/standards.js");
 const references = require("../content/sidebars/references.js");
 
 const sidebars = {
-  //whyIotaSidebar: why_iota,
+  //whyIOTASidebar: why_iota,
   guidesSidebar: guides,
   conceptsSidebar: concepts,
   standardsSidebar: standards,

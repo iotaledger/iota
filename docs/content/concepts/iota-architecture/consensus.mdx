@@ -1,19 +1,19 @@
 ---
-title: Iota Mempool and Consensus Engines
+title: IOTA Mempool and Consensus Engines
 sidebar_label: Mempool and Consensus Engines 
-description: Overview of the Iota mempool and consensus engines, Narwhal and Bullshark.
+description: Overview of the IOTA mempool and consensus engines, Narwhal and Bullshark.
 ---
 
-This is a brief introduction to [Narwhal](https://github.com/iotaledger/iota/tree/main/narwhal), and [Bullshark](https://arxiv.org/abs/2209.05633), the high-throughput mempool and consensus engines offered by Mysten Labs. Iota uses Narwhal as the mempool and Bullshark as the consensus engine by default, to sequence transactions that require a total ordering, synchronize transactions between validators and periodically checkpoint the network's state.
+This is a brief introduction to [Narwhal](https://github.com/iotaledger/iota/tree/main/narwhal), and [Bullshark](https://arxiv.org/abs/2209.05633), the high-throughput mempool and consensus engines offered by Mysten Labs. IOTA uses Narwhal as the mempool and Bullshark as the consensus engine by default, to sequence transactions that require a total ordering, synchronize transactions between validators and periodically checkpoint the network's state.
 
 The names highlight that the components split the responsibilities of:
 
 - ensuring the availability of data submitted to consensus = [Narwhal](https://arxiv.org/abs/2105.11827)
 - agreeing on a specific ordering of this data = [Bullshark](https://dl.acm.org/doi/abs/10.1145/3548606.3559361)
 
-The Iota consensus engine represents the latest variant of decades of work on multi-proposer, high-throughput consensus algorithms that reach throughputs of more than 125,000 transactions per second with a two-second latency for a deployment of 50 parties, with production cryptography, permanent storage, and a scaled-out primary-worker architecture.
+The IOTA consensus engine represents the latest variant of decades of work on multi-proposer, high-throughput consensus algorithms that reach throughputs of more than 125,000 transactions per second with a two-second latency for a deployment of 50 parties, with production cryptography, permanent storage, and a scaled-out primary-worker architecture.
 
-The Iota consensus engine approach can offer dramatic scalability benefits in the following cases:
+The IOTA consensus engine approach can offer dramatic scalability benefits in the following cases:
 
 - a blockchain that has experimented with larger and larger blocks and has measured runaway latencies before the execution phase
 - a blockchain with fast execution (e.g., focused on transactions or with an UTXO data model), but which mempool and consensus do not keep up
@@ -30,7 +30,7 @@ The [consensus](https://github.com/iotaledger/iota/blob/main/narwhal/consensus) 
 
 ## Architecture
 
-A Narwhal instance sets up a message-passing system comprised of a set of $3f+1$ units of stake divided amongst a set of nodes, and assumes a computationally bounded adversary that controls the network and can corrupt parties holding up to f units of stake. The validators collaborate in forming a leaderless graph of batches of transactions - which the literature (in the context of DAG-based consensus) designates as _blocks_ and that Iota labels _collections_ - to emphasize that this happens in a context where the mempool data is used by an unspecified consensus algorithm.
+A Narwhal instance sets up a message-passing system comprised of a set of $3f+1$ units of stake divided amongst a set of nodes, and assumes a computationally bounded adversary that controls the network and can corrupt parties holding up to f units of stake. The validators collaborate in forming a leaderless graph of batches of transactions - which the literature (in the context of DAG-based consensus) designates as _blocks_ and that IOTA labels _collections_ - to emphasize that this happens in a context where the mempool data is used by an unspecified consensus algorithm.
 
 The graph's *vertices* consist of certified collections. Each valid collection signed by its validator-author must contain a round number and must itself be signed by a quorum (2f+1) of validator stake. These 2f+1 signatures are called a _certificate of availability_. Furthermore, that collection must contain hash pointers to a quorum of valid certificates (that is, certificates from validators with 2f + 1 units of stake) from the previous round (see Danezis & al. Fig 2), which constitute the *edges* of the graph.
 
@@ -82,7 +82,7 @@ Narwhal is implemented using [Tokio](https://github.com/tokio-rs/tokio), [RocksD
 
 ## Configuration
 
-To conduct a fresh deployment of Iota Consensus Engine, follow the instructions at [Running Benchmarks](https://github.com/iotaledger/iota/blob/main/narwhal/benchmark).
+To conduct a fresh deployment of IOTA Consensus Engine, follow the instructions at [Running Benchmarks](https://github.com/iotaledger/iota/blob/main/narwhal/benchmark).
 
 ## Further reading
 
@@ -96,9 +96,9 @@ Narwhal and Tusk started [as a research prototype](https://github.com/facebookre
 Bullshark replaces Tusk for even greater performance.
 
 [Bullshark: The Partially Synchronous Version](https://arxiv.org/pdf/2209.05633.pdf) - 
-A simplified version of Bullshark that is used in Iota today.
+A simplified version of Bullshark that is used in IOTA today.
 
-[DAG Meets BFT - The Next Generation of BFT Consensus](https://decentralizedthoughts.github.io/2022-06-28-DAG-meets-BFT/) - Explains the evolution of the consensus protocol used by Iota.
+[DAG Meets BFT - The Next Generation of BFT Consensus](https://decentralizedthoughts.github.io/2022-06-28-DAG-meets-BFT/) - Explains the evolution of the consensus protocol used by IOTA.
 
 ## Bibliography
 

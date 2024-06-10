@@ -1,11 +1,11 @@
 ---
 title: Building Programmable Transaction Blocks
-description: Using the Iota TypeScript SDK, you can create programmable transaction blocks to perform multiple commands in a single transaction.
+description: Using the IOTA TypeScript SDK, you can create programmable transaction blocks to perform multiple commands in a single transaction.
 ---
 
-This guide explores creating a programmable transaction block (PTB) on Iota using the TypeScript SDK. For an overview of what a PTB is, see [Programmable Transaction Blocks](/concepts/transactions/prog-txn-blocks.mdx) in the Concepts section. If you don't already have the Iota TypeScript SDK, follow the [install instructions](https://sdk.mystenlabs.com/typescript/install) on the Iota TypeScript SDK site.
+This guide explores creating a programmable transaction block (PTB) on IOTA using the TypeScript SDK. For an overview of what a PTB is, see [Programmable Transaction Blocks](/concepts/transactions/prog-txn-blocks.mdx) in the Concepts section. If you don't already have the IOTA TypeScript SDK, follow the [install instructions](https://sdk.mystenlabs.com/typescript/install) on the IOTA TypeScript SDK site.
 
-This example starts by constructing a PTB to send Iota. If you are familiar with the legacy Iota transaction types, this is similar to a `payIota` transaction. To construct transactions, import the `TransactionBlock` class, and construct it:
+This example starts by constructing a PTB to send IOTA. If you are familiar with the legacy IOTA transaction types, this is similar to a `payIOTA` transaction. To construct transactions, import the `TransactionBlock` class, and construct it:
 
 ```ts
 import { TransactionBlock } from "@iota/iota.js";
@@ -20,7 +20,7 @@ Using this, you can then add transactions to this PTB.
 const [coin] = txb.splitCoins(txb.gas, [txb.pure(100)]);
 
 // Transfer the split coin to a specific address.
-txb.transferObjects([coin], txb.pure("0xSomeIotaAddress"));
+txb.transferObjects([coin], txb.pure("0xSomeIOTAAddress"));
 ```
 
 You can attach multiple transaction commands of the same type to a PTB as well. For example, to get a list of transfers, and iterate over them to transfer coins to each of them:
@@ -31,7 +31,7 @@ interface Transfer {
   amount: number;
 }
 
-// Procure a list of some Iota transfers to make:
+// Procure a list of some IOTA transfers to make:
 const transfers: Transfer[] = getTransfers();
 
 const txb = new TransactionBlock();
@@ -56,7 +56,7 @@ signer.signAndExecuteTransactionBlock({ transactionBlock: txb });
 
 ## Constructing inputs
 
-Inputs are how you provide external values to PTBs. For example, defining an amount of Iota to transfer, or which object to pass into a Move call, or a shared object.
+Inputs are how you provide external values to PTBs. For example, defining an amount of IOTA to transfer, or which object to pass into a Move call, or a shared object.
 
 There are currently two ways to define inputs:
 
@@ -67,7 +67,7 @@ There are currently two ways to define inputs:
 
 ## Available transactions
 
-Iota supports following transaction commands:
+IOTA supports following transaction commands:
 
 - `txb.splitCoins(coin, amounts)`: Creates new coins with the defined amounts, split from the provided coin. Returns the coins so that it can be used in subsequent transactions.
     - Example: `txb.splitCoins(txb.gas, [txb.pure(100), txb.pure(200)])`
@@ -75,7 +75,7 @@ Iota supports following transaction commands:
     - Example: `txb.mergeCoins(txb.object(coin1), [txb.object(coin2), txb.object(coin3)])`
 - `txb.transferObjects(objects, address)`: Transfers a list of objects to the specified address.
     - Example: `txb.transferObjects([txb.object(thing1), txb.object(thing2)], txb.pure(myAddress))`
-- `txb.moveCall({ target, arguments, typeArguments })`: Executes a Move call. Returns whatever the Iota Move call returns.
+- `txb.moveCall({ target, arguments, typeArguments })`: Executes a Move call. Returns whatever the IOTA Move call returns.
     - Example: `txb.moveCall({ target: '0x2::devnet_nft::mint', arguments: [txb.pure(name), txb.pure(description), txb.pure(image)] })`
 - `txb.makeMoveVec({ type, objects })`: Constructs a vector of objects that can be passed into a moveCall. This is required as there's no other way to define a vector as an input.
     - Example: `txb.makeMoveVec({ objects: [txb.object(id1), txb.object(id2)] })`
@@ -106,7 +106,7 @@ txb.transferObjects([mintMany[0], mintMany[1]], txb.pure(address));
 
 ## Use the gas coin
 
-With PTBs, you can use the gas payment coin to construct coins with a set balance using `splitCoin`. This is useful for Iota payments, and avoids the need for up-front coin selection. You can use `txb.gas` to access the gas coin in a PTB, and it is valid as input for any arguments; with the exception of `transferObjects`, `txb.gas` must be used by-reference. Practically speaking, this means you can also add to the gas coin with `mergeCoins` or borrow it for Move functions with `moveCall`.
+With PTBs, you can use the gas payment coin to construct coins with a set balance using `splitCoin`. This is useful for IOTA payments, and avoids the need for up-front coin selection. You can use `txb.gas` to access the gas coin in a PTB, and it is valid as input for any arguments; with the exception of `transferObjects`, `txb.gas` must be used by-reference. Practically speaking, this means you can also add to the gas coin with `mergeCoins` or borrow it for Move functions with `moveCall`.
 
 You can also transfer the gas coin using `transferObjects`, in the event that you want to transfer all of your coin balance to another address.
 
@@ -174,7 +174,7 @@ By default, the gas budget is automatically derived by executing a dry-run of th
 
 :::info
 
-The gas budget is represented in Iota, and should take the gas price of the PTB into account.
+The gas budget is represented in IOTA, and should take the gas price of the PTB into account.
 
 :::
 
@@ -198,7 +198,7 @@ txb.setGasPayment([coin1, coin2]);
 
 The Wallet Standard interface has been updated to support the `TransactionBlock` kind directly. All `signTransaction` and `signAndExecuteTransaction` calls from dApps into wallets is expected to provide a `TransactionBlock` class. This PTB class can then be serialized and sent to your wallet for execution.
 
-To serialize a PTB for sending to a wallet, Iota recommends using the `txb.serialize()` function, which returns an opaque string representation of the PTB that can be passed from the wallet standard dApp context to your wallet. This can then be converted back into a `TransactionBlock` using `TransactionBlock.from()`.
+To serialize a PTB for sending to a wallet, IOTA recommends using the `txb.serialize()` function, which returns an opaque string representation of the PTB that can be passed from the wallet standard dApp context to your wallet. This can then be converted back into a `TransactionBlock` using `TransactionBlock.from()`.
 
 :::tip
 
