@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type SuiTransaction } from '@mysten/sui.js/client';
+import { type IotaTransaction } from '@iota/iota.js/client';
 
 import { Transaction } from './Transaction';
 import { ProgrammableTxnBlockCard } from '~/components/transactions/ProgTxnBlockCard';
 import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
 
 interface TransactionsCardProps {
-    transactions: SuiTransaction[];
+    transactions: IotaTransaction[];
 }
 
 export function TransactionsCard({ transactions }: TransactionsCardProps) {

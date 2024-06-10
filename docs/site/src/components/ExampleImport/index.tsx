@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import React, { useState, useEffect } from "react";
@@ -14,7 +15,7 @@ require("prismjs/components/prism-rust");
 
 type LangExt = Language | "rust";
 
-const BASE = "https://raw.githubusercontent.com/MystenLabs/sui/main";
+const BASE = "https://raw.githubusercontent.com/iotaledger/iota/main";
 
 export default function ExampleImport(props) {
   const [example, setExample] = useState(null);

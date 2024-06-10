@@ -1,0 +1,13 @@
+[package]
+name = "TimeLock"
+version = "0.0.1"
+published-at = "0x10cf"
+edition = "2024.beta"
+
+[dependencies]
+MoveStdlib = { local = "../move-stdlib" }
+Iota = { local = "../iota-framework" }
+IotaSystem = { local = "../iota-system" }
+
+[addresses]
+timelock = "0x10cf"

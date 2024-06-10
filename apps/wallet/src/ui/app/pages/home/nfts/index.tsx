@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
@@ -9,7 +10,7 @@ import LoadingSpinner from '_components/loading/LoadingIndicator';
 import { setToSessionStorage } from '_src/background/storage-utils';
 import { AssetFilterTypes, useGetNFTs } from '_src/ui/app/hooks/useGetNFTs';
 import PageTitle from '_src/ui/app/shared/PageTitle';
-import { useOnScreen } from '@mysten/core';
+import { useOnScreen } from '@iota/core';
 import { useEffect, useMemo, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 

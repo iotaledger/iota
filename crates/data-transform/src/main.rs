@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -12,18 +13,18 @@ use std::{
 use anyhow::anyhow;
 use data_transform::*;
 use diesel::{prelude::*, RunQueryDsl};
-use move_bytecode_utils::module_cache::SyncModuleCache;
-use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
-use once_cell::sync::Lazy;
-use sui_indexer::{
+use iota_indexer::{
     db::new_pg_connection_pool, errors::IndexerError,
     store::module_resolver::IndexerStorePackageModuleResolver,
 };
-use sui_json_rpc_types::SuiMoveStruct;
-use sui_types::{
+use iota_json_rpc_types::IotaMoveStruct;
+use iota_types::{
     object::{bounded_visitor::BoundedVisitor, MoveObject},
-    parse_sui_struct_tag,
+    parse_iota_struct_tag,
 };
+use move_bytecode_utils::module_cache::SyncModuleCache;
+use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
+use once_cell::sync::Lazy;
 use tracing::debug;
 
 use self::models::*;
@@ -279,7 +280,8 @@ fn main() {
                 }
 
                 // JSON parsing starts here
-                let type_ = parse_sui_struct_tag(&event.event_type).expect("cannot load StructTag");
+                let type_ =
+                    parse_iota_struct_tag(&event.event_type).expect("cannot load StructTag");
 
                 let layout = MoveObject::get_layout_from_struct_tag(type_.clone(), &module_cache);
 
@@ -290,7 +292,7 @@ fn main() {
 
                         match move_object {
                             Ok(m) => {
-                                let parsed_json = SuiMoveStruct::from(m).to_json_value();
+                                let parsed_json = IotaMoveStruct::from(m).to_json_value();
                                 let final_result =
                                     serde_json::to_string_pretty(&parsed_json).unwrap();
                                 println!("event json = {}", final_result);

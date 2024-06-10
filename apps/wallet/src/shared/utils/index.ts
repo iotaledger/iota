@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useAppSelector } from '_hooks';
 import { setAttributes } from '_src/shared/experimentation/features';
 import { useGrowthBook } from '@growthbook/growthbook-react';
-import { fromB64, toB64 } from '@mysten/sui.js/utils';
+import { fromB64, toB64 } from '@iota/iota.js/utils';
 import * as Sentry from '@sentry/browser';
 import { useEffect } from 'react';
 import Browser from 'webextension-polyfill';
@@ -13,7 +14,7 @@ import { getUrlWithDeviceId } from '../analytics/amplitude';
 
 export const MAIN_UI_URL = Browser.runtime.getURL('ui.html');
 
-const MYSTEN_LABS_DAPPS = ['suifrens.com', 'suins.io'];
+const MYSTEN_LABS_DAPPS = ['iotafrens.com', 'iotans.io'];
 
 export function openInNewTab() {
     return Browser.tabs.create({ url: MAIN_UI_URL });

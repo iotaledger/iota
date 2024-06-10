@@ -44,7 +44,7 @@ IOTA Move is based on objects instead of a global storage like EVM. Objects in I
 ```move title="examples/Examplenft.move"
 module example::examplenft {
     use std::string;
-    use sui::event;
+    use iota::event;
 
     /// An example NFT that can be minted by anybody
     public struct ExampleNFT has key, store {

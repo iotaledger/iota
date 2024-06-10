@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useZodForm } from '@mysten/core';
-import { ArrowRight12 } from '@mysten/icons';
-import { TransactionBlock, getPureSerializationType } from '@mysten/sui.js/transactions';
-import { Button } from '@mysten/ui';
+import { useZodForm } from '@iota/core';
+import { ArrowRight12 } from '@iota/icons';
+import { TransactionBlock, getPureSerializationType } from '@iota/iota.js/transactions';
+import { Button } from '@iota/ui';
 import {
     ConnectButton,
     useCurrentAccount,
     useSignAndExecuteTransactionBlock,
-} from '@mysten/dapp-kit';
+} from '@iota/dapp-kit';
 import { useMutation } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useMemo } from 'react';
@@ -22,7 +23,7 @@ import { useFunctionTypeArguments } from './useFunctionTypeArguments';
 import { DisclosureBox } from '~/ui/DisclosureBox';
 import { Input } from '~/ui/Input';
 
-import type { SuiMoveNormalizedFunction } from '@mysten/sui.js/client';
+import type { IotaMoveNormalizedFunction } from '@iota/iota.js/client';
 import type { TypeOf } from 'zod';
 
 const argsSchema = z.object({
@@ -34,7 +35,7 @@ export type ModuleFunctionProps = {
     packageId: string;
     moduleName: string;
     functionName: string;
-    functionDetails: SuiMoveNormalizedFunction;
+    functionDetails: IotaMoveNormalizedFunction;
     defaultOpen?: boolean;
 };
 
@@ -141,7 +142,7 @@ export function ModuleFunction({
                             '!rounded-md !text-bodySmall',
                             currentAccount
                                 ? '!border !border-solid !border-steel !bg-white !font-mono !text-hero-dark !shadow-sm !shadow-ebony/5'
-                                : '!flex !flex-nowrap !items-center !gap-1 !bg-sui-dark !font-sans !text-sui-light hover:!bg-sui-dark hover:!text-white',
+                                : '!flex !flex-nowrap !items-center !gap-1 !bg-iota-dark !font-sans !text-iota-light hover:!bg-iota-dark hover:!text-white',
                         )}
                     />
                 </div>

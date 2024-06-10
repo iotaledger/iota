@@ -132,7 +132,7 @@ public async placeMarketOrderWithSmartRouting(
                 arguments: [
                     overrides.txb.object(String(poolInfo.clob)),
                     _amount,
-                    overrides.txb.object(normalizeSuiObjectId(this.configs.clock)),
+                    overrides.txb.object(normalizeIOTAObjectId(this.configs.clock)),
                     _tokenOut,
                 ],
             });
@@ -146,7 +146,7 @@ public async placeMarketOrderWithSmartRouting(
                     _amount,
                     _tokenIn,
                     _tokenOut,
-                    overrides.txb.object(normalizeSuiObjectId(this.configs.clock)),
+                    overrides.txb.object(normalizeIOTAObjectId(this.configs.clock)),
                 ],
             });
         }

@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type Keypair, type SignatureScheme } from '@mysten/sui.js/cryptography';
+import { type Keypair, type SignatureScheme } from '@iota/iota.js/cryptography';
 import {
-    decodeSuiPrivateKey,
+    decodeIotaPrivateKey,
     LEGACY_PRIVATE_KEY_SIZE,
     PRIVATE_KEY_SIZE,
-} from '@mysten/sui.js/cryptography/keypair';
-import { Ed25519Keypair } from '@mysten/sui.js/keypairs/ed25519';
-import { Secp256k1Keypair } from '@mysten/sui.js/keypairs/secp256k1';
-import { Secp256r1Keypair } from '@mysten/sui.js/keypairs/secp256r1';
-import { fromB64 } from '@mysten/sui.js/utils';
+} from '@iota/iota.js/cryptography/keypair';
+import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
+import { Secp256k1Keypair } from '@iota/iota.js/keypairs/secp256k1';
+import { Secp256r1Keypair } from '@iota/iota.js/keypairs/secp256r1';
+import { fromB64 } from '@iota/iota.js/utils';
 
 /**
  * Wallet stored data might contain imported accounts with their keys stored in the previous format.
@@ -34,7 +35,7 @@ export function fromExportedKeypair(
         secretKey = fromB64(secret.privateKey);
         schema = secret.schema;
     } else {
-        const decoded = decodeSuiPrivateKey(secret);
+        const decoded = decodeIotaPrivateKey(secret);
         schema = decoded.schema;
         secretKey = decoded.secretKey;
     }

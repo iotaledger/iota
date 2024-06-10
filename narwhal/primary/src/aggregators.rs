@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::HashSet, sync::Arc};
@@ -10,7 +11,7 @@ use crypto::{
     NarwhalAuthoritySignature, Signature,
 };
 use fastcrypto::hash::{Digest, Hash};
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 use tracing::warn;
 use types::{
     ensure,

@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { parseSerializedSignature, PublicKey, SignatureScheme } from '@mysten/sui.js/cryptography';
-import { parsePartialSignatures } from '@mysten/sui.js/multisig';
-import { toB64 } from '@mysten/sui.js/utils';
-import { publicKeyFromRawBytes } from '@mysten/sui.js/verify';
+import { parseSerializedSignature, PublicKey, SignatureScheme } from '@iota/iota.js/cryptography';
+import { parsePartialSignatures } from '@iota/iota.js/multisig';
+import { toB64 } from '@iota/iota.js/utils';
+import { publicKeyFromRawBytes } from '@iota/iota.js/verify';
 import { AlertCircle } from 'lucide-react';
 import { useState } from 'react';
 
@@ -36,17 +37,17 @@ AIYbCXAhPmILpWq6xsEY/Nu310Kednlb60Qcd/nD+u2WCXE/FvSXNRUQW9OQKGqt2CeskPyv2SEhaKMZ
 */
 
 function Signature({ signature, index }: { signature: SignaturePubkeyPair; index: number }) {
-    const suiAddress = signature.publicKey.toSuiAddress();
+    const iotaAddress = signature.publicKey.toIotaAddress();
 
-    const pubkey_base64_sui_format = signature.publicKey.toSuiPublicKey();
+    const pubkey_base64_iota_format = signature.publicKey.toIotaPublicKey();
 
     const pubkey = signature.publicKey.toBase64();
     const scheme = signature.signatureScheme.toString();
 
     const details = [
         { label: 'Signature Public Key', value: pubkey },
-        { label: 'Sui Format Public Key ( flag | pk )', value: pubkey_base64_sui_format },
-        { label: 'Sui Address', value: suiAddress },
+        { label: 'Iota Format Public Key ( flag | pk )', value: pubkey_base64_iota_format },
+        { label: 'Iota Address', value: iotaAddress },
         { label: 'Signature', value: toB64(signature.signature) },
     ];
 

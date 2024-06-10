@@ -1,17 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useRouter } from 'next/router';
 
 const config = {
-    logo: <span>Sui TypeScript Docs</span>,
+    logo: <span>Iota TypeScript Docs</span>,
     project: {
-        link: 'https://github.com/MystenLabs/sui/tree/main/sdk/',
+        link: 'https://github.com/iotaledger/iota/tree/main/sdk/',
     },
     chat: {
-        link: 'https://discord.com/invite/Sui',
+        link: 'https://discord.com/invite/Iota',
     },
-    docsRepositoryBase: 'https://github.com/MystenLabs/sui/tree/main/sdk/docs',
+    docsRepositoryBase: 'https://github.com/iotaledger/iota/tree/main/sdk/docs',
     footer: {
         text: `Copyright © ${new Date().getFullYear()}, Mysten Labs, Inc.`,
     },
@@ -28,17 +29,17 @@ const config = {
         const { asPath } = useRouter();
 
         return {
-            titleTemplate: asPath !== '/' ? '%s | Sui TypeScript Docs' : 'Sui TypeScript Docs',
+            titleTemplate: asPath !== '/' ? '%s | Iota TypeScript Docs' : 'Iota TypeScript Docs',
             description:
-                'Sui TypeScript Documentation. Discover the power of Sui through examples, guides, and concepts.',
+                'Iota TypeScript Documentation. Discover the power of Iota through examples, guides, and concepts.',
             openGraph: {
-                title: 'Sui TypeScript Docs',
+                title: 'Iota TypeScript Docs',
                 description:
-                    'Sui TypeScript Documentation. Discover the power of Sui through examples, guides, and concepts.',
-                site_name: 'Sui TypeScript Docs',
+                    'Iota TypeScript Documentation. Discover the power of Iota through examples, guides, and concepts.',
+                site_name: 'Iota TypeScript Docs',
             },
             additionalMetaTags: [
-                { content: 'Sui TypeScript Docs', name: 'apple-mobile-web-app-title' },
+                { content: 'Iota TypeScript Docs', name: 'apple-mobile-web-app-title' },
             ],
             twitter: {
                 card: 'summary_large_image',

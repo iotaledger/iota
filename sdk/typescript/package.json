@@ -1,7 +1,7 @@
 {
-    "name": "@mysten/sui.js",
+    "name": "@iota/iota.js",
     "author": "Mysten Labs <build@mystenlabs.com>",
-    "description": "Sui TypeScript API(Work in Progress)",
+    "description": "Iota TypeScript API(Work in Progress)",
     "homepage": "https://sdk.mystenlabs.com",
     "version": "0.51.1",
     "license": "Apache-2.0",
@@ -98,7 +98,7 @@
         "test:unit": "vitest run unit __tests__",
         "test:e2e": "wait-on http://127.0.0.1:9123 -l --timeout 180000 && vitest run e2e",
         "test:e2e:nowait": "vitest run e2e",
-        "prepare:e2e": "docker-compose down && docker-compose up -d && cargo build --bin sui-test-validator --bin sui --profile dev && cross-env RUST_LOG=info,sui=error,anemo_tower=warn,consensus=off cargo run --bin sui-test-validator -- --with-indexer --use-indexer-v2 --pg-port 5435 --pg-db-name sui_indexer_v2 --graphql-host 127.0.0.1 --graphql-port 9125",
+        "prepare:e2e": "docker-compose down && docker-compose up -d && cargo build --bin iota-test-validator --bin iota --profile dev && cross-env RUST_LOG=info,iota=error,anemo_tower=warn,consensus=off cargo run --bin iota-test-validator -- --with-indexer --use-indexer-v2 --pg-port 5435 --pg-db-name iota_indexer_v2 --graphql-host 127.0.0.1 --graphql-port 9125",
         "prepublishOnly": "pnpm build",
         "size": "size-limit",
         "analyze": "size-limit --why",
@@ -110,7 +110,7 @@
         "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix"
     },
     "bugs": {
-        "url": "https://github.com/MystenLabs/sui/issues/new"
+        "url": "https://github.com/iotaledger/iota/issues/new"
     },
     "publishConfig": {
         "access": "public"
@@ -123,7 +123,7 @@
         "@graphql-codegen/typescript": "4.0.4",
         "@graphql-codegen/typescript-operations": "^4.1.2",
         "@iarna/toml": "^2.2.5",
-        "@mysten/build-scripts": "workspace:^",
+        "@iota/build-scripts": "workspace:^",
         "@types/node": "^20.4.2",
         "@types/tmp": "^0.2.3",
         "@types/ws": "^8.5.9",
@@ -140,7 +140,7 @@
     },
     "dependencies": {
         "@graphql-typed-document-node/core": "^3.2.0",
-        "@mysten/bcs": "workspace:*",
+        "@iota/bcs": "workspace:*",
         "@noble/curves": "^1.1.0",
         "@noble/hashes": "^1.3.1",
         "@scure/bip32": "^1.3.1",

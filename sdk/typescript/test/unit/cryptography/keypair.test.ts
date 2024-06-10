@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { toB64 } from '@mysten/bcs';
+import { toB64 } from '@iota/bcs';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { bcs } from '../../../src/bcs/index.js';
@@ -124,19 +125,19 @@ describe('Keypair', () => {
         );
     });
 
-    it('`toSuiAddress()` should return a valid sui address', async () => {
-        expect(k1.toSuiAddress()).toEqual(pk1.toSuiAddress());
-        expect(k1.toSuiAddress()).toEqual(
+    it('`toIotaAddress()` should return a valid iota address', async () => {
+        expect(k1.toIotaAddress()).toEqual(pk1.toIotaAddress());
+        expect(k1.toIotaAddress()).toEqual(
             '0xe6dcb252ab9a52298087003feaab88716515aff3965544ac24764665a0d79d6a',
         );
 
-        expect(k2.toSuiAddress()).toEqual(pk2.toSuiAddress());
-        expect(k2.toSuiAddress()).toEqual(
+        expect(k2.toIotaAddress()).toEqual(pk2.toIotaAddress());
+        expect(k2.toIotaAddress()).toEqual(
             '0x7e4f9a35bf3b5383802d990956d6f3c93e6184ebbbcf0820c124ab3a59ef77ac',
         );
 
-        expect(k3.toSuiAddress()).toEqual(pk3.toSuiAddress());
-        expect(k3.toSuiAddress()).toEqual(
+        expect(k3.toIotaAddress()).toEqual(pk3.toIotaAddress());
+        expect(k3.toIotaAddress()).toEqual(
             '0x318f591092f10b67a81963954fb9539ea3919444417726be4e1b95ce44fe2fc0',
         );
     });
