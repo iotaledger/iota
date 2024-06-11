@@ -22,9 +22,9 @@ import type { IotaReconnectForceFeature } from './iotaReconnectForce.js';
 export type IotaFeatures = IotaSignTransactionBlockFeature &
     IotaSignAndExecuteTransactionBlockFeature &
     IotaSignPersonalMessageFeature &
+    IotaReconnectForceFeature &
     // This deprecated feature should be removed once wallets update to the new method:
-    Partial<IotaSignMessageFeature> &
-    IotaReconnectForceFeature;
+    Partial<IotaSignMessageFeature>;
 
 export type WalletWithIotaFeatures = WalletWithFeatures<
     StandardConnectFeature &

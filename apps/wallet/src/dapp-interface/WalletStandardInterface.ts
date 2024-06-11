@@ -43,7 +43,7 @@ import {
     type IotaSignPersonalMessageMethod,
     type IotaSignTransactionBlockMethod,
     type Wallet,
-    type IotaReconnectForceOutput,
+    type IotaReconnectForceMethod,
 } from '@iota/wallet-standard';
 import mitt, { type Emitter } from 'mitt';
 import { filter, map, type Observable } from 'rxjs';
@@ -198,9 +198,7 @@ export class IotaWallet implements Wallet {
         return { accounts: this.accounts };
     };
 
-    #reconnectForce: (input: { origin: string }) => Promise<IotaReconnectForceOutput> = async (
-        input,
-    ) => {
+    #reconnectForce: IotaReconnectForceMethod = async (input) => {
         await mapToPromise(
             this.#send<ReconnectForceRequest, ReconnectForceResponse>({
                 type: 'reconnect-force-request',
