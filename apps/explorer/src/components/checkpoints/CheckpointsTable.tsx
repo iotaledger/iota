@@ -17,7 +17,7 @@ import { numberSuffix } from '~/utils/numberUtil';
 
 const DEFAULT_CHECKPOINTS_LIMIT = 20;
 
-interface Props {
+interface CheckpointsTableProps {
     disablePagination?: boolean;
     refetchInterval?: number;
     initialLimit?: number;
@@ -30,7 +30,7 @@ export function CheckpointsTable({
     initialLimit = DEFAULT_CHECKPOINTS_LIMIT,
     initialCursor,
     maxCursor,
-}: Props) {
+}: CheckpointsTableProps) {
     const [limit, setLimit] = useState(initialLimit);
 
     const countQuery = useIotaClientQuery('getLatestCheckpointSequenceNumber');

@@ -9,11 +9,11 @@ import { ObjectDetails } from '~/ui/ObjectDetails';
 import { parseObjectType } from '~/utils/objectUtils';
 import { trimStdLibPrefix } from '~/utils/stringUtils';
 
-type OwnedObjectTypes = {
+type OwnedObjectProps = {
     obj: IotaObjectResponse;
 };
 
-export default function OwnedObject({ obj }: OwnedObjectTypes) {
+export default function OwnedObject({ obj }: OwnedObjectProps) {
     const video = useResolveVideo(obj);
     const displayMeta = obj.data?.display?.data;
 

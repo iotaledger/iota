@@ -15,7 +15,7 @@ import { useNetworkContext } from '~/context';
 import { Banner } from '~/ui/Banner';
 import { Network } from '~/utils/api/DefaultRpcClient';
 
-export type PageLayoutProps = {
+type PageLayoutProps = {
     gradient?: {
         content: ReactNode;
         size: 'lg' | 'md';

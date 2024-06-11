@@ -5,7 +5,7 @@
 import clsx from 'clsx';
 import { type ReactNode } from 'react';
 
-export interface ListItemProps {
+interface ListItemProps {
     active?: boolean;
     children: ReactNode;
     onClick?(): void;
@@ -30,7 +30,7 @@ export function ListItem({ active, children, onClick }: ListItemProps) {
     );
 }
 
-export interface VerticalListProps {
+interface VerticalListProps {
     children: ReactNode;
 }
 

@@ -23,7 +23,7 @@ globalThis.Prism = Prism;
 // @ts-expect-error: This file is untyped:
 import('prismjs/components/prism-rust').catch(() => {});
 
-interface Props {
+interface ModuleViewProps {
     id?: string;
     name: string;
     code: string;
@@ -55,7 +55,7 @@ function unwrapTypeReference(type: IotaMoveNormalizedType): null | TypeReference
     return null;
 }
 
-function ModuleView({ id, name, code }: Props) {
+function ModuleView({ id, name, code }: ModuleViewProps) {
     const { data: normalizedModule } = useNormalizedMoveModule(id, name);
     const normalizedModuleReferences = useMemo(() => {
         const typeReferences: Record<string, TypeReference> = {};
