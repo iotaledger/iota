@@ -21,7 +21,7 @@ import { ObjectFilterValue } from '~/lib/enums';
 
 const GENESIS_TX_DIGEST = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
 
-const splitPanelsOrientation: { label: string; value: Direction }[] = [
+const SPLIT_PANELS_ORIENTATION: { label: string; value: Direction }[] = [
     { label: 'STACKED', value: 'vertical' },
     { label: 'SIDE-BY-SIDE', value: 'horizontal' },
 ];
@@ -32,7 +32,7 @@ interface PkgViewProps {
 
 function PkgView({ data }: PkgViewProps): JSX.Element {
     const [selectedSplitPanelOrientation, setSplitPanelOrientation] = useState(
-        splitPanelsOrientation[1].value,
+        SPLIT_PANELS_ORIENTATION[1].value,
     );
 
     const { data: txnData, isPending } = useGetTransaction(data.data.tx_digest!);
@@ -111,7 +111,7 @@ function PkgView({ data }: PkgViewProps): JSX.Element {
                                         setSplitPanelOrientation(value as 'vertical' | 'horizontal')
                                     }
                                 >
-                                    {splitPanelsOrientation.map(({ value, label }) => (
+                                    {SPLIT_PANELS_ORIENTATION.map(({ value, label }) => (
                                         <RadioGroupItem key={value} value={value} label={label} />
                                     ))}
                                 </RadioGroup>

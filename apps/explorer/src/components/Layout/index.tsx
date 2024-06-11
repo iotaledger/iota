@@ -16,7 +16,7 @@ import { persistableStorage } from '~/utils/analytics/amplitude';
 import { type Network, createIotaClient, SupportedNetworks } from '~/utils/api/DefaultRpcClient';
 import { KioskClientProvider } from '@iota/core/src/components/KioskClientProvider';
 
-const toastVariants: Partial<Record<ToastType, BannerProps['variant']>> = {
+const TOAST_VARIANTS: Partial<Record<ToastType, BannerProps['variant']>> = {
     success: 'positive',
     error: 'error',
 };
@@ -62,7 +62,7 @@ export function Layout(): JSX.Element {
                                 }}
                             >
                                 {(toast) => (
-                                    <Banner shadow border variant={toastVariants[toast.type]}>
+                                    <Banner shadow border variant={TOAST_VARIANTS[toast.type]}>
                                         {resolveValue(toast.message, toast)}
                                     </Banner>
                                 )}

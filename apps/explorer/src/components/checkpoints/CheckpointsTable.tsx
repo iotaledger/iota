@@ -7,15 +7,13 @@ import { ArrowRight12 } from '@iota/icons';
 import { Text } from '@iota/ui';
 import { useMemo, useState } from 'react';
 
+import { DEFAULT_CHECKPOINTS_LIMIT, useGetCheckpoints } from '~/hooks/useGetCheckpoints';
 import { generateTableDataFromCheckpointsData } from './utils';
-import { useGetCheckpoints } from '~/hooks/useGetCheckpoints';
 import { Link } from '~/ui/Link';
 import { Pagination, useCursorPagination } from '~/ui/Pagination';
 import { PlaceholderTable } from '~/ui/PlaceholderTable';
 import { TableCard } from '~/ui/TableCard';
 import { numberSuffix } from '~/utils/numberUtil';
-
-const DEFAULT_CHECKPOINTS_LIMIT = 20;
 
 interface CheckpointsTableProps {
     disablePagination?: boolean;
