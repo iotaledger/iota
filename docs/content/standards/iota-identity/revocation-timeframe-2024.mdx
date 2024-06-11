@@ -15,7 +15,7 @@ tags:
 
 ## Abstract
 
-This specification describes a new revocation mechanism - `RevocationTimeframe2024` - that extends [`RevocationBitmap2022`](../revocation-bitmap-2022)
+This specification describes a new revocation mechanism - `RevocationTimeframe2024` - that extends [`RevocationBitmap2022`](revocation-bitmap-2022.mdx)
 to address its linkability security concerns, at least when used in combination with selectively disclosable (SD-able) VCs.
 
 ## Introduction
@@ -26,8 +26,8 @@ To address this privacy concern, `RevocationTimeframe2024` was designed as an ex
 most of its logic.
 
 ## Concepts
-`RevocationTimeframe2024` should be used together with selectively disclosable credentials - either [SD-JWT](../../../how-tos/verifiable-credentials/selective-disclosure)
-or [ZK-SD](../../../how-tos/verifiable-credentials/zero-knowledge-selective-disclosure) - in order to conceal to the verifier
+`RevocationTimeframe2024` should be used together with selectively disclosable credentials - either [SD-JWT](../../guides/developer/iota-identity/how-tos/verifiable-credentials/selective-disclosure)
+or [ZK-SD](../../guides/developer/iota-identity/how-tos/verifiable-credentials/zero-knowledge-selective-disclosure) - in order to conceal to the verifier
 the credential's index in the issuer's revocation bitmap to avoid linkability.
 
 ### Validity Timeframe
@@ -135,7 +135,7 @@ An example of an issuers DID document where credential `"5"` in the `#revocation
 
 ## Algorithms
 
-For generation and expansion of the service endpoint see [`RevocationBitmap2022`](../revocation-bitmap-2022#algorithms).
+For generation and expansion of the service endpoint see [`RevocationBitmap2022`](revocation-bitmap-2022.mdx#algorithms).
 
 ### Validation Algorithm
 
@@ -147,4 +147,4 @@ The following steps MUST be followed when checking whether a verifiable credenti
 4. Return `true` if `startValidityTimeframe <= now < endValidityTimeframe`, `false` otherwise.
 
 ## Test Vectors
-See [`RevocationBitmap2022`](../revocation-bitmap-2022#test-vectors).
+See [`RevocationBitmap2022`](revocation-bitmap-2022.mdx#test-vectors).
