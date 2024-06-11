@@ -23,7 +23,7 @@ functionalities without the overhead of having to start nodes, set up a committe
 send transactions over the _Tangle_. Instead, you can use Go's built-in test environment in
 combination with Solo to deploy chains and smart contracts and simulate transactions.
 
-Solo directly interacts with the ISC code, and therfore uses all the ISC-specific data
+Solo directly interacts with the ISC code, and therefore uses all the ISC-specific data
 types directly. Our Wasm smart contracts cannot access these types directly, because they
 run in a separate, sandboxed environment. Therefore, WasmLib implements its
 [own versions](../../../../../references/iota-chains/wasm-lib-data-types.mdx) of these data types, and the _VM_ layer acts as a data type

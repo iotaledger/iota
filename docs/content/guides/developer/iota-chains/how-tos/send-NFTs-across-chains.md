@@ -127,7 +127,7 @@ approve step is also required, but the operations will happen on the `ONFT` cont
 
 - You can use the [LayerZero Repository](https://github.com/LayerZero-Labs/solidity-examples/blob/main/contracts/lzApp/libs/LzLib.sol#L44) as a reference to set gas drop on the destination in `adapterParams`.
     - The provided gas drop must be `<=` the config one. Otherwise, you will get [`dstNativeAmt` too large](https://github.com/LayerZero-Labs/solidity-examples/blob/main/contracts/lzApp/mocks/LZEndpointMock.sol#L413) error.
-- You can use the [LayerZero Repository](https://github.com/LayerZero-Labs/solidity-examples/blob/main/contracts/lzApp/libs/LzLib.sol#L34) as a refernce to set default `adapterParams` without needing a gas drop.
+- You can use the [LayerZero Repository](https://github.com/LayerZero-Labs/solidity-examples/blob/main/contracts/lzApp/libs/LzLib.sol#L34) as a reference to set default `adapterParams` without needing a gas drop.
 
 ##### LayerZero
 

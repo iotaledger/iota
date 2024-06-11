@@ -64,7 +64,7 @@ bytes32 nonce = getNonce();
 bytes32 digest = keccak256(bytes.concat(entropy, nonce));
 ```
 
-And then repeatidly hash the digest and copy it in a sequence of bytes until you reach the required length.
+And then repeatedly hash the digest and copy it in a sequence of bytes until you reach the required length.
 
 ```solidity
 bytes memory value = new bytes(length);

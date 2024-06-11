@@ -29,7 +29,7 @@ that calling a view does not constitute an asynchronous transaction; it is just 
 entry point exposed by the smart contract.
 
 Therefore, calling a view does not involve any token transfers. Sending a request (either on-ledger or off-ledger) to a
-view entry point will result in an exception, returning all attached tokens to the sender minus fees (iif any).
+view entry point will result in an exception, returning all attached tokens to the sender minus fees (if any).
 
 Views are used to retrieve information about the smart contract's state, for example, to display on a website. Certain
 Solo methods such as `chain.GetInfo`, `chain.GetGasFeePolicy`, and `chain.L2Assets` call views of

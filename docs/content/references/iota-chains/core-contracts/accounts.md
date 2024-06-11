@@ -339,7 +339,7 @@ Returns the NFTID `z` for a given MintID `D`.
 
 #### Parameters
 
-- `D` (`MintID`): MintID producted at the time the NFT was minted
+- `D` (`MintID`): MintID produced at the time the NFT was minted
 
 #### Returns
 
