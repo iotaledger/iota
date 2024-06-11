@@ -15,11 +15,7 @@ import { Pagination } from '~/ui/Pagination';
 import { PlaceholderTable } from '~/ui/PlaceholderTable';
 import { TableCard } from '~/ui/TableCard';
 import clsx from 'clsx';
-
-export enum ObjectFilterValue {
-    Input = 'inputObject',
-    Changed = 'changedObject',
-}
+import { ObjectFilterValue } from '~/lib/enums';
 
 type TransactionBlocksForAddressProps = {
     address: string;

@@ -653,6 +653,9 @@ importers:
       '@iota/iota.js':
         specifier: workspace:*
         version: link:../../sdk/typescript
+      '@iota/kiosk':
+        specifier: workspace:*
+        version: link:../../sdk/kiosk
       '@iota/ledgerjs-hw-app-iota':
         specifier: workspace:*
         version: link:../../sdk/ledgerjs-hw-app-iota

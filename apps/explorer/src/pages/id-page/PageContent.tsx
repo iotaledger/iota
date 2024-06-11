@@ -13,9 +13,10 @@ import TransactionBlocksForAddress from '~/components/TransactionBlocksForAddres
 import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { OwnedCoins } from '~/components/OwnedCoins';
 import { OwnedObjects } from '~/components/OwnedObjects';
-import { LocalStorageSplitPaneKey, SplitPanes } from '~/ui/SplitPanes';
+import { SplitPanes } from '~/ui/SplitPanes';
 import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
+import { LocalStorageSplitPaneKey } from '~/lib/enums';
 
 const LEFT_RIGHT_PANEL_MIN_SIZE = 30;
 

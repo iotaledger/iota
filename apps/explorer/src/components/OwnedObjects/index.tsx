@@ -11,7 +11,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ListView } from '~/components/OwnedObjects/ListView';
 import { SmallThumbnailsView } from '~/components/OwnedObjects/SmallThumbnailsView';
 import { ThumbnailsView } from '~/components/OwnedObjects/ThumbnailsView';
-import { ObjectViewMode } from '~/components/OwnedObjects/utils';
+import { ObjectViewMode } from '~/lib/enums';
 import { Pagination, useCursorPagination } from '~/ui/Pagination';
 
 const PAGE_SIZES = [10, 20, 30, 40, 50];
