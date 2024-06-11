@@ -177,7 +177,7 @@ impl BasicOutput {
         })
     }
 
-    pub fn type_(type_param: TypeTag) -> StructTag {
+    pub fn tag(type_param: TypeTag) -> StructTag {
         StructTag {
             address: STARDUST_PACKAGE_ID.into(),
             module: BASIC_OUTPUT_MODULE_NAME.to_owned(),
@@ -204,7 +204,7 @@ impl BasicOutput {
             // Safety: we know from the definition of `BasicOutput` in the stardust package
             // that it is not publicly transferable (`store` ability is absent).
             MoveObject::new_from_execution(
-                Self::type_(GAS::type_tag()).into(),
+                BasicOutput::tag(GAS::type_tag()).into(),
                 false,
                 version,
                 bcs::to_bytes(self)?,
