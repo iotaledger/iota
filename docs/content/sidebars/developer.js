@@ -773,6 +773,79 @@ const developer = [
     },
     {
         type: 'category',
+        label: 'IOTA Identity',
+        link: {
+            type: 'doc',
+            id: 'guides/developer/iota-identity/welcome',
+        },
+        items: [
+            {
+                type: 'doc',
+                id: 'guides/developer/iota-identity/welcome',
+                label: 'Welcome',
+            },
+            {
+                type: 'category',
+                label: 'Getting Started',
+                collapsed: false,
+                items: ['guides/developer/iota-identity/getting-started/rust', 'guides/developer/iota-identity/getting-started/wasm'],
+            },
+            {
+                type: 'category',
+                label: 'Explanations',
+                items: [
+                    'guides/developer/iota-identity/explanations/decentralized-identifiers',
+                    'guides/developer/iota-identity/explanations/verifiable-credentials',
+                    'guides/developer/iota-identity/explanations/verifiable-presentations',
+                    'guides/developer/iota-identity/explanations/about-alias-outputs',
+                ],
+            },
+            {
+                type: 'category',
+                label: 'How To',
+                items: [
+                    {
+                        type: 'category',
+                        label: 'Decentralized Identifiers (DID)',
+                        items: [
+                            'guides/developer/iota-identity/how-tos/decentralized-identifiers/create',
+                            'guides/developer/iota-identity/how-tos/decentralized-identifiers/update',
+                            'guides/developer/iota-identity/how-tos/decentralized-identifiers/resolve',
+                            'guides/developer/iota-identity/how-tos/decentralized-identifiers/delete',
+                        ],
+                    },
+                    {
+                        type: 'category',
+                        label: 'Verifiable Credentials',
+                        items: [
+                            'guides/developer/iota-identity/how-tos/verifiable-credentials/create',
+                            'guides/developer/iota-identity/how-tos/verifiable-credentials/revocation',
+                            'guides/developer/iota-identity/how-tos/verifiable-credentials/selective-disclosure',
+                            'guides/developer/iota-identity/how-tos/verifiable-credentials/zero-knowledge-selective-disclosure',
+                        ],
+                    },
+                    {
+                        type: 'category',
+                        label: 'Verifiable Presentations',
+                        items: ['guides/developer/iota-identity/how-tos/verifiable-presentations/create-and-validate'],
+                    },
+                    {
+                        type: 'category',
+                        label: 'Domain Linkage',
+                        items: ['guides/developer/iota-identity/how-tos/domain-linkage/create-and-verify'],
+                    },
+                    'guides/developer/iota-identity/how-tos/key-storage',
+                ],
+            },
+            'guides/developer/iota-identity/glossary',
+            'guides/developer/iota-identity/contribute',
+            'guides/developer/iota-identity/workflow',
+            'guides/developer/iota-identity/contact',
+            'guides/developer/iota-identity/faq',
+        ],
+	},
+    {
+        type: 'category',
         label: 'Integrate Your Exchange',
         items: [
             'developer/exchange-integration/exchange-integration',

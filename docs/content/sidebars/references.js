@@ -305,6 +305,30 @@ const references = [
 			},
 		],
 	},
+	{
+		type: 'category',
+		label: 'IOTA Identity',
+		link: {
+			type: 'doc',
+			id: 'standards/iota-identity/overview',
+		},
+		items: [
+			'standards/iota-identity/overview',
+			'standards/iota-identity/iota-did-method-spec',
+			'standards/iota-identity/revocation-bitmap-2022',
+			'standards/iota-identity/revocation-timeframe-2024',
+			{
+				type: 'doc',
+				id: 'references/iota-identity/wasm',
+				label: 'Wasm',
+			},
+			{
+				type: 'link',
+				label: 'Rust',
+				href: 'https://docs.rs/identity_iota/latest/identity_iota/index.html',
+			},
+		],
+	},
 	'references/iota-glossary',
 	{
 		type: 'category',
