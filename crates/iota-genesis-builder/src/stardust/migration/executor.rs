@@ -90,11 +90,6 @@ impl Executor {
         let mut system_packages =
             iota_framework_snapshot::load_bytecode_snapshot(protocol_version.as_u64())
                 .unwrap_or_else(|_| BuiltInFramework::iter_system_packages().cloned().collect());
-        // TODO: Remove when we have bumped the protocol to include the stardust
-        // packages into the system packages.
-        //
-        // See also: https://github.com/iotaledger/kinesis/pull/149
-        system_packages.extend(BuiltInFramework::iter_stardust_packages().cloned());
 
         let silent = true;
         let executor = iota_execution::executor(&protocol_config, silent, None)
