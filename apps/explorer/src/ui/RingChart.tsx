@@ -6,7 +6,7 @@ import { Heading } from '@iota/ui';
 import clsx from 'clsx';
 import { Fragment } from 'react';
 
-export type Gradient = {
+type Gradient = {
     deg?: number;
     values: { percent: number; color: string }[];
 };

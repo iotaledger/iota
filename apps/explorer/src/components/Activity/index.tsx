@@ -19,7 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
 
 const VALID_TABS = ['transactions', 'epochs', 'checkpoints'];
 
-type Props = {
+type ActivityProps = {
     initialTab?: string | null;
     initialLimit: number;
     disablePagination?: boolean;
@@ -29,7 +29,11 @@ const AUTO_REFRESH_ID = 'auto-refresh';
 const REFETCH_INTERVAL_SECONDS = 10;
 const REFETCH_INTERVAL = REFETCH_INTERVAL_SECONDS * 1000;
 
-export function Activity({ initialTab, initialLimit, disablePagination }: Props): JSX.Element {
+export function Activity({
+    initialTab,
+    initialLimit,
+    disablePagination,
+}: ActivityProps): JSX.Element {
     const pollingTxnTableEnabled = useFeatureIsOn('polling-txn-table');
 
     const [paused, setPaused] = useState(false);

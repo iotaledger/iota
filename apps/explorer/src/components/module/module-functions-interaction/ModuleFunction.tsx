@@ -31,7 +31,7 @@ const argsSchema = z.object({
     types: z.optional(z.array(z.string().trim().min(1))),
 });
 
-export type ModuleFunctionProps = {
+type ModuleFunctionProps = {
     packageId: string;
     moduleName: string;
     functionName: string;

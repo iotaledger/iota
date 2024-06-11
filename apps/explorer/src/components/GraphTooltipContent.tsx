@@ -6,7 +6,7 @@ import { useTooltipPosition } from '@visx/tooltip';
 import clsx from 'clsx';
 import { type ReactNode } from 'react';
 
-export type GraphTooltipContentProps = {
+type GraphTooltipContentProps = {
     children: ReactNode;
 };
 

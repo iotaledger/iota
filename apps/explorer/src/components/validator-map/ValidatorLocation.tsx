@@ -6,7 +6,7 @@ import { useCallback } from 'react';
 
 import { type ValidatorMapValidator } from './types';
 
-interface Props {
+interface ValidatorLocationProps {
     validator: ValidatorMapValidator;
     projection: (loc: [number, number]) => [number, number] | null;
     onMouseOver(event: React.MouseEvent, countryCode?: string): void;
@@ -24,7 +24,7 @@ export function ValidatorLocation({
     projection,
     onMouseOut,
     onMouseOver,
-}: Props): JSX.Element | null {
+}: ValidatorLocationProps): JSX.Element | null {
     const handleMouseOver = useCallback(
         (e: React.MouseEvent) => {
             validator && onMouseOver(e, validator.iotaAddress);

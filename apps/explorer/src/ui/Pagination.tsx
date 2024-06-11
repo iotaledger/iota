@@ -6,7 +6,7 @@ import { PaginationFirst24, PaginationNext24, PaginationPrev24 } from '@iota/ico
 import { type InfiniteData, type UseInfiniteQueryResult } from '@tanstack/react-query';
 import { useState } from 'react';
 
-export interface PaginationProps {
+interface PaginationProps {
     hasPrev: boolean;
     hasNext: boolean;
     onFirst(): void;

@@ -9,7 +9,7 @@ import { type ReactNode, useState } from 'react';
 
 import { Divider } from '~/ui/Divider';
 
-export interface CollapsibleSectionProps {
+interface CollapsibleSectionProps {
     children: ReactNode;
     defaultOpen?: boolean;
     title?: string | ReactNode;

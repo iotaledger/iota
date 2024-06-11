@@ -14,11 +14,11 @@ import { useRecognizedPackages } from '~/hooks/useRecognizedPackages';
 import { InputsCard } from '~/pages/transaction-result/programmable-transaction-view/InputsCard';
 import { TransactionsCard } from '~/pages/transaction-result/programmable-transaction-view/TransactionsCard';
 
-interface Props {
+interface TransactionDataProps {
     transaction: IotaTransactionBlockResponse;
 }
 
-export function TransactionData({ transaction }: Props): JSX.Element {
+export function TransactionData({ transaction }: TransactionDataProps): JSX.Element {
     const recognizedPackagesList = useRecognizedPackages();
     const summary = useTransactionSummary({
         transaction,

@@ -6,7 +6,7 @@ import { Text, Toggle } from '@iota/ui';
 import * as RadixDropdownMenu from '@radix-ui/react-dropdown-menu';
 import { type ReactNode } from 'react';
 
-export type DropdownMenuProps = {
+type DropdownMenuProps = {
     content: ReactNode;
     trigger: ReactNode;
     side?: RadixDropdownMenu.MenuContentProps['side'];
@@ -38,7 +38,7 @@ export function DropdownMenu({
     );
 }
 
-export type DropdownMenuCheckboxItemProps = Omit<
+type DropdownMenuCheckboxItemProps = Omit<
     RadixDropdownMenu.DropdownMenuCheckboxItemProps,
     'className' | 'checked' | 'asChild'
 > & { checked?: boolean; label: ReactNode };

@@ -27,6 +27,10 @@ interface AddressResultPageHeaderProps {
 const LEFT_RIGHT_PANEL_MIN_SIZE = 30;
 const TOP_PANEL_MIN_SIZE = 20;
 
+interface AddressResultPageHeaderProps {
+    address: string;
+    loading?: boolean;
+}
 function AddressResultPageHeader({ address, loading }: AddressResultPageHeaderProps): JSX.Element {
     const { data: domainName, isLoading } = useResolveIotaNSName(address);
 

@@ -36,9 +36,7 @@ const descriptionItemLabelStyles = cva(
 type DescriptionItemStylesProps = VariantProps<typeof descriptionItemStyles>;
 type DescriptionItemLabelStylesProps = VariantProps<typeof descriptionItemLabelStyles>;
 
-export interface DescriptionItemProps
-    extends DescriptionItemStylesProps,
-        DescriptionItemLabelStylesProps {
+interface DescriptionItemProps extends DescriptionItemStylesProps, DescriptionItemLabelStylesProps {
     title: string | ReactNode;
     children: ReactNode;
 }

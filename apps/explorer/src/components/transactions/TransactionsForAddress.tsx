@@ -11,12 +11,12 @@ import { genTableDataFromTxData } from './TxCardUtils';
 import { Banner } from '~/ui/Banner';
 import { TableCard } from '~/ui/TableCard';
 
-interface Props {
+interface TransactionsForAddressProps {
     address: string;
     type: 'object' | 'address';
 }
 
-interface TransactionsForAddressTable {
+interface TransactionsForAddressTableProps {
     data: IotaTransactionBlockResponse[];
     isPending: boolean;
     isError: boolean;
@@ -28,12 +28,7 @@ export function TransactionsForAddressTable({
     isPending,
     isError,
     address,
-}: {
-    data: IotaTransactionBlockResponse[];
-    isPending: boolean;
-    isError: boolean;
-    address: string;
-}): JSX.Element {
+}: TransactionsForAddressTableProps): JSX.Element {
     if (isPending) {
         return (
             <div>
@@ -66,7 +61,10 @@ export function TransactionsForAddressTable({
     return <TableCard data={tableData.data} columns={tableData.columns} />;
 }
 
-export function TransactionsForAddress({ address, type }: Props): JSX.Element {
+export function TransactionsForAddress({
+    address,
+    type,
+}: TransactionsForAddressProps): JSX.Element {
     const client = useIotaClient();
 
     const { data, isPending, isError } = useQuery({

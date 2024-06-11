@@ -4,7 +4,7 @@
 
 import { Link } from '~/ui/Link';
 
-export type LinkGroupProps = {
+type LinkGroupProps = {
     title: string;
 } & ({ text: string | null } | { links: { text: string; to: string }[] });
 

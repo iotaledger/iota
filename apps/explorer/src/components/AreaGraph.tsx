@@ -51,7 +51,7 @@ function AxisBottomTick({ x, y, formattedValue }: TickRendererProps): JSX.Elemen
     );
 }
 
-export type AreaGraphProps<D> = {
+type AreaGraphProps<D> = {
     data: D[];
     width: number;
     height: number;

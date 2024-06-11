@@ -38,12 +38,12 @@ function NodeStat({ title, children }: NodeStatProps): JSX.Element {
     );
 }
 
-interface Props {
+interface ValidatorMapProps {
     minHeight: string | number;
 }
 
 // NOTE: This component is lazy imported, so it needs to be default exported:
-export default function ValidatorMap({ minHeight }: Props): JSX.Element {
+export default function ValidatorMap({ minHeight }: ValidatorMapProps): JSX.Element {
     const [network] = useNetwork();
     const { data: systemState, isError: systemStateError } = useIotaClientQuery(
         'getLatestIotaSystemState',
