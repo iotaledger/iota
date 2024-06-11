@@ -7,7 +7,6 @@
   "excludes": [
     "**/target/",
     "**/build/",
-    "crates/iota-framework/docs/",
     "external-crates/move/",
     "bridge/evm/lib/",
     "examples/trading/api/prisma/migrations/migration_lock.toml",
