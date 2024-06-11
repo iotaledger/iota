@@ -5,19 +5,18 @@ module stardust::storage_deposit_return_unlock_condition {
 
     use iota::balance::{Balance, split};
     use iota::coin::from_balance;
-    use iota::iota::IOTA;
     use iota::transfer::public_transfer;
 
     /// The Stardust storage deposit return unlock condition.
     public struct StorageDepositReturnUnlockCondition has store {
         /// The address to which the consuming transaction should deposit the amount defined in Return Amount.
         return_address: address,
-        /// The amount of IOTA coins the consuming transaction should deposit to the address defined in Return Address.
+        /// The amount of coins the consuming transaction should deposit to the address defined in Return Address.
         return_amount: u64,
     }
 
     /// Check the unlock condition.
-    public fun unlock(condition: StorageDepositReturnUnlockCondition, funding: &mut Balance<IOTA>, ctx: &mut TxContext) {
+    public fun unlock<T>(condition: StorageDepositReturnUnlockCondition, funding: &mut Balance<T>, ctx: &mut TxContext) {
         // Aborts if `funding` is not enough.
         let return_balance = funding.split(condition.return_amount());
 

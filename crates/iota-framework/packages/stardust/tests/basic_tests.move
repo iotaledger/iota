@@ -53,9 +53,6 @@ module stardust::basic_tests {
             0,
         );
 
-        // Mint some tokens.
-        let iota = balance::create_for_testing<IOTA>(initial_iota_in_output);
-
         let test_a_balance = balance::create_for_testing<TEST_A>(initial_testA_in_output);
         let test_b_balance = balance::create_for_testing<TEST_B>(initial_testB_in_output);
 
@@ -66,7 +63,7 @@ module stardust::basic_tests {
         native_tokens.add(type_name::get<TEST_B>().into_string(), test_b_balance);
 
         let output = basic_output::create_for_testing(
-            iota,
+            balance::create_for_testing<IOTA>(initial_iota_in_output),
             native_tokens,
             option::some(storage_deposit_return_unlock_condition::create_for_testing(sdruc_return_address, sdruc_return_amount)),
             option::some(timelock_unlock_condition::create_for_testing(timelocked_until)),
