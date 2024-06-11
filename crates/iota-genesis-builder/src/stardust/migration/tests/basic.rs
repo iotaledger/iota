@@ -46,7 +46,7 @@ fn basic_simple_coin_id() {
         .output_objects_map
         .get(&header.output_id())
         .unwrap()
-        .coin()
+        .gas_coin()
         .unwrap();
     let expected_object_id = ObjectID::new(header.output_id().hash());
     assert_eq!(expected_object_id, *migrated_object_id);
