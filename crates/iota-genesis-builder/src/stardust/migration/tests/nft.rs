@@ -35,11 +35,10 @@ use iota_types::{
 };
 use move_core_types::ident_str;
 
-use super::{unlock_object_test, ExpectedAssets, UnlockObjectTestResult};
 use crate::stardust::{
     migration::tests::{
         create_foundry, extract_native_token_from_bag, object_migration_with_object_owner,
-        random_output_header, run_migration,
+        random_output_header, run_migration, unlock_object, ExpectedAssets, UnlockObjectTestResult,
     },
     types::{
         snapshot::OutputHeader, stardust_to_iota_address, FixedPoint32, Irc27Metadata, Nft,
@@ -58,7 +57,8 @@ fn migrate_nft(
         .or_from_output_id(&output_id)
         .to_owned();
 
-    let (executor, objects_map) = run_migration([(header, stardust_nft.into())])?;
+    let (executor, objects_map) =
+        run_migration(stardust_nft.amount(), [(header, stardust_nft.into())])?;
 
     // Ensure the migrated objects exist under the expected identifiers.
     let nft_object_id = ObjectID::new(*nft_id);
@@ -226,6 +226,7 @@ fn nft_migration_with_alias_owner() {
     object_migration_with_object_owner(
         alias_header.output_id(),
         nft_header.output_id(),
+        3_000_000,
         [
             (nft_header.clone(), nft.into()),
             (alias_header.clone(), alias.into()),
@@ -259,6 +260,7 @@ fn nft_migration_with_nft_owner() {
     object_migration_with_object_owner(
         nft1_header.output_id(),
         nft2_header.output_id(),
+        2_000_000,
         [
             (nft1_header.clone(), nft1.into()),
             (nft2_header.clone(), nft2.into()),
@@ -294,6 +296,7 @@ fn nft_migration_with_native_tokens() {
 
     extract_native_token_from_bag(
         nft_header.output_id(),
+        1_000_000,
         [
             (nft_header.clone(), nft.into()),
             (foundry_header, foundry_output.into()),
@@ -529,8 +532,9 @@ fn nft_migration_with_timelock_unlocked() {
         .finish()
         .unwrap();
 
-    unlock_object_test(
+    unlock_object(
         header.output_id(),
+        1_000_000,
         [(header, stardust_nft.into())],
         // Sender is not important for this test.
         &IotaAddress::ZERO,
@@ -558,8 +562,9 @@ fn nft_migration_with_timelock_still_locked() {
         .finish()
         .unwrap();
 
-    unlock_object_test(
+    unlock_object(
         header.output_id(),
+        1_000_000,
         [(header, stardust_nft.into())],
         // Sender is not important for this test.
         &IotaAddress::ZERO,
@@ -596,8 +601,9 @@ fn nft_migration_with_expired_unlock_condition() {
         .unwrap();
 
     // Owner Address CANNOT unlock.
-    unlock_object_test(
+    unlock_object(
         header.output_id(),
+        1_000_000,
         [(header.clone(), stardust_nft.clone().into())],
         &iota_owner_address,
         NFT_OUTPUT_MODULE_NAME,
@@ -608,8 +614,9 @@ fn nft_migration_with_expired_unlock_condition() {
     .unwrap();
 
     // Return Address CAN unlock.
-    unlock_object_test(
+    unlock_object(
         header.output_id(),
+        1_000_000,
         [(header, stardust_nft.into())],
         &iota_return_address,
         NFT_OUTPUT_MODULE_NAME,
@@ -645,8 +652,9 @@ fn nft_migration_with_unexpired_unlock_condition() {
         .unwrap();
 
     // Return Address CANNOT unlock.
-    unlock_object_test(
+    unlock_object(
         header.output_id(),
+        1_000_000,
         [(header.clone(), stardust_nft.clone().into())],
         &iota_return_address,
         NFT_OUTPUT_MODULE_NAME,
@@ -657,8 +665,9 @@ fn nft_migration_with_unexpired_unlock_condition() {
     .unwrap();
 
     // Owner Address CAN unlock.
-    unlock_object_test(
+    unlock_object(
         header.output_id(),
+        1_000_000,
         [(header, stardust_nft.into())],
         &iota_owner_address,
         NFT_OUTPUT_MODULE_NAME,
@@ -686,8 +695,9 @@ fn nft_migration_with_storage_deposit_return_unlock_condition() {
         .unwrap();
 
     // Simply test that the unlock with the SDRUC succeeds.
-    unlock_object_test(
+    unlock_object(
         header.output_id(),
+        1_000_000,
         [(header.clone(), stardust_nft.clone().into())],
         // Sender is not important for this test.
         &IotaAddress::ZERO,
