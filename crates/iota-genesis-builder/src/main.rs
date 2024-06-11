@@ -6,15 +6,16 @@
 //! https://github.com/iotaledger/tips/blob/main/tips/TIP-0035/tip-0035.md
 use std::fs::File;
 
-use iota_genesis_builder::stardust::{migration::Migration, parse::FullSnapshotParser};
+use iota_genesis_builder::{
+    stardust::{migration::Migration, parse::FullSnapshotParser},
+    Builder, BROTLI_COMPRESSOR_BUFFER_SIZE, BROTLI_COMPRESSOR_LG_WINDOW_SIZE,
+    BROTLI_COMPRESSOR_QUALITY,
+};
 use itertools::Itertools;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
-const OBJECT_SNAPSHOT_FILE_PATH: &str = "stardust_object_snapshot.bin";
-const BROTLI_COMPRESSOR_BUFFER_SIZE: usize = 4096;
-const BROTLI_COMPRESSOR_QUALITY: u32 = 11; // Compression levels go from 0 to 11, where 11 has the highest compression ratio but requires more time
-const BROTLI_COMPRESSOR_LG_WINDOW_SIZE: u32 = 22; // set LZ77 window size (0, 10-24) where bigger windows size improves density
+pub const OBJECT_SNAPSHOT_FILE_PATH: &str = "stardust_object_snapshot.bin";
 
 fn main() -> anyhow::Result<()> {
     // Initialize tracing
@@ -45,5 +46,7 @@ fn main() -> anyhow::Result<()> {
     parser
         .outputs()
         .process_results(|outputs| migration.run(outputs, object_snapshot_writer))??;
+    //let builder = Builder::new().load_stardust_migration_objects(OBJECT_SNAPSHOT_FILE_PATH)?;
+    //let a = builder.build();
     Ok(())
 }
