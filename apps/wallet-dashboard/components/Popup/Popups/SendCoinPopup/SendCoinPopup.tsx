@@ -21,14 +21,14 @@ interface SendCoinPopupProps {
     onClose: () => void;
 }
 
-enum FormSteps {
+enum FormStep {
     EnterValues,
     ReviewValues,
 }
 
 function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JSX.Element {
     const client = useIotaClient();
-    const [step, setStep] = useState<FormSteps>(FormSteps.EnterValues);
+    const [step, setStep] = useState<FormStep>(FormStep.EnterValues);
     const [formData, setFormData] = useState<FormDataValues>({
         amount: '',
         recipientAddress: '',
@@ -81,16 +81,16 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
     }
 
     const handleNext = () => {
-        setStep(FormSteps.ReviewValues);
+        setStep(FormStep.ReviewValues);
     };
 
     const handleBack = () => {
-        setStep(FormSteps.EnterValues);
+        setStep(FormStep.EnterValues);
     };
 
     return (
         <>
-            {step === FormSteps.EnterValues && (
+            {step === FormStep.EnterValues && (
                 <EnterValuesFormView
                     coin={coin}
                     onClose={onClose}
@@ -100,7 +100,7 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
                     setFormData={setFormData}
                 />
             )}
-            {step === FormSteps.ReviewValues && (
+            {step === FormStep.ReviewValues && (
                 <ReviewValuesFormView
                     formData={formData}
                     handleBack={handleBack}
