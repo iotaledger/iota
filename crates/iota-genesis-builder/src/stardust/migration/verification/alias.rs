@@ -14,7 +14,6 @@ use iota_types::{
     TypeTag,
 };
 
-use super::util::verify_parent;
 use crate::stardust::{
     migration::{
         executor::FoundryLedgerData,
@@ -22,7 +21,7 @@ use crate::stardust::{
             created_objects::CreatedObjects,
             util::{
                 verify_address_owner, verify_issuer_feature, verify_metadata_feature,
-                verify_native_tokens, verify_sender_feature,
+                verify_native_tokens, verify_parent, verify_sender_feature,
             },
         },
     },
@@ -37,6 +36,7 @@ pub(super) fn verify_alias_output(
     created_objects: &CreatedObjects,
     foundry_data: &HashMap<stardust::TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
+    total_value: &mut u64,
 ) -> anyhow::Result<()> {
     let alias_id = ObjectID::new(*output.alias_id_non_null(&output_id));
 
@@ -92,6 +92,7 @@ pub(super) fn verify_alias_output(
         created_output.iota.value(),
         output.amount()
     );
+    *total_value += created_output.iota.value();
 
     // Native Tokens
     verify_native_tokens::<Field<String, Balance>>(
@@ -164,16 +165,19 @@ pub(super) fn verify_alias_output(
 
     verify_parent(output.governor_address(), storage)?;
 
-    ensure!(created_objects.coin().is_err(), "unexpected coin found");
+    ensure!(
+        created_objects.gas_coin().is_err(),
+        "unexpected gas coin found"
+    );
+
+    ensure!(
+        created_objects.native_token_coin().is_err(),
+        "unexpected native token coin found"
+    );
 
     ensure!(
         created_objects.coin_metadata().is_err(),
         "unexpected coin metadata found"
-    );
-
-    ensure!(
-        created_objects.minted_coin().is_err(),
-        "unexpected minted coin found"
     );
 
     ensure!(

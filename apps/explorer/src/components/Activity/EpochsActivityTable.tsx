@@ -17,7 +17,7 @@ import { numberSuffix } from '~/utils/numberUtil';
 
 const DEFAULT_EPOCHS_LIMIT = 20;
 
-interface Props {
+interface EpochsActivityTableProps {
     disablePagination?: boolean;
     refetchInterval?: number;
     initialLimit?: number;
@@ -26,7 +26,7 @@ interface Props {
 export function EpochsActivityTable({
     disablePagination,
     initialLimit = DEFAULT_EPOCHS_LIMIT,
-}: Props) {
+}: EpochsActivityTableProps) {
     const [limit, setLimit] = useState(initialLimit);
     const client = useIotaClient();
 

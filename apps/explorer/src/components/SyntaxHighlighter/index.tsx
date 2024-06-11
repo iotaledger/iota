@@ -9,13 +9,13 @@ import 'prism-themes/themes/prism-one-light.css';
 
 import type { Language } from 'prism-react-renderer';
 
-interface Props {
+interface SyntaxHighlighterProps {
     code: string;
     language: Language;
 }
 const MAX_LINES = 500;
 // Use scroll to load more lines of code to prevent performance issues with large code blocks
-export function SyntaxHighlighter({ code, language }: Props) {
+export function SyntaxHighlighter({ code, language }: SyntaxHighlighterProps) {
     const observerElem = useRef<HTMLDivElement | null>(null);
     const { isIntersecting } = useOnScreen(observerElem);
     const [loadedLines, setLoadedLines] = useState(MAX_LINES);
