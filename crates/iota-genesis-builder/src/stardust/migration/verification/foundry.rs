@@ -31,6 +31,7 @@ pub(super) fn verify_foundry_output(
     created_objects: &CreatedObjects,
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
+    total_value: &mut u64,
 ) -> Result<()> {
     let foundry_data = foundry_data
         .get(&output.token_id())
@@ -43,7 +44,18 @@ pub(super) fn verify_foundry_output(
         .address();
 
     // Coin value and owner
-    verify_coin(output.amount(), alias_address, created_objects, storage)?;
+    let created_coin_obj = created_objects.coin().and_then(|id| {
+        storage
+            .get_object(id)
+            .ok_or_else(|| anyhow!("missing coin"))
+    })?;
+    let created_coin = created_coin_obj
+        .as_coin_maybe()
+        .ok_or_else(|| anyhow!("expected a coin"))?;
+
+    verify_address_owner(alias_address, created_coin_obj, "coin")?;
+    verify_coin(output.amount(), &created_coin)?;
+    *total_value += created_coin.value();
 
     // Minted coin value
     let minted_coin_id = created_objects.minted_coin()?;
