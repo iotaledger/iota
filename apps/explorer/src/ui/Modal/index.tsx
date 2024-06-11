@@ -13,7 +13,11 @@ export interface ModalProps {
     children: ReactNode;
 }
 
-export function CloseButton({ onClick }: { onClick: () => void }) {
+interface CloseButtonProps {
+    onClick: () => void;
+}
+
+export function CloseButton({ onClick }: CloseButtonProps): JSX.Element {
     return (
         <button
             onClick={onClick}
@@ -25,15 +29,19 @@ export function CloseButton({ onClick }: { onClick: () => void }) {
     );
 }
 
-export function ModalBody({ children }: { children: ReactNode }) {
+interface ModalChildrenProps {
+    children: ReactNode;
+}
+
+export function ModalBody({ children }: ModalChildrenProps): JSX.Element {
     return <div className="py-5">{children}</div>;
 }
 
-export function ModalContent({ children }: { children: ReactNode }) {
+export function ModalContent({ children }: ModalChildrenProps): JSX.Element {
     return <div className="flex flex-col rounded-lg bg-gray-40 p-5">{children}</div>;
 }
 
-export function ModalHeading({ children }: { children: ReactNode }) {
+export function ModalHeading({ children }: ModalChildrenProps): JSX.Element {
     return (
         <Heading variant="heading3/semibold" color="gray-90">
             {children}
@@ -41,7 +49,7 @@ export function ModalHeading({ children }: { children: ReactNode }) {
     );
 }
 
-export function Modal({ open, onClose, children }: ModalProps) {
+export function Modal({ open, onClose, children }: ModalProps): JSX.Element {
     return (
         <Transition show={open} as={Fragment}>
             <Dialog className="relative z-50" open={open} onClose={onClose}>

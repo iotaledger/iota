@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { useActiveAddress } from '_app/hooks/useActiveAddress';
 import Loading from '_components/loading';
 import { NFTDisplayCard } from '_components/nft-display';
 import Overlay from '_components/overlay';
@@ -13,8 +14,9 @@ import { TransferNFTForm } from './TransferNFTForm';
 
 function NftTransferPage() {
     const { nftId } = useParams();
+    const address = useActiveAddress();
     // verify that the nft is owned by the user and is transferable
-    const { data: ownedNFT, isPending: isNftLoading } = useOwnedNFT(nftId || '');
+    const { data: ownedNFT, isPending: isNftLoading } = useOwnedNFT(nftId || '', address);
     const navigate = useNavigate();
     const isGuardLoading = useUnlockedGuard();
     const isPending = isNftLoading || isGuardLoading;

@@ -6,7 +6,7 @@ import { type ObjectOwner, type IotaObjectResponse } from '@iota/iota.js/client'
 
 import { findIPFSvalue } from './stringUtils';
 
-export function parseImageURL(display?: Record<string, string> | null) {
+export function parseImageURL(display?: Record<string, string> | null): string {
     const url = display?.image_url;
     if (url) {
         if (findIPFSvalue(url)) return url;
@@ -37,9 +37,10 @@ export function getOwnerStr(owner: ObjectOwner | string): string {
     return owner;
 }
 
-export const checkIsPropertyType = (value: unknown) => ['number', 'string'].includes(typeof value);
+export const checkIsPropertyType = (value: unknown): boolean =>
+    ['number', 'string'].includes(typeof value);
 
-export const extractName = (display?: Record<string, string> | null) => {
+export const extractName = (display?: Record<string, string> | null): string | null | undefined => {
     if (!display || !('name' in display)) return undefined;
     const name = display.name;
     if (typeof name === 'string') {
@@ -48,7 +49,7 @@ export const extractName = (display?: Record<string, string> | null) => {
     return null;
 };
 
-export function getDisplayUrl(url?: string) {
+export function getDisplayUrl(url?: string): { href: string; display: string } | string | null {
     if (url) {
         try {
             const parsedUrl = new URL(url);

@@ -31,7 +31,7 @@ export function Stats({
     size = 'md',
     orientation = 'vertical',
     color = 'steel-darker',
-}: StatsProps) {
+}: StatsProps): JSX.Element {
     return (
         <div
             className={clsx(

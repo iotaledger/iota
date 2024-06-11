@@ -11,17 +11,19 @@ import { UnderlyingObjectCard } from './UnderlyingObjectCard';
 import { FieldsCard, FieldCollapsible, FieldsContainer } from '~/components/Object/FieldsUtils';
 import { ObjectLink } from '~/ui/InternalLink';
 
+interface DynamicFieldRowProps {
+    id: string;
+    result: DynamicFieldInfo;
+    noMarginBottom: boolean;
+    defaultOpen: boolean;
+}
+
 function DynamicFieldRow({
     id,
     result,
     noMarginBottom,
     defaultOpen,
-}: {
-    id: string;
-    result: DynamicFieldInfo;
-    noMarginBottom: boolean;
-    defaultOpen: boolean;
-}) {
+}: DynamicFieldRowProps): JSX.Element {
     const [open, onOpenChange] = useState(defaultOpen);
 
     return (

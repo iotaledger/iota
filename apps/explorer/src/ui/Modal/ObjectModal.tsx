@@ -27,7 +27,7 @@ export function ObjectModal({
     video,
     // NOTE: Leave false only if ObjectModal is paired with an Image component
     moderate = false,
-}: ObjectModalProps) {
+}: ObjectModalProps): JSX.Element {
     return (
         <Modal open={open} onClose={onClose}>
             <div className="flex flex-col gap-5">
