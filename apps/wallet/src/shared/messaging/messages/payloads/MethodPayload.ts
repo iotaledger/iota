@@ -4,7 +4,6 @@
 
 import { type AccountSourceSerializedUI } from '_src/background/account-sources/AccountSource';
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
-import { type ZkLoginProvider } from '_src/background/accounts/zklogin/providers';
 import { type Status } from '_src/background/storage-migration';
 import { type SerializedSignature } from '@iota/iota.js/cryptography';
 
@@ -49,10 +48,6 @@ type MethodPayloads = {
               type: 'ledger';
               accounts: { publicKey: string; derivationPath: string; address: string }[];
               password: string;
-          }
-        | {
-              type: 'zkLogin';
-              provider: ZkLoginProvider;
           };
     accountsCreatedResponse: { accounts: SerializedUIAccount[] };
     signData: { data: string; id: string };
@@ -84,7 +79,6 @@ type MethodPayloads = {
         data: PasswordRecoveryData;
     };
     removeAccount: { accountID: string };
-    acknowledgeZkLoginWarning: { accountID: string };
 };
 
 type Methods = keyof MethodPayloads;

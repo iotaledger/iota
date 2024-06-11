@@ -662,9 +662,6 @@ importers:
       '@iota/wallet-standard':
         specifier: workspace:*
         version: link:../../sdk/wallet-standard
-      '@iota/zklogin':
-        specifier: workspace:*
-        version: link:../../sdk/zklogin
       '@ledgerhq/errors':
         specifier: ^6.12.4
         version: 6.12.4

@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Button } from '_app/shared/ButtonUI';
-import { type AccountType } from '_src/background/accounts/Account';
 import { useAccounts } from '_src/ui/app/hooks/useAccounts';
 import { Navigate, useNavigate } from 'react-router-dom';
 
@@ -14,17 +13,13 @@ import { Text } from '../../../shared/text';
 import { getGroupTitle } from '../manage/AccountGroup';
 import { useForgotPasswordContext } from './ForgotPasswordPage';
 
-const zkLoginType: AccountType = 'zkLogin';
-
 export function ResetWarningPage() {
     const navigate = useNavigate();
     const accountGroups = useAccountGroups();
     const { value } = useForgotPasswordContext();
     const accountGroupsToRemove = Object.entries(accountGroups).flatMap(([groupType, aGroup]) =>
         Object.entries(aGroup).filter(
-            ([sourceID]) =>
-                groupType !== zkLoginType &&
-                !value.find(({ accountSourceID }) => accountSourceID === sourceID),
+            ([sourceID]) => !value.find(({ accountSourceID }) => accountSourceID === sourceID),
         ),
     );
     const { isPending } = useAccounts();
