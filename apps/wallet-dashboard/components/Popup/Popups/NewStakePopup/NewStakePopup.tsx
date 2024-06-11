@@ -8,7 +8,7 @@ interface NewStakePopupProps {
     onClose: () => void;
 }
 
-enum Steps {
+enum Step {
     SelectValidator,
     EnterAmount,
 }
@@ -16,16 +16,16 @@ enum Steps {
 const HARDCODED_VALIDATORS = ['Validator 1', 'Validator 2', 'Validator 3'];
 
 function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
-    const [step, setStep] = useState<Steps>(Steps.SelectValidator);
+    const [step, setStep] = useState<Step>(Step.SelectValidator);
     const [selectedValidator, setSelectedValidator] = useState<string | null>(null);
     const [amount, setAmount] = useState<string>('');
 
     const handleNext = () => {
-        setStep(Steps.EnterAmount);
+        setStep(Step.EnterAmount);
     };
 
     const handleBack = () => {
-        setStep(Steps.SelectValidator);
+        setStep(Step.SelectValidator);
     };
 
     const handleValidatorSelect = (validator: string) => {
@@ -40,13 +40,13 @@ function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
 
     return (
         <div className="flex min-w-[300px] flex-col gap-2">
-            {step === Steps.SelectValidator && (
+            {step === Step.SelectValidator && (
                 <SelectValidatorView
                     validators={HARDCODED_VALIDATORS}
                     onSelect={handleValidatorSelect}
                 />
             )}
-            {step === Steps.EnterAmount && (
+            {step === Step.EnterAmount && (
                 <EnterAmountView
                     selectedValidator={selectedValidator}
                     amount={amount}

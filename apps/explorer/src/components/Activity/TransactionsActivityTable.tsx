@@ -18,7 +18,8 @@ import { Pagination, useCursorPagination } from '~/ui/Pagination';
 import { PlaceholderTable } from '~/ui/PlaceholderTable';
 import { TableCard } from '~/ui/TableCard';
 import { numberSuffix } from '~/utils/numberUtil';
-interface Props {
+
+interface TransactionsActivityTableProps {
     disablePagination?: boolean;
     refetchInterval?: number;
     initialLimit?: number;
@@ -30,7 +31,7 @@ export function TransactionsActivityTable({
     refetchInterval,
     initialLimit = DEFAULT_TRANSACTIONS_LIMIT,
     transactionKindFilter,
-}: Props) {
+}: TransactionsActivityTableProps) {
     const [limit, setLimit] = useState(initialLimit);
     const client = useIotaClient();
     const { data: count } = useQuery({

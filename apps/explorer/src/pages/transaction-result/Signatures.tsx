@@ -79,11 +79,11 @@ function getSignaturesExcludingAddress(
             normalizeIotaAddress(iotaAddress),
     );
 }
-interface Props {
+interface SignaturesProps {
     transaction: IotaTransactionBlockResponse;
 }
 
-export function Signatures({ transaction }: Props) {
+export function Signatures({ transaction }: SignaturesProps) {
     const sender = transaction.transaction?.data.sender;
     const gasData = transaction.transaction?.data.gasData;
     const transactionSignatures = transaction.transaction?.txSignatures;

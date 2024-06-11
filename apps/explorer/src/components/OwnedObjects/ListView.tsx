@@ -14,19 +14,15 @@ import { ObjectVideoImage } from '~/ui/ObjectVideoImage';
 import { parseObjectType } from '~/utils/objectUtils';
 import { trimStdLibPrefix } from '~/utils/stringUtils';
 
-function ListViewItem({
-    assetCell,
-    typeCell,
-    objectIdCell,
-    objectId,
-    loading,
-}: {
+interface ListViewItemProps {
     assetCell?: ReactNode;
     typeCell?: ReactNode;
     objectIdCell?: ReactNode;
     objectId: string;
     loading?: boolean;
-}) {
+}
+
+function ListViewItem({ assetCell, typeCell, objectIdCell, objectId, loading }: ListViewItemProps) {
     const listViewItemContent = (
         <div className="group mb-2 flex items-center justify-between rounded-lg p-1 hover:bg-hero/5">
             <div className="flex max-w-[66%] basis-8/12 items-center gap-3 md:max-w-[25%] md:basis-3/12 md:pr-5">
