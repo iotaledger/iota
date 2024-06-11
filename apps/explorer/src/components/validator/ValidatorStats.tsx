@@ -22,7 +22,7 @@ export function ValidatorStats({
     epochRewards,
     apy,
     tallyingScore,
-}: StatsCardProps) {
+}: StatsCardProps): JSX.Element {
     // TODO: add missing fields
     // const numberOfDelegators = 0;
     //  const networkStakingParticipation = 0;

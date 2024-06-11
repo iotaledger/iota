@@ -7,7 +7,7 @@ import { ArrowRight12 } from '@iota/icons';
 import { Text } from '@iota/ui';
 import { useMemo, useState } from 'react';
 
-import { genTableDataFromCheckpointsData } from './utils';
+import { generateTableDataFromCheckpointsData } from './utils';
 import { useGetCheckpoints } from '~/hooks/useGetCheckpoints';
 import { Link } from '~/ui/Link';
 import { Pagination, useCursorPagination } from '~/ui/Pagination';
@@ -30,7 +30,7 @@ export function CheckpointsTable({
     initialLimit = DEFAULT_CHECKPOINTS_LIMIT,
     initialCursor,
     maxCursor,
-}: CheckpointsTableProps) {
+}: CheckpointsTableProps): JSX.Element {
     const [limit, setLimit] = useState(initialLimit);
 
     const countQuery = useIotaClientQuery('getLatestCheckpointSequenceNumber');
@@ -52,7 +52,7 @@ export function CheckpointsTable({
         }
     }, [countQuery.data, initialCursor, maxCursor, checkpoints, isError]);
 
-    const cardData = data ? genTableDataFromCheckpointsData(data) : undefined;
+    const cardData = data ? generateTableDataFromCheckpointsData(data) : undefined;
 
     return (
         <div className="flex flex-col space-y-3 text-left xl:pr-10">

@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 import { formatDate, useResolveIotaNSName } from '@iota/core';
 import { Heading, Text } from '@iota/ui';
 import { type ReactNode } from 'react';
@@ -10,7 +11,13 @@ import { AddressLink, CheckpointSequenceLink, EpochLink } from '~/ui/InternalLin
 import { CollapsibleCard } from '~/ui/collapsible/CollapsibleCard';
 import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
 
-export function TransactionDetail({ label, value }: { label: string; value: ReactNode | string }) {
+export function TransactionDetail({
+    label,
+    value,
+}: {
+    label: string;
+    value: ReactNode | string;
+}): JSX.Element {
     return (
         <div className="flex basis-1/3 flex-col gap-2 pl-3 first:pl-0 md:pl-5">
             <Heading variant="heading4/semibold" color="steel-darker">
@@ -35,7 +42,7 @@ export function TransactionDetailCard({
     checkpoint,
     executedEpoch,
     timestamp,
-}: TransactionDetailsProps) {
+}: TransactionDetailsProps): JSX.Element {
     const md = useBreakpoint('md');
     const { data: domainName } = useResolveIotaNSName(sender);
 

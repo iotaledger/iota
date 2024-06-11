@@ -30,7 +30,7 @@ export function TransactionsActivityTable({
     refetchInterval,
     initialLimit = DEFAULT_TRANSACTIONS_LIMIT,
     transactionKindFilter,
-}: TransactionsActivityTableProps) {
+}: TransactionsActivityTableProps): JSX.Element {
     const [limit, setLimit] = useState(initialLimit);
     const client = useIotaClient();
     const { data: count } = useQuery({

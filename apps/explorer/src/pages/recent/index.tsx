@@ -9,7 +9,7 @@ import { useSearchParamsMerged } from '~/ui/utils/LinkWithQuery';
 
 const TRANSACTIONS_LIMIT = 20;
 
-export function Recent() {
+export function Recent(): JSX.Element {
     const [searchParams] = useSearchParamsMerged();
 
     return (

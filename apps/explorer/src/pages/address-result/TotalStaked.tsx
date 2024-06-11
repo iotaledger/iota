@@ -8,7 +8,7 @@ import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import { Text, Heading } from '@iota/ui';
 import { Iota } from '@iota/icons';
 
-export function TotalStaked({ address }: { address: string }) {
+export function TotalStaked({ address }: { address: string }): JSX.Element | null {
     const { data: delegatedStake } = useGetDelegatedStake({
         address,
     });

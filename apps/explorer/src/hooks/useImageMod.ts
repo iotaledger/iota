@@ -4,6 +4,7 @@
 
 import { useAppsBackend } from '@iota/core';
 import { useQuery } from '@tanstack/react-query';
+import { ImageVisibility } from '~/lib/enums';
 
 // https://cloud.google.com/vision/docs/supported-files
 const SUPPORTED_IMG_TYPES = [
@@ -17,18 +18,12 @@ const SUPPORTED_IMG_TYPES = [
     'image/tiff',
 ];
 
-export enum Visibility {
-    Pass = 'pass',
-    Blur = 'blur',
-    Hide = 'hide',
-}
-
 type ImageModeration = {
-    visibility?: Visibility;
+    visibility?: ImageVisibility;
 };
 
 const placeholderData = {
-    visibility: Visibility.Pass,
+    visibility: ImageVisibility.Pass,
 };
 
 const isURL = (url?: string) => {
@@ -41,7 +36,13 @@ const isURL = (url?: string) => {
     }
 };
 
-export function useImageMod({ url = '', enabled = true }: { url?: string; enabled?: boolean }) {
+export function useImageMod({
+    url = '',
+    enabled = true,
+}: {
+    url?: string;
+    enabled?: boolean;
+}): ReturnType<typeof useQuery> {
     const { request } = useAppsBackend();
 
     return useQuery({

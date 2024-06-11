@@ -11,7 +11,7 @@ interface IotaAmountProps {
     full?: boolean;
 }
 
-export function IotaAmount({ amount, full = false }: IotaAmountProps) {
+export function IotaAmount({ amount, full = false }: IotaAmountProps): JSX.Element {
     const [formattedAmount, coinType] = useFormatCoin(
         amount,
         IOTA_TYPE_ARG,

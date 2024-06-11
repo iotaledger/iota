@@ -9,7 +9,11 @@ import clsx from 'clsx';
 
 import { Image } from '~/ui/image/Image';
 
-function CoinIcon({ coinMetadata }: { coinMetadata?: CoinMetadata | null }) {
+interface CoinIconProps {
+    coinMetadata?: CoinMetadata | null;
+}
+
+function CoinIcon({ coinMetadata }: CoinIconProps): JSX.Element {
     if (coinMetadata?.symbol === 'IOTA') {
         return <Iota className="h-2.5 w-2.5" />;
     }
@@ -21,7 +25,11 @@ function CoinIcon({ coinMetadata }: { coinMetadata?: CoinMetadata | null }) {
     return <Unstaked className="h-2.5 w-2.5" />;
 }
 
-export function Coin({ type }: { type: string }) {
+interface CoinProps {
+    type: string;
+}
+
+export function Coin({ type }: CoinProps): JSX.Element {
     const { data: coinMetadata } = useCoinMetadata(type);
     const { symbol, iconUrl } = coinMetadata || {};
 
@@ -44,7 +52,7 @@ export interface CoinsStackProps {
     coinTypes: string[];
 }
 
-export function CoinsStack({ coinTypes }: CoinsStackProps) {
+export function CoinsStack({ coinTypes }: CoinsStackProps): JSX.Element {
     return (
         <div className="flex">
             {coinTypes.map((coinType, index) => (
