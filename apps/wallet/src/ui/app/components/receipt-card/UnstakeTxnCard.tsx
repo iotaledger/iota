@@ -2,9 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// Modifications Copyright (c) 2024 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
-
 import { ValidatorLogo } from '_app/staking/validators/ValidatorLogo';
 import { TxnAmount } from '_components/receipt-card/TxnAmount';
 import { Text } from '_src/ui/app/shared/text';
@@ -19,14 +16,14 @@ type UnStakeTxnCardProps = {
 };
 
 export function UnStakeTxnCard({ event }: UnStakeTxnCardProps) {
-    const eventJson = event.parsedJson as {
+    const json = event.parsedJson as {
         principal_amount?: number;
         reward_amount?: number;
         validator_address?: string;
     };
-    const principalAmount = eventJson?.principal_amount || 0;
-    const rewardAmount = eventJson?.reward_amount || 0;
-    const validatorAddress = eventJson?.validator_address;
+    const principalAmount = json?.principal_amount || 0;
+    const rewardAmount = json?.reward_amount || 0;
+    const validatorAddress = json?.validator_address;
     const totalAmount = Number(principalAmount) + Number(rewardAmount);
     const [formatPrinciple, symbol] = useFormatCoin(principalAmount, IOTA_TYPE_ARG);
     const [formatRewards] = useFormatCoin(rewardAmount || 0, IOTA_TYPE_ARG);

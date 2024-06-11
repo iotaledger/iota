@@ -1,17 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Box } from '..';
 import { TransactionAmount } from './';
-import { formatPercentageDisplay, useGetValidatorsApy } from '@mysten/core';
-import type { SuiEvent } from '@mysten/sui.js/client';
-import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
+import { formatPercentageDisplay, useGetValidatorsApy } from '@iota/core';
+import type { IotaEvent } from '@iota/iota.js/client';
+import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 
 interface StakeTransactionCardProps {
-    event: SuiEvent;
+    event: IotaEvent;
 }
 
 export default function StakeTransactionCard({ event }: StakeTransactionCardProps) {
@@ -31,7 +29,7 @@ export default function StakeTransactionCard({ event }: StakeTransactionCardProp
                 {stakedAmount && (
                     <TransactionAmount
                         amount={stakedAmount}
-                        coinType={SUI_TYPE_ARG}
+                        coinType={IOTA_TYPE_ARG}
                         label="Stake"
                     />
                 )}

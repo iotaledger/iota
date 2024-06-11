@@ -1,18 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFormatCoin, type GasSummaryType } from '@mysten/core';
-import { useCurrentAccount } from '@mysten/dapp-kit';
-import { formatAddress } from '@mysten/sui.js/utils';
-
-export const GAS_TYPE_ARG = '0x2::sui::SUI';
-export const GAS_SYMBOL = 'SUI';
+import { useFormatCoin, type GasSummaryType } from '@iota/core';
+import { useCurrentAccount } from '@iota/dapp-kit';
+import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 
 export default function GasSummary({ gasSummary }: { gasSummary?: GasSummaryType }) {
-    const [gas, symbol] = useFormatCoin(gasSummary?.totalGas, GAS_TYPE_ARG);
+    const [gas, symbol] = useFormatCoin(gasSummary?.totalGas, IOTA_TYPE_ARG);
     const address = useCurrentAccount();
 
     if (!gasSummary) return null;

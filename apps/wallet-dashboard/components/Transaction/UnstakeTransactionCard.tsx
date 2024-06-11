@@ -1,36 +1,38 @@
 // Copyright (c) Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFormatCoin } from '@mysten/core';
-import type { SuiEvent } from '@mysten/sui.js/client';
-import { SUI_TYPE_ARG } from '@mysten/sui.js/utils';
+import { useFormatCoin } from '@iota/core';
+import type { IotaEvent } from '@iota/iota.js/client';
+import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import { Box } from '..';
 import { TransactionAmount } from './';
 
 interface UnstakeTransactionCardProps {
-    event: SuiEvent;
+    event: IotaEvent;
 }
 
 export default function UnstakeTransactionCard({ event }: UnstakeTransactionCardProps) {
-    const json = event.parsedJson as {
+    const eventJson = event.parsedJson as {
         principal_amount?: number;
         reward_amount?: number;
         validator_address?: string;
     };
-    const principalAmount = json?.principal_amount || 0;
-    const rewardAmount = json?.reward_amount || 0;
+    const principalAmount = eventJson?.principal_amount || 0;
+    const rewardAmount = eventJson?.reward_amount || 0;
     const totalAmount = Number(principalAmount) + Number(rewardAmount);
-    const [formatPrinciple, symbol] = useFormatCoin(principalAmount, SUI_TYPE_ARG);
-    const [formattedRewards] = useFormatCoin(rewardAmount || 0, SUI_TYPE_ARG);
+    const [formatPrinciple, symbol] = useFormatCoin(principalAmount, IOTA_TYPE_ARG);
+    const [formattedRewards] = useFormatCoin(rewardAmount || 0, IOTA_TYPE_ARG);
 
     return (
         <Box>
             <div className="divide-gray-40 flex flex-col divide-x-0 divide-y divide-solid">
                 {totalAmount && (
-                    <TransactionAmount amount={totalAmount} coinType={SUI_TYPE_ARG} label="Total" />
+                    <TransactionAmount
+                        amount={totalAmount}
+                        coinType={IOTA_TYPE_ARG}
+                        label="Total"
+                    />
                 )}
 
                 <div className="flex w-full justify-between py-3.5">
