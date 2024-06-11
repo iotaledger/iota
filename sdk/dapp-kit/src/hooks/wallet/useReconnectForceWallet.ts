@@ -61,7 +61,6 @@ export function useReconnectForceWallet({
                 const walletFeature = currentWallet.features['iota:reconnectForce'];
 
                 if (!walletFeature) {
-                    setConnectionStatus('disconnected');
                     throw new WalletFeatureNotSupportedError(
                         "This wallet doesn't support the `reconnectForce` feature.",
                     );
@@ -72,7 +71,6 @@ export function useReconnectForceWallet({
                 });
 
                 if (!connectResult) {
-                    setConnectionStatus('disconnected');
                     throw new Error('Connect result is undefined');
                 }
 
