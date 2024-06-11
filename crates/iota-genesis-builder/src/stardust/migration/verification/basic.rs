@@ -112,9 +112,9 @@ pub(super) fn verify_basic_output(
 
         // Amount
         ensure!(
-            created_output.iota.value() == output.amount(),
+            created_output.balance.value() == output.amount(),
             "amount mismatch: found {}, expected {}",
-            created_output.iota.value(),
+            created_output.balance.value(),
             output.amount()
         );
 

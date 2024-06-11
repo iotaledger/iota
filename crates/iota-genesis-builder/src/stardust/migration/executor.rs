@@ -24,6 +24,7 @@ use iota_types::{
     collection_types::Bag,
     dynamic_field::Field,
     execution_mode,
+    gas_coin::GAS,
     id::UID,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
@@ -354,7 +355,7 @@ impl Executor {
                 STARDUST_PACKAGE_ID,
                 ident_str!("alias_output").into(),
                 ident_str!("attach_alias").into(),
-                vec![],
+                vec![GAS::type_tag()],
                 vec![alias_output_arg, alias_arg],
             );
 
@@ -675,7 +676,7 @@ impl Executor {
                 STARDUST_PACKAGE_ID,
                 ident_str!("nft_output").into(),
                 ident_str!("attach_nft").into(),
-                vec![],
+                vec![GAS::type_tag()],
                 vec![nft_output_arg, nft_arg],
             );
 
