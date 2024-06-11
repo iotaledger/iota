@@ -11,13 +11,18 @@ import { useEffect, useMemo, useState } from 'react';
 import { ListView } from '~/components/OwnedObjects/ListView';
 import { SmallThumbnailsView } from '~/components/OwnedObjects/SmallThumbnailsView';
 import { ThumbnailsView } from '~/components/OwnedObjects/ThumbnailsView';
-import { ObjectViewMode } from '~/components/OwnedObjects/utils';
+import { ObjectViewMode } from '~/lib/enums';
 import { Pagination, useCursorPagination } from '~/ui/Pagination';
 
 const PAGE_SIZES = [10, 20, 30, 40, 50];
 const SHOW_PAGINATION_MAX_ITEMS = 9;
 const OWNED_OBJECTS_LOCAL_STORAGE_VIEW_MODE = 'owned-objects/viewMode';
 const OWNED_OBJECTS_LOCAL_STORAGE_FILTER = 'owned-objects/filter';
+
+interface ItemsRangeFromCurrentPage {
+    start: number;
+    end: number;
+}
 
 enum FilterValue {
     All = 'all',
@@ -35,7 +40,10 @@ const VIEW_MODES = [
     { icon: <ThumbnailsOnly16 />, value: ObjectViewMode.Thumbnail },
 ];
 
-function getItemsRangeFromCurrentPage(currentPage: number, itemsPerPage: number) {
+function getItemsRangeFromCurrentPage(
+    currentPage: number,
+    itemsPerPage: number,
+): ItemsRangeFromCurrentPage {
     const start = currentPage * itemsPerPage + 1;
     const end = start + itemsPerPage - 1;
     return { start, end };
@@ -46,7 +54,7 @@ function getShowPagination(
     itemsLength: number,
     currentPage: number,
     isFetching: boolean,
-) {
+): boolean {
     if (filter === FilterValue.Kiosks) {
         return false;
     }
@@ -61,8 +69,7 @@ function getShowPagination(
 interface OwnedObjectsProps {
     id: string;
 }
-
-export function OwnedObjects({ id }: OwnedObjectsProps) {
+export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
     const [limit, setLimit] = useState(50);
     const [filter, setFilter] = useLocalStorage<string | undefined>(
         OWNED_OBJECTS_LOCAL_STORAGE_FILTER,

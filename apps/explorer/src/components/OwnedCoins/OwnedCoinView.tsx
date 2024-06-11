@@ -22,7 +22,7 @@ type OwnedCoinViewProps = {
     id: string;
 };
 
-export default function OwnedCoinView({ coin, id }: OwnedCoinViewProps) {
+export default function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Element {
     const isIotaCoin = coin.coinType === IOTA_TYPE_ARG;
     const [open, setOpen] = useState(isIotaCoin);
     const [formattedTotalBalance, symbol] = useFormatCoin(coin.totalBalance, coin.coinType);

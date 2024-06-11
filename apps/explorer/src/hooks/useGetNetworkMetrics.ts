@@ -5,7 +5,7 @@
 import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 
-export function useGetNetworkMetrics() {
+export function useGetNetworkMetrics(): ReturnType<typeof useQuery> {
     const client = useIotaClient();
     return useQuery({
         queryKey: ['home', 'metrics'],

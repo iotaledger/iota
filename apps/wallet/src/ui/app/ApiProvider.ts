@@ -15,7 +15,6 @@ const accountTypesWithBackgroundSigner: AccountType[] = [
     'mnemonic-derived',
     'seed-derived',
     'imported',
-    'zkLogin',
 ];
 
 export default class ApiProvider {

@@ -34,7 +34,7 @@ export function DisclosureBox({
     children,
     preview,
     variant,
-}: DisclosureBoxProps) {
+}: DisclosureBoxProps): JSX.Element {
     const [open, setOpen] = useState(defaultOpen);
     return (
         <div className={disclosureBoxStyles({ variant })}>
