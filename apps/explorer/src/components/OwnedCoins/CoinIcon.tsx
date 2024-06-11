@@ -54,7 +54,7 @@ function NonIotaCoin({ coinType }: NonIotaCoinProps) {
     );
 }
 
-export interface CoinIconProps extends VariantProps<typeof imageStyle> {
+interface CoinIconProps extends VariantProps<typeof imageStyle> {
     coinType: string;
 }
 

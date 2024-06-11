@@ -4,11 +4,11 @@
 
 import { useTimeAgo } from '@iota/core';
 
-type Prop = {
+type TxTimeTypeProps = {
     timestamp: number | undefined;
 };
 
-export function TxTimeType({ timestamp }: Prop) {
+export function TxTimeType({ timestamp }: TxTimeTypeProps) {
     const timeAgo = useTimeAgo({
         timeFrom: timestamp || null,
         shortedTimeLabel: true,

@@ -18,7 +18,7 @@ function Fallback({ error }: FallbackProps) {
     );
 }
 
-export type ErrorBoundaryProps = {
+type ErrorBoundaryProps = {
     children: ReactNode | ReactNode[];
 };
 

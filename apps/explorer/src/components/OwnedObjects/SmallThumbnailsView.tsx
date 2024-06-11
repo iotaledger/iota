@@ -14,7 +14,7 @@ import { ObjectVideoImage } from '~/ui/ObjectVideoImage';
 import { parseObjectType } from '~/utils/objectUtils';
 import { trimStdLibPrefix } from '~/utils/stringUtils';
 
-interface Props {
+interface SmallThumbnailsViewProps {
     limit: number;
     data?: IotaObjectResponse[];
     loading?: boolean;
@@ -74,7 +74,7 @@ function SmallThumbnail({ obj }: { obj: IotaObjectResponse }) {
     );
 }
 
-export function SmallThumbnailsView({ data, loading, limit }: Props) {
+export function SmallThumbnailsView({ data, loading, limit }: SmallThumbnailsViewProps) {
     return (
         <div className="flex flex-row flex-wrap overflow-auto">
             {loading && <SmallThumbnailsViewLoading limit={limit} />}

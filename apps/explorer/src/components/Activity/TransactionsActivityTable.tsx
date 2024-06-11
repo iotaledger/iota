@@ -18,7 +18,7 @@ import { numberSuffix } from '~/utils/numberUtil';
 
 const DEFAULT_TRANSACTIONS_LIMIT = 20;
 
-interface Props {
+interface TransactionsActivityTableProps {
     disablePagination?: boolean;
     refetchInterval?: number;
     initialLimit?: number;
@@ -30,7 +30,7 @@ export function TransactionsActivityTable({
     refetchInterval,
     initialLimit = DEFAULT_TRANSACTIONS_LIMIT,
     transactionKindFilter,
-}: Props) {
+}: TransactionsActivityTableProps) {
     const [limit, setLimit] = useState(initialLimit);
     const client = useIotaClient();
     const { data: count } = useQuery({

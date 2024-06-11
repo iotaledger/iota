@@ -64,6 +64,7 @@ pub(crate) const NATIVE_TOKEN_BAG_KEY_TYPE: &str = "0x01::ascii::String";
 /// generated objects serialized.
 pub struct Migration {
     target_milestone_timestamp_sec: u32,
+    total_supply: u64,
     executor: Executor,
     pub(super) output_objects_map: HashMap<OutputId, CreatedObjects>,
 }
@@ -71,10 +72,11 @@ pub struct Migration {
 impl Migration {
     /// Try to setup the migration process by creating the inner executor
     /// and bootstraping the in-memory storage.
-    pub fn new(target_milestone_timestamp_sec: u32) -> Result<Self> {
+    pub fn new(target_milestone_timestamp_sec: u32, total_supply: u64) -> Result<Self> {
         let executor = Executor::new(ProtocolVersion::new(MIGRATION_PROTOCOL_VERSION))?;
         Ok(Self {
             target_milestone_timestamp_sec,
+            total_supply,
             executor,
             output_objects_map: Default::default(),
         })
@@ -212,6 +214,7 @@ impl Migration {
             &self.output_objects_map,
             self.executor.native_tokens(),
             self.target_milestone_timestamp_sec,
+            self.total_supply,
             self.executor.store(),
         )?;
         Ok(())

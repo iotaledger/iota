@@ -30,7 +30,7 @@ const imageStyles = cva(['z-0 flex-shrink-0 relative'], {
 
 type ImageStylesProps = VariantProps<typeof imageStyles>;
 
-interface Props extends ImageStylesProps {
+interface ObjectVideoImageProps extends ImageStylesProps {
     title: string;
     subtitle: string;
     src: string;
@@ -57,7 +57,7 @@ export function ObjectVideoImage({
     imgFit,
     aspect,
     rounded = 'md',
-}: Props) {
+}: ObjectVideoImageProps) {
     const close = () => {
         if (disablePreview) {
             return;
