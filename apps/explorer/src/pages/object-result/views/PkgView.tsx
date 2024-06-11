@@ -12,13 +12,12 @@ import { useGetTransaction } from '../../../hooks/useGetTransaction';
 import { getOwnerStr } from '../../../utils/objectUtils';
 import { trimStdLibPrefix } from '../../../utils/stringUtils';
 import { type DataType } from '../ObjectResultType';
-import TransactionBlocksForAddress, {
-    ObjectFilterValue,
-} from '~/components/TransactionBlocksForAddress';
+import TransactionBlocksForAddress from '~/components/TransactionBlocksForAddress';
 import { AddressLink, ObjectLink } from '~/ui/InternalLink';
 import { TabHeader, Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
 
 import styles from './ObjectView.module.css';
+import { ObjectFilterValue } from '~/lib/enums';
 
 const GENESIS_TX_DIGEST = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
 
@@ -27,7 +26,11 @@ const splitPanelsOrientation: { label: string; value: Direction }[] = [
     { label: 'SIDE-BY-SIDE', value: 'horizontal' },
 ];
 
-function PkgView({ data }: { data: DataType }) {
+interface PkgViewProps {
+    data: DataType;
+}
+
+function PkgView({ data }: PkgViewProps): JSX.Element {
     const [selectedSplitPanelOrientation, setSplitPanelOrientation] = useState(
         splitPanelsOrientation[1].value,
     );

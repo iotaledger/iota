@@ -16,7 +16,7 @@ type CoinsPanelProps = {
     id: string;
 };
 
-export default function CoinsPanel({ coinType, id }: CoinsPanelProps) {
+export default function CoinsPanel({ coinType, id }: CoinsPanelProps): JSX.Element {
     const containerRef = useRef(null);
     const coinsSectionRef = useRef(null);
     const { isIntersecting } = useOnScreen(containerRef);

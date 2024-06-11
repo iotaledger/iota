@@ -25,7 +25,7 @@ export function FilterList<T extends string>({
     size,
     lessSpacing,
     onChange,
-}: FilterListProps<T>) {
+}: FilterListProps<T>): JSX.Element {
     return (
         <Tabs
             size={size}

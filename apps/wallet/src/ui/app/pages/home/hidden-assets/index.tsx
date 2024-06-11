@@ -10,7 +10,12 @@ import { NFTDisplayCard } from '_components/nft-display';
 import { ampli } from '_src/shared/analytics/ampli';
 import { Button } from '_src/ui/app/shared/ButtonUI';
 import PageTitle from '_src/ui/app/shared/PageTitle';
-import { useMultiGetObjects } from '@iota/core';
+import {
+    useKioskClient,
+    getKioskIdFromOwnerCap,
+    isKioskOwnerToken,
+    useMultiGetObjects,
+} from '@iota/core';
 import { EyeClose16 } from '@iota/icons';
 import { keepPreviousData } from '@tanstack/react-query';
 import { useMemo } from 'react';
@@ -20,6 +25,7 @@ import { useHiddenAssets } from './HiddenAssetsProvider';
 
 function HiddenNftsPage() {
     const { hiddenAssetIds, showAsset } = useHiddenAssets();
+    const kioskClient = useKioskClient();
 
     const { data, isLoading, isPending, isError, error } = useMultiGetObjects(
         hiddenAssetIds,
@@ -84,9 +90,15 @@ function HiddenNftsPage() {
                                     key={objectId}
                                 >
                                     <Link
-                                        to={`/nft-details?${new URLSearchParams({
-                                            objectId,
-                                        }).toString()}`}
+                                        to={
+                                            isKioskOwnerToken(kioskClient.network, nft.data)
+                                                ? `/kiosk?${new URLSearchParams({
+                                                      kioskId: getKioskIdFromOwnerCap(nft.data!),
+                                                  })}`
+                                                : `/nft-details?${new URLSearchParams({
+                                                      objectId,
+                                                  }).toString()}`
+                                        }
                                         onClick={() => {
                                             ampli.clickedCollectibleCard({
                                                 objectId,

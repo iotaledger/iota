@@ -23,7 +23,7 @@ const ValidatorMap = lazy(() => import('../../components/validator-map'));
 
 const TRANSACTIONS_LIMIT = 25;
 
-function Home() {
+function Home(): JSX.Element {
     const [network] = useNetwork();
     const isIotaTokenCardEnabled = network === Network.Mainnet;
     return (

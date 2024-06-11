@@ -21,7 +21,7 @@ const toastVariants: Partial<Record<ToastType, BannerProps['variant']>> = {
     error: 'error',
 };
 
-export function Layout() {
+export function Layout(): JSX.Element {
     const [network, setNetwork] = useNetwork();
 
     useCookieConsentBanner(persistableStorage, {

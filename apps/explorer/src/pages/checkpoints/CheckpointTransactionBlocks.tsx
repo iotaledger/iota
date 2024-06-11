@@ -12,7 +12,7 @@ import { TableCard } from '~/ui/TableCard';
 
 const DEFAULT_TRANSACTIONS_LIMIT = 20;
 
-export function CheckpointTransactionBlocks({ id }: { id: string }) {
+export function CheckpointTransactionBlocks({ id }: { id: string }): JSX.Element {
     const [limit, setLimit] = useState(DEFAULT_TRANSACTIONS_LIMIT);
     const transactions = useGetTransactionBlocks(
         {
