@@ -11,7 +11,7 @@ import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessage
 import { useActiveAddress } from '_src/ui/app/hooks';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 import { useSigner } from '_src/ui/app/hooks/useSigner';
-import { isIotaNSName, useIotaNSEnabled } from '@iota/core';
+import { isIotaNSName, useGetKioskContents, useIotaNSEnabled } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
 import { ArrowRight16 } from '@iota/icons';
 import { TransactionBlock } from '@iota/iota.js/transactions';
@@ -20,6 +20,7 @@ import { Field, Form, Formik } from 'formik';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
+import { useTransferKioskItem } from './useTransferKioskItem';
 import { createValidationSchema } from './validation';
 
 export function TransferNFTForm({
@@ -42,11 +43,20 @@ export function TransferNFTForm({
     const signer = useSigner(activeAccount);
     const queryClient = useQueryClient();
     const navigate = useNavigate();
+    const { data: kiosk } = useGetKioskContents(activeAddress);
+    const transferKioskItem = useTransferKioskItem({ objectId, objectType });
+    const isContainedInKiosk = kiosk?.list.some(
+        (kioskItem) => kioskItem.data?.objectId === objectId,
+    );
 
     const transferNFT = useMutation({
         mutationFn: async (to: string) => {
             if (!to || !signer) {
                 throw new Error('Missing data');
+            }
+
+            if (isContainedInKiosk) {
+                return transferKioskItem.mutateAsync({ to });
             }
 
             if (iotaNSEnabled && isIotaNSName(to)) {
@@ -73,6 +83,7 @@ export function TransferNFTForm({
         },
         onSuccess: (response) => {
             queryClient.invalidateQueries({ queryKey: ['object', objectId] });
+            queryClient.invalidateQueries({ queryKey: ['get-kiosk-contents'] });
             queryClient.invalidateQueries({ queryKey: ['get-owned-objects'] });
 
             ampli.sentCollectible({ objectId });
