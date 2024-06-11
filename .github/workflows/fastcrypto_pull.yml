@@ -1,4 +1,4 @@
-name: Update the Fastcrypto pointer Sui
+name: Update the Fastcrypto pointer IOTA
 on:
   ## Allow triggering this workflow manually via GitHub CLI/web
   workflow_dispatch:

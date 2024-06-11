@@ -832,7 +832,7 @@ version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "942c7cd7ae39e91bde4820d74132e9862e62c2f386c3aa90ccf55949f5bad63a"
 dependencies = [
- "brotli",
+ "brotli 3.3.4",
  "flate2",
  "futures-core",
  "memchr",
@@ -2048,7 +2048,18 @@ checksum = "a1a0b1dbcc8ae29329621f8d4f0d835787c1c38bb1401979b49d13b0b305ff68"
 dependencies = [
  "alloc-no-stdlib",
  "alloc-stdlib",
- "brotli-decompressor",
+ "brotli-decompressor 2.3.2",
+]
+
+[[package]]
+name = "brotli"
+version = "6.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74f7971dbd9326d58187408ab83117d8ac1bb9c17b085fdacd1cf2f598719b6b"
+dependencies = [
+ "alloc-no-stdlib",
+ "alloc-stdlib",
+ "brotli-decompressor 4.0.1",
 ]
 
 [[package]]
@@ -2056,6 +2067,16 @@ name = "brotli-decompressor"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59ad2d4653bf5ca36ae797b1f4bb4dbddb60ce49ca4aed8a2ce4829f60425b80"
+dependencies = [
+ "alloc-no-stdlib",
+ "alloc-stdlib",
+]
+
+[[package]]
+name = "brotli-decompressor"
+version = "4.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a45bd2e4095a8b518033b128020dd4a55aab1c0a381ba4404a472630f4bc362"
 dependencies = [
  "alloc-no-stdlib",
  "alloc-stdlib",
@@ -6122,7 +6143,7 @@ dependencies = [
  "iota-swarm-config",
  "iota-test-transaction-builder",
  "iota-types",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "move-core-types",
  "mysten-metrics",
  "narwhal-node",
@@ -6314,7 +6335,7 @@ dependencies = [
  "iota-test-transaction-builder",
  "iota-transaction-checks",
  "iota-types",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "lru 0.10.0",
  "mockall",
  "moka",
@@ -6690,6 +6711,7 @@ dependencies = [
  "anyhow",
  "bcs",
  "bigdecimal",
+ "brotli 6.0.0",
  "camino",
  "fastcrypto",
  "fs_extra",
@@ -6706,7 +6728,9 @@ dependencies = [
  "iota-sdk 1.1.4",
  "iota-simulator",
  "iota-types",
+ "itertools 0.11.0",
  "move-binary-format",
+ "move-compiler",
  "move-core-types",
  "move-package",
  "move-vm-runtime-v2",
@@ -6727,6 +6751,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -6865,7 +6890,7 @@ dependencies = [
  "iota-test-transaction-builder",
  "iota-transaction-builder",
  "iota-types",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "jsonrpsee",
  "move-binary-format",
  "move-bytecode-utils",
@@ -6933,7 +6958,7 @@ dependencies = [
  "iota-storage",
  "iota-transaction-builder",
  "iota-types",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "jsonrpsee",
  "mockall",
  "move-binary-format",
@@ -7026,7 +7051,7 @@ dependencies = [
  "iota-macros",
  "iota-protocol-config",
  "iota-types",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "json_to_table",
  "move-binary-format",
  "move-bytecode-utils",
@@ -7375,7 +7400,7 @@ name = "iota-open-rpc-macros"
 version = "0.1.0"
 dependencies = [
  "derive-syn-parse",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "proc-macro2 1.0.78",
  "quote 1.0.35",
  "syn 1.0.107",
@@ -7486,7 +7511,7 @@ dependencies = [
  "iota-tls",
  "iota-types",
  "ipnetwork",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "mime",
  "multiaddr",
  "mysten-metrics",
@@ -7633,7 +7658,7 @@ dependencies = [
  "iota-keys",
  "iota-sdk 1.22.0",
  "iota-types",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "serde",
  "serde_json",
  "shared-crypto",
@@ -7896,7 +7921,7 @@ dependencies = [
  "iota-simulator",
  "iota-test-transaction-builder",
  "iota-types",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "lru 0.10.0",
  "move-binary-format",
  "move-bytecode-utils",
@@ -8096,7 +8121,7 @@ dependencies = [
  "iota-snapshot",
  "iota-storage",
  "iota-types",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "move-core-types",
  "narwhal-storage",
  "narwhal-types",
@@ -8219,7 +8244,7 @@ dependencies = [
  "iota-enum-compat-util",
  "iota-macros",
  "iota-protocol-config",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "move-binary-format",
  "move-bytecode-utils",
  "move-command-line-common",
@@ -10402,7 +10427,7 @@ dependencies = [
  "indexmap 2.2.6",
  "iota-macros",
  "iota-protocol-config",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "mockall",
  "mysten-common",
  "mysten-metrics",
@@ -10464,7 +10489,7 @@ dependencies = [
  "fdlimit",
  "indexmap 2.2.6",
  "iota-protocol-config",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "mysten-metrics",
  "mysten-network",
  "narwhal-config",
@@ -10549,7 +10574,7 @@ dependencies = [
  "futures",
  "governor",
  "iota-protocol-config",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "mysten-metrics",
  "mysten-network",
  "narwhal-config",
@@ -11468,7 +11493,7 @@ dependencies = [
  "arrow-schema",
  "arrow-select",
  "base64 0.21.2",
- "brotli",
+ "brotli 3.3.4",
  "bytes",
  "chrono",
  "flate2",
@@ -15609,7 +15634,7 @@ dependencies = [
  "fdlimit",
  "hdrhistogram",
  "iota-macros",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "msim",
  "once_cell",
  "ouroboros",
@@ -15636,7 +15661,7 @@ name = "typed-store-derive"
 version = "0.3.0"
 dependencies = [
  "eyre",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "proc-macro2 1.0.78",
  "quote 1.0.35",
  "rocksdb",
