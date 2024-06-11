@@ -29,11 +29,12 @@ use iota_types::{
 use move_binary_format::errors::VMError;
 use move_core_types::{ident_str, identifier::IdentStr, vm_status::StatusCode};
 
-use super::MIGRATION_PROTOCOL_VERSION;
 use crate::stardust::{
     migration::{
         executor::Executor,
-        migration::{Migration, NATIVE_TOKEN_BAG_KEY_TYPE, PACKAGE_DEPS},
+        migration::{
+            Migration, MIGRATION_PROTOCOL_VERSION, NATIVE_TOKEN_BAG_KEY_TYPE, PACKAGE_DEPS,
+        },
         verification::created_objects::CreatedObjects,
     },
     types::snapshot::OutputHeader,
@@ -55,9 +56,10 @@ fn random_output_header() -> OutputHeader {
 }
 
 fn run_migration(
+    total_supply: u64,
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
 ) -> anyhow::Result<(Executor, HashMap<OutputId, CreatedObjects>)> {
-    let mut migration = Migration::new(1)?;
+    let mut migration = Migration::new(1, total_supply)?;
     migration.run_migration(outputs)?;
     Ok(migration.into_parts())
 }
@@ -90,12 +92,13 @@ fn create_foundry(
 fn object_migration_with_object_owner(
     output_id_owner: OutputId,
     output_id_owned: OutputId,
+    total_supply: u64,
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
     output_owner_module_name: &IdentStr,
     output_owned_module_name: &IdentStr,
     unlock_condition_function: &IdentStr,
 ) -> anyhow::Result<()> {
-    let (mut executor, objects_map) = run_migration(outputs)?;
+    let (mut executor, objects_map) = run_migration(total_supply, outputs)?;
 
     // Find the corresponding objects to the migrated outputs.
     let owner_created_objects = objects_map
@@ -228,6 +231,7 @@ fn object_migration_with_object_owner(
 /// the contained bag.
 fn extract_native_token_from_bag(
     output_id: OutputId,
+    total_supply: u64,
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
     module_name: &IdentStr,
     native_token: NativeToken,
@@ -235,7 +239,7 @@ fn extract_native_token_from_bag(
 ) -> anyhow::Result<()> {
     let native_token_id: &TokenId = native_token.token_id();
 
-    let (mut executor, objects_map) = run_migration(outputs)?;
+    let (mut executor, objects_map) = run_migration(total_supply, outputs)?;
 
     // Find the corresponding objects to the migrated output.
     let output_created_objects = objects_map
@@ -377,8 +381,9 @@ enum ExpectedAssets {
     BalanceBagObject,
 }
 
-fn unlock_object_test(
+fn unlock_object(
     output_id: OutputId,
+    total_supply: u64,
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
     sender: &IotaAddress,
     module_name: &IdentStr,
@@ -386,7 +391,7 @@ fn unlock_object_test(
     expected_test_result: UnlockObjectTestResult,
     expected_assets: ExpectedAssets,
 ) -> anyhow::Result<()> {
-    let (migration_executor, objects_map) = run_migration(outputs)?;
+    let (migration_executor, objects_map) = run_migration(total_supply, outputs)?;
 
     // Recreate the TxContext and Executor so we can set a timestamp greater than 0.
     let tx_context = TxContext::new(

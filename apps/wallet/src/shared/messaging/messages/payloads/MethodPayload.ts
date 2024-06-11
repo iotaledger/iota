@@ -4,7 +4,7 @@
 
 import { type AccountSourceSerializedUI } from '_src/background/account-sources/AccountSource';
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
-import { type Status } from '_src/background/legacy-accounts/storage-migration';
+import { type Status } from '_src/background/storage-migration';
 import { type SerializedSignature } from '@iota/iota.js/cryptography';
 
 import { isBasePayload } from './BasePayload';
@@ -58,7 +58,7 @@ type MethodPayloads = {
     doStorageMigration: { password: string };
     switchAccount: { accountID: string };
     setAccountNickname: { id: string; nickname: string | null };
-    verifyPassword: { password: string; legacyAccounts?: boolean };
+    verifyPassword: { password: string };
     storeLedgerAccountsPublicKeys: { publicKeysToStore: LedgerAccountsPublicKeys };
     getAccountSourceEntropy: { accountSourceID: string; password?: string };
     getAccountSourceEntropyResponse: { entropy: string };

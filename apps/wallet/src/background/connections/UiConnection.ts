@@ -42,7 +42,7 @@ import { accountsHandleUIMessage, getAllSerializedUIAccounts } from '../accounts
 import { accountsEvents } from '../accounts/events';
 import { getAutoLockMinutes, notifyUserActive, setAutoLockMinutes } from '../auto-lock-accounts';
 import { backupDB, getDB, settingsKeys } from '../db';
-import { clearStatus, doMigration, getStatus } from '../legacy-accounts/storage-migration';
+import { clearStatus, doMigration, getStatus } from '../storage-migration';
 import NetworkEnv from '../NetworkEnv';
 import { Connection } from './Connection';
 import { SeedAccountSource } from '../account-sources/SeedAccountSource';

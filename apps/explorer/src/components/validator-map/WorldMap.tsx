@@ -23,7 +23,7 @@ const filteredLand = land.features.filter(
     (feature) => !HIDDEN_REGIONS.includes(feature.properties.name),
 );
 
-interface Props {
+interface BaseWorldMapProps {
     width: number;
     height: number;
     validators?: ValidatorMapValidator[];
@@ -31,7 +31,7 @@ interface Props {
     onMouseOut(): void;
 }
 
-function BaseWorldMap({ onMouseOver, onMouseOut, width, height, validators }: Props) {
+function BaseWorldMap({ onMouseOver, onMouseOut, width, height, validators }: BaseWorldMapProps) {
     const centerX = width / 2;
     const centerY = height / 2;
 

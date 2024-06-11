@@ -38,6 +38,7 @@ pub(super) fn verify_basic_output(
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     target_milestone_timestamp: u32,
     storage: &InMemoryStorage,
+    total_value: &mut u64,
 ) -> Result<()> {
     // If this is a timelocked vested reward, a `Timelock<Balance>` is created.
     if is_timelocked_vested_reward(output_id, output, target_milestone_timestamp) {
@@ -66,6 +67,7 @@ pub(super) fn verify_basic_output(
             created_timelock.locked().value(),
             output.amount()
         );
+        *total_value += created_timelock.locked().value();
 
         // Label
         let label = created_timelock
@@ -117,6 +119,7 @@ pub(super) fn verify_basic_output(
             created_output.iota.value(),
             output.amount()
         );
+        *total_value += created_output.iota.value();
 
         // Native Tokens
         verify_native_tokens::<Field<String, Balance>>(
@@ -158,8 +161,9 @@ pub(super) fn verify_basic_output(
         // Sender Feature
         verify_sender_feature(output.features().sender(), created_output.sender)?;
 
-    // Otherwise the output contains only an address unlock condition and only a
-    // coin and possibly native tokens should have been created.
+    // Otherwise the output contains only an address unlock condition and
+    // only a coin and possibly native tokens should have been
+    // created.
     } else {
         ensure!(
             created_objects.output().is_err(),
@@ -167,7 +171,18 @@ pub(super) fn verify_basic_output(
         );
 
         // Coin value and owner
-        verify_coin(output.amount(), output.address(), created_objects, storage)?;
+        let created_coin_obj = created_objects.coin().and_then(|id| {
+            storage
+                .get_object(id)
+                .ok_or_else(|| anyhow!("missing coin"))
+        })?;
+        let created_coin = created_coin_obj
+            .as_coin_maybe()
+            .ok_or_else(|| anyhow!("expected a coin"))?;
+
+        verify_address_owner(output.address(), created_coin_obj, "coin")?;
+        verify_coin(output.amount(), &created_coin)?;
+        *total_value += created_coin.value();
 
         // Native Tokens
         verify_native_tokens::<(TypeTag, Coin)>(

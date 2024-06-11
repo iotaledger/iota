@@ -36,6 +36,7 @@ pub(super) fn verify_nft_output(
     created_objects: &CreatedObjects,
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
+    total_value: &mut u64,
 ) -> anyhow::Result<()> {
     let created_output_obj = created_objects.output().and_then(|id| {
         storage
@@ -92,6 +93,7 @@ pub(super) fn verify_nft_output(
         created_output.iota.value(),
         output.amount()
     );
+    *total_value += created_output.iota.value();
 
     // Native Tokens
     verify_native_tokens::<Field<String, Balance>>(

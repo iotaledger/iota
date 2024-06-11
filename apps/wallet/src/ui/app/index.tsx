@@ -17,7 +17,6 @@ import { useAccounts } from './hooks/useAccounts';
 import { useAutoLockMinutes } from './hooks/useAutoLockMinutes';
 import { useBackgroundClient } from './hooks/useBackgroundClient';
 // import { useInitialPageView } from './hooks/useInitialPageView';
-import { useStorageMigrationStatus } from './hooks/useStorageMigrationStatus';
 import { AccountsPage } from './pages/accounts/AccountsPage';
 import { AddAccountPage } from './pages/accounts/AddAccountPage';
 import { BackupMnemonicPage } from './pages/accounts/BackupMnemonicPage';
@@ -51,9 +50,10 @@ import HomePage, {
 import TokenDetailsPage from './pages/home/tokens/TokenDetailsPage';
 import { RestrictedPage } from './pages/restricted';
 import SiteConnectPage from './pages/site-connect';
-import { StorageMigrationPage } from './pages/StorageMigrationPage';
 import { AppType } from './redux/slices/app/AppType';
 import { Staking } from './staking/home';
+import { StorageMigrationPage } from './pages/StorageMigrationPage';
+import { useStorageMigrationStatus } from './hooks/useStorageMigrationStatus';
 
 const HIDDEN_MENU_PATHS = [
     '/nft-details',
@@ -154,6 +154,8 @@ const App = () => {
         };
     }, [backgroundClient, autoLockEnabled]);
 
+    // Placeholder check for storage migration.
+    // currently hook useStorageMigrationStatus always returns 'ready'
     const storageMigration = useStorageMigrationStatus();
     if (storageMigration.isPending || !storageMigration?.data) {
         return null;
