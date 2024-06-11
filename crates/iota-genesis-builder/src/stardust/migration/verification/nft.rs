@@ -149,16 +149,19 @@ pub(super) fn verify_nft_output(
 
     verify_parent(output.address(), storage)?;
 
-    ensure!(created_objects.coin().is_err(), "unexpected coin found");
+    ensure!(
+        created_objects.gas_coin().is_err(),
+        "unexpected gas coin found"
+    );
+
+    ensure!(
+        created_objects.native_token_coin().is_err(),
+        "unexpected native token coin found"
+    );
 
     ensure!(
         created_objects.coin_metadata().is_err(),
         "unexpected coin metadata found"
-    );
-
-    ensure!(
-        created_objects.minted_coin().is_err(),
-        "unexpected minted coin found"
     );
 
     ensure!(

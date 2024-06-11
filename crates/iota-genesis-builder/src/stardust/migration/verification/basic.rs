@@ -89,7 +89,10 @@ pub(super) fn verify_basic_output(
     // If the output has multiple unlock conditions, then a genesis object should
     // have been created.
     if output.unlock_conditions().len() > 1 {
-        ensure!(created_objects.coin().is_err(), "unexpected coin created");
+        ensure!(
+            created_objects.gas_coin().is_err(),
+            "unexpected gas coin created"
+        );
 
         let created_output_obj = created_objects.output().and_then(|id| {
             storage
@@ -170,19 +173,19 @@ pub(super) fn verify_basic_output(
             "unexpected output object created for simple deposit"
         );
 
-        // Coin value and owner
-        let created_coin_obj = created_objects.coin().and_then(|id| {
+        // Gas coin value and owner
+        let created_gas_coin_obj = created_objects.gas_coin().and_then(|id| {
             storage
                 .get_object(id)
-                .ok_or_else(|| anyhow!("missing coin"))
+                .ok_or_else(|| anyhow!("missing gas coin"))
         })?;
-        let created_coin = created_coin_obj
+        let created_gas_coin = created_gas_coin_obj
             .as_coin_maybe()
-            .ok_or_else(|| anyhow!("expected a coin"))?;
+            .ok_or_else(|| anyhow!("expected a gas coin"))?;
 
-        verify_address_owner(output.address(), created_coin_obj, "coin")?;
-        verify_coin(output.amount(), &created_coin)?;
-        *total_value += created_coin.value();
+        verify_address_owner(output.address(), created_gas_coin_obj, "gas coin")?;
+        verify_coin(output.amount(), &created_gas_coin)?;
+        *total_value += created_gas_coin.value();
 
         // Native Tokens
         verify_native_tokens::<(TypeTag, Coin)>(
@@ -197,13 +200,13 @@ pub(super) fn verify_basic_output(
     verify_parent(output.address(), storage)?;
 
     ensure!(
-        created_objects.coin_metadata().is_err(),
-        "unexpected coin metadata found"
+        created_objects.native_token_coin().is_err(),
+        "unexpected native token coin found"
     );
 
     ensure!(
-        created_objects.minted_coin().is_err(),
-        "unexpected minted coin found"
+        created_objects.coin_metadata().is_err(),
+        "unexpected coin metadata found"
     );
 
     ensure!(
