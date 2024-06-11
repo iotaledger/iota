@@ -3,8 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
-import { type ZkLoginProvider } from '_src/background/accounts/zklogin/providers';
-import { isZkLoginAccountSerializedUI } from '_src/background/accounts/zklogin/ZkLoginAccount';
 import { AccountIcon } from '_src/ui/app/components/accounts/AccountIcon';
 import { AccountItem } from '_src/ui/app/components/accounts/AccountItem';
 import { useAccountsFormContext } from '_src/ui/app/components/accounts/AccountsFormContext';
@@ -37,21 +35,10 @@ const accountTypeToLabel: Record<AccountType, string> = {
     'seed-derived': 'Seed Derived',
     imported: 'Imported',
     ledger: 'Ledger',
-    zkLogin: 'zkLogin',
-};
-
-const providerToLabel: Record<ZkLoginProvider, string> = {
-    google: 'Google',
-    twitch: 'Twitch',
-    facebook: 'Facebook',
-    kakao: 'Kakao',
 };
 
 export function getGroupTitle(aGroupAccount: SerializedUIAccount) {
-    // TODO: revisit this logic for determining account provider
-    return isZkLoginAccountSerializedUI(aGroupAccount)
-        ? providerToLabel[aGroupAccount?.provider] ?? 'zkLogin'
-        : accountTypeToLabel[aGroupAccount?.type] || '';
+    return accountTypeToLabel[aGroupAccount?.type] || '';
 }
 
 // todo: we probbaly have some duplication here with the various FooterLink / ButtonOrLink
@@ -248,10 +235,7 @@ export function AccountGroup({
                 <VerifyPasswordModal
                     open
                     onVerify={async (password) => {
-                        if (
-                            accountsFormValues.current &&
-                            accountsFormValues.current.type !== 'zkLogin'
-                        ) {
+                        if (accountsFormValues.current) {
                             await createAccountMutation.mutateAsync({
                                 type: accountsFormValues.current.type,
                                 password,
