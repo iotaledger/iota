@@ -14,7 +14,6 @@ export enum ActivityAction {
     Staked = 'Staked',
     Unstaked = 'Unstaked',
     Rewards = 'Rewards',
-    Swapped = 'Swapped',
     PersonalMessage = 'PersonalMessage',
 }
 

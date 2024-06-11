@@ -91,8 +91,8 @@ fn adjust_native_token_module(package_path: &Path, package: &NativeTokenPackageD
 
     let icon_url = match &package.module().icon_url {
         Some(url) => format!(
-            "option::some<Url>(iota::url::new_unsafe_from_bytes(b\"{}\"))",
-            url
+            "option::some<Url>(iota::url::new_unsafe_from_bytes({}))",
+            format_string_as_move_vector(url.as_str())
         ),
         None => "option::none<Url>()".to_string(),
     };

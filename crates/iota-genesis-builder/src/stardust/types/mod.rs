@@ -4,6 +4,7 @@
 pub mod address;
 pub mod alias;
 pub mod capped_coin;
+pub mod coin_kind;
 pub mod foundry;
 pub mod nft;
 pub mod output;
