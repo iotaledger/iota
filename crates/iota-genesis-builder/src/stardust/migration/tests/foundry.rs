@@ -27,8 +27,8 @@ use crate::stardust::{
 };
 
 type PackageObject = Object;
-type CoinObject = Object;
-type MintedCoinObject = Object;
+type GasCoinObject = Object;
+type NativeTokenCoinObject = Object;
 type CoinMetadataObject = Object;
 type MaxSupplyPolicyObject = Object;
 
@@ -37,8 +37,8 @@ fn migrate_foundry(
     foundry: FoundryOutput,
 ) -> Result<(
     PackageObject,
-    CoinObject,
-    MintedCoinObject,
+    GasCoinObject,
+    NativeTokenCoinObject,
     CoinMetadataObject,
     MaxSupplyPolicyObject,
 )> {
@@ -56,8 +56,8 @@ fn migrate_foundry(
     assert_eq!(created_objects.len(), 5);
 
     let package_id = *created_objects_ids.package()?;
-    let coin_id = *created_objects_ids.coin()?;
-    let minted_coin_id = *created_objects_ids.minted_coin()?;
+    let gas_coin_id = *created_objects_ids.gas_coin()?;
+    let native_token_coin_id = *created_objects_ids.native_token_coin()?;
     let coin_metadata_id = *created_objects_ids.coin_metadata()?;
     let max_supply_policy_id = *created_objects_ids.max_supply_policy()?;
 
@@ -65,14 +65,14 @@ fn migrate_foundry(
         .iter()
         .find(|object| object.id() == package_id)
         .ok_or(anyhow!("missing package object"))?;
-    let coin_object = created_objects
+    let gas_coin_object = created_objects
         .iter()
-        .find(|object| object.id() == coin_id)
-        .ok_or(anyhow!("missing coin object"))?;
-    let minted_coin_object = created_objects
+        .find(|object| object.id() == gas_coin_id)
+        .ok_or(anyhow!("missing gas coin object"))?;
+    let native_token_coin_object = created_objects
         .iter()
-        .find(|object| object.id() == minted_coin_id)
-        .ok_or(anyhow!("missing minted coin object"))?;
+        .find(|object| object.id() == native_token_coin_id)
+        .ok_or(anyhow!("missing native token coin object"))?;
     let coin_metadata_object = created_objects
         .iter()
         .find(|object| object.id() == coin_metadata_id)
@@ -84,8 +84,8 @@ fn migrate_foundry(
 
     Ok((
         package_object.clone(),
-        coin_object.clone(),
-        minted_coin_object.clone(),
+        gas_coin_object.clone(),
+        native_token_coin_object.clone(),
         coin_metadata_object.clone(),
         max_supply_policy_object.clone(),
     ))
@@ -105,8 +105,8 @@ fn foundry_with_simple_metadata() -> Result<()> {
 
     let (
         package_object,
-        coin_object,
-        minted_coin_object,
+        gas_coin_object,
+        native_token_coin_object,
         coin_metadata_object,
         max_supply_policy_object,
     ) = migrate_foundry(header, foundry)?;
@@ -122,22 +122,26 @@ fn foundry_with_simple_metadata() -> Result<()> {
     assert_eq!(coin_type_origin.module_name, "doge");
     assert_eq!(coin_type_origin.struct_name, "DOGE");
 
-    // Check the coin object.
-    let coin = coin_object
+    // Check the gas coin object.
+    let gas_coin = gas_coin_object
         .as_coin_maybe()
-        .expect("should be a coin object");
+        .expect("should be a gas coin object");
     assert_eq!(
-        coin_object.owner.get_owner_address().unwrap().to_string(),
+        gas_coin_object
+            .owner
+            .get_owner_address()
+            .unwrap()
+            .to_string(),
         alias_id.to_string()
     );
-    assert_eq!(coin.balance, Balance::new(1_000_000));
+    assert_eq!(gas_coin.balance, Balance::new(1_000_000));
 
-    // Check the minted coin object.
-    let minted_coin = minted_coin_object
+    // Check the native token coin object.
+    let native_token_coin = native_token_coin_object
         .as_coin_maybe()
-        .expect("should be a coin object");
-    assert_eq!(minted_coin_object.owner, IotaAddress::ZERO);
-    assert_eq!(minted_coin.balance, Balance::new(100_000));
+        .expect("should be a native token coin object");
+    assert_eq!(native_token_coin_object.owner, IotaAddress::ZERO);
+    assert_eq!(native_token_coin.balance, Balance::new(100_000));
 
     // Check the coin metadata object.
     let coin_metadata = coin_metadata_object
@@ -208,8 +212,8 @@ fn foundry_with_special_metadata() -> Result<()> {
 
     let (
         package_object,
-        coin_object,
-        minted_coin_object,
+        gas_coin_object,
+        native_token_coin_object,
         coin_metadata_object,
         max_supply_policy_object,
     ) = migrate_foundry(header, foundry)?;
@@ -225,22 +229,26 @@ fn foundry_with_special_metadata() -> Result<()> {
     assert_eq!(coin_type_origin.module_name, "doge");
     assert_eq!(coin_type_origin.struct_name, "DOGE");
 
-    // Check the coin object.
-    let coin = coin_object
+    // Check the gas coin object.
+    let gas_coin = gas_coin_object
         .as_coin_maybe()
-        .expect("should be a coin object");
+        .expect("should be a gas coin object");
     assert_eq!(
-        coin_object.owner.get_owner_address().unwrap().to_string(),
+        gas_coin_object
+            .owner
+            .get_owner_address()
+            .unwrap()
+            .to_string(),
         alias_id.to_string()
     );
-    assert_eq!(coin.balance, Balance::new(1_000_000));
+    assert_eq!(gas_coin.balance, Balance::new(1_000_000));
 
-    // Check the minted coin object.
-    let minted_coin = minted_coin_object
+    // Check the native token coin object.
+    let native_token_coin = native_token_coin_object
         .as_coin_maybe()
-        .expect("should be a coin object");
-    assert_eq!(minted_coin_object.owner, IotaAddress::ZERO);
-    assert_eq!(minted_coin.balance, Balance::new(u64::MAX - 1));
+        .expect("should be a native token coin object");
+    assert_eq!(native_token_coin_object.owner, IotaAddress::ZERO);
+    assert_eq!(native_token_coin.balance, Balance::new(u64::MAX - 1));
 
     // Check the coin metadata object.
     let coin_metadata = coin_metadata_object
@@ -308,20 +316,24 @@ fn coin_ownership() -> Result<()> {
 
     let (
         _package_object,
-        coin_object,
-        minted_coin_object,
+        gas_coin_object,
+        native_token_coin_object,
         _coin_metadata_object,
         max_supply_policy_object,
     ) = migrate_foundry(header, foundry)?;
 
-    // Check the owner of the coin object.
+    // Check the owner of the gas coin object.
     assert_eq!(
-        coin_object.owner.get_owner_address().unwrap().to_string(),
+        gas_coin_object
+            .owner
+            .get_owner_address()
+            .unwrap()
+            .to_string(),
         alias_id.to_string()
     );
 
-    // Check the owner of the minted coin object.
-    assert_eq!(minted_coin_object.owner, IotaAddress::ZERO);
+    // Check the owner of the native token coin object.
+    assert_eq!(native_token_coin_object.owner, IotaAddress::ZERO);
 
     // Check the owner of the max supply policy object.
     assert_eq!(
@@ -355,8 +367,8 @@ fn create_gas_coin() {
     // * The package
     // * Coin metadata
     // * MaxSupplyPolicy
-    // * The total supply coin
-    // * The foundry gas coin
+    // * The total supply native token coin
+    // * The gas coin
     assert_eq!(objects.len(), 5);
 
     // Extract the package object.
