@@ -19,7 +19,7 @@ There are two approaches to delete an IOTA Identity, with different implications
 
 ## Deactivate
 
-As detailed in the [IOTA DID Method Specification](../../references/specifications/iota-did-method-spec.mdx#deactivate),
+As detailed in the [IOTA DID Method Specification](../../../../../standards/iota-identity/iota-did-method-spec.mdx#deactivate),
 the state controller of an IOTA Identity may [deactivate](https://www.w3.org/TR/did-core/#did-document-metadata) it by publishing an update that either:
 
 - deletes the contents of the DID Document entirely, leaving the state metadata empty, OR
@@ -61,7 +61,7 @@ https://github.com/iotaledger/identity.rs/blob/v1.3.0/bindings/wasm/examples/src
 
 ## Destroy
 
-Alternatively, you can [destroy](../../references/specifications/iota-did-method-spec.mdx#destroy) an IOTA Identity can be permanently.
+Alternatively, you can [destroy](../../../../../standards/iota-identity/iota-did-method-spec.mdx#destroy) an IOTA Identity can be permanently.
 
 :::warning Irreversible
 
@@ -70,7 +70,7 @@ Destroying an IOTA Identity is permanent and irreversible.
 :::
 
 
-This is achieved by the governor of a DID publishing a transaction consuming the [Alias Output](../../references/specifications/iota-did-method-spec.mdx#alias-output)
+This is achieved by the governor of a DID publishing a transaction consuming the [Alias Output](../../../../../standards/iota-identity/iota-did-method-spec.mdx#alias-output)
 containing the IOTA DID Document, without a corresponding Alias Output on the output side.
 
 Any coins and tokens in the Alias Output are reclaimed and can be sent to another address.
