@@ -14,7 +14,7 @@ import { flattenIotaArguments } from './utils';
 import { ErrorBoundary } from '~/components/error-boundary/ErrorBoundary';
 import { ObjectLink } from '~/ui/InternalLink';
 
-export interface TransactionProps<T> {
+interface TransactionProps<T> {
     type: string;
     data: T;
 }
@@ -68,7 +68,9 @@ function MoveCall({ data }: TransactionProps<MoveCallIotaTransaction>) {
 export function Transaction({
     type,
     data,
-}: TransactionProps<(IotaArgument | IotaArgument[])[] | MoveCallIotaTransaction | IotaMovePackage>) {
+}: TransactionProps<
+    (IotaArgument | IotaArgument[])[] | MoveCallIotaTransaction | IotaMovePackage
+>) {
     if (type === 'MoveCall') {
         return (
             <ErrorBoundary>

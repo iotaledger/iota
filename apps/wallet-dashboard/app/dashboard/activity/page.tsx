@@ -1,14 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
-// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 'use client';
 
 import React from 'react';
-import { useCurrentAccount } from '@mysten/dapp-kit';
+import { useCurrentAccount } from '@iota/dapp-kit';
 import { VirtualList, ActivityTile } from '@/components';
 import { Activity } from '@/lib/interfaces';
-import { useQueryTransactionsByAddress } from '@/hooks/useQueryTransactionsByAddress';
+import { useQueryTransactionsByAddress } from '@iota/core';
 import { getTransactionActivity } from '@/lib/utils/activity';
 
 function ActivityPage(): JSX.Element {

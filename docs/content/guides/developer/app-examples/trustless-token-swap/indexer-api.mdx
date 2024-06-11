@@ -7,7 +7,7 @@ import AppExamplesSwapSource from "../../../../_snippets/app-examples-swap-sourc
 
 :::note Multi-Page Guide
 
-This is the second in a [three-part guide](../trustless-token-swap.mdx) on how to build a trustless atomic swap on Iota.
+This is the second in a [three-part guide](../trustless-token-swap.mdx) on how to build a trustless atomic swap on IOTA.
 
 :::
 
@@ -26,7 +26,7 @@ Before getting started, make sure you:
 - Check out the [indexer's README](https://github.com/iotaledger/iota/tree/main/examples/trading/api) to setup the development environment.
 - Check out [Prisma](https://www.prisma.io/) to get an overall sense of the technology that facilitates all the database interactions.
 - Check out [Express](https://expressjs.com/) to learn how to set up a web server application in Node.js. This server bootstraps your API service.
-- Check out [Iota TypeScript SDK](https://sdk.mystenlabs.com/typescript) for basic usage on how to interact with Iota with TypeScript.
+- Check out [IOTA TypeScript SDK](https://sdk.mystenlabs.com/typescript) for basic usage on how to interact with IOTA with TypeScript.
 
 ## Indexing service
 
@@ -94,7 +94,7 @@ Let's first examine `event-indexer.ts`:
 #### Imports
 
 ```ts title='event-indexer.ts'
-import { EventId, IotaClient, IotaEvent, IotaEventFilter } from '@iota/iota.js/client';
+import { EventId, IOTAClient, IOTAEvent, IOTAEventFilter } from '@iota/iota.js/client';
 
 import { CONFIG } from '../config';
 import { prisma } from '../db';
@@ -103,27 +103,27 @@ import { handleEscrowObjects } from './escrow-handler';
 import { handleLockObjects } from './locked-handler';
 ```
 
-These lines import the necessary modules and dependencies for the script. The `EventId`, `IotaClient`, `IotaEvent`, and `IotaEventFilter` types are imported from the `@iota/iota.js/client` package. The `CONFIG` constant is imported from the local `config` module, `prisma` from the local `db` module, `getClient` from the local `iota-utils` module, and the `handleEscrowObjects` and `handleLockObjects` functions from the local `escrow-handler` and `locked-handler` modules respectively.
+These lines import the necessary modules and dependencies for the script. The `EventId`, `IOTAClient`, `IOTAEvent`, and `IOTAEventFilter` types are imported from the `@iota/iota.js/client` package. The `CONFIG` constant is imported from the local `config` module, `prisma` from the local `db` module, `getClient` from the local `iota-utils` module, and the `handleEscrowObjects` and `handleLockObjects` functions from the local `escrow-handler` and `locked-handler` modules respectively.
 
 #### Type definitions
 
 ```ts title='event-indexer.ts'
-type IotaEventsCursor = EventId | null | undefined;
+type IOTAEventsCursor = EventId | null | undefined;
 
 type EventExecutionResult = {
-	cursor: IotaEventsCursor;
+	cursor: IOTAEventsCursor;
 	hasNextPage: boolean;
 };
 
 type EventTracker = {
 	// The module that defines the type, with format `package::module`
 	type: string;
-	filter: IotaEventFilter;
-	callback: (events: IotaEvent[], type: string) => any;
+	filter: IOTAEventFilter;
+	callback: (events: IOTAEvent[], type: string) => any;
 };
 ```
 
-Three custom types are defined here: `IotaEventsCursor`, `EventExecutionResult`, and `EventTracker`. `IotaEventsCursor` is a type alias for `EventId | null | undefined`, representing the possible states of a cursor pointing to events on the Iota network. `EventExecutionResult` represents the result of executing an event job, including the updated cursor and a flag indicating whether there are more pages of events to process. `EventTracker` represents an event tracker, which includes the type of the event, a filter for the event, and a callback function to handle the event.
+Three custom types are defined here: `IOTAEventsCursor`, `EventExecutionResult`, and `EventTracker`. `IOTAEventsCursor` is a type alias for `EventId | null | undefined`, representing the possible states of a cursor pointing to events on the IOTA network. `EventExecutionResult` represents the result of executing an event job, including the updated cursor and a flag indicating whether there are more pages of events to process. `EventTracker` represents an event tracker, which includes the type of the event, a filter for the event, and a callback function to handle the event.
 
 #### Constants
 
@@ -158,9 +158,9 @@ The `EVENTS_TO_TRACK` constant is an array of `EventTracker` objects. Each `Even
 
 ```ts title='event-indexer.ts'
 const executeEventJob = async (
-	client: IotaClient,
+	client: IOTAClient,
 	tracker: EventTracker,
-	cursor: IotaEventsCursor,
+	cursor: IOTAEventsCursor,
 ): Promise<EventExecutionResult> => {
 	try {
 		// Get the events from the chain.
@@ -195,10 +195,10 @@ const executeEventJob = async (
 };
 ```
 
-This function executes an event job. It takes a `IotaClient`, an `EventTracker`, and a `IotaEventsCursor` as arguments, and returns a promise that resolves to an `EventExecutionResult`. The function tries to get the events from the chain according to the filter defined in the `EventTracker`. If successful, it handles the data transformations defined for each event and updates the cursor if there were changes. If an error occurs during execution, it logs the error and returns the original cursor without updating it.
+This function executes an event job. It takes a `IOTAClient`, an `EventTracker`, and a `IOTAEventsCursor` as arguments, and returns a promise that resolves to an `EventExecutionResult`. The function tries to get the events from the chain according to the filter defined in the `EventTracker`. If successful, it handles the data transformations defined for each event and updates the cursor if there were changes. If an error occurs during execution, it logs the error and returns the original cursor without updating it.
 
 ```ts title='event-indexer.ts'
-const runEventJob = async (client: IotaClient, tracker: EventTracker, cursor: IotaEventsCursor) => {
+const runEventJob = async (client: IOTAClient, tracker: EventTracker, cursor: IOTAEventsCursor) => {
 	const result = await executeEventJob(client, tracker, cursor);
 
 	// Trigger a timeout. Depending on the result, we either wait 0ms or the polling interval.
@@ -211,7 +211,7 @@ const runEventJob = async (client: IotaClient, tracker: EventTracker, cursor: Io
 };
 ```
 
-This function runs an event job. It takes a `IotaClient`, an `EventTracker`, and a `IotaEventsCursor` as arguments. It calls `executeEventJob` and schedules another call to `runEventJob` based on the result of the execution. If there are more pages of events to process, it waits for the polling interval defined in `CONFIG.POLLING_INTERVAL_MS` before making the next call. Otherwise, it makes the call immediately.
+This function runs an event job. It takes a `IOTAClient`, an `EventTracker`, and a `IOTAEventsCursor` as arguments. It calls `executeEventJob` and schedules another call to `runEventJob` based on the result of the execution. If there are more pages of events to process, it waits for the polling interval defined in `CONFIG.POLLING_INTERVAL_MS` before making the next call. Otherwise, it makes the call immediately.
 
 ```ts title='event-indexer.ts'
 const getLatestCursor = async (tracker: EventTracker) => {
@@ -244,7 +244,7 @@ const saveLatestCursor = async (tracker: EventTracker, cursor: EventId) => {
 };
 ```
 
-This function saves the latest cursor for an event tracker to the database. It takes an `EventTracker` and a `IotaEventsCursor` as arguments and returns a promise that resolves to the saved cursor. If the cursor already exists in the database, it updates the existing entry. Otherwise, it creates a new entry.
+This function saves the latest cursor for an event tracker to the database. It takes an `EventTracker` and a `IOTAEventsCursor` as arguments and returns a promise that resolves to the saved cursor. If the cursor already exists in the database, it updates the existing entry. Otherwise, it creates a new entry.
 
 ```ts title='event-indexer.ts'
 export const setupListeners = async () => {
@@ -254,7 +254,7 @@ export const setupListeners = async () => {
 };
 ```
 
-This function sets up all the listeners for the events to track. It iterates over the `EVENTS_TO_TRACK` array and calls `runEventJob` for each event tracker, passing the `IotaClient`, the event tracker, and the latest cursor for the event tracker as arguments.
+This function sets up all the listeners for the events to track. It iterates over the `EVENTS_TO_TRACK` array and calls `runEventJob` for each event tracker, passing the `IOTAClient`, the event tracker, and the latest cursor for the event tracker as arguments.
 
 Now let’s take a look at `escrow-handler.ts`:
 
@@ -263,13 +263,13 @@ Now let’s take a look at `escrow-handler.ts`:
 #### Imports
 
 ```ts title='escrow-handler.ts'
-import { IotaEvent } from '@iota/iota.js/client';
+import { IOTAEvent } from '@iota/iota.js/client';
 import { Prisma } from '@prisma/client';
 
 import { prisma } from '../db';
 ```
 
-These lines import the necessary modules and dependencies for the script. The `IotaEvent` type is imported from the `@iota/iota.js/client` package. The `Prisma` namespace is imported from the `@prisma/client package`. The `prisma` instance is imported from the local `db` module.
+These lines import the necessary modules and dependencies for the script. The `IOTAEvent` type is imported from the `@iota/iota.js/client` package. The `Prisma` namespace is imported from the `@prisma/client package`. The `prisma` instance is imported from the local `db` module.
 
 #### Type definitions
 
@@ -298,7 +298,7 @@ Four custom types are defined here: `EscrowEvent`, `EscrowCreated`, `EscrowSwapp
 #### Functions
 
 ```ts title='escrow-handler.ts'
-export const handleEscrowObjects = async (events: IotaEvent[], type: string) => {
+export const handleEscrowObjects = async (events: IOTAEvent[], type: string) => {
 	const updates: Record<string, Prisma.EscrowCreateInput> = {};
 
 	for (const event of events) {
@@ -351,20 +351,20 @@ export const handleEscrowObjects = async (events: IotaEvent[], type: string) => 
 };
 ```
 
-This function handles all events emitted by the `escrow` module. It takes an array of `IotaEvent` objects and a string representing the type of the events as arguments. The function processes each event and updates the corresponding escrow object in the database accordingly. If an event indicates that an escrow was canceled or swapped, the function marks the corresponding escrow object as canceled or swapped. If an event indicates that an escrow was created, the function creates a new escrow object with the details from the event.
+This function handles all events emitted by the `escrow` module. It takes an array of `IOTAEvent` objects and a string representing the type of the events as arguments. The function processes each event and updates the corresponding escrow object in the database accordingly. If an event indicates that an escrow was canceled or swapped, the function marks the corresponding escrow object as canceled or swapped. If an event indicates that an escrow was created, the function creates a new escrow object with the details from the event.
 
 ### `locked-handler.ts`
 
 #### Imports
 
 ```ts title='locked-handler.ts'
-import { IotaEvent } from '@iota/iota.js/client';
+import { IOTAEvent } from '@iota/iota.js/client';
 import { Prisma } from '@prisma/client';
 
 import { prisma } from '../db';
 ```
 
-These lines import the necessary modules and dependencies for the script. The `IotaEvent` type is imported from the `@iota/iota.js/client` package. The `Prisma` namespace is imported from the `@prisma/client package`. The `prisma` instance is imported from the local `db` module.
+These lines import the necessary modules and dependencies for the script. The `IOTAEvent` type is imported from the `@iota/iota.js/client` package. The `Prisma` namespace is imported from the `@prisma/client package`. The `prisma` instance is imported from the local `db` module.
 
 #### Type definitions
 
@@ -388,7 +388,7 @@ Three custom types are defined here: `LockEvent`, `LockCreated`, and `LockDestro
 #### Functions
 
 ```ts title='locked-handler.ts'
-export const handleLockObjects = async (events: IotaEvent[], type: string) => {
+export const handleLockObjects = async (events: IOTAEvent[], type: string) => {
 	const updates: Record<string, Prisma.LockedCreateInput> = {};
 
 	for (const event of events) {
@@ -433,7 +433,7 @@ export const handleLockObjects = async (events: IotaEvent[], type: string) => {
 };
 ```
 
-This function handles all events emitted by the `lock` module. It takes an array of `IotaEvent` objects and a string representing the type of the events as arguments. The function processes each event and updates the corresponding locked object in the database accordingly. If an event indicates that a lock was destroyed, the function marks the corresponding locked object as deleted. If an event indicates that a lock was created, the function creates a new locked object with the details from the event.
+This function handles all events emitted by the `lock` module. It takes an array of `IOTAEvent` objects and a string representing the type of the events as arguments. The function processes each event and updates the corresponding locked object in the database accordingly. If an event indicates that a lock was destroyed, the function marks the corresponding locked object as deleted. If an event indicates that a lock was created, the function creates a new locked object with the details from the event.
 
 ## API service
 

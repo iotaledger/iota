@@ -6,13 +6,12 @@ import { CoinFormat, useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import { Text } from '@iota/ui';
 
-export function IotaAmount({
-    amount,
-    full = false,
-}: {
+interface IotaAmountProps {
     amount?: bigint | number | string | null;
     full?: boolean;
-}) {
+}
+
+export function IotaAmount({ amount, full = false }: IotaAmountProps) {
     const [formattedAmount, coinType] = useFormatCoin(
         amount,
         IOTA_TYPE_ARG,

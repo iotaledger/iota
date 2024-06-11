@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Activity, ActivityAction, ActivityState } from '@/lib/interfaces';
-import { ExecutionStatus, SuiTransactionBlockResponse } from '@mysten/sui.js/client';
+import { ExecutionStatus, IotaTransactionBlockResponse } from '@iota/iota.js/client';
 import { parseTimestamp } from './time';
 
-const getTransactionActivityState = (tx: SuiTransactionBlockResponse): ActivityState => {
+const getTransactionActivityState = (tx: IotaTransactionBlockResponse): ActivityState => {
     const executionStatus = tx.effects?.status.status;
     const isTxFailed = !!tx.effects?.status.error;
     const map: {
@@ -27,7 +27,7 @@ const getTransactionActivityState = (tx: SuiTransactionBlockResponse): ActivityS
 };
 
 export const getTransactionAction = (
-    transaction: SuiTransactionBlockResponse,
+    transaction: IotaTransactionBlockResponse,
     currentAddress?: string,
 ) => {
     const isSender = transaction.transaction?.data.sender === currentAddress;
@@ -35,7 +35,7 @@ export const getTransactionAction = (
 };
 
 export const getTransactionActivity = (
-    transaction: SuiTransactionBlockResponse,
+    transaction: IotaTransactionBlockResponse,
     address: string,
 ): Activity => {
     return {

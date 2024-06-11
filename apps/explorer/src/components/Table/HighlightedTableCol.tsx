@@ -5,7 +5,12 @@
 import clsx from 'clsx';
 import { type ReactNode } from 'react';
 
-export function HighlightedTableCol({ children, first }: { children: ReactNode; first?: boolean }) {
+interface HighlightedTableColProps {
+    children: ReactNode;
+    first?: boolean;
+}
+
+export function HighlightedTableCol({ children, first }: HighlightedTableColProps) {
     return (
         <div
             className={clsx(

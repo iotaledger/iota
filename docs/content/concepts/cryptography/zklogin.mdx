@@ -1,23 +1,23 @@
 ---
 title: zkLogin
-description: zkLogin is a Iota primitive that enables you to send transactions from a Iota address using an OAuth credential, without publicly linking the two.
+description: zkLogin is a IOTA primitive that enables you to send transactions from a IOTA address using an OAuth credential, without publicly linking the two.
 ---
 
-zkLogin is a Iota primitive that provides the ability for you to send transactions from a Iota address using an OAuth credential, without publicly linking the two.
+zkLogin is a IOTA primitive that provides the ability for you to send transactions from a IOTA address using an OAuth credential, without publicly linking the two.
 
 zkLogin is designed with the following goals in mind:
 
-- **Streamlined onboarding:** zkLogin enables you to transact on Iota using the familiar OAuth login flow, eliminating the friction of handling cryptographic keys or remembering mnemonics.
+- **Streamlined onboarding:** zkLogin enables you to transact on IOTA using the familiar OAuth login flow, eliminating the friction of handling cryptographic keys or remembering mnemonics.
 - **Self-custody:** A zkLogin transaction requires user approval via the standard OAuth login process--the OAuth provider cannot transact on the user's behalf.
-- **Security:** zkLogin is a two-factor authentication scheme: sending a transaction requires both a credential from a recent OAuth login and a salt not managed by the OAuth provider. An attacker who compromises an OAuth account cannot transact from the user's corresponding Iota address unless they separately compromise the salt.
-- **Privacy:** Zero-knowledge proofs prevent third parties from linking a Iota address with its corresponding OAuth identifier.
-- **Optional verified identity:** A user can opt in to verify the OAuth identifier that was used to derive a particular Iota address. This serves as the foundation for a verifiable on-chain identity layer.
-- **Accessibility:** zkLogin is one of several native Iota signature schemes thanks to Iota's [cryptography agility](./transaction-auth/signatures.mdx). It integrates with other Iota primitives, like sponsored transactions and multisig.
+- **Security:** zkLogin is a two-factor authentication scheme: sending a transaction requires both a credential from a recent OAuth login and a salt not managed by the OAuth provider. An attacker who compromises an OAuth account cannot transact from the user's corresponding IOTA address unless they separately compromise the salt.
+- **Privacy:** Zero-knowledge proofs prevent third parties from linking a IOTA address with its corresponding OAuth identifier.
+- **Optional verified identity:** A user can opt in to verify the OAuth identifier that was used to derive a particular IOTA address. This serves as the foundation for a verifiable on-chain identity layer.
+- **Accessibility:** zkLogin is one of several native IOTA signature schemes thanks to IOTA's [cryptography agility](./transaction-auth/signatures.mdx). It integrates with other IOTA primitives, like sponsored transactions and multisig.
 - **Rigorousness:** The code for zkLogin has been independently [audited](https://github.com/iota-foundation/security-audits/blob/main/docs/zksecurity_zklogin-circuits.pdf) by two firms specializing in zero knowledge. The public zkLogin ceremony for creating the common reference string attracted contributions from more than 100 participants.
 
 Are you a builder who wants to integrate zkLogin into your application or wallet? Dive into our [Integration guide](#integration-guide).
 
-If you want to understand how zkLogin works, including how the zero-knowledge proof is generated, and how Iota verifies a zkLogin transaction, see [this section](#how-zklogin-works).
+If you want to understand how zkLogin works, including how the zero-knowledge proof is generated, and how IOTA verifies a zkLogin transaction, see [this section](#how-zklogin-works).
 
 If you are curious about the security model and the privacy considerations of zkLogin, visit this [page](#security-and-privacy).
 
@@ -50,7 +50,7 @@ Here is the high-level flow the wallet or frontend application must implement to
 1. The wallet creates an ephemeral KeyPair.
 1. The wallet prompts the user to complete an OAuth login flow with the nonce corresponding to the ephemeral public key.
 1. After receiving the JWT token, the wallet obtains a zero-knowledge proof.
-1. The wallet obtains a unique user salt based on a JWT token. The OAuth subject identifier and salt can be used to compute the zkLogin Iota address.
+1. The wallet obtains a unique user salt based on a JWT token. The OAuth subject identifier and salt can be used to compute the zkLogin IOTA address.
 1. The wallet signs transactions with the ephemeral private key.
 1. The wallet submits the transaction with the ephemeral signature and the zero-knowledge proof.
 
@@ -225,7 +225,7 @@ _Go to Settings_
 
 ## Get JWT Token
 
-1. Generate an ephemeral KeyPair. Follow the same process as you would generating a KeyPair in a traditional wallet. See [Iota SDK](https://sdk.mystenlabs.com/typescript/cryptography/keypairs) for details.
+1. Generate an ephemeral KeyPair. Follow the same process as you would generating a KeyPair in a traditional wallet. See [IOTA SDK](https://sdk.mystenlabs.com/typescript/cryptography/keypairs) for details.
 
 1. Set the expiration time for the ephemeral KeyPair. The wallet decides whether the maximum epoch is the current epoch or later. The wallet also determines whether this is adjustable by the user.
 
@@ -235,8 +235,8 @@ _Go to Settings_
 import { generateNonce, generateRandomness } from '@iota/zklogin';
 
 const FULLNODE_URL = 'https://fullnode.devnet.iota.io'; // replace with the RPC URL you want to use
-const iotaClient = new IotaClient({ url: FULLNODE_URL });
-const { epoch, epochDurationMs, epochStartTimestampMs } = await iotaClient.getLatestIotaSystemState();
+const iotaClient = new IOTAClient({ url: FULLNODE_URL });
+const { epoch, epochDurationMs, epochStartTimestampMs } = await iotaClient.getLatestIOTASystemState();
 
 const maxEpoch = Number(epoch) + 2; // this means the ephemeral key will be active for 2 epochs from now.
 const ephemeralKeyPair = new Ed25519Keypair();
@@ -287,7 +287,7 @@ export interface JwtPayload {
 
 ## User Salt Management
 
-User salt is used when computing the zkLogin Iota address (see [definition](#address-definition)). The salt is required to be a 16-bytes value or a integer smaller than `2n**128n`. There are several options for the application to maintain the user salt:
+User salt is used when computing the zkLogin IOTA address (see [definition](#address-definition)). The salt is required to be a 16-bytes value or a integer smaller than `2n**128n`. There are several options for the application to maintain the user salt:
 1. Client Side:
    - Option 1: Request user input for the salt during wallet access, transferring the responsibility to the user, who must then remember it.
    - Option 2: Browser or Mobile Storage: Ensure proper workflows to prevent users from losing wallet access during device or browser changes. One approach is to email the salt during new wallet setup.
@@ -303,9 +303,9 @@ curl -X POST https://salt.api.mystenlabs.com/get_salt -H 'Content-Type: applicat
 Response: {"salt":"129390038577185583942388216820280642146"}
 ```
 
-User salt is used to disconnect the OAuth identifier (sub) from the on-chain Iota address to avoid linking Web2 credentials with Web3 credentials. While losing or misusing the salt could enable this link, it wouldn't compromise fund control or zkLogin asset authority. See more discussion [here](#security-and-privacy).
+User salt is used to disconnect the OAuth identifier (sub) from the on-chain IOTA address to avoid linking Web2 credentials with Web3 credentials. While losing or misusing the salt could enable this link, it wouldn't compromise fund control or zkLogin asset authority. See more discussion [here](#security-and-privacy).
 
-## Get the User's Iota Address
+## Get the User's IOTA Address
 
 Once the OAuth flow completes, the JWT token can be found in the redirect URL. Along with the user salt, the zkLogin address can be derived as follows:
 
@@ -476,7 +476,7 @@ First, sign the transaction bytes with the ephemeral private key using the key p
 ```typescript
  const ephemeralKeyPair = new Ed25519Keypair();
 
-const client = new IotaClient({ url: "<YOUR_RPC_URL>" });
+const client = new IOTAClient({ url: "<YOUR_RPC_URL>" });
 
 const txb = new TransactionBlock();
 
@@ -536,14 +536,14 @@ In rough sketches, the zkLogin protocol relies on the following:
 1. A JWT token is a signed payload from OAuth providers, including a user-defined field named nonce. zkLogin leverages [the OpenID Connect OAuth flow](https://openid.net/developers/how-connect-works/) by defining the nonce as a public key and an expiry epoch.
 1. The wallet stores an ephemeral KeyPair, where the ephemeral public key is defined in the nonce. The ephemeral private key signs transactions for a brief session, eliminating the need for user memorization.
    The Groth16 zero-knowledge proof is generated based on the JWT token, concealing privacy-sensitive fields.
-1. A transaction is submitted on-chain with the ephemeral signature and the ZK proof. Iota authorities execute the transaction after verifying the ephemeral signature and the proof.
-1. Instead of deriving the Iota address based on a public key, the zkLogin address is derived from `sub` (that uniquely identifies the user per provider), `iss` (identifies the provider), `aud` (identifies the application) and `user_salt` (a value that unlinks the OAuth identifier with the on-chain address).
+1. A transaction is submitted on-chain with the ephemeral signature and the ZK proof. IOTA authorities execute the transaction after verifying the ephemeral signature and the proof.
+1. Instead of deriving the IOTA address based on a public key, the zkLogin address is derived from `sub` (that uniquely identifies the user per provider), `iss` (identifies the provider), `aud` (identifies the application) and `user_salt` (a value that unlinks the OAuth identifier with the on-chain address).
 
 ## The complete zkLogin flow
 
 ![1](images/zklogin-flow.png 'zkLogin Complete Flow')
 
-(Step 0) We use Groth16 for our protocol's zkSNARK instantiation, requiring a singular generation of a structured common reference string (CRS) linked to the circuit. A ceremony is conducted to generate the CRS, which is used to produce the proving key in the ZK Proving Service, the verifying key in Iota Authority. See [the Ceremony section](#ceremony) for more details.
+(Step 0) We use Groth16 for our protocol's zkSNARK instantiation, requiring a singular generation of a structured common reference string (CRS) linked to the circuit. A ceremony is conducted to generate the CRS, which is used to produce the proving key in the ZK Proving Service, the verifying key in IOTA Authority. See [the Ceremony section](#ceremony) for more details.
 
 (Step 1-3) The user begins by logging into an OpenID Provider (OP) to obtain a JWT token containing a defined nonce. In particular, the user generates an _ephemeral_ KeyPair `(eph_sk, eph_pk)` and embed `eph_pk`, along with expiry times (`max_epoch`) and randomness (`jwt_randomness`), into the nonce (see [definition](#notations)). After the user completes the OAuth login flow, an JWT token can be found in the redirect URL in the application.
 
@@ -553,9 +553,9 @@ In rough sketches, the zkLogin protocol relies on the following:
 
 (Step 8): The application computes the user address based on iss, aud, sub, aud. This step can be done independently as long as the application has a valid JWT token.
 
-(Step 9-10) A transaction is signed using the ephemeral private key to generate an ephemeral signature. Finally, the user submits the transaction along with the ephemeral signature, ZK proof and other inputs to Iota.
+(Step 9-10) A transaction is signed using the ephemeral private key to generate an ephemeral signature. Finally, the user submits the transaction along with the ephemeral signature, ZK proof and other inputs to IOTA.
 
-(After Step 10) After submitted on chain, Iota Authorities verify the ZK proof against the provider JWKs from storage (agreed upon in consensus) and also the ephemeral signature.
+(After Step 10) After submitted on chain, IOTA Authorities verify the ZK proof against the provider JWKs from storage (agreed upon in consensus) and also the ephemeral signature.
 
 ## Entities
 
@@ -597,11 +597,11 @@ OAuth 2.0 client application requiring end-user authentication and claims from a
 
 ### Subject identifier (sub)
 
-Locally unique and never reassigned identifier within the issuer for the end-user, which is intended to be consumed by the RP. Iota uses this as the key claim to derive user address.
+Locally unique and never reassigned identifier within the issuer for the end-user, which is intended to be consumed by the RP. IOTA uses this as the key claim to derive user address.
 
 ### JWK (JSON Web Key)
 
-A JSON data structure that represents a set of public keys for an OP. A public endpoint (e.g. https://www.googleapis.com/oauth2/v3/certs) can be queried to retrieve the valid public keys corresponding to `kid` for the provider. Upon matching with the `kid` in the header of a JWT token, the JWT token can be verified against the payload and its corresponding JWK. In Iota, all authorities call the JWK endpoints independently, and update the latest view of JWKs for all supported providers during protocol upgrades. The correctness of JWKs is guaranteed by the quorum (2f+1) of validator stake.
+A JSON data structure that represents a set of public keys for an OP. A public endpoint (e.g. https://www.googleapis.com/oauth2/v3/certs) can be queried to retrieve the valid public keys corresponding to `kid` for the provider. Upon matching with the `kid` in the header of a JWT token, the JWT token can be verified against the payload and its corresponding JWK. In IOTA, all authorities call the JWK endpoints independently, and update the latest view of JWKs for all supported providers during protocol upgrades. The correctness of JWKs is guaranteed by the quorum (2f+1) of validator stake.
 
 ### JWT Token (JSON Web Token)
 
@@ -633,10 +633,10 @@ We call the claim used to derive a users' address as the "key claim" e.g., sub o
 ### Notations
 
 1. `(eph_sk, eph_pk)`: Ephemeral key pair refers to the private and public key pair used to produce ephemeral signatures. The signing mechanism is the same as traditional transaction signing, but it is ephemeral because it is only stored for a short session and can be refreshed upon new OAuth sessions. The ephemeral public key is used to compute nonce.
-2. `nonce`: An application-defined field embedded in the JWT token payload, computed as the hash of the ephemeral public key, JWT randomness, and the maximum epoch (Iota's defined expiry epoch). Specifically, a zkLogin compatible nonce is required to passed in as `nonce = ToBase64URL(Poseidon_BN254([ext_eph_pk_bigint / 2^128, ext_eph_pk_bigint % 2^128, max_epoch, jwt_randomness]).to_bytes()[len - 20..])` where `ext_eph_pk_bigint` is the BigInt representation of `ext_eph_pk`.
+2. `nonce`: An application-defined field embedded in the JWT token payload, computed as the hash of the ephemeral public key, JWT randomness, and the maximum epoch (IOTA's defined expiry epoch). Specifically, a zkLogin compatible nonce is required to passed in as `nonce = ToBase64URL(Poseidon_BN254([ext_eph_pk_bigint / 2^128, ext_eph_pk_bigint % 2^128, max_epoch, jwt_randomness]).to_bytes()[len - 20..])` where `ext_eph_pk_bigint` is the BigInt representation of `ext_eph_pk`.
 3. `ext_eph_pk`: The byte representation of an ephemeral public key (`flag || eph_pk`). Size varies depending on the choice of the signature scheme (denoted by the flag, defined in [Signatures](./transaction-auth/signatures.mdx)).
 4. `user_salt`: A value introduced to unlink the OAuth identifier with the on-chain address.
-5. `max_epoch`: The epoch at which the JWT token expires. This is u64 used in Iota.
+5. `max_epoch`: The epoch at which the JWT token expires. This is u64 used in IOTA.
 6. `kc_name`: The key claim name, e.g. `sub`.
 7. `kc_value`: The key claim value, e.g. `110463452167303000000`.
 8. `hashBytesToField(str, maxLen)`: Hashes the ASCII string to a field element using the Poseidon hash.
@@ -649,13 +649,13 @@ However, Groth16 needs a computation-specific Common Reference String (CRS) to b
 
 ### What is the ceremony?
 
-The Iota zkLogin ceremony is essentially a cryptographic multi-party computation (MPC) performed by a diverse group of participants to generate this CRS. We follow the MPC protocol [MMORPG](https://eprint.iacr.org/2017/1050.pdf) described by Bowe, Gabizon and Miers. The protocol roughly proceeds in 2 phases. The first phase results in a series of powers of a secret quantity tau in the exponent of an elliptic curve element. Since this phase is circuit-agnostic, we adopted the result of the existing community contributed [perpetual powers of tau](https://github.com/privacy-scaling-explorations/perpetualpowersoftau/tree/master). Our ceremony was the second phase, which is specific to the zkLogin circuit.
+The IOTA zkLogin ceremony is essentially a cryptographic multi-party computation (MPC) performed by a diverse group of participants to generate this CRS. We follow the MPC protocol [MMORPG](https://eprint.iacr.org/2017/1050.pdf) described by Bowe, Gabizon and Miers. The protocol roughly proceeds in 2 phases. The first phase results in a series of powers of a secret quantity tau in the exponent of an elliptic curve element. Since this phase is circuit-agnostic, we adopted the result of the existing community contributed [perpetual powers of tau](https://github.com/privacy-scaling-explorations/perpetualpowersoftau/tree/master). Our ceremony was the second phase, which is specific to the zkLogin circuit.
 
 The MMORPG protocol is a sequential protocol, which allows an indefinite number of parties to participate in sequence, without the need of any prior synchronization or ordering. Each party needs to download the output of the previous party, generate entropy of its own and then layer it on top of the received result, producing its own contribution, which is then relayed to the next party. The protocol guarantees security, if at least one of the participants follows the protocol faithfully, generates strong entropy and discards it reliably.
 
 ### How was the ceremony performed?
 
-We sent invitations to 100+ people with diverse backgrounds and affiliations: Iota validators, cryptographers, web3 experts, world-renowned academicians, and business leaders. We planned the ceremony to take place on the dates September 12-18, 2023, but allowed participants to join when they wanted with no fixed slots.
+We sent invitations to 100+ people with diverse backgrounds and affiliations: IOTA validators, cryptographers, web3 experts, world-renowned academicians, and business leaders. We planned the ceremony to take place on the dates September 12-18, 2023, but allowed participants to join when they wanted with no fixed slots.
 
 Since the MPC is sequential, each contributor needed to wait till the previous contributor finished in order to receive the previous contribution, follow the MPC steps and produce their own contribution. Due to this structure, we provisioned a queue where participants waited, while those who joined before them finished. To authenticate participants, we sent a unique activation code to each of them. The activation code was the secret key of a signing key pair, which had a dual purpose: it allowed the coordination server to associate the participant's email with the contribution, and to verify the contribution with the corresponding public key.
 
@@ -667,7 +667,7 @@ The zkLogin circuit and the ceremony client [code](https://github.com/iota-found
 
 The final CRS along with the transcript of contribution of every participant is available in a public repository. Contributors received both the hash of the previous contribution they were working on and the resulting hash after their contribution, displayed on-screen and sent via email. They can compare these hashes with the transcripts publicly available on the ceremony site. In addition, anyone is able to check that the hashes are computed correctly and each contribution is properly incorporated in the finalized parameters.
 
-Eventually, the final CRS was used to generate the proving key and verifying key. The proving key is used to generate zero knowledge proof for zkLogin, stored with the ZK proving service. The verifying key was [deployed](https://github.com/iotaledger/iota/pull/13822) as part of the validator software (protocol version 25 in [release 1.10.1](https://github.com/iotaledger/iota/releases/tag/mainnet-v1.10.1)) that is used to verify the zkLogin transaction on Iota.
+Eventually, the final CRS was used to generate the proving key and verifying key. The proving key is used to generate zero knowledge proof for zkLogin, stored with the ZK proving service. The verifying key was [deployed](https://github.com/iotaledger/iota/pull/13822) as part of the validator software (protocol version 25 in [release 1.10.1](https://github.com/iotaledger/iota/releases/tag/mainnet-v1.10.1)) that is used to verify the zkLogin transaction on IOTA.
 
 ## Security and Privacy
 
@@ -683,7 +683,7 @@ However, a JWT leak does not mean loss of funds as long as the corresponding eph
 
 The user salt is required to get access to the zkLogin wallet. This value is essential for both ZK proof generation and zkLogin address derivation.
 
-The leak of user salt does not mean loss of funds, but it enables the attacker to associate the user's subject identifier (i.e. `sub`) with the Iota address. This can be problematic depending on whether pairwise or public subject identifiers are in use. In particular, there is no problem if pairwise IDs are used (e.g., Facebook) as the subject identifier is unique per RP. However, with public reusable IDs (e.g., Google and Twitch), the globally unique sub value can be used to identify users.
+The leak of user salt does not mean loss of funds, but it enables the attacker to associate the user's subject identifier (i.e. `sub`) with the IOTA address. This can be problematic depending on whether pairwise or public subject identifiers are in use. In particular, there is no problem if pairwise IDs are used (e.g., Facebook) as the subject identifier is unique per RP. However, with public reusable IDs (e.g., Google and Twitch), the globally unique sub value can be used to identify users.
 
 ## Ephemeral Private Key
 
@@ -695,12 +695,12 @@ Obtaining the proof itself cannot create a valid zkLogin transaction because an 
 
 ## Privacy
 
-By default, there is no linking between the OAuth subject identifier (i.e. `sub`) and a Iota address. This is the purpose of the user salt.
+By default, there is no linking between the OAuth subject identifier (i.e. `sub`) and a IOTA address. This is the purpose of the user salt.
 The JWT token is not published on-chain by default. The revealed values include `iss`, `aud` and `kid` so that the public input hash can be computed, any sensitive fields such as `sub` are used as private inputs when generating the proof.
 
 The ZK proving service and the salt service (if maintained) can link the user identity since the user salt and JWT token are known, but the two services are stateless by design.
 
-In the future, the user can opt in to verify their OAuth identity associated with an Iota address on-chain.
+In the future, the user can opt in to verify their OAuth identity associated with an IOTA address on-chain.
 
 ## FAQ
 
@@ -722,7 +722,7 @@ zkLogin does not split any individual private keys, but ephemeral private keys a
 
 You can think of zkLogin as a 2FA scheme for an address, where the first part is user's OAuth account and the second is the user's salt.
 
-Furthermore, because Iota native supports Multisig wallets, one can always include one or more zkLogin signers inside a Multisig wallet for additional security, such as using the zkLogin part as 2FA in k-of-N settings.
+Furthermore, because IOTA native supports Multisig wallets, one can always include one or more zkLogin signers inside a Multisig wallet for additional security, such as using the zkLogin part as 2FA in k-of-N settings.
 
 ### If my OAuth account is compromised, what happens to my zkLogin address?
 
@@ -738,7 +738,7 @@ A forgotten OAuth credential can typically be recovered by resetting the passwor
 In the unfortunate event where user's OAuth credentials get compromised, an adversary will still require to obtain `user_salt`, but also learn which wallet is used in order to take over that account. Note that modern `user_salt` providers may have additional 2FA security measures in place to prevent provision of user's salt even to entities that present a valid, non-expired JWT.
 
 It's also important to highlight that due to the fact that zkLogin addresses do not expose any information about the user's identity or wallet used, targeted attacks by just monitoring the blockchain are more difficult.
-Finally, on the unfortunate event where one loses access to their OAuth account permanently, access to that wallet is lost. But if recovery from a lost OAuth account is desired, a good suggestion for wallet providers is to support the native Iota Multisig functionality and add a backup method. Note that it's even possible to have a Multisig wallet that all signers are using zkLogin, i.e. an 1-of-2 Multisig zkLogin wallet where the first part is Google and the second Facebook OAuth, respectively.
+Finally, on the unfortunate event where one loses access to their OAuth account permanently, access to that wallet is lost. But if recovery from a lost OAuth account is desired, a good suggestion for wallet providers is to support the native IOTA Multisig functionality and add a backup method. Note that it's even possible to have a Multisig wallet that all signers are using zkLogin, i.e. an 1-of-2 Multisig zkLogin wallet where the first part is Google and the second Facebook OAuth, respectively.
 
 ### Can I convert or merge a traditional private key wallet into a zkLogin one, or vice versa?
 
@@ -774,7 +774,7 @@ No. Proof generation is only required when ephemeral KeyPair expires. Since the 
 
 ### Does zkLogin work on mobile?
 
-zkLogin is a Iota native primitive and not a feature of a particular application or wallet. It can be used by any Iota developer, including on mobile.
+zkLogin is a IOTA native primitive and not a feature of a particular application or wallet. It can be used by any IOTA developer, including on mobile.
 
 ### Is account recovery possible if the user loses the OAuth credentials?
 
@@ -794,9 +794,9 @@ While providing social login with Web2 credentials for Web3 wallet is not a new 
 
 Some of the existing deployed solutions rely on some of these assumptions. Web3Auth and DAuth social login requires deployment of custom OAuth verifiers to Web3auth Auth Network nodes to verify the JWT token. Magic Wallet and Privy also require custom OAuth identity issuer and verifiers to adopt the DID standard. All of the solutions still require persistent private keys management, either with trusted parties like AWS via delegation, Shamir Secret Sharing or MPC.
 
-The key differentiators that zkLogin brings to Iota are:
+The key differentiators that zkLogin brings to IOTA are:
 
-1. Native Support in Iota: Unlike other solutions that are blockchain agnostic, zkLogin is deployed just for Iota. This means a zkLogin transaction can be combined with Multisig and sponsored transactions seamlessly.
+1. Native Support in IOTA: Unlike other solutions that are blockchain agnostic, zkLogin is deployed just for IOTA. This means a zkLogin transaction can be combined with Multisig and sponsored transactions seamlessly.
 
 2. Self-Custodial without additional trust: We leverage the nonce field in JWT token to commit to ephemeral public key, so no persistent private key management is required with any trusted parties. In addition, the JWK itself is an oracle agreed upon by the quorum of stakes by the validators with trusting any source of authority.
 

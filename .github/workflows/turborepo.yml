@@ -2,7 +2,7 @@ name: Turborepo CI
 
 on:
   push:
-    branches: [main]
+    branches: [develop]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
@@ -66,10 +66,10 @@ jobs:
       - name: Wallet Extension Has Changes?
         id: wallet-diff
         continue-on-error: true
-        run: pnpm dlx turbo-ignore sui-wallet
+        run: pnpm dlx turbo-ignore iota-wallet
       - name: Wallet Extension Preview Package
         if: ${{ steps.wallet-diff.outcome == 'failure' }}
-        run: pnpm --filter sui-wallet pack:zip
+        run: pnpm --filter iota-wallet pack:zip
       - uses: actions/upload-artifact@v3
         if: ${{ steps.wallet-diff.outcome == 'failure' }}
         with:

@@ -33,7 +33,7 @@ const iconStyles = cva([], {
     },
 });
 
-export type IconStylesProps = VariantProps<typeof iconStyles>;
+type IconStylesProps = VariantProps<typeof iconStyles>;
 
 export interface CopyToClipboardProps extends Omit<IconStylesProps, 'success'> {
     copyText: string;

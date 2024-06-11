@@ -10,12 +10,7 @@ import Alert from '_components/alert';
 import { CoinIcon } from '_components/coin-icon';
 import Loading from '_components/loading';
 import { filterAndSortTokenBalances } from '_helpers';
-import {
-    useAllowedSwapCoinsList,
-    useAppSelector,
-    useCoinsReFetchingConfig,
-    useSortedCoinsByCategories,
-} from '_hooks';
+import { useAppSelector, useCoinsReFetchingConfig, useSortedCoinsByCategories } from '_hooks';
 import {
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
@@ -113,11 +108,7 @@ export function TokenRow({
     const params = new URLSearchParams({
         type: coinBalance.coinType,
     });
-    const allowedSwapCoinsList = useAllowedSwapCoinsList();
-
     const balanceInUsd = useBalanceInUSD(coinBalance.coinType, coinBalance.totalBalance);
-
-    const isRenderSwapButton = allowedSwapCoinsList.includes(coinType);
 
     return (
         <Tag
@@ -156,21 +147,6 @@ export function TokenRow({
                             >
                                 Send
                             </TokenRowButton>
-                            {isRenderSwapButton && (
-                                <TokenRowButton
-                                    coinBalance={coinBalance}
-                                    to={`/swap?${params.toString()}`}
-                                    onClick={() => {
-                                        ampli.clickedSwapCoin({
-                                            coinType: coinBalance.coinType,
-                                            totalBalance: Number(formatted),
-                                            sourceFlow: 'TokenRow',
-                                        });
-                                    }}
-                                >
-                                    Swap
-                                </TokenRowButton>
-                            )}
                         </div>
                     ) : (
                         <div className="flex items-center gap-1">
@@ -369,7 +345,6 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
     ).value;
 
     const tokenBalance = BigInt(coinBalance?.totalBalance ?? 0);
-    const [formatted] = useFormatCoin(tokenBalance, activeCoinType);
 
     const { data: coinMetadata } = useCoinMetadata(activeCoinType);
     const coinSymbol = coinMetadata ? coinMetadata.symbol : getFallbackSymbol(activeCoinType);
@@ -488,30 +463,6 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                                             Send
                                         </LargeButton>
 
-                                        <LargeButton
-                                            center
-                                            disabled={!isDefiWalletEnabled || !tokenBalance}
-                                            to={`/swap${
-                                                coinBalance?.coinType
-                                                    ? `?${new URLSearchParams({
-                                                          type: coinBalance.coinType,
-                                                      }).toString()}`
-                                                    : ''
-                                            }`}
-                                            onClick={() => {
-                                                if (!coinBalance) {
-                                                    return;
-                                                }
-
-                                                ampli.clickedSwapCoin({
-                                                    coinType: coinBalance.coinType,
-                                                    totalBalance: Number(formatted),
-                                                    sourceFlow: 'LargeButton-TokenDetails',
-                                                });
-                                            }}
-                                        >
-                                            Swap
-                                        </LargeButton>
                                         {!accountHasIota && (
                                             <LargeButton disabled to="/stake" center>
                                                 Stake

@@ -1,5 +1,4 @@
 // Copyright (c) 2024 IOTA Stiftung
-// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { SuiTransactionBlockResponse } from '@mysten/sui.js/client';
@@ -18,7 +17,6 @@ export enum ActivityAction {
     Staked = 'Staked',
     Unstaked = 'Unstaked',
     Rewards = 'Rewards',
-    Swapped = 'Swapped',
     PersonalMessage = 'PersonalMessage',
 }
 

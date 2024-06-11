@@ -1,5 +1,4 @@
 // Copyright (c) 2024 IOTA Stiftung
-// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Contains the logic for the migration process.
@@ -23,11 +22,12 @@ use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
     TIMELOCK_PACKAGE_ID,
 };
+use tracing::info;
 
 use crate::stardust::{
     migration::{
         executor::Executor,
-        verification::{created_objects::CreatedObjects, verify_output},
+        verification::{created_objects::CreatedObjects, verify_outputs},
     },
     native_token::package_data::NativeTokenPackageData,
     types::{snapshot::OutputHeader, timelock},
@@ -64,7 +64,7 @@ pub(crate) const NATIVE_TOKEN_BAG_KEY_TYPE: &str = "0x01::ascii::String";
 /// generated objects serialized.
 pub struct Migration {
     target_milestone_timestamp_sec: u32,
-
+    total_supply: u64,
     executor: Executor,
     pub(super) output_objects_map: HashMap<OutputId, CreatedObjects>,
 }
@@ -72,10 +72,11 @@ pub struct Migration {
 impl Migration {
     /// Try to setup the migration process by creating the inner executor
     /// and bootstraping the in-memory storage.
-    pub fn new(target_milestone_timestamp_sec: u32) -> Result<Self> {
+    pub fn new(target_milestone_timestamp_sec: u32, total_supply: u64) -> Result<Self> {
         let executor = Executor::new(ProtocolVersion::new(MIGRATION_PROTOCOL_VERSION))?;
         Ok(Self {
             target_milestone_timestamp_sec,
+            total_supply,
             executor,
             output_objects_map: Default::default(),
         })
@@ -107,12 +108,15 @@ impl Migration {
         // context will also map to the same objects betwen runs.
         outputs.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
         foundries.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
+        info!("Migrating foundries...");
         self.migrate_foundries(&foundries)?;
+        info!("Migrating the rest of outputs...");
         self.migrate_outputs(&outputs)?;
         let outputs = outputs
             .into_iter()
             .chain(foundries.into_iter().map(|(h, f)| (h, Output::Foundry(f))))
             .collect::<Vec<_>>();
+        info!("Verifying ledger state...");
         self.verify_ledger_state(&outputs)?;
 
         Ok(())
@@ -130,8 +134,13 @@ impl Migration {
         outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
         writer: impl Write,
     ) -> Result<()> {
+        info!("Starting the migration...");
         self.run_migration(outputs)?;
-        create_snapshot(&self.into_objects(), writer)
+        info!("Migration ended.");
+        info!("Writing snapshot file...");
+        create_snapshot(&self.into_objects(), writer)?;
+        info!("Snapshot file written.");
+        Ok(())
     }
 
     /// The migration objects.
@@ -200,22 +209,14 @@ impl Migration {
         &self,
         outputs: impl IntoIterator<Item = &'a (OutputHeader, Output)>,
     ) -> Result<()> {
-        for (header, output) in outputs {
-            let objects = self
-                .output_objects_map
-                .get(&header.output_id())
-                .ok_or_else(|| {
-                    anyhow::anyhow!("missing created objects for output {}", header.output_id())
-                })?;
-            verify_output(
-                header,
-                output,
-                objects,
-                self.executor.native_tokens(),
-                self.target_milestone_timestamp_sec,
-                self.executor.store(),
-            )?;
-        }
+        verify_outputs(
+            outputs,
+            &self.output_objects_map,
+            self.executor.native_tokens(),
+            self.target_milestone_timestamp_sec,
+            self.total_supply,
+            self.executor.store(),
+        )?;
         Ok(())
     }
 
