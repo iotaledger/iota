@@ -36,16 +36,14 @@ describe('useReconnectForceWallet', () => {
             { wrapper },
         );
 
-        await act(async () => {
-            result.current.reconnectForceWallet.mutate();
-        });
+        result.current.reconnectForceWallet.mutate();
 
         await waitFor(() => expect(result.current.reconnectForceWallet.isSuccess).toBe(true));
         expect(mockWallet.features['iota:reconnectForce']?.reconnect).toHaveBeenCalledWith({
             origin: window.location.origin,
         });
 
-        await act(async () => {
+        act(() => {
             unregister();
         });
     });
@@ -67,9 +65,7 @@ describe('useReconnectForceWallet', () => {
             { wrapper },
         );
 
-        await act(async () => {
-            result.current.reconnectForceWallet.mutate();
-        });
+        result.current.reconnectForceWallet.mutate();
 
         await waitFor(() => expect(result.current.reconnectForceWallet.isError).toBe(true));
 
@@ -94,9 +90,7 @@ describe('useReconnectForceWallet', () => {
             { wrapper },
         );
 
-        await act(async () => {
-            result.current.reconnectForceWallet.mutate();
-        });
+        result.current.reconnectForceWallet.mutate();
 
         await waitFor(() => expect(result.current.reconnectForceWallet.isError).toBe(true));
         expect(result.current.reconnectForceWallet.error).toBeInstanceOf(WalletNotConnectedError);
