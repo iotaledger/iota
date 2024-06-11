@@ -36,7 +36,7 @@ export function ObjectDetails({
     type,
     variant = 'small',
     noTypeRender,
-}: ObjectDetailsProps) {
+}: ObjectDetailsProps): JSX.Element {
     const [open, setOpen] = useState(false);
     const openPreview = () => setOpen(true);
 

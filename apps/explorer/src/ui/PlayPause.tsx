@@ -28,7 +28,7 @@ export interface PlayPauseProps {
     };
 }
 
-export function PlayPause({ paused, onChange, animate }: PlayPauseProps) {
+export function PlayPause({ paused, onChange, animate }: PlayPauseProps): JSX.Element {
     const Icon = paused ? AutorefreshPlay24 : AutorefreshPause24;
 
     const isAnimating = animate?.start && !paused;

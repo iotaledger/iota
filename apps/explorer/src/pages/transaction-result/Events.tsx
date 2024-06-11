@@ -16,7 +16,7 @@ import { DescriptionItem } from '~/ui/DescriptionList';
 import { Divider } from '~/ui/Divider';
 import { ObjectLink } from '~/ui/InternalLink';
 
-function Event({ event, divider }: { event: IotaEvent; divider: boolean }) {
+function Event({ event, divider }: { event: IotaEvent; divider: boolean }): JSX.Element {
     const [open, setOpen] = useState(false);
     const { address, module, name } = parseStructTag(event.type);
     const objectLinkLabel = [formatAddress(address), module, name].join('::');

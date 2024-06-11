@@ -14,7 +14,7 @@ import { ProgressBar } from '~/ui/ProgressBar';
 import { LinkWithQuery } from '~/ui/utils/LinkWithQuery';
 import { ampli } from '~/utils/analytics/ampli';
 
-export function CurrentEpoch() {
+export function CurrentEpoch(): JSX.Element {
     const { epoch, progress, label, end, start } = useEpochProgress();
 
     const formattedDateString = useMemo(() => {

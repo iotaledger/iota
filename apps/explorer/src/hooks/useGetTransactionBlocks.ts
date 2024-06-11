@@ -14,7 +14,7 @@ export function useGetTransactionBlocks(
     filter?: TransactionFilter,
     limit = DEFAULT_TRANSACTIONS_LIMIT,
     refetchInterval?: number,
-) {
+): ReturnType<typeof useInfiniteQuery> {
     const client = useIotaClient();
 
     return useInfiniteQuery<PaginatedTransactionResponse>({

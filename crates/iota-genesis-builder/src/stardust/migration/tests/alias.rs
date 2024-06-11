@@ -27,11 +27,10 @@ use iota_types::{
 };
 use move_core_types::ident_str;
 
-use super::ExpectedAssets;
 use crate::stardust::{
     migration::tests::{
         create_foundry, extract_native_token_from_bag, object_migration_with_object_owner,
-        random_output_header, run_migration,
+        random_output_header, run_migration, ExpectedAssets,
     },
     types::{
         snapshot::OutputHeader, stardust_to_iota_address, Alias, AliasOutput,
@@ -50,7 +49,8 @@ fn migrate_alias(
         .or_from_output_id(&output_id)
         .to_owned();
 
-    let (executor, objects_map) = run_migration([(header, stardust_alias.into())])?;
+    let (executor, objects_map) =
+        run_migration(stardust_alias.amount(), [(header, stardust_alias.into())])?;
 
     // Ensure the migrated objects exist under the expected identifiers.
     let alias_object_id = ObjectID::new(*alias_id);
@@ -211,6 +211,7 @@ fn alias_migration_with_alias_owner() {
     object_migration_with_object_owner(
         alias1_header.output_id(),
         alias2_header.output_id(),
+        3_000_000,
         [
             (alias1_header.clone(), stardust_alias1.into()),
             (alias2_header.clone(), stardust_alias2.into()),
@@ -248,6 +249,7 @@ fn alias_migration_with_nft_owner() {
     object_migration_with_object_owner(
         nft_header.output_id(),
         alias_header.output_id(),
+        3_000_000,
         [
             (nft_header.clone(), nft.into()),
             (alias_header.clone(), alias.into()),
@@ -285,6 +287,7 @@ fn alias_migration_with_native_tokens() {
 
     extract_native_token_from_bag(
         alias_header.output_id(),
+        1_000_000,
         [
             (alias_header.clone(), alias.into()),
             (foundry_header, foundry_output.into()),

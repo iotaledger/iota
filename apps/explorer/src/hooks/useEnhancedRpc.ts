@@ -9,7 +9,7 @@ import { useNetwork } from '~/context';
 import { Network } from '~/utils/api/DefaultRpcClient';
 
 // TODO: Use enhanced RPC locally by default
-export function useEnhancedRpcClient() {
+export function useEnhancedRpcClient(): IotaClient {
     const [network] = useNetwork();
     const client = useIotaClient();
     const enhancedRpc = useMemo(() => {

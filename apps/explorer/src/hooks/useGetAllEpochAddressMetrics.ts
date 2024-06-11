@@ -8,7 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 
 export function useGetAllEpochAddressMetrics(
     ...input: Parameters<IotaClient['getAllEpochAddressMetrics']>
-) {
+): ReturnType<typeof useQuery> {
     const client = useIotaClient();
     return useQuery({
         queryKey: ['get', 'all', 'epoch', 'addresses', ...input],

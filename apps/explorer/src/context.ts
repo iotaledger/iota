@@ -16,7 +16,7 @@ export const NetworkContext = createContext<
     [Network | string, (network: Network | string) => void]
 >(['', () => null]);
 
-export function useNetworkContext() {
+export function useNetworkContext(): [Network | string, (network: Network | string) => void] {
     return useContext(NetworkContext);
 }
 

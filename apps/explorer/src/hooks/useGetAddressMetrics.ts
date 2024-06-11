@@ -5,7 +5,7 @@
 import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 
-export function useGetAddressMetrics() {
+export function useGetAddressMetrics(): ReturnType<typeof useQuery> {
     const client = useIotaClient();
     return useQuery({
         queryKey: ['home', 'addresses'],

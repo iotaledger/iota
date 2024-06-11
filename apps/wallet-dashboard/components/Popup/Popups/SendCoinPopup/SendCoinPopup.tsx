@@ -13,6 +13,7 @@ import { CoinStruct } from '@iota/iota.js/client';
 export interface FormDataValues {
     amount: string;
     recipientAddress: string;
+    senderAddress: string;
 }
 
 interface SendCoinPopupProps {
@@ -32,6 +33,7 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
     const [formData, setFormData] = useState<FormDataValues>({
         amount: '',
         recipientAddress: '',
+        senderAddress,
     });
     const { data: coinMetadata } = useCoinMetadata();
     const {

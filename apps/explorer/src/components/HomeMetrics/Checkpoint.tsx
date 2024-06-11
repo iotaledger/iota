@@ -5,7 +5,7 @@
 import { StatsWrapper } from './FormattedStatsAmount';
 import { useGetNetworkMetrics } from '~/hooks/useGetNetworkMetrics';
 
-export function Checkpoint() {
+export function Checkpoint(): JSX.Element {
     const { data, isPending } = useGetNetworkMetrics();
 
     return (
