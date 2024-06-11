@@ -7,7 +7,7 @@ import { useState } from 'react';
 
 import { ObjectLink } from '~/ui/InternalLink';
 import { ObjectModal } from '~/ui/Modal/ObjectModal';
-import { Image } from '~/ui/image/Image';
+import { Image } from '~/ui/Image/Image';
 
 interface ObjectDisplayProps {
     objectId: string;

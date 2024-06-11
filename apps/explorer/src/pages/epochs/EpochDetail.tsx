@@ -15,7 +15,7 @@ import { EpochStats } from './stats/EpochStats';
 import { ValidatorStatus } from './stats/ValidatorStatus';
 import { validatorsTableData } from '../validators/Validators';
 import { PageLayout } from '~/components/Layout/PageLayout';
-import { CheckpointsTable } from '~/components/checkpoints/CheckpointsTable';
+import { CheckpointsTable } from '~/components/Checkpoints/CheckpointsTable';
 import { useEnhancedRpcClient } from '~/hooks/useEnhancedRpc';
 import { Banner } from '~/ui/Banner';
 import { Stats, type StatsProps } from '~/ui/Stats';

@@ -8,12 +8,12 @@ import clsx from 'clsx';
 import { useState, useCallback, useEffect } from 'react';
 import { type Direction } from 'react-resizable-panels';
 
-import { ModuleFunctionsInteraction } from './module-functions-interaction';
+import { ModuleFunctionsInteraction } from './ModuleFunctionsInteraction';
 import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { SplitPanes } from '~/ui/SplitPanes';
 import { TabHeader } from '~/ui/Tabs';
 import { ListItem, VerticalList } from '~/ui/VerticalList';
-import { useSearchParamsMerged } from '~/ui/utils/LinkWithQuery';
+import { useSearchParamsMerged } from '~/ui/LinkWithQuery';
 import { ModuleCodeTabs } from './ModuleCodeTabs';
 
 type ModuleType = [moduleName: string, code: string];

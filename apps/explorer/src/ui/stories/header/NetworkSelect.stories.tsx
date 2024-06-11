@@ -5,7 +5,7 @@
 import { type Meta, type StoryObj } from '@storybook/react';
 import { useState } from 'react';
 
-import { NetworkSelect, type NetworkSelectProps } from '~/ui/header/NetworkSelect';
+import { NetworkSelect, type NetworkSelectProps } from '~/ui/Header/NetworkSelect';
 
 export default {
     component: NetworkSelect,

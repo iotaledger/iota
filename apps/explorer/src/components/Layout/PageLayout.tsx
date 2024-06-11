@@ -9,8 +9,8 @@ import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { type ReactNode, useRef } from 'react';
 
-import Footer from '../footer/Footer';
-import Header from '../header/Header';
+import Footer from '../Footer/Footer';
+import Header from '../Header/Header';
 import { useNetworkContext } from '~/context';
 import { Banner } from '~/ui/Banner';
 import { Network } from '~/utils/api/DefaultRpcClient';

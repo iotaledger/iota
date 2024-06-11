@@ -17,9 +17,9 @@ import { Heading, Text } from '@iota/ui';
 import { lazy, Suspense, useMemo } from 'react';
 
 import { PageLayout } from '~/components/Layout/PageLayout';
-import { ErrorBoundary } from '~/components/error-boundary/ErrorBoundary';
-import { StakeColumn } from '~/components/top-validators-card/StakeColumn';
-import { DelegationAmount } from '~/components/validator/DelegationAmount';
+import { ErrorBoundary } from '~/components/ErrorBoundary/ErrorBoundary';
+import { StakeColumn } from '~/components/TopValidatorsCard/StakeColumn';
+import { DelegationAmount } from '~/components/Validator/DelegationAmount';
 import { Banner } from '~/ui/Banner';
 import { Card } from '~/ui/Card';
 import { ImageIcon } from '~/ui/ImageIcon';
@@ -33,7 +33,7 @@ import { ampli } from '~/utils/analytics/ampli';
 import { getValidatorMoveEvent } from '~/utils/getValidatorMoveEvent';
 import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/utils/validatorConstants';
 
-const ValidatorMap = lazy(() => import('../../components/validator-map'));
+const ValidatorMap = lazy(() => import('../../components/ValidatorMap'));
 
 export function validatorsTableData(
     validators: IotaValidatorSummary[],

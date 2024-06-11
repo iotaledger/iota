@@ -13,7 +13,7 @@ import { PageLayout } from '~/components/Layout/PageLayout';
 import { PageHeader } from '~/ui/PageHeader';
 import { ObjectDetailsHeader } from '@iota/icons';
 import { TotalStaked } from '~/pages/address-result/TotalStaked';
-import { ErrorBoundary } from '~/components/error-boundary/ErrorBoundary';
+import { ErrorBoundary } from '~/components/ErrorBoundary/ErrorBoundary';
 import { ObjectView } from '~/pages/object-result/views/ObjectView';
 import { PageContent } from '~/pages/id-page/PageContent';
 

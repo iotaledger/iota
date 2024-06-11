@@ -7,7 +7,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import clsx from 'clsx';
 
 import { ObjectModal } from '~/ui/Modal/ObjectModal';
-import { Image, type ImageProps } from '~/ui/image/Image';
+import { Image, type ImageProps } from '~/ui/Image/Image';
 
 const imageStyles = cva(['z-0 flex-shrink-0 relative'], {
     variants: {

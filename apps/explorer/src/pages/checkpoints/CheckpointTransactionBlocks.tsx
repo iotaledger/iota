@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 
-import { genTableDataFromTxData } from '~/components/transactions/TxCardUtils';
+import { genTableDataFromTxData } from '~/components/Transactions/TxCardUtils';
 import {
     DEFAULT_TRANSACTIONS_LIMIT,
     useGetTransactionBlocks,

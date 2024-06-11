@@ -7,7 +7,7 @@ import { X12, Dot12 } from '@iota/icons';
 import { type IotaClient, type IotaTransactionBlockResponse } from '@iota/iota.js/client';
 
 import { IotaAmount } from '../Table/IotaAmount';
-import { TxTimeType } from '../tx-time/TxTimeType';
+import { TxTimeType } from '../TxTime/TxTimeType';
 import { HighlightedTableCol } from '~/components/Table/HighlightedTableCol';
 import { AddressLink, TransactionLink } from '~/ui/InternalLink';
 import { type ReactNode } from 'react';

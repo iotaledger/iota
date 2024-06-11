@@ -11,15 +11,15 @@ import { CurrentEpoch, OnTheNetwork } from '~/components/HomeMetrics';
 import { PageLayout } from '~/components/Layout/PageLayout';
 import { IotaTokenCard } from '~/components/IotaTokenCard';
 import { TransactionsCardGraph } from '~/components/TransactionsCardGraph';
-import { ErrorBoundary } from '~/components/error-boundary/ErrorBoundary';
-import { TopPackagesCard } from '~/components/top-packages/TopPackagesCard';
-import { TopValidatorsCard } from '~/components/top-validators-card/TopValidatorsCard';
+import { ErrorBoundary } from '~/components/ErrorBoundary/ErrorBoundary';
+import { TopPackagesCard } from '~/components/TopPackages/TopPackagesCard';
+import { TopValidatorsCard } from '~/components/TopValidatorsCard/TopValidatorsCard';
 import { useNetwork } from '~/context';
 import { Card } from '~/ui/Card';
 import { TabHeader } from '~/ui/Tabs';
 import { Network } from '~/utils/api/DefaultRpcClient';
 
-const ValidatorMap = lazy(() => import('../../components/validator-map'));
+const ValidatorMap = lazy(() => import('../../components/ValidatorMap'));
 
 const TRANSACTIONS_LIMIT = 25;
 

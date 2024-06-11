@@ -11,7 +11,7 @@ import { Text } from '@iota/ui';
 import { type ReactNode } from 'react';
 
 import { flattenIotaArguments } from './utils';
-import { ErrorBoundary } from '~/components/error-boundary/ErrorBoundary';
+import { ErrorBoundary } from '~/components/ErrorBoundary/ErrorBoundary';
 import { ObjectLink } from '~/ui/InternalLink';
 
 interface TransactionProps<T> {

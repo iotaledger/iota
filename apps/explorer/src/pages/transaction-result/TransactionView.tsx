@@ -7,7 +7,7 @@ import clsx from 'clsx';
 import { type ReactNode, useState } from 'react';
 
 import { Signatures } from './Signatures';
-import { ErrorBoundary } from '~/components/error-boundary/ErrorBoundary';
+import { ErrorBoundary } from '~/components/ErrorBoundary/ErrorBoundary';
 import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { Events } from '~/pages/transaction-result/Events';
 import { TransactionData } from '~/pages/transaction-result/TransactionData';

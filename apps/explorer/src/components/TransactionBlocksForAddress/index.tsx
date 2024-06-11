@@ -6,7 +6,7 @@ import { type TransactionFilter } from '@iota/iota.js/client';
 import { Heading, RadioGroup, RadioGroupItem } from '@iota/ui';
 import { type Dispatch, type SetStateAction, useReducer, useState } from 'react';
 
-import { genTableDataFromTxData } from '../transactions/TxCardUtils';
+import { genTableDataFromTxData } from '../Transactions/TxCardUtils';
 import {
     DEFAULT_TRANSACTIONS_LIMIT,
     useGetTransactionBlocks,

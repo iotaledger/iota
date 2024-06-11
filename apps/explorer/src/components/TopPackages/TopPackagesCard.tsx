@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { TopPackagesTable } from './TopPackagesTable';
-import { ErrorBoundary } from '../error-boundary/ErrorBoundary';
+import { ErrorBoundary } from '../ErrorBoundary/ErrorBoundary';
 import { useEnhancedRpcClient } from '~/hooks/useEnhancedRpc';
 import { FilterList } from '~/ui/FilterList';
 import { TabHeader } from '~/ui/Tabs';

@@ -6,8 +6,8 @@ import { LoadingIndicator, RadioGroup, RadioGroupItem } from '@iota/ui';
 import { useState } from 'react';
 import { type Direction } from 'react-resizable-panels';
 
-import { ErrorBoundary } from '../../../components/error-boundary/ErrorBoundary';
-import PkgModulesWrapper from '../../../components/module/PkgModulesWrapper';
+import { ErrorBoundary } from '../../../components/ErrorBoundary/ErrorBoundary';
+import PkgModulesWrapper from '../../../components/Module/PkgModulesWrapper';
 import { useGetTransaction } from '../../../hooks/useGetTransaction';
 import { getOwnerStr } from '../../../utils/objectUtils';
 import { trimStdLibPrefix } from '../../../utils/stringUtils';

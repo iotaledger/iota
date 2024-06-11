@@ -8,7 +8,7 @@ import { Text } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 
-import { genTableDataFromTxData } from '../transactions/TxCardUtils';
+import { genTableDataFromTxData } from '../Transactions/TxCardUtils';
 import {
     DEFAULT_TRANSACTIONS_LIMIT,
     useGetTransactionBlocks,

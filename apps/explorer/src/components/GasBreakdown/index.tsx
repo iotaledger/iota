@@ -15,8 +15,8 @@ import { CopyToClipboard } from '~/ui/CopyToClipboard';
 import { DescriptionItem } from '~/ui/DescriptionList';
 import { Divider } from '~/ui/Divider';
 import { AddressLink, ObjectLink } from '~/ui/InternalLink';
-import { CollapsibleCard } from '~/ui/collapsible/CollapsibleCard';
-import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
+import { CollapsibleCard } from '~/ui/Collapsible/CollapsibleCard';
+import { CollapsibleSection } from '~/ui/Collapsible/CollapsibleSection';
 
 interface GasProps {
     amount?: bigint | number | string;

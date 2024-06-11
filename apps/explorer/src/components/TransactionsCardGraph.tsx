@@ -10,7 +10,7 @@ import clsx from 'clsx';
 
 import { AreaGraph } from './AreaGraph';
 import { FormattedStatsAmount } from './HomeMetrics/FormattedStatsAmount';
-import { ErrorBoundary } from './error-boundary/ErrorBoundary';
+import { ErrorBoundary } from './ErrorBoundary/ErrorBoundary';
 import { Card } from '~/ui/Card';
 
 interface TooltipContentProps {

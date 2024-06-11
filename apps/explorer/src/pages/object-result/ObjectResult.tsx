@@ -12,7 +12,7 @@ import { translate, type DataType } from './ObjectResultType';
 import PkgView from './views/PkgView';
 import { TokenView } from './views/TokenView';
 import { PageLayout } from '~/components/Layout/PageLayout';
-import { ErrorBoundary } from '~/components/error-boundary/ErrorBoundary';
+import { ErrorBoundary } from '~/components/ErrorBoundary/ErrorBoundary';
 import { ObjectView } from '~/pages/object-result/views/ObjectView';
 import { Banner } from '~/ui/Banner';
 import { PageHeader } from '~/ui/PageHeader';

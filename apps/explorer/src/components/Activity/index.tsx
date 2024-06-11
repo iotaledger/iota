@@ -10,7 +10,7 @@ import toast from 'react-hot-toast';
 
 import { EpochsActivityTable } from './EpochsActivityTable';
 import { TransactionsActivityTable } from './TransactionsActivityTable';
-import { CheckpointsTable } from '../checkpoints/CheckpointsTable';
+import { CheckpointsTable } from '../Checkpoints/CheckpointsTable';
 // import { useNetwork } from '~/context';
 // import { DropdownMenu, DropdownMenuCheckboxItem } from '~/ui/DropdownMenu';
 import { PlayPause } from '~/ui/PlayPause';

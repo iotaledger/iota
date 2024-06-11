@@ -6,7 +6,7 @@ import { type EpochMetricsPage } from '@iota/iota.js/client';
 import { Text } from '@iota/ui';
 
 import { IotaAmount } from '../Table/IotaAmount';
-import { TxTimeType } from '../tx-time/TxTimeType';
+import { TxTimeType } from '../TxTime/TxTimeType';
 import { HighlightedTableCol } from '~/components/Table/HighlightedTableCol';
 import { CheckpointSequenceLink, EpochLink } from '~/ui/InternalLink';
 import { getEpochStorageFundFlow } from '~/utils/getStorageFundFlow';

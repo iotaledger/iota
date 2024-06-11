@@ -6,7 +6,7 @@ import { IotaClientProvider } from '@iota/dapp-kit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 
-import { Image, type ImageProps } from '../image/Image';
+import { Image, type ImageProps } from '../Image/Image';
 
 import type { Meta, StoryObj } from '@storybook/react';
 import { ImageVisibility } from '~/lib/enums';

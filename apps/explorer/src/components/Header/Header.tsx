@@ -6,9 +6,9 @@ import { Iota, IotaLogoTxt } from '@iota/icons';
 import clsx from 'clsx';
 import { useEffect, useState } from 'react';
 
-import NetworkSelect from '../network/Network';
-import Search from '../search/Search';
-import { LinkWithQuery } from '~/ui/utils/LinkWithQuery';
+import NetworkSelect from '../Network/Network';
+import Search from '../Search/Search';
+import { LinkWithQuery } from '~/ui/LinkWithQuery';
 
 function Header(): JSX.Element {
     const [isScrolled, setIsScrolled] = useState(window.scrollY > 0);

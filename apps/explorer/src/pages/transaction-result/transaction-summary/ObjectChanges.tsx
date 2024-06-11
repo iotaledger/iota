@@ -25,8 +25,8 @@ import { useState, type ReactNode } from 'react';
 import { ObjectDisplay } from './ObjectDisplay';
 import { ExpandableList, ExpandableListControl, ExpandableListItems } from '~/ui/ExpandableList';
 import { AddressLink, ObjectLink } from '~/ui/InternalLink';
-import { CollapsibleCard } from '~/ui/collapsible/CollapsibleCard';
-import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
+import { CollapsibleCard } from '~/ui/Collapsible/CollapsibleCard';
+import { CollapsibleSection } from '~/ui/Collapsible/CollapsibleSection';
 
 interface ItemProps {
     label: string;

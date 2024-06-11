@@ -6,7 +6,7 @@ import clsx from 'clsx';
 import { type ReactNode } from 'react';
 
 import { ExpandableList, ExpandableListControl, ExpandableListItems } from '~/ui/ExpandableList';
-import { CollapsibleCard } from '~/ui/collapsible/CollapsibleCard';
+import { CollapsibleCard } from '~/ui/Collapsible/CollapsibleCard';
 
 interface ProgrammableTxnBlockCardProps {
     items: ReactNode[];
