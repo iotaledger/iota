@@ -9,7 +9,7 @@ import { Link } from '~/ui/Link';
 import { Pagination, type PaginationResponse, type usePaginationStack } from '~/ui/Pagination';
 import { numberSuffix } from '~/utils/numberUtil';
 
-interface Props {
+interface TableFooterProps {
     label: string;
     count?: number;
     disablePagination?: boolean;
@@ -30,7 +30,7 @@ export function TableFooter({
     limit,
     onLimitChange,
     href,
-}: Props) {
+}: TableFooterProps) {
     return (
         <div className="flex items-center justify-between">
             {disablePagination ? (

@@ -13,6 +13,7 @@ import { setAttributes } from '_src/shared/experimentation/features';
 // import initSentry from '_src/ui/app/helpers/sentry';
 import store from '_store';
 import { thunkExtras } from '_store/thunk-extras';
+import { KioskClientProvider } from '@iota/core';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
 import { IotaClientProvider } from '@iota/dapp-kit';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
@@ -88,23 +89,25 @@ function AppWrapper() {
                                         walletApiProvider.instance.fullNode,
                                 }}
                             >
-                                <AccountsFormProvider>
-                                    <UnlockAccountProvider>
-                                        <div
-                                            className={cn(
-                                                'relative flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col flex-nowrap items-center justify-center overflow-hidden',
-                                                isFullscreen && 'rounded-xl shadow-lg',
-                                            )}
-                                        >
-                                            <ErrorBoundary>
-                                                <App />
-                                                <ZkLoginAccountWarningModal />
-                                            </ErrorBoundary>
-                                            <div id="overlay-portal-container"></div>
-                                            <div id="toaster-portal-container"></div>
-                                        </div>
-                                    </UnlockAccountProvider>
-                                </AccountsFormProvider>
+                                <KioskClientProvider>
+                                    <AccountsFormProvider>
+                                        <UnlockAccountProvider>
+                                            <div
+                                                className={cn(
+                                                    'relative flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col flex-nowrap items-center justify-center overflow-hidden',
+                                                    isFullscreen && 'rounded-xl shadow-lg',
+                                                )}
+                                            >
+                                                <ErrorBoundary>
+                                                    <App />
+                                                    <ZkLoginAccountWarningModal />
+                                                </ErrorBoundary>
+                                                <div id="overlay-portal-container"></div>
+                                                <div id="toaster-portal-container"></div>
+                                            </div>
+                                        </UnlockAccountProvider>
+                                    </AccountsFormProvider>
+                                </KioskClientProvider>
                             </IotaClientProvider>
                         </PersistQueryClientProvider>
                     </Fragment>

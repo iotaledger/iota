@@ -10,7 +10,7 @@ import { getElapsedTime, useEpochProgress } from '~/pages/epochs/utils';
 import { Card } from '~/ui/Card';
 import { ProgressBar } from '~/ui/ProgressBar';
 
-export interface EpochProgressProps {
+interface EpochProgressProps {
     epoch?: string;
     start: number;
     end?: number;
