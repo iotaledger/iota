@@ -24,6 +24,7 @@ use iota_types::{
     collection_types::Bag,
     dynamic_field::Field,
     execution_mode,
+    gas_coin::GAS,
     id::UID,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
@@ -335,6 +336,7 @@ impl Executor {
             &self.protocol_config,
             &self.tx_context,
             version,
+            GAS::type_tag(),
         )?;
         let move_alias_output_object_ref = move_alias_output_object.compute_object_reference();
 
@@ -354,7 +356,7 @@ impl Executor {
                 STARDUST_PACKAGE_ID,
                 ident_str!("alias_output").into(),
                 ident_str!("attach_alias").into(),
-                vec![],
+                vec![GAS::type_tag()],
                 vec![alias_output_arg, alias_arg],
             );
 
@@ -576,8 +578,13 @@ impl Executor {
                 // be creating a new bag in this code path.
                 basic.native_tokens.id = UID::new(self.tx_context.fresh_id());
             }
-            let object =
-                basic.to_genesis_object(owner, &self.protocol_config, &self.tx_context, version)?;
+            let object = basic.to_genesis_object(
+                owner,
+                &self.protocol_config,
+                &self.tx_context,
+                version,
+                GAS::type_tag(),
+            )?;
             created_objects.set_output(object.id())?;
             object
         };
@@ -662,6 +669,7 @@ impl Executor {
             &self.protocol_config,
             &self.tx_context,
             version,
+            GAS::type_tag(),
         )?;
         let move_nft_output_object_ref = move_nft_output_object.compute_object_reference();
         created_objects.set_output(move_nft_output_object.id())?;
@@ -679,7 +687,7 @@ impl Executor {
                 STARDUST_PACKAGE_ID,
                 ident_str!("nft_output").into(),
                 ident_str!("attach_nft").into(),
-                vec![],
+                vec![GAS::type_tag()],
                 vec![nft_output_arg, nft_arg],
             );
 

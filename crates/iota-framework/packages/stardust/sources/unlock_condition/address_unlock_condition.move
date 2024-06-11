@@ -15,26 +15,26 @@ module stardust::address_unlock_condition {
     // === Receiving on Alias Address/AliasID as ObjectID ===
 
     /// Unlock a `BasicOutput` locked to the alias address.
-    public fun unlock_alias_address_owned_basic(
+    public fun unlock_alias_address_owned_basic<T>(
       self: &mut Alias,
-      output_to_unlock: Receiving<BasicOutput>
-    ): BasicOutput {
+      output_to_unlock: Receiving<BasicOutput<T>>
+    ): BasicOutput<T> {
         basic_output::receive(self.id(), output_to_unlock)
     }
 
     /// Unlock an `NftOutput` locked to the alias address.
-    public fun unlock_alias_address_owned_nft(
+    public fun unlock_alias_address_owned_nft<T>(
       self: &mut Alias,
-      output_to_unlock: Receiving<NftOutput>,
-    ): NftOutput {
+      output_to_unlock: Receiving<NftOutput<T>>,
+    ): NftOutput<T> {
         nft_output::receive(self.id(), output_to_unlock)
     }
 
     /// Unlock an `AliasOutput` locked to the alias address.
-    public fun unlock_alias_address_owned_alias(
+    public fun unlock_alias_address_owned_alias<T>(
       self: &mut Alias,
-      output_to_unlock: Receiving<AliasOutput>,
-    ): AliasOutput {
+      output_to_unlock: Receiving<AliasOutput<T>>,
+    ): AliasOutput<T> {
         alias_output::receive(self.id(), output_to_unlock)
     }
 
@@ -51,26 +51,26 @@ module stardust::address_unlock_condition {
     // === Receiving on NFT Address/NFTID as ObjectID ===
 
     /// Unlock a `BasicOutput` locked to the `Nft` address.
-    public fun unlock_nft_address_owned_basic(
+    public fun unlock_nft_address_owned_basic<T>(
       self: &mut Nft,
-      output_to_unlock: Receiving<BasicOutput>,
-    ): BasicOutput {
+      output_to_unlock: Receiving<BasicOutput<T>>,
+    ): BasicOutput<T> {
         basic_output::receive(self.id(), output_to_unlock)
     }
 
     /// Unlock an `NftOutput` locked to the `Nft` address.
-    public fun unlock_nft_address_owned_nft(
+    public fun unlock_nft_address_owned_nft<T>(
       self: &mut Nft,
-      output_to_unlock: Receiving<NftOutput>,
-    ): NftOutput {
+      output_to_unlock: Receiving<NftOutput<T>>,
+    ): NftOutput<T> {
         nft_output::receive(self.id(), output_to_unlock)
     }
 
     /// Unlock an `AliasOutput` locked to the `Nft` address.
-    public fun unlock_nft_address_owned_alias(
+    public fun unlock_nft_address_owned_alias<T>(
       self: &mut Nft,
-      output_to_unlock: Receiving<AliasOutput>,
-    ): AliasOutput {
+      output_to_unlock: Receiving<AliasOutput<T>>,
+    ): AliasOutput<T> {
         alias_output::receive(self.id(), output_to_unlock)
     }
 }
