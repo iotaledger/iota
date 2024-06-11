@@ -19,7 +19,7 @@ import { Card } from '~/ui/Card';
 const GRAPH_DATA_FIELD = 'cumulativeAddresses';
 const GRAPH_DATA_TEXT = 'Total accounts';
 
-function TooltipContent({ data }: { data: AllEpochsAddressMetrics[number] }) {
+function TooltipContent({ data }: { data: AllEpochsAddressMetrics[number] }): JSX.Element {
     const dateFormatted = formatDate(new Date(data.timestampMs), ['day', 'month']);
     const totalFormatted = formatAmount(data[GRAPH_DATA_FIELD]);
     return (
@@ -37,7 +37,7 @@ function TooltipContent({ data }: { data: AllEpochsAddressMetrics[number] }) {
     );
 }
 
-export function AccountsCardGraph() {
+export function AccountsCardGraph(): JSX.Element {
     const { data: addressMetrics } = useGetAddressMetrics();
     const { data: allEpochMetrics, isPending } = useGetAllEpochAddressMetrics({
         descendingOrder: false,

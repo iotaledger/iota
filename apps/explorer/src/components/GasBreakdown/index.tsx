@@ -22,7 +22,7 @@ interface GasProps {
     amount?: bigint | number | string;
 }
 
-function GasAmount({ amount }: GasProps) {
+function GasAmount({ amount }: GasProps): JSX.Element | null {
     const [formattedAmount, symbol] = useFormatCoin(amount, IOTA_TYPE_ARG, CoinFormat.FULL);
 
     if (!amount) {
@@ -48,7 +48,7 @@ function GasAmount({ amount }: GasProps) {
     );
 }
 
-function TotalGasAmount({ amount }: GasProps) {
+function TotalGasAmount({ amount }: GasProps): JSX.Element | null {
     const [formattedAmount, symbol] = useFormatCoin(amount, IOTA_TYPE_ARG, CoinFormat.FULL);
 
     if (!amount) {
@@ -78,7 +78,7 @@ function TotalGasAmount({ amount }: GasProps) {
     );
 }
 
-function GasPaymentLinks({ objectIds }: { objectIds: string[] }) {
+function GasPaymentLinks({ objectIds }: { objectIds: string[] }): JSX.Element {
     return (
         <div className="flex max-h-20 min-h-[20px] flex-wrap items-center gap-x-4 gap-y-2 overflow-y-auto">
             {objectIds.map((objectId, index) => (
@@ -95,7 +95,7 @@ interface GasBreakdownProps {
     summary?: TransactionSummary | null;
 }
 
-export function GasBreakdown({ summary }: GasBreakdownProps) {
+export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null {
     const gasData = summary?.gas;
     const { data: iotansDomainName } = useResolveIotaNSName(gasData?.owner);
 

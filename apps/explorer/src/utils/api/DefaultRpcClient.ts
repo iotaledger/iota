@@ -21,7 +21,7 @@ delete SupportedNetworks[Network.Custom];
 const defaultClientMap: Map<NetworkId, IotaClient> = new Map();
 
 // NOTE: This class should not be used directly in React components, prefer to use the useIotaClient() hook instead
-export const createIotaClient = (network: NetworkId) => {
+export const createIotaClient = (network: NetworkId): IotaClient => {
     const existingClient = defaultClientMap.get(network);
     if (existingClient) return existingClient;
 

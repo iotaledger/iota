@@ -27,7 +27,7 @@ type PageLayoutProps = {
 
 const DEFAULT_HEADER_HEIGHT = 68;
 
-export function PageLayout({ gradient, content, loading, isError }: PageLayoutProps) {
+export function PageLayout({ gradient, content, loading, isError }: PageLayoutProps): JSX.Element {
     const [network] = useNetworkContext();
     const { request } = useAppsBackend();
     const outageOverride = useFeatureIsOn('network-outage-override');

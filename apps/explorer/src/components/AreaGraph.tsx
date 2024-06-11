@@ -24,7 +24,7 @@ function getID(prefix: string) {
 
 const bisectX = bisector((x: number) => x).center;
 
-function AxisLeftTick({ x, y, formattedValue }: TickRendererProps) {
+function AxisLeftTick({ x, y, formattedValue }: TickRendererProps): JSX.Element {
     return (
         <text
             x={x}
@@ -38,7 +38,7 @@ function AxisLeftTick({ x, y, formattedValue }: TickRendererProps) {
     );
 }
 
-function AxisBottomTick({ x, y, formattedValue }: TickRendererProps) {
+function AxisBottomTick({ x, y, formattedValue }: TickRendererProps): JSX.Element {
     return (
         <text
             x={x}
@@ -73,7 +73,7 @@ export function AreaGraph<D>({
     formatY,
     color,
     tooltipContent,
-}: AreaGraphProps<D>) {
+}: AreaGraphProps<D>): JSX.Element | null {
     const graphTop = 15;
     const graphBottom = Math.max(0, height - 30);
     const graphLeft = 45;

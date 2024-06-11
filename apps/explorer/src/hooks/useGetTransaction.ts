@@ -5,7 +5,7 @@
 import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 
-export function useGetTransaction(transactionId: string) {
+export function useGetTransaction(transactionId: string): ReturnType<typeof useQuery> {
     const client = useIotaClient();
     return useQuery({
         queryKey: ['transactions-by-id', transactionId],

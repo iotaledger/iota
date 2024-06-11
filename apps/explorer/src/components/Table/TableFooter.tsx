@@ -30,7 +30,7 @@ export function TableFooter({
     limit,
     onLimitChange,
     href,
-}: TableFooterProps) {
+}: TableFooterProps): JSX.Element {
     return (
         <div className="flex items-center justify-between">
             {disablePagination ? (

@@ -10,7 +10,7 @@ import { Banner } from '~/ui/Banner';
 import type { ReactNode } from 'react';
 import type { FallbackProps } from 'react-error-boundary';
 
-function Fallback({ error }: FallbackProps) {
+function Fallback({ error }: FallbackProps): JSX.Element {
     return (
         <Banner variant="error" fullWidth>
             {error.message}
@@ -22,7 +22,7 @@ type ErrorBoundaryProps = {
     children: ReactNode | ReactNode[];
 };
 
-export function ErrorBoundary({ children }: ErrorBoundaryProps) {
+export function ErrorBoundary({ children }: ErrorBoundaryProps): JSX.Element {
     const location = useLocation();
     return (
         <ReactErrorBoundary FallbackComponent={Fallback} resetKeys={[location]}>

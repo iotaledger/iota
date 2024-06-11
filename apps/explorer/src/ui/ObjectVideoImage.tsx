@@ -57,7 +57,7 @@ export function ObjectVideoImage({
     imgFit,
     aspect,
     rounded = 'md',
-}: ObjectVideoImageProps) {
+}: ObjectVideoImageProps): JSX.Element {
     const close = () => {
         if (disablePreview) {
             return;

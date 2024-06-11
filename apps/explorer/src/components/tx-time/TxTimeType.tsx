@@ -8,7 +8,7 @@ type TxTimeTypeProps = {
     timestamp: number | undefined;
 };
 
-export function TxTimeType({ timestamp }: TxTimeTypeProps) {
+export function TxTimeType({ timestamp }: TxTimeTypeProps): JSX.Element {
     const timeAgo = useTimeAgo({
         timeFrom: timestamp || null,
         shortedTimeLabel: true,
