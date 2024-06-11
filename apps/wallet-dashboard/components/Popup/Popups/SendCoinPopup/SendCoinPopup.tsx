@@ -17,13 +17,13 @@ interface SendCoinPopupProps {
     onClose: () => void;
 }
 
-enum FormStep {
+enum Step {
     EnterValues,
     ReviewValues,
 }
 
 function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JSX.Element {
-    const [step, setStep] = useState<FormStep>(FormStep.EnterValues);
+    const [step, setStep] = useState<Step>(Step.EnterValues);
     const [formData, setFormData] = useState<FormDataValues>({
         amount: '',
         recipientAddress: '',
@@ -31,16 +31,16 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
     });
 
     const handleNext = () => {
-        setStep(FormStep.ReviewValues);
+        setStep(Step.ReviewValues);
     };
 
     const handleBack = () => {
-        setStep(FormStep.EnterValues);
+        setStep(Step.EnterValues);
     };
 
     return (
         <>
-            {step === FormStep.EnterValues && (
+            {step === Step.EnterValues && (
                 <EnterValuesFormView
                     coin={coin}
                     onClose={onClose}
@@ -49,7 +49,7 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
                     setFormData={setFormData}
                 />
             )}
-            {step === FormStep.ReviewValues && (
+            {step === Step.ReviewValues && (
                 <ReviewValuesFormView formData={formData} handleBack={handleBack} />
             )}
         </>
