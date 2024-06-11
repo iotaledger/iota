@@ -58,7 +58,11 @@ function getShowPagination(
     return currentPage !== 0 || itemsLength > SHOW_PAGINATION_MAX_ITEMS;
 }
 
-export function OwnedObjects({ id }: { id: string }) {
+interface OwnedObjectsProps {
+    id: string;
+}
+
+export function OwnedObjects({ id }: OwnedObjectsProps) {
     const [limit, setLimit] = useState(50);
     const [filter, setFilter] = useLocalStorage<string | undefined>(
         OWNED_OBJECTS_LOCAL_STORAGE_FILTER,

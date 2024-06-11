@@ -14,7 +14,7 @@ import { flattenIotaArguments } from './utils';
 import { ErrorBoundary } from '~/components/error-boundary/ErrorBoundary';
 import { ObjectLink } from '~/ui/InternalLink';
 
-export interface TransactionProps<T> {
+interface TransactionProps<T> {
     type: string;
     data: T;
 }

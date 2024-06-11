@@ -9,7 +9,7 @@ import { ModuleFunction } from './ModuleFunction';
 import { useNormalizedMoveModule } from '~/hooks/useNormalizedMoveModule';
 import { Banner } from '~/ui/Banner';
 
-export type ModuleFunctionsInteractionProps = {
+type ModuleFunctionsInteractionProps = {
     packageId: string;
     moduleName: string;
 };
