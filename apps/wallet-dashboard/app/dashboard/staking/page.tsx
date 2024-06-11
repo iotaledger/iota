@@ -3,7 +3,7 @@
 
 'use client';
 
-import { AmountBox, Box, List, NewStakePopup, StakeDetailsPopup, Button } from '@/components';
+import { AmountBox, Box, StakeCard, NewStakePopup, StakeDetailsPopup, Button } from '@/components';
 import { usePopups, useStakingData } from '@/hooks';
 import { Stake } from '@/lib/types';
 
@@ -24,11 +24,12 @@ function StakingDashboardPage(): JSX.Element {
             <AmountBox title="Currently staked" amount={`${totalStakeConverted}`} />
             <AmountBox title="Earned" amount={`${totalRewardsConverted}`} />
             <Box title="Stakes">
-                <List
-                    data={stakingData}
-                    onItemClick={viewStakeDetails}
-                    actionText="View Details"
-                />
+                <div className="flex flex-col items-center gap-4">
+                    <h1>List of stakes</h1>
+                    {stakingData?.map((stake) => (
+                        <StakeCard key={stake.id} stake={stake} onDetailsClick={viewStakeDetails} />
+                    ))}
+                </div>
             </Box>
             <Button onClick={addNewStake}>New Stake</Button>
         </div>
