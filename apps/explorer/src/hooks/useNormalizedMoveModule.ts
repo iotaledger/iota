@@ -5,7 +5,10 @@
 import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 
-export function useNormalizedMoveModule(packageId?: string | null, moduleName?: string | null) {
+export function useNormalizedMoveModule(
+    packageId?: string | null,
+    moduleName?: string | null,
+): ReturnType<typeof useQuery> {
     const client = useIotaClient();
     return useQuery({
         queryKey: ['normalized-module', packageId, moduleName],

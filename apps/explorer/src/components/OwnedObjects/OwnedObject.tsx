@@ -13,7 +13,7 @@ type OwnedObjectProps = {
     obj: IotaObjectResponse;
 };
 
-export default function OwnedObject({ obj }: OwnedObjectProps) {
+export default function OwnedObject({ obj }: OwnedObjectProps): JSX.Element {
     const video = useResolveVideo(obj);
     const displayMeta = obj.data?.display?.data;
 

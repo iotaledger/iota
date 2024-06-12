@@ -21,7 +21,7 @@ export function ModuleCodeTabs({
     moduleName,
     moduleBytecode,
     isCompact,
-}: ModuleCodeTabsProps) {
+}: ModuleCodeTabsProps): JSX.Element {
     const { data: verifiedSourceCode } = useVerifiedSourceCode({
         packageId,
         moduleName,

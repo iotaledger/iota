@@ -9,7 +9,6 @@ import { formatAddress } from '@iota/iota.js/utils';
 import cn from 'clsx';
 import { forwardRef, type ReactNode } from 'react';
 
-import { getAccountBackgroundByType } from '../../helpers/accounts';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { useExplorerLink } from '../../hooks/useExplorerLink';
@@ -73,9 +72,7 @@ export const AccountItem = forwardRef<HTMLDivElement, AccountItemProps>(
                     { 'cursor-auto bg-white/80 shadow-card-soft': selected },
                     { 'bg-white/80': isActiveAccount },
                     { 'border-none !bg-hero/10 shadow-none hover:bg-white/40': disabled },
-                    {
-                        [getAccountBackgroundByType(account)]: background === 'gradient',
-                    },
+                    { 'bg-gradients-graph-cards': background === 'gradient' },
                 )}
                 {...props}
             >

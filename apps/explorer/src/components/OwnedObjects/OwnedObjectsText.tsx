@@ -28,6 +28,6 @@ interface OwnedObjectsTextProps extends OwnedObjectsTextStylesProps {
     children: ReactNode;
 }
 
-export function OwnedObjectsText({ color, font, children }: OwnedObjectsTextProps) {
+export function OwnedObjectsText({ color, font, children }: OwnedObjectsTextProps): JSX.Element {
     return <div className={OwnedObjectsTextStyles({ color, font })}>{children}</div>;
 }

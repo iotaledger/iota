@@ -10,7 +10,7 @@ interface HighlightedTableColProps {
     first?: boolean;
 }
 
-export function HighlightedTableCol({ children, first }: HighlightedTableColProps) {
+export function HighlightedTableCol({ children, first }: HighlightedTableColProps): JSX.Element {
     return (
         <div
             className={clsx(

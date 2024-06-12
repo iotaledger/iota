@@ -10,7 +10,7 @@ type GraphTooltipContentProps = {
     children: ReactNode;
 };
 
-export function GraphTooltipContent({ children }: GraphTooltipContentProps) {
+export function GraphTooltipContent({ children }: GraphTooltipContentProps): JSX.Element {
     const { isFlippedHorizontally } = useTooltipPosition();
     return (
         <div

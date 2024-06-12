@@ -8,7 +8,7 @@ import { Text } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { genTableDataFromEpochsData } from './utils';
+import { generateTableDataFromEpochsData } from './utils';
 import { Link } from '~/ui/Link';
 import { Pagination, useCursorPagination } from '~/ui/Pagination';
 import { PlaceholderTable } from '~/ui/PlaceholderTable';
@@ -26,7 +26,7 @@ interface EpochsActivityTableProps {
 export function EpochsActivityTable({
     disablePagination,
     initialLimit = DEFAULT_EPOCHS_LIMIT,
-}: EpochsActivityTableProps) {
+}: EpochsActivityTableProps): JSX.Element {
     const [limit, setLimit] = useState(initialLimit);
     const client = useIotaClient();
 
@@ -43,7 +43,7 @@ export function EpochsActivityTable({
     const { data, isFetching, pagination, isPending, isError } =
         useCursorPagination(epochMetricsQuery);
 
-    const cardData = data ? genTableDataFromEpochsData(data) : undefined;
+    const cardData = data ? generateTableDataFromEpochsData(data) : undefined;
 
     return (
         <div className="flex flex-col space-y-3 text-left xl:pr-10">

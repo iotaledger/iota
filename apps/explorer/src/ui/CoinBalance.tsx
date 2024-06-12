@@ -10,7 +10,7 @@ export interface CoinBalanceProps extends Omit<AmountProps, 'symbol'> {
     coinType?: string | null;
 }
 
-export function CoinBalance({ amount, coinType, format, ...props }: CoinBalanceProps) {
+export function CoinBalance({ amount, coinType, format, ...props }: CoinBalanceProps): JSX.Element {
     const [formattedAmount, symbol] = useFormatCoin(amount, coinType, format || CoinFormat.FULL);
 
     // format balance if no symbol is provided

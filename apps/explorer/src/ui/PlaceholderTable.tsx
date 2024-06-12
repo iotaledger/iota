@@ -19,7 +19,7 @@ export function PlaceholderTable({
     rowHeight,
     colHeadings,
     colWidths,
-}: PlaceholderTableProps) {
+}: PlaceholderTableProps): JSX.Element {
     const rowEntry = useMemo(
         () =>
             Object.fromEntries(

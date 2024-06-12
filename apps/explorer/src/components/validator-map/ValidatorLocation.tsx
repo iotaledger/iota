@@ -24,7 +24,7 @@ export function ValidatorLocation({
     projection,
     onMouseOut,
     onMouseOver,
-}: ValidatorLocationProps) {
+}: ValidatorLocationProps): JSX.Element | null {
     const handleMouseOver = useCallback(
         (e: React.MouseEvent) => {
             validator && onMouseOver(e, validator.iotaAddress);
