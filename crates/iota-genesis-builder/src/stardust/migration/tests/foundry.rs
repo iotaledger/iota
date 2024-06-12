@@ -278,7 +278,6 @@ fn foundry_with_special_metadata() -> Result<()> {
     assert_eq!(type_tag.module.as_str(), "doge");
     assert_eq!(type_tag.name.as_str(), "DOGE");
     assert_eq!(type_tag.type_params.len(), 0);
-    // assert!(coin_manager_object.has_public_transfer());
 
     Ok(())
 }
@@ -318,7 +317,16 @@ fn coin_ownership() -> Result<()> {
     assert_eq!(native_token_coin_object.owner, IotaAddress::ZERO);
 
     // Check the owner of the coin manager object.
-    assert!(coin_manager_object.owner.is_shared());
+    assert!(coin_manager_object.is_shared());
+
+    // Check if the coin manager object has a public transfer.
+    assert!(
+        coin_manager_object
+            .data
+            .try_as_move()
+            .unwrap()
+            .has_public_transfer()
+    );
 
     // Check the owner of the treasury cap object.
     assert_eq!(
