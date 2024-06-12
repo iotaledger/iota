@@ -3,14 +3,22 @@
 
 'use client';
 
-import { HARDCODED_NON_VISUAL_ASSETS } from '@/lib/mocks';
 import React from 'react';
 import { IotaObjectData } from '@iota/iota.js/client';
 import { AssetCard, VirtualList } from '@/components/index';
+import { hasDisplayData, useGetOwnedObjects } from '@iota/core';
+import { useCurrentAccount } from '@iota/dapp-kit';
 import { useRouter } from 'next/navigation';
 
 function EverythingElsePage(): JSX.Element {
+    const account = useCurrentAccount();
     const router = useRouter();
+    const { data } = useGetOwnedObjects(account?.address);
+    const nonVisualAssets =
+        data?.pages
+            .flatMap((page) => page.data)
+            .filter((asset) => asset.data && asset.data.objectId && !hasDisplayData(asset))
+            .map((response) => response.data!) ?? [];
 
     const virtualItem = (asset: IotaObjectData): JSX.Element => (
         <AssetCard key={asset.objectId} asset={asset} />
@@ -25,7 +33,7 @@ function EverythingElsePage(): JSX.Element {
             <h1>EVERYTHING ELSE</h1>
             <div className="flex w-1/2">
                 <VirtualList
-                    items={HARDCODED_NON_VISUAL_ASSETS}
+                    items={nonVisualAssets}
                     estimateSize={() => 140}
                     render={virtualItem}
                     onClick={(asset) => handleClick(asset.objectId)}

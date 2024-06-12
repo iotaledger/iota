@@ -12,7 +12,11 @@ type DelegationAmountProps = {
     inMICROS?: boolean;
 };
 
-export function DelegationAmount({ amount, isStats, inMICROS = false }: DelegationAmountProps) {
+export function DelegationAmount({
+    amount,
+    isStats,
+    inMICROS = false,
+}: DelegationAmountProps): JSX.Element {
     const [formattedAmount, symbol] = useFormatCoin(amount, IOTA_TYPE_ARG);
     const delegationAmount = inMICROS ? formatBalance(amount, 0, CoinFormat.FULL) : formattedAmount;
     const delegationSymbol = inMICROS ? 'MICROS' : symbol;

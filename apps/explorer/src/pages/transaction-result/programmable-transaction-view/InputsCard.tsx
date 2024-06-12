@@ -15,7 +15,7 @@ interface InputsCardProps {
     inputs: IotaCallArg[];
 }
 
-export function InputsCard({ inputs }: InputsCardProps) {
+export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
     if (!inputs?.length) {
         return null;
     }

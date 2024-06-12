@@ -15,7 +15,7 @@ import { useNetworkContext } from '~/context';
 import { Banner } from '~/ui/Banner';
 import { Network } from '~/utils/api/DefaultRpcClient';
 
-export type PageLayoutProps = {
+type PageLayoutProps = {
     gradient?: {
         content: ReactNode;
         size: 'lg' | 'md';
@@ -27,7 +27,7 @@ export type PageLayoutProps = {
 
 const DEFAULT_HEADER_HEIGHT = 68;
 
-export function PageLayout({ gradient, content, loading, isError }: PageLayoutProps) {
+export function PageLayout({ gradient, content, loading, isError }: PageLayoutProps): JSX.Element {
     const [network] = useNetworkContext();
     const { request } = useAppsBackend();
     const outageOverride = useFeatureIsOn('network-outage-override');

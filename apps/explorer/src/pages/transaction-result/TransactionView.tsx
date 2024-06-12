@@ -12,12 +12,18 @@ import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { Events } from '~/pages/transaction-result/Events';
 import { TransactionData } from '~/pages/transaction-result/TransactionData';
 import { TransactionSummary } from '~/pages/transaction-result/transaction-summary';
-import { LocalStorageSplitPaneKey, SplitPanes } from '~/ui/SplitPanes';
+import { SplitPanes } from '~/ui/SplitPanes';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
 
 import styles from './TransactionResult.module.css';
+import { LocalStorageSplitPaneKey } from '~/lib/enums';
 
-function TabsContentContainer({ value, children }: { value: string; children: ReactNode }) {
+interface TabsContentContainerProps {
+    value: string;
+    children: ReactNode;
+}
+
+function TabsContentContainer({ value, children }: TabsContentContainerProps): JSX.Element {
     return (
         <TabsContent value={value}>
             <div className="mt-6 md:mt-10">{children}</div>
@@ -25,7 +31,11 @@ function TabsContentContainer({ value, children }: { value: string; children: Re
     );
 }
 
-export function TransactionView({ transaction }: { transaction: IotaTransactionBlockResponse }) {
+interface TransactionViewProps {
+    transaction: IotaTransactionBlockResponse;
+}
+
+export function TransactionView({ transaction }: TransactionViewProps): JSX.Element {
     const isMediumOrAbove = useBreakpoint('md');
     const [isCollapsed, setIsCollapsed] = useState(false);
 

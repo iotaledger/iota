@@ -22,13 +22,12 @@ type SignaturePubkeyPair = {
     signature: Uint8Array;
 } & ({ address: string } | { publicKey: PublicKey });
 
-function SignaturePanel({
-    title,
-    signature: data,
-}: {
+interface SignaturePanelProps {
     title: string;
     signature: SignaturePubkeyPair;
-}) {
+}
+
+function SignaturePanel({ title, signature: data }: SignaturePanelProps): JSX.Element {
     const { signature, signatureScheme } = data;
     return (
         <TabHeader title={title}>
@@ -79,11 +78,11 @@ function getSignaturesExcludingAddress(
             normalizeIotaAddress(iotaAddress),
     );
 }
-interface Props {
+interface SignaturesProps {
     transaction: IotaTransactionBlockResponse;
 }
 
-export function Signatures({ transaction }: Props) {
+export function Signatures({ transaction }: SignaturesProps) {
     const sender = transaction.transaction?.data.sender;
     const gasData = transaction.transaction?.data.gasData;
     const transactionSignatures = transaction.transaction?.txSignatures;
