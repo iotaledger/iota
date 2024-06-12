@@ -8,9 +8,7 @@ import { VirtualList, ActivityTile } from '@/components';
 import { Activity, ActivityState } from '@/lib/interfaces';
 
 function StakingDashboardPage(): JSX.Element {
-    const virtualItem = (activity: Activity): JSX.Element => (
-        <ActivityTile key={activity.timestamp} activity={activity} />
-    );
+    const virtualItem = (activity: Activity): JSX.Element => <ActivityTile activity={activity} />;
 
     return (
         <div className="flex h-full w-full flex-col items-center justify-center space-y-4 pt-12">
