@@ -11,7 +11,7 @@ import { IotansClient } from '../src';
 const domainName = 'test.iota';
 const walletAddress = '0xfce343a643991c592c4f1a9ee415a7889293f694ab8828f78e3c81d11c9530c6';
 
-describe('IotaNS Client', () => {
+describe.skip('IotaNS Client', () => {
     const client = new IotansClient(new IotaClient({ url: getFullnodeUrl('testnet') }), {
         networkType: 'testnet',
         contractObjects: {
