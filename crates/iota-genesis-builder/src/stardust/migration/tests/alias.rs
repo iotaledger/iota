@@ -30,7 +30,7 @@ use move_core_types::ident_str;
 use super::ExpectedAssets;
 use crate::stardust::{
     migration::tests::{
-        create_foundry, extract_native_token_from_bag, object_migration_with_object_owner,
+        create_foundry, extract_native_tokens_from_bag, object_migration_with_object_owner,
         random_output_header, run_migration,
     },
     types::{
@@ -276,21 +276,23 @@ fn alias_migration_with_native_tokens() {
     let native_token = NativeToken::new(foundry_output.id().into(), 100).unwrap();
 
     let alias_header = random_output_header();
-    let alias = AliasOutputBuilder::new_with_amount(1_000_000, AliasId::new(rand::random()))
+    let alias_output = AliasOutputBuilder::new_with_amount(1_000_000, AliasId::new(rand::random()))
         .add_unlock_condition(StateControllerAddressUnlockCondition::new(random_address))
         .add_unlock_condition(GovernorAddressUnlockCondition::new(random_address))
         .add_native_token(native_token)
         .finish()
         .unwrap();
 
-    extract_native_token_from_bag(
+    let native_tokens = alias_output.native_tokens().clone();
+
+    extract_native_tokens_from_bag(
         alias_header.output_id(),
         [
-            (alias_header.clone(), alias.into()),
+            (alias_header.clone(), alias_output.into()),
             (foundry_header, foundry_output.into()),
         ],
         ALIAS_OUTPUT_MODULE_NAME,
-        native_token,
+        native_tokens,
         ExpectedAssets::BalanceBagObject,
     )
     .unwrap();

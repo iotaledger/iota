@@ -35,11 +35,11 @@ use iota_types::{
 };
 use move_core_types::ident_str;
 
-use super::{unlock_object_test, ExpectedAssets, UnlockObjectTestResult};
 use crate::stardust::{
     migration::tests::{
-        create_foundry, extract_native_token_from_bag, object_migration_with_object_owner,
-        random_output_header, run_migration,
+        create_foundry, extract_native_tokens_from_bag, object_migration_with_object_owner,
+        random_output_header, run_migration, unlock_object_test, ExpectedAssets,
+        UnlockObjectTestResult,
     },
     types::{
         snapshot::OutputHeader, stardust_to_iota_address, FixedPoint32, Irc27Metadata, Nft,
@@ -284,7 +284,7 @@ fn nft_migration_with_native_tokens() {
     let native_token = NativeToken::new(foundry_output.id().into(), 100_000).unwrap();
 
     let nft_header = random_output_header();
-    let nft = NftOutputBuilder::new_with_amount(1_000_000, NftId::new(rand::random()))
+    let nft_output = NftOutputBuilder::new_with_amount(1_000_000, NftId::new(rand::random()))
         .add_unlock_condition(AddressUnlockCondition::new(Ed25519Address::from(
             rand::random::<[u8; Ed25519Address::LENGTH]>(),
         )))
@@ -292,14 +292,16 @@ fn nft_migration_with_native_tokens() {
         .finish()
         .unwrap();
 
-    extract_native_token_from_bag(
+    let native_tokens = nft_output.native_tokens().clone();
+
+    extract_native_tokens_from_bag(
         nft_header.output_id(),
         [
-            (nft_header.clone(), nft.into()),
+            (nft_header.clone(), nft_output.into()),
             (foundry_header, foundry_output.into()),
         ],
         NFT_OUTPUT_MODULE_NAME,
-        native_token,
+        native_tokens,
         ExpectedAssets::BalanceBagObject,
     )
     .unwrap();
