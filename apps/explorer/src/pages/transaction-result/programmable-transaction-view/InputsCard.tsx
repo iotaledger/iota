@@ -5,7 +5,7 @@
 import { type IotaCallArg } from '@iota/iota.js/client';
 import { Text } from '@iota/ui';
 
-import { ProgrammableTxnBlockCard } from '~/components/Transactions/ProgTxnBlockCard';
+import { ProgrammableTxnBlockCard } from '~/components/transactions/ProgTxnBlockCard';
 import { AddressLink, ObjectLink } from '~/ui/InternalLink';
 import { CollapsibleSection } from '~/ui/Collapsible/CollapsibleSection';
 

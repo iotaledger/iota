@@ -6,20 +6,20 @@ import clsx from 'clsx';
 import { lazy, Suspense } from 'react';
 
 import { AccountsCardGraph } from '~/components/AccountCardGraph';
-import { Activity } from '~/components/Activity';
-import { CurrentEpoch, OnTheNetwork } from '~/components/HomeMetrics';
-import { PageLayout } from '~/components/Layout/PageLayout';
+import { Activity } from '~/components/activity';
+import { CurrentEpoch, OnTheNetwork } from '~/components/home-metrics';
+import { PageLayout } from '~/components/layout/PageLayout';
 import { IotaTokenCard } from '~/components/IotaTokenCard';
 import { TransactionsCardGraph } from '~/components/TransactionsCardGraph';
-import { ErrorBoundary } from '~/components/ErrorBoundary/ErrorBoundary';
-import { TopPackagesCard } from '~/components/TopPackages/TopPackagesCard';
-import { TopValidatorsCard } from '~/components/TopValidatorsCard/TopValidatorsCard';
+import { ErrorBoundary } from '~/components/error-boundary/ErrorBoundary';
+import { TopPackagesCard } from '~/components/top-packages/TopPackagesCard';
+import { TopValidatorsCard } from '~/components/top-validators-card/TopValidatorsCard';
 import { useNetwork } from '~/context';
 import { Card } from '~/ui/Card';
 import { TabHeader } from '~/ui/Tabs';
-import { Network } from '~/utils/api/DefaultRpcClient';
+import { Network } from '~/utils/api/defaultRpcClient';
 
-const ValidatorMap = lazy(() => import('../../components/ValidatorMap'));
+const ValidatorMap = lazy(() => import('../../components/validator-map'));
 
 const TRANSACTIONS_LIMIT = 25;
 

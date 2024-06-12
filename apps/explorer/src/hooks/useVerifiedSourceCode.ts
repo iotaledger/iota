@@ -5,7 +5,7 @@
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
 import { useIotaClientContext } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
-import { Network } from '~/utils/api/DefaultRpcClient';
+import { Network } from '~/utils/api/defaultRpcClient';
 
 type UseVerifiedSourceCodeArgs = {
     packageId: string;
