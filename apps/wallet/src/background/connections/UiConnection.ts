@@ -39,7 +39,6 @@ import {
 import { accountSourcesEvents } from '../account-sources/events';
 import { MnemonicAccountSource } from '../account-sources/MnemonicAccountSource';
 import { accountsHandleUIMessage, getAllSerializedUIAccounts } from '../accounts';
-import { type AccountType } from '../accounts/Account';
 import { accountsEvents } from '../accounts/events';
 import { getAutoLockMinutes, notifyUserActive, setAutoLockMinutes } from '../auto-lock-accounts';
 import { backupDB, getDB, settingsKeys } from '../db';
@@ -220,13 +219,10 @@ export class UiConnection extends Connection {
                     }
                 }
                 const db = await getDB();
-                const zkLoginType: AccountType = 'zkLogin';
                 const accountSourceIDs = recoveryData.map(({ accountSourceID }) => accountSourceID);
                 await db.transaction('rw', db.accountSources, db.accounts, async () => {
                     await db.accountSources.where('id').noneOf(accountSourceIDs).delete();
                     await db.accounts
-                        .where('type')
-                        .notEqual(zkLoginType)
                         .filter(
                             (anAccount) =>
                                 !('sourceID' in anAccount) ||

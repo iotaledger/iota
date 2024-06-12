@@ -45,7 +45,7 @@ export function ModuleFunction({
     moduleName,
     functionName,
     functionDetails,
-}: ModuleFunctionProps) {
+}: ModuleFunctionProps): JSX.Element {
     const currentAccount = useCurrentAccount();
     const { mutateAsync: signAndExecuteTransactionBlock } = useSignAndExecuteTransactionBlock();
     const { handleSubmit, formState, register, control } = useZodForm({

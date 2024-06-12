@@ -5,10 +5,10 @@
 import { useProductAnalyticsConfig } from '@iota/core';
 import { Text } from '@iota/ui';
 
-import { legalLinks } from './footerLinks';
+import { LEGAL_LINKS } from '~/lib/constants';
 import { Link } from '~/ui/Link';
 
-export function LegalText() {
+export function LegalText(): JSX.Element {
     return (
         <div className="flex justify-center md:justify-start">
             <Text color="steel-darker" variant="pSubtitleSmall/medium">
@@ -20,12 +20,12 @@ export function LegalText() {
     );
 }
 
-export function LegalLinks() {
+export function LegalLinks(): JSX.Element {
     const { data: productAnalyticsConfig } = useProductAnalyticsConfig();
 
     return (
         <ul className="flex flex-col gap-3 md:flex-row md:gap-8">
-            {legalLinks.map(({ title, href }) => (
+            {LEGAL_LINKS.map(({ title, href }) => (
                 <li className="flex items-center justify-center" key={href}>
                     <Link variant="text" href={href}>
                         <Text variant="subtitleSmall/medium" color="steel-darker">

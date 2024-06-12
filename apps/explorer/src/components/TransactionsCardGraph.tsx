@@ -13,15 +13,17 @@ import { FormattedStatsAmount } from './HomeMetrics/FormattedStatsAmount';
 import { ErrorBoundary } from './error-boundary/ErrorBoundary';
 import { Card } from '~/ui/Card';
 
-function TooltipContent({
-    data: { epochTotalTransactions, epochStartTimestamp, epoch },
-}: {
+interface TooltipContentProps {
     data: {
         epochTotalTransactions: number;
         epochStartTimestamp: number;
         epoch: number;
     };
-}) {
+}
+
+function TooltipContent({
+    data: { epochTotalTransactions, epochStartTimestamp, epoch },
+}: TooltipContentProps): JSX.Element {
     const dateFormatted = formatDate(new Date(epochStartTimestamp), ['day', 'month']);
     const totalFormatted = formatAmount(epochTotalTransactions);
     return (

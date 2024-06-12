@@ -28,7 +28,7 @@ export function TransactionsForAddressTable({
     isPending,
     isError,
     address,
-}: TransactionsForAddressTableProps) {
+}: TransactionsForAddressTableProps): JSX.Element {
     if (isPending) {
         return (
             <div>
@@ -61,7 +61,10 @@ export function TransactionsForAddressTable({
     return <TableCard data={tableData.data} columns={tableData.columns} />;
 }
 
-export function TransactionsForAddress({ address, type }: TransactionsForAddressProps) {
+export function TransactionsForAddress({
+    address,
+    type,
+}: TransactionsForAddressProps): JSX.Element {
     const client = useIotaClient();
 
     const { data, isPending, isError } = useQuery({

@@ -23,7 +23,7 @@ interface RingChartLegendProps {
     title: string;
 }
 
-function getColorFromGradient({ deg, values }: Gradient) {
+function getColorFromGradient({ deg, values }: Gradient): string {
     const gradientResult = [];
 
     if (deg) {
@@ -37,7 +37,7 @@ function getColorFromGradient({ deg, values }: Gradient) {
     return `linear-gradient(${gradientResult.join(',')})`;
 }
 
-export function RingChartLegend({ data, title }: RingChartLegendProps) {
+export function RingChartLegend({ data, title }: RingChartLegendProps): JSX.Element {
     return (
         <div className="flex flex-col gap-2">
             <Heading variant="heading5/semibold" color="steel-darker">
@@ -78,7 +78,7 @@ export interface RingChartProps {
     data: RingChartData;
 }
 
-export function RingChart({ data }: RingChartProps) {
+export function RingChart({ data }: RingChartProps): JSX.Element {
     const radius = 20;
     const cx = 25;
     const cy = 25;

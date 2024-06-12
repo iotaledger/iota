@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 import {
     type BalanceChangeSummary,
     CoinFormat,
@@ -24,7 +25,7 @@ interface BalanceChangesProps {
     changes: BalanceChangeSummary;
 }
 
-function BalanceChangeEntry({ change }: { change: BalanceChange }) {
+function BalanceChangeEntry({ change }: { change: BalanceChange }): JSX.Element | null {
     const { amount, coinType, recipient, unRecognizedToken } = change;
     const [formatted, symbol] = useFormatCoin(amount, coinType, CoinFormat.FULL);
     const { data: coinMetaData } = useCoinMetadata(coinType);

@@ -42,7 +42,7 @@ export function PageHeader({
     error,
     loading,
     after,
-}: PageHeaderProps) {
+}: PageHeaderProps): JSX.Element {
     const Icon = TYPE_TO_ICON[type];
 
     return (

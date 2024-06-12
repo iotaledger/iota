@@ -22,7 +22,13 @@ interface ListViewItemProps {
     loading?: boolean;
 }
 
-function ListViewItem({ assetCell, typeCell, objectIdCell, objectId, loading }: ListViewItemProps) {
+function ListViewItem({
+    assetCell,
+    typeCell,
+    objectIdCell,
+    objectId,
+    loading,
+}: ListViewItemProps): JSX.Element {
     const listViewItemContent = (
         <div className="group mb-2 flex items-center justify-between rounded-lg p-1 hover:bg-hero/5">
             <div className="flex max-w-[66%] basis-8/12 items-center gap-3 md:max-w-[25%] md:basis-3/12 md:pr-5">
@@ -46,7 +52,7 @@ function ListViewItem({ assetCell, typeCell, objectIdCell, objectId, loading }: 
     return <ObjectLink objectId={objectId} display="block" label={listViewItemContent} />;
 }
 
-function ListViewItemContainer({ obj }: { obj: IotaObjectResponse }) {
+function ListViewItemContainer({ obj }: { obj: IotaObjectResponse }): JSX.Element {
     const video = useResolveVideo(obj);
     const displayMeta = obj.data?.display?.data;
     const name = displayMeta?.name ?? displayMeta?.description ?? '';
@@ -98,7 +104,7 @@ interface ListViewProps {
     loading?: boolean;
 }
 
-export function ListView({ data, loading }: ListViewProps) {
+export function ListView({ data, loading }: ListViewProps): JSX.Element {
     return (
         <div className="flex flex-col overflow-auto">
             {(!!data?.length || loading) && (

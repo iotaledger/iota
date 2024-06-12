@@ -59,7 +59,7 @@ export function CopyToClipboard({
     color,
     size = 'md',
     onSuccessMessage = 'Copied!',
-}: CopyToClipboardProps) {
+}: CopyToClipboardProps): JSX.Element {
     const [copied, setCopied] = useState(false);
     const copyToClipBoard = useCopyToClipboard(() => toast.success(onSuccessMessage));
 

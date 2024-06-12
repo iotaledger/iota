@@ -22,7 +22,7 @@ export function FieldCollapsible({
     children,
     open,
     onOpenChange,
-}: FieldCollapsibleProps) {
+}: FieldCollapsibleProps): JSX.Element {
     return (
         <div
             className={clsx(!noMarginBottom && open && 'mb-10', !noMarginBottom && !open && 'mb-4')}

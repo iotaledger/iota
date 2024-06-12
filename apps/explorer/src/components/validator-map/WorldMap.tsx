@@ -31,7 +31,13 @@ interface BaseWorldMapProps {
     onMouseOut(): void;
 }
 
-function BaseWorldMap({ onMouseOver, onMouseOut, width, height, validators }: BaseWorldMapProps) {
+function BaseWorldMap({
+    onMouseOver,
+    onMouseOut,
+    width,
+    height,
+    validators,
+}: BaseWorldMapProps): JSX.Element {
     const centerX = width / 2;
     const centerY = height / 2;
 
