@@ -5,7 +5,7 @@
 import { Flag16, Info12 } from '@iota/icons';
 import { Heading, Placeholder, Text } from '@iota/ui';
 
-import { ReactComponent as CallIcon } from './Icons/transactions/call.svg';
+import { ReactComponent as CallIcon } from './icons/transactions/call.svg';
 import { Banner } from '~/ui/Banner';
 import { CopyToClipboard } from '~/ui/CopyToClipboard';
 

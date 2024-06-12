@@ -6,7 +6,7 @@ import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useContext } from 'react';
 
 import { NetworkContext } from '../../context';
-import { NetworkSelect, type NetworkOption } from '~/ui/Header/NetworkSelect';
+import { NetworkSelect, type NetworkOption } from '~/ui/header/NetworkSelect';
 import { ampli } from '~/utils/analytics/ampli';
 import { getAllNetworks } from '@iota/iota.js/client';
 

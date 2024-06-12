@@ -8,8 +8,8 @@ import { type ReactNode } from 'react';
 
 import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { AddressLink, CheckpointSequenceLink, EpochLink } from '~/ui/InternalLink';
-import { CollapsibleCard } from '~/ui/Collapsible/CollapsibleCard';
-import { CollapsibleSection } from '~/ui/Collapsible/CollapsibleSection';
+import { CollapsibleCard } from '~/ui/collapsible/CollapsibleCard';
+import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
 
 export function TransactionDetail({
     label,

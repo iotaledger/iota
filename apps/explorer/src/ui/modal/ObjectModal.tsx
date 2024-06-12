@@ -6,7 +6,7 @@ import { X12 } from '@iota/icons';
 import { Text, Heading, IconButton } from '@iota/ui';
 
 import { Modal, type ModalProps } from './index';
-import { Image } from '../Image/Image';
+import { Image } from '../image/Image';
 
 export interface ObjectModalProps extends Omit<ModalProps, 'children'> {
     title: string;

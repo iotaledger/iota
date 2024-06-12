@@ -6,7 +6,7 @@ import { type IotaTransaction } from '@iota/iota.js/client';
 
 import { Transaction } from './Transaction';
 import { ProgrammableTxnBlockCard } from '~/components/transactions/ProgTxnBlockCard';
-import { CollapsibleSection } from '~/ui/Collapsible/CollapsibleSection';
+import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
 
 interface TransactionsCardProps {
     transactions: IotaTransaction[];

@@ -4,8 +4,8 @@
 
 import { type Meta, type StoryObj } from '@storybook/react';
 
-import { CollapsibleCard, type CollapsibleCardProps } from '~/ui/Collapsible/CollapsibleCard';
-import { CollapsibleSection } from '~/ui/Collapsible/CollapsibleSection';
+import { CollapsibleCard, type CollapsibleCardProps } from '~/ui/collapsible/CollapsibleCard';
+import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
 
 export default {
     component: CollapsibleCard,

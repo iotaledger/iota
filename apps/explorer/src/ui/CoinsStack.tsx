@@ -7,7 +7,7 @@ import { Iota, Unstaked } from '@iota/icons';
 import { type CoinMetadata } from '@iota/iota.js/client';
 import clsx from 'clsx';
 
-import { Image } from '~/ui/Image/Image';
+import { Image } from '~/ui/image/Image';
 
 interface CoinIconProps {
     coinMetadata?: CoinMetadata | null;

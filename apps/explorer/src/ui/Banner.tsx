@@ -7,7 +7,7 @@ import { Text, IconButton } from '@iota/ui';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { type ReactNode } from 'react';
 
-import { ReactComponent as InfoIcon } from './Icons/info.svg';
+import { ReactComponent as InfoIcon } from './icons/info.svg';
 
 const bannerStyles = cva(
     'inline-flex text-pBodySmall font-medium overflow-hidden gap-2 items-center flex-nowrap relative',

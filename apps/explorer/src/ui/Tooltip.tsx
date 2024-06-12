@@ -19,7 +19,7 @@ import {
 import { AnimatePresence, motion } from 'framer-motion';
 import { useRef, useState } from 'react';
 
-import { ReactComponent as InfoSvg } from './Icons/info.svg';
+import { ReactComponent as InfoSvg } from './icons/info.svg';
 
 import type { Placement } from '@floating-ui/react';
 import type { ReactNode, CSSProperties } from 'react';

@@ -18,8 +18,8 @@ import { useMemo } from 'react';
 import { Banner } from '~/ui/Banner';
 import { Coin } from '~/ui/CoinsStack';
 import { AddressLink } from '~/ui/InternalLink';
-import { CollapsibleCard } from '~/ui/Collapsible/CollapsibleCard';
-import { CollapsibleSection } from '~/ui/Collapsible/CollapsibleSection';
+import { CollapsibleCard } from '~/ui/collapsible/CollapsibleCard';
+import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
 
 interface BalanceChangesProps {
     changes: BalanceChangeSummary;
