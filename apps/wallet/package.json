@@ -113,7 +113,7 @@
         "@iota/ledgerjs-hw-app-iota": "workspace:*",
         "@iota/wallet-standard": "workspace:*",
         "@ledgerhq/errors": "^6.12.4",
-        "@ledgerhq/hw-transport": "^6.28.2",
+        "@ledgerhq/hw-transport": "^6.30.5",
         "@ledgerhq/hw-transport-webhid": "^6.27.15",
         "@ledgerhq/hw-transport-webusb": "^6.27.13",
         "@metamask/browser-passworder": "^4.1.0",
