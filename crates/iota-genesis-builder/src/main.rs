@@ -33,7 +33,7 @@ fn main() -> anyhow::Result<()> {
     let parser = FullSnapshotParser::new(file)?;
 
     // Prepare the migration using the parser output stream
-    let migration = Migration::new(parser.header.target_milestone_timestamp())?;
+    let migration = Migration::new(parser.header.target_milestone_timestamp(), 1_000_000)?; // TDOO: set the correct total supply
     // Prepare the compressor writer for the objects snapshot
     let object_snapshot_writer = brotli::CompressorWriter::new(
         File::create(OBJECT_SNAPSHOT_FILE_PATH)?,

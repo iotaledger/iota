@@ -35,7 +35,7 @@ use iota_types::{
         Argument, CheckedInputObjects, Command, InputObjectKind, InputObjects, ObjectArg,
         ObjectReadResult, ProgrammableTransaction,
     },
-    TypeTag, IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_ADDRESS, STARDUST_PACKAGE_ID,
+    TypeTag, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID,
 };
 use move_core_types::{ident_str, language_storage::StructTag};
 use move_vm_runtime_v2::move_vm::MoveVM;
@@ -237,14 +237,18 @@ impl Executor {
                 if object.is_coin() {
                     native_token_coin_id = Some(object.id());
                     created_objects.set_native_token_coin(object.id())?;
-                } else if object.type_().map_or(false, |t| t.is_coin_metadata()) {
-                    created_objects.set_coin_metadata(object.id())?
                 } else if object.type_().map_or(false, |t| {
-                    t.address() == STARDUST_ADDRESS
-                        && t.module().as_str() == "capped_coin"
-                        && t.name().as_str() == "MaxSupplyPolicy"
+                    t.address() == IOTA_FRAMEWORK_ADDRESS
+                        && t.module().as_str() == "coin_manager"
+                        && t.name().as_str() == "CoinManager"
                 }) {
-                    created_objects.set_max_supply_policy(object.id())?
+                    created_objects.set_coin_manager(object.id())?
+                } else if object.type_().map_or(false, |t| {
+                    t.address() == IOTA_FRAMEWORK_ADDRESS
+                        && t.module().as_str() == "coin_manager"
+                        && t.name().as_str() == "CoinManagerTreasuryCap"
+                }) {
+                    created_objects.set_coin_manager_treasury_cap(object.id())?
                 } else if object.is_package() {
                     foundry_package = Some(
                         object
