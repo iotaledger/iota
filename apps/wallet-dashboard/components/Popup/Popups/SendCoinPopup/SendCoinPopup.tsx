@@ -3,9 +3,8 @@
 
 import React, { useState } from 'react';
 import { useSignAndExecuteTransactionBlock, useIotaClient } from '@iota/dapp-kit';
-import { useCoinMetadata } from '@iota/core';
+import { useCoinMetadata, createTokenTransferTransaction } from '@iota/core';
 import { useQuery } from '@tanstack/react-query';
-import { createTokenTransferTransaction } from '@/lib/utils';
 import { COIN_DECIMALS } from '@/lib/constants';
 import { EnterValuesFormView, ReviewValuesFormView } from './views';
 import { CoinStruct } from '@iota/iota.js/client';
@@ -55,9 +54,10 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
             const transaction = createTokenTransferTransaction({
                 coinType: coin.coinType,
                 coinDecimals: coinMetadata?.decimals || COIN_DECIMALS,
-                recipientAddress: formData.recipientAddress,
+                to: formData.recipientAddress,
                 amount: formData.amount,
                 coins: [coin],
+                isPayAllIota: false,
             });
 
             transaction.setSender(senderAddress);
