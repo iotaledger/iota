@@ -1693,10 +1693,11 @@ impl ProtocolConfig {
             cfg.feature_flags.enable_group_ops_native_function_msm = true;
         }
 
+        // TODO: remove the never_loop attribute when the version 2 is added.
+        #[allow(clippy::never_loop)]
         for cur in 2..=version.0 {
             match cur {
                 1 => unreachable!(),
-                2 => {}
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
