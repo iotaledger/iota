@@ -1266,10 +1266,8 @@ impl ProtocolConfig {
         // version. To change the values here you must create a new protocol
         // version with the new values!
         let mut cfg = Self {
-            // will be overwritten before being returned
             version,
 
-            // All flags are disabled in V1
             feature_flags: Default::default(),
 
             max_tx_size_bytes: Some(128 * 1024),
