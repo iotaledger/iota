@@ -3,7 +3,8 @@
 
 import React, { useState } from 'react';
 import { EnterAmountView, SelectValidatorView } from './views';
-
+import { useNewStake, useNotifications } from '@/hooks';
+import { NotificationType } from '@/stores/notificationStore';
 interface NewStakePopupProps {
     onClose: () => void;
 }
@@ -19,7 +20,8 @@ function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
     const [step, setStep] = useState<Step>(Step.SelectValidator);
     const [selectedValidator, setSelectedValidator] = useState<string | null>(null);
     const [amount, setAmount] = useState<string>('');
-
+    const { createTransaction, loading, error } = useNewStake();
+    const { addNotification } = useNotifications();
     const handleNext = () => {
         setStep(Step.EnterAmount);
     };
@@ -34,8 +36,15 @@ function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
     };
 
     const handleStake = () => {
-        console.log(`Staking ${amount} with ${selectedValidator}`);
-        onClose();
+        if (selectedValidator && amount) {
+            createTransaction(BigInt(amount), selectedValidator);
+            if (!error) {
+                addNotification('Transaction created successfully!');
+                onClose();
+            } else {
+                addNotification('Error creating transaction', NotificationType.Error);
+            }
+        }
     };
 
     return (
@@ -53,7 +62,7 @@ function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
                     onChange={(e) => setAmount(e.target.value)}
                     onBack={handleBack}
                     onStake={handleStake}
-                    isStakeDisabled={!amount}
+                    isStakeDisabled={!amount || loading}
                 />
             )}
         </div>
