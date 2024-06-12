@@ -32,10 +32,8 @@ export default defineConfig({
             ).pathname,
             '@iota/iota.js/client': new URL('../typescript/src/client', import.meta.url).pathname,
             '@iota/iota.js/utils': new URL('../typescript/src/utils', import.meta.url).pathname,
-            '@iota/iota.js/transactions': new URL(
-                '../typescript/src/transactions',
-                import.meta.url,
-            ).pathname,
+            '@iota/iota.js/transactions': new URL('../typescript/src/transactions', import.meta.url)
+                .pathname,
         },
     },
 });

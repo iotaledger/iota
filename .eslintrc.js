@@ -32,6 +32,7 @@ module.exports = {
         'external-crates',
         'storybook-static',
         '**/*.config.js',
+        '**/*.config.ts',
         '**/preprocess.mjs',
         '**/storybook-static',
         '**/node_modules',

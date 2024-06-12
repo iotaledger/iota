@@ -6,8 +6,7 @@ available in both Browser and NodeJS environments in a type-safe way.`
 
 ## Install
 
-To install, add the [`@iota/bcs`](https://www.npmjs.com/package/@iota/bcs) package to your
-project:
+To install, add the [`@iota/bcs`](https://www.npmjs.com/package/@iota/bcs) package to your project:
 
 ```sh npm2yarn
 npm i @iota/bcs
@@ -50,9 +49,9 @@ To be able to serialize the data and later deserialize it, a schema has to be cr
 built-in primitives, such as `string` or `u64`). There are no type hints in the serialized bytes on
 what they mean, so the schema used for decoding must match the schema used to encode the data.
 
-The `@iota/bcs` library can be used to define schemas that can serialize and deserialize BCS
-encoded data, and and can infer the correct TypeScript for the schema from the definitions
-themselves rather than having to define them manually.
+The `@iota/bcs` library can be used to define schemas that can serialize and deserialize BCS encoded
+data, and and can infer the correct TypeScript for the schema from the definitions themselves rather
+than having to define them manually.
 
 ## Basic types
 

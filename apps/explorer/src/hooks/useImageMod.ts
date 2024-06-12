@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useAppsBackend } from '@iota/core';
-import { useQuery } from '@tanstack/react-query';
+import { type UseQueryResult, useQuery } from '@tanstack/react-query';
 import { ImageVisibility } from '~/lib/enums';
 
 // https://cloud.google.com/vision/docs/supported-files
@@ -42,10 +42,10 @@ export function useImageMod({
 }: {
     url?: string;
     enabled?: boolean;
-}): ReturnType<typeof useQuery> {
+}): UseQueryResult<ImageModeration | undefined, Error> {
     const { request } = useAppsBackend();
 
-    return useQuery({
+    return useQuery<ImageModeration | undefined, Error>({
         queryKey: ['image-mod', url, enabled],
         queryFn: async () => {
             if (!isURL(url) || !enabled) return placeholderData;

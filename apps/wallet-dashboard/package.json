@@ -6,7 +6,7 @@
         "dev": "next dev",
         "build": "next build",
         "start": "next start",
-        "lint": "next lint && prettier:check",
+        "lint": "next lint && pnpm run prettier:check",
         "prettier:check": "prettier -c --ignore-unknown .",
         "prettier:fix": "prettier -w --ignore-unknown ."
     },
