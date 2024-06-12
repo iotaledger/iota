@@ -3,11 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClient } from '@iota/dapp-kit';
-import { useQuery } from '@tanstack/react-query';
+import { type IotaTransactionBlockResponse } from '@iota/iota.js/src/client';
+import { type UseQueryResult, useQuery } from '@tanstack/react-query';
 
-export function useGetTransaction(transactionId: string): ReturnType<typeof useQuery> {
+export function useGetTransaction(
+    transactionId: string,
+): UseQueryResult<IotaTransactionBlockResponse, Error> {
     const client = useIotaClient();
-    return useQuery({
+    return useQuery<IotaTransactionBlockResponse, Error>({
         queryKey: ['transactions-by-id', transactionId],
         queryFn: async () =>
             client.getTransactionBlock({

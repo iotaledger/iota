@@ -49,7 +49,7 @@
             "@iota/bcs": ["../../sdk/bcs/src/"],
             "@iota/dapp-kit": ["../../sdk/dapp-kit/src/"],
             "@iota/ledgerjs-hw-app-iota": ["../../sdk/ledgerjs-hw-app-iota/src/Iota.ts"],
-            "@iota/wallet-standard": ["../../sdk/wallet-standard/src/"],
+            "@iota/wallet-standard": ["../../sdk/wallet-standard/src/"]
         }
     },
     "include": ["../../src", "../../tests"],
