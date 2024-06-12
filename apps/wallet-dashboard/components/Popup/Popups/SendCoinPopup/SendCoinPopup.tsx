@@ -9,7 +9,6 @@ import { useSendCoinTransaction } from '@/hooks';
 export interface FormDataValues {
     amount: string;
     recipientAddress: string;
-    senderAddress: string;
 }
 
 interface SendCoinPopupProps {
@@ -28,11 +27,10 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
     const [formData, setFormData] = useState<FormDataValues>({
         amount: '',
         recipientAddress: '',
-        senderAddress,
     });
     const { gasBudget, executeTransfer, error, isPending } = useSendCoinTransaction(
         coin,
-        formData.senderAddress,
+        senderAddress,
         formData.recipientAddress,
         formData.amount,
     );
