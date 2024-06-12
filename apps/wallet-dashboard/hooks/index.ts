@@ -3,3 +3,4 @@
 
 export * from './useBalance';
 export * from './usePopups';
+export * from './useSendCoinTransaction';
