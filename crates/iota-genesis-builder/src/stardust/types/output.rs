@@ -177,6 +177,7 @@ impl BasicOutput {
         })
     }
 
+    /// Returns the struct tag of the BasicOutput struct
     pub fn tag(type_param: TypeTag) -> StructTag {
         StructTag {
             address: STARDUST_PACKAGE_ID.into(),

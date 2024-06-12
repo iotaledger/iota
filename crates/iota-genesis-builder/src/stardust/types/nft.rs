@@ -254,6 +254,7 @@ pub struct Nft {
 }
 
 impl Nft {
+    /// Returns the struct tag of the NftOutput struct
     pub fn tag() -> StructTag {
         StructTag {
             address: STARDUST_PACKAGE_ID.into(),
