@@ -9,6 +9,7 @@ import { VirtualList, ActivityTile } from '@/components';
 import { Activity } from '@/lib/interfaces';
 import { useQueryTransactionsByAddress } from '@iota/core';
 import { getTransactionActivity } from '@/lib/utils/activity';
+import { objectToKey } from '@/lib/utils';
 
 function ActivityPage(): JSX.Element {
     const currentAccount = useCurrentAccount();
@@ -26,7 +27,7 @@ function ActivityPage(): JSX.Element {
     }
 
     const virtualItem = (activity: Activity): JSX.Element => (
-        <ActivityTile key={activity.timestamp} activity={activity} />
+        <ActivityTile key={objectToKey(activity)} activity={activity} />
     );
 
     return (
