@@ -1,10 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{coin::TreasuryCap, id::UID};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use crate::coin::CoinMetadata;
+
+use crate::{
+    coin::{CoinMetadata, TreasuryCap},
+    id::UID,
+};
 
 /// The purpose of a CoinManager is to allow access to all
 /// properties of a Coin on-chain from within a single shared object
@@ -20,18 +23,22 @@ pub struct CoinManager {
     pub treasury_cap: TreasuryCap,
     /// Metadata object, original one from the `coin` module, if available
     pub metadata: Option<CoinMetadata>,
-    /// Immutable Metadata object, only to be used as a last resort if the original metadata is frozen
+    /// Immutable Metadata object, only to be used as a last resort if the
+    /// original metadata is frozen
     pub immutable_metadata: Option<ImmutableCoinMetadata>,
-    /// Optional maximum supply, if set you can't mint more as this number - can only be set once
+    /// Optional maximum supply, if set you can't mint more as this number - can
+    /// only be set once
     pub maximum_supply: Option<u64>,
-    /// Flag indicating if the supply is considered immutable (TreasuryCap is exchanged for this)
+    /// Flag indicating if the supply is considered immutable (TreasuryCap is
+    /// exchanged for this)
     pub supply_immutable: bool,
-    /// Flag indicating if the metadata is considered immutable (MetadataCap is exchanged for this)
+    /// Flag indicating if the metadata is considered immutable (MetadataCap is
+    /// exchanged for this)
     pub metadata_immutable: bool,
 }
 
-/// The immutable version of CoinMetadata, used in case of migrating from frozen objects
-/// to a `CoinManager` holding the metadata.
+/// The immutable version of CoinMetadata, used in case of migrating from frozen
+/// objects to a `CoinManager` holding the metadata.
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
 pub struct ImmutableCoinMetadata {
     /// Number of decimal places the coin uses.
@@ -46,7 +53,8 @@ pub struct ImmutableCoinMetadata {
     pub icon_url: Option<String>,
 }
 
-/// Like `TreasuryCap`, but for dealing with `TreasuryCap` inside `CoinManager` objects
+/// Like `TreasuryCap`, but for dealing with `TreasuryCap` inside `CoinManager`
+/// objects
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
 pub struct CoinManagerTreasuryCap {
     /// The unique identifier of the object.
