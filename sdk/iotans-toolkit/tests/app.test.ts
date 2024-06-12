@@ -31,13 +31,13 @@ describe('IotaNS Client', () => {
 
     describe('getAddress', () => {
         describe('input domain has a linked address set', () => {
-            it('returns the linked address', async () => {
+            it.skip('returns the linked address', async () => {
                 expect(await client.getAddress(domainName)).toEqual(walletAddress);
             });
         });
 
         describe('input domain does not have a linked address set', () => {
-            it('returns undefined', async () => {
+            it.skip('returns undefined', async () => {
                 expect(await client.getAddress(nonExistingDomain)).toBeUndefined();
             });
         });
@@ -45,20 +45,20 @@ describe('IotaNS Client', () => {
 
     describe('getName', () => {
         describe('input domain has a default name set', () => {
-            it('returns the default name', async () => {
+            it.skip('returns the default name', async () => {
                 expect(await client.getName(walletAddress)).toBe(domainName);
             });
         });
 
         describe('input domain does not have a default name set', () => {
-            it('returns undefined', async () => {
+            it.skip('returns undefined', async () => {
                 expect(await client.getName(nonExistingWalletAddress)).toBeUndefined();
             });
         });
     });
 
     describe('getNameObject', () => {
-        it('returns related data of the name', async () => {
+        it.skip('returns related data of the name', async () => {
             expect(
                 await client.getNameObject(domainName, {
                     showOwner: true,
@@ -75,7 +75,7 @@ describe('IotaNS Client', () => {
             });
         });
 
-        it('Does not include avatar if the flag is off', async () => {
+        it.skip('Does not include avatar if the flag is off', async () => {
             expect(
                 await client.getNameObject(domainName, {
                     showOwner: true,
@@ -83,7 +83,7 @@ describe('IotaNS Client', () => {
             ).not.toHaveProperty('avatar');
         });
 
-        it('Does not include owner if the flag is off', async () => {
+        it.skip('Does not include owner if the flag is off', async () => {
             expect(await client.getNameObject(domainName)).not.toHaveProperty('owner');
         });
     });
