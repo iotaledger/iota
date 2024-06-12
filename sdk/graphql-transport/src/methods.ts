@@ -742,7 +742,9 @@ export const RPC_METHODS: {
                 },
             },
             (data) =>
-                data.objects?.nodes.map((node) => node?.asMoveObject?.asStakedIota!).filter(Boolean),
+                data.objects?.nodes
+                    .map((node) => node?.asMoveObject?.asStakedIota!)
+                    .filter(Boolean),
         );
 
         return mapGraphQLStakeToRpcStake(stakes);

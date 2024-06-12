@@ -28,8 +28,8 @@ const client = new IotaClient({
 
 ### Unsupported methods
 
-The following methods are currently unsupported in IotaClientGraphQLTransport, and will either error,
-or fallback to the JSON RPC API if a `fallbackFullNodeUrl` is provided:
+The following methods are currently unsupported in IotaClientGraphQLTransport, and will either
+error, or fallback to the JSON RPC API if a `fallbackFullNodeUrl` is provided:
 
 -   `subscribeTransaction`
 -   `subscribeEvents`

@@ -171,8 +171,6 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
         if (account) {
             if (isPasswordUnLockable(account)) {
                 await account.passwordUnlock(password);
-            } else {
-                await account.unlock();
             }
             await uiConnection.send(createMessage({ type: 'done' }, msg.id));
             return true;
