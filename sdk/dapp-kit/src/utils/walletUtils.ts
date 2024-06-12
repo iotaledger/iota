@@ -2,11 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type {
-    MinimallyRequiredFeatures,
-    Wallet,
-    WalletWithFeatures,
-} from '@iota/wallet-standard';
+import type { MinimallyRequiredFeatures, Wallet, WalletWithFeatures } from '@iota/wallet-standard';
 import { getWallets, isWalletWithRequiredFeatureSet } from '@iota/wallet-standard';
 
 export function getRegisteredWallets<AdditionalFeatures extends Wallet['features']>(
