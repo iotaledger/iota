@@ -2,7 +2,6 @@
 	"$schema": "https://turbo.build/schema.json",
 	"pipeline": {
 		"lint": {},
-		"prettier:fix": {},
 		"test": {
 			"dependsOn": ["^build", "build"],
 			"outputs": ["coverage/**"]
