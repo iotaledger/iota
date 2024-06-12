@@ -26,7 +26,10 @@ const networksWithSourceCodeVerification: Network[] = [
 /**
  * Hook that retrieves the source code for verified modules.
  */
-export function useVerifiedSourceCode({ packageId, moduleName }: UseVerifiedSourceCodeArgs) {
+export function useVerifiedSourceCode({
+    packageId,
+    moduleName,
+}: UseVerifiedSourceCodeArgs): ReturnType<typeof useQuery> {
     const { network } = useIotaClientContext();
     const isEnabled = useFeatureIsOn('module-source-verification');
 

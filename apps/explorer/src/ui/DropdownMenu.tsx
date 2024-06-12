@@ -6,7 +6,7 @@ import { Text, Toggle } from '@iota/ui';
 import * as RadixDropdownMenu from '@radix-ui/react-dropdown-menu';
 import { type ReactNode } from 'react';
 
-export type DropdownMenuProps = {
+type DropdownMenuProps = {
     content: ReactNode;
     trigger: ReactNode;
     side?: RadixDropdownMenu.MenuContentProps['side'];
@@ -19,7 +19,7 @@ export function DropdownMenu({
     trigger,
     align,
     ...radixRootProps
-}: DropdownMenuProps) {
+}: DropdownMenuProps): JSX.Element {
     return (
         <RadixDropdownMenu.Root {...radixRootProps}>
             <RadixDropdownMenu.Trigger className="text-steel hover:text-steel-dark data-[state=open]:text-steel-dark">
@@ -38,14 +38,14 @@ export function DropdownMenu({
     );
 }
 
-export type DropdownMenuCheckboxItemProps = Omit<
+type DropdownMenuCheckboxItemProps = Omit<
     RadixDropdownMenu.DropdownMenuCheckboxItemProps,
     'className' | 'checked' | 'asChild'
 > & { checked?: boolean; label: ReactNode };
 export function DropdownMenuCheckboxItem({
     checked = false,
     ...radixRootProps
-}: DropdownMenuCheckboxItemProps) {
+}: DropdownMenuCheckboxItemProps): JSX.Element {
     return (
         <RadixDropdownMenu.CheckboxItem {...radixRootProps} asChild>
             <div className="flex cursor-pointer select-none items-center gap-4 rounded-md p-2 text-steel-dark outline-none transition-colors data-[highlighted]:bg-iota-light/50 data-[highlighted]:text-steel-darker">

@@ -28,7 +28,7 @@ export interface BadgeProps extends VariantProps<typeof badgeStyles> {
     children?: ReactNode;
 }
 
-export function Badge({ variant, children }: BadgeProps) {
+export function Badge({ variant, children }: BadgeProps): JSX.Element {
     return (
         <div className={badgeStyles({ variant })}>
             {variant === 'current' && <div className="h-2 w-2 rounded-full bg-success" />}

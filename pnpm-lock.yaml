@@ -653,15 +653,15 @@ importers:
       '@iota/iota.js':
         specifier: workspace:*
         version: link:../../sdk/typescript
+      '@iota/kiosk':
+        specifier: workspace:*
+        version: link:../../sdk/kiosk
       '@iota/ledgerjs-hw-app-iota':
         specifier: workspace:*
         version: link:../../sdk/ledgerjs-hw-app-iota
       '@iota/wallet-standard':
         specifier: workspace:*
         version: link:../../sdk/wallet-standard
-      '@iota/zklogin':
-        specifier: workspace:*
-        version: link:../../sdk/zklogin
       '@ledgerhq/errors':
         specifier: ^6.12.4
         version: 6.12.4

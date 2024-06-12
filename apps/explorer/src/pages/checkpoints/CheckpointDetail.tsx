@@ -16,7 +16,7 @@ import { EpochLink } from '~/ui/InternalLink';
 import { PageHeader } from '~/ui/PageHeader';
 import { TabHeader, Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
 
-export default function CheckpointDetail() {
+export default function CheckpointDetail(): JSX.Element {
     const { id } = useParams<{ id: string }>();
     const digestOrSequenceNumber = /^\d+$/.test(id!) ? parseInt(id!, 10) : id;
 

@@ -15,11 +15,11 @@ type TypeReference =
     | number;
 
 // Get content inside <> and split by , to get underlying object types
-function getContentInsideBrackets(input: string) {
+function getContentInsideBrackets(input: string): string {
     return input?.slice(input?.indexOf('<') + 1, input?.lastIndexOf('>'));
 }
 
-function splitByCommaExcludingBrackets(input: string) {
+function splitByCommaExcludingBrackets(input: string): string[] {
     const regex = /,(?![^<>]*>)/;
     return input.split(regex).map((part) => part.trim());
 }
@@ -52,7 +52,7 @@ export function extractSerializationType(type: IotaMoveNormalizedType | ''): Typ
     return type;
 }
 
-function getDisplayName(type: IotaMoveNormalizedType | '', objectType: string) {
+function getDisplayName(type: IotaMoveNormalizedType | '', objectType: string): string {
     const normalizedType = extractSerializationType(type);
 
     if (typeof normalizedType === 'string') {
@@ -93,7 +93,15 @@ function getDisplayName(type: IotaMoveNormalizedType | '', objectType: string) {
     return `${name}${typeParam}`;
 }
 
-export function getFieldTypeValue(type: IotaMoveNormalizedType | '', objectType: string) {
+interface FieldTypeValue {
+    displayName: string;
+    normalizedType: string | number;
+}
+
+export function getFieldTypeValue(
+    type: IotaMoveNormalizedType | '',
+    objectType: string,
+): FieldTypeValue {
     const displayName = getDisplayName(type, objectType);
 
     const normalizedType = extractSerializationType(type);
