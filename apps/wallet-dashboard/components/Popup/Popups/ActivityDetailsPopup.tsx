@@ -3,7 +3,7 @@
 
 import React, { PropsWithChildren } from 'react';
 import { Activity } from '@/lib/interfaces';
-import { formatDate, useTransactionSummary } from '@mysten/core';
+import { formatDate, useTransactionSummary } from '@iota/core';
 import { GasSummary, StakeTransactionCard, UnstakeTransactionCard } from '@/components/Transaction';
 
 const STAKING_REQUEST_EVENT = '0x3::validator::StakingRequestEvent';

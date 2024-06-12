@@ -9,8 +9,8 @@ import formatTimestamp from '@/lib/utils/time';
 import { Activity } from '@/lib/interfaces';
 import { usePopups } from '@/hooks';
 import { ActivityDetailsPopup, Button } from '@/components';
-import { useCurrentAccount } from '@mysten/dapp-kit';
-import { useTransactionSummary } from '@mysten/core';
+import { useCurrentAccount } from '@iota/dapp-kit';
+import { useTransactionSummary } from '@iota/core';
 
 interface ActivityTileProps {
     activity: Activity;
