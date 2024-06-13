@@ -16,7 +16,7 @@ function UnstakePopup({ stake, onUnstake }: UnstakePopupProps): JSX.Element {
             <p>{stake.validator}</p>
             <p>Stake: {stake.stake}</p>
             {stake.status === 'Active' && <p>Estimated reward: {stake.estimatedReward}</p>}
-            <Button onClick={() => onUnstake(stake.id)}>Confirm Unstake</Button>
+            <Button onClick={() => onUnstake(stake.stakedIotaId)}>Confirm Unstake</Button>
         </div>
     );
 }
