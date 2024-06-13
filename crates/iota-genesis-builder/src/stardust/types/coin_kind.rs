@@ -30,9 +30,9 @@ pub fn is_gas_coin_kind(object: &Object) -> bool {
     let Some(struct_tag) = object.struct_tag() else {
         return false;
     };
-    struct_tag == AliasOutput::tag()
-        || struct_tag == BasicOutput::type_()
-        || struct_tag == NftOutput::tag()
+    struct_tag == AliasOutput::tag(GAS::type_tag())
+        || struct_tag == BasicOutput::tag(GAS::type_tag())
+        || struct_tag == NftOutput::tag(GAS::type_tag())
         || struct_tag == TimeLock::<Balance>::type_(Balance::type_(GAS::type_tag()).into())
         || object.is_gas_coin()
 }
@@ -44,9 +44,7 @@ pub fn get_gas_balance_maybe(object: &Object) -> Option<Balance> {
     if !is_gas_coin_kind(object) {
         return None;
     }
-    let Some(inner) = object.data.try_as_move() else {
-        return None;
-    };
+    let inner = object.data.try_as_move()?;
     bcs::from_bytes(&inner.contents()[ID_END_INDEX..][..size_of::<Balance>()]).ok()
 }
 
@@ -65,10 +63,10 @@ mod tests {
 
     fn nft_output(balance: u64) -> anyhow::Result<Object> {
         let id = UID::new(ObjectID::random());
-        let iota = Balance::new(balance);
+        let balance = Balance::new(balance);
         let output = NftOutput {
             id,
-            iota,
+            balance,
             native_tokens: Default::default(),
             storage_deposit_return: Default::default(),
             timelock: Default::default(),
@@ -79,6 +77,7 @@ mod tests {
             &ProtocolConfig::get_for_min_version(),
             &TxContext::random_for_testing_only(),
             1.into(),
+            GAS::type_tag(),
         )
     }
 
@@ -98,10 +97,10 @@ mod tests {
 
     fn alias_output(balance: u64) -> anyhow::Result<Object> {
         let id = UID::new(ObjectID::random());
-        let iota = Balance::new(balance);
+        let balance = Balance::new(balance);
         let output = AliasOutput {
             id,
-            iota,
+            balance,
             native_tokens: Default::default(),
         };
         output.to_genesis_object(
@@ -109,6 +108,7 @@ mod tests {
             &ProtocolConfig::get_for_min_version(),
             &TxContext::random_for_testing_only(),
             1.into(),
+            GAS::type_tag(),
         )
     }
 
@@ -128,10 +128,10 @@ mod tests {
 
     fn basic_output(balance: u64) -> anyhow::Result<Object> {
         let id = UID::new(ObjectID::random());
-        let iota = Balance::new(balance);
+        let balance = Balance::new(balance);
         let output = BasicOutput {
             id,
-            iota,
+            balance,
             native_tokens: Default::default(),
             storage_deposit_return: Default::default(),
             timelock: Default::default(),
@@ -145,6 +145,7 @@ mod tests {
             &ProtocolConfig::get_for_min_version(),
             &TxContext::random_for_testing_only(),
             1.into(),
+            GAS::type_tag(),
         )
     }
 

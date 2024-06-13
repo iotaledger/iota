@@ -6,4 +6,4 @@ version = "0.0.1"
 Iota = { local = "../../../../../../crates/iota-framework/packages/iota-framework" }
 
 [addresses]
-dynamic_fields =  "0x0"
+dynamic_fields = "0x0"

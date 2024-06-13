@@ -2,9 +2,9 @@
 name = "iota-core"
 version = "0.1.0"
 authors = ["Mysten Labs <build@mystenlabs.com>"]
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
 
 [dependencies]
 anyhow = { workspace = true, features = ["backtrace"] }
@@ -13,8 +13,8 @@ async-trait.workspace = true
 bcs.workspace = true
 bytes.workspace = true
 chrono.workspace = true
-consensus-core.workspace = true
 consensus-config.workspace = true
+consensus-core.workspace = true
 dashmap.workspace = true
 diffy = { version = "0.3", default-features = false }
 either.workspace = true
@@ -61,9 +61,25 @@ move-symbol-pool.workspace = true
 mysten-common.workspace = true
 mysten-network.workspace = true
 telemetry-subscribers.workspace = true
-typed-store-derive.workspace = true
 typed-store.workspace = true
+typed-store-derive.workspace = true
 
+iota-archival.workspace = true
+iota-authority-aggregation.workspace = true
+iota-config.workspace = true
+iota-execution = { path = "../../iota-execution" }
+iota-framework.workspace = true
+iota-genesis-builder.workspace = true
+iota-json-rpc-types.workspace = true
+iota-macros.workspace = true
+iota-move-build.workspace = true
+iota-network.workspace = true
+iota-protocol-config.workspace = true
+iota-simulator.workspace = true
+iota-storage.workspace = true
+iota-swarm-config.workspace = true
+iota-transaction-checks.workspace = true
+iota-types.workspace = true
 mysten-metrics.workspace = true
 narwhal-config.workspace = true
 narwhal-crypto.workspace = true
@@ -74,22 +90,6 @@ narwhal-test-utils.workspace = true
 narwhal-types.workspace = true
 narwhal-worker.workspace = true
 shared-crypto.workspace = true
-iota-archival.workspace = true
-iota-config.workspace = true
-iota-authority-aggregation.workspace = true
-iota-execution = { path = "../../iota-execution" }
-iota-framework.workspace = true
-iota-swarm-config.workspace = true
-iota-genesis-builder.workspace = true
-iota-json-rpc-types.workspace = true
-iota-macros.workspace = true
-iota-move-build.workspace = true
-iota-network.workspace = true
-iota-protocol-config.workspace = true
-iota-transaction-checks.workspace = true
-iota-simulator.workspace = true
-iota-storage.workspace = true
-iota-types.workspace = true
 zeroize.workspace = true
 
 [dev-dependencies]
@@ -98,13 +98,13 @@ criterion.workspace = true
 expect-test.workspace = true
 fs_extra.workspace = true
 more-asserts.workspace = true
+num-bigint = "0.4.4"
 pretty_assertions.workspace = true
 serde-reflection.workspace = true
 serde_yaml.workspace = true
-num-bigint = "0.4.4"
 
-test-cluster.workspace = true
 move-symbol-pool.workspace = true
+test-cluster.workspace = true
 
 iota-test-transaction-builder.workspace = true
 iota-types = { workspace = true, features = ["test-utils"] }
@@ -118,10 +118,7 @@ iota-protocol-config.workspace = true
 
 # moka uses `quanta` by default for timing, which is not compatible with the simulator
 [target.'cfg(msim)'.dependencies]
-moka = { workspace = true, default-features = false, features = [
-    "sync",
-    "atomic64",
-] }
+moka = { workspace = true, default-features = false, features = ["sync", "atomic64"] }
 [target.'cfg(not(msim))'.dependencies]
 moka = { workspace = true, features = ["sync"] }
 
