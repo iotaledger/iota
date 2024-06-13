@@ -253,7 +253,8 @@ pub struct Nft {
 }
 
 impl Nft {
-    /// Returns the struct tag of the NftOutput struct
+    /// Returns the struct tag that represents the fully qualified path of an
+    /// [`Nft`] in its move package.
     pub fn tag() -> StructTag {
         StructTag {
             address: STARDUST_PACKAGE_ID.into(),
@@ -398,6 +399,8 @@ pub struct NftOutput {
 }
 
 impl NftOutput {
+    /// Returns the struct tag that represents the fully qualified path of an
+    /// [`NftOutput`] in its move package.
     pub fn tag(type_param: TypeTag) -> StructTag {
         StructTag {
             address: STARDUST_PACKAGE_ID.into(),
