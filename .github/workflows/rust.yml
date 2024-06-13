@@ -41,7 +41,7 @@ env:
 
 jobs:
   changes:
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     outputs:
       components: ${{ steps.filter.outputs.changes }}
     steps:
@@ -71,7 +71,7 @@ jobs:
         run: cargo nextest run --profile ci -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
 
   diff:
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     outputs:
       isRust: ${{ steps.diff.outputs.isRust }}
       isMove: ${{ steps.diff.outputs.isMove }}
@@ -84,7 +84,7 @@ jobs:
 
   license-check:
     name: license-check
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
       - uses: bmwill/rust-cache@v1 # Fork of 'Swatinem/rust-cache' which allows caching additional paths
@@ -99,7 +99,7 @@ jobs:
     name: release-notes-check
     needs: diff
     if: needs.diff.outputs.isReleaseNotesEligible == 'true'
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
       - name: Check Pull Request Description
@@ -291,7 +291,7 @@ jobs:
   rustfmt:
     needs: diff
     if: needs.diff.outputs.isRust == 'true'
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
       - name: Install latest nightly
@@ -300,7 +300,7 @@ jobs:
         run: cargo +nightly fmt --check
 
   dprint-format:
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     steps:
       - name: Install dprint
         run: npm install -g dprint
@@ -311,7 +311,7 @@ jobs:
     name: cargo-deny (advisories, licenses, bans, ...)
     needs: diff
     if: needs.diff.outputs.isRust == 'true'
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
       - uses: mystenlabs/cargo-deny-action@main
