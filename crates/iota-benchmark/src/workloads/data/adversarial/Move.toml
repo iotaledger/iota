@@ -6,5 +6,5 @@ version = "0.0.1"
 Iota = { local = "../../../../../iota-framework/packages/iota-framework" }
 
 [addresses]
-adversarial =  "0x0"
-iota =  "0000000000000000000000000000000000000000000000000000000000000002"
+adversarial = "0x0"
+iota = "0000000000000000000000000000000000000000000000000000000000000002"

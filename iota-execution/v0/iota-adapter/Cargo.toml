@@ -2,18 +2,18 @@
 name = "iota-adapter-v0"
 version = "0.1.0"
 authors = ["Mysten Labs <eng@mystenlabs.com>"]
-description = "Adapter and accompanying CLI for local iota development"
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
+description = "Adapter and accompanying CLI for local iota development"
 
 [dependencies]
 anyhow = { workspace = true, features = ["backtrace"] }
 bcs.workspace = true
 leb128.workspace = true
 once_cell.workspace = true
-tracing.workspace = true
 serde.workspace = true
+tracing.workspace = true
 
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
@@ -22,10 +22,10 @@ move-vm-config.workspace = true
 move-vm-profiler.workspace = true
 move-vm-types.workspace = true
 
-move-bytecode-verifier = { path = "../../../external-crates/move/move-execution/v0/move-bytecode-verifier", package = "move-bytecode-verifier-v0" }
-move-vm-runtime = { path = "../../../external-crates/move/move-execution/v0/move-vm/runtime", package = "move-vm-runtime-v0" }
 iota-move-natives = { path = "../iota-move-natives", package = "iota-move-natives-v0" }
 iota-verifier = { path = "../iota-verifier", package = "iota-verifier-v0" }
+move-bytecode-verifier = { path = "../../../external-crates/move/move-execution/v0/move-bytecode-verifier", package = "move-bytecode-verifier-v0" }
+move-vm-runtime = { path = "../../../external-crates/move/move-execution/v0/move-vm/runtime", package = "move-vm-runtime-v0" }
 
 iota-macros.workspace = true
 iota-protocol-config.workspace = true
@@ -37,9 +37,9 @@ move-package.workspace = true
 
 [features]
 gas-profiler = [
-    "iota-types/gas-profiler",
-    "move-vm-runtime/gas-profiler",
-    "move-vm-profiler/gas-profiler",
-    "move-vm-types/gas-profiler",
-    "move-vm-config/gas-profiler",
+  "iota-types/gas-profiler",
+  "move-vm-runtime/gas-profiler",
+  "move-vm-profiler/gas-profiler",
+  "move-vm-types/gas-profiler",
+  "move-vm-config/gas-profiler",
 ]

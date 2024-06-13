@@ -18,17 +18,17 @@ const PRIVATE_KEY_SIZE = 32;
 const TEST_CASES = [
     [
         'film crazy soon outside stand loop subway crumble thrive popular green nuclear struggle pistol arm wife phrase warfare march wheat nephew ask sunny firm',
-        'iotaprivkey1qrqqxhsu3ndp96644fjk4z5ams5ulgmvprklngt2jhvg2ujn5w4q23vm2y8',
+        'iotaprivkey1qrqqxhsu3ndp96644fjk4z5ams5ulgmvprklngt2jhvg2ujn5w4q2d2vplv',
         '0x9f8e5379678525edf768d7b507dc1ba9016fc4f0eac976ab7f74077d95fba312',
     ],
     [
         'require decline left thought grid priority false tiny gasp angle royal system attack beef setup reward aunt skill wasp tray vital bounce inflict level',
-        'iotaprivkey1qqcxaf57fnenvflpacacaumf6vl0rt0edddhytanvzhkqhwnjk0zsawjy3x',
+        'iotaprivkey1qqcxaf57fnenvflpacacaumf6vl0rt0edddhytanvzhkqhwnjk0zspg902d',
         '0x862738192e40540e0a5c9a5aca636f53b0cd76b0a9bef3386e05647feb4914ac',
     ],
     [
         'organ crash swim stick traffic remember army arctic mesh slice swear summer police vast chaos cradle squirrel hood useless evidence pet hub soap lake',
-        'iotaprivkey1qzq39vxzm0gq7l8dc5dj5allpuww4mavhwhg8mua4cl3lj2c3fvhcsjgphc',
+        'iotaprivkey1qzq39vxzm0gq7l8dc5dj5allpuww4mavhwhg8mua4cl3lj2c3fvhcv5l2vn',
         '0x2391788ca49c7f0f00699bc2bad45f80c343b4d1df024285c132259433d7ff31',
     ],
 ];

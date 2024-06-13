@@ -60,7 +60,7 @@ of `A` (the Alias ID) in a PTB. The migrated alias `A` can then _receive_ `B` us
 
 ## Basic Outputs
 
-Every Basic Output has an `Address Unlock` and an `IOTA` balance (`u64`). Depending on what other fields it has,
+Every Basic Output has an `Address Unlock` and some `coin` balance (`u64`). Depending on what other fields it has,
 different objects are created. The most common case is that any output without special unlock conditions (or an expired
 `Timelock`) are migrated to a `Coin<IOTA>` object which can be directly used as a gas object.
 
@@ -73,7 +73,7 @@ migration. They are migrated to `Timelock<IOTA>` and contain the label
 `00000000000000000000000000000000000000000000000000000000000010cf::stardust_upgrade_label::STARDUST_UPGRADE_LABEL` by
 which they can be identified as vesting reward objects.
 
-The full decision graph (without the vesting reward output case) is depicted here:
+The full decision graph (without the vesting reward output case) is depicted here (with `coin` being `IOTA`):
 
 [Decision graph on what to do with a basic output during migration](./basic_migration_graph.svg)
 
