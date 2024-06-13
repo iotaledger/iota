@@ -11,7 +11,7 @@ import {
     isValidIotaObjectId,
     normalizeIotaObjectId,
 } from '@iota/iota.js/utils';
-import { useQuery } from '@tanstack/react-query';
+import { type UseQueryResult, useQuery } from '@tanstack/react-query';
 
 const isGenesisLibAddress = (value: string): boolean => /^(0x|0X)0{0,39}[12]$/.test(value);
 
@@ -137,12 +137,12 @@ const getResultsForValidatorByPoolIdOrIotaAddress = async (
     ];
 };
 
-export function useSearch(query: string): ReturnType<typeof useQuery> {
+export function useSearch(query: string): UseQueryResult<Results, Error> {
     const client = useIotaClient();
     const { data: systemStateSummery } = useIotaClientQuery('getLatestIotaSystemState');
     const iotaNSEnabled = useIotaNSEnabled();
 
-    return useQuery({
+    return useQuery<Results, Error>({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
         queryKey: ['search', query],
         queryFn: async () => {
