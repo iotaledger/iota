@@ -3,4 +3,5 @@
 
 export * from './useBalance';
 export * from './useDelegatedStake';
+export * from './useUnstakeTransaction';
 export * from './usePopups';

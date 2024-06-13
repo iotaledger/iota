@@ -5,7 +5,7 @@
 import { Card } from '_app/shared/card';
 import { Text } from '_app/shared/text';
 import { CountDownTimer } from '_src/ui/app/shared/countdown-timer';
-import { useFormatCoin, useGetTimeBeforeEpochNumber } from '@iota/core';
+import { createUnstakeTransaction, useFormatCoin, useGetTimeBeforeEpochNumber } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import { Form } from 'formik';
 import { useMemo } from 'react';
@@ -13,7 +13,6 @@ import { useMemo } from 'react';
 import { useActiveAddress, useTransactionGasBudget } from '../../hooks';
 import { GAS_SYMBOL } from '../../redux/slices/iota-objects/Coin';
 import { Heading } from '../../shared/heading';
-import { createUnstakeTransaction } from './utils/transaction';
 
 export type StakeFromProps = {
     stakedIotaId: string;

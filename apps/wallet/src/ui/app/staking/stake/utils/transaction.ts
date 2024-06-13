@@ -22,12 +22,3 @@ export function createStakeTransaction(amount: bigint, validator: string) {
     });
     return tx;
 }
-
-export function createUnstakeTransaction(stakedIotaId: string) {
-    const tx = new TransactionBlock();
-    tx.moveCall({
-        target: '0x3::iota_system::request_withdraw_stake',
-        arguments: [tx.object(IOTA_SYSTEM_STATE_OBJECT_ID), tx.object(stakedIotaId)],
-    });
-    return tx;
-}

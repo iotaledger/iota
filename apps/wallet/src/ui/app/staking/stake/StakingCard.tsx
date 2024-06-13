@@ -18,7 +18,7 @@ import {
 } from '_src/shared/constants';
 import { FEATURES } from '_src/shared/experimentation/features';
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
-import { useCoinMetadata, useGetDelegatedStake } from '@iota/core';
+import { useCoinMetadata, useGetDelegatedStake, createUnstakeTransaction } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { ArrowLeft16 } from '@iota/icons';
 import type { StakeObject } from '@iota/iota.js/client';
@@ -39,7 +39,7 @@ import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
 import { getStakeIotaByIotaId } from '../getStakeIotaByIotaId';
 import StakeForm from './StakeForm';
 import { UnStakeForm } from './UnstakeForm';
-import { createStakeTransaction, createUnstakeTransaction } from './utils/transaction';
+import { createStakeTransaction } from './utils/transaction';
 import { createValidationSchema } from './utils/validation';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 

@@ -12,14 +12,10 @@ interface StakeDetailsPopupProps {
 }
 
 function StakeDetailsPopup({ stake }: StakeDetailsPopupProps): JSX.Element {
-    const { openPopup } = usePopups();
-
-    const unstake = (id: string) => {
-        console.log(`Unstake initiated for id: ${id}`);
-    };
+    const { openPopup, closePopup } = usePopups();
 
     const openUnstakePopup = () => {
-        openPopup(<UnstakePopup stake={stake} onUnstake={unstake} />);
+        openPopup(<UnstakePopup stake={stake} closePopup={closePopup} />);
     };
 
     return (

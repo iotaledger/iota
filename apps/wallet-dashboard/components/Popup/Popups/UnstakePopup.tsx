@@ -4,19 +4,31 @@
 import React from 'react';
 import { Button } from '@/components';
 import { Stake } from '@/lib/types';
+import { useUnstakeTransaction } from '@/hooks';
 
 interface UnstakePopupProps {
     stake: Stake;
-    onUnstake: (id: string) => void;
+    closePopup: () => void;
 }
 
-function UnstakePopup({ stake, onUnstake }: UnstakePopupProps): JSX.Element {
+function UnstakePopup({ stake, closePopup }: UnstakePopupProps): JSX.Element {
+    const { unstake, gasBudget, isPending } = useUnstakeTransaction(stake.id);
+
+    const handleUnstake = (): void => {
+        unstake(closePopup);
+    };
+
     return (
         <div className="flex min-w-[300px] flex-col gap-2">
             <p>{stake.validator}</p>
             <p>Stake: {stake.stake}</p>
             {stake.status === 'Active' && <p>Estimated reward: {stake.estimatedReward}</p>}
-            <Button onClick={() => onUnstake(stake.id)}>Confirm Unstake</Button>
+            <p>Gas Fees: {gasBudget}</p>
+            {isPending ? (
+                <Button disabled>Loading...</Button>
+            ) : (
+                <Button onClick={handleUnstake}>Confirm Unstake</Button>
+            )}
         </div>
     );
 }
