@@ -244,7 +244,6 @@ fn basic_migration_with_native_tokens() {
     let native_tokens = basic_output.native_tokens().clone();
     outputs.push((basic_header, basic_output.into()));
 
-    // this will fail at the moment when we try to destroy the bag, because it contains more than one
     extract_native_tokens_from_bag(
         basic_output_id,
         outputs,

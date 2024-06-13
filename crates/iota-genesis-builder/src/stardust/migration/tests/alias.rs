@@ -5,15 +5,15 @@ use std::str::FromStr;
 
 use iota_sdk::{
     types::block::{
-        address::{Address, Ed25519Address},
+        address::{Address, AliasAddress, Ed25519Address},
         output::{
             feature::{Irc30Metadata, IssuerFeature, MetadataFeature, SenderFeature},
             unlock_condition::{
-                AddressUnlockCondition, GovernorAddressUnlockCondition,
-                StateControllerAddressUnlockCondition,
+                AddressUnlockCondition, GovernorAddressUnlockCondition, ImmutableAliasAddressUnlockCondition, StateControllerAddressUnlockCondition
             },
-            AliasId, AliasOutput as StardustAlias, AliasOutputBuilder, Feature, NativeToken, NftId,
-            NftOutputBuilder, SimpleTokenScheme,
+            AliasId, AliasOutput as StardustAlias, AliasOutputBuilder, Feature,
+            FoundryOutputBuilder, NativeToken, NftId, NftOutputBuilder, SimpleTokenScheme,
+            TokenScheme,
         },
     },
     U256,
@@ -264,33 +264,41 @@ fn alias_migration_with_nft_owner() {
 #[test]
 fn alias_migration_with_native_tokens() {
     let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
-    let (foundry_header, foundry_output) = create_foundry(
-        0,
-        SimpleTokenScheme::new(U256::from(100_000), U256::from(0), U256::from(100_000_000))
-            .unwrap(),
-        Irc30Metadata::new("Rustcoin\u{245}", "Rust''\n\tCöin", 0)
-            .with_description("The description of Rustcöin.\n Nice!"),
-        AliasId::null(),
-    )
-    .unwrap();
-    let native_token = NativeToken::new(foundry_output.id().into(), 100).unwrap();
-
     let alias_header = random_output_header();
-    let alias_output = AliasOutputBuilder::new_with_amount(1_000_000, AliasId::new(rand::random()))
-        .add_unlock_condition(StateControllerAddressUnlockCondition::new(random_address))
-        .add_unlock_condition(GovernorAddressUnlockCondition::new(random_address))
-        .add_native_token(native_token)
-        .finish()
-        .unwrap();
+    let alias_output_id = alias_header.output_id();
 
+    let mut outputs = Vec::new();
+    let mut alias_builder =
+        AliasOutputBuilder::new_with_amount(1_000_000, AliasId::new(rand::random()))
+            .add_unlock_condition(StateControllerAddressUnlockCondition::new(random_address))
+            .add_unlock_condition(GovernorAddressUnlockCondition::new(random_address));
+
+    for i in 1..=10 {
+        let foundry_header = random_output_header();
+        let token_scheme = SimpleTokenScheme::new(100_000, 0, 100_000_000).unwrap();
+        let irc_30_metadata = Irc30Metadata::new(format!("Rustcoin{i}"), format!("Rust{i}"), 0);
+        let foundry_output =
+            FoundryOutputBuilder::new_with_amount(0, i, TokenScheme::Simple(token_scheme))
+                .add_unlock_condition(ImmutableAliasAddressUnlockCondition::new(
+                    AliasAddress::new(AliasId::null()),
+                ))
+                .add_immutable_feature(Feature::Metadata(
+                    MetadataFeature::new(irc_30_metadata).unwrap(),
+                ))
+                .finish()
+                .unwrap();
+        let native_token = NativeToken::new(foundry_output.id().into(), 100).unwrap();
+        alias_builder = alias_builder.add_native_token(native_token);
+        outputs.push((foundry_header, foundry_output.into()));
+    }
+
+    let alias_output = alias_builder.finish().unwrap();
     let native_tokens = alias_output.native_tokens().clone();
+    outputs.push((alias_header, alias_output.into()));
 
     extract_native_tokens_from_bag(
-        alias_header.output_id(),
-        [
-            (alias_header.clone(), alias_output.into()),
-            (foundry_header, foundry_output.into()),
-        ],
+        alias_output_id,
+        outputs,
         ALIAS_OUTPUT_MODULE_NAME,
         native_tokens,
         ExpectedAssets::BalanceBagObject,
