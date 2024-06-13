@@ -7,6 +7,7 @@ type BaseStakeType = {
     stake: string;
     stakeActiveEpoch: string;
     stakeRequestEpoch: string;
+    stakedIotaId: string;
 };
 
 type PendingStakeType = BaseStakeType & {
