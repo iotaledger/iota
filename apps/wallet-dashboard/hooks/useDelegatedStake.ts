@@ -28,6 +28,7 @@ export function useDelegatedStake() {
                 stakeActiveEpoch: stake.stakeActiveEpoch,
                 stakeRequestEpoch: stake.stakeRequestEpoch,
                 status: stake.status,
+                stakedIotaId: stake.stakedIotaId,
             } as Stake;
         });
     });

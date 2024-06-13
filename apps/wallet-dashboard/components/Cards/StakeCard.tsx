@@ -12,7 +12,7 @@ interface StakeCardProps {
 
 function StakeCard({ stake, onDetailsClick }: StakeCardProps): JSX.Element {
     return (
-        <Box key={stake.id}>
+        <Box>
             <div>Validator: {stake.validator}</div>
             <div>Stake: {stake.stake}</div>
             {stake.status === 'Active' && <p>Estimated reward: {stake.estimatedReward}</p>}

@@ -27,7 +27,11 @@ function StakingDashboardPage(): JSX.Element {
                 <div className="flex flex-col items-center gap-4">
                     <h1>List of stakes</h1>
                     {delegatedStake?.map((stake) => (
-                        <StakeCard key={stake.id} stake={stake} onDetailsClick={viewStakeDetails} />
+                        <StakeCard
+                            key={stake.stakedIotaId}
+                            stake={stake}
+                            onDetailsClick={viewStakeDetails}
+                        />
                     ))}
                 </div>
             </Box>
