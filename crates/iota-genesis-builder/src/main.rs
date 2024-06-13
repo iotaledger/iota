@@ -10,6 +10,7 @@ use iota_genesis_builder::stardust::{
     migration::{Migration, MigrationTargetNetwork},
     parse::FullSnapshotParser,
 };
+use iota_sdk::types::block::{payload::milestone::MilestoneOption, protocol::ProtocolParameters};
 use itertools::Itertools;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
@@ -48,8 +49,21 @@ fn main() -> anyhow::Result<()> {
     let stardust_snapshot_file = File::open(stardust_snapshot_path)?;
     let parser = FullSnapshotParser::new(stardust_snapshot_file)?;
 
+    let MilestoneOption::Parameters(parameters) = parser.header.parameters_milestone_option()
+    else {
+        anyhow::bail!(
+            "a snapshot with a milestone parameters option is needed to verify the total supply of the migration"
+        );
+    };
+    let protocol_parameters: ProtocolParameters =
+        iota_sdk::packable::PackableExt::unpack_unverified(parameters.binary_parameters())?;
+
     // Prepare the migration using the parser output stream
-    let migration = Migration::new(parser.header.target_milestone_timestamp(), target_network)?;
+    let migration = Migration::new(
+        parser.header.target_milestone_timestamp(),
+        protocol_parameters.token_supply(),
+        target_network,
+    )?;
 
     // Prepare the compressor writer for the objects snapshot
     let object_snapshot_writer = brotli::CompressorWriter::new(
