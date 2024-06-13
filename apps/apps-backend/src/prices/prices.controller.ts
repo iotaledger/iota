@@ -4,7 +4,7 @@
 import { Controller, Get, Inject, Param } from '@nestjs/common';
 import { Cache, CACHE_MANAGER } from '@nestjs/cache-manager';
 import { CoinGeckoService } from '../coingecko/coingecko.service';
-import { tokenPriceKey } from '../cache/cache.constants';
+import { TOKEN_PRICE_COINS, tokenPriceKey } from '../constants';
 
 const ONE_HOUR_IN_MS = 1000 * 60 * 60;
 
@@ -18,9 +18,8 @@ export class PricesController {
     @Get('cetus/:coin')
     async getTokenPrice(@Param('coin') coin: string) {
         coin = coin.toLowerCase();
-        const allowedCoins = ['iota'];
 
-        if (!allowedCoins.includes(coin)) {
+        if (!TOKEN_PRICE_COINS.includes(coin)) {
             throw new Error('Invalid coin');
         }
 
