@@ -14,7 +14,7 @@ use iota_types::{
     collection_types::Bag,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
-    STARDUST_PACKAGE_ID,
+    TypeTag, STARDUST_PACKAGE_ID,
 };
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use schemars::JsonSchema;
@@ -115,8 +115,8 @@ pub struct BasicOutput {
     /// Hash of the `OutputId` that was migrated.
     pub id: UID,
 
-    /// The amount of IOTA coins held by the output.
-    pub iota: Balance,
+    /// The amount of coins held by the output.
+    pub balance: Balance,
 
     /// The `Bag` holds native tokens, key-ed by the stringified type of the
     /// asset. Example: key: "0xabcded::soon::SOON", value:
@@ -149,7 +149,7 @@ impl BasicOutput {
         output: &iota_sdk::types::block::output::BasicOutput,
     ) -> Result<Self> {
         let id = UID::new(ObjectID::new(header.output_id().hash()));
-        let iota = Balance::new(output.amount());
+        let balance = Balance::new(output.amount());
         let native_tokens = Default::default();
         let unlock_conditions = output.unlock_conditions();
         let storage_deposit_return = unlock_conditions
@@ -165,7 +165,7 @@ impl BasicOutput {
 
         Ok(BasicOutput {
             id,
-            iota,
+            balance,
             native_tokens,
             storage_deposit_return,
             timelock,
@@ -176,12 +176,13 @@ impl BasicOutput {
         })
     }
 
-    pub fn type_() -> StructTag {
+    /// Returns the struct tag of the BasicOutput struct
+    pub fn tag(type_param: TypeTag) -> StructTag {
         StructTag {
             address: STARDUST_PACKAGE_ID.into(),
             module: BASIC_OUTPUT_MODULE_NAME.to_owned(),
             name: BASIC_OUTPUT_STRUCT_NAME.to_owned(),
-            type_params: Vec::new(),
+            type_params: vec![type_param],
         }
     }
 
@@ -198,12 +199,13 @@ impl BasicOutput {
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
         version: SequenceNumber,
+        type_param: TypeTag,
     ) -> Result<Object> {
         let move_object = unsafe {
             // Safety: we know from the definition of `BasicOutput` in the stardust package
             // that it is not publicly transferable (`store` ability is absent).
             MoveObject::new_from_execution(
-                Self::type_().into(),
+                BasicOutput::tag(type_param).into(),
                 false,
                 version,
                 bcs::to_bytes(self)?,
@@ -235,7 +237,7 @@ impl BasicOutput {
         create_gas_coin(
             self.id,
             owner,
-            self.iota.value(),
+            self.balance.value(),
             tx_context,
             version,
             protocol_config,
