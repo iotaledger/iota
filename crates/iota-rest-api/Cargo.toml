@@ -6,10 +6,10 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
-mime = "0.3.17"
 anyhow.workspace = true
 axum.workspace = true
 bcs.workspace = true
+mime = "0.3.17"
 rand.workspace = true
 reqwest.workspace = true
 serde.workspace = true

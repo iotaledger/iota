@@ -2,7 +2,8 @@
 
 ## Migrating Basic Outputs
 
-Every Basic Output has an `Address Unlock` and an `IOTA` balance (u64). Depending on what other fields we have, we will create different objects.
+Every Basic Output has an `Address Unlock` and some `coin` balance (u64). Depending on what other fields we have, we will create different objects.
+For an instance `coin` is `IOTA` here:
 
 [Decision graph on what to do with a basic output during migration](./basic_migration_graph.svg)
 
