@@ -20,7 +20,8 @@ pub struct GenesisSnapshotParser<R: Read> {
 impl<R: Read> GenesisSnapshotParser<R> {
     pub fn new(reader: R) -> Result<Self> {
         let mut reader = IoUnpacker::new(std::io::BufReader::new(reader));
-        // Unpacking will fail for non-genesis full snapshots (milestone_diff_count != 0)
+        // Unpacking will fail for non-genesis full snapshots (milestone_diff_count !=
+        // 0)
         let header = FullSnapshotHeader::unpack::<_, true>(&mut reader, &())?;
 
         Ok(Self { reader, header })
