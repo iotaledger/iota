@@ -2,5 +2,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export * from './useBalance';
-export * from './useStakingData';
+export * from './useDelegatedStake';
 export * from './usePopups';

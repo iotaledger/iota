@@ -4,12 +4,12 @@
 'use client';
 
 import { AmountBox, Box, StakeCard, NewStakePopup, StakeDetailsPopup, Button } from '@/components';
-import { usePopups, useStakingData } from '@/hooks';
+import { usePopups, useDelegatedStake } from '@/hooks';
 import { Stake } from '@/lib/types';
 
 function StakingDashboardPage(): JSX.Element {
     const { openPopup, closePopup } = usePopups();
-    const { totalStakeConverted, totalRewardsConverted, stakingData } = useStakingData();
+    const { totalStake, totalRewards, delegatedStakeData } = useDelegatedStake();
 
     const viewStakeDetails = (stake: Stake) => {
         openPopup(<StakeDetailsPopup stake={stake} />);
@@ -21,12 +21,12 @@ function StakingDashboardPage(): JSX.Element {
 
     return (
         <div className="flex flex-col items-center justify-center gap-4 pt-12">
-            <AmountBox title="Currently staked" amount={`${totalStakeConverted}`} />
-            <AmountBox title="Earned" amount={`${totalRewardsConverted}`} />
+            <AmountBox title="Currently staked" amount={`${totalStake}`} />
+            <AmountBox title="Earned" amount={`${totalRewards}`} />
             <Box title="Stakes">
                 <div className="flex flex-col items-center gap-4">
                     <h1>List of stakes</h1>
-                    {stakingData?.map((stake) => (
+                    {delegatedStakeData?.map((stake) => (
                         <StakeCard key={stake.id} stake={stake} onDetailsClick={viewStakeDetails} />
                     ))}
                 </div>
