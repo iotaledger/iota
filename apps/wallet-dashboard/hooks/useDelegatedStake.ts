@@ -21,7 +21,6 @@ export function useDelegatedStake() {
                 totalRewards += BigInt(stake.estimatedReward);
             }
             return {
-                id: `${delegatedStake.validatorAddress}-${stake.stakeActiveEpoch}`,
                 validator: delegatedStake.validatorAddress,
                 stake: `${stake.principal}`,
                 estimatedReward: stake.status === 'Active' ? `${stake.estimatedReward}` : undefined,
