@@ -21,7 +21,7 @@ describe('Transaction Serialization and deserialization', () => {
         toolbox = await setup();
         const packagePath = __dirname + '/./data/serializer';
         ({ packageId, publishTxn } = await publishPackage(packagePath));
-        const sharedObject = (publishTxn.effects?.created)!.filter(
+        const sharedObject = publishTxn.effects?.created!.filter(
             (o) =>
                 typeof o.owner === 'object' &&
                 'Shared' in o.owner &&

@@ -36,7 +36,7 @@ describe('Transaction Builders', () => {
     beforeAll(async () => {
         const packagePath = __dirname + '/./data/serializer';
         ({ packageId, publishTxn } = await publishPackage(packagePath));
-        const sharedObject = (publishTxn.effects?.created)!.filter(
+        const sharedObject = publishTxn.effects?.created!.filter(
             (o) =>
                 typeof o.owner === 'object' &&
                 'Shared' in o.owner &&
@@ -184,7 +184,7 @@ describe('Transaction Builders', () => {
 
             expect(capId).toBeTruthy();
 
-            const sharedObjectId = (publishTxn.effects?.created)!.filter(
+            const sharedObjectId = publishTxn.effects?.created!.filter(
                 (o) =>
                     typeof o.owner === 'object' &&
                     'Shared' in o.owner &&
