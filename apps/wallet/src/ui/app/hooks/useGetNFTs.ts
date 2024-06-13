@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { hasDisplayData, useGetOwnedObjects } from '@iota/core';
+import { hasDisplayData, isKioskOwnerToken, useGetOwnedObjects, useKioskClient } from '@iota/core';
 import { type IotaObjectData } from '@iota/iota.js/client';
 import { useMemo } from 'react';
 
@@ -21,6 +21,7 @@ export enum AssetFilterTypes {
 }
 
 export function useGetNFTs(address?: string | null) {
+    const kioskClient = useKioskClient();
     const { asset, objectType } = useBuyNLargeAsset();
     const {
         data,
@@ -55,7 +56,8 @@ export function useGetNFTs(address?: string | null) {
                 (asset) => asset.data?.objectId && !hiddenAssetIds.includes(asset.data?.objectId),
             )
             .reduce((acc, curr) => {
-                if (hasDisplayData(curr)) acc.visual.push(curr.data as IotaObjectData);
+                if (hasDisplayData(curr) || isKioskOwnerToken(kioskClient.network, curr))
+                    acc.visual.push(curr.data as IotaObjectData);
                 if (!hasDisplayData(curr)) acc.other.push(curr.data as IotaObjectData);
                 if (curr.data?.objectId && hiddenAssetIds.includes(curr.data?.objectId))
                     acc.hidden.push(curr.data as IotaObjectData);
@@ -67,7 +69,7 @@ export function useGetNFTs(address?: string | null) {
         }
 
         return groupedAssets;
-    }, [hiddenAssetIds, data?.pages, asset]);
+    }, [hiddenAssetIds, data?.pages, kioskClient.network, asset]);
 
     return {
         data: assets,

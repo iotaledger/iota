@@ -4,7 +4,7 @@
 
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
 import { useIotaClientContext } from '@iota/dapp-kit';
-import { useQuery } from '@tanstack/react-query';
+import { type UseQueryResult, useQuery } from '@tanstack/react-query';
 import { Network } from '~/utils/api/DefaultRpcClient';
 
 type UseVerifiedSourceCodeArgs = {
@@ -26,11 +26,14 @@ const networksWithSourceCodeVerification: Network[] = [
 /**
  * Hook that retrieves the source code for verified modules.
  */
-export function useVerifiedSourceCode({ packageId, moduleName }: UseVerifiedSourceCodeArgs) {
+export function useVerifiedSourceCode({
+    packageId,
+    moduleName,
+}: UseVerifiedSourceCodeArgs): UseQueryResult<string | null, Error> {
     const { network } = useIotaClientContext();
     const isEnabled = useFeatureIsOn('module-source-verification');
 
-    return useQuery({
+    return useQuery<string | null, Error>({
         queryKey: ['verified-source-code', packageId, moduleName, network],
         queryFn: async () => {
             const response = await fetch(

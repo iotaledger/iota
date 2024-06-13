@@ -25,7 +25,7 @@ const NETWORKS = [
 ];
 
 export const Default: StoryObj<NetworkSelectProps> = {
-    render: (args) => {
+    render: (args: NetworkSelectProps) => {
         const [network, setNetwork] = useState(NETWORKS[0].id);
 
         return <NetworkSelect {...args} value={network} version="1" onChange={setNetwork} />;

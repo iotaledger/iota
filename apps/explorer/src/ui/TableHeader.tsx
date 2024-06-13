@@ -11,7 +11,12 @@ export interface TableHeaderProps extends Pick<HeadingProps, 'as'> {
     after?: ReactNode;
 }
 
-export function TableHeader({ as = 'h3', children, subText, after }: TableHeaderProps) {
+export function TableHeader({
+    as = 'h3',
+    children,
+    subText,
+    after,
+}: TableHeaderProps): JSX.Element {
     return (
         <div className="flex items-center border-b border-gray-45 pb-5">
             <div className="flex flex-1">

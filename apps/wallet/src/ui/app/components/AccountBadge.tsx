@@ -15,7 +15,6 @@ const TYPE_TO_TEXT: Record<AccountType, string | null> = {
     imported: 'Imported',
     'mnemonic-derived': null,
     'seed-derived': null,
-    zkLogin: 'zkLogin',
 };
 
 export function AccountBadge({ accountType }: AccountBadgeProps) {

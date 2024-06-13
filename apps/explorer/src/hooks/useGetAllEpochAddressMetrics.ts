@@ -3,14 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClient } from '@iota/dapp-kit';
-import { type IotaClient } from '@iota/iota.js/client';
-import { useQuery } from '@tanstack/react-query';
+import { type AllEpochsAddressMetrics, type IotaClient } from '@iota/iota.js/client';
+import { type UseQueryResult, useQuery } from '@tanstack/react-query';
 
 export function useGetAllEpochAddressMetrics(
     ...input: Parameters<IotaClient['getAllEpochAddressMetrics']>
-) {
+): UseQueryResult<AllEpochsAddressMetrics, Error> {
     const client = useIotaClient();
-    return useQuery({
+    return useQuery<AllEpochsAddressMetrics, Error>({
         queryKey: ['get', 'all', 'epoch', 'addresses', ...input],
         queryFn: () => client.getAllEpochAddressMetrics(...input),
     });

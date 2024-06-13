@@ -38,6 +38,7 @@ pub(super) fn verify_basic_output(
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     target_milestone_timestamp: u32,
     storage: &InMemoryStorage,
+    total_value: &mut u64,
 ) -> Result<()> {
     // If this is a timelocked vested reward, a `Timelock<Balance>` is created.
     if is_timelocked_vested_reward(output_id, output, target_milestone_timestamp) {
@@ -66,6 +67,7 @@ pub(super) fn verify_basic_output(
             created_timelock.locked().value(),
             output.amount()
         );
+        *total_value += created_timelock.locked().value();
 
         // Label
         let label = created_timelock
@@ -87,7 +89,10 @@ pub(super) fn verify_basic_output(
     // If the output has multiple unlock conditions, then a genesis object should
     // have been created.
     if output.unlock_conditions().len() > 1 {
-        ensure!(created_objects.coin().is_err(), "unexpected coin created");
+        ensure!(
+            created_objects.gas_coin().is_err(),
+            "unexpected gas coin created"
+        );
 
         let created_output_obj = created_objects.output().and_then(|id| {
             storage
@@ -117,6 +122,7 @@ pub(super) fn verify_basic_output(
             created_output.iota.value(),
             output.amount()
         );
+        *total_value += created_output.iota.value();
 
         // Native Tokens
         verify_native_tokens::<Field<String, Balance>>(
@@ -158,16 +164,28 @@ pub(super) fn verify_basic_output(
         // Sender Feature
         verify_sender_feature(output.features().sender(), created_output.sender)?;
 
-    // Otherwise the output contains only an address unlock condition and only a
-    // coin and possibly native tokens should have been created.
+    // Otherwise the output contains only an address unlock condition and
+    // only a coin and possibly native tokens should have been
+    // created.
     } else {
         ensure!(
             created_objects.output().is_err(),
             "unexpected output object created for simple deposit"
         );
 
-        // Coin value and owner
-        verify_coin(output.amount(), output.address(), created_objects, storage)?;
+        // Gas coin value and owner
+        let created_gas_coin_obj = created_objects.gas_coin().and_then(|id| {
+            storage
+                .get_object(id)
+                .ok_or_else(|| anyhow!("missing gas coin"))
+        })?;
+        let created_gas_coin = created_gas_coin_obj
+            .as_coin_maybe()
+            .ok_or_else(|| anyhow!("expected a gas coin"))?;
+
+        verify_address_owner(output.address(), created_gas_coin_obj, "gas coin")?;
+        verify_coin(output.amount(), &created_gas_coin)?;
+        *total_value += created_gas_coin.value();
 
         // Native Tokens
         verify_native_tokens::<(TypeTag, Coin)>(
@@ -182,13 +200,13 @@ pub(super) fn verify_basic_output(
     verify_parent(output.address(), storage)?;
 
     ensure!(
-        created_objects.coin_metadata().is_err(),
-        "unexpected coin metadata found"
+        created_objects.native_token_coin().is_err(),
+        "unexpected native token coin found"
     );
 
     ensure!(
-        created_objects.minted_coin().is_err(),
-        "unexpected minted coin found"
+        created_objects.coin_metadata().is_err(),
+        "unexpected coin metadata found"
     );
 
     ensure!(

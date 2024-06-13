@@ -103,7 +103,7 @@ export function Banner({
     shadow,
     rounded,
     onDismiss,
-}: BannerProps) {
+}: BannerProps): JSX.Element {
     return (
         <div
             className={bannerStyles({

@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, ensure};
 use iota_sdk::types::block::output::{Output, OutputId, TokenId};
 use iota_types::in_memory_storage::InMemoryStorage;
 
@@ -25,8 +25,10 @@ pub(crate) fn verify_outputs<'a>(
     output_objects_map: &HashMap<OutputId, CreatedObjects>,
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     target_milestone_timestamp: u32,
+    total_supply: u64,
     storage: &InMemoryStorage,
 ) -> anyhow::Result<()> {
+    let mut total_value = 0;
     for (header, output) in outputs {
         let created_objects = output_objects_map
             .get(&header.output_id())
@@ -38,8 +40,13 @@ pub(crate) fn verify_outputs<'a>(
             foundry_data,
             target_milestone_timestamp,
             storage,
+            &mut total_value,
         )?;
     }
+    ensure!(
+        total_supply == total_value,
+        "total supply mismatch: found {total_value}, expected {total_supply}"
+    );
     Ok(())
 }
 
@@ -50,6 +57,7 @@ fn verify_output(
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     target_milestone_timestamp: u32,
     storage: &InMemoryStorage,
+    total_value: &mut u64,
 ) -> anyhow::Result<()> {
     match output {
         Output::Alias(output) => alias::verify_alias_output(
@@ -58,6 +66,7 @@ fn verify_output(
             created_objects,
             foundry_data,
             storage,
+            total_value,
         ),
         Output::Basic(output) => basic::verify_basic_output(
             header.output_id(),
@@ -66,16 +75,22 @@ fn verify_output(
             foundry_data,
             target_milestone_timestamp,
             storage,
+            total_value,
         ),
-        Output::Foundry(output) => {
-            foundry::verify_foundry_output(output, created_objects, foundry_data, storage)
-        }
+        Output::Foundry(output) => foundry::verify_foundry_output(
+            output,
+            created_objects,
+            foundry_data,
+            storage,
+            total_value,
+        ),
         Output::Nft(output) => nft::verify_nft_output(
             header.output_id(),
             output,
             created_objects,
             foundry_data,
             storage,
+            total_value,
         ),
         // Treasury outputs aren't used since Stardust, so no need to verify anything here.
         Output::Treasury(_) => return Ok(()),

@@ -14,7 +14,7 @@ interface TransactionSummaryProps {
     transaction: IotaTransactionBlockResponse;
 }
 
-export function TransactionSummary({ transaction }: TransactionSummaryProps) {
+export function TransactionSummary({ transaction }: TransactionSummaryProps): JSX.Element {
     const recognizedPackagesList = useRecognizedPackages();
     const summary = useTransactionSummary({
         transaction,
