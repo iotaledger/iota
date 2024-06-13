@@ -35,6 +35,7 @@ use crate::stardust::{
         executor::Executor,
         migration::{Migration, NATIVE_TOKEN_BAG_KEY_TYPE, PACKAGE_DEPS},
         verification::created_objects::CreatedObjects,
+        MigrationTargetNetwork,
     },
     types::snapshot::OutputHeader,
 };
@@ -57,7 +58,7 @@ fn random_output_header() -> OutputHeader {
 fn run_migration(
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
 ) -> anyhow::Result<(Executor, HashMap<OutputId, CreatedObjects>)> {
-    let mut migration = Migration::new(1)?;
+    let mut migration = Migration::new(1, MigrationTargetNetwork::Testnet)?;
     migration.run_migration(outputs)?;
     Ok(migration.into_parts())
 }
@@ -404,10 +405,13 @@ fn unlock_object_test(
             .cloned()
             .collect(),
     );
-    let mut executor = Executor::new(MIGRATION_PROTOCOL_VERSION.into())
-        .unwrap()
-        .with_tx_context(tx_context)
-        .with_store(store);
+    let mut executor = Executor::new(
+        MIGRATION_PROTOCOL_VERSION.into(),
+        MigrationTargetNetwork::Testnet,
+    )
+    .unwrap()
+    .with_tx_context(tx_context)
+    .with_store(store);
 
     // Find the corresponding objects to the migrated output.
     let output_created_objects = objects_map
