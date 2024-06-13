@@ -3,13 +3,11 @@
 
 //! Creating a genesis blob out of a local stardust objects snapshot.
 
-use iota_genesis_builder::Builder;
+use iota_genesis_builder::{Builder, OBJECT_SNAPSHOT_FILE_PATH};
 use iota_swarm_config::genesis_config::ValidatorGenesisConfigBuilder;
 use rand::rngs::OsRng;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
-
-use iota_genesis_builder::OBJECT_SNAPSHOT_FILE_PATH;
 
 fn main() -> anyhow::Result<()> {
     // Initialize tracing
