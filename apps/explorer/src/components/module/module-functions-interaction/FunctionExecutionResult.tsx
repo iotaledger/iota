@@ -7,7 +7,12 @@ import { Banner } from '~/ui/Banner';
 
 import type { IotaTransactionBlockResponse, OwnedObjectRef } from '@iota/iota.js/client';
 
-function toObjectLink(object: OwnedObjectRef) {
+interface ToObjectLink {
+    text: string;
+    to: string;
+}
+
+function toObjectLink(object: OwnedObjectRef): ToObjectLink {
     return {
         text: object.reference.objectId,
         to: `/object/${encodeURIComponent(object.reference.objectId)}`,

@@ -7,12 +7,14 @@ import type { CoinStruct } from '@iota/iota.js/client';
 import { decodeIotaPrivateKey } from '@iota/iota.js/cryptography';
 import type { Keypair, Signer } from '@iota/iota.js/cryptography';
 import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
-import type {
-    TransactionObjectArgument,
-    TransactionObjectInput,
-} from '@iota/iota.js/transactions';
+import type { TransactionObjectArgument, TransactionObjectInput } from '@iota/iota.js/transactions';
 import { TransactionBlock } from '@iota/iota.js/transactions';
-import { normalizeStructTag, normalizeIotaAddress, IOTA_TYPE_ARG, toB64 } from '@iota/iota.js/utils';
+import {
+    normalizeStructTag,
+    normalizeIotaAddress,
+    IOTA_TYPE_ARG,
+    toB64,
+} from '@iota/iota.js/utils';
 
 import type { ZkBagContractOptions } from './zk-bag.js';
 import { MAINNET_CONTRACT_IDS, ZkBag } from './zk-bag.js';

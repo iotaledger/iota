@@ -24,7 +24,10 @@ enum CoinFilter {
     Unrecognized = 'unrecognizedBalances',
 }
 
-export function OwnedCoins({ id }: { id: string }) {
+interface OwnerCoinsProps {
+    id: string;
+}
+export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
     const [currentSlice, setCurrentSlice] = useState(1);
     const [limit, setLimit] = useState(20);
     const [filterValue, setFilterValue] = useState(CoinFilter.Recognized);

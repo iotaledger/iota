@@ -109,9 +109,9 @@ export interface AddedAccountsProperties {
      *
      * | Rule | Value |
      * |---|---|
-     * | Enum Values | Ledger, Derived, Imported, Zklogin |
+     * | Enum Values | Ledger, Derived, Imported|
      */
-    accountType: 'Ledger' | 'Derived' | 'Imported' | 'Zklogin';
+    accountType: 'Ledger' | 'Derived' | 'Imported';
     /**
      * The number of accounts imported.
      *
@@ -167,21 +167,6 @@ export interface ClickedImportPassphraseProperties {
 }
 
 export interface ClickedImportPrivateKeyProperties {
-    /**
-     * The flow the user came from.
-     */
-    sourceFlow: string;
-}
-
-export interface ClickedSocialSignInButtonProperties {
-    /**
-     * The name (e.g., Microsoft) of a social sign-in provider.
-     *
-     * | Rule | Value |
-     * |---|---|
-     * | Enum Values | Microsoft, Facebook, Google, Twitch, Kakao |
-     */
-    signInProvider: 'Microsoft' | 'Facebook' | 'Google' | 'Twitch' | 'Kakao';
     /**
      * The flow the user came from.
      */
@@ -463,14 +448,6 @@ export class ClickedImportPrivateKey implements BaseEvent {
     event_type = 'clicked import private key';
 
     constructor(public event_properties: ClickedImportPrivateKeyProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class ClickedSocialSignInButton implements BaseEvent {
-    event_type = 'clicked social sign in button';
-
-    constructor(public event_properties: ClickedSocialSignInButtonProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -928,23 +905,6 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new ClickedImportPrivateKey(properties), options);
-  }
-
-  /**
-   * clicked social sign in button
-   *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20social%20sign%20in%20button)
-   *
-   * When users click a social sign-in button to create an account.
-   *
-   * @param properties The event's properties (e.g. signInProvider)
-   * @param options Amplitude event options.
-   */
-  clickedSocialSignInButton(
-    properties: ClickedSocialSignInButtonProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new ClickedSocialSignInButton(properties), options);
   }
 
   /**

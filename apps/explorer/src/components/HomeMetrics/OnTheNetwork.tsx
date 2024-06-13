@@ -11,7 +11,7 @@ import { useGetNetworkMetrics } from '~/hooks/useGetNetworkMetrics';
 import { Card } from '~/ui/Card';
 import { Divider } from '~/ui/Divider';
 
-export function OnTheNetwork() {
+export function OnTheNetwork(): JSX.Element {
     const { data: networkMetrics } = useGetNetworkMetrics();
     const { data: referenceGasPrice } = useIotaClientQuery('getReferenceGasPrice');
     const gasPriceFormatted =

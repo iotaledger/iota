@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 import { getRefGasPrice } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Heading, Text } from '@iota/ui';
@@ -9,7 +10,7 @@ import { useMemo } from 'react';
 import { Card } from '~/ui/Card';
 import { RingChart, RingChartLegend } from '~/ui/RingChart';
 
-export function ValidatorStatus() {
+export function ValidatorStatus(): JSX.Element | null {
     const { data } = useIotaClientQuery('getLatestIotaSystemState');
 
     const nextRefGasPrice = useMemo(

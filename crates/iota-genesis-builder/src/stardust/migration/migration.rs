@@ -32,7 +32,7 @@ use crate::stardust::{
 };
 
 /// We fix the protocol version used in the migration.
-pub const MIGRATION_PROTOCOL_VERSION: u64 = 42;
+pub const MIGRATION_PROTOCOL_VERSION: u64 = 1;
 
 /// The dependencies of the generated packages for native tokens.
 pub const PACKAGE_DEPS: [ObjectID; 5] = [
@@ -62,6 +62,7 @@ pub(crate) const NATIVE_TOKEN_BAG_KEY_TYPE: &str = "0x01::ascii::String";
 /// generated objects serialized.
 pub struct Migration {
     target_milestone_timestamp_sec: u32,
+    total_supply: u64,
     executor: Executor,
     pub(super) output_objects_map: HashMap<OutputId, CreatedObjects>,
 }
@@ -71,6 +72,7 @@ impl Migration {
     /// and bootstraping the in-memory storage.
     pub fn new(
         target_milestone_timestamp_sec: u32,
+        total_supply: u64,
         target_network: MigrationTargetNetwork,
     ) -> Result<Self> {
         let executor = Executor::new(
@@ -79,6 +81,7 @@ impl Migration {
         )?;
         Ok(Self {
             target_milestone_timestamp_sec,
+            total_supply,
             executor,
             output_objects_map: Default::default(),
         })
@@ -113,6 +116,8 @@ impl Migration {
         info!("Migrating foundries...");
         self.migrate_foundries(&foundries)?;
         info!("Migrating the rest of outputs...");
+        // TODO: Possibly pass the typeTag argument in the scope of the Shimmer
+        // integration.
         self.migrate_outputs(&outputs)?;
         let outputs = outputs
             .into_iter()
@@ -216,6 +221,7 @@ impl Migration {
             &self.output_objects_map,
             self.executor.native_tokens(),
             self.target_milestone_timestamp_sec,
+            self.total_supply,
             self.executor.store(),
         )?;
         Ok(())

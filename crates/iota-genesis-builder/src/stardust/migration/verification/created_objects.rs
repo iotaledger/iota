@@ -8,12 +8,12 @@ use iota_types::base_types::ObjectID;
 #[derive(Default)]
 pub struct CreatedObjects {
     output: Option<ObjectID>,
-    coin: Option<ObjectID>,
+    gas_coin: Option<ObjectID>,
+    native_token_coin: Option<ObjectID>,
     coin_metadata: Option<ObjectID>,
     package: Option<ObjectID>,
     max_supply_policy: Option<ObjectID>,
     native_tokens: Option<Vec<ObjectID>>,
-    minted_coin: Option<ObjectID>,
 }
 
 impl CreatedObjects {
@@ -31,17 +31,31 @@ impl CreatedObjects {
         Ok(())
     }
 
-    pub fn coin(&self) -> Result<&ObjectID> {
-        self.coin
+    pub fn gas_coin(&self) -> Result<&ObjectID> {
+        self.gas_coin
             .as_ref()
-            .ok_or_else(|| anyhow!("no created coin object"))
+            .ok_or_else(|| anyhow!("no created gas coin object"))
     }
 
-    pub(crate) fn set_coin(&mut self, id: ObjectID) -> Result<()> {
-        if let Some(id) = self.coin {
-            bail!("coin already set: {id}")
+    pub(crate) fn set_gas_coin(&mut self, id: ObjectID) -> Result<()> {
+        if let Some(id) = self.gas_coin {
+            bail!("gas coin already set: {id}")
         }
-        self.coin.replace(id);
+        self.gas_coin.replace(id);
+        Ok(())
+    }
+
+    pub fn native_token_coin(&self) -> Result<&ObjectID> {
+        self.native_token_coin
+            .as_ref()
+            .ok_or_else(|| anyhow!("no native token coin object"))
+    }
+
+    pub(crate) fn set_native_token_coin(&mut self, id: ObjectID) -> Result<()> {
+        if let Some(id) = self.native_token_coin {
+            bail!("native token coin already set: {id}")
+        }
+        self.native_token_coin.replace(id);
         Ok(())
     }
 
@@ -98,20 +112,6 @@ impl CreatedObjects {
             bail!("native tokens already set: {id:?}")
         }
         self.native_tokens.replace(ids);
-        Ok(())
-    }
-
-    pub fn minted_coin(&self) -> Result<&ObjectID> {
-        self.minted_coin
-            .as_ref()
-            .ok_or_else(|| anyhow!("no minted coin object"))
-    }
-
-    pub(crate) fn set_minted_coin(&mut self, id: ObjectID) -> Result<()> {
-        if let Some(id) = self.minted_coin {
-            bail!("minted coin already set: {id}")
-        }
-        self.minted_coin.replace(id);
         Ok(())
     }
 }

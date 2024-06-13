@@ -33,7 +33,7 @@ interface TooltipProps {
     placement?: Placement;
 }
 
-export function Tooltip({ tip, children, onOpen, placement = 'top' }: TooltipProps) {
+export function Tooltip({ tip, children, onOpen, placement = 'top' }: TooltipProps): JSX.Element {
     const [open, setOpen] = useState(false);
     const arrowRef = useRef(null);
 

@@ -10,7 +10,7 @@ import { Network } from '~/utils/api/DefaultRpcClient';
 
 const DEFAULT_RECOGNIZED_PACKAGES = [IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS];
 
-export function useRecognizedPackages() {
+export function useRecognizedPackages(): string[] {
     const [network] = useNetwork();
 
     const recognizedPackages = useFeatureValue('recognized-packages', DEFAULT_RECOGNIZED_PACKAGES);
