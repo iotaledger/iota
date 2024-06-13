@@ -6,10 +6,10 @@ export default function formatTimestamp(timeStamp: number): string {
     return new Intl.DateTimeFormat('en-US').format(date);
 }
 
-export const parseTimestamp = (timestampMs: string): number => {
+export function parseTimestamp(timestampMs: string): number {
     const timestamp = parseInt(timestampMs, 10);
     if (!Number.isFinite(timestamp)) {
         throw new Error('Invalid timestamp');
     }
     return timestamp;
-};
+}
