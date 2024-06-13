@@ -50,6 +50,8 @@ pub struct Alias {
 }
 
 impl Alias {
+    /// Returns the struct tag that represents the fully qualified path of an
+    /// [`Alias`] in its move package.
     pub fn tag() -> StructTag {
         StructTag {
             address: STARDUST_PACKAGE_ID.into(),
@@ -151,7 +153,8 @@ pub struct AliasOutput {
 }
 
 impl AliasOutput {
-    /// Returns the struct tag of the AliasOutput struct
+    /// Returns the struct tag that represents the fully qualified path of an
+    /// [`AliasOutput`] in its move package.
     pub fn tag(type_param: TypeTag) -> StructTag {
         StructTag {
             address: STARDUST_PACKAGE_ID.into(),
