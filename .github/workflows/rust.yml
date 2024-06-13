@@ -294,6 +294,14 @@ jobs:
       - name: Check Rust formatting
         run: cargo +nightly fmt --check
 
+  dprint-format:
+    runs-on: [ubuntu-latest]
+    steps:
+      - name: Install dprint
+        run: npm install -g dprint
+      - name: Check dprint formatting
+        run: dprint check
+
   cargo-deny:
     name: cargo-deny (advisories, licenses, bans, ...)
     needs: diff

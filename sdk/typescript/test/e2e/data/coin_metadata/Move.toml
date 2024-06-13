@@ -6,4 +6,4 @@ version = "0.0.1"
 Iota = { local = "../../../../../../crates/iota-framework/packages/iota-framework" }
 
 [addresses]
-coin_metadata =  "0x0"
+coin_metadata = "0x0"

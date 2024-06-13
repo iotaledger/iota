@@ -18,6 +18,7 @@ use iota_sdk::types::block::{
 use iota_types::{
     base_types::ObjectID,
     dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo},
+    gas_coin::GAS,
     id::UID,
     object::{Object, Owner},
     TypeTag,
@@ -69,7 +70,7 @@ fn migrate_alias(
         .unwrap();
     assert_eq!(
         alias_output_object.struct_tag().unwrap(),
-        AliasOutput::tag()
+        AliasOutput::tag(GAS::type_tag())
     );
 
     // Version is set to 1 when the alias is created based on the computed lamport
@@ -127,7 +128,7 @@ fn alias_migration_with_full_features() {
     let expected_alias = Alias::try_from_stardust(alias_object_id, &stardust_alias).unwrap();
 
     // The bag is tested separately.
-    assert_eq!(stardust_alias.amount(), alias_output.iota.value());
+    assert_eq!(stardust_alias.amount(), alias_output.balance.value());
     // The ID is newly generated, so we don't know the exact value, but it should
     // not be zero.
     assert_ne!(alias_output.id, UID::new(ObjectID::ZERO));

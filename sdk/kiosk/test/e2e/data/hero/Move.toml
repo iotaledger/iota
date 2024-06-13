@@ -6,4 +6,4 @@ version = "0.0.1"
 Iota = { local = "../../../../../../crates/iota-framework/packages/iota-framework" }
 
 [addresses]
-hero =  "0x0"
+hero = "0x0"
