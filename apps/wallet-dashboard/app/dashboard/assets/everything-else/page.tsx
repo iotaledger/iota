@@ -29,10 +29,8 @@ function EverythingElsePage(): JSX.Element {
     };
 
     const calculateEstimateSize = (index: number) => {
-        let baseSize = 160;
         const asset = nonVisualAssets[index];
-        if (asset.display?.data) baseSize = baseSize + 80;
-        return baseSize;
+        return asset.display?.data ? 240 : 160;
     };
 
     return (
