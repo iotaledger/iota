@@ -4,22 +4,17 @@
 import { BalanceChange } from '@iota/core';
 import { BalanceChangeEntries } from './';
 
-type BalanceChangeByOwner = Record<string, BalanceChange[]>;
-type BalanceChangeSummary = BalanceChangeByOwner | null;
+interface BalanceChangesProps {
+    balanceChanges?: Record<string, BalanceChange[]> | null;
+}
 
-export default function BalanceChanges({
-    balanceChanges,
-}: {
-    balanceChanges?: BalanceChangeSummary;
-}) {
+export default function BalanceChanges({ balanceChanges }: BalanceChangesProps) {
     if (!balanceChanges) return null;
     return (
         <>
-            {Object.entries(balanceChanges).map(([owner, changes]) => (
+            {Object.entries(balanceChanges).map(([owner, balanceChanges]) => (
                 <div key={owner}>
-                    <div>
-                        <BalanceChangeEntries changes={changes} />
-                    </div>
+                    <BalanceChangeEntries balanceChanges={balanceChanges} />
                 </div>
             ))}
         </>

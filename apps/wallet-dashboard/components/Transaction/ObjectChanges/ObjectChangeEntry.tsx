@@ -5,8 +5,8 @@ import { ObjectChangesByOwner, IotaObjectChangeTypes } from '@iota/core';
 import { ObjectDetail } from './';
 
 interface ObjectChangeEntryProps {
-    type: IotaObjectChangeTypes;
     changes: ObjectChangesByOwner;
+    type: IotaObjectChangeTypes;
 }
 
 export default function ObjectChangeEntry({ changes, type }: ObjectChangeEntryProps) {

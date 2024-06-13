@@ -18,7 +18,10 @@ export default function TransactionAmount({
     approximation,
 }: TransactionAmountProps) {
     const [formatAmount, symbol] = useFormatCoin(Math.abs(Number(amount)), coinType);
-    return Number(amount) !== 0 ? (
+
+    if (Number.isNaN(Number(amount))) return null;
+
+    return (
         <div className="flex w-full items-center justify-between py-3.5 first:pt-0">
             {label}
             <div className="flex items-center gap-1">
@@ -29,5 +32,5 @@ export default function TransactionAmount({
                 {symbol}
             </div>
         </div>
-    ) : null;
+    );
 }

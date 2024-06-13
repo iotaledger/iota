@@ -3,8 +3,12 @@
 
 import { BalanceChange, CoinFormat, useFormatCoin, useCoinMetadata } from '@iota/core';
 
-export default function BalanceChangeEntry({ change }: { change: BalanceChange }) {
-    const { amount, coinType, unRecognizedToken } = change;
+interface BalanceChangeEntryProps {
+    balanceChange: BalanceChange;
+}
+
+export default function BalanceChangeEntry({ balanceChange }: BalanceChangeEntryProps) {
+    const { amount, coinType, unRecognizedToken } = balanceChange;
     const isPositive = BigInt(amount) > 0n;
     const [formatted, symbol] = useFormatCoin(amount, coinType, CoinFormat.FULL);
     const { data: coinMetaData } = useCoinMetadata(coinType);

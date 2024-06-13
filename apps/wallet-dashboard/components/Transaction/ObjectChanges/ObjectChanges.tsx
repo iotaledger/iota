@@ -4,11 +4,11 @@
 import { ObjectChangeSummary, IotaObjectChangeTypes } from '@iota/core';
 import { ObjectChangeEntry } from './';
 
-export default function ObjectChanges({
-    objectSummary,
-}: {
+interface ObjectChangesProps {
     objectSummary?: ObjectChangeSummary | null;
-}) {
+}
+
+export default function ObjectChanges({ objectSummary }: ObjectChangesProps) {
     if (!objectSummary) return null;
 
     return (

@@ -6,7 +6,13 @@ import { useMemo } from 'react';
 import { BalanceChangeEntry } from './';
 import { getRecognizedUnRecognizedTokenChanges } from '@iota/core';
 
-export default function BalanceChangeEntries({ changes }: { changes: BalanceChange[] }) {
+interface BalanceChangeEntriesProps {
+    balanceChanges: BalanceChange[];
+}
+
+export default function BalanceChangeEntries({
+    balanceChanges: changes,
+}: BalanceChangeEntriesProps) {
     const { recognizedTokenChanges, unRecognizedTokenChanges } = useMemo(
         () => getRecognizedUnRecognizedTokenChanges(changes),
         [changes],
@@ -14,8 +20,11 @@ export default function BalanceChangeEntries({ changes }: { changes: BalanceChan
 
     return (
         <div>
-            {[...recognizedTokenChanges, ...unRecognizedTokenChanges].map((change) => (
-                <BalanceChangeEntry change={change} key={change.coinType + change.amount} />
+            {[...recognizedTokenChanges, ...unRecognizedTokenChanges].map((balanceChange) => (
+                <BalanceChangeEntry
+                    balanceChange={balanceChange}
+                    key={balanceChange.coinType + balanceChange.amount}
+                />
             ))}
         </div>
     );
