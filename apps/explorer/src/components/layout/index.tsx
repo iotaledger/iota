@@ -27,7 +27,7 @@ export function Layout(): JSX.Element {
     useCookieConsentBanner(persistableStorage, {
         cookie_name: 'iota_explorer_cookie_consent',
         onBeforeLoad: async () => {
-            await import('./cookieConsent.css');
+            await import('./CookieConsent.css');
             document.body.classList.add('cookie-consent-theme');
         },
     });
