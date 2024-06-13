@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import { EnterAmountView, SelectValidatorView } from './views';
 import { useNewStake, useNotifications } from '@/hooks';
 import { NotificationType } from '@/stores/notificationStore';
+import { useGetValidatorsApy } from '@iota/core';
 interface NewStakePopupProps {
     onClose: () => void;
 }
@@ -14,14 +15,16 @@ enum Step {
     EnterAmount,
 }
 
-const HARDCODED_VALIDATORS = ['Validator 1', 'Validator 2', 'Validator 3'];
-
 function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
     const [step, setStep] = useState<Step>(Step.SelectValidator);
     const [selectedValidator, setSelectedValidator] = useState<string | null>(null);
     const [amount, setAmount] = useState<string>('');
     const { createTransaction, loading, error } = useNewStake();
     const { addNotification } = useNotifications();
+    const { data: rollingAverageApys } = useGetValidatorsApy();
+
+    const validators = Object.keys(rollingAverageApys ?? {}) ?? [];
+
     const handleNext = () => {
         setStep(Step.EnterAmount);
     };
@@ -50,10 +53,7 @@ function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
     return (
         <div className="flex min-w-[300px] flex-col gap-2">
             {step === Step.SelectValidator && (
-                <SelectValidatorView
-                    validators={HARDCODED_VALIDATORS}
-                    onSelect={handleValidatorSelect}
-                />
+                <SelectValidatorView validators={validators} onSelect={handleValidatorSelect} />
             )}
             {step === Step.EnterAmount && (
                 <EnterAmountView
