@@ -13,10 +13,10 @@ export default function GasSummary({ gasSummary }: { gasSummary?: GasSummaryType
     if (!gasSummary) return null;
 
     return (
-        <div className="p-3">
+        <div className="rounded-lg border border-solid border-black p-3">
             <h3 className="text-center font-semibold">Gas Fees</h3>
             <div className="flex w-full flex-col items-center gap-2 px-4 py-3">
-                <div className="flex w-full items-center justify-center">
+                <div className="flex items-center justify-center gap-4">
                     {address?.address === gasSummary?.owner && (
                         <div className="mr-auto">You Paid</div>
                     )}

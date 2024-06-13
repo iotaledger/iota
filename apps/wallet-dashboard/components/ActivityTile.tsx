@@ -9,8 +9,6 @@ import formatTimestamp from '@/lib/utils/time';
 import { Activity } from '@/lib/interfaces';
 import { usePopups } from '@/hooks';
 import { ActivityDetailsPopup, Button } from '@/components';
-import { useCurrentAccount } from '@iota/dapp-kit';
-import { useTransactionSummary } from '@iota/core';
 
 interface ActivityTileProps {
     activity: Activity;
@@ -18,18 +16,9 @@ interface ActivityTileProps {
 
 function ActivityTile({ activity }: ActivityTileProps): JSX.Element {
     const { openPopup, closePopup } = usePopups();
-    const currentAccount = useCurrentAccount();
-
-    const summary = useTransactionSummary({
-        transaction: activity.transaction,
-        currentAddress: currentAccount?.address,
-        recognizedPackagesList: [],
-    });
 
     const handleDetailsClick = () => {
-        openPopup(
-            <ActivityDetailsPopup activity={activity} onClose={closePopup} summary={summary} />,
-        );
+        openPopup(<ActivityDetailsPopup activity={activity} onClose={closePopup} />);
     };
 
     return (
