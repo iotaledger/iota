@@ -5,6 +5,7 @@ import React from 'react';
 import { Button } from '@/components';
 import { Stake } from '@/lib/types';
 import { useUnstakeTransaction } from '@/hooks';
+import { useCurrentAccount } from '@iota/dapp-kit';
 
 interface UnstakePopupProps {
     stake: Stake;
@@ -12,7 +13,11 @@ interface UnstakePopupProps {
 }
 
 function UnstakePopup({ stake, closePopup }: UnstakePopupProps): JSX.Element {
-    const { unstake, gasBudget, isPending } = useUnstakeTransaction(stake.id);
+    const account = useCurrentAccount();
+    const { unstake, gasBudget, isPending } = useUnstakeTransaction(
+        stake.stakedIotaId,
+        account?.address || '',
+    );
 
     const handleUnstake = (): void => {
         unstake(closePopup);
@@ -20,7 +25,8 @@ function UnstakePopup({ stake, closePopup }: UnstakePopupProps): JSX.Element {
 
     return (
         <div className="flex min-w-[300px] flex-col gap-2">
-            <p>{stake.validator}</p>
+            <p>Stake ID: {stake.stakedIotaId}</p>
+            <p>Validator: {stake.validator}</p>
             <p>Stake: {stake.stake}</p>
             {stake.status === 'Active' && <p>Estimated reward: {stake.estimatedReward}</p>}
             <p>Gas Fees: {gasBudget}</p>

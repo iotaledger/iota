@@ -9,18 +9,20 @@ import { Stake } from '@/lib/types';
 
 interface StakeDetailsPopupProps {
     stake: Stake;
+    onClose: () => void;
 }
 
-function StakeDetailsPopup({ stake }: StakeDetailsPopupProps): JSX.Element {
-    const { openPopup, closePopup } = usePopups();
+function StakeDetailsPopup({ stake, onClose }: StakeDetailsPopupProps): JSX.Element {
+    const { openPopup } = usePopups();
 
     const openUnstakePopup = () => {
-        openPopup(<UnstakePopup stake={stake} closePopup={closePopup} />);
+        openPopup(<UnstakePopup stake={stake} closePopup={onClose} />);
     };
 
     return (
         <div className="flex min-w-[400px] flex-col gap-2">
-            <p>{stake.validator}</p>
+            <p>Stake ID: {stake.stakedIotaId}</p>
+            <p>Validator: {stake.validator}</p>
             <p>Stake: {stake.stake}</p>
             <p>Stake Active Epoch: {stake.stakeActiveEpoch}</p>
             <p>Stake Request Epoch: {stake.stakeRequestEpoch}</p>

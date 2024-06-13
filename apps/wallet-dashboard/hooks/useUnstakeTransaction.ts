@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { createUnstakeTransaction } from '@iota/core';
-import { useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
+import { useIotaClient, useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 
-export function useUnstakeTransaction(stakedIotaId: string) {
+export function useUnstakeTransaction(stakedIotaId: string, senderAddress: string) {
+    const client = useIotaClient();
     const {
         mutateAsync: signAndExecuteTransactionBlock,
         error,
@@ -13,12 +14,14 @@ export function useUnstakeTransaction(stakedIotaId: string) {
     } = useSignAndExecuteTransactionBlock();
 
     const { data: transaction } = useQuery({
-        queryKey: ['unstake-transaction', stakedIotaId],
+        queryKey: ['unstake-transaction', stakedIotaId, senderAddress, client],
         queryFn: async () => {
             const transaction = createUnstakeTransaction(stakedIotaId);
+            transaction.setSender(senderAddress);
+            await transaction.build({ client });
             return transaction;
         },
-        enabled: !!stakedIotaId,
+        enabled: !!stakedIotaId && !!senderAddress,
         gcTime: 0,
     });
 

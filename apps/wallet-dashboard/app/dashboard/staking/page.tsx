@@ -12,7 +12,7 @@ function StakingDashboardPage(): JSX.Element {
     const { totalStake, totalRewards, delegatedStake } = useDelegatedStake();
 
     const viewStakeDetails = (stake: Stake) => {
-        openPopup(<StakeDetailsPopup stake={stake} />);
+        openPopup(<StakeDetailsPopup stake={stake} onClose={closePopup} />);
     };
 
     const addNewStake = () => {
