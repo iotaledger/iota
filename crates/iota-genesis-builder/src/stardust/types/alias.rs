@@ -9,7 +9,7 @@ use iota_types::{
     collection_types::Bag,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
-    STARDUST_PACKAGE_ID,
+    TypeTag, STARDUST_PACKAGE_ID,
 };
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
@@ -143,7 +143,7 @@ pub struct AliasOutput {
     pub id: UID,
 
     /// The amount of IOTA coins held by the output.
-    pub iota: Balance,
+    pub balance: Balance,
     /// The `Bag` holds native tokens, key-ed by the stringified type of the
     /// asset. Example: key: "0xabcded::soon::SOON", value:
     /// Balance<0xabcded::soon::SOON>.
@@ -151,12 +151,13 @@ pub struct AliasOutput {
 }
 
 impl AliasOutput {
-    pub fn tag() -> StructTag {
+    /// Returns the struct tag of the AliasOutput struct
+    pub fn tag(type_param: TypeTag) -> StructTag {
         StructTag {
             address: STARDUST_PACKAGE_ID.into(),
             module: ALIAS_OUTPUT_MODULE_NAME.to_owned(),
             name: ALIAS_OUTPUT_STRUCT_NAME.to_owned(),
-            type_params: Vec::new(),
+            type_params: vec![type_param],
         }
     }
 
@@ -169,7 +170,7 @@ impl AliasOutput {
     ) -> Result<Self, anyhow::Error> {
         Ok(AliasOutput {
             id: UID::new(object_id),
-            iota: Balance::new(alias.amount()),
+            balance: Balance::new(alias.amount()),
             native_tokens,
         })
     }
@@ -180,13 +181,14 @@ impl AliasOutput {
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
         version: SequenceNumber,
+        type_param: TypeTag,
     ) -> anyhow::Result<Object> {
         // Construct the Alias Output object.
         let move_alias_output_object = unsafe {
             // Safety: we know from the definition of `AliasOutput` in the stardust package
             // that it does not have public transfer (`store` ability is absent).
             MoveObject::new_from_execution(
-                AliasOutput::tag().into(),
+                AliasOutput::tag(type_param).into(),
                 false,
                 version,
                 bcs::to_bytes(&self)?,

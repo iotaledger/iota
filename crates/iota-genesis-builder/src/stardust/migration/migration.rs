@@ -111,6 +111,8 @@ impl Migration {
         info!("Migrating foundries...");
         self.migrate_foundries(&foundries)?;
         info!("Migrating the rest of outputs...");
+        // TODO: Possibly pass the typeTag argument in the scope of the Shimmer
+        // integration.
         self.migrate_outputs(&outputs)?;
         let outputs = outputs
             .into_iter()
