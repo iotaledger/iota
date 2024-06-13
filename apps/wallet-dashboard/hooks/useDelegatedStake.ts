@@ -7,14 +7,14 @@ import { useCurrentAccount } from '@iota/dapp-kit';
 
 export function useDelegatedStake() {
     const account = useCurrentAccount();
-    const { data: delegatedStakes } = useGetDelegatedStake({
+    const { data: delegatedStakeData } = useGetDelegatedStake({
         address: account?.address || '',
     });
 
     let totalStake: bigint = BigInt(0);
     let totalRewards: bigint = BigInt(0);
 
-    const delegatedStakeData = delegatedStakes?.flatMap((delegatedStake) => {
+    const delegatedStake = delegatedStakeData?.flatMap((delegatedStake) => {
         return delegatedStake.stakes.map((stake) => {
             totalStake += BigInt(stake.principal);
             if (stake.status === 'Active') {
@@ -35,6 +35,6 @@ export function useDelegatedStake() {
     return {
         totalStake,
         totalRewards,
-        delegatedStakeData,
+        delegatedStake,
     };
 }

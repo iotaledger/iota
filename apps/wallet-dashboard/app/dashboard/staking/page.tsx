@@ -9,7 +9,7 @@ import { Stake } from '@/lib/types';
 
 function StakingDashboardPage(): JSX.Element {
     const { openPopup, closePopup } = usePopups();
-    const { totalStake, totalRewards, delegatedStakeData } = useDelegatedStake();
+    const { totalStake, totalRewards, delegatedStake } = useDelegatedStake();
 
     const viewStakeDetails = (stake: Stake) => {
         openPopup(<StakeDetailsPopup stake={stake} />);
@@ -26,7 +26,7 @@ function StakingDashboardPage(): JSX.Element {
             <Box title="Stakes">
                 <div className="flex flex-col items-center gap-4">
                     <h1>List of stakes</h1>
-                    {delegatedStakeData?.map((stake) => (
+                    {delegatedStake?.map((stake) => (
                         <StakeCard key={stake.id} stake={stake} onDetailsClick={viewStakeDetails} />
                     ))}
                 </div>
