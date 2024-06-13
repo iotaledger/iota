@@ -9,7 +9,8 @@ use iota_sdk::{
         output::{
             feature::{Irc30Metadata, IssuerFeature, MetadataFeature, SenderFeature},
             unlock_condition::{
-                AddressUnlockCondition, GovernorAddressUnlockCondition, ImmutableAliasAddressUnlockCondition, StateControllerAddressUnlockCondition
+                AddressUnlockCondition, GovernorAddressUnlockCondition,
+                ImmutableAliasAddressUnlockCondition, StateControllerAddressUnlockCondition,
             },
             AliasId, AliasOutput as StardustAlias, AliasOutputBuilder, Feature,
             FoundryOutputBuilder, NativeToken, NftId, NftOutputBuilder, SimpleTokenScheme,
