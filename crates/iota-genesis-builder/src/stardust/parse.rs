@@ -10,16 +10,17 @@ use packable::{unpacker::IoUnpacker, Packable};
 
 use super::types::snapshot::{FullSnapshotHeader, OutputHeader};
 
-/// Parse a full-snapshot using a [`BufReader`] internally.
-pub struct FullSnapshotParser<R: Read> {
+/// Parse a genesis full-snapshot using a [`BufReader`] internally.
+pub struct GenesisSnapshotParser<R: Read> {
     reader: IoUnpacker<BufReader<R>>,
     /// The full-snapshot header
     pub header: FullSnapshotHeader,
 }
 
-impl<R: Read> FullSnapshotParser<R> {
+impl<R: Read> GenesisSnapshotParser<R> {
     pub fn new(reader: R) -> Result<Self> {
         let mut reader = IoUnpacker::new(std::io::BufReader::new(reader));
+        // Unpacking will fail for non-genesis full snapshots (milestone_diff_count != 0)
         let header = FullSnapshotHeader::unpack::<_, true>(&mut reader, &())?;
 
         Ok(Self { reader, header })

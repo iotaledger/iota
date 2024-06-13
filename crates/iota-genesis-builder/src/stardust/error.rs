@@ -14,6 +14,8 @@ pub enum StardustError {
     UnsupportedSnapshotVersion(u8, u8),
     #[error("invalid snapshot kind: {0}")]
     InvalidSnapshotKind(u8),
+    #[error("invalid genesis snapshot: milestone diff count must be 0, but was {0}")]
+    InvalidGenesisSnapshot(u32),
     #[error("block error: {0}")]
     BlockError(#[from] iota_sdk::types::block::Error),
     #[error("{0}")]

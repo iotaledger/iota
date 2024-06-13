@@ -27,7 +27,7 @@ pub const TOTAL_SUPPLY_IOTA: u64 = 4_600_000_000_000_000;
 
 /// The kind of a snapshot.
 #[repr(u8)]
-#[derive(Debug, Copy, Clone, Eq, PartialEq, packable::Packable)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Packable)]
 #[packable(unpack_error = StardustError)]
 pub enum SnapshotKind {
     /// Full is a snapshot which contains the full ledger entry for a given
@@ -99,6 +99,35 @@ impl OutputHeader {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
+struct MilestoneDiffCount(u32);
+
+impl Packable for MilestoneDiffCount {
+    type UnpackVisitor = ();
+    type UnpackError = StardustError;
+
+    fn pack<P: Packer>(&self, packer: &mut P) -> Result<(), P::Error> {
+        self.0.pack(packer)?;
+
+        Ok(())
+    }
+
+    fn unpack<U: Unpacker, const VERIFY: bool>(
+        unpacker: &mut U,
+        _: &(),
+    ) -> Result<Self, UnpackError<Self::UnpackError, U::Error>> {
+        let milestone_diff_count = u32::unpack::<_, VERIFY>(unpacker, &()).coerce()?;
+
+        if VERIFY && milestone_diff_count != 0 {
+            return Err(UnpackError::Packable(
+                StardustError::InvalidGenesisSnapshot(milestone_diff_count),
+            ));
+        }
+
+        Ok(Self(milestone_diff_count))
+    }
+}
+
 /// Describes a snapshot header specific to full snapshots.
 #[derive(Clone, Debug)]
 pub struct FullSnapshotHeader {
@@ -111,7 +140,7 @@ pub struct FullSnapshotHeader {
     treasury_output_amount: u64,
     parameters_milestone_option: MilestoneOption,
     output_count: u64,
-    milestone_diff_count: u32,
+    milestone_diff_count: MilestoneDiffCount,
     sep_count: u16,
 }
 
@@ -165,8 +194,10 @@ impl FullSnapshotHeader {
     }
 
     /// Returns the milestone diff count of a [`FullSnapshotHeader`].
+    ///
+    /// Note: For a genesis snapshot this getter must return 0.
     pub fn milestone_diff_count(&self) -> u32 {
-        self.milestone_diff_count
+        self.milestone_diff_count.0
     }
 
     /// Returns the SEP count of a [`FullSnapshotHeader`].
@@ -236,7 +267,8 @@ impl Packable for FullSnapshotHeader {
             MilestoneOption::unpack::<_, true>(unpacker, &ProtocolParameters::default())
                 .coerce()?;
         let output_count = u64::unpack::<_, VERIFY>(unpacker, &()).coerce()?;
-        let milestone_diff_count = u32::unpack::<_, VERIFY>(unpacker, &()).coerce()?;
+        let milestone_diff_count =
+            MilestoneDiffCount::unpack::<_, VERIFY>(unpacker, &()).coerce()?;
         let sep_count = u16::unpack::<_, VERIFY>(unpacker, &()).coerce()?;
 
         Ok(Self {

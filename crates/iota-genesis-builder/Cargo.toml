@@ -60,5 +60,5 @@ tempfile.workspace = true
 iota-types = { workspace = true, features = ["test-utils"] }
 
 [[example]]
-name = "parse_full_snapshot"
-path = "examples/parse_full_snapshot.rs"
+name = "parse_genesis_snapshot"
+path = "examples/parse_genesis_snapshot.rs"
