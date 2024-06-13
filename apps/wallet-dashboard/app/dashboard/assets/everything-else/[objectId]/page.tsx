@@ -5,25 +5,38 @@
 
 import React from 'react';
 import { useParams } from 'next/navigation';
-import { AssetCard, RouteLink } from '@/components';
-import { HARDCODED_NON_VISUAL_ASSETS } from '@/lib/mocks';
+import { AssetCard, Button, RouteLink } from '@/components';
+import { useCurrentAccount } from '@iota/dapp-kit';
+import { hasDisplayData, useGetOwnedObjects } from '@iota/core';
 
-const VisualAssetDetailPage = () => {
+const EverythingElseDetailPage = () => {
+    const account = useCurrentAccount();
     const params = useParams();
     const objectId = params.objectId;
 
-    const asset = HARDCODED_NON_VISUAL_ASSETS.find((a) => a.objectId === objectId);
+    const { data: ownedObjects } = useGetOwnedObjects(account?.address);
+    const nonVisualAsset = ownedObjects?.pages
+        .flatMap((page) => page.data)
+        .find((asset) => asset.data && !hasDisplayData(asset) && asset.data.objectId === objectId);
+
+    const isAssetTransferable =
+        !!nonVisualAsset &&
+        nonVisualAsset.data?.content?.dataType === 'moveObject' &&
+        nonVisualAsset.data?.content?.hasPublicTransfer;
 
     return (
         <div className="flex h-full w-full flex-col space-y-4 px-40">
             <RouteLink path="/dashboard/assets/everything-else" title="Back" />
-            {asset ? (
-                <AssetCard key={asset.objectId} asset={asset} />
+            {nonVisualAsset?.data ? (
+                <AssetCard key={nonVisualAsset.data.objectId} asset={nonVisualAsset.data} />
             ) : (
                 <div className="flex justify-center p-20">Asset not found</div>
             )}
+            {isAssetTransferable ? (
+                <Button onClick={() => console.log('Send Non Visual Asset')}>Send Asset</Button>
+            ) : null}
         </div>
     );
 };
 
-export default VisualAssetDetailPage;
+export default EverythingElseDetailPage;

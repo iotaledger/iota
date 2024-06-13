@@ -13,9 +13,9 @@ import { useRouter } from 'next/navigation';
 function VisualAssetsPage(): JSX.Element {
     const account = useCurrentAccount();
     const router = useRouter();
-    const { data } = useGetOwnedObjects(account?.address);
+    const { data: ownedObjects } = useGetOwnedObjects(account?.address);
     const visualAssets =
-        data?.pages
+        ownedObjects?.pages
             .flatMap((page) => page.data)
             .filter((asset) => asset.data && asset.data.objectId && hasDisplayData(asset))
             .map((response) => response.data!) ?? [];

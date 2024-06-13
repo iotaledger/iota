@@ -28,13 +28,20 @@ function EverythingElsePage(): JSX.Element {
         router.push(`/dashboard/assets/everything-else/${objectId}`);
     };
 
+    const calculateEstimateSize = (index: number) => {
+        let baseSize = 160;
+        const asset = nonVisualAssets[index];
+        if (asset.display?.data) baseSize = baseSize + 80;
+        return baseSize;
+    };
+
     return (
         <div className="flex h-full w-full flex-col items-center justify-center space-y-4">
             <h1>EVERYTHING ELSE</h1>
             <div className="flex w-1/2">
                 <VirtualList
                     items={nonVisualAssets}
-                    estimateSize={() => 140}
+                    estimateSize={calculateEstimateSize}
                     render={virtualItem}
                     onClick={(asset) => handleClick(asset.objectId)}
                 />
