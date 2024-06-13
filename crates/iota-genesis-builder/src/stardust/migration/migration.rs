@@ -34,7 +34,7 @@ use crate::stardust::{
 };
 
 /// We fix the protocol version used in the migration.
-pub const MIGRATION_PROTOCOL_VERSION: u64 = 42;
+pub const MIGRATION_PROTOCOL_VERSION: u64 = 1;
 
 /// The dependencies of the generated packages for native tokens.
 pub const PACKAGE_DEPS: [ObjectID; 5] = [
@@ -111,6 +111,8 @@ impl Migration {
         info!("Migrating foundries...");
         self.migrate_foundries(&foundries)?;
         info!("Migrating the rest of outputs...");
+        // TODO: Possibly pass the typeTag argument in the scope of the Shimmer
+        // integration.
         self.migrate_outputs(&outputs)?;
         let outputs = outputs
             .into_iter()
