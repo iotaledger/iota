@@ -6,18 +6,13 @@
 import React from 'react';
 import { useParams } from 'next/navigation';
 import { AssetCard, Button, RouteLink } from '@/components';
-import { useCurrentAccount } from '@iota/dapp-kit';
-import { hasDisplayData, useGetOwnedObjects } from '@iota/core';
+import { useGetObject } from '@iota/core';
 
 const EverythingElseDetailPage = () => {
-    const account = useCurrentAccount();
     const params = useParams();
-    const objectId = params.objectId;
+    const objectId = params.objectId as string;
 
-    const { data: ownedObjects } = useGetOwnedObjects(account?.address);
-    const nonVisualAsset = ownedObjects?.pages
-        .flatMap((page) => page.data)
-        .find((asset) => asset.data && !hasDisplayData(asset) && asset.data.objectId === objectId);
+    const { data: nonVisualAsset } = useGetObject(objectId);
 
     const isAssetTransferable =
         !!nonVisualAsset &&
