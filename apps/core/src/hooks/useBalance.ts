@@ -8,25 +8,25 @@ const DEFAULT_REFETCH_INTERVAL = 1000;
 const DEFAULT_STALE_TIME = 5000;
 
 export function useBalance(
-    address: string,
-    coinType = IOTA_TYPE_ARG,
-    refetchInterval: number | false = DEFAULT_REFETCH_INTERVAL,
-    staleTime = DEFAULT_STALE_TIME,
+    address: string | null,
+    options: {
+        coinType?: string;
+        refetchInterval?: number | false;
+        staleTime?: number;
+    } = {},
 ) {
     const {
-        data: coinBalance,
-        isError,
-        isPending,
-        isFetched,
-    } = useIotaClientQuery(
+        coinType = IOTA_TYPE_ARG,
+        refetchInterval = DEFAULT_REFETCH_INTERVAL,
+        staleTime = DEFAULT_STALE_TIME,
+    } = options;
+    return useIotaClientQuery(
         'getBalance',
-        { coinType, owner: address },
+        { coinType, owner: address! },
         {
             enabled: !!address,
             refetchInterval,
             staleTime,
         },
     );
-
-    return { coinBalance, isPending, isError, isFetched };
 }

@@ -52,9 +52,7 @@ function StakingCard() {
     const coinType = IOTA_TYPE_ARG;
     const activeAccount = useActiveAccount();
     const accountAddress = activeAccount?.address;
-    const { coinBalance: iotaBalance, isPending: loadingIotaBalances } = useBalance(
-        accountAddress!,
-    );
+    const { data: iotaBalance, isPending: loadingIotaBalances } = useBalance(accountAddress!);
 
     const coinBalance = BigInt(iotaBalance?.totalBalance || 0);
     const [searchParams] = useSearchParams();

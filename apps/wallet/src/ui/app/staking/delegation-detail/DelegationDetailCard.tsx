@@ -56,7 +56,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     });
 
     const network = useAppSelector(({ app }) => app.network);
-    const { coinBalance } = useBalance(accountAddress!);
+    const { data: coinBalance } = useBalance(accountAddress!);
     const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
     // set minimum stake amount to 1 IOTA
     const showRequestMoreIotaToken = useMemo(() => {

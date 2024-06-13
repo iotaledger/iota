@@ -14,7 +14,7 @@ type LedgerAccountRowProps = {
 };
 
 export function LedgerAccountRow({ isSelected, address }: LedgerAccountRowProps) {
-    const { coinBalance } = useBalance(address);
+    const { data: coinBalance } = useBalance(address);
     const { data: domainName } = useResolveIotaNSName(address);
     const [totalAmount, totalAmountSymbol] = useFormatCoin(
         coinBalance?.totalBalance ?? 0,

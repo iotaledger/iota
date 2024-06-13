@@ -9,7 +9,7 @@ import { useBalance, useFormatCoin } from '@iota/core';
 export const AccountBalance = () => {
     const account = useCurrentAccount();
     const address = account?.address;
-    const { coinBalance, isPending } = useBalance(address!);
+    const { data: coinBalance, isPending } = useBalance(address!);
     const [formatted, symbol] = useFormatCoin(coinBalance?.totalBalance, IOTA_TYPE_ARG);
     return (
         <div>

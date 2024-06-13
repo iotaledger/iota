@@ -294,10 +294,12 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
     const activeAccountAddress = activeAccount?.address;
     const { data: domainName } = useResolveIotaNSName(activeAccountAddress);
     const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
-    const { coinBalance, isError, isPending, isFetched } = useBalance(
-        activeAccountAddress!,
-        activeCoinType,
-    );
+    const {
+        data: coinBalance,
+        isError,
+        isPending,
+        isFetched,
+    } = useBalance(activeAccountAddress!, { coinType: activeCoinType });
     const network = useAppSelector((state) => state.app.network);
     const isMainnet = network === Network.Mainnet;
     const { request } = useAppsBackend();
