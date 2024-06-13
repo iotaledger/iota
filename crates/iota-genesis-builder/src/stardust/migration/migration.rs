@@ -34,7 +34,7 @@ use crate::stardust::{
 };
 
 /// We fix the protocol version used in the migration.
-pub const MIGRATION_PROTOCOL_VERSION: u64 = 42;
+pub const MIGRATION_PROTOCOL_VERSION: u64 = 1;
 
 /// The dependencies of the generated packages for native tokens.
 pub const PACKAGE_DEPS: [ObjectID; 5] = [
