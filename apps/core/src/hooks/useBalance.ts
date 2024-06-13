@@ -10,7 +10,7 @@ const DEFAULT_STALE_TIME = 5000;
 export function useBalance(
     address: string,
     coinType = IOTA_TYPE_ARG,
-    refetchInterval = DEFAULT_REFETCH_INTERVAL,
+    refetchInterval: number | false = DEFAULT_REFETCH_INTERVAL,
     staleTime = DEFAULT_STALE_TIME,
 ) {
     const {
