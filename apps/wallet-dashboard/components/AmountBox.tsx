@@ -10,7 +10,7 @@ interface AmountBoxProps {
 
 function AmountBox({ title, amount }: AmountBoxProps): JSX.Element {
     return (
-        <div className="flex items-center justify-center gap-4">
+        <div className="flex items-center justify-center gap-4 pt-12">
             <Box title={title}>
                 <p>{amount}</p>
             </Box>
