@@ -19,7 +19,10 @@ export const getOwner = async (client: IotaClient, nftId: string): Promise<strin
 };
 
 // get avatar NFT Object from RPC.
-export const getAvatar = async (client: IotaClient, avatar: string): Promise<IotaObjectResponse> => {
+export const getAvatar = async (
+    client: IotaClient,
+    avatar: string,
+): Promise<IotaObjectResponse> => {
     return await client.getObject({
         id: avatar,
         options: {
