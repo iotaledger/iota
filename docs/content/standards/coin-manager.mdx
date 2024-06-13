@@ -56,7 +56,7 @@ module example::exclusive_coin {
         // Returning a new `CoinManagerMetadataCap` to the creator of the `Coin`
         transfer::public_transfer(cm_meta_cap, ctx.sender());
 
-        // Publicly sharing the `CoinMananger` object for convenient usage by anyone interested
+        // Publicly sharing the `CoinManager` object for convenient usage by anyone interested
         transfer::public_share_object(manager);
     }
 }
@@ -70,29 +70,29 @@ If you already have an existing `Coin` you can create the `CoinManager` object a
 If you already froze the `Metadata` object you can only migrate to a `CoinManager` that has immutable metadata from the start. You will not receive a `CoinManagerMetadataCap` in return, but you will get a `CoinManagerTreasuryCap`:
 
 ```move
-        let (cm_treasury_cap, mut manager) = coin_manager::new_with_immutable_metadata(cap, &meta, ctx);
+let (cm_treasury_cap, mut manager) = coin_manager::new_with_immutable_metadata(cap, &meta, ctx);
 
-        // Returning a new `CoinManagerTreasuryCap` to the creator of the `Coin`
-        transfer::public_transfer(cm_treasury_cap, ctx.sender());
+// Returning a new `CoinManagerTreasuryCap` to the creator of the `Coin`
+transfer::public_transfer(cm_treasury_cap, ctx.sender());
 
-        // Publicly sharing the `CoinMananger` object for convenient usage by anyone interested
-        transfer::public_share_object(manager);
+// Publicly sharing the `CoinManager` object for convenient usage by anyone interested
+transfer::public_share_object(manager);
 ```
 #### With mutable metadata
 
 If the metadata object is still owned you can take advantage of the full functionality of the `CoinManager`, with mutable `Metadata`:
 
 ```move
-        let (cm_treasury_cap, cm_meta_cap, mut manager) = coin_manager::new(cap, meta, ctx);
+let (cm_treasury_cap, cm_meta_cap, mut manager) = coin_manager::new(cap, meta, ctx);
 
-        // Returning a new `CoinManagerTreasuryCap` to the creator of the `Coin`
-        transfer::public_transfer(cm_treasury_cap, ctx.sender());
-        
-        // Returning a new `CoinManagerMetadataCap` to the creator of the `Coin`
-        transfer::public_transfer(cm_meta_cap, ctx.sender());
+// Returning a new `CoinManagerTreasuryCap` to the creator of the `Coin`
+transfer::public_transfer(cm_treasury_cap, ctx.sender());
 
-        // Publicly sharing the `CoinMananger` object for convenient usage by anyone interested
-        transfer::public_share_object(manager);
+// Returning a new `CoinManagerMetadataCap` to the creator of the `Coin`
+transfer::public_transfer(cm_meta_cap, ctx.sender());
+
+// Publicly sharing the `CoinManager` object for convenient usage by anyone interested
+transfer::public_share_object(manager);
 ```
 
 ## Additional functionality
