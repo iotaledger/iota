@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 type BaseStakeType = {
-    id: string;
     validator: string;
     stake: string;
     stakeActiveEpoch: string;
