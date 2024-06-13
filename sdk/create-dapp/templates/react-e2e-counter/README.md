@@ -16,9 +16,10 @@ Client dApp using the following tools:
 
 ### Install Iota cli
 
-Before deploying your move code, ensure that you have installed the Iota CLI. You
-can follow the [Iota installation instruction](https://docs.iota.io/build/install)
-to get everything set up.
+Before deploying your move code, ensure that you have installed the Iota CLI.
+You can follow the
+[Iota installation instruction](https://docs.iota.io/build/install) to get
+everything set up.
 
 This template uses `devnet` by default, so we'll need to set up a devnet
 environment in the CLI:

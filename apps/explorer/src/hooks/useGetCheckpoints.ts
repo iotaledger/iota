@@ -4,7 +4,12 @@
 
 import { useIotaClient } from '@iota/dapp-kit';
 import { type CheckpointPage } from '@iota/iota.js/client';
-import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
+import {
+    type InfiniteData,
+    type UseInfiniteQueryResult,
+    keepPreviousData,
+    useInfiniteQuery,
+} from '@tanstack/react-query';
 
 export const DEFAULT_CHECKPOINTS_LIMIT = 20;
 
@@ -12,10 +17,10 @@ export const DEFAULT_CHECKPOINTS_LIMIT = 20;
 export function useGetCheckpoints(
     cursor?: string,
     limit = DEFAULT_CHECKPOINTS_LIMIT,
-): ReturnType<typeof useInfiniteQuery> {
+): UseInfiniteQueryResult<InfiniteData<CheckpointPage, unknown>, Error> {
     const client = useIotaClient();
 
-    return useInfiniteQuery<CheckpointPage>({
+    return useInfiniteQuery<CheckpointPage, Error>({
         queryKey: ['get-checkpoints', limit, cursor],
         queryFn: async ({ pageParam }) =>
             await client.getCheckpoints({

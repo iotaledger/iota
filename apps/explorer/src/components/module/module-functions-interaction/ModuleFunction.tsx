@@ -59,10 +59,10 @@ export function ModuleFunction({
         () => typeArguments.map((aType, index) => formTypeInputs?.[index] || aType),
         [typeArguments, formTypeInputs],
     );
-    const paramsDetails = useFunctionParamsDetails(
-        functionDetails.parameters,
-        resolvedTypeArguments,
-    );
+    const paramsDetails = useFunctionParamsDetails({
+        params: functionDetails.parameters,
+        functionTypeArgNames: resolvedTypeArguments,
+    });
 
     const execute = useMutation({
         mutationFn: async ({ params, types }: TypeOf<typeof argsSchema>) => {
