@@ -3,4 +3,4 @@ name = "package_upgrade_base"
 version = "0.0.1"
 
 [addresses]
-base_addr =  "_"
+base_addr = "_"

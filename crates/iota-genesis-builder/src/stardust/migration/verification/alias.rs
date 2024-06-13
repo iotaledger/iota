@@ -87,12 +87,12 @@ pub(super) fn verify_alias_output(
 
     // Amount
     ensure!(
-        created_output.iota.value() == output.amount(),
+        created_output.balance.value() == output.amount(),
         "amount mismatch: found {}, expected {}",
-        created_output.iota.value(),
+        created_output.balance.value(),
         output.amount()
     );
-    *total_value += created_output.iota.value();
+    *total_value += created_output.balance.value();
 
     // Native Tokens
     verify_native_tokens::<Field<String, Balance>>(
