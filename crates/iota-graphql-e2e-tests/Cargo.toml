@@ -2,10 +2,10 @@
 name = "iota-graphql-e2e-tests"
 version = "0.1.0"
 authors = ["Mysten Labs <eng@mystenlabs.com>"]
-description = "End to end tests for Iota GraphQL"
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
+description = "End to end tests for Iota GraphQL"
 
 [dev-dependencies]
 datatest-stable.workspace = true

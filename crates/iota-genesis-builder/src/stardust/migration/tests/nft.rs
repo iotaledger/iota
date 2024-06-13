@@ -29,6 +29,7 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID},
     collection_types::VecMap,
     dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo},
+    gas_coin::GAS,
     id::UID,
     object::{Object, Owner},
     TypeTag,
@@ -87,7 +88,7 @@ fn migrate_nft(
         nft_output_object
             .struct_tag()
             .ok_or_else(|| anyhow!("missing struct tag on output nft object"))?,
-        NftOutput::tag()
+        NftOutput::tag(GAS::type_tag())
     );
 
     // Version is set to 1 when the nft is created based on the computed lamport
@@ -153,7 +154,7 @@ fn nft_migration_with_full_features() {
     let expected_nft = Nft::try_from_stardust(nft_object_id, &stardust_nft).unwrap();
 
     // The bag is tested separately.
-    assert_eq!(stardust_nft.amount(), nft_output.iota.value());
+    assert_eq!(stardust_nft.amount(), nft_output.balance.value());
     // The ID is newly generated, so we don't know the exact value, but it should
     // not be zero.
     assert_ne!(nft_output.id, UID::new(ObjectID::ZERO));
