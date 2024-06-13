@@ -6,7 +6,7 @@ import { type IotaObjectResponse } from '@iota/iota.js/client';
 
 import { useRecognizedPackages } from './useRecognizedPackages';
 
-export function useResolveVideo(object: IotaObjectResponse) {
+export function useResolveVideo(object: IotaObjectResponse): string | undefined | null {
     const recognizedPackages = useRecognizedPackages();
     const objectType =
         object.data?.type ?? object?.data?.content?.dataType === 'package'

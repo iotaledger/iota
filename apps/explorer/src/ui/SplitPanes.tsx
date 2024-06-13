@@ -16,12 +16,6 @@ import {
     PanelResizeHandle,
 } from 'react-resizable-panels';
 
-export enum LocalStorageSplitPaneKey {
-    TransactionView = 'splitPanes/transaction-view',
-    AddressViewHorizontal = 'splitPanes/address-view-horizontal',
-    AddressViewVertical = 'splitPanes/address-view-vertical',
-}
-
 const panelResizeHandleStyles = cva(['group/container z-10'], {
     variants: {
         isHorizontal: {
@@ -88,7 +82,7 @@ function ResizeHandle({
     togglePanelCollapse,
     noHoverHidden,
     size,
-}: ResizeHandleProps) {
+}: ResizeHandleProps): JSX.Element {
     const [isDragging, setIsDragging] = useState(false);
 
     const ChevronButton = isHorizontal ? ChevronLeft12 : ChevronUp12;
@@ -153,7 +147,7 @@ function SplitPanel({
     dividerSize,
     onCollapse,
     ...props
-}: SplitPanelProps) {
+}: SplitPanelProps): JSX.Element {
     const ref = useRef<ImperativePanelHandle>(null);
     const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -198,7 +192,12 @@ export interface SplitPanesProps extends PanelGroupProps {
     onCollapse?: (isCollapsed: boolean) => void;
 }
 
-export function SplitPanes({ splitPanels, dividerSize, onCollapse, ...props }: SplitPanesProps) {
+export function SplitPanes({
+    splitPanels,
+    dividerSize,
+    onCollapse,
+    ...props
+}: SplitPanesProps): JSX.Element {
     const { direction } = props;
 
     return (

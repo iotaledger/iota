@@ -12,18 +12,26 @@ import { type IotaObjectData } from '@iota/iota.js/client';
 import { Link } from 'react-router-dom';
 
 import { useHiddenAssets } from '../hidden-assets/HiddenAssetsProvider';
+import { getKioskIdFromOwnerCap, isKioskOwnerToken, useKioskClient } from '@iota/core';
 
 export default function VisualAssets({ items }: { items: IotaObjectData[] }) {
     const { hideAsset } = useHiddenAssets();
+    const kioskClient = useKioskClient();
     const { objectType } = useBuyNLargeAsset();
 
     return (
         <div className="grid w-full grid-cols-2 gap-x-3.5 gap-y-4">
             {items.map((object) => (
                 <Link
-                    to={`/nft-details?${new URLSearchParams({
-                        objectId: object.objectId,
-                    }).toString()}`}
+                    to={
+                        isKioskOwnerToken(kioskClient.network, object)
+                            ? `/kiosk?${new URLSearchParams({
+                                  kioskId: getKioskIdFromOwnerCap(object),
+                              })}`
+                            : `/nft-details?${new URLSearchParams({
+                                  objectId: object.objectId,
+                              }).toString()}`
+                    }
                     onClick={() => {
                         ampli.clickedCollectibleCard({
                             objectId: object.objectId,
@@ -35,7 +43,8 @@ export default function VisualAssets({ items }: { items: IotaObjectData[] }) {
                 >
                     <div className="group">
                         <div className="pointer-events-auto absolute z-10 h-full w-full justify-center p-0 text-gray-60 transition-colors duration-200">
-                            {object.type !== objectType ? (
+                            {!isKioskOwnerToken(kioskClient.network, object) &&
+                            object.type !== objectType ? (
                                 <div className="absolute right-3 top-2 h-8 w-8 rounded-md opacity-0 group-hover:opacity-100">
                                     <Button
                                         variant="hidden"

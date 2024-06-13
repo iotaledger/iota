@@ -11,7 +11,7 @@ interface ListItemProps {
     onClick?(): void;
 }
 
-export function ListItem({ active, children, onClick }: ListItemProps) {
+export function ListItem({ active, children, onClick }: ListItemProps): JSX.Element {
     return (
         <li className="list-none">
             <button
@@ -34,6 +34,6 @@ interface VerticalListProps {
     children: ReactNode;
 }
 
-export function VerticalList({ children }: VerticalListProps) {
+export function VerticalList({ children }: VerticalListProps): JSX.Element {
     return <ul className="m-0 flex flex-col gap-1 p-0">{children}</ul>;
 }

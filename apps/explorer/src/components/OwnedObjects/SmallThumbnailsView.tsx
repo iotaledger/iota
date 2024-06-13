@@ -20,7 +20,12 @@ interface SmallThumbnailsViewProps {
     loading?: boolean;
 }
 
-function OwnObjectContainer({ id, children }: { id: string; children: ReactNode }) {
+interface OwnObjectContainerProps {
+    id: string;
+    children: ReactNode;
+}
+
+function OwnObjectContainer({ id, children }: OwnObjectContainerProps): JSX.Element {
     return (
         <div className="w-full min-w-smallThumbNailsViewContainerMobile basis-1/2 pb-3 pr-4 md:min-w-smallThumbNailsViewContainer md:basis-1/4">
             <div className="rounded-lg p-2 hover:bg-hero/5">
@@ -30,7 +35,7 @@ function OwnObjectContainer({ id, children }: { id: string; children: ReactNode 
     );
 }
 
-function SmallThumbnailsViewLoading({ limit }: { limit: number }) {
+function SmallThumbnailsViewLoading({ limit }: { limit: number }): JSX.Element {
     return (
         <>
             {new Array(limit).fill(0).map((_, index) => (
@@ -42,7 +47,7 @@ function SmallThumbnailsViewLoading({ limit }: { limit: number }) {
     );
 }
 
-function SmallThumbnail({ obj }: { obj: IotaObjectResponse }) {
+function SmallThumbnail({ obj }: { obj: IotaObjectResponse }): JSX.Element {
     const video = useResolveVideo(obj);
     const displayMeta = obj.data?.display?.data;
     const src = displayMeta?.image_url || '';
@@ -74,7 +79,11 @@ function SmallThumbnail({ obj }: { obj: IotaObjectResponse }) {
     );
 }
 
-export function SmallThumbnailsView({ data, loading, limit }: SmallThumbnailsViewProps) {
+export function SmallThumbnailsView({
+    data,
+    loading,
+    limit,
+}: SmallThumbnailsViewProps): JSX.Element {
     return (
         <div className="flex flex-row flex-wrap overflow-auto">
             {loading && <SmallThumbnailsViewLoading limit={limit} />}

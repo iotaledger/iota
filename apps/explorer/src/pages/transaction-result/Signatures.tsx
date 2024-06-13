@@ -22,13 +22,12 @@ type SignaturePubkeyPair = {
     signature: Uint8Array;
 } & ({ address: string } | { publicKey: PublicKey });
 
-function SignaturePanel({
-    title,
-    signature: data,
-}: {
+interface SignaturePanelProps {
     title: string;
     signature: SignaturePubkeyPair;
-}) {
+}
+
+function SignaturePanel({ title, signature: data }: SignaturePanelProps): JSX.Element {
     const { signature, signatureScheme } = data;
     return (
         <TabHeader title={title}>

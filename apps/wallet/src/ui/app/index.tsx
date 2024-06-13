@@ -43,6 +43,7 @@ import HomePage, {
     CoinsSelectorPage,
     NFTDetailsPage,
     NftTransferPage,
+    KioskDetailsPage,
     ReceiptPage,
     TransactionBlocksPage,
     TransferCoinPage,
@@ -110,8 +111,9 @@ const App = () => {
                     for (const { derivationPath, id } of allLedgerWithoutPublicKey) {
                         if (derivationPath) {
                             try {
-                                const { publicKey } =
-                                    await iotaLedgerClient.getPublicKey(derivationPath);
+                                const { publicKey } = await iotaLedgerClient.getPublicKey(
+                                    derivationPath,
+                                );
                                 publicKeysToStore.push({
                                     accountID: id,
                                     publicKey: toB64(publicKey),
@@ -167,6 +169,7 @@ const App = () => {
             <Route path="restricted" element={<RestrictedPage />} />
             <Route path="/*" element={<HomePage />}>
                 <Route path="apps/*" element={<AppsPage />} />
+                <Route path="kiosk" element={<KioskDetailsPage />} />
                 <Route path="nft-details" element={<NFTDetailsPage />} />
                 <Route path="nft-transfer/:nftId" element={<NftTransferPage />} />
                 <Route path="nfts/*" element={<AssetsPage />} />

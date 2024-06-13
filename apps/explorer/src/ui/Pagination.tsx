@@ -84,17 +84,19 @@ export function usePaginationStack<Cursor = string>() {
     };
 }
 
+interface PaginationButtonProps {
+    label: string;
+    icon: typeof PaginationFirst24;
+    disabled: boolean;
+    onClick(): void;
+}
+
 function PaginationButton({
     label,
     icon: Icon,
     disabled,
     onClick,
-}: {
-    label: string;
-    icon: typeof PaginationFirst24;
-    disabled: boolean;
-    onClick(): void;
-}) {
+}: PaginationButtonProps): JSX.Element {
     return (
         <button
             className="rounded-md border border-steel px-2 py-1 text-steel shadow-xs disabled:border-gray-45 disabled:text-gray-45"
@@ -108,7 +110,13 @@ function PaginationButton({
     );
 }
 
-export function Pagination({ hasNext, hasPrev, onFirst, onPrev, onNext }: PaginationProps) {
+export function Pagination({
+    hasNext,
+    hasPrev,
+    onFirst,
+    onPrev,
+    onNext,
+}: PaginationProps): JSX.Element {
     return (
         <div className="flex gap-2">
             <PaginationButton

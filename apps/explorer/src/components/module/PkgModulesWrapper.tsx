@@ -24,7 +24,11 @@ interface PkgModuleViewWrapperProps {
     splitPanelOrientation: Direction;
 }
 
-function PkgModuleViewWrapper({ id, modules, splitPanelOrientation }: PkgModuleViewWrapperProps) {
+function PkgModuleViewWrapper({
+    id,
+    modules,
+    splitPanelOrientation,
+}: PkgModuleViewWrapperProps): JSX.Element {
     const isMediumOrAbove = useBreakpoint('md');
 
     const [searchParams, setSearchParams] = useSearchParamsMerged();

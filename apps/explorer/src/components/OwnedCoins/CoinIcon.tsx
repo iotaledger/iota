@@ -23,7 +23,7 @@ const imageStyle = cva(['flex rounded-2xl'], {
     },
 });
 
-function IotaCoin() {
+function IotaCoin(): JSX.Element {
     return (
         <Iota className="flex h-full w-full items-center justify-center rounded-2xl bg-iota p-1.5 text-body text-white" />
     );
@@ -33,7 +33,7 @@ type NonIotaCoinProps = {
     coinType: string;
 };
 
-function NonIotaCoin({ coinType }: NonIotaCoinProps) {
+function NonIotaCoin({ coinType }: NonIotaCoinProps): JSX.Element {
     const { data: coinMeta } = useCoinMetadata(coinType);
     return (
         <div className="flex h-full w-full items-center justify-center rounded-2xl bg-gray-40 text-hero-darkest text-opacity-30">
@@ -58,7 +58,7 @@ interface CoinIconProps extends VariantProps<typeof imageStyle> {
     coinType: string;
 }
 
-export function CoinIcon({ coinType, ...styleProps }: CoinIconProps) {
+export function CoinIcon({ coinType, ...styleProps }: CoinIconProps): JSX.Element {
     return (
         <div className={imageStyle(styleProps)}>
             {coinType === IOTA_TYPE_ARG ? <IotaCoin /> : <NonIotaCoin coinType={coinType} />}

@@ -9,7 +9,7 @@ interface ScrollToViewCardProps {
     inView: boolean;
 }
 
-export function ScrollToViewCard({ children, inView }: ScrollToViewCardProps) {
+export function ScrollToViewCard({ children, inView }: ScrollToViewCardProps): JSX.Element {
     const scrollViewRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {

@@ -15,7 +15,7 @@ interface SyntaxHighlighterProps {
 }
 const MAX_LINES = 500;
 // Use scroll to load more lines of code to prevent performance issues with large code blocks
-export function SyntaxHighlighter({ code, language }: SyntaxHighlighterProps) {
+export function SyntaxHighlighter({ code, language }: SyntaxHighlighterProps): JSX.Element {
     const observerElem = useRef<HTMLDivElement | null>(null);
     const { isIntersecting } = useOnScreen(observerElem);
     const [loadedLines, setLoadedLines] = useState(MAX_LINES);

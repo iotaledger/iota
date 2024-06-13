@@ -2,33 +2,27 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Activity, ActivityAction, ActivityState } from '@/lib/interfaces';
-import { ExecutionStatus, IotaTransactionBlockResponse } from '@iota/iota.js/client';
+import { IotaTransactionBlockResponse } from '@iota/iota.js/client';
 import { parseTimestamp } from './time';
 
 const getTransactionActivityState = (tx: IotaTransactionBlockResponse): ActivityState => {
     const executionStatus = tx.effects?.status.status;
     const isTxFailed = !!tx.effects?.status.error;
-    const map: {
-        [key in ExecutionStatus['status']]: ActivityState;
-    } = {
-        success: ActivityState.Successful,
-        failure: ActivityState.Failed,
-    };
 
-    if (executionStatus !== 'success' && isTxFailed) {
+    if (executionStatus == 'success') {
+        return ActivityState.Successful;
+    }
+
+    if (isTxFailed) {
         return ActivityState.Failed;
     }
 
-    if (!executionStatus) {
-        return ActivityState.Pending;
-    }
-
-    return map[executionStatus] || ActivityState.Pending;
+    return ActivityState.Pending;
 };
 
 export const getTransactionAction = (
     transaction: IotaTransactionBlockResponse,
-    currentAddress?: string,
+    currentAddress: string,
 ) => {
     const isSender = transaction.transaction?.data.sender === currentAddress;
     return isSender ? ActivityAction.Transaction : ActivityAction.Receive;
