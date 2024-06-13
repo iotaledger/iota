@@ -53,7 +53,7 @@ jobs:
           filters: .github/filters.yml
   
   test:
-    name: Test ${{ matrix }}
+    name: Test ${{ matrix.components }}
     env:
       # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
       # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
