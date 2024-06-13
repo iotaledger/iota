@@ -111,9 +111,8 @@ const App = () => {
                     for (const { derivationPath, id } of allLedgerWithoutPublicKey) {
                         if (derivationPath) {
                             try {
-                                const { publicKey } = await iotaLedgerClient.getPublicKey(
-                                    derivationPath,
-                                );
+                                const { publicKey } =
+                                    await iotaLedgerClient.getPublicKey(derivationPath);
                                 publicKeysToStore.push({
                                     accountID: id,
                                     publicKey: toB64(publicKey),
