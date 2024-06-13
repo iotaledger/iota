@@ -4,7 +4,7 @@
 import { ThumbUpFill24, ThumbDownFill24 } from '@iota/icons';
 import clsx from 'clsx';
 
-export function StatusIcon({ success }: { success: boolean }) {
+export function StatusIcon({ success }: { success: boolean }): JSX.Element {
     const Icon = success ? ThumbUpFill24 : ThumbDownFill24;
 
     return (

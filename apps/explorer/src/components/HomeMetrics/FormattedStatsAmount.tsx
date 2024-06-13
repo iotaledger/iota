@@ -1,12 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 import { formatAmountParts } from '@iota/core';
 
 import { Stats, type StatsProps } from '~/ui/Stats';
 
+interface FormattedStatsAmountProps {
+    amount?: string | number | bigint;
+}
+
 // Simple wrapper around stats to avoid text wrapping:
-export function StatsWrapper(props: StatsProps) {
+export function StatsWrapper(props: StatsProps): JSX.Element {
     return (
         <div className="flex-shrink-0">
             <Stats {...props} />
@@ -17,9 +22,7 @@ export function StatsWrapper(props: StatsProps) {
 export function FormattedStatsAmount({
     amount,
     ...props
-}: Omit<StatsProps, 'children'> & {
-    amount?: string | number | bigint;
-}) {
+}: FormattedStatsAmountProps & Omit<StatsProps, 'children'>): JSX.Element {
     const [formattedAmount, postfix] = formatAmountParts(amount);
 
     return (

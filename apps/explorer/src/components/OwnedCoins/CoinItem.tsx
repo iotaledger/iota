@@ -12,7 +12,7 @@ type CoinItemProps = {
     coin: CoinStruct;
 };
 
-export default function CoinItem({ coin }: CoinItemProps) {
+export default function CoinItem({ coin }: CoinItemProps): JSX.Element {
     const [formattedBalance, symbol] = useFormatCoin(coin.balance, coin.coinType);
     return (
         <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 shadow-panel">

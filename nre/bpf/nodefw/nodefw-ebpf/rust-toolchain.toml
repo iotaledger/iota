@@ -3,11 +3,11 @@ channel = "stable"
 # The source code of rustc, provided by the rust-src component, is needed for
 # building eBPF programs.
 components = [
-    "cargo",
-    "clippy",
-    "rust-docs",
-    "rust-src",
-    "rust-std",
-    "rustc",
-    "rustfmt",
+  "cargo",
+  "clippy",
+  "rust-docs",
+  "rust-src",
+  "rust-std",
+  "rustc",
+  "rustfmt",
 ]

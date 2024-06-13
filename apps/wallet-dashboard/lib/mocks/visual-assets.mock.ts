@@ -1,9 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { SuiObjectData } from '@mysten/sui.js/client';
+import { IotaObjectData } from '@iota/iota.js/client';
 
-export const HARCODED_VISUAL_ASSETS: SuiObjectData[] = [
+export const HARCODED_VISUAL_ASSETS: IotaObjectData[] = [
     {
         digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51x1',
         objectId: '0x9303adf2c711dcc239rbd78c0d0666666df06e2b3a35831',

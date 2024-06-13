@@ -9,16 +9,17 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 
 import { genTableDataFromTxData } from '../transactions/TxCardUtils';
-import { useGetTransactionBlocks } from '~/hooks/useGetTransactionBlocks';
+import {
+    DEFAULT_TRANSACTIONS_LIMIT,
+    useGetTransactionBlocks,
+} from '~/hooks/useGetTransactionBlocks';
 import { Link } from '~/ui/Link';
 import { Pagination, useCursorPagination } from '~/ui/Pagination';
 import { PlaceholderTable } from '~/ui/PlaceholderTable';
 import { TableCard } from '~/ui/TableCard';
 import { numberSuffix } from '~/utils/numberUtil';
 
-const DEFAULT_TRANSACTIONS_LIMIT = 20;
-
-interface Props {
+interface TransactionsActivityTableProps {
     disablePagination?: boolean;
     refetchInterval?: number;
     initialLimit?: number;
@@ -30,7 +31,7 @@ export function TransactionsActivityTable({
     refetchInterval,
     initialLimit = DEFAULT_TRANSACTIONS_LIMIT,
     transactionKindFilter,
-}: Props) {
+}: TransactionsActivityTableProps): JSX.Element {
     const [limit, setLimit] = useState(initialLimit);
     const client = useIotaClient();
     const { data: count } = useQuery({

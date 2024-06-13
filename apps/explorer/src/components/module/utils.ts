@@ -53,10 +53,15 @@ export function normalizedFunctionParameterTypeToString(
     return str;
 }
 
+interface NormalizedFunctionParameterTypeDetails {
+    isTxContext: boolean;
+    paramTypeText: string;
+}
+
 export function getNormalizedFunctionParameterTypeDetails(
     param: IotaMoveNormalizedType,
     functionTypeArgNames?: string[],
-) {
+): NormalizedFunctionParameterTypeDetails {
     const paramTypeText = normalizedFunctionParameterTypeToString(param, functionTypeArgNames);
     return {
         isTxContext: paramTypeText === '0x2::tx_context::TxContext',

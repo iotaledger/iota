@@ -12,7 +12,6 @@ title: Module `0x107a::storage_deposit_return_unlock_condition`
 
 <pre><code><b>use</b> <a href="../iota-framework/balance.md#0x2_balance">0x2::balance</a>;
 <b>use</b> <a href="../iota-framework/coin.md#0x2_coin">0x2::coin</a>;
-<b>use</b> <a href="../iota-framework/iota.md#0x2_iota">0x2::iota</a>;
 <b>use</b> <a href="../iota-framework/transfer.md#0x2_transfer">0x2::transfer</a>;
 <b>use</b> <a href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
 </code></pre>
@@ -46,7 +45,7 @@ The Stardust storage deposit return unlock condition.
 <code>return_amount: u64</code>
 </dt>
 <dd>
- The amount of IOTA coins the consuming transaction should deposit to the address defined in Return Address.
+ The amount of coins the consuming transaction should deposit to the address defined in Return Address.
 </dd>
 </dl>
 
@@ -60,7 +59,7 @@ The Stardust storage deposit return unlock condition.
 Check the unlock condition.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="storage_deposit_return_unlock_condition.md#0x107a_storage_deposit_return_unlock_condition_unlock">unlock</a>(condition: <a href="storage_deposit_return_unlock_condition.md#0x107a_storage_deposit_return_unlock_condition_StorageDepositReturnUnlockCondition">storage_deposit_return_unlock_condition::StorageDepositReturnUnlockCondition</a>, funding: &<b>mut</b> <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code><b>public</b> <b>fun</b> <a href="storage_deposit_return_unlock_condition.md#0x107a_storage_deposit_return_unlock_condition_unlock">unlock</a>&lt;T&gt;(condition: <a href="storage_deposit_return_unlock_condition.md#0x107a_storage_deposit_return_unlock_condition_StorageDepositReturnUnlockCondition">storage_deposit_return_unlock_condition::StorageDepositReturnUnlockCondition</a>, funding: &<b>mut</b> <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;T&gt;, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -69,7 +68,7 @@ Check the unlock condition.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="storage_deposit_return_unlock_condition.md#0x107a_storage_deposit_return_unlock_condition_unlock">unlock</a>(condition: <a href="storage_deposit_return_unlock_condition.md#0x107a_storage_deposit_return_unlock_condition_StorageDepositReturnUnlockCondition">StorageDepositReturnUnlockCondition</a>, funding: &<b>mut</b> Balance&lt;IOTA&gt;, ctx: &<b>mut</b> TxContext) {
+<pre><code><b>public</b> <b>fun</b> <a href="storage_deposit_return_unlock_condition.md#0x107a_storage_deposit_return_unlock_condition_unlock">unlock</a>&lt;T&gt;(condition: <a href="storage_deposit_return_unlock_condition.md#0x107a_storage_deposit_return_unlock_condition_StorageDepositReturnUnlockCondition">StorageDepositReturnUnlockCondition</a>, funding: &<b>mut</b> Balance&lt;T&gt;, ctx: &<b>mut</b> TxContext) {
     // Aborts <b>if</b> `funding` is not enough.
     <b>let</b> return_balance = funding.split(condition.<a href="storage_deposit_return_unlock_condition.md#0x107a_storage_deposit_return_unlock_condition_return_amount">return_amount</a>());
 

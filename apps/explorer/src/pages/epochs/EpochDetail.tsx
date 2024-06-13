@@ -28,7 +28,7 @@ function IotaStats({
     ...props
 }: Omit<StatsProps, 'children'> & {
     amount: bigint | number | string | undefined | null;
-}) {
+}): JSX.Element {
     const [formattedAmount, symbol] = useFormatCoin(amount, IOTA_TYPE_ARG);
 
     return (

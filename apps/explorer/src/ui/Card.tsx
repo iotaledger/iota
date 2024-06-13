@@ -64,7 +64,7 @@ export function Card({
     height,
     width,
     growOnHover,
-}: CardProps) {
+}: CardProps): JSX.Element {
     return (
         <div
             className={cardStyles({

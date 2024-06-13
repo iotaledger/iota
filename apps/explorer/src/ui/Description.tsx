@@ -20,7 +20,7 @@ export function Description({
     titleVariant = 'pBodySmall/medium',
     titleColor = 'steel-dark',
     alignItems = 'start',
-}: DescriptionProps) {
+}: DescriptionProps): JSX.Element {
     return (
         <div
             className={clsx(

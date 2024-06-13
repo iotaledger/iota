@@ -10,7 +10,7 @@ import { NetworkSelect, type NetworkOption } from '~/ui/header/NetworkSelect';
 import { ampli } from '~/utils/analytics/ampli';
 import { getAllNetworks } from '@iota/iota.js/client';
 
-export default function WrappedNetworkSelect() {
+export default function WrappedNetworkSelect(): JSX.Element {
     const [network, setNetwork] = useContext(NetworkContext);
     const { data } = useIotaClientQuery('getLatestIotaSystemState');
     const { data: binaryVersion } = useIotaClientQuery('getRpcApiVersion');

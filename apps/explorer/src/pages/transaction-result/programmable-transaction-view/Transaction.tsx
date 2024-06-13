@@ -14,12 +14,16 @@ import { flattenIotaArguments } from './utils';
 import { ErrorBoundary } from '~/components/error-boundary/ErrorBoundary';
 import { ObjectLink } from '~/ui/InternalLink';
 
-export interface TransactionProps<T> {
+interface TransactionProps<T> {
     type: string;
     data: T;
 }
 
-function TransactionContent({ children }: { children?: ReactNode }) {
+interface TransactionContentProps {
+    children?: ReactNode;
+}
+
+function TransactionContent({ children }: TransactionContentProps): JSX.Element {
     return (
         <Text variant="pBody/normal" color="steel-dark">
             {children}
@@ -27,7 +31,9 @@ function TransactionContent({ children }: { children?: ReactNode }) {
     );
 }
 
-function ArrayArgument({ data }: TransactionProps<(IotaArgument | IotaArgument[])[] | undefined>) {
+function ArrayArgument({
+    data,
+}: TransactionProps<(IotaArgument | IotaArgument[])[] | undefined>): JSX.Element {
     return (
         <TransactionContent>
             {data && (
@@ -39,7 +45,7 @@ function ArrayArgument({ data }: TransactionProps<(IotaArgument | IotaArgument[]
     );
 }
 
-function MoveCall({ data }: TransactionProps<MoveCallIotaTransaction>) {
+function MoveCall({ data }: TransactionProps<MoveCallIotaTransaction>): JSX.Element {
     const {
         module,
         package: movePackage,
@@ -51,7 +57,7 @@ function MoveCall({ data }: TransactionProps<MoveCallIotaTransaction>) {
     return (
         <TransactionContent>
             <Text variant="pBody/medium">
-                (package: <ObjectLink objectId={movePackage} />, module:{' '}
+                package: <ObjectLink objectId={movePackage} />, module:{' '}
                 <ObjectLink objectId={`${movePackage}?module=${module}`} label={`'${module}'`} />,
                 function: <span className="break-all text-hero-dark">{func}</span>
                 {args && (
@@ -70,7 +76,7 @@ export function Transaction({
     data,
 }: TransactionProps<
     (IotaArgument | IotaArgument[])[] | MoveCallIotaTransaction | IotaMovePackage
->) {
+>): JSX.Element {
     if (type === 'MoveCall') {
         return (
             <ErrorBoundary>

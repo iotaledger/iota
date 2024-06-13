@@ -118,19 +118,22 @@ export { Tabs, TabsList, TabsTrigger, TabsContent };
  * TODO: This probably shouldn't even be tabs, because that's bad for a11y when there's just single tabs acting as headers.
  * We should instead just re-define this as a header components.
  */
+
+interface TabHeaderProps {
+    size?: TabSize;
+    title: string;
+    children: ReactNode;
+    noGap?: boolean;
+    tooltip?: string;
+}
+
 export function TabHeader({
     size = 'lg',
     title,
     children,
     noGap,
     tooltip,
-}: {
-    size?: TabSize;
-    title: string;
-    children: ReactNode;
-    noGap?: boolean;
-    tooltip?: string;
-}) {
+}: TabHeaderProps): JSX.Element {
     return (
         <Tabs size={size} defaultValue="tab">
             <TabsList>
