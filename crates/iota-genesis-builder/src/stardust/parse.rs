@@ -15,18 +15,17 @@ use super::{
     types::snapshot::{FullSnapshotHeader, OutputHeader},
 };
 
-/// Parse a genesis full-snapshot using a [`BufReader`] internally.
-pub struct GenesisSnapshotParser<R: Read> {
+/// Parse a Hornet genesis snapshot using a [`BufReader`] internally.
+pub struct HornetGenesisSnapshotParser<R: Read> {
     reader: IoUnpacker<BufReader<R>>,
     /// The full-snapshot header
     pub header: FullSnapshotHeader,
 }
 
-impl<R: Read> GenesisSnapshotParser<R> {
+impl<R: Read> HornetGenesisSnapshotParser<R> {
     pub fn new(reader: R) -> Result<Self> {
         let mut reader = IoUnpacker::new(std::io::BufReader::new(reader));
-        // Unpacking will fail for non-genesis full snapshots (milestone_diff_count !=
-        // 0)
+        // `true` ensures that only genesis snapshots unpack successfully
         let header = FullSnapshotHeader::unpack::<_, true>(&mut reader, &())?;
 
         Ok(Self { reader, header })

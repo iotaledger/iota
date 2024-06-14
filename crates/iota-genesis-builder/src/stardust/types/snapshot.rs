@@ -120,7 +120,7 @@ impl Packable for MilestoneDiffCount {
 
         if VERIFY && milestone_diff_count != 0 {
             return Err(UnpackError::Packable(
-                StardustError::InvalidGenesisSnapshot(milestone_diff_count),
+                StardustError::InvalidHornetGenesisSnapshot(milestone_diff_count),
             ));
         }
 
@@ -239,16 +239,16 @@ impl Packable for FullSnapshotHeader {
 
         if VERIFY && SNAPSHOT_VERSION != version {
             return Err(UnpackError::Packable(
-                StardustError::UnsupportedSnapshotVersion(SNAPSHOT_VERSION, version),
+                StardustError::UnsupportedHornetSnapshotVersion(SNAPSHOT_VERSION, version),
             ));
         }
 
         let kind = SnapshotKind::unpack::<_, VERIFY>(unpacker, &()).coerce()?;
 
         if VERIFY && kind != SnapshotKind::Full {
-            return Err(UnpackError::Packable(StardustError::InvalidSnapshotKind(
-                kind as u8,
-            )));
+            return Err(UnpackError::Packable(
+                StardustError::InvalidHornetSnapshotKind(kind as u8),
+            ));
         }
 
         let genesis_milestone_index =
