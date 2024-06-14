@@ -13,12 +13,13 @@ use anyhow::{bail, Context};
 use camino::Utf8Path;
 use fastcrypto::{hash::HashFunction, traits::KeyPair};
 use iota_config::genesis::{
-    Genesis, GenesisCeremonyParameters, GenesisChainParameters, TokenDistributionSchedule,
-    UnsignedGenesis,
+    Genesis, GenesisCeremonyParameters, GenesisChainParameters, TokenAllocation,
+    TokenDistributionSchedule, TokenDistributionScheduleBuilder, UnsignedGenesis,
 };
 use iota_execution::{self, Executor};
 use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_sdk::types::block::address::Address;
 use iota_types::{
     base_types::{
         ExecutionDigests, IotaAddress, ObjectID, SequenceNumber, TransactionDigest, TxContext,
@@ -51,11 +52,16 @@ use iota_types::{
 use move_binary_format::CompiledModule;
 use move_core_types::ident_str;
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
+use stardust::{migration::MigrationObjects, types::stardust_to_iota_address};
 use tracing::trace;
 use validator_info::{GenesisValidatorInfo, GenesisValidatorMetadata, ValidatorInfo};
 
 pub mod stardust;
 pub mod validator_info;
+
+// TODO: Lazy static `stardust_to_iota_address`
+const IF_STARDUST_ADDRESS: &str =
+    "iota1qp8h9augeh6tk3uvlxqfapuwv93atv63eqkpru029p6sgvr49eufyz7katr";
 
 const GENESIS_BUILDER_COMMITTEE_DIR: &str = "committee";
 const GENESIS_BUILDER_PARAMETERS_FILE: &str = "parameters";
@@ -76,6 +82,7 @@ pub struct Builder {
     // Validator signatures over checkpoint
     signatures: BTreeMap<AuthorityPublicKeyBytes, AuthoritySignInfo>,
     built_genesis: Option<UnsignedGenesis>,
+    migration_objects: MigrationObjects,
 }
 
 impl Default for Builder {
@@ -93,6 +100,7 @@ impl Builder {
             validators: Default::default(),
             signatures: Default::default(),
             built_genesis: None,
+            migration_objects: Default::default(),
         }
     }
 
@@ -172,13 +180,14 @@ impl Builder {
     }
 
     pub fn load_stardust_migration_objects(
-        self,
+        mut self,
         snapshot: impl AsRef<Path>,
     ) -> anyhow::Result<Self> {
-        Ok(self.add_objects(bcs::from_reader(brotli::Decompressor::new(
+        self.migration_objects = bcs::from_reader(brotli::Decompressor::new(
             File::open(snapshot)?,
             BROTLI_COMPRESSOR_BUFFER_SIZE,
-        ))?))
+        ))?;
+        Ok(self)
     }
 
     pub fn unsigned_genesis_checkpoint(&self) -> Option<UnsignedGenesis> {
@@ -193,18 +202,70 @@ impl Builder {
         // Verify that all input data is valid
         self.validate().unwrap();
 
-        let objects = self.objects.clone().into_values().collect::<Vec<_>>();
         let validators = self.validators.clone().into_values().collect::<Vec<_>>();
 
-        let token_distribution_schedule =
+        // Delegate here our stake
+        // * Input validators
+        // * Input an stardust address that will resolve to the pool of objects to
+        //   delegate stake from
+        // * Return a `Vec<TokenAllocation>`
+        let delegator =
+            stardust_to_iota_address(Address::try_from_bech32(IF_STARDUST_ADDRESS).unwrap())
+                .unwrap();
+        let genesis_stake =
+            delegate_genesis_stake(&validators, delegator, &self.migration_objects).unwrap();
+        let is_vanilla_genesis = genesis_stake.is_empty();
+
+        let token_distribution_schedule = if is_vanilla_genesis {
+            // vanilla
+            // iota-supply invariant is satisfied
             if let Some(token_distribution_schedule) = &self.token_distribution_schedule {
                 token_distribution_schedule.clone()
             } else {
                 TokenDistributionSchedule::new_for_validators_with_default_allocation(
                     validators.iter().map(|v| v.info.iota_address()),
                 )
-            };
+            }
+        } else if let Some(token_distribution_schedule) = &self.token_distribution_schedule {
+            // iota-supply invariant breaks on the Move side
+            // * we build a valid token-distribution schedule
+            // * we have the migration distribution of the iota supply
+            let mut schedule = token_distribution_schedule.clone();
+            let delegated_amount: u64 = genesis_stake
+                .iter()
+                .map(|allocation| allocation.amount_micros)
+                .sum();
 
+            schedule.allocations.extend(genesis_stake);
+            schedule.stake_subsidy_fund_micros -= delegated_amount;
+            schedule
+        } else {
+            // iota-supply invariant breaks on the Move side
+            // * we build a valid token-distribution schedule
+            // * and we have the migration distribution of the iota supply
+            let mut builder = TokenDistributionScheduleBuilder::new();
+            for allocation in genesis_stake {
+                builder.add_allocation(allocation);
+            }
+            builder.build()
+        };
+
+        let objects = self
+            .objects
+            .clone()
+            .into_values()
+            .chain(self.migration_objects.inner().iter().cloned())
+            .collect::<Vec<_>>();
+
+        if !is_vanilla_genesis {
+            // Because we set the `stake_subsidy_fund` as non-zero
+            // we need to effectively disable subsidy rewards
+            // to avoid the respective inflation effects.
+            //
+            // TODO: Handle properly during new tokenomics
+            // implementation.
+            self.parameters.stake_subsidy_start_epoch = u64::MAX;
+        }
         self.built_genesis = Some(build_unsigned_genesis_data(
             &self.parameters,
             &token_distribution_schedule,
@@ -616,6 +677,7 @@ impl Builder {
             validators: committee,
             signatures,
             built_genesis: None, // Leave this as none, will build and compare below
+            migration_objects: Default::default(),
         };
 
         let unsigned_genesis_file = path.join(GENESIS_BUILDER_UNSIGNED_GENESIS_FILE);
@@ -692,6 +754,28 @@ impl Builder {
 
         Ok(())
     }
+}
+
+fn delegate_genesis_stake(
+    _validators: &[GenesisValidatorInfo],
+    delegator: IotaAddress,
+    migration_objects: &MigrationObjects,
+) -> anyhow::Result<Vec<TokenAllocation>> {
+    // * Query migration objects by delegator
+    let _object_pool = migration_objects
+        .get_timelocks_by_owner(delegator)
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "no gas-coin like objects found for delegator {:?}",
+                delegator
+            )
+        })?;
+    // * pick whatever to cover the minimum stake required for the validators
+    // * For timelocks we need to add the stake directly by calling
+    //   Timelock::request_add_stake_
+    // * For gas coins, we need to split the balance of the coins and create the
+    //   `TokenAllocation` for each.
+    todo!()
 }
 
 // Create a Genesis Txn Context to be used when generating genesis objects by

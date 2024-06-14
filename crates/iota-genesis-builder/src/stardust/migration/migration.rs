@@ -22,6 +22,7 @@ use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
     TIMELOCK_PACKAGE_ID,
 };
+use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::stardust::{
@@ -140,7 +141,7 @@ impl Migration {
         self.run_migration(outputs)?;
         info!("Migration ended.");
         info!("Writing snapshot file...");
-        create_snapshot(&self.into_objects(), writer)?;
+        create_snapshot(self.into_objects(), writer)?;
         info!("Snapshot file written.");
         Ok(())
     }
@@ -150,8 +151,8 @@ impl Migration {
     /// The system packages and underlying `init` objects
     /// are filtered out because they will be generated
     /// in the genesis process.
-    fn into_objects(self) -> Vec<Object> {
-        self.executor.into_objects()
+    fn into_objects(self) -> MigrationObjects {
+        MigrationObjects(self.executor.into_objects())
     }
 
     /// Create the packages, and associated objects representing foundry
@@ -231,6 +232,22 @@ impl Migration {
     }
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct MigrationObjects(Vec<Object>);
+
+impl MigrationObjects {
+    pub fn inner(&self) -> &[Object] {
+        &self.0
+    }
+
+    pub fn get_timelocks_by_owner(&self, _address: IotaAddress) -> Option<&[Object]> {
+        todo!()
+    }
+    pub fn get_gas_coins_by_owner(&self, _address: IotaAddress) -> Option<&[Object]> {
+        todo!()
+    }
+}
+
 // Build a `CompiledPackage` from a given `FoundryOutput`.
 fn generate_package(foundry: &FoundryOutput) -> Result<CompiledPackage> {
     let native_token_data = NativeTokenPackageData::try_from(foundry)?;
@@ -239,7 +256,7 @@ fn generate_package(foundry: &FoundryOutput) -> Result<CompiledPackage> {
 
 /// Serialize the objects stored in [`InMemoryStorage`] into a file using
 /// [`bcs`] encoding.
-fn create_snapshot(ledger: &[Object], writer: impl Write) -> Result<()> {
+fn create_snapshot(ledger: MigrationObjects, writer: impl Write) -> Result<()> {
     let mut writer = BufWriter::new(writer);
     writer.write_all(&bcs::to_bytes(&ledger)?)?;
     Ok(writer.flush()?)
