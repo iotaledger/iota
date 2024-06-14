@@ -8,7 +8,7 @@ import { LoadingIndicator } from '@iota/ui';
 import { useRef, useEffect, useState, useMemo } from 'react';
 
 import { UnderlyingObjectCard } from './UnderlyingObjectCard';
-import { FieldsCard, FieldCollapsible, FieldsContainer } from '~/components/Object/FieldsUtils';
+import { FieldsCard, FieldCollapsible, FieldsContainer } from '~/components/object/FieldsUtils';
 import { ObjectLink } from '~/ui/InternalLink';
 
 interface DynamicFieldRowProps {
