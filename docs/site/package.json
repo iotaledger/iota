@@ -63,9 +63,6 @@
     "@types/react": "^18.3.3",
     "typescript": "~5.2.2"
   },
-  "resolutions": {
-    "graphql": "^16.8.1"
-  },
   "browserslist": {
     "production": [
       ">0.5%",
