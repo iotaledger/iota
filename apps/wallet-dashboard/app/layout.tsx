@@ -13,6 +13,7 @@ import React from 'react';
 
 import '@iota/dapp-kit/dist/index.css';
 import { Popup, PopupProvider } from '@/components/Popup';
+import { KioskClientProvider } from '@iota/core';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -32,7 +33,9 @@ export default function RootLayout({
                 <PopupProvider>
                     <QueryClientProvider client={queryClient}>
                         <IotaClientProvider networks={allNetworks} defaultNetwork={defaultNetwork}>
-                            <WalletProvider>{children}</WalletProvider>
+                            <KioskClientProvider>
+                                <WalletProvider>{children}</WalletProvider>
+                            </KioskClientProvider>
                             <Popup />
                         </IotaClientProvider>
                     </QueryClientProvider>

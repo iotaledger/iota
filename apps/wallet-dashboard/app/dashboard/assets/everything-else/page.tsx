@@ -6,19 +6,15 @@
 import React from 'react';
 import { IotaObjectData } from '@iota/iota.js/client';
 import { AssetCard, VirtualList } from '@/components/index';
-import { hasDisplayData, useGetOwnedObjects } from '@iota/core';
+import { useGetNFTs } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { useRouter } from 'next/navigation';
 
 function EverythingElsePage(): JSX.Element {
     const account = useCurrentAccount();
     const router = useRouter();
-    const { data } = useGetOwnedObjects(account?.address);
-    const nonVisualAssets =
-        data?.pages
-            .flatMap((page) => page.data)
-            .filter((asset) => asset.data && asset.data.objectId && !hasDisplayData(asset))
-            .map((response) => response.data!) ?? [];
+    const { data } = useGetNFTs(account?.address);
+    const nonVisualAssets = data?.other ?? [];
 
     const virtualItem = (asset: IotaObjectData): JSX.Element => (
         <AssetCard key={asset.objectId} asset={asset} />
@@ -34,7 +30,7 @@ function EverythingElsePage(): JSX.Element {
             <div className="flex w-1/2">
                 <VirtualList
                     items={nonVisualAssets}
-                    estimateSize={() => 140}
+                    estimateSize={() => 130}
                     render={virtualItem}
                     onClick={(asset) => handleClick(asset.objectId)}
                 />

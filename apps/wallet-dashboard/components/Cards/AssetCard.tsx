@@ -5,23 +5,30 @@
 
 import { IotaObjectData } from '@iota/iota.js/client';
 import React from 'react';
-import { Box } from '@/components/index';
-import Image from 'next/image';
+import { Box, Button, ExternalImage, SendAssetPopup } from '@/components/index';
+import { usePopups } from '@/hooks';
 
 interface AssetCardProps {
     asset: IotaObjectData;
+    showSendButton?: boolean;
 }
 
-function AssetCard({ asset }: AssetCardProps): JSX.Element {
+function AssetCard({ asset, showSendButton }: AssetCardProps): JSX.Element {
+    const { openPopup, closePopup } = usePopups();
+
+    function showSendAssetPopup(): void {
+        openPopup(<SendAssetPopup asset={asset} onClose={closePopup} />);
+    }
     return (
         <Box>
             <div className="flex gap-2">
-                {asset.display && asset.display.data && asset.display.data.image && (
-                    <Image
-                        src={asset.display.data.image}
+                {asset.display && asset.display.data && asset.display.data.image_url && (
+                    <ExternalImage
+                        src={asset.display.data.image_url}
                         alt={asset.display.data.name}
                         width={80}
-                        height={40}
+                        height={80}
+                        className="object-cover"
                     />
                 )}
                 <div>
@@ -30,6 +37,7 @@ function AssetCard({ asset }: AssetCardProps): JSX.Element {
                     <p>Version: {asset.version}</p>
                 </div>
             </div>
+            {showSendButton && <Button onClick={showSendAssetPopup}>Send NFT</Button>}
         </Box>
     );
 }

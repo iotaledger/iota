@@ -6,13 +6,19 @@
 import React from 'react';
 import { useParams } from 'next/navigation';
 import { AssetCard, RouteLink } from '@/components';
-import { HARDCODED_NON_VISUAL_ASSETS } from '@/lib/mocks';
+import { useCurrentAccount } from '@iota/dapp-kit';
+import { useGetNFTs } from '@iota/core';
 
 const VisualAssetDetailPage = () => {
     const params = useParams();
-    const objectId = params.objectId;
+    const account = useCurrentAccount();
+    const { data } = useGetNFTs(account?.address);
 
-    const asset = HARDCODED_NON_VISUAL_ASSETS.find((a) => a.objectId === objectId);
+    if (!account) return;
+
+    const nonVisualAssets = data?.other ?? [];
+    const objectId = params.objectId;
+    const asset = nonVisualAssets.find((a) => a.objectId === objectId);
 
     return (
         <div className="flex h-full w-full flex-col space-y-4 px-40">
