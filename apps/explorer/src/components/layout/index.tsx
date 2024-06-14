@@ -13,7 +13,7 @@ import { useInitialPageView } from '../../hooks/useInitialPageView';
 import { NetworkContext, useNetwork } from '~/context';
 import { Banner, type BannerProps } from '~/ui/Banner';
 import { persistableStorage } from '~/utils/analytics/amplitude';
-import { type Network, createIotaClient, SupportedNetworks } from '~/utils/api/DefaultRpcClient';
+import { type Network, createIotaClient, SupportedNetworks } from '~/utils/api/defaultRpcClient';
 import { KioskClientProvider } from '@iota/core/src/components/KioskClientProvider';
 
 const TOAST_VARIANTS: Partial<Record<ToastType, BannerProps['variant']>> = {
@@ -27,7 +27,7 @@ export function Layout(): JSX.Element {
     useCookieConsentBanner(persistableStorage, {
         cookie_name: 'iota_explorer_cookie_consent',
         onBeforeLoad: async () => {
-            await import('./cookieConsent.css');
+            await import('./CookieConsent.css');
             document.body.classList.add('cookie-consent-theme');
         },
     });

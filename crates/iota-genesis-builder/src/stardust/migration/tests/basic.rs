@@ -22,7 +22,7 @@ use crate::stardust::{
             create_foundry, extract_native_tokens_from_bag, random_output_header, unlock_object,
             ExpectedAssets, UnlockObjectTestResult,
         },
-        Migration,
+        Migration, MigrationTargetNetwork,
     },
     types::{output::BASIC_OUTPUT_MODULE_NAME, stardust_to_iota_address},
 };
@@ -40,7 +40,7 @@ fn basic_simple_coin_id() {
         .finish()
         .unwrap();
 
-    let mut migration = Migration::new(1, 1_000_000).unwrap();
+    let mut migration = Migration::new(1, 1_000_000, MigrationTargetNetwork::Mainnet).unwrap();
     migration
         .run_migration([(header.clone(), stardust_basic.clone().into())])
         .unwrap();
@@ -68,7 +68,7 @@ fn basic_id() {
         .finish()
         .unwrap();
 
-    let mut migration = Migration::new(1, 1_000_000).unwrap();
+    let mut migration = Migration::new(1, 1_000_000, MigrationTargetNetwork::Mainnet).unwrap();
     migration
         .run_migration([(header.clone(), stardust_basic.clone().into())])
         .unwrap();
@@ -106,7 +106,7 @@ fn basic_simple_coin_migration_with_native_token() {
         (foundry_header, foundry_output.into()),
         (header, stardust_basic.into()),
     ];
-    let mut migration = Migration::new(1, 1_000_000).unwrap();
+    let mut migration = Migration::new(1, 1_000_000, MigrationTargetNetwork::Mainnet).unwrap();
     migration.run_migration(outputs).unwrap();
 }
 
