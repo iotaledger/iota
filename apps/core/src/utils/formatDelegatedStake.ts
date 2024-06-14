@@ -3,8 +3,9 @@
 
 import { DelegatedStake, StakeObject } from '@iota/iota.js/client';
 
-export type DelegatedStakeWithValidator = Extract<StakeObject, { estimatedReward?: string }> & {
+export type DelegatedStakeWithValidator = StakeObject & {
     validatorAddress: string;
+    estimatedReward?: string;
 };
 
 export function formatDelegatedStake(
@@ -15,7 +16,7 @@ export function formatDelegatedStake(
             return delegatedStake.stakes.map((stake) => {
                 return {
                     validatorAddress: delegatedStake.validatorAddress,
-                    estimatedReward: stake.status === 'Active' ? stake.estimatedReward : undefined,
+                    estimatedReward: stake.status === 'Active' ? stake.estimatedReward : '',
                     stakeActiveEpoch: stake.stakeActiveEpoch,
                     stakeRequestEpoch: stake.stakeRequestEpoch,
                     status: stake.status,
