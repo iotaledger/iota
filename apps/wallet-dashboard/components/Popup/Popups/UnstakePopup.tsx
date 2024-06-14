@@ -4,7 +4,7 @@
 import React from 'react';
 import { Button } from '@/components';
 import { useUnstakeTransaction } from '@/hooks';
-import { useCurrentAccount } from '@iota/dapp-kit';
+import { useCurrentAccount, useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
 import { DelegatedStakeWithValidator } from '@iota/core';
 
 interface UnstakePopupProps {
@@ -14,13 +14,18 @@ interface UnstakePopupProps {
 
 function UnstakePopup({ stake, closePopup }: UnstakePopupProps): JSX.Element {
     const account = useCurrentAccount();
-    const { unstake, gasBudget, isPending } = useUnstakeTransaction(
+    const { gasBudget, transaction } = useUnstakeTransaction(
         stake.stakedIotaId,
         account?.address || '',
     );
+    const { mutateAsync: signAndExecuteTransactionBlock, isPending } =
+        useSignAndExecuteTransactionBlock();
 
     const handleUnstake = async (): Promise<void> => {
-        await unstake();
+        if (!transaction) return;
+        await signAndExecuteTransactionBlock({
+            transactionBlock: transaction,
+        });
         closePopup();
     };
 
