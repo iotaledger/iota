@@ -78,7 +78,8 @@ function AppWrapper() {
                             persistOptions={{
                                 persister,
                                 dehydrateOptions: {
-                                    shouldDehydrateQuery: ({ meta }) => !meta?.skipPersistedCache,
+                                    shouldDehydrateQuery: ({ meta }) =>
+                                        !meta?.['skipPersistedCache'],
                                 },
                             }}
                         >
