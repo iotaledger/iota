@@ -25,7 +25,7 @@ export const getTransactionAction = (
     currentAddress: string,
 ) => {
     const isSender = transaction.transaction?.data.sender === currentAddress;
-    return isSender ? TransactionAction.Transaction : TransactionAction.Receive;
+    return isSender ? TransactionAction.Send : TransactionAction.Receive;
 };
 
 export const getExtendedTransaction = (
