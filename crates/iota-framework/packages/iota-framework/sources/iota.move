@@ -14,15 +14,11 @@ module iota::iota {
     const ENotSystemAddress: u64 = 1;
 
     #[allow(unused_const)]
-    /// The amount of Micros per IOTA token based on the fact that micros is
+    /// The amount of Micros per IOTA token based on the fact that nano is
     /// 10^-9 of a IOTA token
     const NANO_PER_IOTA: u64 = 1_000_000_000;
-
-    #[allow(unused_const)]
-    /// The total supply of IOTA denominated in whole IOTA tokens (4.6 Billion)
-    const TOTAL_SUPPLY_IOTA: u64 = 4_600_000_000;
-
-    /// The total supply of IOTA denominated in Micros (4.6 Billion * 10^9)
+    
+    /// The total supply of IOTA denominated in Nano (4.6 Billion * 10^9)
     const TOTAL_SUPPLY_NANO: u64 = 4_600_000_000_000_000_000;
 
     /// Name of the coin

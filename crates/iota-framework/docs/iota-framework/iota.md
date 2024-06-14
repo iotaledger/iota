@@ -76,7 +76,7 @@ Sender is not @0x0 the system address.
 
 <a name="0x2_iota_NANO_PER_IOTA"></a>
 
-The amount of Micros per IOTA token based on the fact that micros is
+The amount of Micros per IOTA token based on the fact that nano is
 10^-9 of a IOTA token
 
 
@@ -85,19 +85,9 @@ The amount of Micros per IOTA token based on the fact that micros is
 
 
 
-<a name="0x2_iota_TOTAL_SUPPLY_IOTA"></a>
-
-The total supply of IOTA denominated in whole IOTA tokens (4.6 Billion)
-
-
-<pre><code><b>const</b> <a href="../iota-framework/iota.md#0x2_iota_TOTAL_SUPPLY_IOTA">TOTAL_SUPPLY_IOTA</a>: u64 = 4600000000;
-</code></pre>
-
-
-
 <a name="0x2_iota_TOTAL_SUPPLY_NANO"></a>
 
-The total supply of IOTA denominated in Micros (4.6 Billion * 10^9)
+The total supply of IOTA denominated in Nano (4.6 Billion * 10^9)
 
 
 <pre><code><b>const</b> <a href="../iota-framework/iota.md#0x2_iota_TOTAL_SUPPLY_NANO">TOTAL_SUPPLY_NANO</a>: u64 = 4600000000000000000;
