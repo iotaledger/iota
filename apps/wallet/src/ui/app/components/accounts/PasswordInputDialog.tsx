@@ -52,7 +52,7 @@ export function PasswordModalDialog({
     cancelText,
 }: PasswordModalDialogProps) {
     const form = useZodForm({
-        mode: 'all',
+        mode: 'onChange',
         schema: formSchema,
         defaultValues: {
             password: '',
