@@ -84,7 +84,12 @@ fn basic_simple_coin_id_with_expired_timelock() {
             .finish()
             .unwrap();
 
-        let mut migration = Migration::new(target_milestone_timestamp_sec).unwrap();
+        let mut migration = Migration::new(
+            target_milestone_timestamp_sec,
+            1_000_000,
+            MigrationTargetNetwork::Mainnet,
+        )
+        .unwrap();
         migration
             .run_migration([(header.clone(), stardust_basic.clone().into())])
             .unwrap();
@@ -92,7 +97,7 @@ fn basic_simple_coin_id_with_expired_timelock() {
             .output_objects_map
             .get(&header.output_id())
             .unwrap();
-        let migrated_object_id = created_objects.coin().unwrap();
+        let migrated_object_id = created_objects.gas_coin().unwrap();
         let expected_object_id = ObjectID::new(header.output_id().hash());
         assert_eq!(expected_object_id, *migrated_object_id);
         // No output should have been created.
