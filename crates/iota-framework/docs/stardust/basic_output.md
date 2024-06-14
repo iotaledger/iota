@@ -15,7 +15,6 @@ title: Module `0x107a::basic_output`
 <b>use</b> <a href="../move-stdlib/option.md#0x1_option">0x1::option</a>;
 <b>use</b> <a href="../iota-framework/bag.md#0x2_bag">0x2::bag</a>;
 <b>use</b> <a href="../iota-framework/balance.md#0x2_balance">0x2::balance</a>;
-<b>use</b> <a href="../iota-framework/iota.md#0x2_iota">0x2::iota</a>;
 <b>use</b> <a href="../iota-framework/object.md#0x2_object">0x2::object</a>;
 <b>use</b> <a href="../iota-framework/transfer.md#0x2_transfer">0x2::transfer</a>;
 <b>use</b> <a href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
@@ -35,7 +34,7 @@ way to handle the two possible addresses that can unlock the output.
 -  or you can call <code>receive</code> in other models to receive a <code><a href="basic_output.md#0x107a_basic_output_BasicOutput">BasicOutput</a></code>.
 
 
-<pre><code><b>struct</b> <a href="basic_output.md#0x107a_basic_output_BasicOutput">BasicOutput</a> <b>has</b> key
+<pre><code><b>struct</b> <a href="basic_output.md#0x107a_basic_output_BasicOutput">BasicOutput</a>&lt;T&gt; <b>has</b> key
 </code></pre>
 
 
@@ -52,10 +51,10 @@ way to handle the two possible addresses that can unlock the output.
  Hash of the <code>outputId</code> that was migrated.
 </dd>
 <dt>
-<code><a href="../iota-framework/iota.md#0x2_iota">iota</a>: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
+<code><a href="../iota-framework/balance.md#0x2_balance">balance</a>: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;T&gt;</code>
 </dt>
 <dd>
- The amount of IOTA coins held by the output.
+ The amount of coins held by the output.
 </dd>
 <dt>
 <code>native_tokens: <a href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</a></code>
@@ -112,10 +111,10 @@ way to handle the two possible addresses that can unlock the output.
 Extract the assets stored inside the output, respecting the unlock conditions.
 - The object will be deleted.
 - The <code>StorageDepositReturnUnlockCondition</code> will return the deposit.
-- Remaining assets (IOTA coins and native tokens) will be returned.
+- Remaining assets (coins and native tokens) will be returned.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="basic_output.md#0x107a_basic_output_extract_assets">extract_assets</a>(output: <a href="basic_output.md#0x107a_basic_output_BasicOutput">basic_output::BasicOutput</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): (<a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, <a href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</a>)
+<pre><code><b>public</b> <b>fun</b> <a href="basic_output.md#0x107a_basic_output_extract_assets">extract_assets</a>&lt;T&gt;(output: <a href="basic_output.md#0x107a_basic_output_BasicOutput">basic_output::BasicOutput</a>&lt;T&gt;, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): (<a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;T&gt;, <a href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</a>)
 </code></pre>
 
 
@@ -124,11 +123,11 @@ Extract the assets stored inside the output, respecting the unlock conditions.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="basic_output.md#0x107a_basic_output_extract_assets">extract_assets</a>(output: <a href="basic_output.md#0x107a_basic_output_BasicOutput">BasicOutput</a>, ctx: &<b>mut</b> TxContext) : (Balance&lt;IOTA&gt;, Bag) {
+<pre><code><b>public</b> <b>fun</b> <a href="basic_output.md#0x107a_basic_output_extract_assets">extract_assets</a>&lt;T&gt;(output: <a href="basic_output.md#0x107a_basic_output_BasicOutput">BasicOutput</a>&lt;T&gt;, ctx: &<b>mut</b> TxContext) : (Balance&lt;T&gt;, Bag) {
     // Unpack the output into its basic part.
     <b>let</b> <a href="basic_output.md#0x107a_basic_output_BasicOutput">BasicOutput</a> {
         id,
-        <a href="../iota-framework/iota.md#0x2_iota">iota</a>: <b>mut</b> <a href="../iota-framework/iota.md#0x2_iota">iota</a>,
+        <a href="../iota-framework/balance.md#0x2_balance">balance</a>: <b>mut</b> <a href="../iota-framework/balance.md#0x2_balance">balance</a>,
         native_tokens,
         storage_deposit_return_uc: <b>mut</b> storage_deposit_return_uc,
         timelock_uc: <b>mut</b> timelock_uc,
@@ -150,7 +149,7 @@ Extract the assets stored inside the output, respecting the unlock conditions.
 
     // If the output <b>has</b> an storage deposit <b>return</b> unlock condition, then we need <b>to</b> <b>return</b> the deposit.
     <b>if</b> (storage_deposit_return_uc.is_some()) {
-        storage_deposit_return_uc.extract().unlock(&<b>mut</b> <a href="../iota-framework/iota.md#0x2_iota">iota</a>, ctx);
+        storage_deposit_return_uc.extract().unlock(&<b>mut</b> <a href="../iota-framework/balance.md#0x2_balance">balance</a>, ctx);
     };
 
     // Destroy the unlock conditions.
@@ -161,7 +160,7 @@ Extract the assets stored inside the output, respecting the unlock conditions.
     // Delete the output.
     <a href="../iota-framework/object.md#0x2_object_delete">object::delete</a>(id);
 
-    <b>return</b> (<a href="../iota-framework/iota.md#0x2_iota">iota</a>, native_tokens)
+    <b>return</b> (<a href="../iota-framework/balance.md#0x2_balance">balance</a>, native_tokens)
 }
 </code></pre>
 
@@ -179,7 +178,7 @@ The private receiver must be implemented in its defining module (here).
 Other modules in the Stardust package can call this function to receive a basic output (alias, NFT).
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="basic_output.md#0x107a_basic_output_receive">receive</a>(parent: &<b>mut</b> <a href="../iota-framework/object.md#0x2_object_UID">object::UID</a>, output: <a href="../iota-framework/transfer.md#0x2_transfer_Receiving">transfer::Receiving</a>&lt;<a href="basic_output.md#0x107a_basic_output_BasicOutput">basic_output::BasicOutput</a>&gt;): <a href="basic_output.md#0x107a_basic_output_BasicOutput">basic_output::BasicOutput</a>
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="basic_output.md#0x107a_basic_output_receive">receive</a>&lt;T&gt;(parent: &<b>mut</b> <a href="../iota-framework/object.md#0x2_object_UID">object::UID</a>, output: <a href="../iota-framework/transfer.md#0x2_transfer_Receiving">transfer::Receiving</a>&lt;<a href="basic_output.md#0x107a_basic_output_BasicOutput">basic_output::BasicOutput</a>&lt;T&gt;&gt;): <a href="basic_output.md#0x107a_basic_output_BasicOutput">basic_output::BasicOutput</a>&lt;T&gt;
 </code></pre>
 
 
@@ -188,7 +187,7 @@ Other modules in the Stardust package can call this function to receive a basic 
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(<a href="../iota-framework/package.md#0x2_package">package</a>) <b>fun</b> <a href="basic_output.md#0x107a_basic_output_receive">receive</a>(parent: &<b>mut</b> UID, output: Receiving&lt;<a href="basic_output.md#0x107a_basic_output_BasicOutput">BasicOutput</a>&gt;) : <a href="basic_output.md#0x107a_basic_output_BasicOutput">BasicOutput</a> {
+<pre><code><b>public</b>(<a href="../iota-framework/package.md#0x2_package">package</a>) <b>fun</b> <a href="basic_output.md#0x107a_basic_output_receive">receive</a>&lt;T&gt;(parent: &<b>mut</b> UID, output: Receiving&lt;<a href="basic_output.md#0x107a_basic_output_BasicOutput">BasicOutput</a>&lt;T&gt;&gt;) : <a href="basic_output.md#0x107a_basic_output_BasicOutput">BasicOutput</a>&lt;T&gt; {
     <a href="../iota-framework/transfer.md#0x2_transfer_receive">transfer::receive</a>(parent, output)
 }
 </code></pre>

@@ -58,7 +58,4 @@ iota-simulator.workspace = true
 insta.workspace = true
 iota-types = { workspace = true, features = ["test-utils"] }
 tempfile.workspace = true
-
-[[example]]
-name = "parse_full_snapshot"
-path = "examples/parse_full_snapshot.rs"
+iota-swarm-config.workspace = true
