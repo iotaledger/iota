@@ -4,14 +4,38 @@
 'use client';
 
 import { AmountBox, Box, StakeCard, NewStakePopup, StakeDetailsPopup, Button } from '@/components';
-import { usePopups, useDelegatedStake } from '@/hooks';
-import { Stake } from '@/lib/types';
+import { usePopups } from '@/hooks';
+import {
+    DelegatedStakeWithValidator,
+    formatDelegatedStake,
+    useFormatCoin,
+    useGetDelegatedStake,
+    useTotalDelegatedRewards,
+    useTotalDelegatedStake,
+} from '@iota/core';
+import { useCurrentAccount } from '@iota/dapp-kit';
+import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 
 function StakingDashboardPage(): JSX.Element {
+    const account = useCurrentAccount();
     const { openPopup, closePopup } = usePopups();
-    const { totalStake, totalRewards, delegatedStake } = useDelegatedStake();
+    const { data: delegatedStakeData } = useGetDelegatedStake({
+        address: account?.address || '',
+    });
 
-    const viewStakeDetails = (stake: Stake) => {
+    const delegatedStakes = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
+    const totalDelegatedStake = useTotalDelegatedStake(delegatedStakes);
+    const totalDelegatedRewards = useTotalDelegatedRewards(delegatedStakes);
+    const [formattedDelegatedStake, symbol, queryResultStake] = useFormatCoin(
+        totalDelegatedStake,
+        IOTA_TYPE_ARG,
+    );
+    const [formattedDelegatedRewards, symbolRewards, queryResultRewards] = useFormatCoin(
+        totalDelegatedRewards,
+        IOTA_TYPE_ARG,
+    );
+
+    const viewStakeDetails = (stake: DelegatedStakeWithValidator) => {
         openPopup(<StakeDetailsPopup stake={stake} onClose={closePopup} />);
     };
 
@@ -21,12 +45,20 @@ function StakingDashboardPage(): JSX.Element {
 
     return (
         <div className="flex flex-col items-center justify-center gap-4 pt-12">
-            <AmountBox title="Currently staked" amount={`${totalStake}`} />
-            <AmountBox title="Earned" amount={`${totalRewards}`} />
+            <AmountBox
+                title="Currently staked"
+                amount={queryResultStake.isPending ? '-' : `${formattedDelegatedStake} ${symbol}`}
+            />
+            <AmountBox
+                title="Earned"
+                amount={`${
+                    queryResultRewards.isPending ? '-' : formattedDelegatedRewards
+                } ${symbolRewards}`}
+            />
             <Box title="Stakes">
                 <div className="flex flex-col items-center gap-4">
                     <h1>List of stakes</h1>
-                    {delegatedStake?.map((stake) => (
+                    {delegatedStakes?.map((stake) => (
                         <StakeCard
                             key={stake.stakedIotaId}
                             stake={stake}

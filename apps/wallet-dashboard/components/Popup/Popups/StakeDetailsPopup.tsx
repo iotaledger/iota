@@ -5,10 +5,10 @@ import React from 'react';
 import { Button } from '@/components/index';
 import { usePopups } from '@/hooks';
 import UnstakePopup from './UnstakePopup';
-import { Stake } from '@/lib/types';
+import { DelegatedStakeWithValidator } from '@iota/core';
 
 interface StakeDetailsPopupProps {
-    stake: Stake;
+    stake: DelegatedStakeWithValidator;
     onClose: () => void;
 }
 
@@ -22,8 +22,8 @@ function StakeDetailsPopup({ stake, onClose }: StakeDetailsPopupProps): JSX.Elem
     return (
         <div className="flex min-w-[400px] flex-col gap-2">
             <p>Stake ID: {stake.stakedIotaId}</p>
-            <p>Validator: {stake.validator}</p>
-            <p>Stake: {stake.stake}</p>
+            <p>Validator: {stake.validatorAddress}</p>
+            <p>Stake: {stake.principal}</p>
             <p>Stake Active Epoch: {stake.stakeActiveEpoch}</p>
             <p>Stake Request Epoch: {stake.stakeRequestEpoch}</p>
             {stake.status === 'Active' && <p>Estimated reward: {stake.estimatedReward}</p>}

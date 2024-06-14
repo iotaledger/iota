@@ -6727,6 +6727,7 @@ dependencies = [
  "iota-protocol-config",
  "iota-sdk 1.1.4",
  "iota-simulator",
+ "iota-swarm-config",
  "iota-types",
  "itertools 0.11.0",
  "move-binary-format",

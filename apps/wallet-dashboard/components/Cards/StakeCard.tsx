@@ -3,18 +3,18 @@
 
 import React from 'react';
 import { Box, Button } from '@/components/index';
-import { Stake } from '@/lib/types';
+import { DelegatedStakeWithValidator } from '@iota/core';
 
 interface StakeCardProps {
-    stake: Stake;
-    onDetailsClick: (stake: Stake) => void;
+    stake: DelegatedStakeWithValidator;
+    onDetailsClick: (stake: DelegatedStakeWithValidator) => void;
 }
 
 function StakeCard({ stake, onDetailsClick }: StakeCardProps): JSX.Element {
     return (
         <Box>
-            <div>Validator: {stake.validator}</div>
-            <div>Stake: {stake.stake}</div>
+            <div>Validator: {stake.validatorAddress}</div>
+            <div>Stake: {stake.principal}</div>
             {stake.status === 'Active' && <p>Estimated reward: {stake.estimatedReward}</p>}
             <div>Status: {stake.status}</div>
             <Button onClick={() => onDetailsClick(stake)}>Details</Button>
