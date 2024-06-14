@@ -49,14 +49,15 @@ The extraction function enforces that any potentially present unlock conditions,
 the transaction would fail, just like it would in stardust.
 
 Address Ownership is migrated directly by converting `Ed25519 Address`, `Alias Address` or `Nft Address` to an
-`IotaAddress` without any modification. For `Ed25519 Address`es this works, because of the changes to the address
-derivation scheme. The `Alias` and `Nft` address types represent object ownership. Those are effectively migrated as a
-transfer. For example, an `Alias Output A` owning a `Basic Output B` in Stardust, would be migrated as setting the
-`owner` of `B` to the address of `A` (the Alias ID), which is equivalent to the Alias Address in Stardust. This is the
-same as if `B` would have been transferred (using either of `iota::transfer::{transfer,public_transfer}`) to the address
-of `A` (the Alias ID) in a PTB. The migrated alias `A` can then _receive_ `B` using the
-`stardust::address_unlock_condition::unlock_alias_address_owned_basic` function. It is just a wrapper around
-`iota::transfer::receive`. There are equivalent unlock functions for the other possible variants of object ownership.
+`IotaAddress` without any modification. For `Ed25519 Address`es this means that their original backing keypair can
+simply continue to be used to unlock objects in Move. The `Alias` and `Nft` address types represent object ownership.
+Those are effectively migrated as a transfer. For example, an `Alias Output A` owning a `Basic Output B` in Stardust, is
+migrated as setting the `owner` of `B` to the address of `A` (the Alias ID), which is equivalent to the Alias Address in
+Stardust. This is the same as if `B` would have been transferred (using either of
+`iota::transfer::{transfer,public_transfer}`) to the address of `A` (the Alias ID). The migrated alias `A` can then
+_receive_ `B` using the `stardust::address_unlock_condition::unlock_alias_address_owned_basic` function, which is
+essentially a wrapper around `iota::transfer::receive`. There are equivalent unlock functions for the other possible
+variants of object ownership.
 
 ## Basic Outputs
 
