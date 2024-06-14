@@ -7,7 +7,10 @@
 use std::{fs::File, str::FromStr};
 
 use iota_genesis_builder::{
-    stardust::{migration::Migration, parse::FullSnapshotParser},
+    stardust::{
+        migration::{Migration, MigrationTargetNetwork},
+        parse::FullSnapshotParser,
+    },
     BROTLI_COMPRESSOR_BUFFER_SIZE, BROTLI_COMPRESSOR_LG_WINDOW_SIZE, BROTLI_COMPRESSOR_QUALITY,
     OBJECT_SNAPSHOT_FILE_PATH,
 };
@@ -30,9 +33,10 @@ fn main() -> anyhow::Result<()> {
         .nth(2)
         .ok_or_else(|| {
             anyhow::anyhow!(
-                "please provide the target network for which the snapshot is being generated (either '{}' or '{}')",
+                "please provide the target network for which the snapshot is being generated ('{}', '{}' or '{}')",
                 MigrationTargetNetwork::Mainnet,
-                MigrationTargetNetwork::Testnet
+                MigrationTargetNetwork::Testnet("(optional-string)".to_owned()),
+                MigrationTargetNetwork::Alphanet("(optional-string)".to_owned()),
             )
         })
         .and_then(|target_network_str| MigrationTargetNetwork::from_str(&target_network_str))?;

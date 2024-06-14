@@ -50,7 +50,7 @@ fn create_bag_with_pt() {
 
     // Execution
     let mut executor =
-        Executor::new(ProtocolVersion::MAX, MigrationTargetNetwork::Testnet).unwrap();
+        Executor::new(ProtocolVersion::MAX, MigrationTargetNetwork::Mainnet).unwrap();
     let object_count = executor.store().objects().len();
     executor
         .create_foundries([(&header, &foundry, foundry_package)])

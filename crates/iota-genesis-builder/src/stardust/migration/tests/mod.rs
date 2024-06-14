@@ -60,7 +60,7 @@ fn run_migration(
     total_supply: u64,
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
 ) -> anyhow::Result<(Executor, HashMap<OutputId, CreatedObjects>)> {
-    let mut migration = Migration::new(1, total_supply, MigrationTargetNetwork::Testnet)?;
+    let mut migration = Migration::new(1, total_supply, MigrationTargetNetwork::Mainnet)?;
     migration.run_migration(outputs)?;
     Ok(migration.into_parts())
 }
@@ -412,7 +412,7 @@ fn unlock_object(
     );
     let mut executor = Executor::new(
         MIGRATION_PROTOCOL_VERSION.into(),
-        MigrationTargetNetwork::Testnet,
+        MigrationTargetNetwork::Mainnet,
     )
     .unwrap()
     .with_tx_context(tx_context)
