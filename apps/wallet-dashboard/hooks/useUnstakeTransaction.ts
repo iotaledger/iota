@@ -27,12 +27,11 @@ export function useUnstakeTransaction(stakedIotaId: string, senderAddress: strin
 
     const gasBudget = transaction?.blockData.gasConfig.budget?.toString() || '';
 
-    const unstake = async (cb: () => void) => {
+    const unstake = async () => {
         if (!transaction) return;
         await signAndExecuteTransactionBlock({
             transactionBlock: transaction,
         });
-        cb();
     };
 
     return {

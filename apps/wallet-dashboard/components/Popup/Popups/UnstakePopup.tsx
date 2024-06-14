@@ -19,8 +19,9 @@ function UnstakePopup({ stake, closePopup }: UnstakePopupProps): JSX.Element {
         account?.address || '',
     );
 
-    const handleUnstake = (): void => {
-        unstake(closePopup);
+    const handleUnstake = async (): Promise<void> => {
+        await unstake();
+        closePopup();
     };
 
     return (
