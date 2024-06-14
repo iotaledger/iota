@@ -12,7 +12,11 @@ type StakeColumnProps = {
     inMICROS?: boolean;
 };
 
-export function StakeColumn({ stake, hideCoinSymbol, inMICROS = false }: StakeColumnProps) {
+export function StakeColumn({
+    stake,
+    hideCoinSymbol,
+    inMICROS = false,
+}: StakeColumnProps): JSX.Element {
     const coinFormat = hideCoinSymbol ? CoinFormat.FULL : CoinFormat.ROUNDED;
     const [amount, symbol] = useFormatCoin(stake, IOTA_TYPE_ARG, coinFormat);
     return (

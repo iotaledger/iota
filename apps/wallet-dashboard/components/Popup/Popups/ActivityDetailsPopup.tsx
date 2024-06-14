@@ -1,5 +1,4 @@
 // Copyright (c) 2024 IOTA Stiftung
-// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import React from 'react';
@@ -17,7 +16,7 @@ function ActivityDetailsPopup({ activity, onClose }: ActivityDetailsPopupProps):
             <h2>Transaction Details</h2>
             <p>Action: {activity.action}</p>
             <p>State: {activity.state}</p>
-            <p>Timestamp: {formatTimestamp(activity.timestamp)}</p>
+            {activity.timestamp && <p>Timestamp: {formatTimestamp(activity.timestamp)}</p>}
         </div>
     );
 }

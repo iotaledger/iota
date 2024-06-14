@@ -15,7 +15,7 @@ type ValidatorMetaProps = {
     validatorData: IotaValidatorSummary;
 };
 
-export function ValidatorMeta({ validatorData }: ValidatorMetaProps) {
+export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Element {
     const validatorPublicKey = validatorData.protocolPubkeyBytes;
     const validatorName = validatorData.name;
     const logo = validatorData.imageUrl;

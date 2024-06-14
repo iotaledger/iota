@@ -1,3 +1,6 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use anyhow::anyhow;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk::types::block::output::{
@@ -9,7 +12,7 @@ use iota_types::{
     collection_types::{Bag, Entry, VecMap},
     id::UID,
     object::{Data, MoveObject, Object, Owner},
-    STARDUST_PACKAGE_ID,
+    TypeTag, STARDUST_PACKAGE_ID,
 };
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use num_rational::Ratio;
@@ -250,6 +253,8 @@ pub struct Nft {
 }
 
 impl Nft {
+    /// Returns the struct tag that represents the fully qualified path of an
+    /// [`Nft`] in its move package.
     pub fn tag() -> StructTag {
         StructTag {
             address: STARDUST_PACKAGE_ID.into(),
@@ -379,7 +384,7 @@ pub struct NftOutput {
     pub id: UID,
 
     /// The amount of IOTA coins held by the output.
-    pub iota: Balance,
+    pub balance: Balance,
     /// The `Bag` holds native tokens, key-ed by the stringified type of the
     /// asset. Example: key: "0xabcded::soon::SOON", value:
     /// Balance<0xabcded::soon::SOON>.
@@ -394,12 +399,14 @@ pub struct NftOutput {
 }
 
 impl NftOutput {
-    pub fn tag() -> StructTag {
+    /// Returns the struct tag that represents the fully qualified path of an
+    /// [`NftOutput`] in its move package.
+    pub fn tag(type_param: TypeTag) -> StructTag {
         StructTag {
             address: STARDUST_PACKAGE_ID.into(),
             module: NFT_OUTPUT_MODULE_NAME.to_owned(),
             name: NFT_OUTPUT_STRUCT_NAME.to_owned(),
-            type_params: Vec::new(),
+            type_params: vec![type_param],
         }
     }
 
@@ -413,7 +420,7 @@ impl NftOutput {
         let unlock_conditions = nft.unlock_conditions();
         Ok(NftOutput {
             id: UID::new(object_id),
-            iota: Balance::new(nft.amount()),
+            balance: Balance::new(nft.amount()),
             native_tokens,
             storage_deposit_return: unlock_conditions
                 .storage_deposit_return()
@@ -433,13 +440,14 @@ impl NftOutput {
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
         version: SequenceNumber,
+        type_param: TypeTag,
     ) -> anyhow::Result<Object> {
         // Construct the Nft Output object.
         let move_nft_output_object = unsafe {
             // Safety: we know from the definition of `NftOutput` in the stardust package
             // that it does not have public transfer (`store` ability is absent).
             MoveObject::new_from_execution(
-                NftOutput::tag().into(),
+                NftOutput::tag(type_param).into(),
                 false,
                 version,
                 bcs::to_bytes(&self)?,

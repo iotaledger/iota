@@ -7,9 +7,9 @@ import { Iota } from '@iota/icons';
 import { Text } from '@iota/ui';
 
 import { Card } from '~/ui/Card';
-import { ButtonOrLink } from '~/ui/utils/ButtonOrLink';
+import { ButtonOrLink } from '~/ui/ButtonOrLink';
 
-export function IotaTokenCard() {
+export function IotaTokenCard(): JSX.Element {
     const { data } = useIotaCoinData();
     const { currentPrice } = data || {};
 

@@ -12,7 +12,7 @@ interface TransactionsCardProps {
     transactions: IotaTransaction[];
 }
 
-export function TransactionsCard({ transactions }: TransactionsCardProps) {
+export function TransactionsCard({ transactions }: TransactionsCardProps): JSX.Element | null {
     if (!transactions?.length) {
         return null;
     }

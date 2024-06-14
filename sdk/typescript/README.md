@@ -5,9 +5,9 @@ For more complete docs, visit the [Iota TypeScript SDK docs](https://sdk.mystenl
 # Iota TypeScript SDK
 
 This is the Iota TypeScript SDK built on the Iota
-[JSON RPC API](https://github.com/iotaledger/iota/blob/main/docs/content/references/iota-api.mdx). It
-provides utility classes and functions for applications to sign transactions and interact with the
-Iota network.
+[JSON RPC API](https://github.com/iotaledger/iota/blob/main/docs/content/references/iota-api.mdx).
+It provides utility classes and functions for applications to sign transactions and interact with
+the Iota network.
 
 WARNING: Note that we are still iterating on the RPC and SDK API before TestNet, therefore please
 expect frequent breaking changes in the short-term. We expect the API to stabilize after the

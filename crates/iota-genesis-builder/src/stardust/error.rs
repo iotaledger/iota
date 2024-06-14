@@ -1,5 +1,4 @@
 // Copyright (c) 2024 IOTA Stiftung
-// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Error types pertaining to deserializing Stardust snapshots
@@ -36,6 +35,8 @@ pub enum StardustError {
     MeltingTokensMustNotBeGreaterThanMintedTokens,
     #[error("circulating supply must not be greater than maximum supply")]
     CirculatingSupplyMustNotBeGreaterThanMaximumSupply,
+    #[error("hornet stardust snapshot parameters not found")]
+    HornetSnapshotParametersNotFound,
 }
 
 impl From<Infallible> for StardustError {

@@ -1,5 +1,4 @@
 // Copyright (c) 2024 IOTA Stiftung
-// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -25,6 +24,7 @@ use iota_types::{
     collection_types::Bag,
     dynamic_field::Field,
     execution_mode,
+    gas_coin::GAS,
     id::UID,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
@@ -46,7 +46,7 @@ use crate::{
     stardust::{
         migration::{
             create_migration_context, package_module_bytes,
-            verification::created_objects::CreatedObjects, PACKAGE_DEPS,
+            verification::created_objects::CreatedObjects, MigrationTargetNetwork, PACKAGE_DEPS,
         },
         types::{
             foundry::create_foundry_gas_coin, snapshot::OutputHeader, stardust_to_iota_address,
@@ -76,8 +76,11 @@ pub(super) struct Executor {
 impl Executor {
     /// Setup the execution environment backed by an in-memory store that holds
     /// all the system packages.
-    pub(super) fn new(protocol_version: ProtocolVersion) -> Result<Self> {
-        let mut tx_context = create_migration_context();
+    pub(super) fn new(
+        protocol_version: ProtocolVersion,
+        target_network: MigrationTargetNetwork,
+    ) -> Result<Self> {
+        let mut tx_context = create_migration_context(target_network);
         // Use a throwaway metrics registry for transaction execution.
         let metrics = Arc::new(LimitsMetrics::new(&prometheus::Registry::new()));
         let mut store = InMemoryStorage::new(Vec::new());
@@ -88,14 +91,9 @@ impl Executor {
         // Get the correct system packages for our protocol version. If we cannot find
         // the snapshot that means that we must be at the latest version and we
         // should use the latest version of the framework.
-        let mut system_packages =
+        let system_packages =
             iota_framework_snapshot::load_bytecode_snapshot(protocol_version.as_u64())
                 .unwrap_or_else(|_| BuiltInFramework::iter_system_packages().cloned().collect());
-        // TODO: Remove when we have bumped the protocol to include the stardust
-        // packages into the system packages.
-        //
-        // See also: https://github.com/iotaledger/kinesis/pull/149
-        system_packages.extend(BuiltInFramework::iter_stardust_packages().cloned());
 
         let silent = true;
         let executor = iota_execution::executor(&protocol_config, silent, None)
@@ -232,12 +230,12 @@ impl Executor {
             };
             let InnerTemporaryStore { written, .. } = self.execute_pt_unmetered(deps, pt)?;
             // Get on-chain info
-            let mut minted_coin_id = None::<ObjectID>;
+            let mut native_token_coin_id = None::<ObjectID>;
             let mut foundry_package = None::<&MovePackage>;
             for object in written.values() {
                 if object.is_coin() {
-                    minted_coin_id = Some(object.id());
-                    created_objects.set_minted_coin(object.id())?;
+                    native_token_coin_id = Some(object.id());
+                    created_objects.set_native_token_coin(object.id())?;
                 } else if object.type_().map_or(false, |t| t.is_coin_metadata()) {
                     created_objects.set_coin_metadata(object.id())?
                 } else if object.type_().map_or(false, |t| {
@@ -256,14 +254,14 @@ impl Executor {
                     created_objects.set_package(object.id())?;
                 }
             }
-            let (minted_coin_id, foundry_package) = (
-                minted_coin_id.expect("a coin must have been minted"),
+            let (native_token_coin_id, foundry_package) = (
+                native_token_coin_id.expect("a native token coin must have been minted"),
                 foundry_package.expect("there should be a published package"),
             );
             self.native_tokens.insert(
                 foundry.token_id(),
                 FoundryLedgerData::new(
-                    minted_coin_id,
+                    native_token_coin_id,
                     foundry_package,
                     SimpleTokenSchemeU64::try_from(foundry.token_scheme().as_simple())?,
                 ),
@@ -277,7 +275,7 @@ impl Executor {
                 foundry_package.version(),
                 &self.protocol_config,
             )?;
-            created_objects.set_coin(gas_coin.id())?;
+            created_objects.set_gas_coin(gas_coin.id())?;
             self.store.insert_object(gas_coin);
 
             self.store.finish(
@@ -336,6 +334,7 @@ impl Executor {
             &self.protocol_config,
             &self.tx_context,
             version,
+            GAS::type_tag(),
         )?;
         let move_alias_output_object_ref = move_alias_output_object.compute_object_reference();
 
@@ -355,7 +354,7 @@ impl Executor {
                 STARDUST_PACKAGE_ID,
                 ident_str!("alias_output").into(),
                 ident_str!("attach_alias").into(),
-                vec![],
+                vec![GAS::type_tag()],
                 vec![alias_output_arg, alias_arg],
             );
 
@@ -390,7 +389,9 @@ impl Executor {
                     anyhow::bail!("foundry for native token has not been published");
                 };
 
-                let Some(foundry_coin) = self.store.get_object(&foundry_ledger_data.minted_coin_id)
+                let Some(foundry_coin) = self
+                    .store
+                    .get_object(&foundry_ledger_data.native_token_coin_id)
                 else {
                     anyhow::bail!("foundry coin should exist");
                 };
@@ -484,7 +485,9 @@ impl Executor {
                     anyhow::bail!("foundry for native token has not been published");
                 };
 
-                let Some(foundry_coin) = self.store.get_object(&foundry_ledger_data.minted_coin_id)
+                let Some(foundry_coin) = self
+                    .store
+                    .get_object(&foundry_ledger_data.native_token_coin_id)
                 else {
                     anyhow::bail!("foundry coin should exist");
                 };
@@ -539,7 +542,7 @@ impl Executor {
         header: &OutputHeader,
         basic_output: &BasicOutput,
     ) -> Result<CreatedObjects> {
-        let mut data =
+        let mut basic =
             crate::stardust::types::output::BasicOutput::new(header.clone(), basic_output)?;
         let owner: IotaAddress = basic_output.address().to_string().parse()?;
         let mut created_objects = CreatedObjects::default();
@@ -547,34 +550,39 @@ impl Executor {
         // The minimum version of the manually created objects
         let package_deps = InputObjects::new(self.load_packages(PACKAGE_DEPS).collect());
         let mut version = package_deps.lamport_timestamp(&[]);
-        let object = if data.is_simple_coin() {
+        let object = if basic.is_simple_coin() {
             if !basic_output.native_tokens().is_empty() {
                 let coins = self.create_native_token_coins(basic_output.native_tokens(), owner)?;
                 created_objects.set_native_tokens(coins)?;
             }
-            let coin = data.into_genesis_coin_object(
+            let gas_coin = basic.into_genesis_coin_object(
                 owner,
                 &self.protocol_config,
                 &self.tx_context,
                 version,
             )?;
-            created_objects.set_coin(coin.id())?;
-            coin
+            created_objects.set_gas_coin(gas_coin.id())?;
+            gas_coin
         } else {
             if !basic_output.native_tokens().is_empty() {
                 let fields;
                 // The bag will be wrapped into the basic output object, so
                 // by equating their versions we emulate a ptb.
-                (data.native_tokens, version, fields) =
+                (basic.native_tokens, version, fields) =
                     self.create_bag_with_pt(basic_output.native_tokens())?;
                 created_objects.set_native_tokens(fields)?;
             } else {
                 // Overwrite the default 0 UID of `Bag::default()`, since we won't
                 // be creating a new bag in this code path.
-                data.native_tokens.id = UID::new(self.tx_context.fresh_id());
+                basic.native_tokens.id = UID::new(self.tx_context.fresh_id());
             }
-            let object =
-                data.to_genesis_object(owner, &self.protocol_config, &self.tx_context, version)?;
+            let object = basic.to_genesis_object(
+                owner,
+                &self.protocol_config,
+                &self.tx_context,
+                version,
+                GAS::type_tag(),
+            )?;
             created_objects.set_output(object.id())?;
             object
         };
@@ -659,6 +667,7 @@ impl Executor {
             &self.protocol_config,
             &self.tx_context,
             version,
+            GAS::type_tag(),
         )?;
         let move_nft_output_object_ref = move_nft_output_object.compute_object_reference();
         created_objects.set_output(move_nft_output_object.id())?;
@@ -676,7 +685,7 @@ impl Executor {
                 STARDUST_PACKAGE_ID,
                 ident_str!("nft_output").into(),
                 ident_str!("attach_nft").into(),
-                vec![],
+                vec![GAS::type_tag()],
                 vec![nft_output_arg, nft_arg],
             );
 
@@ -772,7 +781,7 @@ mod pt {
 /// On-chain data about the objects created while
 /// publishing foundry packages
 pub(crate) struct FoundryLedgerData {
-    pub(crate) minted_coin_id: ObjectID,
+    pub(crate) native_token_coin_id: ObjectID,
     pub(crate) coin_type_origin: TypeOrigin,
     pub(crate) package_id: ObjectID,
     pub(crate) token_scheme_u64: SimpleTokenSchemeU64,
@@ -787,12 +796,12 @@ impl FoundryLedgerData {
     ///
     /// Panics if the package does not contain any [`TypeOrigin`].
     fn new(
-        minted_coin_id: ObjectID,
+        native_token_coin_id: ObjectID,
         foundry_package: &MovePackage,
         token_scheme_u64: SimpleTokenSchemeU64,
     ) -> Self {
         Self {
-            minted_coin_id,
+            native_token_coin_id,
             // There must be only one type created in the foundry package.
             coin_type_origin: foundry_package.type_origin_table()[0].clone(),
             package_id: foundry_package.id(),

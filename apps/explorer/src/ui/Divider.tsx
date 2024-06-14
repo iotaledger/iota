@@ -24,6 +24,6 @@ const dividerStyles = cva('', {
 
 export type DividerProps = VariantProps<typeof dividerStyles>;
 
-export function Divider({ vertical, color }: DividerProps) {
+export function Divider({ vertical, color }: DividerProps): JSX.Element {
     return <div className={dividerStyles({ vertical, color })} />;
 }

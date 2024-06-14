@@ -3,10 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
-import {
-    fromExportedKeypair,
-    type LegacyExportedKeyPair,
-} from '_src/shared/utils/from-exported-keypair';
+import { fromExportedKeypair } from '_src/shared/utils/from-exported-keypair';
 
 import {
     Account,
@@ -17,8 +14,8 @@ import {
     type SigningAccount,
 } from './Account';
 
-type SessionStorageData = { keyPair: LegacyExportedKeyPair | string };
-type EncryptedData = { keyPair: LegacyExportedKeyPair | string };
+type SessionStorageData = { keyPair: string };
+type EncryptedData = { keyPair: string };
 
 export interface ImportedAccountSerialized extends SerializedAccount {
     type: 'imported';
@@ -124,13 +121,13 @@ export class ImportedAccount
     async exportKeyPair(password: string): Promise<string> {
         const { encrypted } = await this.getStoredData();
         const { keyPair } = await decrypt<EncryptedData>(password, encrypted);
-        return fromExportedKeypair(keyPair, true).getSecretKey();
+        return fromExportedKeypair(keyPair).getSecretKey();
     }
 
     async #getKeyPair() {
         const ephemeralData = await this.getEphemeralValue();
         if (ephemeralData) {
-            return fromExportedKeypair(ephemeralData.keyPair, true);
+            return fromExportedKeypair(ephemeralData.keyPair);
         }
         return null;
     }

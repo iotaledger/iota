@@ -6,10 +6,10 @@ import { useIotaClientQuery } from '@iota/dapp-kit';
 import { ArrowRight12 } from '@iota/icons';
 import { type IotaValidatorSummary } from '@iota/iota.js/client';
 import { Text } from '@iota/ui';
-import { useMemo } from 'react';
+import { type ReactNode, useMemo } from 'react';
 
 import { StakeColumn } from './StakeColumn';
-import { HighlightedTableCol } from '~/components/Table/HighlightedTableCol';
+import { HighlightedTableCol } from '~/components/table/HighlightedTableCol';
 import { Banner } from '~/ui/Banner';
 import { ImageIcon } from '~/ui/ImageIcon';
 import { AddressLink, ValidatorLink } from '~/ui/InternalLink';
@@ -28,15 +28,29 @@ export function processValidators(set: IotaValidatorSummary[]) {
         logo: av.imageUrl,
     }));
 }
+interface ValidatorData {
+    name: ReactNode;
+    stake: ReactNode;
+    delegation: ReactNode;
+    address: ReactNode;
+}
 
-const validatorsTable = (
+interface TableColumn {
+    header: string;
+    accessorKey: keyof ValidatorData;
+}
+
+interface ValidatorsTableData {
+    data: ValidatorData[];
+    columns: TableColumn[];
+}
+
+function validatorsTable(
     validatorsData: IotaValidatorSummary[],
     limit?: number,
     showIcon?: boolean,
-) => {
-    const validators = processValidators(validatorsData).sort((a, b) =>
-        Math.random() > 0.5 ? -1 : 1,
-    );
+): ValidatorsTableData {
+    const validators = processValidators(validatorsData).sort(() => (Math.random() > 0.5 ? -1 : 1));
 
     const validatorsItems = limit ? validators.splice(0, limit) : validators;
 
@@ -48,7 +62,6 @@ const validatorsTable = (
                         {showIcon && (
                             <ImageIcon src={logo} size="sm" fallback={name} label={name} circle />
                         )}
-
                         <ValidatorLink
                             address={address}
                             label={name}
@@ -100,14 +113,14 @@ const validatorsTable = (
             },
         ],
     };
-};
+}
 
 type TopValidatorsCardProps = {
     limit?: number;
     showIcon?: boolean;
 };
 
-export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps) {
+export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
 
     const tableData = useMemo(

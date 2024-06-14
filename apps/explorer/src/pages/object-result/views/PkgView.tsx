@@ -12,24 +12,27 @@ import { useGetTransaction } from '../../../hooks/useGetTransaction';
 import { getOwnerStr } from '../../../utils/objectUtils';
 import { trimStdLibPrefix } from '../../../utils/stringUtils';
 import { type DataType } from '../ObjectResultType';
-import TransactionBlocksForAddress, {
-    ObjectFilterValue,
-} from '~/components/TransactionBlocksForAddress';
+import TransactionBlocksForAddress from '~/components/transaction-blocks-for-address';
 import { AddressLink, ObjectLink } from '~/ui/InternalLink';
 import { TabHeader, Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
 
 import styles from './ObjectView.module.css';
+import { ObjectFilterValue } from '~/lib/enums';
 
 const GENESIS_TX_DIGEST = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
 
-const splitPanelsOrientation: { label: string; value: Direction }[] = [
+const SPLIT_PANELS_ORIENTATION: { label: string; value: Direction }[] = [
     { label: 'STACKED', value: 'vertical' },
     { label: 'SIDE-BY-SIDE', value: 'horizontal' },
 ];
 
-function PkgView({ data }: { data: DataType }) {
+interface PkgViewProps {
+    data: DataType;
+}
+
+function PkgView({ data }: PkgViewProps): JSX.Element {
     const [selectedSplitPanelOrientation, setSplitPanelOrientation] = useState(
-        splitPanelsOrientation[1].value,
+        SPLIT_PANELS_ORIENTATION[1].value,
     );
 
     const { data: txnData, isPending } = useGetTransaction(data.data.tx_digest!);
@@ -108,7 +111,7 @@ function PkgView({ data }: { data: DataType }) {
                                         setSplitPanelOrientation(value as 'vertical' | 'horizontal')
                                     }
                                 >
-                                    {splitPanelsOrientation.map(({ value, label }) => (
+                                    {SPLIT_PANELS_ORIENTATION.map(({ value, label }) => (
                                         <RadioGroupItem key={value} value={value} label={label} />
                                     ))}
                                 </RadioGroup>

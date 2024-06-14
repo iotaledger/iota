@@ -9,7 +9,7 @@ import { type ReactNode, useState } from 'react';
 
 import { Divider } from '~/ui/Divider';
 
-export interface CollapsibleSectionProps {
+interface CollapsibleSectionProps {
     children: ReactNode;
     defaultOpen?: boolean;
     title?: string | ReactNode;
@@ -23,7 +23,7 @@ export function CollapsibleSection({
     children,
     open,
     onOpenChange,
-}: CollapsibleSectionProps) {
+}: CollapsibleSectionProps): JSX.Element {
     const [isOpen, setIsOpen] = useState(defaultOpen);
     const isOpenState = typeof open === 'undefined' ? isOpen : open;
     const setOpenState = typeof onOpenChange === 'undefined' ? setIsOpen : onOpenChange;

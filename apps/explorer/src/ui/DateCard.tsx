@@ -10,7 +10,7 @@ export interface DateCardProps {
 }
 
 // TODO - add format options
-export function DateCard({ date }: DateCardProps) {
+export function DateCard({ date }: DateCardProps): JSX.Element | null {
     const dateStr = formatDate(date, ['month', 'day', 'year', 'hour', 'minute']);
 
     if (!dateStr) {
