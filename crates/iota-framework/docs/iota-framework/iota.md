@@ -76,7 +76,7 @@ Sender is not @0x0 the system address.
 
 <a name="0x2_iota_NANO_PER_IOTA"></a>
 
-The amount of Micros per IOTA token based on the fact that nano is
+The amount of Nanos per IOTA token based on the fact that nano is
 10^-9 of a IOTA token
 
 
