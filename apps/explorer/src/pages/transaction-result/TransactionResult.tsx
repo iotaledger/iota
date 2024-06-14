@@ -6,7 +6,7 @@ import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
 import { useParams } from 'react-router-dom';
 
 import { TransactionView } from './TransactionView';
-import { PageLayout } from '~/components/Layout/PageLayout';
+import { PageLayout } from '~/components/layout/PageLayout';
 import { useGetTransaction } from '~/hooks/useGetTransaction';
 import { Banner } from '~/ui/Banner';
 import { PageHeader } from '~/ui/PageHeader';
