@@ -183,10 +183,9 @@ impl Builder {
         mut self,
         snapshot: impl AsRef<Path>,
     ) -> anyhow::Result<Self> {
-        self.migration_objects = bcs::from_reader(brotli::Decompressor::new(
-            File::open(snapshot)?,
-            BROTLI_COMPRESSOR_BUFFER_SIZE,
-        ))?;
+        self.migration_objects = MigrationObjects::new(bcs::from_reader(
+            brotli::Decompressor::new(File::open(snapshot)?, BROTLI_COMPRESSOR_BUFFER_SIZE),
+        )?);
         Ok(self)
     }
 
@@ -250,12 +249,8 @@ impl Builder {
             builder.build()
         };
 
-        let objects = self
-            .objects
-            .clone()
-            .into_values()
-            .chain(self.migration_objects.inner().iter().cloned())
-            .collect::<Vec<_>>();
+        let mut objects = self.migration_objects.take_objects();
+        objects.extend(self.objects.values().cloned());
 
         if !is_vanilla_genesis {
             // Because we set the `stake_subsidy_fund` as non-zero
