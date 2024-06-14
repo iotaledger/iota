@@ -20,6 +20,16 @@ export enum ActivityAction {
     PersonalMessage = 'PersonalMessage',
 }
 
+export enum ActivityAction {
+    Send = 'Send',
+    Receive = 'Receive',
+    Transaction = 'Transaction',
+    Staked = 'Staked',
+    Unstaked = 'Unstaked',
+    Rewards = 'Rewards',
+    PersonalMessage = 'PersonalMessage',
+}
+
 export enum ActivityState {
     Successful = 'successful',
     Failed = 'failed',
