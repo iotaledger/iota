@@ -2,12 +2,12 @@
 name = "iota-macros"
 version = "0.7.0"
 authors = ["Mysten Labs <build@mystenlabs.com>"]
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
 
 [dependencies]
+futures.workspace = true
 iota-proc-macros.workspace = true
 once_cell.workspace = true
-futures.workspace = true
 tracing.workspace = true
