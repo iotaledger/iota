@@ -7,7 +7,7 @@ import { formatAddress } from '@iota/iota.js/utils';
 import { Placeholder } from '@iota/ui';
 import { type ReactNode } from 'react';
 
-import { OwnedObjectsText } from '~/components/OwnedObjects/OwnedObjectsText';
+import { OwnedObjectsText } from '~/components/owned-objects/OwnedObjectsText';
 import { useResolveVideo } from '~/hooks/useResolveVideo';
 import { ObjectLink } from '~/ui/InternalLink';
 import { ObjectVideoImage } from '~/ui/ObjectVideoImage';

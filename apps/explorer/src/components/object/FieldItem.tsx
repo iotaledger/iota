@@ -6,7 +6,7 @@ import { type IotaMoveNormalizedType } from '@iota/iota.js/client';
 import { Text } from '@iota/ui';
 
 import { getFieldTypeValue } from './utils';
-import { SyntaxHighlighter } from '~/components/SyntaxHighlighter';
+import { SyntaxHighlighter } from '~/components/syntax-highlighter';
 import { AddressLink, ObjectLink } from '~/ui/InternalLink';
 import { Link } from '~/ui/Link';
 

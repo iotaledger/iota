@@ -9,7 +9,7 @@ import {
 } from '@iota/iota.js/client';
 
 import { TransactionDetailCard } from './transaction-summary/TransactionDetailCard';
-import { GasBreakdown } from '~/components/GasBreakdown';
+import { GasBreakdown } from '~/components/gas-breakdown';
 import { useRecognizedPackages } from '~/hooks/useRecognizedPackages';
 import { InputsCard } from '~/pages/transaction-result/programmable-transaction-view/InputsCard';
 import { TransactionsCard } from '~/pages/transaction-result/programmable-transaction-view/TransactionsCard';

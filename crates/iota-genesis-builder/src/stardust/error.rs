@@ -35,6 +35,8 @@ pub enum StardustError {
     MeltingTokensMustNotBeGreaterThanMintedTokens,
     #[error("circulating supply must not be greater than maximum supply")]
     CirculatingSupplyMustNotBeGreaterThanMaximumSupply,
+    #[error("hornet stardust snapshot parameters not found")]
+    HornetSnapshotParametersNotFound,
 }
 
 impl From<Infallible> for StardustError {
