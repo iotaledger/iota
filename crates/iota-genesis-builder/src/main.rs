@@ -6,22 +6,14 @@
 //! https://github.com/iotaledger/tips/blob/main/tips/TIP-0035/tip-0035.md
 use std::{fs::File, str::FromStr};
 
-use iota_genesis_builder::stardust::{
-    migration::{Migration, MigrationTargetNetwork},
-    parse::FullSnapshotParser,
+use iota_genesis_builder::{
+    stardust::{migration::Migration, parse::FullSnapshotParser},
+    BROTLI_COMPRESSOR_BUFFER_SIZE, BROTLI_COMPRESSOR_LG_WINDOW_SIZE, BROTLI_COMPRESSOR_QUALITY,
+    OBJECT_SNAPSHOT_FILE_PATH,
 };
-use iota_sdk::types::block::{payload::milestone::MilestoneOption, protocol::ProtocolParameters};
 use itertools::Itertools;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
-
-const OBJECT_SNAPSHOT_FILE_PATH: &str = "stardust_object_snapshot.bin";
-const BROTLI_COMPRESSOR_BUFFER_SIZE: usize = 4096;
-// Compression levels go from 0 to 11, where 11 has the highest compression
-// ratio but requires more time.
-const BROTLI_COMPRESSOR_QUALITY: u32 = 11;
-// LZ77 window size (0, 10-24) where bigger windows size improves density.
-const BROTLI_COMPRESSOR_LG_WINDOW_SIZE: u32 = 22;
 
 fn main() -> anyhow::Result<()> {
     // Initialize tracing
@@ -49,19 +41,10 @@ fn main() -> anyhow::Result<()> {
     let stardust_snapshot_file = File::open(stardust_snapshot_path)?;
     let parser = FullSnapshotParser::new(stardust_snapshot_file)?;
 
-    let MilestoneOption::Parameters(parameters) = parser.header.parameters_milestone_option()
-    else {
-        anyhow::bail!(
-            "a snapshot with a milestone parameters option is needed to verify the total supply of the migration"
-        );
-    };
-    let protocol_parameters: ProtocolParameters =
-        iota_sdk::packable::PackableExt::unpack_unverified(parameters.binary_parameters())?;
-
     // Prepare the migration using the parser output stream
     let migration = Migration::new(
-        parser.header.target_milestone_timestamp(),
-        protocol_parameters.token_supply(),
+        parser.target_milestone_timestamp(),
+        parser.total_supply()?,
         target_network,
     )?;
 
