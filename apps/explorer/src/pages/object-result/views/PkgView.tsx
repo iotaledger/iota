@@ -12,7 +12,7 @@ import { useGetTransaction } from '../../../hooks/useGetTransaction';
 import { getOwnerStr } from '../../../utils/objectUtils';
 import { trimStdLibPrefix } from '../../../utils/stringUtils';
 import { type DataType } from '../ObjectResultType';
-import TransactionBlocksForAddress from '~/components/TransactionBlocksForAddress';
+import TransactionBlocksForAddress from '~/components/transaction-blocks-for-address';
 import { AddressLink, ObjectLink } from '~/ui/InternalLink';
 import { TabHeader, Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
 

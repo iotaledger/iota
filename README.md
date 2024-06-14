@@ -14,6 +14,8 @@ The Rust language conventions used in this repository can be found in [Rust Conv
 
 ### Formatting
 
+**Rust**
+
 In order to use the unstable features specified in rustfmt.toml, you must have the correct nightly toolchain component
 installed.
 
@@ -26,6 +28,23 @@ This can be used regardless of the default toolchain to format the code using th
 ```sh
 cargo +nightly fmt
 ```
+
+**TOML**
+
+In order to format `toml` files, we use `dprint`. It can be installed either via `npm` or via `cargo`.
+
+```sh
+cargo install dprint
+```
+
+or
+
+```sh
+npm install -g dprint
+```
+
+Simply run `dprint fmt` in the root of the repository to format all applicable files.
+Similarly, run `dprint check` to check whether all files are correctly formatted.
 
 #### IDE Configuration
 

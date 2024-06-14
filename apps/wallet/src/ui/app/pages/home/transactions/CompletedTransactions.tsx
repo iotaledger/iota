@@ -7,7 +7,7 @@ import { ErrorBoundary } from '_components/error-boundary';
 import Loading from '_components/loading';
 import { TransactionCard } from '_components/transactions-card';
 import { NoActivityCard } from '_components/transactions-card/NoActivityCard';
-import { useQueryTransactionsByAddress } from '_hooks';
+import { useQueryTransactionsByAddress } from '@iota/core';
 import { useActiveAddress } from '_src/ui/app/hooks/useActiveAddress';
 
 export function CompletedTransactions() {
