@@ -2,18 +2,18 @@
 name = "iota-protocol-config"
 version = "0.1.0"
 authors = ["Mysten Labs <build@mystenlabs.com>"]
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
 
 [dependencies]
-serde.workspace = true
-tracing.workspace = true
-serde_with.workspace = true
+clap.workspace = true
+insta.workspace = true
 iota-protocol-config-macros.workspace = true
 schemars.workspace = true
-insta.workspace = true
-clap.workspace = true
+serde.workspace = true
+serde_with.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

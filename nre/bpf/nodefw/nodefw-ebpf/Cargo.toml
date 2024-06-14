@@ -6,9 +6,9 @@ edition = "2021"
 [dependencies]
 aya-bpf = { git = "https://github.com/aya-rs/aya" }
 aya-log-ebpf = { git = "https://github.com/aya-rs/aya" }
-nodefw-common = { path = "../nodefw-common" }
-network-types = "0.0.5"
 memoffset = "0.9"
+network-types = "0.0.5"
+nodefw-common = { path = "../nodefw-common" }
 
 [[bin]]
 name = "nodefw"

@@ -2,17 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export interface Activity {
-    action:
-        | 'Send'
-        | 'Receive'
-        | 'Transaction'
-        | 'Staked'
-        | 'Unstaked'
-        | 'Rewards'
-        | 'Swapped'
-        | 'PersonalMessage';
-    timestamp: number;
+    action: ActivityAction;
+    timestamp?: number;
     state: ActivityState;
+}
+
+export enum ActivityAction {
+    Send = 'Send',
+    Receive = 'Receive',
+    Transaction = 'Transaction',
+    Staked = 'Staked',
+    Unstaked = 'Unstaked',
+    Rewards = 'Rewards',
+    PersonalMessage = 'PersonalMessage',
 }
 
 export enum ActivityState {

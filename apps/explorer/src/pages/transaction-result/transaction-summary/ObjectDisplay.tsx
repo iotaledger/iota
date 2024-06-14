@@ -6,16 +6,15 @@ import { type DisplayFieldsResponse } from '@iota/iota.js/client';
 import { useState } from 'react';
 
 import { ObjectLink } from '~/ui/InternalLink';
-import { ObjectModal } from '~/ui/Modal/ObjectModal';
+import { ObjectModal } from '~/ui/modal/ObjectModal';
 import { Image } from '~/ui/image/Image';
 
-export function ObjectDisplay({
-    objectId,
-    display,
-}: {
+interface ObjectDisplayProps {
     objectId: string;
     display: DisplayFieldsResponse;
-}) {
+}
+
+export function ObjectDisplay({ objectId, display }: ObjectDisplayProps): JSX.Element | null {
     const [open, handleOpen] = useState(false);
     if (!display.data) return null;
     const { description, name, image_url: imageUrl } = display.data ?? {};

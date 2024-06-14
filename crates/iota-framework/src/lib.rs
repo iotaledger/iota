@@ -106,29 +106,6 @@ macro_rules! define_system_packages {
 
 pub struct BuiltInFramework;
 impl BuiltInFramework {
-    /// Dedicated method to iterate on `stardust` packages.
-    // TODO: integrate to iter_system_packages when we make a new
-    // system-framework-snapshot with the associated protocol bump:wq
-    pub fn iter_stardust_packages() -> impl Iterator<Item = &'static SystemPackage> {
-        define_system_packages!([
-            (
-                STARDUST_PACKAGE_ID,
-                "stardust",
-                [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
-            ),
-            (
-                TIMELOCK_PACKAGE_ID,
-                "timelock",
-                [
-                    MOVE_STDLIB_PACKAGE_ID,
-                    IOTA_FRAMEWORK_PACKAGE_ID,
-                    IOTA_SYSTEM_PACKAGE_ID
-                ]
-            )
-        ])
-        .iter()
-    }
-
     pub fn iter_system_packages() -> impl Iterator<Item = &'static SystemPackage> {
         // All system packages in the current build should be registered here, and this
         // is the only place we need to worry about if any of them changes.
@@ -150,7 +127,21 @@ impl BuiltInFramework {
                 DEEPBOOK_PACKAGE_ID,
                 "deepbook",
                 [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
-            )
+            ),
+            (
+                STARDUST_PACKAGE_ID,
+                "stardust",
+                [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
+            ),
+            (
+                TIMELOCK_PACKAGE_ID,
+                "timelock",
+                [
+                    MOVE_STDLIB_PACKAGE_ID,
+                    IOTA_FRAMEWORK_PACKAGE_ID,
+                    IOTA_SYSTEM_PACKAGE_ID
+                ]
+            ),
         ])
         .iter()
     }

@@ -7,22 +7,32 @@ import { Domain32 } from '@iota/icons';
 import { LoadingIndicator } from '@iota/ui';
 import { useParams } from 'react-router-dom';
 
-import { PageLayout } from '~/components/Layout/PageLayout';
-import { OwnedCoins } from '~/components/OwnedCoins';
-import { OwnedObjects } from '~/components/OwnedObjects';
+import { PageLayout } from '~/components/layout/PageLayout';
+import { OwnedCoins } from '~/components/owned-coins';
+import { OwnedObjects } from '~/components/owned-objects';
 import { ErrorBoundary } from '~/components/error-boundary/ErrorBoundary';
 import { TransactionsForAddress } from '~/components/transactions/TransactionsForAddress';
 import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { Divider } from '~/ui/Divider';
 import { PageHeader } from '~/ui/PageHeader';
-import { LocalStorageSplitPaneKey, SplitPanes } from '~/ui/SplitPanes';
+import { SplitPanes } from '~/ui/SplitPanes';
 import { TabHeader, TabsList, TabsTrigger } from '~/ui/Tabs';
 import { TotalStaked } from './TotalStaked';
+import { LocalStorageSplitPaneKey } from '~/lib/enums';
+
+interface AddressResultPageHeaderProps {
+    address: string;
+    loading?: boolean;
+}
 
 const LEFT_RIGHT_PANEL_MIN_SIZE = 30;
 const TOP_PANEL_MIN_SIZE = 20;
 
-function AddressResultPageHeader({ address, loading }: { address: string; loading?: boolean }) {
+interface AddressResultPageHeaderProps {
+    address: string;
+    loading?: boolean;
+}
+function AddressResultPageHeader({ address, loading }: AddressResultPageHeaderProps): JSX.Element {
     const { data: domainName, isLoading } = useResolveIotaNSName(address);
 
     return (
@@ -37,13 +47,13 @@ function AddressResultPageHeader({ address, loading }: { address: string; loadin
     );
 }
 
-function IotaNSAddressResultPageHeader({ name }: { name: string }) {
+function IotaNSAddressResultPageHeader({ name }: { name: string }): JSX.Element {
     const { data: address, isLoading } = useResolveIotaNSAddress(name);
 
     return <AddressResultPageHeader address={address ?? name} loading={isLoading} />;
 }
 
-function AddressResult({ address }: { address: string }) {
+function AddressResult({ address }: { address: string }): JSX.Element {
     const isMediumOrAbove = useBreakpoint('md');
 
     const leftPane = {
@@ -127,7 +137,7 @@ function AddressResult({ address }: { address: string }) {
     );
 }
 
-function IotaNSAddressResult({ name }: { name: string }) {
+function IotaNSAddressResult({ name }: { name: string }): JSX.Element {
     const { isFetched, data } = useResolveIotaNSAddress(name);
 
     if (!isFetched) {
@@ -138,7 +148,7 @@ function IotaNSAddressResult({ name }: { name: string }) {
     return <AddressResult address={data ?? name} />;
 }
 
-export default function AddressResultPage() {
+export default function AddressResultPage(): JSX.Element {
     const { id } = useParams();
     const isIotaNSAddress = isIotaNSName(id!);
 

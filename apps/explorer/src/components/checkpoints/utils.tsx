@@ -6,41 +6,62 @@ import { type CheckpointPage } from '@iota/iota.js/client';
 import { Text } from '@iota/ui';
 
 import { TxTimeType } from '../tx-time/TxTimeType';
-import { HighlightedTableCol } from '~/components/Table/HighlightedTableCol';
+import { HighlightedTableCol } from '~/components/table/HighlightedTableCol';
 import { CheckpointLink, CheckpointSequenceLink } from '~/ui/InternalLink';
+import { type ReactNode } from 'react';
+
+interface CheckpointData {
+    digest: ReactNode;
+    time: ReactNode;
+    sequenceNumber: ReactNode;
+    transactionBlockCount: ReactNode;
+}
+
+interface TableColumn {
+    header: () => string;
+    accessorKey: keyof CheckpointData;
+}
+
+interface CheckpointTableData {
+    data: CheckpointData[];
+    columns: TableColumn[];
+}
 
 // Generate table data from the checkpoints data
-export const genTableDataFromCheckpointsData = (data: CheckpointPage) => ({
-    data: data?.data.map((checkpoint) => ({
-        digest: (
-            <HighlightedTableCol first>
-                <CheckpointLink digest={checkpoint.digest} />
-            </HighlightedTableCol>
-        ),
-        time: <TxTimeType timestamp={Number(checkpoint.timestampMs)} />,
-        sequenceNumber: <CheckpointSequenceLink sequence={checkpoint.sequenceNumber} />,
-        transactionBlockCount: (
-            <Text variant="bodySmall/medium" color="steel-darker">
-                {checkpoint.transactions.length}
-            </Text>
-        ),
-    })),
-    columns: [
-        {
-            header: () => 'Digest',
-            accessorKey: 'digest',
-        },
-        {
-            header: () => 'Sequence Number',
-            accessorKey: 'sequenceNumber',
-        },
-        {
-            header: () => 'Time',
-            accessorKey: 'time',
-        },
-        {
-            header: () => 'Transaction Block Count',
-            accessorKey: 'transactionBlockCount',
-        },
-    ],
-});
+export function generateTableDataFromCheckpointsData(data: CheckpointPage): CheckpointTableData {
+    return {
+        data:
+            data?.data.map((checkpoint) => ({
+                digest: (
+                    <HighlightedTableCol first>
+                        <CheckpointLink digest={checkpoint.digest} />
+                    </HighlightedTableCol>
+                ),
+                time: <TxTimeType timestamp={Number(checkpoint.timestampMs)} />,
+                sequenceNumber: <CheckpointSequenceLink sequence={checkpoint.sequenceNumber} />,
+                transactionBlockCount: (
+                    <Text variant="bodySmall/medium" color="steel-darker">
+                        {checkpoint.transactions.length}
+                    </Text>
+                ),
+            })) ?? [],
+        columns: [
+            {
+                header: () => 'Digest',
+                accessorKey: 'digest',
+            },
+            {
+                header: () => 'Sequence Number',
+                accessorKey: 'sequenceNumber',
+            },
+            {
+                header: () => 'Time',
+                accessorKey: 'time',
+            },
+            {
+                header: () => 'Transaction Block Count',
+                accessorKey: 'transactionBlockCount',
+            },
+        ],
+    };
+}

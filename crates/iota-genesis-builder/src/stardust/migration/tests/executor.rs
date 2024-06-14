@@ -18,6 +18,7 @@ use iota_types::{
 use crate::stardust::{
     migration::{
         executor::Executor, migration::NATIVE_TOKEN_BAG_KEY_TYPE, tests::random_output_header,
+        MigrationTargetNetwork,
     },
     native_token::{
         package_builder,
@@ -48,7 +49,8 @@ fn create_bag_with_pt() {
     let foundry_package = package_builder::build_and_compile(foundry_package_data).unwrap();
 
     // Execution
-    let mut executor = Executor::new(ProtocolVersion::MAX).unwrap();
+    let mut executor =
+        Executor::new(ProtocolVersion::MAX, MigrationTargetNetwork::Mainnet).unwrap();
     let object_count = executor.store().objects().len();
     executor
         .create_foundries([(&header, &foundry, foundry_package)])
@@ -58,8 +60,8 @@ fn create_bag_with_pt() {
     // * The package
     // * Coin metadata
     // * MaxSupplyPolicy
-    // * The total supply coin
-    // * The foundry gas coin
+    // * The total supply native token coin
+    // * The gas coin
     assert_eq!(executor.store().objects().len() - object_count, 5);
     assert!(executor.native_tokens().get(&foundry_id.into()).is_some());
     let initial_supply_coin_object = executor

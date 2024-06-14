@@ -16,8 +16,8 @@ import {
     ModalContent,
     ModalHeading,
     type ModalProps,
-} from '../Modal';
-import { ObjectModal, type ObjectModalProps } from '../Modal/ObjectModal';
+} from '../modal';
+import { ObjectModal, type ObjectModalProps } from '../modal/ObjectModal';
 
 export default {
     component: () => {

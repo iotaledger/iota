@@ -530,18 +530,6 @@ export class BackgroundClient {
         );
     }
 
-    public acknowledgeZkLoginWarning(args: MethodPayload<'acknowledgeZkLoginWarning'>['args']) {
-        return lastValueFrom(
-            this.sendMessage(
-                createMessage<MethodPayload<'acknowledgeZkLoginWarning'>>({
-                    type: 'method-payload',
-                    method: 'acknowledgeZkLoginWarning',
-                    args,
-                }),
-            ).pipe(take(1)),
-        );
-    }
-
     private loadFeatures() {
         return lastValueFrom(
             this.sendMessage(

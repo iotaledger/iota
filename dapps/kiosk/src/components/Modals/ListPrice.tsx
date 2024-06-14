@@ -32,7 +32,9 @@ export function ListPrice({ item, onSuccess, closeModal, listAndPlace, kioskId }
                     <DisplayObjectThumbnail item={item}></DisplayObjectThumbnail>
                 </div>
                 <div>
-                    <label className="font-medium mb-1 block text-sm">Listing price (in IOTA)</label>
+                    <label className="font-medium mb-1 block text-sm">
+                        Listing price (in IOTA)
+                    </label>
                     <input
                         type="number"
                         min="0"

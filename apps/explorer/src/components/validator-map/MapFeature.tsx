@@ -2,11 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-interface Props {
+interface MapFeatureProps {
     path: string | null;
 }
 
-export function MapFeature({ path }: Props) {
+export function MapFeature({ path }: MapFeatureProps): JSX.Element | null {
     if (!path) {
         return null;
     }

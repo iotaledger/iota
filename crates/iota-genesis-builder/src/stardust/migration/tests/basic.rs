@@ -17,13 +17,13 @@ use iota_sdk::types::block::{
 };
 use iota_types::base_types::{IotaAddress, ObjectID};
 
-use super::{
-    extract_native_token_from_bag, unlock_object_test, ExpectedAssets, UnlockObjectTestResult,
-};
 use crate::stardust::{
     migration::{
-        tests::{create_foundry, random_output_header},
-        Migration,
+        tests::{
+            create_foundry, extract_native_token_from_bag, random_output_header, unlock_object,
+            ExpectedAssets, UnlockObjectTestResult,
+        },
+        Migration, MigrationTargetNetwork,
     },
     types::{output::BASIC_OUTPUT_MODULE_NAME, snapshot::OutputHeader, stardust_to_iota_address},
 };
@@ -41,7 +41,7 @@ fn basic_simple_coin_id() {
         .finish()
         .unwrap();
 
-    let mut migration = Migration::new(1).unwrap();
+    let mut migration = Migration::new(1, 1_000_000, MigrationTargetNetwork::Mainnet).unwrap();
     migration
         .run_migration([(header.clone(), stardust_basic.clone().into())])
         .unwrap();
@@ -49,7 +49,7 @@ fn basic_simple_coin_id() {
         .output_objects_map
         .get(&header.output_id())
         .unwrap()
-        .coin()
+        .gas_coin()
         .unwrap();
     let expected_object_id = ObjectID::new(header.output_id().hash());
     assert_eq!(expected_object_id, *migrated_object_id);
@@ -114,7 +114,7 @@ fn basic_id() {
         .finish()
         .unwrap();
 
-    let mut migration = Migration::new(1).unwrap();
+    let mut migration = Migration::new(1, 1_000_000, MigrationTargetNetwork::Mainnet).unwrap();
     migration
         .run_migration([(header.clone(), stardust_basic.clone().into())])
         .unwrap();
@@ -152,7 +152,7 @@ fn basic_simple_coin_migration_with_native_token() {
         (foundry_header, foundry_output.into()),
         (header, stardust_basic.into()),
     ];
-    let mut migration = Migration::new(1).unwrap();
+    let mut migration = Migration::new(1, 1_000_000, MigrationTargetNetwork::Mainnet).unwrap();
     migration.run_migration(outputs).unwrap();
 }
 
@@ -187,6 +187,7 @@ fn basic_migration_with_native_token() {
 
     extract_native_token_from_bag(
         output_id,
+        1_000_000,
         outputs,
         BASIC_OUTPUT_MODULE_NAME,
         native_token,
@@ -216,8 +217,9 @@ fn basic_migration_with_timelock_unlocked() {
         .finish()
         .unwrap();
 
-    unlock_object_test(
+    unlock_object(
         header.output_id(),
+        1_000_000,
         [(header, stardust_basic.into())],
         // Sender is not important for this test.
         &IotaAddress::ZERO,
@@ -248,8 +250,9 @@ fn basic_migration_with_timelock_still_locked() {
         .finish()
         .unwrap();
 
-    unlock_object_test(
+    unlock_object(
         header.output_id(),
+        1_000_000,
         [(header, stardust_basic.into())],
         // Sender is not important for this test.
         &IotaAddress::ZERO,
@@ -286,8 +289,9 @@ fn basic_migration_with_expired_unlock_condition() {
         .unwrap();
 
     // Owner Address CANNOT unlock.
-    unlock_object_test(
+    unlock_object(
         header.output_id(),
+        1_000_000,
         [(header.clone(), stardust_basic.clone().into())],
         &iota_owner_address,
         BASIC_OUTPUT_MODULE_NAME,
@@ -298,8 +302,9 @@ fn basic_migration_with_expired_unlock_condition() {
     .unwrap();
 
     // Return Address CAN unlock.
-    unlock_object_test(
+    unlock_object(
         header.output_id(),
+        1_000_000,
         [(header, stardust_basic.into())],
         &iota_return_address,
         BASIC_OUTPUT_MODULE_NAME,
@@ -335,8 +340,9 @@ fn basic_migration_with_unexpired_unlock_condition() {
         .unwrap();
 
     // Return Address CANNOT unlock.
-    unlock_object_test(
+    unlock_object(
         header.output_id(),
+        1_000_000,
         [(header.clone(), stardust_basic.clone().into())],
         &iota_return_address,
         BASIC_OUTPUT_MODULE_NAME,
@@ -347,8 +353,9 @@ fn basic_migration_with_unexpired_unlock_condition() {
     .unwrap();
 
     // Owner Address CAN unlock.
-    unlock_object_test(
+    unlock_object(
         header.output_id(),
+        1_000_000,
         [(header, stardust_basic.into())],
         &iota_owner_address,
         BASIC_OUTPUT_MODULE_NAME,
@@ -376,8 +383,9 @@ fn basic_migration_with_storage_deposit_return_unlock_condition() {
         .unwrap();
 
     // Simply test that the unlock with the SDRUC succeeds.
-    unlock_object_test(
+    unlock_object(
         header.output_id(),
+        1_000_000,
         [(header, stardust_basic.into())],
         // Sender is not important for this test.
         &IotaAddress::ZERO,
@@ -388,4 +396,37 @@ fn basic_migration_with_storage_deposit_return_unlock_condition() {
         ExpectedAssets::BalanceBag,
     )
     .unwrap();
+}
+
+#[test]
+fn basic_migration_with_incorrect_total_supply() {
+    let owner = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+    let header = random_output_header();
+
+    let total_value = 1_000_000;
+    let stardust_basic = BasicOutputBuilder::new_with_amount(total_value)
+        .add_unlock_condition(AddressUnlockCondition::new(owner))
+        .finish()
+        .unwrap();
+
+    // Total supply does not match the total amount on outputs
+    let total_supply = 2_000_000;
+    let err = unlock_object(
+        header.output_id(),
+        total_supply,
+        [(header, stardust_basic.into())],
+        // Sender is not important for this test.
+        &IotaAddress::ZERO,
+        BASIC_OUTPUT_MODULE_NAME,
+        // Epoch start time is not important for this test.
+        0,
+        UnlockObjectTestResult::Success,
+        ExpectedAssets::BalanceBag,
+    )
+    .unwrap_err();
+
+    assert_eq!(
+        err.to_string(),
+        format!("total supply mismatch: found {total_value}, expected {total_supply}")
+    );
 }

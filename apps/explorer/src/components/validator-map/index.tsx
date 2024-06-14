@@ -14,13 +14,18 @@ import { WorldMap } from './WorldMap';
 import { type ValidatorMapResponse, type ValidatorMapValidator } from './types';
 import { useNetwork } from '~/context';
 import { Card } from '~/ui/Card';
-import { Network } from '~/utils/api/DefaultRpcClient';
+import { Network } from '~/utils/api/defaultRpcClient';
 
 type ValidatorsMap = Record<string, ValidatorMapValidator>;
 
 const numberFormatter = new Intl.NumberFormat('en');
 
-function NodeStat({ title, children }: { title: string; children: ReactNode }) {
+interface NodeStatProps {
+    title: string;
+    children: ReactNode;
+}
+
+function NodeStat({ title, children }: NodeStatProps): JSX.Element {
     return (
         <div className="space-y-1.5">
             <Heading variant="heading2/semibold" color="steel-darker">
@@ -33,12 +38,12 @@ function NodeStat({ title, children }: { title: string; children: ReactNode }) {
     );
 }
 
-interface Props {
+interface ValidatorMapProps {
     minHeight: string | number;
 }
 
 // NOTE: This component is lazy imported, so it needs to be default exported:
-export default function ValidatorMap({ minHeight }: Props) {
+export default function ValidatorMap({ minHeight }: ValidatorMapProps): JSX.Element {
     const [network] = useNetwork();
     const { data: systemState, isError: systemStateError } = useIotaClientQuery(
         'getLatestIotaSystemState',

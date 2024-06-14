@@ -9,7 +9,7 @@ import { LoadingIndicator, Text } from '@iota/ui';
 import React, { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 
-import { PageLayout } from '~/components/Layout/PageLayout';
+import { PageLayout } from '~/components/layout/PageLayout';
 import { ValidatorMeta } from '~/components/validator/ValidatorMeta';
 import { ValidatorStats } from '~/components/validator/ValidatorStats';
 import { Banner } from '~/ui/Banner';
@@ -25,7 +25,7 @@ const getAtRiskRemainingEpochs = (
     return atRisk ? VALIDATOR_LOW_STAKE_GRACE_PERIOD - Number(atRisk[1]) : null;
 };
 
-function ValidatorDetails() {
+function ValidatorDetails(): JSX.Element {
     const { id } = useParams();
     const { data, isPending } = useIotaClientQuery('getLatestIotaSystemState');
 
