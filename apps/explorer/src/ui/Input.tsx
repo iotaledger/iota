@@ -4,7 +4,7 @@
 
 import { forwardRef } from 'react';
 
-import { Label } from './utils/Label';
+import { Label } from './Label';
 
 import type { ComponentProps } from 'react';
 

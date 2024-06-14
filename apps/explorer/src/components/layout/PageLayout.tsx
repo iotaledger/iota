@@ -13,7 +13,7 @@ import Footer from '../footer/Footer';
 import Header from '../header/Header';
 import { useNetworkContext } from '~/context';
 import { Banner } from '~/ui/Banner';
-import { Network } from '~/utils/api/DefaultRpcClient';
+import { Network } from '~/utils/api/defaultRpcClient';
 
 type PageLayoutProps = {
     gradient?: {

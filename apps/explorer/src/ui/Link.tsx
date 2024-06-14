@@ -5,7 +5,7 @@
 import { cva, type VariantProps } from 'class-variance-authority';
 import { type ReactNode } from 'react';
 
-import { ButtonOrLink, type ButtonOrLinkProps } from './utils/ButtonOrLink';
+import { ButtonOrLink, type ButtonOrLinkProps } from './ButtonOrLink';
 
 const linkStyles = cva([], {
     variants: {
