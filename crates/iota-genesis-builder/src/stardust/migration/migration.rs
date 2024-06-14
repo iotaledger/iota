@@ -18,7 +18,8 @@ use iota_types::{
     crypto::DefaultHash,
     digests::TransactionDigest,
     epoch_data::EpochData,
-    object::Object,
+    object::{Object, Owner},
+    timelock::timelock::is_timelock,
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
     TIMELOCK_PACKAGE_ID,
 };
@@ -232,19 +233,44 @@ impl Migration {
     }
 }
 
+/// All the objects created during the migration.
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct MigrationObjects(Vec<Object>);
 
 impl MigrationObjects {
+    /// A slice to the inner sequence of migrated objects
     pub fn inner(&self) -> &[Object] {
         &self.0
     }
 
-    pub fn get_timelocks_by_owner(&self, _address: IotaAddress) -> Option<&[Object]> {
-        todo!()
+    /// Get [`TimeLock`] objects created during the migration.
+    ///
+    /// The query is filtered by the object owner.
+    pub fn get_timelocks_by_owner(&self, address: IotaAddress) -> Option<Vec<&Object>> {
+        let owner = Owner::AddressOwner(address);
+        let timelocks = self
+            .0
+            .iter()
+            .filter_map(|object| {
+                let struct_tag = object.struct_tag()?;
+                is_timelock(&struct_tag).then_some(object)
+            })
+            .filter(|object| object.owner == owner)
+            .collect();
+        Some(timelocks)
     }
-    pub fn get_gas_coins_by_owner(&self, _address: IotaAddress) -> Option<&[Object]> {
-        todo!()
+
+    /// Get [`GasCoin`] objects created during the migration.
+    ///
+    /// The query is filtered by the object owner.
+    pub fn get_gas_coins_by_owner(&self, address: IotaAddress) -> Option<Vec<&Object>> {
+        let owner = Owner::AddressOwner(address);
+        let gas_coins = self
+            .0
+            .iter()
+            .filter(|object| object.is_gas_coin() && object.owner == owner)
+            .collect();
+        Some(gas_coins)
     }
 }
 
@@ -286,4 +312,113 @@ pub(super) fn create_migration_context() -> TxContext {
         &stardust_migration_transaction_digest,
         &EpochData::new_genesis(0),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_protocol_config::ProtocolConfig;
+    use iota_types::{
+        balance::Balance, base_types::SequenceNumber, gas_coin::GasCoin, id::UID, object::Data,
+        timelock::timelock::TimeLock,
+    };
+
+    use super::*;
+    use crate::stardust::types::timelock::to_genesis_object;
+
+    #[test]
+    fn migration_objects_get_timelocks() {
+        let owner = IotaAddress::random_for_testing_only();
+        let address = IotaAddress::random_for_testing_only();
+        let tx_context = TxContext::random_for_testing_only();
+        let expected_timelocks = (0..4)
+            .map(|_| TimeLock::new(UID::new(ObjectID::random()), Balance::new(0), 0, None))
+            .map(|timelock| {
+                to_genesis_object(
+                    timelock,
+                    owner,
+                    &ProtocolConfig::get_for_min_version(),
+                    &tx_context,
+                    SequenceNumber::MIN,
+                )
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+        let non_matching_timelocks = (0..8)
+            .map(|_| TimeLock::new(UID::new(ObjectID::random()), Balance::new(0), 0, None))
+            .map(|timelock| {
+                to_genesis_object(
+                    timelock,
+                    address,
+                    &ProtocolConfig::get_for_min_version(),
+                    &tx_context,
+                    SequenceNumber::MIN,
+                )
+                .unwrap()
+            });
+        let non_matching_objects = (0..8)
+            .map(|_| GasCoin::new_for_testing(0).to_object(SequenceNumber::MIN))
+            .map(|move_object| {
+                Object::new_from_genesis(
+                    Data::Move(move_object),
+                    Owner::AddressOwner(address),
+                    tx_context.digest(),
+                )
+            });
+        let migration_objects = MigrationObjects(
+            non_matching_objects
+                .chain(non_matching_timelocks)
+                .chain(expected_timelocks.clone())
+                .collect(),
+        );
+        let matching_objects = migration_objects.get_timelocks_by_owner(owner).unwrap();
+        assert_eq!(
+            expected_timelocks,
+            matching_objects
+                .into_iter()
+                .cloned()
+                .collect::<Vec<Object>>()
+        );
+    }
+
+    #[test]
+    fn migration_objects_get_gas_coins() {
+        let owner = IotaAddress::random_for_testing_only();
+        let address = IotaAddress::random_for_testing_only();
+        let tx_context = TxContext::random_for_testing_only();
+        let non_matching_timelocks = (0..8)
+            .map(|_| TimeLock::new(UID::new(ObjectID::random()), Balance::new(0), 0, None))
+            .map(|timelock| {
+                to_genesis_object(
+                    timelock,
+                    address,
+                    &ProtocolConfig::get_for_min_version(),
+                    &tx_context,
+                    SequenceNumber::MIN,
+                )
+                .unwrap()
+            });
+        let expected_gas_coins = (0..8)
+            .map(|_| GasCoin::new_for_testing(0).to_object(SequenceNumber::MIN))
+            .map(|move_object| {
+                Object::new_from_genesis(
+                    Data::Move(move_object),
+                    Owner::AddressOwner(owner),
+                    tx_context.digest(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let migration_objects = MigrationObjects(
+            non_matching_timelocks
+                .chain(expected_gas_coins.clone())
+                .collect(),
+        );
+        let matching_objects = migration_objects.get_gas_coins_by_owner(owner).unwrap();
+        assert_eq!(
+            expected_gas_coins,
+            matching_objects
+                .into_iter()
+                .cloned()
+                .collect::<Vec<Object>>()
+        );
+    }
 }
