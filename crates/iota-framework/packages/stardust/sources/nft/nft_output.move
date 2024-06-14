@@ -6,7 +6,6 @@ module stardust::nft_output {
     use iota::bag::Bag;
     use iota::balance::Balance;
     use iota::dynamic_object_field;
-    use iota::iota::IOTA;
     use iota::transfer::Receiving;
 
     use stardust::nft::Nft;
@@ -19,12 +18,12 @@ module stardust::nft_output {
     const NFT_NAME: vector<u8> = b"nft";
 
     /// The Stardust NFT output representation.
-    public struct NftOutput has key {
+    public struct NftOutput<phantom T> has key {
         /// This is a "random" UID, not the NFTID from Stardust.
         id: UID,
 
-        /// The amount of IOTA tokens held by the output.
-        iota: Balance<IOTA>,
+        /// The amount of coins held by the output.
+        balance: Balance<T>,
 
         /// The `Bag` holds native tokens, key-ed by the stringified type of the asset.
         /// Example: key: "0xabcded::soon::SOON", value: Balance<0xabcded::soon::SOON>.
@@ -39,14 +38,14 @@ module stardust::nft_output {
     }
 
     /// The function extracts assets from a legacy NFT output.
-    public fun extract_assets(mut output: NftOutput, ctx: &mut TxContext): (Balance<IOTA>, Bag, Nft) {
+    public fun extract_assets<T>(mut output: NftOutput<T>, ctx: &mut TxContext): (Balance<T>, Bag, Nft) {
         // Load the related Nft object.
         let nft = load_nft(&mut output);
 
         // Unpuck the output.
         let NftOutput {
             id,
-            iota: mut iota,
+            balance: mut balance,
             native_tokens,
             storage_deposit_return_uc: mut storage_deposit_return_uc,
             timelock_uc: mut timelock_uc,
@@ -65,7 +64,7 @@ module stardust::nft_output {
 
         // If the output has a storage deposit return unlock condition, then we need to return the deposit.
         if (storage_deposit_return_uc.is_some()) {
-            storage_deposit_return_uc.extract().unlock(&mut iota, ctx);
+            storage_deposit_return_uc.extract().unlock(&mut balance, ctx);
         };
 
         // Destroy the output.
@@ -75,41 +74,41 @@ module stardust::nft_output {
 
         object::delete(id);
 
-        return (iota, native_tokens, nft)
+        return (balance, native_tokens, nft)
     }
 
     /// Loads the related `Nft` object.
-    fun load_nft(output: &mut NftOutput): Nft {
+    fun load_nft<T>(output: &mut NftOutput<T>): Nft {
         dynamic_object_field::remove(&mut output.id, NFT_NAME)
     }
 
     // === Public-Package Functions ===
 
     /// Utility function to attach an `Alias` to an `AliasOutput`.
-    public fun attach_nft(output: &mut NftOutput, nft: Nft) {
+    public fun attach_nft<T>(output: &mut NftOutput<T>, nft: Nft) {
         dynamic_object_field::add(&mut output.id, NFT_NAME, nft)
     }
 
     /// Utility function to receive an `NftOutput` in other Stardust modules.
     /// Other modules in the stardust package can call this function to receive an `NftOutput` (alias).
-    public(package) fun receive(parent: &mut UID, nft: Receiving<NftOutput>) : NftOutput {
+    public(package) fun receive<T>(parent: &mut UID, nft: Receiving<NftOutput<T>>) : NftOutput<T> {
         transfer::receive(parent, nft)
     }
 
     // === Test Functions ===
 
     #[test_only]
-    public fun create_for_testing(
-        iota: Balance<IOTA>,
+    public fun create_for_testing<T>(
+        balance: Balance<T>,
         native_tokens: Bag,
         storage_deposit_return_uc: Option<StorageDepositReturnUnlockCondition>,
         timelock_uc: Option<TimelockUnlockCondition>,
         expiration_uc: Option<ExpirationUnlockCondition>,
         ctx: &mut TxContext,
-    ): NftOutput {
-        NftOutput {
+    ): NftOutput<T> {
+        NftOutput<T> {
             id: object::new(ctx),
-            iota,
+            balance,
             native_tokens,
             storage_deposit_return_uc,
             timelock_uc,
