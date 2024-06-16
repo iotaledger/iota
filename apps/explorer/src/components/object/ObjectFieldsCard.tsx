@@ -11,7 +11,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { FieldItem } from './FieldItem';
 import { ScrollToViewCard } from './ScrollToViewCard';
 import { getFieldTypeValue } from './utils';
-import { FieldsCard, FieldCollapsible, FieldsContainer } from '~/components/Object/FieldsUtils';
+import { FieldsCard, FieldCollapsible, FieldsContainer } from '~/components/object/FieldsUtils';
 import { Banner } from '~/ui/Banner';
 import { Description } from '~/ui/Description';
 

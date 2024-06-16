@@ -6,7 +6,7 @@ import { MediaPlay16 } from '@iota/icons';
 import { cva, type VariantProps } from 'class-variance-authority';
 import clsx from 'clsx';
 
-import { ObjectModal } from '~/ui/Modal/ObjectModal';
+import { ObjectModal } from '~/ui/modal/ObjectModal';
 import { Image, type ImageProps } from '~/ui/image/Image';
 
 const imageStyles = cva(['z-0 flex-shrink-0 relative'], {

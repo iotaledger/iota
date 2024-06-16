@@ -46,7 +46,7 @@ use crate::{
     stardust::{
         migration::{
             create_migration_context, package_module_bytes,
-            verification::created_objects::CreatedObjects, PACKAGE_DEPS,
+            verification::created_objects::CreatedObjects, MigrationTargetNetwork, PACKAGE_DEPS,
         },
         types::{
             foundry::create_foundry_gas_coin, snapshot::OutputHeader, stardust_to_iota_address,
@@ -76,8 +76,11 @@ pub(super) struct Executor {
 impl Executor {
     /// Setup the execution environment backed by an in-memory store that holds
     /// all the system packages.
-    pub(super) fn new(protocol_version: ProtocolVersion) -> Result<Self> {
-        let mut tx_context = create_migration_context();
+    pub(super) fn new(
+        protocol_version: ProtocolVersion,
+        target_network: MigrationTargetNetwork,
+    ) -> Result<Self> {
+        let mut tx_context = create_migration_context(target_network);
         // Use a throwaway metrics registry for transaction execution.
         let metrics = Arc::new(LimitsMetrics::new(&prometheus::Registry::new()));
         let mut store = InMemoryStorage::new(Vec::new());

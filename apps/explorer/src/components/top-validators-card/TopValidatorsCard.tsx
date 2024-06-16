@@ -9,7 +9,7 @@ import { Text } from '@iota/ui';
 import { type ReactNode, useMemo } from 'react';
 
 import { StakeColumn } from './StakeColumn';
-import { HighlightedTableCol } from '~/components/Table/HighlightedTableCol';
+import { HighlightedTableCol } from '~/components/table/HighlightedTableCol';
 import { Banner } from '~/ui/Banner';
 import { ImageIcon } from '~/ui/ImageIcon';
 import { AddressLink, ValidatorLink } from '~/ui/InternalLink';

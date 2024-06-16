@@ -11,7 +11,7 @@ import { useParams } from 'react-router-dom';
 import { translate, type DataType } from './ObjectResultType';
 import PkgView from './views/PkgView';
 import { TokenView } from './views/TokenView';
-import { PageLayout } from '~/components/Layout/PageLayout';
+import { PageLayout } from '~/components/layout/PageLayout';
 import { ErrorBoundary } from '~/components/error-boundary/ErrorBoundary';
 import { ObjectView } from '~/pages/object-result/views/ObjectView';
 import { Banner } from '~/ui/Banner';

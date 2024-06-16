@@ -9,14 +9,11 @@ use std::{
 };
 
 use anyhow::Result;
-use fastcrypto::hash::HashFunction;
 use iota_move_build::CompiledPackage;
 use iota_protocol_config::ProtocolVersion;
 use iota_sdk::types::block::output::{FoundryOutput, Output, OutputId};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, TxContext},
-    crypto::DefaultHash,
-    digests::TransactionDigest,
     epoch_data::EpochData,
     object::Object,
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
@@ -28,6 +25,7 @@ use crate::stardust::{
     migration::{
         executor::Executor,
         verification::{created_objects::CreatedObjects, verify_outputs},
+        MigrationTargetNetwork,
     },
     native_token::package_data::NativeTokenPackageData,
     types::{snapshot::OutputHeader, timelock},
@@ -72,8 +70,15 @@ pub struct Migration {
 impl Migration {
     /// Try to setup the migration process by creating the inner executor
     /// and bootstraping the in-memory storage.
-    pub fn new(target_milestone_timestamp_sec: u32, total_supply: u64) -> Result<Self> {
-        let executor = Executor::new(ProtocolVersion::new(MIGRATION_PROTOCOL_VERSION))?;
+    pub fn new(
+        target_milestone_timestamp_sec: u32,
+        total_supply: u64,
+        target_network: MigrationTargetNetwork,
+    ) -> Result<Self> {
+        let executor = Executor::new(
+            ProtocolVersion::new(MIGRATION_PROTOCOL_VERSION),
+            target_network,
+        )?;
         Ok(Self {
             target_milestone_timestamp_sec,
             total_supply,
@@ -258,15 +263,10 @@ pub(super) fn package_module_bytes(pkg: &CompiledPackage) -> Result<Vec<Vec<u8>>
 }
 
 /// Create a [`TxContext]` that remains the same across invocations.
-pub(super) fn create_migration_context() -> TxContext {
-    let mut hasher = DefaultHash::default();
-    hasher.update(b"stardust-migration");
-    let hash = hasher.finalize();
-    let stardust_migration_transaction_digest = TransactionDigest::new(hash.into());
-
+pub(super) fn create_migration_context(target_network: MigrationTargetNetwork) -> TxContext {
     TxContext::new(
         &IotaAddress::default(),
-        &stardust_migration_transaction_digest,
+        &target_network.migration_transaction_digest(),
         &EpochData::new_genesis(0),
     )
 }
