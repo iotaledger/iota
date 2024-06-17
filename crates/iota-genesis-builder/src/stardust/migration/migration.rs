@@ -117,8 +117,6 @@ impl Migration {
         info!("Migrating foundries...");
         self.migrate_foundries(&foundries)?;
         info!("Migrating the rest of outputs...");
-        // TODO: Possibly pass the typeTag argument in the scope of the Shimmer
-        // integration.
         self.migrate_outputs(&outputs)?;
         let outputs = outputs
             .into_iter()
@@ -189,8 +187,10 @@ impl Migration {
     ) -> Result<()> {
         for (header, output, type_tag) in outputs {
             let created = match output {
-                Output::Alias(alias) => self.executor.create_alias_objects(header, alias)?,
-                Output::Nft(nft) => self.executor.create_nft_objects(header, nft)?,
+                Output::Alias(alias) => self
+                    .executor
+                    .create_alias_objects(header, alias, type_tag)?,
+                Output::Nft(nft) => self.executor.create_nft_objects(header, nft, type_tag)?,
                 Output::Basic(basic) => {
                     // All timelocked vested rewards(basic outputs with the specific ID format)
                     // should be migrated as TimeLock<Balance<IOTA>> objects.

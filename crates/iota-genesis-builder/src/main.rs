@@ -14,7 +14,7 @@ use iota_genesis_builder::{
     BROTLI_COMPRESSOR_BUFFER_SIZE, BROTLI_COMPRESSOR_LG_WINDOW_SIZE, BROTLI_COMPRESSOR_QUALITY,
     OBJECT_SNAPSHOT_FILE_PATH,
 };
-use iota_types::{gas_coin::GAS, smr::SMR};
+use iota_types::{gas_coin::GAS, smr_coin::SMR};
 use itertools::Itertools;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;

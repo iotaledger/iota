@@ -44,7 +44,7 @@ pub(super) fn verify_foundry_output(
         .address();
 
     // Gas coin value and owner
-    let created_gas_coin_obj = created_objects.gas_coin().and_then(|id| {
+    let created_gas_coin_obj = created_objects.output_amount_coin().and_then(|id| {
         storage
             .get_object(id)
             .ok_or_else(|| anyhow!("missing gas coin"))

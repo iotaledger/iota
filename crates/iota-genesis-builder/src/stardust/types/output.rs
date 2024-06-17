@@ -14,6 +14,7 @@ use iota_types::{
     collection_types::Bag,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
+    smr_coin::SMR,
     TypeTag, STARDUST_PACKAGE_ID,
 };
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
@@ -265,6 +266,35 @@ pub(crate) fn create_gas_coin(
         // that it has public transfer (`store` ability is present).
         MoveObject::new_from_execution(
             MoveObjectType::gas_coin(),
+            true,
+            version,
+            bcs::to_bytes(&coin)?,
+            protocol_config,
+        )?
+    };
+    // Resolve ownership
+    let owner = Owner::AddressOwner(owner);
+    Ok(Object::new_from_genesis(
+        Data::Move(move_object),
+        owner,
+        tx_context.digest(),
+    ))
+}
+
+pub(crate) fn create_smr_coin(
+    object_id: UID,
+    owner: IotaAddress,
+    amount: u64,
+    tx_context: &TxContext,
+    version: SequenceNumber,
+    protocol_config: &ProtocolConfig,
+) -> Result<Object> {
+    let coin = Coin::new(object_id, amount);
+    let move_object = unsafe {
+        // Safety: we know from the definition of `Coin`
+        // that it has public transfer (`store` ability is present).
+        MoveObject::new_from_execution(
+            MoveObjectType::from(SMR::type_()),
             true,
             version,
             bcs::to_bytes(&coin)?,

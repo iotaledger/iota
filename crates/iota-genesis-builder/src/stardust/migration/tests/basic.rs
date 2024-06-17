@@ -49,7 +49,7 @@ fn basic_simple_coin_id() {
         .output_objects_map
         .get(&header.output_id())
         .unwrap()
-        .gas_coin()
+        .output_amount_coin()
         .unwrap();
     let expected_object_id = ObjectID::new(header.output_id().hash());
     assert_eq!(expected_object_id, *migrated_object_id);
@@ -97,7 +97,7 @@ fn basic_simple_coin_id_with_expired_timelock() {
             .output_objects_map
             .get(&header.output_id())
             .unwrap();
-        let migrated_object_id = created_objects.gas_coin().unwrap();
+        let migrated_object_id = created_objects.output_amount_coin().unwrap();
         let expected_object_id = ObjectID::new(header.output_id().hash());
         assert_eq!(expected_object_id, *migrated_object_id);
         // No output should have been created.

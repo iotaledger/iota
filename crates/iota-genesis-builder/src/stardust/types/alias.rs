@@ -144,7 +144,7 @@ pub struct AliasOutput {
     /// This is a "random" UID, not the AliasID from Stardust.
     pub id: UID,
 
-    /// The amount of IOTA coins held by the output.
+    /// The amount of coins held by the output.
     pub balance: Balance,
     /// The `Bag` holds native tokens, key-ed by the stringified type of the
     /// asset. Example: key: "0xabcded::soon::SOON", value:
@@ -184,14 +184,14 @@ impl AliasOutput {
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
         version: SequenceNumber,
-        type_param: TypeTag,
+        type_param: &TypeTag,
     ) -> anyhow::Result<Object> {
         // Construct the Alias Output object.
         let move_alias_output_object = unsafe {
             // Safety: we know from the definition of `AliasOutput` in the stardust package
             // that it does not have public transfer (`store` ability is absent).
             MoveObject::new_from_execution(
-                AliasOutput::tag(type_param).into(),
+                AliasOutput::tag(type_param.clone()).into(),
                 false,
                 version,
                 bcs::to_bytes(&self)?,

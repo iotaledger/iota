@@ -55,7 +55,7 @@ fn migrate_foundry(
     assert_eq!(created_objects.len(), 5);
 
     let package_id = *created_objects_ids.package()?;
-    let gas_coin_id = *created_objects_ids.gas_coin()?;
+    let gas_coin_id = *created_objects_ids.output_amount_coin()?;
     let native_token_coin_id = *created_objects_ids.native_token_coin()?;
     let coin_manager_id = *created_objects_ids.coin_manager()?;
     let coin_manager_treasury_cap_id = *created_objects_ids.coin_manager_treasury_cap()?;

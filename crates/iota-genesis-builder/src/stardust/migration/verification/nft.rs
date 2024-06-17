@@ -150,7 +150,7 @@ pub(super) fn verify_nft_output(
     verify_parent(output.address(), storage)?;
 
     ensure!(
-        created_objects.gas_coin().is_err(),
+        created_objects.output_amount_coin().is_err(),
         "unexpected gas coin found"
     );
 

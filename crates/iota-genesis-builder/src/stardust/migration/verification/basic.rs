@@ -98,7 +98,7 @@ pub(super) fn verify_basic_output(
             .is_time_locked(target_milestone_timestamp)
     {
         ensure!(
-            created_objects.gas_coin().is_err(),
+            created_objects.output_amount_coin().is_err(),
             "unexpected gas coin created"
         );
 
@@ -182,7 +182,7 @@ pub(super) fn verify_basic_output(
         );
 
         // Gas coin value and owner
-        let created_gas_coin_obj = created_objects.gas_coin().and_then(|id| {
+        let created_gas_coin_obj = created_objects.output_amount_coin().and_then(|id| {
             storage
                 .get_object(id)
                 .ok_or_else(|| anyhow!("missing gas coin"))

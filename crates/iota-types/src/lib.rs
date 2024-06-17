@@ -77,7 +77,7 @@ pub mod object;
 pub mod programmable_transaction_builder;
 pub mod quorum_driver_types;
 pub mod randomness_state;
-pub mod smr;
+pub mod smr_coin;
 pub mod signature;
 pub mod storage;
 pub mod timelock;
