@@ -7,30 +7,39 @@ sidebar_label: Stardust on Move
 
 This document describes how Stardust UTXOs are migrated to the Move-based ledger. The document is split into sections of
 each stardust output type. It doesn't describe every possible edge case. For that, please check out the code which is
-part of a sub directory in the [`iota-genesis-builder`](https://github.com/iotaledger/iota/tree/develop/crates/iota-genesis-builder/src/stardust) crate. This
-document is meant to give a high to mid-level overview of the migration process.
+part of a sub directory in the
+[`iota-genesis-builder`](https://github.com/iotaledger/iota/tree/develop/crates/iota-genesis-builder/src/stardust)
+crate. This document is meant to give a high to mid-level overview of the migration process.
 
 ## Foundry Outputs & Native Tokens
 
-Foundry Outputs are migrated collectively before any other output. They do not have a corresponding object
-representation on the Move side, but rather are represented by a variety of Move-native types.
+Foundry Outputs in Stardust represent the capability to control the supply of user-defined Native Tokens. In Move, there
+are established ways for these operations, in particular using `Coin` and `TreasuryCap`. The two main goals of
+the foundry migration are to convert it to a `CoinManager`, a type introduced in the Move IOTA framework in order to
+simplify working with the `TreasuryCap`, and to a `Coin<IOTA>` to hold the IOTA tokens of the foundry itself.
 
-First, the foundry output's IRC-30 Metadata is extracted. In the majority of cases this is possible, but if, for
-example, the symbol of the token is not a valid move identifier (e.g. containing UTF-8 characters) or the metadata does
-not follow the IRC-30 standard, a random identifier for the token package is generated and the metadata uses generic
-defaults. As much as possible though, the migration attemps to do as little modifications to the UTXO as possible.
-
-A
+A unique coin type, `Coin<XYZ>`, is represented by the one-time witness `XYZ` defined in its own package. Therefore, for
+each foundry there needs to be a corresponding package defining the native token's one-time witness and initial minting
+operations. To that end, a
 [move package template](https://github.com/iotaledger/iota/tree/develop/crates/iota-genesis-builder/src/stardust/native_token/package_template/sources/native_token_template.move)
-is filled with the extracted data, compiled and published.
+is populated with the native token's metadata, e.g. its symbol, circulating supply and description
+as well as other metadata.
+
+To collect this metadata, the foundry output's IRC-30 Metadata is extracted. In the majority of cases this is possible,
+but if, for example, the metadata does not follow the IRC-30 standard or the symbol of the token is not a valid move
+identifier (e.g. containing UTF-8 characters), a random identifier for the token package is generated and the metadata
+uses generic defaults. As much as possible though, the migration attemps to do as little modifications to the UTXO as
+possible. The package template is then filled with the extracted data, compiled and published.
 
 The result of the foundry migration is then:
 
 - A package representing the native token, in particular containing a one-time witness representing the unique type of
-  the native token (to be used as `Coin<package_id>::<token_name>::NativeTokenOneTimeWitness>`; abbreviated in the rest
+  the native token (to be used as `Coin<package_id::token_name::NativeTokenOneTimeWitness>`; abbreviated in the rest
   of this document).
-- A minted coin (`Coin<NativeTokenOneTimeWitness>`) containing the entire circulating supply of the native tokens,
-  owned by the `0x0` address.
+- A `CoinManager` and `CoinManagerTreasuryCap` object, the latter of which is owned by the address of the alias, that
+  owned the original foundry.
+- A minted coin (`Coin<NativeTokenOneTimeWitness>`) containing the entire circulating supply of the native tokens, owned
+  by the `0x0` address.
 - A gas coin (`Coin<IOTA>`) containing the migrated IOTA tokens of the foundry, owned by the address of the alias, that
   owned the original foundry.
 
@@ -39,6 +48,15 @@ migrated that contain a balance of _this_ native token, then that balance is spl
 `Coin` object, which is then owned by the migrated output. If, by the end of this process, a non-zero balance remains on
 the minted coin, it is left at the zero address. This means they were burned in stardust and, therefore, are effectively
 also burned on the Move ledger, as no one controls the `0x0` address.
+
+In Move, the `TreasuryCap` type uses a `u64` representation (within `Balance`) as its maximum supply. Since Stardust
+allows for `u256` to be used, in some rare cases, the maximum or circulating supply exceed the maximum value
+representable by `u64` (`u64::MAX`). If the maximum supply exceeds it, it is truncated to `u64::MAX`, which is fine
+since no more than `u64::MAX` tokens were actually minted (the circulating supply). If the circulating supply however
+exceeds `u64::MAX`, simply truncating would cause problems in the migration, since there would not be enough minted
+supply to distribute. In this case, all migrated tokens are multiplied by `u64::MAX / stardust_circulating_supply`,
+which means they are adjusted proportionally to fit within the maximum supply of `u64::MAX`. This maintains the token
+ratio of the Native Token in stardust with the `TreasuryCap` constraints.
 
 ## Output Migration Design
 
@@ -50,8 +68,8 @@ is behind a key of its own name (`<package_id>::<token_name>::NativeTokenOneTime
 type `Balance<NativeTokenOneTimeWitness>`. If an output owns multiple native tokens, the bag contains multiple keys.
 
 The extraction function enforces that any potentially present unlock conditions, like `Timelock`, `Expiration` or
-`Storage Deposit Return` are enforced. For instance, if a time-locked basic output's assets are attempted to be extracted,
-the transaction would fail, just like it would in stardust.
+`Storage Deposit Return` are enforced. For instance, if a time-locked basic output's assets are attempted to be
+extracted, the transaction would fail, just like it would in stardust.
 
 Address Ownership is migrated directly by converting `Ed25519 Address`, `Alias Address` or `Nft Address` to an
 `IotaAddress` without any modification. For `Ed25519 Address`es this means that their original backing keypair can
@@ -121,6 +139,6 @@ Other noteworthy points:
   output. If the `Nft ID` was zeroed in the stardust output, it is computed according to the protocol rules from
   [TIP-18](https://wiki.iota.org/tips/tips/TIP-0018/) and then set. Hence, no `Nft` object in Move has a zeroed `UID`.
 - The `Nft` move object contains an `Irc27Metadata` object. It is extracted from the immutable metadata of the stardust
-  NFT, if possible. If the stardust NFT does not have valid IRC-27 metadata, it is migrated on a best-effort basis.
-  The interested reader is invited to examine the `convert_immutable_metadata` function in the migration code for more
+  NFT, if possible. If the stardust NFT does not have valid IRC-27 metadata, it is migrated on a best-effort basis. The
+  interested reader is invited to examine the `convert_immutable_metadata` function in the migration code for more
   details.
