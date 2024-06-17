@@ -1,15 +1,21 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use move_core_types::ident_str;
+use move_core_types::identifier::IdentStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::MoveObjectType,
     coin::{CoinMetadata, TreasuryCap},
     id::UID,
     IOTA_FRAMEWORK_ADDRESS,
 };
+use crate::StructTag;
+
+pub const COIN_MANAGER_MODULE_NAME: &IdentStr = ident_str!("coin_manager");
+pub const COIN_MANAGER_STRUCT_NAME: &IdentStr = ident_str!("CoinManager");
+pub const COIN_MANAGER_TREASURY_CAP_STRUCT_NAME: &IdentStr = ident_str!("CoinManagerTreasuryCap");
 
 /// The purpose of a CoinManager is to allow access to all
 /// properties of a Coin on-chain from within a single shared object
@@ -40,10 +46,10 @@ pub struct CoinManager {
 }
 
 impl CoinManager {
-    pub fn is_coin_manager(object_type: &MoveObjectType) -> bool {
-        object_type.address() == IOTA_FRAMEWORK_ADDRESS
-            && object_type.module().as_str() == "coin_manager"
-            && object_type.name().as_str() == "CoinManager"
+    pub fn is_coin_manager(object_type: &StructTag) -> bool {
+        object_type.address == IOTA_FRAMEWORK_ADDRESS
+            && object_type.module.as_ident_str() == COIN_MANAGER_MODULE_NAME
+            && object_type.name.as_ident_str() == COIN_MANAGER_STRUCT_NAME
     }
 }
 
@@ -72,9 +78,9 @@ pub struct CoinManagerTreasuryCap {
 }
 
 impl CoinManagerTreasuryCap {
-    pub fn is_coin_manager_treasury_cap(object_type: &MoveObjectType) -> bool {
-        object_type.address() == IOTA_FRAMEWORK_ADDRESS
-            && object_type.module().as_str() == "coin_manager"
-            && object_type.name().as_str() == "CoinManagerTreasuryCap"
+    pub fn is_coin_manager_treasury_cap(object_type: &StructTag) -> bool {
+        object_type.address == IOTA_FRAMEWORK_ADDRESS
+            && object_type.module.as_ident_str() == COIN_MANAGER_MODULE_NAME
+            && object_type.name.as_ident_str() == COIN_MANAGER_TREASURY_CAP_STRUCT_NAME
     }
 }

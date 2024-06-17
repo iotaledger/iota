@@ -234,19 +234,7 @@ impl Executor {
             let mut native_token_coin_id = None::<ObjectID>;
             let mut foundry_package = None::<&MovePackage>;
             for object in written.values() {
-                if object.is_coin() {
-                    native_token_coin_id = Some(object.id());
-                    created_objects.set_native_token_coin(object.id())?;
-                } else if object
-                    .type_()
-                    .map_or(false, |t| CoinManager::is_coin_manager(t))
-                {
-                    created_objects.set_coin_manager(object.id())?
-                } else if object.type_().map_or(false, |t| {
-                    CoinManagerTreasuryCap::is_coin_manager_treasury_cap(t)
-                }) {
-                    created_objects.set_coin_manager_treasury_cap(object.id())?
-                } else if object.is_package() {
+                if object.is_package() {
                     foundry_package = Some(
                         object
                             .data
@@ -254,6 +242,15 @@ impl Executor {
                             .expect("already verified this is a package"),
                     );
                     created_objects.set_package(object.id())?;
+                } else if object.is_coin() {
+                    native_token_coin_id = Some(object.id());
+                    created_objects.set_native_token_coin(object.id())?;
+                } else if let Some(tag) = object.struct_tag() {
+                    if CoinManager::is_coin_manager(&tag) {
+                        created_objects.set_coin_manager(object.id())?;
+                    } else if CoinManagerTreasuryCap::is_coin_manager_treasury_cap(&tag) {
+                        created_objects.set_coin_manager_treasury_cap(object.id())?;
+                    }
                 }
             }
             let (native_token_coin_id, foundry_package) = (
