@@ -6,6 +6,7 @@ import { Button } from '@/components';
 import { useUnstakeTransaction } from '@/hooks';
 import { useCurrentAccount, useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
 import { DelegatedStakeWithValidator } from '@iota/core';
+import { useNotifications } from '@/hooks/useNotifications';
 
 interface UnstakePopupProps {
     stake: DelegatedStakeWithValidator;
@@ -14,6 +15,7 @@ interface UnstakePopupProps {
 
 function UnstakePopup({ stake, closePopup }: UnstakePopupProps): JSX.Element {
     const account = useCurrentAccount();
+    const { addNotification } = useNotifications();
     const { data: unstakeData } = useUnstakeTransaction(stake.stakedIotaId, account?.address || '');
     const { mutateAsync: signAndExecuteTransactionBlock, isPending } =
         useSignAndExecuteTransactionBlock();
@@ -24,6 +26,7 @@ function UnstakePopup({ stake, closePopup }: UnstakePopupProps): JSX.Element {
             transactionBlock: unstakeData.transaction,
         });
         closePopup();
+        addNotification('Unstake transaction has been sent');
     };
 
     return (
