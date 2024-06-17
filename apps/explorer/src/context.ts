@@ -7,7 +7,7 @@ import { createContext, useContext, useLayoutEffect, useMemo } from 'react';
 // eslint-disable-next-line no-restricted-imports
 import { useSearchParams } from 'react-router-dom';
 
-import { Network } from './utils/api/DefaultRpcClient';
+import { Network } from './utils/api/defaultRpcClient';
 import { growthbook } from './utils/growthbook';
 import { queryClient } from './utils/queryClient';
 import { getDefaultNetwork } from '@iota/iota.js/client';

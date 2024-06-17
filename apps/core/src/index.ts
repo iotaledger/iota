@@ -42,3 +42,4 @@ export * from './components/KioskClientProvider';
 export * from './utils/formatDelegatedStake';
 export * from './hooks/stake/useTotalDelegatedRewards';
 export * from './hooks/stake/useTotalDelegatedStake';
+export * from './hooks/useQueryTransactionsByAddress';
