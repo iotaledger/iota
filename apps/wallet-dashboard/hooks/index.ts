@@ -3,5 +3,5 @@
 
 export * from './useBalance';
 export * from './usePopups';
-export * from './useNewStake';
+export * from './useNewStakeTransaction';
 export * from './useNotifications';

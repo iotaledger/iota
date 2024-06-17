@@ -3,9 +3,11 @@
 
 import React, { useState } from 'react';
 import { EnterAmountView, SelectValidatorView } from './views';
-import { useNewStake, useNotifications } from '@/hooks';
+import { useNotifications, useNewStakeTransaction } from '@/hooks';
 import { NotificationType } from '@/stores/notificationStore';
 import { useGetValidatorsApy } from '@iota/core';
+import { useCurrentAccount, useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
+
 interface NewStakePopupProps {
     onClose: () => void;
 }
@@ -17,11 +19,17 @@ enum Step {
 
 function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
     const [step, setStep] = useState<Step>(Step.SelectValidator);
-    const [selectedValidator, setSelectedValidator] = useState<string | null>(null);
+    const [selectedValidator, setSelectedValidator] = useState<string>('');
     const [amount, setAmount] = useState<string>('');
-    const { createTransaction, loading, error } = useNewStake();
+    const account = useCurrentAccount();
+    const { transaction } = useNewStakeTransaction(
+        amount.toString(),
+        selectedValidator,
+        account?.address ?? '',
+    );
     const { addNotification } = useNotifications();
     const { data: rollingAverageApys } = useGetValidatorsApy();
+    const { mutateAsync: signAndExecuteTransactionBlock } = useSignAndExecuteTransactionBlock();
 
     const validators = Object.keys(rollingAverageApys ?? {}) ?? [];
 
@@ -38,11 +46,12 @@ function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
         handleNext();
     };
 
-    const handleStake = () => {
+    const handleStake = async (): Promise<void> => {
         if (selectedValidator && amount) {
-            createTransaction(BigInt(amount), selectedValidator);
-            if (!error) {
-                addNotification('Transaction created successfully!');
+            if (transaction) {
+                await signAndExecuteTransactionBlock({
+                    transactionBlock: transaction,
+                });
                 onClose();
             } else {
                 addNotification('Error creating transaction', NotificationType.Error);
@@ -62,7 +71,7 @@ function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
                     onChange={(e) => setAmount(e.target.value)}
                     onBack={handleBack}
                     onStake={handleStake}
-                    isStakeDisabled={!amount || loading}
+                    isStakeDisabled={!amount || !selectedValidator}
                 />
             )}
         </div>

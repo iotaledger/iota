@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React from 'react';
-import { Button } from '@/components/index';
+import { Button, UnstakePopup } from '@/components/index';
 import { usePopups } from '@/hooks';
-import UnstakePopup from './UnstakePopup';
 
 interface StakeDetailsPopupProps {
     stake: {
