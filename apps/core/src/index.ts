@@ -39,7 +39,7 @@ export * from './hooks/stake/useGetDelegatedStake';
 export * from './hooks/useTokenPrice';
 export * from './hooks/useKioskClient';
 export * from './components/KioskClientProvider';
-export * from './utils/formatDelegatedStake';
+export * from './utils/stake/formatDelegatedStake';
 export * from './hooks/stake/useTotalDelegatedRewards';
 export * from './hooks/stake/useTotalDelegatedStake';
 export * from './hooks/useQueryTransactionsByAddress';
