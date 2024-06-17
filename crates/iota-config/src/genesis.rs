@@ -628,6 +628,14 @@ pub struct TokenAllocation {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct TimelockAllocation {
+    pub amount_micros: u64,
+    pub timelock_objects: Vec<ObjectID>,
+    pub staked_with_validator: IotaAddress,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TokenDistributionScheduleBuilder {
     pool: u64,
     allocations: Vec<TokenAllocation>,

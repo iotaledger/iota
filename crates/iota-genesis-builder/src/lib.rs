@@ -13,8 +13,8 @@ use anyhow::{bail, Context};
 use camino::Utf8Path;
 use fastcrypto::{hash::HashFunction, traits::KeyPair};
 use iota_config::genesis::{
-    Genesis, GenesisCeremonyParameters, GenesisChainParameters, TokenAllocation,
-    TokenDistributionSchedule, TokenDistributionScheduleBuilder, UnsignedGenesis,
+    Genesis, GenesisCeremonyParameters, GenesisChainParameters, TimelockAllocation,
+    TokenAllocation, TokenDistributionSchedule, TokenDistributionScheduleBuilder, UnsignedGenesis,
 };
 use iota_execution::{self, Executor};
 use iota_framework::{BuiltInFramework, SystemPackage};
@@ -74,6 +74,31 @@ pub const BROTLI_COMPRESSOR_QUALITY: u32 = 11; // Compression levels go from 0 t
 pub const BROTLI_COMPRESSOR_LG_WINDOW_SIZE: u32 = 22; // set LZ77 window size (0, 10-24) where bigger windows size improves density
 
 pub const OBJECT_SNAPSHOT_FILE_PATH: &str = "stardust_object_snapshot.bin";
+
+struct GenesisStake {
+    timelock_allocations: Vec<TimelockAllocation>,
+    token_allocation: Vec<TokenAllocation>,
+    gas_coins_to_burn: Vec<ObjectID>,
+    total_token_allocation_balance: u64,
+    total_gas_coins_to_burn_balance: u64,
+}
+
+impl GenesisStake {
+    pub fn new() -> Self {
+        Self {
+            timelock_allocations: vec![],
+            token_allocation: vec![],
+            gas_coins_to_burn: vec![],
+            total_token_allocation_balance: 0,
+            total_gas_coins_to_burn_balance: 0,
+        }
+    }
+
+    pub fn is_vanilla_genesis(&self) -> bool {
+        self.timelock_allocations.is_empty() && self.token_allocation.is_empty()
+    }
+}
+
 pub struct Builder {
     parameters: GenesisCeremonyParameters,
     token_distribution_schedule: Option<TokenDistributionSchedule>,
@@ -214,9 +239,8 @@ impl Builder {
                 .unwrap();
         let genesis_stake =
             delegate_genesis_stake(&validators, delegator, &self.migration_objects).unwrap();
-        let is_vanilla_genesis = genesis_stake.is_empty();
 
-        let token_distribution_schedule = if is_vanilla_genesis {
+        let token_distribution_schedule = if genesis_stake.is_vanilla_genesis() {
             // vanilla
             // iota-supply invariant is satisfied
             if let Some(token_distribution_schedule) = &self.token_distribution_schedule {
@@ -231,20 +255,17 @@ impl Builder {
             // * we build a valid token-distribution schedule
             // * we have the migration distribution of the iota supply
             let mut schedule = token_distribution_schedule.clone();
-            let delegated_amount: u64 = genesis_stake
-                .iter()
-                .map(|allocation| allocation.amount_micros)
-                .sum();
-
-            schedule.allocations.extend(genesis_stake);
-            schedule.stake_subsidy_fund_micros -= delegated_amount;
+            schedule
+                .allocations
+                .extend(genesis_stake.token_allocation.clone());
+            schedule.stake_subsidy_fund_micros -= genesis_stake.total_token_allocation_balance;
             schedule
         } else {
             // iota-supply invariant breaks on the Move side
             // * we build a valid token-distribution schedule
             // * and we have the migration distribution of the iota supply
             let mut builder = TokenDistributionScheduleBuilder::new();
-            for allocation in genesis_stake {
+            for allocation in genesis_stake.token_allocation.clone() {
                 builder.add_allocation(allocation);
             }
             builder.build()
@@ -257,7 +278,7 @@ impl Builder {
             .chain(self.migration_objects.inner().iter().cloned())
             .collect::<Vec<_>>();
 
-        if !is_vanilla_genesis {
+        if !genesis_stake.is_vanilla_genesis() {
             // Because we set the `stake_subsidy_fund` as non-zero
             // we need to effectively disable subsidy rewards
             // to avoid the respective inflation effects.
@@ -757,25 +778,117 @@ impl Builder {
 }
 
 fn delegate_genesis_stake(
-    _validators: &[GenesisValidatorInfo],
+    validators: &[GenesisValidatorInfo],
     delegator: IotaAddress,
     migration_objects: &MigrationObjects,
-) -> anyhow::Result<Vec<TokenAllocation>> {
+) -> anyhow::Result<GenesisStake> {
     // * Query migration objects by delegator
-    let _object_pool = migration_objects
+    let timelocks_pool = migration_objects
         .get_timelocks_by_owner(delegator)
         .ok_or_else(|| {
-            anyhow::anyhow!(
-                "no gas-coin like objects found for delegator {:?}",
-                delegator
-            )
+            anyhow::anyhow!("no timelock objects found for delegator {:?}", delegator)
         })?;
-    // * pick whatever to cover the minimum stake required for the validators
-    // * For timelocks we need to add the stake directly by calling
-    //   Timelock::request_add_stake_
-    // * For gas coins, we need to split the balance of the coins and create the
-    //   `TokenAllocation` for each.
-    todo!()
+    let gas_coins_pool = migration_objects
+        .get_gas_coins_by_owner(delegator)
+        .ok_or_else(|| {
+            anyhow::anyhow!("no gas coins objects found for delegator {:?}", delegator)
+        })?;
+    // *Pick whatever to cover the minimum stake required for the validators
+    // Setup iteration variables
+    // TODO check wheter we need to start with MIN_VALIDATOR_JOINING_STAKE_MICROS or
+    // VALIDATOR_LOW_STAKE_THRESHOLD_MICROS
+    let total_amount_to_stake_per_validator =
+        iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_MICROS;
+    let mut timelocks_iter = 0;
+    let timelocks_len = timelocks_pool.len();
+    let mut gas_iter = 0;
+    let gas_len = gas_coins_pool.len();
+    let mut genesis_stake = GenesisStake::new();
+
+    // For each validator we try to fill their allocation up to
+    // total_amount_to_stake_per_validator
+    for validator in validators {
+        // Keeps track of how much it is missing to get to the total amount
+        let mut remainder_amount_to_stake = total_amount_to_stake_per_validator;
+
+        // Start filling allocations with timelocks
+        // * For timelocks we need cannot add the stake directly, so we create
+        //   TimelockAllocation objects
+        let mut timelocks_to_pick: Vec<ObjectID> = vec![];
+        while remainder_amount_to_stake > 0 && timelocks_iter < timelocks_len {
+            // Pick the next timelock and deduct its balance
+            remainder_amount_to_stake -= timelocks_pool[timelocks_iter]
+                .as_timelock_balance_maybe()
+                .ok_or_else(|| {
+                    anyhow::anyhow!("retrieved object cannot be parsed to timelock balance")
+                })?
+                .locked()
+                .value();
+            timelocks_to_pick.push(timelocks_pool[timelocks_iter].id());
+            timelocks_iter += 1;
+        }
+        // TODO: this is not an optimal solution because the last timelock object will
+        // be split and the remainder of that split can't be used for the next
+        // validator.
+
+        // Exiting from the while we either reached remainder_amount_to_stake == 0 or
+        // we finished the timelock objects for this delegator.
+        // A timelock allocation takes all timelock object ids picked in that loop as
+        // input; the amount_micros is needed because the last timelock object
+        // picked might need to be split in Move (timelocked amount > required amount).
+        if !timelocks_to_pick.is_empty() {
+            genesis_stake.timelock_allocations.push(TimelockAllocation {
+                amount_micros: total_amount_to_stake_per_validator - remainder_amount_to_stake,
+                timelock_objects: timelocks_to_pick,
+                staked_with_validator: validator.info.iota_address(),
+            })
+        }
+
+        // Then fill allocations with gas coins
+        // * For gas coins, we need to split the balance of the coins and create the
+        //   `TokenAllocation` for each.
+        let amount_micros_for_token_allocation = remainder_amount_to_stake;
+        while remainder_amount_to_stake > 0 && gas_iter < gas_len {
+            // Pick the next gas coin and deduct its balance
+            let gas_coin_balance = gas_coins_pool[gas_iter].get_coin_value_unsafe();
+            remainder_amount_to_stake -= gas_coin_balance;
+            genesis_stake
+                .gas_coins_to_burn
+                .push(gas_coins_pool[gas_iter].id());
+            genesis_stake.total_gas_coins_to_burn_balance += gas_coin_balance;
+            gas_iter += 1;
+        }
+        // TODO: also here, this is not an optimal solution because the last gas object
+        // will be split and the remainder can't be used.
+
+        // Exiting from the while we either reached remainder_amount_to_stake == 0 or
+        // we finished the gas objects for this delegator. In the second case we throw
+        // an error because the delegator is supposed to fund all validators.
+        if remainder_amount_to_stake > 0 {
+            return Err(anyhow::anyhow!(
+                "Not enough funds for delegator {:?}",
+                delegator
+            ));
+        }
+        // If we entered the gas coins while, then create a token allocation
+        if amount_micros_for_token_allocation > 0 {
+            genesis_stake.token_allocation.push(TokenAllocation {
+                recipient_address: delegator,
+                amount_micros: amount_micros_for_token_allocation,
+                staked_with_validator: Some(validator.info.iota_address()),
+            });
+            genesis_stake.total_token_allocation_balance += amount_micros_for_token_allocation;
+        }
+    }
+    // At the end of the validators loop, we'll have 3 vectors:
+    // - timelock_allocations can be passed directly to a PTB that takes as input
+    //   all the object ids indicated in the struct field, optionally splits the
+    //   last timelock object and then stakes all the timelocks.
+    // - token_allocation can be passed as is to the legacy genesis creation logic
+    // - gas_coins_to_burn is a vector of objects to burn, however we need to take
+    //   care of the remainder = total_gas_coins_to_burn_balance -
+    //   total_token_allocation_balance
+    Ok(genesis_stake)
 }
 
 // Create a Genesis Txn Context to be used when generating genesis objects by
@@ -1217,6 +1330,13 @@ pub fn generate_genesis_system_object(
             arguments,
         );
         builder.finish()
+
+        // bring the created GenesisStake up to this part:
+        // - for each TimelockAllocation use request_multi_timelocked_stake
+        //   (after splitting the last timelock)
+        // - merge all gas coin objects, then split the remainder =
+        //   total_gas_coins_to_burn_balance - total_token_allocation_balance
+        //   and burn the first part
     };
 
     let InnerTemporaryStore { mut written, .. } = executor.update_genesis_state(
