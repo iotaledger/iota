@@ -6,7 +6,7 @@ import { useFeatureValue } from '@growthbook/growthbook-react';
 import { IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS } from '@iota/iota.js/utils';
 
 import { useNetwork } from '~/context';
-import { Network } from '~/utils/api/DefaultRpcClient';
+import { Network } from '~/utils/api/defaultRpcClient';
 
 const DEFAULT_RECOGNIZED_PACKAGES = [IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS];
 

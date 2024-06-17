@@ -26,11 +26,11 @@ function StakingDashboardPage(): JSX.Element {
     const delegatedStakes = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
     const totalDelegatedStake = useTotalDelegatedStake(delegatedStakes);
     const totalDelegatedRewards = useTotalDelegatedRewards(delegatedStakes);
-    const [formattedDelegatedStake, symbol, queryResultStake] = useFormatCoin(
+    const [formattedDelegatedStake, stakeSymbol, stakeResult] = useFormatCoin(
         totalDelegatedStake,
         IOTA_TYPE_ARG,
     );
-    const [formattedDelegatedRewards, symbolRewards, queryResultRewards] = useFormatCoin(
+    const [formattedDelegatedRewards, rewardsSymbol, rewardsResult] = useFormatCoin(
         totalDelegatedRewards,
         IOTA_TYPE_ARG,
     );
@@ -47,13 +47,13 @@ function StakingDashboardPage(): JSX.Element {
         <div className="flex flex-col items-center justify-center gap-4 pt-12">
             <AmountBox
                 title="Currently staked"
-                amount={queryResultStake.isPending ? '-' : `${formattedDelegatedStake} ${symbol}`}
+                amount={stakeResult.isPending ? '-' : `${formattedDelegatedStake} ${stakeSymbol}`}
             />
             <AmountBox
                 title="Earned"
                 amount={`${
-                    queryResultRewards.isPending ? '-' : formattedDelegatedRewards
-                } ${symbolRewards}`}
+                    rewardsResult.isPending ? '-' : formattedDelegatedRewards
+                } ${rewardsSymbol}`}
             />
             <Box title="Stakes">
                 <div className="flex flex-col items-center gap-4">

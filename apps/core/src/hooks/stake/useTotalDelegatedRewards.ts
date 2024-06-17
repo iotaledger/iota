@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo } from 'react';
-import { type DelegatedStakeWithValidator } from '../../utils/formatDelegatedStake';
+import { type DelegatedStakeWithValidator } from '../../utils/stake/formatDelegatedStake';
 
 export function useTotalDelegatedRewards(delegatedStake: DelegatedStakeWithValidator[]) {
     return useMemo(() => {
