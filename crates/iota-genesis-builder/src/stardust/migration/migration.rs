@@ -200,7 +200,11 @@ impl Migration {
                             self.target_milestone_timestamp_sec,
                         )?
                     } else {
-                        self.executor.create_basic_objects(header, basic)?
+                        self.executor.create_basic_objects(
+                            header,
+                            basic,
+                            self.target_milestone_timestamp_sec,
+                        )?
                     }
                 }
                 Output::Treasury(_) | Output::Foundry(_) => continue,
