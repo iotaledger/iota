@@ -9,13 +9,13 @@ import { Text } from '_app/shared/text';
 import { AddressInput } from '_components/address-input';
 import Alert from '_components/alert';
 import Loading from '_components/loading';
-import { parseAmount } from '_helpers';
 import { GAS_SYMBOL } from '_src/ui/app/redux/slices/iota-objects/Coin';
 import { InputWithAction } from '_src/ui/app/shared/InputWithAction';
 import { useGetAllCoins } from '@iota/core/src/hooks/useGetAllCoins';
 import {
     CoinFormat,
     isIotaNSName,
+    parseAmount,
     useCoinMetadata,
     useFormatCoin,
     useIotaNSEnabled,

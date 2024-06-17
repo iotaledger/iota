@@ -7,7 +7,6 @@ import { Button } from '_app/shared/ButtonUI';
 import { Collapsible } from '_app/shared/collapse';
 import { Text } from '_app/shared/text';
 import Loading from '_components/loading';
-import { parseAmount } from '_helpers';
 import { useCoinsReFetchingConfig } from '_hooks';
 import { Coin } from '_redux/slices/iota-objects/Coin';
 import { ampli } from '_src/shared/analytics/ampli';
@@ -18,7 +17,12 @@ import {
 } from '_src/shared/constants';
 import { FEATURES } from '_src/shared/experimentation/features';
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
-import { createStakeTransaction, useCoinMetadata, useGetDelegatedStake } from '@iota/core';
+import {
+    createStakeTransaction,
+    parseAmount,
+    useCoinMetadata,
+    useGetDelegatedStake,
+} from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { ArrowLeft16 } from '@iota/icons';
 import type { StakeObject } from '@iota/iota.js/client';

@@ -12,6 +12,7 @@ import {
 import { CountDownTimer } from '_src/ui/app/shared/countdown-timer';
 import {
     createStakeTransaction,
+    parseAmount,
     useCoinMetadata,
     useFormatCoin,
     useGetTimeBeforeEpochNumber,
@@ -19,7 +20,6 @@ import {
 import { Field, Form, useFormikContext } from 'formik';
 import { memo, useCallback, useMemo } from 'react';
 
-import { parseAmount } from '../../helpers';
 import { useActiveAddress, useTransactionGasBudget } from '../../hooks';
 import { type FormValues } from './StakingCard';
 
