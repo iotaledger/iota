@@ -19,6 +19,7 @@ use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
     TIMELOCK_PACKAGE_ID,
 };
+use move_core_types::language_storage::TypeTag;
 use tracing::info;
 
 use crate::stardust::{
@@ -93,15 +94,15 @@ impl Migration {
     /// See also `Self::run`.
     pub(crate) fn run_migration(
         &mut self,
-        outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
+        outputs: impl IntoIterator<Item = (OutputHeader, Output, TypeTag)>,
     ) -> Result<()> {
         let (mut foundries, mut outputs) = outputs.into_iter().fold(
             (Vec::new(), Vec::new()),
-            |(mut foundries, mut outputs), (header, output)| {
+            |(mut foundries, mut outputs), (header, output, type_tag)| {
                 if let Output::Foundry(foundry) = output {
-                    foundries.push((header, foundry));
+                    foundries.push((header, foundry, type_tag));
                 } else {
-                    outputs.push((header, output));
+                    outputs.push((header, output, type_tag));
                 }
                 (foundries, outputs)
             },
@@ -111,8 +112,8 @@ impl Migration {
         //
         // This guarantees that fresh ids created through the transaction
         // context will also map to the same objects betwen runs.
-        outputs.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
-        foundries.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
+        outputs.sort_by_key(|(header, _, _)| (header.ms_timestamp(), header.output_id()));
+        foundries.sort_by_key(|(header, _, _)| (header.ms_timestamp(), header.output_id()));
         info!("Migrating foundries...");
         self.migrate_foundries(&foundries)?;
         info!("Migrating the rest of outputs...");
@@ -121,7 +122,11 @@ impl Migration {
         self.migrate_outputs(&outputs)?;
         let outputs = outputs
             .into_iter()
-            .chain(foundries.into_iter().map(|(h, f)| (h, Output::Foundry(f))))
+            .chain(
+                foundries
+                    .into_iter()
+                    .map(|(h, f, t)| (h, Output::Foundry(f), t)),
+            )
             .collect::<Vec<_>>();
         info!("Verifying ledger state...");
         self.verify_ledger_state(&outputs)?;
@@ -138,7 +143,7 @@ impl Migration {
     /// * Create the snapshot file.
     pub fn run(
         mut self,
-        outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
+        outputs: impl IntoIterator<Item = (OutputHeader, Output, TypeTag)>,
         writer: impl Write,
     ) -> Result<()> {
         info!("Starting the migration...");
@@ -163,13 +168,13 @@ impl Migration {
     /// outputs.
     fn migrate_foundries<'a>(
         &mut self,
-        foundries: impl IntoIterator<Item = &'a (OutputHeader, FoundryOutput)>,
+        foundries: impl IntoIterator<Item = &'a (OutputHeader, FoundryOutput, TypeTag)>,
     ) -> Result<()> {
         let compiled = foundries
             .into_iter()
-            .map(|(header, output)| {
+            .map(|(header, output, type_tag)| {
                 let pkg = generate_package(output)?;
-                Ok((header, output, pkg))
+                Ok((header, output, type_tag, pkg))
             })
             .collect::<Result<Vec<_>>>()?;
         self.output_objects_map
@@ -180,9 +185,9 @@ impl Migration {
     /// Create objects for all outputs except for foundry outputs.
     fn migrate_outputs<'a>(
         &mut self,
-        outputs: impl IntoIterator<Item = &'a (OutputHeader, Output)>,
+        outputs: impl IntoIterator<Item = &'a (OutputHeader, Output, TypeTag)>,
     ) -> Result<()> {
-        for (header, output) in outputs {
+        for (header, output, type_tag) in outputs {
             let created = match output {
                 Output::Alias(alias) => self.executor.create_alias_objects(header, alias)?,
                 Output::Nft(nft) => self.executor.create_nft_objects(header, nft)?,
@@ -218,7 +223,7 @@ impl Migration {
     /// [`InMemoryStorage`].
     pub fn verify_ledger_state<'a>(
         &self,
-        outputs: impl IntoIterator<Item = &'a (OutputHeader, Output)>,
+        outputs: impl IntoIterator<Item = &'a (OutputHeader, Output, TypeTag)>,
     ) -> Result<()> {
         verify_outputs(
             outputs,

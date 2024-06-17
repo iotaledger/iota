@@ -212,10 +212,17 @@ impl Executor {
     /// * Update the inner store with the created objects.
     pub(super) fn create_foundries<'a>(
         &mut self,
-        foundries: impl IntoIterator<Item = (&'a OutputHeader, &'a FoundryOutput, CompiledPackage)>,
+        foundries: impl IntoIterator<
+            Item = (
+                &'a OutputHeader,
+                &'a FoundryOutput,
+                &'a TypeTag,
+                CompiledPackage,
+            ),
+        >,
     ) -> Result<Vec<(OutputId, CreatedObjects)>> {
         let mut res = Vec::new();
-        for (header, foundry, pkg) in foundries {
+        for (header, foundry, type_tag, pkg) in foundries {
             let mut created_objects = CreatedObjects::default();
             let modules = package_module_bytes(&pkg)?;
             let deps = self.checked_system_packages();

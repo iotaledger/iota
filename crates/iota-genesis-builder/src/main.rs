@@ -14,6 +14,7 @@ use iota_genesis_builder::{
     BROTLI_COMPRESSOR_BUFFER_SIZE, BROTLI_COMPRESSOR_LG_WINDOW_SIZE, BROTLI_COMPRESSOR_QUALITY,
     OBJECT_SNAPSHOT_FILE_PATH,
 };
+use iota_types::{gas_coin::GAS, smr::SMR};
 use itertools::Itertools;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
@@ -26,11 +27,14 @@ fn main() -> anyhow::Result<()> {
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     // Prepare files
-    let Some(stardust_snapshot_path) = std::env::args().nth(1) else {
+    let Some(iota_snapshot_path) = std::env::args().nth(1) else {
+        anyhow::bail!("please provide path to the Hornet full-snapshot file");
+    };
+    let Some(shimmer_snapshot_path) = std::env::args().nth(2) else {
         anyhow::bail!("please provide path to the Hornet full-snapshot file");
     };
     let target_network = std::env::args()
-        .nth(2)
+        .nth(3)
         .ok_or_else(|| {
             anyhow::anyhow!(
                 "please provide the target network for which the snapshot is being generated ('{}', '{}' or '{}')",
@@ -42,14 +46,27 @@ fn main() -> anyhow::Result<()> {
         .and_then(|target_network_str| MigrationTargetNetwork::from_str(&target_network_str))?;
 
     // Start the Hornet snapshot parser
-    let stardust_snapshot_file = File::open(stardust_snapshot_path)?;
-    let parser = FullSnapshotParser::new(stardust_snapshot_file)?;
+    let iota_snapshot_parser = FullSnapshotParser::new(File::open(iota_snapshot_path)?)?;
+    let shimmer_snapshot_parser = FullSnapshotParser::new(File::open(shimmer_snapshot_path)?)?;
+
+    // Use the target milestone timestamp and total supply from the iota snapshot.
+    let target_milestone_timestamp = iota_snapshot_parser.target_milestone_timestamp();
+    let total_supply = iota_snapshot_parser.total_supply()?;
+
+    let chained_parser = iota_snapshot_parser
+        .outputs()
+        .map(|result| result.map(|(header, output)| (header, output, GAS::type_tag())))
+        .chain(
+            shimmer_snapshot_parser
+                .outputs()
+                .map(|result| result.map(|(header, output)| (header, output, SMR::type_tag()))),
+        );
 
     // Prepare the migration using the parser output stream
     let migration = Migration::new(
-        parser.target_milestone_timestamp(),
-        parser.total_supply()?,
-        target_network,
+        target_milestone_timestamp,
+        total_supply,
+        target_network.clone(),
     )?;
 
     // Prepare the compressor writer for the objects snapshot
@@ -61,8 +78,7 @@ fn main() -> anyhow::Result<()> {
     );
 
     // Run the migration and write the objects snapshot
-    parser
-        .outputs()
-        .process_results(|outputs| migration.run(outputs, object_snapshot_writer))??;
+    chained_parser.process_results(|outputs| migration.run(outputs, object_snapshot_writer))??;
+
     Ok(())
 }

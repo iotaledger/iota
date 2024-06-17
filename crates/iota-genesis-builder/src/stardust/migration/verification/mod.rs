@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use anyhow::{anyhow, ensure};
 use iota_sdk::types::block::output::{Output, OutputId, TokenId};
 use iota_types::in_memory_storage::InMemoryStorage;
+use move_core_types::language_storage::TypeTag;
 
 use self::created_objects::CreatedObjects;
 use crate::stardust::{migration::executor::FoundryLedgerData, types::snapshot::OutputHeader};
@@ -21,7 +22,7 @@ pub mod nft;
 mod util;
 
 pub(crate) fn verify_outputs<'a>(
-    outputs: impl IntoIterator<Item = &'a (OutputHeader, Output)>,
+    outputs: impl IntoIterator<Item = &'a (OutputHeader, Output, TypeTag)>,
     output_objects_map: &HashMap<OutputId, CreatedObjects>,
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     target_milestone_timestamp: u32,
@@ -29,7 +30,7 @@ pub(crate) fn verify_outputs<'a>(
     storage: &InMemoryStorage,
 ) -> anyhow::Result<()> {
     let mut total_value = 0;
-    for (header, output) in outputs {
+    for (header, output, type_tag) in outputs {
         let created_objects = output_objects_map
             .get(&header.output_id())
             .ok_or_else(|| anyhow!("missing created objects for output {}", header.output_id()))?;
