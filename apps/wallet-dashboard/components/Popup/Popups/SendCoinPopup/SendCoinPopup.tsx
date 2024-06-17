@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import { EnterValuesFormView, ReviewValuesFormView } from './views';
 import { CoinStruct } from '@iota/iota.js/client';
 import { useSendCoinTransaction } from '@/hooks';
+import { useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
 
 export interface FormDataValues {
     amount: string;
@@ -28,12 +29,25 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
         amount: '',
         recipientAddress: '',
     });
-    const { gasBudget, executeTransfer, error, isPending } = useSendCoinTransaction(
+    const {
+        mutateAsync: signAndExecuteTransactionBlock,
+        error,
+        isPending,
+    } = useSignAndExecuteTransactionBlock();
+    const { data: sendCoinData } = useSendCoinTransaction(
         coin,
         senderAddress,
         formData.recipientAddress,
         formData.amount,
     );
+
+    const handleTransfer = async () => {
+        if (!sendCoinData?.transaction) return;
+        await signAndExecuteTransactionBlock({
+            transactionBlock: sendCoinData?.transaction,
+        });
+        onClose();
+    };
 
     const handleNext = () => {
         setStep(FormStep.ReviewValues);
@@ -51,7 +65,7 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
                     onClose={onClose}
                     handleNext={handleNext}
                     formData={formData}
-                    gasBudget={gasBudget}
+                    gasBudget={sendCoinData?.gasBudget?.toString() || '--'}
                     setFormData={setFormData}
                 />
             )}
@@ -59,9 +73,9 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
                 <ReviewValuesFormView
                     formData={formData}
                     handleBack={handleBack}
-                    executeTransfer={() => executeTransfer(onClose)}
+                    executeTransfer={handleTransfer}
                     senderAddress={senderAddress}
-                    gasBudget={gasBudget}
+                    gasBudget={sendCoinData?.gasBudget?.toString() || '--'}
                     error={error?.message}
                     isPending={isPending}
                 />
