@@ -88,7 +88,15 @@ pub(super) fn verify_basic_output(
 
     // If the output has multiple unlock conditions, then a genesis object should
     // have been created.
-    if output.unlock_conditions().len() > 1 {
+    if output.unlock_conditions().expiration().is_some()
+        || output
+            .unlock_conditions()
+            .storage_deposit_return()
+            .is_some()
+        || output
+            .unlock_conditions()
+            .is_time_locked(target_milestone_timestamp)
+    {
         ensure!(
             created_objects.gas_coin().is_err(),
             "unexpected gas coin created"
