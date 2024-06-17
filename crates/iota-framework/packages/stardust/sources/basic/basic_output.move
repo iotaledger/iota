@@ -7,7 +7,6 @@ module stardust::basic_output {
     // Iota imports.
     use iota::bag::Bag;
     use iota::balance::Balance;
-    use iota::iota::IOTA;
     use iota::transfer::Receiving;
 
     // Package imports.
@@ -23,12 +22,12 @@ module stardust::basic_output {
     ///   - notice that there is no `store` ability and there is no custom transfer function:
     ///       -  you can call `extract_assets`,
     ///       -  or you can call `receive` in other models to receive a `BasicOutput`.
-    public struct BasicOutput has key {
+    public struct BasicOutput<phantom T> has key {
         /// Hash of the `outputId` that was migrated.
         id: UID,
 
-        /// The amount of IOTA coins held by the output.
-        iota: Balance<IOTA>,
+        /// The amount of coins held by the output.
+        balance: Balance<T>,
 
         /// The `Bag` holds native tokens, key-ed by the stringified type of the asset.
         /// Example: key: "0xabcded::soon::SOON", value: Balance<0xabcded::soon::SOON>.
@@ -56,12 +55,12 @@ module stardust::basic_output {
     /// Extract the assets stored inside the output, respecting the unlock conditions.
     ///  - The object will be deleted.
     ///  - The `StorageDepositReturnUnlockCondition` will return the deposit.
-    ///  - Remaining assets (IOTA coins and native tokens) will be returned.
-    public fun extract_assets(output: BasicOutput, ctx: &mut TxContext) : (Balance<IOTA>, Bag) {
+    ///  - Remaining assets (coins and native tokens) will be returned.
+    public fun extract_assets<T>(output: BasicOutput<T>, ctx: &mut TxContext) : (Balance<T>, Bag) {
         // Unpack the output into its basic part.
         let BasicOutput {
             id,
-            iota: mut iota,
+            balance: mut balance,
             native_tokens,
             storage_deposit_return_uc: mut storage_deposit_return_uc,
             timelock_uc: mut timelock_uc,
@@ -83,7 +82,7 @@ module stardust::basic_output {
 
         // If the output has an storage deposit return unlock condition, then we need to return the deposit.
         if (storage_deposit_return_uc.is_some()) {
-            storage_deposit_return_uc.extract().unlock(&mut iota, ctx);
+            storage_deposit_return_uc.extract().unlock(&mut balance, ctx);
         };
 
         // Destroy the unlock conditions.
@@ -94,7 +93,7 @@ module stardust::basic_output {
         // Delete the output.
         object::delete(id);
 
-        return (iota, native_tokens)
+        return (balance, native_tokens)
     }
 
     // === Public-Package Functions ===
@@ -103,7 +102,7 @@ module stardust::basic_output {
     /// Since `BasicOutput` only has `key`, it can not be received via `public_receive`.
     /// The private receiver must be implemented in its defining module (here).
     /// Other modules in the Stardust package can call this function to receive a basic output (alias, NFT).
-    public(package) fun receive(parent: &mut UID, output: Receiving<BasicOutput>) : BasicOutput {
+    public(package) fun receive<T>(parent: &mut UID, output: Receiving<BasicOutput<T>>) : BasicOutput<T> {
         transfer::receive(parent, output)
     }
 
@@ -111,8 +110,8 @@ module stardust::basic_output {
 
     // test only function to create a basic output
     #[test_only]
-    public fun create_for_testing(
-        iota: Balance<IOTA>,
+    public fun create_for_testing<T>(
+        balance: Balance<T>,
         native_tokens: Bag,
         storage_deposit_return_uc: Option<StorageDepositReturnUnlockCondition>,
         timelock_uc: Option<TimelockUnlockCondition>,
@@ -121,10 +120,10 @@ module stardust::basic_output {
         tag: Option<vector<u8>>,
         sender: Option<address>,
         ctx: &mut TxContext
-    ): BasicOutput {
-        BasicOutput {
+    ): BasicOutput<T> {
+        BasicOutput<T> {
             id: object::new(ctx),
-            iota,
+            balance,
             native_tokens,
             storage_deposit_return_uc,
             timelock_uc,

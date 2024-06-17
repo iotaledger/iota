@@ -15,7 +15,7 @@ import { CheckpointsTable } from '../checkpoints/CheckpointsTable';
 // import { DropdownMenu, DropdownMenuCheckboxItem } from '~/ui/DropdownMenu';
 import { PlayPause } from '~/ui/PlayPause';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
-// import { Network } from '~/utils/api/DefaultRpcClient';
+// import { Network } from '~/utils/api/defaultRpcClient';
 
 const VALID_TABS = ['transactions', 'epochs', 'checkpoints'];
 
