@@ -17,7 +17,7 @@ interface EpochProgressProps {
     inProgress?: boolean;
 }
 
-export function EpochProgress({ epoch, start, end, inProgress }: EpochProgressProps) {
+export function EpochProgress({ epoch, start, end, inProgress }: EpochProgressProps): JSX.Element {
     const { progress, label } = useEpochProgress();
 
     const elapsedTime = !inProgress && start && end ? getElapsedTime(start, end) : undefined;

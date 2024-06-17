@@ -13,7 +13,7 @@ import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { SplitPanes } from '~/ui/SplitPanes';
 import { TabHeader } from '~/ui/Tabs';
 import { ListItem, VerticalList } from '~/ui/VerticalList';
-import { useSearchParamsMerged } from '~/ui/utils/LinkWithQuery';
+import { useSearchParamsMerged } from '~/ui/LinkWithQuery';
 import { ModuleCodeTabs } from './ModuleCodeTabs';
 
 type ModuleType = [moduleName: string, code: string];
@@ -24,7 +24,11 @@ interface PkgModuleViewWrapperProps {
     splitPanelOrientation: Direction;
 }
 
-function PkgModuleViewWrapper({ id, modules, splitPanelOrientation }: PkgModuleViewWrapperProps) {
+function PkgModuleViewWrapper({
+    id,
+    modules,
+    splitPanelOrientation,
+}: PkgModuleViewWrapperProps): JSX.Element {
     const isMediumOrAbove = useBreakpoint('md');
 
     const [searchParams, setSearchParams] = useSearchParamsMerged();

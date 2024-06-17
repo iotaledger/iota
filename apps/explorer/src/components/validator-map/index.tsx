@@ -14,7 +14,7 @@ import { WorldMap } from './WorldMap';
 import { type ValidatorMapResponse, type ValidatorMapValidator } from './types';
 import { useNetwork } from '~/context';
 import { Card } from '~/ui/Card';
-import { Network } from '~/utils/api/DefaultRpcClient';
+import { Network } from '~/utils/api/defaultRpcClient';
 
 type ValidatorsMap = Record<string, ValidatorMapValidator>;
 
@@ -25,7 +25,7 @@ interface NodeStatProps {
     children: ReactNode;
 }
 
-function NodeStat({ title, children }: NodeStatProps) {
+function NodeStat({ title, children }: NodeStatProps): JSX.Element {
     return (
         <div className="space-y-1.5">
             <Heading variant="heading2/semibold" color="steel-darker">
@@ -43,7 +43,7 @@ interface ValidatorMapProps {
 }
 
 // NOTE: This component is lazy imported, so it needs to be default exported:
-export default function ValidatorMap({ minHeight }: ValidatorMapProps) {
+export default function ValidatorMap({ minHeight }: ValidatorMapProps): JSX.Element {
     const [network] = useNetwork();
     const { data: systemState, isError: systemStateError } = useIotaClientQuery(
         'getLatestIotaSystemState',

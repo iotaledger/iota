@@ -10,7 +10,7 @@ import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
 
 import type { OwnedObjectRef } from '@iota/iota.js/client';
 
-export function UpgradedSystemPackages({ data }: { data: OwnedObjectRef[] }) {
+export function UpgradedSystemPackages({ data }: { data: OwnedObjectRef[] }): JSX.Element | null {
     if (!data?.length) return null;
 
     return (

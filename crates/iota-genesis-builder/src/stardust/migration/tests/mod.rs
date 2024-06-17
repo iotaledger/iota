@@ -36,6 +36,7 @@ use crate::stardust::{
             Migration, MIGRATION_PROTOCOL_VERSION, NATIVE_TOKEN_BAG_KEY_TYPE, PACKAGE_DEPS,
         },
         verification::created_objects::CreatedObjects,
+        MigrationTargetNetwork,
     },
     types::snapshot::OutputHeader,
 };
@@ -59,7 +60,7 @@ fn run_migration(
     total_supply: u64,
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
 ) -> anyhow::Result<(Executor, HashMap<OutputId, CreatedObjects>)> {
-    let mut migration = Migration::new(1, total_supply)?;
+    let mut migration = Migration::new(1, total_supply, MigrationTargetNetwork::Mainnet)?;
     migration.run_migration(outputs)?;
     Ok(migration.into_parts())
 }
@@ -127,7 +128,7 @@ fn object_migration_with_object_owner(
             STARDUST_PACKAGE_ID,
             output_owner_module_name.into(),
             ident_str!("extract_assets").into(),
-            vec![],
+            vec![GAS::type_tag()],
             vec![owner_arg],
         );
 
@@ -143,7 +144,7 @@ fn object_migration_with_object_owner(
             STARDUST_PACKAGE_ID,
             ident_str!("address_unlock_condition").into(),
             unlock_condition_function.into(),
-            vec![],
+            vec![GAS::type_tag()],
             vec![owned_arg, receiving_owned_arg],
         );
 
@@ -176,7 +177,7 @@ fn object_migration_with_object_owner(
             STARDUST_PACKAGE_ID,
             output_owned_module_name.into(),
             ident_str!("extract_assets").into(),
-            vec![],
+            vec![GAS::type_tag()],
             vec![received_owned_output],
         );
         let Argument::Result(result_idx) = extracted_assets else {
@@ -268,7 +269,7 @@ fn extract_native_token_from_bag(
             STARDUST_PACKAGE_ID,
             module_name.into(),
             ident_str!("extract_assets").into(),
-            vec![],
+            vec![GAS::type_tag()],
             vec![inner_object_arg],
         );
 
@@ -409,10 +410,13 @@ fn unlock_object(
             .cloned()
             .collect(),
     );
-    let mut executor = Executor::new(MIGRATION_PROTOCOL_VERSION.into())
-        .unwrap()
-        .with_tx_context(tx_context)
-        .with_store(store);
+    let mut executor = Executor::new(
+        MIGRATION_PROTOCOL_VERSION.into(),
+        MigrationTargetNetwork::Mainnet,
+    )
+    .unwrap()
+    .with_tx_context(tx_context)
+    .with_store(store);
 
     // Find the corresponding objects to the migrated output.
     let output_created_objects = objects_map
@@ -435,7 +439,7 @@ fn unlock_object(
             STARDUST_PACKAGE_ID,
             module_name.into(),
             ident_str!("extract_assets").into(),
-            vec![],
+            vec![GAS::type_tag()],
             vec![inner_object_arg],
         );
 

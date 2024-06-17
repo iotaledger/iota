@@ -4,7 +4,10 @@
 
 import { type IotaEvent } from '@iota/iota.js/client';
 
-export function getValidatorMoveEvent(validatorsEvent: IotaEvent[], validatorAddress: string) {
+export function getValidatorMoveEvent(
+    validatorsEvent: IotaEvent[],
+    validatorAddress: string,
+): IotaEvent | undefined | unknown {
     const event = validatorsEvent.find(
         ({ parsedJson }) =>
             (parsedJson as { validator_address?: unknown })!.validator_address === validatorAddress,

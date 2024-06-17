@@ -8,10 +8,12 @@ import { getNormalizedFunctionParameterTypeDetails } from '../utils';
 
 import type { IotaMoveNormalizedType } from '@iota/iota.js/client';
 
-export function useFunctionParamsDetails(
-    params: IotaMoveNormalizedType[],
-    functionTypeArgNames?: string[],
-) {
+interface FunctionParamsDetails {
+    params: IotaMoveNormalizedType[];
+    functionTypeArgNames?: string[];
+}
+
+export function useFunctionParamsDetails({ params, functionTypeArgNames }: FunctionParamsDetails) {
     return useMemo(
         () =>
             params

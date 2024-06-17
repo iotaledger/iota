@@ -1,13 +1,13 @@
 [package]
+name = "iotaop-cli"
+version = "0.1.9"
 authors = [
   "Jk Jensen <jk@mystenlabs.com>",
   "Mysten Labs <build@mystenlabs.com>",
 ]
 edition = "2021"
 license = "Apache-2.0"
-name = "iotaop-cli"
 publish = false
-version = "0.1.9"
 
 [lib]
 name = "iotaoplib"
@@ -28,10 +28,7 @@ include_dir.workspace = true
 inquire.workspace = true
 prettytable-rs.workspace = true
 regex.workspace = true
-reqwest = { workspace = true, features = [
-  "rustls-tls",
-  "json",
-], default-features = false }
+reqwest = { workspace = true, features = ["rustls-tls", "json"], default-features = false }
 semver.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
@@ -40,8 +37,8 @@ spinners.workspace = true
 strum.workspace = true
 tokio = { workspace = true, features = ["full"] }
 toml_edit.workspace = true
-tracing-subscriber.workspace = true
 tracing.workspace = true
+tracing-subscriber.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

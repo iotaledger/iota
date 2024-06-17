@@ -88,7 +88,15 @@ pub(super) fn verify_basic_output(
 
     // If the output has multiple unlock conditions, then a genesis object should
     // have been created.
-    if output.unlock_conditions().len() > 1 {
+    if output.unlock_conditions().expiration().is_some()
+        || output
+            .unlock_conditions()
+            .storage_deposit_return()
+            .is_some()
+        || output
+            .unlock_conditions()
+            .is_time_locked(target_milestone_timestamp)
+    {
         ensure!(
             created_objects.gas_coin().is_err(),
             "unexpected gas coin created"
@@ -117,12 +125,12 @@ pub(super) fn verify_basic_output(
 
         // Amount
         ensure!(
-            created_output.iota.value() == output.amount(),
+            created_output.balance.value() == output.amount(),
             "amount mismatch: found {}, expected {}",
-            created_output.iota.value(),
+            created_output.balance.value(),
             output.amount()
         );
-        *total_value += created_output.iota.value();
+        *total_value += created_output.balance.value();
 
         // Native Tokens
         verify_native_tokens::<Field<String, Balance>>(

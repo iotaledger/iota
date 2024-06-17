@@ -8,15 +8,15 @@ import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 
 import { CheckpointTransactionBlocks } from './CheckpointTransactionBlocks';
-import { PageLayout } from '~/components/Layout/PageLayout';
-import { IotaAmount } from '~/components/Table/IotaAmount';
+import { PageLayout } from '~/components/layout/PageLayout';
+import { IotaAmount } from '~/components/table/IotaAmount';
 import { Banner } from '~/ui/Banner';
 import { DescriptionList, DescriptionItem } from '~/ui/DescriptionList';
 import { EpochLink } from '~/ui/InternalLink';
 import { PageHeader } from '~/ui/PageHeader';
 import { TabHeader, Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
 
-export default function CheckpointDetail() {
+export default function CheckpointDetail(): JSX.Element {
     const { id } = useParams<{ id: string }>();
     const digestOrSequenceNumber = /^\d+$/.test(id!) ? parseInt(id!, 10) : id;
 

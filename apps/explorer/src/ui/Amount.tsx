@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 import { CoinFormat, formatBalance } from '@iota/core';
 import { Heading } from '@iota/ui';
 
@@ -13,7 +14,7 @@ export type AmountProps = {
 
 const DECIMALS = 0;
 
-export function Amount({ amount, symbol, size = 'md', format }: AmountProps) {
+export function Amount({ amount, symbol, size = 'md', format }: AmountProps): JSX.Element {
     const isLarge = size === 'lg';
 
     // TODO: Remove this use-case, we should just enforce usage of this component in a specific way.

@@ -6,10 +6,8 @@ import { ampli } from '_src/shared/analytics/ampli';
 import { Collapsible } from '_src/ui/app/shared/collapse';
 import { Filter16, Plus12 } from '@iota/icons';
 import * as ToggleGroup from '@radix-ui/react-toggle-group';
-import cn from 'clsx';
 import { useMemo, useState } from 'react';
 
-import { getAccountBackgroundByType } from '../../helpers/accounts';
 import { useAccountGroups } from '../../hooks/useAccountGroups';
 import { useActiveAccount } from '../../hooks/useActiveAccount';
 import { useBackgroundClient } from '../../hooks/useBackgroundClient';
@@ -43,12 +41,7 @@ export function AccountsList() {
     if (!accounts || !activeAccount) return null;
 
     return (
-        <div
-            className={cn(
-                'flex w-full select-none flex-col gap-5 rounded-xl border border-solid border-hero/10 p-4',
-                getAccountBackgroundByType(activeAccount),
-            )}
-        >
+        <div className="flex w-full select-none flex-col gap-5 rounded-xl border border-solid border-hero/10 bg-gradients-graph-cards p-4">
             <Heading variant="heading5" weight="semibold" color="steel-darker">
                 Accounts
             </Heading>

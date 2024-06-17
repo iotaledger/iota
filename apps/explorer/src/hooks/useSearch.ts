@@ -11,13 +11,16 @@ import {
     isValidIotaObjectId,
     normalizeIotaObjectId,
 } from '@iota/iota.js/utils';
-import { useQuery } from '@tanstack/react-query';
+import { type UseQueryResult, useQuery } from '@tanstack/react-query';
 
 const isGenesisLibAddress = (value: string): boolean => /^(0x|0X)0{0,39}[12]$/.test(value);
 
 type Results = { id: string; label: string; type: string }[];
 
-const getResultsForTransaction = async (client: IotaClient, query: string) => {
+const getResultsForTransaction = async (
+    client: IotaClient,
+    query: string,
+): Promise<Results | null> => {
     if (!isValidTransactionDigest(query)) return null;
     const txdata = await client.getTransactionBlock({ digest: query });
     return [
@@ -29,7 +32,7 @@ const getResultsForTransaction = async (client: IotaClient, query: string) => {
     ];
 };
 
-const getResultsForObject = async (client: IotaClient, query: string) => {
+const getResultsForObject = async (client: IotaClient, query: string): Promise<Results | null> => {
     const normalized = normalizeIotaObjectId(query);
     if (!isValidIotaObjectId(normalized)) return null;
 
@@ -45,7 +48,10 @@ const getResultsForObject = async (client: IotaClient, query: string) => {
     ];
 };
 
-const getResultsForCheckpoint = async (client: IotaClient, query: string) => {
+const getResultsForCheckpoint = async (
+    client: IotaClient,
+    query: string,
+): Promise<Results | null> => {
     // Checkpoint digests have the same format as transaction digests:
     if (!isValidTransactionDigest(query)) return null;
 
@@ -61,7 +67,11 @@ const getResultsForCheckpoint = async (client: IotaClient, query: string) => {
     ];
 };
 
-const getResultsForAddress = async (client: IotaClient, query: string, iotaNSEnabled: boolean) => {
+const getResultsForAddress = async (
+    client: IotaClient,
+    query: string,
+    iotaNSEnabled: boolean,
+): Promise<Results | null> => {
     if (iotaNSEnabled && isIotaNSName(query)) {
         const resolved = await client.resolveNameServiceAddress({ name: query.toLowerCase() });
         if (!resolved) return null;
@@ -103,7 +113,7 @@ const getResultsForAddress = async (client: IotaClient, query: string, iotaNSEna
 const getResultsForValidatorByPoolIdOrIotaAddress = async (
     systemStateSummery: IotaSystemStateSummary | null,
     query: string,
-) => {
+): Promise<Results | null> => {
     const normalized = normalizeIotaObjectId(query);
     if (
         (!isValidIotaAddress(normalized) && !isValidIotaObjectId(normalized)) ||
@@ -127,12 +137,12 @@ const getResultsForValidatorByPoolIdOrIotaAddress = async (
     ];
 };
 
-export function useSearch(query: string) {
+export function useSearch(query: string): UseQueryResult<Results, Error> {
     const client = useIotaClient();
     const { data: systemStateSummery } = useIotaClientQuery('getLatestIotaSystemState');
     const iotaNSEnabled = useIotaNSEnabled();
 
-    return useQuery({
+    return useQuery<Results, Error>({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
         queryKey: ['search', query],
         queryFn: async () => {

@@ -6,7 +6,7 @@ interface MapFeatureProps {
     path: string | null;
 }
 
-export function MapFeature({ path }: MapFeatureProps) {
+export function MapFeature({ path }: MapFeatureProps): JSX.Element | null {
     if (!path) {
         return null;
     }

@@ -10,7 +10,7 @@ import 'prism-themes/themes/prism-one-light.css';
 import { useMemo } from 'react';
 
 import { useNormalizedMoveModule } from '~/hooks/useNormalizedMoveModule';
-import { LinkWithQuery } from '~/ui/utils/LinkWithQuery';
+import { LinkWithQuery } from '~/ui/LinkWithQuery';
 
 import type { Language } from 'prism-react-renderer';
 
@@ -55,7 +55,7 @@ function unwrapTypeReference(type: IotaMoveNormalizedType): null | TypeReference
     return null;
 }
 
-function ModuleView({ id, name, code }: ModuleViewProps) {
+function ModuleView({ id, name, code }: ModuleViewProps): JSX.Element {
     const { data: normalizedModule } = useNormalizedMoveModule(id, name);
     const normalizedModuleReferences = useMemo(() => {
         const typeReferences: Record<string, TypeReference> = {};

@@ -24,6 +24,7 @@ use iota_types::{
     collection_types::Bag,
     dynamic_field::Field,
     execution_mode,
+    gas_coin::GAS,
     id::UID,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
@@ -45,7 +46,7 @@ use crate::{
     stardust::{
         migration::{
             create_migration_context, package_module_bytes,
-            verification::created_objects::CreatedObjects, PACKAGE_DEPS,
+            verification::created_objects::CreatedObjects, MigrationTargetNetwork, PACKAGE_DEPS,
         },
         types::{
             foundry::create_foundry_gas_coin, snapshot::OutputHeader, stardust_to_iota_address,
@@ -75,8 +76,11 @@ pub(super) struct Executor {
 impl Executor {
     /// Setup the execution environment backed by an in-memory store that holds
     /// all the system packages.
-    pub(super) fn new(protocol_version: ProtocolVersion) -> Result<Self> {
-        let mut tx_context = create_migration_context();
+    pub(super) fn new(
+        protocol_version: ProtocolVersion,
+        target_network: MigrationTargetNetwork,
+    ) -> Result<Self> {
+        let mut tx_context = create_migration_context(target_network);
         // Use a throwaway metrics registry for transaction execution.
         let metrics = Arc::new(LimitsMetrics::new(&prometheus::Registry::new()));
         let mut store = InMemoryStorage::new(Vec::new());
@@ -87,14 +91,9 @@ impl Executor {
         // Get the correct system packages for our protocol version. If we cannot find
         // the snapshot that means that we must be at the latest version and we
         // should use the latest version of the framework.
-        let mut system_packages =
+        let system_packages =
             iota_framework_snapshot::load_bytecode_snapshot(protocol_version.as_u64())
                 .unwrap_or_else(|_| BuiltInFramework::iter_system_packages().cloned().collect());
-        // TODO: Remove when we have bumped the protocol to include the stardust
-        // packages into the system packages.
-        //
-        // See also: https://github.com/iotaledger/kinesis/pull/149
-        system_packages.extend(BuiltInFramework::iter_stardust_packages().cloned());
 
         let silent = true;
         let executor = iota_execution::executor(&protocol_config, silent, None)
@@ -339,6 +338,7 @@ impl Executor {
             &self.protocol_config,
             &self.tx_context,
             version,
+            GAS::type_tag(),
         )?;
         let move_alias_output_object_ref = move_alias_output_object.compute_object_reference();
 
@@ -358,7 +358,7 @@ impl Executor {
                 STARDUST_PACKAGE_ID,
                 ident_str!("alias_output").into(),
                 ident_str!("attach_alias").into(),
-                vec![],
+                vec![GAS::type_tag()],
                 vec![alias_output_arg, alias_arg],
             );
 
@@ -545,6 +545,7 @@ impl Executor {
         &mut self,
         header: &OutputHeader,
         basic_output: &BasicOutput,
+        target_milestone_timestamp_sec: u32,
     ) -> Result<CreatedObjects> {
         let mut basic =
             crate::stardust::types::output::BasicOutput::new(header.clone(), basic_output)?;
@@ -554,7 +555,8 @@ impl Executor {
         // The minimum version of the manually created objects
         let package_deps = InputObjects::new(self.load_packages(PACKAGE_DEPS).collect());
         let mut version = package_deps.lamport_timestamp(&[]);
-        let object = if basic.is_simple_coin() {
+
+        let object = if basic.is_simple_coin(target_milestone_timestamp_sec) {
             if !basic_output.native_tokens().is_empty() {
                 let coins = self.create_native_token_coins(basic_output.native_tokens(), owner)?;
                 created_objects.set_native_tokens(coins)?;
@@ -580,8 +582,13 @@ impl Executor {
                 // be creating a new bag in this code path.
                 basic.native_tokens.id = UID::new(self.tx_context.fresh_id());
             }
-            let object =
-                basic.to_genesis_object(owner, &self.protocol_config, &self.tx_context, version)?;
+            let object = basic.to_genesis_object(
+                owner,
+                &self.protocol_config,
+                &self.tx_context,
+                version,
+                GAS::type_tag(),
+            )?;
             created_objects.set_output(object.id())?;
             object
         };
@@ -666,6 +673,7 @@ impl Executor {
             &self.protocol_config,
             &self.tx_context,
             version,
+            GAS::type_tag(),
         )?;
         let move_nft_output_object_ref = move_nft_output_object.compute_object_reference();
         created_objects.set_output(move_nft_output_object.id())?;
@@ -683,7 +691,7 @@ impl Executor {
                 STARDUST_PACKAGE_ID,
                 ident_str!("nft_output").into(),
                 ident_str!("attach_nft").into(),
-                vec![],
+                vec![GAS::type_tag()],
                 vec![nft_output_arg, nft_arg],
             );
 
