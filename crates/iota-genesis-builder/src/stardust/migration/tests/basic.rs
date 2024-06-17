@@ -1,6 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::str::FromStr;
+
 use iota_sdk::types::block::{
     address::Ed25519Address,
     output::{
@@ -11,6 +13,7 @@ use iota_sdk::types::block::{
         },
         AliasId, BasicOutputBuilder, NativeToken, SimpleTokenScheme,
     },
+    payload::transaction::TransactionId,
 };
 use iota_types::base_types::{IotaAddress, ObjectID};
 
@@ -22,7 +25,7 @@ use crate::stardust::{
         },
         Migration, MigrationTargetNetwork,
     },
-    types::{output::BASIC_OUTPUT_MODULE_NAME, stardust_to_iota_address},
+    types::{output::BASIC_OUTPUT_MODULE_NAME, snapshot::OutputHeader, stardust_to_iota_address},
 };
 
 /// Test the id of a `BasicOutput` that is transformed to a simple coin.
@@ -50,6 +53,56 @@ fn basic_simple_coin_id() {
         .unwrap();
     let expected_object_id = ObjectID::new(header.output_id().hash());
     assert_eq!(expected_object_id, *migrated_object_id);
+}
+
+/// Test that basic outputs with expired timelocks and no other unlock condition
+/// are migrated to Coins. Test for both vesting reward outputs and regular
+/// basic outputs.
+#[test]
+fn basic_simple_coin_id_with_expired_timelock() {
+    for header in [
+        random_output_header(),
+        OutputHeader::new_testing(
+            // A potential vesting reward output transaction ID.
+            *TransactionId::from_str(
+                "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb1812345678",
+            )
+            .unwrap(),
+            rand::random(),
+            rand::random(),
+            rand::random(),
+        ),
+    ] {
+        let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+
+        let target_milestone_timestamp_sec: u32 = 100;
+        let stardust_basic = BasicOutputBuilder::new_with_amount(1_000_000)
+            .add_unlock_condition(AddressUnlockCondition::new(random_address))
+            .add_unlock_condition(
+                TimelockUnlockCondition::new(target_milestone_timestamp_sec).unwrap(),
+            )
+            .finish()
+            .unwrap();
+
+        let mut migration = Migration::new(
+            target_milestone_timestamp_sec,
+            1_000_000,
+            MigrationTargetNetwork::Mainnet,
+        )
+        .unwrap();
+        migration
+            .run_migration([(header.clone(), stardust_basic.clone().into())])
+            .unwrap();
+        let created_objects = migration
+            .output_objects_map
+            .get(&header.output_id())
+            .unwrap();
+        let migrated_object_id = created_objects.gas_coin().unwrap();
+        let expected_object_id = ObjectID::new(header.output_id().hash());
+        assert_eq!(expected_object_id, *migrated_object_id);
+        // No output should have been created.
+        assert!(created_objects.output().is_err())
+    }
 }
 
 /// Test the id of a `BasicOutput` object.
@@ -151,6 +204,7 @@ fn basic_migration_with_native_token() {
 #[test]
 fn basic_migration_with_timelock_unlocked() {
     let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+    let return_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
     let header = random_output_header();
 
     // The epoch timestamp that the executor will use for the test.
@@ -160,6 +214,10 @@ fn basic_migration_with_timelock_unlocked() {
         .add_unlock_condition(AddressUnlockCondition::new(random_address))
         .add_unlock_condition(
             TimelockUnlockCondition::new(epoch_start_timestamp_ms / 1000).unwrap(),
+        )
+        // We need to add a SDRUC because the Basic Output is otherwise migrated to a Coin object.
+        .add_unlock_condition(
+            StorageDepositReturnUnlockCondition::new(return_address, 1_000, 1_000_000_000).unwrap(),
         )
         .finish()
         .unwrap();
@@ -178,6 +236,9 @@ fn basic_migration_with_timelock_unlocked() {
     .unwrap();
 }
 
+/// Test that a Basic Output with an unexpired timelock cannot be unlocked.
+///
+/// Implicitly also tests that such an output is not migrated to a `Coin`.
 #[test]
 fn basic_migration_with_timelock_still_locked() {
     let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
