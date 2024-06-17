@@ -8,9 +8,9 @@ import { Heading, IconButton, RadioGroup, RadioGroupItem, Text } from '@iota/ui'
 import clsx from 'clsx';
 import { useEffect, useMemo, useState } from 'react';
 
-import { ListView } from '~/components/OwnedObjects/ListView';
-import { SmallThumbnailsView } from '~/components/OwnedObjects/SmallThumbnailsView';
-import { ThumbnailsView } from '~/components/OwnedObjects/ThumbnailsView';
+import { ListView } from '~/components/owned-objects/ListView';
+import { SmallThumbnailsView } from '~/components/owned-objects/SmallThumbnailsView';
+import { ThumbnailsView } from '~/components/owned-objects/ThumbnailsView';
 import { ObjectViewMode } from '~/lib/enums';
 import { Pagination, useCursorPagination } from '~/ui/Pagination';
 

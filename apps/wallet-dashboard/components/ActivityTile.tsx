@@ -26,7 +26,7 @@ function ActivityTile({ activity }: ActivityTileProps): JSX.Element {
             <ActivityIcon state={activity.state} action={activity.action} />
             <div className="flex h-full w-full flex-col space-y-2">
                 <h2>{activity.action}</h2>
-                <span>{formatTimestamp(activity.timestamp)}</span>
+                {activity?.timestamp && <span>{formatTimestamp(activity.timestamp)}</span>}
             </div>
             <Button onClick={handleDetailsClick}>Details</Button>
         </div>

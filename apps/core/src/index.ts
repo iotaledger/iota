@@ -40,3 +40,4 @@ export * from './hooks/useGetDelegatedStake';
 export * from './hooks/useTokenPrice';
 export * from './hooks/useKioskClient';
 export * from './components/KioskClientProvider';
+export * from './hooks/useQueryTransactionsByAddress';

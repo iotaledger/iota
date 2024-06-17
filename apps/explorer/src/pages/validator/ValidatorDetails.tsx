@@ -9,7 +9,7 @@ import { LoadingIndicator, Text } from '@iota/ui';
 import React, { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 
-import { PageLayout } from '~/components/Layout/PageLayout';
+import { PageLayout } from '~/components/layout/PageLayout';
 import { ValidatorMeta } from '~/components/validator/ValidatorMeta';
 import { ValidatorStats } from '~/components/validator/ValidatorStats';
 import { Banner } from '~/ui/Banner';

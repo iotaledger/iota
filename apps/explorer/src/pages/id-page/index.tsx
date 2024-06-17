@@ -9,7 +9,7 @@ import {
     useResolveIotaNSAddress,
     useResolveIotaNSName,
 } from '@iota/core';
-import { PageLayout } from '~/components/Layout/PageLayout';
+import { PageLayout } from '~/components/layout/PageLayout';
 import { PageHeader } from '~/ui/PageHeader';
 import { ObjectDetailsHeader } from '@iota/icons';
 import { TotalStaked } from '~/pages/address-result/TotalStaked';

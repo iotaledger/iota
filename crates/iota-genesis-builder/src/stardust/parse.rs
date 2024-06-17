@@ -5,10 +5,15 @@
 use std::io::{BufReader, Read};
 
 use anyhow::Result;
-use iota_sdk::types::block::{output::Output, protocol::ProtocolParameters};
+use iota_sdk::types::block::{
+    output::Output, payload::milestone::MilestoneOption, protocol::ProtocolParameters,
+};
 use packable::{unpacker::IoUnpacker, Packable};
 
-use super::types::snapshot::{FullSnapshotHeader, OutputHeader};
+use super::{
+    error::StardustError,
+    types::snapshot::{FullSnapshotHeader, OutputHeader},
+};
 
 /// Parse a full-snapshot using a [`BufReader`] internally.
 pub struct FullSnapshotParser<R: Read> {
@@ -35,5 +40,25 @@ impl<R: Read> FullSnapshotParser<R> {
                 Output::unpack::<_, true>(&mut self.reader, &ProtocolParameters::default())?,
             ))
         })
+    }
+
+    /// Provide the target milestone timestamp extracted from the snapshot
+    /// header.
+    pub fn target_milestone_timestamp(&self) -> u32 {
+        self.header.target_milestone_timestamp()
+    }
+
+    /// Provide the network main token total supply through the snapshot
+    /// protocol parameters.
+    pub fn total_supply(&self) -> Result<u64> {
+        if let MilestoneOption::Parameters(params) = self.header.parameters_milestone_option() {
+            let protocol_params = <ProtocolParameters as packable::PackableExt>::unpack_unverified(
+                params.binary_parameters(),
+            )
+            .expect("invalid protocol params");
+            Ok(protocol_params.token_supply())
+        } else {
+            Err(StardustError::HornetSnapshotParametersNotFound.into())
+        }
     }
 }

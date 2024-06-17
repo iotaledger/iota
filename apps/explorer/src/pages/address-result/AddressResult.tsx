@@ -7,9 +7,9 @@ import { Domain32 } from '@iota/icons';
 import { LoadingIndicator } from '@iota/ui';
 import { useParams } from 'react-router-dom';
 
-import { PageLayout } from '~/components/Layout/PageLayout';
-import { OwnedCoins } from '~/components/OwnedCoins';
-import { OwnedObjects } from '~/components/OwnedObjects';
+import { PageLayout } from '~/components/layout/PageLayout';
+import { OwnedCoins } from '~/components/owned-coins';
+import { OwnedObjects } from '~/components/owned-objects';
 import { ErrorBoundary } from '~/components/error-boundary/ErrorBoundary';
 import { TransactionsForAddress } from '~/components/transactions/TransactionsForAddress';
 import { useBreakpoint } from '~/hooks/useBreakpoint';

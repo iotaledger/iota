@@ -7,7 +7,7 @@ import { type Meta, type StoryObj } from '@storybook/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { CoinBalance, type CoinBalanceProps } from '../CoinBalance';
-import { Network, SupportedNetworks, createIotaClient } from '~/utils/api/DefaultRpcClient';
+import { Network, SupportedNetworks, createIotaClient } from '~/utils/api/defaultRpcClient';
 
 export default {
     component: CoinBalance,
