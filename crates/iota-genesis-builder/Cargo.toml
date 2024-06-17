@@ -56,6 +56,6 @@ iota-simulator.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
+iota-swarm-config.workspace = true
 iota-types = { workspace = true, features = ["test-utils"] }
 tempfile.workspace = true
-iota-swarm-config.workspace = true
