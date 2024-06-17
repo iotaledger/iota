@@ -11,12 +11,28 @@ part of a sub directory in the
 [`iota-genesis-builder`](https://github.com/iotaledger/iota/tree/develop/crates/iota-genesis-builder/src/stardust)
 crate. This document is meant to give a high to mid-level overview of the migration process.
 
+## Design Principles
+
+- The aim of the migration is to move away from the Stardust based ledger concepts and transform assets into their pure
+  object based Move representation. As such, after having completed the migration flow, a user should see in their
+  wallet move assets that semantically resemble the former Stardust assets.
+- Stardust Assets on the legacy ledger level are encapsulated in Outputs. An asset is semantically a valuable resource,
+  while an output is a container with spending rules that holds the valuable resource.
+- We aim to mimic this hierarchy between assets and their containers in the genesis move ledger state, that is, to
+  ensure that spending conditions still hold. Once the containers are unlocked and destroyed during a user initiated
+  claiming/migration transaction, the encapsulated assets will be extracted and sent to the user address. The move
+  containers will be destroyed.
+- We intentionally do not include constructors in move for such containers, as we want to discourage the use of them
+  after migration. They will only be created in the genesis ledger state via the migration script.
+
 ## Foundry Outputs & Native Tokens
 
 Foundry Outputs in Stardust represent the capability to control the supply of user-defined Native Tokens. In Move, there
-are established ways for these operations, in particular using `Coin` and `TreasuryCap`. The two main goals of the
-foundry migration are to convert it to a `CoinManager`, a type introduced in the Move IOTA framework in order to
-simplify working with the `TreasuryCap`, and to a `Coin<IOTA>` to hold the IOTA tokens of the foundry itself.
+are established ways for these operations, in particular using
+[`Coin`](/references/framework/iota-framework/coin#resource-coin) and
+[`TreasuryCap`](/references/framework/iota-framework/coin#resource-treasurycap). The two main goals of the foundry
+migration are to convert it to a `CoinManager`, a type introduced in the Move IOTA framework in order to simplify
+working with the `TreasuryCap`, and to a `Coin<IOTA>` to hold the IOTA tokens of the foundry itself.
 
 A unique coin type, `Coin<XYZ>`, is represented by the one-time witness `XYZ` defined in its own package. Therefore, for
 each foundry there needs to be a corresponding package defining the native token's one-time witness and initial minting
@@ -49,15 +65,16 @@ migrated that contain a balance of _this_ native token, then that balance is spl
 the minted coin, it is left at the zero address. This means they were burned in stardust and, therefore, are effectively
 also burned on the Move ledger, as no one controls the `0x0` address.
 
-In Move, the `TreasuryCap` type uses a `u64` representation (within `Balance`) as its maximum supply. Since Stardust
-allows for `u256` to be used, in some rare cases, the maximum or circulating supply exceed the maximum value
-representable by `u64` (`MAX_U64_SUPPLY`, which here refers to `2^64 - 2` for technical reasons). If the maximum supply
-exceeds it, it is truncated to `MAX_U64_SUPPLY`, which is fine since no more than `MAX_U64_SUPPLY` tokens were actually
-minted (the circulating supply). If the circulating supply however exceeds `MAX_U64_SUPPLY`, simply truncating would
-cause problems in the migration, since there would not be enough minted supply to distribute. In this case, all migrated
-tokens are multiplied by `MAX_U64_SUPPLY / stardust_circulating_supply`, which means they are adjusted proportionally to
-fit within the maximum supply of `MAX_U64_SUPPLY`. This maintains the token ratio of the Native Token in stardust with
-the `TreasuryCap` constraints. Note that in cases where the ratio is very small, this might result in a Native Token
+In Move, the `TreasuryCap` type uses a `u64` representation (within
+[`Balance`](/references/framework/iota-framework/balance#struct-balance)) as its maximum supply. Since Stardust allows
+for `u256` to be used, in some rare cases, the maximum or circulating supply exceed the maximum value representable by
+`u64` (`MAX_U64_SUPPLY`, which here refers to `2^64 - 2` for technical reasons). If the maximum supply exceeds it, it is
+truncated to `MAX_U64_SUPPLY`, which is fine since no more than `MAX_U64_SUPPLY` tokens were actually minted (the
+circulating supply). If the circulating supply however exceeds `MAX_U64_SUPPLY`, simply truncating would cause problems
+in the migration, since there would not be enough minted supply to distribute. In this case, all migrated tokens are
+multiplied by `MAX_U64_SUPPLY / stardust_circulating_supply`, which means they are adjusted proportionally to fit within
+the maximum supply of `MAX_U64_SUPPLY`. This maintains the token ratio of the Native Token in stardust with the
+`TreasuryCap` constraints. Note that in cases where the ratio is very small, this might result in a Native Token
 balanace of 0.
 
 ## Output Migration Design
@@ -81,8 +98,9 @@ migrated as setting the `owner` of `B` to the address of `A` (the Alias ID), whi
 Stardust. This is the same as if `B` would have been transferred (using either of
 `iota::transfer::{transfer,public_transfer}`) to the address of `A` (the Alias ID). The migrated alias `A` can then
 _receive_ `B` using the `stardust::address_unlock_condition::unlock_alias_address_owned_basic` function, which is
-essentially a wrapper around `iota::transfer::receive`. There are equivalent unlock functions for the other possible
-variants of object ownership.
+essentially a wrapper around
+[`iota::transfer::receive`](/references/framework/iota-framework/transfer#function-receive). There are equivalent unlock
+functions for the other possible variants of object ownership.
 
 ## Basic Outputs
 
@@ -95,9 +113,9 @@ The migrated objects are owned by the address in the stardust output's `Address 
 
 A special case is vesting reward outputs, that is, those Basic Outputs whose `OutputId` begins with
 `0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb18` and whose `Timelock` is still locked at the time of
-migration. They are migrated to `Timelock<IOTA>` and contain the label
+migration. They are migrated to `Timelock<Balance<IOTA>>` and contain the label
 `00000000000000000000000000000000000000000000000000000000000010cf::stardust_upgrade_label::STARDUST_UPGRADE_LABEL` by
-which can be identified as vesting reward objects.
+which they can be identified as vesting reward objects.
 
 The full decision graph (without the vesting reward output case) is depicted here (with `coin` being `IOTA`):
 
