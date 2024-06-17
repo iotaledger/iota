@@ -7,8 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 
 export function useUnstakeTransaction(stakedIotaId: string, senderAddress: string) {
     const client = useIotaClient();
-
-    const { data: transaction } = useQuery({
+    return useQuery({
         queryKey: ['unstake-transaction', stakedIotaId, senderAddress, client],
         queryFn: async () => {
             const transaction = createUnstakeTransaction(stakedIotaId);
@@ -18,12 +17,11 @@ export function useUnstakeTransaction(stakedIotaId: string, senderAddress: strin
         },
         enabled: !!stakedIotaId && !!senderAddress,
         gcTime: 0,
+        select: (transaction) => {
+            return {
+                transaction,
+                gasBudget: transaction.blockData.gasConfig.budget,
+            };
+        },
     });
-
-    const gasBudget = transaction?.blockData.gasConfig.budget?.toString() || '';
-
-    return {
-        transaction,
-        gasBudget,
-    };
 }

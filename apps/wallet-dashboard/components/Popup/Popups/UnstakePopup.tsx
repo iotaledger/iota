@@ -14,17 +14,14 @@ interface UnstakePopupProps {
 
 function UnstakePopup({ stake, closePopup }: UnstakePopupProps): JSX.Element {
     const account = useCurrentAccount();
-    const { gasBudget, transaction } = useUnstakeTransaction(
-        stake.stakedIotaId,
-        account?.address || '',
-    );
+    const { data: unstakeData } = useUnstakeTransaction(stake.stakedIotaId, account?.address || '');
     const { mutateAsync: signAndExecuteTransactionBlock, isPending } =
         useSignAndExecuteTransactionBlock();
 
     const handleUnstake = async (): Promise<void> => {
-        if (!transaction) return;
+        if (!unstakeData) return;
         await signAndExecuteTransactionBlock({
-            transactionBlock: transaction,
+            transactionBlock: unstakeData.transaction,
         });
         closePopup();
     };
@@ -35,7 +32,7 @@ function UnstakePopup({ stake, closePopup }: UnstakePopupProps): JSX.Element {
             <p>Validator: {stake.validatorAddress}</p>
             <p>Stake: {stake.principal}</p>
             {stake.status === 'Active' && <p>Estimated reward: {stake.estimatedReward}</p>}
-            <p>Gas Fees: {gasBudget}</p>
+            <p>Gas Fees: {unstakeData?.gasBudget?.toString() || '--'}</p>
             {isPending ? (
                 <Button disabled>Loading...</Button>
             ) : (
