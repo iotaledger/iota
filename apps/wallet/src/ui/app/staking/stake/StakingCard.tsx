@@ -271,7 +271,7 @@ function StakingCard() {
         <div className="flex w-full flex-grow flex-col flex-nowrap">
             <Loading loading={isPending || validatorsisPending || loadingIotaBalances}>
                 <Formik
-                    initialValues={initialValues}
+                    initialValues={INITIAL_VALUES}
                     validationSchema={validationSchema}
                     onSubmit={onHandleSubmit}
                     validateOnMount
