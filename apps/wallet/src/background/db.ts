@@ -10,8 +10,8 @@ import { type SerializedAccount } from './accounts/Account';
 import { captureException } from './sentry';
 import { getFromLocalStorage, setToLocalStorage } from './storage-utils';
 
-const dbName = 'IotaWallet DB';
-const dbLocalStorageBackupKey = 'indexed-db-backup';
+const DB_NAME = 'IotaWallet DB';
+const DB_LOCAL_STORAGE_BACKUP_KEY = 'indexed-db-backup';
 
 export const settingsKeys = {
     isPopulated: 'isPopulated',
@@ -24,7 +24,7 @@ class DB extends Dexie {
     settings!: Table<{ value: boolean | number | null; setting: string }, string>;
 
     constructor() {
-        super(dbName);
+        super(DB_NAME);
         this.version(1).stores({
             accountSources: 'id, type',
             accounts: 'id, type, address, sourceID',
@@ -38,7 +38,7 @@ async function init() {
     const isPopulated = !!(await db.settings.get(settingsKeys.isPopulated))?.value;
     if (!isPopulated) {
         try {
-            const backup = await getFromLocalStorage<string>(dbLocalStorageBackupKey);
+            const backup = await getFromLocalStorage<string>(DB_LOCAL_STORAGE_BACKUP_KEY);
             if (backup) {
                 captureException(
                     new Error('IndexedDB is empty, attempting to restore from backup'),
@@ -71,7 +71,7 @@ export const getDB = () => {
 export async function backupDB() {
     try {
         const backup = await (await exportDB(await getDB())).text();
-        await setToLocalStorage(dbLocalStorageBackupKey, backup);
+        await setToLocalStorage(DB_LOCAL_STORAGE_BACKUP_KEY, backup);
     } catch (e) {
         captureException(e);
     }

@@ -65,7 +65,7 @@ const HIDDEN_MENU_PATHS = [
     '/apps/disconnectapp',
 ];
 
-const notifyUserActiveInterval = 5 * 1000; // 5 seconds
+const NOTIFY_USER_ACTIVE_INTERVAL = 5 * 1000; // 5 seconds
 
 const App = () => {
     const dispatch = useAppDispatch();
@@ -141,7 +141,7 @@ const App = () => {
             return;
         }
         const sendUpdateThrottled = throttle(
-            notifyUserActiveInterval,
+            NOTIFY_USER_ACTIVE_INTERVAL,
             () => {
                 backgroundClient.notifyUserActive();
             },

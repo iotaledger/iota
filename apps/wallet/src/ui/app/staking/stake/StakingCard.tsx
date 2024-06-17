@@ -43,11 +43,11 @@ import { createStakeTransaction, createUnstakeTransaction } from './utils/transa
 import { createValidationSchema } from './utils/validation';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 
-const initialValues = {
+const INITIAL_VALUES = {
     amount: '',
 };
 
-export type FormValues = typeof initialValues;
+export type FormValues = typeof INITIAL_VALUES;
 
 function StakingCard() {
     const coinType = IOTA_TYPE_ARG;

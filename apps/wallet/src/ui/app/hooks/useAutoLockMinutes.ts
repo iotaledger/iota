@@ -9,12 +9,12 @@ import { type zodSchema } from '../components/accounts/AutoLockSelector';
 import { useBackgroundClient } from './useBackgroundClient';
 
 export type AutoLockInterval = z.infer<typeof zodSchema>['autoLock']['interval'];
-export const autoLockMinutesQueryKey = ['get auto-lock minutes'];
+export const AUTO_LOCK_MINUTES_QUERY_KEY = ['get auto-lock minutes'];
 
 export function useAutoLockMinutes() {
     const backgroundClient = useBackgroundClient();
     return useQuery({
-        queryKey: autoLockMinutesQueryKey,
+        queryKey: AUTO_LOCK_MINUTES_QUERY_KEY,
         queryFn: () => backgroundClient.getAutoLockMinutes(),
         refetchInterval: 15 * 1000,
         meta: {
