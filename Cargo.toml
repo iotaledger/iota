@@ -164,7 +164,6 @@ members = [
   "crates/typed-store",
   "crates/typed-store-derive",
   "crates/typed-store-error",
-  "crates/x",
   "iota-execution",
   "iota-execution/cut",
   "iota-execution/latest/iota-adapter",
@@ -566,7 +565,6 @@ transaction-fuzzer = { path = "crates/transaction-fuzzer" }
 typed-store = { path = "crates/typed-store" }
 typed-store-derive = { path = "crates/typed-store-derive" }
 typed-store-error = { path = "crates/typed-store-error" }
-x = { path = "crates/x" }
 
 consensus-config = { path = "consensus/config" }
 consensus-core = { path = "consensus/core" }
