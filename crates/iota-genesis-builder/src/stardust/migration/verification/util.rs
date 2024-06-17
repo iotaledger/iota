@@ -19,15 +19,15 @@ use iota_types::{
     dynamic_field::Field,
     in_memory_storage::InMemoryStorage,
     object::{Object, Owner},
+    stardust::{
+        output::{basic as migration_output, Alias, Nft},
+        stardust_to_iota_address, stardust_to_iota_address_owner,
+    },
     TypeTag,
 };
 
 use crate::stardust::{
-    migration::executor::FoundryLedgerData,
-    types::{
-        output as migration_output, stardust_to_iota_address, stardust_to_iota_address_owner,
-        token_scheme::MAX_ALLOWED_U64_SUPPLY, Alias, Nft,
-    },
+    migration::executor::FoundryLedgerData, types::token_scheme::MAX_ALLOWED_U64_SUPPLY,
 };
 
 pub(super) fn verify_native_tokens<NtKind: NativeTokenKind>(

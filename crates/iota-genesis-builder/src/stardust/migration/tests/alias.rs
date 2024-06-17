@@ -23,6 +23,13 @@ use iota_types::{
     dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo},
     id::UID,
     object::{Object, Owner},
+    stardust::{
+        output::{
+            Alias, AliasOutput, ALIAS_DYNAMIC_OBJECT_FIELD_KEY,
+            ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE, ALIAS_OUTPUT_MODULE_NAME, NFT_OUTPUT_MODULE_NAME,
+        },
+        stardust_to_iota_address,
+    },
     TypeTag,
 };
 use move_core_types::ident_str;
@@ -35,11 +42,7 @@ use crate::stardust::{
         },
         CoinType,
     },
-    types::{
-        snapshot::OutputHeader, stardust_to_iota_address, Alias, AliasOutput,
-        ALIAS_DYNAMIC_OBJECT_FIELD_KEY, ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE,
-        ALIAS_OUTPUT_MODULE_NAME, NFT_OUTPUT_MODULE_NAME,
-    },
+    types::output_header::OutputHeader,
 };
 
 fn migrate_alias(

@@ -37,7 +37,7 @@ use crate::stardust::{
         verification::created_objects::CreatedObjects,
         CoinType, MigrationTargetNetwork,
     },
-    types::snapshot::OutputHeader,
+    types::output_header::OutputHeader,
 };
 
 mod alias;

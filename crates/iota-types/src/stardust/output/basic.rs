@@ -6,23 +6,22 @@
 
 use anyhow::Result;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk::types::block::address::Address;
-use iota_types::{
+use iota_stardust_sdk::types::block::address::Address;
+use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
+
+use crate::{
     balance::Balance,
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
     coin::Coin,
     collection_types::Bag,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
+    stardust::address::stardust_to_iota_address,
     TypeTag, STARDUST_PACKAGE_ID,
 };
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
-
-use super::{snapshot::OutputHeader, stardust_to_iota_address};
-use crate::stardust::migration::CoinType;
 
 pub const BASIC_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("basic_output");
 pub const BASIC_OUTPUT_STRUCT_NAME: &IdentStr = ident_str!("BasicOutput");
@@ -44,7 +43,7 @@ pub struct ExpirationUnlockCondition {
 impl ExpirationUnlockCondition {
     pub(crate) fn new(
         owner_address: &Address,
-        expiration_unlock_condition: &iota_sdk::types::block::output::unlock_condition::ExpirationUnlockCondition,
+        expiration_unlock_condition: &iota_stardust_sdk::types::block::output::unlock_condition::ExpirationUnlockCondition,
     ) -> anyhow::Result<Self> {
         let owner = stardust_to_iota_address(owner_address)?;
         let return_address =
@@ -71,13 +70,13 @@ pub struct StorageDepositReturnUnlockCondition {
     pub return_amount: u64,
 }
 
-impl TryFrom<&iota_sdk::types::block::output::unlock_condition::StorageDepositReturnUnlockCondition>
+impl TryFrom<&iota_stardust_sdk::types::block::output::unlock_condition::StorageDepositReturnUnlockCondition>
     for StorageDepositReturnUnlockCondition
 {
     type Error = anyhow::Error;
 
     fn try_from(
-        unlock: &iota_sdk::types::block::output::unlock_condition::StorageDepositReturnUnlockCondition,
+        unlock: &iota_stardust_sdk::types::block::output::unlock_condition::StorageDepositReturnUnlockCondition,
     ) -> Result<Self, Self::Error> {
         let return_address = unlock.return_address().to_string().parse()?;
         let return_amount = unlock.amount();
@@ -97,11 +96,11 @@ pub struct TimelockUnlockCondition {
     pub unix_time: u32,
 }
 
-impl From<&iota_sdk::types::block::output::unlock_condition::TimelockUnlockCondition>
+impl From<&iota_stardust_sdk::types::block::output::unlock_condition::TimelockUnlockCondition>
     for TimelockUnlockCondition
 {
     fn from(
-        unlock: &iota_sdk::types::block::output::unlock_condition::TimelockUnlockCondition,
+        unlock: &iota_stardust_sdk::types::block::output::unlock_condition::TimelockUnlockCondition,
     ) -> Self {
         Self {
             unix_time: unlock.timestamp(),
@@ -144,12 +143,12 @@ pub struct BasicOutput {
 impl BasicOutput {
     /// Construct the basic output with an empty [`Bag`] through the
     /// [`OutputHeader`]
-    /// and [`Output`][iota_sdk::types::block::output::BasicOutput].
+    /// and [`Output`][iota_stardust_sdk::types::block::output::BasicOutput].
     pub fn new(
-        header: OutputHeader,
-        output: &iota_sdk::types::block::output::BasicOutput,
+        header_object_id: ObjectID,
+        output: &iota_stardust_sdk::types::block::output::BasicOutput,
     ) -> Result<Self> {
-        let id = UID::new(ObjectID::new(header.output_id().hash()));
+        let id = UID::new(header_object_id);
         let balance = Balance::new(output.amount());
         let native_tokens = Default::default();
         let unlock_conditions = output.unlock_conditions();
@@ -206,13 +205,13 @@ impl BasicOutput {
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
         version: SequenceNumber,
-        coin_type: &CoinType,
+        type_param: TypeTag,
     ) -> Result<Object> {
         let move_object = unsafe {
             // Safety: we know from the definition of `BasicOutput` in the stardust package
             // that it is not publicly transferable (`store` ability is absent).
             MoveObject::new_from_execution(
-                BasicOutput::tag(coin_type.to_type_tag()).into(),
+                BasicOutput::tag(type_param).into(),
                 false,
                 version,
                 bcs::to_bytes(self)?,
@@ -240,35 +239,32 @@ impl BasicOutput {
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
         version: SequenceNumber,
-        coin_type: &CoinType,
     ) -> Result<Object> {
-        create_coin(
+        create_gas_coin(
             self.id,
             owner,
             self.balance.value(),
             tx_context,
             version,
             protocol_config,
-            coin_type,
         )
     }
 }
 
-pub(crate) fn create_coin(
+pub(crate) fn create_gas_coin(
     object_id: UID,
     owner: IotaAddress,
     amount: u64,
     tx_context: &TxContext,
     version: SequenceNumber,
     protocol_config: &ProtocolConfig,
-    coin_type: &CoinType,
 ) -> Result<Object> {
     let coin = Coin::new(object_id, amount);
     let move_object = unsafe {
         // Safety: we know from the definition of `Coin`
         // that it has public transfer (`store` ability is present).
         MoveObject::new_from_execution(
-            MoveObjectType::from(Coin::type_(coin_type.to_type_tag())),
+            MoveObjectType::gas_coin(),
             true,
             version,
             bcs::to_bytes(&coin)?,

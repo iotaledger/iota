@@ -15,7 +15,10 @@ use iota_sdk::types::block::{
     },
     payload::transaction::TransactionId,
 };
-use iota_types::base_types::{IotaAddress, ObjectID};
+use iota_types::{
+    base_types::{IotaAddress, ObjectID},
+    stardust::{output::basic::BASIC_OUTPUT_MODULE_NAME, stardust_to_iota_address},
+};
 
 use crate::stardust::{
     migration::{
@@ -25,7 +28,7 @@ use crate::stardust::{
         },
         CoinType, Migration, MigrationTargetNetwork,
     },
-    types::{output::BASIC_OUTPUT_MODULE_NAME, snapshot::OutputHeader, stardust_to_iota_address},
+    types::output_header::OutputHeader,
 };
 
 /// Test the id of a `BasicOutput` that is transformed to a simple coin.

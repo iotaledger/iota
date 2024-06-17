@@ -17,6 +17,7 @@ use iota_types::{
     epoch_data::EpochData,
     gas_coin::GAS,
     object::Object,
+    timelock::timelock,
     smr_coin::SMR,
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
     TIMELOCK_PACKAGE_ID,
@@ -31,7 +32,7 @@ use crate::stardust::{
         MigrationTargetNetwork,
     },
     native_token::package_data::NativeTokenPackageData,
-    types::{snapshot::OutputHeader, timelock},
+    types::output_header::OutputHeader,
 };
 
 /// We fix the protocol version used in the migration.
