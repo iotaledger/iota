@@ -21,6 +21,7 @@ use iota_sdk::types::block::output::{
 use iota_types::{
     balance::Balance,
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TxContext},
+    coin_manager::{CoinManager, CoinManagerTreasuryCap},
     collection_types::Bag,
     dynamic_field::Field,
     execution_mode,
@@ -36,7 +37,7 @@ use iota_types::{
         Argument, CheckedInputObjects, Command, InputObjectKind, InputObjects, ObjectArg,
         ObjectReadResult, ProgrammableTransaction,
     },
-    TypeTag, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID,
+    TypeTag, IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID,
 };
 use move_core_types::{ident_str, language_storage::StructTag};
 use move_vm_runtime_v2::move_vm::MoveVM;
@@ -236,16 +237,13 @@ impl Executor {
                 if object.is_coin() {
                     native_token_coin_id = Some(object.id());
                     created_objects.set_native_token_coin(object.id())?;
-                } else if object.type_().map_or(false, |t| {
-                    t.address() == IOTA_FRAMEWORK_ADDRESS
-                        && t.module().as_str() == "coin_manager"
-                        && t.name().as_str() == "CoinManager"
-                }) {
+                } else if object
+                    .type_()
+                    .map_or(false, |t| CoinManager::is_coin_manager(t))
+                {
                     created_objects.set_coin_manager(object.id())?
                 } else if object.type_().map_or(false, |t| {
-                    t.address() == IOTA_FRAMEWORK_ADDRESS
-                        && t.module().as_str() == "coin_manager"
-                        && t.name().as_str() == "CoinManagerTreasuryCap"
+                    CoinManagerTreasuryCap::is_coin_manager_treasury_cap(t)
                 }) {
                     created_objects.set_coin_manager_treasury_cap(object.id())?
                 } else if object.is_package() {

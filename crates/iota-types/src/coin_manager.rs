@@ -5,8 +5,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    base_types::MoveObjectType,
     coin::{CoinMetadata, TreasuryCap},
     id::UID,
+    IOTA_FRAMEWORK_ADDRESS,
 };
 
 /// The purpose of a CoinManager is to allow access to all
@@ -37,6 +39,14 @@ pub struct CoinManager {
     pub metadata_immutable: bool,
 }
 
+impl CoinManager {
+    pub fn is_coin_manager(object_type: &MoveObjectType) -> bool {
+        object_type.address() == IOTA_FRAMEWORK_ADDRESS
+            && object_type.module().as_str() == "coin_manager"
+            && object_type.name().as_str() == "CoinManager"
+    }
+}
+
 /// The immutable version of CoinMetadata, used in case of migrating from frozen
 /// objects to a `CoinManager` holding the metadata.
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
@@ -59,4 +69,12 @@ pub struct ImmutableCoinMetadata {
 pub struct CoinManagerTreasuryCap {
     /// The unique identifier of the object.
     pub id: UID,
+}
+
+impl CoinManagerTreasuryCap {
+    pub fn is_coin_manager_treasury_cap(object_type: &MoveObjectType) -> bool {
+        object_type.address() == IOTA_FRAMEWORK_ADDRESS
+            && object_type.module().as_str() == "coin_manager"
+            && object_type.name().as_str() == "CoinManagerTreasuryCap"
+    }
 }
