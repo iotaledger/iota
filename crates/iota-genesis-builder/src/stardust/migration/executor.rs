@@ -541,6 +541,7 @@ impl Executor {
         &mut self,
         header: &OutputHeader,
         basic_output: &BasicOutput,
+        target_milestone_timestamp_sec: u32,
     ) -> Result<CreatedObjects> {
         let mut basic =
             crate::stardust::types::output::BasicOutput::new(header.clone(), basic_output)?;
@@ -550,7 +551,8 @@ impl Executor {
         // The minimum version of the manually created objects
         let package_deps = InputObjects::new(self.load_packages(PACKAGE_DEPS).collect());
         let mut version = package_deps.lamport_timestamp(&[]);
-        let object = if basic.is_simple_coin() {
+
+        let object = if basic.is_simple_coin(target_milestone_timestamp_sec) {
             if !basic_output.native_tokens().is_empty() {
                 let coins = self.create_native_token_coins(basic_output.native_tokens(), owner)?;
                 created_objects.set_native_tokens(coins)?;
