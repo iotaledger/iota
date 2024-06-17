@@ -1,45 +1,45 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ActivityAction, ActivityState } from '@/lib/interfaces';
+import { TransactionAction, TransactionState } from '@/lib/interfaces';
 import { Account24, ArrowRight16, Iota, Unstaked, WalletActionStake24 } from '@iota/icons';
 
 const icons = {
-    [ActivityAction.Send]: (
+    [TransactionAction.Send]: (
         <ArrowRight16
             fill="currentColor"
             className="text-gradient-blue-start text-body -rotate-45"
         />
     ),
-    [ActivityAction.Receive]: (
+    [TransactionAction.Receive]: (
         <ArrowRight16
             fill="currentColor"
             className="text-gradient-blue-start text-body rotate-135"
         />
     ),
-    [ActivityAction.Transaction]: (
+    [TransactionAction.Transaction]: (
         <ArrowRight16
             fill="currentColor"
             className="text-gradient-blue-start text-body -rotate-45"
         />
     ),
-    [ActivityAction.Staked]: (
+    [TransactionAction.Staked]: (
         <WalletActionStake24 className="text-gradient-blue-start text-heading2 bg-transparent" />
     ),
-    [ActivityAction.Unstaked]: <Unstaked className="text-gradient-blue-start text-heading3" />,
-    [ActivityAction.Rewards]: <Iota className="text-gradient-blue-start text-body" />,
-    [ActivityAction.PersonalMessage]: (
+    [TransactionAction.Unstaked]: <Unstaked className="text-gradient-blue-start text-heading3" />,
+    [TransactionAction.Rewards]: <Iota className="text-gradient-blue-start text-body" />,
+    [TransactionAction.PersonalMessage]: (
         <Account24 fill="currentColor" className="text-gradient-blue-start text-body" />
     ),
 };
 
-interface ActivityIconProps {
-    state: ActivityState;
+interface TransactionIconProps {
+    state: TransactionState;
     action: keyof typeof icons;
 }
 
-function ActivityIcon({ state, action }: ActivityIconProps) {
-    const isError = state === ActivityState.Failed;
+function TransactionIcon({ state, action }: TransactionIconProps) {
+    const isError = state === TransactionState.Failed;
     return (
         <div
             className={`${
@@ -51,4 +51,4 @@ function ActivityIcon({ state, action }: ActivityIconProps) {
     );
 }
 
-export default ActivityIcon;
+export default TransactionIcon;
