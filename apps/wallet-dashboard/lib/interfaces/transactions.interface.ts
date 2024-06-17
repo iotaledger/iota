@@ -1,13 +1,16 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export interface Activity {
-    action: ActivityAction;
+import { IotaTransactionBlockResponse } from '@iota/iota.js/client';
+
+export interface ExtendedTransaction {
+    action: TransactionAction;
     timestamp?: number;
-    state: ActivityState;
+    state: TransactionState;
+    raw: IotaTransactionBlockResponse;
 }
 
-export enum ActivityAction {
+export enum TransactionAction {
     Send = 'Send',
     Receive = 'Receive',
     Transaction = 'Transaction',
@@ -17,7 +20,7 @@ export enum ActivityAction {
     PersonalMessage = 'PersonalMessage',
 }
 
-export enum ActivityState {
+export enum TransactionState {
     Successful = 'successful',
     Failed = 'failed',
     Pending = 'pending',
