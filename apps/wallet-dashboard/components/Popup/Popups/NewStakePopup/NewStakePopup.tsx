@@ -4,9 +4,9 @@
 import React, { useState } from 'react';
 import { EnterAmountView, SelectValidatorView } from './views';
 import { useNotifications, useNewStakeTransaction } from '@/hooks';
-import { NotificationType } from '@/stores/notificationStore';
-import { useGetValidatorsApy } from '@iota/core';
+import { parseAmount, useCoinMetadata, useGetValidatorsApy } from '@iota/core';
 import { useCurrentAccount, useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
+import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 
 interface NewStakePopupProps {
     onClose: () => void;
@@ -22,14 +22,20 @@ function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
     const [selectedValidator, setSelectedValidator] = useState<string>('');
     const [amount, setAmount] = useState<string>('');
     const account = useCurrentAccount();
-    const { transaction } = useNewStakeTransaction(
-        amount.toString(),
+
+    const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
+    const coinDecimals = metadata?.decimals ?? 0;
+    const amountWithoutDecimals = parseAmount(amount, coinDecimals);
+
+    const { data: newStakeData } = useNewStakeTransaction(
         selectedValidator,
+        amountWithoutDecimals.toString(),
         account?.address ?? '',
     );
+
+    const { mutateAsync: signAndExecuteTransactionBlock } = useSignAndExecuteTransactionBlock();
     const { addNotification } = useNotifications();
     const { data: rollingAverageApys } = useGetValidatorsApy();
-    const { mutateAsync: signAndExecuteTransactionBlock } = useSignAndExecuteTransactionBlock();
 
     const validators = Object.keys(rollingAverageApys ?? {}) ?? [];
 
@@ -47,16 +53,12 @@ function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
     };
 
     const handleStake = async (): Promise<void> => {
-        if (selectedValidator && amount) {
-            if (transaction) {
-                await signAndExecuteTransactionBlock({
-                    transactionBlock: transaction,
-                });
-                onClose();
-            } else {
-                addNotification('Error creating transaction', NotificationType.Error);
-            }
-        }
+        if (!newStakeData?.transaction) return;
+        await signAndExecuteTransactionBlock({
+            transactionBlock: newStakeData?.transaction,
+        });
+        onClose();
+        addNotification('Stake transaction has been sent');
     };
 
     return (
@@ -71,7 +73,7 @@ function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
                     onChange={(e) => setAmount(e.target.value)}
                     onBack={handleBack}
                     onStake={handleStake}
-                    isStakeDisabled={!amount || !selectedValidator}
+                    isStakeDisabled={!amount}
                 />
             )}
         </div>
