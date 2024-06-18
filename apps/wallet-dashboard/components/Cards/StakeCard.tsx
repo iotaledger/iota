@@ -3,11 +3,11 @@
 
 import React from 'react';
 import { Box, Button } from '@/components/index';
-import { DelegatedStakeWithValidator } from '@iota/core';
+import { ExtendedDelegatedStake } from '@iota/core';
 
 interface StakeCardProps {
-    stake: DelegatedStakeWithValidator;
-    onDetailsClick: (stake: DelegatedStakeWithValidator) => void;
+    stake: ExtendedDelegatedStake;
+    onDetailsClick: (stake: ExtendedDelegatedStake) => void;
 }
 
 function StakeCard({ stake, onDetailsClick }: StakeCardProps): JSX.Element {

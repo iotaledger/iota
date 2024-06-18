@@ -3,14 +3,14 @@
 
 import { DelegatedStake, StakeObject } from '@iota/iota.js/client';
 
-export type DelegatedStakeWithValidator = StakeObject & {
+export type ExtendedDelegatedStake = StakeObject & {
     validatorAddress: string;
     estimatedReward?: string;
 };
 
 export function formatDelegatedStake(
     delegatedStakeData: DelegatedStake[],
-): DelegatedStakeWithValidator[] {
+): ExtendedDelegatedStake[] {
     return delegatedStakeData.flatMap((delegatedStake) => {
         return delegatedStake.stakes.map((stake) => {
             return {

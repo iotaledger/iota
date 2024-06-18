@@ -5,10 +5,10 @@ import React from 'react';
 import { Button } from '@/components/index';
 import { usePopups } from '@/hooks';
 import UnstakePopup from './UnstakePopup';
-import { DelegatedStakeWithValidator } from '@iota/core';
+import { ExtendedDelegatedStake } from '@iota/core';
 
 interface StakeDetailsPopupProps {
-    stake: DelegatedStakeWithValidator;
+    stake: ExtendedDelegatedStake;
 }
 
 function StakeDetailsPopup({ stake }: StakeDetailsPopupProps): JSX.Element {

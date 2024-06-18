@@ -6,7 +6,7 @@
 import { AmountBox, Box, StakeCard, NewStakePopup, StakeDetailsPopup, Button } from '@/components';
 import { usePopups } from '@/hooks';
 import {
-    DelegatedStakeWithValidator,
+    ExtendedDelegatedStake,
     formatDelegatedStake,
     useFormatCoin,
     useGetDelegatedStake,
@@ -35,7 +35,7 @@ function StakingDashboardPage(): JSX.Element {
         IOTA_TYPE_ARG,
     );
 
-    const viewStakeDetails = (stake: DelegatedStakeWithValidator) => {
+    const viewStakeDetails = (stake: ExtendedDelegatedStake) => {
         openPopup(<StakeDetailsPopup stake={stake} />);
     };
 
