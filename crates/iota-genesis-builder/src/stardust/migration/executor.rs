@@ -21,6 +21,7 @@ use iota_sdk::types::block::output::{
 use iota_types::{
     balance::Balance,
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TxContext},
+    coin_manager::{CoinManager, CoinManagerTreasuryCap},
     collection_types::Bag,
     dynamic_field::Field,
     execution_mode,
@@ -36,7 +37,7 @@ use iota_types::{
         Argument, CheckedInputObjects, Command, InputObjectKind, InputObjects, ObjectArg,
         ObjectReadResult, ProgrammableTransaction,
     },
-    TypeTag, IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_ADDRESS, STARDUST_PACKAGE_ID,
+    TypeTag, IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID,
 };
 use move_core_types::{ident_str, language_storage::StructTag};
 use move_vm_runtime_v2::move_vm::MoveVM;
@@ -233,18 +234,7 @@ impl Executor {
             let mut native_token_coin_id = None::<ObjectID>;
             let mut foundry_package = None::<&MovePackage>;
             for object in written.values() {
-                if object.is_coin() {
-                    native_token_coin_id = Some(object.id());
-                    created_objects.set_native_token_coin(object.id())?;
-                } else if object.type_().map_or(false, |t| t.is_coin_metadata()) {
-                    created_objects.set_coin_metadata(object.id())?
-                } else if object.type_().map_or(false, |t| {
-                    t.address() == STARDUST_ADDRESS
-                        && t.module().as_str() == "capped_coin"
-                        && t.name().as_str() == "MaxSupplyPolicy"
-                }) {
-                    created_objects.set_max_supply_policy(object.id())?
-                } else if object.is_package() {
+                if object.is_package() {
                     foundry_package = Some(
                         object
                             .data
@@ -252,6 +242,15 @@ impl Executor {
                             .expect("already verified this is a package"),
                     );
                     created_objects.set_package(object.id())?;
+                } else if object.is_coin() {
+                    native_token_coin_id = Some(object.id());
+                    created_objects.set_native_token_coin(object.id())?;
+                } else if let Some(tag) = object.struct_tag() {
+                    if CoinManager::is_coin_manager(&tag) {
+                        created_objects.set_coin_manager(object.id())?;
+                    } else if CoinManagerTreasuryCap::is_coin_manager_treasury_cap(&tag) {
+                        created_objects.set_coin_manager_treasury_cap(object.id())?;
+                    }
                 }
             }
             let (native_token_coin_id, foundry_package) = (
