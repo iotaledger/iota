@@ -249,7 +249,7 @@ aws-smithy-runtime-api = "0.56"
 axum = { version = "0.6.6", default-features = false, features = ["headers", "tokio", "http1", "http2", "json", "matched-path", "original-uri", "form", "query", "ws"] }
 axum-extra = "0.4.2"
 axum-server = { version = "0.5.1", default-features = false, features = ["tls-rustls"] }
-backoff = { version = "0.4.0", features = ["futures", "futures-core", "pin-project-lite", "tokio", "tokio_1"] }
+backoff = { version = "0.4.0", features = ["tokio"] }
 base64 = "0.21.2"
 base64-url = "2"
 bcs = "0.1.4"
