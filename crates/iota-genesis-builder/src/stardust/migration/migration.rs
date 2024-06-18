@@ -19,10 +19,10 @@ use iota_types::{
     digests::TransactionDigest,
     epoch_data::EpochData,
     object::Object,
+    timelock::timelock::is_timelocked_balance,
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
     TIMELOCK_PACKAGE_ID,
 };
-use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::stardust::{
@@ -151,8 +151,8 @@ impl Migration {
     /// The system packages and underlying `init` objects
     /// are filtered out because they will be generated
     /// in the genesis process.
-    fn into_objects(self) -> MigrationObjects {
-        MigrationObjects(self.executor.into_objects())
+    fn into_objects(self) -> Vec<Object> {
+        self.executor.into_objects()
     }
 
     /// Create the packages, and associated objects representing foundry
@@ -232,19 +232,78 @@ impl Migration {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
-pub struct MigrationObjects(Vec<Object>);
+/// All the objects created during the migration.
+///
+/// Internally it maintains indexes of [`TimeLock`] and [`GasCoin`]
+/// objects groupped by their owners to accommodate queries of this
+/// sort.
+#[derive(Debug, Clone, Default)]
+pub struct MigrationObjects {
+    inner: Vec<Object>,
+    owner_timelock: HashMap<IotaAddress, Vec<usize>>,
+    owner_gas_coin: HashMap<IotaAddress, Vec<usize>>,
+}
 
 impl MigrationObjects {
-    pub fn inner(&self) -> &[Object] {
-        &self.0
+    pub fn new(objects: Vec<Object>) -> Self {
+        let mut owner_timelock: HashMap<IotaAddress, Vec<usize>> = Default::default();
+        let mut owner_gas_coin: HashMap<IotaAddress, Vec<usize>> = Default::default();
+        for (i, tag, object) in objects.iter().enumerate().filter_map(|(i, object)| {
+            let tag = object.struct_tag()?;
+            Some((i, tag, object))
+        }) {
+            let index = if is_timelocked_balance(&tag) {
+                &mut owner_timelock
+            } else if object.is_gas_coin() {
+                &mut owner_gas_coin
+            } else {
+                continue;
+            };
+            let owner = object
+                .owner
+                .get_owner_address()
+                .expect("timelocks should have an address owner");
+            index
+                .entry(owner)
+                .and_modify(|object_ixs| object_ixs.push(i))
+                .or_insert_with(|| vec![i]);
+        }
+        Self {
+            inner: objects,
+            owner_timelock,
+            owner_gas_coin,
+        }
     }
 
-    pub fn get_timelocks_by_owner(&self, _address: IotaAddress) -> Option<&[Object]> {
-        todo!()
+    /// Take the inner migration objects.
+    pub fn take_objects(&mut self) -> Vec<Object> {
+        std::mem::take(&mut self.inner)
     }
-    pub fn get_gas_coins_by_owner(&self, _address: IotaAddress) -> Option<&[Object]> {
-        todo!()
+
+    /// Get [`TimeLock`] objects created during the migration.
+    ///
+    /// The query is filtered by the object owner.
+    pub fn get_timelocks_by_owner(&self, address: IotaAddress) -> Option<Vec<&Object>> {
+        Some(
+            self.owner_timelock
+                .get(&address)?
+                .iter()
+                .map(|i| &self.inner[*i])
+                .collect(),
+        )
+    }
+
+    /// Get [`GasCoin`] objects created during the migration.
+    ///
+    /// The query is filtered by the object owner.
+    pub fn get_gas_coins_by_owner(&self, address: IotaAddress) -> Option<Vec<&Object>> {
+        Some(
+            self.owner_gas_coin
+                .get(&address)?
+                .iter()
+                .map(|i| &self.inner[*i])
+                .collect(),
+        )
     }
 }
 
@@ -256,7 +315,7 @@ fn generate_package(foundry: &FoundryOutput) -> Result<CompiledPackage> {
 
 /// Serialize the objects stored in [`InMemoryStorage`] into a file using
 /// [`bcs`] encoding.
-fn create_snapshot(ledger: MigrationObjects, writer: impl Write) -> Result<()> {
+fn create_snapshot(ledger: Vec<Object>, writer: impl Write) -> Result<()> {
     let mut writer = BufWriter::new(writer);
     writer.write_all(&bcs::to_bytes(&ledger)?)?;
     Ok(writer.flush()?)
@@ -286,4 +345,117 @@ pub(super) fn create_migration_context() -> TxContext {
         &stardust_migration_transaction_digest,
         &EpochData::new_genesis(0),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_protocol_config::ProtocolConfig;
+    use iota_types::{
+        balance::Balance,
+        base_types::SequenceNumber,
+        gas_coin::GasCoin,
+        id::UID,
+        object::{Data, Owner},
+        timelock::timelock::TimeLock,
+    };
+
+    use super::*;
+    use crate::stardust::types::timelock::to_genesis_object;
+
+    #[test]
+    fn migration_objects_get_timelocks() {
+        let owner = IotaAddress::random_for_testing_only();
+        let address = IotaAddress::random_for_testing_only();
+        let tx_context = TxContext::random_for_testing_only();
+        let expected_timelocks = (0..4)
+            .map(|_| TimeLock::new(UID::new(ObjectID::random()), Balance::new(0), 0, None))
+            .map(|timelock| {
+                to_genesis_object(
+                    timelock,
+                    owner,
+                    &ProtocolConfig::get_for_min_version(),
+                    &tx_context,
+                    SequenceNumber::MIN,
+                )
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+        let non_matching_timelocks = (0..8)
+            .map(|_| TimeLock::new(UID::new(ObjectID::random()), Balance::new(0), 0, None))
+            .map(|timelock| {
+                to_genesis_object(
+                    timelock,
+                    address,
+                    &ProtocolConfig::get_for_min_version(),
+                    &tx_context,
+                    SequenceNumber::MIN,
+                )
+                .unwrap()
+            });
+        let non_matching_objects = (0..8)
+            .map(|_| GasCoin::new_for_testing(0).to_object(SequenceNumber::MIN))
+            .map(|move_object| {
+                Object::new_from_genesis(
+                    Data::Move(move_object),
+                    Owner::AddressOwner(address),
+                    tx_context.digest(),
+                )
+            });
+        let migration_objects = MigrationObjects::new(
+            non_matching_objects
+                .chain(non_matching_timelocks)
+                .chain(expected_timelocks.clone())
+                .collect(),
+        );
+        let matching_objects = migration_objects.get_timelocks_by_owner(owner).unwrap();
+        assert_eq!(
+            expected_timelocks,
+            matching_objects
+                .into_iter()
+                .cloned()
+                .collect::<Vec<Object>>()
+        );
+    }
+
+    #[test]
+    fn migration_objects_get_gas_coins() {
+        let owner = IotaAddress::random_for_testing_only();
+        let address = IotaAddress::random_for_testing_only();
+        let tx_context = TxContext::random_for_testing_only();
+        let non_matching_timelocks = (0..8)
+            .map(|_| TimeLock::new(UID::new(ObjectID::random()), Balance::new(0), 0, None))
+            .map(|timelock| {
+                to_genesis_object(
+                    timelock,
+                    address,
+                    &ProtocolConfig::get_for_min_version(),
+                    &tx_context,
+                    SequenceNumber::MIN,
+                )
+                .unwrap()
+            });
+        let expected_gas_coins = (0..8)
+            .map(|_| GasCoin::new_for_testing(0).to_object(SequenceNumber::MIN))
+            .map(|move_object| {
+                Object::new_from_genesis(
+                    Data::Move(move_object),
+                    Owner::AddressOwner(owner),
+                    tx_context.digest(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let migration_objects = MigrationObjects::new(
+            non_matching_timelocks
+                .chain(expected_gas_coins.clone())
+                .collect(),
+        );
+        let matching_objects = migration_objects.get_gas_coins_by_owner(owner).unwrap();
+        assert_eq!(
+            expected_gas_coins,
+            matching_objects
+                .into_iter()
+                .cloned()
+                .collect::<Vec<Object>>()
+        );
+    }
 }
