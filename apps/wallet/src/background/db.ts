@@ -13,7 +13,7 @@ import { getFromLocalStorage, setToLocalStorage } from './storage-utils';
 const DB_NAME = 'IotaWallet DB';
 const DB_LOCAL_STORAGE_BACKUP_KEY = 'indexed-db-backup';
 
-export const settingsKeys = {
+export const SETTINGS_KEYS = {
     isPopulated: 'isPopulated',
     autoLockMinutes: 'auto-lock-minutes',
 };
@@ -35,7 +35,7 @@ class DB extends Dexie {
 
 async function init() {
     const db = new DB();
-    const isPopulated = !!(await db.settings.get(settingsKeys.isPopulated))?.value;
+    const isPopulated = !!(await db.settings.get(SETTINGS_KEYS.isPopulated))?.value;
     if (!isPopulated) {
         try {
             const backup = await getFromLocalStorage<string>(DB_LOCAL_STORAGE_BACKUP_KEY);
@@ -50,7 +50,7 @@ async function init() {
                 (await importDB(new Blob([backup], { type: 'application/json' }))).close();
                 await db.open();
             }
-            await db.settings.put({ setting: settingsKeys.isPopulated, value: true });
+            await db.settings.put({ setting: SETTINGS_KEYS.isPopulated, value: true });
         } catch (e) {
             captureException(e);
         }
