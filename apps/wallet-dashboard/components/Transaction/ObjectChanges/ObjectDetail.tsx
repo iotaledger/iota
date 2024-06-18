@@ -1,20 +1,30 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { IotaObjectChangeWithDisplay } from '@iota/core';
-import { formatAddress } from '@iota/iota.js/utils';
+import { IotaObjectChangeWithDisplay, getObjectChangeLabel, getOwnerDisplay } from '@iota/core';
+import { useCurrentAccount } from '@iota/dapp-kit';
+import { DisplayFieldsResponse, IotaObjectChange } from '@iota/iota.js/client';
+import { formatAddress, isValidIotaAddress } from '@iota/iota.js/utils';
 
 enum ObjectDetailLabel {
     Package = 'Package',
     Module = 'Module',
     Type = 'Type',
 }
+
 interface ObjectDetailProps {
-    change: IotaObjectChangeWithDisplay;
-    ownerKey: string;
+    change: IotaObjectChange | IotaObjectChangeWithDisplay;
+    owner: string;
+    ownerType: string;
+    displayData?: DisplayFieldsResponse;
 }
 
-export default function ObjectDetail({ change }: ObjectDetailProps) {
+export default function ObjectDetail({ change, owner, ownerType, displayData }: ObjectDetailProps) {
+    const address = useCurrentAccount()?.address;
+    if (!address) return null;
+
+    const { ownerDisplay } = getOwnerDisplay(owner, ownerType, address);
+
     if (change.type === 'transferred' || change.type === 'published') {
         return null;
     }
@@ -41,18 +51,46 @@ export default function ObjectDetail({ change }: ObjectDetailProps) {
 
     return (
         <div className="py-2">
-            <div className="flex space-x-2">
-                <span className="font-semibold">Object</span>
-                {change.objectId && <div>{formatAddress(change.objectId)}</div>}
+            <h4 className="text-center font-semibold">{getObjectChangeLabel(change.type)}</h4>
+
+            <div className="flex flex-row items-center justify-between py-2">
+                <div className="flex flex-col">
+                    {change.objectId && (
+                        <div className="flex flex-row space-x-2">
+                            <span className="font-semibold">Object</span>
+                            <div title={change.objectId}>{formatAddress(change.objectId)}</div>
+                        </div>
+                    )}
+
+                    {objectDetails.map((item) => {
+                        const shouldFormatValue = isValidIotaAddress(item.value);
+                        return (
+                            <div key={item.label} className="flex flex-row space-x-2">
+                                <span className="font-semibold">{item.label}</span>
+                                <div title={shouldFormatValue ? item.value : undefined}>
+                                    {shouldFormatValue ? formatAddress(item.value) : item.value}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                {displayData && displayData.data && (
+                    <img
+                        src={displayData.data.image_url}
+                        alt={displayData.data.name}
+                        height={100}
+                        width={100}
+                    />
+                )}
             </div>
-            <div>
-                {objectDetails.map((item) => (
-                    <div key={item.label} className="flex flex-row space-x-2">
-                        <span className="font-semibold">{item.label}</span>
-                        <div>{item.value}</div>
-                    </div>
-                ))}
-            </div>
+
+            {ownerDisplay && (
+                <div className="flex flex-row justify-between space-x-2 border-t pt-1">
+                    <span>Owner</span>
+                    <span title={owner}>{ownerDisplay}</span>
+                </div>
+            )}
         </div>
     );
 }

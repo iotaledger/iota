@@ -16,7 +16,7 @@ import { type IotaEvent, type IotaValidatorSummary } from '@iota/iota.js/client'
 import { Heading, Text } from '@iota/ui';
 import { lazy, Suspense, useMemo } from 'react';
 
-import { PageLayout } from '~/components/Layout/PageLayout';
+import { PageLayout } from '~/components/layout/PageLayout';
 import { ErrorBoundary } from '~/components/error-boundary/ErrorBoundary';
 import { StakeColumn } from '~/components/top-validators-card/StakeColumn';
 import { DelegationAmount } from '~/components/validator/DelegationAmount';

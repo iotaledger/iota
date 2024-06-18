@@ -37,6 +37,7 @@ pub mod base_types;
 pub mod bridge;
 pub mod clock;
 pub mod coin;
+pub mod coin_manager;
 pub mod collection_types;
 pub mod committee;
 pub mod crypto;

@@ -3,6 +3,7 @@
 
 import { ObjectChangesByOwner, IotaObjectChangeTypes } from '@iota/core';
 import { ObjectDetail } from './';
+import React from 'react';
 
 interface ObjectChangeEntryProps {
     changes: ObjectChangesByOwner;
@@ -13,12 +14,24 @@ export default function ObjectChangeEntry({ changes, type }: ObjectChangeEntryPr
     return (
         <>
             {Object.entries(changes).map(([owner, changes]) => (
-                <div key={`${type}-${owner}`}>
-                    <div>
-                        {changes.changes.map((change, i) => (
-                            <ObjectDetail ownerKey={owner} key={i} change={change} />
-                        ))}
-                    </div>
+                <div className="flex flex-col space-y-2 divide-y" key={`${type}-${owner}`}>
+                    {changes.changes.map((change, i) => (
+                        <ObjectDetail
+                            owner={owner}
+                            ownerType={changes.ownerType}
+                            key={i}
+                            change={change}
+                        />
+                    ))}
+                    {changes.changesWithDisplay.map((change, i) => (
+                        <ObjectDetail
+                            owner={owner}
+                            ownerType={changes.ownerType}
+                            key={i}
+                            change={change}
+                            displayData={change.display}
+                        />
+                    ))}
                 </div>
             ))}
         </>

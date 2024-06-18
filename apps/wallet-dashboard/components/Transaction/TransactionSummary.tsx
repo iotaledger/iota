@@ -22,8 +22,14 @@ export default function TransactionSummary({
                 <div>Loading...</div>
             ) : (
                 <div className="flex flex-col gap-4">
-                    <BalanceChanges balanceChanges={summary?.balanceChanges} />
-                    <ObjectChanges objectSummary={summary?.objectSummary} />
+                    <div className="rounded-md border border-gray-600 p-2">
+                        <h4 className="text-center font-semibold">Balance Changes</h4>
+                        <BalanceChanges balanceChanges={summary?.balanceChanges} />
+                    </div>
+                    <div className="rounded-md border border-gray-600 p-2">
+                        <h4 className="text-center font-semibold">Changes</h4>
+                        <ObjectChanges objectSummary={summary?.objectSummary} />
+                    </div>
                     {showGasSummary && <GasSummary gasSummary={summary?.gas} />}
                 </div>
             )}

@@ -8,8 +8,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 
 import { CheckpointTransactionBlocks } from './CheckpointTransactionBlocks';
-import { PageLayout } from '~/components/Layout/PageLayout';
-import { IotaAmount } from '~/components/Table/IotaAmount';
+import { PageLayout } from '~/components/layout/PageLayout';
+import { IotaAmount } from '~/components/table/IotaAmount';
 import { Banner } from '~/ui/Banner';
 import { DescriptionList, DescriptionItem } from '~/ui/DescriptionList';
 import { EpochLink } from '~/ui/InternalLink';
