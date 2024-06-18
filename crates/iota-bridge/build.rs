@@ -38,10 +38,20 @@ fn main() -> Result<(), ExitStatus> {
             .expect("Failed to install Forge");
 
         // extract foundryup path
-        let foundryup_path =
-            std::env::var("FOUNDRY_BIN_DIR").expect("missing foundry bin directory") + "/foundryup";
+        let which_out = Command::new("which")
+            .arg("forge")
+            .output()
+            .expect("failed to run which");
+        if !which_out.status.success() {
+            eprintln!("Error checking forge install path: {:?}", which_out);
+            exit(1);
+        }
+        let foundryup_path = PathBuf::from(String::from_utf8_lossy(&which_out.stdout).into_owned())
+            .parent()
+            .expect("invalid parent of forge dir")
+            .join("foundryup");
 
-        eprintln!("foundryup path: {foundryup_path}");
+        eprintln!("foundryup path: {}", foundryup_path.to_string_lossy());
         // Run foundryup
         let output = Command::new(&foundryup_path)
             .output()
