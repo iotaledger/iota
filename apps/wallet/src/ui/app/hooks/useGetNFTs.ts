@@ -6,7 +6,6 @@ import { hasDisplayData, isKioskOwnerToken, useGetOwnedObjects, useKioskClient }
 import { type IotaObjectData } from '@iota/iota.js/client';
 import { useMemo } from 'react';
 
-import { useBuyNLargeAsset } from '../components/buynlarge/useBuyNLargeAsset';
 import { useHiddenAssets } from '../pages/home/hidden-assets/HiddenAssetsProvider';
 
 type OwnedAssets = {
@@ -22,7 +21,6 @@ export enum AssetFilterTypes {
 
 export function useGetNFTs(address?: string | null) {
     const kioskClient = useKioskClient();
-    const { asset, objectType } = useBuyNLargeAsset();
     const {
         data,
         isPending,
@@ -35,9 +33,7 @@ export function useGetNFTs(address?: string | null) {
     } = useGetOwnedObjects(
         address,
         {
-            MatchNone: objectType
-                ? [{ StructType: '0x2::coin::Coin' }, { StructType: objectType }]
-                : [{ StructType: '0x2::coin::Coin' }],
+            MatchNone: [{ StructType: '0x2::coin::Coin' }],
         },
         50,
     );
@@ -63,13 +59,8 @@ export function useGetNFTs(address?: string | null) {
                     acc.hidden.push(curr.data as IotaObjectData);
                 return acc;
             }, ownedAssets);
-
-        if (asset?.data) {
-            groupedAssets?.visual.unshift(asset.data);
-        }
-
         return groupedAssets;
-    }, [hiddenAssetIds, data?.pages, kioskClient.network, asset]);
+    }, [hiddenAssetIds, data?.pages, kioskClient.network]);
 
     return {
         data: assets,
