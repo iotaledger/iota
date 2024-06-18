@@ -53,7 +53,7 @@ fn main() -> anyhow::Result<()> {
     let target_milestone_timestamp = iota_snapshot_parser.target_milestone_timestamp();
     let total_supply = iota_snapshot_parser.total_supply()?;
 
-    let chained_parser = iota_snapshot_parser
+    let chained_iter = iota_snapshot_parser
         .outputs()
         .map(|result| result.map(|(header, output)| (header, output, GAS::type_tag())))
         .chain(
@@ -78,7 +78,7 @@ fn main() -> anyhow::Result<()> {
     );
 
     // Run the migration and write the objects snapshot
-    chained_parser.process_results(|outputs| migration.run(outputs, object_snapshot_writer))??;
+    chained_iter.process_results(|outputs| migration.run(outputs, object_snapshot_writer))??;
 
     Ok(())
 }
