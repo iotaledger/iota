@@ -36,6 +36,7 @@ use crate::stardust::{
             Migration, MIGRATION_PROTOCOL_VERSION, NATIVE_TOKEN_BAG_KEY_TYPE, PACKAGE_DEPS,
         },
         verification::created_objects::CreatedObjects,
+        MigrationTargetNetwork,
     },
     types::snapshot::OutputHeader,
 };
@@ -59,7 +60,7 @@ fn run_migration(
     total_supply: u64,
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
 ) -> anyhow::Result<(Executor, HashMap<OutputId, CreatedObjects>)> {
-    let mut migration = Migration::new(1, total_supply)?;
+    let mut migration = Migration::new(1, total_supply, MigrationTargetNetwork::Mainnet)?;
     migration.run_migration(outputs)?;
     Ok(migration.into_parts())
 }
@@ -409,10 +410,13 @@ fn unlock_object(
             .cloned()
             .collect(),
     );
-    let mut executor = Executor::new(MIGRATION_PROTOCOL_VERSION.into())
-        .unwrap()
-        .with_tx_context(tx_context)
-        .with_store(store);
+    let mut executor = Executor::new(
+        MIGRATION_PROTOCOL_VERSION.into(),
+        MigrationTargetNetwork::Mainnet,
+    )
+    .unwrap()
+    .with_tx_context(tx_context)
+    .with_store(store);
 
     // Find the corresponding objects to the migrated output.
     let output_created_objects = objects_map
