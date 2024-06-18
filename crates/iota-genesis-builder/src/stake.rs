@@ -22,6 +22,8 @@ pub struct GenesisStake {
 
 impl GenesisStake {
     /// Take the inner gas-coin objects that must be burned.
+    ///
+    /// This follows the semantics of [`std::mem::take`].
     pub fn take_gas_coins_to_burn(&mut self) -> Vec<ObjectRef> {
         std::mem::take(&mut self.gas_coins_to_burn)
     }
@@ -124,11 +126,11 @@ pub fn delegate_genesis_stake(
     let mut timelocks_pool = migration_objects
         .get_timelocks_by_owner(delegator)
         .ok_or_else(|| anyhow::anyhow!("no timelock objects found for delegator {:?}", delegator))?
-        .iter();
+        .into_iter();
     let mut gas_coins_pool = migration_objects
         .get_gas_coins_by_owner(delegator)
         .ok_or_else(|| anyhow::anyhow!("no gas coins objects found for delegator {:?}", delegator))?
-        .iter();
+        .into_iter();
     // TODO: check wheter we need to start with MIN_VALIDATOR_JOINING_STAKE_MICROS
     // or VALIDATOR_LOW_STAKE_THRESHOLD_MICROS
     let minimum_stake = iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_MICROS;
@@ -140,7 +142,7 @@ pub fn delegate_genesis_stake(
         let target_stake = minimum_stake;
 
         // Start filling allocations with timelocks
-        let timelock_objects = pick_objects_for_allocation(&mut timelocks_pool, target_stake);
+        let timelock_objects = pick_objects_for_allocation(timelocks_pool.by_ref(), target_stake);
         // TODO: This is not an optimal solution because the last timelock
         // might have a suprlus amount, which cannot be used without splitting.
 
@@ -158,7 +160,7 @@ pub fn delegate_genesis_stake(
         let remainder_target_stake = target_stake - timelock_objects.amount_micros;
 
         let gas_coin_objects =
-            pick_objects_for_allocation(&mut gas_coins_pool, remainder_target_stake);
+            pick_objects_for_allocation(gas_coins_pool.by_ref(), remainder_target_stake);
         genesis_stake.gas_coins_to_burn = gas_coin_objects.inner;
 
         // TODO: also here, this is not an optimal solution because the last gas object

@@ -286,6 +286,8 @@ impl MigrationObjects {
     }
 
     /// Take the inner migration objects.
+    ///
+    /// This follows the semantics of [`std::mem::take`].
     pub fn take_objects(&mut self) -> Vec<Object> {
         std::mem::take(&mut self.inner)
     }

@@ -668,6 +668,7 @@ impl Builder {
             signatures,
             built_genesis: None, // Leave this as none, will build and compare below
             migration_objects: Default::default(),
+            genesis_stake: Default::default(),
         };
 
         let unsigned_genesis_file = path.join(GENESIS_BUILDER_UNSIGNED_GENESIS_FILE);
