@@ -42,11 +42,11 @@ import { createStakeTransaction, createUnstakeTransaction } from './utils/transa
 import { createValidationSchema } from './utils/validation';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 
-const initialValues = {
+const INITIAL_VALUES = {
     amount: '',
 };
 
-export type FormValues = typeof initialValues;
+export type FormValues = typeof INITIAL_VALUES;
 
 function StakingCard() {
     const coinType = IOTA_TYPE_ARG;
@@ -266,7 +266,7 @@ function StakingCard() {
         <div className="flex w-full flex-grow flex-col flex-nowrap">
             <Loading loading={isPending || validatorsisPending || loadingIotaBalances}>
                 <Formik
-                    initialValues={initialValues}
+                    initialValues={INITIAL_VALUES}
                     validationSchema={validationSchema}
                     onSubmit={onHandleSubmit}
                     validateOnMount
