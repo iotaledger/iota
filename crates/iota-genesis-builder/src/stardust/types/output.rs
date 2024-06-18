@@ -15,7 +15,7 @@ use iota_types::{
     gas_coin::GAS,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
-    smr_coin::SMR,
+    smr_coin::{SmrCoin, SMR},
     TypeTag, STARDUST_PACKAGE_ID,
 };
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
@@ -328,7 +328,7 @@ fn create_smr_coin(
         // Safety: we know from the definition of `Coin`
         // that it has public transfer (`store` ability is present).
         MoveObject::new_from_execution(
-            MoveObjectType::from(SMR::type_()),
+            MoveObjectType::from(SmrCoin::type_()),
             true,
             version,
             bcs::to_bytes(&coin)?,

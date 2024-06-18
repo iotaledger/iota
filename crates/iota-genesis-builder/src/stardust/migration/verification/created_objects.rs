@@ -9,7 +9,7 @@ use iota_types::base_types::ObjectID;
 pub struct CreatedObjects {
     output: Option<ObjectID>,
     package: Option<ObjectID>,
-    output_amount_coin: Option<ObjectID>,
+    coin: Option<ObjectID>,
     native_token_coin: Option<ObjectID>,
     native_tokens: Option<Vec<ObjectID>>,
     coin_manager: Option<ObjectID>,
@@ -45,17 +45,17 @@ impl CreatedObjects {
         Ok(())
     }
 
-    pub fn output_amount_coin(&self) -> Result<&ObjectID> {
-        self.output_amount_coin
+    pub fn coin(&self) -> Result<&ObjectID> {
+        self.coin
             .as_ref()
-            .ok_or_else(|| anyhow!("no created gas coin object"))
+            .ok_or_else(|| anyhow!("no created coin object"))
     }
 
-    pub(crate) fn set_output_amount_coin(&mut self, id: ObjectID) -> Result<()> {
-        if let Some(id) = self.output_amount_coin {
-            bail!("gas coin already set: {id}")
+    pub(crate) fn set_coin(&mut self, id: ObjectID) -> Result<()> {
+        if let Some(id) = self.coin {
+            bail!("coin already set: {id}")
         }
-        self.output_amount_coin.replace(id);
+        self.coin.replace(id);
         Ok(())
     }
 

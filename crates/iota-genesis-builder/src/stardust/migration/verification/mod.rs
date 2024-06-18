@@ -30,7 +30,7 @@ pub(crate) fn verify_outputs<'a>(
     storage: &InMemoryStorage,
 ) -> anyhow::Result<()> {
     let mut total_value = 0;
-    for (header, output, type_tag) in outputs {
+    for (header, output, _type_tag) in outputs {
         let created_objects = output_objects_map
             .get(&header.output_id())
             .ok_or_else(|| anyhow!("missing created objects for output {}", header.output_id()))?;

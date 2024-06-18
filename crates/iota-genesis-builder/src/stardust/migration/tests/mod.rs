@@ -66,13 +66,13 @@ fn run_migration(
 }
 
 fn create_foundry(
-    iota_amount: u64,
+    amount: u64,
     token_scheme: SimpleTokenScheme,
     irc_30_metadata: Irc30Metadata,
     alias_id: AliasId,
 ) -> anyhow::Result<(OutputHeader, FoundryOutput)> {
     let builder =
-        FoundryOutputBuilder::new_with_amount(iota_amount, 1, TokenScheme::Simple(token_scheme))
+        FoundryOutputBuilder::new_with_amount(amount, 1, TokenScheme::Simple(token_scheme))
             .add_unlock_condition(ImmutableAliasAddressUnlockCondition::new(
                 AliasAddress::new(alias_id),
             ))

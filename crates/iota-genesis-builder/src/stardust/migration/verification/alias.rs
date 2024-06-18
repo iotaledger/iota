@@ -166,8 +166,8 @@ pub(super) fn verify_alias_output(
     verify_parent(output.governor_address(), storage)?;
 
     ensure!(
-        created_objects.output_amount_coin().is_err(),
-        "unexpected gas coin found"
+        created_objects.coin().is_err(),
+        "unexpected coin found"
     );
 
     ensure!(

@@ -63,11 +63,7 @@ fn main() -> anyhow::Result<()> {
         );
 
     // Prepare the migration using the parser output stream
-    let migration = Migration::new(
-        target_milestone_timestamp,
-        total_supply,
-        target_network,
-    )?;
+    let migration = Migration::new(target_milestone_timestamp, total_supply, target_network)?;
 
     // Prepare the compressor writer for the objects snapshot
     let object_snapshot_writer = brotli::CompressorWriter::new(
