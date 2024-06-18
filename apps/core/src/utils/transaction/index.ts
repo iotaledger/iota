@@ -10,4 +10,3 @@ export * from './getGasSummary';
 export * from './groupByOwner';
 export * from './getOwnerType';
 export * from './getObjectChangeLabel';
-export * from './createUnstakeTransaction';
