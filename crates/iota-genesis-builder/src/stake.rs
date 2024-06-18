@@ -21,6 +21,11 @@ pub struct GenesisStake {
 }
 
 impl GenesisStake {
+    /// Take the inner gas-coin objects that must be burned.
+    pub fn take_gas_coins_to_burn(&mut self) -> Vec<ObjectRef> {
+        std::mem::take(&mut self.gas_coins_to_burn)
+    }
+
     pub fn is_empty(&self) -> bool {
         self.timelock_allocations.is_empty()
             && self.token_allocation.is_empty()

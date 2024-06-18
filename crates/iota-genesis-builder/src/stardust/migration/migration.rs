@@ -4,7 +4,7 @@
 //! Contains the logic for the migration process.
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     io::{prelude::Write, BufWriter},
 };
 
@@ -273,6 +273,16 @@ impl MigrationObjects {
             owner_timelock,
             owner_gas_coin,
         }
+    }
+
+    /// Evict the objects with the specified ids
+    pub fn evict(&mut self, objects: impl Iterator<Item = ObjectID>) {
+        let eviction_set = objects.collect::<HashSet<_>>();
+        let inner = std::mem::take(&mut self.inner);
+        self.inner = inner
+            .into_iter()
+            .filter(|object| !eviction_set.contains(&object.id()))
+            .collect();
     }
 
     /// Take the inner migration objects.

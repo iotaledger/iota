@@ -238,6 +238,12 @@ impl Builder {
             self.genesis_stake.to_token_distribution_schedule()
         };
 
+        self.migration_objects.evict(
+            self.genesis_stake
+                .take_gas_coins_to_burn()
+                .into_iter()
+                .map(|(id, _, _)| id),
+        );
         let mut objects = self.migration_objects.take_objects();
         objects.extend(self.objects.values().cloned());
 
