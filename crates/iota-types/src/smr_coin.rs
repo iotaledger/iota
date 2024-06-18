@@ -21,7 +21,7 @@ use crate::base_types::{MoveObjectType, ObjectID};
 use crate::coin::Coin;
 use crate::id::UID;
 
-pub const SMR_MODULE_NAME: &IdentStr = ident_str!("iota");
+pub const SMR_MODULE_NAME: &IdentStr = ident_str!("smr");
 pub const SMR_STRUCT_NAME: &IdentStr = ident_str!("SMR");
 
 #[iota_macros::with_checked_arithmetic]
@@ -57,7 +57,7 @@ mod checked {
         }
     }
 
-    /// Rust version of the Move iota::coin::Coin<Iota::iota::IOTA> type
+    /// Rust version of the Move 0x2::coin::Coin<0x2::smr::SMR> type
     #[derive(Clone, Debug, Serialize, Deserialize)]
     pub struct SmrCoin(pub Coin);
 
@@ -75,13 +75,13 @@ mod checked {
         }
 
         /// Return `true` if `s` is the type of a smr coin (i.e.,
-        /// 0x2::coin::Coin<0x2::iota::SMR>)
+        /// 0x2::coin::Coin<0x2::smr::SMR>)
         pub fn is_smr_coin(s: &StructTag) -> bool {
             Coin::is_coin(s) && s.type_params.len() == 1 && SMR::is_smr_type(&s.type_params[0])
         }
 
         /// Return `true` if `s` is the type of a gas balance (i.e.,
-        /// 0x2::balance::Balance<0x2::iota::IOTA>)
+        /// 0x2::balance::Balance<0x2::smr::SMR>)
         pub fn is_smr_balance(s: &StructTag) -> bool {
             Balance::is_balance(s)
                 && s.type_params.len() == 1
