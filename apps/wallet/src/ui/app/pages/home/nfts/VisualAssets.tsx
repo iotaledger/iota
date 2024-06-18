@@ -4,7 +4,6 @@
 
 import { ErrorBoundary } from '_components/error-boundary';
 import { ampli } from '_src/shared/analytics/ampli';
-import { useBuyNLargeAsset } from '_src/ui/app/components/buynlarge/useBuyNLargeAsset';
 import { NFTDisplayCard } from '_src/ui/app/components/nft-display';
 import { Button } from '_src/ui/app/shared/ButtonUI';
 import { EyeClose16 } from '@iota/icons';
@@ -17,7 +16,6 @@ import { getKioskIdFromOwnerCap, isKioskOwnerToken, useKioskClient } from '@iota
 export default function VisualAssets({ items }: { items: IotaObjectData[] }) {
     const { hideAsset } = useHiddenAssets();
     const kioskClient = useKioskClient();
-    const { objectType } = useBuyNLargeAsset();
 
     return (
         <div className="grid w-full grid-cols-2 gap-x-3.5 gap-y-4">
@@ -43,8 +41,7 @@ export default function VisualAssets({ items }: { items: IotaObjectData[] }) {
                 >
                     <div className="group">
                         <div className="pointer-events-auto absolute z-10 h-full w-full justify-center p-0 text-gray-60 transition-colors duration-200">
-                            {!isKioskOwnerToken(kioskClient.network, object) &&
-                            object.type !== objectType ? (
+                            {!isKioskOwnerToken(kioskClient.network, object) ? (
                                 <div className="absolute right-3 top-2 h-8 w-8 rounded-md opacity-0 group-hover:opacity-100">
                                     <Button
                                         variant="hidden"
@@ -65,7 +62,6 @@ export default function VisualAssets({ items }: { items: IotaObjectData[] }) {
                         </div>
                         <ErrorBoundary>
                             <NFTDisplayCard
-                                hideLabel={object.type === objectType}
                                 objectId={object.objectId}
                                 size="lg"
                                 animateHover
