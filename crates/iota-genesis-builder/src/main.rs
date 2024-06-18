@@ -28,10 +28,10 @@ fn main() -> anyhow::Result<()> {
 
     // Prepare files
     let Some(iota_snapshot_path) = std::env::args().nth(1) else {
-        anyhow::bail!("please provide path to the Hornet full-snapshot file");
+        anyhow::bail!("please provide path to the Iota Hornet full-snapshot file");
     };
     let Some(shimmer_snapshot_path) = std::env::args().nth(2) else {
-        anyhow::bail!("please provide path to the Hornet full-snapshot file");
+        anyhow::bail!("please provide path to the Shimmer Hornet full-snapshot file");
     };
     let target_network = std::env::args()
         .nth(3)
