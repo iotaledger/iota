@@ -31,14 +31,14 @@ import { useEffect, useMemo } from 'react';
 import { createTokenTransferTransaction } from './utils/transaction';
 import { createValidationSchemaStepOne } from './validation';
 
-const initialValues = {
+const INITIAL_VALUES = {
     to: '',
     amount: '',
     isPayAllIota: false,
     gasBudgetEst: '',
 };
 
-export type FormValues = typeof initialValues;
+export type FormValues = typeof INITIAL_VALUES;
 
 export type SubmitProps = {
     to: string;

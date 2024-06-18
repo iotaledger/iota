@@ -11,12 +11,12 @@ import { Input } from '../../shared/forms/controls/Input';
 import FormField from '../../shared/forms/FormField';
 import { SelectField } from '../../shared/forms/SelectField';
 
-const lockIntervals = [
+const LOCK_INTERVALS = [
     { id: 'day', label: 'Day' },
     { id: 'hour', label: 'Hour' },
     { id: 'minute', label: 'Minute' },
 ];
-const lockIntervalsPlural = [
+const LOCK_INTERVALS_PLURAL = [
     { id: 'day', label: 'Days' },
     { id: 'hour', label: 'Hours' },
     { id: 'minute', label: 'Minutes' },
@@ -69,7 +69,7 @@ export function AutoLockSelector({ disabled }: AutoLockSelectorProps) {
                     <SelectField
                         disabled={disabled || !timerEnabled}
                         name="autoLock.interval"
-                        options={Number(timer) === 1 ? lockIntervals : lockIntervalsPlural}
+                        options={Number(timer) === 1 ? LOCK_INTERVALS : LOCK_INTERVALS_PLURAL}
                     />
                 </div>
             </FormField>

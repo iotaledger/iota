@@ -41,7 +41,7 @@ import { MnemonicAccountSource } from '../account-sources/MnemonicAccountSource'
 import { accountsHandleUIMessage, getAllSerializedUIAccounts } from '../accounts';
 import { accountsEvents } from '../accounts/events';
 import { getAutoLockMinutes, notifyUserActive, setAutoLockMinutes } from '../auto-lock-accounts';
-import { backupDB, getDB, settingsKeys } from '../db';
+import { backupDB, getDB, SETTINGS_KEYS } from '../db';
 import { clearStatus, doMigration, getStatus } from '../storage-migration';
 import NetworkEnv from '../NetworkEnv';
 import { Connection } from './Connection';
@@ -173,7 +173,7 @@ export class UiConnection extends Connection {
                 await db.delete();
                 await db.open();
                 // prevents future run of auto backup process of the db (we removed everything nothing to backup after logout)
-                await db.settings.put({ setting: settingsKeys.isPopulated, value: true });
+                await db.settings.put({ setting: SETTINGS_KEYS.isPopulated, value: true });
                 this.send(createMessage({ type: 'done' }, id));
             } else if (isMethodPayload(payload, 'getAutoLockMinutes')) {
                 await this.send(
