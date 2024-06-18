@@ -6,8 +6,8 @@ use std::collections::HashMap;
 use anyhow::{anyhow, ensure, Result};
 use iota_sdk::types::block::output::{FoundryOutput, TokenId};
 use iota_types::{
-    base_types::IotaAddress, coin::CoinMetadata, in_memory_storage::InMemoryStorage, object::Owner,
-    Identifier,
+    base_types::IotaAddress, coin_manager::CoinManager, in_memory_storage::InMemoryStorage,
+    object::Owner, Identifier,
 };
 use move_core_types::language_storage::ModuleId;
 
@@ -17,13 +17,13 @@ use crate::stardust::{
         verification::{
             util::{
                 truncate_to_max_allowed_u64_supply, verify_address_owner, verify_coin,
-                verify_parent,
+                verify_parent, verify_shared_object,
             },
             CreatedObjects,
         },
     },
     native_token::package_data::NativeTokenPackageData,
-    types::{capped_coin::MaxSupplyPolicy, token_scheme::SimpleTokenSchemeU64},
+    types::token_scheme::SimpleTokenSchemeU64,
 };
 
 pub(super) fn verify_foundry_output(
@@ -152,16 +152,30 @@ pub(super) fn verify_foundry_output(
         expected_token_scheme_u64
     );
 
-    // Coin Metadata
-    let coin_metadata = created_objects
-        .coin_metadata()
-        .and_then(|id| {
+    // Coin Manager
+    let coin_manager = created_objects.coin_manager().and_then(|id| {
+        storage
+            .get_object(id)
+            .ok_or(anyhow!("missing coin manager"))
+            .and_then(|obj| {
+                verify_shared_object(obj, "coin manager").map(|_| {
+                    obj.to_rust::<CoinManager>()
+                        .ok_or(anyhow!("expected a coin manager"))
+                })?
+            })
+    })?;
+
+    let coin_manager_treasury_cap_obj =
+        created_objects.coin_manager_treasury_cap().and_then(|id| {
             storage
                 .get_object(id)
-                .ok_or_else(|| anyhow!("missing coin metadata"))
-        })?
-        .to_rust::<CoinMetadata>()
-        .ok_or_else(|| anyhow!("expected a coin metadata"))?;
+                .ok_or_else(|| anyhow!("missing coin manager treasury cap"))
+        })?;
+
+    // Coin Metadata
+    let coin_metadata = coin_manager
+        .metadata
+        .ok_or(anyhow!("missing coin metadata"))?;
 
     ensure!(
         coin_metadata.decimals == expected_package_data.module().decimals,
@@ -200,32 +214,31 @@ pub(super) fn verify_foundry_output(
     );
 
     // Maximum Supply
-    let max_supply_policy_obj = created_objects.max_supply_policy().and_then(|id| {
-        storage
-            .get_object(id)
-            .ok_or_else(|| anyhow!("missing max supply policy"))
-    })?;
-    let max_supply_policy = max_supply_policy_obj
-        .to_rust::<MaxSupplyPolicy>()
-        .ok_or_else(|| anyhow!("expected a max supply policy"))?;
+    let max_supply = coin_manager
+        .maximum_supply
+        .ok_or(anyhow!("missing max supply"))?;
 
     ensure!(
-        max_supply_policy.maximum_supply == expected_package_data.module().maximum_supply,
+        max_supply == expected_package_data.module().maximum_supply,
         "maximum supply mismatch: expected {}, found {}",
         expected_package_data.module().maximum_supply,
-        max_supply_policy.maximum_supply
+        max_supply
     );
     let circulating_supply =
         truncate_to_max_allowed_u64_supply(output.token_scheme().as_simple().circulating_supply());
     ensure!(
-        max_supply_policy.treasury_cap.total_supply.value == circulating_supply,
+        coin_manager.treasury_cap.total_supply.value == circulating_supply,
         "treasury total supply mismatch: found {}, expected {}",
-        max_supply_policy.treasury_cap.total_supply.value,
+        coin_manager.treasury_cap.total_supply.value,
         circulating_supply
     );
 
     // Alias Address Unlock Condition
-    verify_address_owner(alias_address, max_supply_policy_obj, "max supply policy")?;
+    verify_address_owner(
+        alias_address,
+        coin_manager_treasury_cap_obj,
+        "coin manager treasury cap",
+    )?;
 
     verify_parent(alias_address, storage)?;
 

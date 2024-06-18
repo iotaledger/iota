@@ -24,6 +24,7 @@ export * from './hooks/useGetOwnedObjects';
 export * from './hooks/useCopyToClipboard';
 export * from './hooks/useAppsBackend';
 export * from './hooks/useGetCoins';
+export * from './hooks/useBalance';
 export * from './utils/hasDisplayData';
 export * from './hooks/useMultiGetObjects';
 export * from './utils/persistableStorage';

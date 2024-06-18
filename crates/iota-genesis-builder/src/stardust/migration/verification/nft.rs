@@ -160,13 +160,13 @@ pub(super) fn verify_nft_output(
     );
 
     ensure!(
-        created_objects.coin_metadata().is_err(),
-        "unexpected coin metadata found"
+        created_objects.coin_manager().is_err(),
+        "unexpected coin manager found"
     );
 
     ensure!(
-        created_objects.max_supply_policy().is_err(),
-        "unexpected max supply policy found"
+        created_objects.coin_manager_treasury_cap().is_err(),
+        "unexpected coin manager treasury cap found"
     );
 
     ensure!(
