@@ -39,27 +39,27 @@ function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
 
     const validators = Object.keys(rollingAverageApys ?? {}) ?? [];
 
-    const handleNext = () => {
+    function handleNext(): void {
         setStep(Step.EnterAmount);
-    };
+    }
 
-    const handleBack = () => {
+    function handleBack(): void {
         setStep(Step.SelectValidator);
-    };
+    }
 
-    const handleValidatorSelect = (validator: string) => {
+    function handleValidatorSelect(validator: string): void {
         setSelectedValidator(validator);
         handleNext();
-    };
+    }
 
-    const handleStake = async (): Promise<void> => {
+    async function handleStake(): Promise<void> {
         if (!newStakeData?.transaction) return;
         await signAndExecuteTransactionBlock({
             transactionBlock: newStakeData?.transaction,
         });
         onClose();
         addNotification('Stake transaction has been sent');
-    };
+    }
 
     return (
         <div className="flex min-w-[300px] flex-col gap-2">
