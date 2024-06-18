@@ -209,6 +209,7 @@ impl Migration {
                             header,
                             basic,
                             self.target_milestone_timestamp_sec,
+                            type_tag,
                         )?
                     }
                 }

@@ -12,6 +12,7 @@ use iota_types::{
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
     coin::Coin,
     collection_types::Bag,
+    gas_coin::GAS,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
     smr_coin::SMR,
@@ -240,19 +241,52 @@ impl BasicOutput {
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
         version: SequenceNumber,
+        type_tag: &TypeTag,
     ) -> Result<Object> {
-        create_gas_coin(
+        create_amount_coin(
             self.id,
             owner,
             self.balance.value(),
             tx_context,
             version,
             protocol_config,
+            type_tag,
         )
     }
 }
 
-pub(crate) fn create_gas_coin(
+pub(crate) fn create_amount_coin(
+    object_id: UID,
+    owner: IotaAddress,
+    amount: u64,
+    tx_context: &TxContext,
+    version: SequenceNumber,
+    protocol_config: &ProtocolConfig,
+    type_tag: &TypeTag,
+) -> Result<Object> {
+    if type_tag == &GAS::type_tag() {
+        return create_gas_coin(
+            object_id,
+            owner,
+            amount,
+            tx_context,
+            version,
+            protocol_config,
+        );
+    } else if type_tag == &SMR::type_tag() {
+        return create_smr_coin(
+            object_id,
+            owner,
+            amount,
+            tx_context,
+            version,
+            protocol_config,
+        );
+    }
+    anyhow::bail!("unsupported coin type: {:?}", type_tag)
+}
+
+fn create_gas_coin(
     object_id: UID,
     owner: IotaAddress,
     amount: u64,
@@ -281,7 +315,7 @@ pub(crate) fn create_gas_coin(
     ))
 }
 
-pub(crate) fn create_smr_coin(
+fn create_smr_coin(
     object_id: UID,
     owner: IotaAddress,
     amount: u64,

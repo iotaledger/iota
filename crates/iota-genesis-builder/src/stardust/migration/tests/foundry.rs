@@ -43,8 +43,10 @@ fn migrate_foundry(
 )> {
     let output_id = header.output_id();
 
-    let (executor, objects_map) =
-        run_migration(foundry.amount(), [(header, Output::Foundry(foundry))])?;
+    let (executor, objects_map) = run_migration(
+        foundry.amount(),
+        [(header, Output::Foundry(foundry), GAS::type_tag())],
+    )?;
 
     let created_objects_ids = objects_map
         .get(&output_id)
@@ -351,8 +353,11 @@ fn create_gas_coin() {
     let output_id = foundry_header.output_id();
     let alias_address = *foundry_output.alias_address();
 
-    let (executor, _) =
-        run_migration(1_000_000, [(foundry_header, foundry_output.into())]).unwrap();
+    let (executor, _) = run_migration(
+        1_000_000,
+        [(foundry_header, foundry_output.into(), GAS::type_tag())],
+    )
+    .unwrap();
     let objects = executor.into_objects();
 
     // Foundry package publication creates five objects

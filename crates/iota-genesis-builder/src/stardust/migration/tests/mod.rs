@@ -58,7 +58,7 @@ fn random_output_header() -> OutputHeader {
 
 fn run_migration(
     total_supply: u64,
-    outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
+    outputs: impl IntoIterator<Item = (OutputHeader, Output, TypeTag)>,
 ) -> anyhow::Result<(Executor, HashMap<OutputId, CreatedObjects>)> {
     let mut migration = Migration::new(1, total_supply, MigrationTargetNetwork::Mainnet)?;
     migration.run_migration(outputs)?;
@@ -94,7 +94,7 @@ fn object_migration_with_object_owner(
     output_id_owner: OutputId,
     output_id_owned: OutputId,
     total_supply: u64,
-    outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
+    outputs: impl IntoIterator<Item = (OutputHeader, Output, TypeTag)>,
     output_owner_module_name: &IdentStr,
     output_owned_module_name: &IdentStr,
     unlock_condition_function: &IdentStr,
@@ -233,7 +233,7 @@ fn object_migration_with_object_owner(
 fn extract_native_token_from_bag(
     output_id: OutputId,
     total_supply: u64,
-    outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
+    outputs: impl IntoIterator<Item = (OutputHeader, Output, TypeTag)>,
     module_name: &IdentStr,
     native_token: NativeToken,
     expected_assets: ExpectedAssets,
@@ -385,7 +385,7 @@ enum ExpectedAssets {
 fn unlock_object(
     output_id: OutputId,
     total_supply: u64,
-    outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
+    outputs: impl IntoIterator<Item = (OutputHeader, Output, TypeTag)>,
     sender: &IotaAddress,
     module_name: &IdentStr,
     epoch_start_timestamp_ms: u64,

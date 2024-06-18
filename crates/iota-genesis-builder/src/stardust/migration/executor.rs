@@ -25,7 +25,6 @@ use iota_types::{
     collection_types::Bag,
     dynamic_field::Field,
     execution_mode,
-    gas_coin::GAS,
     id::UID,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
@@ -50,7 +49,7 @@ use crate::{
             verification::created_objects::CreatedObjects, MigrationTargetNetwork, PACKAGE_DEPS,
         },
         types::{
-            foundry::create_output_amount_coin, snapshot::OutputHeader, stardust_to_iota_address,
+            foundry::create_foundry_amount_coin, snapshot::OutputHeader, stardust_to_iota_address,
             stardust_to_iota_address_owner, timelock, token_scheme::SimpleTokenSchemeU64, Nft,
         },
     },
@@ -274,7 +273,7 @@ impl Executor {
             );
 
             // Create the foundry amount coin object.
-            let output_amount_coin = create_output_amount_coin(
+            let output_amount_coin = create_foundry_amount_coin(
                 &header.output_id(),
                 foundry,
                 &self.tx_context,
@@ -550,6 +549,7 @@ impl Executor {
         header: &OutputHeader,
         basic_output: &BasicOutput,
         target_milestone_timestamp_sec: u32,
+        type_tag: &TypeTag,
     ) -> Result<CreatedObjects> {
         let mut basic =
             crate::stardust::types::output::BasicOutput::new(header.clone(), basic_output)?;
@@ -565,14 +565,15 @@ impl Executor {
                 let coins = self.create_native_token_coins(basic_output.native_tokens(), owner)?;
                 created_objects.set_native_tokens(coins)?;
             }
-            let gas_coin = basic.into_genesis_coin_object(
+            let amount_coin = basic.into_genesis_coin_object(
                 owner,
                 &self.protocol_config,
                 &self.tx_context,
                 version,
+                type_tag,
             )?;
-            created_objects.set_output_amount_coin(gas_coin.id())?;
-            gas_coin
+            created_objects.set_output_amount_coin(amount_coin.id())?;
+            amount_coin
         } else {
             if !basic_output.native_tokens().is_empty() {
                 let fields;
@@ -591,7 +592,7 @@ impl Executor {
                 &self.protocol_config,
                 &self.tx_context,
                 version,
-                GAS::type_tag(),
+                type_tag.clone(),
             )?;
             created_objects.set_output(object.id())?;
             object

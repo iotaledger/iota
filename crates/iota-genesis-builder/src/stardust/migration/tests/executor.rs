@@ -12,6 +12,7 @@ use iota_sdk::types::block::{
 use iota_types::{
     balance::Balance,
     dynamic_field::{derive_dynamic_field_id, Field},
+    gas_coin::GAS,
     object::Owner,
 };
 
@@ -53,7 +54,7 @@ fn create_bag_with_pt() {
         Executor::new(ProtocolVersion::MAX, MigrationTargetNetwork::Mainnet).unwrap();
     let object_count = executor.store().objects().len();
     executor
-        .create_foundries([(&header, &foundry, foundry_package)])
+        .create_foundries([(&header, &foundry, &GAS::type_tag(), foundry_package)])
         .unwrap();
     // Foundry package publication creates five objects
     //

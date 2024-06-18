@@ -110,7 +110,6 @@ pub fn to_genesis_object(
     protocol_config: &ProtocolConfig,
     tx_context: &TxContext,
     version: SequenceNumber,
-    type_tag: &TypeTag,
 ) -> Result<Object, VestedRewardError> {
     let move_object = unsafe {
         // Safety: we know from the definition of `TimeLock` in the timelock package
