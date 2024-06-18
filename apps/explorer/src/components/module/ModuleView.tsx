@@ -10,7 +10,7 @@ import 'prism-themes/themes/prism-one-light.css';
 import { useMemo } from 'react';
 
 import { useNormalizedMoveModule } from '~/hooks/useNormalizedMoveModule';
-import { LinkWithQuery } from '~/ui/utils/LinkWithQuery';
+import { LinkWithQuery } from '~/ui/LinkWithQuery';
 
 import type { Language } from 'prism-react-renderer';
 

@@ -2,9 +2,9 @@
 name = "iota-analytics-indexer-derive"
 version.workspace = true
 authors = ["Mysten Labs <build@mystenlabs.com>"]
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
 
 [lib]
 proc-macro = true

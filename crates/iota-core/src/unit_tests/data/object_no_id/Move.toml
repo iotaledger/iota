@@ -6,4 +6,4 @@ version = "0.0.1"
 Iota = { local = "../../../../../iota-framework/packages/iota-framework" }
 
 [addresses]
-object_no_id =  "0x0"
+object_no_id = "0x0"

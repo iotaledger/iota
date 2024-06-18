@@ -6,9 +6,9 @@ import { getTotalGasUsed } from '@iota/core';
 import { X12, Dot12 } from '@iota/icons';
 import { type IotaClient, type IotaTransactionBlockResponse } from '@iota/iota.js/client';
 
-import { IotaAmount } from '../Table/IotaAmount';
+import { IotaAmount } from '../table/IotaAmount';
 import { TxTimeType } from '../tx-time/TxTimeType';
-import { HighlightedTableCol } from '~/components/Table/HighlightedTableCol';
+import { HighlightedTableCol } from '~/components/table/HighlightedTableCol';
 import { AddressLink, TransactionLink } from '~/ui/InternalLink';
 import { type ReactNode } from 'react';
 

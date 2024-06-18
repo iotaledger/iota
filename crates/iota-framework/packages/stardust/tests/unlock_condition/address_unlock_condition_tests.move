@@ -73,7 +73,6 @@ module stardust::address_unlock_condition_tests {
         alias_output.attach_alias(alias);
 
         // `BasicOutput` owned by the alias.
-        let basic_iota_balance = balance::create_for_testing<IOTA>(initial_iota_in_output);
         let timelocked_until = 5;
         let expiration_after = 20;
         let sdruc_return_address = @0xB;
@@ -81,7 +80,7 @@ module stardust::address_unlock_condition_tests {
         let expiration_return_address = @0xC;
 
         let basic_output = basic_output::create_for_testing(
-            basic_iota_balance,
+            balance::create_for_testing<IOTA>(initial_iota_in_output),
             bag::new(&mut ctx),
             option::some(storage_deposit_return_unlock_condition::create_for_testing(sdruc_return_address, sdruc_return_amount)),
             option::some(timelock_unlock_condition::create_for_testing(timelocked_until)),
