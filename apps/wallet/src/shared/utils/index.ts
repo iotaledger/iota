@@ -14,7 +14,7 @@ import { getUrlWithDeviceId } from '../analytics/amplitude';
 
 export const MAIN_UI_URL = Browser.runtime.getURL('ui.html');
 
-const MYSTEN_LABS_DAPPS = ['iotafrens.com', 'iotans.io'];
+const IOTA_DAPPS = ['iotafrens.com', 'iotans.io'];
 
 export function openInNewTab() {
     return Browser.tabs.create({ url: MAIN_UI_URL });
@@ -45,8 +45,8 @@ export function isValidUrl(url: string | null) {
 
 export function getDAppUrl(appUrl: string) {
     const url = new URL(appUrl);
-    const isMystenLabsDApp = MYSTEN_LABS_DAPPS.includes(url.hostname);
-    return isMystenLabsDApp ? getUrlWithDeviceId(url) : url;
+    const isIotaDApp = IOTA_DAPPS.includes(url.hostname);
+    return isIotaDApp ? getUrlWithDeviceId(url) : url;
 }
 
 export function getValidDAppUrl(appUrl: string) {
