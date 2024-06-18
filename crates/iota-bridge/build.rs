@@ -29,31 +29,31 @@ fn main() -> Result<(), ExitStatus> {
     if !forge_installed {
         eprintln!("Installing forge");
         // Also print the path where foundryup is installed
-        let install_cmd = "curl -L https://foundry.paradigm.xyz | cat | bash";
+        let install_cmd = "curl -L https://foundry.paradigm.xyz | { cat; echo 'echo foundryup-path=\"$FOUNDRY_BIN_DIR/foundryup\"'; } | bash";
 
-        Command::new("sh")
+        let output = Command::new("sh")
             .arg("-c")
             .arg(install_cmd)
             .output()
             .expect("Failed to install Forge");
 
         // extract foundryup path
-        let which_out = Command::new("which")
-            .arg("forge")
-            .output()
-            .expect("failed to run which");
-        if !which_out.status.success() {
-            eprintln!("Error checking forge install path: {:?}", which_out);
+        let output_str = String::from_utf8_lossy(&output.stdout);
+        let mut foundryup_path = None;
+        for line in output_str.lines() {
+            if line.starts_with("foundryup-path=") {
+                foundryup_path = Some(line.trim_start_matches("foundryup-path="));
+                break;
+            }
+        }
+        if foundryup_path.is_none() {
+            eprintln!("Error installing forge: expect a foundry path in output");
             exit(1);
         }
-        let foundryup_path = PathBuf::from(String::from_utf8_lossy(&which_out.stdout).into_owned())
-            .parent()
-            .expect("invalid parent of forge dir")
-            .join("foundryup");
-
-        eprintln!("foundryup path: {}", foundryup_path.to_string_lossy());
+        let foundryup_path = foundryup_path.unwrap();
+        eprintln!("foundryup path: {foundryup_path}");
         // Run foundryup
-        let output = Command::new(&foundryup_path)
+        let output = Command::new(foundryup_path)
             .output()
             .expect("Failed to run foundryup");
 
