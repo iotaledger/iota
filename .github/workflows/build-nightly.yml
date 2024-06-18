@@ -56,12 +56,8 @@ jobs:
           export artifact_name="iota-nightly-$(date -Idate)"
           echo "artifact_name=${artifact_name}" >> $GITHUB_ENV
 
-      - name: Install Foundryup
-        shell: bash
-        run: |
-          curl -L https://foundry.paradigm.xyz | bash
-          source /home/${USER}/.bashrc
-          foundryup
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
 
       - name: Set os/arch variables
         if: ${{ matrix.os != 'windows-ghcloud' }}
