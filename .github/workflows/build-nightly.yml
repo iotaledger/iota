@@ -3,7 +3,7 @@ name: Build nightly IOTA binaries
 on:
   schedule:
     - cron: '0 4 * * *' # Runs every day at 4 AM
-  pull_request:
+  push:
   workflow_dispatch:
     inputs:
       iota_branch:
