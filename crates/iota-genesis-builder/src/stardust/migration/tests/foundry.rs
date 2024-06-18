@@ -357,7 +357,7 @@ fn create_gas_coin() -> Result<()> {
         _coin_manager_object,
         _coin_manager_treasury_cap_object,
         _coin_metadata_object,
-    ) = migrate_foundry(foundry_header, foundry_output, SMR::type_tag())?;
+    ) = migrate_foundry(foundry_header, foundry_output, GAS::type_tag())?;
 
     // Downcast the gas coin object to get the coin.
     let coin = gas_coin_object.as_coin_maybe().unwrap();
