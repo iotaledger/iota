@@ -3,18 +3,18 @@
 
 import React from 'react';
 import { Button } from '@/components';
-import { Stake } from '@/lib/types';
+import { ExtendedDelegatedStake } from '@iota/core';
 
 interface UnstakePopupProps {
-    stake: Stake;
+    stake: ExtendedDelegatedStake;
     onUnstake: (id: string) => void;
 }
 
 function UnstakePopup({ stake, onUnstake }: UnstakePopupProps): JSX.Element {
     return (
         <div className="flex min-w-[300px] flex-col gap-2">
-            <p>{stake.validator}</p>
-            <p>Stake: {stake.stake}</p>
+            <p>{stake.validatorAddress}</p>
+            <p>Stake: {stake.principal}</p>
             {stake.status === 'Active' && <p>Estimated reward: {stake.estimatedReward}</p>}
             <Button onClick={() => onUnstake(stake.stakedIotaId)}>Confirm Unstake</Button>
         </div>
