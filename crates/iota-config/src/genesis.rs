@@ -11,7 +11,7 @@ use fastcrypto::{
 };
 use iota_types::{
     authenticator_state::{get_authenticator_state, AuthenticatorStateInner},
-    base_types::{IotaAddress, ObjectID},
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     clock::Clock,
     committee::{Committee, CommitteeWithNetworkMetadata, EpochId, ProtocolVersion},
     crypto::DefaultHash,
@@ -631,7 +631,7 @@ pub struct TokenAllocation {
 #[serde(rename_all = "kebab-case")]
 pub struct TimelockAllocation {
     pub amount_micros: u64,
-    pub timelock_objects: Vec<ObjectID>,
+    pub timelock_objects: Vec<ObjectRef>,
     pub staked_with_validator: IotaAddress,
 }
 
