@@ -10,7 +10,7 @@ use iota_types::{
 };
 use move_core_types::language_storage::TypeTag;
 
-use crate::stardust::types::{output::create_amount_coin, stardust_to_iota_address};
+use crate::stardust::types::{output::create_coin, stardust_to_iota_address};
 
 pub(crate) fn create_foundry_amount_coin(
     output_id: &OutputId,
@@ -20,13 +20,13 @@ pub(crate) fn create_foundry_amount_coin(
     protocol_config: &ProtocolConfig,
     type_tag: &TypeTag,
 ) -> anyhow::Result<Object> {
-    create_amount_coin(
+    create_coin(
         UID::new(ObjectID::new(output_id.hash())),
         stardust_to_iota_address(*foundry.alias_address())?,
         foundry.amount(),
         tx_context,
         version,
         protocol_config,
-        type_tag,
+        type_tag.clone(),
     )
 }

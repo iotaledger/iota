@@ -97,10 +97,7 @@ pub(super) fn verify_basic_output(
             .unlock_conditions()
             .is_time_locked(target_milestone_timestamp)
     {
-        ensure!(
-            created_objects.coin().is_err(),
-            "unexpected coin created"
-        );
+        ensure!(created_objects.coin().is_err(), "unexpected coin created");
 
         let created_output_obj = created_objects.output().and_then(|id| {
             storage

@@ -12,10 +12,8 @@ use iota_types::{
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
     coin::Coin,
     collection_types::Bag,
-    gas_coin::GAS,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
-    smr_coin::{SmrCoin, SMR},
     TypeTag, STARDUST_PACKAGE_ID,
 };
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
@@ -243,92 +241,33 @@ impl BasicOutput {
         version: SequenceNumber,
         type_tag: &TypeTag,
     ) -> Result<Object> {
-        create_amount_coin(
+        create_coin(
             self.id,
             owner,
             self.balance.value(),
             tx_context,
             version,
             protocol_config,
-            type_tag,
+            type_tag.clone(),
         )
     }
 }
 
-pub(crate) fn create_amount_coin(
+pub(crate) fn create_coin(
     object_id: UID,
     owner: IotaAddress,
     amount: u64,
     tx_context: &TxContext,
     version: SequenceNumber,
     protocol_config: &ProtocolConfig,
-    type_tag: &TypeTag,
-) -> Result<Object> {
-    if type_tag == &GAS::type_tag() {
-        return create_gas_coin(
-            object_id,
-            owner,
-            amount,
-            tx_context,
-            version,
-            protocol_config,
-        );
-    } else if type_tag == &SMR::type_tag() {
-        return create_smr_coin(
-            object_id,
-            owner,
-            amount,
-            tx_context,
-            version,
-            protocol_config,
-        );
-    }
-    anyhow::bail!("unsupported coin type: {:?}", type_tag)
-}
-
-fn create_gas_coin(
-    object_id: UID,
-    owner: IotaAddress,
-    amount: u64,
-    tx_context: &TxContext,
-    version: SequenceNumber,
-    protocol_config: &ProtocolConfig,
+    type_tag: TypeTag,
 ) -> Result<Object> {
     let coin = Coin::new(object_id, amount);
     let move_object = unsafe {
         // Safety: we know from the definition of `Coin`
         // that it has public transfer (`store` ability is present).
         MoveObject::new_from_execution(
-            MoveObjectType::gas_coin(),
-            true,
-            version,
-            bcs::to_bytes(&coin)?,
-            protocol_config,
-        )?
-    };
-    // Resolve ownership
-    let owner = Owner::AddressOwner(owner);
-    Ok(Object::new_from_genesis(
-        Data::Move(move_object),
-        owner,
-        tx_context.digest(),
-    ))
-}
-
-fn create_smr_coin(
-    object_id: UID,
-    owner: IotaAddress,
-    amount: u64,
-    tx_context: &TxContext,
-    version: SequenceNumber,
-    protocol_config: &ProtocolConfig,
-) -> Result<Object> {
-    let coin = Coin::new(object_id, amount);
-    let move_object = unsafe {
-        // Safety: we know from the definition of `Coin`
-        // that it has public transfer (`store` ability is present).
-        MoveObject::new_from_execution(
-            MoveObjectType::from(SmrCoin::type_()),
+            MoveObjectType::from(Coin::type_(type_tag)),
             true,
             version,
             bcs::to_bytes(&coin)?,
