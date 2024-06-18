@@ -66,7 +66,7 @@ fn main() -> anyhow::Result<()> {
     let migration = Migration::new(
         target_milestone_timestamp,
         total_supply,
-        target_network.clone(),
+        target_network,
     )?;
 
     // Prepare the compressor writer for the objects snapshot
