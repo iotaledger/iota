@@ -119,9 +119,6 @@ importers:
       '@nestjs/schedule':
         specifier: ^4.0.2
         version: 4.0.2(@nestjs/common@10.3.8(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@10.3.8(@nestjs/common@10.3.8(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@10.3.8)(reflect-metadata@0.2.2)(rxjs@7.8.1))
-      axios:
-        specifier: ^1.7.2
-        version: 1.7.2
       cache-manager:
         specifier: ^5.6.1
         version: 5.6.1
@@ -228,6 +225,9 @@ importers:
       bignumber.js:
         specifier: ^9.1.1
         version: 9.1.1
+      idb-keyval:
+        specifier: ^6.2.1
+        version: 6.2.1
       react:
         specifier: ^18.2.0
         version: 18.2.0
@@ -7581,9 +7581,6 @@ packages:
   axios@0.27.2:
     resolution: {integrity: sha512-t+yRIyySRTp/wua5xEr+z1q60QmLq8ABsS5O9Me1AsE5dfKqgnCFzwiCZZ/cGNd1lq4/7akDWMxdhVlucjmnOQ==}
 
-  axios@1.7.2:
-    resolution: {integrity: sha512-2A8QhOMrbomlDuiLeK9XibIBzuHeRcqqNOHp0Cyp5EoJ1IFDh+XZH3A6BkXtv0K4gFGCI0Y4BM7B1wOEi0Rmgw==}
-
   axobject-query@3.2.1:
     resolution: {integrity: sha512-jsyHu61e6N4Vbz/v18DHwWYKK0bSWLqn47eeDSKPB7m8tqMHF9YJ+mhIk2lVteyZrY8tnSj/jHOv4YiTCuCJgg==}
 
@@ -9530,15 +9527,6 @@ packages:
 
   follow-redirects@1.15.1:
     resolution: {integrity: sha512-yLAMQs+k0b2m7cVxpS1VKJVvoz7SS9Td1zss3XRwXj+ZDH00RJgnuLx7E44wx02kQLrdM3aOOy+FpzS7+8OizA==}
-    engines: {node: '>=4.0'}
-    peerDependencies:
-      debug: '*'
-    peerDependenciesMeta:
-      debug:
-        optional: true
-
-  follow-redirects@1.15.6:
-    resolution: {integrity: sha512-wWN62YITEaOpSK584EZXJafH1AGpO8RVgElfkuXbTOrPX4fIfOyEpW/CsiNd8JdYrAoOvafRTOEnvsO++qCqFA==}
     engines: {node: '>=4.0'}
     peerDependencies:
       debug: '*'
@@ -23158,14 +23146,6 @@ snapshots:
     transitivePeerDependencies:
       - debug
 
-  axios@1.7.2:
-    dependencies:
-      follow-redirects: 1.15.6
-      form-data: 4.0.0
-      proxy-from-env: 1.1.0
-    transitivePeerDependencies:
-      - debug
-
   axobject-query@3.2.1:
     dependencies:
       dequal: 2.0.3
@@ -25794,8 +25774,6 @@ snapshots:
   follow-redirects@1.15.1(debug@4.3.4):
     optionalDependencies:
       debug: 4.3.4(supports-color@8.1.1)
-
-  follow-redirects@1.15.6: {}
 
   for-each@0.3.3:
     dependencies:

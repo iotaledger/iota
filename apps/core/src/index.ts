@@ -41,3 +41,6 @@ export * from './hooks/useKioskClient';
 export * from './components/KioskClientProvider';
 export * from './hooks/useQueryTransactionsByAddress';
 export * from './hooks/useGetNFTs';
+export * from './hooks/useHiddenAssets';
+
+export * from './providers';
