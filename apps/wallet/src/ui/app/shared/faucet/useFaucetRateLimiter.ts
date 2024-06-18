@@ -8,7 +8,7 @@ const FAUCET_RATE_LIMIT_EXPIRY_TIME_KEY = 'faucet_rate_limit_expiry_time';
 
 // We'll rate limit users for 20 minutes which should
 // more-or-less mock how the faucet API rate limits users
-const rateLimitExpiryTime = 20 * 60 * 1000;
+const RATE_LIMIT_EXPIRY_TIME = 20 * 60 * 1000;
 
 export function useFaucetRateLimiter() {
     const [isRateLimited, setRateLimited] = useState(() => {
@@ -17,7 +17,7 @@ export function useFaucetRateLimiter() {
     });
 
     const rateLimit = () => {
-        const expiryTime = Date.now() + rateLimitExpiryTime;
+        const expiryTime = Date.now() + RATE_LIMIT_EXPIRY_TIME;
 
         localStorage.setItem(FAUCET_RATE_LIMIT_EXPIRY_TIME_KEY, String(expiryTime));
         setRateLimited(true);
