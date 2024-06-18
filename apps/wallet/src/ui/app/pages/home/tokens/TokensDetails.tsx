@@ -26,6 +26,7 @@ import PageTitle from '_src/ui/app/shared/PageTitle';
 import { useFeature } from '@growthbook/growthbook-react';
 import {
     useAppsBackend,
+    useBalance,
     useBalanceInUSD,
     useCoinMetadata,
     useFormatCoin,
@@ -297,12 +298,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
         isError,
         isPending,
         isFetched,
-    } = useIotaClientQuery(
-        'getBalance',
-        { coinType: activeCoinType, owner: activeAccountAddress! },
-        { enabled: !!activeAccountAddress, refetchInterval, staleTime },
-    );
-
+    } = useBalance(activeAccountAddress!, { coinType: activeCoinType });
     const network = useAppSelector((state) => state.app.network);
     const isMainnet = network === Network.Mainnet;
     const { request } = useAppsBackend();

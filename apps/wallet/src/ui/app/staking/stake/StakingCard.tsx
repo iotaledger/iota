@@ -7,7 +7,6 @@ import { Button } from '_app/shared/ButtonUI';
 import { Collapsible } from '_app/shared/collapse';
 import { Text } from '_app/shared/text';
 import Loading from '_components/loading';
-import { useCoinsReFetchingConfig } from '_hooks';
 import { Coin } from '_redux/slices/iota-objects/Coin';
 import { ampli } from '_src/shared/analytics/ampli';
 import {
@@ -20,6 +19,7 @@ import { useFeatureIsOn } from '@growthbook/growthbook-react';
 import {
     createStakeTransaction,
     parseAmount,
+    useBalance,
     useCoinMetadata,
     useGetDelegatedStake,
 } from '@iota/core';
@@ -57,12 +57,8 @@ function StakingCard() {
     const coinType = IOTA_TYPE_ARG;
     const activeAccount = useActiveAccount();
     const accountAddress = activeAccount?.address;
-    const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
-    const { data: iotaBalance, isPending: loadingIotaBalances } = useIotaClientQuery(
-        'getBalance',
-        { coinType: IOTA_TYPE_ARG, owner: accountAddress! },
-        { refetchInterval, staleTime, enabled: !!accountAddress },
-    );
+    const { data: iotaBalance, isPending: loadingIotaBalances } = useBalance(accountAddress!);
+
     const coinBalance = BigInt(iotaBalance?.totalBalance || 0);
     const [searchParams] = useSearchParams();
     const validatorAddress = searchParams.get('address');
