@@ -59,6 +59,10 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
+      - name: Install PostgreSQL library headers
+        shell: bash
+        run: apt install libpq-dev
+
       - name: Set os/arch variables
         if: ${{ matrix.os != 'windows-ghcloud' }}
         shell: bash
@@ -80,7 +84,6 @@ jobs:
         shell: bash
         run: |
           [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build --release
-          cd external-crates/move && cargo build -p move-analyzer --release
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
