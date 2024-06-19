@@ -223,6 +223,7 @@ fn alias_migration_with_alias_owner() {
         ALIAS_OUTPUT_MODULE_NAME,
         ALIAS_OUTPUT_MODULE_NAME,
         ident_str!("unlock_alias_address_owned_alias"),
+        GAS::type_tag(),
     )
     .unwrap();
 }
@@ -261,6 +262,7 @@ fn alias_migration_with_nft_owner() {
         NFT_OUTPUT_MODULE_NAME,
         ALIAS_OUTPUT_MODULE_NAME,
         ident_str!("unlock_nft_address_owned_alias"),
+        GAS::type_tag(),
     )
     .unwrap();
 }

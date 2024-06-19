@@ -99,8 +99,9 @@ fn object_migration_with_object_owner(
     output_owner_module_name: &IdentStr,
     output_owned_module_name: &IdentStr,
     unlock_condition_function: &IdentStr,
+    type_tag: TypeTag,
 ) -> anyhow::Result<()> {
-    let (mut executor, objects_map) = run_migration(total_supply, outputs, GAS::type_tag())?;
+    let (mut executor, objects_map) = run_migration(total_supply, outputs, type_tag)?;
 
     // Find the corresponding objects to the migrated outputs.
     let owner_created_objects = objects_map
