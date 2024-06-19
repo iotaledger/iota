@@ -18,7 +18,7 @@ use packable::{packer::IoPacker, Packable, PackableExt};
 use crate::stardust::parse::FullSnapshotParser;
 
 /// Adds outputs to test specific and intricate scenario in the full snapshot.
-pub fn add_snapshot_test_data<P: AsRef<Path> + core::fmt::Debug>(
+pub fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
     current_path: P,
     new_path: P,
 ) -> anyhow::Result<()> {

@@ -1,12 +1,12 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//!
+//! Example to add test outputs to a full snapshot.
 
 use std::{fs::File, path::Path};
 
 use iota_genesis_builder::stardust::{
-    parse::FullSnapshotParser, test_data::add_snapshot_test_data,
+    parse::FullSnapshotParser, test_outputs::add_snapshot_test_outputs,
 };
 
 fn parse_snapshot<P: AsRef<Path>>(path: P) -> anyhow::Result<()> {
@@ -36,7 +36,7 @@ fn main() -> anyhow::Result<()> {
 
     parse_snapshot(&current_path)?;
 
-    add_snapshot_test_data(&current_path, &new_path)?;
+    add_snapshot_test_outputs(&current_path, &new_path)?;
 
     parse_snapshot(&new_path)?;
 
