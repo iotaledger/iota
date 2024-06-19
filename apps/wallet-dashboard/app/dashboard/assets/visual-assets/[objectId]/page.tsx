@@ -6,17 +6,12 @@
 import React from 'react';
 import { useParams } from 'next/navigation';
 import { AssetCard, Button, RouteLink } from '@/components';
-import { useGetObject } from '@iota/core';
+import { isAssetTransferable, useGetObject } from '@iota/core';
 
 const VisualAssetDetailPage = () => {
     const params = useParams();
     const objectId = params.objectId as string;
     const { data: visualAsset } = useGetObject(objectId);
-
-    const isAssetTransferable =
-        !!visualAsset &&
-        visualAsset.data?.content?.dataType === 'moveObject' &&
-        visualAsset.data?.content?.hasPublicTransfer;
 
     return (
         <div className="flex h-full w-full flex-col space-y-4 px-40">
@@ -26,7 +21,7 @@ const VisualAssetDetailPage = () => {
             ) : (
                 <div className="flex justify-center p-20">Asset not found</div>
             )}
-            {isAssetTransferable ? (
+            {isAssetTransferable(visualAsset?.data) ? (
                 <Button onClick={() => console.log('Send Visual Asset')}>Send Asset</Button>
             ) : null}
         </div>

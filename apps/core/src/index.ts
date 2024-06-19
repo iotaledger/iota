@@ -44,3 +44,4 @@ export * from './utils/stake/formatDelegatedStake';
 export * from './hooks/stake/useTotalDelegatedRewards';
 export * from './hooks/stake/useTotalDelegatedStake';
 export * from './hooks/useQueryTransactionsByAddress';
+export * from './utils';
