@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { IotaObjectData } from '@iota/iota.js/client';
-import { ExternalImage } from '@/components';
+import { ExternalImage, Input } from '@/components';
 import { Button } from '@/components/Buttons';
 
 interface SendAssetPopupProps {
@@ -46,14 +46,10 @@ export default function SendAssetPopup({ asset, onClose }: SendAssetPopupProps):
             </div>
             <div className="flex flex-col space-y-2">
                 <label htmlFor="recipientAddress">Enter recipient address</label>
-                <input
-                    className="w-full rounded-md border border-gray-300 p-2"
+                <Input
                     type="text"
                     value={recipientAddress}
-                    name="recipientAddress"
-                    id="recipientAddress"
                     placeholder="0x..."
-                    autoComplete="off"
                     onChange={(e) => setRecipientAddress(e.target.value)}
                 />
             </div>
