@@ -21,6 +21,13 @@ pub struct GenesisStake {
 }
 
 impl GenesisStake {
+    /// Take the inner timelock allocations.
+    ///
+    /// This follows the semantics of [`std::mem::take`].
+    pub fn take_timelock_allocations(&mut self) -> Vec<TimelockAllocation> {
+        std::mem::take(&mut self.timelock_allocations)
+    }
+
     /// Take the inner gas-coin objects that must be burned.
     ///
     /// This follows the semantics of [`std::mem::take`].

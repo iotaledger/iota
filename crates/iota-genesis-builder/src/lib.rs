@@ -13,8 +13,8 @@ use anyhow::{bail, Context};
 use camino::Utf8Path;
 use fastcrypto::{hash::HashFunction, traits::KeyPair};
 use iota_config::genesis::{
-    Genesis, GenesisCeremonyParameters, GenesisChainParameters, TokenDistributionSchedule,
-    UnsignedGenesis,
+    Genesis, GenesisCeremonyParameters, GenesisChainParameters, TimelockAllocation,
+    TokenDistributionSchedule, UnsignedGenesis,
 };
 use iota_execution::{self, Executor};
 use iota_framework::{BuiltInFramework, SystemPackage};
@@ -34,7 +34,7 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     epoch_data::EpochData,
     gas::IotaGasStatus,
-    gas_coin::GasCoin,
+    gas_coin::{GasCoin, GAS},
     governance::StakedIota,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
@@ -45,9 +45,11 @@ use iota_types::{
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
-        CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectReadResult, Transaction,
+        CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectArg, ObjectReadResult,
+        Transaction,
     },
-    IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
+    IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_STATE_OBJECT_ID,
+    IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION, TIMELOCK_ADDRESS,
 };
 use move_binary_format::CompiledModule;
 use move_core_types::ident_str;
@@ -212,11 +214,6 @@ impl Builder {
 
         let validators = self.validators.clone().into_values().collect::<Vec<_>>();
 
-        // Delegate here our stake
-        // * Input validators
-        // * Input an stardust address that will resolve to the pool of objects to
-        //   delegate stake from
-        // * Return a `Vec<TokenAllocation>`
         let delegator =
             stardust_to_iota_address(Address::try_from_bech32(IF_STARDUST_ADDRESS).unwrap())
                 .unwrap();
@@ -266,6 +263,7 @@ impl Builder {
         self.built_genesis = Some(build_unsigned_genesis_data(
             &self.parameters,
             &token_distribution_schedule,
+            self.genesis_stake.take_timelock_allocations(),
             &validators,
             &objects,
         ));
@@ -796,6 +794,7 @@ fn get_genesis_protocol_config(version: ProtocolVersion) -> ProtocolConfig {
 fn build_unsigned_genesis_data(
     parameters: &GenesisCeremonyParameters,
     token_distribution_schedule: &TokenDistributionSchedule,
+    timelock_allocations: Vec<TimelockAllocation>,
     validators: &[GenesisValidatorInfo],
     objects: &[Object],
 ) -> UnsignedGenesis {
@@ -844,6 +843,7 @@ fn build_unsigned_genesis_data(
         &genesis_validators,
         &genesis_chain_parameters,
         token_distribution_schedule,
+        timelock_allocations,
         system_packages,
         metrics.clone(),
     );
@@ -980,6 +980,7 @@ fn create_genesis_objects(
     validators: &[GenesisValidatorMetadata],
     parameters: &GenesisChainParameters,
     token_distribution_schedule: &TokenDistributionSchedule,
+    timelock_allocations: Vec<TimelockAllocation>,
     system_packages: Vec<SystemPackage>,
     metrics: Arc<LimitsMetrics>,
 ) -> Vec<Object> {
@@ -1022,6 +1023,7 @@ fn create_genesis_objects(
         genesis_ctx,
         parameters,
         token_distribution_schedule,
+        timelock_allocations,
         metrics,
     )
     .unwrap();
@@ -1106,6 +1108,7 @@ pub fn generate_genesis_system_object(
     genesis_ctx: &mut TxContext,
     genesis_chain_parameters: &GenesisChainParameters,
     token_distribution_schedule: &TokenDistributionSchedule,
+    timelock_allocations: Vec<TimelockAllocation>,
     metrics: Arc<LimitsMetrics>,
 ) -> anyhow::Result<()> {
     let protocol_config = ProtocolConfig::get_for_version(
@@ -1192,14 +1195,66 @@ pub fn generate_genesis_system_object(
             vec![],
             arguments,
         );
-        builder.finish()
 
-        // bring the created GenesisStake up to this part:
-        // - for each TimelockAllocation use request_multi_timelocked_stake
-        //   (after splitting the last timelock)
-        // - merge all gas coin objects, then split the remainder =
-        //   total_gas_coins_to_burn_balance - total_token_allocation_balance
-        //   and burn the first part
+        // Step 6: Handle the timelock allocations.
+        for allocation in timelock_allocations {
+            if allocation.surplus_micros > 0 {
+                // Split the surplus amount.
+                let timelock = *allocation
+                    .timelock_objects
+                    .last()
+                    .expect("there should be at least two objects");
+                let arguments = vec![
+                    builder.obj(ObjectArg::ImmOrOwnedObject(timelock))?,
+                    builder.pure(allocation.surplus_micros)?,
+                ];
+                let surplus_timelock = builder.programmable_move_call(
+                    TIMELOCK_ADDRESS.into(),
+                    ident_str!("timelocked_balance").to_owned(),
+                    ident_str!("split").to_owned(),
+                    vec![GAS::type_tag()],
+                    arguments,
+                );
+                let transfer = Command::TransferObjects(
+                    vec![surplus_timelock],
+                    builder.pure(allocation.recipient_address)?,
+                );
+                builder.command(transfer);
+            }
+            // Add the stake
+            // NOTE: We cannot use `request_add_stake_mul_bal_non_entry`
+            // because there is no Move function for transferring the returned
+            // version of receipts.
+            let stake_receipts = allocation
+                .timelock_objects
+                .into_iter()
+                .map(|timelock| {
+                    let arguments = vec![
+                        builder.obj(ObjectArg::SharedObject {
+                            id: IOTA_SYSTEM_STATE_OBJECT_ID,
+                            initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
+                            mutable: true,
+                        })?,
+                        builder.obj(ObjectArg::ImmOrOwnedObject(timelock))?,
+                        builder.pure(allocation.staked_with_validator)?,
+                    ];
+                    Ok(builder.programmable_move_call(
+                        TIMELOCK_ADDRESS.into(),
+                        ident_str!("timelocked_staking").to_owned(),
+                        ident_str!("request_add_stake_non_entry").to_owned(),
+                        vec![],
+                        arguments,
+                    ))
+                })
+                .collect::<anyhow::Result<Vec<_>>>()?;
+            // Transfer the receipts to the delegator
+            let transfer_stake_receipts = Command::TransferObjects(
+                stake_receipts,
+                builder.pure(allocation.recipient_address)?,
+            );
+            builder.command(transfer_stake_receipts);
+        }
+        builder.finish()
     };
 
     let InnerTemporaryStore { mut written, .. } = executor.update_genesis_state(
