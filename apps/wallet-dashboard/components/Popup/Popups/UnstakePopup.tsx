@@ -18,13 +18,13 @@ function UnstakePopup({ stake, closePopup }: UnstakePopupProps): JSX.Element {
     const { mutateAsync: signAndExecuteTransactionBlock, isPending } =
         useSignAndExecuteTransactionBlock();
 
-    const handleUnstake = async (): Promise<void> => {
+    async function handleUnstake(): Promise<void> {
         if (!unstakeData) return;
         await signAndExecuteTransactionBlock({
             transactionBlock: unstakeData.transaction,
         });
         closePopup();
-    };
+    }
 
     return (
         <div className="flex min-w-[300px] flex-col gap-2">

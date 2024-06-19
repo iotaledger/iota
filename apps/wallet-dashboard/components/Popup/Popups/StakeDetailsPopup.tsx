@@ -17,11 +17,11 @@ function StakeDetailsPopup({ stake, onClose }: StakeDetailsPopupProps): JSX.Elem
     const { openPopup, closePopup } = usePopups();
     const { addNotification } = useNotifications();
 
-    const handleCloseUnstakePopup = () => {
+    function handleCloseUnstakePopup() {
         closePopup();
         onClose();
         addNotification('Unstake transaction has been sent');
-    };
+    }
 
     const openUnstakePopup = () => {
         openPopup(<UnstakePopup stake={stake} closePopup={handleCloseUnstakePopup} />);
