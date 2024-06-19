@@ -122,15 +122,13 @@ pub fn delegate_genesis_stake(
     delegator: IotaAddress,
     migration_objects: &MigrationObjects,
 ) -> anyhow::Result<GenesisStake> {
-    // * Query migration objects by delegator
-    let mut timelocks_pool = migration_objects
-        .get_timelocks_by_owner(delegator)
-        .ok_or_else(|| anyhow::anyhow!("no timelock objects found for delegator {:?}", delegator))?
-        .into_iter();
-    let mut gas_coins_pool = migration_objects
-        .get_gas_coins_by_owner(delegator)
-        .ok_or_else(|| anyhow::anyhow!("no gas coins objects found for delegator {:?}", delegator))?
-        .into_iter();
+    let timelocks_pool = migration_objects.get_timelocks_by_owner(delegator);
+    let gas_coins_pool = migration_objects.get_gas_coins_by_owner(delegator);
+    if timelocks_pool.is_none() && gas_coins_pool.is_none() {
+        anyhow::bail!("no timelocks or gas-coin objects found for delegator {delegator:?}");
+    }
+    let mut timelocks_pool = timelocks_pool.unwrap_or_default().into_iter();
+    let mut gas_coins_pool = gas_coins_pool.unwrap_or_default().into_iter();
     // TODO: check wheter we need to start with MIN_VALIDATOR_JOINING_STAKE_MICROS
     // or VALIDATOR_LOW_STAKE_THRESHOLD_MICROS
     let minimum_stake = iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_MICROS;
