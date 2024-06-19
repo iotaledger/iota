@@ -268,8 +268,8 @@ impl Executor {
                 ),
             );
 
-            // Create the foundry coin object.
-            let output_amount_coin = create_foundry_amount_coin(
+            // Create the amount coin object.
+            let amount_coin = create_foundry_amount_coin(
                 &header.output_id(),
                 foundry,
                 &self.tx_context,
@@ -277,8 +277,8 @@ impl Executor {
                 &self.protocol_config,
                 &self.type_tag,
             )?;
-            created_objects.set_coin(output_amount_coin.id())?;
-            self.store.insert_object(output_amount_coin);
+            created_objects.set_coin(amount_coin.id())?;
+            self.store.insert_object(amount_coin);
 
             self.store.finish(
                 written
