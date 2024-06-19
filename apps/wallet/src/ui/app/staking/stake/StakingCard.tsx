@@ -8,7 +8,6 @@ import { Collapsible } from '_app/shared/collapse';
 import { Text } from '_app/shared/text';
 import Loading from '_components/loading';
 import { parseAmount } from '_helpers';
-import { useCoinsReFetchingConfig } from '_hooks';
 import { Coin } from '_redux/slices/iota-objects/Coin';
 import { ampli } from '_src/shared/analytics/ampli';
 import {
@@ -18,7 +17,7 @@ import {
 } from '_src/shared/constants';
 import { FEATURES } from '_src/shared/experimentation/features';
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
-import { useCoinMetadata, useGetDelegatedStake } from '@iota/core';
+import { useBalance, useCoinMetadata, useGetDelegatedStake } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { ArrowLeft16 } from '@iota/icons';
 import type { StakeObject } from '@iota/iota.js/client';
@@ -43,22 +42,18 @@ import { createStakeTransaction, createUnstakeTransaction } from './utils/transa
 import { createValidationSchema } from './utils/validation';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 
-const initialValues = {
+const INITIAL_VALUES = {
     amount: '',
 };
 
-export type FormValues = typeof initialValues;
+export type FormValues = typeof INITIAL_VALUES;
 
 function StakingCard() {
     const coinType = IOTA_TYPE_ARG;
     const activeAccount = useActiveAccount();
     const accountAddress = activeAccount?.address;
-    const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
-    const { data: iotaBalance, isPending: loadingIotaBalances } = useIotaClientQuery(
-        'getBalance',
-        { coinType: IOTA_TYPE_ARG, owner: accountAddress! },
-        { refetchInterval, staleTime, enabled: !!accountAddress },
-    );
+    const { data: iotaBalance, isPending: loadingIotaBalances } = useBalance(accountAddress!);
+
     const coinBalance = BigInt(iotaBalance?.totalBalance || 0);
     const [searchParams] = useSearchParams();
     const validatorAddress = searchParams.get('address');
@@ -271,7 +266,7 @@ function StakingCard() {
         <div className="flex w-full flex-grow flex-col flex-nowrap">
             <Loading loading={isPending || validatorsisPending || loadingIotaBalances}>
                 <Formik
-                    initialValues={initialValues}
+                    initialValues={INITIAL_VALUES}
                     validationSchema={validationSchema}
                     onSubmit={onHandleSubmit}
                     validateOnMount

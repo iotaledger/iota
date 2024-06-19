@@ -10,6 +10,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { FeaturesModule } from './features/features.module';
 import { MonitorNetworkModule } from './monitor-network/monitor-network.module';
 import { PricesModule } from './prices/prices.module';
+import { RestrictedModule } from './restricted/restricted.module';
 
 @Module({
     imports: [
@@ -17,6 +18,7 @@ import { PricesModule } from './prices/prices.module';
         FeaturesModule,
         MonitorNetworkModule,
         AnalyticsModule,
+        RestrictedModule,
         ScheduleModule.forRoot(),
         ConfigModule.forRoot({
             isGlobal: true,

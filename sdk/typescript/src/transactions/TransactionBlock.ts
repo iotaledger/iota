@@ -253,8 +253,8 @@ export class TransactionBlock {
                     value instanceof Uint8Array
                         ? Inputs.Pure(value)
                         : type
-                        ? Inputs.Pure(value, type)
-                        : value,
+                          ? Inputs.Pure(value, type)
+                          : value,
                 );
             }),
         });
