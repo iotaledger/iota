@@ -8,13 +8,16 @@ import { useCurrentAccount, useSignAndExecuteTransactionBlock } from '@iota/dapp
 import { ExtendedDelegatedStake } from '@iota/core';
 
 interface UnstakePopupProps {
-    stake: ExtendedDelegatedStake;
+    extendedStake: ExtendedDelegatedStake;
     closePopup: () => void;
 }
 
-function UnstakePopup({ stake, closePopup }: UnstakePopupProps): JSX.Element {
+function UnstakePopup({ extendedStake, closePopup }: UnstakePopupProps): JSX.Element {
     const account = useCurrentAccount();
-    const { data: unstakeData } = useUnstakeTransaction(stake.stakedIotaId, account?.address || '');
+    const { data: unstakeData } = useUnstakeTransaction(
+        extendedStake.stakedIotaId,
+        account?.address || '',
+    );
     const { mutateAsync: signAndExecuteTransactionBlock, isPending } =
         useSignAndExecuteTransactionBlock();
 
@@ -28,10 +31,12 @@ function UnstakePopup({ stake, closePopup }: UnstakePopupProps): JSX.Element {
 
     return (
         <div className="flex min-w-[300px] flex-col gap-2">
-            <p>Stake ID: {stake.stakedIotaId}</p>
-            <p>Validator: {stake.validatorAddress}</p>
-            <p>Stake: {stake.principal}</p>
-            {stake.status === 'Active' && <p>Estimated reward: {stake.estimatedReward}</p>}
+            <p>Stake ID: {extendedStake.stakedIotaId}</p>
+            <p>Validator: {extendedStake.validatorAddress}</p>
+            <p>Stake: {extendedStake.principal}</p>
+            {extendedStake.status === 'Active' && (
+                <p>Estimated reward: {extendedStake.estimatedReward}</p>
+            )}
             <p>Gas Fees: {unstakeData?.gasBudget?.toString() || '--'}</p>
             {isPending ? (
                 <Button disabled>Loading...</Button>
