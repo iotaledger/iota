@@ -195,7 +195,7 @@ fn basic_simple_coin_migration_with_native_tokens() {
     let basic_output = basic_builder.finish().unwrap();
     outputs.push((basic_header, basic_output.into()));
 
-    let mut migration = Migration::new(1, 1_000_000).unwrap();
+    let mut migration = Migration::new(1, 1_000_000, MigrationTargetNetwork::Mainnet).unwrap();
     migration.run_migration(outputs.clone()).unwrap();
 
     let created_gas_coin_id = migration
