@@ -6,6 +6,7 @@ import { EnterValuesFormView, ReviewValuesFormView } from './views';
 import { CoinStruct } from '@iota/iota.js/client';
 import { useSendCoinTransaction } from '@/hooks';
 import { useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
+import { useGetAllCoins } from '@iota/core';
 
 export interface FormDataValues {
     amount: string;
@@ -29,6 +30,9 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
         amount: '',
         recipientAddress: '',
     });
+    const { data: coins } = useGetAllCoins(coin.coinType, senderAddress);
+    const totalCoins = coins?.reduce((partialSum, c) => partialSum + BigInt(c.balance), BigInt(0));
+
     const {
         mutateAsync: signAndExecuteTransactionBlock,
         error,
@@ -39,6 +43,7 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
         senderAddress,
         formData.recipientAddress,
         formData.amount,
+        totalCoins === BigInt(formData.amount),
     );
 
     const handleTransfer = async () => {

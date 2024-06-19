@@ -11,6 +11,7 @@ export function useSendCoinTransaction(
     senderAddress: string,
     recipientAddress: string,
     amount: string,
+    isPayAllIota: boolean,
 ) {
     const client = useIotaClient();
     const { data: coinMetadata } = useCoinMetadata();
@@ -23,6 +24,7 @@ export function useSendCoinTransaction(
             coin,
             coinMetadata?.decimals,
             senderAddress,
+            isPayAllIota,
             client,
         ],
         queryFn: async () => {
@@ -32,7 +34,7 @@ export function useSendCoinTransaction(
                 to: recipientAddress,
                 amount,
                 coins: [coin],
-                isPayAllIota: false,
+                isPayAllIota,
             });
 
             transaction.setSender(senderAddress);
