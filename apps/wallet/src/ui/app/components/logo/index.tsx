@@ -9,7 +9,7 @@ type LogoProps = {
     network?: Network;
 };
 
-const networkLogos = {
+const NETWORK_LOGOS = {
     [Network.Mainnet]: IotaMainnet,
     [Network.Devnet]: IotaDevnet,
     [Network.Testnet]: IotaTestnet,
@@ -18,10 +18,10 @@ const networkLogos = {
 };
 
 const Logo = ({ network }: LogoProps) => {
-    let LogoComponent = networkLogos[Network.Custom];
+    let LogoComponent = NETWORK_LOGOS[Network.Custom];
 
-    if (network && networkLogos[network]) {
-        LogoComponent = networkLogos[network];
+    if (network && NETWORK_LOGOS[network]) {
+        LogoComponent = NETWORK_LOGOS[network];
     }
 
     return <LogoComponent className="h-7 w-walletLogo text-gray-90" />;

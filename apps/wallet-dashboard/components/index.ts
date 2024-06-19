@@ -6,7 +6,6 @@ export { default as Notifications } from './Notifications/Notifications';
 export { default as TransactionTile } from './TransactionTile';
 export { default as Box } from './Box';
 export { default as AmountBox } from './AmountBox';
-export { default as List } from './List';
 export { default as Input } from './Input';
 export { default as VirtualList } from './VirtualList';
 export { default as TransactionIcon } from './TransactionIcon';
