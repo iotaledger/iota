@@ -17,15 +17,15 @@ function StakeDetailsPopup({ stake, onClose }: StakeDetailsPopupProps): JSX.Elem
     const { openPopup, closePopup } = usePopups();
     const { addNotification } = useNotifications();
 
-    function handleCloseUnstakePopup() {
+    function handleCloseUnstakePopup(): void {
         closePopup();
         onClose();
         addNotification('Unstake transaction has been sent');
     }
 
-    const openUnstakePopup = () => {
+    function openUnstakePopup(): void {
         openPopup(<UnstakePopup stake={stake} closePopup={handleCloseUnstakePopup} />);
-    };
+    }
 
     return (
         <div className="flex min-w-[400px] flex-col gap-2">
