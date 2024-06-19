@@ -49,8 +49,8 @@ export function CurrentEpoch(): JSX.Element {
                         {!progress && end
                             ? `End ${formatDate(end)}`
                             : formattedDateString
-                            ? `Started ${formattedDateString}`
-                            : '--'}
+                              ? `Started ${formattedDateString}`
+                              : '--'}
                     </Text>
                     <div className="space-y-1.5">
                         <Heading variant="heading6/medium" color="steel-darker">

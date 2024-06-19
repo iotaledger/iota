@@ -38,9 +38,9 @@ export function getGasSummary(
         'transaction' in transaction
             ? transaction.transaction?.data.gasData.owner
             : typeof effects.gasObject.owner === 'object' &&
-              'AddressOwner' in effects.gasObject.owner
-            ? effects.gasObject.owner.AddressOwner
-            : '';
+                'AddressOwner' in effects.gasObject.owner
+              ? effects.gasObject.owner.AddressOwner
+              : '';
 
     return {
         ...effects.gasUsed,
