@@ -50,11 +50,15 @@ fn create_bag_with_pt() {
     let foundry_package = package_builder::build_and_compile(foundry_package_data).unwrap();
 
     // Execution
-    let mut executor =
-        Executor::new(ProtocolVersion::MAX, MigrationTargetNetwork::Mainnet).unwrap();
+    let mut executor = Executor::new(
+        ProtocolVersion::MAX,
+        MigrationTargetNetwork::Mainnet,
+        GAS::type_tag(),
+    )
+    .unwrap();
     let object_count = executor.store().objects().len();
     executor
-        .create_foundries([(&header, &foundry, &GAS::type_tag(), foundry_package)])
+        .create_foundries([(&header, &foundry, foundry_package)])
         .unwrap();
     // Foundry package publication creates five objects
     //

@@ -66,6 +66,7 @@ pub struct Migration {
     total_supply: u64,
     executor: Executor,
     pub(super) output_objects_map: HashMap<OutputId, CreatedObjects>,
+    type_tag: TypeTag,
 }
 
 impl Migration {
@@ -75,16 +76,19 @@ impl Migration {
         target_milestone_timestamp_sec: u32,
         total_supply: u64,
         target_network: MigrationTargetNetwork,
+        type_tag: TypeTag,
     ) -> Result<Self> {
         let executor = Executor::new(
             ProtocolVersion::new(MIGRATION_PROTOCOL_VERSION),
             target_network,
+            type_tag.clone(),
         )?;
         Ok(Self {
             target_milestone_timestamp_sec,
             total_supply,
             executor,
             output_objects_map: Default::default(),
+            type_tag,
         })
     }
 
@@ -94,15 +98,15 @@ impl Migration {
     /// See also `Self::run`.
     pub(crate) fn run_migration(
         &mut self,
-        outputs: impl IntoIterator<Item = (OutputHeader, Output, TypeTag)>,
+        outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
     ) -> Result<()> {
         let (mut foundries, mut outputs) = outputs.into_iter().fold(
             (Vec::new(), Vec::new()),
-            |(mut foundries, mut outputs), (header, output, type_tag)| {
+            |(mut foundries, mut outputs), (header, output)| {
                 if let Output::Foundry(foundry) = output {
-                    foundries.push((header, foundry, type_tag));
+                    foundries.push((header, foundry));
                 } else {
-                    outputs.push((header, output, type_tag));
+                    outputs.push((header, output));
                 }
                 (foundries, outputs)
             },
@@ -112,19 +116,15 @@ impl Migration {
         //
         // This guarantees that fresh ids created through the transaction
         // context will also map to the same objects betwen runs.
-        outputs.sort_by_key(|(header, _, _)| (header.ms_timestamp(), header.output_id()));
-        foundries.sort_by_key(|(header, _, _)| (header.ms_timestamp(), header.output_id()));
+        outputs.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
+        foundries.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
         info!("Migrating foundries...");
         self.migrate_foundries(&foundries)?;
         info!("Migrating the rest of outputs...");
         self.migrate_outputs(&outputs)?;
         let outputs = outputs
             .into_iter()
-            .chain(
-                foundries
-                    .into_iter()
-                    .map(|(h, f, t)| (h, Output::Foundry(f), t)),
-            )
+            .chain(foundries.into_iter().map(|(h, f)| (h, Output::Foundry(f))))
             .collect::<Vec<_>>();
         info!("Verifying ledger state...");
         self.verify_ledger_state(&outputs)?;
@@ -141,7 +141,7 @@ impl Migration {
     /// * Create the snapshot file.
     pub fn run(
         mut self,
-        outputs: impl IntoIterator<Item = (OutputHeader, Output, TypeTag)>,
+        outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
         writer: impl Write,
     ) -> Result<()> {
         info!("Starting the migration...");
@@ -166,13 +166,13 @@ impl Migration {
     /// outputs.
     fn migrate_foundries<'a>(
         &mut self,
-        foundries: impl IntoIterator<Item = &'a (OutputHeader, FoundryOutput, TypeTag)>,
+        foundries: impl IntoIterator<Item = &'a (OutputHeader, FoundryOutput)>,
     ) -> Result<()> {
         let compiled = foundries
             .into_iter()
-            .map(|(header, output, type_tag)| {
+            .map(|(header, output)| {
                 let pkg = generate_package(output)?;
-                Ok((header, output, type_tag, pkg))
+                Ok((header, output, pkg))
             })
             .collect::<Result<Vec<_>>>()?;
         self.output_objects_map
@@ -183,14 +183,18 @@ impl Migration {
     /// Create objects for all outputs except for foundry outputs.
     fn migrate_outputs<'a>(
         &mut self,
-        outputs: impl IntoIterator<Item = &'a (OutputHeader, Output, TypeTag)>,
+        outputs: impl IntoIterator<Item = &'a (OutputHeader, Output)>,
     ) -> Result<()> {
-        for (header, output, type_tag) in outputs {
+        for (header, output) in outputs {
             let created = match output {
-                Output::Alias(alias) => self
-                    .executor
-                    .create_alias_objects(header, alias, type_tag)?,
-                Output::Nft(nft) => self.executor.create_nft_objects(header, nft, type_tag)?,
+                Output::Alias(alias) => {
+                    self.executor
+                        .create_alias_objects(header, alias, &self.type_tag)?
+                }
+                Output::Nft(nft) => {
+                    self.executor
+                        .create_nft_objects(header, nft, &self.type_tag)?
+                }
                 Output::Basic(basic) => {
                     // All timelocked vested rewards(basic outputs with the specific ID format)
                     // should be migrated as TimeLock<Balance<IOTA>> objects.
@@ -209,7 +213,7 @@ impl Migration {
                             header,
                             basic,
                             self.target_milestone_timestamp_sec,
-                            type_tag,
+                            &self.type_tag,
                         )?
                     }
                 }
@@ -224,7 +228,7 @@ impl Migration {
     /// [`InMemoryStorage`].
     pub fn verify_ledger_state<'a>(
         &self,
-        outputs: impl IntoIterator<Item = &'a (OutputHeader, Output, TypeTag)>,
+        outputs: impl IntoIterator<Item = &'a (OutputHeader, Output)>,
     ) -> Result<()> {
         verify_outputs(
             outputs,

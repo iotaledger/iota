@@ -58,9 +58,10 @@ fn random_output_header() -> OutputHeader {
 
 fn run_migration(
     total_supply: u64,
-    outputs: impl IntoIterator<Item = (OutputHeader, Output, TypeTag)>,
+    outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
+    type_tag: TypeTag,
 ) -> anyhow::Result<(Executor, HashMap<OutputId, CreatedObjects>)> {
-    let mut migration = Migration::new(1, total_supply, MigrationTargetNetwork::Mainnet)?;
+    let mut migration = Migration::new(1, total_supply, MigrationTargetNetwork::Mainnet, type_tag)?;
     migration.run_migration(outputs)?;
     Ok(migration.into_parts())
 }
@@ -94,12 +95,12 @@ fn object_migration_with_object_owner(
     output_id_owner: OutputId,
     output_id_owned: OutputId,
     total_supply: u64,
-    outputs: impl IntoIterator<Item = (OutputHeader, Output, TypeTag)>,
+    outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
     output_owner_module_name: &IdentStr,
     output_owned_module_name: &IdentStr,
     unlock_condition_function: &IdentStr,
 ) -> anyhow::Result<()> {
-    let (mut executor, objects_map) = run_migration(total_supply, outputs)?;
+    let (mut executor, objects_map) = run_migration(total_supply, outputs, GAS::type_tag())?;
 
     // Find the corresponding objects to the migrated outputs.
     let owner_created_objects = objects_map
@@ -233,14 +234,15 @@ fn object_migration_with_object_owner(
 fn extract_native_token_from_bag(
     output_id: OutputId,
     total_supply: u64,
-    outputs: impl IntoIterator<Item = (OutputHeader, Output, TypeTag)>,
+    outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
     module_name: &IdentStr,
     native_token: NativeToken,
     expected_assets: ExpectedAssets,
+    type_tag: TypeTag,
 ) -> anyhow::Result<()> {
     let native_token_id: &TokenId = native_token.token_id();
 
-    let (mut executor, objects_map) = run_migration(total_supply, outputs)?;
+    let (mut executor, objects_map) = run_migration(total_supply, outputs, type_tag)?;
 
     // Find the corresponding objects to the migrated output.
     let output_created_objects = objects_map
@@ -385,14 +387,15 @@ enum ExpectedAssets {
 fn unlock_object(
     output_id: OutputId,
     total_supply: u64,
-    outputs: impl IntoIterator<Item = (OutputHeader, Output, TypeTag)>,
+    outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
     sender: &IotaAddress,
     module_name: &IdentStr,
     epoch_start_timestamp_ms: u64,
     expected_test_result: UnlockObjectTestResult,
     expected_assets: ExpectedAssets,
+    type_tag: TypeTag,
 ) -> anyhow::Result<()> {
-    let (migration_executor, objects_map) = run_migration(total_supply, outputs)?;
+    let (migration_executor, objects_map) = run_migration(total_supply, outputs, type_tag.clone())?;
 
     // Recreate the TxContext and Executor so we can set a timestamp greater than 0.
     let tx_context = TxContext::new(
@@ -413,6 +416,7 @@ fn unlock_object(
     let mut executor = Executor::new(
         MIGRATION_PROTOCOL_VERSION.into(),
         MigrationTargetNetwork::Mainnet,
+        type_tag,
     )
     .unwrap()
     .with_tx_context(tx_context)

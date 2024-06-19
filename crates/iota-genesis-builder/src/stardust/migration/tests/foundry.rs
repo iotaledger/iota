@@ -47,7 +47,8 @@ fn migrate_foundry(
 
     let (executor, objects_map) = run_migration(
         foundry.amount(),
-        [(header, Output::Foundry(foundry), type_tag)],
+        [(header, Output::Foundry(foundry))],
+        type_tag,
     )?;
 
     let created_objects_ids = objects_map

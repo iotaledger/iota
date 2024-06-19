@@ -52,7 +52,8 @@ fn migrate_alias(
 
     let (executor, objects_map) = run_migration(
         stardust_alias.amount(),
-        [(header, stardust_alias.into(), GAS::type_tag())],
+        [(header, stardust_alias.into())],
+        GAS::type_tag(),
     )?;
 
     // Ensure the migrated objects exist under the expected identifiers.
@@ -216,16 +217,8 @@ fn alias_migration_with_alias_owner() {
         alias2_header.output_id(),
         3_000_000,
         [
-            (
-                alias1_header.clone(),
-                stardust_alias1.into(),
-                GAS::type_tag(),
-            ),
-            (
-                alias2_header.clone(),
-                stardust_alias2.into(),
-                GAS::type_tag(),
-            ),
+            (alias1_header.clone(), stardust_alias1.into()),
+            (alias2_header.clone(), stardust_alias2.into()),
         ],
         ALIAS_OUTPUT_MODULE_NAME,
         ALIAS_OUTPUT_MODULE_NAME,
@@ -262,8 +255,8 @@ fn alias_migration_with_nft_owner() {
         alias_header.output_id(),
         3_000_000,
         [
-            (nft_header.clone(), nft.into(), GAS::type_tag()),
-            (alias_header.clone(), alias.into(), GAS::type_tag()),
+            (nft_header.clone(), nft.into()),
+            (alias_header.clone(), alias.into()),
         ],
         NFT_OUTPUT_MODULE_NAME,
         ALIAS_OUTPUT_MODULE_NAME,
@@ -300,12 +293,13 @@ fn alias_migration_with_native_tokens() {
         alias_header.output_id(),
         1_000_000,
         [
-            (alias_header.clone(), alias.into(), GAS::type_tag()),
-            (foundry_header, foundry_output.into(), GAS::type_tag()),
+            (alias_header.clone(), alias.into()),
+            (foundry_header, foundry_output.into()),
         ],
         ALIAS_OUTPUT_MODULE_NAME,
         native_token,
         ExpectedAssets::BalanceBagObject,
+        GAS::type_tag(),
     )
     .unwrap();
 }

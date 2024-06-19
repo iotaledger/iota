@@ -71,6 +71,7 @@ pub(super) struct Executor {
     /// Map the stardust token id [`TokenId`] to the on-chain info of the
     /// published foundry objects.
     native_tokens: HashMap<TokenId, FoundryLedgerData>,
+    type_tag: TypeTag,
 }
 
 impl Executor {
@@ -79,6 +80,7 @@ impl Executor {
     pub(super) fn new(
         protocol_version: ProtocolVersion,
         target_network: MigrationTargetNetwork,
+        type_tag: TypeTag,
     ) -> Result<Self> {
         let mut tx_context = create_migration_context(target_network);
         // Use a throwaway metrics registry for transaction execution.
@@ -120,6 +122,7 @@ impl Executor {
             move_vm,
             metrics,
             native_tokens: Default::default(),
+            type_tag,
         })
     }
 
@@ -211,17 +214,10 @@ impl Executor {
     /// * Update the inner store with the created objects.
     pub(super) fn create_foundries<'a>(
         &mut self,
-        foundries: impl IntoIterator<
-            Item = (
-                &'a OutputHeader,
-                &'a FoundryOutput,
-                &'a TypeTag,
-                CompiledPackage,
-            ),
-        >,
+        foundries: impl IntoIterator<Item = (&'a OutputHeader, &'a FoundryOutput, CompiledPackage)>,
     ) -> Result<Vec<(OutputId, CreatedObjects)>> {
         let mut res = Vec::new();
-        for (header, foundry, type_tag, pkg) in foundries {
+        for (header, foundry, pkg) in foundries {
             let mut created_objects = CreatedObjects::default();
             let modules = package_module_bytes(&pkg)?;
             let deps = self.checked_system_packages();
@@ -279,7 +275,7 @@ impl Executor {
                 &self.tx_context,
                 foundry_package.version(),
                 &self.protocol_config,
-                type_tag,
+                &self.type_tag,
             )?;
             created_objects.set_coin(output_amount_coin.id())?;
             self.store.insert_object(output_amount_coin);

@@ -44,13 +44,15 @@ fn basic_simple_coin_id() {
         .finish()
         .unwrap();
 
-    let mut migration = Migration::new(1, 1_000_000, MigrationTargetNetwork::Mainnet).unwrap();
+    let mut migration = Migration::new(
+        1,
+        1_000_000,
+        MigrationTargetNetwork::Mainnet,
+        GAS::type_tag(),
+    )
+    .unwrap();
     migration
-        .run_migration([(
-            header.clone(),
-            stardust_basic.clone().into(),
-            GAS::type_tag(),
-        )])
+        .run_migration([(header.clone(), stardust_basic.clone().into())])
         .unwrap();
     let migrated_object_id = migration
         .output_objects_map
@@ -95,14 +97,11 @@ fn basic_simple_coin_id_with_expired_timelock() {
             target_milestone_timestamp_sec,
             1_000_000,
             MigrationTargetNetwork::Mainnet,
+            GAS::type_tag(),
         )
         .unwrap();
         migration
-            .run_migration([(
-                header.clone(),
-                stardust_basic.clone().into(),
-                GAS::type_tag(),
-            )])
+            .run_migration([(header.clone(), stardust_basic.clone().into())])
             .unwrap();
         let created_objects = migration
             .output_objects_map
@@ -130,13 +129,15 @@ fn basic_id() {
         .finish()
         .unwrap();
 
-    let mut migration = Migration::new(1, 1_000_000, MigrationTargetNetwork::Mainnet).unwrap();
+    let mut migration = Migration::new(
+        1,
+        1_000_000,
+        MigrationTargetNetwork::Mainnet,
+        GAS::type_tag(),
+    )
+    .unwrap();
     migration
-        .run_migration([(
-            header.clone(),
-            stardust_basic.clone().into(),
-            GAS::type_tag(),
-        )])
+        .run_migration([(header.clone(), stardust_basic.clone().into())])
         .unwrap();
     let migrated_object_id = migration
         .output_objects_map
@@ -169,10 +170,16 @@ fn basic_simple_coin_migration_with_native_token() {
         .unwrap();
 
     let outputs = [
-        (foundry_header, foundry_output.into(), GAS::type_tag()),
-        (header, stardust_basic.into(), GAS::type_tag()),
+        (foundry_header, foundry_output.into()),
+        (header, stardust_basic.into()),
     ];
-    let mut migration = Migration::new(1, 1_000_000, MigrationTargetNetwork::Mainnet).unwrap();
+    let mut migration = Migration::new(
+        1,
+        1_000_000,
+        MigrationTargetNetwork::Mainnet,
+        GAS::type_tag(),
+    )
+    .unwrap();
     migration.run_migration(outputs).unwrap();
 }
 
@@ -201,8 +208,8 @@ fn basic_migration_with_native_token() {
         .unwrap();
 
     let outputs = [
-        (foundry_header, foundry_output.into(), GAS::type_tag()),
-        (header, stardust_basic.into(), GAS::type_tag()),
+        (foundry_header, foundry_output.into()),
+        (header, stardust_basic.into()),
     ];
 
     extract_native_token_from_bag(
@@ -212,6 +219,7 @@ fn basic_migration_with_native_token() {
         BASIC_OUTPUT_MODULE_NAME,
         native_token,
         ExpectedAssets::BalanceBag,
+        GAS::type_tag(),
     )
     .unwrap();
 }
@@ -240,13 +248,14 @@ fn basic_migration_with_timelock_unlocked() {
     unlock_object(
         header.output_id(),
         1_000_000,
-        [(header, stardust_basic.into(), GAS::type_tag())],
+        [(header, stardust_basic.into())],
         // Sender is not important for this test.
         &IotaAddress::ZERO,
         BASIC_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::Success,
         ExpectedAssets::BalanceBag,
+        GAS::type_tag(),
     )
     .unwrap();
 }
@@ -273,13 +282,14 @@ fn basic_migration_with_timelock_still_locked() {
     unlock_object(
         header.output_id(),
         1_000_000,
-        [(header, stardust_basic.into(), GAS::type_tag())],
+        [(header, stardust_basic.into())],
         // Sender is not important for this test.
         &IotaAddress::ZERO,
         BASIC_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::ERROR_TIMELOCK_NOT_EXPIRED_FAILURE,
         ExpectedAssets::BalanceBag,
+        GAS::type_tag(),
     )
     .unwrap();
 }
@@ -312,16 +322,13 @@ fn basic_migration_with_expired_unlock_condition() {
     unlock_object(
         header.output_id(),
         1_000_000,
-        [(
-            header.clone(),
-            stardust_basic.clone().into(),
-            GAS::type_tag(),
-        )],
+        [(header.clone(), stardust_basic.clone().into())],
         &iota_owner_address,
         BASIC_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::ERROR_WRONG_SENDER_FAILURE,
         ExpectedAssets::BalanceBag,
+        GAS::type_tag(),
     )
     .unwrap();
 
@@ -329,12 +336,13 @@ fn basic_migration_with_expired_unlock_condition() {
     unlock_object(
         header.output_id(),
         1_000_000,
-        [(header, stardust_basic.into(), GAS::type_tag())],
+        [(header, stardust_basic.into())],
         &iota_return_address,
         BASIC_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::Success,
         ExpectedAssets::BalanceBag,
+        GAS::type_tag(),
     )
     .unwrap();
 }
@@ -367,16 +375,13 @@ fn basic_migration_with_unexpired_unlock_condition() {
     unlock_object(
         header.output_id(),
         1_000_000,
-        [(
-            header.clone(),
-            stardust_basic.clone().into(),
-            GAS::type_tag(),
-        )],
+        [(header.clone(), stardust_basic.clone().into())],
         &iota_return_address,
         BASIC_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::ERROR_WRONG_SENDER_FAILURE,
         ExpectedAssets::BalanceBag,
+        GAS::type_tag(),
     )
     .unwrap();
 
@@ -384,12 +389,13 @@ fn basic_migration_with_unexpired_unlock_condition() {
     unlock_object(
         header.output_id(),
         1_000_000,
-        [(header, stardust_basic.into(), GAS::type_tag())],
+        [(header, stardust_basic.into())],
         &iota_owner_address,
         BASIC_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::Success,
         ExpectedAssets::BalanceBag,
+        GAS::type_tag(),
     )
     .unwrap();
 }
@@ -414,7 +420,7 @@ fn basic_migration_with_storage_deposit_return_unlock_condition() {
     unlock_object(
         header.output_id(),
         1_000_000,
-        [(header, stardust_basic.into(), GAS::type_tag())],
+        [(header, stardust_basic.into())],
         // Sender is not important for this test.
         &IotaAddress::ZERO,
         BASIC_OUTPUT_MODULE_NAME,
@@ -422,6 +428,7 @@ fn basic_migration_with_storage_deposit_return_unlock_condition() {
         0,
         UnlockObjectTestResult::Success,
         ExpectedAssets::BalanceBag,
+        GAS::type_tag(),
     )
     .unwrap();
 }
@@ -442,7 +449,7 @@ fn basic_migration_with_incorrect_total_supply() {
     let err = unlock_object(
         header.output_id(),
         total_supply,
-        [(header, stardust_basic.into(), GAS::type_tag())],
+        [(header, stardust_basic.into())],
         // Sender is not important for this test.
         &IotaAddress::ZERO,
         BASIC_OUTPUT_MODULE_NAME,
@@ -450,6 +457,7 @@ fn basic_migration_with_incorrect_total_supply() {
         0,
         UnlockObjectTestResult::Success,
         ExpectedAssets::BalanceBag,
+        GAS::type_tag(),
     )
     .unwrap_err();
 

@@ -60,7 +60,8 @@ fn migrate_nft(
 
     let (executor, objects_map) = run_migration(
         stardust_nft.amount(),
-        [(header, stardust_nft.into(), GAS::type_tag())],
+        [(header, stardust_nft.into())],
+        GAS::type_tag(),
     )?;
 
     // Ensure the migrated objects exist under the expected identifiers.
@@ -231,8 +232,8 @@ fn nft_migration_with_alias_owner() {
         nft_header.output_id(),
         3_000_000,
         [
-            (nft_header.clone(), nft.into(), GAS::type_tag()),
-            (alias_header.clone(), alias.into(), GAS::type_tag()),
+            (nft_header.clone(), nft.into()),
+            (alias_header.clone(), alias.into()),
         ],
         ALIAS_OUTPUT_MODULE_NAME,
         NFT_OUTPUT_MODULE_NAME,
@@ -265,8 +266,8 @@ fn nft_migration_with_nft_owner() {
         nft2_header.output_id(),
         2_000_000,
         [
-            (nft1_header.clone(), nft1.into(), GAS::type_tag()),
-            (nft2_header.clone(), nft2.into(), GAS::type_tag()),
+            (nft1_header.clone(), nft1.into()),
+            (nft2_header.clone(), nft2.into()),
         ],
         NFT_OUTPUT_MODULE_NAME,
         NFT_OUTPUT_MODULE_NAME,
@@ -301,12 +302,13 @@ fn nft_migration_with_native_tokens() {
         nft_header.output_id(),
         1_000_000,
         [
-            (nft_header.clone(), nft.into(), GAS::type_tag()),
-            (foundry_header, foundry_output.into(), GAS::type_tag()),
+            (nft_header.clone(), nft.into()),
+            (foundry_header, foundry_output.into()),
         ],
         NFT_OUTPUT_MODULE_NAME,
         native_token,
         ExpectedAssets::BalanceBagObject,
+        GAS::type_tag(),
     )
     .unwrap();
 }
@@ -538,13 +540,14 @@ fn nft_migration_with_timelock_unlocked() {
     unlock_object(
         header.output_id(),
         1_000_000,
-        [(header, stardust_nft.into(), GAS::type_tag())],
+        [(header, stardust_nft.into())],
         // Sender is not important for this test.
         &IotaAddress::ZERO,
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::Success,
         ExpectedAssets::BalanceBagObject,
+        GAS::type_tag(),
     )
     .unwrap();
 }
@@ -568,13 +571,14 @@ fn nft_migration_with_timelock_still_locked() {
     unlock_object(
         header.output_id(),
         1_000_000,
-        [(header, stardust_nft.into(), GAS::type_tag())],
+        [(header, stardust_nft.into())],
         // Sender is not important for this test.
         &IotaAddress::ZERO,
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::ERROR_TIMELOCK_NOT_EXPIRED_FAILURE,
         ExpectedAssets::BalanceBagObject,
+        GAS::type_tag(),
     )
     .unwrap();
 }
@@ -607,12 +611,13 @@ fn nft_migration_with_expired_unlock_condition() {
     unlock_object(
         header.output_id(),
         1_000_000,
-        [(header.clone(), stardust_nft.clone().into(), GAS::type_tag())],
+        [(header.clone(), stardust_nft.clone().into())],
         &iota_owner_address,
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::ERROR_WRONG_SENDER_FAILURE,
         ExpectedAssets::BalanceBagObject,
+        GAS::type_tag(),
     )
     .unwrap();
 
@@ -620,12 +625,13 @@ fn nft_migration_with_expired_unlock_condition() {
     unlock_object(
         header.output_id(),
         1_000_000,
-        [(header, stardust_nft.into(), GAS::type_tag())],
+        [(header, stardust_nft.into())],
         &iota_return_address,
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::Success,
         ExpectedAssets::BalanceBagObject,
+        GAS::type_tag(),
     )
     .unwrap();
 }
@@ -658,12 +664,13 @@ fn nft_migration_with_unexpired_unlock_condition() {
     unlock_object(
         header.output_id(),
         1_000_000,
-        [(header.clone(), stardust_nft.clone().into(), GAS::type_tag())],
+        [(header.clone(), stardust_nft.clone().into())],
         &iota_return_address,
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::ERROR_WRONG_SENDER_FAILURE,
         ExpectedAssets::BalanceBagObject,
+        GAS::type_tag(),
     )
     .unwrap();
 
@@ -671,12 +678,13 @@ fn nft_migration_with_unexpired_unlock_condition() {
     unlock_object(
         header.output_id(),
         1_000_000,
-        [(header, stardust_nft.into(), GAS::type_tag())],
+        [(header, stardust_nft.into())],
         &iota_owner_address,
         NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::Success,
         ExpectedAssets::BalanceBagObject,
+        GAS::type_tag(),
     )
     .unwrap();
 }
@@ -701,7 +709,7 @@ fn nft_migration_with_storage_deposit_return_unlock_condition() {
     unlock_object(
         header.output_id(),
         1_000_000,
-        [(header.clone(), stardust_nft.clone().into(), GAS::type_tag())],
+        [(header.clone(), stardust_nft.clone().into())],
         // Sender is not important for this test.
         &IotaAddress::ZERO,
         NFT_OUTPUT_MODULE_NAME,
@@ -709,6 +717,7 @@ fn nft_migration_with_storage_deposit_return_unlock_condition() {
         0,
         UnlockObjectTestResult::Success,
         ExpectedAssets::BalanceBagObject,
+        GAS::type_tag(),
     )
     .unwrap();
 }
