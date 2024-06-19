@@ -54,7 +54,7 @@ fn migrate_alias(
     let (executor, objects_map) = run_migration(
         stardust_alias.amount(),
         [(header, stardust_alias.into())],
-        type_tag,
+        type_tag.clone(),
     )?;
 
     // Ensure the migrated objects exist under the expected identifiers.
@@ -77,7 +77,7 @@ fn migrate_alias(
         .unwrap();
     assert_eq!(
         alias_output_object.struct_tag().unwrap(),
-        AliasOutput::tag(GAS::type_tag())
+        AliasOutput::tag(type_tag)
     );
 
     // Version is set to 1 when the alias is created based on the computed lamport
