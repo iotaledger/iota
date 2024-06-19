@@ -12,7 +12,7 @@ function getKey(account: SerializedUIAccount): string {
     return account.type;
 }
 
-export const defaultSortOrder: AccountType[] = [
+export const DEFAULT_SORT_ORDER: AccountType[] = [
     'mnemonic-derived',
     'seed-derived',
     'imported',
@@ -27,7 +27,7 @@ export function groupByType(accounts: SerializedUIAccount[]) {
             (byType[key] || (byType[key] = [])).push(account);
             return acc;
         },
-        defaultSortOrder.reduce(
+        DEFAULT_SORT_ORDER.reduce(
             (acc, type) => {
                 acc[type] = {};
                 return acc;
