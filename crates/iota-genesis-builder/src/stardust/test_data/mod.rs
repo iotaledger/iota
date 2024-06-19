@@ -25,7 +25,12 @@ pub fn add_snapshot_test_data<P: AsRef<Path> + core::fmt::Debug>(
         .open(new_path)?;
     let mut writer = IoPacker::new(BufWriter::new(new_file));
 
-    let parser = FullSnapshotParser::new(current_file)?;
+    let mut parser = FullSnapshotParser::new(current_file)?;
+
+    let new_outputs = vesting_schedule_multiple_addresses::outputs();
+
+    parser.header.output_count += new_outputs.len() as u64;
+
     parser.header.pack(&mut writer)?;
 
     parser.outputs().for_each(|res| {
@@ -33,8 +38,6 @@ pub fn add_snapshot_test_data<P: AsRef<Path> + core::fmt::Debug>(
         output_header.pack(&mut writer).unwrap();
         output.pack(&mut writer).unwrap();
     });
-
-    // let outputs = vesting_schedule_multiple_addresses::outputs();
 
     Ok(())
 }
