@@ -5,7 +5,6 @@ import { useCoinMetadata, createTokenTransferTransaction } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
 import { CoinStruct } from '@iota/iota.js/client';
 import { useQuery } from '@tanstack/react-query';
-import { COIN_DECIMALS } from '@/lib/constants';
 
 export function useSendCoinTransaction(
     coin: CoinStruct,
@@ -29,7 +28,7 @@ export function useSendCoinTransaction(
         queryFn: async () => {
             const transaction = createTokenTransferTransaction({
                 coinType: coin.coinType,
-                coinDecimals: coinMetadata?.decimals || COIN_DECIMALS,
+                coinDecimals: coinMetadata?.decimals || 0,
                 to: recipientAddress,
                 amount,
                 coins: [coin],
