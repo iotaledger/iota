@@ -3,10 +3,13 @@
 
 use std::str::FromStr;
 
-use iota_sdk::types::block::{
-    address::Ed25519Address,
-    output::{unlock_condition::AddressUnlockCondition, BasicOutputBuilder, Output},
-    payload::transaction::TransactionId,
+use iota_sdk::{
+    client::secret::mnemonic::MnemonicSecretManager,
+    types::block::{
+        address::Ed25519Address,
+        output::{unlock_condition::AddressUnlockCondition, BasicOutputBuilder, Output},
+        payload::transaction::TransactionId,
+    },
 };
 
 use crate::stardust::types::snapshot::OutputHeader;
@@ -15,6 +18,7 @@ const MNEMONIC: &str = "sense silent picnic predict any public install educate t
 
 pub(crate) fn outputs() -> Vec<(OutputHeader, Output)> {
     let mut outputs = Vec::new();
+    let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC);
 
     // let output_header = OutputHeader::new_testing(
     //     *TransactionId::from_str(

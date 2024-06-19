@@ -4732,6 +4732,7 @@ dependencies = [
  "futures-core",
  "futures-task",
  "futures-util",
+ "num_cpus",
 ]
 
 [[package]]
@@ -7523,28 +7524,36 @@ version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "76d62d16468c4bc555cac621734b5aa4fa971341f8fe3938d4481f7f394b9167"
 dependencies = [
+ "async-trait",
  "bech32",
  "bitflags 2.4.1",
  "bytemuck",
  "derive_more",
+ "futures",
  "getset",
  "gloo-timers 0.3.0",
  "hashbrown 0.14.3",
  "hex",
+ "instant",
  "iota-crypto",
  "iota_stronghold",
  "iterator-sorted",
  "itertools 0.12.0",
  "lazy_static",
+ "log",
+ "num_cpus",
  "once_cell",
  "packable",
  "prefix-hex",
  "primitive-types 0.12.2",
  "rand 0.8.5",
  "regex",
+ "reqwest",
  "serde",
  "serde_json",
  "serde_repr",
+ "thiserror",
+ "tokio",
  "url",
  "zeroize",
 ]
