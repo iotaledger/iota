@@ -11,7 +11,7 @@ import { lockAllAccountSources } from './account-sources';
 import { accountSourcesEvents } from './account-sources/events';
 import { getAccountsStatusData, getAllAccounts, lockAllAccounts } from './accounts';
 import { accountsEvents } from './accounts/events';
-import Alarms, { autoLockAlarmName, cleanUpAlarmName } from './Alarms';
+import Alarms, { AUTO_LOCK_ALARM_NAME, CLEAN_UP_ALARM_NAME } from './Alarms';
 import { Connections } from './connections';
 import NetworkEnv from './NetworkEnv';
 import Permissions from './Permissions';
@@ -108,10 +108,10 @@ accountSourcesEvents.on('accountSourcesChanged', () => {
 });
 
 Browser.alarms.onAlarm.addListener((alarm) => {
-    if (alarm.name === autoLockAlarmName) {
+    if (alarm.name === AUTO_LOCK_ALARM_NAME) {
         lockAllAccounts();
         lockAllAccountSources();
-    } else if (alarm.name === cleanUpAlarmName) {
+    } else if (alarm.name === CLEAN_UP_ALARM_NAME) {
         Transactions.clearStaleTransactions();
     }
 });

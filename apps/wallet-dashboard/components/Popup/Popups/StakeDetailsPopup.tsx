@@ -5,11 +5,11 @@ import React from 'react';
 import { Button } from '@/components/index';
 import { usePopups } from '@/hooks';
 import UnstakePopup from './UnstakePopup';
-import { DelegatedStakeWithValidator } from '@iota/core';
+import { ExtendedDelegatedStake } from '@iota/core';
 import { useNotifications } from '@/hooks/useNotifications';
 
 interface StakeDetailsPopupProps {
-    stake: DelegatedStakeWithValidator;
+    stake: ExtendedDelegatedStake;
     onClose: () => void;
 }
 

@@ -9,7 +9,7 @@ import { IconTooltip } from '_src/ui/app/shared/tooltip';
 import {
     useFormatCoin,
     useGetTimeBeforeEpochNumber,
-    type DelegatedStakeWithValidator,
+    type ExtendedDelegatedStake,
 } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import { cva, cx, type VariantProps } from 'class-variance-authority';
@@ -106,7 +106,7 @@ function StakeCardContent({
 }
 
 interface StakeCardProps {
-    delegationObject: DelegatedStakeWithValidator;
+    delegationObject: ExtendedDelegatedStake;
     currentEpoch: number;
     inactiveValidator?: boolean;
 }

@@ -10,7 +10,7 @@ export default function formatDate(timeStamp: number, show: Show[]): string {
     const date = new Date(timeStamp);
     if (!(date instanceof Date) || !show.length) return '';
 
-    const options = {
+    const OPTIONS = {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
@@ -23,7 +23,7 @@ export default function formatDate(timeStamp: number, show: Show[]): string {
     const formatOptions = show.reduce((accumulator, current: Show) => {
         const responseObj = {
             ...accumulator,
-            ...{ [current]: options[current] },
+            ...{ [current]: OPTIONS[current] },
         };
         return responseObj;
     }, {});

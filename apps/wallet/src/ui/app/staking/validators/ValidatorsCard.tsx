@@ -66,7 +66,7 @@ export function ValidatorsCard() {
         ({ inactiveValidator }) => inactiveValidator,
     );
 
-    // // Get total rewards for all delegations
+    // Get total rewards for all delegations
     const delegatedStakes = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
     const totalDelegatedRewards = useTotalDelegatedRewards(delegatedStakes);
 

@@ -30,7 +30,7 @@ import { useMutation } from '@tanstack/react-query';
 import { forwardRef, useState } from 'react';
 import toast from 'react-hot-toast';
 
-const accountTypeToLabel: Record<AccountType, string> = {
+const ACCOUNT_TYPE_TO_LABEL: Record<AccountType, string> = {
     'mnemonic-derived': 'Passphrase Derived',
     'seed-derived': 'Seed Derived',
     imported: 'Imported',
@@ -38,7 +38,7 @@ const accountTypeToLabel: Record<AccountType, string> = {
 };
 
 export function getGroupTitle(aGroupAccount: SerializedUIAccount) {
-    return accountTypeToLabel[aGroupAccount?.type] || '';
+    return ACCOUNT_TYPE_TO_LABEL[aGroupAccount?.type] || '';
 }
 
 // todo: we probbaly have some duplication here with the various FooterLink / ButtonOrLink

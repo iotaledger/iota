@@ -4,7 +4,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { autoLockMinutesQueryKey } from './useAutoLockMinutes';
+import { AUTO_LOCK_MINUTES_QUERY_KEY } from './useAutoLockMinutes';
 import { useBackgroundClient } from './useBackgroundClient';
 
 export function useAutoLockMinutesMutation() {
@@ -16,7 +16,7 @@ export function useAutoLockMinutesMutation() {
         mutationFn: async ({ minutes }: { minutes: number | null }) =>
             backgroundClient.setAutoLockMinutes({ minutes }),
         onSuccess: () => {
-            queryClient.invalidateQueries({ exact: true, queryKey: autoLockMinutesQueryKey });
+            queryClient.invalidateQueries({ exact: true, queryKey: AUTO_LOCK_MINUTES_QUERY_KEY });
         },
     });
 }

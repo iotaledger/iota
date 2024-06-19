@@ -5,10 +5,10 @@ import React from 'react';
 import { Button } from '@/components';
 import { useUnstakeTransaction } from '@/hooks';
 import { useCurrentAccount, useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
-import { DelegatedStakeWithValidator } from '@iota/core';
+import { ExtendedDelegatedStake } from '@iota/core';
 
 interface UnstakePopupProps {
-    stake: DelegatedStakeWithValidator;
+    stake: ExtendedDelegatedStake;
     closePopup: () => void;
 }
 
