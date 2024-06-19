@@ -1,3 +1,6 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 //! Logic and types to account for stake delegation during genesis.
 use iota_config::genesis::{
     TimelockAllocation, TokenAllocation, TokenDistributionSchedule,
