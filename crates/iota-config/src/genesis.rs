@@ -630,7 +630,10 @@ pub struct TokenAllocation {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct TimelockAllocation {
-    pub amount_micros: u64,
+    pub recipient_address: IotaAddress,
+    /// The suprlus of the total balance of the
+    /// timelock objects w.r.t. the target stake.
+    pub surplus_micros: u64,
     pub timelock_objects: Vec<ObjectRef>,
     pub staked_with_validator: IotaAddress,
 }

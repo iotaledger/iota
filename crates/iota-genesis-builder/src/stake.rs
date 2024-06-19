@@ -146,7 +146,8 @@ pub fn delegate_genesis_stake(
             // For timelocks we need cannot add the stake directly, so we create
             // `TimelockAllocation` objects
             genesis_stake.timelock_allocations.push(TimelockAllocation {
-                amount_micros: timelock_objects.amount_micros,
+                recipient_address: delegator,
+                surplus_micros: timelock_objects.surplus_micros,
                 timelock_objects: timelock_objects.inner,
                 staked_with_validator: validator.info.iota_address(),
             })
