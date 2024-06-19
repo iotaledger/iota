@@ -26,6 +26,8 @@ const ALLOWED_ACCOUNT_TYPES: CreateType[] = [
     'ledger',
 ];
 
+const REDIRECT_TO_ACCOUNT_FINDER: CreateType[] = ['import-mnemonic', 'import-seed', 'imported'];
+
 type AllowedAccountTypes = (typeof ALLOWED_ACCOUNT_TYPES)[number];
 
 function isAllowedAccountType(accountType: string): accountType is AllowedAccountTypes {
@@ -64,6 +66,15 @@ export function ProtectAccountPage() {
                         replace: true,
                         state: {
                             onboarding: true,
+                        },
+                    });
+                } else if (REDIRECT_TO_ACCOUNT_FINDER.includes(type)) {
+                    // const path = '/accounts/accounts-finder/';
+                    const path = '/accounts/manage/accounts-finder/';
+                    navigate(path, {
+                        replace: true,
+                        state: {
+                            type: type,
                         },
                     });
                 } else {
