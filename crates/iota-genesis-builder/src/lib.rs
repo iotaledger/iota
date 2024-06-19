@@ -220,8 +220,15 @@ impl Builder {
         let delegator =
             stardust_to_iota_address(Address::try_from_bech32(IF_STARDUST_ADDRESS).unwrap())
                 .unwrap();
-        self.genesis_stake =
-            delegate_genesis_stake(&validators, delegator, &self.migration_objects).unwrap();
+        // TODO: check whether we need to start with MIN_VALIDATOR_JOINING_STAKE_MICROS
+        let minimum_stake = iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_MICROS;
+        self.genesis_stake = delegate_genesis_stake(
+            &validators,
+            delegator,
+            &self.migration_objects,
+            minimum_stake,
+        )
+        .unwrap();
 
         let token_distribution_schedule = if self.is_vanilla() {
             if let Some(token_distribution_schedule) = &self.token_distribution_schedule {

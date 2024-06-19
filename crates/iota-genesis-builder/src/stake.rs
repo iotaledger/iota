@@ -111,7 +111,7 @@ pub fn pick_objects_for_allocation<'obj>(
     }
 }
 
-/// Create the necessary allocations to cover minimum stake for all
+/// Create the necessary allocations to cover `amount_micros` for all
 /// `validators`.
 ///
 /// This function iterates in turn over [`TimeLock`] and
@@ -121,6 +121,7 @@ pub fn delegate_genesis_stake(
     validators: &[GenesisValidatorInfo],
     delegator: IotaAddress,
     migration_objects: &MigrationObjects,
+    amount_micros: u64,
 ) -> anyhow::Result<GenesisStake> {
     let timelocks_pool = migration_objects.get_timelocks_by_owner(delegator);
     let gas_coins_pool = migration_objects.get_gas_coins_by_owner(delegator);
@@ -129,15 +130,12 @@ pub fn delegate_genesis_stake(
     }
     let mut timelocks_pool = timelocks_pool.unwrap_or_default().into_iter();
     let mut gas_coins_pool = gas_coins_pool.unwrap_or_default().into_iter();
-    // TODO: check wheter we need to start with MIN_VALIDATOR_JOINING_STAKE_MICROS
-    // or VALIDATOR_LOW_STAKE_THRESHOLD_MICROS
-    let minimum_stake = iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_MICROS;
     let mut genesis_stake = GenesisStake::default();
 
     // For each validator we try to fill their allocation up to
     // total_amount_to_stake_per_validator
     for validator in validators {
-        let target_stake = minimum_stake;
+        let target_stake = amount_micros;
 
         // Start filling allocations with timelocks
         let timelock_objects = pick_objects_for_allocation(&mut timelocks_pool, target_stake);
