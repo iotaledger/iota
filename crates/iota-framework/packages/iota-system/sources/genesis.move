@@ -5,6 +5,7 @@
 module iota_system::genesis {
 
     use iota::balance::{Self, Balance};
+    use iota::coin::TreasuryCap;
     use iota::iota::{Self, IOTA};
     use iota_system::iota_system;
     use iota_system::validator::{Self, Validator};
@@ -79,6 +80,7 @@ module iota_system::genesis {
     /// all the information we need in the system.
     fun create(
         iota_system_state_id: UID,
+        iota_treasury_cap: TreasuryCap<IOTA>,
         mut iota_supply: Balance<IOTA>,
         genesis_chain_parameters: GenesisChainParameters,
         genesis_validators: vector<GenesisValidatorMetadata>,
@@ -184,6 +186,7 @@ module iota_system::genesis {
 
         iota_system::create(
             iota_system_state_id,
+            iota_treasury_cap,
             validators,
             storage_fund,
             genesis_chain_parameters.protocol_version,

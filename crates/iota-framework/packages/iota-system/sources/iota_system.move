@@ -42,7 +42,7 @@
 module iota_system::iota_system {
     use iota::balance::Balance;
 
-    use iota::coin::Coin;
+    use iota::coin::{Coin, TreasuryCap};
     use iota_system::staking_pool::StakedIota;
     use iota::iota::IOTA;
     use iota::table::Table;
@@ -78,6 +78,7 @@ module iota_system::iota_system {
     /// This function will be called only once in genesis.
     public(package) fun create(
         id: UID,
+        iota_treasury_cap: TreasuryCap<IOTA>,
         validators: vector<Validator>,
         storage_fund: Balance<IOTA>,
         protocol_version: u64,
@@ -87,6 +88,7 @@ module iota_system::iota_system {
         ctx: &mut TxContext,
     ) {
         let system_state = iota_system_state_inner::create(
+            iota_treasury_cap,
             validators,
             storage_fund,
             protocol_version,

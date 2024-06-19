@@ -4,7 +4,7 @@
 
 module iota_system::iota_system_state_inner {
     use iota::balance::{Self, Balance};
-    use iota::coin::Coin;
+    use iota::coin::{Coin, TreasuryCap};
     use iota_system::staking_pool::{stake_activation_epoch, StakedIota};
     use iota::iota::IOTA;
     use iota_system::validator::{Self, Validator};
@@ -110,6 +110,8 @@ module iota_system::iota_system_state_inner {
         /// This is always the same as IotaSystemState.version. Keeping a copy here so that
         /// we know what version it is by inspecting IotaSystemStateInner as well.
         system_state_version: u64,
+        /// The IOTA's TreasuryCap.
+        iota_treasury_cap: TreasuryCap<IOTA>,
         /// Contains all information about the validators.
         validators: ValidatorSet,
         /// The storage fund.
@@ -158,6 +160,8 @@ module iota_system::iota_system_state_inner {
         /// This is always the same as IotaSystemState.version. Keeping a copy here so that
         /// we know what version it is by inspecting IotaSystemStateInner as well.
         system_state_version: u64,
+        /// The IOTA's TreasuryCap.
+        iota_treasury_cap: TreasuryCap<IOTA>,
         /// Contains all information about the validators.
         validators: ValidatorSet,
         /// The storage fund.
@@ -232,6 +236,7 @@ module iota_system::iota_system_state_inner {
     /// Create a new IotaSystemState object and make it shared.
     /// This function will be called only once in genesis.
     public(package) fun create(
+        iota_treasury_cap: TreasuryCap<IOTA>,
         validators: vector<Validator>,
         initial_storage_fund: Balance<IOTA>,
         protocol_version: u64,
@@ -247,6 +252,7 @@ module iota_system::iota_system_state_inner {
             epoch: 0,
             protocol_version,
             system_state_version: genesis_system_state_version(),
+            iota_treasury_cap,
             validators,
             storage_fund: storage_fund::new(initial_storage_fund),
             parameters,
@@ -293,6 +299,7 @@ module iota_system::iota_system_state_inner {
             epoch,
             protocol_version,
             system_state_version: _,
+            iota_treasury_cap,
             validators,
             storage_fund,
             parameters,
@@ -321,6 +328,7 @@ module iota_system::iota_system_state_inner {
             epoch,
             protocol_version,
             system_state_version: 2,
+            iota_treasury_cap,
             validators,
             storage_fund,
             parameters: SystemParametersV2 {

@@ -6,7 +6,7 @@
 /// It has 9 decimals, and the smallest unit (10^-9) is called "micros".
 module iota::iota {
     use iota::balance::Balance;
-    use iota::coin;
+    use iota::coin::{Self, TreasuryCap};
 
     const EAlreadyMinted: u64 = 0;
     /// Sender is not @0x0 the system address.
@@ -28,9 +28,9 @@ module iota::iota {
     public struct IOTA has drop {}
 
     #[allow(unused_function)]
-    /// Register the `IOTA` Coin to acquire its `Supply`.
+    /// Register the `IOTA` Coin to acquire its `TreasuryCap`.
     /// This should be called only once during genesis creation.
-    fun new(ctx: &mut TxContext): Balance<IOTA> {
+    fun new(ctx: &mut TxContext): TreasuryCap<IOTA> {
         assert!(ctx.sender() == @0x0, ENotSystemAddress);
         assert!(ctx.epoch() == 0, EAlreadyMinted);
 
@@ -44,11 +44,20 @@ module iota::iota {
             option::none(),
             ctx
         );
+
         transfer::public_freeze_object(metadata);
-        let mut supply = treasury.treasury_into_supply();
-        let total_iota = supply.increase_supply(TOTAL_SUPPLY_MICROS);
-        supply.destroy_supply();
-        total_iota
+
+        treasury
+    }
+
+    #[allow(unused_function)]
+    /// Increase the IOTA supply.
+    /// This should be called only once during genesis creation.
+    fun increase_supply(cap: &mut TreasuryCap<IOTA>, ctx: &TxContext): Balance<IOTA> {
+        assert!(ctx.sender() == @0x0, ENotSystemAddress);
+        assert!(ctx.epoch() == 0, EAlreadyMinted);
+
+        cap.supply_mut().increase_supply(TOTAL_SUPPLY_MICROS)
     }
 
     public entry fun transfer(c: coin::Coin<IOTA>, recipient: address) {

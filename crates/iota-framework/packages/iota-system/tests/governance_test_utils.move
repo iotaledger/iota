@@ -83,6 +83,7 @@ module iota_system::governance_test_utils {
 
         iota_system::create(
             object::new(ctx), // it doesn't matter what ID iota system state has in tests
+            coin::create_treasury_cap_for_testing<IOTA>(ctx),
             validators,
             balance::create_for_testing<IOTA>(storage_fund_amount * MICROS_PER_IOTA), // storage_fund
             1,   // protocol version
