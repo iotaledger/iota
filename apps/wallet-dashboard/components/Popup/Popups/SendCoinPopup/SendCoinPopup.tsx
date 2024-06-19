@@ -43,10 +43,13 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
 
     const handleTransfer = async () => {
         if (!sendCoinData?.transaction) return;
-        await signAndExecuteTransactionBlock({
-            transactionBlock: sendCoinData?.transaction,
-        });
-        onClose();
+        signAndExecuteTransactionBlock({
+            transactionBlock: sendCoinData.transaction,
+        })
+            .then(() => {
+                onClose();
+            })
+            .catch(() => {}); // Avoid unhandled exceptions but handle error with hook
     };
 
     const handleNext = () => {
