@@ -45,7 +45,7 @@ export interface AlertProps extends VariantProps<typeof alertStyles> {
     showIcon?: boolean;
 }
 
-const modeToIcon = {
+const MODE_TO_ICON = {
     warning: <Info16 className="h-3.5 w-3.5" />,
     issue: <Info16 className="h-3.5 w-3.5" />,
     success: <CheckStroke16 className="h-3 w-3" />,
@@ -62,7 +62,7 @@ export default function Alert({
 }: AlertProps) {
     return (
         <div className={alertStyles({ noBorder, rounded, mode, spacing })}>
-            {(showIcon && mode && modeToIcon[mode]) || null}
+            {(showIcon && mode && MODE_TO_ICON[mode]) || null}
             <div className="flex-1 break-words text-left">{children}</div>
         </div>
     );

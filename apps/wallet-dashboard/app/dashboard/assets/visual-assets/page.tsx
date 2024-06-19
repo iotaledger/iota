@@ -20,9 +20,7 @@ function VisualAssetsPage(): JSX.Element {
             .filter((asset) => asset.data && asset.data.objectId && hasDisplayData(asset))
             .map((response) => response.data!) ?? [];
 
-    const virtualItem = (asset: IotaObjectData): JSX.Element => (
-        <AssetCard key={asset.objectId} asset={asset} />
-    );
+    const virtualItem = (asset: IotaObjectData): JSX.Element => <AssetCard asset={asset} />;
 
     const handleClick = (objectId: string) => {
         router.push(`/dashboard/assets/visual-assets/${objectId}`);

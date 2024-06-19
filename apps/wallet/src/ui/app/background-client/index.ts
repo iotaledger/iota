@@ -35,13 +35,13 @@ import { type QueryKey } from '@tanstack/react-query';
 import { lastValueFrom, map, take } from 'rxjs';
 
 import { growthbook } from '../experimentation/feature-gating';
-import { accountsQueryKey } from '../helpers/query-client-keys';
+import { ACCOUNTS_QUERY_KEY } from '../helpers/query-client-keys';
 import { queryClient } from '../helpers/queryClient';
-import { accountSourcesQueryKey } from '../hooks/useAccountSources';
+import { ACCOUNT_SOURCES_QUERY_KEY } from '../hooks/useAccountSources';
 
-const entitiesToClientQueryKeys: Record<UIAccessibleEntityType, QueryKey> = {
-    accounts: accountsQueryKey,
-    accountSources: accountSourcesQueryKey,
+const ENTITIES_TO_CLIENT_QUERY_KEYS: Record<UIAccessibleEntityType, QueryKey> = {
+    accounts: ACCOUNTS_QUERY_KEY,
+    accountSources: ACCOUNT_SOURCES_QUERY_KEY,
 };
 
 export class BackgroundClient {
@@ -570,7 +570,7 @@ export class BackgroundClient {
                 network: payload.network,
             });
         } else if (isMethodPayload(payload, 'entitiesUpdated')) {
-            const entitiesQueryKey = entitiesToClientQueryKeys[payload.args.type];
+            const entitiesQueryKey = ENTITIES_TO_CLIENT_QUERY_KEYS[payload.args.type];
             if (entitiesQueryKey) {
                 queryClient.invalidateQueries({ queryKey: entitiesQueryKey });
             }

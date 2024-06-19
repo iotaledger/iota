@@ -30,7 +30,7 @@ function validateAccountFormValues<T extends CreateType>(
     return true;
 }
 
-const createTypeToAmpliAccount: Record<CreateType, AddedAccountsProperties['accountType']> = {
+const CREATE_TYPE_TO_AMPLI_ACCOUNT: Record<CreateType, AddedAccountsProperties['accountType']> = {
     'new-mnemonic': 'Derived',
     'import-mnemonic': 'Derived',
     'mnemonic-derived': 'Derived',
@@ -133,7 +133,7 @@ export function useCreateAccountsMutation() {
                 });
             }
             ampli.addedAccounts({
-                accountType: createTypeToAmpliAccount[type],
+                accountType: CREATE_TYPE_TO_AMPLI_ACCOUNT[type],
                 numberOfAccounts: createdAccounts.length,
             });
             setAccountFormValues(null);
