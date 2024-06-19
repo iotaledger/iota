@@ -17,7 +17,7 @@ import { useAutoLockMinutesMutation } from '../../hooks/useAutoLockMinutesMutati
 import { useCreateAccountsMutation, type CreateType } from '../../hooks/useCreateAccountMutation';
 import { Heading } from '../../shared/heading';
 
-const allowedAccountTypes: CreateType[] = [
+const ALLOWED_ACCOUNT_TYPES: CreateType[] = [
     'new-mnemonic',
     'import-mnemonic',
     'mnemonic-derived',
@@ -26,10 +26,10 @@ const allowedAccountTypes: CreateType[] = [
     'ledger',
 ];
 
-type AllowedAccountTypes = (typeof allowedAccountTypes)[number];
+type AllowedAccountTypes = (typeof ALLOWED_ACCOUNT_TYPES)[number];
 
 function isAllowedAccountType(accountType: string): accountType is AllowedAccountTypes {
-    return allowedAccountTypes.includes(accountType as CreateType);
+    return ALLOWED_ACCOUNT_TYPES.includes(accountType as CreateType);
 }
 
 export function ProtectAccountPage() {

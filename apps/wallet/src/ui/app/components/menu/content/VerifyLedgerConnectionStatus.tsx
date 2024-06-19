@@ -27,8 +27,8 @@ enum VerificationStatus {
     NOT_VERIFIED = 'NOT_VERIFIED',
 }
 
-const resetVerificationStatusDelay = 5000;
-const loadingStateDelay = 200;
+const RESET_VERIFICATION_STATUS_DELAY = 5000;
+const LOADING_STATE_DELAY = 200;
 
 export function VerifyLedgerConnectionStatus({
     accountAddress,
@@ -55,7 +55,7 @@ export function VerifyLedgerConnectionStatus({
                     onClick={async () => {
                         const loadingTimeoutId = setTimeout(() => {
                             setLoading(true);
-                        }, loadingStateDelay);
+                        }, LOADING_STATE_DELAY);
 
                         try {
                             const iotaLedgerClient = await connectToLedger();
@@ -85,7 +85,7 @@ export function VerifyLedgerConnectionStatus({
 
                             window.setTimeout(() => {
                                 setVerificationStatus(VerificationStatus.UNKNOWN);
-                            }, resetVerificationStatusDelay);
+                            }, RESET_VERIFICATION_STATUS_DELAY);
                         }
                     }}
                     color="heroDark"
