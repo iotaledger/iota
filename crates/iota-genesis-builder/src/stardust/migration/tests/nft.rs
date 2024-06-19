@@ -51,6 +51,7 @@ use crate::stardust::{
 fn migrate_nft(
     header: OutputHeader,
     stardust_nft: StardustNft,
+    type_tag: TypeTag,
 ) -> anyhow::Result<(ObjectID, Nft, NftOutput, Object, Object)> {
     let output_id = header.output_id();
     let nft_id: NftId = stardust_nft
@@ -61,7 +62,7 @@ fn migrate_nft(
     let (executor, objects_map) = run_migration(
         stardust_nft.amount(),
         [(header, stardust_nft.into())],
-        GAS::type_tag(),
+        type_tag.clone(),
     )?;
 
     // Ensure the migrated objects exist under the expected identifiers.
@@ -91,7 +92,7 @@ fn migrate_nft(
         nft_output_object
             .struct_tag()
             .ok_or_else(|| anyhow!("missing struct tag on output nft object"))?,
-        NftOutput::tag(GAS::type_tag())
+        NftOutput::tag(type_tag)
     );
 
     // Version is set to 1 when the nft is created based on the computed lamport
@@ -153,7 +154,7 @@ fn nft_migration_with_full_features() {
         .unwrap();
 
     let (nft_object_id, nft, nft_output, nft_object, nft_output_object) =
-        migrate_nft(header, stardust_nft.clone()).unwrap();
+        migrate_nft(header, stardust_nft.clone(), GAS::type_tag()).unwrap();
     let expected_nft = Nft::try_from_stardust(nft_object_id, &stardust_nft).unwrap();
 
     // The bag is tested separately.
@@ -204,7 +205,7 @@ fn nft_migration_with_zeroed_id() {
 
     // If this function does not panic, then the created NFTs
     // were found at the correct non-zeroed Nft ID.
-    migrate_nft(header, stardust_nft).unwrap();
+    migrate_nft(header, stardust_nft, GAS::type_tag()).unwrap();
 }
 
 #[test]
@@ -352,7 +353,7 @@ fn nft_migration_with_valid_irc27_metadata() {
         .finish()
         .unwrap();
 
-    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone()).unwrap();
+    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone(), GAS::type_tag()).unwrap();
 
     let immutable_metadata = nft.immutable_metadata;
     assert_eq!(&immutable_metadata.media_type, metadata.media_type());
@@ -428,7 +429,7 @@ fn nft_migration_with_invalid_irc27_metadata() {
         .finish()
         .unwrap();
 
-    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone()).unwrap();
+    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone(), GAS::type_tag()).unwrap();
 
     let mut immutable_metadata = nft.immutable_metadata;
     let mut non_standard_fields = VecMap { contents: vec![] };
@@ -473,7 +474,7 @@ fn nft_migration_with_non_json_metadata() {
         .finish()
         .unwrap();
 
-    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone()).unwrap();
+    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone(), GAS::type_tag()).unwrap();
 
     let mut immutable_metadata = nft.immutable_metadata;
     let mut non_standard_fields = VecMap { contents: vec![] };
@@ -513,7 +514,7 @@ fn nft_migration_without_metadata() {
         .finish()
         .unwrap();
 
-    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone()).unwrap();
+    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone(), GAS::type_tag()).unwrap();
     let immutable_metadata = nft.immutable_metadata;
 
     assert_eq!(immutable_metadata.non_standard_fields.contents.len(), 0);

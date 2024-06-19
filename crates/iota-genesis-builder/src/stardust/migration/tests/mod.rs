@@ -19,7 +19,6 @@ use iota_types::{
     coin::Coin,
     digests::TransactionDigest,
     epoch_data::EpochData,
-    gas_coin::GAS,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -101,7 +100,7 @@ fn object_migration_with_object_owner(
     unlock_condition_function: &IdentStr,
     type_tag: TypeTag,
 ) -> anyhow::Result<()> {
-    let (mut executor, objects_map) = run_migration(total_supply, outputs, type_tag)?;
+    let (mut executor, objects_map) = run_migration(total_supply, outputs, type_tag.clone())?;
 
     // Find the corresponding objects to the migrated outputs.
     let owner_created_objects = objects_map
@@ -130,7 +129,7 @@ fn object_migration_with_object_owner(
             STARDUST_PACKAGE_ID,
             output_owner_module_name.into(),
             ident_str!("extract_assets").into(),
-            vec![GAS::type_tag()],
+            vec![type_tag.clone()],
             vec![owner_arg],
         );
 
@@ -146,7 +145,7 @@ fn object_migration_with_object_owner(
             STARDUST_PACKAGE_ID,
             ident_str!("address_unlock_condition").into(),
             unlock_condition_function.into(),
-            vec![GAS::type_tag()],
+            vec![type_tag.clone()],
             vec![owned_arg, receiving_owned_arg],
         );
 
@@ -179,7 +178,7 @@ fn object_migration_with_object_owner(
             STARDUST_PACKAGE_ID,
             output_owned_module_name.into(),
             ident_str!("extract_assets").into(),
-            vec![GAS::type_tag()],
+            vec![type_tag],
             vec![received_owned_output],
         );
         let Argument::Result(result_idx) = extracted_assets else {
@@ -243,7 +242,7 @@ fn extract_native_token_from_bag(
 ) -> anyhow::Result<()> {
     let native_token_id: &TokenId = native_token.token_id();
 
-    let (mut executor, objects_map) = run_migration(total_supply, outputs, type_tag)?;
+    let (mut executor, objects_map) = run_migration(total_supply, outputs, type_tag.clone())?;
 
     // Find the corresponding objects to the migrated output.
     let output_created_objects = objects_map
@@ -272,7 +271,7 @@ fn extract_native_token_from_bag(
             STARDUST_PACKAGE_ID,
             module_name.into(),
             ident_str!("extract_assets").into(),
-            vec![GAS::type_tag()],
+            vec![type_tag.clone()],
             vec![inner_object_arg],
         );
 
@@ -292,7 +291,7 @@ fn extract_native_token_from_bag(
             IOTA_FRAMEWORK_PACKAGE_ID,
             ident_str!("coin").into(),
             ident_str!("from_balance").into(),
-            vec![GAS::type_tag()],
+            vec![type_tag],
             vec![balance_arg],
         );
 
@@ -417,7 +416,7 @@ fn unlock_object(
     let mut executor = Executor::new(
         MIGRATION_PROTOCOL_VERSION.into(),
         MigrationTargetNetwork::Mainnet,
-        type_tag,
+        type_tag.clone(),
     )
     .unwrap()
     .with_tx_context(tx_context)
@@ -444,7 +443,7 @@ fn unlock_object(
             STARDUST_PACKAGE_ID,
             module_name.into(),
             ident_str!("extract_assets").into(),
-            vec![GAS::type_tag()],
+            vec![type_tag.clone()],
             vec![inner_object_arg],
         );
 
@@ -458,7 +457,7 @@ fn unlock_object(
             IOTA_FRAMEWORK_PACKAGE_ID,
             ident_str!("coin").into(),
             ident_str!("from_balance").into(),
-            vec![TypeTag::from_str(&format!("{IOTA_FRAMEWORK_PACKAGE_ID}::iota::IOTA")).unwrap()],
+            vec![type_tag],
             vec![balance_arg],
         );
 

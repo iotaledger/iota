@@ -43,6 +43,7 @@ use crate::stardust::{
 fn migrate_alias(
     header: OutputHeader,
     stardust_alias: StardustAlias,
+    type_tag: TypeTag,
 ) -> anyhow::Result<(ObjectID, Alias, AliasOutput, Object, Object)> {
     let output_id = header.output_id();
     let alias_id: AliasId = stardust_alias
@@ -53,7 +54,7 @@ fn migrate_alias(
     let (executor, objects_map) = run_migration(
         stardust_alias.amount(),
         [(header, stardust_alias.into())],
-        GAS::type_tag(),
+        type_tag,
     )?;
 
     // Ensure the migrated objects exist under the expected identifiers.
@@ -130,7 +131,7 @@ fn alias_migration_with_full_features() {
         .unwrap();
 
     let (alias_object_id, alias, alias_output, alias_object, alias_output_object) =
-        migrate_alias(header, stardust_alias.clone()).unwrap();
+        migrate_alias(header, stardust_alias.clone(), GAS::type_tag()).unwrap();
     let expected_alias = Alias::try_from_stardust(alias_object_id, &stardust_alias).unwrap();
 
     // The bag is tested separately.
@@ -179,7 +180,7 @@ fn alias_migration_with_zeroed_id() {
 
     // If this function does not panic, then the created aliases
     // were found at the correct non-zeroed Alias ID.
-    migrate_alias(header, stardust_alias).unwrap();
+    migrate_alias(header, stardust_alias, GAS::type_tag()).unwrap();
 }
 
 /// Test that an Alias owned by another Alias can be received by the owning
