@@ -6596,6 +6596,7 @@ dependencies = [
  "shared-crypto",
  "tempfile",
  "thiserror",
+ "tokio",
  "tracing",
  "tracing-subscriber",
 ]

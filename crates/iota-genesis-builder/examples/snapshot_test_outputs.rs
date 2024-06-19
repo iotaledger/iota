@@ -27,7 +27,8 @@ fn parse_snapshot<P: AsRef<Path>>(path: P) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn main() -> anyhow::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     let Some(current_path) = std::env::args().nth(1) else {
         anyhow::bail!("please provide path to the full-snapshot file");
     };
@@ -36,7 +37,7 @@ fn main() -> anyhow::Result<()> {
 
     parse_snapshot(&current_path)?;
 
-    add_snapshot_test_outputs(&current_path, &new_path)?;
+    add_snapshot_test_outputs(&current_path, &new_path).await?;
 
     parse_snapshot(&new_path)?;
 

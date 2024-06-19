@@ -64,6 +64,7 @@ insta.workspace = true
 iota-swarm-config.workspace = true
 iota-types = { workspace = true, features = ["test-utils"] }
 tempfile.workspace = true
+tokio = { workspace = true, features = ["macros"] }
 
 [features]
 test-outputs = ["iota-sdk/client"]

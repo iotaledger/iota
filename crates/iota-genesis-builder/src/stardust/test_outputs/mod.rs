@@ -18,7 +18,7 @@ use packable::{packer::IoPacker, Packable, PackableExt};
 use crate::stardust::parse::FullSnapshotParser;
 
 /// Adds outputs to test specific and intricate scenario in the full snapshot.
-pub fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
+pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
     current_path: P,
     new_path: P,
 ) -> anyhow::Result<()> {
@@ -31,7 +31,7 @@ pub fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
     let mut writer = IoPacker::new(BufWriter::new(new_file));
     let mut parser = FullSnapshotParser::new(current_file)?;
 
-    let new_outputs = vesting_schedule_multiple_addresses::outputs();
+    let new_outputs = vesting_schedule_multiple_addresses::outputs().await?;
 
     // Increments the output count according to newly generated outputs.
     parser.header.output_count += new_outputs.len() as u64;
