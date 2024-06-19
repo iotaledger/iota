@@ -12,13 +12,14 @@ import Loading from '_components/loading';
 import { parseAmount } from '_helpers';
 import { GAS_SYMBOL } from '_src/ui/app/redux/slices/iota-objects/Coin';
 import { InputWithAction } from '_src/ui/app/shared/InputWithAction';
-import { useGetAllCoins } from '@iota/core/src/hooks/useGetAllCoins';
 import {
     CoinFormat,
+    createTokenTransferTransaction,
     isIotaNSName,
     useCoinMetadata,
     useFormatCoin,
     useIotaNSEnabled,
+    useGetAllCoins,
 } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
 import { ArrowRight16 } from '@iota/icons';
@@ -28,7 +29,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Field, Form, Formik, useFormikContext } from 'formik';
 import { useEffect, useMemo } from 'react';
 
-import { createTokenTransferTransaction } from './utils/transaction';
 import { createValidationSchemaStepOne } from './validation';
 
 const INITIAL_VALUES = {
