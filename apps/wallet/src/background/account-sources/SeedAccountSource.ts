@@ -19,7 +19,7 @@ import {
     type AccountSourceSerializedUI,
 } from './AccountSource';
 import { accountSourcesEvents } from './events';
-import { makeDerivationPath } from './bipPath';
+import { type Bip44Path, makeDerivationPath } from './bip44Path';
 
 type DataDecrypted = {
     seed: string;
@@ -115,12 +115,10 @@ export class SeedAccountSource extends AccountSource<SeedAccountSourceSerialized
         accountSourcesEvents.emit('accountSourceStatusUpdated', { accountSourceID: this.id });
     }
 
-    async deriveAccount({ derivationPathIndex }: { derivationPathIndex?: number } = {}): Promise<
-        Omit<SeedSerializedAccount, 'id'>
-    > {
+    async deriveAccount(bip44Path?: Bip44Path): Promise<Omit<SeedSerializedAccount, 'id'>> {
         const derivationPath =
-            typeof derivationPathIndex !== 'undefined'
-                ? makeDerivationPath(derivationPathIndex)
+            typeof bip44Path !== 'undefined'
+                ? makeDerivationPath(bip44Path)
                 : await this.#getAvailableDerivationPath();
         const keyPair = await this.deriveKeyPair(derivationPath);
         return SeedAccount.createNew({ keyPair, derivationPath, sourceID: this.id });
@@ -177,7 +175,9 @@ export class SeedAccountSource extends AccountSource<SeedAccountSourceSerialized
         let derivationPath = '';
         let temp;
         do {
-            temp = makeDerivationPath(index++);
+            temp = makeDerivationPath({
+                accountIndex: index++,
+            });
             if (!derivationPathMap[temp]) {
                 derivationPath = temp;
             }

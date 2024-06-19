@@ -10,6 +10,8 @@ import {
     getEphemeralValue,
     setEphemeralValue,
 } from '../session-ephemeral-values';
+import { type Bip44Path } from './bip44Path';
+import { type SerializedAccount } from '../accounts/Account';
 
 export type AccountSourceType = 'mnemonic' | 'seed';
 
@@ -25,6 +27,7 @@ export abstract class AccountSource<
         this.type = type;
     }
 
+    abstract deriveAccount(derivationOptions?: Bip44Path): Promise<Omit<SerializedAccount, 'id'>>;
     abstract toUISerialized(): Promise<AccountSourceSerializedUI>;
     abstract isLocked(): Promise<boolean>;
     abstract lock(): Promise<void>;
