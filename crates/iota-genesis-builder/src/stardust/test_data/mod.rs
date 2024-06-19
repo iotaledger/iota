@@ -33,11 +33,14 @@ pub fn add_snapshot_test_data<P: AsRef<Path> + core::fmt::Debug>(
 
     parser.header.pack(&mut writer)?;
 
-    parser.outputs().for_each(|res| {
-        let (output_header, output) = res.unwrap();
-        output_header.pack(&mut writer).unwrap();
-        output.pack(&mut writer).unwrap();
-    });
+    parser
+        .outputs()
+        .filter_map(|o| o.ok())
+        .chain(new_outputs)
+        .for_each(|(output_header, output)| {
+            output_header.pack(&mut writer).unwrap();
+            output.pack(&mut writer).unwrap();
+        });
 
     Ok(())
 }
