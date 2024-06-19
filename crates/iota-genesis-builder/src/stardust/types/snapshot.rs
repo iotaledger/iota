@@ -110,7 +110,7 @@ pub struct FullSnapshotHeader {
     treasury_output_milestone_id: MilestoneId,
     treasury_output_amount: u64,
     parameters_milestone_option: MilestoneOption,
-    output_count: u64,
+    pub(crate) output_count: u64,
     milestone_diff_count: u32,
     sep_count: u16,
 }
