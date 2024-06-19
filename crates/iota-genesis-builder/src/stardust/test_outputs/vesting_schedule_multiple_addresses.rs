@@ -17,6 +17,8 @@ const MNEMONIC: &str = "sense silent picnic predict any public install educate t
 const ACCOUNTS: u32 = 10;
 const ADDRESSES_PER_ACCOUNT: u32 = 10;
 const COIN_TYPE: u32 = 4218;
+const VESTING_WEEKS: usize = 104;
+const VESTING_FREQUENCY: usize = 2;
 
 pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let mut outputs = Vec::new();
@@ -33,23 +35,25 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
                 )
                 .await?[0];
 
-            let output_header = OutputHeader::new_testing(
-                *TransactionId::from_str(
-                    "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb1812345678",
-                )
-                .unwrap(),
-                rand::random(),
-                rand::random(),
-                rand::random(),
-            );
-            let output = Output::from(
-                BasicOutputBuilder::new_with_amount(1_000_000)
-                    .add_unlock_condition(AddressUnlockCondition::new(address))
-                    .finish()
+            for _ in 0..(VESTING_WEEKS / VESTING_FREQUENCY) {
+                let output_header = OutputHeader::new_testing(
+                    *TransactionId::from_str(
+                        "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb1812345678",
+                    )
                     .unwrap(),
-            );
+                    rand::random(),
+                    rand::random(),
+                    rand::random(),
+                );
+                let output = Output::from(
+                    BasicOutputBuilder::new_with_amount(1_000_000)
+                        .add_unlock_condition(AddressUnlockCondition::new(address))
+                        .finish()
+                        .unwrap(),
+                );
 
-            outputs.push((output_header, output));
+                outputs.push((output_header, output));
+            }
         }
     }
 

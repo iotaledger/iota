@@ -29,12 +29,13 @@ pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
         .truncate(true)
         .open(new_path)?;
     let mut writer = IoPacker::new(BufWriter::new(new_file));
-    let mut parser = FullSnapshotParser::new(current_file)?;
+    let parser = FullSnapshotParser::new(current_file)?;
 
     let new_outputs = vesting_schedule_multiple_addresses::outputs().await?;
 
     // Increments the output count according to newly generated outputs.
-    parser.header.output_count += new_outputs.len() as u64;
+    let mut new_header = parser.header.clone();
+    new_header.output_count += new_outputs.len() as u64;
 
     // Creates new protocol parameters to increase the total supply according to newly generated outputs.
     let params = parser.protocol_parameters()?;
@@ -48,7 +49,7 @@ pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
         params.token_supply() + new_outputs.iter().map(|o| o.1.amount()).sum::<u64>(),
     )?;
     if let MilestoneOption::Parameters(params) = &parser.header.parameters_milestone_option {
-        parser.header.parameters_milestone_option =
+        new_header.parameters_milestone_option =
             MilestoneOption::Parameters(ParametersMilestoneOption::new(
                 params.target_milestone_index(),
                 params.protocol_version(),
@@ -57,7 +58,7 @@ pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
     }
 
     // Writes the new header.
-    parser.header.pack(&mut writer)?;
+    new_header.pack(&mut writer)?;
 
     // Writes previous and new outputs.
     parser
