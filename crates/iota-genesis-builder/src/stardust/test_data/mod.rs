@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-mod vesting_schedule_multiple_addresses;
+mod dummy;
 
 use std::{
     fs::{File, OpenOptions},
@@ -9,7 +9,11 @@ use std::{
     path::Path,
 };
 
-use packable::{packer::IoPacker, Packable};
+use iota_sdk::types::block::{
+    payload::milestone::{MilestoneOption, ParametersMilestoneOption},
+    protocol::ProtocolParameters,
+};
+use packable::{packer::IoPacker, Packable, PackableExt};
 
 use crate::stardust::parse::FullSnapshotParser;
 
@@ -27,9 +31,29 @@ pub fn add_snapshot_test_data<P: AsRef<Path> + core::fmt::Debug>(
 
     let mut parser = FullSnapshotParser::new(current_file)?;
 
-    let new_outputs = vesting_schedule_multiple_addresses::outputs();
+    let new_outputs = dummy::outputs();
 
     parser.header.output_count += new_outputs.len() as u64;
+
+    let params = parser.protocol_parameters()?;
+    let new_params = ProtocolParameters::new(
+        params.protocol_version(),
+        params.network_name().to_owned(),
+        params.bech32_hrp(),
+        params.min_pow_score(),
+        params.below_max_depth(),
+        *params.rent_structure(),
+        params.token_supply() + new_outputs.iter().map(|o| o.1.amount()).sum::<u64>(),
+    )?;
+
+    if let MilestoneOption::Parameters(params) = &parser.header.parameters_milestone_option {
+        parser.header.parameters_milestone_option =
+            MilestoneOption::Parameters(ParametersMilestoneOption::new(
+                params.target_milestone_index(),
+                params.protocol_version(),
+                new_params.pack_to_vec(),
+            )?);
+    }
 
     parser.header.pack(&mut writer)?;
 
