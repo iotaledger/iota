@@ -6,8 +6,11 @@ import { NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE } from '_src/shared/cons
 import { CountDownTimer } from '_src/ui/app/shared/countdown-timer';
 import { Text } from '_src/ui/app/shared/text';
 import { IconTooltip } from '_src/ui/app/shared/tooltip';
-import { useFormatCoin, useGetTimeBeforeEpochNumber } from '@iota/core';
-import { type StakeObject } from '@iota/iota.js/client';
+import {
+    useFormatCoin,
+    useGetTimeBeforeEpochNumber,
+    type ExtendedDelegatedStake,
+} from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import { cva, cx, type VariantProps } from 'class-variance-authority';
 import type { ReactNode } from 'react';
@@ -38,10 +41,6 @@ const STATUS_VARIANT = {
     [StakeState.WITHDRAW]: 'withDraw',
     [StakeState.IN_ACTIVE]: 'inActive',
 } as const;
-
-export type DelegationObjectWithValidator = Extract<StakeObject, { estimatedReward: string }> & {
-    validatorAddress: string;
-};
 
 const cardStyle = cva(
     [
@@ -107,7 +106,7 @@ function StakeCardContent({
 }
 
 interface StakeCardProps {
-    delegationObject: DelegationObjectWithValidator;
+    delegationObject: ExtendedDelegatedStake;
     currentEpoch: number;
     inactiveValidator?: boolean;
 }
@@ -131,8 +130,8 @@ export function StakeCard({
     const delegationState = inactiveValidator
         ? StakeState.IN_ACTIVE
         : isEarnedRewards
-        ? StakeState.EARNING
-        : StakeState.WARM_UP;
+          ? StakeState.EARNING
+          : StakeState.WARM_UP;
 
     const rewards = isEarnedRewards && estimatedReward ? BigInt(estimatedReward) : 0n;
 

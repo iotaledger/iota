@@ -18,7 +18,7 @@ use iota_types::{
     collection_types::Bag,
     dynamic_field::Field,
     in_memory_storage::InMemoryStorage,
-    object::Object,
+    object::{Object, Owner},
     TypeTag,
 };
 
@@ -283,6 +283,19 @@ pub(super) fn verify_address_owner(
     ensure!(
         obj.owner == expected_owner,
         "{name} owner mismatch: found {}, expected {}",
+        obj.owner,
+        expected_owner
+    );
+    Ok(())
+}
+
+pub(super) fn verify_shared_object(obj: &Object, name: &str) -> Result<()> {
+    let expected_owner = Owner::Shared {
+        initial_shared_version: Default::default(),
+    };
+    ensure!(
+        obj.owner.is_shared(),
+        "{name} shared owner mismatch: found {}, expected {}",
         obj.owner,
         expected_owner
     );

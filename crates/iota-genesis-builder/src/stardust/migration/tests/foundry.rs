@@ -13,6 +13,7 @@ use iota_types::{
     balance::Balance,
     base_types::{IotaAddress, MoveObjectType, ObjectID},
     coin::CoinMetadata,
+    coin_manager::CoinManager,
     gas_coin::GAS,
     object::Object,
 };
@@ -20,17 +21,14 @@ use move_core_types::language_storage::TypeTag;
 
 use crate::stardust::{
     migration::tests::{create_foundry, run_migration},
-    types::{
-        capped_coin::MaxSupplyPolicy, snapshot::OutputHeader, stardust_to_iota_address,
-        stardust_to_iota_address_owner,
-    },
+    types::{snapshot::OutputHeader, stardust_to_iota_address, stardust_to_iota_address_owner},
 };
 
 type PackageObject = Object;
 type GasCoinObject = Object;
 type NativeTokenCoinObject = Object;
-type CoinMetadataObject = Object;
-type MaxSupplyPolicyObject = Object;
+type CoinManagerObject = Object;
+type CoinManagerTreasuryCapObject = Object;
 
 fn migrate_foundry(
     header: OutputHeader,
@@ -39,8 +37,9 @@ fn migrate_foundry(
     PackageObject,
     GasCoinObject,
     NativeTokenCoinObject,
-    CoinMetadataObject,
-    MaxSupplyPolicyObject,
+    CoinManagerObject,
+    CoinManagerTreasuryCapObject,
+    CoinMetadata,
 )> {
     let output_id = header.output_id();
 
@@ -58,8 +57,8 @@ fn migrate_foundry(
     let package_id = *created_objects_ids.package()?;
     let gas_coin_id = *created_objects_ids.gas_coin()?;
     let native_token_coin_id = *created_objects_ids.native_token_coin()?;
-    let coin_metadata_id = *created_objects_ids.coin_metadata()?;
-    let max_supply_policy_id = *created_objects_ids.max_supply_policy()?;
+    let coin_manager_id = *created_objects_ids.coin_manager()?;
+    let coin_manager_treasury_cap_id = *created_objects_ids.coin_manager_treasury_cap()?;
 
     let package_object = created_objects
         .iter()
@@ -73,21 +72,30 @@ fn migrate_foundry(
         .iter()
         .find(|object| object.id() == native_token_coin_id)
         .ok_or(anyhow!("missing native token coin object"))?;
-    let coin_metadata_object = created_objects
+    let coin_manager_object = created_objects
         .iter()
-        .find(|object| object.id() == coin_metadata_id)
-        .ok_or(anyhow!("missing coin metadata object"))?;
-    let max_supply_policy_object = created_objects
+        .find(|object| object.id() == coin_manager_id)
+        .ok_or(anyhow!("missing coin manager object"))?;
+    let coin_manager_treasury_cap_object = created_objects
         .iter()
-        .find(|object| object.id() == max_supply_policy_id)
-        .ok_or(anyhow!("missing max supply policy object"))?;
+        .find(|object| object.id() == coin_manager_treasury_cap_id)
+        .ok_or(anyhow!("missing treasury cap object"))?;
+
+    let coin_manager: CoinManager = coin_manager_object
+        .to_rust()
+        .ok_or(anyhow!("expected a coin manager"))?;
+
+    let coin_metadata = coin_manager
+        .metadata
+        .ok_or(anyhow!("missing coin metadata"))?;
 
     Ok((
         package_object.clone(),
         gas_coin_object.clone(),
         native_token_coin_object.clone(),
-        coin_metadata_object.clone(),
-        max_supply_policy_object.clone(),
+        coin_manager_object.clone(),
+        coin_manager_treasury_cap_object.clone(),
+        coin_metadata,
     ))
 }
 
@@ -107,8 +115,9 @@ fn foundry_with_simple_metadata() -> Result<()> {
         package_object,
         gas_coin_object,
         native_token_coin_object,
-        coin_metadata_object,
-        max_supply_policy_object,
+        coin_manager_object,
+        coin_manager_treasury_cap_object,
+        coin_metadata,
     ) = migrate_foundry(header, foundry)?;
 
     // Check the package object.
@@ -144,50 +153,35 @@ fn foundry_with_simple_metadata() -> Result<()> {
     assert_eq!(native_token_coin.balance, Balance::new(100_000));
 
     // Check the coin metadata object.
-    let coin_metadata = coin_metadata_object
-        .data
-        .try_as_move()
-        .expect("should be a move object");
-
-    let coin_metadata = CoinMetadata::from_bcs_bytes(coin_metadata.contents()).unwrap();
     assert_eq!(coin_metadata.decimals, 0);
     assert_eq!(coin_metadata.name, "Dogecoin");
     assert_eq!(coin_metadata.symbol, "doge");
     assert_eq!(coin_metadata.description, "");
     assert!(coin_metadata.icon_url.is_none());
 
-    // Check the max supply policy object.
-    let max_supply_policy = max_supply_policy_object
-        .to_rust::<MaxSupplyPolicy>()
-        .unwrap();
-
+    // Check the CoinManagerTreasuryCap ownership
     assert_eq!(
-        max_supply_policy_object.owner,
+        coin_manager_treasury_cap_object.owner,
         stardust_to_iota_address_owner(alias_id).unwrap()
     );
-    assert_eq!(max_supply_policy.maximum_supply, 100_000_000);
 
-    let max_supply_policy_object = max_supply_policy_object.data.try_as_move().unwrap();
-    let max_supply_policy_object_type = max_supply_policy_object.type_();
-    assert_eq!(
-        max_supply_policy_object_type.module().as_str(),
-        "capped_coin"
-    );
-    assert_eq!(
-        max_supply_policy_object_type.name().as_str(),
-        "MaxSupplyPolicy"
-    );
+    // Check the CoinManager
+    let coin_manager = coin_manager_object.to_rust::<CoinManager>().unwrap();
 
-    let max_supply_policy_object_type_params =
-        max_supply_policy_object_type.clone().into_type_params();
-    assert_eq!(max_supply_policy_object_type_params.len(), 1);
-    let TypeTag::Struct(type_tag) = &max_supply_policy_object_type_params[0] else {
+    assert_eq!(coin_manager.maximum_supply.unwrap(), 100_000_000);
+
+    let coin_manager_object_type = coin_manager_object.type_().unwrap();
+    assert_eq!(coin_manager_object_type.module().as_str(), "coin_manager");
+    assert_eq!(coin_manager_object_type.name().as_str(), "CoinManager");
+
+    let coin_manager_object_type_params = coin_manager_object_type.clone().into_type_params();
+    assert_eq!(coin_manager_object_type_params.len(), 1);
+    let TypeTag::Struct(type_tag) = &coin_manager_object_type_params[0] else {
         panic!("unexpected type tag")
     };
     assert_eq!(type_tag.module.as_str(), "doge");
     assert_eq!(type_tag.name.as_str(), "DOGE");
     assert_eq!(type_tag.type_params.len(), 0);
-    assert!(max_supply_policy_object.has_public_transfer());
 
     Ok(())
 }
@@ -214,8 +208,9 @@ fn foundry_with_special_metadata() -> Result<()> {
         package_object,
         gas_coin_object,
         native_token_coin_object,
-        coin_metadata_object,
-        max_supply_policy_object,
+        coin_manager_object,
+        coin_manager_treasury_cap_object,
+        coin_metadata,
     ) = migrate_foundry(header, foundry)?;
 
     // Check the package object.
@@ -251,12 +246,6 @@ fn foundry_with_special_metadata() -> Result<()> {
     assert_eq!(native_token_coin.balance, Balance::new(u64::MAX - 1));
 
     // Check the coin metadata object.
-    let coin_metadata = coin_metadata_object
-        .data
-        .try_as_move()
-        .expect("should be a move object");
-
-    let coin_metadata = CoinMetadata::from_bcs_bytes(coin_metadata.contents()).unwrap();
     assert_eq!(coin_metadata.decimals, 123);
     assert_eq!(coin_metadata.name, "Dogecoin");
     assert_eq!(coin_metadata.symbol, "doge");
@@ -266,38 +255,29 @@ fn foundry_with_special_metadata() -> Result<()> {
         "https://dogecoin.com/logo.png"
     );
 
-    // Check the max supply policy object.
-    let max_supply_policy = max_supply_policy_object
-        .to_rust::<MaxSupplyPolicy>()
-        .unwrap();
-
+    // Check the CoinManagerTreasuryCap ownership
     assert_eq!(
-        max_supply_policy_object.owner,
+        coin_manager_treasury_cap_object.owner,
         stardust_to_iota_address_owner(alias_id).unwrap()
     );
-    assert_eq!(max_supply_policy.maximum_supply, u64::MAX - 1);
 
-    let max_supply_policy_object = max_supply_policy_object.data.try_as_move().unwrap();
-    let max_supply_policy_object_type = max_supply_policy_object.type_();
-    assert_eq!(
-        max_supply_policy_object_type.module().as_str(),
-        "capped_coin"
-    );
-    assert_eq!(
-        max_supply_policy_object_type.name().as_str(),
-        "MaxSupplyPolicy"
-    );
+    // Check the CoinManager
+    let coin_manager = coin_manager_object.to_rust::<CoinManager>().unwrap();
 
-    let max_supply_policy_object_type_params =
-        max_supply_policy_object_type.clone().into_type_params();
-    assert_eq!(max_supply_policy_object_type_params.len(), 1);
-    let TypeTag::Struct(type_tag) = &max_supply_policy_object_type_params[0] else {
+    assert_eq!(coin_manager.maximum_supply.unwrap(), u64::MAX - 1);
+
+    let coin_manager_object_type = coin_manager_object.type_().unwrap();
+    assert_eq!(coin_manager_object_type.module().as_str(), "coin_manager");
+    assert_eq!(coin_manager_object_type.name().as_str(), "CoinManager");
+
+    let coin_manager_object_type_params = coin_manager_object_type.clone().into_type_params();
+    assert_eq!(coin_manager_object_type_params.len(), 1);
+    let TypeTag::Struct(type_tag) = &coin_manager_object_type_params[0] else {
         panic!("unexpected type tag")
     };
     assert_eq!(type_tag.module.as_str(), "doge");
     assert_eq!(type_tag.name.as_str(), "DOGE");
     assert_eq!(type_tag.type_params.len(), 0);
-    assert!(max_supply_policy_object.has_public_transfer());
 
     Ok(())
 }
@@ -318,8 +298,9 @@ fn coin_ownership() -> Result<()> {
         _package_object,
         gas_coin_object,
         native_token_coin_object,
+        coin_manager_object,
+        coin_manager_treasury_cap_object,
         _coin_metadata_object,
-        max_supply_policy_object,
     ) = migrate_foundry(header, foundry)?;
 
     // Check the owner of the gas coin object.
@@ -335,9 +316,21 @@ fn coin_ownership() -> Result<()> {
     // Check the owner of the native token coin object.
     assert_eq!(native_token_coin_object.owner, IotaAddress::ZERO);
 
-    // Check the owner of the max supply policy object.
+    // Check the owner of the coin manager object.
+    assert!(coin_manager_object.is_shared());
+
+    // Check if the coin manager object has a public transfer.
+    assert!(
+        coin_manager_object
+            .data
+            .try_as_move()
+            .unwrap()
+            .has_public_transfer()
+    );
+
+    // Check the owner of the treasury cap object.
     assert_eq!(
-        max_supply_policy_object.owner,
+        coin_manager_treasury_cap_object.owner,
         stardust_to_iota_address_owner(alias_id).unwrap()
     );
 
