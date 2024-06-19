@@ -34,6 +34,7 @@ import { useAppSelector } from './app/hooks';
 
 import './styles/global.scss';
 import 'bootstrap-icons/font/bootstrap-icons.scss';
+import { type Query } from '@tanstack/react-query';
 
 async function init() {
     if (process.env.NODE_ENV === 'development') {
@@ -78,7 +79,8 @@ function AppWrapper() {
                             persistOptions={{
                                 persister,
                                 dehydrateOptions: {
-                                    shouldDehydrateQuery: ({ meta }) => !meta?.skipPersistedCache,
+                                    shouldDehydrateQuery: ({ meta }: Query) =>
+                                        !meta?.skipPersistedCache,
                                 },
                             }}
                         >
