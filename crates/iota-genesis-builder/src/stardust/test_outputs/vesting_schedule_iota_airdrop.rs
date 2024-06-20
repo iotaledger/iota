@@ -24,7 +24,7 @@ use crate::stardust::types::snapshot::OutputHeader;
 
 const MNEMONIC: &str = "sense silent picnic predict any public install educate trial depth faith voyage age exercise perfect hair favorite glimpse blame wood wave fiber maple receive";
 const ACCOUNTS: u32 = 10;
-const ADDRESSES_PER_ACCOUNT: u32 = 10;
+const ADDRESSES_PER_ACCOUNT: u32 = 20;
 const COIN_TYPE: u32 = 4218;
 const VESTING_WEEKS: usize = 104;
 const VESTING_WEEKS_FREQUENCY: usize = 2;
@@ -49,8 +49,11 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
                 )
                 .await?[0];
 
-            // Add an initial unlock to one out of two addresses.
-            if address_index % 2 == 0 {
+            println!("{} {}", address_index % 3, address_index % 5);
+
+            // The modulos 3 and 5 are chosen because they create a pattern of all possible combinations of having an initial unlock and having expired timelock outputs.
+
+            if address_index % 3 == 0 {
                 let output_header = OutputHeader::new_testing(
                     *TransactionId::from(rand::random::<[u8; 32]>()),
                     0,
@@ -71,7 +74,7 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
             for offset in (0..=VESTING_WEEKS).step_by(VESTING_WEEKS_FREQUENCY) {
                 let timelock = MERGE_TIMESTAMP_SECS + offset as u32 * 604_800;
 
-                if address_index % 3 == 0 && timelock > now {
+                if address_index % 5 == 0 && timelock > now {
                     let output_header = OutputHeader::new_testing(
                         *TransactionId::from(rand::random::<[u8; 32]>()),
                         0,
@@ -92,6 +95,8 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
             }
         }
     }
+
+    println!("{}", outputs.len());
 
     Ok(outputs)
 }
