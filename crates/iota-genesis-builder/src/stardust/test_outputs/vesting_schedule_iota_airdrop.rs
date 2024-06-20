@@ -22,6 +22,7 @@ const ADDRESSES_PER_ACCOUNT: u32 = 10;
 const COIN_TYPE: u32 = 4218;
 const VESTING_WEEKS: usize = 104;
 const VESTING_WEEKS_FREQUENCY: usize = 2;
+const MERGE_TIMESTAMP_SECS: u32 = 1696406475;
 
 pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let mut outputs = Vec::new();
@@ -40,6 +41,7 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
 
             // TODO add initial unlock
             for offset in (0..=VESTING_WEEKS).step_by(VESTING_WEEKS_FREQUENCY) {
+                let timelock = MERGE_TIMESTAMP_SECS + offset as u32 * 604_800;
                 let output_header = OutputHeader::new_testing(
                     // TODO randomize
                     *TransactionId::from_str(
@@ -53,10 +55,7 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
                 let output = Output::from(
                     BasicOutputBuilder::new_with_amount(1_000_000)
                         .add_unlock_condition(AddressUnlockCondition::new(address))
-                        // TODO add base timestamp
-                        .add_unlock_condition(TimelockUnlockCondition::new(
-                            1 + offset as u32 * 604_800,
-                        )?)
+                        .add_unlock_condition(TimelockUnlockCondition::new(timelock)?)
                         .finish()
                         .unwrap(),
                 );
