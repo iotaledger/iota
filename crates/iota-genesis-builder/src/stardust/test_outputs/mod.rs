@@ -31,10 +31,10 @@ pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
     let mut writer = IoPacker::new(BufWriter::new(new_file));
     let parser = FullSnapshotParser::new(current_file)?;
 
+    let mut new_header = parser.header.clone();
     let new_outputs = vesting_schedule_iota_airdrop::outputs().await?;
 
     // Increments the output count according to newly generated outputs.
-    let mut new_header = parser.header.clone();
     new_header.output_count += new_outputs.len() as u64;
 
     // Creates new protocol parameters to increase the total supply according to newly generated outputs.
