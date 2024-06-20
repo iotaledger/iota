@@ -9,4 +9,5 @@ pub mod error;
 pub mod migration;
 pub mod native_token;
 pub mod parse;
+pub mod test_outputs;
 pub mod types;
