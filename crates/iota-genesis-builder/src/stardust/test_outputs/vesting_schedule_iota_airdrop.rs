@@ -39,6 +39,28 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
                 )
                 .await?[0];
 
+            // Add an initial unlock to one out of two addresses.
+            if address_index % 2 == 0 {
+                let output_header = OutputHeader::new_testing(
+                    // TODO randomize
+                    *TransactionId::from_str(
+                        "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb1812345678",
+                    )
+                    .unwrap(),
+                    rand::random(),
+                    rand::random(),
+                    rand::random(),
+                );
+                let output = Output::from(
+                    BasicOutputBuilder::new_with_amount(10_000_000)
+                        .add_unlock_condition(AddressUnlockCondition::new(address))
+                        .finish()
+                        .unwrap(),
+                );
+
+                outputs.push((output_header, output));
+            }
+
             // TODO add initial unlock
             for offset in (0..=VESTING_WEEKS).step_by(VESTING_WEEKS_FREQUENCY) {
                 let timelock = MERGE_TIMESTAMP_SECS + offset as u32 * 604_800;
