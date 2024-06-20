@@ -13,6 +13,7 @@ import { parseAmount } from '_helpers';
 import { GAS_SYMBOL } from '_src/ui/app/redux/slices/iota-objects/Coin';
 import { InputWithAction } from '_src/ui/app/shared/InputWithAction';
 import {
+    useGetAllCoins,
     CoinFormat,
     createTokenTransferTransaction,
     isIotaNSName,
