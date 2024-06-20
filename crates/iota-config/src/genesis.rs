@@ -434,18 +434,20 @@ impl GenesisCeremonyParameters {
     }
 
     fn default_initial_stake_subsidy_distribution_amount() -> u64 {
-        // 1M Iota
-        1_000_000 * iota_types::gas_coin::MICROS_PER_IOTA
+        // 0 IOTA in micros
+        0
     }
 
     fn default_stake_subsidy_period_length() -> u64 {
+        // TODO: can this param be set to u64::MAX?
+
         // 10 distributions or epochs
         10
     }
 
     fn default_stake_subsidy_decrease_rate() -> u16 {
-        // 10% in basis points
-        1000
+        // 0% in basis points. for example, should be equal to 1000 to represent 10%.
+        0
     }
 
     pub fn to_genesis_chain_parameters(&self) -> GenesisChainParameters {
@@ -476,6 +478,8 @@ impl Default for GenesisCeremonyParameters {
     }
 }
 
+// TODO: TOTAL_SUPPLY_MICROS should not be used for allocation and validation
+// directly.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct TokenDistributionSchedule {
