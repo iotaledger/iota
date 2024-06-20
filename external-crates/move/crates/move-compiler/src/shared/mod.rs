@@ -31,8 +31,8 @@ use crate::{
     },
     editions::{check_feature_or_error as edition_check_feature, Edition, FeatureGate, Flavor},
     expansion::ast as E,
-    naming::ast as N,
     iota_mode,
+    naming::ast as N,
     typing::visitor::{TypingVisitor, TypingVisitorObj},
 };
 
