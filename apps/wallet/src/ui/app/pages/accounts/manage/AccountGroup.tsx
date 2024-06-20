@@ -24,11 +24,12 @@ import {
 import { Heading } from '_src/ui/app/shared/heading';
 import { Text } from '_src/ui/app/shared/text';
 import { ButtonOrLink, type ButtonOrLinkProps } from '_src/ui/app/shared/utils/ButtonOrLink';
-import { ArrowBgFill16, Plus12 } from '@iota/icons';
+import { ArrowBgFill16, Plus12, Search16 } from '@iota/icons';
 import * as CollapsiblePrimitive from '@radix-ui/react-collapsible';
 import { useMutation } from '@tanstack/react-query';
 import { forwardRef, useState } from 'react';
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
 const ACCOUNT_TYPE_TO_LABEL: Record<AccountType, string> = {
     'mnemonic-derived': 'Passphrase Derived',
@@ -149,6 +150,7 @@ export function AccountGroup({
     type: AccountType;
     accountSourceID?: string;
 }) {
+    const navigate = useNavigate();
     const createAccountMutation = useCreateAccountsMutation();
     const isMnemonicDerivedGroup = type === 'mnemonic-derived';
     const isSeedDerivedGroup = type === 'seed-derived';
@@ -156,6 +158,23 @@ export function AccountGroup({
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
     const { data: accountSources } = useAccountSources();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceID);
+
+    const handleButtonClick = (action: () => void) => async (e: React.MouseEvent) => {
+        if (!accountSource || (type !== 'mnemonic-derived' && type !== 'seed-derived')) {
+            return;
+        }
+        // prevent the collapsible from closing when clicking the "new" button
+        e.stopPropagation();
+        setAccountsFormValues({
+            type,
+            sourceID: accountSource.id,
+        });
+        if (accountSource.isLocked) {
+            setPasswordModalVisible(true);
+        } else {
+            action();
+        }
+    };
     return (
         <>
             <CollapsiblePrimitive.Root defaultOpen asChild>
@@ -168,28 +187,28 @@ export function AccountGroup({
                             </Heading>
                             <div className="flex h-px flex-1 flex-shrink-0 bg-gray-45" />
                             {(isMnemonicDerivedGroup || isSeedDerivedGroup) && accountSource ? (
-                                <ButtonOrLink
-                                    loading={createAccountMutation.isPending}
-                                    onClick={async (e) => {
-                                        // prevent the collapsible from closing when clicking the "new" button
-                                        e.stopPropagation();
-                                        setAccountsFormValues({
-                                            type,
-                                            sourceID: accountSource.id,
-                                        });
-                                        if (accountSource.isLocked) {
-                                            setPasswordModalVisible(true);
-                                        } else {
-                                            createAccountMutation.mutate({ type });
-                                        }
-                                    }}
-                                    className="flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase text-hero outline-none hover:text-hero-darkest"
-                                >
-                                    <Plus12 />
-                                    <Text variant="bodySmall" weight="semibold">
-                                        New
-                                    </Text>
-                                </ButtonOrLink>
+                                <>
+                                    <ButtonOrLink
+                                        loading={createAccountMutation.isPending}
+                                        onClick={handleButtonClick(() =>
+                                            createAccountMutation.mutate({ type }),
+                                        )}
+                                        className="flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase text-hero outline-none hover:text-hero-darkest"
+                                    >
+                                        <Plus12 />
+                                        <Text variant="bodySmall" weight="semibold">
+                                            New
+                                        </Text>
+                                    </ButtonOrLink>
+                                    <ButtonOrLink
+                                        className="flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase text-hero outline-none hover:text-hero-darkest"
+                                        onClick={handleButtonClick(() =>
+                                            navigate('/accounts/manage/accounts-finder'),
+                                        )}
+                                    >
+                                        <Search16 />
+                                    </ButtonOrLink>
+                                </>
                             ) : null}
                         </div>
                     </CollapsiblePrimitive.Trigger>
