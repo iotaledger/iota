@@ -10,12 +10,12 @@ use crate::{
     diagnostics::{Diagnostic, WarningFilters},
     editions::Flavor,
     expansion::ast::{AbilitySet, Fields, ModuleIdent, Mutability, Visibility},
+    iota_mode::*,
     naming::ast::{
         self as N, BuiltinTypeName_, FunctionSignature, StructFields, Type, TypeName_, Type_, Var,
     },
     parser::ast::{Ability_, FunctionName, StructName},
     shared::{program_info::TypingProgramInfo, CompilationEnv, Identifier},
-    iota_mode::*,
     typing::{
         ast::{self as T, ModuleCall},
         core::{ability_not_satisfied_tips, error_format, error_format_, Subst},

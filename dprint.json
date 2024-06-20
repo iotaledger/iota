@@ -12,7 +12,9 @@
     "examples/trading/api/prisma/migrations/migration_lock.toml",
     "sdk/create-dapp/templates/"
   ],
-  "toml": {},
+  "toml": {
+    "lineWidth": 80
+  },
   "plugins": [
     "https://plugins.dprint.dev/toml-0.6.2.wasm"
   ]

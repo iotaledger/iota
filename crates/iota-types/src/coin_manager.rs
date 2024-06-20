@@ -1,17 +1,15 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::ident_str;
-use move_core_types::identifier::IdentStr;
+use move_core_types::{ident_str, identifier::IdentStr};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     coin::{CoinMetadata, TreasuryCap},
     id::UID,
-    IOTA_FRAMEWORK_ADDRESS,
+    StructTag, IOTA_FRAMEWORK_ADDRESS,
 };
-use crate::StructTag;
 
 pub const COIN_MANAGER_MODULE_NAME: &IdentStr = ident_str!("coin_manager");
 pub const COIN_MANAGER_STRUCT_NAME: &IdentStr = ident_str!("CoinManager");
