@@ -26,7 +26,7 @@ export function AccountsFinderView({ accounts }: AccountsFinderViewProps): JSX.E
         <div className="flex h-full flex-1 flex-col justify-between">
             <div className="flex h-96 flex-col gap-4 overflow-y-auto">
                 {accounts.map((account) => {
-                    return <AccountBalanceItem key={account.id} {...account} />;
+                    return <AccountBalanceItem {...account} />;
                 })}
             </div>
             <div className="flex flex-col gap-2">
