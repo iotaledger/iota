@@ -20,7 +20,7 @@ enum Step {
 
 function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
     const [step, setStep] = useState<Step>(Step.SelectValidator);
-    const [selectedValidator, setSelectedValidator] = useState<string>('');
+    const [selectedValidator, setSelectedValidator] = useState<string | null>(null);
     const [amount, setAmount] = useState<string>('');
     const account = useCurrentAccount();
 
@@ -29,7 +29,7 @@ function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
     const amountWithoutDecimals = parseAmount(amount, coinDecimals);
 
     const { data: newStakeData } = useNewStakeTransaction(
-        selectedValidator,
+        selectedValidator as string,
         amountWithoutDecimals.toString(),
         account?.address ?? '',
     );

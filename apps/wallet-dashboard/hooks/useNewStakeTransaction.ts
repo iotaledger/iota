@@ -8,10 +8,11 @@ import { useQuery } from '@tanstack/react-query';
 export function useNewStakeTransaction(validator: string, amount: string, senderAddress: string) {
     const client = useIotaClient();
     return useQuery({
-        queryKey: ['stake-transaction', validator, amount, senderAddress, client],
+        // eslint-disable-next-line @tanstack/query/exhaustive-deps
+        queryKey: ['stake-transaction', validator, amount, senderAddress],
         queryFn: async () => {
             const transaction = createStakeTransaction(BigInt(amount), validator);
-            transaction?.setSender(senderAddress);
+            transaction.setSender(senderAddress);
             await transaction.build({ client });
             return transaction;
         },
@@ -20,7 +21,7 @@ export function useNewStakeTransaction(validator: string, amount: string, sender
         select: (transaction) => {
             return {
                 transaction,
-                gasBudget: transaction?.blockData.gasConfig.budget,
+                gasBudget: transaction.blockData.gasConfig.budget,
             };
         },
     });
