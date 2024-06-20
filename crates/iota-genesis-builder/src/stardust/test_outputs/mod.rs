@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-mod vesting_schedule_multiple_addresses;
+mod vesting_schedule_iota_airdrop;
 
 use std::{
     fs::{File, OpenOptions},
@@ -31,7 +31,7 @@ pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
     let mut writer = IoPacker::new(BufWriter::new(new_file));
     let parser = FullSnapshotParser::new(current_file)?;
 
-    let new_outputs = vesting_schedule_multiple_addresses::outputs().await?;
+    let new_outputs = vesting_schedule_iota_airdrop::outputs().await?;
 
     // Increments the output count according to newly generated outputs.
     let mut new_header = parser.header.clone();
