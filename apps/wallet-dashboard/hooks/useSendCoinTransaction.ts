@@ -17,6 +17,7 @@ export function useSendCoinTransaction(
     const { data: coinMetadata } = useCoinMetadata();
 
     return useQuery({
+        // eslint-disable-next-line @tanstack/query/exhaustive-deps
         queryKey: [
             'token-transfer-transaction',
             recipientAddress,
@@ -25,7 +26,6 @@ export function useSendCoinTransaction(
             coinMetadata?.decimals,
             senderAddress,
             isPayAllIota,
-            client,
         ],
         queryFn: async () => {
             const transaction = createTokenTransferTransaction({
