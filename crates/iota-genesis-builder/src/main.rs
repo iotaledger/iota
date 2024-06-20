@@ -16,7 +16,6 @@ use iota_genesis_builder::{
     BROTLI_COMPRESSOR_BUFFER_SIZE, BROTLI_COMPRESSOR_LG_WINDOW_SIZE, BROTLI_COMPRESSOR_QUALITY,
     OBJECT_SNAPSHOT_FILE_PATH,
 };
-use iota_types::{gas_coin::GAS, smr_coin::SMR};
 use itertools::Itertools;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
@@ -57,13 +56,13 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     let (snapshot_path, target_network, type_tag) = match cli.snapshot {
         Snapshot::Iota {
-            snapshot_path: path,
+            snapshot_path,
             target_network,
-        } => (path, target_network, CoinTypeTag::Iota),
+        } => (snapshot_path, target_network, CoinTypeTag::Iota),
         Snapshot::Shimmer {
-            snapshot_path: path,
+            snapshot_path,
             target_network,
-        } => (path, target_network, CoinTypeTag::Shimmer),
+        } => (snapshot_path, target_network, CoinTypeTag::Shimmer),
     };
 
     // Start the Hornet snapshot parser
