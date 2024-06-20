@@ -46,7 +46,10 @@ pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
         params.min_pow_score(),
         params.below_max_depth(),
         *params.rent_structure(),
-        params.token_supply() + new_outputs.iter().map(|o| o.1.amount()).sum::<u64>(),
+        params
+            .token_supply()
+            .checked_add(new_outputs.iter().map(|o| o.1.amount()).sum::<u64>())
+            .expect("test total supply overflow"),
     )?;
     if let MilestoneOption::Parameters(params) = &parser.header.parameters_milestone_option {
         new_header.parameters_milestone_option =
