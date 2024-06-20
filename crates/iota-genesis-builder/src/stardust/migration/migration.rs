@@ -70,7 +70,7 @@ pub struct Migration {
     pub(super) output_objects_map: HashMap<OutputId, CreatedObjects>,
     /// The coin type to use in order to migrate outputs. Can be either `Iota`
     /// or `Shimmer`. Is fixed for the entire migration process.
-    type_tag: CoinTypeTag,
+    type_tag: CoinType,
 }
 
 impl Migration {
@@ -80,7 +80,7 @@ impl Migration {
         target_milestone_timestamp_sec: u32,
         total_supply: u64,
         target_network: MigrationTargetNetwork,
-        type_tag: CoinTypeTag,
+        type_tag: CoinType,
     ) -> Result<Self> {
         let executor = Executor::new(
             ProtocolVersion::new(MIGRATION_PROTOCOL_VERSION),
@@ -291,13 +291,13 @@ pub(super) fn create_migration_context(target_network: MigrationTargetNetwork) -
 
 /// The type tag for the outputs used in the migration.
 #[derive(Clone, Debug)]
-pub enum CoinTypeTag {
+pub enum CoinType {
     Iota,
     Shimmer,
 }
 
-impl CoinTypeTag {
-    pub fn get(&self) -> TypeTag {
+impl CoinType {
+    pub fn to_type_tag(&self) -> TypeTag {
         match self {
             Self::Iota => GAS::type_tag(),
             Self::Shimmer => SMR::type_tag(),

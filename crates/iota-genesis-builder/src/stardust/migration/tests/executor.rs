@@ -18,7 +18,7 @@ use iota_types::{
 use crate::stardust::{
     migration::{
         executor::Executor, migration::NATIVE_TOKEN_BAG_KEY_TYPE, tests::random_output_header,
-        CoinTypeTag, MigrationTargetNetwork,
+        CoinType, MigrationTargetNetwork,
     },
     native_token::{
         package_builder,
@@ -52,7 +52,7 @@ fn create_bag_with_pt() {
     let mut executor = Executor::new(
         ProtocolVersion::MAX,
         MigrationTargetNetwork::Mainnet,
-        CoinTypeTag::Iota,
+        CoinType::Iota,
     )
     .unwrap();
     let object_count = executor.store().objects().len();

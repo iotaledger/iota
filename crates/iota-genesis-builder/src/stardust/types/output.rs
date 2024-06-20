@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use super::{snapshot::OutputHeader, stardust_to_iota_address};
-use crate::stardust::migration::CoinTypeTag;
+use crate::stardust::migration::CoinType;
 
 pub const BASIC_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("basic_output");
 pub const BASIC_OUTPUT_STRUCT_NAME: &IdentStr = ident_str!("BasicOutput");
@@ -240,7 +240,7 @@ impl BasicOutput {
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
         version: SequenceNumber,
-        type_tag: &CoinTypeTag,
+        type_tag: &CoinType,
     ) -> Result<Object> {
         create_coin(
             self.id,
@@ -249,7 +249,7 @@ impl BasicOutput {
             tx_context,
             version,
             protocol_config,
-            type_tag.get(),
+            type_tag.to_type_tag(),
         )
     }
 }

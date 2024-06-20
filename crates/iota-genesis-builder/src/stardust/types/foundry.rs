@@ -10,7 +10,7 @@ use iota_types::{
 };
 
 use crate::stardust::{
-    migration::CoinTypeTag,
+    migration::CoinType,
     types::{output::create_coin, stardust_to_iota_address},
 };
 
@@ -20,7 +20,7 @@ pub(crate) fn create_foundry_amount_coin(
     tx_context: &TxContext,
     version: SequenceNumber,
     protocol_config: &ProtocolConfig,
-    type_tag: &CoinTypeTag,
+    type_tag: &CoinType,
 ) -> anyhow::Result<Object> {
     create_coin(
         UID::new(ObjectID::new(output_id.hash())),
@@ -29,6 +29,6 @@ pub(crate) fn create_foundry_amount_coin(
         tx_context,
         version,
         protocol_config,
-        type_tag.get(),
+        type_tag.to_type_tag(),
     )
 }
