@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React from 'react';
-import { Button, UnstakePopup } from '@/components/index';
+import { Button, UnstakePopup } from '@/components';
 import { usePopups } from '@/hooks';
 import { ExtendedDelegatedStake } from '@iota/core';
 

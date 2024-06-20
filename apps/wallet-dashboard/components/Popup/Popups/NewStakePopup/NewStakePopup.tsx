@@ -7,6 +7,7 @@ import { useNotifications, useNewStakeTransaction } from '@/hooks';
 import { parseAmount, useCoinMetadata, useGetValidatorsApy } from '@iota/core';
 import { useCurrentAccount, useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
+import { NotificationType } from '@/stores/notificationStore';
 
 interface NewStakePopupProps {
     onClose: () => void;
@@ -56,9 +57,14 @@ function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
         if (!newStakeData?.transaction) return;
         await signAndExecuteTransactionBlock({
             transactionBlock: newStakeData?.transaction,
-        });
-        onClose();
-        addNotification('Stake transaction has been sent');
+        })
+            .then(() => {
+                onClose();
+                addNotification('Stake transaction has been sent');
+            })
+            .catch(() => {
+                addNotification('Stake transaction was not sent', NotificationType.Error);
+            });
     }
 
     return (
