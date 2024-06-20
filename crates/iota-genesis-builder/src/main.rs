@@ -9,7 +9,7 @@ use std::{fs::File, str::FromStr};
 use iota_genesis_builder::{
     stardust::{
         migration::{Migration, MigrationTargetNetwork},
-        parse::FullSnapshotParser,
+        parse::HornetGenesisSnapshotParser,
     },
     BROTLI_COMPRESSOR_BUFFER_SIZE, BROTLI_COMPRESSOR_LG_WINDOW_SIZE, BROTLI_COMPRESSOR_QUALITY,
     OBJECT_SNAPSHOT_FILE_PATH,
@@ -43,7 +43,7 @@ fn main() -> anyhow::Result<()> {
 
     // Start the Hornet snapshot parser
     let stardust_snapshot_file = File::open(stardust_snapshot_path)?;
-    let parser = FullSnapshotParser::new(stardust_snapshot_file)?;
+    let parser = HornetGenesisSnapshotParser::new(stardust_snapshot_file)?;
 
     // Prepare the migration using the parser output stream
     let migration = Migration::new(
