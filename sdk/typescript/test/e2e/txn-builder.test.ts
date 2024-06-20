@@ -8,6 +8,7 @@ import {
     IotaClient,
     IotaObjectChangeCreated,
     IotaTransactionBlockResponse,
+    OwnedObjectRef,
 } from '../../src/client';
 import type { Keypair } from '../../src/cryptography';
 import { normalizeIotaObjectId, IOTA_SYSTEM_STATE_OBJECT_ID } from '../../src/utils';
@@ -36,12 +37,12 @@ describe('Transaction Builders', () => {
     beforeAll(async () => {
         const packagePath = __dirname + '/./data/serializer';
         ({ packageId, publishTxn } = await publishPackage(packagePath));
-        const sharedObject = (publishTxn.effects?.created)!.filter(
+        const sharedObject = publishTxn.effects?.created!.find(
             (o) =>
                 typeof o.owner === 'object' &&
                 'Shared' in o.owner &&
                 o.owner.Shared.initial_shared_version !== undefined,
-        )[0];
+        ) as OwnedObjectRef;
         sharedObjectId = sharedObject.reference.objectId;
     });
 
@@ -184,12 +185,12 @@ describe('Transaction Builders', () => {
 
             expect(capId).toBeTruthy();
 
-            const sharedObjectId = (publishTxn.effects?.created)!.filter(
+            const sharedObjectId = publishTxn.effects?.created!.find(
                 (o) =>
                     typeof o.owner === 'object' &&
                     'Shared' in o.owner &&
                     o.owner.Shared.initial_shared_version !== undefined,
-            )[0].reference.objectId;
+            )?.reference.objectId as string;
 
             // Step 2. Confirm that its functions work as expected in its
             // first version
