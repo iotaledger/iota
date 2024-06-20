@@ -6,7 +6,10 @@ use std::str::FromStr;
 use iota_sdk::{
     client::secret::{mnemonic::MnemonicSecretManager, SecretManage},
     types::block::{
-        output::{unlock_condition::AddressUnlockCondition, BasicOutputBuilder, Output},
+        output::{
+            unlock_condition::{AddressUnlockCondition, TimelockUnlockCondition},
+            BasicOutputBuilder, Output,
+        },
         payload::transaction::TransactionId,
     },
 };
@@ -37,7 +40,6 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
 
             // TODO add initial unlock
             for offset in (0..=VESTING_WEEKS).step_by(VESTING_WEEKS_FREQUENCY) {
-                println!("{offset}");
                 let output_header = OutputHeader::new_testing(
                     // TODO randomize
                     *TransactionId::from_str(
@@ -51,6 +53,10 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
                 let output = Output::from(
                     BasicOutputBuilder::new_with_amount(1_000_000)
                         .add_unlock_condition(AddressUnlockCondition::new(address))
+                        // TODO add base timestamp
+                        .add_unlock_condition(TimelockUnlockCondition::new(
+                            1 + offset as u32 * 604_800,
+                        )?)
                         .finish()
                         .unwrap(),
                 );
