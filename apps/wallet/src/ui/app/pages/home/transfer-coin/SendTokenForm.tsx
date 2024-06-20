@@ -12,8 +12,8 @@ import Loading from '_components/loading';
 import { parseAmount } from '_helpers';
 import { GAS_SYMBOL } from '_src/ui/app/redux/slices/iota-objects/Coin';
 import { InputWithAction } from '_src/ui/app/shared/InputWithAction';
-import { useGetAllCoins } from '@iota/core/src/hooks/useGetAllCoins';
 import {
+    useGetAllCoins,
     CoinFormat,
     isIotaNSName,
     useCoinMetadata,
