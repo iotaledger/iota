@@ -1277,7 +1277,7 @@ mod tests {
         .await
         .unwrap();
 
-        let amounts = &vec![coin_amount];
+        let amounts = [coin_amount];
 
         // Create a vector containing five randomly generated addresses
         let target_addresses: Vec<IotaAddress> = (0..5)
@@ -1287,7 +1287,7 @@ mod tests {
         let response = futures::future::join_all(
             target_addresses
                 .iter()
-                .map(|address| faucet.batch_send(Uuid::new_v4(), *address, amounts)),
+                .map(|address| faucet.batch_send(Uuid::new_v4(), *address, &amounts)),
         )
         .await
         .into_iter()
@@ -1358,7 +1358,7 @@ mod tests {
         .await
         .unwrap();
 
-        let amounts = &vec![1; 1];
+        let amounts = [1];
         // Create a vector containing five randomly generated addresses
         let target_addresses: Vec<IotaAddress> = (0..5)
             .map(|_| IotaAddress::random_for_testing_only())
@@ -1367,7 +1367,7 @@ mod tests {
         let response = futures::future::join_all(
             target_addresses
                 .iter()
-                .map(|address| faucet.batch_send(Uuid::new_v4(), *address, amounts)),
+                .map(|address| faucet.batch_send(Uuid::new_v4(), *address, &amounts)),
         )
         .await
         .into_iter()
@@ -1612,7 +1612,7 @@ mod tests {
         let candidates = faucet.drain_gas_queue(gases.len() - 1).await;
 
         assert_eq!(discarded, 1);
-        assert!(candidates.get(&tiny_coin_id).is_none());
+        assert!(!candidates.contains(&tiny_coin_id));
     }
 
     #[tokio::test]
