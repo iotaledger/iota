@@ -190,8 +190,8 @@ function NetworkSelectPanel({
                     isCustomNetwork
                         ? NetworkState.Selected
                         : customOpen
-                        ? NetworkState.Pending
-                        : NetworkState.Unselected
+                          ? NetworkState.Pending
+                          : NetworkState.Unselected
                 }
                 onClick={() => setCustomOpen(true)}
             >
