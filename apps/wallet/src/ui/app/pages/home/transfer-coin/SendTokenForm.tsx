@@ -20,7 +20,6 @@ import {
     useCoinMetadata,
     useFormatCoin,
     useIotaNSEnabled,
-    useGetAllCoins,
 } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
 import { ArrowRight16 } from '@iota/icons';
