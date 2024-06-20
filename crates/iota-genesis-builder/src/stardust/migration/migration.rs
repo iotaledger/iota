@@ -15,10 +15,13 @@ use iota_sdk::types::block::output::{FoundryOutput, Output, OutputId};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, TxContext},
     epoch_data::EpochData,
+    gas_coin::GAS,
     object::Object,
+    smr_coin::SMR,
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
     TIMELOCK_PACKAGE_ID,
 };
+use move_core_types::language_storage::TypeTag;
 use tracing::info;
 
 use crate::stardust::{
@@ -65,6 +68,9 @@ pub struct Migration {
     total_supply: u64,
     executor: Executor,
     pub(super) output_objects_map: HashMap<OutputId, CreatedObjects>,
+    /// The coin type to use in order to migrate outputs. Can be either `Iota`
+    /// or `Shimmer`. Is fixed for the entire migration process.
+    coin_type: CoinType,
 }
 
 impl Migration {
@@ -74,16 +80,19 @@ impl Migration {
         target_milestone_timestamp_sec: u32,
         total_supply: u64,
         target_network: MigrationTargetNetwork,
+        coin_type: CoinType,
     ) -> Result<Self> {
         let executor = Executor::new(
             ProtocolVersion::new(MIGRATION_PROTOCOL_VERSION),
             target_network,
+            coin_type.clone(),
         )?;
         Ok(Self {
             target_milestone_timestamp_sec,
             total_supply,
             executor,
             output_objects_map: Default::default(),
+            coin_type,
         })
     }
 
@@ -116,8 +125,6 @@ impl Migration {
         info!("Migrating foundries...");
         self.migrate_foundries(&foundries)?;
         info!("Migrating the rest of outputs...");
-        // TODO: Possibly pass the typeTag argument in the scope of the Shimmer
-        // integration.
         self.migrate_outputs(&outputs)?;
         let outputs = outputs
             .into_iter()
@@ -184,8 +191,14 @@ impl Migration {
     ) -> Result<()> {
         for (header, output) in outputs {
             let created = match output {
-                Output::Alias(alias) => self.executor.create_alias_objects(header, alias)?,
-                Output::Nft(nft) => self.executor.create_nft_objects(header, nft)?,
+                Output::Alias(alias) => {
+                    self.executor
+                        .create_alias_objects(header, alias, &self.coin_type)?
+                }
+                Output::Nft(nft) => {
+                    self.executor
+                        .create_nft_objects(header, nft, &self.coin_type)?
+                }
                 Output::Basic(basic) => {
                     // All timelocked vested rewards(basic outputs with the specific ID format)
                     // should be migrated as TimeLock<Balance<IOTA>> objects.
@@ -204,6 +217,7 @@ impl Migration {
                             header,
                             basic,
                             self.target_milestone_timestamp_sec,
+                            &self.coin_type,
                         )?
                     }
                 }
@@ -273,4 +287,20 @@ pub(super) fn create_migration_context(target_network: MigrationTargetNetwork) -
         &target_network.migration_transaction_digest(),
         &EpochData::new_genesis(0),
     )
+}
+
+/// The type tag for the outputs used in the migration.
+#[derive(Clone, Debug)]
+pub enum CoinType {
+    Iota,
+    Shimmer,
+}
+
+impl CoinType {
+    pub fn to_type_tag(&self) -> TypeTag {
+        match self {
+            Self::Iota => GAS::type_tag(),
+            Self::Shimmer => SMR::type_tag(),
+        }
+    }
 }

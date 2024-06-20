@@ -25,7 +25,6 @@ use iota_types::{
     collection_types::Bag,
     dynamic_field::Field,
     execution_mode,
-    gas_coin::GAS,
     id::UID,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
@@ -47,10 +46,11 @@ use crate::{
     stardust::{
         migration::{
             create_migration_context, package_module_bytes,
-            verification::created_objects::CreatedObjects, MigrationTargetNetwork, PACKAGE_DEPS,
+            verification::created_objects::CreatedObjects, CoinType, MigrationTargetNetwork,
+            PACKAGE_DEPS,
         },
         types::{
-            foundry::create_foundry_gas_coin, snapshot::OutputHeader, stardust_to_iota_address,
+            foundry::create_foundry_amount_coin, snapshot::OutputHeader, stardust_to_iota_address,
             stardust_to_iota_address_owner, timelock, token_scheme::SimpleTokenSchemeU64, Nft,
         },
     },
@@ -72,6 +72,9 @@ pub(super) struct Executor {
     /// Map the stardust token id [`TokenId`] to the on-chain info of the
     /// published foundry objects.
     native_tokens: HashMap<TokenId, FoundryLedgerData>,
+    /// The coin type to use in order to migrate outputs. Can be either `Iota`
+    /// or `Shimmer`. Is fixed for the entire migration process.
+    coin_type: CoinType,
 }
 
 impl Executor {
@@ -80,6 +83,7 @@ impl Executor {
     pub(super) fn new(
         protocol_version: ProtocolVersion,
         target_network: MigrationTargetNetwork,
+        coin_type: CoinType,
     ) -> Result<Self> {
         let mut tx_context = create_migration_context(target_network);
         // Use a throwaway metrics registry for transaction execution.
@@ -121,6 +125,7 @@ impl Executor {
             move_vm,
             metrics,
             native_tokens: Default::default(),
+            coin_type,
         })
     }
 
@@ -266,16 +271,17 @@ impl Executor {
                 ),
             );
 
-            // Create the foundry gas coin object.
-            let gas_coin = create_foundry_gas_coin(
+            // Create the amount coin object.
+            let amount_coin = create_foundry_amount_coin(
                 &header.output_id(),
                 foundry,
                 &self.tx_context,
                 foundry_package.version(),
                 &self.protocol_config,
+                &self.coin_type,
             )?;
-            created_objects.set_gas_coin(gas_coin.id())?;
-            self.store.insert_object(gas_coin);
+            created_objects.set_coin(amount_coin.id())?;
+            self.store.insert_object(amount_coin);
 
             self.store.finish(
                 written
@@ -293,6 +299,7 @@ impl Executor {
         &mut self,
         header: &OutputHeader,
         alias: &AliasOutput,
+        coin_type: &CoinType,
     ) -> Result<CreatedObjects> {
         let mut created_objects = CreatedObjects::default();
 
@@ -333,7 +340,7 @@ impl Executor {
             &self.protocol_config,
             &self.tx_context,
             version,
-            GAS::type_tag(),
+            coin_type,
         )?;
         let move_alias_output_object_ref = move_alias_output_object.compute_object_reference();
 
@@ -353,7 +360,7 @@ impl Executor {
                 STARDUST_PACKAGE_ID,
                 ident_str!("alias_output").into(),
                 ident_str!("attach_alias").into(),
-                vec![GAS::type_tag()],
+                vec![coin_type.to_type_tag()],
                 vec![alias_output_arg, alias_arg],
             );
 
@@ -541,6 +548,7 @@ impl Executor {
         header: &OutputHeader,
         basic_output: &BasicOutput,
         target_milestone_timestamp_sec: u32,
+        coin_type: &CoinType,
     ) -> Result<CreatedObjects> {
         let mut basic =
             crate::stardust::types::output::BasicOutput::new(header.clone(), basic_output)?;
@@ -556,14 +564,15 @@ impl Executor {
                 let coins = self.create_native_token_coins(basic_output.native_tokens(), owner)?;
                 created_objects.set_native_tokens(coins)?;
             }
-            let gas_coin = basic.into_genesis_coin_object(
+            let amount_coin = basic.into_genesis_coin_object(
                 owner,
                 &self.protocol_config,
                 &self.tx_context,
                 version,
+                coin_type,
             )?;
-            created_objects.set_gas_coin(gas_coin.id())?;
-            gas_coin
+            created_objects.set_coin(amount_coin.id())?;
+            amount_coin
         } else {
             if !basic_output.native_tokens().is_empty() {
                 let fields;
@@ -582,7 +591,7 @@ impl Executor {
                 &self.protocol_config,
                 &self.tx_context,
                 version,
-                GAS::type_tag(),
+                coin_type,
             )?;
             created_objects.set_output(object.id())?;
             object
@@ -629,6 +638,7 @@ impl Executor {
         &mut self,
         header: &OutputHeader,
         nft: &NftOutput,
+        coin_type: &CoinType,
     ) -> Result<CreatedObjects> {
         let mut created_objects = CreatedObjects::default();
 
@@ -668,7 +678,7 @@ impl Executor {
             &self.protocol_config,
             &self.tx_context,
             version,
-            GAS::type_tag(),
+            coin_type.clone(),
         )?;
         let move_nft_output_object_ref = move_nft_output_object.compute_object_reference();
         created_objects.set_output(move_nft_output_object.id())?;
@@ -686,7 +696,7 @@ impl Executor {
                 STARDUST_PACKAGE_ID,
                 ident_str!("nft_output").into(),
                 ident_str!("attach_nft").into(),
-                vec![GAS::type_tag()],
+                vec![coin_type.to_type_tag()],
                 vec![nft_output_arg, nft_arg],
             );
 
