@@ -1,6 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+pub use checked::*;
 use move_core_types::{
     annotated_value::MoveStructLayout,
     ident_str,
@@ -9,24 +10,20 @@ use move_core_types::{
 };
 use serde::{Deserialize, Serialize};
 
-pub use checked::*;
-
 use crate::{
     balance::Balance,
-    base_types::{ SequenceNumber},
-    IOTA_FRAMEWORK_ADDRESS,
+    base_types::{MoveObjectType, ObjectID, SequenceNumber},
+    coin::Coin,
+    id::UID,
     object::MoveObject,
+    IOTA_FRAMEWORK_ADDRESS,
 };
-use crate::base_types::{MoveObjectType, ObjectID};
-use crate::coin::Coin;
-use crate::id::UID;
 
 pub const SMR_MODULE_NAME: &IdentStr = ident_str!("smr");
 pub const SMR_STRUCT_NAME: &IdentStr = ident_str!("SMR");
 
 #[iota_macros::with_checked_arithmetic]
 mod checked {
-
 
     use super::*;
 
@@ -97,7 +94,12 @@ mod checked {
         }
 
         pub fn to_object(&self, version: SequenceNumber) -> MoveObject {
-            MoveObject::new_coin(MoveObjectType::from(SmrCoin::type_()), version, *self.id(), self.value())
+            MoveObject::new_coin(
+                MoveObjectType::from(SmrCoin::type_()),
+                version,
+                *self.id(),
+                self.value(),
+            )
         }
 
         pub fn layout() -> MoveStructLayout {
