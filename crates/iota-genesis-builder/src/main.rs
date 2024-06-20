@@ -10,7 +10,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use iota_genesis_builder::{
     stardust::{
-        migration::{Migration, MigrationTargetNetwork},
+        migration::{CoinTypeTag, Migration, MigrationTargetNetwork},
         parse::FullSnapshotParser,
     },
     BROTLI_COMPRESSOR_BUFFER_SIZE, BROTLI_COMPRESSOR_LG_WINDOW_SIZE, BROTLI_COMPRESSOR_QUALITY,
@@ -59,11 +59,11 @@ fn main() -> Result<()> {
         Snapshot::Iota {
             snapshot_path: path,
             target_network,
-        } => (path, target_network, GAS::type_tag()),
+        } => (path, target_network, CoinTypeTag::Iota),
         Snapshot::Shimmer {
             snapshot_path: path,
             target_network,
-        } => (path, target_network, SMR::type_tag()),
+        } => (path, target_network, CoinTypeTag::Shimmer),
     };
 
     // Start the Hornet snapshot parser

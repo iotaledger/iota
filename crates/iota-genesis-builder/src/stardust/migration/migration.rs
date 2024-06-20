@@ -15,7 +15,9 @@ use iota_sdk::types::block::output::{FoundryOutput, Output, OutputId};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, TxContext},
     epoch_data::EpochData,
+    gas_coin::GAS,
     object::Object,
+    smr_coin::SMR,
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
     TIMELOCK_PACKAGE_ID,
 };
@@ -66,7 +68,9 @@ pub struct Migration {
     total_supply: u64,
     executor: Executor,
     pub(super) output_objects_map: HashMap<OutputId, CreatedObjects>,
-    type_tag: TypeTag,
+    /// The coin type to use in order to migrate outputs. Can be either `Iota`
+    /// or `Shimmer`. Is fixed for the entire migration process.
+    type_tag: CoinTypeTag,
 }
 
 impl Migration {
@@ -76,7 +80,7 @@ impl Migration {
         target_milestone_timestamp_sec: u32,
         total_supply: u64,
         target_network: MigrationTargetNetwork,
-        type_tag: TypeTag,
+        type_tag: CoinTypeTag,
     ) -> Result<Self> {
         let executor = Executor::new(
             ProtocolVersion::new(MIGRATION_PROTOCOL_VERSION),
@@ -283,4 +287,20 @@ pub(super) fn create_migration_context(target_network: MigrationTargetNetwork) -
         &target_network.migration_transaction_digest(),
         &EpochData::new_genesis(0),
     )
+}
+
+/// The type tag for the outputs used in the migration.
+#[derive(Clone, Debug)]
+pub enum CoinTypeTag {
+    Iota,
+    Shimmer,
+}
+
+impl CoinTypeTag {
+    pub fn get(&self) -> TypeTag {
+        match self {
+            Self::Iota => GAS::type_tag(),
+            Self::Shimmer => SMR::type_tag(),
+        }
+    }
 }

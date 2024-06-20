@@ -60,9 +60,9 @@ mod tests {
     };
 
     use super::*;
-    use crate::stardust::types::timelock::to_genesis_object;
+    use crate::stardust::{migration::CoinTypeTag, types::timelock::to_genesis_object};
 
-    fn nft_output(balance: u64, type_tag: TypeTag) -> anyhow::Result<Object> {
+    fn nft_output(balance: u64, type_tag: CoinTypeTag) -> anyhow::Result<Object> {
         let id = UID::new(ObjectID::random());
         let balance = Balance::new(balance);
         let output = NftOutput {
@@ -84,19 +84,19 @@ mod tests {
 
     #[test]
     fn is_coin_kind_nft_output() {
-        let object = nft_output(100, GAS::type_tag()).unwrap();
+        let object = nft_output(100, CoinTypeTag::Iota).unwrap();
         assert!(is_gas_coin_kind(&object));
     }
 
     #[test]
     fn get_gas_balance_nft_output() {
         let value = 100;
-        let object = nft_output(value, GAS::type_tag()).unwrap();
+        let object = nft_output(value, CoinTypeTag::Iota).unwrap();
         let gas_coin_balance = get_gas_balance_maybe(&object).unwrap();
         assert_eq!(gas_coin_balance.value(), value);
     }
 
-    fn alias_output(balance: u64, type_tag: TypeTag) -> anyhow::Result<Object> {
+    fn alias_output(balance: u64, type_tag: CoinTypeTag) -> anyhow::Result<Object> {
         let id = UID::new(ObjectID::random());
         let balance = Balance::new(balance);
         let output = AliasOutput {
@@ -115,14 +115,14 @@ mod tests {
 
     #[test]
     fn is_coin_kind_alias_output() {
-        let object = alias_output(100, GAS::type_tag()).unwrap();
+        let object = alias_output(100, CoinTypeTag::Iota).unwrap();
         assert!(is_gas_coin_kind(&object));
     }
 
     #[test]
     fn get_gas_balance_alias_output() {
         let value = 100;
-        let object = alias_output(value, GAS::type_tag()).unwrap();
+        let object = alias_output(value, CoinTypeTag::Iota).unwrap();
         let gas_coin_balance = get_gas_balance_maybe(&object).unwrap();
         assert_eq!(gas_coin_balance.value(), value);
     }

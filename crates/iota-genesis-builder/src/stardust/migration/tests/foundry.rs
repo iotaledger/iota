@@ -21,7 +21,10 @@ use iota_types::{
 use move_core_types::language_storage::TypeTag;
 
 use crate::stardust::{
-    migration::tests::{create_foundry, run_migration},
+    migration::{
+        tests::{create_foundry, run_migration},
+        CoinTypeTag,
+    },
     types::{snapshot::OutputHeader, stardust_to_iota_address, stardust_to_iota_address_owner},
 };
 
@@ -34,7 +37,7 @@ type CoinManagerTreasuryCapObject = Object;
 fn migrate_foundry(
     header: OutputHeader,
     foundry: FoundryOutput,
-    type_tag: TypeTag,
+    type_tag: CoinTypeTag,
 ) -> Result<(
     PackageObject,
     CoinObject,
@@ -130,7 +133,7 @@ fn foundry_with_simple_metadata() -> Result<()> {
         coin_manager_object,
         coin_manager_treasury_cap_object,
         coin_metadata,
-    ) = migrate_foundry(header, foundry, GAS::type_tag())?;
+    ) = migrate_foundry(header, foundry, CoinTypeTag::Iota)?;
 
     // Check the package object.
     let type_origin_table = package_object
@@ -219,7 +222,7 @@ fn foundry_with_special_metadata() -> Result<()> {
         coin_manager_object,
         coin_manager_treasury_cap_object,
         coin_metadata,
-    ) = migrate_foundry(header, foundry, GAS::type_tag())?;
+    ) = migrate_foundry(header, foundry, CoinTypeTag::Iota)?;
 
     // Check the package object.
     let type_origin_table = package_object
@@ -305,7 +308,7 @@ fn coin_ownership() -> Result<()> {
         coin_manager_object,
         coin_manager_treasury_cap_object,
         _coin_metadata_object,
-    ) = migrate_foundry(header, foundry, GAS::type_tag())?;
+    ) = migrate_foundry(header, foundry, CoinTypeTag::Iota)?;
 
     // Check the owner of the coin object.
     assert_eq!(
@@ -358,7 +361,7 @@ fn create_gas_coin() -> Result<()> {
         _coin_manager_object,
         _coin_manager_treasury_cap_object,
         _coin_metadata_object,
-    ) = migrate_foundry(foundry_header, foundry_output, GAS::type_tag())?;
+    ) = migrate_foundry(foundry_header, foundry_output, CoinTypeTag::Iota)?;
 
     // Downcast the gas coin object to get the coin.
     let coin = gas_coin_object.as_coin_maybe().unwrap();
@@ -404,7 +407,7 @@ fn create_smr_coin() -> Result<()> {
         _coin_manager_object,
         _coin_manager_treasury_cap_object,
         _coin_metadata_object,
-    ) = migrate_foundry(foundry_header, foundry_output, SMR::type_tag())?;
+    ) = migrate_foundry(foundry_header, foundry_output, CoinTypeTag::Shimmer)?;
 
     // Downcast the smr coin object to get the coin.
     let coin = smr_coin_object.to_rust::<SmrCoin>().unwrap();

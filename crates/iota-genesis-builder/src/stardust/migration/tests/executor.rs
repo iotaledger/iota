@@ -12,14 +12,13 @@ use iota_sdk::types::block::{
 use iota_types::{
     balance::Balance,
     dynamic_field::{derive_dynamic_field_id, Field},
-    gas_coin::GAS,
     object::Owner,
 };
 
 use crate::stardust::{
     migration::{
         executor::Executor, migration::NATIVE_TOKEN_BAG_KEY_TYPE, tests::random_output_header,
-        MigrationTargetNetwork,
+        CoinTypeTag, MigrationTargetNetwork,
     },
     native_token::{
         package_builder,
@@ -53,7 +52,7 @@ fn create_bag_with_pt() {
     let mut executor = Executor::new(
         ProtocolVersion::MAX,
         MigrationTargetNetwork::Mainnet,
-        GAS::type_tag(),
+        CoinTypeTag::Iota,
     )
     .unwrap();
     let object_count = executor.store().objects().len();

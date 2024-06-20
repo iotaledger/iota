@@ -46,7 +46,8 @@ use crate::{
     stardust::{
         migration::{
             create_migration_context, package_module_bytes,
-            verification::created_objects::CreatedObjects, MigrationTargetNetwork, PACKAGE_DEPS,
+            verification::created_objects::CreatedObjects, CoinTypeTag, MigrationTargetNetwork,
+            PACKAGE_DEPS,
         },
         types::{
             foundry::create_foundry_amount_coin, snapshot::OutputHeader, stardust_to_iota_address,
@@ -71,7 +72,9 @@ pub(super) struct Executor {
     /// Map the stardust token id [`TokenId`] to the on-chain info of the
     /// published foundry objects.
     native_tokens: HashMap<TokenId, FoundryLedgerData>,
-    type_tag: TypeTag,
+    /// The coin type to use in order to migrate outputs. Can be either `Iota`
+    /// or `Shimmer`. Is fixed for the entire migration process.
+    type_tag: CoinTypeTag,
 }
 
 impl Executor {
@@ -80,7 +83,7 @@ impl Executor {
     pub(super) fn new(
         protocol_version: ProtocolVersion,
         target_network: MigrationTargetNetwork,
-        type_tag: TypeTag,
+        type_tag: CoinTypeTag,
     ) -> Result<Self> {
         let mut tx_context = create_migration_context(target_network);
         // Use a throwaway metrics registry for transaction execution.
@@ -296,7 +299,7 @@ impl Executor {
         &mut self,
         header: &OutputHeader,
         alias: &AliasOutput,
-        type_tag: &TypeTag,
+        type_tag: &CoinTypeTag,
     ) -> Result<CreatedObjects> {
         let mut created_objects = CreatedObjects::default();
 
@@ -357,7 +360,7 @@ impl Executor {
                 STARDUST_PACKAGE_ID,
                 ident_str!("alias_output").into(),
                 ident_str!("attach_alias").into(),
-                vec![type_tag.clone()],
+                vec![type_tag.get()],
                 vec![alias_output_arg, alias_arg],
             );
 
@@ -545,7 +548,7 @@ impl Executor {
         header: &OutputHeader,
         basic_output: &BasicOutput,
         target_milestone_timestamp_sec: u32,
-        type_tag: &TypeTag,
+        type_tag: &CoinTypeTag,
     ) -> Result<CreatedObjects> {
         let mut basic =
             crate::stardust::types::output::BasicOutput::new(header.clone(), basic_output)?;
@@ -588,7 +591,7 @@ impl Executor {
                 &self.protocol_config,
                 &self.tx_context,
                 version,
-                type_tag.clone(),
+                type_tag.get(),
             )?;
             created_objects.set_output(object.id())?;
             object
@@ -635,7 +638,7 @@ impl Executor {
         &mut self,
         header: &OutputHeader,
         nft: &NftOutput,
-        type_tag: &TypeTag,
+        type_tag: &CoinTypeTag,
     ) -> Result<CreatedObjects> {
         let mut created_objects = CreatedObjects::default();
 
@@ -693,7 +696,7 @@ impl Executor {
                 STARDUST_PACKAGE_ID,
                 ident_str!("nft_output").into(),
                 ident_str!("attach_nft").into(),
-                vec![type_tag.clone()],
+                vec![type_tag.get()],
                 vec![nft_output_arg, nft_arg],
             );
 

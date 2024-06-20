@@ -35,7 +35,7 @@ use crate::stardust::{
             Migration, MIGRATION_PROTOCOL_VERSION, NATIVE_TOKEN_BAG_KEY_TYPE, PACKAGE_DEPS,
         },
         verification::created_objects::CreatedObjects,
-        MigrationTargetNetwork,
+        CoinTypeTag, MigrationTargetNetwork,
     },
     types::snapshot::OutputHeader,
 };
@@ -58,7 +58,7 @@ fn random_output_header() -> OutputHeader {
 fn run_migration(
     total_supply: u64,
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
-    type_tag: TypeTag,
+    type_tag: CoinTypeTag,
 ) -> anyhow::Result<(Executor, HashMap<OutputId, CreatedObjects>)> {
     let mut migration = Migration::new(1, total_supply, MigrationTargetNetwork::Mainnet, type_tag)?;
     migration.run_migration(outputs)?;
@@ -98,7 +98,7 @@ fn object_migration_with_object_owner(
     output_owner_module_name: &IdentStr,
     output_owned_module_name: &IdentStr,
     unlock_condition_function: &IdentStr,
-    type_tag: TypeTag,
+    type_tag: CoinTypeTag,
 ) -> anyhow::Result<()> {
     let (mut executor, objects_map) = run_migration(total_supply, outputs, type_tag.clone())?;
 
@@ -129,7 +129,7 @@ fn object_migration_with_object_owner(
             STARDUST_PACKAGE_ID,
             output_owner_module_name.into(),
             ident_str!("extract_assets").into(),
-            vec![type_tag.clone()],
+            vec![type_tag.get()],
             vec![owner_arg],
         );
 
@@ -145,7 +145,7 @@ fn object_migration_with_object_owner(
             STARDUST_PACKAGE_ID,
             ident_str!("address_unlock_condition").into(),
             unlock_condition_function.into(),
-            vec![type_tag.clone()],
+            vec![type_tag.get()],
             vec![owned_arg, receiving_owned_arg],
         );
 
@@ -178,7 +178,7 @@ fn object_migration_with_object_owner(
             STARDUST_PACKAGE_ID,
             output_owned_module_name.into(),
             ident_str!("extract_assets").into(),
-            vec![type_tag],
+            vec![type_tag.get()],
             vec![received_owned_output],
         );
         let Argument::Result(result_idx) = extracted_assets else {
@@ -238,7 +238,7 @@ fn extract_native_token_from_bag(
     module_name: &IdentStr,
     native_token: NativeToken,
     expected_assets: ExpectedAssets,
-    type_tag: TypeTag,
+    type_tag: CoinTypeTag,
 ) -> anyhow::Result<()> {
     let native_token_id: &TokenId = native_token.token_id();
 
@@ -271,7 +271,7 @@ fn extract_native_token_from_bag(
             STARDUST_PACKAGE_ID,
             module_name.into(),
             ident_str!("extract_assets").into(),
-            vec![type_tag.clone()],
+            vec![type_tag.get()],
             vec![inner_object_arg],
         );
 
@@ -291,7 +291,7 @@ fn extract_native_token_from_bag(
             IOTA_FRAMEWORK_PACKAGE_ID,
             ident_str!("coin").into(),
             ident_str!("from_balance").into(),
-            vec![type_tag],
+            vec![type_tag.get()],
             vec![balance_arg],
         );
 
@@ -393,7 +393,7 @@ fn unlock_object(
     epoch_start_timestamp_ms: u64,
     expected_test_result: UnlockObjectTestResult,
     expected_assets: ExpectedAssets,
-    type_tag: TypeTag,
+    type_tag: CoinTypeTag,
 ) -> anyhow::Result<()> {
     let (migration_executor, objects_map) = run_migration(total_supply, outputs, type_tag.clone())?;
 
@@ -443,7 +443,7 @@ fn unlock_object(
             STARDUST_PACKAGE_ID,
             module_name.into(),
             ident_str!("extract_assets").into(),
-            vec![type_tag.clone()],
+            vec![type_tag.get()],
             vec![inner_object_arg],
         );
 
@@ -457,7 +457,7 @@ fn unlock_object(
             IOTA_FRAMEWORK_PACKAGE_ID,
             ident_str!("coin").into(),
             ident_str!("from_balance").into(),
-            vec![type_tag],
+            vec![type_tag.get()],
             vec![balance_arg],
         );
 

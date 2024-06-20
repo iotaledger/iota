@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use super::stardust_to_iota_address;
+use crate::stardust::migration::CoinTypeTag;
 
 pub const ALIAS_MODULE_NAME: &IdentStr = ident_str!("alias");
 pub const ALIAS_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("alias_output");
@@ -184,14 +185,14 @@ impl AliasOutput {
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
         version: SequenceNumber,
-        type_param: &TypeTag,
+        type_param: &CoinTypeTag,
     ) -> anyhow::Result<Object> {
         // Construct the Alias Output object.
         let move_alias_output_object = unsafe {
             // Safety: we know from the definition of `AliasOutput` in the stardust package
             // that it does not have public transfer (`store` ability is absent).
             MoveObject::new_from_execution(
-                AliasOutput::tag(type_param.clone()).into(),
+                AliasOutput::tag(type_param.get()).into(),
                 false,
                 version,
                 bcs::to_bytes(&self)?,

@@ -21,7 +21,6 @@ use iota_sdk::{
 use iota_types::{
     base_types::ObjectID,
     dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo},
-    gas_coin::GAS,
     id::UID,
     object::{Object, Owner},
     TypeTag,
@@ -29,9 +28,12 @@ use iota_types::{
 use move_core_types::ident_str;
 
 use crate::stardust::{
-    migration::tests::{
-        create_foundry, extract_native_token_from_bag, object_migration_with_object_owner,
-        random_output_header, run_migration, ExpectedAssets,
+    migration::{
+        tests::{
+            create_foundry, extract_native_token_from_bag, object_migration_with_object_owner,
+            random_output_header, run_migration, ExpectedAssets,
+        },
+        CoinTypeTag,
     },
     types::{
         snapshot::OutputHeader, stardust_to_iota_address, Alias, AliasOutput,
@@ -43,7 +45,7 @@ use crate::stardust::{
 fn migrate_alias(
     header: OutputHeader,
     stardust_alias: StardustAlias,
-    type_tag: TypeTag,
+    type_tag: CoinTypeTag,
 ) -> anyhow::Result<(ObjectID, Alias, AliasOutput, Object, Object)> {
     let output_id = header.output_id();
     let alias_id: AliasId = stardust_alias
@@ -77,7 +79,7 @@ fn migrate_alias(
         .unwrap();
     assert_eq!(
         alias_output_object.struct_tag().unwrap(),
-        AliasOutput::tag(type_tag)
+        AliasOutput::tag(type_tag.get())
     );
 
     // Version is set to 1 when the alias is created based on the computed lamport
@@ -131,7 +133,7 @@ fn alias_migration_with_full_features() {
         .unwrap();
 
     let (alias_object_id, alias, alias_output, alias_object, alias_output_object) =
-        migrate_alias(header, stardust_alias.clone(), GAS::type_tag()).unwrap();
+        migrate_alias(header, stardust_alias.clone(), CoinTypeTag::Iota).unwrap();
     let expected_alias = Alias::try_from_stardust(alias_object_id, &stardust_alias).unwrap();
 
     // The bag is tested separately.
@@ -180,7 +182,7 @@ fn alias_migration_with_zeroed_id() {
 
     // If this function does not panic, then the created aliases
     // were found at the correct non-zeroed Alias ID.
-    migrate_alias(header, stardust_alias, GAS::type_tag()).unwrap();
+    migrate_alias(header, stardust_alias, CoinTypeTag::Iota).unwrap();
 }
 
 /// Test that an Alias owned by another Alias can be received by the owning
@@ -224,7 +226,7 @@ fn alias_migration_with_alias_owner() {
         ALIAS_OUTPUT_MODULE_NAME,
         ALIAS_OUTPUT_MODULE_NAME,
         ident_str!("unlock_alias_address_owned_alias"),
-        GAS::type_tag(),
+        CoinTypeTag::Iota,
     )
     .unwrap();
 }
@@ -263,7 +265,7 @@ fn alias_migration_with_nft_owner() {
         NFT_OUTPUT_MODULE_NAME,
         ALIAS_OUTPUT_MODULE_NAME,
         ident_str!("unlock_nft_address_owned_alias"),
-        GAS::type_tag(),
+        CoinTypeTag::Iota,
     )
     .unwrap();
 }
@@ -302,7 +304,7 @@ fn alias_migration_with_native_tokens() {
         ALIAS_OUTPUT_MODULE_NAME,
         native_token,
         ExpectedAssets::BalanceBagObject,
-        GAS::type_tag(),
+        CoinTypeTag::Iota,
     )
     .unwrap();
 }

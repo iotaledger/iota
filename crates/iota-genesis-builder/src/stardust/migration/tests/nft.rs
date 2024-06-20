@@ -29,7 +29,6 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID},
     collection_types::VecMap,
     dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo},
-    gas_coin::GAS,
     id::UID,
     object::{Object, Owner},
     TypeTag,
@@ -37,9 +36,13 @@ use iota_types::{
 use move_core_types::ident_str;
 
 use crate::stardust::{
-    migration::tests::{
-        create_foundry, extract_native_token_from_bag, object_migration_with_object_owner,
-        random_output_header, run_migration, unlock_object, ExpectedAssets, UnlockObjectTestResult,
+    migration::{
+        tests::{
+            create_foundry, extract_native_token_from_bag, object_migration_with_object_owner,
+            random_output_header, run_migration, unlock_object, ExpectedAssets,
+            UnlockObjectTestResult,
+        },
+        CoinTypeTag,
     },
     types::{
         snapshot::OutputHeader, stardust_to_iota_address, FixedPoint32, Irc27Metadata, Nft,
@@ -51,7 +54,7 @@ use crate::stardust::{
 fn migrate_nft(
     header: OutputHeader,
     stardust_nft: StardustNft,
-    type_tag: TypeTag,
+    type_tag: CoinTypeTag,
 ) -> anyhow::Result<(ObjectID, Nft, NftOutput, Object, Object)> {
     let output_id = header.output_id();
     let nft_id: NftId = stardust_nft
@@ -92,7 +95,7 @@ fn migrate_nft(
         nft_output_object
             .struct_tag()
             .ok_or_else(|| anyhow!("missing struct tag on output nft object"))?,
-        NftOutput::tag(type_tag)
+        NftOutput::tag(type_tag.get())
     );
 
     // Version is set to 1 when the nft is created based on the computed lamport
@@ -154,7 +157,7 @@ fn nft_migration_with_full_features() {
         .unwrap();
 
     let (nft_object_id, nft, nft_output, nft_object, nft_output_object) =
-        migrate_nft(header, stardust_nft.clone(), GAS::type_tag()).unwrap();
+        migrate_nft(header, stardust_nft.clone(), CoinTypeTag::Iota).unwrap();
     let expected_nft = Nft::try_from_stardust(nft_object_id, &stardust_nft).unwrap();
 
     // The bag is tested separately.
@@ -205,7 +208,7 @@ fn nft_migration_with_zeroed_id() {
 
     // If this function does not panic, then the created NFTs
     // were found at the correct non-zeroed Nft ID.
-    migrate_nft(header, stardust_nft, GAS::type_tag()).unwrap();
+    migrate_nft(header, stardust_nft, CoinTypeTag::Iota).unwrap();
 }
 
 #[test]
@@ -239,7 +242,7 @@ fn nft_migration_with_alias_owner() {
         ALIAS_OUTPUT_MODULE_NAME,
         NFT_OUTPUT_MODULE_NAME,
         ident_str!("unlock_alias_address_owned_nft"),
-        GAS::type_tag(),
+        CoinTypeTag::Iota,
     )
     .unwrap();
 }
@@ -274,7 +277,7 @@ fn nft_migration_with_nft_owner() {
         NFT_OUTPUT_MODULE_NAME,
         NFT_OUTPUT_MODULE_NAME,
         ident_str!("unlock_nft_address_owned_nft"),
-        GAS::type_tag(),
+        CoinTypeTag::Iota,
     )
     .unwrap();
 }
@@ -311,7 +314,7 @@ fn nft_migration_with_native_tokens() {
         NFT_OUTPUT_MODULE_NAME,
         native_token,
         ExpectedAssets::BalanceBagObject,
-        GAS::type_tag(),
+        CoinTypeTag::Iota,
     )
     .unwrap();
 }
@@ -353,7 +356,7 @@ fn nft_migration_with_valid_irc27_metadata() {
         .finish()
         .unwrap();
 
-    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone(), GAS::type_tag()).unwrap();
+    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone(), CoinTypeTag::Iota).unwrap();
 
     let immutable_metadata = nft.immutable_metadata;
     assert_eq!(&immutable_metadata.media_type, metadata.media_type());
@@ -429,7 +432,7 @@ fn nft_migration_with_invalid_irc27_metadata() {
         .finish()
         .unwrap();
 
-    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone(), GAS::type_tag()).unwrap();
+    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone(), CoinTypeTag::Iota).unwrap();
 
     let mut immutable_metadata = nft.immutable_metadata;
     let mut non_standard_fields = VecMap { contents: vec![] };
@@ -474,7 +477,7 @@ fn nft_migration_with_non_json_metadata() {
         .finish()
         .unwrap();
 
-    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone(), GAS::type_tag()).unwrap();
+    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone(), CoinTypeTag::Iota).unwrap();
 
     let mut immutable_metadata = nft.immutable_metadata;
     let mut non_standard_fields = VecMap { contents: vec![] };
@@ -514,7 +517,7 @@ fn nft_migration_without_metadata() {
         .finish()
         .unwrap();
 
-    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone(), GAS::type_tag()).unwrap();
+    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone(), CoinTypeTag::Iota).unwrap();
     let immutable_metadata = nft.immutable_metadata;
 
     assert_eq!(immutable_metadata.non_standard_fields.contents.len(), 0);
@@ -550,7 +553,7 @@ fn nft_migration_with_timelock_unlocked() {
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::Success,
         ExpectedAssets::BalanceBagObject,
-        GAS::type_tag(),
+        CoinTypeTag::Iota,
     )
     .unwrap();
 }
@@ -581,7 +584,7 @@ fn nft_migration_with_timelock_still_locked() {
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::ERROR_TIMELOCK_NOT_EXPIRED_FAILURE,
         ExpectedAssets::BalanceBagObject,
-        GAS::type_tag(),
+        CoinTypeTag::Iota,
     )
     .unwrap();
 }
@@ -620,7 +623,7 @@ fn nft_migration_with_expired_unlock_condition() {
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::ERROR_WRONG_SENDER_FAILURE,
         ExpectedAssets::BalanceBagObject,
-        GAS::type_tag(),
+        CoinTypeTag::Iota,
     )
     .unwrap();
 
@@ -634,7 +637,7 @@ fn nft_migration_with_expired_unlock_condition() {
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::Success,
         ExpectedAssets::BalanceBagObject,
-        GAS::type_tag(),
+        CoinTypeTag::Iota,
     )
     .unwrap();
 }
@@ -673,7 +676,7 @@ fn nft_migration_with_unexpired_unlock_condition() {
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::ERROR_WRONG_SENDER_FAILURE,
         ExpectedAssets::BalanceBagObject,
-        GAS::type_tag(),
+        CoinTypeTag::Iota,
     )
     .unwrap();
 
@@ -687,7 +690,7 @@ fn nft_migration_with_unexpired_unlock_condition() {
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::Success,
         ExpectedAssets::BalanceBagObject,
-        GAS::type_tag(),
+        CoinTypeTag::Iota,
     )
     .unwrap();
 }
@@ -720,7 +723,7 @@ fn nft_migration_with_storage_deposit_return_unlock_condition() {
         0,
         UnlockObjectTestResult::Success,
         ExpectedAssets::BalanceBagObject,
-        GAS::type_tag(),
+        CoinTypeTag::Iota,
     )
     .unwrap();
 }
