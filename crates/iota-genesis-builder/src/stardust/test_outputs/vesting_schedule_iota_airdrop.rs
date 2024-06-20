@@ -1,6 +1,12 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! IOTA airdrop vesting schedule scenario.
+//! 2-years, initial unlock, bi-weekly unlock.
+//! One mnemonic, multi accounts, multi addresses.
+//! Some addresses have initial unlock, some don't.
+//! Some addresses have expired/unexpired timelocked outputs, some only have unexpired.
+
 use std::{str::FromStr, time::SystemTime};
 
 use iota_sdk::{
