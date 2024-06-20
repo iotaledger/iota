@@ -16,9 +16,7 @@ function EverythingElsePage(): JSX.Element {
     const { data } = useGetNFTs(account?.address);
     const nonVisualAssets = data?.other ?? [];
 
-    const virtualItem = (asset: IotaObjectData): JSX.Element => (
-        <AssetCard key={asset.objectId} asset={asset} />
-    );
+    const virtualItem = (asset: IotaObjectData): JSX.Element => <AssetCard asset={asset} />;
 
     const handleClick = (objectId: string) => {
         router.push(`/dashboard/assets/everything-else/${objectId}`);
