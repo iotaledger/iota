@@ -185,14 +185,14 @@ impl AliasOutput {
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
         version: SequenceNumber,
-        type_param: &CoinType,
+        coin_type: &CoinType,
     ) -> anyhow::Result<Object> {
         // Construct the Alias Output object.
         let move_alias_output_object = unsafe {
             // Safety: we know from the definition of `AliasOutput` in the stardust package
             // that it does not have public transfer (`store` ability is absent).
             MoveObject::new_from_execution(
-                AliasOutput::tag(type_param.to_type_tag()).into(),
+                AliasOutput::tag(coin_type.to_type_tag()).into(),
                 false,
                 version,
                 bcs::to_bytes(&self)?,

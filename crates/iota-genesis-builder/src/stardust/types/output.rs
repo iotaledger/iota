@@ -206,13 +206,13 @@ impl BasicOutput {
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
         version: SequenceNumber,
-        type_param: TypeTag,
+        coin_type: &CoinType,
     ) -> Result<Object> {
         let move_object = unsafe {
             // Safety: we know from the definition of `BasicOutput` in the stardust package
             // that it is not publicly transferable (`store` ability is absent).
             MoveObject::new_from_execution(
-                BasicOutput::tag(type_param).into(),
+                BasicOutput::tag(coin_type.to_type_tag()).into(),
                 false,
                 version,
                 bcs::to_bytes(self)?,
@@ -240,7 +240,7 @@ impl BasicOutput {
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
         version: SequenceNumber,
-        type_tag: &CoinType,
+        coin_type: &CoinType,
     ) -> Result<Object> {
         create_coin(
             self.id,
@@ -249,7 +249,7 @@ impl BasicOutput {
             tx_context,
             version,
             protocol_config,
-            type_tag.to_type_tag(),
+            coin_type,
         )
     }
 }
@@ -261,14 +261,14 @@ pub(crate) fn create_coin(
     tx_context: &TxContext,
     version: SequenceNumber,
     protocol_config: &ProtocolConfig,
-    type_tag: TypeTag,
+    coin_type: &CoinType,
 ) -> Result<Object> {
     let coin = Coin::new(object_id, amount);
     let move_object = unsafe {
         // Safety: we know from the definition of `Coin`
         // that it has public transfer (`store` ability is present).
         MoveObject::new_from_execution(
-            MoveObjectType::from(Coin::type_(type_tag)),
+            MoveObjectType::from(Coin::type_(coin_type.to_type_tag())),
             true,
             version,
             bcs::to_bytes(&coin)?,

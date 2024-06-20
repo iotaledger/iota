@@ -20,7 +20,7 @@ pub(crate) fn create_foundry_amount_coin(
     tx_context: &TxContext,
     version: SequenceNumber,
     protocol_config: &ProtocolConfig,
-    type_tag: &CoinType,
+    coin_type: &CoinType,
 ) -> anyhow::Result<Object> {
     create_coin(
         UID::new(ObjectID::new(output_id.hash())),
@@ -29,6 +29,6 @@ pub(crate) fn create_foundry_amount_coin(
         tx_context,
         version,
         protocol_config,
-        type_tag.to_type_tag(),
+        coin_type,
     )
 }

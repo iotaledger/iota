@@ -591,7 +591,7 @@ impl Executor {
                 &self.protocol_config,
                 &self.tx_context,
                 version,
-                coin_type.to_type_tag(),
+                coin_type,
             )?;
             created_objects.set_output(object.id())?;
             object

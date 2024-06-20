@@ -54,7 +54,7 @@ fn main() -> Result<()> {
 
     // Parse the CLI arguments
     let cli = Cli::parse();
-    let (snapshot_path, target_network, type_tag) = match cli.snapshot {
+    let (snapshot_path, target_network, coin_type) = match cli.snapshot {
         Snapshot::Iota {
             snapshot_path,
             target_network,
@@ -73,7 +73,7 @@ fn main() -> Result<()> {
         snapshot_parser.target_milestone_timestamp(),
         snapshot_parser.total_supply()?,
         target_network,
-        type_tag,
+        coin_type,
     )?;
 
     // Prepare the compressor writer for the objects snapshot
