@@ -18,7 +18,7 @@ const ACCOUNTS: u32 = 10;
 const ADDRESSES_PER_ACCOUNT: u32 = 10;
 const COIN_TYPE: u32 = 4218;
 const VESTING_WEEKS: usize = 104;
-const VESTING_FREQUENCY: usize = 2;
+const VESTING_WEEKS_FREQUENCY: usize = 2;
 
 pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let mut outputs = Vec::new();
@@ -35,8 +35,11 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
                 )
                 .await?[0];
 
-            for _ in 0..(VESTING_WEEKS / VESTING_FREQUENCY) {
+            // TODO add initial unlock
+            for offset in (0..=VESTING_WEEKS).step_by(VESTING_WEEKS_FREQUENCY) {
+                println!("{offset}");
                 let output_header = OutputHeader::new_testing(
+                    // TODO randomize
                     *TransactionId::from_str(
                         "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb1812345678",
                     )
