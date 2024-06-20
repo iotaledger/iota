@@ -49,8 +49,6 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
                 )
                 .await?[0];
 
-            println!("{} {}", address_index % 3, address_index % 5);
-
             // The modulos 3 and 5 are chosen because they create a pattern of all possible combinations of having an initial unlock and having expired timelock outputs.
 
             if address_index % 3 != 0 {
@@ -95,8 +93,6 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
             }
         }
     }
-
-    println!("{}", outputs.len());
 
     Ok(outputs)
 }
