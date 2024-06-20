@@ -13,9 +13,10 @@ use move_compiler::{
     command_line::compiler::move_check_for_errors,
     diagnostics::*,
     editions::{Edition, Flavor},
+    iota_mode,
     linters::{self, LintLevel},
     shared::{Flags, NumericalAddress, PackageConfig, PackagePaths},
-    iota_mode, Compiler, PASS_PARSER,
+    Compiler, PASS_PARSER,
 };
 
 /// Shared flag to keep any temporary results of the test

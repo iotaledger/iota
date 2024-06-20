@@ -1,31 +1,41 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 'use client';
 
-import { AmountBox, Box, List, NewStakePopup, StakeDetailsPopup, Button } from '@/components';
+import { AmountBox, Box, StakeCard, NewStakePopup, StakeDetailsPopup, Button } from '@/components';
 import { usePopups } from '@/hooks';
+import {
+    ExtendedDelegatedStake,
+    formatDelegatedStake,
+    useFormatCoin,
+    useGetDelegatedStake,
+    useTotalDelegatedRewards,
+    useTotalDelegatedStake,
+} from '@iota/core';
+import { useCurrentAccount } from '@iota/dapp-kit';
+import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 
 function StakingDashboardPage(): JSX.Element {
+    const account = useCurrentAccount();
     const { openPopup, closePopup } = usePopups();
+    const { data: delegatedStakeData } = useGetDelegatedStake({
+        address: account?.address || '',
+    });
 
-    const HARCODED_STAKE_DATA = {
-        title: 'Your Stake',
-        value: '100 IOTA',
-    };
-    const HARCODED_REWARDS_DATA = {
-        title: 'Earned',
-        value: '0.297 IOTA',
-    };
-    const HARCODED_STAKING_LIST_TITLE = 'List of stakes';
-    const HARCODED_STAKING_LIST = [
-        { id: '0', validator: 'Validator 1', stake: '50 IOTA', rewards: '0.15 IOTA' },
-        { id: '1', validator: 'Validator 2', stake: '30 IOTA', rewards: '0.09 IOTA' },
-        { id: '2', validator: 'Validator 3', stake: '20 IOTA', rewards: '0.06 IOTA' },
-    ];
+    const delegatedStakes = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
+    const totalDelegatedStake = useTotalDelegatedStake(delegatedStakes);
+    const totalDelegatedRewards = useTotalDelegatedRewards(delegatedStakes);
+    const [formattedDelegatedStake, stakeSymbol, stakeResult] = useFormatCoin(
+        totalDelegatedStake,
+        IOTA_TYPE_ARG,
+    );
+    const [formattedDelegatedRewards, rewardsSymbol, rewardsResult] = useFormatCoin(
+        totalDelegatedRewards,
+        IOTA_TYPE_ARG,
+    );
 
-    // Use `Stake` when https://github.com/iotaledger/iota/pull/459 gets merged
-    // @ts-expect-error TODO improve typing here
-    const viewStakeDetails = (stake) => {
+    const viewStakeDetails = (stake: ExtendedDelegatedStake) => {
         openPopup(<StakeDetailsPopup stake={stake} />);
     };
 
@@ -35,22 +45,29 @@ function StakingDashboardPage(): JSX.Element {
 
     return (
         <div className="flex flex-col items-center justify-center gap-4 pt-12">
+            <AmountBox
+                title="Currently staked"
+                amount={stakeResult.isPending ? '-' : `${formattedDelegatedStake} ${stakeSymbol}`}
+            />
+            <AmountBox
+                title="Earned"
+                amount={`${
+                    rewardsResult.isPending ? '-' : formattedDelegatedRewards
+                } ${rewardsSymbol}`}
+            />
+            <Box title="Stakes">
+                <div className="flex flex-col items-center gap-4">
+                    <h1>List of stakes</h1>
+                    {delegatedStakes?.map((stake) => (
+                        <StakeCard
+                            key={stake.stakedIotaId}
+                            stake={stake}
+                            onDetailsClick={viewStakeDetails}
+                        />
+                    ))}
+                </div>
+            </Box>
             <Button onClick={addNewStake}>New Stake</Button>
-            <div className="flex items-center justify-center gap-4">
-                {' '}
-                <AmountBox title={HARCODED_STAKE_DATA.title} amount={HARCODED_STAKE_DATA.value} />
-                <AmountBox
-                    title={HARCODED_REWARDS_DATA.title}
-                    amount={HARCODED_REWARDS_DATA.value}
-                />
-                <Box title={HARCODED_STAKING_LIST_TITLE}>
-                    <List
-                        data={HARCODED_STAKING_LIST}
-                        onItemClick={viewStakeDetails}
-                        actionText="View Details"
-                    />
-                </Box>
-            </div>
         </div>
     );
 }
