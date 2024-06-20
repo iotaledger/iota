@@ -53,7 +53,7 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
 
             // The modulos 3 and 5 are chosen because they create a pattern of all possible combinations of having an initial unlock and having expired timelock outputs.
 
-            if address_index % 3 == 0 {
+            if address_index % 3 != 0 {
                 let output_header = OutputHeader::new_testing(
                     *TransactionId::from(rand::random::<[u8; 32]>()),
                     0,
