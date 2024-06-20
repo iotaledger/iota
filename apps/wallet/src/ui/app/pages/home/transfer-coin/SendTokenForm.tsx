@@ -9,7 +9,6 @@ import { Text } from '_app/shared/text';
 import { AddressInput } from '_components/address-input';
 import Alert from '_components/alert';
 import Loading from '_components/loading';
-import { parseAmount } from '_helpers';
 import { GAS_SYMBOL } from '_src/ui/app/redux/slices/iota-objects/Coin';
 import { InputWithAction } from '_src/ui/app/shared/InputWithAction';
 import {
@@ -20,6 +19,7 @@ import {
     useCoinMetadata,
     useFormatCoin,
     useIotaNSEnabled,
+    parseAmount,
 } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
 import { ArrowRight16 } from '@iota/icons';
