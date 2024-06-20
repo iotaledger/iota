@@ -7,13 +7,13 @@ use std::{
 };
 
 use anyhow::Result;
-use iota_adapter_v2::{
+use iota_adapter_v0::{
     adapter::new_move_vm, gas_charger::GasCharger, programmable_transactions,
     temporary_store::TemporaryStore,
 };
 use iota_framework::BuiltInFramework;
 use iota_move_build::CompiledPackage;
-use iota_move_natives_v2::all_natives;
+use iota_move_natives_v0::all_natives;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::types::block::output::{
     AliasOutput, BasicOutput, FoundryOutput, NativeTokens, NftOutput, OutputId, TokenId,
@@ -45,7 +45,7 @@ use iota_types::{
     TypeTag, IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID,
 };
 use move_core_types::{ident_str, language_storage::StructTag};
-use move_vm_runtime_v2::move_vm::MoveVM;
+use move_vm_runtime_v0::move_vm::MoveVM;
 
 use crate::{
     process_package,

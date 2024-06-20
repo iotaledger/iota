@@ -15,17 +15,16 @@
 //! 4. Passed to a function cal::;
 use std::{collections::BTreeMap, error::Error, num::NonZeroU64};
 
-#[cfg(msim)]
 use iota_types::{
-    authenticator_state::AUTHENTICATOR_STATE_MODULE_NAME, coin::COIN_MODULE_NAME,
-    randomness_state::RANDOMNESS_MODULE_NAME,
-};
-use iota_types::{
+    authenticator_state::AUTHENTICATOR_STATE_MODULE_NAME,
+    bridge::BRIDGE_MODULE_NAME,
     clock::CLOCK_MODULE_NAME,
+    deny_list::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
     error::{ExecutionError, VMMVerifierErrorSubStatusCode},
     id::OBJECT_MODULE_NAME,
     iota_system_state::IOTA_SYSTEM_MODULE_NAME,
-    IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
+    randomness_state::RANDOMNESS_MODULE_NAME,
+    BRIDGE_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
 };
 use move_abstract_stack::AbstractStack;
 use move_binary_format::{
@@ -84,42 +83,32 @@ const IOTA_CLOCK_CREATE: FunctionIdent = (
     CLOCK_MODULE_NAME,
     ident_str!("create"),
 );
-
-// Note: the authenticator/randomness objects should never exist when v0
-// execution is being used. However, object_deletion_tests.rs forcibly sets the
-// execution version to 0, so we need to handle this case. Since that test only
-// runs in the simulator we can special case it with cfg(msim) so that we don't
-// risk breaking release builds.
-#[cfg(msim)]
 const IOTA_AUTHENTICATOR_STATE_CREATE: FunctionIdent = (
     &IOTA_FRAMEWORK_ADDRESS,
     AUTHENTICATOR_STATE_MODULE_NAME,
     ident_str!("create"),
 );
-#[cfg(msim)]
 const IOTA_RANDOMNESS_STATE_CREATE: FunctionIdent = (
     &IOTA_FRAMEWORK_ADDRESS,
     RANDOMNESS_MODULE_NAME,
     ident_str!("create"),
 );
-#[cfg(msim)]
-const IOTA_DENY_LIST_OBJECT_CREATE: FunctionIdent = (
+const IOTA_DENY_LIST_CREATE: FunctionIdent = (
     &IOTA_FRAMEWORK_ADDRESS,
-    COIN_MODULE_NAME,
-    ident_str!("create_deny_list_object"),
+    DENY_LIST_MODULE,
+    DENY_LIST_CREATE_FUNC,
 );
 
+const IOTA_BRIDGE_CREATE: FunctionIdent =
+    (&BRIDGE_ADDRESS, BRIDGE_MODULE_NAME, ident_str!("create"));
 const FRESH_ID_FUNCTIONS: &[FunctionIdent] = &[OBJECT_NEW, OBJECT_NEW_UID_FROM_HASH, TS_NEW_OBJECT];
-#[cfg(not(msim))]
-const FUNCTIONS_TO_SKIP: &[FunctionIdent] = &[IOTA_SYSTEM_CREATE, IOTA_CLOCK_CREATE];
-
-#[cfg(msim)]
 const FUNCTIONS_TO_SKIP: &[FunctionIdent] = &[
     IOTA_SYSTEM_CREATE,
     IOTA_CLOCK_CREATE,
     IOTA_AUTHENTICATOR_STATE_CREATE,
     IOTA_RANDOMNESS_STATE_CREATE,
-    IOTA_DENY_LIST_OBJECT_CREATE,
+    IOTA_DENY_LIST_CREATE,
+    IOTA_BRIDGE_CREATE,
 ];
 
 impl AbstractValue {
