@@ -11,7 +11,7 @@ interface ReviewValuesFormProps {
     error: string | undefined;
     isPending: boolean;
     executeTransfer: () => void;
-    handleBack: () => void;
+    onBack: () => void;
 }
 
 function ReviewValuesFormView({
@@ -21,7 +21,7 @@ function ReviewValuesFormView({
     error,
     isPending,
     executeTransfer,
-    handleBack,
+    onBack,
 }: ReviewValuesFormProps): JSX.Element {
     return (
         <div className="flex flex-col gap-4">
@@ -34,7 +34,7 @@ function ReviewValuesFormView({
             </div>
             {error ? <span className="text-red-700">{error}</span> : null}
             <div className="mt-4 flex justify-around">
-                <Button onClick={handleBack}>Back</Button>
+                <Button onClick={onBack}>Back</Button>
                 {isPending ? (
                     <Button disabled>Loading...</Button>
                 ) : (

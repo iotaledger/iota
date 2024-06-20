@@ -57,11 +57,11 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
             .catch(() => {}); // Avoid unhandled exceptions but handle error with hook
     };
 
-    const handleNext = () => {
+    const onNext = () => {
         setStep(FormStep.ReviewValues);
     };
 
-    const handleBack = () => {
+    const onBack = () => {
         setStep(FormStep.EnterValues);
     };
 
@@ -71,7 +71,7 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
                 <EnterValuesFormView
                     coin={coin}
                     onClose={onClose}
-                    handleNext={handleNext}
+                    onNext={onNext}
                     formData={formData}
                     gasBudget={sendCoinData?.gasBudget?.toString() || '--'}
                     setFormData={setFormData}
@@ -80,7 +80,7 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
             {step === FormStep.ReviewValues && (
                 <ReviewValuesFormView
                     formData={formData}
-                    handleBack={handleBack}
+                    onBack={onBack}
                     executeTransfer={handleTransfer}
                     senderAddress={senderAddress}
                     gasBudget={sendCoinData?.gasBudget?.toString() || '--'}
