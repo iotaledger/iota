@@ -17,7 +17,7 @@ on the Clippy repository. We make use of a cargo alias (defined in
 .cargo/config) which sets some project-wide lints. To run the linter locally
 you can use the following command:
 ```
-cargo xclippy
+cargo ci-clippy
 ```
 
 ## Run the formatter
