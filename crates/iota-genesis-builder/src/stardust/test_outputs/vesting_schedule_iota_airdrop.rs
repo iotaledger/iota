@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::str::FromStr;
+use std::{str::FromStr, time::SystemTime};
 
 use iota_sdk::{
     client::secret::{mnemonic::MnemonicSecretManager, SecretManage},
@@ -25,6 +25,9 @@ const VESTING_WEEKS_FREQUENCY: usize = 2;
 const MERGE_TIMESTAMP_SECS: u32 = 1696406475;
 
 pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
+    let now = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)?
+        .as_secs() as u32;
     let mut outputs = Vec::new();
     let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
 
@@ -61,28 +64,30 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
                 outputs.push((output_header, output));
             }
 
-            // TODO add initial unlock
             for offset in (0..=VESTING_WEEKS).step_by(VESTING_WEEKS_FREQUENCY) {
                 let timelock = MERGE_TIMESTAMP_SECS + offset as u32 * 604_800;
-                let output_header = OutputHeader::new_testing(
-                    // TODO randomize
-                    *TransactionId::from_str(
-                        "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb1812345678",
-                    )
-                    .unwrap(),
-                    rand::random(),
-                    rand::random(),
-                    rand::random(),
-                );
-                let output = Output::from(
-                    BasicOutputBuilder::new_with_amount(1_000_000)
-                        .add_unlock_condition(AddressUnlockCondition::new(address))
-                        .add_unlock_condition(TimelockUnlockCondition::new(timelock)?)
-                        .finish()
-                        .unwrap(),
-                );
 
-                outputs.push((output_header, output));
+                if address_index % 3 == 0 && timelock > now {
+                    let output_header = OutputHeader::new_testing(
+                        // TODO randomize
+                        *TransactionId::from_str(
+                            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb1812345678",
+                        )
+                        .unwrap(),
+                        rand::random(),
+                        rand::random(),
+                        rand::random(),
+                    );
+                    let output = Output::from(
+                        BasicOutputBuilder::new_with_amount(1_000_000)
+                            .add_unlock_condition(AddressUnlockCondition::new(address))
+                            .add_unlock_condition(TimelockUnlockCondition::new(timelock)?)
+                            .finish()
+                            .unwrap(),
+                    );
+
+                    outputs.push((output_header, output));
+                }
             }
         }
     }
