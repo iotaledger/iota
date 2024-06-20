@@ -6556,6 +6556,7 @@ dependencies = [
  "bigdecimal",
  "brotli 6.0.0",
  "camino",
+ "clap",
  "fastcrypto",
  "fs_extra",
  "hex",
