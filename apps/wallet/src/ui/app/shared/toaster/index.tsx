@@ -14,7 +14,7 @@ import { Portal } from '../Portal';
 export type ToasterProps = {
     bottomNavEnabled?: boolean;
 };
-const commonToastClasses =
+const COMMON_TOAST_CLASSES =
     '!px-0 !py-1 !text-pBodySmall !font-medium !rounded-2lg !shadow-notification';
 export function Toaster({ bottomNavEnabled = false }: ToasterProps) {
     const { pathname } = useLocation();
@@ -35,15 +35,15 @@ export function Toaster({ bottomNavEnabled = false }: ToasterProps) {
                 toastOptions={{
                     loading: {
                         icon: null,
-                        className: `${commonToastClasses} !bg-steel !text-white`,
+                        className: `${COMMON_TOAST_CLASSES} !bg-steel !text-white`,
                     },
                     error: {
                         icon: null,
-                        className: `${commonToastClasses} !border !border-solid !border-issue-dark/20 !bg-issue-light !text-issue-dark`,
+                        className: `${COMMON_TOAST_CLASSES} !border !border-solid !border-issue-dark/20 !bg-issue-light !text-issue-dark`,
                     },
                     success: {
                         icon: null,
-                        className: `${commonToastClasses} !border !border-solid !border-success-dark/20 !bg-success-light !text-success-dark`,
+                        className: `${COMMON_TOAST_CLASSES} !border !border-solid !border-success-dark/20 !bg-success-light !text-success-dark`,
                     },
                 }}
             />

@@ -12,8 +12,8 @@ import Loading from '_components/loading';
 import { parseAmount } from '_helpers';
 import { GAS_SYMBOL } from '_src/ui/app/redux/slices/iota-objects/Coin';
 import { InputWithAction } from '_src/ui/app/shared/InputWithAction';
-import { useGetAllCoins } from '@iota/core/src/hooks/useGetAllCoins';
 import {
+    useGetAllCoins,
     CoinFormat,
     isIotaNSName,
     useCoinMetadata,
@@ -31,14 +31,14 @@ import { useEffect, useMemo } from 'react';
 import { createTokenTransferTransaction } from './utils/transaction';
 import { createValidationSchemaStepOne } from './validation';
 
-const initialValues = {
+const INITIAL_VALUES = {
     to: '',
     amount: '',
     isPayAllIota: false,
     gasBudgetEst: '',
 };
 
-export type FormValues = typeof initialValues;
+export type FormValues = typeof INITIAL_VALUES;
 
 export type SubmitProps = {
     to: string;

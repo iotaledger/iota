@@ -23,10 +23,10 @@ use crate::{
         detect_dead_code::program as detect_dead_code_analysis,
     },
     ice,
+    iota_mode::ID_FIELD_NAME,
     naming::ast as N,
     parser::ast::{Ability_, BinOp, BinOp_, ConstantName, Field, FunctionName, StructName},
     shared::{process_binops, unique_map::UniqueMap, *},
-    iota_mode::ID_FIELD_NAME,
     typing::ast as T,
     FullyCompiledProgram,
 };

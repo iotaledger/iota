@@ -9,10 +9,14 @@ import {
     DELEGATED_STAKES_QUERY_STALE_TIME,
 } from '_src/shared/constants';
 import { Text } from '_src/ui/app/shared/text';
-import { useFormatCoin, useGetDelegatedStake } from '@iota/core';
+import {
+    formatDelegatedStake,
+    useFormatCoin,
+    useGetDelegatedStake,
+    useTotalDelegatedStake,
+} from '@iota/core';
 import { WalletActionStake24 } from '@iota/icons';
 import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
-import { useMemo } from 'react';
 
 export function TokenIconLink({
     accountAddress,
@@ -28,41 +32,37 @@ export function TokenIconLink({
     });
 
     // Total active stake for all delegations
-    const totalActivePendingStake = useMemo(() => {
-        if (!delegatedStake) return 0n;
-        return delegatedStake.reduce(
-            (acc, curr) =>
-                curr.stakes.reduce((total, { principal }) => total + BigInt(principal), acc),
-            0n,
-        );
-    }, [delegatedStake]);
-
-    const [formatted, symbol, queryResult] = useFormatCoin(totalActivePendingStake, IOTA_TYPE_ARG);
+    const delegatedStakes = delegatedStake ? formatDelegatedStake(delegatedStake) : [];
+    const totalDelegatedStake = useTotalDelegatedStake(delegatedStakes);
+    const [formattedDelegatedStake, symbol, queryResultStake] = useFormatCoin(
+        totalDelegatedStake,
+        IOTA_TYPE_ARG,
+    );
 
     return (
         <LargeButton
             to="/stake"
             spacing="sm"
-            center={!totalActivePendingStake}
+            center={!totalDelegatedStake}
             disabled={disabled}
             onClick={() => {
                 ampli.clickedStakeIota({
-                    isCurrentlyStaking: totalActivePendingStake > 0,
+                    isCurrentlyStaking: totalDelegatedStake > 0,
                     sourceFlow: 'Home page',
                 });
             }}
-            loading={isPending || queryResult.isPending}
+            loading={isPending || queryResultStake.isPending}
             before={<WalletActionStake24 />}
-            data-testid={`stake-button-${formatted}-${symbol}`}
+            data-testid={`stake-button-${formattedDelegatedStake}-${symbol}`}
         >
             <div className="flex flex-col">
                 <Text variant="pBody" weight="semibold">
-                    {totalActivePendingStake ? 'Currently Staked' : 'Stake and Earn IOTA'}
+                    {totalDelegatedStake ? 'Currently Staked' : 'Stake and Earn IOTA'}
                 </Text>
 
-                {!!totalActivePendingStake && (
+                {!!totalDelegatedStake && (
                     <Text variant="pBody" weight="semibold">
-                        {formatted} {symbol}
+                        {formattedDelegatedStake} {symbol}
                     </Text>
                 )}
             </div>

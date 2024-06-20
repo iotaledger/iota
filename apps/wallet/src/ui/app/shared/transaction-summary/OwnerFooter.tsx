@@ -19,10 +19,10 @@ export function OwnerFooter({ owner, ownerType }: { owner?: string; ownerType?: 
         ownerType === 'Shared'
             ? 'Shared'
             : isValidIotaAddress(owner)
-            ? isOwner
-                ? 'You'
-                : formatAddress(owner)
-            : owner;
+              ? isOwner
+                  ? 'You'
+                  : formatAddress(owner)
+              : owner;
 
     return (
         <SummaryCardFooter>
