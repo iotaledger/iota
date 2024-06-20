@@ -11,8 +11,8 @@ import Alert from '_components/alert';
 import Loading from '_components/loading';
 import { GAS_SYMBOL } from '_src/ui/app/redux/slices/iota-objects/Coin';
 import { InputWithAction } from '_src/ui/app/shared/InputWithAction';
-import { useGetAllCoins } from '@iota/core/src/hooks/useGetAllCoins';
 import {
+    useGetAllCoins,
     CoinFormat,
     isIotaNSName,
     parseAmount,
