@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useGetAllCoins } from '@iota/core/src/hooks/useGetAllCoins';
+import { useGetAllCoins } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import { SendCoinButton } from '@/components/index';
