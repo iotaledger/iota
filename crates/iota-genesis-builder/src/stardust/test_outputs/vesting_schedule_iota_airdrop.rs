@@ -7,7 +7,7 @@
 //! Some addresses have initial unlock, some don't.
 //! Some addresses have expired/unexpired timelocked outputs, some only have unexpired.
 
-use std::{str::FromStr, time::SystemTime};
+use std::time::SystemTime;
 
 use iota_sdk::{
     client::secret::{mnemonic::MnemonicSecretManager, SecretManage},
@@ -52,11 +52,7 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
             // Add an initial unlock to one out of two addresses.
             if address_index % 2 == 0 {
                 let output_header = OutputHeader::new_testing(
-                    // TODO randomize
-                    *TransactionId::from_str(
-                        "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb1812345678",
-                    )
-                    .unwrap(),
+                    *TransactionId::from(rand::random::<[u8; 32]>()),
                     0,
                     [0; 32],
                     MERGE_MILESTONE_INDEX,
@@ -77,11 +73,7 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
 
                 if address_index % 3 == 0 && timelock > now {
                     let output_header = OutputHeader::new_testing(
-                        // TODO randomize
-                        *TransactionId::from_str(
-                            "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb1812345678",
-                        )
-                        .unwrap(),
+                        *TransactionId::from(rand::random::<[u8; 32]>()),
                         0,
                         [0; 32],
                         MERGE_MILESTONE_INDEX,
