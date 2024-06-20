@@ -45,7 +45,7 @@ use crate::stardust::{
 fn migrate_alias(
     header: OutputHeader,
     stardust_alias: StardustAlias,
-    type_tag: CoinType,
+    coin_type: CoinType,
 ) -> anyhow::Result<(ObjectID, Alias, AliasOutput, Object, Object)> {
     let output_id = header.output_id();
     let alias_id: AliasId = stardust_alias
@@ -56,7 +56,7 @@ fn migrate_alias(
     let (executor, objects_map) = run_migration(
         stardust_alias.amount(),
         [(header, stardust_alias.into())],
-        type_tag.clone(),
+        coin_type.clone(),
     )?;
 
     // Ensure the migrated objects exist under the expected identifiers.
@@ -79,7 +79,7 @@ fn migrate_alias(
         .unwrap();
     assert_eq!(
         alias_output_object.struct_tag().unwrap(),
-        AliasOutput::tag(type_tag.to_type_tag())
+        AliasOutput::tag(coin_type.to_type_tag())
     );
 
     // Version is set to 1 when the alias is created based on the computed lamport

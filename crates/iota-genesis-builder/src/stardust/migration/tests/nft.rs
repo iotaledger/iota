@@ -54,7 +54,7 @@ use crate::stardust::{
 fn migrate_nft(
     header: OutputHeader,
     stardust_nft: StardustNft,
-    type_tag: CoinType,
+    coin_type: CoinType,
 ) -> anyhow::Result<(ObjectID, Nft, NftOutput, Object, Object)> {
     let output_id = header.output_id();
     let nft_id: NftId = stardust_nft
@@ -65,7 +65,7 @@ fn migrate_nft(
     let (executor, objects_map) = run_migration(
         stardust_nft.amount(),
         [(header, stardust_nft.into())],
-        type_tag.clone(),
+        coin_type.clone(),
     )?;
 
     // Ensure the migrated objects exist under the expected identifiers.
@@ -95,7 +95,7 @@ fn migrate_nft(
         nft_output_object
             .struct_tag()
             .ok_or_else(|| anyhow!("missing struct tag on output nft object"))?,
-        NftOutput::tag(type_tag.to_type_tag())
+        NftOutput::tag(coin_type.to_type_tag())
     );
 
     // Version is set to 1 when the nft is created based on the computed lamport

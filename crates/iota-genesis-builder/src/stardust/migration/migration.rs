@@ -70,7 +70,7 @@ pub struct Migration {
     pub(super) output_objects_map: HashMap<OutputId, CreatedObjects>,
     /// The coin type to use in order to migrate outputs. Can be either `Iota`
     /// or `Shimmer`. Is fixed for the entire migration process.
-    type_tag: CoinType,
+    coin_type: CoinType,
 }
 
 impl Migration {
@@ -80,19 +80,19 @@ impl Migration {
         target_milestone_timestamp_sec: u32,
         total_supply: u64,
         target_network: MigrationTargetNetwork,
-        type_tag: CoinType,
+        coin_type: CoinType,
     ) -> Result<Self> {
         let executor = Executor::new(
             ProtocolVersion::new(MIGRATION_PROTOCOL_VERSION),
             target_network,
-            type_tag.clone(),
+            coin_type.clone(),
         )?;
         Ok(Self {
             target_milestone_timestamp_sec,
             total_supply,
             executor,
             output_objects_map: Default::default(),
-            type_tag,
+            coin_type,
         })
     }
 
@@ -193,11 +193,11 @@ impl Migration {
             let created = match output {
                 Output::Alias(alias) => {
                     self.executor
-                        .create_alias_objects(header, alias, &self.type_tag)?
+                        .create_alias_objects(header, alias, &self.coin_type)?
                 }
                 Output::Nft(nft) => {
                     self.executor
-                        .create_nft_objects(header, nft, &self.type_tag)?
+                        .create_nft_objects(header, nft, &self.coin_type)?
                 }
                 Output::Basic(basic) => {
                     // All timelocked vested rewards(basic outputs with the specific ID format)
@@ -217,7 +217,7 @@ impl Migration {
                             header,
                             basic,
                             self.target_milestone_timestamp_sec,
-                            &self.type_tag,
+                            &self.coin_type,
                         )?
                     }
                 }

@@ -74,7 +74,7 @@ pub(super) struct Executor {
     native_tokens: HashMap<TokenId, FoundryLedgerData>,
     /// The coin type to use in order to migrate outputs. Can be either `Iota`
     /// or `Shimmer`. Is fixed for the entire migration process.
-    type_tag: CoinType,
+    coin_type: CoinType,
 }
 
 impl Executor {
@@ -83,7 +83,7 @@ impl Executor {
     pub(super) fn new(
         protocol_version: ProtocolVersion,
         target_network: MigrationTargetNetwork,
-        type_tag: CoinType,
+        coin_type: CoinType,
     ) -> Result<Self> {
         let mut tx_context = create_migration_context(target_network);
         // Use a throwaway metrics registry for transaction execution.
@@ -125,7 +125,7 @@ impl Executor {
             move_vm,
             metrics,
             native_tokens: Default::default(),
-            type_tag,
+            coin_type,
         })
     }
 
@@ -278,7 +278,7 @@ impl Executor {
                 &self.tx_context,
                 foundry_package.version(),
                 &self.protocol_config,
-                &self.type_tag,
+                &self.coin_type,
             )?;
             created_objects.set_coin(amount_coin.id())?;
             self.store.insert_object(amount_coin);
@@ -299,7 +299,7 @@ impl Executor {
         &mut self,
         header: &OutputHeader,
         alias: &AliasOutput,
-        type_tag: &CoinType,
+        coin_type: &CoinType,
     ) -> Result<CreatedObjects> {
         let mut created_objects = CreatedObjects::default();
 
@@ -340,7 +340,7 @@ impl Executor {
             &self.protocol_config,
             &self.tx_context,
             version,
-            type_tag,
+            coin_type,
         )?;
         let move_alias_output_object_ref = move_alias_output_object.compute_object_reference();
 
@@ -360,7 +360,7 @@ impl Executor {
                 STARDUST_PACKAGE_ID,
                 ident_str!("alias_output").into(),
                 ident_str!("attach_alias").into(),
-                vec![type_tag.to_type_tag()],
+                vec![coin_type.to_type_tag()],
                 vec![alias_output_arg, alias_arg],
             );
 
@@ -548,7 +548,7 @@ impl Executor {
         header: &OutputHeader,
         basic_output: &BasicOutput,
         target_milestone_timestamp_sec: u32,
-        type_tag: &CoinType,
+        coin_type: &CoinType,
     ) -> Result<CreatedObjects> {
         let mut basic =
             crate::stardust::types::output::BasicOutput::new(header.clone(), basic_output)?;
@@ -569,7 +569,7 @@ impl Executor {
                 &self.protocol_config,
                 &self.tx_context,
                 version,
-                type_tag,
+                coin_type,
             )?;
             created_objects.set_coin(amount_coin.id())?;
             amount_coin
@@ -591,7 +591,7 @@ impl Executor {
                 &self.protocol_config,
                 &self.tx_context,
                 version,
-                type_tag.to_type_tag(),
+                coin_type.to_type_tag(),
             )?;
             created_objects.set_output(object.id())?;
             object
@@ -638,7 +638,7 @@ impl Executor {
         &mut self,
         header: &OutputHeader,
         nft: &NftOutput,
-        type_tag: &CoinType,
+        coin_type: &CoinType,
     ) -> Result<CreatedObjects> {
         let mut created_objects = CreatedObjects::default();
 
@@ -678,7 +678,7 @@ impl Executor {
             &self.protocol_config,
             &self.tx_context,
             version,
-            type_tag.clone(),
+            coin_type.clone(),
         )?;
         let move_nft_output_object_ref = move_nft_output_object.compute_object_reference();
         created_objects.set_output(move_nft_output_object.id())?;
@@ -696,7 +696,7 @@ impl Executor {
                 STARDUST_PACKAGE_ID,
                 ident_str!("nft_output").into(),
                 ident_str!("attach_nft").into(),
-                vec![type_tag.to_type_tag()],
+                vec![coin_type.to_type_tag()],
                 vec![nft_output_arg, nft_arg],
             );
 

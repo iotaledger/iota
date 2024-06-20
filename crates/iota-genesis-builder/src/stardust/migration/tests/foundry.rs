@@ -37,7 +37,7 @@ type CoinManagerTreasuryCapObject = Object;
 fn migrate_foundry(
     header: OutputHeader,
     foundry: FoundryOutput,
-    type_tag: CoinType,
+    coin_type: CoinType,
 ) -> Result<(
     PackageObject,
     CoinObject,
@@ -51,7 +51,7 @@ fn migrate_foundry(
     let (executor, objects_map) = run_migration(
         foundry.amount(),
         [(header, Output::Foundry(foundry))],
-        type_tag,
+        coin_type,
     )?;
 
     let created_objects_ids = objects_map
