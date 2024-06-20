@@ -28,6 +28,7 @@ const ADDRESSES_PER_ACCOUNT: u32 = 10;
 const COIN_TYPE: u32 = 4218;
 const VESTING_WEEKS: usize = 104;
 const VESTING_WEEKS_FREQUENCY: usize = 2;
+const MERGE_MILESTONE_INDEX: u32 = 7669900;
 const MERGE_TIMESTAMP_SECS: u32 = 1696406475;
 
 pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
@@ -56,9 +57,9 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
                         "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb1812345678",
                     )
                     .unwrap(),
-                    rand::random(),
-                    rand::random(),
-                    rand::random(),
+                    [0; 32],
+                    MERGE_MILESTONE_INDEX,
+                    MERGE_TIMESTAMP_SECS,
                 );
                 let output = Output::from(
                     BasicOutputBuilder::new_with_amount(10_000_000)
@@ -80,9 +81,9 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
                             "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb1812345678",
                         )
                         .unwrap(),
-                        rand::random(),
-                        rand::random(),
-                        rand::random(),
+                        [0; 32],
+                        MERGE_MILESTONE_INDEX,
+                        MERGE_TIMESTAMP_SECS,
                     );
                     let output = Output::from(
                         BasicOutputBuilder::new_with_amount(1_000_000)
