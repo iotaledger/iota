@@ -4,7 +4,7 @@
 
 module iota_system::iota_system_state_inner {
     use iota::balance::{Self, Balance};
-    use iota::coin::{Coin, TreasuryCap};
+    use iota::coin::{Self, Coin, TreasuryCap};
     use iota_system::staking_pool::{stake_activation_epoch, StakedIota};
     use iota::iota::IOTA;
     use iota_system::validator::{Self, Validator};
@@ -1160,4 +1160,22 @@ module iota_system::iota_system_state_inner {
         self.validators.request_add_validator_candidate(validator, ctx);
     }
 
+    // TODO: Can be considered an option to wrap IOTA's `TreasuryCap` to
+    // make it impossible to mint/burn IOTAs through the standard functions.
+
+    #[allow(unused_function)]
+    /// Mint some amount of IOTA as a `Balance`.
+    fun mint_iota(cap: &mut TreasuryCap<IOTA>, value: u64, ctx: &TxContext): Balance<IOTA> {
+        assert!(ctx.sender() == @0x0, ENotSystemAddress);
+
+        coin::mint_balance(cap, value)
+    }
+
+    #[allow(unused_function)]
+    /// Destroy the balance `balance` and decrease the total supply of IOTA.
+    fun burn_iota(cap: &mut TreasuryCap<IOTA>, balance: Balance<IOTA>, ctx: &TxContext): u64 {
+        assert!(ctx.sender() == @0x0, ENotSystemAddress);
+
+        cap.supply_mut().decrease_supply(balance)
+    }
 }

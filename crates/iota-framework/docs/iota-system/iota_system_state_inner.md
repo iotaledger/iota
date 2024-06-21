@@ -62,6 +62,8 @@ title: Module `0x3::iota_system_state_inner`
 -  [Function `pool_exchange_rates`](#0x3_iota_system_state_inner_pool_exchange_rates)
 -  [Function `active_validator_addresses`](#0x3_iota_system_state_inner_active_validator_addresses)
 -  [Function `extract_coin_balance`](#0x3_iota_system_state_inner_extract_coin_balance)
+-  [Function `mint_iota`](#0x3_iota_system_state_inner_mint_iota)
+-  [Function `burn_iota`](#0x3_iota_system_state_inner_burn_iota)
 
 
 <pre><code><b>use</b> <a href="../move-stdlib/option.md#0x1_option">0x1::option</a>;
@@ -2605,6 +2607,60 @@ Extract required Balance from vector of Coin<IOTA>, transfer the remainder back 
     } <b>else</b> {
         total_balance
     }
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="0x3_iota_system_state_inner_mint_iota"></a>
+
+## Function `mint_iota`
+
+Mint some amount of IOTA as a <code>Balance</code>.
+
+
+<pre><code><b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_mint_iota">mint_iota</a>(cap: &<b>mut</b> <a href="../iota-framework/coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, value: u64, ctx: &<a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_mint_iota">mint_iota</a>(cap: &<b>mut</b> TreasuryCap&lt;IOTA&gt;, value: u64, ctx: &TxContext): Balance&lt;IOTA&gt; {
+    <b>assert</b>!(ctx.sender() == @0x0, <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_ENotSystemAddress">ENotSystemAddress</a>);
+
+    <a href="../iota-framework/coin.md#0x2_coin_mint_balance">coin::mint_balance</a>(cap, value)
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="0x3_iota_system_state_inner_burn_iota"></a>
+
+## Function `burn_iota`
+
+Destroy the balance <code><a href="../iota-framework/balance.md#0x2_balance">balance</a></code> and decrease the total supply of IOTA.
+
+
+<pre><code><b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_burn_iota">burn_iota</a>(cap: &<b>mut</b> <a href="../iota-framework/coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, <a href="../iota-framework/balance.md#0x2_balance">balance</a>: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, ctx: &<a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): u64
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_burn_iota">burn_iota</a>(cap: &<b>mut</b> TreasuryCap&lt;IOTA&gt;, <a href="../iota-framework/balance.md#0x2_balance">balance</a>: Balance&lt;IOTA&gt;, ctx: &TxContext): u64 {
+    <b>assert</b>!(ctx.sender() == @0x0, <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_ENotSystemAddress">ENotSystemAddress</a>);
+
+    cap.supply_mut().decrease_supply(<a href="../iota-framework/balance.md#0x2_balance">balance</a>)
 }
 </code></pre>
 
