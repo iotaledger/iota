@@ -25,6 +25,7 @@ use super::{
     },
     stardust_to_iota_address,
 };
+use crate::stardust::migration::CoinType;
 
 pub const IRC27_MODULE_NAME: &IdentStr = ident_str!("irc27");
 pub const NFT_MODULE_NAME: &IdentStr = ident_str!("nft");
@@ -440,14 +441,14 @@ impl NftOutput {
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
         version: SequenceNumber,
-        type_param: TypeTag,
+        coin_type: CoinType,
     ) -> anyhow::Result<Object> {
         // Construct the Nft Output object.
         let move_nft_output_object = unsafe {
             // Safety: we know from the definition of `NftOutput` in the stardust package
             // that it does not have public transfer (`store` ability is absent).
             MoveObject::new_from_execution(
-                NftOutput::tag(type_param).into(),
+                NftOutput::tag(coin_type.to_type_tag()).into(),
                 false,
                 version,
                 bcs::to_bytes(&self)?,
