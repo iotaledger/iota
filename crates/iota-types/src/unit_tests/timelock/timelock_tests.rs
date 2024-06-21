@@ -25,6 +25,19 @@ use crate::{
     },
 };
 
+fn vested_reward_output(amount: u64, expiration_time_sec: u32) -> BasicOutput {
+    BasicOutputBuilder::new_with_amount(amount)
+        .add_unlock_condition(AddressUnlockCondition::new(
+            Ed25519Address::from_str(
+                "0xebe40a263480190dcd7939447ee01aefa73d6f3cc33c90ef7bf905abf8728655",
+            )
+            .unwrap(),
+        ))
+        .add_unlock_condition(TimelockUnlockCondition::new(expiration_time_sec).unwrap())
+        .finish()
+        .unwrap()
+}
+
 #[test]
 fn timelock_ser_deser_roundtrip() {
     let id = UID::new(ObjectID::random());
@@ -44,19 +57,6 @@ fn timelock_ser_deser_roundtrip() {
         timelock.expiration_timestamp_ms()
     );
     assert_eq!(deserialized_timelock.label(), timelock.label());
-}
-
-fn vested_reward_output(amount: u64, expiration_time_sec: u32) -> BasicOutput {
-    BasicOutputBuilder::new_with_amount(amount)
-        .add_unlock_condition(AddressUnlockCondition::new(
-            Ed25519Address::from_str(
-                "0xebe40a263480190dcd7939447ee01aefa73d6f3cc33c90ef7bf905abf8728655",
-            )
-            .unwrap(),
-        ))
-        .add_unlock_condition(TimelockUnlockCondition::new(expiration_time_sec).unwrap())
-        .finish()
-        .unwrap()
 }
 
 #[test]
