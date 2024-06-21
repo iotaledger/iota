@@ -1,12 +1,12 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useTransactionSummary } from '@iota/core';
+import { useTransactionSummary } from './';
 import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
 import { IotaTransactionBlockResponse } from '@iota/iota.js/client';
 import { useQuery } from '@tanstack/react-query';
 
-export default function useDetailedTransactionSummary(
+export function useExtendedTransactionSummary(
     transactionDigest: string,
 ): ReturnType<typeof useTransactionSummary> {
     const currentAccount = useCurrentAccount();

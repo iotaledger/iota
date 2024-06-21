@@ -13,6 +13,7 @@ import { GasSummary } from '../../shared/transaction-summary/cards/GasSummary';
 import { StakeTxnCard } from './StakeTxnCard';
 import { StatusIcon } from './StatusIcon';
 import { UnStakeTxnCard } from './UnstakeTxnCard';
+import { STAKING_REQUEST_EVENT, UNSTAKING_REQUEST_EVENT } from '@iota/core/src/constants';
 
 type ReceiptCardProps = {
     txn: IotaTransactionBlockResponse;
@@ -42,9 +43,9 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
 
     if (!summary) return null;
 
-    const stakedTxn = events?.find(({ type }) => type === '0x3::validator::StakingRequestEvent');
+    const stakedTxn = events?.find(({ type }) => type === STAKING_REQUEST_EVENT);
 
-    const unstakeTxn = events?.find(({ type }) => type === '0x3::validator::UnstakingRequestEvent');
+    const unstakeTxn = events?.find(({ type }) => type === UNSTAKING_REQUEST_EVENT);
 
     // todo: re-using the existing staking cards for now
     if (stakedTxn || unstakeTxn)

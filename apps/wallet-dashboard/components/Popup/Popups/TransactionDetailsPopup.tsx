@@ -3,16 +3,17 @@
 
 import React, { PropsWithChildren } from 'react';
 import { ExtendedTransaction } from '@/lib/interfaces';
-import { formatDate } from '@iota/core';
+import {
+    formatDate,
+    useExtendedTransactionSummary,
+    STAKING_REQUEST_EVENT,
+    UNSTAKING_REQUEST_EVENT,
+} from '@iota/core';
 import {
     StakeTransactionCard,
     TransactionSummary,
     UnstakeTransactionCard,
 } from '@/components/Transaction';
-import useDetailedTransactionSummary from '@/hooks/useDetailedTransactionSummary';
-
-const STAKING_REQUEST_EVENT = '0x3::validator::StakingRequestEvent';
-const UNSTAKING_REQUEST_EVENT = '0x3::validator::UnstakingRequestEvent';
 
 interface TransactionDetailsPopupProps {
     transaction: ExtendedTransaction;
@@ -37,7 +38,7 @@ export default function TransactionDetailsPopup({
     const { raw: rawTransaction } = transaction;
     const { events } = rawTransaction;
 
-    const transactionSummary = useDetailedTransactionSummary(rawTransaction.digest);
+    const transactionSummary = useExtendedTransactionSummary(rawTransaction.digest);
 
     const txDate = !Number.isNaN(rawTransaction.timestampMs)
         ? formatDate(Number(rawTransaction.timestampMs), ['month', 'day', 'hour', 'minute'])
