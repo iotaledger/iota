@@ -7,4 +7,5 @@ published-at = "0xb0"
 A = { local = "../a0" }
 
 [addresses]
+a = "0xa0"
 b = "0xb0"

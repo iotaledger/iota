@@ -6373,6 +6373,7 @@ dependencies = [
  "bcs",
  "clap",
  "expect-test",
+ "eyre",
  "fastcrypto",
  "fastcrypto-zkp",
  "fs_extra",
