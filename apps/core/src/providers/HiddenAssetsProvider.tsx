@@ -14,9 +14,9 @@ export default function HiddenAssetsProvider({
     onAssetShow = () => {},
     onError = () => {},
 }: React.PropsWithChildren<{
-    onAssetHide?: (assetId: string, undoHideAsset: (assetId: string) => void) => void;
-    onAssetShow?: (assetId: string, undoShowAsset: (assetId: string) => void) => void;
-    onError?: (message: string) => void;
+    onAssetHide: (assetId: string, undoHideAsset: (assetId: string) => void) => void;
+    onAssetShow: (assetId: string, undoShowAsset: (assetId: string) => void) => void;
+    onError: (message: string) => void;
 }>) {
     const [hiddenAssetIds, setHiddenAssetIds] = useState<string[]>([]);
 
@@ -47,14 +47,14 @@ export default function HiddenAssetsProvider({
                     await set(HIDDEN_ASSET_IDS, updatedHiddenAssetIds);
                 } catch (error) {
                     // Handle any error that occurred during the unhide process
-                    onError?.('Failed to unhide asset.');
+                    onError('Failed to unhide asset.');
                     // Restore the asset ID back to the hidden asset IDs list
                     setHiddenAssetIds([...hiddenAssetIds, assetId]);
                     await set(HIDDEN_ASSET_IDS, hiddenAssetIds);
                 }
             };
 
-            onAssetHide?.(newAssetId, undoHideAsset);
+            onAssetHide(newAssetId, undoHideAsset);
         },
         [hiddenAssetIds],
     );
@@ -69,7 +69,7 @@ export default function HiddenAssetsProvider({
                 await set(HIDDEN_ASSET_IDS, updatedHiddenAssetIds);
             } catch (error) {
                 // Handle any error that occurred during the unhide process
-                onError?.('Failed to show asset.');
+                onError('Failed to show asset.');
                 // Restore the asset ID back to the hidden asset IDs list
                 setHiddenAssetIds([...hiddenAssetIds, newAssetId]);
                 await set(HIDDEN_ASSET_IDS, hiddenAssetIds);
@@ -83,7 +83,7 @@ export default function HiddenAssetsProvider({
                 await set(HIDDEN_ASSET_IDS, newHiddenAssetIds);
             };
 
-            onAssetShow?.(newAssetId, undoShowAsset);
+            onAssetShow(newAssetId, undoShowAsset);
         },
         [hiddenAssetIds],
     );
