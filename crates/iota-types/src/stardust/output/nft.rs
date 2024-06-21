@@ -11,7 +11,7 @@ use num_rational::Ratio;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use super::{
+use super::unlock_conditions::{
     ExpirationUnlockCondition, StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
 };
 use crate::{
