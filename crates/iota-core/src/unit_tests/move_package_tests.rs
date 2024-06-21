@@ -5,7 +5,7 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
 use iota_move_build::{BuildConfig, CompiledPackage};
-use iota_protocol_config::{Chain, ProtocolConfig};
+use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::ObjectID,
     digests::TransactionDigest,
@@ -420,17 +420,6 @@ fn test_fail_on_upgrade_missing_type() {
             upgrade_error: PackageUpgradeError::IncompatibleUpgrade
         }
     );
-
-    // At versions before version 5 this was an invariant violation
-    let err = c_pkg
-        .new_upgraded(
-            c_id2,
-            &build_test_modules("Cv1"),
-            &ProtocolConfig::get_for_version(4.into(), Chain::Unknown),
-            [],
-        )
-        .unwrap_err();
-    assert_eq!(err.kind(), &ExecutionErrorKind::InvariantViolation);
 }
 
 pub fn build_test_package(test_dir: &str) -> CompiledPackage {

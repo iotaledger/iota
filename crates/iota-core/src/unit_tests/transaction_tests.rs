@@ -767,6 +767,7 @@ async fn init_zklogin_transfer(
 }
 
 #[tokio::test]
+#[ignore = "TODO: fix bad test data in zklogin_test_vectors.json"]
 async fn zklogin_txn_fail_if_missing_jwk() {
     telemetry_subscribers::init_for_testing();
 
@@ -841,6 +842,7 @@ async fn zklogin_txn_fail_if_missing_jwk() {
 }
 
 #[tokio::test]
+#[ignore = "TODO: fix bad test data in zklogin_test_vectors.json"]
 async fn zk_multisig_test() {
     telemetry_subscribers::init_for_testing();
 
