@@ -480,7 +480,7 @@ A utility function to transfer multiple <code><a href="timelocked_staked_iota.md
 
 
 <pre><code><b>public</b>(package) <b>fun</b> <a href="timelocked_staked_iota.md#0x10cf_timelocked_staked_iota_transfer_multiple">transfer_multiple</a>(<b>mut</b> stakes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="timelocked_staked_iota.md#0x10cf_timelocked_staked_iota_TimelockedStakedIota">TimelockedStakedIota</a>&gt;, recipient: <b>address</b>) {
-    // Send all the stakes <b>to</b> the recipient.
+    // Transfer all the time-locked stakes <b>to</b> the recipient.
     <b>while</b> (!stakes.is_empty()) {
        <b>let</b> stake = stakes.pop_back();
        <a href="../iota-framework/transfer.md#0x2_transfer">transfer</a>(stake, recipient);
