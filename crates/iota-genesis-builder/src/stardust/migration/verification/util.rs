@@ -19,15 +19,15 @@ use iota_types::{
     dynamic_field::Field,
     in_memory_storage::InMemoryStorage,
     object::{Object, Owner},
+    stardust::{
+        output::{unlock_conditions, Alias, Nft},
+        stardust_to_iota_address, stardust_to_iota_address_owner,
+    },
     TypeTag,
 };
 
 use crate::stardust::{
-    migration::executor::FoundryLedgerData,
-    types::{
-        output as migration_output, stardust_to_iota_address, stardust_to_iota_address_owner,
-        token_scheme::MAX_ALLOWED_U64_SUPPLY, Alias, Nft,
-    },
+    migration::executor::FoundryLedgerData, types::token_scheme::MAX_ALLOWED_U64_SUPPLY,
 };
 
 pub(super) fn verify_native_tokens<NtKind: NativeTokenKind>(
@@ -99,7 +99,7 @@ pub(super) fn verify_native_tokens<NtKind: NativeTokenKind>(
 
 pub(super) fn verify_storage_deposit_unlock_condition(
     original: Option<&sdk_output::unlock_condition::StorageDepositReturnUnlockCondition>,
-    created: Option<&migration_output::StorageDepositReturnUnlockCondition>,
+    created: Option<&unlock_conditions::StorageDepositReturnUnlockCondition>,
 ) -> Result<()> {
     // Storage Deposit Return Unlock Condition
     if let Some(sdruc) = original {
@@ -131,7 +131,7 @@ pub(super) fn verify_storage_deposit_unlock_condition(
 
 pub(super) fn verify_timelock_unlock_condition(
     original: Option<&sdk_output::unlock_condition::TimelockUnlockCondition>,
-    created: Option<&migration_output::TimelockUnlockCondition>,
+    created: Option<&unlock_conditions::TimelockUnlockCondition>,
 ) -> Result<()> {
     // Timelock Unlock Condition
     if let Some(timelock) = original {
@@ -153,7 +153,7 @@ pub(super) fn verify_timelock_unlock_condition(
 
 pub(super) fn verify_expiration_unlock_condition(
     original: Option<&sdk_output::unlock_condition::ExpirationUnlockCondition>,
-    created: Option<&migration_output::ExpirationUnlockCondition>,
+    created: Option<&unlock_conditions::ExpirationUnlockCondition>,
     address: &Address,
 ) -> Result<()> {
     // Expiration Unlock Condition

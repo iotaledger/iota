@@ -221,7 +221,7 @@ fn test_update_managed_address() {
     let mut lock = LockFile::from(pb, &lock_path).unwrap();
     update_managed_address(
         &mut lock,
-        "default".into(),
+        "default",
         ManagedAddressUpdate::Published {
             original_id: "0x123".into(),
             chain_id: "35834a8a".into(),
@@ -231,7 +231,7 @@ fn test_update_managed_address() {
 
     update_managed_address(
         &mut lock,
-        "default".into(),
+        "default",
         ManagedAddressUpdate::Upgraded {
             latest_id: "0x456".into(),
             version: 2,

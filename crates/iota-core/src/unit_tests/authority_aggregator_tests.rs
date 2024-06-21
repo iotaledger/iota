@@ -683,10 +683,7 @@ fn get_agg_at_epoch<A: Clone>(
     authorities: BTreeMap<AuthorityName, StakeUnit>,
     clients: BTreeMap<AuthorityName, A>,
     epoch: EpochId,
-) -> AuthorityAggregator<A>
-where
-    A: Clone,
-{
+) -> AuthorityAggregator<A> {
     let mut agg = get_genesis_agg(authorities.clone(), clients);
     let committee = Committee::new_for_testing_with_normalized_voting_power(epoch, authorities);
     agg.committee_store
