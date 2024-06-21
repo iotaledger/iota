@@ -19,7 +19,7 @@ use crate::{
     collection_types::Bag,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
-    stardust::address::stardust_to_iota_address,
+    stardust::{address::stardust_to_iota_address, coin_type::CoinType},
     TypeTag, STARDUST_PACKAGE_ID,
 };
 
@@ -143,7 +143,7 @@ pub struct BasicOutput {
 impl BasicOutput {
     /// Construct the basic output with an empty [`Bag`] through the
     /// [`OutputHeader`]
-    /// and [`Output`][iota_stardust_sdk::types::block::output::BasicOutput].
+    /// and [`Output`][iota_sdk::types::block::output::BasicOutput].
     pub fn new(
         header_object_id: ObjectID,
         output: &iota_stardust_sdk::types::block::output::BasicOutput,
@@ -205,13 +205,13 @@ impl BasicOutput {
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
         version: SequenceNumber,
-        type_param: TypeTag,
+        coin_type: &CoinType,
     ) -> Result<Object> {
         let move_object = unsafe {
             // Safety: we know from the definition of `BasicOutput` in the stardust package
             // that it is not publicly transferable (`store` ability is absent).
             MoveObject::new_from_execution(
-                BasicOutput::tag(type_param).into(),
+                BasicOutput::tag(coin_type.to_type_tag()).into(),
                 false,
                 version,
                 bcs::to_bytes(self)?,
@@ -239,32 +239,35 @@ impl BasicOutput {
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
         version: SequenceNumber,
+        coin_type: &CoinType,
     ) -> Result<Object> {
-        create_gas_coin(
+        create_coin(
             self.id,
             owner,
             self.balance.value(),
             tx_context,
             version,
             protocol_config,
+            coin_type,
         )
     }
 }
 
-pub(crate) fn create_gas_coin(
+pub(crate) fn create_coin(
     object_id: UID,
     owner: IotaAddress,
     amount: u64,
     tx_context: &TxContext,
     version: SequenceNumber,
     protocol_config: &ProtocolConfig,
+    coin_type: &CoinType,
 ) -> Result<Object> {
     let coin = Coin::new(object_id, amount);
     let move_object = unsafe {
         // Safety: we know from the definition of `Coin`
         // that it has public transfer (`store` ability is present).
         MoveObject::new_from_execution(
-            MoveObjectType::gas_coin(),
+            MoveObjectType::from(Coin::type_(coin_type.to_type_tag())),
             true,
             version,
             bcs::to_bytes(&coin)?,

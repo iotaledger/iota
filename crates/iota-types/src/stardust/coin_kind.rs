@@ -53,15 +53,20 @@ mod tests {
 
     use iota_protocol_config::ProtocolConfig;
 
-    use super::*;
     use crate::{
+        balance::Balance,
         base_types::{IotaAddress, ObjectID, TxContext},
         id::UID,
-        object::Owner,
-        stardust::timelock::to_genesis_object,
+        object::{Object, Owner},
+        stardust::{
+            coin_kind::{get_gas_balance_maybe, is_gas_coin_kind},
+            coin_type::CoinType,
+            output::{AliasOutput, BasicOutput, NftOutput},
+        },
+        timelock::timelock::{to_genesis_object, TimeLock},
     };
 
-    fn nft_output(balance: u64) -> anyhow::Result<Object> {
+    fn nft_output(balance: u64, coin_type: CoinType) -> anyhow::Result<Object> {
         let id = UID::new(ObjectID::random());
         let balance = Balance::new(balance);
         let output = NftOutput {
@@ -77,25 +82,25 @@ mod tests {
             &ProtocolConfig::get_for_min_version(),
             &TxContext::random_for_testing_only(),
             1.into(),
-            GAS::type_tag(),
+            coin_type,
         )
     }
 
     #[test]
     fn is_coin_kind_nft_output() {
-        let object = nft_output(100).unwrap();
+        let object = nft_output(100, CoinType::Iota).unwrap();
         assert!(is_gas_coin_kind(&object));
     }
 
     #[test]
     fn get_gas_balance_nft_output() {
         let value = 100;
-        let object = nft_output(value).unwrap();
+        let object = nft_output(value, CoinType::Iota).unwrap();
         let gas_coin_balance = get_gas_balance_maybe(&object).unwrap();
         assert_eq!(gas_coin_balance.value(), value);
     }
 
-    fn alias_output(balance: u64) -> anyhow::Result<Object> {
+    fn alias_output(balance: u64, coin_type: CoinType) -> anyhow::Result<Object> {
         let id = UID::new(ObjectID::random());
         let balance = Balance::new(balance);
         let output = AliasOutput {
@@ -108,25 +113,25 @@ mod tests {
             &ProtocolConfig::get_for_min_version(),
             &TxContext::random_for_testing_only(),
             1.into(),
-            GAS::type_tag(),
+            &coin_type,
         )
     }
 
     #[test]
     fn is_coin_kind_alias_output() {
-        let object = alias_output(100).unwrap();
+        let object = alias_output(100, CoinType::Iota).unwrap();
         assert!(is_gas_coin_kind(&object));
     }
 
     #[test]
     fn get_gas_balance_alias_output() {
         let value = 100;
-        let object = alias_output(value).unwrap();
+        let object = alias_output(value, CoinType::Iota).unwrap();
         let gas_coin_balance = get_gas_balance_maybe(&object).unwrap();
         assert_eq!(gas_coin_balance.value(), value);
     }
 
-    fn basic_output(balance: u64) -> anyhow::Result<Object> {
+    fn basic_output(balance: u64, coin_type: CoinType) -> anyhow::Result<Object> {
         let id = UID::new(ObjectID::random());
         let balance = Balance::new(balance);
         let output = BasicOutput {
@@ -145,20 +150,20 @@ mod tests {
             &ProtocolConfig::get_for_min_version(),
             &TxContext::random_for_testing_only(),
             1.into(),
-            GAS::type_tag(),
+            &coin_type,
         )
     }
 
     #[test]
     fn is_coin_kind_basic_output() {
-        let object = basic_output(100).unwrap();
+        let object = basic_output(100, CoinType::Iota).unwrap();
         assert!(is_gas_coin_kind(&object));
     }
 
     #[test]
     fn get_gas_balance_basic_output() {
         let value = 100;
-        let object = basic_output(value).unwrap();
+        let object = basic_output(value, CoinType::Iota).unwrap();
         let gas_coin_balance = get_gas_balance_maybe(&object).unwrap();
         assert_eq!(gas_coin_balance.value(), value);
     }

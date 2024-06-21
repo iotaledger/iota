@@ -4,6 +4,7 @@
 pub mod address;
 pub mod capped_coin;
 pub mod coin_kind;
+pub mod coin_type;
 pub mod error;
 pub mod output;
 

@@ -16,16 +16,13 @@ use iota_types::{
     coin_manager::CoinManager,
     gas_coin::GAS,
     object::Object,
-    stardust::{stardust_to_iota_address, stardust_to_iota_address_owner},
     smr_coin::{SmrCoin, SMR},
+    stardust::{coin_type::CoinType, stardust_to_iota_address, stardust_to_iota_address_owner},
 };
 use move_core_types::language_storage::TypeTag;
 
 use crate::stardust::{
-    migration::{
-        tests::{create_foundry, run_migration},
-        CoinType,
-    },
+    migration::tests::{create_foundry, run_migration},
     types::output_header::OutputHeader,
 };
 

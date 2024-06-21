@@ -24,6 +24,7 @@ use iota_types::{
     id::UID,
     object::{Object, Owner},
     stardust::{
+        coin_type::CoinType,
         output::{
             Alias, AliasOutput, ALIAS_DYNAMIC_OBJECT_FIELD_KEY,
             ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE, ALIAS_OUTPUT_MODULE_NAME, NFT_OUTPUT_MODULE_NAME,
@@ -35,12 +36,9 @@ use iota_types::{
 use move_core_types::ident_str;
 
 use crate::stardust::{
-    migration::{
-        tests::{
-            create_foundry, extract_native_token_from_bag, object_migration_with_object_owner,
-            random_output_header, run_migration, ExpectedAssets,
-        },
-        CoinType,
+    migration::tests::{
+        create_foundry, extract_native_token_from_bag, object_migration_with_object_owner,
+        random_output_header, run_migration, ExpectedAssets,
     },
     types::output_header::OutputHeader,
 };

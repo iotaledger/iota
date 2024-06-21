@@ -20,10 +20,9 @@ use crate::{
     collection_types::{Bag, Entry, VecMap},
     id::UID,
     object::{Data, MoveObject, Object, Owner},
-    stardust::stardust_to_iota_address,
+    stardust::{coin_type::CoinType, stardust_to_iota_address},
     TypeTag, STARDUST_PACKAGE_ID,
 };
-use crate::stardust::migration::CoinType;
 
 pub const IRC27_MODULE_NAME: &IdentStr = ident_str!("irc27");
 pub const NFT_MODULE_NAME: &IdentStr = ident_str!("nft");

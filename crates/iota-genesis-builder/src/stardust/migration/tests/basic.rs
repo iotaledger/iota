@@ -17,7 +17,9 @@ use iota_sdk::types::block::{
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
-    stardust::{output::basic::BASIC_OUTPUT_MODULE_NAME, stardust_to_iota_address},
+    stardust::{
+        coin_type::CoinType, output::basic::BASIC_OUTPUT_MODULE_NAME, stardust_to_iota_address,
+    },
 };
 
 use crate::stardust::{
@@ -26,7 +28,7 @@ use crate::stardust::{
             create_foundry, extract_native_token_from_bag, random_output_header, unlock_object,
             ExpectedAssets, UnlockObjectTestResult,
         },
-        CoinType, Migration, MigrationTargetNetwork,
+        Migration, MigrationTargetNetwork,
     },
     types::output_header::OutputHeader,
 };

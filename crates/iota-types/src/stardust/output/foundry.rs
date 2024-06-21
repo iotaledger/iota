@@ -8,22 +8,24 @@ use crate::{
     base_types::{ObjectID, SequenceNumber, TxContext},
     id::UID,
     object::Object,
-    stardust::address::stardust_to_iota_address,
+    stardust::{address::stardust_to_iota_address, coin_type::CoinType},
 };
 
-pub fn create_foundry_gas_coin(
+pub fn create_foundry_amount_coin(
     output_id: &OutputId,
     foundry: &FoundryOutput,
     tx_context: &TxContext,
     version: SequenceNumber,
     protocol_config: &ProtocolConfig,
+    coin_type: &CoinType,
 ) -> anyhow::Result<Object> {
-    crate::stardust::output::create_gas_coin(
+    crate::stardust::output::create_coin(
         UID::new(ObjectID::new(output_id.hash())),
         stardust_to_iota_address(*foundry.alias_address())?,
         foundry.amount(),
         tx_context,
         version,
         protocol_config,
+        coin_type,
     )
 }

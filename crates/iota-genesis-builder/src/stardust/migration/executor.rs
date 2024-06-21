@@ -33,7 +33,8 @@ use iota_types::{
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     stardust::{
-        output::{foundry::create_foundry_gas_coin, Nft},
+        coin_type::CoinType,
+        output::{foundry::create_foundry_amount_coin, Nft},
         stardust_to_iota_address, stardust_to_iota_address_owner,
     },
     timelock::timelock,
@@ -51,13 +52,9 @@ use crate::{
     stardust::{
         migration::{
             create_migration_context, package_module_bytes,
-            verification::created_objects::CreatedObjects, CoinType, MigrationTargetNetwork,
-            PACKAGE_DEPS,
+            verification::created_objects::CreatedObjects, MigrationTargetNetwork, PACKAGE_DEPS,
         },
-        types::{
-            foundry::create_foundry_amount_coin, output_header::OutputHeader, stardust_to_iota_address,
-            stardust_to_iota_address_owner, timelock, token_scheme::SimpleTokenSchemeU64, Nft,
-        },
+        types::{output_header::OutputHeader, token_scheme::SimpleTokenSchemeU64},
     },
 };
 
