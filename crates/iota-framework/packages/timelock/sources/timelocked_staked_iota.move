@@ -139,4 +139,11 @@ module timelock::timelocked_staked_iota {
     public(package) fun transfer(stake: TimelockedStakedIota, recipient: address) {
         transfer::transfer(stake, recipient);
     }
+
+    /// An utility function to transfer multiple `TimelockedStakedIota`.
+    public fun transfer_multiple(stakes: vector<TimelockedStakedIota>, recipient: address) {
+        for stake in stakes {
+            transfer(stake, recipient);
+        }
+    }
 }
