@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type AccountSourceSerializedUI } from '_src/background/account-sources/AccountSource';
+import type {
+    AccountSourceType,
+    AccountSourceSerializedUI,
+} from '_src/background/account-sources/AccountSource';
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
 import { type Status } from '_src/background/storage-migration';
 import { type SerializedSignature } from '@iota/iota.js/cryptography';
@@ -16,22 +19,22 @@ export type LedgerAccountsPublicKeys = {
     publicKey: string;
 }[];
 export type PasswordRecoveryData =
-    | { type: 'mnemonic'; accountSourceID: string; entropy: string }
-    | { type: 'seed'; accountSourceID: string; seed: string };
+    | { type: AccountSourceType.MNEMONIC; accountSourceID: string; entropy: string }
+    | { type: AccountSourceType.SEED; accountSourceID: string; seed: string };
 
 type MethodPayloads = {
     getStoredEntities: { type: UIAccessibleEntityType };
     storedEntitiesResponse: { entities: unknown; type: UIAccessibleEntityType };
     createAccountSource:
         | {
-              type: 'mnemonic';
+              type: AccountSourceType.MNEMONIC;
               params: {
                   password: string;
                   entropy?: string;
               };
           }
         | {
-              type: 'seed';
+              type: AccountSourceType.SEED;
               params: {
                   password: string;
                   seed: string;

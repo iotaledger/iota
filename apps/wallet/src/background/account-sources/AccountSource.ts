@@ -11,7 +11,10 @@ import {
     setEphemeralValue,
 } from '../session-ephemeral-values';
 
-export type AccountSourceType = 'mnemonic' | 'seed';
+export enum AccountSourceType {
+    MNEMONIC = 'mnemonic',
+    SEED = 'seed',
+}
 
 export abstract class AccountSource<
     T extends AccountSourceSerialized = AccountSourceSerialized,
