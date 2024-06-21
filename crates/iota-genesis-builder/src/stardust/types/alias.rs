@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use super::stardust_to_iota_address;
+use crate::stardust::migration::CoinType;
 
 pub const ALIAS_MODULE_NAME: &IdentStr = ident_str!("alias");
 pub const ALIAS_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("alias_output");
@@ -144,7 +145,7 @@ pub struct AliasOutput {
     /// This is a "random" UID, not the AliasID from Stardust.
     pub id: UID,
 
-    /// The amount of IOTA coins held by the output.
+    /// The amount of coins held by the output.
     pub balance: Balance,
     /// The `Bag` holds native tokens, key-ed by the stringified type of the
     /// asset. Example: key: "0xabcded::soon::SOON", value:
@@ -184,14 +185,14 @@ impl AliasOutput {
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
         version: SequenceNumber,
-        type_param: TypeTag,
+        coin_type: &CoinType,
     ) -> anyhow::Result<Object> {
         // Construct the Alias Output object.
         let move_alias_output_object = unsafe {
             // Safety: we know from the definition of `AliasOutput` in the stardust package
             // that it does not have public transfer (`store` ability is absent).
             MoveObject::new_from_execution(
-                AliasOutput::tag(type_param).into(),
+                AliasOutput::tag(coin_type.to_type_tag()).into(),
                 false,
                 version,
                 bcs::to_bytes(&self)?,

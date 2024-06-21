@@ -8,20 +8,16 @@ import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { IconButton } from '../IconButton';
 
 interface AccountBalanceItemProps {
-    id: string;
     address: string;
     balance: number;
 }
 
-export function AccountBalanceItem({ id, address, balance }: AccountBalanceItemProps): JSX.Element {
+export function AccountBalanceItem({ address, balance }: AccountBalanceItemProps): JSX.Element {
     const copyAddress = useCopyToClipboard(address, {
         copySuccessMessage: 'Address copied',
     });
     return (
-        <div
-            className="group flex cursor-pointer flex-col gap-3 rounded-xl border border-solid border-hero/10 bg-white/40 px-4 py-3"
-            key={id}
-        >
+        <div className="group flex cursor-pointer flex-col gap-3 rounded-xl border border-solid border-hero/10 bg-white/40 px-4 py-3">
             <div className="flex w-full flex-row items-center justify-between">
                 <div className="flex gap-1.5 leading-none text-steel-dark">
                     <Text variant="body" weight="semibold">

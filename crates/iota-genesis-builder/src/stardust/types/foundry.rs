@@ -9,21 +9,26 @@ use iota_types::{
     object::Object,
 };
 
-use crate::{stardust, stardust::types::stardust_to_iota_address};
+use crate::stardust::{
+    migration::CoinType,
+    types::{output::create_coin, stardust_to_iota_address},
+};
 
-pub(crate) fn create_foundry_gas_coin(
+pub(crate) fn create_foundry_amount_coin(
     output_id: &OutputId,
     foundry: &FoundryOutput,
     tx_context: &TxContext,
     version: SequenceNumber,
     protocol_config: &ProtocolConfig,
+    coin_type: &CoinType,
 ) -> anyhow::Result<Object> {
-    stardust::types::output::create_gas_coin(
+    create_coin(
         UID::new(ObjectID::new(output_id.hash())),
         stardust_to_iota_address(*foundry.alias_address())?,
         foundry.amount(),
         tx_context,
         version,
         protocol_config,
+        coin_type,
     )
 }

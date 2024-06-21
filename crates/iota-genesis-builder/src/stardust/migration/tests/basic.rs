@@ -23,7 +23,7 @@ use crate::stardust::{
             create_foundry, extract_native_token_from_bag, random_output_header, unlock_object,
             ExpectedAssets, UnlockObjectTestResult,
         },
-        Migration, MigrationTargetNetwork,
+        CoinType, Migration, MigrationTargetNetwork,
     },
     types::{output::BASIC_OUTPUT_MODULE_NAME, snapshot::OutputHeader, stardust_to_iota_address},
 };
@@ -41,7 +41,13 @@ fn basic_simple_coin_id() {
         .finish()
         .unwrap();
 
-    let mut migration = Migration::new(1, 1_000_000, MigrationTargetNetwork::Mainnet).unwrap();
+    let mut migration = Migration::new(
+        1,
+        1_000_000,
+        MigrationTargetNetwork::Mainnet,
+        CoinType::Iota,
+    )
+    .unwrap();
     migration
         .run_migration([(header.clone(), stardust_basic.clone().into())])
         .unwrap();
@@ -49,7 +55,7 @@ fn basic_simple_coin_id() {
         .output_objects_map
         .get(&header.output_id())
         .unwrap()
-        .gas_coin()
+        .coin()
         .unwrap();
     let expected_object_id = ObjectID::new(header.output_id().hash());
     assert_eq!(expected_object_id, *migrated_object_id);
@@ -88,6 +94,7 @@ fn basic_simple_coin_id_with_expired_timelock() {
             target_milestone_timestamp_sec,
             1_000_000,
             MigrationTargetNetwork::Mainnet,
+            CoinType::Iota,
         )
         .unwrap();
         migration
@@ -97,7 +104,7 @@ fn basic_simple_coin_id_with_expired_timelock() {
             .output_objects_map
             .get(&header.output_id())
             .unwrap();
-        let migrated_object_id = created_objects.gas_coin().unwrap();
+        let migrated_object_id = created_objects.coin().unwrap();
         let expected_object_id = ObjectID::new(header.output_id().hash());
         assert_eq!(expected_object_id, *migrated_object_id);
         // No output should have been created.
@@ -119,7 +126,13 @@ fn basic_id() {
         .finish()
         .unwrap();
 
-    let mut migration = Migration::new(1, 1_000_000, MigrationTargetNetwork::Mainnet).unwrap();
+    let mut migration = Migration::new(
+        1,
+        1_000_000,
+        MigrationTargetNetwork::Mainnet,
+        CoinType::Iota,
+    )
+    .unwrap();
     migration
         .run_migration([(header.clone(), stardust_basic.clone().into())])
         .unwrap();
@@ -157,7 +170,13 @@ fn basic_simple_coin_migration_with_native_token() {
         (foundry_header, foundry_output.into()),
         (header, stardust_basic.into()),
     ];
-    let mut migration = Migration::new(1, 1_000_000, MigrationTargetNetwork::Mainnet).unwrap();
+    let mut migration = Migration::new(
+        1,
+        1_000_000,
+        MigrationTargetNetwork::Mainnet,
+        CoinType::Iota,
+    )
+    .unwrap();
     migration.run_migration(outputs).unwrap();
 }
 
@@ -197,6 +216,7 @@ fn basic_migration_with_native_token() {
         BASIC_OUTPUT_MODULE_NAME,
         native_token,
         ExpectedAssets::BalanceBag,
+        CoinType::Iota,
     )
     .unwrap();
 }
@@ -232,6 +252,7 @@ fn basic_migration_with_timelock_unlocked() {
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::Success,
         ExpectedAssets::BalanceBag,
+        CoinType::Iota,
     )
     .unwrap();
 }
@@ -265,6 +286,7 @@ fn basic_migration_with_timelock_still_locked() {
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::ERROR_TIMELOCK_NOT_EXPIRED_FAILURE,
         ExpectedAssets::BalanceBag,
+        CoinType::Iota,
     )
     .unwrap();
 }
@@ -303,6 +325,7 @@ fn basic_migration_with_expired_unlock_condition() {
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::ERROR_WRONG_SENDER_FAILURE,
         ExpectedAssets::BalanceBag,
+        CoinType::Iota,
     )
     .unwrap();
 
@@ -316,6 +339,7 @@ fn basic_migration_with_expired_unlock_condition() {
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::Success,
         ExpectedAssets::BalanceBag,
+        CoinType::Iota,
     )
     .unwrap();
 }
@@ -354,6 +378,7 @@ fn basic_migration_with_unexpired_unlock_condition() {
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::ERROR_WRONG_SENDER_FAILURE,
         ExpectedAssets::BalanceBag,
+        CoinType::Iota,
     )
     .unwrap();
 
@@ -367,6 +392,7 @@ fn basic_migration_with_unexpired_unlock_condition() {
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::Success,
         ExpectedAssets::BalanceBag,
+        CoinType::Iota,
     )
     .unwrap();
 }
@@ -399,6 +425,7 @@ fn basic_migration_with_storage_deposit_return_unlock_condition() {
         0,
         UnlockObjectTestResult::Success,
         ExpectedAssets::BalanceBag,
+        CoinType::Iota,
     )
     .unwrap();
 }
@@ -427,6 +454,7 @@ fn basic_migration_with_incorrect_total_supply() {
         0,
         UnlockObjectTestResult::Success,
         ExpectedAssets::BalanceBag,
+        CoinType::Iota,
     )
     .unwrap_err();
 
