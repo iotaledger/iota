@@ -19,7 +19,7 @@ export function ExportPassphrasePage() {
     const accountSource = allAccountSources?.find(({ id }) => id === accountSourceID) || null;
     const navigate = useNavigate();
     const exportMutation = useExportPassphraseMutation();
-    if (!isPending && accountSource?.type !== AccountSourceType.MNEMONIC) {
+    if (!isPending && accountSource?.type !== AccountSourceType.Mnemonic) {
         return <Navigate to="/accounts/manage" />;
     }
     return (

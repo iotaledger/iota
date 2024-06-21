@@ -37,14 +37,14 @@ type DataDecrypted = {
 };
 
 interface MnemonicAccountSourceSerialized extends AccountSourceSerialized {
-    type: AccountSourceType.MNEMONIC;
+    type: AccountSourceType.Mnemonic;
     encryptedData: string;
     // hash of entropy to be used for comparing sources (even when locked)
     sourceHash: string;
 }
 
 interface MnemonicAccountSourceSerializedUI extends AccountSourceSerializedUI {
-    type: AccountSourceType.MNEMONIC;
+    type: AccountSourceType.Mnemonic;
 }
 
 export function deriveKeypairFromSeed(mnemonicSeedHex: string, derivationPath: string) {
@@ -68,7 +68,7 @@ export class MnemonicAccountSource extends AccountSource<
         }
         const dataSerialized: MnemonicAccountSourceSerialized = {
             id: makeUniqueKey(),
-            type: AccountSourceType.MNEMONIC,
+            type: AccountSourceType.Mnemonic,
             encryptedData: await MnemonicAccountSource.createEncryptedData(entropy, password),
             sourceHash: bytesToHex(sha256(entropy)),
             createdAt: Date.now(),
@@ -88,7 +88,7 @@ export class MnemonicAccountSource extends AccountSource<
     static isOfType(
         serialized: AccountSourceSerialized,
     ): serialized is MnemonicAccountSourceSerialized {
-        return serialized.type === AccountSourceType.MNEMONIC;
+        return serialized.type === AccountSourceType.Mnemonic;
     }
 
     static async save(
@@ -117,7 +117,7 @@ export class MnemonicAccountSource extends AccountSource<
     }
 
     constructor(id: string) {
-        super({ type: AccountSourceType.MNEMONIC, id });
+        super({ type: AccountSourceType.Mnemonic, id });
     }
 
     async isLocked() {

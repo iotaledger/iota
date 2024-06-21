@@ -212,10 +212,10 @@ export class UiConnection extends Connection {
                     ) {
                         throw new Error('Invalid account source type');
                     }
-                    if (type === AccountSourceType.MNEMONIC) {
+                    if (type === AccountSourceType.Mnemonic) {
                         await accountSource.verifyRecoveryData(data.entropy);
                     }
-                    if (type === AccountSourceType.SEED) {
+                    if (type === AccountSourceType.Seed) {
                         await accountSource.verifyRecoveryData(data.seed);
                     }
                 }
@@ -233,7 +233,7 @@ export class UiConnection extends Connection {
                         .delete();
                     for (const data of recoveryData) {
                         const { accountSourceID, type } = data;
-                        if (type === AccountSourceType.MNEMONIC) {
+                        if (type === AccountSourceType.Mnemonic) {
                             await db.accountSources.update(accountSourceID, {
                                 encryptedData: await Dexie.waitFor(
                                     MnemonicAccountSource.createEncryptedData(
@@ -243,7 +243,7 @@ export class UiConnection extends Connection {
                                 ),
                             });
                         }
-                        if (type === AccountSourceType.SEED) {
+                        if (type === AccountSourceType.Seed) {
                             await db.accountSources.update(accountSourceID, {
                                 encryptedData: await Dexie.waitFor(
                                     SeedAccountSource.createEncryptedData(data.seed, password),

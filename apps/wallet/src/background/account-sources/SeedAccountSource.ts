@@ -27,14 +27,14 @@ type DataDecrypted = {
 };
 
 interface SeedAccountSourceSerialized extends AccountSourceSerialized {
-    type: AccountSourceType.SEED;
+    type: AccountSourceType.Seed;
     encryptedData: string;
     // hash of entropy to be used for comparing sources (even when locked)
     sourceHash: string;
 }
 
 interface SeedAccountSourceSerializedUI extends AccountSourceSerializedUI {
-    type: AccountSourceType.SEED;
+    type: AccountSourceType.Seed;
 }
 
 export function deriveKeypairFromSeed(seedHex: string, derivationPath: string) {
@@ -45,7 +45,7 @@ export class SeedAccountSource extends AccountSource<SeedAccountSourceSerialized
     static async createNew({ password, seed }: { password: string; seed: string }) {
         const dataSerialized: SeedAccountSourceSerialized = {
             id: makeUniqueKey(),
-            type: AccountSourceType.SEED,
+            type: AccountSourceType.Seed,
             encryptedData: await SeedAccountSource.createEncryptedData(seed, password),
             sourceHash: bytesToHex(sha256(seed)),
             createdAt: Date.now(),
@@ -65,7 +65,7 @@ export class SeedAccountSource extends AccountSource<SeedAccountSourceSerialized
     static isOfType(
         serialized: AccountSourceSerialized,
     ): serialized is SeedAccountSourceSerialized {
-        return serialized.type === AccountSourceType.SEED;
+        return serialized.type === AccountSourceType.Seed;
     }
 
     static async save(
@@ -93,7 +93,7 @@ export class SeedAccountSource extends AccountSource<SeedAccountSourceSerialized
     }
 
     constructor(id: string) {
-        super({ type: AccountSourceType.SEED, id });
+        super({ type: AccountSourceType.Seed, id });
     }
 
     async isLocked() {

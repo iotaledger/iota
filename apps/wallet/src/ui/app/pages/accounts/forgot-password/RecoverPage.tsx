@@ -19,10 +19,10 @@ export function RecoverPage() {
     const allAccountSources = useAccountSources();
     const navigate = useNavigate();
     const mnemonicAccountSource = allAccountSources.data?.find(
-        ({ type }) => type === AccountSourceType.MNEMONIC,
+        ({ type }) => type === AccountSourceType.Mnemonic,
     );
     const seedAccountSource = allAccountSources.data?.find(
-        ({ type }) => type === AccountSourceType.SEED,
+        ({ type }) => type === AccountSourceType.Seed,
     );
     useEffect(() => {
         if (!allAccountSources.isPending && !mnemonicAccountSource && !seedAccountSource) {
@@ -54,7 +54,7 @@ export function RecoverPage() {
                         onSubmit={async ({ recoveryPhrase }) => {
                             try {
                                 await recoveryDataMutation.mutateAsync({
-                                    type: AccountSourceType.MNEMONIC,
+                                    type: AccountSourceType.Mnemonic,
                                     accountSourceID: mnemonicAccountSource.id,
                                     entropy: entropyToSerialized(
                                         mnemonicToEntropy(recoveryPhrase.join(' ')),
@@ -71,7 +71,7 @@ export function RecoverPage() {
                         onSubmit={async ({ seed }) => {
                             try {
                                 await recoveryDataMutation.mutateAsync({
-                                    type: AccountSourceType.SEED,
+                                    type: AccountSourceType.Seed,
                                     accountSourceID: seedAccountSource?.id ?? '',
                                     seed,
                                 });

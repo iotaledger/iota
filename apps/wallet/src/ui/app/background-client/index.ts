@@ -254,7 +254,7 @@ export class BackgroundClient {
                 createMessage<MethodPayload<'createAccountSource'>>({
                     method: 'createAccountSource',
                     type: 'method-payload',
-                    args: { type: AccountSourceType.MNEMONIC, params: inputs },
+                    args: { type: AccountSourceType.Mnemonic, params: inputs },
                 }),
             ).pipe(
                 take(1),
@@ -262,7 +262,7 @@ export class BackgroundClient {
                     if (!isMethodPayload(payload, 'accountSourceCreationResponse')) {
                         throw new Error('Unknown response');
                     }
-                    if (AccountSourceType.MNEMONIC !== payload.args.accountSource.type) {
+                    if (AccountSourceType.Mnemonic !== payload.args.accountSource.type) {
                         throw new Error(
                             `Unexpected account source type response ${payload.args.accountSource.type}`,
                         );
@@ -279,7 +279,7 @@ export class BackgroundClient {
                 createMessage<MethodPayload<'createAccountSource'>>({
                     method: 'createAccountSource',
                     type: 'method-payload',
-                    args: { type: AccountSourceType.SEED, params: inputs },
+                    args: { type: AccountSourceType.Seed, params: inputs },
                 }),
             ).pipe(
                 take(1),
@@ -287,7 +287,7 @@ export class BackgroundClient {
                     if (!isMethodPayload(payload, 'accountSourceCreationResponse')) {
                         throw new Error('Unknown response');
                     }
-                    if (AccountSourceType.SEED !== payload.args.accountSource.type) {
+                    if (AccountSourceType.Seed !== payload.args.accountSource.type) {
                         throw new Error(
                             `Unexpected account source type response ${payload.args.accountSource.type}`,
                         );

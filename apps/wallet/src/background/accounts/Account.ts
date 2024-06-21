@@ -19,7 +19,12 @@ import {
 } from '../session-ephemeral-values';
 import { accountsEvents } from './events';
 
-export type AccountType = 'mnemonic-derived' | 'seed-derived' | 'imported' | 'ledger';
+export enum AccountType {
+    MnemonicDerived = 'mnemonic-derived',
+    SeedDerived = 'seed-derived',
+    Imported = 'imported',
+    Ledger = 'ledger',
+}
 
 export abstract class Account<
     T extends SerializedAccount = SerializedAccount,

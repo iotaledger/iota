@@ -19,15 +19,16 @@ import { Text } from '../../../shared/text';
 import { useForgotPasswordContext } from './ForgotPasswordPage';
 import { ImportSeedForm } from '_src/ui/app/components/accounts/ImportSeedForm';
 import { AccountSourceType } from '_src/background/account-sources/AccountSource';
+import { AccountType } from '_src/background/accounts/Account';
 
 export function RecoverManyPage() {
     const allAccountSources = useAccountSources();
     const accountGroups = useAccountGroups();
-    const mnemonicAccounts = Object.entries(accountGroups['mnemonic-derived']);
-    const seedAccounts = Object.entries(accountGroups['seed-derived']);
+    const mnemonicAccounts = Object.entries(accountGroups[AccountType.MnemonicDerived]);
+    const seedAccounts = Object.entries(accountGroups[AccountType.SeedDerived]);
     const navigate = useNavigate();
     const hasMnemonicOrSeedAccountSources = allAccountSources.data?.some(({ type }) =>
-        [AccountSourceType.MNEMONIC, AccountSourceType.SEED].includes(type),
+        [AccountSourceType.Mnemonic, AccountSourceType.Seed].includes(type),
     );
     useEffect(() => {
         if (!allAccountSources.isPending && !hasMnemonicOrSeedAccountSources) {
@@ -69,7 +70,7 @@ export function RecoverManyPage() {
                                         setRecoverInfo({
                                             title,
                                             accountSourceID: sourceID,
-                                            type: AccountSourceType.MNEMONIC,
+                                            type: AccountSourceType.Mnemonic,
                                         });
                                     }}
                                     recoverDone={!!recoveryData}
@@ -95,7 +96,7 @@ export function RecoverManyPage() {
                                         setRecoverInfo({
                                             title,
                                             accountSourceID: sourceID,
-                                            type: AccountSourceType.SEED,
+                                            type: AccountSourceType.Seed,
                                         });
                                     }}
                                     recoverDone={!!recoveryData}
@@ -127,7 +128,7 @@ export function RecoverManyPage() {
                 background="bg-iota-lightest"
             >
                 <div className="flex h-full w-full flex-col flex-nowrap gap-4 text-center">
-                    {recoverInfo?.type === AccountSourceType.MNEMONIC ? (
+                    {recoverInfo?.type === AccountSourceType.Mnemonic ? (
                         <>
                             <Text variant="pBody" color="gray-90">
                                 Enter your 24-word Recovery Phrase
@@ -140,7 +141,7 @@ export function RecoverManyPage() {
                                     }
                                     try {
                                         await addRecoveryDataMutation.mutateAsync({
-                                            type: AccountSourceType.MNEMONIC,
+                                            type: AccountSourceType.Mnemonic,
                                             entropy: entropyToSerialized(
                                                 mnemonicToEntropy(recoveryPhrase.join(' ')),
                                             ),
@@ -163,7 +164,7 @@ export function RecoverManyPage() {
                                 }
                                 try {
                                     await addRecoveryDataMutation.mutateAsync({
-                                        type: AccountSourceType.SEED,
+                                        type: AccountSourceType.Seed,
                                         accountSourceID: recoverInfo.accountSourceID,
                                         seed,
                                     });

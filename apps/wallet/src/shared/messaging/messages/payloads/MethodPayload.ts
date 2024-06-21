@@ -6,7 +6,7 @@ import type {
     AccountSourceType,
     AccountSourceSerializedUI,
 } from '_src/background/account-sources/AccountSource';
-import { type SerializedUIAccount } from '_src/background/accounts/Account';
+import type { AccountType, SerializedUIAccount } from '_src/background/accounts/Account';
 import { type Status } from '_src/background/storage-migration';
 import { type SerializedSignature } from '@iota/iota.js/cryptography';
 
@@ -19,22 +19,22 @@ export type LedgerAccountsPublicKeys = {
     publicKey: string;
 }[];
 export type PasswordRecoveryData =
-    | { type: AccountSourceType.MNEMONIC; accountSourceID: string; entropy: string }
-    | { type: AccountSourceType.SEED; accountSourceID: string; seed: string };
+    | { type: AccountSourceType.Mnemonic; accountSourceID: string; entropy: string }
+    | { type: AccountSourceType.Seed; accountSourceID: string; seed: string };
 
 type MethodPayloads = {
     getStoredEntities: { type: UIAccessibleEntityType };
     storedEntitiesResponse: { entities: unknown; type: UIAccessibleEntityType };
     createAccountSource:
         | {
-              type: AccountSourceType.MNEMONIC;
+              type: AccountSourceType.Mnemonic;
               params: {
                   password: string;
                   entropy?: string;
               };
           }
         | {
-              type: AccountSourceType.SEED;
+              type: AccountSourceType.Seed;
               params: {
                   password: string;
                   seed: string;
@@ -44,11 +44,11 @@ type MethodPayloads = {
     lockAccountSourceOrAccount: { id: string };
     unlockAccountSourceOrAccount: { id: string; password?: string };
     createAccounts:
-        | { type: 'mnemonic-derived'; sourceID: string }
-        | { type: 'seed-derived'; sourceID: string }
-        | { type: 'imported'; keyPair: string; password: string }
+        | { type: AccountType.MnemonicDerived; sourceID: string }
+        | { type: AccountType.SeedDerived; sourceID: string }
+        | { type: AccountType.Imported; keyPair: string; password: string }
         | {
-              type: 'ledger';
+              type: AccountType.Ledger;
               accounts: { publicKey: string; derivationPath: string; address: string }[];
               password: string;
           };

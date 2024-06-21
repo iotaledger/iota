@@ -51,7 +51,7 @@ export async function getAllSerializedUIAccountSources() {
 async function createAccountSource({ type, params }: MethodPayload<'createAccountSource'>['args']) {
     const { password } = params;
     switch (type) {
-        case AccountSourceType.MNEMONIC:
+        case AccountSourceType.Mnemonic:
             const entropy = params.entropy;
             return (
                 await MnemonicAccountSource.save(
@@ -61,7 +61,7 @@ async function createAccountSource({ type, params }: MethodPayload<'createAccoun
                     }),
                 )
             ).toUISerialized();
-        case AccountSourceType.SEED:
+        case AccountSourceType.Seed:
             return (
                 await SeedAccountSource.save(
                     await SeedAccountSource.createNew({
@@ -171,10 +171,10 @@ export async function accountSourcesHandleUIMessage(msg: Message, uiConnection: 
         ) {
             throw new Error('Invalid account source type');
         }
-        if (type === AccountSourceType.MNEMONIC) {
+        if (type === AccountSourceType.Mnemonic) {
             await accountSource.verifyRecoveryData(payload.args.data.entropy);
         }
-        if (type === AccountSourceType.SEED) {
+        if (type === AccountSourceType.Seed) {
             await accountSource.verifyRecoveryData(payload.args.data.seed);
         }
         uiConnection.send(createMessage({ type: 'done' }, msg.id));

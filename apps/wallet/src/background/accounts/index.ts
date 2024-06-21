@@ -19,6 +19,7 @@ import { type UiConnection } from '../connections/UiConnection';
 import { backupDB, getDB } from '../db';
 import { makeUniqueKey } from '../storage-utils';
 import {
+    AccountType,
     isKeyPairExportableAccount,
     isPasswordUnLockable,
     isSigningAccount,
@@ -200,7 +201,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
     if (isMethodPayload(payload, 'createAccounts')) {
         const newSerializedAccounts: Omit<SerializedAccount, 'id'>[] = [];
         const { type } = payload.args;
-        if (type === 'mnemonic-derived') {
+        if (type === AccountType.MnemonicDerived) {
             const { sourceID } = payload.args;
             const accountSource = await getAccountSourceByID(payload.args.sourceID);
             if (!accountSource) {
@@ -210,7 +211,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
                 throw new Error(`Invalid account source type`);
             }
             newSerializedAccounts.push(await accountSource.deriveAccount());
-        } else if (type === 'seed-derived') {
+        } else if (type === AccountType.SeedDerived) {
             const { sourceID } = payload.args;
             const accountSource = await getAccountSourceByID(payload.args.sourceID);
             if (!accountSource) {
@@ -220,9 +221,9 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
                 throw new Error(`Invalid account source type`);
             }
             newSerializedAccounts.push(await accountSource.deriveAccount());
-        } else if (type === 'imported') {
+        } else if (type === AccountType.Imported) {
             newSerializedAccounts.push(await ImportedAccount.createNew(payload.args));
-        } else if (type === 'ledger') {
+        } else if (type === AccountType.Ledger) {
             const { password, accounts } = payload.args;
             for (const aLedgerAccount of accounts) {
                 newSerializedAccounts.push(

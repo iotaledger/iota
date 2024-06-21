@@ -49,7 +49,7 @@ export function BackupMnemonicPage() {
         }
     }, [requirePassword, passwordConfirmed, showPasswordDialog]);
     const navigate = useNavigate();
-    if (!isPending && selectedSource?.type !== AccountSourceType.MNEMONIC) {
+    if (!isPending && selectedSource?.type !== AccountSourceType.Mnemonic) {
         return <Navigate to="/" replace />;
     }
     return (

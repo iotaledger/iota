@@ -12,8 +12,8 @@ import {
 } from '../session-ephemeral-values';
 
 export enum AccountSourceType {
-    MNEMONIC = 'mnemonic',
-    SEED = 'seed',
+    Mnemonic = 'mnemonic',
+    Seed = 'seed',
 }
 
 export abstract class AccountSource<

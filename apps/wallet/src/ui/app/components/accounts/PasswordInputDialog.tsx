@@ -70,7 +70,7 @@ export function PasswordModalDialog({
     const { data: allAccountsSources } = useAccountSources();
     const hasAccountsSources =
         allAccountsSources?.some(
-            ({ type }) => type === AccountSourceType.MNEMONIC || type === AccountSourceType.SEED,
+            ({ type }) => type === AccountSourceType.Mnemonic || type === AccountSourceType.Seed,
         ) || false;
     return (
         <Dialog open={open}>
