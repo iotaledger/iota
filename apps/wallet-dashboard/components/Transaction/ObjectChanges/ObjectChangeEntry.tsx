@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ObjectChangesByOwner, IotaObjectChangeTypes } from '@iota/core';
+import { IotaObjectChange } from '@iota/iota.js/client';
 import { ObjectDetail } from './';
 import React from 'react';
 
@@ -15,19 +16,19 @@ export default function ObjectChangeEntry({ changes, type }: ObjectChangeEntryPr
         <>
             {Object.entries(changes).map(([owner, changes]) => (
                 <div className="flex flex-col space-y-2 divide-y" key={`${type}-${owner}`}>
-                    {changes.changes.map((change, i) => (
+                    {changes.changes.map((change) => (
                         <ObjectDetail
                             owner={owner}
                             ownerType={changes.ownerType}
-                            key={i}
+                            key={getChangeKey(change)}
                             change={change}
                         />
                     ))}
-                    {changes.changesWithDisplay.map((change, i) => (
+                    {changes.changesWithDisplay.map((change) => (
                         <ObjectDetail
                             owner={owner}
                             ownerType={changes.ownerType}
-                            key={i}
+                            key={getChangeKey(change)}
                             change={change}
                             displayData={change.display}
                         />
@@ -36,4 +37,8 @@ export default function ObjectChangeEntry({ changes, type }: ObjectChangeEntryPr
             ))}
         </>
     );
+}
+
+function getChangeKey(change: IotaObjectChange) {
+    return change.type !== 'deleted' && change.type !== 'wrapped' ? change.digest : change.objectId;
 }
