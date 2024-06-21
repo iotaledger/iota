@@ -14,7 +14,6 @@ function EverythingElsePage(): JSX.Element {
     const { data } = useGetOwnedObjects(account?.address);
 
     const explorer = getNetwork(getDefaultNetwork()).explorer;
-    console.log('explorer', explorer);
 
     const nonVisualAssets =
         data?.pages
