@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useRecognizedPackages } from '_src/ui/app/hooks/useRecognizedPackages';
-import { useTransactionSummary } from '@iota/core';
+import { useTransactionSummary, STAKING_REQUEST_EVENT, UNSTAKING_REQUEST_EVENT } from '@iota/core';
 import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
 
 import { DateCard } from '../../shared/date-card';
@@ -13,7 +13,6 @@ import { GasSummary } from '../../shared/transaction-summary/cards/GasSummary';
 import { StakeTxnCard } from './StakeTxnCard';
 import { StatusIcon } from './StatusIcon';
 import { UnStakeTxnCard } from './UnstakeTxnCard';
-import { STAKING_REQUEST_EVENT, UNSTAKING_REQUEST_EVENT } from '@iota/core/src/constants';
 
 type ReceiptCardProps = {
     txn: IotaTransactionBlockResponse;
