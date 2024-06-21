@@ -142,7 +142,7 @@ module timelock::timelocked_staked_iota {
 
     /// A utility function to transfer multiple `TimelockedStakedIota`.
     public(package) fun transfer_multiple(mut stakes: vector<TimelockedStakedIota>, recipient: address) {
-        // Send all the stakes to the recipient.
+        // Transfer all the timelocked stakes to the recipient.
         while (!stakes.is_empty()) {
            let stake = stakes.pop_back();
            transfer(stake, recipient);
