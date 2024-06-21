@@ -18,7 +18,7 @@ $ cargo xfmt
 [Clippy](https://github.com/rust-lang/rust-clippy) is used to catch common mistakes and is run as a part of continuous integration.  Before submitting your code for review, you can run clippy with our configuration:
 
 ```
-$ cargo xclippy --all-targets
+$ cargo ci-clippy
 ```
 
 In general, we follow the recommendations from [rust-lang-nursery](https://rust-lang.github.io/api-guidelines/) and [The Rust Programming Language](https://doc.rust-lang.org/book/).  The remainder of this guide provides detailed guidelines on specific topics in order to achieve uniformity of the codebase.

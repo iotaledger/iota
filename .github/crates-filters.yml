@@ -190,8 +190,6 @@ typed-store-derive:
  - "crates/typed-store-derive/**"
 typed-store-error:
  - "crates/typed-store-error/**"
-x:
- - "crates/x/**"
 narwhal-config:
  - "narwhal/config/**"
 narwhal-crypto:

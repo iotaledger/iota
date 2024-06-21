@@ -26,9 +26,9 @@ use move_compiler::{
     compiled_unit::{AnnotatedCompiledUnit, CompiledUnit, NamedCompiledModule},
     diagnostics::FilesSourceText,
     editions::Flavor,
+    iota_mode::{self},
     linters,
     shared::{NamedAddressMap, NumericalAddress, PackageConfig, PackagePaths},
-    iota_mode::{self},
     Compiler,
 };
 use move_docgen::{Docgen, DocgenOptions};
