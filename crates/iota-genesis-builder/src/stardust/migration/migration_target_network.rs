@@ -54,7 +54,12 @@ impl FromStr for MigrationTargetNetwork {
             ));
         }
 
-        anyhow::bail!("unknown target network name: {string}")
+        anyhow::bail!(
+            "unknown target network name '{string}': please provide the target network for which the snapshot is being generated ('{}', '{}' or '{}')",
+            MigrationTargetNetwork::Mainnet,
+            MigrationTargetNetwork::Testnet("(optional-string)".to_owned()),
+            MigrationTargetNetwork::Alphanet("(optional-string)".to_owned()),
+        )
     }
 }
 
