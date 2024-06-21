@@ -1350,7 +1350,7 @@ mod tests {
 
         let hash = Keccak256::digest(encoded_bytes).digest;
         assert_eq!(
-            Hex::encode(hash.to_vec()),
+            Hex::encode(hash),
             "cffec5fb6bf31c8fae7441a49bbf17127eadfb96efe14da8f8f81c1cdd538597",
         );
         Ok(())
