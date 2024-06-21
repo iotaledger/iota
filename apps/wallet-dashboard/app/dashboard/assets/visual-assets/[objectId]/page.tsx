@@ -12,6 +12,7 @@ const VisualAssetDetailPage = () => {
     const params = useParams();
     const objectId = params.objectId as string;
     const { data: visualAsset } = useGetObject(objectId);
+    const assetIsTransferable = visualAsset?.data ? isAssetTransferable(visualAsset?.data) : false;
 
     return (
         <div className="flex h-full w-full flex-col space-y-4 px-40">
@@ -21,7 +22,7 @@ const VisualAssetDetailPage = () => {
             ) : (
                 <div className="flex justify-center p-20">Asset not found</div>
             )}
-            {isAssetTransferable(visualAsset?.data) ? (
+            {assetIsTransferable ? (
                 <Button onClick={() => console.log('Send Visual Asset')}>Send Asset</Button>
             ) : null}
         </div>

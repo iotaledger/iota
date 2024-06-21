@@ -4,16 +4,17 @@
 'use client';
 
 import React from 'react';
-import { IotaObjectData, getDefaultNetwork, getNetwork } from '@iota/iota.js/client';
+import { IotaObjectData, getNetwork } from '@iota/iota.js/client';
 import { VirtualList } from '@/components/index';
 import { hasDisplayData, useGetOwnedObjects } from '@iota/core';
-import { useCurrentAccount } from '@iota/dapp-kit';
+import { useCurrentAccount, useIotaClientContext } from '@iota/dapp-kit';
 
 function EverythingElsePage(): JSX.Element {
     const account = useCurrentAccount();
     const { data } = useGetOwnedObjects(account?.address);
 
-    const explorer = getNetwork(getDefaultNetwork()).explorer;
+    const { network } = useIotaClientContext();
+    const { explorer } = getNetwork(network);
 
     const nonVisualAssets =
         data?.pages
