@@ -236,7 +236,7 @@ fn multi_split_slice<'a, T>(slice: &'a [T], lengths: &'a [usize]) -> Vec<&'a [T]
         .collect()
 }
 
-fn deser_check_digest<T, D: std::fmt::Debug>(
+fn deser_check_digest<T, D>(
     digest: &D,
     bytes: &Bytes,
     get_expected_digest: impl FnOnce(&T) -> D,

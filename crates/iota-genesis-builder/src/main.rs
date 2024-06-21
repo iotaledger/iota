@@ -10,9 +10,9 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use iota_genesis_builder::{
     stardust::{
-        migration::{CoinType, Migration, MigrationTargetNetwork},
+        migration::{Migration, MigrationTargetNetwork},
         parse::FullSnapshotParser,
-        types::snapshot::OutputHeader,
+        types::output_header::OutputHeader,
     },
     BROTLI_COMPRESSOR_BUFFER_SIZE, BROTLI_COMPRESSOR_LG_WINDOW_SIZE, BROTLI_COMPRESSOR_QUALITY,
     OBJECT_SNAPSHOT_FILE_PATH,
@@ -21,6 +21,7 @@ use iota_sdk::types::block::output::{
     unlock_condition::StorageDepositReturnUnlockCondition, AliasOutputBuilder, BasicOutputBuilder,
     FoundryOutputBuilder, NftOutputBuilder, Output,
 };
+use iota_types::stardust::coin_type::CoinType;
 use itertools::Itertools;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;

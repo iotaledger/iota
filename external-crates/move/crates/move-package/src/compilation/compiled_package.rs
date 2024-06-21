@@ -26,8 +26,7 @@ use move_compiler::{
     compiled_unit::{AnnotatedCompiledUnit, CompiledUnit, NamedCompiledModule},
     diagnostics::FilesSourceText,
     editions::Flavor,
-    iota_mode::{self},
-    linters,
+    iota_mode, linters,
     shared::{NamedAddressMap, NumericalAddress, PackageConfig, PackagePaths},
     Compiler,
 };

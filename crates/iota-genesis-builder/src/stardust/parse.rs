@@ -8,12 +8,10 @@ use anyhow::Result;
 use iota_sdk::types::block::{
     output::Output, payload::milestone::MilestoneOption, protocol::ProtocolParameters,
 };
+use iota_types::stardust::error::StardustError;
 use packable::{unpacker::IoUnpacker, Packable};
 
-use super::{
-    error::StardustError,
-    types::snapshot::{FullSnapshotHeader, OutputHeader},
-};
+use super::types::{output_header::OutputHeader, snapshot::FullSnapshotHeader};
 
 /// Parse a full-snapshot using a [`BufReader`] internally.
 pub struct FullSnapshotParser<R: Read> {

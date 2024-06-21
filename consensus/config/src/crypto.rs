@@ -26,7 +26,7 @@ use shared_crypto::intent::INTENT_PREFIX_LENGTH;
 /// Network key is used for TLS and as the network identity of the authority.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct NetworkPublicKey(ed25519::Ed25519PublicKey);
-pub struct NetworkPrivateKey(ed25519::Ed25519PrivateKey);
+pub struct NetworkPrivateKey(#[allow(dead_code)] ed25519::Ed25519PrivateKey);
 pub struct NetworkKeyPair(ed25519::Ed25519KeyPair);
 
 impl NetworkPublicKey {
