@@ -6,7 +6,7 @@
 use std::fs::File;
 
 use iota_genesis_builder::stardust::{
-    parse::FullSnapshotParser, types::snapshot::TOTAL_SUPPLY_IOTA,
+    parse::FullSnapshotParser, types::output_header::TOTAL_SUPPLY_IOTA,
 };
 
 fn main() -> anyhow::Result<()> {
