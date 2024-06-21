@@ -1,13 +1,27 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::str::FromStr;
+
+use iota_stardust_sdk::types::block::{
+    address::Ed25519Address,
+    output::{
+        unlock_condition::{
+            AddressUnlockCondition, StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
+        },
+        BasicOutput, BasicOutputBuilder, NativeToken, OutputId, TokenId,
+    },
+};
+
 use crate::{
     balance::Balance,
     base_types::ObjectID,
     id::UID,
     timelock::{
-        label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
-        timelock::TimeLock,
+        self,
+        label::label_struct_tag_to_string,
+        stardust_upgrade_label::{stardust_upgrade_label_type, STARDUST_UPGRADE_LABEL_VALUE},
+        timelock::{is_timelocked_vested_reward, try_from_stardust, TimeLock, VestedRewardError},
     },
 };
 
@@ -31,24 +45,6 @@ fn timelock_ser_deser_roundtrip() {
     );
     assert_eq!(deserialized_timelock.label(), timelock.label());
 }
-
-use std::str::FromStr;
-
-use iota_stardust_sdk::types::block::{
-    address::Ed25519Address,
-    output::{
-        unlock_condition::{
-            AddressUnlockCondition, StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
-        },
-        BasicOutput, BasicOutputBuilder, NativeToken, OutputId, TokenId,
-    },
-};
-
-use crate::timelock::{
-    self,
-    stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,
-    timelock::{is_timelocked_vested_reward, try_from_stardust, VestedRewardError},
-};
 
 fn vested_reward_output(amount: u64, expiration_time_sec: u32) -> BasicOutput {
     BasicOutputBuilder::new_with_amount(amount)
