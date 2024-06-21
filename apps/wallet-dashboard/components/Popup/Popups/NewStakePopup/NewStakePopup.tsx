@@ -30,7 +30,7 @@ function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
 
     const { data: newStakeData } = useNewStakeTransaction(
         selectedValidator as string,
-        amountWithoutDecimals.toString(),
+        amountWithoutDecimals,
         account?.address ?? '',
     );
 
