@@ -51,9 +51,8 @@ export function useConnectWallet({
             try {
                 setConnectionStatus('connecting');
 
-                const connectResult = await wallet.features['standard:connect'].connect(
-                    connectArgs,
-                );
+                const connectResult =
+                    await wallet.features['standard:connect'].connect(connectArgs);
                 const connectedIotaAccounts = connectResult.accounts.filter((account) =>
                     account.chains.some(isSupportedChain),
                 );
