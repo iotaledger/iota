@@ -25,7 +25,6 @@
     "dependencies": {
         "@iota/bcs": "workspace:*",
         "@iota/dapp-kit": "workspace:*",
-        "@iota/deepbook": "workspace:*",
         "@iota/enoki": "workspace:*",
         "@iota/graphql-transport": "workspace:*",
         "@iota/kiosk": "workspace:*",
