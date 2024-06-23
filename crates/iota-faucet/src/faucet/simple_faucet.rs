@@ -809,12 +809,16 @@ impl SimpleFaucet {
 
             request_count.insert(addy, number_of_coins as u64 + index);
 
+            // We can safely zip up `coins_slice` and `amounts` without truncating either
+            // slice, since both are checked to have the same length, according
+            // to the above code.
             let transferred_gases = coins_slice
                 .iter()
-                .map(|coin| CoinInfo {
+                .zip(amounts)
+                .map(|(coin, amount)| CoinInfo {
                     id: coin.object_id(),
                     transfer_tx_digest: res.digest,
-                    amount: self.coin_amount,
+                    amount,
                 })
                 .collect();
 

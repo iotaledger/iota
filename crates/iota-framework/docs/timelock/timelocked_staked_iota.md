@@ -19,11 +19,13 @@ title: Module `0x10cf::timelocked_staked_iota`
 -  [Function `is_equal_staking_metadata`](#0x10cf_timelocked_staked_iota_is_equal_staking_metadata)
 -  [Function `unpack`](#0x10cf_timelocked_staked_iota_unpack)
 -  [Function `transfer`](#0x10cf_timelocked_staked_iota_transfer)
+-  [Function `transfer_multiple`](#0x10cf_timelocked_staked_iota_transfer_multiple)
 
 
 <pre><code><b>use</b> <a href="labeler.md#0x10cf_labeler">0x10cf::labeler</a>;
 <b>use</b> <a href="../move-stdlib/option.md#0x1_option">0x1::option</a>;
 <b>use</b> <a href="../move-stdlib/string.md#0x1_string">0x1::string</a>;
+<b>use</b> <a href="../move-stdlib/vector.md#0x1_vector">0x1::vector</a>;
 <b>use</b> <a href="../iota-framework/object.md#0x2_object">0x2::object</a>;
 <b>use</b> <a href="../iota-framework/transfer.md#0x2_transfer">0x2::transfer</a>;
 <b>use</b> <a href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
@@ -440,7 +442,7 @@ A utility function to destroy a <code><a href="timelocked_staked_iota.md#0x10cf_
 
 ## Function `transfer`
 
-An utility function to transfer a <code><a href="timelocked_staked_iota.md#0x10cf_timelocked_staked_iota_TimelockedStakedIota">TimelockedStakedIota</a></code>.
+A utility function to transfer a <code><a href="timelocked_staked_iota.md#0x10cf_timelocked_staked_iota_TimelockedStakedIota">TimelockedStakedIota</a></code>.
 
 
 <pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="../iota-framework/transfer.md#0x2_transfer">transfer</a>(stake: <a href="timelocked_staked_iota.md#0x10cf_timelocked_staked_iota_TimelockedStakedIota">timelocked_staked_iota::TimelockedStakedIota</a>, recipient: <b>address</b>)
@@ -454,6 +456,38 @@ An utility function to transfer a <code><a href="timelocked_staked_iota.md#0x10c
 
 <pre><code><b>public</b>(package) <b>fun</b> <a href="../iota-framework/transfer.md#0x2_transfer">transfer</a>(stake: <a href="timelocked_staked_iota.md#0x10cf_timelocked_staked_iota_TimelockedStakedIota">TimelockedStakedIota</a>, recipient: <b>address</b>) {
     <a href="../iota-framework/transfer.md#0x2_transfer_transfer">transfer::transfer</a>(stake, recipient);
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="0x10cf_timelocked_staked_iota_transfer_multiple"></a>
+
+## Function `transfer_multiple`
+
+A utility function to transfer multiple <code><a href="timelocked_staked_iota.md#0x10cf_timelocked_staked_iota_TimelockedStakedIota">TimelockedStakedIota</a></code>.
+
+
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="timelocked_staked_iota.md#0x10cf_timelocked_staked_iota_transfer_multiple">transfer_multiple</a>(stakes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="timelocked_staked_iota.md#0x10cf_timelocked_staked_iota_TimelockedStakedIota">timelocked_staked_iota::TimelockedStakedIota</a>&gt;, recipient: <b>address</b>)
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b>(package) <b>fun</b> <a href="timelocked_staked_iota.md#0x10cf_timelocked_staked_iota_transfer_multiple">transfer_multiple</a>(<b>mut</b> stakes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="timelocked_staked_iota.md#0x10cf_timelocked_staked_iota_TimelockedStakedIota">TimelockedStakedIota</a>&gt;, recipient: <b>address</b>) {
+    // Transfer all the time-locked stakes <b>to</b> the recipient.
+    <b>while</b> (!stakes.is_empty()) {
+       <b>let</b> stake = stakes.pop_back();
+       <a href="../iota-framework/transfer.md#0x2_transfer">transfer</a>(stake, recipient);
+    };
+
+    // Destroy the empty <a href="../move-stdlib/vector.md#0x1_vector">vector</a>.
+    <a href="../move-stdlib/vector.md#0x1_vector_destroy_empty">vector::destroy_empty</a>(stakes);
 }
 </code></pre>
 
