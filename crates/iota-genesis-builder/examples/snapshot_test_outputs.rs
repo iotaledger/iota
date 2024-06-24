@@ -9,7 +9,7 @@ use iota_genesis_builder::stardust::{
     parse::FullSnapshotParser, test_outputs::add_snapshot_test_outputs,
 };
 
-fn parse_snapshot<P: AsRef<Path>>(path: P) -> anyhow::Result<()> {
+fn parse_snapshot(path: impl AsRef<Path>) -> anyhow::Result<()> {
     let file = File::open(path)?;
     let parser = FullSnapshotParser::new(file)?;
 
@@ -31,10 +31,10 @@ fn main() -> anyhow::Result<()> {
     let Some(current_path) = std::env::args().nth(1) else {
         anyhow::bail!("please provide path to the full-snapshot file");
     };
-    let mut new_path = String::from("test-");
-    new_path.push_str(&current_path);
-
     parse_snapshot(&current_path)?;
+
+    let new_path = format!("test-{current_path}");
+    println!("{new_path}");
 
     add_snapshot_test_outputs(&current_path, &new_path)?;
 

@@ -23,11 +23,8 @@ pub fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
     new_path: P,
 ) -> anyhow::Result<()> {
     let current_file = File::open(current_path)?;
-    let new_file = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(new_path)?;
+    let new_file = File::create(new_path)?;
+
     let mut writer = IoPacker::new(BufWriter::new(new_file));
     let mut parser = FullSnapshotParser::new(current_file)?;
 
