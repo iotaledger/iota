@@ -7,8 +7,7 @@
         "../graphql-transport",
         "../kiosk",
         "../typescript",
-        "../zklogin",
-        "../zksend"
+        "../zklogin"
     ],
     "excludeInternal": true,
     "excludePrivate": true,

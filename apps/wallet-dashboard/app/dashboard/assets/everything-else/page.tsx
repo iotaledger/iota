@@ -4,23 +4,23 @@
 'use client';
 
 import React from 'react';
-import { IotaObjectData } from '@iota/iota.js/client';
-import { AssetCard, VirtualList } from '@/components/index';
+import { getNetwork, IotaObjectData } from '@iota/iota.js/client';
+import { VirtualList } from '@/components/index';
 import { useGetNFTs } from '@iota/core';
-import { useCurrentAccount } from '@iota/dapp-kit';
-import { useRouter } from 'next/navigation';
+import { useCurrentAccount, useIotaClientContext } from '@iota/dapp-kit';
 
 function EverythingElsePage(): JSX.Element {
     const account = useCurrentAccount();
-    const router = useRouter();
+    const { network } = useIotaClientContext();
+    const { explorer } = getNetwork(network);
     const { data } = useGetNFTs(account?.address);
     const nonVisualAssets = data?.other ?? [];
 
-    const virtualItem = (asset: IotaObjectData): JSX.Element => <AssetCard asset={asset} />;
-
-    const handleClick = (objectId: string) => {
-        router.push(`/dashboard/assets/everything-else/${objectId}`);
-    };
+    const virtualItem = (asset: IotaObjectData): JSX.Element => (
+        <a href={`${explorer}/object/${asset.objectId}`} target="_blank" rel="noreferrer">
+            {asset.objectId}
+        </a>
+    );
 
     return (
         <div className="flex h-full w-full flex-col items-center justify-center space-y-4">
@@ -30,7 +30,6 @@ function EverythingElsePage(): JSX.Element {
                     items={nonVisualAssets}
                     estimateSize={() => 130}
                     render={virtualItem}
-                    onClick={(asset) => handleClick(asset.objectId)}
                 />
             </div>
         </div>

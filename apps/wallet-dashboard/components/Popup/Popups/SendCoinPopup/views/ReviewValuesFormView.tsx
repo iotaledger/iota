@@ -6,17 +6,23 @@ import { Button } from '@/components';
 
 interface ReviewValuesFormProps {
     formData: FormDataValues;
-    handleBack: () => void;
+    senderAddress: string;
+    gasBudget: string;
+    error: string | undefined;
+    isPending: boolean;
+    executeTransfer: () => void;
+    onBack: () => void;
 }
 
 function ReviewValuesFormView({
-    formData: { amount, senderAddress, recipientAddress },
-    handleBack,
+    formData: { amount, recipientAddress },
+    senderAddress,
+    gasBudget,
+    error,
+    isPending,
+    executeTransfer,
+    onBack,
 }: ReviewValuesFormProps): JSX.Element {
-    function onSend(): void {
-        console.log('Sending coins');
-    }
-
     return (
         <div className="flex flex-col gap-4">
             <h1 className="mb-4 text-center text-xl">Review & Send</h1>
@@ -24,10 +30,16 @@ function ReviewValuesFormView({
                 <p>Sending: {amount}</p>
                 <p>From: {senderAddress}</p>
                 <p>To: {recipientAddress}</p>
+                <p>Gas fee: {gasBudget}</p>
             </div>
+            {error ? <span className="text-red-700">{error}</span> : null}
             <div className="mt-4 flex justify-around">
-                <Button onClick={handleBack}>Back</Button>
-                <Button onClick={onSend}>Send now</Button>
+                <Button onClick={onBack}>Back</Button>
+                {isPending ? (
+                    <Button disabled>Loading...</Button>
+                ) : (
+                    <Button onClick={executeTransfer}>Send now</Button>
+                )}
             </div>
         </div>
     );

@@ -9,9 +9,9 @@ import { HiddenAssetsContext } from '../contexts';
 const HIDDEN_ASSET_IDS = 'hidden-asset-ids';
 
 interface HiddenAssetsProviderProps extends React.PropsWithChildren {
-    onAssetHide: (assetId: string, undoAction: (assetId: string) => void) => void;
-    onAssetShow: (assetId: string, undoAction: (assetId: string) => void) => void;
-    onError: (message: string) => void;
+    onAssetHide?: (assetId: string, undoAction: (assetId: string) => void) => void;
+    onAssetShow?: (assetId: string, undoAction: (assetId: string) => void) => void;
+    onError?: (message: string) => void;
 }
 
 export default function HiddenAssetsProvider({
