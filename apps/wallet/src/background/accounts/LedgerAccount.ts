@@ -6,27 +6,28 @@ import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
 
 import {
     Account,
+    AccountType,
     type PasswordUnlockableAccount,
     type SerializedAccount,
     type SerializedUIAccount,
 } from './Account';
 
 export interface LedgerAccountSerialized extends SerializedAccount {
-    type: 'ledger';
+    type: AccountType.Ledger;
     derivationPath: string;
     // just used for authentication nothing is stored here at the moment
     encrypted: string;
 }
 
 export interface LedgerAccountSerializedUI extends SerializedUIAccount {
-    type: 'ledger';
+    type: AccountType.Ledger;
     derivationPath: string;
 }
 
 export function isLedgerAccountSerializedUI(
     account: SerializedUIAccount,
 ): account is LedgerAccountSerializedUI {
-    return account.type === 'ledger';
+    return account.type === AccountType.Ledger;
 }
 
 type EphemeralData = {
@@ -51,7 +52,7 @@ export class LedgerAccount
         derivationPath: string;
     }): Promise<Omit<LedgerAccountSerialized, 'id'>> {
         return {
-            type: 'ledger',
+            type: AccountType.Ledger,
             address,
             publicKey,
             encrypted: await encrypt(password, {}),
@@ -64,11 +65,11 @@ export class LedgerAccount
     }
 
     static isOfType(serialized: SerializedAccount): serialized is LedgerAccountSerialized {
-        return serialized.type === 'ledger';
+        return serialized.type === AccountType.Ledger;
     }
 
     constructor({ id, cachedData }: { id: string; cachedData?: LedgerAccountSerialized }) {
-        super({ type: 'ledger', id, cachedData });
+        super({ type: AccountType.Ledger, id, cachedData });
     }
 
     async lock(allowRead = false): Promise<void> {

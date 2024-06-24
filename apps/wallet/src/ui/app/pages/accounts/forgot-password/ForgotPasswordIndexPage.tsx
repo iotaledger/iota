@@ -6,13 +6,15 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useAccountSources } from '../../../hooks/useAccountSources';
+import { AccountSourceType } from '_src/background/account-sources/AccountSource';
 
 export function ForgotPasswordIndexPage() {
     const allAccountSources = useAccountSources();
     const navigate = useNavigate();
     const totalRecoverable =
-        allAccountSources.data?.filter(({ type }) => type === 'mnemonic' || type === 'seed')
-            .length || 0;
+        allAccountSources.data?.filter(
+            ({ type }) => type === AccountSourceType.Mnemonic || type === AccountSourceType.Seed,
+        ).length || 0;
     useEffect(() => {
         if (allAccountSources.isPending) {
             return;

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
+import { AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
 import { isMnemonicSerializedUiAccount } from '_src/background/accounts/MnemonicAccount';
 import { isSeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
 
@@ -13,10 +13,10 @@ function getKey(account: SerializedUIAccount): string {
 }
 
 export const DEFAULT_SORT_ORDER: AccountType[] = [
-    'mnemonic-derived',
-    'seed-derived',
-    'imported',
-    'ledger',
+    AccountType.MnemonicDerived,
+    AccountType.SeedDerived,
+    AccountType.Imported,
+    AccountType.Ledger,
 ];
 
 export function groupByType(accounts: SerializedUIAccount[]) {
