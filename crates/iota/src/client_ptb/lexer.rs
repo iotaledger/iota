@@ -17,12 +17,8 @@ pub struct Lexer<'l, I: Iterator<Item = &'l str>> {
 
 impl<'l, I: Iterator<Item = &'l str>> Lexer<'l, I> {
     pub fn new(mut tokens: I) -> Option<Self> {
-        let Some(buf) = tokens.next() else {
-            return None;
-        };
-
         Some(Self {
-            buf,
+            buf: tokens.next()?,
             tokens,
             offset: 0,
             done: None,
@@ -64,9 +60,7 @@ impl<'l, I: Iterator<Item = &'l str>> Lexer<'l, I> {
     fn eat_prefix(&mut self, patt: &str) -> Option<Spanned<&'l str>> {
         let start = self.offset;
 
-        let Some(rest) = self.buf.strip_prefix(patt) else {
-            return None;
-        };
+        let rest = self.buf.strip_prefix(patt)?;
 
         let len = self.buf.len() - rest.len();
         let value = &self.buf[..len];
@@ -123,9 +117,7 @@ impl<'l, I: Iterator<Item = &'l str>> Lexer<'l, I> {
     /// it, if it exists.
     fn peek(&self) -> Option<Spanned<&'l str>> {
         let start = self.offset;
-        let Some((ix, _)) = self.next_char_boundary() else {
-            return None;
-        };
+        let ix = self.next_char_boundary()?.0;
 
         let value = &self.buf[..ix];
         let span = Span {

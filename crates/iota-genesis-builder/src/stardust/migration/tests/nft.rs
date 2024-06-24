@@ -31,24 +31,25 @@ use iota_types::{
     dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo},
     id::UID,
     object::{Object, Owner},
+    stardust::{
+        coin_type::CoinType,
+        output::{
+            FixedPoint32, Irc27Metadata, Nft, NftOutput, ALIAS_OUTPUT_MODULE_NAME,
+            NFT_DYNAMIC_OBJECT_FIELD_KEY, NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE,
+            NFT_OUTPUT_MODULE_NAME,
+        },
+        stardust_to_iota_address,
+    },
     TypeTag,
 };
 use move_core_types::ident_str;
 
 use crate::stardust::{
-    migration::{
-        tests::{
-            create_foundry, extract_native_token_from_bag, object_migration_with_object_owner,
-            random_output_header, run_migration, unlock_object, ExpectedAssets,
-            UnlockObjectTestResult,
-        },
-        CoinType,
+    migration::tests::{
+        create_foundry, extract_native_token_from_bag, object_migration_with_object_owner,
+        random_output_header, run_migration, unlock_object, ExpectedAssets, UnlockObjectTestResult,
     },
-    types::{
-        snapshot::OutputHeader, stardust_to_iota_address, FixedPoint32, Irc27Metadata, Nft,
-        NftOutput, ALIAS_OUTPUT_MODULE_NAME, NFT_DYNAMIC_OBJECT_FIELD_KEY,
-        NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE, NFT_OUTPUT_MODULE_NAME,
-    },
+    types::output_header::OutputHeader,
 };
 
 fn migrate_nft(
@@ -360,7 +361,7 @@ fn nft_migration_with_valid_irc27_metadata() {
 
     let immutable_metadata = nft.immutable_metadata;
     assert_eq!(&immutable_metadata.media_type, metadata.media_type());
-    assert_eq!(immutable_metadata.uri.url, metadata.uri().to_string());
+    assert_eq!(immutable_metadata.uri.url(), metadata.uri().to_string());
     assert_eq!(&immutable_metadata.name, metadata.name());
     assert_eq!(&immutable_metadata.issuer_name, metadata.issuer_name());
     assert_eq!(

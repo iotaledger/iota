@@ -15,13 +15,12 @@ use iota_sdk::types::block::output::{FoundryOutput, Output, OutputId};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, TxContext},
     epoch_data::EpochData,
-    gas_coin::GAS,
     object::Object,
-    smr_coin::SMR,
+    stardust::coin_type::CoinType,
+    timelock::timelock,
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
     TIMELOCK_PACKAGE_ID,
 };
-use move_core_types::language_storage::TypeTag;
 use tracing::info;
 
 use crate::stardust::{
@@ -31,7 +30,7 @@ use crate::stardust::{
         MigrationTargetNetwork,
     },
     native_token::package_data::NativeTokenPackageData,
-    types::{snapshot::OutputHeader, timelock},
+    types::output_header::OutputHeader,
 };
 
 /// We fix the protocol version used in the migration.
@@ -287,20 +286,4 @@ pub(super) fn create_migration_context(target_network: MigrationTargetNetwork) -
         &target_network.migration_transaction_digest(),
         &EpochData::new_genesis(0),
     )
-}
-
-/// The type tag for the outputs used in the migration.
-#[derive(Clone, Debug)]
-pub enum CoinType {
-    Iota,
-    Shimmer,
-}
-
-impl CoinType {
-    pub fn to_type_tag(&self) -> TypeTag {
-        match self {
-            Self::Iota => GAS::type_tag(),
-            Self::Shimmer => SMR::type_tag(),
-        }
-    }
 }

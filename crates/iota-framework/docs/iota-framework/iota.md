@@ -2,8 +2,8 @@
 title: Module `0x2::iota`
 ---
 
-Coin<IOTA> is the token used to pay for gas in Iota.
-It has 9 decimals, and the smallest unit (10^-9) is called "micros".
+Coin<IOTA> is the token used to pay for gas in IOTA.
+It has 9 decimals, and the smallest unit (10^-9) is called "nano".
 
 
 -  [Struct `IOTA`](#0x2_iota_IOTA)
@@ -74,33 +74,23 @@ Sender is not @0x0 the system address.
 
 
 
-<a name="0x2_iota_MICROS_PER_IOTA"></a>
+<a name="0x2_iota_NANO_PER_IOTA"></a>
 
-The amount of Micros per Iota token based on the fact that micros is
-10^-9 of a Iota token
+The amount of Nanos per IOTA token based on the fact that nano is
+10^-9 of a IOTA token
 
 
-<pre><code><b>const</b> <a href="../iota-framework/iota.md#0x2_iota_MICROS_PER_IOTA">MICROS_PER_IOTA</a>: u64 = 1000000000;
+<pre><code><b>const</b> <a href="../iota-framework/iota.md#0x2_iota_NANO_PER_IOTA">NANO_PER_IOTA</a>: u64 = 1000000000;
 </code></pre>
 
 
 
-<a name="0x2_iota_TOTAL_SUPPLY_IOTA"></a>
+<a name="0x2_iota_TOTAL_SUPPLY_NANO"></a>
 
-The total supply of Iota denominated in whole Iota tokens (10 Billion)
-
-
-<pre><code><b>const</b> <a href="../iota-framework/iota.md#0x2_iota_TOTAL_SUPPLY_IOTA">TOTAL_SUPPLY_IOTA</a>: u64 = 10000000000;
-</code></pre>
+The total supply of IOTA denominated in Nano (4.6 Billion * 10^9)
 
 
-
-<a name="0x2_iota_TOTAL_SUPPLY_MICROS"></a>
-
-The total supply of Iota denominated in Micros (10 Billion * 10^9)
-
-
-<pre><code><b>const</b> <a href="../iota-framework/iota.md#0x2_iota_TOTAL_SUPPLY_MICROS">TOTAL_SUPPLY_MICROS</a>: u64 = 10000000000000000000;
+<pre><code><b>const</b> <a href="../iota-framework/iota.md#0x2_iota_TOTAL_SUPPLY_NANO">TOTAL_SUPPLY_NANO</a>: u64 = 4600000000000000000;
 </code></pre>
 
 
@@ -130,15 +120,14 @@ This should be called only once during genesis creation.
         <a href="../iota-framework/iota.md#0x2_iota_IOTA">IOTA</a> {},
         9,
         b"<a href="../iota-framework/iota.md#0x2_iota_IOTA">IOTA</a>",
-        b"Iota",
-        // TODO: add appropriate description and logo <a href="../iota-framework/url.md#0x2_url">url</a>
-        b"",
-        <a href="../move-stdlib/option.md#0x1_option_none">option::none</a>(),
+        b"<a href="../iota-framework/iota.md#0x2_iota_IOTA">IOTA</a>",
+        b"The main (gas)token of the <a href="../iota-framework/iota.md#0x2_iota_IOTA">IOTA</a> Network.",
+        <a href="../move-stdlib/option.md#0x1_option_some">option::some</a>(<a href="../iota-framework/url.md#0x2_url_new_unsafe_from_bytes">url::new_unsafe_from_bytes</a>(b"https://<a href="../iota-framework/iota.md#0x2_iota">iota</a>.org/logo.png")),
         ctx
     );
     <a href="../iota-framework/transfer.md#0x2_transfer_public_freeze_object">transfer::public_freeze_object</a>(metadata);
     <b>let</b> <b>mut</b> supply = treasury.treasury_into_supply();
-    <b>let</b> total_iota = supply.increase_supply(<a href="../iota-framework/iota.md#0x2_iota_TOTAL_SUPPLY_MICROS">TOTAL_SUPPLY_MICROS</a>);
+    <b>let</b> total_iota = supply.increase_supply(<a href="../iota-framework/iota.md#0x2_iota_TOTAL_SUPPLY_NANO">TOTAL_SUPPLY_NANO</a>);
     supply.destroy_supply();
     total_iota
 }
