@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAccountsFormContext } from '../../components/accounts/AccountsFormContext';
 import { ImportPrivateKeyForm } from '../../components/accounts/ImportPrivateKeyForm';
 import { Heading } from '../../shared/heading';
+import { AccountType } from '_src/background/accounts/Account';
 
 export function ImportPrivateKeyPage() {
     const navigate = useNavigate();
@@ -27,7 +28,7 @@ export function ImportPrivateKeyPage() {
                 <ImportPrivateKeyForm
                     onSubmit={({ privateKey }) => {
                         setAccountsFormValues({
-                            type: 'imported',
+                            type: AccountType.Imported,
                             keyPair: privateKey,
                         });
                         navigate('/accounts/protect-account?accountType=imported');

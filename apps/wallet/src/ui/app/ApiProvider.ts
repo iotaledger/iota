@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
+import { AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
 import { getIotaClient } from '_src/shared/iota-client';
 import { getDefaultNetwork, Network, type IotaClient } from '@iota/iota.js/client';
 
@@ -12,9 +12,9 @@ import { queryClient } from './helpers/queryClient';
 import { type WalletSigner } from './WalletSigner';
 
 const ACCOUNT_TYPES_WITH_BACKGROUND_SIGNER: AccountType[] = [
-    'mnemonic-derived',
-    'seed-derived',
-    'imported',
+    AccountType.MnemonicDerived,
+    AccountType.SeedDerived,
+    AccountType.Imported,
 ];
 
 export default class ApiProvider {
@@ -60,7 +60,7 @@ export default class ApiProvider {
         if (ACCOUNT_TYPES_WITH_BACKGROUND_SIGNER.includes(account.type)) {
             return this.getBackgroundSignerInstance(account, backgroundClient);
         }
-        if ('ledger' === account.type) {
+        if (AccountType.Ledger === account.type) {
             // Ideally, Ledger transactions would be signed in the background
             // and exist as an asynchronous keypair; however, this isn't possible
             // because you can't connect to a Ledger device from the background
