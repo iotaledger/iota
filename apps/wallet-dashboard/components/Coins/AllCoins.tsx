@@ -9,8 +9,7 @@ function AllCoins(): JSX.Element {
     const account = useCurrentAccount();
     const { data: coins } = useIotaClientQuery(
         'getAllBalances',
-        // eslint-disable-next-line @typescript-eslint/no-non-null-asserted-optional-chain
-        { owner: account?.address! },
+        { owner: account?.address ?? '' },
         {
             enabled: !!account?.address,
             select: filterAndSortTokenBalances,
