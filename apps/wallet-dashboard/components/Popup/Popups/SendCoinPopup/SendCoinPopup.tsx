@@ -7,6 +7,8 @@ import { CoinStruct } from '@iota/iota.js/client';
 import { useSendCoinTransaction } from '@/hooks';
 import { useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
 import { useGetAllCoins } from '@iota/core';
+import { useNotifications } from '@/hooks/useNotifications';
+import { NotificationType } from '@/stores/notificationStore';
 
 export interface FormDataValues {
     amount: string;
@@ -31,6 +33,7 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
         recipientAddress: '',
     });
     const { data: coins } = useGetAllCoins(coin.coinType, senderAddress);
+    const { addNotification } = useNotifications();
     const totalCoins = coins?.reduce((partialSum, c) => partialSum + BigInt(c.balance), BigInt(0));
 
     const {
@@ -53,8 +56,11 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
         })
             .then(() => {
                 onClose();
+                addNotification('Transfer transaction has been sent');
             })
-            .catch(() => {}); // Avoid unhandled exceptions but handle error with hook
+            .catch(() => {
+                addNotification('Transfer transaction was not sent', NotificationType.Error);
+            });
     };
 
     const onNext = () => {
