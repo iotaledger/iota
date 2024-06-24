@@ -2,21 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk::types::block::output::AliasOutput as StardustAlias;
-use iota_types::{
+use iota_stardust_sdk::types::block::output::AliasOutput as StardustAlias;
+use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
+
+use crate::{
     balance::Balance,
     base_types::{IotaAddress, ObjectID, SequenceNumber, TxContext},
     collection_types::Bag,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
+    stardust::{coin_type::CoinType, stardust_to_iota_address},
     TypeTag, STARDUST_PACKAGE_ID,
 };
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
-
-use super::stardust_to_iota_address;
-use crate::stardust::migration::CoinType;
 
 pub const ALIAS_MODULE_NAME: &IdentStr = ident_str!("alias");
 pub const ALIAS_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("alias_output");

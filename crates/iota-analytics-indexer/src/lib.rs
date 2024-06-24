@@ -5,7 +5,7 @@
 use std::{ops::Range, path::PathBuf};
 
 use anyhow::{anyhow, Result};
-use arrow_array::{Array, Int32Array};
+use arrow_array::Int32Array;
 use clap::*;
 use gcp_bigquery_client::{model::query_request::QueryRequest, Client};
 use iota_config::object_storage_config::ObjectStoreConfig;

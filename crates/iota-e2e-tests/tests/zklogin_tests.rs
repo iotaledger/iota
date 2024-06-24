@@ -97,7 +97,7 @@ async fn zklogin_end_to_end_test() {
 
     // load test vectors
     let (kp, pk_zklogin, inputs) =
-        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1];
+        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()[1];
     let zklogin_addr = (pk_zklogin).into();
 
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -155,7 +155,7 @@ async fn test_expired_zklogin_sig() {
     test_cluster.trigger_reconfiguration().await;
     // load one test vector, the zklogin inputs corresponds to max_epoch = 1
     let (kp, pk_zklogin, inputs) =
-        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1];
+        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()[1];
     let zklogin_addr = (pk_zklogin).into();
 
     let rgp = test_cluster.get_reference_gas_price().await;
