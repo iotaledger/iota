@@ -1,13 +1,10 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+mod alias_ownership;
 mod dummy;
 
-use std::{
-    fs::{File, OpenOptions},
-    io::BufWriter,
-    path::Path,
-};
+use std::{fs::File, io::BufWriter, path::Path};
 
 use iota_sdk::types::block::{
     payload::milestone::{MilestoneOption, ParametersMilestoneOption},
@@ -15,7 +12,7 @@ use iota_sdk::types::block::{
 };
 use packable::{packer::IoPacker, Packable, PackableExt};
 
-use crate::stardust::parse::FullSnapshotParser;
+use crate::stardust::{parse::FullSnapshotParser, types::output_header::OutputHeader};
 
 /// Adds outputs to test specific and intricate scenario in the full snapshot.
 pub fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
@@ -68,4 +65,14 @@ pub fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
         });
 
     Ok(())
+}
+
+// TODO: find a good place for it so we can use it here and in migration/tests
+pub(crate) fn random_output_header() -> OutputHeader {
+    OutputHeader::new_testing(
+        rand::random(),
+        rand::random(),
+        rand::random(),
+        rand::random(),
+    )
 }
