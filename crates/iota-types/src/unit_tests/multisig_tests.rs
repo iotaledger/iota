@@ -359,7 +359,8 @@ fn multisig_zklogin_scenarios() {
     let skp: IotaKeyPair = IotaKeyPair::Ed25519(kp);
     let pk1 = skp.public();
 
-    let (_, _, inputs) = &load_test_vectors("./src/unit_tests/zklogin_test_vectors.json")[0];
+    let (_, _, inputs) =
+        &load_test_vectors("./src/unit_tests/zklogin_test_vectors.json").unwrap()[0];
     // pk consistent with the one in make_zklogin_tx
     let pk2 = PublicKey::ZkLogin(
         ZkLoginPublicIdentifier::new(
@@ -416,7 +417,8 @@ fn zklogin_in_multisig_works_with_both_addresses() {
     let multisig_pk = MultiSigPublicKey::new(vec![pk1, pk2.clone()], vec![1; 2], 1).unwrap();
     let multisig_address = IotaAddress::from(&multisig_pk);
 
-    let (kp, _pk, input) = &load_test_vectors("./src/unit_tests/zklogin_test_vectors.json")[0];
+    let (kp, _pk, input) =
+        &load_test_vectors("./src/unit_tests/zklogin_test_vectors.json").unwrap()[0];
     let intent_msg = &IntentMessage::new(
         Intent::iota_transaction(),
         make_transaction_data(multisig_address),

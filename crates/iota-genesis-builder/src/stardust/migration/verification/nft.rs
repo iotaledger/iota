@@ -11,23 +11,21 @@ use iota_types::{
     dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo, Field},
     in_memory_storage::InMemoryStorage,
     object::Owner,
+    stardust::output::{NFT_DYNAMIC_OBJECT_FIELD_KEY, NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE},
     TypeTag,
 };
 
-use crate::stardust::{
-    migration::{
-        executor::FoundryLedgerData,
-        verification::{
-            created_objects::CreatedObjects,
-            util::{
-                verify_address_owner, verify_expiration_unlock_condition, verify_issuer_feature,
-                verify_metadata_feature, verify_native_tokens, verify_parent,
-                verify_sender_feature, verify_storage_deposit_unlock_condition, verify_tag_feature,
-                verify_timelock_unlock_condition,
-            },
+use crate::stardust::migration::{
+    executor::FoundryLedgerData,
+    verification::{
+        created_objects::CreatedObjects,
+        util::{
+            verify_address_owner, verify_expiration_unlock_condition, verify_issuer_feature,
+            verify_metadata_feature, verify_native_tokens, verify_parent, verify_sender_feature,
+            verify_storage_deposit_unlock_condition, verify_tag_feature,
+            verify_timelock_unlock_condition,
         },
     },
-    types::{NFT_DYNAMIC_OBJECT_FIELD_KEY, NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE},
 };
 
 pub(super) fn verify_nft_output(
@@ -44,14 +42,14 @@ pub(super) fn verify_nft_output(
             .ok_or_else(|| anyhow!("missing nft output object for {output_id}"))
     })?;
     let created_output = created_output_obj
-        .to_rust::<crate::stardust::types::NftOutput>()
+        .to_rust::<iota_types::stardust::output::NftOutput>()
         .ok_or_else(|| anyhow!("invalid nft output object for {output_id}"))?;
 
     let created_nft_obj = storage
         .get_object(&ObjectID::new(*output.nft_id_non_null(&output_id)))
         .ok_or_else(|| anyhow!("missing nft object for {output_id}"))?;
     let created_nft = created_nft_obj
-        .to_rust::<crate::stardust::types::Nft>()
+        .to_rust::<iota_types::stardust::output::Nft>()
         .ok_or_else(|| anyhow!("invalid nft object for {output_id}"))?;
 
     // Output Owner
@@ -140,10 +138,10 @@ pub(super) fn verify_nft_output(
 
     // Immutable Metadata Feature
     ensure!(
-        crate::stardust::types::Nft::convert_immutable_metadata(output)?
+        iota_types::stardust::output::Nft::convert_immutable_metadata(output)?
             == created_nft.immutable_metadata,
         "metadata mismatch: found {:x?}, expected {:x?}",
-        crate::stardust::types::Nft::convert_immutable_metadata(output)?,
+        iota_types::stardust::output::Nft::convert_immutable_metadata(output)?,
         created_nft.immutable_metadata
     );
 

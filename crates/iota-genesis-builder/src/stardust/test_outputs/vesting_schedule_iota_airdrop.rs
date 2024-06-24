@@ -20,7 +20,7 @@ use iota_sdk::{
     },
 };
 
-use crate::stardust::types::snapshot::OutputHeader;
+use crate::stardust::types::output_header::OutputHeader;
 
 const MNEMONIC: &str = "sense silent picnic predict any public install educate trial depth faith voyage age exercise perfect hair favorite glimpse blame wood wave fiber maple receive";
 const ACCOUNTS: u32 = 10;

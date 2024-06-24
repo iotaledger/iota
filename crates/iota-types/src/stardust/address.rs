@@ -1,8 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk::types::block::address::Address;
-use iota_types::{base_types::IotaAddress, object::Owner};
+use iota_stardust_sdk::types::block::address::Address;
+
+use crate::{base_types::IotaAddress, object::Owner};
 
 /// Converts a ["Stardust" `Address`](Address) to a [`IotaAddress`].
 ///
