@@ -50,4 +50,13 @@ module timelock::timelocked_balance {
         // Pack the splitted balance into a timelock.
         timelock::pack(value, self.expiration_timestamp_ms(), self.label(), ctx)
     }
+
+
+    /// Split a `TimeLock<Balance<T>>` and transfer it to the original owner.
+    public fun split_and_transfer<T>(self: &mut TimeLock<Balance<T>>, value: u64, ctx: &mut TxContext){
+        // Split the timelock.
+        let splitted = split(self, value, ctx);
+        // Transfer it to the sender.
+        splitted.transfer(ctx.sender())
+    }
 }

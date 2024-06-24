@@ -9,6 +9,7 @@ Utility functions for time-locked balance.
 -  [Function `join`](#0x10cf_timelocked_balance_join)
 -  [Function `join_vec`](#0x10cf_timelocked_balance_join_vec)
 -  [Function `split`](#0x10cf_timelocked_balance_split)
+-  [Function `split_and_transfer`](#0x10cf_timelocked_balance_split_and_transfer)
 
 
 <pre><code><b>use</b> <a href="timelock.md#0x10cf_timelock">0x10cf::timelock</a>;
@@ -136,6 +137,34 @@ Split a <code>TimeLock&lt;Balance&lt;T&gt;&gt;</code> and take a sub balance fro
 
     // Pack the splitted <a href="../iota-framework/balance.md#0x2_balance">balance</a> into a <a href="timelock.md#0x10cf_timelock">timelock</a>.
     <a href="timelock.md#0x10cf_timelock_pack">timelock::pack</a>(value, self.expiration_timestamp_ms(), self.label(), ctx)
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="0x10cf_timelocked_balance_split_and_transfer"></a>
+
+## Function `split_and_transfer`
+
+Split a <code>TimeLock&lt;Balance&lt;T&gt;&gt;</code> and transfer it to the original owner.
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="timelocked_balance.md#0x10cf_timelocked_balance_split_and_transfer">split_and_transfer</a>&lt;T&gt;(self: &<b>mut</b> <a href="timelock.md#0x10cf_timelock_TimeLock">timelock::TimeLock</a>&lt;<a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;T&gt;&gt;, value: u64, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="timelocked_balance.md#0x10cf_timelocked_balance_split_and_transfer">split_and_transfer</a>&lt;T&gt;(self: &<b>mut</b> TimeLock&lt;Balance&lt;T&gt;&gt;, value: u64, ctx: &<b>mut</b> TxContext){
+    // Split the <a href="timelock.md#0x10cf_timelock">timelock</a>.
+    <b>let</b> splitted = <a href="timelocked_balance.md#0x10cf_timelocked_balance_split">split</a>(self, value, ctx);
+    // Transfer it <b>to</b> the sender.
+    splitted.<a href="../iota-framework/transfer.md#0x2_transfer">transfer</a>(ctx.sender())
 }
 </code></pre>
 
