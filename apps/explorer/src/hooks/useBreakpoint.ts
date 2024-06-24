@@ -15,6 +15,6 @@ export const BREAK_POINT = {
     '2xl': 1536,
 };
 
-export function useBreakpoint(breakpoint: keyof typeof BREAK_POINT) {
+export function useBreakpoint(breakpoint: keyof typeof BREAK_POINT): boolean {
     return useMediaQuery(`(min-width: ${BREAK_POINT[breakpoint]}px)`);
 }

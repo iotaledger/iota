@@ -12,7 +12,7 @@ interface EpochStatsProps {
     children: ReactNode;
 }
 
-export function EpochStats({ label, children }: EpochStatsProps) {
+export function EpochStats({ label, children }: EpochStatsProps): JSX.Element {
     return (
         <Card spacing="lg" rounded="2xl">
             <div className="flex flex-col gap-8">

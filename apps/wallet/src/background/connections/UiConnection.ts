@@ -39,13 +39,13 @@ import {
 import { accountSourcesEvents } from '../account-sources/events';
 import { MnemonicAccountSource } from '../account-sources/MnemonicAccountSource';
 import { accountsHandleUIMessage, getAllSerializedUIAccounts } from '../accounts';
-import { type AccountType } from '../accounts/Account';
 import { accountsEvents } from '../accounts/events';
 import { getAutoLockMinutes, notifyUserActive, setAutoLockMinutes } from '../auto-lock-accounts';
-import { backupDB, getDB, settingsKeys } from '../db';
-import { clearStatus, doMigration, getStatus } from '../legacy-accounts/storage-migration';
+import { backupDB, getDB, SETTINGS_KEYS } from '../db';
+import { clearStatus, doMigration, getStatus } from '../storage-migration';
 import NetworkEnv from '../NetworkEnv';
 import { Connection } from './Connection';
+import { SeedAccountSource } from '../account-sources/SeedAccountSource';
 
 export class UiConnection extends Connection {
     public static readonly CHANNEL: PortChannelName = 'iota_ui<->background';
@@ -173,7 +173,7 @@ export class UiConnection extends Connection {
                 await db.delete();
                 await db.open();
                 // prevents future run of auto backup process of the db (we removed everything nothing to backup after logout)
-                await db.settings.put({ setting: settingsKeys.isPopulated, value: true });
+                await db.settings.put({ setting: SETTINGS_KEYS.isPopulated, value: true });
                 this.send(createMessage({ type: 'done' }, id));
             } else if (isMethodPayload(payload, 'getAutoLockMinutes')) {
                 await this.send(
@@ -199,24 +199,30 @@ export class UiConnection extends Connection {
                 if (!recoveryData.length) {
                     throw new Error('Missing recovery data');
                 }
-                for (const { accountSourceID, entropy } of recoveryData) {
+                for (const data of recoveryData) {
+                    const { accountSourceID, type } = data;
                     const accountSource = await getAccountSourceByID(accountSourceID);
                     if (!accountSource) {
                         throw new Error('Account source not found');
                     }
-                    if (!(accountSource instanceof MnemonicAccountSource)) {
+                    if (
+                        !(accountSource instanceof MnemonicAccountSource) &&
+                        !(accountSource instanceof SeedAccountSource)
+                    ) {
                         throw new Error('Invalid account source type');
                     }
-                    await accountSource.verifyRecoveryData(entropy);
+                    if (type === 'mnemonic') {
+                        await accountSource.verifyRecoveryData(data.entropy);
+                    }
+                    if (type === 'seed') {
+                        await accountSource.verifyRecoveryData(data.seed);
+                    }
                 }
                 const db = await getDB();
-                const zkLoginType: AccountType = 'zkLogin';
                 const accountSourceIDs = recoveryData.map(({ accountSourceID }) => accountSourceID);
                 await db.transaction('rw', db.accountSources, db.accounts, async () => {
                     await db.accountSources.where('id').noneOf(accountSourceIDs).delete();
                     await db.accounts
-                        .where('type')
-                        .notEqual(zkLoginType)
                         .filter(
                             (anAccount) =>
                                 !('sourceID' in anAccount) ||
@@ -224,15 +230,25 @@ export class UiConnection extends Connection {
                                 !accountSourceIDs.includes(anAccount.sourceID),
                         )
                         .delete();
-                    for (const { accountSourceID, entropy } of recoveryData) {
-                        await db.accountSources.update(accountSourceID, {
-                            encryptedData: await Dexie.waitFor(
-                                MnemonicAccountSource.createEncryptedData(
-                                    toEntropy(entropy),
-                                    password,
+                    for (const data of recoveryData) {
+                        const { accountSourceID, type } = data;
+                        if (type === 'mnemonic') {
+                            await db.accountSources.update(accountSourceID, {
+                                encryptedData: await Dexie.waitFor(
+                                    MnemonicAccountSource.createEncryptedData(
+                                        toEntropy(data.entropy),
+                                        password,
+                                    ),
                                 ),
-                            ),
-                        });
+                            });
+                        }
+                        if (type === 'seed') {
+                            await db.accountSources.update(accountSourceID, {
+                                encryptedData: await Dexie.waitFor(
+                                    SeedAccountSource.createEncryptedData(data.seed, password),
+                                ),
+                            });
+                        }
                     }
                 });
                 await backupDB();

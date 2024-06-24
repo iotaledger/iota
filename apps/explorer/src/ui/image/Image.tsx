@@ -10,7 +10,7 @@ import { useAnimate } from 'framer-motion';
 import { type ImgHTMLAttributes, useEffect, useState } from 'react';
 
 import useImage from '~/hooks/useImage';
-import { Visibility } from '~/hooks/useImageMod';
+import { ImageVisibility } from '~/lib/enums';
 
 const imageStyles = cva(null, {
     variants: {
@@ -53,7 +53,7 @@ export interface ImageProps extends ImageStyleProps, ImgHTMLAttributes<HTMLImage
     onClick?: () => void;
     moderate?: boolean;
     src: string;
-    visibility?: Visibility;
+    visibility?: ImageVisibility;
     fadeIn?: boolean;
 }
 
@@ -70,11 +70,11 @@ function BaseImage({
     fadeIn,
     aspect,
     ...imgProps
-}: ImageProps & { status: string }) {
+}: ImageProps & { status: string }): JSX.Element {
     const [scope, animate] = useAnimate();
     const [isBlurred, setIsBlurred] = useState(false);
     useEffect(() => {
-        if (visibility && visibility !== Visibility.Pass) {
+        if (visibility && visibility !== ImageVisibility.Pass) {
             setIsBlurred(true);
         }
     }, [visibility]);
@@ -103,7 +103,7 @@ function BaseImage({
                     <div
                         className={clsx(
                             'absolute z-20 flex h-full w-full items-center justify-center rounded-md bg-gray-100/30 text-center text-white backdrop-blur-md',
-                            visibility === Visibility.Hide &&
+                            visibility === ImageVisibility.Hide &&
                                 'pointer-events-none cursor-not-allowed',
                         )}
                         onClick={() => setIsBlurred(!isBlurred)}
@@ -132,7 +132,7 @@ function BaseImage({
     );
 }
 
-export function Image({ src, moderate = true, ...props }: ImageProps) {
+export function Image({ src, moderate = true, ...props }: ImageProps): JSX.Element {
     const { status, url, moderation } = useImage({ src, moderate });
     return <BaseImage visibility={moderation?.visibility} status={status} src={url} {...props} />;
 }

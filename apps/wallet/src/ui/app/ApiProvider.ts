@@ -11,11 +11,10 @@ import { BackgroundServiceSigner } from './background-client/BackgroundServiceSi
 import { queryClient } from './helpers/queryClient';
 import { type WalletSigner } from './WalletSigner';
 
-const accountTypesWithBackgroundSigner: AccountType[] = [
+const ACCOUNT_TYPES_WITH_BACKGROUND_SIGNER: AccountType[] = [
     'mnemonic-derived',
     'seed-derived',
     'imported',
-    'zkLogin',
 ];
 
 export default class ApiProvider {
@@ -58,7 +57,7 @@ export default class ApiProvider {
         if (!this._apiFullNodeProvider) {
             this.setNewJsonRpcProvider();
         }
-        if (accountTypesWithBackgroundSigner.includes(account.type)) {
+        if (ACCOUNT_TYPES_WITH_BACKGROUND_SIGNER.includes(account.type)) {
             return this.getBackgroundSignerInstance(account, backgroundClient);
         }
         if ('ledger' === account.type) {

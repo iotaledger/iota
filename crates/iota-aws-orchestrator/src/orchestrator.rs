@@ -205,7 +205,7 @@ impl<P, T> Orchestrator<P, T> {
         // Spawn a load generate collocated with each node if there are no instances
         // dedicated to excursively run load generators.
         if client_instances.is_empty() {
-            client_instances = nodes_instances.clone();
+            client_instances.clone_from(&nodes_instances);
         }
 
         Ok((client_instances, nodes_instances, monitoring_instance))

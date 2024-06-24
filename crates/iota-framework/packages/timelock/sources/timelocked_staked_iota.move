@@ -135,8 +135,20 @@ module timelock::timelocked_staked_iota {
         (staked_iota, expiration_timestamp_ms, label)
     }
 
-    /// An utility function to transfer a `TimelockedStakedIota`.
+    /// A utility function to transfer a `TimelockedStakedIota`.
     public(package) fun transfer(stake: TimelockedStakedIota, recipient: address) {
         transfer::transfer(stake, recipient);
+    }
+
+    /// A utility function to transfer multiple `TimelockedStakedIota`.
+    public(package) fun transfer_multiple(mut stakes: vector<TimelockedStakedIota>, recipient: address) {
+        // Transfer all the time-locked stakes to the recipient.
+        while (!stakes.is_empty()) {
+           let stake = stakes.pop_back();
+           transfer(stake, recipient);
+        };
+
+        // Destroy the empty vector.
+        vector::destroy_empty(stakes);
     }
 }

@@ -1,14 +1,19 @@
 // Copyright (c) 2024 IOTA Stiftung
-// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 'use client';
 
+import { AccountBalance, AllCoins, Button, NewStakePopup } from '@/components';
+import { usePopups } from '@/hooks';
 import { useCurrentAccount, useCurrentWallet } from '@iota/dapp-kit';
-import { AccountBalance, AllCoins } from '@/components';
 
 function HomeDashboardPage(): JSX.Element {
     const { connectionStatus } = useCurrentWallet();
     const account = useCurrentAccount();
+    const { openPopup, closePopup } = usePopups();
+
+    const addNewStake = () => {
+        openPopup(<NewStakePopup onClose={closePopup} />);
+    };
 
     return (
         <main className="flex min-h-screen flex-col items-center space-y-8 p-24">
@@ -19,6 +24,7 @@ function HomeDashboardPage(): JSX.Element {
                     <div>Address: {account.address}</div>
                     <AccountBalance />
                     <AllCoins />
+                    <Button onClick={addNewStake}>New Stake</Button>
                 </div>
             )}
         </main>

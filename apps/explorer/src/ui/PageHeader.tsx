@@ -9,7 +9,7 @@ import { ReactComponent as CallIcon } from './icons/transactions/call.svg';
 import { Banner } from '~/ui/Banner';
 import { CopyToClipboard } from '~/ui/CopyToClipboard';
 
-export type PageHeaderType = 'Transaction' | 'Checkpoint' | 'Address' | 'Object' | 'Package';
+type PageHeaderType = 'Transaction' | 'Checkpoint' | 'Address' | 'Object' | 'Package';
 
 export interface PageHeaderProps {
     title: string;
@@ -42,7 +42,7 @@ export function PageHeader({
     error,
     loading,
     after,
-}: PageHeaderProps) {
+}: PageHeaderProps): JSX.Element {
     const Icon = TYPE_TO_ICON[type];
 
     return (

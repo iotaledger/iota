@@ -6,10 +6,10 @@ import { IotaClient } from '@iota/iota.js/client';
 import { useMemo } from 'react';
 
 import { useNetwork } from '~/context';
-import { Network } from '~/utils/api/DefaultRpcClient';
+import { Network } from '~/utils/api/defaultRpcClient';
 
 // TODO: Use enhanced RPC locally by default
-export function useEnhancedRpcClient() {
+export function useEnhancedRpcClient(): IotaClient {
     const [network] = useNetwork();
     const client = useIotaClient();
     const enhancedRpc = useMemo(() => {

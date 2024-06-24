@@ -39,7 +39,10 @@ use iota_types::{
     object::{Data, MoveObject, ObjectInner, Owner, OBJECT_START_VERSION},
     parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
-    timelock::timelock::TimeLock,
+    timelock::{
+        label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
+        timelock::TimeLock,
+    },
     utils::to_sender_signed_transaction,
     IOTA_FRAMEWORK_ADDRESS,
 };
@@ -980,6 +983,7 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
 
     let principal = 100_000_000_000;
     let expiration_timestamp_ms = u64::MAX;
+    let label = Option::Some(label_struct_tag_to_string(stardust_upgrade_label_type()));
 
     let timelock_iota = unsafe {
         MoveObject::new_from_execution(
@@ -990,6 +994,7 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
                 UID::new(ObjectID::random()),
                 iota_types::balance::Balance::new(principal),
                 expiration_timestamp_ms,
+                label.clone(),
             )
             .to_bcs_bytes(),
             &ProtocolConfig::get_for_min_version(),
@@ -1084,6 +1089,7 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
     assert_eq!(principal, stake.principal);
     assert!(matches!(stake.status, StakeStatus::Pending));
     assert_eq!(expiration_timestamp_ms, stake.expiration_timestamp_ms);
+    assert_eq!(label, stake.label);
 
     // Request the DelegatedTimelockedStake one more time
     let staked_iota_copy = http_client
@@ -1113,6 +1119,7 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
         stake.expiration_timestamp_ms,
         stake_copy.expiration_timestamp_ms
     );
+    assert_eq!(stake.label, stake_copy.label);
 
     Ok(())
 }
@@ -1127,6 +1134,7 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
 
     let principal = 100_000_000_000;
     let expiration_timestamp_ms = u64::MAX;
+    let label = Option::Some(label_struct_tag_to_string(stardust_upgrade_label_type()));
 
     let timelock_iota = unsafe {
         MoveObject::new_from_execution(
@@ -1137,6 +1145,7 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
                 UID::new(ObjectID::random()),
                 iota_types::balance::Balance::new(principal),
                 expiration_timestamp_ms,
+                label.clone(),
             )
             .to_bcs_bytes(),
             &ProtocolConfig::get_for_min_version(),
@@ -1232,6 +1241,7 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
     assert_eq!(principal, stake.principal);
     assert!(matches!(stake.status, StakeStatus::Pending));
     assert_eq!(expiration_timestamp_ms, stake.expiration_timestamp_ms);
+    assert_eq!(label, stake.label);
 
     // Sleep for 10 seconds
     sleep(Duration::from_millis(10000)).await;
@@ -1302,6 +1312,7 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
         stake.expiration_timestamp_ms,
         stake_copy.expiration_timestamp_ms
     );
+    assert_eq!(stake.label, stake_copy.label);
 
     Ok(())
 }

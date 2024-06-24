@@ -162,7 +162,9 @@ export class EnokiFlow {
             expiresAt: estimatedExpiration,
             maxEpoch,
             randomness,
-            ephemeralKeyPair: toB64(decodeIotaPrivateKey(ephemeralKeyPair.getSecretKey()).secretKey),
+            ephemeralKeyPair: toB64(
+                decodeIotaPrivateKey(ephemeralKeyPair.getSecretKey()).secretKey,
+            ),
         });
 
         return oauthUrl;

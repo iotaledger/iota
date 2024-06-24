@@ -1,5 +1,4 @@
 // Copyright (c) 2024 IOTA Stiftung
-// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
@@ -27,6 +26,8 @@ pub struct TimelockedStakedIota {
     staked_iota: StakedIota,
     /// This is the epoch time stamp of when the lock expires.
     expiration_timestamp_ms: u64,
+    /// Timelock related label.
+    label: Option<String>,
 }
 
 impl TimelockedStakedIota {
@@ -77,6 +78,11 @@ impl TimelockedStakedIota {
     /// Get the TimelockedStakedIota's `expiration_timestamp_ms`.
     pub fn expiration_timestamp_ms(&self) -> u64 {
         self.expiration_timestamp_ms
+    }
+
+    /// Get the TimelockedStakedIota's `label``.
+    pub fn label(&self) -> &Option<String> {
+        &self.label
     }
 }
 

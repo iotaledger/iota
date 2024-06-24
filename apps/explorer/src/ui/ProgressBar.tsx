@@ -27,7 +27,7 @@ export interface ProgressBarProps {
     animate?: boolean;
 }
 
-export function ProgressBar({ progress, animate }: ProgressBarProps) {
+export function ProgressBar({ progress, animate }: ProgressBarProps): JSX.Element {
     const isAnimated = animate && progress > ANIMATION_START_THRESHOLD;
 
     return (

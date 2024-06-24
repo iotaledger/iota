@@ -1,10 +1,12 @@
+[profile.default]
+# Tests should always run.
+fail-fast = false
+
 [profile.ci]
-# Print output for failing tests only when they fail.
-failure-output = "immediate"
+# For CI runs only, print failure output both at the error site and at the end.
+failure-output = "immediate-final"
 # Show skipped tests in the CI output.
 status-level = "skip"
-# Do not cancel the test run on the first failure.
-fail-fast = false
 # Retry failing tests in order to not block builds on flaky tests
 retries = 5
 # Timeout tests after 4 minutes
@@ -16,8 +18,6 @@ slow-timeout = { period = "60s", terminate-after = 4 }
 failure-output = "immediate-final"
 # Show skipped tests in the CI output.
 status-level = "skip"
-# Do not cancel the test run on the first failure.
-fail-fast = false
 # Do not retry failing tests
 retries = 0
 # Mark tests as slow after 7 hours, kill them right after
@@ -26,11 +26,9 @@ slow-timeout = { period = "7h", terminate-after = 1 }
 [profile.simtestnightly]
 # Print out output for failing tests as soon as they fail, and also at the end
 # of the run (for easy scrollability).
-failure-output = "immediate"
+failure-output = "immediate-final"
 # Show skipped tests in the CI output.
 status-level = "fail"
-# Do not cancel the test run on the first failure.
-fail-fast = false
 # Mark tests as slow after 20m, terminate after 1h
 slow-timeout = { period = "20m", terminate-after = 3 }
 

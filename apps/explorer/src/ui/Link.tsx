@@ -5,7 +5,7 @@
 import { cva, type VariantProps } from 'class-variance-authority';
 import { type ReactNode } from 'react';
 
-import { ButtonOrLink, type ButtonOrLinkProps } from './utils/ButtonOrLink';
+import { ButtonOrLink, type ButtonOrLinkProps } from './ButtonOrLink';
 
 const linkStyles = cva([], {
     variants: {
@@ -66,7 +66,7 @@ export function Link({
     display,
     gap,
     ...props
-}: LinkProps) {
+}: LinkProps): JSX.Element {
     return (
         <ButtonOrLink className={linkStyles({ variant, size, uppercase })} {...props}>
             <div className={linkContentStyles({ gap, display })}>

@@ -19,7 +19,12 @@ interface CollapsibleCardHeaderProps {
     collapsible?: boolean;
 }
 
-function CollapsibleCardHeader({ open, size, title, collapsible }: CollapsibleCardHeaderProps) {
+function CollapsibleCardHeader({
+    open,
+    size,
+    title,
+    collapsible,
+}: CollapsibleCardHeaderProps): JSX.Element | null {
     if (!title) {
         return null;
     }

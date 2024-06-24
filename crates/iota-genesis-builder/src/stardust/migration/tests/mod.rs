@@ -1,5 +1,4 @@
 // Copyright (c) 2024 IOTA Stiftung
-// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::HashMap, str::FromStr};
@@ -20,24 +19,26 @@ use iota_types::{
     coin::Coin,
     digests::TransactionDigest,
     epoch_data::EpochData,
-    gas_coin::GAS,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
+    stardust::coin_type::CoinType,
     transaction::{Argument, CheckedInputObjects, ObjectArg},
     TypeTag, IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID,
 };
 use move_binary_format::errors::VMError;
 use move_core_types::{ident_str, identifier::IdentStr, vm_status::StatusCode};
 
-use super::MIGRATION_PROTOCOL_VERSION;
 use crate::stardust::{
     migration::{
         executor::Executor,
-        migration::{Migration, NATIVE_TOKEN_BAG_KEY_TYPE, PACKAGE_DEPS},
+        migration::{
+            Migration, MIGRATION_PROTOCOL_VERSION, NATIVE_TOKEN_BAG_KEY_TYPE, PACKAGE_DEPS,
+        },
         verification::created_objects::CreatedObjects,
+        MigrationTargetNetwork,
     },
-    types::snapshot::OutputHeader,
+    types::output_header::OutputHeader,
 };
 
 mod alias;
@@ -56,21 +57,24 @@ fn random_output_header() -> OutputHeader {
 }
 
 fn run_migration(
+    total_supply: u64,
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
+    coin_type: CoinType,
 ) -> anyhow::Result<(Executor, HashMap<OutputId, CreatedObjects>)> {
-    let mut migration = Migration::new(1)?;
+    let mut migration =
+        Migration::new(1, total_supply, MigrationTargetNetwork::Mainnet, coin_type)?;
     migration.run_migration(outputs)?;
     Ok(migration.into_parts())
 }
 
 fn create_foundry(
-    iota_amount: u64,
+    amount: u64,
     token_scheme: SimpleTokenScheme,
     irc_30_metadata: Irc30Metadata,
     alias_id: AliasId,
 ) -> anyhow::Result<(OutputHeader, FoundryOutput)> {
     let builder =
-        FoundryOutputBuilder::new_with_amount(iota_amount, 1, TokenScheme::Simple(token_scheme))
+        FoundryOutputBuilder::new_with_amount(amount, 1, TokenScheme::Simple(token_scheme))
             .add_unlock_condition(ImmutableAliasAddressUnlockCondition::new(
                 AliasAddress::new(alias_id),
             ))
@@ -91,12 +95,14 @@ fn create_foundry(
 fn object_migration_with_object_owner(
     output_id_owner: OutputId,
     output_id_owned: OutputId,
+    total_supply: u64,
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
     output_owner_module_name: &IdentStr,
     output_owned_module_name: &IdentStr,
     unlock_condition_function: &IdentStr,
+    coin_type: CoinType,
 ) -> anyhow::Result<()> {
-    let (mut executor, objects_map) = run_migration(outputs)?;
+    let (mut executor, objects_map) = run_migration(total_supply, outputs, coin_type.clone())?;
 
     // Find the corresponding objects to the migrated outputs.
     let owner_created_objects = objects_map
@@ -125,7 +131,7 @@ fn object_migration_with_object_owner(
             STARDUST_PACKAGE_ID,
             output_owner_module_name.into(),
             ident_str!("extract_assets").into(),
-            vec![],
+            vec![coin_type.to_type_tag()],
             vec![owner_arg],
         );
 
@@ -141,7 +147,7 @@ fn object_migration_with_object_owner(
             STARDUST_PACKAGE_ID,
             ident_str!("address_unlock_condition").into(),
             unlock_condition_function.into(),
-            vec![],
+            vec![coin_type.to_type_tag()],
             vec![owned_arg, receiving_owned_arg],
         );
 
@@ -174,7 +180,7 @@ fn object_migration_with_object_owner(
             STARDUST_PACKAGE_ID,
             output_owned_module_name.into(),
             ident_str!("extract_assets").into(),
-            vec![],
+            vec![coin_type.to_type_tag()],
             vec![received_owned_output],
         );
         let Argument::Result(result_idx) = extracted_assets else {
@@ -229,14 +235,16 @@ fn object_migration_with_object_owner(
 /// the contained bag.
 fn extract_native_token_from_bag(
     output_id: OutputId,
+    total_supply: u64,
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
     module_name: &IdentStr,
     native_token: NativeToken,
     expected_assets: ExpectedAssets,
+    coin_type: CoinType,
 ) -> anyhow::Result<()> {
     let native_token_id: &TokenId = native_token.token_id();
 
-    let (mut executor, objects_map) = run_migration(outputs)?;
+    let (mut executor, objects_map) = run_migration(total_supply, outputs, coin_type.clone())?;
 
     // Find the corresponding objects to the migrated output.
     let output_created_objects = objects_map
@@ -265,7 +273,7 @@ fn extract_native_token_from_bag(
             STARDUST_PACKAGE_ID,
             module_name.into(),
             ident_str!("extract_assets").into(),
-            vec![],
+            vec![coin_type.to_type_tag()],
             vec![inner_object_arg],
         );
 
@@ -285,7 +293,7 @@ fn extract_native_token_from_bag(
             IOTA_FRAMEWORK_PACKAGE_ID,
             ident_str!("coin").into(),
             ident_str!("from_balance").into(),
-            vec![GAS::type_tag()],
+            vec![coin_type.to_type_tag()],
             vec![balance_arg],
         );
 
@@ -378,16 +386,19 @@ enum ExpectedAssets {
     BalanceBagObject,
 }
 
-fn unlock_object_test(
+fn unlock_object(
     output_id: OutputId,
+    total_supply: u64,
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
     sender: &IotaAddress,
     module_name: &IdentStr,
     epoch_start_timestamp_ms: u64,
     expected_test_result: UnlockObjectTestResult,
     expected_assets: ExpectedAssets,
+    coin_type: iota_types::stardust::coin_type::CoinType,
 ) -> anyhow::Result<()> {
-    let (migration_executor, objects_map) = run_migration(outputs)?;
+    let (migration_executor, objects_map) =
+        run_migration(total_supply, outputs, coin_type.clone())?;
 
     // Recreate the TxContext and Executor so we can set a timestamp greater than 0.
     let tx_context = TxContext::new(
@@ -405,10 +416,14 @@ fn unlock_object_test(
             .cloned()
             .collect(),
     );
-    let mut executor = Executor::new(MIGRATION_PROTOCOL_VERSION.into())
-        .unwrap()
-        .with_tx_context(tx_context)
-        .with_store(store);
+    let mut executor = Executor::new(
+        MIGRATION_PROTOCOL_VERSION.into(),
+        MigrationTargetNetwork::Mainnet,
+        coin_type.clone(),
+    )
+    .unwrap()
+    .with_tx_context(tx_context)
+    .with_store(store);
 
     // Find the corresponding objects to the migrated output.
     let output_created_objects = objects_map
@@ -431,7 +446,7 @@ fn unlock_object_test(
             STARDUST_PACKAGE_ID,
             module_name.into(),
             ident_str!("extract_assets").into(),
-            vec![],
+            vec![coin_type.to_type_tag()],
             vec![inner_object_arg],
         );
 
@@ -445,7 +460,7 @@ fn unlock_object_test(
             IOTA_FRAMEWORK_PACKAGE_ID,
             ident_str!("coin").into(),
             ident_str!("from_balance").into(),
-            vec![TypeTag::from_str(&format!("{IOTA_FRAMEWORK_PACKAGE_ID}::iota::IOTA")).unwrap()],
+            vec![coin_type.to_type_tag()],
             vec![balance_arg],
         );
 

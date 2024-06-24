@@ -106,29 +106,6 @@ macro_rules! define_system_packages {
 
 pub struct BuiltInFramework;
 impl BuiltInFramework {
-    /// Dedicated method to iterate on `stardust` packages.
-    // TODO: integrate to iter_system_packages when we make a new
-    // system-framework-snapshot with the associated protocol bump:wq
-    pub fn iter_stardust_packages() -> impl Iterator<Item = &'static SystemPackage> {
-        define_system_packages!([
-            (
-                STARDUST_PACKAGE_ID,
-                "stardust",
-                [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
-            ),
-            (
-                TIMELOCK_PACKAGE_ID,
-                "timelock",
-                [
-                    MOVE_STDLIB_PACKAGE_ID,
-                    IOTA_FRAMEWORK_PACKAGE_ID,
-                    IOTA_SYSTEM_PACKAGE_ID
-                ]
-            )
-        ])
-        .iter()
-    }
-
     pub fn iter_system_packages() -> impl Iterator<Item = &'static SystemPackage> {
         // All system packages in the current build should be registered here, and this
         // is the only place we need to worry about if any of them changes.
@@ -150,7 +127,21 @@ impl BuiltInFramework {
                 DEEPBOOK_PACKAGE_ID,
                 "deepbook",
                 [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
-            )
+            ),
+            (
+                STARDUST_PACKAGE_ID,
+                "stardust",
+                [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
+            ),
+            (
+                TIMELOCK_PACKAGE_ID,
+                "timelock",
+                [
+                    MOVE_STDLIB_PACKAGE_ID,
+                    IOTA_FRAMEWORK_PACKAGE_ID,
+                    IOTA_SYSTEM_PACKAGE_ID
+                ]
+            ),
         ])
         .iter()
     }
@@ -276,9 +267,7 @@ pub async fn compare_system_package<S: ObjectStore>(
     let mut new_normalized = new_pkg.normalize(binary_config).ok()?;
 
     for (name, cur_module) in cur_normalized {
-        let Some(new_module) = new_normalized.remove(&name) else {
-            return None;
-        };
+        let new_module = new_normalized.remove(&name)?;
 
         if let Err(e) = compatibility.check(&cur_module, &new_module) {
             error!("Compatibility check failed, for new version of {id}::{name}: {e:?}");

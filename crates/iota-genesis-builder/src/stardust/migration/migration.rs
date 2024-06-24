@@ -1,5 +1,4 @@
 // Copyright (c) 2024 IOTA Stiftung
-// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Contains the logic for the migration process.
@@ -10,31 +9,32 @@ use std::{
 };
 
 use anyhow::Result;
-use fastcrypto::hash::HashFunction;
 use iota_move_build::CompiledPackage;
 use iota_protocol_config::ProtocolVersion;
 use iota_sdk::types::block::output::{FoundryOutput, Output, OutputId};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, TxContext},
-    crypto::DefaultHash,
-    digests::TransactionDigest,
     epoch_data::EpochData,
     object::Object,
+    stardust::coin_type::CoinType,
+    timelock::timelock,
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
     TIMELOCK_PACKAGE_ID,
 };
+use tracing::info;
 
 use crate::stardust::{
     migration::{
         executor::Executor,
-        verification::{created_objects::CreatedObjects, verify_output},
+        verification::{created_objects::CreatedObjects, verify_outputs},
+        MigrationTargetNetwork,
     },
     native_token::package_data::NativeTokenPackageData,
-    types::{snapshot::OutputHeader, timelock},
+    types::output_header::OutputHeader,
 };
 
 /// We fix the protocol version used in the migration.
-pub const MIGRATION_PROTOCOL_VERSION: u64 = 42;
+pub const MIGRATION_PROTOCOL_VERSION: u64 = 1;
 
 /// The dependencies of the generated packages for native tokens.
 pub const PACKAGE_DEPS: [ObjectID; 5] = [
@@ -64,20 +64,34 @@ pub(crate) const NATIVE_TOKEN_BAG_KEY_TYPE: &str = "0x01::ascii::String";
 /// generated objects serialized.
 pub struct Migration {
     target_milestone_timestamp_sec: u32,
-
+    total_supply: u64,
     executor: Executor,
     pub(super) output_objects_map: HashMap<OutputId, CreatedObjects>,
+    /// The coin type to use in order to migrate outputs. Can be either `Iota`
+    /// or `Shimmer`. Is fixed for the entire migration process.
+    coin_type: CoinType,
 }
 
 impl Migration {
     /// Try to setup the migration process by creating the inner executor
     /// and bootstraping the in-memory storage.
-    pub fn new(target_milestone_timestamp_sec: u32) -> Result<Self> {
-        let executor = Executor::new(ProtocolVersion::new(MIGRATION_PROTOCOL_VERSION))?;
+    pub fn new(
+        target_milestone_timestamp_sec: u32,
+        total_supply: u64,
+        target_network: MigrationTargetNetwork,
+        coin_type: CoinType,
+    ) -> Result<Self> {
+        let executor = Executor::new(
+            ProtocolVersion::new(MIGRATION_PROTOCOL_VERSION),
+            target_network,
+            coin_type.clone(),
+        )?;
         Ok(Self {
             target_milestone_timestamp_sec,
+            total_supply,
             executor,
             output_objects_map: Default::default(),
+            coin_type,
         })
     }
 
@@ -107,12 +121,15 @@ impl Migration {
         // context will also map to the same objects betwen runs.
         outputs.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
         foundries.sort_by_key(|(header, _)| (header.ms_timestamp(), header.output_id()));
+        info!("Migrating foundries...");
         self.migrate_foundries(&foundries)?;
+        info!("Migrating the rest of outputs...");
         self.migrate_outputs(&outputs)?;
         let outputs = outputs
             .into_iter()
             .chain(foundries.into_iter().map(|(h, f)| (h, Output::Foundry(f))))
             .collect::<Vec<_>>();
+        info!("Verifying ledger state...");
         self.verify_ledger_state(&outputs)?;
 
         Ok(())
@@ -130,8 +147,13 @@ impl Migration {
         outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
         writer: impl Write,
     ) -> Result<()> {
+        info!("Starting the migration...");
         self.run_migration(outputs)?;
-        create_snapshot(&self.into_objects(), writer)
+        info!("Migration ended.");
+        info!("Writing snapshot file...");
+        create_snapshot(&self.into_objects(), writer)?;
+        info!("Snapshot file written.");
+        Ok(())
     }
 
     /// The migration objects.
@@ -168,8 +190,14 @@ impl Migration {
     ) -> Result<()> {
         for (header, output) in outputs {
             let created = match output {
-                Output::Alias(alias) => self.executor.create_alias_objects(header, alias)?,
-                Output::Nft(nft) => self.executor.create_nft_objects(header, nft)?,
+                Output::Alias(alias) => {
+                    self.executor
+                        .create_alias_objects(header, alias, &self.coin_type)?
+                }
+                Output::Nft(nft) => {
+                    self.executor
+                        .create_nft_objects(header, nft, &self.coin_type)?
+                }
                 Output::Basic(basic) => {
                     // All timelocked vested rewards(basic outputs with the specific ID format)
                     // should be migrated as TimeLock<Balance<IOTA>> objects.
@@ -184,7 +212,12 @@ impl Migration {
                             self.target_milestone_timestamp_sec,
                         )?
                     } else {
-                        self.executor.create_basic_objects(header, basic)?
+                        self.executor.create_basic_objects(
+                            header,
+                            basic,
+                            self.target_milestone_timestamp_sec,
+                            &self.coin_type,
+                        )?
                     }
                 }
                 Output::Treasury(_) | Output::Foundry(_) => continue,
@@ -200,22 +233,14 @@ impl Migration {
         &self,
         outputs: impl IntoIterator<Item = &'a (OutputHeader, Output)>,
     ) -> Result<()> {
-        for (header, output) in outputs {
-            let objects = self
-                .output_objects_map
-                .get(&header.output_id())
-                .ok_or_else(|| {
-                    anyhow::anyhow!("missing created objects for output {}", header.output_id())
-                })?;
-            verify_output(
-                header,
-                output,
-                objects,
-                self.executor.native_tokens(),
-                self.target_milestone_timestamp_sec,
-                self.executor.store(),
-            )?;
-        }
+        verify_outputs(
+            outputs,
+            &self.output_objects_map,
+            self.executor.native_tokens(),
+            self.target_milestone_timestamp_sec,
+            self.total_supply,
+            self.executor.store(),
+        )?;
         Ok(())
     }
 
@@ -255,15 +280,10 @@ pub(super) fn package_module_bytes(pkg: &CompiledPackage) -> Result<Vec<Vec<u8>>
 }
 
 /// Create a [`TxContext]` that remains the same across invocations.
-pub(super) fn create_migration_context() -> TxContext {
-    let mut hasher = DefaultHash::default();
-    hasher.update(b"stardust-migration");
-    let hash = hasher.finalize();
-    let stardust_migration_transaction_digest = TransactionDigest::new(hash.into());
-
+pub(super) fn create_migration_context(target_network: MigrationTargetNetwork) -> TxContext {
     TxContext::new(
         &IotaAddress::default(),
-        &stardust_migration_transaction_digest,
+        &target_network.migration_transaction_digest(),
         &EpochData::new_genesis(0),
     )
 }

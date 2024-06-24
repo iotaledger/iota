@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type ZkLoginProvider } from '_src/background/accounts/zklogin/providers';
 import {
     createContext,
     useCallback,
@@ -14,7 +13,6 @@ import {
 } from 'react';
 
 export type AccountsFormValues =
-    | { type: 'zkLogin'; provider: ZkLoginProvider }
     | { type: 'new-mnemonic' }
     | { type: 'import-mnemonic'; entropy: string }
     | { type: 'mnemonic-derived'; sourceID: string }

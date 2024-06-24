@@ -132,7 +132,8 @@ export function mapNormalizedMoveStruct(
         abilities: {
             abilities:
                 struct.abilities?.map(
-                    (ability) => `${ability[0]}${ability.slice(1).toLowerCase()}` as IotaMoveAbility,
+                    (ability) =>
+                        `${ability[0]}${ability.slice(1).toLowerCase()}` as IotaMoveAbility,
                 ) ?? [],
         },
         fields:

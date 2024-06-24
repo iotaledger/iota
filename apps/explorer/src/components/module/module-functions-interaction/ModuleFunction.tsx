@@ -31,7 +31,7 @@ const argsSchema = z.object({
     types: z.optional(z.array(z.string().trim().min(1))),
 });
 
-export type ModuleFunctionProps = {
+type ModuleFunctionProps = {
     packageId: string;
     moduleName: string;
     functionName: string;
@@ -45,7 +45,7 @@ export function ModuleFunction({
     moduleName,
     functionName,
     functionDetails,
-}: ModuleFunctionProps) {
+}: ModuleFunctionProps): JSX.Element {
     const currentAccount = useCurrentAccount();
     const { mutateAsync: signAndExecuteTransactionBlock } = useSignAndExecuteTransactionBlock();
     const { handleSubmit, formState, register, control } = useZodForm({
@@ -59,10 +59,10 @@ export function ModuleFunction({
         () => typeArguments.map((aType, index) => formTypeInputs?.[index] || aType),
         [typeArguments, formTypeInputs],
     );
-    const paramsDetails = useFunctionParamsDetails(
-        functionDetails.parameters,
-        resolvedTypeArguments,
-    );
+    const paramsDetails = useFunctionParamsDetails({
+        params: functionDetails.parameters,
+        functionTypeArgNames: resolvedTypeArguments,
+    });
 
     const execute = useMutation({
         mutationFn: async ({ params, types }: TypeOf<typeof argsSchema>) => {

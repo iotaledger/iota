@@ -6,21 +6,23 @@ import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
 import { useParams } from 'react-router-dom';
 
 import { TransactionView } from './TransactionView';
-import { PageLayout } from '~/components/Layout/PageLayout';
+import { PageLayout } from '~/components/layout/PageLayout';
 import { useGetTransaction } from '~/hooks/useGetTransaction';
 import { Banner } from '~/ui/Banner';
 import { PageHeader } from '~/ui/PageHeader';
 import { StatusIcon } from '~/ui/StatusIcon';
 
+interface TransactionResultPageHeaderProps {
+    transaction?: IotaTransactionBlockResponse;
+    error?: string;
+    loading?: boolean;
+}
+
 function TransactionResultPageHeader({
     transaction,
     error,
     loading,
-}: {
-    transaction?: IotaTransactionBlockResponse;
-    error?: string;
-    loading?: boolean;
-}) {
+}: TransactionResultPageHeaderProps): JSX.Element {
     const txnKindName = transaction?.transaction?.data.transaction?.kind;
     const txnDigest = transaction?.digest ?? '';
     const txnStatus = transaction?.effects?.status.status;
@@ -39,7 +41,7 @@ function TransactionResultPageHeader({
     );
 }
 
-export default function TransactionResult() {
+export default function TransactionResult(): JSX.Element {
     const { id } = useParams();
     const {
         isPending,

@@ -14,10 +14,14 @@ import { Recent } from './recent';
 import TransactionResult from './transaction-result/TransactionResult';
 import { ValidatorDetails } from './validator/ValidatorDetails';
 import { ValidatorPageResult } from './validators/Validators';
-import { Layout } from '~/components/Layout';
+import { Layout } from '~/components/layout';
 import { IdPage } from '~/pages/id-page';
 
-function RedirectWithId({ base }: { base: string }) {
+interface RedirectWithIdProps {
+    base: string;
+}
+
+function RedirectWithId({ base }: RedirectWithIdProps): JSX.Element {
     const params = useParams();
     const { search } = useLocation();
     return <Navigate to={`/${base}/${params.id}${search}`} replace />;

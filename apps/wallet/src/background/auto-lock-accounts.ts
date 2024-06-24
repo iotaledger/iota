@@ -5,11 +5,11 @@
 import { throttle } from 'throttle-debounce';
 
 import Alarms from './Alarms';
-import { getDB, settingsKeys } from './db';
+import { getDB, SETTINGS_KEYS } from './db';
 
 export async function getAutoLockMinutes() {
     const minutesStored =
-        (await (await getDB()).settings.get(settingsKeys.autoLockMinutes))?.value || null;
+        (await (await getDB()).settings.get(SETTINGS_KEYS.autoLockMinutes))?.value || null;
     return typeof minutesStored === 'number' ? minutesStored : null;
 }
 
@@ -21,7 +21,7 @@ export async function setAutoLockMinutes(minutes: number | null) {
     await (
         await getDB()
     ).settings.put({
-        setting: settingsKeys.autoLockMinutes,
+        setting: SETTINGS_KEYS.autoLockMinutes,
         value: minutes,
     });
     await setupAutoLockAlarm();

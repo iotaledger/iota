@@ -13,6 +13,7 @@ import { setAttributes } from '_src/shared/experimentation/features';
 // import initSentry from '_src/ui/app/helpers/sentry';
 import store from '_store';
 import { thunkExtras } from '_store/thunk-extras';
+import { KioskClientProvider } from '@iota/core';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
 import { IotaClientProvider } from '@iota/dapp-kit';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
@@ -26,7 +27,6 @@ import App from './app';
 import { walletApiProvider } from './app/ApiProvider';
 import { AccountsFormProvider } from './app/components/accounts/AccountsFormContext';
 import { UnlockAccountProvider } from './app/components/accounts/UnlockAccountContext';
-import { ZkLoginAccountWarningModal } from './app/components/accounts/ZkLoginAccountWaringModal';
 import { IotaLedgerClientProvider } from './app/components/ledger/IotaLedgerClientProvider';
 import { growthbook } from './app/experimentation/feature-gating';
 import { persister, queryClient } from './app/helpers/queryClient';
@@ -34,6 +34,7 @@ import { useAppSelector } from './app/hooks';
 
 import './styles/global.scss';
 import 'bootstrap-icons/font/bootstrap-icons.scss';
+import { type Query } from '@tanstack/react-query';
 
 async function init() {
     if (process.env.NODE_ENV === 'development') {
@@ -78,7 +79,8 @@ function AppWrapper() {
                             persistOptions={{
                                 persister,
                                 dehydrateOptions: {
-                                    shouldDehydrateQuery: ({ meta }) => !meta?.skipPersistedCache,
+                                    shouldDehydrateQuery: ({ meta }: Query) =>
+                                        !meta?.skipPersistedCache,
                                 },
                             }}
                         >
@@ -88,23 +90,24 @@ function AppWrapper() {
                                         walletApiProvider.instance.fullNode,
                                 }}
                             >
-                                <AccountsFormProvider>
-                                    <UnlockAccountProvider>
-                                        <div
-                                            className={cn(
-                                                'relative flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col flex-nowrap items-center justify-center overflow-hidden',
-                                                isFullscreen && 'rounded-xl shadow-lg',
-                                            )}
-                                        >
-                                            <ErrorBoundary>
-                                                <App />
-                                                <ZkLoginAccountWarningModal />
-                                            </ErrorBoundary>
-                                            <div id="overlay-portal-container"></div>
-                                            <div id="toaster-portal-container"></div>
-                                        </div>
-                                    </UnlockAccountProvider>
-                                </AccountsFormProvider>
+                                <KioskClientProvider>
+                                    <AccountsFormProvider>
+                                        <UnlockAccountProvider>
+                                            <div
+                                                className={cn(
+                                                    'relative flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col flex-nowrap items-center justify-center overflow-hidden',
+                                                    isFullscreen && 'rounded-xl shadow-lg',
+                                                )}
+                                            >
+                                                <ErrorBoundary>
+                                                    <App />
+                                                </ErrorBoundary>
+                                                <div id="overlay-portal-container"></div>
+                                                <div id="toaster-portal-container"></div>
+                                            </div>
+                                        </UnlockAccountProvider>
+                                    </AccountsFormProvider>
+                                </KioskClientProvider>
                             </IotaClientProvider>
                         </PersistQueryClientProvider>
                     </Fragment>

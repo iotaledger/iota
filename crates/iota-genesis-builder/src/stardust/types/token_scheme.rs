@@ -1,12 +1,10 @@
 // Copyright (c) 2024 IOTA Stiftung
-// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Types representing token schemes in Stardust.
 use bigdecimal::{num_bigint, num_bigint::BigInt, BigDecimal, ToPrimitive};
 use iota_sdk::{types::block::output::SimpleTokenScheme, U256};
-
-use crate::stardust::error::StardustError;
+use iota_types::stardust::error::StardustError;
 
 /// The maximum allowed u64 supply.
 pub const MAX_ALLOWED_U64_SUPPLY: u64 = u64::MAX - 1;

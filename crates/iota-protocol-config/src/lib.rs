@@ -16,114 +16,11 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-const MAX_PROTOCOL_VERSION: u64 = 42;
+const MAX_PROTOCOL_VERSION: u64 = 1;
 
 // Record history of protocol version allocations here:
 //
 // Version 1: Original version.
-// Version 2: Framework changes, including advancing epoch_start_time in
-// safemode. Version 3: gas model v2, including all iota conservation fixes. Fix
-// for loaded child object            changes, enable package upgrades, add
-// limits on `max_size_written_objects`,
-// `max_size_written_objects_system_tx` Version 4: New reward slashing rate.
-// Framework changes to skip stake susbidy when the epoch            length is
-// short. Version 5: Package upgrade compatibility error fix. New gas cost
-// table. New scoring decision            mechanism that includes up to f
-// scoring authorities. Version 6: Change to how bytes are charged in the gas
-// meter, increase buffer stake to 0.5f Version 7: Disallow adding new abilities
-// to types during package upgrades,
-// disable_invariant_violation_check_in_swap_loc,            disable init
-// functions becoming entry,            hash module bytes individually before
-// computing package digest. Version 8: Disallow changing abilities and type
-// constraints for type parameters in structs            during upgrades.
-// Version 9: Limit the length of Move idenfitiers to 128.
-//            Disallow extraneous module bytes,
-//            advance_to_highest_supported_protocol_version,
-// Version 10:increase bytecode verifier `max_verifier_meter_ticks_per_function`
-// and            `max_meter_ticks_per_module` limits each from 6_000_000 to
-// 16_000_000. iota-system            framework changes.
-// Version 11: Introduce `std::type_name::get_with_original_ids` to the system
-// frameworks. Bound max depth of values within the VM. Version 12: Changes to
-// deepbook in framework to add API for querying marketplace.             Change
-// NW Batch to use versioned metadata field.             Changes to iota-system
-// package to add PTB-friendly unstake function, and minor cleanup. Version 13:
-// System package change deprecating `0xdee9::clob` and `0xdee9::custodian`,
-// replaced by             `0xdee9::clob_v2` and `0xdee9::custodian_v2`.
-// Version 14: Introduce a config variable to allow charging of computation to
-// be either             bucket base or rounding up. The presence of
-// `gas_rounding_step` (or `None`)             decides whether rounding is
-// applied or not. Version 15: Add reordering of user transactions by gas price
-// after consensus.             Add `iota::table_vec::drop` to the framework via
-// a system package upgrade. Version 16: Enabled simplified_unwrap_then_delete
-// feature flag, which allows the execution engine             to no longer
-// consult the object store when generating unwrapped_then_deleted in the
-//             effects; this also allows us to stop including wrapped tombstones
-// in accumulator.             Add self-matching prevention for deepbook.
-// Version 17: Enable upgraded multisig support.
-// Version 18: Introduce execution layer versioning, preserve all existing
-// behaviour in v0.             Gas minimum charges moved to be a multiplier
-// over the reference gas price. In this             protocol version the
-// multiplier is the same as the lowest bucket of computation             such
-// that the minimum transaction cost is the same as the minimum computation
-//             bucket.
-//             Add a feature flag to indicate the changes semantics of
-// `base_tx_cost_fixed`. Version 19: Changes to iota-system package to enable
-// liquid staking.             Add limit for total size of events.
-//             Increase limit for number of events emitted to 1024.
-// Version 20: Enables the flag `narwhal_new_leader_election_schedule` for the
-// new narwhal leader             schedule algorithm for enhanced fault
-// tolerance and sets the bad node stake threshold             value. Both
-// values are set for all the environments except mainnet. Version 21: ZKLogin
-// known providers. Version 22: Child object format change.
-// Version 23: Enabling the flag `narwhal_new_leader_election_schedule` for the
-// new narwhal leader             schedule algorithm for enhanced fault
-// tolerance and sets the bad node stake threshold             value for
-// mainnet. Version 24: Re-enable simple gas conservation checks.
-//             Package publish/upgrade number in a single transaction limited.
-//             JWK / authenticator state flags.
-// Version 25: Add iota::table_vec::swap and iota::table_vec::swap_remove to
-// system packages. Version 26: New gas model version.
-//             Add support for receiving objects off of other objects in devnet
-// only. Version 28: Add iota::zklogin::verify_zklogin_id and related functions
-// to iota framework.             Enable transaction effects v2 in devnet.
-// Version 29: Add verify_legacy_zklogin_address flag to iota framework, this
-// add ability to verify             transactions from a legacy zklogin address.
-// Version 30: Enable Narwhal CertificateV2
-//             Add support for random beacon.
-//             Enable transaction effects v2 in testnet.
-//             Deprecate supported oauth providers from protocol config and rely
-// on node config             instead.
-//             In execution, has_public_transfer is recomputed when loading the
-// object.             Add support for shared obj deletion and receiving objects
-// off of other objects in devnet only. Version 31: Add support for shared
-// object deletion in devnet only.             Add support for getting object ID
-// referenced by receiving object in iota framework.             Create new
-// execution layer version, and preserve previous behavior in v1.
-// Update semantics of `iota::transfer::receive` and add
-// `iota::transfer::public_receive`. Version 32: Add delete functions for
-// VerifiedID and VerifiedIssuer.             Add iota::token module to iota
-// framework.             Enable transfer to object in testnet.
-//             Enable Narwhal CertificateV2 on mainnet
-//             Make critbit tree and order getters public in deepbook.
-// Version 33: Add support for `receiving_object_id` function in framework
-//             Hardened OTW check.
-//             Enable transfer-to-object in mainnet.
-//             Enable shared object deletion in testnet.
-//             Enable effects v2 in mainnet.
-// Version 34: Framework changes for random beacon.
-// Version 35: Add poseidon hash function.
-//             Enable coin deny list.
-// Version 36: Enable group operations native functions in devnet.
-//             Enable shared object deletion in mainnet.
-//             Set the consensus accepted transaction size and the included
-// transactions size in the proposed block. Version 37: Reject entry functions
-// with mutable Random. Version 38: Introduce limits for binary tables size.
-// Version 39: Allow skipped epochs for randomness updates.
-//             Extra version to fix `test_upgrade_compatibility` simtest.
-// Version 40:
-// Version 41: Enable group operations native functions in testnet and mainnet
-// (without msm). Version 42: Migrate iota framework and related code to Move
-// 2024
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -1369,10 +1266,8 @@ impl ProtocolConfig {
         // version. To change the values here you must create a new protocol
         // version with the new values!
         let mut cfg = Self {
-            // will be overwritten before being returned
             version,
 
-            // All flags are disabled in V1
             feature_flags: Default::default(),
 
             max_tx_size_bytes: Some(128 * 1024),
@@ -1382,32 +1277,37 @@ impl ProtocolConfig {
             max_serialized_tx_effects_size_bytes: Some(512 * 1024),
             max_serialized_tx_effects_size_bytes_system_tx: Some(512 * 1024 * 16),
             max_gas_payment_objects: Some(256),
-            max_modules_in_publish: Some(128),
-            max_package_dependencies: None,
+            max_modules_in_publish: Some(64),
+            max_package_dependencies: Some(32),
             max_arguments: Some(512),
             max_type_arguments: Some(16),
             max_type_argument_depth: Some(16),
             max_pure_argument_size: Some(16 * 1024),
             max_programmable_tx_commands: Some(1024),
             move_binary_format_version: Some(6),
-            binary_module_handles: None,
-            binary_struct_handles: None,
-            binary_function_handles: None,
-            binary_function_instantiations: None,
-            binary_signatures: None,
-            binary_constant_pool: None,
-            binary_identifiers: None,
-            binary_address_identifiers: None,
-            binary_struct_defs: None,
-            binary_struct_def_instantiations: None,
-            binary_function_defs: None,
-            binary_field_handles: None,
-            binary_field_instantiations: None,
-            binary_friend_decls: None,
+            binary_module_handles: Some(100),
+            binary_struct_handles: Some(300),
+            binary_function_handles: Some(1500),
+            binary_function_instantiations: Some(750),
+            binary_signatures: Some(1000),
+
+            // constants and identifiers are proportional to the binary size,
+            // and they vastly depend on the code, so we are leaving them
+            // reasonably high
+            binary_constant_pool: Some(4000),
+            binary_identifiers: Some(10000),
+            binary_address_identifiers: Some(100),
+            binary_struct_defs: Some(200),
+            binary_struct_def_instantiations: Some(100),
+            binary_function_defs: Some(1000),
+            binary_field_handles: Some(500),
+            binary_field_instantiations: Some(250),
+            binary_friend_decls: Some(100),
             max_move_object_size: Some(250 * 1024),
             max_move_package_size: Some(100 * 1024),
-            max_publish_or_upgrade_per_ptb: None,
-            max_tx_gas: Some(10_000_000_000),
+            max_publish_or_upgrade_per_ptb: Some(5),
+            // max gas budget is in MICROS and an absolute value 50IOTA
+            max_tx_gas: Some(50_000_000_000),
             max_gas_price: Some(100_000),
             max_gas_computation_bucket: Some(5_000_000),
             max_loop_depth: Some(5),
@@ -1421,7 +1321,7 @@ impl ProtocolConfig {
             max_function_definitions: Some(1000),
             max_fields_in_struct: Some(32),
             max_dependency_depth: Some(100),
-            max_num_event_emit: Some(256),
+            max_num_event_emit: Some(1024),
             max_num_new_move_object_ids: Some(2048),
             max_num_new_move_object_ids_system_tx: Some(2048 * 16),
             max_num_deleted_move_object_ids: Some(2048),
@@ -1437,17 +1337,16 @@ impl ProtocolConfig {
             // TODO:  Is this too low/high?
             max_back_edges_per_module: Some(10_000),
 
-            // TODO: Is this too low/high?
-            max_verifier_meter_ticks_per_function: Some(6_000_000),
+            max_verifier_meter_ticks_per_function: Some(16_000_000),
 
-            // TODO: Is this too low/high?
-            max_meter_ticks_per_module: Some(6_000_000),
+            max_meter_ticks_per_module: Some(16_000_000),
 
             object_runtime_max_num_cached_objects: Some(1000),
             object_runtime_max_num_cached_objects_system_tx: Some(1000 * 16),
             object_runtime_max_num_store_entries: Some(1000),
             object_runtime_max_num_store_entries_system_tx: Some(1000 * 16),
-            base_tx_cost_fixed: Some(110_000),
+            // min gas budget is in MICROS and an absolute value 1000MICROS or 0.000001IOTA
+            base_tx_cost_fixed: Some(1_000),
             package_publish_cost_fixed: Some(1_000),
             base_tx_cost_per_byte: Some(0),
             package_publish_cost_per_byte: Some(80),
@@ -1457,17 +1356,17 @@ impl ProtocolConfig {
             obj_access_cost_verify_per_byte: Some(200),
             obj_data_cost_refundable: Some(100),
             obj_metadata_cost_non_refundable: Some(50),
-            gas_model_version: Some(1),
+            gas_model_version: Some(8),
             storage_rebate_rate: Some(9900),
             storage_fund_reinvest_rate: Some(500),
-            reward_slashing_rate: Some(5000),
-            storage_gas_price: Some(1),
+            // Change reward slashing rate to 100%.
+            reward_slashing_rate: Some(10000),
+            storage_gas_price: Some(76),
             max_transactions_per_checkpoint: Some(10_000),
             max_checkpoint_size_bytes: Some(30 * 1024 * 1024),
 
             // For now, perform upgrades with a bare quorum of validators.
-            // MUSTFIX: This number should be increased to at least 2000 (20%) for mainnet.
-            buffer_stake_for_protocol_upgrade_bps: Some(0),
+            buffer_stake_for_protocol_upgrade_bps: Some(5000),
 
             // === Native Function Costs ===
             // `address` module
@@ -1533,7 +1432,7 @@ impl ProtocolConfig {
             transfer_freeze_object_cost_base: Some(52),
             // Cost params for the Move native function `share_object<T: key>(obj: T)`
             transfer_share_object_cost_base: Some(52),
-            transfer_receive_object_cost_base: None,
+            transfer_receive_object_cost_base: Some(52),
 
             // `tx_context` module
             // Cost params for the Move native function `transfer_impl<T: key>(obj: T, recipient:
@@ -1638,474 +1537,167 @@ impl ProtocolConfig {
             hmac_hmac_sha3_256_input_cost_per_block: Some(2),
 
             // group ops
-            group_ops_bls12381_decode_scalar_cost: None,
-            group_ops_bls12381_decode_g1_cost: None,
-            group_ops_bls12381_decode_g2_cost: None,
-            group_ops_bls12381_decode_gt_cost: None,
-            group_ops_bls12381_scalar_add_cost: None,
-            group_ops_bls12381_g1_add_cost: None,
-            group_ops_bls12381_g2_add_cost: None,
-            group_ops_bls12381_gt_add_cost: None,
-            group_ops_bls12381_scalar_sub_cost: None,
-            group_ops_bls12381_g1_sub_cost: None,
-            group_ops_bls12381_g2_sub_cost: None,
-            group_ops_bls12381_gt_sub_cost: None,
-            group_ops_bls12381_scalar_mul_cost: None,
-            group_ops_bls12381_g1_mul_cost: None,
-            group_ops_bls12381_g2_mul_cost: None,
-            group_ops_bls12381_gt_mul_cost: None,
-            group_ops_bls12381_scalar_div_cost: None,
-            group_ops_bls12381_g1_div_cost: None,
-            group_ops_bls12381_g2_div_cost: None,
-            group_ops_bls12381_gt_div_cost: None,
-            group_ops_bls12381_g1_hash_to_base_cost: None,
-            group_ops_bls12381_g2_hash_to_base_cost: None,
-            group_ops_bls12381_g1_hash_to_cost_per_byte: None,
-            group_ops_bls12381_g2_hash_to_cost_per_byte: None,
-            group_ops_bls12381_g1_msm_base_cost: None,
-            group_ops_bls12381_g2_msm_base_cost: None,
-            group_ops_bls12381_g1_msm_base_cost_per_input: None,
-            group_ops_bls12381_g2_msm_base_cost_per_input: None,
-            group_ops_bls12381_msm_max_len: None,
-            group_ops_bls12381_pairing_cost: None,
+            group_ops_bls12381_decode_scalar_cost: Some(52),
+            group_ops_bls12381_decode_g1_cost: Some(52),
+            group_ops_bls12381_decode_g2_cost: Some(52),
+            group_ops_bls12381_decode_gt_cost: Some(52),
+            group_ops_bls12381_scalar_add_cost: Some(52),
+            group_ops_bls12381_g1_add_cost: Some(52),
+            group_ops_bls12381_g2_add_cost: Some(52),
+            group_ops_bls12381_gt_add_cost: Some(52),
+            group_ops_bls12381_scalar_sub_cost: Some(52),
+            group_ops_bls12381_g1_sub_cost: Some(52),
+            group_ops_bls12381_g2_sub_cost: Some(52),
+            group_ops_bls12381_gt_sub_cost: Some(52),
+            group_ops_bls12381_scalar_mul_cost: Some(52),
+            group_ops_bls12381_g1_mul_cost: Some(52),
+            group_ops_bls12381_g2_mul_cost: Some(52),
+            group_ops_bls12381_gt_mul_cost: Some(52),
+            group_ops_bls12381_scalar_div_cost: Some(52),
+            group_ops_bls12381_g1_div_cost: Some(52),
+            group_ops_bls12381_g2_div_cost: Some(52),
+            group_ops_bls12381_gt_div_cost: Some(52),
+            group_ops_bls12381_g1_hash_to_base_cost: Some(52),
+            group_ops_bls12381_g2_hash_to_base_cost: Some(52),
+            group_ops_bls12381_g1_hash_to_cost_per_byte: Some(2),
+            group_ops_bls12381_g2_hash_to_cost_per_byte: Some(2),
+            group_ops_bls12381_g1_msm_base_cost: Some(52),
+            group_ops_bls12381_g2_msm_base_cost: Some(52),
+            group_ops_bls12381_g1_msm_base_cost_per_input: Some(52),
+            group_ops_bls12381_g2_msm_base_cost_per_input: Some(52),
+            group_ops_bls12381_msm_max_len: Some(32),
+            group_ops_bls12381_pairing_cost: Some(52),
 
             // zklogin::check_zklogin_id
-            check_zklogin_id_cost_base: None,
+            check_zklogin_id_cost_base: Some(200),
             // zklogin::check_zklogin_issuer
-            check_zklogin_issuer_cost_base: None,
+            check_zklogin_issuer_cost_base: Some(200),
 
-            max_size_written_objects: None,
-            max_size_written_objects_system_tx: None,
+            max_size_written_objects: Some(5 * 1000 * 1000),
+            // max size of written objects during a system TXn to allow for larger writes
+            // akin to `max_size_written_objects` but for system TXns
+            max_size_written_objects_system_tx: Some(50 * 1000 * 1000),
 
             // Const params for consensus scoring decision
-            scoring_decision_mad_divisor: None,
-            scoring_decision_cutoff_value: None,
+            scoring_decision_mad_divisor: Some(2.3),
+            scoring_decision_cutoff_value: Some(2.5),
 
             // Limits the length of a Move identifier
-            max_move_identifier_len: None,
-            max_move_value_depth: None,
+            max_move_identifier_len: Some(128),
+            max_move_value_depth: Some(128),
 
-            gas_rounding_step: None,
+            gas_rounding_step: Some(1_000),
 
-            execution_version: None,
+            execution_version: Some(3),
 
-            max_event_emit_size_total: None,
+            // We maintain the same total size limit for events, but increase the number of
+            // events that can be emitted.
+            max_event_emit_size_total: Some(
+                256 /* former event count limit */ * 250 * 1024, // size limit per event
+            ),
 
-            consensus_bad_nodes_stake_threshold: None,
+            // Taking a baby step approach, we consider only 20% by stake as bad nodes so we
+            // have a 80% by stake of nodes participating in the leader committee. That
+            // allow us for more redundancy in case we have validators
+            // under performing - since the responsibility is shared
+            // amongst more nodes. We can increase that once we do have
+            // higher confidence.
+            consensus_bad_nodes_stake_threshold: Some(20),
 
-            max_jwk_votes_per_validator_per_epoch: None,
+            // Max of 10 votes per hour.
+            max_jwk_votes_per_validator_per_epoch: Some(240),
 
-            max_age_of_jwk_in_epochs: None,
+            max_age_of_jwk_in_epochs: Some(1),
 
-            random_beacon_reduction_allowed_delta: None,
+            consensus_max_transaction_size_bytes: Some(256 * 1024), // 256KB
+
+            consensus_max_transactions_in_block_bytes: Some(6 * 1_024 * 1024), // 6 MB
+
+            random_beacon_reduction_allowed_delta: Some(800),
 
             random_beacon_reduction_lower_bound: None,
 
             random_beacon_dkg_timeout_round: None,
-
-            consensus_max_transaction_size_bytes: None,
-
-            consensus_max_transactions_in_block_bytes: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
+
+        cfg.feature_flags.advance_epoch_start_time_in_safe_mode = true;
+        cfg.feature_flags.missing_type_is_compatibility_error = true;
+        cfg.feature_flags.scoring_decision_with_validity_cutoff = true;
+        cfg.feature_flags.consensus_order_end_of_epoch_last = true;
+        cfg.feature_flags
+            .disable_invariant_violation_check_in_swap_loc = true;
+        cfg.feature_flags.package_digest_hash_module = true;
+        cfg.feature_flags.no_extraneous_module_bytes = true;
+        cfg.feature_flags
+            .advance_to_highest_supported_protocol_version = true;
+        cfg.feature_flags.narwhal_versioned_metadata = true;
+        cfg.feature_flags.commit_root_state_digest = true;
+        cfg.feature_flags.zklogin_auth = true;
+        cfg.feature_flags.consensus_transaction_ordering = ConsensusTransactionOrdering::ByGasPrice;
+        cfg.feature_flags.simplified_unwrap_then_delete = true;
+        cfg.feature_flags.upgraded_multisig_supported = true;
+        cfg.feature_flags.txn_base_cost_as_multiplier = true;
+        cfg.feature_flags.narwhal_new_leader_election_schedule = true;
+        cfg.feature_flags.loaded_child_object_format = true;
+        cfg.feature_flags.loaded_child_object_format_type = true;
+        cfg.feature_flags.simple_conservation_checks = true;
+        cfg.feature_flags.end_of_epoch_transaction_supported = true;
+        cfg.feature_flags.enable_jwk_consensus_updates = true;
+        cfg.feature_flags.receive_objects = true;
+        cfg.feature_flags.enable_effects_v2 = true;
+        cfg.feature_flags.verify_legacy_zklogin_address = true;
+        cfg.feature_flags.narwhal_certificate_v2 = true;
+        cfg.feature_flags.recompute_has_public_transfer_in_execution = true;
+        cfg.feature_flags.shared_object_deletion = true;
+        cfg.feature_flags.hardened_otw_check = true;
+        cfg.feature_flags.allow_receiving_object_id = true;
+        cfg.feature_flags.enable_coin_deny_list = true;
+        cfg.feature_flags.reject_mutable_random_on_entry_functions = true;
+
+        // Enable group ops and all networks (but not msm)
+        cfg.feature_flags.enable_group_ops_native_functions = true;
+
+        // zklogin_supported_providers config is deprecated, zklogin
+        // signature verifier will use the fetched jwk map to determine
+        // whether the provider is supported based on node config.
+        cfg.feature_flags.zklogin_supported_providers = BTreeSet::default();
+
+        // Following flags are implied by the execution version.
+        // Once support for earlier protocol versions is dropped, these flags can be
+        // removed:
+        cfg.feature_flags.package_upgrades = true;
+        cfg.feature_flags.disallow_adding_abilities_on_upgrade = true;
+        cfg.feature_flags
+            .disallow_change_struct_type_params_on_upgrade = true;
+        cfg.feature_flags.loaded_child_objects_fixed = true;
+        cfg.feature_flags.ban_entry_init = true;
+
+        // Testnet or Devnet
+        if chain != Chain::Mainnet {
+            cfg.feature_flags.accept_zklogin_in_multisig = true;
+            cfg.feature_flags.include_consensus_digest_in_prologue = true;
+        }
+
+        // Devnet
+        if chain != Chain::Mainnet && chain != Chain::Testnet {
+            cfg.feature_flags.random_beacon = true;
+            cfg.random_beacon_reduction_lower_bound = Some(1600);
+            cfg.random_beacon_dkg_timeout_round = Some(200);
+
+            cfg.feature_flags.enable_poseidon = true;
+            cfg.poseidon_bn254_cost_base = Some(260);
+            cfg.poseidon_bn254_cost_per_block = Some(10);
+
+            cfg.feature_flags.enable_group_ops_native_function_msm = true;
+        }
+
+        // TODO: remove the never_loop attribute when the version 2 is added.
+        #[allow(clippy::never_loop)]
         for cur in 2..=version.0 {
             match cur {
                 1 => unreachable!(),
-                2 => {
-                    cfg.feature_flags.advance_epoch_start_time_in_safe_mode = true;
-                }
-                3 => {
-                    // changes for gas model
-                    cfg.gas_model_version = Some(2);
-                    // max gas budget is in MICROS and an absolute value 50IOTA
-                    cfg.max_tx_gas = Some(50_000_000_000);
-                    // min gas budget is in MICROS and an absolute value 2000MICROS or 0.000002IOTA
-                    cfg.base_tx_cost_fixed = Some(2_000);
-                    // storage gas price multiplier
-                    cfg.storage_gas_price = Some(76);
-                    cfg.feature_flags.loaded_child_objects_fixed = true;
-                    // max size of written objects during a TXn
-                    // this is a sum of all objects written during a TXn
-                    cfg.max_size_written_objects = Some(5 * 1000 * 1000);
-                    // max size of written objects during a system TXn to allow for larger writes
-                    // akin to `max_size_written_objects` but for system TXns
-                    cfg.max_size_written_objects_system_tx = Some(50 * 1000 * 1000);
-                    cfg.feature_flags.package_upgrades = true;
-                }
-                // This is the first protocol version currently possible.
-                // Mainnet starts with version 4. Previous versions are pre mainnet and have
-                // all been wiped out.
-                // Every other chain is after version 4.
-                4 => {
-                    // Change reward slashing rate to 100%.
-                    cfg.reward_slashing_rate = Some(10000);
-                    // protect old and new lookup for object version
-                    cfg.gas_model_version = Some(3);
-                }
-                5 => {
-                    cfg.feature_flags.missing_type_is_compatibility_error = true;
-                    cfg.gas_model_version = Some(4);
-                    cfg.feature_flags.scoring_decision_with_validity_cutoff = true;
-                    cfg.scoring_decision_mad_divisor = Some(2.3);
-                    cfg.scoring_decision_cutoff_value = Some(2.5);
-                }
-                6 => {
-                    cfg.gas_model_version = Some(5);
-                    cfg.buffer_stake_for_protocol_upgrade_bps = Some(5000);
-                    cfg.feature_flags.consensus_order_end_of_epoch_last = true;
-                }
-                7 => {
-                    cfg.feature_flags.disallow_adding_abilities_on_upgrade = true;
-                    cfg.feature_flags
-                        .disable_invariant_violation_check_in_swap_loc = true;
-                    cfg.feature_flags.ban_entry_init = true;
-                    cfg.feature_flags.package_digest_hash_module = true;
-                }
-                8 => {
-                    cfg.feature_flags
-                        .disallow_change_struct_type_params_on_upgrade = true;
-                }
-                9 => {
-                    // Limits the length of a Move identifier
-                    cfg.max_move_identifier_len = Some(128);
-                    cfg.feature_flags.no_extraneous_module_bytes = true;
-                    cfg.feature_flags
-                        .advance_to_highest_supported_protocol_version = true;
-                }
-                10 => {
-                    cfg.max_verifier_meter_ticks_per_function = Some(16_000_000);
-                    cfg.max_meter_ticks_per_module = Some(16_000_000);
-                }
-                11 => {
-                    cfg.max_move_value_depth = Some(128);
-                }
-                12 => {
-                    cfg.feature_flags.narwhal_versioned_metadata = true;
-                    if chain != Chain::Mainnet {
-                        cfg.feature_flags.commit_root_state_digest = true;
-                    }
-
-                    if chain != Chain::Mainnet && chain != Chain::Testnet {
-                        cfg.feature_flags.zklogin_auth = true;
-                    }
-                }
-                13 => {}
-                14 => {
-                    cfg.gas_rounding_step = Some(1_000);
-                    cfg.gas_model_version = Some(6);
-                }
-                15 => {
-                    cfg.feature_flags.consensus_transaction_ordering =
-                        ConsensusTransactionOrdering::ByGasPrice;
-                }
-                16 => {
-                    cfg.feature_flags.simplified_unwrap_then_delete = true;
-                }
-                17 => {
-                    cfg.feature_flags.upgraded_multisig_supported = true;
-                }
-                18 => {
-                    cfg.execution_version = Some(1);
-                    // Following flags are implied by this execution version.  Once support for
-                    // earlier protocol versions is dropped, these flags can be
-                    // removed: cfg.feature_flags.package_upgrades = true;
-                    // cfg.feature_flags.disallow_adding_abilities_on_upgrade = true;
-                    // cfg.feature_flags.disallow_change_struct_type_params_on_upgrade = true;
-                    // cfg.feature_flags.loaded_child_objects_fixed = true;
-                    // cfg.feature_flags.ban_entry_init = true;
-                    // cfg.feature_flags.pack_digest_hash_modules = true;
-                    cfg.feature_flags.txn_base_cost_as_multiplier = true;
-                    // this is a multiplier of the gas price
-                    cfg.base_tx_cost_fixed = Some(1_000);
-                }
-                19 => {
-                    cfg.max_num_event_emit = Some(1024);
-                    // We maintain the same total size limit for events, but increase the number of
-                    // events that can be emitted.
-                    cfg.max_event_emit_size_total = Some(
-                        256 /* former event count limit */ * 250 * 1024, // size limit per event
-                    );
-                }
-                20 => {
-                    cfg.feature_flags.commit_root_state_digest = true;
-
-                    if chain != Chain::Mainnet {
-                        cfg.feature_flags.narwhal_new_leader_election_schedule = true;
-                        cfg.consensus_bad_nodes_stake_threshold = Some(20);
-                    }
-                }
-
-                21 => {
-                    if chain != Chain::Mainnet {
-                        cfg.feature_flags.zklogin_supported_providers = BTreeSet::from([
-                            "Google".to_string(),
-                            "Facebook".to_string(),
-                            "Twitch".to_string(),
-                        ]);
-                    }
-                }
-                22 => {
-                    cfg.feature_flags.loaded_child_object_format = true;
-                }
-                23 => {
-                    cfg.feature_flags.loaded_child_object_format_type = true;
-                    cfg.feature_flags.narwhal_new_leader_election_schedule = true;
-                    // Taking a baby step approach, we consider only 20% by stake as bad nodes so we
-                    // have a 80% by stake of nodes participating in the leader committee. That
-                    // allow us for more redundancy in case we have validators
-                    // under performing - since the responsibility is shared
-                    // amongst more nodes. We can increase that once we do have
-                    // higher confidence.
-                    cfg.consensus_bad_nodes_stake_threshold = Some(20);
-                }
-                24 => {
-                    cfg.feature_flags.simple_conservation_checks = true;
-                    cfg.max_publish_or_upgrade_per_ptb = Some(5);
-
-                    cfg.feature_flags.end_of_epoch_transaction_supported = true;
-
-                    if chain != Chain::Mainnet {
-                        cfg.feature_flags.enable_jwk_consensus_updates = true;
-                        // Max of 10 votes per hour
-                        cfg.max_jwk_votes_per_validator_per_epoch = Some(240);
-                        cfg.max_age_of_jwk_in_epochs = Some(1);
-                    }
-                }
-                25 => {
-                    // Enable zkLogin for all providers in all networks.
-                    cfg.feature_flags.zklogin_supported_providers = BTreeSet::from([
-                        "Google".to_string(),
-                        "Facebook".to_string(),
-                        "Twitch".to_string(),
-                    ]);
-                    cfg.feature_flags.zklogin_auth = true;
-
-                    // Enable jwk consensus updates
-                    cfg.feature_flags.enable_jwk_consensus_updates = true;
-                    cfg.max_jwk_votes_per_validator_per_epoch = Some(240);
-                    cfg.max_age_of_jwk_in_epochs = Some(1);
-                }
-                26 => {
-                    cfg.gas_model_version = Some(7);
-                    // Only enable receiving objects in devnet
-                    if chain != Chain::Mainnet && chain != Chain::Testnet {
-                        cfg.transfer_receive_object_cost_base = Some(52);
-                        cfg.feature_flags.receive_objects = true;
-                    }
-                }
-                27 => {
-                    cfg.gas_model_version = Some(8);
-                }
-                28 => {
-                    // zklogin::check_zklogin_id
-                    cfg.check_zklogin_id_cost_base = Some(200);
-                    // zklogin::check_zklogin_issuer
-                    cfg.check_zklogin_issuer_cost_base = Some(200);
-
-                    // Only enable effects v2 on devnet.
-                    if chain != Chain::Mainnet && chain != Chain::Testnet {
-                        cfg.feature_flags.enable_effects_v2 = true;
-                    }
-                }
-                29 => {
-                    cfg.feature_flags.verify_legacy_zklogin_address = true;
-                }
-                30 => {
-                    // Only enable nw certificate v2 on testnet.
-                    if chain != Chain::Mainnet {
-                        cfg.feature_flags.narwhal_certificate_v2 = true;
-                    }
-
-                    cfg.random_beacon_reduction_allowed_delta = Some(800);
-                    // Only enable effects v2 on devnet and testnet.
-                    if chain != Chain::Mainnet {
-                        cfg.feature_flags.enable_effects_v2 = true;
-                    }
-
-                    // zklogin_supported_providers config is deprecated, zklogin
-                    // signature verifier will use the fetched jwk map to determine
-                    // whether the provider is supported based on node config.
-                    cfg.feature_flags.zklogin_supported_providers = BTreeSet::default();
-
-                    cfg.feature_flags.recompute_has_public_transfer_in_execution = true;
-                }
-                31 => {
-                    cfg.execution_version = Some(2);
-                    // Only enable shared object deletion on devnet
-                    if chain != Chain::Mainnet && chain != Chain::Testnet {
-                        cfg.feature_flags.shared_object_deletion = true;
-                    }
-                }
-                32 => {
-                    // enable zklogin in multisig in devnet and testnet
-                    if chain != Chain::Mainnet {
-                        cfg.feature_flags.accept_zklogin_in_multisig = true;
-                    }
-                    // enable receiving objects in devnet and testnet
-                    if chain != Chain::Mainnet {
-                        cfg.transfer_receive_object_cost_base = Some(52);
-                        cfg.feature_flags.receive_objects = true;
-                    }
-                    // Only enable random beacon on devnet
-                    if chain != Chain::Mainnet && chain != Chain::Testnet {
-                        cfg.feature_flags.random_beacon = true;
-                        cfg.random_beacon_reduction_lower_bound = Some(1600);
-                        cfg.random_beacon_dkg_timeout_round = Some(200);
-                    }
-                    // Only enable consensus digest in consensus commit prologue in devnet.
-                    if chain != Chain::Testnet && chain != Chain::Mainnet {
-                        cfg.feature_flags.include_consensus_digest_in_prologue = true;
-                    }
-
-                    // enable nw cert v2 on mainnet
-                    cfg.feature_flags.narwhal_certificate_v2 = true;
-                }
-                33 => {
-                    cfg.feature_flags.hardened_otw_check = true;
-                    cfg.feature_flags.allow_receiving_object_id = true;
-
-                    // Enable transfer-to-object in mainnet
-                    cfg.transfer_receive_object_cost_base = Some(52);
-                    cfg.feature_flags.receive_objects = true;
-
-                    // Enable shared object deletion in testnet and devnet
-                    if chain != Chain::Mainnet {
-                        cfg.feature_flags.shared_object_deletion = true;
-                    }
-
-                    cfg.feature_flags.enable_effects_v2 = true;
-                }
-                34 => {}
-                35 => {
-                    // Add costs for poseidon::poseidon_bn254
-                    if chain != Chain::Mainnet && chain != Chain::Testnet {
-                        cfg.feature_flags.enable_poseidon = true;
-                        cfg.poseidon_bn254_cost_base = Some(260);
-                        cfg.poseidon_bn254_cost_per_block = Some(10);
-                    }
-
-                    cfg.feature_flags.enable_coin_deny_list = true;
-                }
-                36 => {
-                    // Only enable group ops on devnet
-                    if chain != Chain::Mainnet && chain != Chain::Testnet {
-                        cfg.feature_flags.enable_group_ops_native_functions = true;
-                        cfg.feature_flags.enable_group_ops_native_function_msm = true;
-                        // Next values are arbitrary in a similar way as the other crypto native
-                        // functions.
-                        cfg.group_ops_bls12381_decode_scalar_cost = Some(52);
-                        cfg.group_ops_bls12381_decode_g1_cost = Some(52);
-                        cfg.group_ops_bls12381_decode_g2_cost = Some(52);
-                        cfg.group_ops_bls12381_decode_gt_cost = Some(52);
-                        cfg.group_ops_bls12381_scalar_add_cost = Some(52);
-                        cfg.group_ops_bls12381_g1_add_cost = Some(52);
-                        cfg.group_ops_bls12381_g2_add_cost = Some(52);
-                        cfg.group_ops_bls12381_gt_add_cost = Some(52);
-                        cfg.group_ops_bls12381_scalar_sub_cost = Some(52);
-                        cfg.group_ops_bls12381_g1_sub_cost = Some(52);
-                        cfg.group_ops_bls12381_g2_sub_cost = Some(52);
-                        cfg.group_ops_bls12381_gt_sub_cost = Some(52);
-                        cfg.group_ops_bls12381_scalar_mul_cost = Some(52);
-                        cfg.group_ops_bls12381_g1_mul_cost = Some(52);
-                        cfg.group_ops_bls12381_g2_mul_cost = Some(52);
-                        cfg.group_ops_bls12381_gt_mul_cost = Some(52);
-                        cfg.group_ops_bls12381_scalar_div_cost = Some(52);
-                        cfg.group_ops_bls12381_g1_div_cost = Some(52);
-                        cfg.group_ops_bls12381_g2_div_cost = Some(52);
-                        cfg.group_ops_bls12381_gt_div_cost = Some(52);
-                        cfg.group_ops_bls12381_g1_hash_to_base_cost = Some(52);
-                        cfg.group_ops_bls12381_g2_hash_to_base_cost = Some(52);
-                        cfg.group_ops_bls12381_g1_hash_to_cost_per_byte = Some(2);
-                        cfg.group_ops_bls12381_g2_hash_to_cost_per_byte = Some(2);
-                        cfg.group_ops_bls12381_g1_msm_base_cost = Some(52);
-                        cfg.group_ops_bls12381_g2_msm_base_cost = Some(52);
-                        cfg.group_ops_bls12381_g1_msm_base_cost_per_input = Some(52);
-                        cfg.group_ops_bls12381_g2_msm_base_cost_per_input = Some(52);
-                        cfg.group_ops_bls12381_msm_max_len = Some(32);
-                        cfg.group_ops_bls12381_pairing_cost = Some(52);
-                    }
-                    // Enable shared object deletion on all networks.
-                    cfg.feature_flags.shared_object_deletion = true;
-
-                    cfg.consensus_max_transaction_size_bytes = Some(256 * 1024); // 256KB
-                    cfg.consensus_max_transactions_in_block_bytes = Some(6 * 1_024 * 1024);
-                    // 6 MB
-                }
-                37 => {
-                    cfg.feature_flags.reject_mutable_random_on_entry_functions = true;
-
-                    // Enable consensus digest in consensus commit prologue in testnet and devnet.
-                    if chain != Chain::Mainnet {
-                        cfg.feature_flags.include_consensus_digest_in_prologue = true;
-                    }
-                }
-                38 => {
-                    cfg.binary_module_handles = Some(100);
-                    cfg.binary_struct_handles = Some(300);
-                    cfg.binary_function_handles = Some(1500);
-                    cfg.binary_function_instantiations = Some(750);
-                    cfg.binary_signatures = Some(1000);
-                    // constants and identifiers are proportional to the binary size,
-                    // and they vastly depend on the code, so we are leaving them
-                    // reasonably high
-                    cfg.binary_constant_pool = Some(4000);
-                    cfg.binary_identifiers = Some(10000);
-                    cfg.binary_address_identifiers = Some(100);
-                    cfg.binary_struct_defs = Some(200);
-                    cfg.binary_struct_def_instantiations = Some(100);
-                    cfg.binary_function_defs = Some(1000);
-                    cfg.binary_field_handles = Some(500);
-                    cfg.binary_field_instantiations = Some(250);
-                    cfg.binary_friend_decls = Some(100);
-                    // reduce dependencies maximum
-                    cfg.max_package_dependencies = Some(32);
-                    cfg.max_modules_in_publish = Some(64);
-                    // bump execution version
-                    cfg.execution_version = Some(3);
-                }
-                39 => {
-                    // It is important that we keep this protocol version blank
-                    // due to an issue with random.move.
-                }
-                40 => {}
-                41 => {
-                    // Enable group ops and all networks (but not msm)
-                    cfg.feature_flags.enable_group_ops_native_functions = true;
-                    // Next values are arbitrary in a similar way as the other crypto native
-                    // functions.
-                    cfg.group_ops_bls12381_decode_scalar_cost = Some(52);
-                    cfg.group_ops_bls12381_decode_g1_cost = Some(52);
-                    cfg.group_ops_bls12381_decode_g2_cost = Some(52);
-                    cfg.group_ops_bls12381_decode_gt_cost = Some(52);
-                    cfg.group_ops_bls12381_scalar_add_cost = Some(52);
-                    cfg.group_ops_bls12381_g1_add_cost = Some(52);
-                    cfg.group_ops_bls12381_g2_add_cost = Some(52);
-                    cfg.group_ops_bls12381_gt_add_cost = Some(52);
-                    cfg.group_ops_bls12381_scalar_sub_cost = Some(52);
-                    cfg.group_ops_bls12381_g1_sub_cost = Some(52);
-                    cfg.group_ops_bls12381_g2_sub_cost = Some(52);
-                    cfg.group_ops_bls12381_gt_sub_cost = Some(52);
-                    cfg.group_ops_bls12381_scalar_mul_cost = Some(52);
-                    cfg.group_ops_bls12381_g1_mul_cost = Some(52);
-                    cfg.group_ops_bls12381_g2_mul_cost = Some(52);
-                    cfg.group_ops_bls12381_gt_mul_cost = Some(52);
-                    cfg.group_ops_bls12381_scalar_div_cost = Some(52);
-                    cfg.group_ops_bls12381_g1_div_cost = Some(52);
-                    cfg.group_ops_bls12381_g2_div_cost = Some(52);
-                    cfg.group_ops_bls12381_gt_div_cost = Some(52);
-                    cfg.group_ops_bls12381_g1_hash_to_base_cost = Some(52);
-                    cfg.group_ops_bls12381_g2_hash_to_base_cost = Some(52);
-                    cfg.group_ops_bls12381_g1_hash_to_cost_per_byte = Some(2);
-                    cfg.group_ops_bls12381_g2_hash_to_cost_per_byte = Some(2);
-                    cfg.group_ops_bls12381_g1_msm_base_cost = Some(52);
-                    cfg.group_ops_bls12381_g2_msm_base_cost = Some(52);
-                    cfg.group_ops_bls12381_g1_msm_base_cost_per_input = Some(52);
-                    cfg.group_ops_bls12381_g2_msm_base_cost_per_input = Some(52);
-                    cfg.group_ops_bls12381_msm_max_len = Some(32);
-                    cfg.group_ops_bls12381_pairing_cost = Some(52);
-                }
-                42 => {}
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -2356,7 +1948,7 @@ mod test {
     #[test]
     fn lookup_by_string_test() {
         let prot: ProtocolConfig =
-            ProtocolConfig::get_for_version(ProtocolVersion::new(1), Chain::Unknown);
+            ProtocolConfig::get_for_version(ProtocolVersion::new(1), Chain::Mainnet);
         // Does not exist
         assert!(prot.lookup_attr("some random string".to_string()).is_none());
 
@@ -2365,38 +1957,39 @@ mod test {
                 == Some(ProtocolConfigValue::u32(prot.max_arguments())),
         );
 
-        // We didnt have this in version 1
+        // We didnt have this in version 1 on Mainnet
         assert!(
-            prot.lookup_attr("max_move_identifier_len".to_string())
+            prot.lookup_attr("random_beacon_reduction_lower_bound".to_string())
                 .is_none()
         );
-
-        // But we did in version 9
-        let prot: ProtocolConfig =
-            ProtocolConfig::get_for_version(ProtocolVersion::new(9), Chain::Unknown);
-        assert!(
-            prot.lookup_attr("max_move_identifier_len".to_string())
-                == Some(ProtocolConfigValue::u64(prot.max_move_identifier_len()))
-        );
-
-        let prot: ProtocolConfig =
-            ProtocolConfig::get_for_version(ProtocolVersion::new(1), Chain::Unknown);
-        // We didnt have this in version 1
         assert!(
             prot.attr_map()
-                .get("max_move_identifier_len")
+                .get("random_beacon_reduction_lower_bound")
                 .unwrap()
                 .is_none()
         );
-        // We had this in version 1
+
+        // But we did in version 1 on Devnet
+        let prot: ProtocolConfig =
+            ProtocolConfig::get_for_version(ProtocolVersion::new(1), Chain::Unknown);
         assert!(
-            prot.attr_map().get("max_arguments").unwrap()
-                == &Some(ProtocolConfigValue::u32(prot.max_arguments()))
+            prot.lookup_attr("random_beacon_reduction_lower_bound".to_string())
+                == Some(ProtocolConfigValue::u32(
+                    prot.random_beacon_reduction_lower_bound()
+                ))
+        );
+        assert!(
+            prot.attr_map()
+                .get("random_beacon_reduction_lower_bound")
+                .unwrap()
+                == &Some(ProtocolConfigValue::u32(
+                    prot.random_beacon_reduction_lower_bound()
+                ))
         );
 
         // Check feature flags
         let prot: ProtocolConfig =
-            ProtocolConfig::get_for_version(ProtocolVersion::new(1), Chain::Unknown);
+            ProtocolConfig::get_for_version(ProtocolVersion::new(1), Chain::Mainnet);
         // Does not exist
         assert!(
             prot.feature_flags
@@ -2404,40 +1997,20 @@ mod test {
                 .is_none()
         );
         assert!(
-            prot.feature_flags
+            !prot
+                .feature_flags
                 .attr_map()
-                .get("some random string")
-                .is_none()
+                .contains_key("some random string")
         );
 
-        // Was false in v1
-        assert!(
-            prot.feature_flags
-                .lookup_attr("package_upgrades".to_owned())
-                == Some(false)
-        );
-        assert!(
-            prot.feature_flags
-                .attr_map()
-                .get("package_upgrades")
-                .unwrap()
-                == &false
-        );
+        // Was false in v1 on Mainnet
+        assert!(prot.feature_flags.lookup_attr("random_beacon".to_owned()) == Some(false));
+        assert!(prot.feature_flags.attr_map().get("random_beacon").unwrap() == &false);
         let prot: ProtocolConfig =
-            ProtocolConfig::get_for_version(ProtocolVersion::new(4), Chain::Unknown);
-        // Was true from v3 and up
-        assert!(
-            prot.feature_flags
-                .lookup_attr("package_upgrades".to_owned())
-                == Some(true)
-        );
-        assert!(
-            prot.feature_flags
-                .attr_map()
-                .get("package_upgrades")
-                .unwrap()
-                == &true
-        );
+            ProtocolConfig::get_for_version(ProtocolVersion::new(1), Chain::Unknown);
+        // Was true from v1 and up on Devnet
+        assert!(prot.feature_flags.lookup_attr("random_beacon".to_owned()) == Some(true));
+        assert!(prot.feature_flags.attr_map().get("random_beacon").unwrap() == &true);
     }
 
     #[test]

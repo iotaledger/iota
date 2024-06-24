@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module.exports = {
@@ -31,6 +32,7 @@ module.exports = {
         'external-crates',
         'storybook-static',
         '**/*.config.js',
+        '**/*.config.ts',
         '**/preprocess.mjs',
         '**/storybook-static',
         '**/node_modules',
@@ -68,8 +70,13 @@ module.exports = {
             2,
             'line',
             [
-                { pattern: ' Copyright \\(c\\) (2024 IOTA Stiftung|Mysten Labs, Inc.)' },
-                ' SPDX-License-Identifier: Apache-2.0',
+                {
+                    pattern: ' Copyright \\(c\\) (2024 IOTA Stiftung|Mysten Labs, Inc.)?',
+                },
+                {
+                    pattern:
+                        ' ((SPDX-License-Identifier: Apache-2.0)|(Modifications Copyright \\(c\\) 2024 IOTA Stiftung))',
+                },
             ],
         ],
         '@typescript-eslint/no-unused-vars': [
@@ -251,9 +258,9 @@ module.exports = {
             },
         },
         {
-            files: ['sdk/ledgerjs-hw-app-sui/**/*', 'apps/wallet/**/*'],
+            files: ['sdk/ledgerjs-hw-app-iota/**/*', 'apps/wallet/**/*'],
             rules: {
-                // ledgerjs-hw-app-sui and wallet use Buffer
+                // ledgerjs-hw-app-iota and wallet use Buffer
                 'no-restricted-globals': ['off'],
                 '@typescript-eslint/ban-types': ['off'],
             },

@@ -2,11 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { hasDisplayData, useGetOwnedObjects } from '@iota/core';
+import { hasDisplayData, isKioskOwnerToken, useGetOwnedObjects, useKioskClient } from '@iota/core';
 import { type IotaObjectData } from '@iota/iota.js/client';
 import { useMemo } from 'react';
 
-import { useBuyNLargeAsset } from '../components/buynlarge/useBuyNLargeAsset';
 import { useHiddenAssets } from '../pages/home/hidden-assets/HiddenAssetsProvider';
 
 type OwnedAssets = {
@@ -21,7 +20,7 @@ export enum AssetFilterTypes {
 }
 
 export function useGetNFTs(address?: string | null) {
-    const { asset, objectType } = useBuyNLargeAsset();
+    const kioskClient = useKioskClient();
     const {
         data,
         isPending,
@@ -34,9 +33,7 @@ export function useGetNFTs(address?: string | null) {
     } = useGetOwnedObjects(
         address,
         {
-            MatchNone: objectType
-                ? [{ StructType: '0x2::coin::Coin' }, { StructType: objectType }]
-                : [{ StructType: '0x2::coin::Coin' }],
+            MatchNone: [{ StructType: '0x2::coin::Coin' }],
         },
         50,
     );
@@ -55,19 +52,15 @@ export function useGetNFTs(address?: string | null) {
                 (asset) => asset.data?.objectId && !hiddenAssetIds.includes(asset.data?.objectId),
             )
             .reduce((acc, curr) => {
-                if (hasDisplayData(curr)) acc.visual.push(curr.data as IotaObjectData);
+                if (hasDisplayData(curr) || isKioskOwnerToken(kioskClient.network, curr))
+                    acc.visual.push(curr.data as IotaObjectData);
                 if (!hasDisplayData(curr)) acc.other.push(curr.data as IotaObjectData);
                 if (curr.data?.objectId && hiddenAssetIds.includes(curr.data?.objectId))
                     acc.hidden.push(curr.data as IotaObjectData);
                 return acc;
             }, ownedAssets);
-
-        if (asset?.data) {
-            groupedAssets?.visual.unshift(asset.data);
-        }
-
         return groupedAssets;
-    }, [hiddenAssetIds, data?.pages, asset]);
+    }, [hiddenAssetIds, data?.pages, kioskClient.network]);
 
     return {
         data: assets,

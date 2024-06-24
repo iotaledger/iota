@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 import { useState, useCallback, useEffect } from 'react';
 
 import { useDebouncedValue } from '~/hooks/useDebouncedValue';
 import { useSearch } from '~/hooks/useSearch';
 import { Search as SearchBox, type SearchResult } from '~/ui/Search';
-import { useNavigateWithQuery } from '~/ui/utils/LinkWithQuery';
+import { useNavigateWithQuery } from '~/ui/LinkWithQuery';
 import { ampli } from '~/utils/analytics/ampli';
 
-function Search() {
+function Search(): JSX.Element {
     const [query, setQuery] = useState('');
     const debouncedQuery = useDebouncedValue(query);
     const { isPending, data: results } = useSearch(debouncedQuery);

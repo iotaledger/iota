@@ -8,12 +8,16 @@ import { type IotaObjectResponse } from '@iota/iota.js/client';
 import { Heading } from '@iota/ui';
 import { type ReactNode, useState } from 'react';
 
-import { DynamicFieldsCard } from '~/components/Object/DynamicFieldsCard';
-import { ObjectFieldsCard } from '~/components/Object/ObjectFieldsCard';
-import TransactionBlocksForAddress from '~/components/TransactionBlocksForAddress';
+import { DynamicFieldsCard } from '~/components/object/DynamicFieldsCard';
+import { ObjectFieldsCard } from '~/components/object/ObjectFieldsCard';
+import TransactionBlocksForAddress from '~/components/transaction-blocks-for-address';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
 
-function FieldsContainer({ children }: { children: ReactNode }) {
+interface FieldsContainerProps {
+    children: ReactNode;
+}
+
+function FieldsContainer({ children }: FieldsContainerProps): JSX.Element {
     return (
         <div className="mt-4 flex flex-col gap-5 rounded-xl border border-gray-45 bg-objectCard py-6 pl-6 pr-4">
             {children}
@@ -63,7 +67,11 @@ function useObjectFieldsCard(id: string) {
     };
 }
 
-export function FieldsContent({ objectId }: { objectId: string }) {
+interface FieldsContentProps {
+    objectId: string;
+}
+
+export function FieldsContent({ objectId }: FieldsContentProps) {
     const {
         normalizedStructData,
         iotaObjectResponseData,
@@ -117,7 +125,11 @@ export function FieldsContent({ objectId }: { objectId: string }) {
     );
 }
 
-export function TokenView({ data }: { data: IotaObjectResponse }) {
+interface TokenViewProps {
+    data: IotaObjectResponse;
+}
+
+export function TokenView({ data }: TokenViewProps): JSX.Element {
     // eslint-disable-next-line @typescript-eslint/no-non-null-asserted-optional-chain
     const objectId = data.data?.objectId!;
 
