@@ -39,10 +39,12 @@ fn new_output(
     address: Ed25519Address,
     timelock: Option<u32>,
 ) -> anyhow::Result<(OutputHeader, Output)> {
+    // TODO what is this part of the ID supposed to be?
     transaction_id[28..32].copy_from_slice(&random::<[u8; 4]>());
 
     let output_header = OutputHeader::new_testing(
         *transaction_id,
+        // % 128 to pass the output index syntactic validation.
         random::<u16>() % 128,
         [0; 32],
         MERGE_MILESTONE_INDEX,
@@ -70,6 +72,7 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let mut transaction_id = [0; 32];
     let mut rng = thread_rng();
 
+    // Prepare a transaction ID with the vested reward prefix.
     transaction_id[0..28]
         .copy_from_slice(&prefix_hex::decode::<[u8; 28]>(VESTED_REWARD_ID_PREFIX)?);
 
@@ -83,14 +86,20 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
                     None,
                 )
                 .await?[0];
+            // VESTING_WEEKS / VESTING_WEEKS_FREQUENCY * 10 so that `vested_amount` doesn't lose precision.
             let amount = rng.gen_range(1_000_000..10_000_000)
                 * (VESTING_WEEKS as u64 / VESTING_WEEKS_FREQUENCY as u64 * 10);
+            // Initial unlock amount is 10% of the total address reward.
             let initial_unlock_amount = amount * 10 / 100;
+            // Vested amount is 90% of the total address reward spread across the vesting schedule.
             let vested_amount =
                 amount * 90 / 100 / (VESTING_WEEKS as u64 / VESTING_WEEKS_FREQUENCY as u64);
 
-            // The modulos 3 and 5 are chosen because they create a pattern of all possible combinations of having an initial unlock and having expired timelock outputs.
+            // The modulos 3 and 5 are chosen because they create a pattern of
+            // all possible combinations of having an initial unlock and having
+            //  expired timelock outputs.
 
+            // 2 addresses out of 3 have an initial unlock.
             if address_index % 3 != 0 {
                 outputs.push(new_output(
                     &mut transaction_id,
@@ -103,7 +112,17 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
             for offset in (0..=VESTING_WEEKS).step_by(VESTING_WEEKS_FREQUENCY) {
                 let timelock = MERGE_TIMESTAMP_SECS + offset as u32 * 604_800;
 
-                if address_index % 5 == 0 && timelock > now {
+                // 4 addresses out of 5 have unexpired and expired timelocked vested outputs.
+                if address_index % 5 != 0 {
+                    outputs.push(new_output(
+                        &mut transaction_id,
+                        vested_amount,
+                        address,
+                        Some(timelock),
+                    )?);
+                }
+                // 1 address out of 4 only has unexpired timelocked vested outputs.
+                else if timelock > now {
                     outputs.push(new_output(
                         &mut transaction_id,
                         vested_amount,
@@ -114,6 +133,8 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
             }
         }
     }
+
+    println!("{}", outputs.len());
 
     Ok(outputs)
 }
