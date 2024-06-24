@@ -27,6 +27,7 @@ use crate::{
 };
 
 #[derive(Debug)]
+#[allow(dead_code)]
 struct TypeSignatureIndex(u16);
 
 #[derive(Debug)]

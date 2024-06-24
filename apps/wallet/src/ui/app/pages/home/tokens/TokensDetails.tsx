@@ -19,7 +19,6 @@ import { ampli } from '_src/shared/analytics/ampli';
 import { FEATURES } from '_src/shared/experimentation/features';
 import { AccountsList } from '_src/ui/app/components/accounts/AccountsList';
 import { UnlockAccountButton } from '_src/ui/app/components/accounts/UnlockAccountButton';
-import { BuyNLargeHomePanel } from '_src/ui/app/components/buynlarge/HomePanel';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 import { usePinnedCoinTypes } from '_src/ui/app/hooks/usePinnedCoinTypes';
 import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
@@ -27,6 +26,7 @@ import PageTitle from '_src/ui/app/shared/PageTitle';
 import { useFeature } from '@growthbook/growthbook-react';
 import {
     useAppsBackend,
+    useBalance,
     useBalanceInUSD,
     useCoinMetadata,
     useFormatCoin,
@@ -298,12 +298,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
         isError,
         isPending,
         isFetched,
-    } = useIotaClientQuery(
-        'getBalance',
-        { coinType: activeCoinType, owner: activeAccountAddress! },
-        { enabled: !!activeAccountAddress, refetchInterval, staleTime },
-    );
-
+    } = useBalance(activeAccountAddress!, { coinType: activeCoinType });
     const network = useAppSelector((state) => state.app.network);
     const isMainnet = network === Network.Mainnet;
     const { request } = useAppsBackend();
@@ -400,7 +395,6 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                     data-testid="coin-page"
                 >
                     <AccountsList />
-                    <BuyNLargeHomePanel />
                     <div className="flex w-full flex-col">
                         <PortfolioName
                             name={

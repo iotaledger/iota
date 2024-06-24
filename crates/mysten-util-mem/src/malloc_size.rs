@@ -217,12 +217,14 @@ pub trait MallocConditionalSizeOf {
     /// Measure the heap usage of all heap-allocated descendant structures, but
     /// not the space taken up by the value itself, and only if that heap usage
     /// hasn't already been measured.
+    #[allow(dead_code)]
     fn conditional_size_of(&self, ops: &mut MallocSizeOfOps) -> usize;
 }
 
 /// `MallocConditionalSizeOf` combined with `MallocShallowSizeOf`.
 pub trait MallocConditionalShallowSizeOf {
     /// `conditional_size_of` combined with `shallow_size_of`.
+    #[allow(dead_code)]
     fn conditional_shallow_size_of(&self, ops: &mut MallocSizeOfOps) -> usize;
 }
 

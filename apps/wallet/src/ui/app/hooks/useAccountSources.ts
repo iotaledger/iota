@@ -7,12 +7,12 @@ import { useQuery } from '@tanstack/react-query';
 
 import { useBackgroundClient } from './useBackgroundClient';
 
-export const accountSourcesQueryKey = ['background', 'client', 'account', 'sources'] as const;
+export const ACCOUNT_SOURCES_QUERY_KEY = ['background', 'client', 'account', 'sources'];
 
 export function useAccountSources() {
     const backgroundClient = useBackgroundClient();
     return useQuery({
-        queryKey: accountSourcesQueryKey,
+        queryKey: ACCOUNT_SOURCES_QUERY_KEY,
         queryFn: () =>
             backgroundClient.getStoredEntities<AccountSourceSerializedUI>('accountSources'),
         gcTime: 30 * 1000,

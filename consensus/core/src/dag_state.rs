@@ -221,7 +221,7 @@ impl DagState {
             .metrics
             .node_metrics
             .dag_state_store_read_count
-            .with_label_values(&[&"get_blocks"])
+            .with_label_values(&["get_blocks"])
             .inc();
 
         for ((index, _), result) in missing.into_iter().zip(store_results.into_iter()) {
@@ -457,7 +457,7 @@ impl DagState {
             .metrics
             .node_metrics
             .dag_state_store_read_count
-            .with_label_values(&[&"contains_blocks"])
+            .with_label_values(&["contains_blocks"])
             .inc();
 
         for ((index, _), result) in missing.into_iter().zip(store_results.into_iter()) {

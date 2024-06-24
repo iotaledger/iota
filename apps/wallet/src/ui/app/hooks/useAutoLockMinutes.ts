@@ -9,12 +9,12 @@ import { type zodSchema } from '../components/accounts/AutoLockSelector';
 import { useBackgroundClient } from './useBackgroundClient';
 
 export type AutoLockInterval = z.infer<typeof zodSchema>['autoLock']['interval'];
-export const autoLockMinutesQueryKey = ['get auto-lock minutes'];
+export const AUTO_LOCK_MINUTES_QUERY_KEY = ['get auto-lock minutes'];
 
 export function useAutoLockMinutes() {
     const backgroundClient = useBackgroundClient();
     return useQuery({
-        queryKey: autoLockMinutesQueryKey,
+        queryKey: AUTO_LOCK_MINUTES_QUERY_KEY,
         queryFn: () => backgroundClient.getAutoLockMinutes(),
         refetchInterval: 15 * 1000,
         meta: {
@@ -23,8 +23,8 @@ export function useAutoLockMinutes() {
     });
 }
 
-const minutesOneDay = 60 * 24;
-const minutesOneHour = 60;
+const MINUTES_ONE_DAY = 60 * 24;
+const MINUTES_ONE_HOUR = 60;
 
 export function formatAutoLock(minutes: number | null) {
     const { enabled, timer, interval } = parseAutoLock(minutes);
@@ -39,11 +39,11 @@ export function parseAutoLock(minutes: number | null) {
     const enabled = !!minutes;
     let interval: AutoLockInterval = 'hour';
     if (enabled) {
-        if (minutes % minutesOneDay === 0) {
-            timer = Math.floor(minutes / minutesOneDay);
+        if (minutes % MINUTES_ONE_DAY === 0) {
+            timer = Math.floor(minutes / MINUTES_ONE_DAY);
             interval = 'day';
-        } else if (minutes % minutesOneHour === 0) {
-            timer = Math.floor(minutes / minutesOneHour);
+        } else if (minutes % MINUTES_ONE_HOUR === 0) {
+            timer = Math.floor(minutes / MINUTES_ONE_HOUR);
             interval = 'hour';
         } else {
             interval = 'minute';
@@ -58,8 +58,8 @@ export function parseAutoLock(minutes: number | null) {
 
 const intervalToMinutesMultiplier: Record<AutoLockInterval, number> = {
     minute: 1,
-    hour: minutesOneHour,
-    day: minutesOneDay,
+    hour: MINUTES_ONE_HOUR,
+    day: MINUTES_ONE_DAY,
 };
 
 export function autoLockDataToMinutes({
