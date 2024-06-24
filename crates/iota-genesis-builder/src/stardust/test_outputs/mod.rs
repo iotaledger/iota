@@ -13,6 +13,7 @@ use iota_sdk::types::block::{
     payload::milestone::{MilestoneOption, ParametersMilestoneOption},
     protocol::ProtocolParameters,
 };
+use iota_types::stardust::error::StardustError;
 use packable::{packer::IoPacker, Packable, PackableExt};
 
 use crate::stardust::parse::FullSnapshotParser;
@@ -47,14 +48,17 @@ pub fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
         params.below_max_depth(),
         *params.rent_structure(),
         params.token_supply() + new_outputs.iter().map(|o| o.1.amount()).sum::<u64>(),
-    )?;
+    )
+    .map_err(StardustError::BlockError)?;
     if let MilestoneOption::Parameters(params) = &parser.header.parameters_milestone_option {
-        parser.header.parameters_milestone_option =
-            MilestoneOption::Parameters(ParametersMilestoneOption::new(
+        parser.header.parameters_milestone_option = MilestoneOption::Parameters(
+            ParametersMilestoneOption::new(
                 params.target_milestone_index(),
                 params.protocol_version(),
                 new_params.pack_to_vec(),
-            )?);
+            )
+            .map_err(StardustError::BlockError)?,
+        );
     }
 
     // Writes the new header.
