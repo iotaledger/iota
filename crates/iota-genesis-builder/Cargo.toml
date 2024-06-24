@@ -40,6 +40,7 @@ iota-sdk = { version = "1.1.4", default-features = false, features = [
 ] }
 num-rational = "0.4"
 packable = { version = "0.8.3", default-features = false, features = ["io"] }
+prefix-hex = "0.7.1"
 
 rand_pcg = "0.3.1"
 rand_seeder = "0.2.3"

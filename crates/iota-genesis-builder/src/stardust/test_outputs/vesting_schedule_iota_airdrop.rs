@@ -11,14 +11,12 @@ use std::time::SystemTime;
 
 use iota_sdk::{
     client::secret::{mnemonic::MnemonicSecretManager, SecretManage},
-    types::block::{
-        output::{
-            unlock_condition::{AddressUnlockCondition, TimelockUnlockCondition},
-            BasicOutputBuilder, Output,
-        },
-        payload::transaction::TransactionId,
+    types::block::output::{
+        unlock_condition::{AddressUnlockCondition, TimelockUnlockCondition},
+        BasicOutputBuilder, Output,
     },
 };
+use iota_types::timelock::timelock::VESTED_REWARD_ID_PREFIX;
 
 use crate::stardust::types::output_header::OutputHeader;
 
@@ -37,6 +35,10 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
         .as_secs() as u32;
     let mut outputs = Vec::new();
     let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
+    let mut transaction_id = [0; 32];
+
+    transaction_id[0..28]
+        .copy_from_slice(&prefix_hex::decode::<[u8; 28]>(VESTED_REWARD_ID_PREFIX)?);
 
     for account_index in 0..ACCOUNTS {
         for address_index in 0..ADDRESSES_PER_ACCOUNT {
@@ -52,9 +54,10 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
             // The modulos 3 and 5 are chosen because they create a pattern of all possible combinations of having an initial unlock and having expired timelock outputs.
 
             if address_index % 3 != 0 {
+                transaction_id[28..32].copy_from_slice(&rand::random::<[u8; 4]>());
                 let output_header = OutputHeader::new_testing(
-                    *TransactionId::from(rand::random::<[u8; 32]>()),
-                    0,
+                    transaction_id,
+                    rand::random::<u16>() % 128,
                     [0; 32],
                     MERGE_MILESTONE_INDEX,
                     MERGE_TIMESTAMP_SECS,
@@ -73,9 +76,10 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
                 let timelock = MERGE_TIMESTAMP_SECS + offset as u32 * 604_800;
 
                 if address_index % 5 == 0 && timelock > now {
+                    transaction_id[28..32].copy_from_slice(&rand::random::<[u8; 4]>());
                     let output_header = OutputHeader::new_testing(
-                        *TransactionId::from(rand::random::<[u8; 32]>()),
-                        0,
+                        transaction_id,
+                        rand::random::<u16>() % 128,
                         [0; 32],
                         MERGE_MILESTONE_INDEX,
                         MERGE_TIMESTAMP_SECS,
@@ -93,6 +97,8 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
             }
         }
     }
+
+    println!("{}", outputs.len());
 
     Ok(outputs)
 }
