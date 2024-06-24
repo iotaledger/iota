@@ -10,18 +10,18 @@ import clsx from 'clsx';
 import { useMemo } from 'react';
 
 import { AreaGraph } from './AreaGraph';
-import { FormattedStatsAmount } from './HomeMetrics/FormattedStatsAmount';
+import { FormattedStatsAmount } from './home-metrics/FormattedStatsAmount';
 import { ErrorBoundary } from './error-boundary/ErrorBoundary';
 import { useGetAddressMetrics } from '~/hooks/useGetAddressMetrics';
 import { useGetAllEpochAddressMetrics } from '~/hooks/useGetAllEpochAddressMetrics';
 import { Card } from '~/ui/Card';
 
-const graphDataField = 'cumulativeAddresses' as const;
-const graphDataText = 'Total accounts';
+const GRAPH_DATA_FIELD = 'cumulativeAddresses';
+const GRAPH_DATA_TEXT = 'Total accounts';
 
-function TooltipContent({ data }: { data: AllEpochsAddressMetrics[number] }) {
+function TooltipContent({ data }: { data: AllEpochsAddressMetrics[number] }): JSX.Element {
     const dateFormatted = formatDate(new Date(data.timestampMs), ['day', 'month']);
-    const totalFormatted = formatAmount(data[graphDataField]);
+    const totalFormatted = formatAmount(data[GRAPH_DATA_FIELD]);
     return (
         <div className="flex flex-col gap-0.5">
             <Text variant="subtitleSmallExtra/medium" color="steel-darker">
@@ -31,13 +31,13 @@ function TooltipContent({ data }: { data: AllEpochsAddressMetrics[number] }) {
                 {totalFormatted}
             </Heading>
             <Text variant="subtitleSmallExtra/medium" color="steel-darker" uppercase>
-                {graphDataText}
+                {GRAPH_DATA_TEXT}
             </Text>
         </div>
     );
 }
 
-export function AccountsCardGraph() {
+export function AccountsCardGraph(): JSX.Element {
     const { data: addressMetrics } = useGetAddressMetrics();
     const { data: allEpochMetrics, isPending } = useGetAllEpochAddressMetrics({
         descendingOrder: false,
@@ -99,7 +99,7 @@ export function AccountsCardGraph() {
                                             height={height}
                                             width={width}
                                             getX={({ epoch }) => epoch}
-                                            getY={(data) => data[graphDataField]}
+                                            getY={(data) => data[GRAPH_DATA_FIELD]}
                                             color="blue"
                                             formatY={formatAmount}
                                             tooltipContent={TooltipContent}

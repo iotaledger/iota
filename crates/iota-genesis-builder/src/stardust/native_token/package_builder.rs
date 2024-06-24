@@ -12,9 +12,10 @@ use std::{
 use anyhow::Result;
 use fs_extra::dir::{copy, CopyOptions};
 use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
+use iota_types::stardust::error::StardustError;
 use tempfile::tempdir;
 
-use crate::stardust::{error::StardustError, native_token::package_data::NativeTokenPackageData};
+use crate::stardust::native_token::package_data::NativeTokenPackageData;
 
 /// Builds and compiles a Stardust native token package.
 pub fn build_and_compile(package: NativeTokenPackageData) -> Result<CompiledPackage> {
@@ -91,8 +92,8 @@ fn adjust_native_token_module(package_path: &Path, package: &NativeTokenPackageD
 
     let icon_url = match &package.module().icon_url {
         Some(url) => format!(
-            "option::some<Url>(iota::url::new_unsafe_from_bytes(b\"{}\"))",
-            url
+            "option::some<Url>(iota::url::new_unsafe_from_bytes({}))",
+            format_string_as_move_vector(url.as_str())
         ),
         None => "option::none<Url>()".to_string(),
     };

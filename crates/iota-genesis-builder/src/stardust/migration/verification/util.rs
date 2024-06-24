@@ -1,5 +1,4 @@
 // Copyright (c) 2024 IOTA Stiftung
-// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashMap;
@@ -19,13 +18,16 @@ use iota_types::{
     collection_types::Bag,
     dynamic_field::Field,
     in_memory_storage::InMemoryStorage,
-    object::Object,
+    object::{Object, Owner},
+    stardust::{
+        output::{unlock_conditions, Alias, Nft},
+        stardust_to_iota_address, stardust_to_iota_address_owner,
+    },
     TypeTag,
 };
 
 use crate::stardust::{
-    migration::executor::FoundryLedgerData,
-    types::{output as migration_output, token_scheme::MAX_ALLOWED_U64_SUPPLY, Alias, Nft},
+    migration::executor::FoundryLedgerData, types::token_scheme::MAX_ALLOWED_U64_SUPPLY,
 };
 
 pub(super) fn verify_native_tokens<NtKind: NativeTokenKind>(
@@ -97,11 +99,11 @@ pub(super) fn verify_native_tokens<NtKind: NativeTokenKind>(
 
 pub(super) fn verify_storage_deposit_unlock_condition(
     original: Option<&sdk_output::unlock_condition::StorageDepositReturnUnlockCondition>,
-    created: Option<&migration_output::StorageDepositReturnUnlockCondition>,
+    created: Option<&unlock_conditions::StorageDepositReturnUnlockCondition>,
 ) -> Result<()> {
     // Storage Deposit Return Unlock Condition
     if let Some(sdruc) = original {
-        let iota_return_address = sdruc.return_address().to_string().parse::<IotaAddress>()?;
+        let iota_return_address = stardust_to_iota_address(sdruc.return_address())?;
         if let Some(obj_sdruc) = created {
             ensure!(
                 obj_sdruc.return_address == iota_return_address,
@@ -129,7 +131,7 @@ pub(super) fn verify_storage_deposit_unlock_condition(
 
 pub(super) fn verify_timelock_unlock_condition(
     original: Option<&sdk_output::unlock_condition::TimelockUnlockCondition>,
-    created: Option<&migration_output::TimelockUnlockCondition>,
+    created: Option<&unlock_conditions::TimelockUnlockCondition>,
 ) -> Result<()> {
     // Timelock Unlock Condition
     if let Some(timelock) = original {
@@ -151,17 +153,14 @@ pub(super) fn verify_timelock_unlock_condition(
 
 pub(super) fn verify_expiration_unlock_condition(
     original: Option<&sdk_output::unlock_condition::ExpirationUnlockCondition>,
-    created: Option<&migration_output::ExpirationUnlockCondition>,
+    created: Option<&unlock_conditions::ExpirationUnlockCondition>,
     address: &Address,
 ) -> Result<()> {
     // Expiration Unlock Condition
     if let Some(expiration) = original {
         if let Some(obj_expiration) = created {
-            let iota_address = address.to_string().parse::<IotaAddress>()?;
-            let iota_return_address = expiration
-                .return_address()
-                .to_string()
-                .parse::<IotaAddress>()?;
+            let iota_address = stardust_to_iota_address(address)?;
+            let iota_return_address = stardust_to_iota_address(expiration.return_address())?;
             ensure!(
                 obj_expiration.owner == iota_address,
                 "expiration owner mismatch: found {}, expected {}",
@@ -236,7 +235,7 @@ pub(super) fn verify_sender_feature(
     created: Option<IotaAddress>,
 ) -> Result<()> {
     if let Some(sender) = original {
-        let iota_sender_address = sender.address().to_string().parse::<IotaAddress>()?;
+        let iota_sender_address = stardust_to_iota_address(sender.address())?;
         if let Some(obj_sender) = created {
             ensure!(
                 obj_sender == iota_sender_address,
@@ -258,7 +257,7 @@ pub(super) fn verify_issuer_feature(
     created: Option<IotaAddress>,
 ) -> Result<()> {
     if let Some(issuer) = original {
-        let iota_issuer_address = issuer.address().to_string().parse::<IotaAddress>()?;
+        let iota_issuer_address = stardust_to_iota_address(issuer.address())?;
         if let Some(obj_issuer) = created {
             ensure!(
                 obj_issuer == iota_issuer_address,
@@ -275,11 +274,39 @@ pub(super) fn verify_issuer_feature(
     Ok(())
 }
 
+pub(super) fn verify_address_owner(
+    owning_address: &Address,
+    obj: &Object,
+    name: &str,
+) -> Result<()> {
+    let expected_owner = stardust_to_iota_address_owner(owning_address)?;
+    ensure!(
+        obj.owner == expected_owner,
+        "{name} owner mismatch: found {}, expected {}",
+        obj.owner,
+        expected_owner
+    );
+    Ok(())
+}
+
+pub(super) fn verify_shared_object(obj: &Object, name: &str) -> Result<()> {
+    let expected_owner = Owner::Shared {
+        initial_shared_version: Default::default(),
+    };
+    ensure!(
+        obj.owner.is_shared(),
+        "{name} shared owner mismatch: found {}, expected {}",
+        obj.owner,
+        expected_owner
+    );
+    Ok(())
+}
+
 // Checks whether an object exists for this address and whether it is the
 // expected alias or nft object. We do not expect an object for Ed25519
 // addresses.
 pub(super) fn verify_parent(address: &Address, storage: &InMemoryStorage) -> Result<()> {
-    let object_id = ObjectID::from(address.to_string().parse::<IotaAddress>()?);
+    let object_id = ObjectID::from(stardust_to_iota_address(address)?);
     let parent = storage.get_object(&object_id);
     match address {
         Address::Alias(address) => {
@@ -303,6 +330,16 @@ pub(super) fn verify_parent(address: &Address, storage: &InMemoryStorage) -> Res
             );
         }
     }
+    Ok(())
+}
+
+pub(super) fn verify_coin(output_amount: u64, created_coin: &Coin) -> Result<()> {
+    ensure!(
+        created_coin.value() == output_amount,
+        "coin amount mismatch: found {}, expected {}",
+        created_coin.value(),
+        output_amount
+    );
     Ok(())
 }
 

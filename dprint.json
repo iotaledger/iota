@@ -1,0 +1,21 @@
+{
+  "$schema": "https://dprint.dev/schemas/v0.json",
+  "incremental": true,
+  "includes": [
+    "**/*.{toml}"
+  ],
+  "excludes": [
+    "**/target/",
+    "**/build/",
+    "external-crates/move/",
+    "bridge/evm/lib/",
+    "examples/trading/api/prisma/migrations/migration_lock.toml",
+    "sdk/create-dapp/templates/"
+  ],
+  "toml": {
+    "lineWidth": 80
+  },
+  "plugins": [
+    "https://plugins.dprint.dev/toml-0.6.2.wasm"
+  ]
+}

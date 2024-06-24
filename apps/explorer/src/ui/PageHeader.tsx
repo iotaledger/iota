@@ -9,7 +9,7 @@ import { ReactComponent as CallIcon } from './icons/transactions/call.svg';
 import { Banner } from '~/ui/Banner';
 import { CopyToClipboard } from '~/ui/CopyToClipboard';
 
-export type PageHeaderType = 'Transaction' | 'Checkpoint' | 'Address' | 'Object' | 'Package';
+type PageHeaderType = 'Transaction' | 'Checkpoint' | 'Address' | 'Object' | 'Package';
 
 export interface PageHeaderProps {
     title: string;
@@ -42,7 +42,7 @@ export function PageHeader({
     error,
     loading,
     after,
-}: PageHeaderProps) {
+}: PageHeaderProps): JSX.Element {
     const Icon = TYPE_TO_ICON[type];
 
     return (
@@ -50,7 +50,7 @@ export function PageHeader({
             <div className="flex w-full items-center gap-3 sm:gap-5">
                 {before && (
                     <div className="self-start sm:self-center">
-                        <div className="sm:min-w-16 flex h-10 w-10 min-w-10 items-center justify-center rounded-lg bg-white/60 sm:h-16 sm:w-16 sm:rounded-xl lg:h-18 lg:w-18 lg:min-w-18">
+                        <div className="flex h-10 w-10 min-w-10 items-center justify-center rounded-lg bg-white/60 sm:h-16 sm:w-16 sm:min-w-16 sm:rounded-xl lg:h-18 lg:w-18 lg:min-w-18">
                             {loading ? (
                                 <Placeholder rounded="xl" width="100%" height="100%" />
                             ) : (

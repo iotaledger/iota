@@ -9,16 +9,16 @@ import {
 } from '@iota/iota.js/client';
 
 import { TransactionDetailCard } from './transaction-summary/TransactionDetailCard';
-import { GasBreakdown } from '~/components/GasBreakdown';
+import { GasBreakdown } from '~/components/gas-breakdown';
 import { useRecognizedPackages } from '~/hooks/useRecognizedPackages';
 import { InputsCard } from '~/pages/transaction-result/programmable-transaction-view/InputsCard';
 import { TransactionsCard } from '~/pages/transaction-result/programmable-transaction-view/TransactionsCard';
 
-interface Props {
+interface TransactionDataProps {
     transaction: IotaTransactionBlockResponse;
 }
 
-export function TransactionData({ transaction }: Props) {
+export function TransactionData({ transaction }: TransactionDataProps): JSX.Element {
     const recognizedPackagesList = useRecognizedPackages();
     const summary = useTransactionSummary({
         transaction,

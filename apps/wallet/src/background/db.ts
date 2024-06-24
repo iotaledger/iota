@@ -6,14 +6,14 @@ import Dexie, { type Table } from 'dexie';
 import { exportDB, importDB } from 'dexie-export-import';
 
 import { type AccountSourceSerialized } from './account-sources/AccountSource';
-import { type AccountType, type SerializedAccount } from './accounts/Account';
+import { type SerializedAccount } from './accounts/Account';
 import { captureException } from './sentry';
 import { getFromLocalStorage, setToLocalStorage } from './storage-utils';
 
-const dbName = 'IotaWallet DB';
-const dbLocalStorageBackupKey = 'indexed-db-backup';
+const DB_NAME = 'IotaWallet DB';
+const DB_LOCAL_STORAGE_BACKUP_KEY = 'indexed-db-backup';
 
-export const settingsKeys = {
+export const SETTINGS_KEYS = {
     isPopulated: 'isPopulated',
     autoLockMinutes: 'auto-lock-minutes',
 };
@@ -24,30 +24,21 @@ class DB extends Dexie {
     settings!: Table<{ value: boolean | number | null; setting: string }, string>;
 
     constructor() {
-        super(dbName);
+        super(DB_NAME);
         this.version(1).stores({
             accountSources: 'id, type',
             accounts: 'id, type, address, sourceID',
             settings: 'setting',
-        });
-        this.version(2).upgrade((transaction) => {
-            const zkLoginType: AccountType = 'zkLogin';
-            transaction
-                .table('accounts')
-                .where({ type: 'zk' })
-                .modify((anAccount) => {
-                    anAccount.type = zkLoginType;
-                });
         });
     }
 }
 
 async function init() {
     const db = new DB();
-    const isPopulated = !!(await db.settings.get(settingsKeys.isPopulated))?.value;
+    const isPopulated = !!(await db.settings.get(SETTINGS_KEYS.isPopulated))?.value;
     if (!isPopulated) {
         try {
-            const backup = await getFromLocalStorage<string>(dbLocalStorageBackupKey);
+            const backup = await getFromLocalStorage<string>(DB_LOCAL_STORAGE_BACKUP_KEY);
             if (backup) {
                 captureException(
                     new Error('IndexedDB is empty, attempting to restore from backup'),
@@ -59,7 +50,7 @@ async function init() {
                 (await importDB(new Blob([backup], { type: 'application/json' }))).close();
                 await db.open();
             }
-            await db.settings.put({ setting: settingsKeys.isPopulated, value: true });
+            await db.settings.put({ setting: SETTINGS_KEYS.isPopulated, value: true });
         } catch (e) {
             captureException(e);
         }
@@ -80,7 +71,7 @@ export const getDB = () => {
 export async function backupDB() {
     try {
         const backup = await (await exportDB(await getDB())).text();
-        await setToLocalStorage(dbLocalStorageBackupKey, backup);
+        await setToLocalStorage(DB_LOCAL_STORAGE_BACKUP_KEY, backup);
     } catch (e) {
         captureException(e);
     }

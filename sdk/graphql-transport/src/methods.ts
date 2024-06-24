@@ -268,8 +268,8 @@ export const RPC_METHODS: {
                     parameter.signature.ref === '&'
                         ? 'ByImmutableReference'
                         : parameter.signature.ref === '&mut'
-                        ? 'ByMutableReference'
-                        : 'ByValue',
+                          ? 'ByMutableReference'
+                          : 'ByValue',
             };
         });
     },
@@ -448,15 +448,15 @@ export const RPC_METHODS: {
                     'ObjectIds' in inputFilter
                         ? inputFilter.ObjectIds
                         : 'ObjectId' in inputFilter
-                        ? [inputFilter.ObjectId]
-                        : undefined,
+                          ? [inputFilter.ObjectId]
+                          : undefined,
                 type: typeFilter,
                 owner:
                     'ObjectOwner' in inputFilter
                         ? inputFilter.ObjectOwner
                         : 'AddressOwner' in inputFilter
-                        ? inputFilter.AddressOwner
-                        : undefined,
+                          ? inputFilter.AddressOwner
+                          : undefined,
             };
             const unsupportedFilters = ['MatchAll', 'MatchAny', 'MatchNone', 'Version'];
 
@@ -742,7 +742,9 @@ export const RPC_METHODS: {
                 },
             },
             (data) =>
-                data.objects?.nodes.map((node) => node?.asMoveObject?.asStakedIota!).filter(Boolean),
+                data.objects?.nodes
+                    .map((node) => node?.asMoveObject?.asStakedIota!)
+                    .filter(Boolean),
         );
 
         return mapGraphQLStakeToRpcStake(stakes);
@@ -948,19 +950,19 @@ export const RPC_METHODS: {
                         ref.input.__typename === 'GasCoin'
                             ? 'GasCoin'
                             : ref.input.__typename === 'Input'
-                            ? {
-                                  Input: ref.input.inputIndex,
-                              }
-                            : typeof ref.input.resultIndex === 'number'
-                            ? {
-                                  NestedResult: [ref.input.cmd, ref.input.resultIndex!] as [
-                                      number,
-                                      number,
-                                  ],
-                              }
-                            : {
-                                  Result: ref.input.cmd,
-                              },
+                              ? {
+                                    Input: ref.input.inputIndex,
+                                }
+                              : typeof ref.input.resultIndex === 'number'
+                                ? {
+                                      NestedResult: [ref.input.cmd, ref.input.resultIndex!] as [
+                                          number,
+                                          number,
+                                      ],
+                                  }
+                                : {
+                                      Result: ref.input.cmd,
+                                  },
                         Array.from(fromB64(ref.bcs)),
                         toShortTypeString(ref.type.repr),
                     ],

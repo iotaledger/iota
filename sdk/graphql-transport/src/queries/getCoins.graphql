@@ -4,7 +4,12 @@
 # Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
-query getCoins($owner: IotaAddress!, $first: Int, $cursor: String, $type: String = "0x2::iota::IOTA") {
+query getCoins(
+    $owner: IotaAddress!
+    $first: Int
+    $cursor: String
+    $type: String = "0x2::iota::IOTA"
+) {
     address(address: $owner) {
         address
         coins(first: $first, after: $cursor, type: $type) {

@@ -17,7 +17,7 @@ import { useMemo, useState } from 'react';
 import { ValidatorListItem } from './ValidatorListItem';
 
 type SortKeys = 'name' | 'stakeShare' | 'apy';
-const sortKeys: Record<SortKeys, string> = {
+const SORT_KEYS: Record<SortKeys, string> = {
     name: 'Name',
     stakeShare: 'Stake Share',
     apy: 'APY',
@@ -122,7 +122,7 @@ export function SelectValidatorCard() {
                             Sort by:
                         </Text>
                         <div className="ml-2 flex items-center gap-1.5">
-                            {Object.entries(sortKeys).map(([key, value]) => {
+                            {Object.entries(SORT_KEYS).map(([key, value]) => {
                                 return (
                                     <button
                                         key={key}

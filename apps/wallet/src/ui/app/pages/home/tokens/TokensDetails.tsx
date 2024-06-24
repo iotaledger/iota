@@ -10,12 +10,7 @@ import Alert from '_components/alert';
 import { CoinIcon } from '_components/coin-icon';
 import Loading from '_components/loading';
 import { filterAndSortTokenBalances } from '_helpers';
-import {
-    useAllowedSwapCoinsList,
-    useAppSelector,
-    useCoinsReFetchingConfig,
-    useSortedCoinsByCategories,
-} from '_hooks';
+import { useAppSelector, useCoinsReFetchingConfig, useSortedCoinsByCategories } from '_hooks';
 import {
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
@@ -24,7 +19,6 @@ import { ampli } from '_src/shared/analytics/ampli';
 import { FEATURES } from '_src/shared/experimentation/features';
 import { AccountsList } from '_src/ui/app/components/accounts/AccountsList';
 import { UnlockAccountButton } from '_src/ui/app/components/accounts/UnlockAccountButton';
-import { BuyNLargeHomePanel } from '_src/ui/app/components/buynlarge/HomePanel';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 import { usePinnedCoinTypes } from '_src/ui/app/hooks/usePinnedCoinTypes';
 import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
@@ -32,6 +26,7 @@ import PageTitle from '_src/ui/app/shared/PageTitle';
 import { useFeature } from '@growthbook/growthbook-react';
 import {
     useAppsBackend,
+    useBalance,
     useBalanceInUSD,
     useCoinMetadata,
     useFormatCoin,
@@ -113,11 +108,7 @@ export function TokenRow({
     const params = new URLSearchParams({
         type: coinBalance.coinType,
     });
-    const allowedSwapCoinsList = useAllowedSwapCoinsList();
-
     const balanceInUsd = useBalanceInUSD(coinBalance.coinType, coinBalance.totalBalance);
-
-    const isRenderSwapButton = allowedSwapCoinsList.includes(coinType);
 
     return (
         <Tag
@@ -156,21 +147,6 @@ export function TokenRow({
                             >
                                 Send
                             </TokenRowButton>
-                            {isRenderSwapButton && (
-                                <TokenRowButton
-                                    coinBalance={coinBalance}
-                                    to={`/swap?${params.toString()}`}
-                                    onClick={() => {
-                                        ampli.clickedSwapCoin({
-                                            coinType: coinBalance.coinType,
-                                            totalBalance: Number(formatted),
-                                            sourceFlow: 'TokenRow',
-                                        });
-                                    }}
-                                >
-                                    Swap
-                                </TokenRowButton>
-                            )}
                         </div>
                     ) : (
                         <div className="flex items-center gap-1">
@@ -322,12 +298,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
         isError,
         isPending,
         isFetched,
-    } = useIotaClientQuery(
-        'getBalance',
-        { coinType: activeCoinType, owner: activeAccountAddress! },
-        { enabled: !!activeAccountAddress, refetchInterval, staleTime },
-    );
-
+    } = useBalance(activeAccountAddress!, { coinType: activeCoinType });
     const network = useAppSelector((state) => state.app.network);
     const isMainnet = network === Network.Mainnet;
     const { request } = useAppsBackend();
@@ -369,7 +340,6 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
     ).value;
 
     const tokenBalance = BigInt(coinBalance?.totalBalance ?? 0);
-    const [formatted] = useFormatCoin(tokenBalance, activeCoinType);
 
     const { data: coinMetadata } = useCoinMetadata(activeCoinType);
     const coinSymbol = coinMetadata ? coinMetadata.symbol : getFallbackSymbol(activeCoinType);
@@ -425,7 +395,6 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                     data-testid="coin-page"
                 >
                     <AccountsList />
-                    <BuyNLargeHomePanel />
                     <div className="flex w-full flex-col">
                         <PortfolioName
                             name={
@@ -488,30 +457,6 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
                                             Send
                                         </LargeButton>
 
-                                        <LargeButton
-                                            center
-                                            disabled={!isDefiWalletEnabled || !tokenBalance}
-                                            to={`/swap${
-                                                coinBalance?.coinType
-                                                    ? `?${new URLSearchParams({
-                                                          type: coinBalance.coinType,
-                                                      }).toString()}`
-                                                    : ''
-                                            }`}
-                                            onClick={() => {
-                                                if (!coinBalance) {
-                                                    return;
-                                                }
-
-                                                ampli.clickedSwapCoin({
-                                                    coinType: coinBalance.coinType,
-                                                    totalBalance: Number(formatted),
-                                                    sourceFlow: 'LargeButton-TokenDetails',
-                                                });
-                                            }}
-                                        >
-                                            Swap
-                                        </LargeButton>
                                         {!accountHasIota && (
                                             <LargeButton disabled to="/stake" center>
                                                 Stake

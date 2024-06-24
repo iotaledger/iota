@@ -1,5 +1,4 @@
 // Copyright (c) 2024 IOTA Stiftung
-// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module stardust::alias_tests {
@@ -45,9 +44,6 @@ module stardust::alias_tests {
             0,
         );
 
-        // Mint some tokens.
-        let iota = balance::create_for_testing<IOTA>(initial_iota_in_output);
-
         let test_a_balance = balance::create_for_testing<TEST_A>(initial_testA_in_output);
         let test_b_balance = balance::create_for_testing<TEST_B>(initial_testB_in_output);
 
@@ -59,7 +55,7 @@ module stardust::alias_tests {
 
         // Create an `AliasOutput`.
         let mut alias_output = alias_output::create_for_testing(
-            iota,
+            balance::create_for_testing<IOTA>(initial_iota_in_output),
             native_tokens,
             &mut ctx,
         );

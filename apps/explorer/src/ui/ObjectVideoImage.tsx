@@ -6,7 +6,7 @@ import { MediaPlay16 } from '@iota/icons';
 import { cva, type VariantProps } from 'class-variance-authority';
 import clsx from 'clsx';
 
-import { ObjectModal } from '~/ui/Modal/ObjectModal';
+import { ObjectModal } from '~/ui/modal/ObjectModal';
 import { Image, type ImageProps } from '~/ui/image/Image';
 
 const imageStyles = cva(['z-0 flex-shrink-0 relative'], {
@@ -30,7 +30,7 @@ const imageStyles = cva(['z-0 flex-shrink-0 relative'], {
 
 type ImageStylesProps = VariantProps<typeof imageStyles>;
 
-interface Props extends ImageStylesProps {
+interface ObjectVideoImageProps extends ImageStylesProps {
     title: string;
     subtitle: string;
     src: string;
@@ -57,7 +57,7 @@ export function ObjectVideoImage({
     imgFit,
     aspect,
     rounded = 'md',
-}: Props) {
+}: ObjectVideoImageProps): JSX.Element {
     const close = () => {
         if (disablePreview) {
             return;

@@ -4,7 +4,13 @@
 
 import { type EndOfEpochInfo } from '@iota/iota.js/client';
 
-export function getEpochStorageFundFlow(endOfEpochInfo: EndOfEpochInfo | null) {
+interface StorageFundFlow {
+    netInflow: bigint | null;
+    fundInflow: bigint | null;
+    fundOutflow: bigint | null;
+}
+
+export function getEpochStorageFundFlow(endOfEpochInfo: EndOfEpochInfo | null): StorageFundFlow {
     const fundInflow = endOfEpochInfo
         ? BigInt(endOfEpochInfo.storageFundReinvestment) +
           BigInt(endOfEpochInfo.storageCharge) +

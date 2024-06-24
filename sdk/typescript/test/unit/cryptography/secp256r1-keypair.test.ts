@@ -37,17 +37,17 @@ export const INVALID_SECP256R1_PUBLIC_KEY = Uint8Array.from(Array(PRIVATE_KEY_SI
 const TEST_CASES = [
     [
         'act wing dilemma glory episode region allow mad tourist humble muffin oblige',
-        'iotaprivkey1qtt65ua2lhal76zg4cxd6umdqynv2rj2gzrntp5rwlnyj370jg3pwhxg9kc',
+        'iotaprivkey1qtt65ua2lhal76zg4cxd6umdqynv2rj2gzrntp5rwlnyj370jg3pwtqlwdn',
         '0x779a63b28528210a5ec6c4af5a70382fa3f0c2d3f98dcbe4e3a4ae2f8c39cc9c',
     ],
     [
         'flag rebel cabbage captain minimum purpose long already valley horn enrich salt',
-        'iotaprivkey1qtcjgmue7q8u4gtutfvfpx3zj3aa2r9pqssuusrltxfv68eqhzsgjyhk7e4',
+        'iotaprivkey1qtcjgmue7q8u4gtutfvfpx3zj3aa2r9pqssuusrltxfv68eqhzsgjc3p4z7',
         '0x8b45523042933aa55f57e2ccc661304baed292529b6e67a0c9857c1f3f871806',
     ],
     [
         'area renew bar language pudding trial small host remind supreme cabbage era',
-        'iotaprivkey1qtxafg26qxeqy7f56gd2rvsup0a5kl4cre7nt2rtcrf0p3v5pwd4c595zjp',
+        'iotaprivkey1qtxafg26qxeqy7f56gd2rvsup0a5kl4cre7nt2rtcrf0p3v5pwd4cgrrff2',
         '0x8528ef86150ec331928a8b3edb8adbe2fb523db8c84679aa57a931da6a4cdb25',
     ],
 ];

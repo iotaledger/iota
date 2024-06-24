@@ -46,7 +46,6 @@ use iota_types::{
         TransactionKind, TransactionKind::ProgrammableTransaction, VerifiedCertificate,
         VerifiedTransaction,
     },
-    DEEPBOOK_PACKAGE_ID,
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
@@ -1060,14 +1059,8 @@ impl LocalExec {
                 .await
         }
     }
-    fn system_package_ids(protocol_version: u64) -> Vec<ObjectID> {
-        let mut ids = BuiltInFramework::all_package_ids();
-
-        if protocol_version < 5 {
-            ids.retain(|id| *id != DEEPBOOK_PACKAGE_ID)
-        }
-
-        ids
+    fn system_package_ids(_protocol_version: u64) -> Vec<ObjectID> {
+        BuiltInFramework::all_package_ids()
     }
 
     /// This is the only function which accesses the network during execution
@@ -1796,7 +1789,9 @@ impl LocalExec {
         // Download the child objects accessed at the version right before the execution
         // of this TX
         let loaded_child_refs = self.fetch_loaded_child_refs(&tx_info.tx_digest).await?;
-        self.diag.loaded_child_objects = loaded_child_refs.clone();
+        self.diag
+            .loaded_child_objects
+            .clone_from(&loaded_child_refs);
         self.multi_download_and_store(&loaded_child_refs).await?;
         tokio::task::yield_now().await;
 

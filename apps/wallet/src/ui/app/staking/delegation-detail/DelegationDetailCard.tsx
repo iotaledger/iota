@@ -10,7 +10,7 @@ import { Text } from '_app/shared/text';
 import { IconTooltip } from '_app/shared/tooltip';
 import Alert from '_components/alert';
 import LoadingIndicator from '_components/loading/LoadingIndicator';
-import { useAppSelector, useCoinsReFetchingConfig } from '_hooks';
+import { useAppSelector } from '_hooks';
 import { ampli } from '_src/shared/analytics/ampli';
 import {
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
@@ -18,7 +18,7 @@ import {
     MIN_NUMBER_IOTA_TO_STAKE,
 } from '_src/shared/constants';
 import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
-import { useCoinMetadata, useGetDelegatedStake, useGetValidatorsApy } from '@iota/core';
+import { useBalance, useCoinMetadata, useGetDelegatedStake, useGetValidatorsApy } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { ArrowLeft16, StakeAdd16, StakeRemove16 } from '@iota/icons';
 import { Network, type StakeObject } from '@iota/iota.js/client';
@@ -56,21 +56,16 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     });
 
     const network = useAppSelector(({ app }) => app.network);
-    const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
-    const { data: iotaCoinBalance } = useIotaClientQuery(
-        'getBalance',
-        { coinType: IOTA_TYPE_ARG, owner: accountAddress! },
-        { refetchInterval, staleTime, enabled: !!accountAddress },
-    );
+    const { data: coinBalance } = useBalance(accountAddress!);
     const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
     // set minimum stake amount to 1 IOTA
     const showRequestMoreIotaToken = useMemo(() => {
-        if (!iotaCoinBalance?.totalBalance || !metadata?.decimals || network === Network.Mainnet)
+        if (!coinBalance?.totalBalance || !metadata?.decimals || network === Network.Mainnet)
             return false;
-        const currentBalance = new BigNumber(iotaCoinBalance.totalBalance);
+        const currentBalance = new BigNumber(coinBalance.totalBalance);
         const minStakeAmount = new BigNumber(MIN_NUMBER_IOTA_TO_STAKE).shiftedBy(metadata.decimals);
         return currentBalance.lt(minStakeAmount.toString());
-    }, [network, metadata?.decimals, iotaCoinBalance?.totalBalance]);
+    }, [network, metadata?.decimals, coinBalance?.totalBalance]);
 
     const { data: rollingAverageApys } = useGetValidatorsApy();
 

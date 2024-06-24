@@ -508,7 +508,10 @@ export class IotaClient {
      * Return the latest system state content.
      */
     async getLatestIotaSystemState(): Promise<IotaSystemStateSummary> {
-        return await this.transport.request({ method: 'iotax_getLatestIotaSystemState', params: [] });
+        return await this.transport.request({
+            method: 'iotax_getLatestIotaSystemState',
+            params: [],
+        });
     }
 
     /**
@@ -672,7 +675,10 @@ export class IotaClient {
     }
 
     async getAddressMetrics(): Promise<AddressMetrics> {
-        return await this.transport.request({ method: 'iotax_getLatestAddressMetrics', params: [] });
+        return await this.transport.request({
+            method: 'iotax_getLatestAddressMetrics',
+            params: [],
+        });
     }
 
     async getEpochMetrics(

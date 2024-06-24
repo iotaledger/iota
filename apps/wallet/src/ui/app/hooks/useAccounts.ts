@@ -5,13 +5,13 @@
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
 import { useQuery } from '@tanstack/react-query';
 
-import { accountsQueryKey } from '../helpers/query-client-keys';
+import { ACCOUNTS_QUERY_KEY } from '../helpers/query-client-keys';
 import { useBackgroundClient } from './useBackgroundClient';
 
 export function useAccounts() {
     const backgroundClient = useBackgroundClient();
     return useQuery({
-        queryKey: accountsQueryKey,
+        queryKey: ACCOUNTS_QUERY_KEY,
         queryFn: () => backgroundClient.getStoredEntities<SerializedUIAccount>('accounts'),
         gcTime: 30 * 1000,
         staleTime: 15 * 1000,
