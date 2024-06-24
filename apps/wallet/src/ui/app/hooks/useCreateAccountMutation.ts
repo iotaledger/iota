@@ -35,15 +35,19 @@ function validateAccountFormValues<T extends CreateType>(
     }
     return true;
 }
-
+enum AmpliAccountType {
+    Derived = 'Derived',
+    Imported = 'Imported',
+    Ledger = 'Ledger',
+}
 const CREATE_TYPE_TO_AMPLI_ACCOUNT: Record<CreateType, AddedAccountsProperties['accountType']> = {
-    [CreateAccountType.NewMnemonic]: 'Derived',
-    [CreateAccountType.ImportMnemonic]: 'Derived',
-    [CreateAccountType.ImportSeed]: 'Derived',
-    [AccountType.MnemonicDerived]: 'Derived',
-    [AccountType.SeedDerived]: 'Derived',
-    [AccountType.Imported]: 'Imported',
-    [AccountType.Ledger]: 'Ledger',
+    [CreateAccountType.NewMnemonic]: AmpliAccountType.Derived,
+    [CreateAccountType.ImportMnemonic]: AmpliAccountType.Derived,
+    [CreateAccountType.ImportSeed]: AmpliAccountType.Derived,
+    [AccountType.MnemonicDerived]: AmpliAccountType.Derived,
+    [AccountType.SeedDerived]: AmpliAccountType.Derived,
+    [AccountType.Imported]: AmpliAccountType.Imported,
+    [AccountType.Ledger]: AmpliAccountType.Ledger,
 };
 
 export function useCreateAccountsMutation() {
