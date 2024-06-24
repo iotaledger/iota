@@ -4,12 +4,12 @@
 import React from 'react';
 import Button from './Button';
 import { usePopups } from '@/hooks';
-import type { CoinStruct } from '@iota/iota.js/client';
+import type { CoinBalance } from '@iota/iota.js/client';
 import { SendCoinPopup } from '../Popup';
 
 interface SendCoinButtonProps {
     address: string;
-    coin: CoinStruct;
+    coin: CoinBalance;
 }
 
 function SendCoinButton({ address, coin }: SendCoinButtonProps): JSX.Element {

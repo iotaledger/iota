@@ -1,12 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinStruct } from '@iota/iota.js/client';
+import { CoinBalance } from '@iota/iota.js/client';
 import { FormDataValues } from '../SendCoinPopup';
 import { Button } from '@/components';
+import { useFormatCoin } from '@iota/core';
 
 interface EnterValuesFormProps {
-    coin: CoinStruct;
+    coin: CoinBalance;
     formData: FormDataValues;
     setFormData: React.Dispatch<React.SetStateAction<FormDataValues>>;
     onClose: () => void;
@@ -14,7 +15,7 @@ interface EnterValuesFormProps {
 }
 
 function EnterValuesFormView({
-    coin: { balance, coinObjectId },
+    coin: { totalBalance, coinType },
     formData: { amount, recipientAddress },
     setFormData,
     onClose,
@@ -27,13 +28,15 @@ function EnterValuesFormView({
             [name]: value,
         }));
     };
+    const [formattedCoin, coinSymbol, { data: coinMeta }] = useFormatCoin(totalBalance, coinType);
 
     return (
         <div className="flex flex-col gap-4">
-            <h1 className="mb-4 text-center text-xl">Send coins</h1>
+            <h1 className="mb-4 text-center text-xl">Send {coinMeta?.name.toUpperCase()}</h1>
             <div className="flex flex-col gap-4">
-                <p>Coin: {coinObjectId}</p>
-                <p>Balance: {balance}</p>
+                <p>
+                    Balance: {formattedCoin} {coinSymbol}
+                </p>
                 <label htmlFor="amount">Coin amount to send: </label>
                 <input
                     type="number"

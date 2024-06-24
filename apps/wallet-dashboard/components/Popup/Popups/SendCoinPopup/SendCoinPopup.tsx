@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { EnterValuesFormView, ReviewValuesFormView } from './views';
-import { CoinStruct } from '@iota/iota.js/client';
+import { CoinBalance } from '@iota/iota.js/client';
 
 export interface FormDataValues {
     amount: string;
@@ -12,7 +12,7 @@ export interface FormDataValues {
 }
 
 interface SendCoinPopupProps {
-    coin: CoinStruct;
+    coin: CoinBalance;
     senderAddress: string;
     onClose: () => void;
 }

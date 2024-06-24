@@ -10,6 +10,7 @@ export * from './hasDisplayData';
 export * from './kiosk';
 export * from './persistableStorage';
 export * from './roundFloat';
+export { filterAndSortTokenBalances } from './filterAndSortTokenBalances';
 
 export * from './stake';
 export * from './transaction';

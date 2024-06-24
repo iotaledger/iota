@@ -9,7 +9,6 @@ import { ButtonOrLink } from '_app/shared/utils/ButtonOrLink';
 import Alert from '_components/alert';
 import { CoinIcon } from '_components/coin-icon';
 import Loading from '_components/loading';
-import { filterAndSortTokenBalances } from '_helpers';
 import { useAppSelector, useCoinsReFetchingConfig, useSortedCoinsByCategories } from '_hooks';
 import {
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
@@ -25,6 +24,7 @@ import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import PageTitle from '_src/ui/app/shared/PageTitle';
 import { useFeature } from '@growthbook/growthbook-react';
 import {
+    filterAndSortTokenBalances,
     useAppsBackend,
     useBalance,
     useBalanceInUSD,
