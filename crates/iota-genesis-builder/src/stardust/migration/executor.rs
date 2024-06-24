@@ -32,6 +32,12 @@ use iota_types::{
     move_package::{MovePackage, TypeOrigin, UpgradeCap},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
+    stardust::{
+        coin_type::CoinType,
+        output::{foundry::create_foundry_amount_coin, Nft},
+        stardust_to_iota_address, stardust_to_iota_address_owner,
+    },
+    timelock::timelock,
     transaction::{
         Argument, CheckedInputObjects, Command, InputObjectKind, InputObjects, ObjectArg,
         ObjectReadResult, ProgrammableTransaction,
@@ -46,13 +52,9 @@ use crate::{
     stardust::{
         migration::{
             create_migration_context, package_module_bytes,
-            verification::created_objects::CreatedObjects, CoinType, MigrationTargetNetwork,
-            PACKAGE_DEPS,
+            verification::created_objects::CreatedObjects, MigrationTargetNetwork, PACKAGE_DEPS,
         },
-        types::{
-            foundry::create_foundry_amount_coin, snapshot::OutputHeader, stardust_to_iota_address,
-            stardust_to_iota_address_owner, timelock, token_scheme::SimpleTokenSchemeU64, Nft,
-        },
+        types::{output_header::OutputHeader, token_scheme::SimpleTokenSchemeU64},
     },
 };
 
@@ -306,7 +308,7 @@ impl Executor {
         // Take the Alias ID set in the output or, if its zeroized, compute it from the
         // Output ID.
         let alias_id = ObjectID::new(*alias.alias_id().or_from_output_id(&header.output_id()));
-        let move_alias = crate::stardust::types::Alias::try_from_stardust(alias_id, alias)?;
+        let move_alias = iota_types::stardust::output::Alias::try_from_stardust(alias_id, alias)?;
 
         // TODO: We should ensure that no circular ownership exists.
         let alias_output_owner = stardust_to_iota_address_owner(alias.governor_address())?;
@@ -327,7 +329,7 @@ impl Executor {
         let (bag, version, fields) = self.create_bag_with_pt(alias.native_tokens())?;
         created_objects.set_native_tokens(fields)?;
 
-        let move_alias_output = crate::stardust::types::AliasOutput::try_from_stardust(
+        let move_alias_output = iota_types::stardust::output::AliasOutput::try_from_stardust(
             self.tx_context.fresh_id(),
             alias,
             bag,
@@ -551,7 +553,7 @@ impl Executor {
         coin_type: &CoinType,
     ) -> Result<CreatedObjects> {
         let mut basic =
-            crate::stardust::types::output::BasicOutput::new(header.clone(), basic_output)?;
+            iota_types::stardust::output::BasicOutput::new(header.new_object_id(), basic_output)?;
         let owner: IotaAddress = basic_output.address().to_string().parse()?;
         let mut created_objects = CreatedObjects::default();
 
@@ -665,7 +667,7 @@ impl Executor {
 
         let (bag, version, fields) = self.create_bag_with_pt(nft.native_tokens())?;
         created_objects.set_native_tokens(fields)?;
-        let move_nft_output = crate::stardust::types::NftOutput::try_from_stardust(
+        let move_nft_output = iota_types::stardust::output::NftOutput::try_from_stardust(
             self.tx_context.fresh_id(),
             nft,
             bag,

@@ -16,14 +16,13 @@
 
 use std::mem::size_of;
 
-use iota_types::{
+use crate::{
     balance::Balance,
     gas_coin::GAS,
     object::{Object, ID_END_INDEX},
+    stardust::output::{AliasOutput, BasicOutput, NftOutput},
     timelock::timelock::TimeLock,
 };
-
-use crate::stardust::types::{output::BasicOutput, AliasOutput, NftOutput};
 
 /// Infer whether the object is a kind of gas coin.
 pub fn is_gas_coin_kind(object: &Object) -> bool {
@@ -49,17 +48,23 @@ pub fn get_gas_balance_maybe(object: &Object) -> Option<Balance> {
 }
 
 #[cfg(test)]
+#[cfg(feature = "test-utils")]
 mod tests {
 
     use iota_protocol_config::ProtocolConfig;
-    use iota_types::{
+
+    use crate::{
+        balance::Balance,
         base_types::{IotaAddress, ObjectID, TxContext},
         id::UID,
-        object::Owner,
+        object::{Object, Owner},
+        stardust::{
+            coin_kind::{get_gas_balance_maybe, is_gas_coin_kind},
+            coin_type::CoinType,
+            output::{AliasOutput, BasicOutput, NftOutput},
+        },
+        timelock::timelock::{to_genesis_object, TimeLock},
     };
-
-    use super::*;
-    use crate::stardust::{migration::CoinType, types::timelock::to_genesis_object};
 
     fn nft_output(balance: u64, coin_type: CoinType) -> anyhow::Result<Object> {
         let id = UID::new(ObjectID::random());

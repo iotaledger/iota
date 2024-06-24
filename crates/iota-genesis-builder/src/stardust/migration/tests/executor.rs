@@ -13,12 +13,13 @@ use iota_types::{
     balance::Balance,
     dynamic_field::{derive_dynamic_field_id, Field},
     object::Owner,
+    stardust::coin_type::CoinType,
 };
 
 use crate::stardust::{
     migration::{
         executor::Executor, migration::NATIVE_TOKEN_BAG_KEY_TYPE, tests::random_output_header,
-        CoinType, MigrationTargetNetwork,
+        MigrationTargetNetwork,
     },
     native_token::{
         package_builder,

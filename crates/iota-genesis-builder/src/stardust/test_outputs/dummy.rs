@@ -9,7 +9,7 @@ use iota_sdk::types::block::{
     payload::transaction::TransactionId,
 };
 
-use crate::stardust::types::snapshot::OutputHeader;
+use crate::stardust::types::output_header::OutputHeader;
 
 pub(crate) fn outputs() -> Vec<(OutputHeader, Output)> {
     let mut outputs = Vec::new();

@@ -6,6 +6,7 @@
 /// It has 6 decimals, and the smallest unit (10^-6) is called "glow".
 module iota::smr {
     use iota::coin;
+    use iota::url;
 
     const EAlreadyMinted: u64 = 0;
     /// Sender is not @0x0 the system address.
@@ -34,10 +35,10 @@ module iota::smr {
         let (treasury, metadata) = coin::create_currency(
                 witness,
                 6,
+                b"Shimmer",
                 b"SMR",
-                b"smr",
-                b"",
-                option::none(),
+                b"The original Shimmer (SMR) token as inherited from the Shimmer Network.",
+                option::some(url::new_unsafe_from_bytes(b"https://iota.org/smr-logo.png")),
                 ctx
             );
         transfer::public_freeze_object(metadata);
