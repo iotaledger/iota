@@ -4,30 +4,30 @@ description: The Coin Manager Standard provides additional assurances and functi
 sidebar_label: Coin Manager
 ---
 
-The [Coin Standard](./coin.mdx) is a simple standard that ensures consistent and predictable behavior for custom assets, allowing dApps to support every asset made with it in a similar matter. It is however lacking some functionality and assurances for both the deployer of the `Coin` and the end-users:
+The [Coin Standard](./coin.mdx) is a simple standard that ensures consistent and predictable behavior for custom assets, allowing dApps to support every asset made with it in a similar matter. It is, however, lacking some functionality and assurances for both the deployer of the `Coin` and the end-users:
 
 - There is no option to set a maximum supply for an asset.
 - End users can not query the full supply of a Coin on-chain, only the holder of the `TreasuryCap` can.
 - Metadata and Supply management are handled by a single `TreasuryCap`, you can not split that permission up.
-- There is no clear insight when it comes to immutability, as long as there's a `TreasuryCap` that hasn't explicitly been destroyed there is the option that more assets can be minted or metadata can be changed.
-- To see the Metadata of a `Coin` you would need to keep track of the corresponding `Metadata` object for that `Coin`.
-- There is no way to easily attach custom Metadata to a `Coin` if you need this.
+- There is no clear insight when it comes to immutability; as long as there's a `TreasuryCap` that hasn't explicitly been destroyed, there is the option that more assets can be minted or metadata can be changed.
+- To see the metadata of a `Coin` you would need to keep track of the corresponding `Metadata` object for that `Coin`.
+- There is no way to easily attach custom metadata to a `Coin`.
 
-To resolve these shortcomings in an elegant way we recommend handing over the `TreasuryCap` and `Metadata` objects of a `Coin` to a `CoinManager` shared object which will provide benefits for the party managing the `Coin` in terms of extra functionality and for the end-users in terms of transparency and functionality. 
+To resolve these shortcomings elegantly, we recommend handing over the `TreasuryCap` and `Metadata` objects of a `Coin` to a `CoinManager` shared object, which will provide benefits for the party managing the `Coin` in terms of extra functionality and for the end-users in terms of transparency and functionality. 
 
-By having your `Coin` managed by a `CoinManager` you can do the following additional things:
+By having your `Coin` managed by a `CoinManager`, you gain the following functionalities:
 
 - Management functionality is split up into 2 new Caps, a `CoinManagerTreasuryCap` and a `CoinManagerMetadataCap`; 2 different entities can now be assigned to individually take care of the supply adjustments and metadata. 
-- Both management caps can transparently be renounced through the `CoinManager`, so that everyone on-chain can be aware that the supply and/or metadata is immutable; Offering end-users clarity and assurance.
-- A `CoinManagerTreasuryCap`-owned object will allow you to set a maximum supply for a given coin. This will ensure that once set (a one-time, irrevocable action) there will never be any more tokens minted as the provided maximum supply. This offers assurances to the end-user about the asset they are interested in.
-- A custom additional Metadata object can be provided allowing coins to have more data than just the standard fields provided by the default `Metadata` object. The existing Metadata object stays the same and will still be fully compatible.
-- The total supply of a given `Coin` type, the maximum supply, and the metadata can all transparently be queried through the `CoinManager` by anyone interested; Not just the `TreauryCap` owner. 
+- Both management caps can transparently be renounced through the `CoinManager` so that everyone on-chain can know that the supply and metadata are immutable, Offering end-users clarity and assurance.
+- A `CoinManagerTreasuryCap`-owned object will allow you to set a maximum supply for a coin. This will ensure that once set (a one-time, irrevocable action), there will never be any more tokens minted as the provided maximum supply. This offers assurances to the end-user about the asset they are interested in.
+- A custom additional Metadata object can be provided, allowing coins to have more data than just the standard fields provided by the default `Metadata` object. The existing metadata object will stay the same and remain fully compatible.
+- The total supply of a given `Coin` type, the maximum supply, and the metadata can be transparently queried through the `CoinManager` by anyone interested, not just the `TreauryCap` owner. 
 
-With a `CoinManager` in place, you can offer assurances to whoever uses your `Coin` that can not be offered with just a normal `Coin` and `TreasuryCap`. We recommend every new coin utilize the `CoinManager`. Any existing coin can be managed by a `CoinManager` as well as long as the `TreasuryCap` object for that `Coin` is still in possession. 
+With a `CoinManager` in place, you can offer assurances to whoever uses your `Coin` that can not be offered with just a regular `Coin` and `TreasuryCap`. We recommend every new coin utilize the `CoinManager.` Any existing coin can be managed by a `CoinManager` as long as the `TreasuryCap` object for that `Coin` is still in possession. 
 
-## How to have a `Coin` managed by a `CoinManager`
+## How To Manage A `Coin` With A `CoinManager`
 
-### New `Coin` assets
+### New `Coin` Assets
 
 When you are starting a new `Coin` type and wish to use the `CoinManager` you can use the `CoinManager` directly to create this `Coin`. You will receive back the `CoinManagerTreasuryCap` and a `CoinManagerMetadataCap` to perform any follow-up management actions:
 
@@ -64,7 +64,8 @@ module example::exclusive_coin {
 
 ### Existing `Coin` assets
 
-If you already have an existing `Coin` you can create the `CoinManager` object and migrate the `TreasuryCap` into it. There are 2 ways to do this, depending on if the `Metadata` is already frozen or not. 
+If you already have an existing `Coin`, you can create the `CoinManager` object and migrate the `TreasuryCap` into it. There are two ways to do this, depending on whether the `Metadata` is already frozen. 
+
 #### With frozen metadata
 
 If you already froze the `Metadata` object you can only migrate to a `CoinManager` that has immutable metadata from the start. You will not receive a `CoinManagerMetadataCap` in return, but you will get a `CoinManagerTreasuryCap`:
@@ -80,7 +81,7 @@ transfer::public_share_object(manager);
 ```
 #### With mutable metadata
 
-If the metadata object is still owned you can take advantage of the full functionality of the `CoinManager`, with mutable `Metadata`:
+If the metadata object is still owned, you can take advantage of the full functionality of the `CoinManager` with mutable `Metadata`:
 
 ```move
 let (cm_treasury_cap, cm_meta_cap, mut manager) = coin_manager::new(cap, meta, ctx);
@@ -98,6 +99,7 @@ transfer::public_share_object(manager);
 ## Additional functionality
 
 Once the `CoinManager` has been created and publicly shared you can make use of the additional functionality offered by it. 
+
 ### Retrieving metadata
 
 ```move
@@ -108,7 +110,7 @@ let decimals = manager.decimals();
 let immutabe = manager.metadata_is_immutable();
 ```
 
-### Retrieving the Supply data
+### Retrieving the Supply Data
 
 ```move
 let total_supply = manager.total_supply();
@@ -164,7 +166,7 @@ let version = wrapper.additional_metadata<T, CustomMetadata>().version;
 
 ### Replacing Custom Metadata
 
-If you wish to update or replace your custom Metadata object with a new one (of the same type or another) you can do so the `replace_additional_metadata` function which returns the old Metadata object:
+If you wish to update or replace your custom Metadata object with a new one (of the same type or another), you can do so using the `replace_additional_metadata` function, which returns the old Metadata object:
 
 ```move
 
