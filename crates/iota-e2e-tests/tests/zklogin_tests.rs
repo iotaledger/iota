@@ -85,7 +85,6 @@ async fn test_legacy_zklogin_address_accept() {
 }
 
 #[sim_test]
-
 async fn zklogin_end_to_end_test() {
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(15000)
@@ -140,7 +139,6 @@ async fn zklogin_end_to_end_test() {
 }
 
 #[sim_test]
-
 async fn test_expired_zklogin_sig() {
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(10000)

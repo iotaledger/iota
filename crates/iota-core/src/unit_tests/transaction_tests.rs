@@ -455,7 +455,6 @@ async fn test_zklogin_transfer_with_bad_ephemeral_sig() {
 }
 
 #[sim_test]
-
 async fn test_zklogin_transfer_with_large_address_seed() {
     telemetry_subscribers::init_for_testing();
     let (object_ids, gas_object_ids, authority_state, _epoch_store, _, _, _server, client) =
@@ -485,7 +484,6 @@ async fn test_zklogin_transfer_with_large_address_seed() {
 }
 
 #[sim_test]
-
 async fn zklogin_test_cached_proof_wrong_key() {
     telemetry_subscribers::init_for_testing();
     let (
@@ -767,7 +765,6 @@ async fn init_zklogin_transfer(
 }
 
 #[tokio::test]
-
 async fn zklogin_txn_fail_if_missing_jwk() {
     telemetry_subscribers::init_for_testing();
 
@@ -842,7 +839,6 @@ async fn zklogin_txn_fail_if_missing_jwk() {
 }
 
 #[tokio::test]
-
 async fn zk_multisig_test() {
     telemetry_subscribers::init_for_testing();
 

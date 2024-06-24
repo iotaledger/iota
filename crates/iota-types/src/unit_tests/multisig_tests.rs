@@ -351,7 +351,6 @@ fn multisig_get_indices() {
 }
 
 #[test]
-
 fn multisig_zklogin_scenarios() {
     // consistency test with
     // iota/sdk/typescript/test/unit/cryptography/multisig.test.ts
@@ -377,7 +376,7 @@ fn multisig_zklogin_scenarios() {
     let multisig_addr = IotaAddress::from(&multisig_pk);
     assert_eq!(
         multisig_addr,
-        IotaAddress::from_str("0xb9c0780a3943cde13a2409bf1a6f06ae60b0dff2b2f373260cf627aa4f43a588")
+        IotaAddress::from_str("0x3abd6a29ba3b00c7c84d7980160179c32a7bbd639d79c53dd30f9481ee0a94e2")
             .unwrap()
     );
 
@@ -397,7 +396,6 @@ fn multisig_zklogin_scenarios() {
 }
 
 #[test]
-
 fn zklogin_in_multisig_works_with_both_addresses() {
     let mut seed = StdRng::from_seed([0; 32]);
     let kp: Ed25519KeyPair = get_key_pair_from_rng(&mut seed).1;
