@@ -23,7 +23,7 @@ function EverythingElsePage(): JSX.Element {
             .map((response) => response.data!) ?? [];
 
     const virtualItem = (asset: IotaObjectData): JSX.Element => (
-        <a href={explorer + `/object/${asset.objectId}`} target="_blank" rel="noreferrer">
+        <a href={`${explorer}/object/${asset.objectId}`} target="_blank" rel="noreferrer">
             {asset.objectId}
         </a>
     );
