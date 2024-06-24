@@ -31,7 +31,6 @@
         "@iota/kiosk": "workspace:*",
         "@iota/iota.js": "workspace:*",
         "@iota/zklogin": "workspace:*",
-        "@iota/zksend": "workspace:*",
         "@tanstack/react-query": "^5.0.0",
         "@types/node": "^20.4.2",
         "next": "^13.4.15",
