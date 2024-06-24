@@ -13,12 +13,17 @@ import { useAccountSources } from '../../../hooks/useAccountSources';
 import { Heading } from '../../../shared/heading';
 import { Text } from '../../../shared/text';
 import { ImportSeedForm } from '_src/ui/app/components/accounts/ImportSeedForm';
+import { AccountSourceType } from '_src/background/account-sources/AccountSource';
 
 export function RecoverPage() {
     const allAccountSources = useAccountSources();
     const navigate = useNavigate();
-    const mnemonicAccountSource = allAccountSources.data?.find(({ type }) => type === 'mnemonic');
-    const seedAccountSource = allAccountSources.data?.find(({ type }) => type === 'seed');
+    const mnemonicAccountSource = allAccountSources.data?.find(
+        ({ type }) => type === AccountSourceType.Mnemonic,
+    );
+    const seedAccountSource = allAccountSources.data?.find(
+        ({ type }) => type === AccountSourceType.Seed,
+    );
     useEffect(() => {
         if (!allAccountSources.isPending && !mnemonicAccountSource && !seedAccountSource) {
             navigate('/', { replace: true });
@@ -49,7 +54,7 @@ export function RecoverPage() {
                         onSubmit={async ({ recoveryPhrase }) => {
                             try {
                                 await recoveryDataMutation.mutateAsync({
-                                    type: 'mnemonic',
+                                    type: AccountSourceType.Mnemonic,
                                     accountSourceID: mnemonicAccountSource.id,
                                     entropy: entropyToSerialized(
                                         mnemonicToEntropy(recoveryPhrase.join(' ')),
@@ -66,7 +71,7 @@ export function RecoverPage() {
                         onSubmit={async ({ seed }) => {
                             try {
                                 await recoveryDataMutation.mutateAsync({
-                                    type: 'seed',
+                                    type: AccountSourceType.Seed,
                                     accountSourceID: seedAccountSource?.id ?? '',
                                     seed,
                                 });
