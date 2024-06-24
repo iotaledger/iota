@@ -10,10 +10,9 @@ import { useQuery, type UseQueryOptions } from '@tanstack/react-query';
 import { useIotaLedgerClient } from './IotaLedgerClientProvider';
 import { AccountType } from '_src/background/accounts/Account';
 
-export type DerivedLedgerAccount = Pick<
-    LedgerAccountSerializedUI,
-    'address' | 'publicKey' | 'type' | 'derivationPath'
->;
+type LedgerAccountKeys = 'address' | 'publicKey' | 'type' | 'derivationPath';
+
+export type DerivedLedgerAccount = Pick<LedgerAccountSerializedUI, LedgerAccountKeys>;
 type UseDeriveLedgerAccountOptions = {
     numAccountsToDerive: number;
 } & Pick<UseQueryOptions<DerivedLedgerAccount[], unknown>, 'select'>;
