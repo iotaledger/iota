@@ -6,7 +6,7 @@ use move_core_types::language_storage::TypeTag;
 use crate::{gas_coin::GAS, smr_coin::SMR};
 
 /// The type tag for the outputs used in the migration.
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum CoinType {
     Iota,
     Shimmer,
