@@ -57,7 +57,7 @@ fn migrate_alias(
     let (executor, objects_map) = run_migration(
         stardust_alias.amount(),
         [(header, stardust_alias.into())],
-        coin_type.clone(),
+        coin_type,
     )?;
 
     // Ensure the migrated objects exist under the expected identifiers.
