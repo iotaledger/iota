@@ -18,8 +18,6 @@ import { useAutoConnectWallet } from '../hooks/wallet/useAutoConnectWallet.js';
 import { useUnsafeBurnerWallet } from '../hooks/wallet/useUnsafeBurnerWallet.js';
 import { useWalletPropertiesChanged } from '../hooks/wallet/useWalletPropertiesChanged.js';
 import { useWalletsChanged } from '../hooks/wallet/useWalletsChanged.js';
-import type { ZkSendWalletConfig } from '../hooks/wallet/useZkSendWallet.js';
-import { useZkSendWallet } from '../hooks/wallet/useZkSendWallet.js';
 import { lightTheme } from '../themes/lightTheme.js';
 import type { Theme } from '../themes/themeContract.js';
 import { createInMemoryStore } from '../utils/stateStorage.js';
@@ -39,9 +37,6 @@ export type WalletProviderProps = {
 
     /** Enables automatically reconnecting to the most recently used wallet account upon mounting. */
     autoConnect?: boolean;
-
-    /** Enables the zkSend wallet */
-    zkSend?: ZkSendWalletConfig;
 
     /** Configures how the most recently connected to wallet account is stored. Set to `null` to disable persisting state entirely. Defaults to using localStorage if it is available. */
     storage?: StateStorage | null;
@@ -64,7 +59,6 @@ export function WalletProvider({
     storageKey = DEFAULT_STORAGE_KEY,
     enableUnsafeBurner = false,
     autoConnect = false,
-    zkSend,
     theme = lightTheme,
     children,
 }: WalletProviderProps) {
@@ -83,7 +77,6 @@ export function WalletProvider({
                 preferredWallets={preferredWallets}
                 requiredFeatures={requiredFeatures}
                 enableUnsafeBurner={enableUnsafeBurner}
-                zkSend={zkSend}
             >
                 {/* TODO: We ideally don't want to inject styles if people aren't using the UI components */}
                 {theme ? <InjectedThemeStyles theme={theme} /> : null}
@@ -95,19 +88,17 @@ export function WalletProvider({
 
 type WalletConnectionManagerProps = Pick<
     WalletProviderProps,
-    'preferredWallets' | 'requiredFeatures' | 'enableUnsafeBurner' | 'zkSend' | 'children'
+    'preferredWallets' | 'requiredFeatures' | 'enableUnsafeBurner' | 'children'
 >;
 
 function WalletConnectionManager({
     preferredWallets = DEFAULT_PREFERRED_WALLETS,
     requiredFeatures = DEFAULT_REQUIRED_FEATURES,
     enableUnsafeBurner = false,
-    zkSend,
     children,
 }: WalletConnectionManagerProps) {
     useWalletsChanged(preferredWallets, requiredFeatures);
     useWalletPropertiesChanged();
-    useZkSendWallet(zkSend);
     useUnsafeBurnerWallet(enableUnsafeBurner);
     useAutoConnectWallet();
 
