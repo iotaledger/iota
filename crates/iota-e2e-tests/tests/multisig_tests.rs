@@ -199,9 +199,9 @@ async fn test_multisig_with_zklogin_scenerios() {
     // construct a multisig address with 4 pks (ed25519, secp256k1, secp256r1,
     // zklogin) with threshold = 1.
     let (eph_kp, _eph_pk, zklogin_inputs) =
-        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1];
+        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()[1];
     let (eph_kp_1, _, _) =
-        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[2];
+        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()[2];
     let zklogin_pk = PublicKey::ZkLogin(
         ZkLoginPublicIdentifier::new(zklogin_inputs.get_iss(), zklogin_inputs.get_address_seed())
             .unwrap(),
@@ -687,8 +687,8 @@ async fn test_expired_epoch_zklogin_in_multisig() {
 
 #[sim_test]
 async fn test_random_zklogin_in_multisig() {
-    let test_vectors =
-        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1..11];
+    let test_vectors = &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")
+        .unwrap()[1..11];
     let test_cluster = TestClusterBuilder::new().with_default_jwks().build().await;
     test_cluster.wait_for_authenticator_state_update().await;
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -791,7 +791,7 @@ async fn test_zklogin_inside_multisig_feature_deny() {
 async fn construct_simple_zklogin_multisig_tx(test_cluster: &TestCluster) -> Transaction {
     // construct a multisig address with 1 zklogin pk with threshold = 1.
     let (eph_kp, _eph_pk, zklogin_inputs) =
-        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1];
+        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()[1];
     let zklogin_pk = PublicKey::ZkLogin(
         ZkLoginPublicIdentifier::new(zklogin_inputs.get_iss(), zklogin_inputs.get_address_seed())
             .unwrap(),

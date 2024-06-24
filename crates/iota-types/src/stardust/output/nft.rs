@@ -3,27 +3,25 @@
 
 use anyhow::anyhow;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk::types::block::output::{
+use iota_stardust_sdk::types::block::output::{
     feature::Irc27Metadata as StardustIrc27, NftOutput as StardustNft,
-};
-use iota_types::{
-    balance::Balance,
-    base_types::{IotaAddress, ObjectID, SequenceNumber, TxContext},
-    collection_types::{Bag, Entry, VecMap},
-    id::UID,
-    object::{Data, MoveObject, Object, Owner},
-    TypeTag, STARDUST_PACKAGE_ID,
 };
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use num_rational::Ratio;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use super::{
-    output::{
-        ExpirationUnlockCondition, StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
-    },
-    stardust_to_iota_address,
+use super::unlock_conditions::{
+    ExpirationUnlockCondition, StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
+};
+use crate::{
+    balance::Balance,
+    base_types::{IotaAddress, ObjectID, SequenceNumber, TxContext},
+    collection_types::{Bag, Entry, VecMap},
+    id::UID,
+    object::{Data, MoveObject, Object, Owner},
+    stardust::{coin_type::CoinType, stardust_to_iota_address},
+    TypeTag, STARDUST_PACKAGE_ID,
 };
 
 pub const IRC27_MODULE_NAME: &IdentStr = ident_str!("irc27");
@@ -90,7 +88,13 @@ pub struct Url {
     /// Note that this String is UTF-8 encoded while the URL type in Move is
     /// ascii-encoded. Setting this field requires ensuring that the string
     /// consists of only ASCII characters.
-    pub(crate) url: String,
+    url: String,
+}
+
+impl Url {
+    pub fn url(&self) -> &str {
+        &self.url
+    }
 }
 
 impl TryFrom<String> for Url {
@@ -203,7 +207,7 @@ impl Default for Irc27Metadata {
         let media_type = "image/png".to_owned();
         // A placeholder for NFTs without metadata from which we can extract a URI.
         let uri = Url::try_from(
-            iota_sdk::Url::parse("https://opensea.io/static/images/placeholder.png")
+            iota_stardust_sdk::Url::parse("https://opensea.io/static/images/placeholder.png")
                 .expect("should be a valid url")
                 .to_string(),
         )
@@ -311,7 +315,7 @@ impl Nft {
     ///
     /// Note that the metadata feature of the NFT cannot be present _and_ empty
     /// per the protocol rules: <https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md#additional-syntactic-transaction-validation-rules-2>.
-    pub(crate) fn convert_immutable_metadata(nft: &StardustNft) -> anyhow::Result<Irc27Metadata> {
+    pub fn convert_immutable_metadata(nft: &StardustNft) -> anyhow::Result<Irc27Metadata> {
         let Some(metadata) = nft.immutable_features().metadata() else {
             return Ok(Irc27Metadata::default());
         };
@@ -440,14 +444,14 @@ impl NftOutput {
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
         version: SequenceNumber,
-        type_param: TypeTag,
+        coin_type: CoinType,
     ) -> anyhow::Result<Object> {
         // Construct the Nft Output object.
         let move_nft_output_object = unsafe {
             // Safety: we know from the definition of `NftOutput` in the stardust package
             // that it does not have public transfer (`store` ability is absent).
             MoveObject::new_from_execution(
-                NftOutput::tag(type_param).into(),
+                NftOutput::tag(coin_type.to_type_tag()).into(),
                 false,
                 version,
                 bcs::to_bytes(&self)?,

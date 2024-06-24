@@ -749,7 +749,7 @@ async fn not_enough_support() {
     certificates.push_back(certificate);
     next_parents.insert(digest);
 
-    parents = next_parents.clone();
+    parents.clone_from(&next_parents);
 
     // Rounds 4: Fully connected graph. This is the where we "boost" the leader.
     let nodes: Vec<_> = ids.to_vec();
