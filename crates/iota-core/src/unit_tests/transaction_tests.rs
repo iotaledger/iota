@@ -1,3 +1,4 @@
+rewriting static
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
@@ -455,7 +456,7 @@ async fn test_zklogin_transfer_with_bad_ephemeral_sig() {
 }
 
 #[sim_test]
-#[ignore = "TODO: fix bad test data in zklogin_test_vectors.json"]
+
 async fn test_zklogin_transfer_with_large_address_seed() {
     telemetry_subscribers::init_for_testing();
     let (object_ids, gas_object_ids, authority_state, _epoch_store, _, _, _server, client) =
@@ -485,7 +486,7 @@ async fn test_zklogin_transfer_with_large_address_seed() {
 }
 
 #[sim_test]
-#[ignore = "TODO: fix bad test data in zklogin_test_vectors.json"]
+
 async fn zklogin_test_cached_proof_wrong_key() {
     telemetry_subscribers::init_for_testing();
     let (
@@ -767,7 +768,7 @@ async fn init_zklogin_transfer(
 }
 
 #[tokio::test]
-#[ignore = "TODO: fix bad test data in zklogin_test_vectors.json"]
+
 async fn zklogin_txn_fail_if_missing_jwk() {
     telemetry_subscribers::init_for_testing();
 
@@ -842,7 +843,7 @@ async fn zklogin_txn_fail_if_missing_jwk() {
 }
 
 #[tokio::test]
-#[ignore = "TODO: fix bad test data in zklogin_test_vectors.json"]
+
 async fn zk_multisig_test() {
     telemetry_subscribers::init_for_testing();
 

@@ -351,7 +351,7 @@ fn multisig_get_indices() {
 }
 
 #[test]
-#[ignore = "TODO: fix bad test data in zklogin_test_vectors.json"]
+
 fn multisig_zklogin_scenarios() {
     // consistency test with
     // iota/sdk/typescript/test/unit/cryptography/multisig.test.ts
@@ -397,7 +397,7 @@ fn multisig_zklogin_scenarios() {
 }
 
 #[test]
-#[ignore = "TODO: fix bad test data in zklogin_test_vectors.json"]
+
 fn zklogin_in_multisig_works_with_both_addresses() {
     let mut seed = StdRng::from_seed([0; 32]);
     let kp: Ed25519KeyPair = get_key_pair_from_rng(&mut seed).1;

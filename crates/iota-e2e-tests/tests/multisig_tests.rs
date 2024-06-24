@@ -179,7 +179,7 @@ async fn test_multisig_e2e() {
 }
 
 #[sim_test]
-#[ignore = "TODO: fix bad test data in zklogin_test_vectors.json"]
+
 async fn test_multisig_with_zklogin_scenerios() {
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(15000)
@@ -689,7 +689,7 @@ async fn test_expired_epoch_zklogin_in_multisig() {
 }
 
 #[sim_test]
-#[ignore = "TODO: fix bad test data in zklogin_test_vectors.json"]
+
 async fn test_random_zklogin_in_multisig() {
     let test_vectors = &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")
         .unwrap()[1..11];
