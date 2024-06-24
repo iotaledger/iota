@@ -508,7 +508,7 @@ async fn zklogin_test_cached_proof_wrong_key() {
     // );
 
     let (skp, _eph_pk, zklogin) =
-        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1];
+        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()[1];
     let ephemeral_key = match skp {
         IotaKeyPair::Ed25519(kp) => kp,
         _ => panic!(),
@@ -640,7 +640,7 @@ async fn setup_zklogin_network(
     NetworkAuthorityClient,
 ) {
     let (skp, _eph_pk, zklogin) =
-        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1];
+        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()[1];
     let ephemeral_key = match skp {
         IotaKeyPair::Ed25519(kp) => kp,
         _ => panic!(),
@@ -766,7 +766,7 @@ async fn zklogin_txn_fail_if_missing_jwk() {
 
     // Initialize an authorty state with some objects under a zklogin address.
     let (skp, _eph_pk, zklogin) =
-        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1];
+        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()[1];
     let ephemeral_key = match skp {
         IotaKeyPair::Ed25519(kp) => kp,
         _ => panic!(),
@@ -896,7 +896,7 @@ async fn zk_multisig_test() {
 
     // Step 1. construct 2 zklogin signatures
     let test_vectors =
-        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1..];
+        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()[1..];
     let mut zklogin_sigs = vec![];
     for (kp, _pk_zklogin, inputs) in test_vectors {
         let intent_message = IntentMessage::new(Intent::iota_transaction(), data.clone());

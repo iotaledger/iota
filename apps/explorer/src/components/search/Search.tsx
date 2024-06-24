@@ -7,7 +7,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useDebouncedValue } from '~/hooks/useDebouncedValue';
 import { useSearch } from '~/hooks/useSearch';
 import { Search as SearchBox, type SearchResult } from '~/ui/Search';
-import { useNavigateWithQuery } from '~/ui/utils/LinkWithQuery';
+import { useNavigateWithQuery } from '~/ui/LinkWithQuery';
 import { ampli } from '~/utils/analytics/ampli';
 
 function Search(): JSX.Element {

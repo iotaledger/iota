@@ -25,7 +25,7 @@ type FilterTag = {
 function AppsPage() {
     const navigate = useNavigate();
 
-    const defaultFilterTags: FilterTag[] = [
+    const DEFAULT_FILTER_TAGS: FilterTag[] = [
         {
             name: 'Connections',
             link: 'apps/connected',
@@ -46,7 +46,7 @@ function AppsPage() {
         }))
         .sort((a, b) => a.name.localeCompare(b.name));
 
-    const allFilterTags = [...defaultFilterTags, ...uniqueAppTags];
+    const allFilterTags = [...DEFAULT_FILTER_TAGS, ...uniqueAppTags];
 
     useEffect(() => {
         getFromSessionStorage<string>(APPS_PAGE_NAVIGATION).then((activeTagLink) => {

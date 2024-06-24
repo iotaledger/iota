@@ -16,14 +16,12 @@ import Loading from '../loading';
 import { IotaApp, type DAppEntry } from './IotaApp';
 import { IotaAppEmpty } from './IotaAppEmpty';
 
-const emptyArray: DAppEntry[] = [];
-
 function ConnectedDapps() {
     const backgroundClient = useBackgroundClient();
     useEffect(() => {
         backgroundClient.sendGetPermissionRequests();
     }, [backgroundClient]);
-    const ecosystemApps = useFeature<DAppEntry[]>(FEATURES.WALLET_DAPPS).value ?? emptyArray;
+    const ecosystemApps = useFeature<DAppEntry[]>(FEATURES.WALLET_DAPPS).value ?? [];
     const loading = useAppSelector(({ permissions }) => !permissions.initialized);
     const allPermissions = useAppSelector(permissionsSelectors.selectAll);
     const connectedApps = useMemo(

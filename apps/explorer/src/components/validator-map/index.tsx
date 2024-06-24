@@ -14,7 +14,7 @@ import { WorldMap } from './WorldMap';
 import { type ValidatorMapResponse, type ValidatorMapValidator } from './types';
 import { useNetwork } from '~/context';
 import { Card } from '~/ui/Card';
-import { Network } from '~/utils/api/DefaultRpcClient';
+import { Network } from '~/utils/api/defaultRpcClient';
 
 type ValidatorsMap = Record<string, ValidatorMapValidator>;
 

@@ -11,24 +11,24 @@ use iota_types::{
     dynamic_field::Field,
     in_memory_storage::InMemoryStorage,
     object::Owner,
-    timelock::{stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE, timelock::TimeLock},
+    timelock::{
+        stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,
+        timelock::{is_timelocked_vested_reward, TimeLock},
+    },
     TypeTag,
 };
 
-use crate::stardust::{
-    migration::{
-        executor::FoundryLedgerData,
-        verification::{
-            created_objects::CreatedObjects,
-            util::{
-                verify_address_owner, verify_coin, verify_expiration_unlock_condition,
-                verify_metadata_feature, verify_native_tokens, verify_parent,
-                verify_sender_feature, verify_storage_deposit_unlock_condition, verify_tag_feature,
-                verify_timelock_unlock_condition,
-            },
+use crate::stardust::migration::{
+    executor::FoundryLedgerData,
+    verification::{
+        created_objects::CreatedObjects,
+        util::{
+            verify_address_owner, verify_coin, verify_expiration_unlock_condition,
+            verify_metadata_feature, verify_native_tokens, verify_parent, verify_sender_feature,
+            verify_storage_deposit_unlock_condition, verify_tag_feature,
+            verify_timelock_unlock_condition,
         },
     },
-    types::timelock::is_timelocked_vested_reward,
 };
 
 pub(super) fn verify_basic_output(
@@ -88,11 +88,16 @@ pub(super) fn verify_basic_output(
 
     // If the output has multiple unlock conditions, then a genesis object should
     // have been created.
-    if output.unlock_conditions().len() > 1 {
-        ensure!(
-            created_objects.gas_coin().is_err(),
-            "unexpected gas coin created"
-        );
+    if output.unlock_conditions().expiration().is_some()
+        || output
+            .unlock_conditions()
+            .storage_deposit_return()
+            .is_some()
+        || output
+            .unlock_conditions()
+            .is_time_locked(target_milestone_timestamp)
+    {
+        ensure!(created_objects.coin().is_err(), "unexpected coin created");
 
         let created_output_obj = created_objects.output().and_then(|id| {
             storage
@@ -100,7 +105,7 @@ pub(super) fn verify_basic_output(
                 .ok_or_else(|| anyhow!("missing basic output object"))
         })?;
         let created_output = created_output_obj
-            .to_rust::<crate::stardust::types::output::BasicOutput>()
+            .to_rust::<iota_types::stardust::output::BasicOutput>()
             .ok_or_else(|| anyhow!("invalid basic output object"))?;
 
         // Owner
@@ -174,18 +179,18 @@ pub(super) fn verify_basic_output(
         );
 
         // Gas coin value and owner
-        let created_gas_coin_obj = created_objects.gas_coin().and_then(|id| {
+        let created_coin_obj = created_objects.coin().and_then(|id| {
             storage
                 .get_object(id)
-                .ok_or_else(|| anyhow!("missing gas coin"))
+                .ok_or_else(|| anyhow!("missing coin"))
         })?;
-        let created_gas_coin = created_gas_coin_obj
+        let created_coin = created_coin_obj
             .as_coin_maybe()
-            .ok_or_else(|| anyhow!("expected a gas coin"))?;
+            .ok_or_else(|| anyhow!("expected a coin"))?;
 
-        verify_address_owner(output.address(), created_gas_coin_obj, "gas coin")?;
-        verify_coin(output.amount(), &created_gas_coin)?;
-        *total_value += created_gas_coin.value();
+        verify_address_owner(output.address(), created_coin_obj, "coin")?;
+        verify_coin(output.amount(), &created_coin)?;
+        *total_value += created_coin.value();
 
         // Native Tokens
         verify_native_tokens::<(TypeTag, Coin)>(
@@ -205,13 +210,13 @@ pub(super) fn verify_basic_output(
     );
 
     ensure!(
-        created_objects.coin_metadata().is_err(),
-        "unexpected coin metadata found"
+        created_objects.coin_manager().is_err(),
+        "unexpected coin manager found"
     );
 
     ensure!(
-        created_objects.max_supply_policy().is_err(),
-        "unexpected max supply policy found"
+        created_objects.coin_manager_treasury_cap().is_err(),
+        "unexpected coin manager cap found"
     );
 
     ensure!(

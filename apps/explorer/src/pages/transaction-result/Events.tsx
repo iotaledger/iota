@@ -10,7 +10,7 @@ import * as Collapsible from '@radix-ui/react-collapsible';
 import clsx from 'clsx';
 import { useState } from 'react';
 
-import { SyntaxHighlighter } from '~/components/SyntaxHighlighter';
+import { SyntaxHighlighter } from '~/components/syntax-highlighter';
 import { CopyToClipboard } from '~/ui/CopyToClipboard';
 import { DescriptionItem } from '~/ui/DescriptionList';
 import { Divider } from '~/ui/Divider';

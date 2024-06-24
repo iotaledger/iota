@@ -245,7 +245,7 @@ async fn check_response(
 async fn convert(
     mfs: Vec<MetricFamily>,
 ) -> Result<impl Iterator<Item = WriteRequest>, (StatusCode, &'static str)> {
-    let result = match tokio::task::spawn_blocking(|| {
+    let task_result = tokio::task::spawn_blocking(|| {
         let timer = CONSUMER_OPERATION_DURATION
             .with_label_values(&["convert_to_remote_write_task"])
             .start_timer();
@@ -253,18 +253,17 @@ async fn convert(
         timer.observe_duration();
         result.into_iter()
     })
-    .await
-    {
-        Ok(v) => v,
+    .await;
+    match task_result {
+        Ok(v) => Ok(v),
         Err(err) => {
             error!("unable to convert to remote_write; {err}");
-            return Err((
+            Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "DROPPING METRICS; unable to convert to remote_write",
-            ));
+            ))
         }
-    };
-    Ok(result)
+    }
 }
 
 /// convert_to_remote_write is an expensive method due to the time it takes to
