@@ -20,6 +20,7 @@ use iota_sdk::{
     },
 };
 use iota_types::timelock::timelock::VESTED_REWARD_ID_PREFIX;
+use rand::{random, thread_rng, Rng};
 
 use crate::stardust::types::output_header::OutputHeader;
 
@@ -38,11 +39,11 @@ fn new_output(
     address: Ed25519Address,
     timelock: Option<u32>,
 ) -> anyhow::Result<(OutputHeader, Output)> {
-    transaction_id[28..32].copy_from_slice(&rand::random::<[u8; 4]>());
+    transaction_id[28..32].copy_from_slice(&random::<[u8; 4]>());
 
     let output_header = OutputHeader::new_testing(
         *transaction_id,
-        rand::random::<u16>() % 128,
+        random::<u16>() % 128,
         [0; 32],
         MERGE_MILESTONE_INDEX,
         MERGE_TIMESTAMP_SECS,
@@ -67,6 +68,7 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let mut outputs = Vec::new();
     let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
     let mut transaction_id = [0; 32];
+    let mut rng = thread_rng();
 
     transaction_id[0..28]
         .copy_from_slice(&prefix_hex::decode::<[u8; 28]>(VESTED_REWARD_ID_PREFIX)?);
@@ -81,11 +83,21 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
                     None,
                 )
                 .await?[0];
+            let amount = rng.gen_range(1_000_000..10_000_000)
+                * (VESTING_WEEKS as u64 / VESTING_WEEKS_FREQUENCY as u64 * 10);
+            let initial_unlock_amount = amount * 10 / 100;
+            let vested_amount =
+                amount * 90 / 100 / (VESTING_WEEKS as u64 / VESTING_WEEKS_FREQUENCY as u64);
 
             // The modulos 3 and 5 are chosen because they create a pattern of all possible combinations of having an initial unlock and having expired timelock outputs.
 
             if address_index % 3 != 0 {
-                outputs.push(new_output(&mut transaction_id, 10_000_000, address, None)?);
+                outputs.push(new_output(
+                    &mut transaction_id,
+                    initial_unlock_amount,
+                    address,
+                    None,
+                )?);
             }
 
             for offset in (0..=VESTING_WEEKS).step_by(VESTING_WEEKS_FREQUENCY) {
@@ -94,7 +106,7 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
                 if address_index % 5 == 0 && timelock > now {
                     outputs.push(new_output(
                         &mut transaction_id,
-                        1_000_000,
+                        vested_amount,
                         address,
                         Some(timelock),
                     )?);
