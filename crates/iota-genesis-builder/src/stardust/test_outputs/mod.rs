@@ -36,7 +36,8 @@ pub fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
     // Increments the output count according to newly generated outputs.
     parser.header.output_count += new_outputs.len() as u64;
 
-    // Creates new protocol parameters to increase the total supply according to newly generated outputs.
+    // Creates new protocol parameters to increase the total supply according to
+    // newly generated outputs.
     let params = parser.protocol_parameters()?;
     let new_params = ProtocolParameters::new(
         params.protocol_version(),

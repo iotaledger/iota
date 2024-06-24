@@ -22,6 +22,7 @@ use iota_types::{
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
+    stardust::coin_type::CoinType,
     transaction::{Argument, CheckedInputObjects, ObjectArg},
     TypeTag, IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID,
 };
@@ -35,9 +36,9 @@ use crate::stardust::{
             Migration, MIGRATION_PROTOCOL_VERSION, NATIVE_TOKEN_BAG_KEY_TYPE, PACKAGE_DEPS,
         },
         verification::created_objects::CreatedObjects,
-        CoinType, MigrationTargetNetwork,
+        MigrationTargetNetwork,
     },
-    types::snapshot::OutputHeader,
+    types::output_header::OutputHeader,
 };
 
 mod alias;
@@ -394,7 +395,7 @@ fn unlock_object(
     epoch_start_timestamp_ms: u64,
     expected_test_result: UnlockObjectTestResult,
     expected_assets: ExpectedAssets,
-    coin_type: CoinType,
+    coin_type: iota_types::stardust::coin_type::CoinType,
 ) -> anyhow::Result<()> {
     let (migration_executor, objects_map) =
         run_migration(total_supply, outputs, coin_type.clone())?;
