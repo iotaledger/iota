@@ -6591,7 +6591,6 @@ dependencies = [
  "move-core-types",
  "move-package",
  "move-vm-runtime-v2",
- "num-rational",
  "packable",
  "prefix-hex",
  "prometheus",
