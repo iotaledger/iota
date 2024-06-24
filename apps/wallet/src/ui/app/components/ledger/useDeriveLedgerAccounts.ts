@@ -8,11 +8,11 @@ import { Ed25519PublicKey } from '@iota/iota.js/keypairs/ed25519';
 import { useQuery, type UseQueryOptions } from '@tanstack/react-query';
 
 import { useIotaLedgerClient } from './IotaLedgerClientProvider';
+import { AccountType } from '_src/background/accounts/Account';
 
-export type DerivedLedgerAccount = Pick<
-    LedgerAccountSerializedUI,
-    'address' | 'publicKey' | 'type' | 'derivationPath'
->;
+type LedgerAccountKeys = 'address' | 'publicKey' | 'type' | 'derivationPath';
+
+export type DerivedLedgerAccount = Pick<LedgerAccountSerializedUI, LedgerAccountKeys>;
 type UseDeriveLedgerAccountOptions = {
     numAccountsToDerive: number;
 } & Pick<UseQueryOptions<DerivedLedgerAccount[], unknown>, 'select'>;
@@ -47,7 +47,7 @@ async function deriveAccountsFromLedger(
         const publicKey = new Ed25519PublicKey(publicKeyResult.publicKey);
         const iotaAddress = publicKey.toIotaAddress();
         ledgerAccounts.push({
-            type: 'ledger',
+            type: AccountType.Ledger,
             address: iotaAddress,
             derivationPath,
             publicKey: publicKey.toBase64(),
