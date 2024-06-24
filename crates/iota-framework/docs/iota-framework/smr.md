@@ -118,10 +118,10 @@ Register the <code>SHIMMER</code> coin.
     <b>let</b> (treasury, metadata) = <a href="../iota-framework/coin.md#0x2_coin_create_currency">coin::create_currency</a>(
             witness,
             6,
+            b"Shimmer",
             b"<a href="../iota-framework/smr.md#0x2_smr_SMR">SMR</a>",
-            b"<a href="../iota-framework/smr.md#0x2_smr">smr</a>",
-            b"",
-            <a href="../move-stdlib/option.md#0x1_option_none">option::none</a>(),
+            b"The original Shimmer (<a href="../iota-framework/smr.md#0x2_smr_SMR">SMR</a>) token <b>as</b> inherited from the Shimmer Network.",
+            <a href="../move-stdlib/option.md#0x1_option_some">option::some</a>(<a href="../iota-framework/url.md#0x2_url_new_unsafe_from_bytes">url::new_unsafe_from_bytes</a>(b"https://<a href="../iota-framework/iota.md#0x2_iota">iota</a>.org/<a href="../iota-framework/smr.md#0x2_smr">smr</a>-logo.png")),
             ctx
         );
     <a href="../iota-framework/transfer.md#0x2_transfer_public_freeze_object">transfer::public_freeze_object</a>(metadata);

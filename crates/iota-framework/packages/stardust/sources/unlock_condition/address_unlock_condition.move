@@ -3,7 +3,7 @@
 
 module stardust::address_unlock_condition {
 
-    use iota::coin::TreasuryCap;
+    use iota::coin_manager::CoinManagerTreasuryCap;
     use iota::transfer::Receiving;
 
     use stardust::alias::Alias;
@@ -38,15 +38,13 @@ module stardust::address_unlock_condition {
         alias_output::receive(self.id(), output_to_unlock)
     }
 
-    /// Unlock a `TreasuryCap` locked to the alias address.
-    public fun unlock_alias_address_owned_treasury<T: key + store>(
+    /// Unlock a `CoinManagerTreasuryCap` locked to the alias address.
+    public fun unlock_alias_address_owned_coinmanager_treasury<T: key + store>(
       self: &mut Alias,
-      treasury_to_unlock: Receiving<TreasuryCap<T>>,
-    ): TreasuryCap<T> {
+      treasury_to_unlock: Receiving<CoinManagerTreasuryCap<T>>,
+    ): CoinManagerTreasuryCap<T> {
         transfer::public_receive(self.id(), treasury_to_unlock)
     }
-
-    // TODO: be able to receive MaxSupplyPolicy from https://github.com/iotaledger/kinesis/pull/145
 
     // === Receiving on NFT Address/NFTID as ObjectID ===
 
