@@ -8,17 +8,19 @@ import { Button } from '@/components';
 interface EnterValuesFormProps {
     coin: CoinStruct;
     formData: FormDataValues;
+    gasBudget: string;
     setFormData: React.Dispatch<React.SetStateAction<FormDataValues>>;
     onClose: () => void;
-    handleNext: () => void;
+    onNext: () => void;
 }
 
 function EnterValuesFormView({
-    coin: { balance, coinObjectId },
+    coin,
     formData: { amount, recipientAddress },
+    gasBudget,
     setFormData,
     onClose,
-    handleNext,
+    onNext,
 }: EnterValuesFormProps): JSX.Element {
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -32,8 +34,8 @@ function EnterValuesFormView({
         <div className="flex flex-col gap-4">
             <h1 className="mb-4 text-center text-xl">Send coins</h1>
             <div className="flex flex-col gap-4">
-                <p>Coin: {coinObjectId}</p>
-                <p>Balance: {balance}</p>
+                <p>Coin: {coin.coinObjectId}</p>
+                <p>Balance: {coin.balance}</p>
                 <label htmlFor="amount">Coin amount to send: </label>
                 <input
                     type="number"
@@ -53,10 +55,11 @@ function EnterValuesFormView({
                     onChange={handleChange}
                     placeholder="Enter the address to send coins"
                 />
+                <p>Gas fee: {gasBudget}</p>
             </div>
             <div className="mt-4 flex justify-around">
                 <Button onClick={onClose}>Cancel</Button>
-                <Button onClick={handleNext} disabled={!recipientAddress || !amount}>
+                <Button onClick={onNext} disabled={!recipientAddress || !amount}>
                     Next
                 </Button>
             </div>
