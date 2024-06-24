@@ -40,10 +40,7 @@ jobs:
     timeout-minutes: 80
     strategy:
       matrix:
-        os:
-          [
-            ubuntu-latest,
-          ]
+        os: [ ubuntu-latest ]
       fail-fast: false
     runs-on: ${{ matrix.os }}
     steps:
@@ -71,9 +68,6 @@ jobs:
           export os_type="${system_os}-${arch}"
           echo "os_type=${system_os}-${arch}" >> $GITHUB_ENV
 
-      - name: Setup caching
-        uses: bmwill/rust-cache@v1 # Fork of 'Swatinem/rust-cache' which allows caching additional paths
-
       - name: Checking out ${{ env.iota_branch }}
         uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # pin@v3
         with:
@@ -82,7 +76,7 @@ jobs:
       - name: cargo build (release) for ${{ matrix.os }} platform
         shell: bash
         run: |
-          [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build --release
+          [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build --release --bin iota --bin iota-test-validator
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
