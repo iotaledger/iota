@@ -14,11 +14,13 @@ import { InputWithAction } from '_src/ui/app/shared/InputWithAction';
 import {
     useGetAllCoins,
     CoinFormat,
+    createTokenTransferTransaction,
     isIotaNSName,
     parseAmount,
     useCoinMetadata,
     useFormatCoin,
     useIotaNSEnabled,
+    parseAmount,
 } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
 import { ArrowRight16 } from '@iota/icons';
@@ -28,7 +30,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Field, Form, Formik, useFormikContext } from 'formik';
 import { useEffect, useMemo } from 'react';
 
-import { createTokenTransferTransaction } from './utils/transaction';
 import { createValidationSchemaStepOne } from './validation';
 
 const INITIAL_VALUES = {

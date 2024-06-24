@@ -84,7 +84,7 @@ impl Migration {
         let executor = Executor::new(
             ProtocolVersion::new(MIGRATION_PROTOCOL_VERSION),
             target_network,
-            coin_type.clone(),
+            coin_type,
         )?;
         Ok(Self {
             target_milestone_timestamp_sec,
@@ -192,11 +192,11 @@ impl Migration {
             let created = match output {
                 Output::Alias(alias) => {
                     self.executor
-                        .create_alias_objects(header, alias, &self.coin_type)?
+                        .create_alias_objects(header, alias, self.coin_type)?
                 }
                 Output::Nft(nft) => {
                     self.executor
-                        .create_nft_objects(header, nft, &self.coin_type)?
+                        .create_nft_objects(header, nft, self.coin_type)?
                 }
                 Output::Basic(basic) => {
                     // All timelocked vested rewards(basic outputs with the specific ID format)
