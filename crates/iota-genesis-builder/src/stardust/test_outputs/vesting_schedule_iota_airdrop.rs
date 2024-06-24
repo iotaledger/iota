@@ -11,9 +11,12 @@ use std::time::SystemTime;
 
 use iota_sdk::{
     client::secret::{mnemonic::MnemonicSecretManager, SecretManage},
-    types::block::output::{
-        unlock_condition::{AddressUnlockCondition, TimelockUnlockCondition},
-        BasicOutputBuilder, Output,
+    types::block::{
+        address::Ed25519Address,
+        output::{
+            unlock_condition::{AddressUnlockCondition, TimelockUnlockCondition},
+            BasicOutputBuilder, Output,
+        },
     },
 };
 use iota_types::timelock::timelock::VESTED_REWARD_ID_PREFIX;
@@ -28,6 +31,34 @@ const VESTING_WEEKS: usize = 104;
 const VESTING_WEEKS_FREQUENCY: usize = 2;
 const MERGE_MILESTONE_INDEX: u32 = 7669900;
 const MERGE_TIMESTAMP_SECS: u32 = 1696406475;
+
+fn new_output(
+    transaction_id: &mut [u8; 32],
+    amount: u64,
+    address: Ed25519Address,
+    timelock: Option<u32>,
+) -> anyhow::Result<(OutputHeader, Output)> {
+    transaction_id[28..32].copy_from_slice(&rand::random::<[u8; 4]>());
+
+    let output_header = OutputHeader::new_testing(
+        *transaction_id,
+        rand::random::<u16>() % 128,
+        [0; 32],
+        MERGE_MILESTONE_INDEX,
+        MERGE_TIMESTAMP_SECS,
+    );
+
+    let mut builder = BasicOutputBuilder::new_with_amount(amount)
+        .add_unlock_condition(AddressUnlockCondition::new(address));
+
+    if let Some(timelock) = timelock {
+        builder = builder.add_unlock_condition(TimelockUnlockCondition::new(timelock)?);
+    }
+
+    let output = Output::from(builder.finish().unwrap());
+
+    Ok((output_header, output))
+}
 
 pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let now = SystemTime::now()
@@ -54,51 +85,23 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
             // The modulos 3 and 5 are chosen because they create a pattern of all possible combinations of having an initial unlock and having expired timelock outputs.
 
             if address_index % 3 != 0 {
-                transaction_id[28..32].copy_from_slice(&rand::random::<[u8; 4]>());
-                let output_header = OutputHeader::new_testing(
-                    transaction_id,
-                    rand::random::<u16>() % 128,
-                    [0; 32],
-                    MERGE_MILESTONE_INDEX,
-                    MERGE_TIMESTAMP_SECS,
-                );
-                let output = Output::from(
-                    BasicOutputBuilder::new_with_amount(10_000_000)
-                        .add_unlock_condition(AddressUnlockCondition::new(address))
-                        .finish()
-                        .unwrap(),
-                );
-
-                outputs.push((output_header, output));
+                outputs.push(new_output(&mut transaction_id, 10_000_000, address, None)?);
             }
 
             for offset in (0..=VESTING_WEEKS).step_by(VESTING_WEEKS_FREQUENCY) {
                 let timelock = MERGE_TIMESTAMP_SECS + offset as u32 * 604_800;
 
                 if address_index % 5 == 0 && timelock > now {
-                    transaction_id[28..32].copy_from_slice(&rand::random::<[u8; 4]>());
-                    let output_header = OutputHeader::new_testing(
-                        transaction_id,
-                        rand::random::<u16>() % 128,
-                        [0; 32],
-                        MERGE_MILESTONE_INDEX,
-                        MERGE_TIMESTAMP_SECS,
-                    );
-                    let output = Output::from(
-                        BasicOutputBuilder::new_with_amount(1_000_000)
-                            .add_unlock_condition(AddressUnlockCondition::new(address))
-                            .add_unlock_condition(TimelockUnlockCondition::new(timelock)?)
-                            .finish()
-                            .unwrap(),
-                    );
-
-                    outputs.push((output_header, output));
+                    outputs.push(new_output(
+                        &mut transaction_id,
+                        1_000_000,
+                        address,
+                        Some(timelock),
+                    )?);
                 }
             }
         }
     }
-
-    println!("{}", outputs.len());
 
     Ok(outputs)
 }
