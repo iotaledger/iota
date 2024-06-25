@@ -60,6 +60,7 @@ const TEST_DATA_DIR: &str = "tests/data/";
 
 #[sim_test]
 async fn test_genesis() -> Result<(), anyhow::Error> {
+    // TEMP CHANGE TO FORCE CI TO RUN
     let temp_dir = tempfile::tempdir()?;
     let working_dir = temp_dir.path();
     let config = working_dir.join(IOTA_NETWORK_CONFIG);
