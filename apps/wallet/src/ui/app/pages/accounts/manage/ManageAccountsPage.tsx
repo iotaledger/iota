@@ -8,6 +8,9 @@ import { useNavigate } from 'react-router-dom';
 
 import Overlay from '../../../components/overlay';
 import { AccountGroup } from './AccountGroup';
+import { Button } from '_src/ui/app/shared/ButtonUI';
+import { ArrowRight16 } from '@iota/icons';
+import { IconButton } from '_src/ui/app/components/IconButton';
 
 export function ManageAccountsPage() {
     const navigate = useNavigate();
@@ -15,7 +18,7 @@ export function ManageAccountsPage() {
     useInitializedGuard(true);
     return (
         <Overlay showModal title="Manage Accounts" closeOverlay={() => navigate('/home')}>
-            <div className="flex flex-1 flex-col gap-10">
+            <div className="flex min-h-full flex-1 flex-col justify-between gap-10">
                 {Object.entries(groupedAccounts).map(([type, accountGroups]) =>
                     Object.entries(accountGroups).map(([key, accounts]) => {
                         return (
@@ -28,6 +31,20 @@ export function ManageAccountsPage() {
                         );
                     }),
                 )}
+                <Button
+                    variant="secondaryIota"
+                    size="tall"
+                    text="View Accounts Finder"
+                    to="/accounts/manage/accounts-finder"
+                    after={
+                        <IconButton
+                            variant="transparent"
+                            icon={
+                                <ArrowRight16 className="opacity-0 duration-100 group-hover:opacity-100" />
+                            }
+                        />
+                    }
+                />
             </div>
         </Overlay>
     );

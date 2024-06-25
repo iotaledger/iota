@@ -1997,10 +1997,10 @@ mod test {
                 .is_none()
         );
         assert!(
-            prot.feature_flags
+            !prot
+                .feature_flags
                 .attr_map()
-                .get("some random string")
-                .is_none()
+                .contains_key("some random string")
         );
 
         // Was false in v1 on Mainnet

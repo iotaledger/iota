@@ -172,21 +172,22 @@ mod zk_login {
     pub static SHORT_ADDRESS_SEED: &str =
         "380704556853533152350240698167704405529973457670972223618755249929828551006";
 
-    pub fn load_test_vectors(path: &str) -> Vec<(IotaKeyPair, PublicKey, ZkLoginInputs)> {
+    pub fn load_test_vectors(
+        path: &str,
+    ) -> eyre::Result<Vec<(IotaKeyPair, PublicKey, ZkLoginInputs)>> {
         // read in test files that has a list of matching zklogin_inputs and its
         // ephemeral private keys.
         let file = std::fs::File::open(path).expect("Unable to open file");
 
-        let test_datum: Vec<TestData> = serde_json::from_reader(file).unwrap();
+        let test_datum: Vec<TestData> = serde_json::from_reader(file)?;
         let mut res = vec![];
         for test in test_datum {
-            let kp = IotaKeyPair::decode(&test.kp).unwrap();
-            let inputs =
-                ZkLoginInputs::from_json(&test.zklogin_inputs, &test.address_seed).unwrap();
-            let pk_zklogin = PublicKey::from_zklogin_inputs(&inputs).unwrap();
+            let kp = IotaKeyPair::decode(&test.kp)?;
+            let inputs = ZkLoginInputs::from_json(&test.zklogin_inputs, &test.address_seed)?;
+            let pk_zklogin = PublicKey::from_zklogin_inputs(&inputs)?;
             res.push((kp, pk_zklogin, inputs));
         }
-        res
+        Ok(res)
     }
 
     pub fn get_zklogin_user_address() -> IotaAddress {

@@ -11,24 +11,24 @@ use iota_types::{
     dynamic_field::Field,
     in_memory_storage::InMemoryStorage,
     object::Owner,
-    timelock::{stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE, timelock::TimeLock},
+    timelock::{
+        stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,
+        timelock::{is_timelocked_vested_reward, TimeLock},
+    },
     TypeTag,
 };
 
-use crate::stardust::{
-    migration::{
-        executor::FoundryLedgerData,
-        verification::{
-            created_objects::CreatedObjects,
-            util::{
-                verify_address_owner, verify_coin, verify_expiration_unlock_condition,
-                verify_metadata_feature, verify_native_tokens, verify_parent,
-                verify_sender_feature, verify_storage_deposit_unlock_condition, verify_tag_feature,
-                verify_timelock_unlock_condition,
-            },
+use crate::stardust::migration::{
+    executor::FoundryLedgerData,
+    verification::{
+        created_objects::CreatedObjects,
+        util::{
+            verify_address_owner, verify_coin, verify_expiration_unlock_condition,
+            verify_metadata_feature, verify_native_tokens, verify_parent, verify_sender_feature,
+            verify_storage_deposit_unlock_condition, verify_tag_feature,
+            verify_timelock_unlock_condition,
         },
     },
-    types::timelock::is_timelocked_vested_reward,
 };
 
 pub(super) fn verify_basic_output(
@@ -105,7 +105,7 @@ pub(super) fn verify_basic_output(
                 .ok_or_else(|| anyhow!("missing basic output object"))
         })?;
         let created_output = created_output_obj
-            .to_rust::<crate::stardust::types::output::BasicOutput>()
+            .to_rust::<iota_types::stardust::output::BasicOutput>()
             .ok_or_else(|| anyhow!("invalid basic output object"))?;
 
         // Owner

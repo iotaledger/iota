@@ -243,7 +243,6 @@ fn mk_invoking_script(use_generic: bool) -> CompiledScript {
 }
 
 #[test]
-
 // tests the deprecated Script visibility logic for < V5
 // tests correct permissible invocation of Script functions
 fn deprecated_script_visibility_checks_valid() {

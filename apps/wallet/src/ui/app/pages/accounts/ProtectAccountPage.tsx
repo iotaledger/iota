@@ -16,14 +16,17 @@ import { autoLockDataToMinutes } from '../../hooks/useAutoLockMinutes';
 import { useAutoLockMinutesMutation } from '../../hooks/useAutoLockMinutesMutation';
 import { useCreateAccountsMutation, type CreateType } from '../../hooks/useCreateAccountMutation';
 import { Heading } from '../../shared/heading';
+import { CreateAccountType } from '../../components/accounts/AccountsFormContext';
+import { AccountType } from '_src/background/accounts/Account';
 
 const ALLOWED_ACCOUNT_TYPES: CreateType[] = [
-    'new-mnemonic',
-    'import-mnemonic',
-    'mnemonic-derived',
-    'import-seed',
-    'imported',
-    'ledger',
+    CreateAccountType.NewMnemonic,
+    CreateAccountType.ImportMnemonic,
+    CreateAccountType.ImportSeed,
+    AccountType.MnemonicDerived,
+    AccountType.SeedDerived,
+    AccountType.Imported,
+    AccountType.Ledger,
 ];
 
 type AllowedAccountTypes = (typeof ALLOWED_ACCOUNT_TYPES)[number];
@@ -59,7 +62,10 @@ export function ProtectAccountPage() {
                     type,
                     password,
                 });
-                if (type === 'new-mnemonic' && isMnemonicSerializedUiAccount(createdAccounts[0])) {
+                if (
+                    type === CreateAccountType.NewMnemonic &&
+                    isMnemonicSerializedUiAccount(createdAccounts[0])
+                ) {
                     navigate(`/accounts/backup/${createdAccounts[0].sourceID}`, {
                         replace: true,
                         state: {

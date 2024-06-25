@@ -488,7 +488,7 @@ impl<T: PackageStore> PackageStore for PackageStoreWithLruCache<T> {
         let candidate = {
             // Release the lock after getting the package
             let mut packages = self.packages.lock().unwrap();
-            packages.get(&id).map(Arc::clone)
+            packages.get(&id).cloned()
         };
 
         // System packages can be invalidated in the cache if a newer version exists.
@@ -1405,6 +1405,7 @@ mod tests {
     use iota_move_build::{BuildConfig, CompiledPackage};
     use iota_types::{
         base_types::random_object_ref,
+        error::IotaResult,
         transaction::{ObjectArg, ProgrammableMoveCall},
     };
     use move_binary_format::file_format::Ability;
@@ -1417,7 +1418,7 @@ mod tests {
     /// same module.
     #[tokio::test]
     async fn test_simple_type() {
-        let (_, cache) = package_cache([(1, build_package("a0"), a0_types())]);
+        let (_, cache) = package_cache([(1, build_package("a0").unwrap(), a0_types())]);
         let package_resolver = Resolver::new(cache);
         let layout = package_resolver
             .type_layout(type_("0xa0::m::T0"))
@@ -1429,7 +1430,7 @@ mod tests {
     /// A type that refers to types from other modules in the same package.
     #[tokio::test]
     async fn test_cross_module() {
-        let (_, cache) = package_cache([(1, build_package("a0"), a0_types())]);
+        let (_, cache) = package_cache([(1, build_package("a0").unwrap(), a0_types())]);
         let resolver = Resolver::new(cache);
         let layout = resolver.type_layout(type_("0xa0::n::T0")).await.unwrap();
         insta::assert_snapshot!(format!("{layout:#}"));
@@ -1439,8 +1440,8 @@ mod tests {
     #[tokio::test]
     async fn test_cross_package() {
         let (_, cache) = package_cache([
-            (1, build_package("a0"), a0_types()),
-            (1, build_package("b0"), b0_types()),
+            (1, build_package("a0").unwrap(), a0_types()),
+            (1, build_package("b0").unwrap(), b0_types()),
         ]);
         let resolver = Resolver::new(cache);
 
@@ -1453,8 +1454,8 @@ mod tests {
     #[tokio::test]
     async fn test_upgraded_package() {
         let (_, cache) = package_cache([
-            (1, build_package("a0"), a0_types()),
-            (2, build_package("a1"), a1_types()),
+            (1, build_package("a0").unwrap(), a0_types()),
+            (2, build_package("a1").unwrap(), a1_types()),
         ]);
         let resolver = Resolver::new(cache);
 
@@ -1468,8 +1469,8 @@ mod tests {
     #[tokio::test]
     async fn test_multiple_linkage_contexts() {
         let (_, cache) = package_cache([
-            (1, build_package("a0"), a0_types()),
-            (2, build_package("a1"), a1_types()),
+            (1, build_package("a0").unwrap(), a0_types()),
+            (2, build_package("a1").unwrap(), a1_types()),
         ]);
         let resolver = Resolver::new(cache);
 
@@ -1488,8 +1489,8 @@ mod tests {
     #[tokio::test]
     async fn test_upgraded_package_non_defining_id() {
         let (_, cache) = package_cache([
-            (1, build_package("a0"), a0_types()),
-            (2, build_package("a1"), a1_types()),
+            (1, build_package("a0").unwrap(), a0_types()),
+            (2, build_package("a1").unwrap(), a1_types()),
         ]);
         let resolver = Resolver::new(cache);
 
@@ -1506,10 +1507,10 @@ mod tests {
     #[tokio::test]
     async fn test_relinking() {
         let (_, cache) = package_cache([
-            (1, build_package("a0"), a0_types()),
-            (2, build_package("a1"), a1_types()),
-            (1, build_package("b0"), b0_types()),
-            (1, build_package("c0"), c0_types()),
+            (1, build_package("a0").unwrap(), a0_types()),
+            (2, build_package("a1").unwrap(), a1_types()),
+            (1, build_package("b0").unwrap(), b0_types()),
+            (1, build_package("c0").unwrap(), c0_types()),
         ]);
         let resolver = Resolver::new(cache);
 
@@ -1519,7 +1520,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_value_nesting_boundary() {
-        let (_, cache) = package_cache([(1, build_package("a0"), a0_types())]);
+        let (_, cache) = package_cache([(1, build_package("a0").unwrap(), a0_types())]);
 
         let resolver = Resolver::new_with_limits(
             cache,
@@ -1541,7 +1542,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_err_value_nesting_simple() {
-        let (_, cache) = package_cache([(1, build_package("a0"), a0_types())]);
+        let (_, cache) = package_cache([(1, build_package("a0").unwrap(), a0_types())]);
 
         let resolver = Resolver::new_with_limits(
             cache,
@@ -1563,7 +1564,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_err_value_nesting_big_type_param() {
-        let (_, cache) = package_cache([(1, build_package("a0"), a0_types())]);
+        let (_, cache) = package_cache([(1, build_package("a0").unwrap(), a0_types())]);
 
         let resolver = Resolver::new_with_limits(
             cache,
@@ -1588,8 +1589,8 @@ mod tests {
     #[tokio::test]
     async fn test_err_value_nesting_big_phantom_type_param() {
         let (_, cache) = package_cache([
-            (1, build_package("iota"), iota_types()),
-            (1, build_package("d0"), d0_types()),
+            (1, build_package("iota").unwrap(), iota_types()),
+            (1, build_package("d0").unwrap(), d0_types()),
         ]);
 
         let resolver = Resolver::new_with_limits(
@@ -1622,8 +1623,8 @@ mod tests {
     #[tokio::test]
     async fn test_err_value_nesting_type_param_application() {
         let (_, cache) = package_cache([
-            (1, build_package("iota"), iota_types()),
-            (1, build_package("d0"), d0_types()),
+            (1, build_package("iota").unwrap(), iota_types()),
+            (1, build_package("d0").unwrap(), d0_types()),
         ]);
 
         let resolver = Resolver::new_with_limits(
@@ -1649,7 +1650,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_system_package_invalidation() {
-        let (inner, cache) = package_cache([(1, build_package("s0"), s0_types())]);
+        let (inner, cache) = package_cache([(1, build_package("s0").unwrap(), s0_types())]);
         let resolver = Resolver::new(cache);
 
         let not_found = resolver.type_layout(type_("0x1::m::T1")).await.unwrap_err();
@@ -1658,7 +1659,12 @@ mod tests {
         // Add a new version of the system package into the store underlying the cache.
         inner.write().unwrap().replace(
             addr("0x1"),
-            cached_package(2, BTreeMap::new(), &build_package("s1"), &s1_types()),
+            cached_package(
+                2,
+                BTreeMap::new(),
+                &build_package("s1").unwrap(),
+                &s1_types(),
+            ),
         );
 
         let layout = resolver.type_layout(type_("0x1::m::T1")).await.unwrap();
@@ -1668,8 +1674,8 @@ mod tests {
     #[tokio::test]
     async fn test_caching() {
         let (inner, cache) = package_cache([
-            (1, build_package("a0"), a0_types()),
-            (1, build_package("s0"), s0_types()),
+            (1, build_package("a0").unwrap(), a0_types()),
+            (1, build_package("s0").unwrap(), s0_types()),
         ]);
         let resolver = Resolver::new(cache);
 
@@ -1709,7 +1715,12 @@ mod tests {
         // Upgrade the system package
         inner.write().unwrap().replace(
             addr("0x1"),
-            cached_package(2, BTreeMap::new(), &build_package("s1"), &s1_types()),
+            cached_package(
+                2,
+                BTreeMap::new(),
+                &build_package("s1").unwrap(),
+                &s1_types(),
+            ),
         );
 
         // Reload the same system type again.  The version check fails and the system
@@ -1723,7 +1734,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_err_not_a_package() {
-        let (_, cache) = package_cache([(1, build_package("a0"), a0_types())]);
+        let (_, cache) = package_cache([(1, build_package("a0").unwrap(), a0_types())]);
         let resolver = Resolver::new(cache);
         let err = resolver
             .type_layout(type_("0x42::m::T0"))
@@ -1734,7 +1745,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_err_no_module() {
-        let (_, cache) = package_cache([(1, build_package("a0"), a0_types())]);
+        let (_, cache) = package_cache([(1, build_package("a0").unwrap(), a0_types())]);
         let resolver = Resolver::new(cache);
         let err = resolver
             .type_layout(type_("0xa0::l::T0"))
@@ -1745,7 +1756,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_err_no_struct() {
-        let (_, cache) = package_cache([(1, build_package("a0"), a0_types())]);
+        let (_, cache) = package_cache([(1, build_package("a0").unwrap(), a0_types())]);
         let resolver = Resolver::new(cache);
 
         let err = resolver
@@ -1757,7 +1768,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_err_type_arity() {
-        let (_, cache) = package_cache([(1, build_package("a0"), a0_types())]);
+        let (_, cache) = package_cache([(1, build_package("a0").unwrap(), a0_types())]);
         let resolver = Resolver::new(cache);
 
         // Too few
@@ -1777,7 +1788,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_structs() {
-        let (_, cache) = package_cache([(1, build_package("a0"), a0_types())]);
+        let (_, cache) = package_cache([(1, build_package("a0").unwrap(), a0_types())]);
         let a0 = cache.fetch(addr("0xa0")).await.unwrap();
         let m = a0.module("m").unwrap();
 
@@ -1809,10 +1820,10 @@ mod tests {
     #[tokio::test]
     async fn test_functions() {
         let (_, cache) = package_cache([
-            (1, build_package("a0"), a0_types()),
-            (2, build_package("a1"), a1_types()),
-            (1, build_package("b0"), b0_types()),
-            (1, build_package("c0"), c0_types()),
+            (1, build_package("a0").unwrap(), a0_types()),
+            (2, build_package("a1").unwrap(), a1_types()),
+            (1, build_package("b0").unwrap(), b0_types()),
+            (1, build_package("c0").unwrap(), c0_types()),
         ]);
 
         let c0 = cache.fetch(addr("0xc0")).await.unwrap();
@@ -1852,10 +1863,10 @@ mod tests {
     #[tokio::test]
     async fn test_function_parameters() {
         let (_, cache) = package_cache([
-            (1, build_package("a0"), a0_types()),
-            (2, build_package("a1"), a1_types()),
-            (1, build_package("b0"), b0_types()),
-            (1, build_package("c0"), c0_types()),
+            (1, build_package("a0").unwrap(), a0_types()),
+            (2, build_package("a1").unwrap(), a1_types()),
+            (1, build_package("b0").unwrap(), b0_types()),
+            (1, build_package("c0").unwrap(), c0_types()),
         ]);
 
         let resolver = Resolver::new(cache);
@@ -1938,8 +1949,8 @@ mod tests {
         use AbilitySet as S;
 
         let (_, cache) = package_cache([
-            (1, build_package("iota"), iota_types()),
-            (1, build_package("d0"), d0_types()),
+            (1, build_package("iota").unwrap(), iota_types()),
+            (1, build_package("d0").unwrap(), d0_types()),
         ]);
         let resolver = Resolver::new(cache);
 
@@ -1975,8 +1986,8 @@ mod tests {
         use AbilitySet as S;
 
         let (_, cache) = package_cache([
-            (1, build_package("iota"), iota_types()),
-            (1, build_package("d0"), d0_types()),
+            (1, build_package("iota").unwrap(), iota_types()),
+            (1, build_package("d0").unwrap(), d0_types()),
         ]);
         let resolver = Resolver::new(cache);
 
@@ -1995,8 +2006,8 @@ mod tests {
         use AbilitySet as S;
 
         let (_, cache) = package_cache([
-            (1, build_package("iota"), iota_types()),
-            (1, build_package("d0"), d0_types()),
+            (1, build_package("iota").unwrap(), iota_types()),
+            (1, build_package("d0").unwrap(), d0_types()),
         ]);
         let resolver = Resolver::new(cache);
 
@@ -2035,8 +2046,8 @@ mod tests {
         use AbilitySet as S;
 
         let (_, cache) = package_cache([
-            (1, build_package("iota"), iota_types()),
-            (1, build_package("d0"), d0_types()),
+            (1, build_package("iota").unwrap(), iota_types()),
+            (1, build_package("d0").unwrap(), d0_types()),
         ]);
         let resolver = Resolver::new(cache);
 
@@ -2050,8 +2061,8 @@ mod tests {
     #[tokio::test]
     async fn test_err_ability_arity() {
         let (_, cache) = package_cache([
-            (1, build_package("iota"), iota_types()),
-            (1, build_package("d0"), d0_types()),
+            (1, build_package("iota").unwrap(), iota_types()),
+            (1, build_package("d0").unwrap(), d0_types()),
         ]);
         let resolver = Resolver::new(cache);
 
@@ -2082,8 +2093,8 @@ mod tests {
     #[tokio::test]
     async fn test_err_too_many_type_params() {
         let (_, cache) = package_cache([
-            (1, build_package("iota"), iota_types()),
-            (1, build_package("d0"), d0_types()),
+            (1, build_package("iota").unwrap(), iota_types()),
+            (1, build_package("d0").unwrap(), d0_types()),
         ]);
 
         let resolver = Resolver::new_with_limits(
@@ -2109,8 +2120,8 @@ mod tests {
         use AbilitySet as S;
 
         let (_, cache) = package_cache([
-            (1, build_package("iota"), iota_types()),
-            (1, build_package("d0"), d0_types()),
+            (1, build_package("iota").unwrap(), iota_types()),
+            (1, build_package("d0").unwrap(), d0_types()),
         ]);
 
         let resolver = Resolver::new_with_limits(
@@ -2145,8 +2156,8 @@ mod tests {
         use AbilitySet as S;
 
         let (_, cache) = package_cache([
-            (1, build_package("iota"), iota_types()),
-            (1, build_package("d0"), d0_types()),
+            (1, build_package("iota").unwrap(), iota_types()),
+            (1, build_package("d0").unwrap(), d0_types()),
         ]);
 
         let resolver = Resolver::new_with_limits(
@@ -2184,9 +2195,9 @@ mod tests {
         use TypeTag as T;
 
         let (_, cache) = package_cache([
-            (1, build_package("std"), std_types()),
-            (1, build_package("iota"), iota_types()),
-            (1, build_package("e0"), e0_types()),
+            (1, build_package("std").unwrap(), std_types()),
+            (1, build_package("iota").unwrap(), iota_types()),
+            (1, build_package("e0").unwrap(), e0_types()),
         ]);
 
         let resolver = Resolver::new(cache);
@@ -2262,9 +2273,9 @@ mod tests {
         use TypeTag as T;
 
         let (_, cache) = package_cache([
-            (1, build_package("std"), std_types()),
-            (1, build_package("iota"), iota_types()),
-            (1, build_package("e0"), e0_types()),
+            (1, build_package("std").unwrap(), std_types()),
+            (1, build_package("iota").unwrap(), iota_types()),
+            (1, build_package("e0").unwrap(), e0_types()),
         ]);
 
         let resolver = Resolver::new(cache);
@@ -2483,10 +2494,10 @@ mod tests {
             .address()
     }
 
-    fn build_package(dir: &str) -> CompiledPackage {
+    fn build_package(dir: &str) -> IotaResult<CompiledPackage> {
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.extend(["tests", "packages", dir]);
-        BuildConfig::new_for_testing().build(path).unwrap()
+        BuildConfig::new_for_testing().build(path)
     }
 
     fn addr(a: &str) -> AccountAddress {

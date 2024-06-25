@@ -9,7 +9,7 @@ pub mod indexer_store;
 pub mod module_resolver;
 mod pg_indexer_store;
 mod pg_partition_manager;
-mod query;
+pub mod query;
 
 pub(crate) mod diesel_macro {
     macro_rules! read_only_blocking {

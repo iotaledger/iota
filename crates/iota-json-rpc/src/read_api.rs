@@ -1002,16 +1002,15 @@ impl ReadApiServer for ReadApi {
         digest: TransactionDigest,
     ) -> RpcResult<IotaLoadedChildObjectsResponse> {
         with_tracing!(async move {
+            let res = self
+                .state
+                .loaded_child_object_versions(&digest)
+                .map_err(|e| {
+                    error!("Failed to get loaded child objects at {digest:?} with error: {e:?}");
+                    Error::StateReadError(e)
+                })?;
             Ok(IotaLoadedChildObjectsResponse {
-                loaded_child_objects: match self
-                    .state
-                    .loaded_child_object_versions(&digest)
-                    .map_err(|e| {
-                        error!(
-                            "Failed to get loaded child objects at {digest:?} with error: {e:?}"
-                        );
-                        Error::StateReadError(e)
-                    })? {
+                loaded_child_objects: match res {
                     Some(v) => v
                         .into_iter()
                         .map(|q| IotaLoadedChildObject::new(q.0, q.1))
@@ -1291,7 +1290,7 @@ fn get_value_from_move_struct(
                 }
             }
             _ => {
-                return Err(Error::UnexpectedError(format!(
+                Err(Error::UnexpectedError(format!(
                     "Unexpected move value type for field {}",
                     var_name
                 )))?;
