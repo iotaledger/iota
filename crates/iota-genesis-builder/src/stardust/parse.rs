@@ -44,22 +44,17 @@ impl<R: Read> FullSnapshotParser<R> {
         self.header.target_milestone_timestamp()
     }
 
-    /// Provide the protocol parameters extracted from the snapshot header.
-    pub fn protocol_parameters(&self) -> Result<ProtocolParameters> {
+    /// Provide the network main token total supply through the snapshot
+    /// protocol parameters.
+    pub fn total_supply(&self) -> Result<u64> {
         if let MilestoneOption::Parameters(params) = self.header.parameters_milestone_option() {
             let protocol_params = <ProtocolParameters as packable::PackableExt>::unpack_unverified(
                 params.binary_parameters(),
             )
             .expect("invalid protocol params");
-            Ok(protocol_params)
+            Ok(protocol_params.token_supply())
         } else {
             Err(StardustError::HornetSnapshotParametersNotFound.into())
         }
-    }
-
-    /// Provide the network main token total supply through the snapshot
-    /// protocol parameters.
-    pub fn total_supply(&self) -> Result<u64> {
-        self.protocol_parameters().map(|p| p.token_supply())
     }
 }
