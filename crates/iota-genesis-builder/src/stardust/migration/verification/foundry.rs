@@ -43,19 +43,19 @@ pub(super) fn verify_foundry_output(
         .expect("foundry outputs always have an immutable alias address")
         .address();
 
-    // Gas coin value and owner
-    let created_gas_coin_obj = created_objects.gas_coin().and_then(|id| {
+    // Amount coin value and owner
+    let created_coin_obj = created_objects.coin().and_then(|id| {
         storage
             .get_object(id)
-            .ok_or_else(|| anyhow!("missing gas coin"))
+            .ok_or_else(|| anyhow!("missing coin"))
     })?;
-    let created_gas_coin = created_gas_coin_obj
+    let created_coin = created_coin_obj
         .as_coin_maybe()
-        .ok_or_else(|| anyhow!("expected a gas coin"))?;
+        .ok_or_else(|| anyhow!("expected a coin"))?;
 
-    verify_address_owner(alias_address, created_gas_coin_obj, "gas coin")?;
-    verify_coin(output.amount(), &created_gas_coin)?;
-    *total_value += created_gas_coin.value();
+    verify_address_owner(alias_address, created_coin_obj, "coin")?;
+    verify_coin(output.amount(), &created_coin)?;
+    *total_value += created_coin.value();
 
     // Native token coin value
     let native_token_coin_id = created_objects.native_token_coin()?;

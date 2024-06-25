@@ -13,7 +13,10 @@ import {
 import { type Bip44Path } from './bip44Path';
 import { type SerializedAccount } from '../accounts/Account';
 
-export type AccountSourceType = 'mnemonic' | 'seed';
+export enum AccountSourceType {
+    Mnemonic = 'mnemonic',
+    Seed = 'seed',
+}
 
 export abstract class AccountSource<
     T extends AccountSourceSerialized = AccountSourceSerialized,

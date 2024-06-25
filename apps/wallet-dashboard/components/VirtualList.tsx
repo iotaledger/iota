@@ -8,8 +8,8 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 
 interface VirtualListProps<T> {
     items: T[];
-    estimateSize: () => number;
-    render: (item: T) => ReactNode;
+    estimateSize: (index: number) => number;
+    render: (item: T, index: number) => ReactNode;
     onClick?: (item: T) => void;
 }
 
@@ -51,7 +51,7 @@ function VirtualList<T>({
                         }}
                         onClick={() => onClick && onClick(items[virtualItem.index])}
                     >
-                        {render(items[virtualItem.index])}
+                        {render(items[virtualItem.index], virtualItem.index)}
                     </div>
                 ))}
             </div>
