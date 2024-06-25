@@ -25,7 +25,5 @@ jobs:
           cache: "pnpm"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-        working-directory: ./docs/site
       - name: Build
-        run: pnpm build
-        working-directory: ./docs/site
+        run: pnpm iota-docs build
