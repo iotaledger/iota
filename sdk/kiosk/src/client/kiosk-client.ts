@@ -154,15 +154,6 @@ export class KioskClient {
             throw new Error(`Missing packageId for rule ${rule}`);
         }
 
-        switch (rule) {
-            case 'kioskLockRulePackageId':
-                return rules[rule] || networkKiosk[rule];
-            case 'royaltyRulePackageId':
-                return rules[rule] || networkKiosk[rule];
-            case 'personalKioskRulePackageId':
-                return rules[rule] || networkKiosk[rule];
-            case 'floorPriceRulePackageId':
-                return rules[rule] || networkKiosk[rule];
-        }
+        return rules[rule] || networkKiosk[rule];
     }
 }
