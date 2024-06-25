@@ -53,9 +53,12 @@ function NewStakePopup({ onClose }: NewStakePopupProps): JSX.Element {
         handleNext();
     }
 
-    async function handleStake(): Promise<void> {
-        if (!newStakeData?.transaction) return;
-        await signAndExecuteTransactionBlock({
+    function handleStake(): void {
+        if (!newStakeData?.transaction) {
+            addNotification('Stake transaction was not created', NotificationType.Error);
+            return;
+        }
+        signAndExecuteTransactionBlock({
             transactionBlock: newStakeData?.transaction,
         })
             .then(() => {
