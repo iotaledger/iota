@@ -9,11 +9,7 @@ import { Text } from '_app/shared/text';
 import Loading from '_components/loading';
 import { Coin } from '_redux/slices/iota-objects/Coin';
 import { ampli } from '_src/shared/analytics/ampli';
-import {
-    DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
-    DELEGATED_STAKES_QUERY_STALE_TIME,
-    MIN_NUMBER_IOTA_TO_STAKE,
-} from '_src/shared/constants';
+import { MIN_NUMBER_IOTA_TO_STAKE } from '_src/shared/constants';
 import { FEATURES } from '_src/shared/experimentation/features';
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
 import {
@@ -22,6 +18,8 @@ import {
     useBalance,
     useCoinMetadata,
     useGetDelegatedStake,
+    DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
+    DELEGATED_STAKES_QUERY_STALE_TIME,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { ArrowLeft16 } from '@iota/icons';

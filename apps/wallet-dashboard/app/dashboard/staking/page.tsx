@@ -12,17 +12,18 @@ import {
     useGetDelegatedStake,
     useTotalDelegatedRewards,
     useTotalDelegatedStake,
+    DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
+    DELEGATED_STAKES_QUERY_STALE_TIME,
 } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
-
-const DELEGATED_STAKES_QUERY_REFETCH_INTERVAL = 3_000;
 
 function StakingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
     const { openPopup, closePopup } = usePopups();
     const { data: delegatedStakeData } = useGetDelegatedStake({
         address: account?.address || '',
+        staleTime: DELEGATED_STAKES_QUERY_STALE_TIME,
         refetchInterval: DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     });
 
