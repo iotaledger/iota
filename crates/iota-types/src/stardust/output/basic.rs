@@ -125,11 +125,10 @@ impl BasicOutput {
             || self.storage_deposit_return.is_some()
             || self.timelock.as_ref().map_or(false, |timelock| {
                 target_milestone_timestamp_sec < timelock.unix_time
-            }
+            })
             || self.metadata.is_some()
             || self.tag.is_some()
-            || self.sender.is_some()
-        ))
+            || self.sender.is_some())
     }
 
     pub fn to_genesis_object(
