@@ -11,7 +11,7 @@ use iota_sdk::types::block::output::{Output, OutputId, TokenId};
 use iota_types::in_memory_storage::InMemoryStorage;
 
 use self::created_objects::CreatedObjects;
-use crate::stardust::{migration::executor::FoundryLedgerData, types::snapshot::OutputHeader};
+use crate::stardust::{migration::executor::FoundryLedgerData, types::output_header::OutputHeader};
 
 pub mod alias;
 pub mod basic;

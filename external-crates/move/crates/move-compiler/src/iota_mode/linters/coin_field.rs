@@ -10,8 +10,8 @@ use move_ir_types::location::Loc;
 use move_symbol_pool::Symbol;
 
 use super::{
-    LinterDiagCategory, COIN_MOD_NAME, COIN_STRUCT_NAME, LINTER_DEFAULT_DIAG_CODE,
-    LINT_WARNING_PREFIX, IOTA_PKG_NAME,
+    LinterDiagCategory, COIN_MOD_NAME, COIN_STRUCT_NAME, IOTA_PKG_NAME, LINTER_DEFAULT_DIAG_CODE,
+    LINT_WARNING_PREFIX,
 };
 use crate::{
     diag,

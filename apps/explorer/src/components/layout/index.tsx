@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCookieConsentBanner } from '@iota/core';
+import { useCookieConsentBanner, KioskClientProvider } from '@iota/core';
 import { IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Fragment } from 'react';
@@ -14,7 +14,6 @@ import { NetworkContext, useNetwork } from '~/context';
 import { Banner, type BannerProps } from '~/ui/Banner';
 import { persistableStorage } from '~/utils/analytics/amplitude';
 import { type Network, createIotaClient, SupportedNetworks } from '~/utils/api/defaultRpcClient';
-import { KioskClientProvider } from '@iota/core/src/components/KioskClientProvider';
 
 const TOAST_VARIANTS: Partial<Record<ToastType, BannerProps['variant']>> = {
     success: 'positive',

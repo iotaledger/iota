@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type SerializedUIAccount } from '_src/background/accounts/Account';
+import { AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
 import { LedgerLogo17, Iota } from '@iota/icons';
 
 function IotaIcon() {
@@ -14,7 +14,7 @@ function IotaIcon() {
 }
 
 export function AccountIcon({ account }: { account: SerializedUIAccount }) {
-    if (account.type === 'ledger') {
+    if (account.type === AccountType.Ledger) {
         return <LedgerLogo17 className="h-4 w-4" />;
     }
     return <IotaIcon />;

@@ -12,8 +12,8 @@ use move_ir_types::location::*;
 use move_symbol_pool::Symbol;
 
 use super::{
-    base_type, LinterDiagCategory, FREEZE_FUN, LINTER_DEFAULT_DIAG_CODE, LINT_WARNING_PREFIX,
-    PUBLIC_FREEZE_FUN, IOTA_PKG_NAME, TRANSFER_MOD_NAME,
+    base_type, LinterDiagCategory, FREEZE_FUN, IOTA_PKG_NAME, LINTER_DEFAULT_DIAG_CODE,
+    LINT_WARNING_PREFIX, PUBLIC_FREEZE_FUN, TRANSFER_MOD_NAME,
 };
 use crate::{
     diag,
