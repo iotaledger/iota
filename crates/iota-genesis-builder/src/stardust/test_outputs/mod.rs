@@ -15,7 +15,7 @@ use iota_sdk::types::block::{
 };
 use packable::{packer::IoPacker, Packable, PackableExt};
 
-use crate::stardust::parse::FullSnapshotParser;
+use crate::stardust::parse::HornetGenesisSnapshotParser;
 
 /// Adds outputs to test specific and intricate scenario in the full snapshot.
 pub fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
@@ -29,7 +29,7 @@ pub fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
         .truncate(true)
         .open(new_path)?;
     let mut writer = IoPacker::new(BufWriter::new(new_file));
-    let mut parser = FullSnapshotParser::new(current_file)?;
+    let mut parser = HornetGenesisSnapshotParser::new(current_file)?;
 
     let new_outputs = dummy::outputs();
 
