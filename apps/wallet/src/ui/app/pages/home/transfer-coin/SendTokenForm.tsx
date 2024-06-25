@@ -16,7 +16,6 @@ import {
     CoinFormat,
     createTokenTransferTransaction,
     isIotaNSName,
-    parseAmount,
     useCoinMetadata,
     useFormatCoin,
     useIotaNSEnabled,
