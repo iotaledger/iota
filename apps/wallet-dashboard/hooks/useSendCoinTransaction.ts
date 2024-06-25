@@ -3,7 +3,7 @@
 
 import { useCoinMetadata, createTokenTransferTransaction } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
-import { CoinBalance } from '@iota/iota.js/client';
+import { CoinBalance, CoinStruct } from '@iota/iota.js/client';
 import { useQuery } from '@tanstack/react-query';
 
 export function useSendCoinTransaction(
@@ -28,12 +28,13 @@ export function useSendCoinTransaction(
             isPayAllIota,
         ],
         queryFn: async () => {
+            const coinStruct = coin as unknown as CoinStruct;
             const transaction = createTokenTransferTransaction({
                 coinType: coin.coinType,
                 coinDecimals: coinMetadata?.decimals || 0,
                 to: recipientAddress,
                 amount,
-                coins: [coin],
+                coins: [coinStruct],
                 isPayAllIota,
             });
 
