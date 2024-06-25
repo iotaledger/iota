@@ -2,7 +2,9 @@
 	"$schema": "https://turbo.build/schema.json",
 	"pipeline": {
 		"lint": {},
-		"prettier:fix": {},
+		"prettier:fix": {
+			"cache": false
+		},
 		"test": {
 			"dependsOn": ["^build", "build"],
 			"outputs": ["coverage/**"]

@@ -43,7 +43,8 @@ fn test_serde_zk_login_signature() {
 
 #[test]
 fn test_serde_zk_public_identifier() {
-    let (_, _, inputs) = &load_test_vectors("./src/unit_tests/zklogin_test_vectors.json")[0];
+    let (_, _, inputs) =
+        &load_test_vectors("./src/unit_tests/zklogin_test_vectors.json").unwrap()[0];
     let modified_inputs =
         ZkLoginInputs::from_json(&serde_json::to_string(&inputs).unwrap(), SHORT_ADDRESS_SEED)
             .unwrap();
