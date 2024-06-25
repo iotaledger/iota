@@ -31,7 +31,7 @@ pub fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
         .open(new_path)?;
     let mut writer = IoPacker::new(BufWriter::new(new_file));
     let mut parser = FullSnapshotParser::new(current_file)?;
-    let output_id_if = OutputId::from_str(OUTPUT_TO_DECREASE_AMOUNT_FROM)?;
+    let output_to_decrease_amount_from = OutputId::from_str(OUTPUT_TO_DECREASE_AMOUNT_FROM)?;
 
     let new_outputs = dummy::outputs();
     let new_amount = new_outputs.iter().map(|o| o.1.amount()).sum::<u64>();
@@ -46,7 +46,7 @@ pub fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
     for (output_header, output) in parser.outputs().filter_map(|o| o.ok()).chain(new_outputs) {
         output_header.pack(&mut writer).unwrap();
 
-        if output_header.output_id() == output_id_if {
+        if output_header.output_id() == output_to_decrease_amount_from {
             let basic = output.as_basic();
             let amount = basic.amount().checked_sub(new_amount).unwrap();
             let output = Output::from(
