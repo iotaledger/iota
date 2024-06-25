@@ -29,7 +29,11 @@ const ALLOWED_ACCOUNT_TYPES: CreateType[] = [
     AccountType.Ledger,
 ];
 
-const REDIRECT_TO_ACCOUNT_FINDER: CreateType[] = ['import-mnemonic', 'import-seed', 'imported'];
+const REDIRECT_TO_ACCOUNTS_FINDER: CreateType[] = [
+    CreateAccountType.ImportMnemonic,
+    CreateAccountType.ImportSeed,
+    AccountType.Imported,
+];
 
 type AllowedAccountTypes = (typeof ALLOWED_ACCOUNT_TYPES)[number];
 
@@ -74,7 +78,7 @@ export function ProtectAccountPage() {
                             onboarding: true,
                         },
                     });
-                } else if (REDIRECT_TO_ACCOUNT_FINDER.includes(type)) {
+                } else if (REDIRECT_TO_ACCOUNTS_FINDER.includes(type)) {
                     const path = '/accounts/manage/accounts-finder/';
                     navigate(path, {
                         replace: true,
