@@ -331,6 +331,7 @@ fn effects_with_tx(digest: TransactionDigest) -> TransactionEffects {
 /// execution on its side
 #[sim_test(config = "constant_latency_ms(1)")]
 async fn test_quorum_map_and_reduce_timeout() {
+    // TEMP CHANGE TO FORCE CI TO RUN
     let build_config = BuildConfig::new_for_testing();
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["src", "unit_tests", "data", "object_basics"]);
