@@ -5,11 +5,10 @@ import { BalanceChange } from '@iota/core';
 import { BalanceChangeEntries } from './';
 
 interface BalanceChangesProps {
-    balanceChanges?: Record<string, BalanceChange[]> | null;
+    balanceChanges: Record<string, BalanceChange[]>;
 }
 
 export default function BalanceChanges({ balanceChanges }: BalanceChangesProps) {
-    if (!balanceChanges) return null;
     return (
         <>
             {Object.entries(balanceChanges).map(([owner, balanceChanges], index) => (

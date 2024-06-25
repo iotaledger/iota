@@ -5,12 +5,10 @@ import { ObjectChangeSummary, IotaObjectChangeTypes } from '@iota/core';
 import { ObjectChangeEntry } from './';
 
 interface ObjectChangesProps {
-    objectSummary?: ObjectChangeSummary | null;
+    objectSummary: ObjectChangeSummary;
 }
 
 export default function ObjectChanges({ objectSummary }: ObjectChangesProps) {
-    if (!objectSummary) return null;
-
     return (
         <>
             {Object.entries(objectSummary).map(([type, changes]) => (
