@@ -29,9 +29,7 @@ impl<R: Read> FullSnapshotParser<R> {
     }
 
     /// Provide an iterator over the Stardust UTXOs recorded in the snapshot.
-    pub fn outputs(
-        mut self,
-    ) -> impl Iterator<Item = Result<(OutputHeader, Output), anyhow::Error>> {
+    pub fn outputs(mut self) -> impl Iterator<Item = anyhow::Result<(OutputHeader, Output)>> {
         (0..self.header.output_count()).map(move |_| {
             Ok((
                 OutputHeader::unpack::<_, true>(&mut self.reader, &())?,

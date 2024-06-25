@@ -15,6 +15,7 @@ import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { VerifyPasswordModal } from '../../components/accounts/VerifyPasswordModal';
 import { useAccountSources } from '../../hooks/useAccountSources';
 import { useExportPassphraseMutation } from '../../hooks/useExportPassphraseMutation';
+import { AccountSourceType } from '_src/background/account-sources/AccountSource';
 
 export function BackupMnemonicPage() {
     const [passwordCopied, setPasswordCopied] = useState(false);
@@ -48,7 +49,7 @@ export function BackupMnemonicPage() {
         }
     }, [requirePassword, passwordConfirmed, showPasswordDialog]);
     const navigate = useNavigate();
-    if (!isPending && selectedSource?.type !== 'mnemonic') {
+    if (!isPending && selectedSource?.type !== AccountSourceType.Mnemonic) {
         return <Navigate to="/" replace />;
     }
     return (

@@ -12,7 +12,10 @@ import toast from 'react-hot-toast';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Browser from 'webextension-polyfill';
 
-import { useAccountsFormContext } from '../../components/accounts/AccountsFormContext';
+import {
+    CreateAccountType,
+    useAccountsFormContext,
+} from '../../components/accounts/AccountsFormContext';
 import { ConnectLedgerModal } from '../../components/ledger/ConnectLedgerModal';
 import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
 import { useAppSelector } from '../../hooks';
@@ -70,7 +73,7 @@ export function AddAccountPage() {
                         text="Create a new Passphrase Account"
                         to="/accounts/protect-account?accountType=new-mnemonic"
                         onClick={() => {
-                            setAccountsFormValues({ type: 'new-mnemonic' });
+                            setAccountsFormValues({ type: CreateAccountType.NewMnemonic });
                             ampli.clickedCreateNewAccount({ sourceFlow });
                         }}
                         disabled={createAccountsMutation.isPending}
