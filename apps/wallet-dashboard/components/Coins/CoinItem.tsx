@@ -2,19 +2,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useFormatCoin } from '@iota/core';
-import React, { type ReactNode } from 'react';
+import React from 'react';
 
-type CoinItemProps = {
+interface CoinItemProps {
     coinType: string;
     balance: bigint;
-    action?: ReactNode;
-};
+    onClick?: () => void;
+}
 
-function CoinItem({ coinType, balance, action }: CoinItemProps): React.JSX.Element {
+function CoinItem({ coinType, balance, onClick }: CoinItemProps): React.JSX.Element {
     const [formattedCoin, coinSymbol, { data: coinMeta }] = useFormatCoin(balance, coinType);
 
     return (
-        <div className="flex w-full items-center justify-between gap-4 rounded border px-6 py-3">
+        <div
+            onClick={onClick}
+            className="flex w-full cursor-pointer items-center justify-between gap-4 rounded border px-6 py-3"
+        >
             <div className="flex flex-1 items-center justify-between gap-1.5">
                 <div className="max-w-token-width">
                     <span className="truncate uppercase">{coinMeta?.name}</span>
@@ -24,7 +27,6 @@ function CoinItem({ coinType, balance, action }: CoinItemProps): React.JSX.Eleme
                         {formattedCoin} {coinSymbol}
                     </span>
                 </div>
-                {action}
             </div>
         </div>
     );

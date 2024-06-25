@@ -4,9 +4,12 @@
 import React from 'react';
 import { filterAndSortTokenBalances } from '@iota/core';
 import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
-import { CoinItem, SendCoinButton } from '@/components';
+import { CoinItem, SendCoinPopup } from '@/components';
+import { usePopups } from '@/hooks';
+import { CoinBalance } from '@iota/iota.js/client';
 
 function AllCoins(): React.JSX.Element {
+    const { openPopup, closePopup } = usePopups();
     const account = useCurrentAccount();
     const { data: coins } = useIotaClientQuery(
         'getAllBalances',
@@ -16,21 +19,20 @@ function AllCoins(): React.JSX.Element {
             select: filterAndSortTokenBalances,
         },
     );
+    const openSendTokenPopup = (coin: CoinBalance, address: string) => {
+        openPopup(<SendCoinPopup coin={coin} senderAddress={address} onClose={closePopup} />);
+    };
 
     return (
-        <div className="flex w-full flex-col items-center space-y-2">
-            <h3>Coins:</h3>
+        <div className="flex w-2/3 flex-col items-center space-y-2">
+            <h3>My Coins:</h3>
             {coins?.map((coin, index) => {
                 return (
                     <CoinItem
                         key={index}
                         coinType={coin.coinType}
                         balance={BigInt(coin.totalBalance)}
-                        action={
-                            account?.address && (
-                                <SendCoinButton address={account.address} coin={coin} />
-                            )
-                        }
+                        onClick={() => openSendTokenPopup(coin, account?.address ?? '')}
                     />
                 );
             })}
