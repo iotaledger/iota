@@ -18,7 +18,6 @@ use crate::{
     base_types::ObjectID,
     id::UID,
     timelock::{
-        self,
         label::label_struct_tag_to_string,
         stardust_upgrade_label::{stardust_upgrade_label_type, STARDUST_UPGRADE_LABEL_VALUE},
         timelock::{is_timelocked_vested_reward, try_from_stardust, TimeLock, VestedRewardError},
