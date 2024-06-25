@@ -659,6 +659,10 @@ pub struct ProtocolConfig {
     /// Unit gas price, Micros per internal gas unit.
     storage_gas_price: Option<u64>,
 
+    /// The number of tokens that validators should receive per epoch when
+    /// performing optimally.
+    validator_target_reward: Option<u64>,
+
     /// === Core Protocol ===
 
     /// Max number of transactions per checkpoint.
@@ -1362,6 +1366,8 @@ impl ProtocolConfig {
             // Change reward slashing rate to 100%.
             reward_slashing_rate: Some(10000),
             storage_gas_price: Some(76),
+            // 767k IOTAs.
+            validator_target_reward: Some(767_000 * 1_000_000_000),
             max_transactions_per_checkpoint: Some(10_000),
             max_checkpoint_size_bytes: Some(30 * 1024 * 1024),
 
