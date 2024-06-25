@@ -64,14 +64,13 @@ fn new_output(
     Ok((output_header, output))
 }
 
-pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
+pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let now = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)?
         .as_secs() as u32;
     let mut outputs = Vec::new();
     let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
     let mut transaction_id = [0; 32];
-    let mut vested_index = u32::MAX;
 
     let randomness_seed = random::<u64>();
     let mut rng = StdRng::seed_from_u64(randomness_seed);
@@ -108,7 +107,7 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
             if address_index % 3 != 0 {
                 outputs.push(new_output(
                     &mut transaction_id,
-                    &mut vested_index,
+                    vested_index,
                     initial_unlock_amount,
                     address,
                     None,
@@ -122,7 +121,7 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
                 if address_index % 5 != 0 {
                     outputs.push(new_output(
                         &mut transaction_id,
-                        &mut vested_index,
+                        vested_index,
                         vested_amount,
                         address,
                         Some(timelock),
@@ -132,7 +131,7 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
                 else if timelock > now {
                     outputs.push(new_output(
                         &mut transaction_id,
-                        &mut vested_index,
+                        vested_index,
                         vested_amount,
                         address,
                         Some(timelock),

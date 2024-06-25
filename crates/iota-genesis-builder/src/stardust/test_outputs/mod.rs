@@ -33,8 +33,9 @@ pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
     let parser = FullSnapshotParser::new(current_file)?;
     let output_to_decrease_amount_from = OutputId::from_str(OUTPUT_TO_DECREASE_AMOUNT_FROM)?;
     let mut new_header = parser.header.clone();
+    let mut vested_index = u32::MAX;
 
-    let new_outputs = vesting_schedule_iota_airdrop::outputs().await?;
+    let new_outputs = vesting_schedule_iota_airdrop::outputs(&mut vested_index).await?;
     let new_amount = new_outputs.iter().map(|o| o.1.amount()).sum::<u64>();
 
     // Increments the output count according to newly generated outputs.
