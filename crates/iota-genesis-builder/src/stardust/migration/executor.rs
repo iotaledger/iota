@@ -301,7 +301,7 @@ impl Executor {
         &mut self,
         header: &OutputHeader,
         alias: &AliasOutput,
-        coin_type: &CoinType,
+        coin_type: CoinType,
     ) -> Result<CreatedObjects> {
         let mut created_objects = CreatedObjects::default();
 
@@ -640,7 +640,7 @@ impl Executor {
         &mut self,
         header: &OutputHeader,
         nft: &NftOutput,
-        coin_type: &CoinType,
+        coin_type: CoinType,
     ) -> Result<CreatedObjects> {
         let mut created_objects = CreatedObjects::default();
 
@@ -680,7 +680,7 @@ impl Executor {
             &self.protocol_config,
             &self.tx_context,
             version,
-            coin_type.clone(),
+            coin_type,
         )?;
         let move_nft_output_object_ref = move_nft_output_object.compute_object_reference();
         created_objects.set_output(move_nft_output_object.id())?;

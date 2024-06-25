@@ -66,7 +66,7 @@ fn migrate_nft(
     let (executor, objects_map) = run_migration(
         stardust_nft.amount(),
         [(header, stardust_nft.into())],
-        coin_type.clone(),
+        coin_type,
     )?;
 
     // Ensure the migrated objects exist under the expected identifiers.
