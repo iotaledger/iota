@@ -20,7 +20,7 @@ use crate::{
     collection_types::Bag,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
-    stardust::coin_type::CoinType,
+    stardust::{coin_type::CoinType, stardust_to_iota_address},
     TypeTag, STARDUST_PACKAGE_ID,
 };
 
@@ -89,7 +89,8 @@ impl BasicOutput {
         let sender = output
             .features()
             .sender()
-            .map(|sender| sender.address().into());
+            .map(|sender| stardust_to_iota_address(sender.address()))
+            .transpose()?;
 
         Ok(BasicOutput {
             id,
