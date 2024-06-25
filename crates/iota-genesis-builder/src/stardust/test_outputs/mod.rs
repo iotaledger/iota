@@ -10,25 +10,10 @@ use std::{
     str::FromStr,
 };
 
-use iota_sdk::types::block::{
-    output::{BasicOutputBuilder, Output, OutputId},
-    payload::milestone::{MilestoneOption, ParametersMilestoneOption},
-    protocol::ProtocolParameters,
-};
-use packable::{packer::IoPacker, Packable, PackableExt};
+use iota_sdk::types::block::output::{BasicOutputBuilder, Output, OutputId};
+use packable::{packer::IoPacker, Packable};
 
 use crate::stardust::parse::FullSnapshotParser;
-
-fn decreased_amount_output(output: Output, amount: u64) -> anyhow::Result<Output> {
-    let basic = output.as_basic();
-    let amount = basic.amount().checked_sub(amount).unwrap();
-
-    Ok(Output::from(
-        BasicOutputBuilder::from(basic)
-            .with_amount(amount)
-            .finish()?,
-    ))
-}
 
 /// Adds outputs to test specific and intricate scenario in the full snapshot.
 pub fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
@@ -48,31 +33,10 @@ pub fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
     )?;
 
     let new_outputs = dummy::outputs();
+    let new_amount = new_outputs.iter().map(|o| o.1.amount()).sum::<u64>();
 
     // Increments the output count according to newly generated outputs.
     parser.header.output_count += new_outputs.len() as u64;
-
-    // Creates new protocol parameters to increase the total supply according to
-    // newly generated outputs.
-    let params = parser.protocol_parameters()?;
-    let new_amount = new_outputs.iter().map(|o| o.1.amount()).sum::<u64>();
-    let new_params = ProtocolParameters::new(
-        params.protocol_version(),
-        params.network_name().to_owned(),
-        params.bech32_hrp(),
-        params.min_pow_score(),
-        params.below_max_depth(),
-        *params.rent_structure(),
-        params.token_supply() + new_amount,
-    )?;
-    if let MilestoneOption::Parameters(params) = &parser.header.parameters_milestone_option {
-        parser.header.parameters_milestone_option =
-            MilestoneOption::Parameters(ParametersMilestoneOption::new(
-                params.target_milestone_index(),
-                params.protocol_version(),
-                new_params.pack_to_vec(),
-            )?);
-    }
 
     // Writes the new header.
     parser.header.pack(&mut writer)?;
@@ -82,7 +46,15 @@ pub fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
         output_header.pack(&mut writer).unwrap();
 
         if output_header.output_id() == output_id_if {
-            decreased_amount_output(output, new_amount)?.pack(&mut writer)?;
+            let basic = output.as_basic();
+            let amount = basic.amount().checked_sub(new_amount).unwrap();
+            let output = Output::from(
+                BasicOutputBuilder::from(basic)
+                    .with_amount(amount)
+                    .finish()?,
+            );
+
+            output.pack(&mut writer)?;
         } else {
             output.pack(&mut writer)?;
         }
