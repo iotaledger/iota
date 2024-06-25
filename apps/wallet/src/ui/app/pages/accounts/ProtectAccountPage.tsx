@@ -29,6 +29,12 @@ const ALLOWED_ACCOUNT_TYPES: CreateType[] = [
     AccountType.Ledger,
 ];
 
+const REDIRECT_TO_ACCOUNTS_FINDER: CreateType[] = [
+    CreateAccountType.ImportMnemonic,
+    CreateAccountType.ImportSeed,
+    AccountType.Imported,
+];
+
 type AllowedAccountTypes = (typeof ALLOWED_ACCOUNT_TYPES)[number];
 
 function isAllowedAccountType(accountType: string): accountType is AllowedAccountTypes {
@@ -70,6 +76,14 @@ export function ProtectAccountPage() {
                         replace: true,
                         state: {
                             onboarding: true,
+                        },
+                    });
+                } else if (REDIRECT_TO_ACCOUNTS_FINDER.includes(type)) {
+                    const path = '/accounts/manage/accounts-finder/';
+                    navigate(path, {
+                        replace: true,
+                        state: {
+                            type: type,
                         },
                     });
                 } else {

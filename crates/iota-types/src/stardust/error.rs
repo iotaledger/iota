@@ -15,7 +15,7 @@ pub enum StardustError {
     #[error("invalid snapshot kind: {0}")]
     InvalidSnapshotKind(u8),
     #[error("block error: {0}")]
-    BlockError(#[from] iota_stardust_sdk::types::block::Error),
+    BlockError(iota_stardust_sdk::types::block::Error),
     #[error("{0}")]
     UnknownTag(#[from] UnknownTagError<u8>),
     #[error(
