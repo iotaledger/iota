@@ -113,7 +113,7 @@ mod tests {
             &ProtocolConfig::get_for_min_version(),
             &TxContext::random_for_testing_only(),
             1.into(),
-            &coin_type,
+            coin_type,
         )
     }
 

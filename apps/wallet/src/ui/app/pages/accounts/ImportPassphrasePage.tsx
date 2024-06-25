@@ -6,7 +6,10 @@ import { Text } from '_app/shared/text';
 import { entropyToSerialized, mnemonicToEntropy } from '_src/shared/utils/bip39';
 import { useNavigate } from 'react-router-dom';
 
-import { useAccountsFormContext } from '../../components/accounts/AccountsFormContext';
+import {
+    CreateAccountType,
+    useAccountsFormContext,
+} from '../../components/accounts/AccountsFormContext';
 import { ImportRecoveryPhraseForm } from '../../components/accounts/ImportRecoveryPhraseForm';
 import { Heading } from '../../shared/heading';
 
@@ -34,7 +37,7 @@ export function ImportPassphrasePage() {
                     submitButtonText="Add Account"
                     onSubmit={({ recoveryPhrase }) => {
                         setFormValues({
-                            type: 'import-mnemonic',
+                            type: CreateAccountType.ImportMnemonic,
                             entropy: entropyToSerialized(
                                 mnemonicToEntropy(recoveryPhrase.join(' ')),
                             ),
