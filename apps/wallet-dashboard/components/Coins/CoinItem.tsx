@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useFormatCoin } from '@iota/core';
-import { type ReactNode } from 'react';
+import React, { type ReactNode } from 'react';
 
 type CoinItemProps = {
     coinType: string;
@@ -10,7 +10,7 @@ type CoinItemProps = {
     action?: ReactNode;
 };
 
-function CoinItem({ coinType, balance, action }: CoinItemProps): JSX.Element {
+function CoinItem({ coinType, balance, action }: CoinItemProps): React.JSX.Element {
     const [formattedCoin, coinSymbol, { data: coinMeta }] = useFormatCoin(balance, coinType);
 
     return (

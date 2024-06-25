@@ -1,11 +1,12 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import React from 'react';
 import { filterAndSortTokenBalances } from '@iota/core';
 import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
 import { CoinItem, SendCoinButton } from '@/components';
 
-function AllCoins(): JSX.Element {
+function AllCoins(): React.JSX.Element {
     const account = useCurrentAccount();
     const { data: coins } = useIotaClientQuery(
         'getAllBalances',
@@ -26,9 +27,9 @@ function AllCoins(): JSX.Element {
                         coinType={coin.coinType}
                         balance={BigInt(coin.totalBalance)}
                         action={
-                            account?.address ? (
+                            account?.address && (
                                 <SendCoinButton address={account.address} coin={coin} />
-                            ) : null
+                            )
                         }
                     />
                 );
