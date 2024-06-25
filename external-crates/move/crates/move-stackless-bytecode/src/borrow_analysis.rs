@@ -61,10 +61,10 @@ impl BorrowInfo {
     }
 
     /// Gets the parents (together with the edges) of this node.
-    fn get_incoming(&self, node: &BorrowNode) -> Vec<(&BorrowNode, &BorrowEdge)> {
+    fn get_incoming(&self, node: &BorrowNode) -> Vec<&(BorrowNode, BorrowEdge)> {
         self.borrows_from
             .get(node)
-            .map(|s| s.iter().map(|(n, e)| (n, e)).collect_vec())
+            .map(|s| s.iter().collect_vec())
             .unwrap_or_default()
     }
 

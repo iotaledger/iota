@@ -78,6 +78,8 @@ pub mod programmable_transaction_builder;
 pub mod quorum_driver_types;
 pub mod randomness_state;
 pub mod signature;
+pub mod smr_coin;
+pub mod stardust;
 pub mod storage;
 pub mod timelock;
 pub mod transaction;

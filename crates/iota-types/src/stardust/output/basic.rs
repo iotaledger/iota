@@ -6,107 +6,26 @@
 
 use anyhow::Result;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk::types::block::address::Address;
-use iota_types::{
+use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
+
+use super::unlock_conditions::{
+    ExpirationUnlockCondition, StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
+};
+use crate::{
     balance::Balance,
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
     coin::Coin,
     collection_types::Bag,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
+    stardust::coin_type::CoinType,
     TypeTag, STARDUST_PACKAGE_ID,
 };
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
-
-use super::{snapshot::OutputHeader, stardust_to_iota_address};
 
 pub const BASIC_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("basic_output");
 pub const BASIC_OUTPUT_STRUCT_NAME: &IdentStr = ident_str!("BasicOutput");
-
-/// Rust version of the stardust expiration unlock condition.
-#[serde_as]
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
-pub struct ExpirationUnlockCondition {
-    /// The address who owns the output before the timestamp has passed.
-    pub owner: IotaAddress,
-    /// The address that is allowed to spend the locked funds after the
-    /// timestamp has passed.
-    pub return_address: IotaAddress,
-    /// Before this unix time, Address Unlock Condition is allowed to unlock the
-    /// output, after that only the address defined in Return Address.
-    pub unix_time: u32,
-}
-
-impl ExpirationUnlockCondition {
-    pub(crate) fn new(
-        owner_address: &Address,
-        expiration_unlock_condition: &iota_sdk::types::block::output::unlock_condition::ExpirationUnlockCondition,
-    ) -> anyhow::Result<Self> {
-        let owner = stardust_to_iota_address(owner_address)?;
-        let return_address =
-            stardust_to_iota_address(expiration_unlock_condition.return_address())?;
-        let unix_time = expiration_unlock_condition.timestamp();
-
-        Ok(Self {
-            owner,
-            return_address,
-            unix_time,
-        })
-    }
-}
-
-/// Rust version of the stardust storage deposit return unlock condition.
-#[serde_as]
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
-pub struct StorageDepositReturnUnlockCondition {
-    /// The address to which the consuming transaction should deposit the amount
-    /// defined in Return Amount.
-    pub return_address: IotaAddress,
-    /// The amount of IOTA coins the consuming transaction should deposit to the
-    /// address defined in Return Address.
-    pub return_amount: u64,
-}
-
-impl TryFrom<&iota_sdk::types::block::output::unlock_condition::StorageDepositReturnUnlockCondition>
-    for StorageDepositReturnUnlockCondition
-{
-    type Error = anyhow::Error;
-
-    fn try_from(
-        unlock: &iota_sdk::types::block::output::unlock_condition::StorageDepositReturnUnlockCondition,
-    ) -> Result<Self, Self::Error> {
-        let return_address = unlock.return_address().to_string().parse()?;
-        let return_amount = unlock.amount();
-        Ok(Self {
-            return_address,
-            return_amount,
-        })
-    }
-}
-
-/// Rust version of the stardust timelock unlock condition.
-#[serde_as]
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
-pub struct TimelockUnlockCondition {
-    /// The unix time (seconds since Unix epoch) starting from which the output
-    /// can be consumed.
-    pub unix_time: u32,
-}
-
-impl From<&iota_sdk::types::block::output::unlock_condition::TimelockUnlockCondition>
-    for TimelockUnlockCondition
-{
-    fn from(
-        unlock: &iota_sdk::types::block::output::unlock_condition::TimelockUnlockCondition,
-    ) -> Self {
-        Self {
-            unix_time: unlock.timestamp(),
-        }
-    }
-}
 
 /// Rust version of the stardust basic output.
 #[serde_as]
@@ -145,10 +64,10 @@ impl BasicOutput {
     /// [`OutputHeader`]
     /// and [`Output`][iota_sdk::types::block::output::BasicOutput].
     pub fn new(
-        header: OutputHeader,
-        output: &iota_sdk::types::block::output::BasicOutput,
+        header_object_id: ObjectID,
+        output: &iota_stardust_sdk::types::block::output::BasicOutput,
     ) -> Result<Self> {
-        let id = UID::new(ObjectID::new(header.output_id().hash()));
+        let id = UID::new(header_object_id);
         let balance = Balance::new(output.amount());
         let native_tokens = Default::default();
         let unlock_conditions = output.unlock_conditions();
@@ -205,13 +124,13 @@ impl BasicOutput {
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
         version: SequenceNumber,
-        type_param: TypeTag,
+        coin_type: &CoinType,
     ) -> Result<Object> {
         let move_object = unsafe {
             // Safety: we know from the definition of `BasicOutput` in the stardust package
             // that it is not publicly transferable (`store` ability is absent).
             MoveObject::new_from_execution(
-                BasicOutput::tag(type_param).into(),
+                BasicOutput::tag(coin_type.to_type_tag()).into(),
                 false,
                 version,
                 bcs::to_bytes(self)?,
@@ -239,32 +158,35 @@ impl BasicOutput {
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
         version: SequenceNumber,
+        coin_type: &CoinType,
     ) -> Result<Object> {
-        create_gas_coin(
+        create_coin(
             self.id,
             owner,
             self.balance.value(),
             tx_context,
             version,
             protocol_config,
+            coin_type,
         )
     }
 }
 
-pub(crate) fn create_gas_coin(
+pub(crate) fn create_coin(
     object_id: UID,
     owner: IotaAddress,
     amount: u64,
     tx_context: &TxContext,
     version: SequenceNumber,
     protocol_config: &ProtocolConfig,
+    coin_type: &CoinType,
 ) -> Result<Object> {
     let coin = Coin::new(object_id, amount);
     let move_object = unsafe {
         // Safety: we know from the definition of `Coin`
         // that it has public transfer (`store` ability is present).
         MoveObject::new_from_execution(
-            MoveObjectType::gas_coin(),
+            MoveObjectType::from(Coin::type_(coin_type.to_type_tag())),
             true,
             version,
             bcs::to_bytes(&coin)?,

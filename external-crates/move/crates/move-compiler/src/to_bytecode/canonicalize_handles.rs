@@ -307,7 +307,7 @@ fn remap_code(code: &mut CodeUnit, functions: &[TableIndex]) {
 ///
 /// is sorted according to `key`.
 fn permutation<'p, T, K: Ord>(
-    pool: &'p Vec<T>,
+    pool: &'p [T],
     key: impl Fn(TableIndex, &'p T) -> K + 'p,
 ) -> Vec<TableIndex> {
     let mut inverse: Vec<_> = (0..pool.len() as TableIndex).collect();
@@ -323,7 +323,7 @@ fn permutation<'p, T, K: Ord>(
 
 /// Re-order `pool` according to the `permutation` array.  `permutation[i]` is
 /// the new location of `pool[i]`.
-fn apply_permutation<T>(pool: &mut Vec<T>, mut permutation: Vec<TableIndex>) {
+fn apply_permutation<T>(pool: &mut [T], mut permutation: Vec<TableIndex>) {
     assert_eq!(pool.len(), permutation.len());
 
     // At every iteration we confirm that one more value is in its final position in

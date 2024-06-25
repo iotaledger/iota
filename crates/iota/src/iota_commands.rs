@@ -532,7 +532,7 @@ async fn genesis(
                 i,
             ));
             let mut val_p2p = validator.p2p_config.clone();
-            val_p2p.seed_peers = ssfn_seed_peers.clone();
+            val_p2p.seed_peers.clone_from(&ssfn_seed_peers);
             validator.p2p_config = val_p2p;
             validator.save(path)?;
         }
