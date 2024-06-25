@@ -75,7 +75,6 @@ export function ProtectAccountPage() {
                         },
                     });
                 } else if (REDIRECT_TO_ACCOUNT_FINDER.includes(type)) {
-                    // const path = '/accounts/accounts-finder/';
                     const path = '/accounts/manage/accounts-finder/';
                     navigate(path, {
                         replace: true,
