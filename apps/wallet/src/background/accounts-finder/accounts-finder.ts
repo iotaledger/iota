@@ -48,7 +48,6 @@ export async function recoverAccounts(
 
     // Check addresses for new accounts
     for (let accountIndex = accountsLength; accountIndex < targetIndex; accountIndex += 1) {
-        // console.log(`generating account ${accountIndex}`);
         let account: FoundAccount = {
             index: accountIndex,
             addresses: [],
@@ -85,7 +84,6 @@ async function searchAddressesWithObjects(
     let targetIndex = accountAddressLength + addressGapLimit;
 
     for (let addressIndex = accountAddressLength; addressIndex < targetIndex; addressIndex += 1) {
-        // console.log(`generating account ${account.index} address with index: ` + addressIndex)
         const changeIndexes = [0, 1]; // in the past the change indexes were used as 0=deposit & 1=internal
         for (const changeIndex of changeIndexes) {
             const bipPath = `m/44'/${coinType}'/${account.index}'/${changeIndex}'/${addressIndex}'`;
@@ -99,9 +97,6 @@ async function searchAddressesWithObjects(
             });
 
             if (hasBalance(balance)) {
-                console.log(
-                    `Found objects for account ${account.index} change ${changeIndex} address ${addressIndex}`,
-                );
                 // Generate more addresses if something was found
                 targetIndex = addressIndex + 1 + addressGapLimit;
             }

@@ -46,7 +46,6 @@ test('existing accounts', async () => {
     ];
 
     accounts = await recoverAccounts(0, 0, 0, 1, accounts, seed, coinType, client, GAS_TYPE_ARG);
-    // console.log(JSON.stringify(accounts))
     let expectedAccounts = 1;
     console.assert(
         accounts.length == expectedAccounts,
@@ -59,7 +58,6 @@ test('existing accounts', async () => {
     );
 
     accounts = await recoverAccounts(0, 1, 0, 16, accounts, seed, coinType, client, GAS_TYPE_ARG);
-    // console.log(JSON.stringify(accounts, null, 2))
     console.assert(
         accounts.length == accounts[accounts.length - 1].index + 1,
         `accounts length mismatch`,
@@ -101,7 +99,6 @@ test('empty accounts', async () => {
     );
 
     accounts = await recoverAccounts(0, 1, 0, 10, accounts, seed, coinType, client, GAS_TYPE_ARG);
-    // console.log(JSON.stringify(accounts))
     expectedAccounts = 1;
     console.assert(
         accounts.length == expectedAccounts,
@@ -114,7 +111,6 @@ test('empty accounts', async () => {
     );
 
     accounts = await recoverAccounts(0, 5, 0, 5, accounts, seed, coinType, client, GAS_TYPE_ARG);
-    // console.log(JSON.stringify(accounts))
     expectedAccounts = 6;
     console.assert(
         accounts.length == expectedAccounts,
