@@ -20,7 +20,7 @@ use iota_sdk::{
     },
 };
 use iota_types::timelock::timelock::VESTED_REWARD_ID_PREFIX;
-use rand::{random, thread_rng, Rng};
+use rand::{random, rngs::StdRng, Rng, SeedableRng};
 
 use crate::stardust::types::output_header::OutputHeader;
 
@@ -71,8 +71,11 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let mut outputs = Vec::new();
     let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
     let mut transaction_id = [0; 32];
-    let mut rng = thread_rng();
     let mut vested_index = u32::MAX;
+
+    let randomness_seed = random::<u64>();
+    let mut rng = StdRng::seed_from_u64(randomness_seed);
+    println!("vesting_schedule_iota_airdrop randomness seed: {randomness_seed}");
 
     // Prepare a transaction ID with the vested reward prefix.
     transaction_id[0..28]
