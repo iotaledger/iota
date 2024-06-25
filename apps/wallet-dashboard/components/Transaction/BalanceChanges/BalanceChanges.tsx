@@ -12,10 +12,8 @@ export default function BalanceChanges({ balanceChanges }: BalanceChangesProps) 
     if (!balanceChanges) return null;
     return (
         <>
-            {Object.entries(balanceChanges).map(([owner, balanceChanges]) => (
-                <div key={owner}>
-                    <BalanceChangeEntries balanceChanges={balanceChanges} />
-                </div>
+            {Object.entries(balanceChanges).map(([owner, balanceChanges], index) => (
+                <BalanceChangeEntries balanceChanges={balanceChanges} key={owner + index} />
             ))}
         </>
     );

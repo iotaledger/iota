@@ -8,11 +8,14 @@ interface BalanceChangeEntryProps {
     balanceChange: BalanceChange;
 }
 
-export default function BalanceChangeEntry({ balanceChange }: BalanceChangeEntryProps) {
-    const { amount, coinType, unRecognizedToken } = balanceChange;
-    const isPositive = BigInt(amount) > 0n;
+export default function BalanceChangeEntry({
+    balanceChange: { amount, coinType, unRecognizedToken, owner },
+}: BalanceChangeEntryProps) {
     const [formatted, symbol] = useFormatCoin(amount, coinType, CoinFormat.FULL);
     const { data: coinMetaData } = useCoinMetadata(coinType);
+
+    const isPositive = BigInt(amount) > 0n;
+
     return (
         <div className="flex flex-col py-2">
             <div className="flex flex-row justify-between space-x-2 py-2">
@@ -25,10 +28,10 @@ export default function BalanceChangeEntry({ balanceChange }: BalanceChangeEntry
                     {formatted} {symbol}
                 </div>
             </div>
-            {balanceChange.owner && (
+            {owner && (
                 <div className="flex w-full flex-row justify-between space-x-2 border-t pt-1">
                     <span>Owner</span>
-                    <span>{formatAddress(balanceChange.owner)}</span>
+                    <span>{formatAddress(owner)}</span>
                 </div>
             )}
         </div>

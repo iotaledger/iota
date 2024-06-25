@@ -1,7 +1,12 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { IotaObjectChangeWithDisplay, getObjectChangeLabel, getOwnerDisplay } from '@iota/core';
+import {
+    IotaObjectChangeWithDisplay,
+    getObjectChangeLabel,
+    getOwnerDisplay,
+    parseObjectChangeDetails,
+} from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { DisplayFieldsResponse, IotaObjectChange } from '@iota/iota.js/client';
 import { formatAddress, isValidIotaAddress } from '@iota/iota.js/utils';
@@ -29,7 +34,7 @@ export default function ObjectDetail({ change, owner, ownerType, displayData }: 
         return null;
     }
 
-    const [packageId, moduleName, typeName] = change.objectType?.split('<')[0]?.split('::') || [];
+    const [packageId, moduleName, typeName] = parseObjectChangeDetails(change);
 
     const objectDetails: {
         label: ObjectDetailLabel;

@@ -20,12 +20,11 @@ export default function BalanceChangeEntries({
 
     return (
         <div>
-            {[...recognizedTokenChanges, ...unRecognizedTokenChanges].map((balanceChange) => (
-                <BalanceChangeEntry
-                    balanceChange={balanceChange}
-                    key={balanceChange.coinType + balanceChange.amount}
-                />
-            ))}
+            {[...recognizedTokenChanges, ...unRecognizedTokenChanges].map(
+                (balanceChange, index) => (
+                    <BalanceChangeEntry balanceChange={balanceChange} key={index} />
+                ),
+            )}
         </div>
     );
 }
