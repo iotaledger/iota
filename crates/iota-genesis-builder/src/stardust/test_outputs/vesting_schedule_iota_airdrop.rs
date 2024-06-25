@@ -118,17 +118,8 @@ pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(Outpu
                 let timelock = MERGE_TIMESTAMP_SECS + offset as u32 * 604_800;
 
                 // 4 addresses out of 5 have unexpired and expired timelocked vested outputs.
-                if address_index % 5 != 0 {
-                    outputs.push(new_output(
-                        &mut transaction_id,
-                        vested_index,
-                        vested_amount,
-                        address,
-                        Some(timelock),
-                    )?);
-                }
                 // 1 address out of 4 only has unexpired timelocked vested outputs.
-                else if timelock > now {
+                if address_index % 5 != 0 || timelock > now {
                     outputs.push(new_output(
                         &mut transaction_id,
                         vested_index,
