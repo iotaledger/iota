@@ -15,6 +15,9 @@ use packable::{packer::IoPacker, Packable};
 
 use crate::stardust::parse::FullSnapshotParser;
 
+const OUTPUT_TO_DECREASE_AMOUNT_FROM: &str =
+    "0xb462c8b2595d40d3ff19924e3731f501aab13e215613ce3e248d0ed9f212db160000";
+
 /// Adds outputs to test specific and intricate scenario in the full snapshot.
 pub fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
     current_path: P,
@@ -28,9 +31,7 @@ pub fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
         .open(new_path)?;
     let mut writer = IoPacker::new(BufWriter::new(new_file));
     let mut parser = FullSnapshotParser::new(current_file)?;
-    let output_id_if = OutputId::from_str(
-        "0xb462c8b2595d40d3ff19924e3731f501aab13e215613ce3e248d0ed9f212db160000",
-    )?;
+    let output_id_if = OutputId::from_str(OUTPUT_TO_DECREASE_AMOUNT_FROM)?;
 
     let new_outputs = dummy::outputs();
     let new_amount = new_outputs.iter().map(|o| o.1.amount()).sum::<u64>();
