@@ -119,7 +119,7 @@ impl BasicOutput {
     ///
     /// Returns `true` in particular when the given milestone timestamp is equal
     /// or past the unix timestamp in a present timelock and no other unlock
-    /// condition is present.
+    /// condition or metadata, tag, sender feature is present.
     pub fn is_simple_coin(&self, target_milestone_timestamp_sec: u32) -> bool {
         !(self.expiration.is_some()
             || self.storage_deposit_return.is_some()

@@ -86,8 +86,8 @@ pub(super) fn verify_basic_output(
         return Ok(());
     }
 
-    // If the output has multiple unlock conditions, then a genesis object should
-    // have been created.
+    // If the output has multiple unlock conditions or a metadata, tag or sender
+    // feature, then a genesis object should have been created.
     if output.unlock_conditions().expiration().is_some()
         || output
             .unlock_conditions()
@@ -96,6 +96,9 @@ pub(super) fn verify_basic_output(
         || output
             .unlock_conditions()
             .is_time_locked(target_milestone_timestamp)
+        || output.features().metadata().is_some()
+        || output.features().tag().is_some()
+        || output.features().sender().is_some()
     {
         ensure!(created_objects.coin().is_err(), "unexpected coin created");
 
