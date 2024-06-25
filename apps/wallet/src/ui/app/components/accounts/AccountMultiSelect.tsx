@@ -7,7 +7,7 @@ import { type SerializedUIAccount } from '_src/background/accounts/Account';
 import * as ToggleGroup from '@radix-ui/react-toggle-group';
 import { useState } from 'react';
 
-import { Button } from '../../shared/ButtonUI';
+import { SelectAllButton } from '_components/accounts/SelectAllButton';
 
 type AccountMultiSelectProps = {
     accounts: SerializedUIAccount[];
@@ -61,23 +61,10 @@ export function AccountMultiSelectWithControls({
             />
 
             {accounts.length > 1 ? (
-                <Button
-                    onClick={() => {
-                        if (selectedAccountIds.length < accounts.length) {
-                            // select all accounts if not all are selected
-                            onChange(accounts.map((account) => account.id));
-                        } else {
-                            // deselect all accounts
-                            onChange([]);
-                        }
-                    }}
-                    variant="outline"
-                    size="xs"
-                    text={
-                        selectedAccountIds.length < accounts.length
-                            ? 'Select All Accounts'
-                            : 'Deselect All Accounts'
-                    }
+                <SelectAllButton
+                    accountIds={accounts.map((account) => account.id)}
+                    selectedAccountIds={selectedAccountIds}
+                    onChange={onChange}
                 />
             ) : null}
         </div>
