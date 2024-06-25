@@ -96,9 +96,7 @@ pub(super) fn verify_basic_output(
         || output
             .unlock_conditions()
             .is_time_locked(target_milestone_timestamp)
-        || output.features().metadata().is_some()
-        || output.features().tag().is_some()
-        || output.features().sender().is_some()
+        || !output.features().is_empty()
     {
         ensure!(created_objects.coin().is_err(), "unexpected coin created");
 
