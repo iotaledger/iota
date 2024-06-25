@@ -827,6 +827,7 @@ module iota_system::iota_system_state_inner {
         self: &mut IotaSystemStateInnerV2,
         new_epoch: u64,
         next_protocol_version: u64,
+        validator_target_reward: u64,
         mut storage_reward: Balance<IOTA>,
         mut computation_reward: Balance<IOTA>,
         mut storage_rebate_amount: u64,
@@ -869,20 +870,19 @@ module iota_system::iota_system_state_inner {
         let storage_charge = storage_reward.value();
         let computation_charge = computation_reward.value();
 
-        // Include stake subsidy in the rewards given out to validators and stakers.
-        // Delay distributing any stake subsidies until after `stake_subsidy_start_epoch`.
-        // And if this epoch is shorter than the regular epoch duration, don't distribute any stake subsidy.
-        let stake_subsidy =
-            if (ctx.epoch() >= self.parameters.stake_subsidy_start_epoch  &&
-                epoch_start_timestamp_ms >= prev_epoch_start_timestamp + self.parameters.epoch_duration_ms)
-            {
-                self.stake_subsidy.advance_epoch()
-            } else {
-                balance::zero()
-            };
-
-        let stake_subsidy_amount = stake_subsidy.value();
-        computation_reward.join(stake_subsidy);
+        let mut computation_reward = if (computation_reward.value() < validator_target_reward) {
+          let tokens_to_mint = validator_target_reward - computation_reward.value();
+          let new_tokens = self.iota_treasury_cap.supply_mut().increase_supply(tokens_to_mint);
+          computation_reward.join(new_tokens);
+          computation_reward
+        } else if (computation_reward.value() > validator_target_reward) {
+          let tokens_to_burn = computation_reward.value() - validator_target_reward;
+          let rewards_to_burn = computation_reward.split(tokens_to_burn);
+          self.iota_treasury_cap.supply_mut().decrease_supply(rewards_to_burn);
+          computation_reward
+        } else {
+          computation_reward
+        };
 
         let total_stake_u128 = total_stake as u128;
         let computation_charge_u128 = computation_charge as u128;

@@ -123,7 +123,7 @@ module iota_system::governance_test_utils {
         let ctx = scenario.ctx();
 
         let storage_rebate = system_state.advance_epoch_for_testing(
-            new_epoch, 1, storage_charge, computation_charge, stoarge_rebate, non_refundable_storage_rebate, 0, 0, 0, ctx,
+            new_epoch, 1, computation_charge, storage_charge, computation_charge, stoarge_rebate, non_refundable_storage_rebate, 0, 0, 0, ctx,
         );
         test_scenario::return_shared(system_state);
         scenario.next_epoch(@0x0);
@@ -149,8 +149,9 @@ module iota_system::governance_test_utils {
 
         let ctx = scenario.ctx();
 
+        let validator_target_reward = computation_charge * MICROS_PER_IOTA;
         let storage_rebate = system_state.advance_epoch_for_testing(
-            new_epoch, 1, storage_charge * MICROS_PER_IOTA, computation_charge * MICROS_PER_IOTA, 0, 0, 0, reward_slashing_rate, 0, ctx
+            new_epoch, 1, validator_target_reward, storage_charge * MICROS_PER_IOTA, computation_charge * MICROS_PER_IOTA, 0, 0, 0, reward_slashing_rate, 0, ctx
         );
         test_utils::destroy(storage_rebate);
         test_scenario::return_shared(system_state);

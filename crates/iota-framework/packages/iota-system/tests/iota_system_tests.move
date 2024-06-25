@@ -17,7 +17,7 @@ module iota_system::iota_system_tests {
     use iota_system::validator_set;
     use iota_system::validator_cap::UnverifiedValidatorOperationCap;
     use iota::balance;
-    use iota::test_utils::{assert_eq, destroy};
+    use iota::test_utils::assert_eq;
     use iota::url;
 
     #[test]

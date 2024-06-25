@@ -1362,7 +1362,7 @@ gas coins.
 4. Update all validators.
 
 
-<pre><code><b>fun</b> <a href="iota_system.md#0x3_iota_system_advance_epoch">advance_epoch</a>(storage_reward: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, computation_reward: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, wrapper: &<b>mut</b> <a href="iota_system.md#0x3_iota_system_IotaSystemState">iota_system::IotaSystemState</a>, new_epoch: u64, next_protocol_version: u64, storage_rebate: u64, non_refundable_storage_fee: u64, storage_fund_reinvest_rate: u64, reward_slashing_rate: u64, epoch_start_timestamp_ms: u64, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
+<pre><code><b>fun</b> <a href="iota_system.md#0x3_iota_system_advance_epoch">advance_epoch</a>(validator_target_reward: u64, storage_reward: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, computation_reward: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, wrapper: &<b>mut</b> <a href="iota_system.md#0x3_iota_system_IotaSystemState">iota_system::IotaSystemState</a>, new_epoch: u64, next_protocol_version: u64, storage_rebate: u64, non_refundable_storage_fee: u64, storage_fund_reinvest_rate: u64, reward_slashing_rate: u64, epoch_start_timestamp_ms: u64, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
 </code></pre>
 
 
@@ -1372,6 +1372,7 @@ gas coins.
 
 
 <pre><code><b>fun</b> <a href="iota_system.md#0x3_iota_system_advance_epoch">advance_epoch</a>(
+    validator_target_reward: u64,
     storage_reward: Balance&lt;IOTA&gt;,
     computation_reward: Balance&lt;IOTA&gt;,
     wrapper: &<b>mut</b> <a href="iota_system.md#0x3_iota_system_IotaSystemState">IotaSystemState</a>,
@@ -1391,6 +1392,7 @@ gas coins.
     <b>let</b> storage_rebate = self.<a href="iota_system.md#0x3_iota_system_advance_epoch">advance_epoch</a>(
         new_epoch,
         next_protocol_version,
+        validator_target_reward,
         storage_reward,
         computation_reward,
         storage_rebate,
