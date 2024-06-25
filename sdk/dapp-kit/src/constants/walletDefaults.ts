@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { WalletWithRequiredFeatures } from '@iota/wallet-standard';
-import { ZKSEND_WALLET_NAME } from '@iota/zksend';
 
 import { createInMemoryStore } from '../utils/stateStorage.js';
 
@@ -18,4 +17,4 @@ export const DEFAULT_REQUIRED_FEATURES: (keyof WalletWithRequiredFeatures['featu
     'iota:signTransactionBlock',
 ];
 
-export const DEFAULT_PREFERRED_WALLETS = [IOTA_WALLET_NAME, ZKSEND_WALLET_NAME];
+export const DEFAULT_PREFERRED_WALLETS = [IOTA_WALLET_NAME];

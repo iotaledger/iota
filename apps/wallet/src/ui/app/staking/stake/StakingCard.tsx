@@ -7,7 +7,6 @@ import { Button } from '_app/shared/ButtonUI';
 import { Collapsible } from '_app/shared/collapse';
 import { Text } from '_app/shared/text';
 import Loading from '_components/loading';
-import { parseAmount } from '_helpers';
 import { Coin } from '_redux/slices/iota-objects/Coin';
 import { ampli } from '_src/shared/analytics/ampli';
 import {
@@ -18,10 +17,11 @@ import {
 import { FEATURES } from '_src/shared/experimentation/features';
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
 import {
+    parseAmount,
+    useBalance,
     useCoinMetadata,
     useGetDelegatedStake,
     createUnstakeTransaction,
-    useBalance,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { ArrowLeft16 } from '@iota/icons';

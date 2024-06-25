@@ -3,3 +3,4 @@
 
 export * from './useUnstakeTransaction';
 export * from './usePopups';
+export * from './useSendCoinTransaction';

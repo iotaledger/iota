@@ -11,10 +11,6 @@
         "title": "Kiosk SDK",
         "type": "page"
     },
-    "zksend": {
-        "title": "zkSend SDK",
-        "type": "page"
-    },
     "bcs": {
         "title": "BCS",
         "type": "page"
