@@ -32,8 +32,10 @@ export default function RootLayout({
                 <PopupProvider>
                     <QueryClientProvider client={queryClient}>
                         <IotaClientProvider networks={allNetworks} defaultNetwork={defaultNetwork}>
-                            <WalletProvider>{children}</WalletProvider>
-                            <Popup />
+                            <WalletProvider>
+                                {children}
+                                <Popup />
+                            </WalletProvider>
                         </IotaClientProvider>
                     </QueryClientProvider>
                 </PopupProvider>

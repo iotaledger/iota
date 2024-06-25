@@ -22,6 +22,7 @@ use iota_types::{
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
+    stardust::coin_type::CoinType,
     transaction::{Argument, CheckedInputObjects, ObjectArg},
     TypeTag, IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID,
 };
@@ -35,9 +36,9 @@ use crate::stardust::{
             Migration, MIGRATION_PROTOCOL_VERSION, NATIVE_TOKEN_BAG_KEY_TYPE, PACKAGE_DEPS,
         },
         verification::created_objects::CreatedObjects,
-        CoinType, MigrationTargetNetwork,
+        MigrationTargetNetwork,
     },
-    types::snapshot::OutputHeader,
+    types::output_header::OutputHeader,
 };
 
 mod alias;
@@ -101,7 +102,7 @@ fn object_migration_with_object_owner(
     unlock_condition_function: &IdentStr,
     coin_type: CoinType,
 ) -> anyhow::Result<()> {
-    let (mut executor, objects_map) = run_migration(total_supply, outputs, coin_type.clone())?;
+    let (mut executor, objects_map) = run_migration(total_supply, outputs, coin_type)?;
 
     // Find the corresponding objects to the migrated outputs.
     let owner_created_objects = objects_map
@@ -243,7 +244,7 @@ fn extract_native_token_from_bag(
 ) -> anyhow::Result<()> {
     let native_token_id: &TokenId = native_token.token_id();
 
-    let (mut executor, objects_map) = run_migration(total_supply, outputs, coin_type.clone())?;
+    let (mut executor, objects_map) = run_migration(total_supply, outputs, coin_type)?;
 
     // Find the corresponding objects to the migrated output.
     let output_created_objects = objects_map
@@ -396,8 +397,7 @@ fn unlock_object(
     expected_assets: ExpectedAssets,
     coin_type: CoinType,
 ) -> anyhow::Result<()> {
-    let (migration_executor, objects_map) =
-        run_migration(total_supply, outputs, coin_type.clone())?;
+    let (migration_executor, objects_map) = run_migration(total_supply, outputs, coin_type)?;
 
     // Recreate the TxContext and Executor so we can set a timestamp greater than 0.
     let tx_context = TxContext::new(
@@ -418,7 +418,7 @@ fn unlock_object(
     let mut executor = Executor::new(
         MIGRATION_PROTOCOL_VERSION.into(),
         MigrationTargetNetwork::Mainnet,
-        coin_type.clone(),
+        coin_type,
     )
     .unwrap()
     .with_tx_context(tx_context)

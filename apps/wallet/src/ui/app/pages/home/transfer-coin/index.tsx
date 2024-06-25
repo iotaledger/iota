@@ -12,7 +12,7 @@ import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessage
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 import { useSigner } from '_src/ui/app/hooks/useSigner';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
-import { useCoinMetadata } from '@iota/core';
+import { createTokenTransferTransaction, useCoinMetadata } from '@iota/core';
 import { ArrowLeft16, ArrowRight16 } from '@iota/icons';
 // import * as Sentry from '@sentry/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -23,7 +23,6 @@ import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { PreviewTransfer } from './PreviewTransfer';
 import { SendTokenForm } from './SendTokenForm';
 import type { SubmitProps } from './SendTokenForm';
-import { createTokenTransferTransaction } from './utils/transaction';
 
 function TransferCoinPage() {
     const [searchParams] = useSearchParams();

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
+import { AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
 import { AccountIcon } from '_src/ui/app/components/accounts/AccountIcon';
 import { AccountItem } from '_src/ui/app/components/accounts/AccountItem';
 import { useAccountsFormContext } from '_src/ui/app/components/accounts/AccountsFormContext';
@@ -32,10 +32,10 @@ import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
 const ACCOUNT_TYPE_TO_LABEL: Record<AccountType, string> = {
-    'mnemonic-derived': 'Passphrase Derived',
-    'seed-derived': 'Seed Derived',
-    imported: 'Imported',
-    ledger: 'Ledger',
+    [AccountType.MnemonicDerived]: 'Passphrase Derived',
+    [AccountType.SeedDerived]: 'Seed Derived',
+    [AccountType.Imported]: 'Imported',
+    [AccountType.Ledger]: 'Ledger',
 };
 
 export function getGroupTitle(aGroupAccount: SerializedUIAccount) {
@@ -152,8 +152,8 @@ export function AccountGroup({
 }) {
     const navigate = useNavigate();
     const createAccountMutation = useCreateAccountsMutation();
-    const isMnemonicDerivedGroup = type === 'mnemonic-derived';
-    const isSeedDerivedGroup = type === 'seed-derived';
+    const isMnemonicDerivedGroup = type === AccountType.MnemonicDerived;
+    const isSeedDerivedGroup = type === AccountType.SeedDerived;
     const [accountsFormValues, setAccountsFormValues] = useAccountsFormContext();
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
     const { data: accountSources } = useAccountSources();
