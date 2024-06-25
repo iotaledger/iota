@@ -19,7 +19,7 @@ A timelock implementation.
 -  [Function `is_labeled_with`](#0x10cf_timelock_is_labeled_with)
 -  [Function `pack`](#0x10cf_timelock_pack)
 -  [Function `unpack`](#0x10cf_timelock_unpack)
--  [Function `transfer`](#0x10cf_timelock_transfer)
+-  [Function `self_transfer`](#0x10cf_timelock_self_transfer)
 -  [Function `check_expiration_timestamp_ms`](#0x10cf_timelock_check_expiration_timestamp_ms)
 
 
@@ -464,14 +464,14 @@ An utility function to unpack a <code><a href="timelock.md#0x10cf_timelock_TimeL
 
 </details>
 
-<a name="0x10cf_timelock_transfer"></a>
+<a name="0x10cf_timelock_self_transfer"></a>
 
-## Function `transfer`
+## Function `self_transfer`
 
-An utility function to transfer a <code><a href="timelock.md#0x10cf_timelock_TimeLock">TimeLock</a></code>.
+An utility function to transfer a <code><a href="timelock.md#0x10cf_timelock_TimeLock">TimeLock</a></code> to its original owner.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="../iota-framework/transfer.md#0x2_transfer">transfer</a>&lt;T: store&gt;(lock: <a href="timelock.md#0x10cf_timelock_TimeLock">timelock::TimeLock</a>&lt;T&gt;, recipient: <b>address</b>)
+<pre><code><b>public</b> <b>fun</b> <a href="timelock.md#0x10cf_timelock_self_transfer">self_transfer</a>&lt;T: store&gt;(lock: <a href="timelock.md#0x10cf_timelock_TimeLock">timelock::TimeLock</a>&lt;T&gt;, ctx: &<a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -480,8 +480,8 @@ An utility function to transfer a <code><a href="timelock.md#0x10cf_timelock_Tim
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(package) <b>fun</b> <a href="../iota-framework/transfer.md#0x2_transfer">transfer</a>&lt;T: store&gt;(lock: <a href="timelock.md#0x10cf_timelock_TimeLock">TimeLock</a>&lt;T&gt;, recipient: <b>address</b>) {
-    <a href="../iota-framework/transfer.md#0x2_transfer_transfer">transfer::transfer</a>(lock, recipient);
+<pre><code><b>public</b> <b>fun</b> <a href="timelock.md#0x10cf_timelock_self_transfer">self_transfer</a>&lt;T: store&gt;(lock: <a href="timelock.md#0x10cf_timelock_TimeLock">TimeLock</a>&lt;T&gt;, ctx: &TxContext) {
+    <a href="../iota-framework/transfer.md#0x2_transfer_transfer">transfer::transfer</a>(lock, ctx.sender())
 }
 </code></pre>
 
