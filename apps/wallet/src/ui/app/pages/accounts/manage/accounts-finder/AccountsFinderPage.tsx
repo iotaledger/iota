@@ -11,22 +11,22 @@ export function AccountsFinderPage() {
     const MOCKED_ACCOUNTS = [
         {
             id: '0',
-            address: '00x0000000000000000000000000000',
+            address: '0x0000000000000000000000000000',
             balance: 100,
         },
         {
             id: '1',
-            address: '00x0000000000000000000000000000',
+            address: '0x0000000000000000000000000000',
             balance: 200,
         },
         {
             id: '2',
-            address: '00x0000000000000000000000000000',
+            address: '0x0000000000000000000000000000',
             balance: 0,
         },
         {
             id: '3',
-            address: '00x0000000000000000000000000000',
+            address: '0x0000000000000000000000000000',
             balance: 50,
         },
     ];
