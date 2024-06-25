@@ -7,15 +7,16 @@ use std::{
     fs::{File, OpenOptions},
     io::BufWriter,
     path::Path,
+    str::FromStr,
 };
 
-use iota_sdk::types::block::{
-    payload::milestone::{MilestoneOption, ParametersMilestoneOption},
-    protocol::ProtocolParameters,
-};
-use packable::{packer::IoPacker, Packable, PackableExt};
+use iota_sdk::types::block::output::{BasicOutputBuilder, Output, OutputId};
+use packable::{packer::IoPacker, Packable};
 
 use crate::stardust::parse::FullSnapshotParser;
+
+const OUTPUT_TO_DECREASE_AMOUNT_FROM: &str =
+    "0xb462c8b2595d40d3ff19924e3731f501aab13e215613ce3e248d0ed9f212db160000";
 
 /// Adds outputs to test specific and intricate scenario in the full snapshot.
 pub fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
@@ -30,45 +31,38 @@ pub fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
         .open(new_path)?;
     let mut writer = IoPacker::new(BufWriter::new(new_file));
     let mut parser = FullSnapshotParser::new(current_file)?;
+    let output_to_decrease_amount_from = OutputId::from_str(OUTPUT_TO_DECREASE_AMOUNT_FROM)?;
 
     let new_outputs = dummy::outputs();
+    let new_amount = new_outputs.iter().map(|o| o.1.amount()).sum::<u64>();
 
     // Increments the output count according to newly generated outputs.
     parser.header.output_count += new_outputs.len() as u64;
-
-    // Creates new protocol parameters to increase the total supply according to
-    // newly generated outputs.
-    let params = parser.protocol_parameters()?;
-    let new_params = ProtocolParameters::new(
-        params.protocol_version(),
-        params.network_name().to_owned(),
-        params.bech32_hrp(),
-        params.min_pow_score(),
-        params.below_max_depth(),
-        *params.rent_structure(),
-        params.token_supply() + new_outputs.iter().map(|o| o.1.amount()).sum::<u64>(),
-    )?;
-    if let MilestoneOption::Parameters(params) = &parser.header.parameters_milestone_option {
-        parser.header.parameters_milestone_option =
-            MilestoneOption::Parameters(ParametersMilestoneOption::new(
-                params.target_milestone_index(),
-                params.protocol_version(),
-                new_params.pack_to_vec(),
-            )?);
-    }
 
     // Writes the new header.
     parser.header.pack(&mut writer)?;
 
     // Writes previous and new outputs.
-    parser
-        .outputs()
-        .filter_map(|o| o.ok())
-        .chain(new_outputs)
-        .for_each(|(output_header, output)| {
-            output_header.pack(&mut writer).unwrap();
-            output.pack(&mut writer).unwrap();
-        });
+    for (output_header, output) in parser.outputs().filter_map(|o| o.ok()).chain(new_outputs) {
+        output_header.pack(&mut writer)?;
+
+        if output_header.output_id() == output_to_decrease_amount_from {
+            let basic = output.as_basic();
+            let amount = basic
+                .amount()
+                .checked_sub(new_amount)
+                .ok_or_else(|| anyhow::anyhow!("underflow decreasing new amount from output"))?;
+            let output = Output::from(
+                BasicOutputBuilder::from(basic)
+                    .with_amount(amount)
+                    .finish()?,
+            );
+
+            output.pack(&mut writer)?;
+        } else {
+            output.pack(&mut writer)?;
+        }
+    }
 
     Ok(())
 }
