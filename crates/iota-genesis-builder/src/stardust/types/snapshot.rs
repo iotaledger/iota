@@ -55,7 +55,7 @@ pub struct FullSnapshotHeader {
     ledger_milestone_index: MilestoneIndex,
     treasury_output_milestone_id: MilestoneId,
     treasury_output_amount: u64,
-    pub(crate) parameters_milestone_option: MilestoneOption,
+    parameters_milestone_option: MilestoneOption,
     pub(crate) output_count: u64,
     milestone_diff_count: MilestoneDiffCount,
     sep_count: u16,
@@ -182,6 +182,7 @@ impl Packable for FullSnapshotHeader {
             u16::unpack::<_, VERIFY>(unpacker, &()).coerce()?;
         let parameters_milestone_option =
             MilestoneOption::unpack::<_, true>(unpacker, &ProtocolParameters::default())
+                .map_packable_err(StardustError::BlockError)
                 .coerce()?;
         let output_count = u64::unpack::<_, VERIFY>(unpacker, &()).coerce()?;
         let milestone_diff_count =
