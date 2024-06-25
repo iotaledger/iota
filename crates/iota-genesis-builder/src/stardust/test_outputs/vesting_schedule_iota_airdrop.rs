@@ -35,12 +35,13 @@ const MERGE_TIMESTAMP_SECS: u32 = 1696406475;
 
 fn new_output(
     transaction_id: &mut [u8; 32],
+    vested_index: &mut u32,
     amount: u64,
     address: Ed25519Address,
     timelock: Option<u32>,
 ) -> anyhow::Result<(OutputHeader, Output)> {
-    // TODO what is this part of the ID supposed to be?
-    transaction_id[28..32].copy_from_slice(&random::<[u8; 4]>());
+    transaction_id[28..32].copy_from_slice(&vested_index.to_le_bytes());
+    *vested_index -= 1;
 
     let output_header = OutputHeader::new_testing(
         *transaction_id,
@@ -71,6 +72,7 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
     let mut transaction_id = [0; 32];
     let mut rng = thread_rng();
+    let mut vested_index = u32::MAX;
 
     // Prepare a transaction ID with the vested reward prefix.
     transaction_id[0..28]
@@ -103,6 +105,7 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
             if address_index % 3 != 0 {
                 outputs.push(new_output(
                     &mut transaction_id,
+                    &mut vested_index,
                     initial_unlock_amount,
                     address,
                     None,
@@ -116,6 +119,7 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
                 if address_index % 5 != 0 {
                     outputs.push(new_output(
                         &mut transaction_id,
+                        &mut vested_index,
                         vested_amount,
                         address,
                         Some(timelock),
@@ -125,6 +129,7 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
                 else if timelock > now {
                     outputs.push(new_output(
                         &mut transaction_id,
+                        &mut vested_index,
                         vested_amount,
                         address,
                         Some(timelock),
