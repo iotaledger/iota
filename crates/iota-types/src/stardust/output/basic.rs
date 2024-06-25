@@ -81,6 +81,15 @@ impl BasicOutput {
             .expiration()
             .map(|expiration| ExpirationUnlockCondition::new(output.address(), expiration))
             .transpose()?;
+        let metadata = output
+            .features()
+            .metadata()
+            .map(|metadata| metadata.data().to_vec());
+        let tag = output.features().tag().map(|tag| tag.tag().to_vec());
+        let sender = output
+            .features()
+            .sender()
+            .map(|sender| sender.address().into());
 
         Ok(BasicOutput {
             id,
@@ -89,9 +98,9 @@ impl BasicOutput {
             storage_deposit_return,
             timelock,
             expiration,
-            metadata: Default::default(),
-            tag: Default::default(),
-            sender: Default::default(),
+            metadata,
+            tag,
+            sender,
         })
     }
 
@@ -115,7 +124,11 @@ impl BasicOutput {
             || self.storage_deposit_return.is_some()
             || self.timelock.as_ref().map_or(false, |timelock| {
                 target_milestone_timestamp_sec < timelock.unix_time
-            }))
+            }
+            || self.metadata.is_some()
+            || self.tag.is_some()
+            || self.sender.is_some()
+        ))
     }
 
     pub fn to_genesis_object(
