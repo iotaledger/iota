@@ -22,7 +22,7 @@ use iota_types::{
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    stardust::coin_type::CoinType,
+    stardust::{coin_type::CoinType, error::StardustError},
     transaction::{Argument, CheckedInputObjects, ObjectArg},
     TypeTag, IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID,
 };
@@ -81,7 +81,7 @@ fn create_foundry(
             .add_immutable_feature(Feature::Metadata(
                 MetadataFeature::new(irc_30_metadata).unwrap(),
             ));
-    let foundry_output = builder.finish()?;
+    let foundry_output = builder.finish().map_err(StardustError::BlockError)?;
 
     Ok((random_output_header(), foundry_output))
 }
