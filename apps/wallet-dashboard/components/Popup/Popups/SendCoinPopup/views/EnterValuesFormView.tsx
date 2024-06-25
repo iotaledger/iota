@@ -9,17 +9,19 @@ import { useFormatCoin } from '@iota/core';
 interface EnterValuesFormProps {
     coin: CoinBalance;
     formData: FormDataValues;
+    gasBudget: string;
     setFormData: React.Dispatch<React.SetStateAction<FormDataValues>>;
     onClose: () => void;
-    handleNext: () => void;
+    onNext: () => void;
 }
 
 function EnterValuesFormView({
     coin: { totalBalance, coinType },
     formData: { amount, recipientAddress },
+    gasBudget,
     setFormData,
     onClose,
-    handleNext,
+    onNext,
 }: EnterValuesFormProps): JSX.Element {
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -56,10 +58,11 @@ function EnterValuesFormView({
                     onChange={handleChange}
                     placeholder="Enter the address to send coins"
                 />
+                <p>Gas fee: {gasBudget}</p>
             </div>
             <div className="mt-4 flex justify-around">
                 <Button onClick={onClose}>Cancel</Button>
-                <Button onClick={handleNext} disabled={!recipientAddress || !amount}>
+                <Button onClick={onNext} disabled={!recipientAddress || !amount}>
                     Next
                 </Button>
             </div>
