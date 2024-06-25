@@ -44,11 +44,14 @@ pub fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
 
     // Writes previous and new outputs.
     for (output_header, output) in parser.outputs().filter_map(|o| o.ok()).chain(new_outputs) {
-        output_header.pack(&mut writer).unwrap();
+        output_header.pack(&mut writer)?;
 
         if output_header.output_id() == output_to_decrease_amount_from {
             let basic = output.as_basic();
-            let amount = basic.amount().checked_sub(new_amount).unwrap();
+            let amount = basic
+                .amount()
+                .checked_sub(new_amount)
+                .ok_or_else(|| anyhow::anyhow!("underflow decreasing new amount from output"))?;
             let output = Output::from(
                 BasicOutputBuilder::from(basic)
                     .with_amount(amount)
