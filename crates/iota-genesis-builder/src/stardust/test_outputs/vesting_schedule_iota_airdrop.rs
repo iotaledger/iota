@@ -134,7 +134,5 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
         }
     }
 
-    println!("{}", outputs.len());
-
     Ok(outputs)
 }
