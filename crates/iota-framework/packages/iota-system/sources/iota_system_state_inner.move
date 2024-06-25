@@ -837,7 +837,6 @@ module iota_system::iota_system_state_inner {
         epoch_start_timestamp_ms: u64, // Timestamp of the epoch start
         ctx: &mut TxContext,
     ) : Balance<IOTA> {
-        let prev_epoch_start_timestamp = self.epoch_start_timestamp_ms;
         self.epoch_start_timestamp_ms = epoch_start_timestamp_ms;
 
         let bps_denominator_u64 = BASIS_POINT_DENOMINATOR as u64;
@@ -951,7 +950,8 @@ module iota_system::iota_system_state_inner {
                 storage_fund_reinvestment: storage_fund_reinvestment_amount as u64,
                 storage_rebate: storage_rebate_amount,
                 storage_fund_balance: self.storage_fund.total_balance(),
-                stake_subsidy_amount,
+                // TODO: Remove
+                stake_subsidy_amount: 0,
                 total_gas_fees: computation_charge,
                 total_stake_rewards_distributed: computation_reward_distributed + storage_fund_reward_distributed,
                 leftover_storage_fund_inflow,

@@ -973,34 +973,4 @@ module iota_system::iota_system_tests {
         test_scenario::return_shared(system_state);
         scenario_val.end();
     }
-
-    #[test]
-    fun test_skip_stake_subsidy() {
-        let mut scenario_val = test_scenario::begin(@0x0);
-        let scenario = &mut scenario_val;
-        // Epoch duration is set to be 42 here.
-        set_up_iota_system_state(vector[@0x1, @0x2]);
-
-        // If the epoch length is less than 42 then the stake subsidy distribution counter should not be incremented. Otherwise it should.
-        advance_epoch_and_check_distribution_counter(scenario, 42, true);
-        advance_epoch_and_check_distribution_counter(scenario, 32, false);
-        advance_epoch_and_check_distribution_counter(scenario, 52, true);
-        scenario_val.end();
-    }
-
-    fun advance_epoch_and_check_distribution_counter(scenario: &mut Scenario, epoch_length: u64, should_increment_counter: bool) {
-        scenario.next_tx(@0x0);
-        let new_epoch = scenario.ctx().epoch() + 1;
-        let mut system_state = scenario.take_shared<IotaSystemState>();
-        let prev_epoch_time = system_state.epoch_start_timestamp_ms();
-        let prev_counter = system_state.get_stake_subsidy_distribution_counter();
-
-        let rebate = system_state.advance_epoch_for_testing(
-            new_epoch, 1, 0, 0, 0, 0, 0, 0, prev_epoch_time + epoch_length, scenario.ctx()
-        );
-        destroy(rebate);
-        assert_eq(system_state.get_stake_subsidy_distribution_counter(), prev_counter + (if (should_increment_counter) 1 else 0));
-        test_scenario::return_shared(system_state);
-        scenario.next_epoch(@0x0);
-    }
 }
