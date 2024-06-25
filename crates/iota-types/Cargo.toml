@@ -7,9 +7,6 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
-iota-stardust-sdk = { version = "1.1.4", default-features = false, features = ["irc_27", "irc_30", "std"], package = "iota-sdk" }
-num-bigint = { version = "0.4", default-features = false, features = ["rand"] }
-packable = { version = "0.8.3", default-features = false, features = ["io"] }
 anemo.workspace = true
 anyhow.workspace = true
 bcs.workspace = true
@@ -22,6 +19,7 @@ eyre.workspace = true
 hex.workspace = true
 im.workspace = true
 indexmap.workspace = true
+iota-stardust-sdk = { version = "1.1.4", default-features = false, features = ["irc_27", "irc_30", "std"], package = "iota-sdk" }
 itertools.workspace = true
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
@@ -33,9 +31,11 @@ move-vm-profiler.workspace = true
 move-vm-test-utils.workspace = true
 move-vm-types.workspace = true
 nonempty.workspace = true
+num-bigint = { version = "0.4", default-features = false, features = ["rand"] }
 num-rational = "0.4"
 num-traits = "0.2.18"
 once_cell.workspace = true
+packable = { version = "0.8.3", default-features = false, features = ["io"] }
 prometheus.workspace = true
 rand.workspace = true
 roaring.workspace = true

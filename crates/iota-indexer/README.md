@@ -4,14 +4,33 @@ Iota indexer is an off-fullnode service to serve data from Iota protocol, includ
 ![enhanced_FN](https://user-images.githubusercontent.com/106119108/221022505-a1d873c6-60e2-45f1-b2aa-e50192c4dfbb.png)
 
 ## Steps to run locally
+
 ### Prerequisites
-- install local [Postgres server](https://www.postgresql.org/download/). You can also `brew install postgresql@15` and then add the following to your `~/.zshrc` or `~/.zprofile`, etc:
+
+Install local [Postgres server](https://www.postgresql.org/download/). Platform-specific instructions follow.
+
+#### Postgres (MacOS)
+
+- install local [Postgres server](https://www.postgresql.org/download/).
+  - You can also `brew install postgresql@15` and then add the following to your `~/.zshrc` or `~/.zprofile`, etc:
+
 ```sh
 export LDFLAGS="-L/opt/homebrew/opt/postgresql@15/lib"
 export CPPFLAGS="-I/opt/homebrew/opt/postgresql@15/include"
 export PATH="/opt/homebrew/opt/postgresql@15/bin:$PATH"
 ```
-- make sure you have libpq installed: `brew install libpq`, and in your profile, add `export PATH="/opt/homebrew/opt/libpq/bin:$PATH"`. If this doesn't work, try `brew link --force libpq`.
+  - make sure you have libpq installed: `brew install libpq`, and in your profile, add `export PATH="/opt/homebrew/opt/libpq/bin:$PATH"`. If this doesn't work, try `brew link --force libpq`.
+
+#### Postgres (Ubuntu)
+
+On ubuntu, install postgres via `apt`:
+
+```sh
+sudo apt install postgresql
+```
+
+#### Diesel
+
 
 - install Diesel CLI with `cargo install diesel_cli --no-default-features --features postgres`, refer to [Diesel Getting Started guide](https://diesel.rs/guides/getting-started) for more details
 - [optional but handy] Postgres client like [Postico](https://eggerapps.at/postico2/), for local check, query execution etc.
@@ -31,7 +50,7 @@ Use [iota-test-validator](../../crates/iota-test-validator/README.md)
 ### Running standalone indexer
 1. DB setup, under `iota/crates/iota-indexer` run:
 ```sh
-# an example DATABASE_URL is "postgres://postgres:postgres@localhost/gegao"
+# an example DATABASE_URL is "postgres://postgres:postgres@localhost/gegao" where postgres:postgres are the credentials.
 diesel setup --database-url="<DATABASE_URL>"
 diesel database reset --database-url="<DATABASE_URL>"
 ```
