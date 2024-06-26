@@ -6,16 +6,16 @@
 use std::fs::File;
 
 use iota_genesis_builder::stardust::{
-    parse::FullSnapshotParser, types::output_header::TOTAL_SUPPLY_IOTA,
+    parse::HornetGenesisSnapshotParser, types::output_header::TOTAL_SUPPLY_IOTA,
 };
 
 fn main() -> anyhow::Result<()> {
     let Some(path) = std::env::args().nth(1) else {
-        anyhow::bail!("please provide path to the full-snapshot file");
+        anyhow::bail!("please provide path to the Hornet genesis snapshot file");
     };
     let file = File::open(path)?;
 
-    let parser = FullSnapshotParser::new(file)?;
+    let parser = HornetGenesisSnapshotParser::new(file)?;
     println!("Output count: {}", parser.header.output_count());
 
     let total_supply = parser.outputs().try_fold(0, |acc, output| {
