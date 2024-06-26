@@ -11,6 +11,7 @@ import {
 } from '_src/shared/constants';
 import { CountDownTimer } from '_src/ui/app/shared/countdown-timer';
 import {
+    createStakeTransaction,
     parseAmount,
     useCoinMetadata,
     useFormatCoin,
@@ -21,7 +22,6 @@ import { memo, useCallback, useMemo } from 'react';
 
 import { useActiveAddress, useTransactionGasBudget } from '../../hooks';
 import { type FormValues } from './StakingCard';
-import { createStakeTransaction } from './utils/transaction';
 
 const HIDE_MAX = true;
 

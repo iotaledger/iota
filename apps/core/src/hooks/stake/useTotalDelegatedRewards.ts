@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo } from 'react';
-import { type ExtendedDelegatedStake } from '../../utils/stake/formatDelegatedStake';
+import { type ExtendedDelegatedStake } from '../../utils/stake';
 
 export function useTotalDelegatedRewards(delegatedStake: ExtendedDelegatedStake[]) {
     return useMemo(() => {
