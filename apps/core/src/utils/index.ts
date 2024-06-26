@@ -12,7 +12,9 @@ export * from './kiosk';
 export * from './persistableStorage';
 export * from './roundFloat';
 export * from './filterAndSortTokenBalances';
+export * from './getOwnerDisplay';
 export * from './parseAmount';
+export * from './parseObjectDetails';
 
 export * from './stake';
 export * from './transaction';

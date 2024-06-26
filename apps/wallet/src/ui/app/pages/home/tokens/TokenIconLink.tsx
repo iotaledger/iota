@@ -4,16 +4,14 @@
 
 import { LargeButton } from '_app/shared/LargeButton';
 import { ampli } from '_src/shared/analytics/ampli';
-import {
-    DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
-    DELEGATED_STAKES_QUERY_STALE_TIME,
-} from '_src/shared/constants';
 import { Text } from '_src/ui/app/shared/text';
 import {
     formatDelegatedStake,
     useFormatCoin,
     useGetDelegatedStake,
     useTotalDelegatedStake,
+    DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
+    DELEGATED_STAKES_QUERY_STALE_TIME,
 } from '@iota/core';
 import { WalletActionStake24 } from '@iota/icons';
 import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
