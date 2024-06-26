@@ -151,7 +151,6 @@ impl Packable for FullSnapshotHeader {
             u16::unpack::<_, VERIFY>(unpacker, &()).coerce()?;
         let parameters_milestone_option =
             MilestoneOption::unpack::<_, true>(unpacker, &ProtocolParameters::default())
-                .map_packable_err(StardustError::BlockError)
                 .coerce()?;
         let output_count = u64::unpack::<_, VERIFY>(unpacker, &()).coerce()?;
         let milestone_diff_count = u32::unpack::<_, VERIFY>(unpacker, &()).coerce()?;
