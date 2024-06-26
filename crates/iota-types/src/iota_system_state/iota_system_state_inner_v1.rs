@@ -16,16 +16,7 @@ use super::{
     AdvanceEpochParams, IotaSystemStateTrait,
 };
 use crate::{
-    balance::Balance,
-    base_types::{IotaAddress, ObjectID},
-    collection_types::{Bag, Table, TableVec, VecMap, VecSet},
-    committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata},
-    crypto::{verify_proof_of_possession, AuthorityPublicKeyBytes},
-    error::IotaError,
-    id::ID,
-    iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
-    multiaddr::Multiaddr,
-    storage::ObjectStore,
+    balance::Balance, base_types::{IotaAddress, ObjectID}, coin::TreasuryCap, collection_types::{Bag, Table, TableVec, VecMap, VecSet}, committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata}, crypto::{verify_proof_of_possession, AuthorityPublicKeyBytes}, error::IotaError, id::ID, iota_system_state::epoch_start_iota_system_state::EpochStartSystemState, multiaddr::Multiaddr, storage::ObjectStore
 };
 
 const E_METADATA_INVALID_POP: u64 = 0;
@@ -471,6 +462,7 @@ pub struct IotaSystemStateInnerV1 {
     pub epoch: u64,
     pub protocol_version: u64,
     pub system_state_version: u64,
+    pub iota_treasury_cap: TreasuryCap,
     pub validators: ValidatorSetV1,
     pub storage_fund: StorageFundV1,
     pub parameters: SystemParametersV1,
@@ -626,6 +618,8 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
             epoch,
             protocol_version,
             system_state_version,
+            // TODO: Add this to the system state summary.
+            iota_treasury_cap: _,
             validators:
                 ValidatorSetV1 {
                     total_stake,
