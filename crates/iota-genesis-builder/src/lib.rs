@@ -541,7 +541,7 @@ impl Builder {
 
         let committee = system_state.get_current_epoch_committee().committee;
         for signature in self.signatures.values() {
-            if self.validators.get(&signature.authority).is_none() {
+            if !self.validators.contains_key(&signature.authority) {
                 panic!("found signature for unknown validator: {:#?}", signature);
             }
 

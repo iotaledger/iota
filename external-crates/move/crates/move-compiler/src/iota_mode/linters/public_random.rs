@@ -6,8 +6,8 @@
 //! public functions.
 
 use super::{
-    LinterDiagCategory, LINTER_DEFAULT_DIAG_CODE, LINT_WARNING_PREFIX,
-    RANDOM_GENERATOR_STRUCT_NAME, RANDOM_MOD_NAME, RANDOM_STRUCT_NAME, IOTA_PKG_NAME,
+    LinterDiagCategory, IOTA_PKG_NAME, LINTER_DEFAULT_DIAG_CODE, LINT_WARNING_PREFIX,
+    RANDOM_GENERATOR_STRUCT_NAME, RANDOM_MOD_NAME, RANDOM_STRUCT_NAME,
 };
 use crate::{
     diag,
@@ -16,10 +16,10 @@ use crate::{
         WarningFilters,
     },
     expansion::ast::{ModuleIdent, Visibility},
+    iota_mode::IOTA_ADDR_NAME,
     naming::ast as N,
     parser::ast::FunctionName,
     shared::{program_info::TypingProgramInfo, CompilationEnv},
-    iota_mode::IOTA_ADDR_NAME,
     typing::{
         ast as T,
         visitor::{TypingVisitorConstructor, TypingVisitorContext},

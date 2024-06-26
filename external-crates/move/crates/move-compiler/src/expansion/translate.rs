@@ -373,7 +373,8 @@ fn default_aliases(context: &mut Context) -> AliasMapBuilder {
     }
     // if iota is defined and the current package is in Iota mode, add implicit iota
     // aliases
-    if iota_address.is_some() && context.env().package_config(current_package).flavor == Flavor::Iota
+    if iota_address.is_some()
+        && context.env().package_config(current_package).flavor == Flavor::Iota
     {
         let iota_address = iota_address.unwrap();
         modules.extend(

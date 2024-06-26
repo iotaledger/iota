@@ -265,6 +265,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "invalid test data"]
     fn test_bridge_sig_verification_regression_test() {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();

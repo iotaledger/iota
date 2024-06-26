@@ -1,34 +1,19 @@
 [alias]
-# Collection of project wide clippy lints. This is done via an alias because
-# clippy doesn't currently allow for specifiying project-wide lints in a
-# configuration file. This is a similar workaround to the ones presented here:
-# <https://github.com/EmbarkStudios/rust-ecosystem/issues/59>
-xclippy = [
+ci-fmt = "fmt --check"
+ci-fmt-external = "ci-fmt --manifest-path external-crates/move/Cargo.toml --all"
+ci-clippy = "clippy --all-targets --all-features -- -D warnings"
+ci-clippy-external = [
   "clippy",
-  "--all-targets",
-  "--all-features",
+  "--manifest-path",
+  "external-crates/move/Cargo.toml",
   "--",
-  "-Wclippy::all",
-  "-Wclippy::disallowed_methods",
-]
-xtest = "run --package x --bin x -- external-crates-tests"
-
-# Configuration specifically for running clippy on `external-crates/move/`.
-# Some of these allows are to avoid code churn; others are filed as issues on the `sui` repo now.
-move-clippy = [
-  "clippy",
-  "--",
-  "-Wclippy::all",
-  "-Wclippy::disallowed_methods",
   "-Aclippy::upper_case_acronyms",
   "-Aclippy::type_complexity",
-  # Remove after https://github.com/rust-lang/rust-clippy/pull/11792 is released.
-  "-Aclippy::map_identity",
   "-Aclippy::new_without_default",
   "-Aclippy::box_default",
   "-Aclippy::manual_slice_size_calculation",
+  "-Dwarnings",
 ]
-
 ci-license = "license-template --template .license_template"
 
 [build]

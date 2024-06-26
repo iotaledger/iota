@@ -604,7 +604,7 @@ module timelock::timelocked_stake_tests {
         );
 
         // Each validator pool gets 30 MICROS and each validator gets an additional 10 MICROS.
-        advance_epoch_with_reward_amounts(0, 80, scenario);
+        advance_epoch_with_reward_amounts(80, 0, 80, scenario);
 
         remove_validator(VALIDATOR_ADDR_1, scenario);
 
@@ -661,7 +661,7 @@ module timelock::timelocked_stake_tests {
 
         // Add some rewards after the validator requests to leave. Since the validator is still active
         // this epoch, they should get the rewards from this epoch.
-        advance_epoch_with_reward_amounts(0, 80, scenario);
+        advance_epoch_with_reward_amounts(80, 0, 80, scenario);
 
         // Each validator pool gets 30 MICROS and validators shares the 20 MICROS from the storage fund
         // so validator gets another 10 MICROS.
@@ -745,8 +745,8 @@ module timelock::timelocked_stake_tests {
         stake_timelocked_with(STAKER_ADDR_1, NEW_VALIDATOR_ADDR, 100, 10, scenario);
 
         // Advance epoch twice with some rewards
-        advance_epoch_with_reward_amounts(0, 400, scenario);
-        advance_epoch_with_reward_amounts(0, 900, scenario);
+        advance_epoch_with_reward_amounts(400, 0, 400, scenario);
+        advance_epoch_with_reward_amounts(900, 0, 900, scenario);
 
         // Unstake from the preactive validator. There should be no rewards earned.
         unstake_timelocked(STAKER_ADDR_1, 0, scenario);
@@ -784,7 +784,7 @@ module timelock::timelocked_stake_tests {
 
         // Delegate 100 IOTA to the preactive validator
         stake_timelocked_with(STAKER_ADDR_1, NEW_VALIDATOR_ADDR, 100, 10, scenario);
-        advance_epoch_with_reward_amounts(0, 300, scenario);
+        advance_epoch_with_reward_amounts(300, 0, 300, scenario);
         // At this point we got the following distribution of stake:
         // V1: 250, V2: 250, storage fund: 100
 
@@ -798,7 +798,7 @@ module timelock::timelocked_stake_tests {
         // At this point we got the following distribution of stake:
         // V1: 250, V2: 250, V3: 250, storage fund: 100
 
-        advance_epoch_with_reward_amounts(0, 85, scenario);
+        advance_epoch_with_reward_amounts(85, 0, 85, scenario);
 
         // staker 1 and 3 unstake from the validator and earns about 2/5 * (85 - 10) * 1/3 = 10 IOTA each.
         // Although they stake in different epochs, they earn the same rewards as long as they unstake
@@ -812,7 +812,7 @@ module timelock::timelocked_stake_tests {
         assert_eq(total_timelocked_iota_balance(STAKER_ADDR_3, scenario), 100 * MICROS_PER_IOTA);
         assert_eq(total_iota_balance(STAKER_ADDR_3, scenario), 10_002_000_000);
 
-        advance_epoch_with_reward_amounts(0, 85, scenario);
+        advance_epoch_with_reward_amounts(85, 0, 85, scenario);
 
         unstake_timelocked(STAKER_ADDR_2, 0, scenario);
         // staker 2 earns about 5 IOTA from the previous epoch and 24-ish from this one
@@ -840,7 +840,7 @@ module timelock::timelocked_stake_tests {
 
         // staker 1 earns a bit greater than 30 IOTA here. A bit greater because the new validator's voting power
         // is slightly greater than 1/3 of the total voting power.
-        advance_epoch_with_reward_amounts(0, 90, scenario);
+        advance_epoch_with_reward_amounts(90, 0, 90, scenario);
 
         // And now the validator leaves the validator set.
         remove_validator(NEW_VALIDATOR_ADDR, scenario);
@@ -866,7 +866,7 @@ module timelock::timelocked_stake_tests {
         stake_timelocked_with(STAKER_ADDR_1, NEW_VALIDATOR_ADDR, 100, 10, scenario);
 
         // Advance epoch and give out some rewards. The candidate should get nothing, of course.
-        advance_epoch_with_reward_amounts(0, 800, scenario);
+        advance_epoch_with_reward_amounts(800, 0, 800, scenario);
 
         // Now the candidate leaves.
         remove_validator_candidate(NEW_VALIDATOR_ADDR, scenario);
@@ -896,7 +896,7 @@ module timelock::timelocked_stake_tests {
         test_scenario::return_to_address(@0x42, staked_iota);
         advance_epoch(scenario); // advances epoch to effectuate the stake
         // Each staking pool gets 10 IOTA of rewards.
-        advance_epoch_with_reward_amounts(0, 20, scenario);
+        advance_epoch_with_reward_amounts(20, 0, 20, scenario);
         let mut system_state = scenario.take_shared<IotaSystemState>();
         let rates = system_state.pool_exchange_rates(&pool_id);
         assert_eq(rates.length(), 3);

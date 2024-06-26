@@ -8,12 +8,10 @@ use anyhow::Result;
 use iota_sdk::types::block::{
     output::Output, payload::milestone::MilestoneOption, protocol::ProtocolParameters,
 };
+use iota_types::stardust::error::StardustError;
 use packable::{unpacker::IoUnpacker, Packable};
 
-use super::{
-    error::StardustError,
-    types::snapshot::{FullSnapshotHeader, OutputHeader},
-};
+use super::types::{output_header::OutputHeader, snapshot::FullSnapshotHeader};
 
 /// Parse a full-snapshot using a [`BufReader`] internally.
 pub struct FullSnapshotParser<R: Read> {
@@ -31,13 +29,13 @@ impl<R: Read> FullSnapshotParser<R> {
     }
 
     /// Provide an iterator over the Stardust UTXOs recorded in the snapshot.
-    pub fn outputs(
-        mut self,
-    ) -> impl Iterator<Item = Result<(OutputHeader, Output), anyhow::Error>> {
+    pub fn outputs(mut self) -> impl Iterator<Item = anyhow::Result<(OutputHeader, Output)>> {
         (0..self.header.output_count()).map(move |_| {
             Ok((
-                OutputHeader::unpack::<_, true>(&mut self.reader, &())?,
-                Output::unpack::<_, true>(&mut self.reader, &ProtocolParameters::default())?,
+                OutputHeader::unpack::<_, true>(&mut self.reader, &())
+                    .map_err(|e| anyhow::anyhow!("{e}"))?,
+                Output::unpack::<_, true>(&mut self.reader, &ProtocolParameters::default())
+                    .map_err(|e| anyhow::anyhow!("{e}"))?,
             ))
         })
     }

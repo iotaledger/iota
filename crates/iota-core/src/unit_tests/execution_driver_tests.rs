@@ -50,7 +50,7 @@ use crate::{
 #[allow(dead_code)]
 async fn wait_for_certs(
     stream: &mut UnboundedReceiver<VerifiedCertificate>,
-    certs: &Vec<VerifiedCertificate>,
+    certs: &[VerifiedCertificate],
 ) {
     if certs.is_empty() {
         if timeout(Duration::from_secs(30), stream.recv())

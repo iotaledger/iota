@@ -10,6 +10,7 @@ import Loading from '../../components/loading';
 import Overlay from '../../components/overlay';
 import { useAccountSources } from '../../hooks/useAccountSources';
 import { useExportSeedMutation } from '../../hooks/useExportSeedMutation';
+import { AccountSourceType } from '_src/background/account-sources/AccountSource';
 
 export function ExportSeedPage() {
     const { accountSourceID } = useParams();
@@ -19,7 +20,7 @@ export function ExportSeedPage() {
 
     const accountSource = allAccountSources?.find(({ id }) => id === accountSourceID) || null;
 
-    if (!isPending && accountSource?.type !== 'seed') {
+    if (!isPending && accountSource?.type !== AccountSourceType.Seed) {
         return <Navigate to="/accounts/manage" />;
     }
 
