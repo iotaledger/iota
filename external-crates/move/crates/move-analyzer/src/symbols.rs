@@ -6322,11 +6322,11 @@ fn implicit_uses_test() {
         3,
         12,
         "implicit_uses.move",
-        76,
+        77,
         18,
         "object.move",
         "struct iota::object::UID{\n\tid: iota::object::ID\n}",
-        Some((76, 18, "object.move")),
+        Some((77, 18, "object.move")),
     );
     // implicit struct as parameter type
     assert_use_def(
@@ -6336,11 +6336,11 @@ fn implicit_uses_test() {
         6,
         29,
         "implicit_uses.move",
-        20,
+        21,
         18,
         "tx_context.move",
         "struct iota::tx_context::TxContext{\n\tepoch: u64,\n\tepoch_timestamp_ms: u64,\n\tids_created: u64,\n\tsender: address,\n\ttx_hash: vector<u8>\n}",
-        Some((20, 18, "tx_context.move")),
+        Some((21, 18, "tx_context.move")),
     );
     // implicit module name in function call
     assert_use_def(
@@ -6350,8 +6350,8 @@ fn implicit_uses_test() {
         7,
         18,
         "implicit_uses.move",
-        4,
-        12,
+        5,
+        13,
         "object.move",
         "module iota::object",
         None,
