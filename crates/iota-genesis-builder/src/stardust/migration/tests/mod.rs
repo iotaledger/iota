@@ -28,6 +28,7 @@ use iota_types::{
 };
 use move_binary_format::errors::VMError;
 use move_core_types::{ident_str, identifier::IdentStr, vm_status::StatusCode};
+use rand::random;
 
 use crate::stardust::{
     migration::{
@@ -49,11 +50,12 @@ mod nft;
 
 fn random_output_header() -> OutputHeader {
     OutputHeader::new_testing(
-        rand::random(),
-        rand::random(),
-        rand::random(),
-        rand::random(),
-        rand::random(),
+        random(),
+        // % 128 to pass the output index syntactic validation.
+        random::<u16>() % 128,
+        random(),
+        random(),
+        random(),
     )
 }
 
@@ -403,7 +405,7 @@ fn unlock_object(
     // Recreate the TxContext and Executor so we can set a timestamp greater than 0.
     let tx_context = TxContext::new(
         sender,
-        &TransactionDigest::new(rand::random()),
+        &TransactionDigest::new(random()),
         &EpochData::new(0, epoch_start_timestamp_ms, Default::default()),
     );
     let store = InMemoryStorage::new(

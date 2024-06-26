@@ -5,7 +5,11 @@
 use std::mem::size_of;
 
 use anyhow::Result;
-use iota_sdk::types::block::{output::OutputId, payload::milestone::MilestoneIndex, BlockId};
+use iota_sdk::types::block::{
+    output::{OutputId, OUTPUT_INDEX_RANGE},
+    payload::milestone::MilestoneIndex,
+    BlockId,
+};
 use iota_types::base_types::ObjectID;
 use packable::Packable;
 
@@ -64,6 +68,11 @@ impl OutputHeader {
         milestone_index: u32,
         milestone_timestamp: u32,
     ) -> OutputHeader {
+        debug_assert!(
+            output_index < *OUTPUT_INDEX_RANGE.end(),
+            "output index cannot be greater than {}",
+            OUTPUT_INDEX_RANGE.end()
+        );
         use iota_sdk::types::block::payload::transaction::TransactionId;
 
         OutputHeader {
