@@ -26,18 +26,13 @@ function VisualAssetsPage(): JSX.Element {
         router.push(`/dashboard/assets/visual-assets/${objectId}`);
     };
 
-    const calculateEstimateSize = (index: number) => {
-        const asset = visualAssets[index];
-        return asset.display?.data ? 240 : 130;
-    };
-
     return (
         <div className="flex h-full w-full flex-col items-center justify-center space-y-4">
             <h1>VISUAL ASSETS</h1>
             <div className="flex w-1/2">
                 <VirtualList
                     items={visualAssets}
-                    estimateSize={calculateEstimateSize}
+                    estimateSize={() => 160}
                     render={virtualItem}
                     onClick={(asset) => handleClick(asset.objectId)}
                 />

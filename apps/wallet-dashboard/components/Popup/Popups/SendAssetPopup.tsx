@@ -1,13 +1,17 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { IotaObjectData } from '@iota/iota.js/client';
 import { AssetCard, Input } from '@/components';
 import { Button } from '@/components/Buttons';
 import { FlexDirection } from '@/lib/ui/enums';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { createNftSendValidationSchema, ValidationError } from '@iota/core';
+import { useRouter } from 'next/navigation';
+import { useNotifications } from '@/hooks';
+import { NotificationType } from '@/stores/notificationStore';
+import { useCreateSendAssetTransaction } from '@/hooks/useCreateSendAssetTransaction';
 
 interface SendAssetPopupProps {
     asset: IotaObjectData;
@@ -18,6 +22,14 @@ export default function SendAssetPopup({ asset, onClose }: SendAssetPopupProps):
     const [recipientAddress, setRecipientAddress] = useState<string>('');
     const [errors, setErrors] = useState<string[]>([]);
     const activeAddress = useCurrentAccount()?.address;
+    const router = useRouter();
+    const { addNotification } = useNotifications();
+    const { mutation: sendAsset } = useCreateSendAssetTransaction(
+        asset.objectId,
+        onSendAssetSuccess,
+        onSendAssetError,
+    );
+
     const schema = createNftSendValidationSchema(activeAddress || '', asset.objectId);
 
     async function handleAddressChange(address: string): Promise<void> {
@@ -33,9 +45,25 @@ export default function SendAssetPopup({ asset, onClose }: SendAssetPopupProps):
         }
     }
 
-    function handleSendAsset(): void {
-        console.log('Sending asset to: ', recipientAddress);
+    function onSendAssetSuccess() {
+        addNotification('Transfer transaction successful', NotificationType.Success);
+        onClose?.();
+        router.push('/dashboard/assets/visual-assets');
     }
+
+    function onSendAssetError() {
+        addNotification('Transfer transaction failed', NotificationType.Error);
+        onClose?.();
+    }
+
+    const handleSendAsset = useCallback(async () => {
+        try {
+            await sendAsset.mutateAsync(recipientAddress);
+        } catch (error) {
+            addNotification('Transfer transaction failed', NotificationType.Error);
+        }
+    }, [recipientAddress, sendAsset, addNotification]);
+
     return (
         <div className="flex flex-col space-y-4">
             <AssetCard asset={asset} flexDirection={FlexDirection.Column} />

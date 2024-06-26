@@ -5,6 +5,9 @@ import { IotaClient } from '@iota/iota.js/client';
 import { isIotaNSName } from '../../hooks';
 import { isValidIotaAddress } from '@iota/iota.js/utils';
 import * as Yup from 'yup';
+import { ValidationError } from 'yup';
+
+export { ValidationError };
 
 export function createIotaAddressValidation(client?: IotaClient, iotaNSEnabled?: boolean) {
     const resolveCache = new Map<string, boolean>();
