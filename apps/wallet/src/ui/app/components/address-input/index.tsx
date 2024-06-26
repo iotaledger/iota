@@ -13,8 +13,7 @@ import { useField, useFormikContext } from 'formik';
 import { useCallback, useMemo } from 'react';
 import type { ChangeEventHandler } from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
-
-import { useIotaAddressValidation } from './validation';
+import { useIotaAddressValidation } from '@iota/core';
 
 export interface AddressInputProps {
     disabled?: boolean;

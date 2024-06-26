@@ -6,6 +6,8 @@ import { IotaObjectData } from '@iota/iota.js/client';
 import { AssetCard, Input } from '@/components';
 import { Button } from '@/components/Buttons';
 import { FlexDirection } from '@/lib/ui/enums';
+import { useCurrentAccount } from '@iota/dapp-kit';
+import { createNftSendValidationSchema, ValidationError } from '@iota/core';
 
 interface SendAssetPopupProps {
     asset: IotaObjectData;
@@ -14,6 +16,22 @@ interface SendAssetPopupProps {
 
 export default function SendAssetPopup({ asset, onClose }: SendAssetPopupProps): JSX.Element {
     const [recipientAddress, setRecipientAddress] = useState<string>('');
+    const [errors, setErrors] = useState<string[]>([]);
+    const activeAddress = useCurrentAccount()?.address;
+    const schema = createNftSendValidationSchema(activeAddress || '', asset.objectId);
+
+    async function handleAddressChange(address: string): Promise<void> {
+        setRecipientAddress(address);
+
+        try {
+            await schema.validate({ to: address });
+            setErrors([]);
+        } catch (error) {
+            if (error instanceof ValidationError) {
+                setErrors(error.errors);
+            }
+        }
+    }
 
     function handleSendAsset(): void {
         console.log('Sending asset to: ', recipientAddress);
@@ -26,8 +44,9 @@ export default function SendAssetPopup({ asset, onClose }: SendAssetPopupProps):
                     type="text"
                     value={recipientAddress}
                     placeholder="Enter Address"
-                    onChange={(e) => setRecipientAddress(e.target.value)}
+                    onChange={(e) => handleAddressChange(e.target.value)}
                     label="Enter recipient address"
+                    error={errors[0]}
                 />
             </div>
             <Button onClick={handleSendAsset}>Send</Button>
