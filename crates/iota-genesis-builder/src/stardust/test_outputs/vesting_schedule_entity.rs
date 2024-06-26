@@ -8,8 +8,6 @@
 //! Some addresses have expired/unexpired timelocked outputs, some only have
 //! unexpired.
 
-use std::time::SystemTime;
-
 use iota_sdk::{
     client::secret::{mnemonic::MnemonicSecretManager, SecretManage},
     types::block::{
@@ -26,8 +24,6 @@ use rand::{random, rngs::StdRng, Rng, SeedableRng};
 use crate::stardust::types::output_header::OutputHeader;
 
 const MNEMONIC: &str = "chunk beach oval twist manage spread street width view pig hen oak size fix lab tent say home team cube loop van they suit";
-const ACCOUNTS: u32 = 10;
-const ADDRESSES_PER_ACCOUNT: u32 = 20;
 const COIN_TYPE: u32 = 4218;
 const VESTING_WEEKS: usize = 104;
 const VESTING_WEEKS_FREQUENCY: usize = 2;
@@ -66,9 +62,6 @@ fn new_output(
 }
 
 pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
-    let now = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)?
-        .as_secs() as u32;
     let mut outputs = Vec::new();
     let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
     let mut transaction_id = [0; 32];
