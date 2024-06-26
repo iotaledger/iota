@@ -79,6 +79,7 @@ fn basic_simple_coin_id_with_expired_timelock() {
                 "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb1812345678",
             )
             .unwrap(),
+            0,
             rand::random(),
             rand::random(),
             rand::random(),

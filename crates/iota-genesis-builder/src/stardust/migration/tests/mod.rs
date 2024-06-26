@@ -53,6 +53,7 @@ fn random_output_header() -> OutputHeader {
         rand::random(),
         rand::random(),
         rand::random(),
+        rand::random(),
     )
 }
 
