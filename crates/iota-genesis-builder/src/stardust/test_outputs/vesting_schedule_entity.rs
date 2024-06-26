@@ -1,12 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! IOTA airdrop vesting schedule scenario.
-//! 2-years, initial unlock, bi-weekly unlock.
-//! One mnemonic, multi accounts, multi addresses.
-//! Some addresses have initial unlock, some don't.
-//! Some addresses have expired/unexpired timelocked outputs, some only have
-//! unexpired.
+//! Entity vesting schedule scenario.
+//! 4-years, initial unlock, bi-weekly unlock.
+//! One mnemonic, one account, one address.
 
 use iota_sdk::{
     client::secret::{mnemonic::MnemonicSecretManager, SecretManage},
@@ -25,7 +22,7 @@ use crate::stardust::types::output_header::OutputHeader;
 
 const MNEMONIC: &str = "chunk beach oval twist manage spread street width view pig hen oak size fix lab tent say home team cube loop van they suit";
 const COIN_TYPE: u32 = 4218;
-const VESTING_WEEKS: usize = 104;
+const VESTING_WEEKS: usize = 208;
 const VESTING_WEEKS_FREQUENCY: usize = 2;
 const MERGE_MILESTONE_INDEX: u32 = 7669900;
 const MERGE_TIMESTAMP_SECS: u32 = 1696406475;
