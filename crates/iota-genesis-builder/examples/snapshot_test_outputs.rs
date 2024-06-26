@@ -27,16 +27,24 @@ fn parse_snapshot<P: AsRef<Path>>(path: P) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn main() -> anyhow::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     let Some(current_path) = std::env::args().nth(1) else {
         anyhow::bail!("please provide path to the full-snapshot file");
     };
     let mut new_path = String::from("test-");
-    new_path.push_str(&current_path);
+    // prepend "test-" before the file name
+    if let Some(pos) = current_path.rfind('/') {
+        let mut current_path = current_path.clone();
+        current_path.insert_str(pos + 1, &new_path);
+        new_path = current_path;
+    } else {
+        new_path.push_str(&current_path);
+    }
 
     parse_snapshot(&current_path)?;
 
-    add_snapshot_test_outputs(&current_path, &new_path)?;
+    add_snapshot_test_outputs(&current_path, &new_path).await?;
 
     parse_snapshot(&new_path)?;
 

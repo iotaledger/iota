@@ -59,6 +59,7 @@ impl OutputHeader {
     /// Creates a new OutputHeader for testing.
     pub fn new_testing(
         transaction_id_bytes: [u8; 32],
+        output_index: u16,
         block_id_bytes: [u8; 32],
         milestone_index: u32,
         milestone_timestamp: u32,
@@ -66,7 +67,8 @@ impl OutputHeader {
         use iota_sdk::types::block::payload::transaction::TransactionId;
 
         OutputHeader {
-            output_id: OutputId::new(TransactionId::new(transaction_id_bytes), 0).unwrap(),
+            output_id: OutputId::new(TransactionId::new(transaction_id_bytes), output_index)
+                .unwrap(),
             block_id: BlockId::new(block_id_bytes),
             ms_index: MilestoneIndex::new(milestone_index),
             ms_ts: milestone_timestamp,
