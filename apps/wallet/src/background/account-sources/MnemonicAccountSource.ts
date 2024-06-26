@@ -29,7 +29,7 @@ import {
     type AccountSourceSerializedUI,
 } from './AccountSource';
 import { accountSourcesEvents } from './events';
-import { type Bip44Path, makeDerivationPath } from './bip44Path';
+import { type MakeDerivationOptions, makeDerivationPath } from './bip44Path';
 
 type DataDecrypted = {
     entropyHex: string;
@@ -140,10 +140,12 @@ export class MnemonicAccountSource extends AccountSource<
         accountSourcesEvents.emit('accountSourceStatusUpdated', { accountSourceID: this.id });
     }
 
-    async deriveAccount(bip44Path?: Bip44Path): Promise<Omit<MnemonicSerializedAccount, 'id'>> {
+    async deriveAccount(
+        derivationOptions?: MakeDerivationOptions,
+    ): Promise<Omit<MnemonicSerializedAccount, 'id'>> {
         const derivationPath =
-            typeof bip44Path !== 'undefined'
-                ? makeDerivationPath(bip44Path)
+            typeof derivationOptions !== 'undefined'
+                ? makeDerivationPath(derivationOptions)
                 : await this.#getAvailableDerivationPath();
         const keyPair = await this.deriveKeyPair(derivationPath);
         return MnemonicAccount.createNew({ keyPair, derivationPath, sourceID: this.id });

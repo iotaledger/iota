@@ -3,6 +3,7 @@
 
 import { type CoinBalance, type IotaClient } from '@iota/iota.js/client';
 import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
+import { type AccountFromFinder, type AddressFromFinder } from '_src/shared/accounts';
 
 /**
  * Function to search for accounts/addresses with objects
@@ -11,20 +12,18 @@ import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
  *   @param {number} accountStartIndex The index of the first account to search for.
  *   @param {number} accountGapLimit The number of accounts to search for, after the last account with unspent outputs.
  *   TODO: addressStartIndex not used, maybe also not needed
- *   @param {number} addressStartIndex The index of the first address to search for.
  *   @param {number} addressGapLimit The number of addresses to search for, after the last address with unspent outputs, in each account.
  */
 export async function recoverAccounts(
     accountStartIndex: number,
     accountGapLimit: number,
-    addressStartIndex: number,
     addressGapLimit: number,
-    accounts: FoundAccount[],
+    accounts: AccountFromFinder[],
     seed: string,
     coinType: number,
     client: IotaClient,
     gasTypeArg: string,
-): Promise<FoundAccount[]> {
+): Promise<AccountFromFinder[]> {
     // TODO: first check that accounts: Account[] is correctly sorted, if not, throw exception or somethintg
     // Check new addresses for existing accounts
     if (addressGapLimit > 0) {
@@ -33,7 +32,6 @@ export async function recoverAccounts(
                 continue;
             }
             accounts[account.index] = await searchAddressesWithObjects(
-                addressStartIndex,
                 addressGapLimit,
                 account,
                 seed,
@@ -48,12 +46,11 @@ export async function recoverAccounts(
 
     // Check addresses for new accounts
     for (let accountIndex = accountsLength; accountIndex < targetIndex; accountIndex += 1) {
-        let account: FoundAccount = {
+        let account: AccountFromFinder = {
             index: accountIndex,
             addresses: [],
         };
         account = await searchAddressesWithObjects(
-            addressStartIndex,
             addressGapLimit,
             account,
             seed,
@@ -62,7 +59,7 @@ export async function recoverAccounts(
             gasTypeArg,
         );
         accounts[accountIndex] = account;
-        if (account.addresses.flat().find((a: Address) => hasBalance(a.balance))) {
+        if (account.addresses.flat().find((a: AddressFromFinder) => hasBalance(a.balance))) {
             // Generate more accounts if something was found
             targetIndex = accountIndex + 1 + accountGapLimit;
         }
@@ -72,18 +69,17 @@ export async function recoverAccounts(
 }
 
 async function searchAddressesWithObjects(
-    addressStartIndex: number,
     addressGapLimit: number,
-    account: FoundAccount,
+    account: AccountFromFinder,
     seed: string,
     coinType: number,
     client: IotaClient,
     gasTypeArg: string,
-): Promise<FoundAccount> {
-    const accountAddressLength = account.addresses.length;
-    let targetIndex = accountAddressLength + addressGapLimit;
+): Promise<AccountFromFinder> {
+    const accountAddressesLength = account.addresses.length;
+    let targetIndex = accountAddressesLength + addressGapLimit;
 
-    for (let addressIndex = accountAddressLength; addressIndex < targetIndex; addressIndex += 1) {
+    for (let addressIndex = accountAddressesLength; addressIndex < targetIndex; addressIndex += 1) {
         const changeIndexes = [0, 1]; // in the past the change indexes were used as 0=deposit & 1=internal
         for (const changeIndex of changeIndexes) {
             const bipPath = `m/44'/${coinType}'/${account.index}'/${changeIndex}'/${addressIndex}'`;
@@ -122,27 +118,4 @@ async function searchAddressesWithObjects(
 
 function hasBalance(balance: CoinBalance): boolean {
     return balance.coinObjectCount > 0;
-}
-
-interface Address {
-    pubKeyHash: string;
-    bipPath: Bip44Path;
-    // TODO: extend this balance in the future to include eg staking, vesting schedules, assets, ...
-    balance: CoinBalance;
-}
-
-export interface Bip44Path {
-    accountIndex: number;
-    addressIndex: number;
-    changeIndex: number;
-}
-
-export interface FoundAccount {
-    index: number;
-    addresses: Array<Array<Address>>;
-    // addresses: [
-    //     [change0, change1], // address index 0
-    //     [change0, change1], // address index 1
-    //     ...
-    //  ]
 }
