@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashSet},
     fs::{self, File},
     path::Path,
     sync::Arc,
@@ -361,19 +361,20 @@ impl Builder {
             token_distribution_schedule.validate();
             token_distribution_schedule.check_all_stake_operations_are_for_valid_validators(
                 self.validators.values().map(|v| v.info.iota_address()),
-                if !self.is_vanilla() {
-                    Some(
+                (!self.is_vanilla())
+                    .then(|| {
                         self.genesis_stake
                             .get_timelock_allocations()
                             .iter()
                             .map(|allocation| {
-                                (allocation.staked_with_validator, allocation.amount_micros)
+                                (
+                                    allocation.staked_with_validator.clone(),
+                                    allocation.amount_micros,
+                                )
                             })
-                            .collect::<HashMap<_, _>>(),
-                    )
-                } else {
-                    None
-                },
+                            .collect()
+                    })
+                    .unwrap_or_default(),
             );
         }
 
@@ -447,11 +448,9 @@ impl Builder {
 
             // Validators should not have duplicate addresses so the result of insertion
             // should be None.
-            assert!(
-                address_to_pool_id
-                    .insert(metadata.iota_address, onchain_validator.staking_pool.id)
-                    .is_none()
-            );
+            assert!(address_to_pool_id
+                .insert(metadata.iota_address, onchain_validator.staking_pool.id)
+                .is_none());
             assert_eq!(validator.info.iota_address(), metadata.iota_address);
             assert_eq!(validator.info.protocol_key(), metadata.iota_pubkey_bytes());
             assert_eq!(validator.info.network_key, metadata.network_pubkey);
@@ -844,16 +843,14 @@ fn build_unsigned_genesis_data(
     token_distribution_schedule.validate();
     token_distribution_schedule.check_all_stake_operations_are_for_valid_validators(
         genesis_validators.iter().map(|v| v.iota_address),
-        if !timelock_allocations.is_empty() {
-            Some(
+        (!timelock_allocations.is_empty())
+            .then(|| {
                 timelock_allocations
                     .iter()
                     .map(|allocation| (allocation.staked_with_validator, allocation.amount_micros))
-                    .collect::<HashMap<_, _>>(),
-            )
-        } else {
-            None
-        },
+                    .collect()
+            })
+            .unwrap_or_default(),
     );
 
     let epoch_data = EpochData::new_genesis(genesis_chain_parameters.chain_start_timestamp_ms);

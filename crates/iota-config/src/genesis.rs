@@ -503,7 +503,7 @@ impl TokenDistributionSchedule {
     >(
         &self,
         validators: I,
-        timelock_allocation: Option<HashMap<IotaAddress, u64>>,
+        timelock_allocation: HashMap<IotaAddress, u64>,
     ) {
         let mut validators: HashMap<IotaAddress, u64> =
             validators.into_iter().map(|a| (a, 0)).collect();
@@ -525,8 +525,7 @@ impl TokenDistributionSchedule {
         for (validator, stake) in validators {
             if stake < minimum_required_stake {
                 let meets_threshold = timelock_allocation
-                    .as_ref()
-                    .and_then(|timelock_alloc| timelock_alloc.get(&validator))
+                    .get(&validator)
                     .map_or(false, |&timelock_alloc_stake| {
                         timelock_alloc_stake + stake >= minimum_required_stake
                     });
