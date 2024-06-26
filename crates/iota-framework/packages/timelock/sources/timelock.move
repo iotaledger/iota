@@ -144,7 +144,7 @@ module timelock::timelock {
         (locked, expiration_timestamp_ms, label)
     }
 
-    /// An utility function to transfer a `TimeLock` to its original owner.
+    /// A utility function to transfer a `TimeLock` to its original owner.
     public fun self_transfer<T: store>(lock: TimeLock<T>, ctx: &TxContext) {
         transfer::transfer(lock, ctx.sender())
     }

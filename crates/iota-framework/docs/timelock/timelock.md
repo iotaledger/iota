@@ -468,7 +468,7 @@ An utility function to unpack a <code><a href="timelock.md#0x10cf_timelock_TimeL
 
 ## Function `self_transfer`
 
-An utility function to transfer a <code><a href="timelock.md#0x10cf_timelock_TimeLock">TimeLock</a></code> to its original owner.
+A utility function to transfer a <code><a href="timelock.md#0x10cf_timelock_TimeLock">TimeLock</a></code> to its original owner.
 
 
 <pre><code><b>public</b> <b>fun</b> <a href="timelock.md#0x10cf_timelock_self_transfer">self_transfer</a>&lt;T: store&gt;(lock: <a href="timelock.md#0x10cf_timelock_TimeLock">timelock::TimeLock</a>&lt;T&gt;, ctx: &<a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
