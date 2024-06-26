@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type CoinBalance, type IotaClient } from '@iota/iota.js/client';
-import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
 import { type AccountFromFinder, type AddressFromFinder } from '_src/shared/accounts';
+import { type MakeDerivationOptions } from '../account-sources/bip44Path';
+
+export type PublicKeyDerivator = (makeDerivationOptions: MakeDerivationOptions) => Promise<string>;
 
 /**
  * Function to search for accounts/addresses with objects
@@ -19,10 +21,10 @@ export async function recoverAccounts(
     accountGapLimit: number,
     addressGapLimit: number,
     accounts: AccountFromFinder[],
-    seed: string,
     coinType: number,
     client: IotaClient,
     gasTypeArg: string,
+    publicKeyDerivator: PublicKeyDerivator,
 ): Promise<AccountFromFinder[]> {
     // TODO: first check that accounts: Account[] is correctly sorted, if not, throw exception or somethintg
     // Check new addresses for existing accounts
@@ -34,10 +36,10 @@ export async function recoverAccounts(
             accounts[account.index] = await searchAddressesWithObjects(
                 addressGapLimit,
                 account,
-                seed,
                 coinType,
                 client,
                 gasTypeArg,
+                publicKeyDerivator,
             );
         }
     }
@@ -53,10 +55,10 @@ export async function recoverAccounts(
         account = await searchAddressesWithObjects(
             addressGapLimit,
             account,
-            seed,
             coinType,
             client,
             gasTypeArg,
+            publicKeyDerivator,
         );
         accounts[accountIndex] = account;
         if (account.addresses.flat().find((a: AddressFromFinder) => hasBalance(a.balance))) {
@@ -71,10 +73,10 @@ export async function recoverAccounts(
 async function searchAddressesWithObjects(
     addressGapLimit: number,
     account: AccountFromFinder,
-    seed: string,
     coinType: number,
     client: IotaClient,
     gasTypeArg: string,
+    publicKeyDerivator: PublicKeyDerivator,
 ): Promise<AccountFromFinder> {
     const accountAddressesLength = account.addresses.length;
     let targetIndex = accountAddressesLength + addressGapLimit;
@@ -82,10 +84,12 @@ async function searchAddressesWithObjects(
     for (let addressIndex = accountAddressesLength; addressIndex < targetIndex; addressIndex += 1) {
         const changeIndexes = [0, 1]; // in the past the change indexes were used as 0=deposit & 1=internal
         for (const changeIndex of changeIndexes) {
-            const bipPath = `m/44'/${coinType}'/${account.index}'/${changeIndex}'/${addressIndex}'`;
-            const pubKeyHash = Ed25519Keypair.deriveKeypairFromSeed(seed, bipPath)
-                .getPublicKey()
-                .toIotaAddress();
+            const pubKeyHash = await publicKeyDerivator({
+                coinType,
+                accountIndex: account.index,
+                addressIndex,
+                changeIndex,
+            });
 
             const balance = await client.getBalance({
                 owner: pubKeyHash,

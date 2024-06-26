@@ -6,7 +6,7 @@ import { AccountType, type SerializedUIAccount } from '_src/background/accounts/
 import { isMnemonicSerializedUiAccount } from '_src/background/accounts/MnemonicAccount';
 import { isSeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
 
-function getKey(account: SerializedUIAccount): string {
+export function getKey(account: SerializedUIAccount): string {
     if (isMnemonicSerializedUiAccount(account)) return account.sourceID;
     if (isSeedSerializedUiAccount(account)) return account.sourceID;
     return account.type;

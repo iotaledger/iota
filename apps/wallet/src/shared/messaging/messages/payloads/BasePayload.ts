@@ -31,7 +31,10 @@ export type PayloadType =
     | 'get-network'
     | 'set-network'
     | 'sign-message-request'
-    | 'method-payload';
+    | 'method-payload'
+    | 'init-accounts-finder'
+    | 'search-accounts-finder'
+    | 'get-accounts-finder-results';
 
 export interface BasePayload {
     type: PayloadType;
