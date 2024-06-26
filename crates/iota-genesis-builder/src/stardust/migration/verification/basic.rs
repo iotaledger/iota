@@ -203,7 +203,7 @@ pub(super) fn verify_basic_output(
         )?;
     }
 
-    verify_parent(output.address(), storage)?;
+    verify_parent(&output_id, output.address(), storage)?;
 
     ensure!(
         created_objects.native_token_coin().is_err(),

@@ -7,7 +7,7 @@ import { TxnAddress } from '_components/receipt-card/TxnAddress';
 import { TxnAmount } from '_components/receipt-card/TxnAmount';
 import { useActiveAddress } from '_src/ui/app/hooks/useActiveAddress';
 import { GAS_SYMBOL } from '_src/ui/app/redux/slices/iota-objects/Coin';
-import { useCoinMetadata, parseAmount } from '@iota/core';
+import { parseAmount, useCoinMetadata } from '@iota/core';
 
 export type PreviewTransferProps = {
     coinType: string;
