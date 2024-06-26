@@ -81,7 +81,7 @@ fn basic_simple_coin_id_with_expired_timelock() {
                 "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb1812345678",
             )
             .unwrap(),
-            0,
+            Default::default(),
             rand::random(),
             rand::random(),
             rand::random(),
@@ -220,14 +220,20 @@ fn basic_simple_coin_migration_with_native_tokens() {
     let basic_output = basic_builder.finish().unwrap();
     outputs.push((basic_header, basic_output.into()));
 
-    let mut migration = Migration::new(1, 1_000_000, MigrationTargetNetwork::Mainnet).unwrap();
+    let mut migration = Migration::new(
+        1,
+        1_000_000,
+        MigrationTargetNetwork::Mainnet,
+        CoinType::Iota,
+    )
+    .unwrap();
     migration.run_migration(outputs.clone()).unwrap();
 
     let created_gas_coin_id = migration
         .output_objects_map
         .get(&basic_output_id)
         .unwrap()
-        .gas_coin()
+        .coin()
         .unwrap();
     let expected_gas_coin_id = ObjectID::new(basic_output_id.hash());
     assert_eq!(
@@ -286,6 +292,7 @@ fn basic_migration_with_native_token() {
         BASIC_OUTPUT_MODULE_NAME,
         native_tokens,
         ExpectedAssets::BalanceBag,
+        CoinType::Iota,
     )
     .unwrap();
 }
