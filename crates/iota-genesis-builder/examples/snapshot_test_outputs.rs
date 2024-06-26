@@ -32,7 +32,14 @@ fn main() -> anyhow::Result<()> {
         anyhow::bail!("please provide path to the full-snapshot file");
     };
     let mut new_path = String::from("test-");
-    new_path.push_str(&current_path);
+    // prepend "test-" before the file name
+    if let Some(pos) = current_path.rfind('/') {
+        let mut current_path = current_path.clone();
+        current_path.insert_str(pos + 1, &new_path);
+        new_path = current_path;
+    } else {
+        new_path.push_str(&current_path);
+    }
 
     parse_snapshot(&current_path)?;
 
