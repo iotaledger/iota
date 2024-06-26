@@ -6,8 +6,8 @@ import { EnterValuesFormView, ReviewValuesFormView } from './views';
 import { CoinBalance } from '@iota/iota.js/client';
 import { useSendCoinTransaction, useNotifications } from '@/hooks';
 import { useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
-import { useGetAllCoins } from '@iota/core';
 import { NotificationType } from '@/stores/notificationStore';
+import { Dropdown } from '@/components';
 
 export interface FormDataValues {
     amount: string;
@@ -18,6 +18,7 @@ interface SendCoinPopupProps {
     coin: CoinBalance;
     senderAddress: string;
     onClose: () => void;
+    coins: CoinBalance[];
 }
 
 enum FormStep {
@@ -25,15 +26,19 @@ enum FormStep {
     ReviewValues,
 }
 
-function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JSX.Element {
+function SendCoinPopup({
+    coin,
+    senderAddress,
+    onClose,
+    coins,
+}: SendCoinPopupProps): React.JSX.Element {
     const [step, setStep] = useState<FormStep>(FormStep.EnterValues);
+    const [selectedCoin, setCoin] = useState<CoinBalance>(coin);
     const [formData, setFormData] = useState<FormDataValues>({
         amount: '',
         recipientAddress: '',
     });
-    const { data: coins } = useGetAllCoins(coin.coinType, senderAddress);
     const { addNotification } = useNotifications();
-    const totalCoins = coins?.reduce((partialSum, c) => partialSum + BigInt(c.balance), BigInt(0));
 
     const {
         mutateAsync: signAndExecuteTransactionBlock,
@@ -41,40 +46,60 @@ function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JS
         isPending,
     } = useSignAndExecuteTransactionBlock();
     const { data: sendCoinData } = useSendCoinTransaction(
-        coin,
+        selectedCoin,
         senderAddress,
         formData.recipientAddress,
         formData.amount,
-        totalCoins === BigInt(formData.amount),
+        selectedCoin.totalBalance === formData.amount,
     );
 
     const handleTransfer = async () => {
-        if (!sendCoinData?.transaction) return;
-        signAndExecuteTransactionBlock({
-            transactionBlock: sendCoinData.transaction,
-        })
-            .then(() => {
-                onClose();
-                addNotification('Transfer transaction has been sent');
+        if (!sendCoinData?.transaction) {
+            addNotification('There was an error with the transaction', NotificationType.Error);
+            return;
+        } else {
+            signAndExecuteTransactionBlock({
+                transactionBlock: sendCoinData.transaction,
             })
-            .catch(() => {
-                addNotification('Transfer transaction was not sent', NotificationType.Error);
-            });
+                .then(() => {
+                    onClose();
+                    addNotification('Transfer transaction has been sent');
+                })
+                .catch(() => {
+                    addNotification('Transfer transaction was not sent', NotificationType.Error);
+                });
+        }
     };
 
-    const onNext = () => {
+    function onNext(): void {
         setStep(FormStep.ReviewValues);
-    };
+    }
 
-    const onBack = () => {
+    function onBack(): void {
         setStep(FormStep.EnterValues);
-    };
+    }
+
+    function handleSelectedCoin(coin: CoinBalance): void {
+        setCoin(coin);
+        setFormData({
+            amount: '',
+            recipientAddress: '',
+        });
+    }
 
     return (
         <>
+            <Dropdown
+                options={coins}
+                value={selectedCoin}
+                onChange={handleSelectedCoin}
+                placeholder="Select a coin to send"
+                keyFromOption={(_selectedCoin) => _selectedCoin.coinType}
+                labelFromOption={(_selectedCoin) => _selectedCoin.coinType}
+            />
             {step === FormStep.EnterValues && (
                 <EnterValuesFormView
-                    coin={coin}
+                    coin={selectedCoin}
                     onClose={onClose}
                     onNext={onNext}
                     formData={formData}
