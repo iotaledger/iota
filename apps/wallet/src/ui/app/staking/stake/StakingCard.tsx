@@ -9,14 +9,18 @@ import { Text } from '_app/shared/text';
 import Loading from '_components/loading';
 import { Coin } from '_redux/slices/iota-objects/Coin';
 import { ampli } from '_src/shared/analytics/ampli';
-import {
-    DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
-    DELEGATED_STAKES_QUERY_STALE_TIME,
-    MIN_NUMBER_IOTA_TO_STAKE,
-} from '_src/shared/constants';
+import { MIN_NUMBER_IOTA_TO_STAKE } from '_src/shared/constants';
 import { FEATURES } from '_src/shared/experimentation/features';
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
-import { parseAmount, useBalance, useCoinMetadata, useGetDelegatedStake } from '@iota/core';
+import {
+    createStakeTransaction,
+    parseAmount,
+    useBalance,
+    useCoinMetadata,
+    useGetDelegatedStake,
+    DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
+    DELEGATED_STAKES_QUERY_STALE_TIME,
+} from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { ArrowLeft16 } from '@iota/icons';
 import type { StakeObject } from '@iota/iota.js/client';
@@ -37,7 +41,7 @@ import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
 import { getStakeIotaByIotaId } from '../getStakeIotaByIotaId';
 import StakeForm from './StakeForm';
 import { UnStakeForm } from './UnstakeForm';
-import { createStakeTransaction, createUnstakeTransaction } from './utils/transaction';
+import { createUnstakeTransaction } from './utils/transaction';
 import { createValidationSchema } from './utils/validation';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 
