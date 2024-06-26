@@ -5,24 +5,14 @@
 import ExplorerLink from '_src/ui/app/components/explorer-link';
 import { ExplorerLinkType } from '_src/ui/app/components/explorer-link/ExplorerLinkType';
 import { useActiveAddress } from '_src/ui/app/hooks';
-import { formatAddress, isValidIotaAddress } from '@iota/iota.js/utils';
+import { getOwnerDisplay } from '@iota/core';
 
 import { Text } from '../text';
 import { SummaryCardFooter } from './Card';
 
 export function OwnerFooter({ owner, ownerType }: { owner?: string; ownerType?: string }) {
     const address = useActiveAddress();
-    const isOwner = address === owner;
-
-    if (!owner) return null;
-    const display =
-        ownerType === 'Shared'
-            ? 'Shared'
-            : isValidIotaAddress(owner)
-              ? isOwner
-                  ? 'You'
-                  : formatAddress(owner)
-              : owner;
+    const { ownerDisplay, isOwner } = getOwnerDisplay(owner, ownerType, address);
 
     return (
         <SummaryCardFooter>
@@ -32,7 +22,7 @@ export function OwnerFooter({ owner, ownerType }: { owner?: string; ownerType?: 
             <div className="flex justify-end">
                 {isOwner ? (
                     <Text variant="body" weight="medium" color="hero-dark">
-                        {display}
+                        {ownerDisplay}
                     </Text>
                 ) : (
                     <ExplorerLink
@@ -41,7 +31,7 @@ export function OwnerFooter({ owner, ownerType }: { owner?: string; ownerType?: 
                         address={owner}
                         className="font-mono text-body font-medium text-hero-dark no-underline"
                     >
-                        {display}
+                        {ownerDisplay}
                     </ExplorerLink>
                 )}
             </div>

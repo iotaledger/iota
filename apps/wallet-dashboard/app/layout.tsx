@@ -31,20 +31,20 @@ export default function RootLayout({
     return (
         <html lang="en">
             <body className={inter.className}>
-                <PopupProvider>
-                    <QueryClientProvider client={queryClient}>
-                        <IotaClientProvider networks={allNetworks} defaultNetwork={defaultNetwork}>
-                            <WalletProvider>
-                                <KioskClientProvider>
-                                    <HiddenAssetsProvider>
+                <QueryClientProvider client={queryClient}>
+                    <IotaClientProvider networks={allNetworks} defaultNetwork={defaultNetwork}>
+                        <WalletProvider>
+                            <KioskClientProvider>
+                                <HiddenAssetsProvider>
+                                    <PopupProvider>
                                         {children}
                                         <Popup />
-                                    </HiddenAssetsProvider>
-                                </KioskClientProvider>
-                            </WalletProvider>
-                        </IotaClientProvider>
-                    </QueryClientProvider>
-                </PopupProvider>
+                                    </PopupProvider>
+                                </HiddenAssetsProvider>
+                            </KioskClientProvider>
+                        </WalletProvider>
+                    </IotaClientProvider>
+                </QueryClientProvider>
             </body>
         </html>
     );
