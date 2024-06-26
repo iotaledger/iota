@@ -7,7 +7,7 @@ import { requestIotaFromFaucetV1 } from '@iota/iota.js/faucet';
 import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
 import { entropyToMnemonic, getRandomEntropy } from '_shared/utils/bip39';
 import { recoverAccounts, FoundAccount } from './accounts-finder';
-import { test } from 'vitest';
+import { test, assert } from 'vitest';
 
 const GAS_TYPE_ARG = '0x2::iota::IOTA';
 const IOTA_COIN_TYPE = 4218; // 4219 for Shimmer
@@ -45,35 +45,32 @@ test('existing accounts', async () => {
         },
     ];
 
-    accounts = await recoverAccounts(0, 0, 0, 1, accounts, seed, coinType, client, GAS_TYPE_ARG);
+    accounts = await recoverAccounts(0, 0, 1, accounts, seed, coinType, client, GAS_TYPE_ARG);
     let expectedAccounts = 1;
-    console.assert(
+    assert(
         accounts.length == expectedAccounts,
         `accounts length mismatch ${accounts.length}/${expectedAccounts}`,
     );
     let expectedAddresses = 2;
-    console.assert(
+    assert(
         accounts[0].addresses.length == expectedAddresses,
         `addresses length mismatch ${accounts[0].addresses.length}/${expectedAddresses}`,
     );
 
-    accounts = await recoverAccounts(0, 1, 0, 16, accounts, seed, coinType, client, GAS_TYPE_ARG);
-    console.assert(
-        accounts.length == accounts[accounts.length - 1].index + 1,
-        `accounts length mismatch`,
-    );
+    accounts = await recoverAccounts(1, 0, 16, accounts, seed, coinType, client, GAS_TYPE_ARG);
+    assert(accounts.length == accounts[accounts.length - 1].index + 1, `accounts length mismatch`);
     expectedAccounts = 3;
-    console.assert(
+    assert(
         accounts.length == expectedAccounts,
         `accounts length mismatch ${accounts.length}/${expectedAccounts}`,
     );
     expectedAddresses = 18;
-    console.assert(
+    assert(
         accounts[0].addresses.length == expectedAddresses,
         `addresses length mismatch ${accounts[0].addresses.length}/${expectedAddresses}`,
     );
     expectedAddresses = 32;
-    console.assert(
+    assert(
         accounts[1].addresses.length == expectedAddresses,
         `addresses length mismatch ${accounts[1].addresses.length}/${expectedAddresses}`,
     );
@@ -91,33 +88,33 @@ test('empty accounts', async () => {
 
     let accounts: FoundAccount[] = [];
 
-    accounts = await recoverAccounts(0, 0, 0, 10, accounts, seed, coinType, client, GAS_TYPE_ARG);
+    accounts = await recoverAccounts(0, 0, 10, accounts, seed, coinType, client, GAS_TYPE_ARG);
     let expectedAccounts = 0;
-    console.assert(
+    assert(
         accounts.length == expectedAccounts,
         `accounts length mismatch ${accounts.length}/${expectedAccounts}`,
     );
 
-    accounts = await recoverAccounts(0, 1, 0, 10, accounts, seed, coinType, client, GAS_TYPE_ARG);
+    accounts = await recoverAccounts(1, 0, 10, accounts, seed, coinType, client, GAS_TYPE_ARG);
     expectedAccounts = 1;
-    console.assert(
+    assert(
         accounts.length == expectedAccounts,
         `accounts length mismatch ${accounts.length}/${expectedAccounts}`,
     );
     let expectedAddresses = 10;
-    console.assert(
+    assert(
         accounts[0].addresses.length == expectedAddresses,
         `addresses length mismatch ${accounts[0].addresses.length}/${expectedAddresses}`,
     );
 
-    accounts = await recoverAccounts(0, 5, 0, 5, accounts, seed, coinType, client, GAS_TYPE_ARG);
+    accounts = await recoverAccounts(5, 0, 5, accounts, seed, coinType, client, GAS_TYPE_ARG);
     expectedAccounts = 6;
-    console.assert(
+    assert(
         accounts.length == expectedAccounts,
         `accounts length mismatch ${accounts.length}/${expectedAccounts}`,
     );
     expectedAddresses = 15;
-    console.assert(
+    assert(
         accounts[0].addresses.length == expectedAddresses,
         `addresses length mismatch ${accounts[0].addresses.length}/${expectedAddresses}`,
     );
