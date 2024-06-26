@@ -27,9 +27,9 @@ function StakingDashboardPage(): JSX.Element {
         refetchInterval: DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     });
 
-    const delegatedStakes = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
-    const totalDelegatedStake = useTotalDelegatedStake(delegatedStakes);
-    const totalDelegatedRewards = useTotalDelegatedRewards(delegatedStakes);
+    const extendedStakes = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
+    const totalDelegatedStake = useTotalDelegatedStake(extendedStakes);
+    const totalDelegatedRewards = useTotalDelegatedRewards(extendedStakes);
     const [formattedDelegatedStake, stakeSymbol, stakeResult] = useFormatCoin(
         totalDelegatedStake,
         IOTA_TYPE_ARG,
@@ -39,8 +39,8 @@ function StakingDashboardPage(): JSX.Element {
         IOTA_TYPE_ARG,
     );
 
-    const viewStakeDetails = (stake: ExtendedDelegatedStake) => {
-        openPopup(<StakeDetailsPopup stake={stake} />);
+    const viewStakeDetails = (extendedStake: ExtendedDelegatedStake) => {
+        openPopup(<StakeDetailsPopup extendedStake={extendedStake} onClose={closePopup} />);
     };
 
     const addNewStake = () => {
@@ -62,10 +62,10 @@ function StakingDashboardPage(): JSX.Element {
             <Box title="Stakes">
                 <div className="flex flex-col items-center gap-4">
                     <h1>List of stakes</h1>
-                    {delegatedStakes?.map((stake) => (
+                    {extendedStakes?.map((extendedStake) => (
                         <StakeCard
-                            key={stake.stakedIotaId}
-                            stake={stake}
+                            key={extendedStake.stakedIotaId}
+                            extendedStake={extendedStake}
                             onDetailsClick={viewStakeDetails}
                         />
                     ))}

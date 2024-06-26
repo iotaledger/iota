@@ -14,6 +14,7 @@ import { FEATURES } from '_src/shared/experimentation/features';
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
 import {
     createStakeTransaction,
+    createUnstakeTransaction,
     parseAmount,
     useBalance,
     useCoinMetadata,
@@ -41,7 +42,6 @@ import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
 import { getStakeIotaByIotaId } from '../getStakeIotaByIotaId';
 import StakeForm from './StakeForm';
 import { UnStakeForm } from './UnstakeForm';
-import { createUnstakeTransaction } from './utils/transaction';
 import { createValidationSchema } from './utils/validation';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 
