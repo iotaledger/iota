@@ -3,9 +3,9 @@
  * bundles Infima by default. Infima is a CSS framework designed to
  * work well for content-centric websites.
  */
- @tailwind base;
- @tailwind components;
- @tailwind utilities;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 /* You can override the default Infima variables here. */
 :root {
@@ -17,56 +17,56 @@
   --ifm-color-primary-lighter: #7ebcff;
   --ifm-color-primary-lightest: #afd6ff;
   --ifm-code-font-size: 95%;
-  --ifm-background-color-dark: #030F1C;
-  --ifm-navbar-background-color: #030F1C;
-  --ifm-navbar-sidebar-link-color: #F7F7F8;
-  --ifm-navbar-sidebar-background-color: #030F1C;
-  --ifm-navbar-link-color: #F7F7F8;
+  --ifm-background-color-dark: black;
+  --ifm-navbar-background-color: #030f1c;
+  --ifm-navbar-sidebar-link-color: #f7f7f8;
+  --ifm-navbar-sidebar-background-color: #030f1c;
+  --ifm-navbar-link-color: #f7f7f8;
   --ifm-navbar-height: 4.5rem;
   --ifm-spacing-horizontal: 1.875rem;
-  --ifm-font-size-base: .9375rem;
+  --ifm-font-size-base: 0.9375rem;
   --ifm-line-height-base: 1.5rem;
-  --ifm-font-family-base: 'Inter', sans-serif;
+  --ifm-font-family-base: "Inter", sans-serif;
   --ifm-menu-color: #011829;
   --ifm-menu-color-background-active: rgba(247, 247, 248, 1);
 
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
-  --iota-black: #090B1A;
+  --iota-black: rgba(11, 11, 11, 0.607);
   --iota-blue: #6fbcf0;
   --iota-blue-bright: #00f9fb;
   --iota-blue-light: #e1f3ff;
-  --iota-blue-lighter: #B4C2D0;
+  --iota-blue-lighter: #b4c2d0;
   --iota-blue-dark: 52 99 151;
   --iota-blue-darker: #303846;
-  --iota-hero: #0284AD;
+  --iota-hero: #0284ad;
   --iota-hero-dark: #007195;
-  --iota-iota-steel: #A0B6C3;
-  --iota-steel-dark: #758F9E;
+  --iota-iota-steel: #a0b6c3;
+  --iota-steel-dark: #758f9e;
   --iota-steel-darker: #566873;
-  --iota-header-nav: #2A4362;
-  --iota-success: #2DD7A7;
-  --iota-success-dark: #008C65;
-  --iota-success-light: #D5F7EE;
-  --iota-issue: #FF794B;
-  --iota-issue-dark: #EB5A29;
-  --iota-issue-light: #FFECE5;
-  --iota-warning: #F2BD24;
-  --iota-warning-dark: #8D6E15;
-  --iota-warning-light: #FFF8E2;
-  --iota-code: #845ED6;
-  --iota-gray-35: #FEFEFE;
-  --iota-gray-40: #F7F8F8;
-  --iota-gray-45: #EBECED;
-  --iota-gray-50: #E9EAEB;
-  --iota-gray-55: #D7D8DA;
-  --iota-gray-60: #C3C5C8;
-  --iota-gray-65: #9C9FA4;
-  --iota-gray-70: #898D93;
-  --iota-gray-75: #767A81;
+  --iota-header-nav: #2a4362;
+  --iota-success: #2dd7a7;
+  --iota-success-dark: #008c65;
+  --iota-success-light: #d5f7ee;
+  --iota-issue: #ff794b;
+  --iota-issue-dark: #eb5a29;
+  --iota-issue-light: #ffece5;
+  --iota-warning: #f2bd24;
+  --iota-warning-dark: #8d6e15;
+  --iota-warning-light: #fff8e2;
+  --iota-code: #845ed6;
+  --iota-gray-35: #fefefe;
+  --iota-gray-40: #f7f8f8;
+  --iota-gray-45: #ebeced;
+  --iota-gray-50: #e9eaeb;
+  --iota-gray-55: #d7d8da;
+  --iota-gray-60: #c3c5c8;
+  --iota-gray-65: #9c9fa4;
+  --iota-gray-70: #898d93;
+  --iota-gray-75: #767a81;
   --iota-gray-80: #636870;
-  --iota-gray-85: #5A6573;
-  --iota-gray-90: #383F47;
-  --iota-gray-95: #2A3645;
+  --iota-gray-85: #5a6573;
+  --iota-gray-90: #383f47;
+  --iota-gray-95: #2a3645;
   --iota-gray-100: #182435;
   --iota-link-color: #1068a6;
   --iota-link-color-dark: #057fd1;
@@ -77,20 +77,20 @@
   --iota-card-dark: 13 20 37;
   --iota-card-darker: 0 23 49;
   --iota-blue-primary: #4da2ff;
-  --iota-gray: #ABBDCC;
+  --iota-gray: #abbdcc;
   --iota-white: #f7f7f8;
   --iota-button-hover: #1a88ff;
-  --iota-line: rgba(247, 247, 248, .1);
+  --iota-line: rgba(247, 247, 248, 0.1);
   --iota-max-width-desktop: 1162px;
   --iota-dark-blue-bkg: #011829;
 
-  --primaryFont: 'Inter', sans-serif;
-  --headerFont: 'Twkeverett', sans-serif;
+  --primaryFont: "Inter", sans-serif;
+  --headerFont: "Twkeverett", sans-serif;
   --monoFont: "Twkeverett Mono", monospace;
 }
 
 /* For readability concerns, you should choose a lighter palette in dark mode. */
-[data-theme='dark'] {
+[data-theme="dark"] {
   --ifm-color-primary: #4ca2ff;
   --ifm-color-primary-dark: #2b91ff;
   --ifm-color-primary-darker: #1a88ff;
@@ -98,11 +98,11 @@
   --ifm-color-primary-light: #6db3ff;
   --ifm-color-primary-lighter: #7ebcff;
   --ifm-color-primary-lightest: #afd6ff;
-  --ifm-background-color: #030F1C;
+  --ifm-background-color: #030f1c;
   --ifm-menu-color: var(--iota-white);
-  --ifm-menu-color-background-active: rgba(247, 247, 248, .05);
-  --ifm-navbar-sidebar-link-color: #F7F7F8;
-  --ifm-navbar-sidebar-background-color: #030F1C;
+  --ifm-menu-color-background-active: black;
+  --ifm-navbar-sidebar-link-color: #f7f7f8;
+  --ifm-navbar-sidebar-background-color: black;
 }
 
 .active-scroll-spy {
@@ -110,10 +110,10 @@
 }
 
 /* Inverts the image in the stadards/closed-loop-token.mdx in dark mode. */
-[data-theme='dark'] img.balance-coin-token {
+[data-theme="dark"] img.balance-coin-token {
   filter: invert(1);
 }
- 
+
 /** navbar overrides */
 .navbar-sidebar .menu__link {
   color: var(--ifm-navbar-sidebar-link-color);
@@ -123,15 +123,15 @@
   background-color: var(--iota-blue-primary);
   color: var(--iota-gray-100);
 }
-[data-theme='dark'] .navbar-sidebar .menu__link--active {
-  background-color: var(--iota-blue-primary);
+[data-theme="dark"] .navbar-sidebar .menu__link--active {
+  background-color: rgba(11, 11, 11, 0.607);
   color: var(--iota-gray-100);
 }
-html[data-theme=dark] {
-  background-color: var(--ifm-navbar-background-color);
+html[data-theme="dark"] {
+  background-color: rgba(11, 11, 11, 0.607);
 }
 /** setup global style overrides */
-body { 
+body {
   font-family: var(--primaryFont);
 }
 
@@ -141,7 +141,6 @@ h1 {
   font-family: var(--primaryFont);
   font-weight: 500;
   letter-spacing: -0.04em;
-  
 }
 .h1 {
   letter-spacing: -2.88px;
@@ -204,55 +203,70 @@ h4 {
   letter-spacing: -2%;
 }
 @media screen and (max-width: 767px) {
-  h1 , .h1{
+  h1,
+  .h1 {
     font-size: 3.5rem;
   }
-  h2, .h2 {
+  h2,
+  .h2 {
     font-size: 2rem;
   }
-  h3, .h3 {
+  h3,
+  .h3 {
     font-size: 1.5rem;
   }
-  h4, .h4 {
+  h4,
+  .h4 {
     font-size: 1.2rem;
   }
 }
 @media screen and (max-width: 599px) {
-  h2, .h2 {
+  h2,
+  .h2 {
     font-size: 1.7rem;
   }
-  h3, .h3 {
+  h3,
+  .h3 {
     font-size: 1.2rem;
   }
-  h4, .h4 {
+  h4,
+  .h4 {
     font-size: 1rem;
   }
 }
 
-
 /** Navbar overrides **/
 .navbar {
   border-bottom: 1px solid var(--iota-line);
+  background-color: black;
 }
 .navbar__title {
-  visibility: hidden;
+  width: 10px;
 }
 .navbar__toggle path {
   stroke: var(--iota-white);
 }
 .navbar__items {
-  justify-content: space-between;
+  color: rgba(255, 255, 255, 0.7);
 }
 .navbar__items .navbar__brand {
-  width: 27%;
+  width: 17%;
+
+  color: rgba(255, 255, 255, 0.7);
 }
 .navbar__items .navbar__item.navbar__link {
-  font-family: var(--headerFont);
-  font-size: .9375rem;
+  /* font-family: var(--headerFont); */
+  font-size: 0.9375rem;
   font-weight: 500;
   line-height: 1.125rem;
   letter-spacing: -0.02em;
+  color: rgba(255, 255, 255, 0.7);
 }
+.navbar__items_wrapper {
+  display: flex;
+  column-gap: 0rem;
+}
+
 @media screen and (min-width: 767px) {
   .navbar__items.navbar__items--right {
     min-width: 325px;
@@ -274,8 +288,7 @@ h4 {
   color: var(--iota-white) !important;
   font-family: var(--primaryFont);
   letter-spacing: -0.01em;
-  background: linear-gradient(0deg, rgba(247, 247, 248, 0.1), rgba(247, 247, 248, 0.1)),
-  linear-gradient(0deg, rgba(247, 247, 248, 0.05), rgba(247, 247, 248, 0.05)) !important;
+  background: transparent;
 }
 @media screen and (max-width: 599px) {
   .DocSearch-Button {
@@ -301,21 +314,20 @@ h4 {
   margin-top: 1rem;
 }
 
-
 /** Globals **/
 .button-cta {
   background-color: var(--iota-blue-primary);
   color: var(--iota-white);
-  letter-spacing: -.3px;
+  letter-spacing: -0.3px;
   cursor: pointer;
   border-style: none;
   border-radius: 2.25rem;
-  padding: .75rem 1.125rem;
+  padding: 0.75rem 1.125rem;
   font-family: var(--primaryFont);
   font-size: 1rem;
   font-weight: 500;
   line-height: 1.125rem;
-  transition: background-color .3s;
+  transition: background-color 0.3s;
   display: inline-block;
 }
 .button-cta:hover {

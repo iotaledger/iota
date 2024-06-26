@@ -32,7 +32,11 @@ export default function Home() {
   };
 
   return (
-    <Layout>
+    <Layout
+      style={{
+        background: "var(--iota-black)",
+      }}
+    >
       <div className="bg-iota-black overflow-hidden">
         <div className="w-full mt-24 mb-12 mx-auto bg-iota-black">
           <div className={styles.heroText}>
@@ -64,7 +68,10 @@ export default function Home() {
             <Link className={styles.cardLink} to="./guides/developer/iota-101">
               IOTA Developer Basics
             </Link>
-            <Link className={styles.cardLink} to="./concepts/iota-move-concepts">
+            <Link
+              className={styles.cardLink}
+              to="./concepts/iota-move-concepts"
+            >
               Move
             </Link>
           </HomeCard>
