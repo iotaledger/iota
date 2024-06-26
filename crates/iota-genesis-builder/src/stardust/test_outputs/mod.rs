@@ -19,9 +19,11 @@ use iota_sdk::types::block::{
     },
 };
 use packable::{packer::IoPacker, Packable};
-use rand::random;
 
-use crate::stardust::{parse::HornetGenesisSnapshotParser, types::output_header::OutputHeader};
+use crate::stardust::{
+    parse::HornetGenesisSnapshotParser,
+    types::{output_header::OutputHeader, output_index::random_output_index},
+};
 
 const OUTPUT_TO_DECREASE_AMOUNT_FROM: &str =
     "0xb462c8b2595d40d3ff19924e3731f501aab13e215613ce3e248d0ed9f212db160000";
@@ -40,8 +42,7 @@ pub(crate) fn new_vested_output(
 
     let output_header = OutputHeader::new_testing(
         *transaction_id,
-        // % 128 to pass the output index syntactic validation.
-        random::<u16>() % 128,
+        random_output_index(),
         [0; 32],
         MERGE_MILESTONE_INDEX,
         MERGE_TIMESTAMP_SECS,
