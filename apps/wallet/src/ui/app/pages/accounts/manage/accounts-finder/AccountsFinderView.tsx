@@ -11,6 +11,7 @@ interface AccountsFinderViewProps {
         id: string;
         address: string;
         balance: number;
+        accountSourceId: string | undefined;
     }[];
 }
 

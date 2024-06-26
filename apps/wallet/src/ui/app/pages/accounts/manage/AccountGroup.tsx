@@ -160,15 +160,14 @@ export function AccountGroup({
     const accountSource = accountSources?.find(({ id }) => id === accountSourceID);
 
     const handleButtonClick = (action: () => void) => async (e: React.MouseEvent) => {
-        if (!accountSource || (type !== 'mnemonic-derived' && type !== 'seed-derived')) {
+        if (
+            !accountSource ||
+            (type !== AccountType.MnemonicDerived && type !== AccountType.SeedDerived)
+        ) {
             return;
         }
         // prevent the collapsible from closing when clicking the "new" button
         e.stopPropagation();
-        setAccountsFormValues({
-            type,
-            sourceID: accountSource.id,
-        });
         if (accountSource.isLocked) {
             setPasswordModalVisible(true);
         } else {
@@ -190,9 +189,13 @@ export function AccountGroup({
                                 <>
                                     <ButtonOrLink
                                         loading={createAccountMutation.isPending}
-                                        onClick={handleButtonClick(() =>
-                                            createAccountMutation.mutate({ type }),
-                                        )}
+                                        onClick={handleButtonClick(() => {
+                                            setAccountsFormValues({
+                                                type,
+                                                sourceID: accountSource.id,
+                                            });
+                                            createAccountMutation.mutate({ type });
+                                        })}
                                         className="flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase text-hero outline-none hover:text-hero-darkest"
                                     >
                                         <Plus12 />
@@ -203,7 +206,9 @@ export function AccountGroup({
                                     <ButtonOrLink
                                         className="flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase text-hero outline-none hover:text-hero-darkest"
                                         onClick={handleButtonClick(() =>
-                                            navigate('/accounts/manage/accounts-finder'),
+                                            navigate(
+                                                `/accounts/manage/accounts-finder/${accountSource.id}`,
+                                            ),
                                         )}
                                     >
                                         <Search16 />

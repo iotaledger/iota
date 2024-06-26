@@ -189,7 +189,10 @@ const App = () => {
                 <Route path="import-private-key" element={<ImportPrivateKeyPage />} />
                 <Route path="import-seed" element={<ImportSeedPage />} />
                 <Route path="manage" element={<ManageAccountsPage />} />
-                <Route path="manage/accounts-finder" element={<AccountsFinderPage />} />
+                <Route
+                    path="manage/accounts-finder/:accountSourceId"
+                    element={<AccountsFinderPage />}
+                />
                 <Route path="protect-account" element={<ProtectAccountPage />} />
                 <Route path="backup/:accountSourceID" element={<BackupMnemonicPage />} />
                 <Route path="export/:accountID" element={<ExportAccountPage />} />
