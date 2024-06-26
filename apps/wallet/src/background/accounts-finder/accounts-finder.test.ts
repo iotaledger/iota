@@ -6,8 +6,9 @@ import { mnemonicToSeedHex } from '@iota/iota.js/cryptography';
 import { requestIotaFromFaucetV1 } from '@iota/iota.js/faucet';
 import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
 import { entropyToMnemonic, getRandomEntropy } from '_shared/utils/bip39';
-import { recoverAccounts, FoundAccount } from './accounts-finder';
+import { recoverAccounts } from './accounts-finder';
 import { test, assert } from 'vitest';
+import { AccountFromFinder } from '_src/shared/accounts';
 
 const GAS_TYPE_ARG = '0x2::iota::IOTA';
 const IOTA_COIN_TYPE = 4218; // 4219 for Shimmer
@@ -38,7 +39,7 @@ test('existing accounts', async () => {
         });
     }
 
-    let accounts: FoundAccount[] = [
+    let accounts: AccountFromFinder[] = [
         {
             index: 0,
             addresses: [],
@@ -86,7 +87,7 @@ test('empty accounts', async () => {
     const mnemonic = entropyToMnemonic(getRandomEntropy());
     const seed = mnemonicToSeedHex(mnemonic);
 
-    let accounts: FoundAccount[] = [];
+    let accounts: AccountFromFinder[] = [];
 
     accounts = await recoverAccounts(0, 0, 10, accounts, seed, coinType, client, GAS_TYPE_ARG);
     let expectedAccounts = 0;
