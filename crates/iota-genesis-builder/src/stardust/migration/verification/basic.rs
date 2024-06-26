@@ -53,11 +53,13 @@ pub(super) fn verify_basic_output(
             .ok_or_else(|| anyhow!("invalid timelock object"))?;
 
         // Locked timestamp
+        let output_timelock_timestamp =
+            output.unlock_conditions().timelock().unwrap().timestamp() as u64 * 1000;
         ensure!(
-            created_timelock.expiration_timestamp_ms() == target_milestone_timestamp as u64,
+            created_timelock.expiration_timestamp_ms() == output_timelock_timestamp,
             "timelock timestamp mismatch: found {}, expected {}",
             created_timelock.expiration_timestamp_ms(),
-            target_milestone_timestamp
+            output_timelock_timestamp
         );
 
         // Amount
