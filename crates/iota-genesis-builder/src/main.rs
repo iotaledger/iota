@@ -11,7 +11,7 @@ use clap::{Parser, Subcommand};
 use iota_genesis_builder::{
     stardust::{
         migration::{Migration, MigrationTargetNetwork},
-        parse::FullSnapshotParser,
+        parse::HornetGenesisSnapshotParser,
     },
     BROTLI_COMPRESSOR_BUFFER_SIZE, BROTLI_COMPRESSOR_LG_WINDOW_SIZE, BROTLI_COMPRESSOR_QUALITY,
     OBJECT_SNAPSHOT_FILE_PATH,
@@ -71,7 +71,7 @@ fn main() -> Result<()> {
     };
 
     // Start the Hornet snapshot parser
-    let snapshot_parser = FullSnapshotParser::new(File::open(snapshot_path)?)?;
+    let snapshot_parser = HornetGenesisSnapshotParser::new(File::open(snapshot_path)?)?;
 
     // Prepare the migration using the parser output stream
     let migration = Migration::new(
