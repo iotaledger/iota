@@ -11,7 +11,6 @@ use std::{
 };
 
 use iota_sdk::types::block::output::{BasicOutputBuilder, Output, OutputId};
-use iota_types::stardust::error::StardustError;
 use packable::{packer::IoPacker, Packable};
 
 use crate::stardust::parse::FullSnapshotParser;
@@ -32,8 +31,7 @@ pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
         .open(new_path)?;
     let mut writer = IoPacker::new(BufWriter::new(new_file));
     let parser = FullSnapshotParser::new(current_file)?;
-    let output_to_decrease_amount_from =
-        OutputId::from_str(OUTPUT_TO_DECREASE_AMOUNT_FROM).map_err(StardustError::BlockError)?;
+    let output_to_decrease_amount_from = OutputId::from_str(OUTPUT_TO_DECREASE_AMOUNT_FROM)?;
     let mut new_header = parser.header.clone();
     let mut vested_index = u32::MAX;
 
@@ -59,8 +57,7 @@ pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
             let output = Output::from(
                 BasicOutputBuilder::from(basic)
                     .with_amount(amount)
-                    .finish()
-                    .map_err(StardustError::BlockError)?,
+                    .finish()?,
             );
 
             output.pack(&mut writer)?;
