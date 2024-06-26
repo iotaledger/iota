@@ -15,6 +15,7 @@ use super::{
 use crate::{
     balance::Balance,
     base_types::IotaAddress,
+    coin::TreasuryCap,
     collection_types::{Bag, Table, TableVec, VecMap, VecSet},
     committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata},
     error::IotaError,
@@ -69,6 +70,7 @@ pub struct IotaSystemStateInnerV2 {
     pub epoch: u64,
     pub protocol_version: u64,
     pub system_state_version: u64,
+    pub iota_treasury_cap: TreasuryCap,
     pub validators: ValidatorSetV1,
     pub storage_fund: StorageFundV1,
     pub parameters: SystemParametersV2,
@@ -201,6 +203,8 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV2 {
             epoch,
             protocol_version,
             system_state_version,
+            // TODO: Add this to the system state summary.
+            iota_treasury_cap: _,
             validators:
                 ValidatorSetV1 {
                     total_stake,
