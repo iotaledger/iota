@@ -14,7 +14,7 @@ use iota_sdk::types::block::output::{BasicOutputBuilder, Output, OutputId, OUTPU
 use packable::{packer::IoPacker, Packable};
 use rand::Rng as _;
 
-use crate::stardust::parse::FullSnapshotParser;
+use crate::stardust::{parse::FullSnapshotParser, types::output_index::OutputIndex};
 
 const OUTPUT_TO_DECREASE_AMOUNT_FROM: &str =
     "0xb462c8b2595d40d3ff19924e3731f501aab13e215613ce3e248d0ed9f212db160000";
@@ -68,22 +68,6 @@ pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
     }
 
     Ok(())
-}
-
-#[derive(Copy, Clone, Debug, Default)]
-pub struct OutputIndex(u16);
-
-impl OutputIndex {
-    pub fn new(index: u16) -> anyhow::Result<Self> {
-        if !OUTPUT_INDEX_RANGE.contains(&index) {
-            anyhow::bail!("index {index} out of range {OUTPUT_INDEX_RANGE:?}");
-        }
-        Ok(Self(index))
-    }
-
-    pub fn get(&self) -> u16 {
-        self.0
-    }
 }
 
 /// Generates a random, valid output index in the range [0..128)

@@ -9,7 +9,7 @@ use iota_sdk::types::block::{output::OutputId, payload::milestone::MilestoneInde
 use iota_types::base_types::ObjectID;
 use packable::Packable;
 
-use crate::stardust::test_outputs::OutputIndex;
+use crate::stardust::types::output_index::OutputIndex;
 
 /// The total supply on the iota-mainnet
 pub const TOTAL_SUPPLY_IOTA: u64 = 4_600_000_000_000_000;
