@@ -39,8 +39,7 @@ use crate::stardust::{
         verification::created_objects::CreatedObjects,
         MigrationTargetNetwork,
     },
-    test_outputs::random_output_index,
-    types::output_header::OutputHeader,
+    types::{output_header::OutputHeader, output_index::random_output_index},
 };
 
 mod alias;

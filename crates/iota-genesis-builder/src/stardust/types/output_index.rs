@@ -5,6 +5,7 @@
 //! [0..128)
 
 use iota_sdk::types::block::output::OUTPUT_INDEX_RANGE;
+use rand::Rng as _;
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct OutputIndex(u16);
@@ -20,4 +21,10 @@ impl OutputIndex {
     pub fn get(&self) -> u16 {
         self.0
     }
+}
+
+/// Generates a random, valid output index in the range [0..128)
+pub fn random_output_index() -> OutputIndex {
+    OutputIndex::new(rand::thread_rng().gen_range(OUTPUT_INDEX_RANGE))
+        .expect("range is guaranteed to be valid")
 }

@@ -23,7 +23,7 @@ use iota_sdk::{
 use iota_types::timelock::timelock::VESTED_REWARD_ID_PREFIX;
 use rand::{random, rngs::StdRng, Rng, SeedableRng};
 
-use crate::stardust::{test_outputs::random_output_index, types::output_header::OutputHeader};
+use crate::stardust::types::{output_header::OutputHeader, output_index::random_output_index};
 
 const MNEMONIC: &str = "sense silent picnic predict any public install educate trial depth faith voyage age exercise perfect hair favorite glimpse blame wood wave fiber maple receive";
 const ACCOUNTS: u32 = 10;
