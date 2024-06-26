@@ -700,6 +700,12 @@ module iota_system::iota_system {
         self.get_stake_subsidy_distribution_counter()
     }
 
+    #[test_only]
+    public fun get_iota_supply(wrapper: &mut IotaSystemState): u64 {
+      let self = load_system_state(wrapper);
+      self.get_total_iota_supply()
+    }
+
     // CAUTION: THIS CODE IS ONLY FOR TESTING AND THIS MACRO MUST NEVER EVER BE REMOVED.  Creates a
     // candidate validator - bypassing the proof of possession check and other metadata validation
     // in the process.

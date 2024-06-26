@@ -1096,6 +1096,11 @@ module iota_system::iota_system_state_inner {
     }
 
     #[test_only]
+    public(package) fun get_total_iota_supply(self: &IotaSystemStateInnerV2): u64 {
+        self.iota_treasury_cap.total_supply()
+    }
+
+    #[test_only]
     public(package) fun set_epoch_for_testing(self: &mut IotaSystemStateInnerV2, epoch_num: u64) {
         self.epoch = epoch_num
     }

@@ -81,9 +81,15 @@ module iota_system::governance_test_utils {
             ctx,
         );
 
+        // We initialize the total supply to the given test value but we destroy the
+        // supply balance since we will recreate balances for testing out of thin air.
+        let mut iota_treasury_cap = coin::create_treasury_cap_for_testing<IOTA>(ctx);
+        let supply = iota_treasury_cap.supply_mut().increase_supply(iota_supply_amount * MICROS_PER_IOTA);
+        balance::destroy_for_testing(supply);
+
         iota_system::create(
             object::new(ctx), // it doesn't matter what ID iota system state has in tests
-            coin::create_treasury_cap_for_testing<IOTA>(ctx),
+            iota_treasury_cap,
             validators,
             balance::create_for_testing<IOTA>(storage_fund_amount * MICROS_PER_IOTA), // storage_fund
             1,   // protocol version
@@ -110,11 +116,11 @@ module iota_system::governance_test_utils {
     }
 
     public fun advance_epoch(scenario: &mut Scenario) {
-        advance_epoch_with_reward_amounts(0, 0, scenario);
+        advance_epoch_with_reward_amounts(0, 0, 0, scenario);
     }
 
     public fun advance_epoch_with_reward_amounts_return_rebate(
-        storage_charge: u64, computation_charge: u64, stoarge_rebate: u64, non_refundable_storage_rebate: u64, scenario: &mut Scenario,
+        validator_target_reward: u64, storage_charge: u64, computation_charge: u64, stoarge_rebate: u64, non_refundable_storage_rebate: u64, scenario: &mut Scenario,
     ): Balance<IOTA> {
         scenario.next_tx(@0x0);
         let new_epoch = scenario.ctx().epoch() + 1;
@@ -123,7 +129,7 @@ module iota_system::governance_test_utils {
         let ctx = scenario.ctx();
 
         let storage_rebate = system_state.advance_epoch_for_testing(
-            new_epoch, 1, computation_charge, storage_charge, computation_charge, stoarge_rebate, non_refundable_storage_rebate, 0, 0, 0, ctx,
+            new_epoch, 1, validator_target_reward, storage_charge, computation_charge, stoarge_rebate, non_refundable_storage_rebate, 0, 0, 0, ctx,
         );
         test_scenario::return_shared(system_state);
         scenario.next_epoch(@0x0);
@@ -131,9 +137,9 @@ module iota_system::governance_test_utils {
     }
 
     public fun advance_epoch_with_reward_amounts(
-        storage_charge: u64, computation_charge: u64, scenario: &mut Scenario
+        validator_target_reward: u64, storage_charge: u64, computation_charge: u64, scenario: &mut Scenario
     ) {
-        let storage_rebate = advance_epoch_with_reward_amounts_return_rebate(storage_charge * MICROS_PER_IOTA, computation_charge * MICROS_PER_IOTA, 0, 0, scenario);
+        let storage_rebate = advance_epoch_with_reward_amounts_return_rebate(validator_target_reward * MICROS_PER_IOTA, storage_charge * MICROS_PER_IOTA, computation_charge * MICROS_PER_IOTA, 0, 0, scenario);
         test_utils::destroy(storage_rebate)
     }
 
@@ -341,5 +347,13 @@ module iota_system::governance_test_utils {
             i = i + 1;
         };
         sum
+    }
+
+    /// Returns the total IOTA supply in the system state.
+    public fun total_supply(scenario: &mut Scenario): u64 {
+        let mut system_state = scenario.take_shared<IotaSystemState>();
+        let total_supply = system_state.get_iota_supply();
+        test_scenario::return_shared(system_state);
+        total_supply
     }
 }
