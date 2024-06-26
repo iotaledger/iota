@@ -25,7 +25,7 @@ use rand::{random, rngs::StdRng, Rng, SeedableRng};
 
 use crate::stardust::types::output_header::OutputHeader;
 
-const MNEMONIC: &str = "sense silent picnic predict any public install educate trial depth faith voyage age exercise perfect hair favorite glimpse blame wood wave fiber maple receive";
+const MNEMONIC: &str = "mesh dose off wage gas tent key light help girl faint catch sock trouble guard moon talk pill enemy hawk gain mix sad mimic";
 const ACCOUNTS: u32 = 10;
 const ADDRESSES_PER_ACCOUNT: u32 = 20;
 const COIN_TYPE: u32 = 4218;
@@ -104,7 +104,7 @@ pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(Outpu
 
             // The modulos 3 and 5 are chosen because they create a pattern of
             // all possible combinations of having an initial unlock and having
-            //  expired timelock outputs.
+            // expired timelock outputs.
 
             // 2 addresses out of 3 have an initial unlock.
             if address_index % 3 != 0 {
