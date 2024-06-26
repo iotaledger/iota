@@ -225,9 +225,6 @@ importers:
       bignumber.js:
         specifier: ^9.1.1
         version: 9.1.1
-      idb-keyval:
-        specifier: ^6.2.1
-        version: 6.2.1
       react:
         specifier: ^18.2.0
         version: 18.2.0
