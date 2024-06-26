@@ -14,7 +14,7 @@ export function useAccountsFinder(
     const backgroundClient = useBackgroundClient();
     const queryClient = useQueryClient();
     const accountsQuery = useQuery<AddressFromFinder[]>({
-        queryKey: ['accounts-finder2', accountGapLimit],
+        queryKey: ['accounts-finder', accountGapLimit],
         async queryFn() {
             const response = await backgroundClient.getLastAccountFinderResults(accountGapLimit);
             return response.payload.results;
@@ -25,7 +25,7 @@ export function useAccountsFinder(
     async function init() {
         await backgroundClient.initAccountsFinder();
         queryClient.invalidateQueries({
-            queryKey: ['accounts-finder2'],
+            queryKey: ['accounts-finder'],
         });
     }
 
@@ -38,7 +38,7 @@ export function useAccountsFinder(
             addressGapLimit,
         );
         queryClient.invalidateQueries({
-            queryKey: ['accounts-finder2'],
+            queryKey: ['accounts-finder'],
         });
     }
 

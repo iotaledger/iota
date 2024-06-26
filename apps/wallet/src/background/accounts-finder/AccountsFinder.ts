@@ -48,9 +48,8 @@ class AccountsFinder {
     }
 
     getResults(accountGapLimit: number): AddressFromFinder[] {
-        return this.accounts
-            .flatMap((acc) => acc.addresses.flat())
-            .slice(this.accounts.length - accountGapLimit);
+        const addresses = this.accounts.flatMap((acc) => acc.addresses.flat());
+        return addresses.slice(addresses.length - accountGapLimit);
     }
 }
 
