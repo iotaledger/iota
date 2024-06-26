@@ -8,11 +8,13 @@ import FiltersPortal from '_components/filters-tags';
 import Loading from '_components/loading';
 import LoadingSpinner from '_components/loading/LoadingIndicator';
 import { setToSessionStorage } from '_src/background/storage-utils';
+import { AssetFilterTypes, useGetNFTs } from '_src/ui/app/hooks/useGetNFTs';
 import PageTitle from '_src/ui/app/shared/PageTitle';
-import { useOnScreen, AssetFilterTypes, useGetNFTs, useHiddenAssets } from '@iota/core';
+import { useOnScreen } from '@iota/core';
 import { useEffect, useMemo, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 
+import { useHiddenAssets } from '../hidden-assets/HiddenAssetsProvider';
 import AssetsOptionsMenu from './AssetsOptionsMenu';
 import NonVisualAssets from './NonVisualAssets';
 import VisualAssets from './VisualAssets';

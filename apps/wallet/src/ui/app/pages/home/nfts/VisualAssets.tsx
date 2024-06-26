@@ -10,12 +10,8 @@ import { EyeClose16 } from '@iota/icons';
 import { type IotaObjectData } from '@iota/iota.js/client';
 import { Link } from 'react-router-dom';
 
-import {
-    getKioskIdFromOwnerCap,
-    isKioskOwnerToken,
-    useKioskClient,
-    useHiddenAssets,
-} from '@iota/core';
+import { useHiddenAssets } from '../hidden-assets/HiddenAssetsProvider';
+import { getKioskIdFromOwnerCap, isKioskOwnerToken, useKioskClient } from '@iota/core';
 
 export default function VisualAssets({ items }: { items: IotaObjectData[] }) {
     const { hideAsset } = useHiddenAssets();

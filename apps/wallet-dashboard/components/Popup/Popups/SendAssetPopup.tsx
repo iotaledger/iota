@@ -3,8 +3,9 @@
 
 import React, { useState } from 'react';
 import { IotaObjectData } from '@iota/iota.js/client';
-import { ExternalImage, Input } from '@/components';
+import { AssetCard, Input } from '@/components';
 import { Button } from '@/components/Buttons';
+import { FlexDirection } from '@/lib/ui/enums';
 
 interface SendAssetPopupProps {
     asset: IotaObjectData;
@@ -19,31 +20,7 @@ export default function SendAssetPopup({ asset, onClose }: SendAssetPopupProps):
     }
     return (
         <div className="flex flex-col space-y-4">
-            <div className="flex min-w-[40vw] flex-col items-center space-y-4">
-                {asset.display && asset.display.data && asset.display.data.image_url && (
-                    <ExternalImage
-                        src={asset.display.data.image_url}
-                        alt={asset.display.data.name}
-                        width={200}
-                        height={200}
-                        className="object-cover"
-                    />
-                )}
-                <div className="flex w-full flex-col space-y-1">
-                    <h4 className="text-center font-semibold">Object Details</h4>
-                    <div className="flex w-full flex-col items-start">
-                        <div>
-                            <span className="font-semibold">Digest:</span> {asset.digest}
-                        </div>
-                        <div>
-                            <span className="font-semibold">Object ID:</span> {asset.objectId}
-                        </div>
-                        <div>
-                            <span className="font-semibold">Version:</span> {asset.version}
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <AssetCard asset={asset} flexDirection={FlexDirection.Column} />
             <div className="flex flex-col space-y-2">
                 <label htmlFor="recipientAddress">Enter recipient address</label>
                 <Input

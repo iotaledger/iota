@@ -15,12 +15,13 @@ import {
     getKioskIdFromOwnerCap,
     isKioskOwnerToken,
     useMultiGetObjects,
-    useHiddenAssets,
 } from '@iota/core';
 import { EyeClose16 } from '@iota/icons';
 import { keepPreviousData } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
+
+import { useHiddenAssets } from './HiddenAssetsProvider';
 
 function HiddenNftsPage() {
     const { hiddenAssetIds, showAsset } = useHiddenAssets();

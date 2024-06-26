@@ -4,17 +4,23 @@
 'use client';
 
 import React from 'react';
-import { getNetwork, IotaObjectData } from '@iota/iota.js/client';
+import { IotaObjectData, getNetwork } from '@iota/iota.js/client';
 import { VirtualList } from '@/components/index';
-import { useGetNFTs } from '@iota/core';
+import { hasDisplayData, useGetOwnedObjects } from '@iota/core';
 import { useCurrentAccount, useIotaClientContext } from '@iota/dapp-kit';
 
 function EverythingElsePage(): JSX.Element {
     const account = useCurrentAccount();
+    const { data } = useGetOwnedObjects(account?.address);
+
     const { network } = useIotaClientContext();
     const { explorer } = getNetwork(network);
-    const { data } = useGetNFTs(account?.address);
-    const nonVisualAssets = data?.other ?? [];
+
+    const nonVisualAssets =
+        data?.pages
+            .flatMap((page) => page.data)
+            .filter((asset) => asset.data && asset.data.objectId && !hasDisplayData(asset))
+            .map((response) => response.data!) ?? [];
 
     const virtualItem = (asset: IotaObjectData): JSX.Element => (
         <a href={`${explorer}/object/${asset.objectId}`} target="_blank" rel="noreferrer">

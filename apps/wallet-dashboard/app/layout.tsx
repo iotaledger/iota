@@ -8,13 +8,11 @@ import './globals.css';
 
 import { IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
 import { getAllNetworks, getDefaultNetwork } from '@iota/iota.js/client';
-import { HiddenAssetsProvider } from '@iota/core';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
 import '@iota/dapp-kit/dist/index.css';
 import { Popup, PopupProvider } from '@/components/Popup';
-import { KioskClientProvider } from '@iota/core';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -34,14 +32,10 @@ export default function RootLayout({
                 <QueryClientProvider client={queryClient}>
                     <IotaClientProvider networks={allNetworks} defaultNetwork={defaultNetwork}>
                         <WalletProvider>
-                            <KioskClientProvider>
-                                <HiddenAssetsProvider>
-                                    <PopupProvider>
-                                        {children}
-                                        <Popup />
-                                    </PopupProvider>
-                                </HiddenAssetsProvider>
-                            </KioskClientProvider>
+                            <PopupProvider>
+                                {children}
+                                <Popup />
+                            </PopupProvider>
                         </WalletProvider>
                     </IotaClientProvider>
                 </QueryClientProvider>

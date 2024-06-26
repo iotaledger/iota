@@ -6,15 +6,14 @@ import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { Route, Routes } from 'react-router-dom';
 
 import { HiddenAssetsPage, NftsPage } from '..';
-import { HiddenAssetsProvider } from '@iota/core';
-import { showAssetHiddenToast, showAssetShownToast } from '_src/ui/app/helpers/hiddenAssets';
+import { HiddenAssetsProvider } from '../hidden-assets/HiddenAssetsProvider';
 
 function AssetsPage() {
     if (useUnlockedGuard()) {
         return null;
     }
     return (
-        <HiddenAssetsProvider onAssetHide={showAssetHiddenToast} onAssetShow={showAssetShownToast}>
+        <HiddenAssetsProvider>
             <Routes>
                 <Route path="/hidden-assets" element={<HiddenAssetsPage />} />
                 <Route path="/:filterType?/*" element={<NftsPage />} />

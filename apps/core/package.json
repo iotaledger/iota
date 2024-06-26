@@ -32,7 +32,6 @@
         "@sentry/react": "^7.59.2",
         "@tanstack/react-query": "^5.0.0",
         "bignumber.js": "^9.1.1",
-        "idb-keyval": "^6.2.1",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
         "react-hook-form": "^7.45.2",
