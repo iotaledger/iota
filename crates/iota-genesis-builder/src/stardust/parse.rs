@@ -32,10 +32,8 @@ impl<R: Read> FullSnapshotParser<R> {
     pub fn outputs(mut self) -> impl Iterator<Item = anyhow::Result<(OutputHeader, Output)>> {
         (0..self.header.output_count()).map(move |_| {
             Ok((
-                OutputHeader::unpack::<_, true>(&mut self.reader, &())
-                    .map_err(|e| anyhow::anyhow!("{e}"))?,
-                Output::unpack::<_, true>(&mut self.reader, &ProtocolParameters::default())
-                    .map_err(|e| anyhow::anyhow!("{e}"))?,
+                OutputHeader::unpack::<_, true>(&mut self.reader, &())?,
+                Output::unpack::<_, true>(&mut self.reader, &ProtocolParameters::default())?,
             ))
         })
     }

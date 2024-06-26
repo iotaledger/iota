@@ -20,7 +20,7 @@ use iota_sdk::types::block::output::{
     unlock_condition::StorageDepositReturnUnlockCondition, AliasOutputBuilder, BasicOutputBuilder,
     FoundryOutputBuilder, NftOutputBuilder, Output,
 };
-use iota_types::stardust::{coin_type::CoinType, error::StardustError};
+use iota_types::stardust::coin_type::CoinType;
 use itertools::Itertools;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
@@ -136,19 +136,17 @@ fn scale_output_amount_for_iota(output: &mut Output) -> Result<()> {
                 );
             };
 
-            Output::from(builder.finish().map_err(StardustError::BlockError)?)
+            Output::from(builder.finish()?)
         }
         Output::Alias(ref alias_output) => Output::from(
             AliasOutputBuilder::from(alias_output)
                 .with_amount(multiply_amount(alias_output.amount())?)
-                .finish()
-                .map_err(StardustError::BlockError)?,
+                .finish()?,
         ),
         Output::Foundry(ref foundry_output) => Output::from(
             FoundryOutputBuilder::from(foundry_output)
                 .with_amount(multiply_amount(foundry_output.amount())?)
-                .finish()
-                .map_err(StardustError::BlockError)?,
+                .finish()?,
         ),
         Output::Nft(ref nft_output) => {
             // Update amount
@@ -171,7 +169,7 @@ fn scale_output_amount_for_iota(output: &mut Output) -> Result<()> {
                 );
             };
 
-            Output::from(builder.finish().map_err(StardustError::BlockError)?)
+            Output::from(builder.finish()?)
         }
         Output::Treasury(_) => return Ok(()),
     };
