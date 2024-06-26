@@ -22,12 +22,12 @@ export default function SendAssetPopup({ asset, onClose }: SendAssetPopupProps):
         <div className="flex flex-col space-y-4">
             <AssetCard asset={asset} flexDirection={FlexDirection.Column} />
             <div className="flex flex-col space-y-2">
-                <label htmlFor="recipientAddress">Enter recipient address</label>
                 <Input
                     type="text"
                     value={recipientAddress}
-                    placeholder="0x..."
+                    placeholder="Enter Address"
                     onChange={(e) => setRecipientAddress(e.target.value)}
+                    label="Enter recipient address"
                 />
             </div>
             <Button onClick={handleSendAsset}>Send</Button>
