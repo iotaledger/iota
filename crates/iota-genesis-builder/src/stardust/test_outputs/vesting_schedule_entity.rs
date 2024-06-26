@@ -25,7 +25,7 @@ use rand::{random, rngs::StdRng, Rng, SeedableRng};
 
 use crate::stardust::types::output_header::OutputHeader;
 
-const MNEMONIC: &str = "sense silent picnic predict any public install educate trial depth faith voyage age exercise perfect hair favorite glimpse blame wood wave fiber maple receive";
+const MNEMONIC: &str = "donor rebuild latin giraffe legal cherry announce sibling vapor ski oil chest proud range jewel wife weapon danger female another tower jar piece achieve";
 const ACCOUNTS: u32 = 10;
 const ADDRESSES_PER_ACCOUNT: u32 = 20;
 const COIN_TYPE: u32 = 4218;
