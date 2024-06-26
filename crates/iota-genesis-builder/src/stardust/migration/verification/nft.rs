@@ -145,7 +145,7 @@ pub(super) fn verify_nft_output(
         created_nft.immutable_metadata
     );
 
-    verify_parent(output.address(), storage)?;
+    verify_parent(&output_id, output.address(), storage)?;
 
     ensure!(created_objects.coin().is_err(), "unexpected coin found");
 
