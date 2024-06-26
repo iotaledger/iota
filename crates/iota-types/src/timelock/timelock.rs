@@ -222,7 +222,7 @@ pub fn is_timelock(other: &StructTag) -> bool {
         && other.name.as_ident_str() == TIMELOCK_STRUCT_NAME
 }
 
-/// Is this other StructTag representing a TimeLock<Balance<T>>?
+/// Is this other StructTag representing a `TimeLock<Balance<T>>`?
 pub fn is_timelocked_balance(other: &StructTag) -> bool {
     if !is_timelock(other) {
         return false;
