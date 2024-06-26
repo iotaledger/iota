@@ -39,6 +39,7 @@ use crate::stardust::{
         verification::created_objects::CreatedObjects,
         MigrationTargetNetwork,
     },
+    test_outputs::random_output_index,
     types::output_header::OutputHeader,
 };
 
@@ -51,8 +52,7 @@ mod nft;
 fn random_output_header() -> OutputHeader {
     OutputHeader::new_testing(
         random(),
-        // % 128 to pass the output index syntactic validation.
-        random::<u16>() % 128,
+        random_output_index(),
         random(),
         random(),
         random(),

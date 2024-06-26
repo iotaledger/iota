@@ -10,8 +10,9 @@ use std::{
     str::FromStr,
 };
 
-use iota_sdk::types::block::output::{BasicOutputBuilder, Output, OutputId};
+use iota_sdk::types::block::output::{BasicOutputBuilder, Output, OutputId, OUTPUT_INDEX_RANGE};
 use packable::{packer::IoPacker, Packable};
+use rand::Rng as _;
 
 use crate::stardust::parse::FullSnapshotParser;
 
@@ -67,4 +68,26 @@ pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
     }
 
     Ok(())
+}
+
+#[derive(Copy, Clone, Debug, Default)]
+pub struct OutputIndex(u16);
+
+impl OutputIndex {
+    pub fn new(index: u16) -> anyhow::Result<Self> {
+        if !OUTPUT_INDEX_RANGE.contains(&index) {
+            anyhow::bail!("index {index} out of range {OUTPUT_INDEX_RANGE:?}");
+        }
+        Ok(Self(index))
+    }
+
+    pub fn get(&self) -> u16 {
+        self.0
+    }
+}
+
+/// Generates a random, valid output index in the range [0..128)
+pub fn random_output_index() -> OutputIndex {
+    OutputIndex::new(rand::thread_rng().gen_range(OUTPUT_INDEX_RANGE))
+        .expect("range is guaranteed to be valid")
 }
