@@ -146,10 +146,13 @@ jobs:
         shell: bash
 
   simtest:
-    needs: diff
-    if: needs.diff.outputs.isRust == 'true'
-    timeout-minutes: 45
-    runs-on: [self-hosted-rust]
+    name: Simtest ${{ matrix.components }}
+    needs: changes
+    runs-on: [ubuntu-latest]
+    strategy:
+      matrix: 
+        components: ${{ fromJson(needs.changes.outputs.components) }}
+      fail-fast: false
     env:
       MSIM_WATCHDOG_TIMEOUT_MS: 60000
     steps:
@@ -159,7 +162,7 @@ jobs:
       - uses: taiki-e/install-action@nextest
       - name: cargo simtest
         run: |
-          scripts/simtest/cargo-simtest simtest --no-fail-fast
+          scripts/simtest/cargo-simtest simtest -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
       - name: check new tests for flakiness
         run: |
-          scripts/simtest/stress-new-tests.sh
+          scripts/simtest/stress-new-tests.sh -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
