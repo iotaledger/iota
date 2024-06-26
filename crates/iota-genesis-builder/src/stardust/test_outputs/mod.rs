@@ -1,6 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+mod vesting_schedule_entity;
 mod vesting_schedule_iota_airdrop;
 
 use std::{
@@ -35,7 +36,11 @@ pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
     let mut new_header = parser.header.clone();
     let mut vested_index = u32::MAX;
 
-    let new_outputs = vesting_schedule_iota_airdrop::outputs(&mut vested_index).await?;
+    let new_outputs = [
+        vesting_schedule_entity::outputs(&mut vested_index).await?,
+        vesting_schedule_iota_airdrop::outputs(&mut vested_index).await?,
+    ]
+    .concat();
     let new_amount = new_outputs.iter().map(|o| o.1.amount()).sum::<u64>();
 
     // Increments the output count according to newly generated outputs.
