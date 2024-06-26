@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useRecognizedPackages } from '_src/ui/app/hooks/useRecognizedPackages';
-import { useTransactionSummary } from '@iota/core';
+import { useTransactionSummary, STAKING_REQUEST_EVENT, UNSTAKING_REQUEST_EVENT } from '@iota/core';
 import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
 
 import { DateCard } from '../../shared/date-card';
@@ -42,9 +42,9 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
 
     if (!summary) return null;
 
-    const stakedTxn = events?.find(({ type }) => type === '0x3::validator::StakingRequestEvent');
+    const stakedTxn = events?.find(({ type }) => type === STAKING_REQUEST_EVENT);
 
-    const unstakeTxn = events?.find(({ type }) => type === '0x3::validator::UnstakingRequestEvent');
+    const unstakeTxn = events?.find(({ type }) => type === UNSTAKING_REQUEST_EVENT);
 
     // todo: re-using the existing staking cards for now
     if (stakedTxn || unstakeTxn)

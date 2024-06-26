@@ -3,12 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { LoadingIndicator, RadioGroup, RadioGroupItem } from '@iota/ui';
+import { useGetTransaction } from '@iota/core';
 import { useState } from 'react';
 import { type Direction } from 'react-resizable-panels';
 
 import { ErrorBoundary } from '../../../components/error-boundary/ErrorBoundary';
 import PkgModulesWrapper from '../../../components/module/PkgModulesWrapper';
-import { useGetTransaction } from '../../../hooks/useGetTransaction';
 import { getOwnerStr } from '../../../utils/objectUtils';
 import { trimStdLibPrefix } from '../../../utils/stringUtils';
 import { type DataType } from '../ObjectResultType';
