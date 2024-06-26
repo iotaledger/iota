@@ -29,7 +29,7 @@ pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(Outpu
 
     let randomness_seed = random::<u64>();
     let mut rng = StdRng::seed_from_u64(randomness_seed);
-    println!("vesting_schedule_iota_airdrop randomness seed: {randomness_seed}");
+    println!("vesting_schedule_entity randomness seed: {randomness_seed}");
 
     // Prepare a transaction ID with the vested reward prefix.
     transaction_id[0..28]
