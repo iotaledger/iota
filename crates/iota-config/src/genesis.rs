@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs, path::Path};
+use std::{collections::HashMap, fs, path::Path};
 
 use anyhow::{Context, Result};
 use fastcrypto::{
@@ -503,9 +503,8 @@ impl TokenDistributionSchedule {
     >(
         &self,
         validators: I,
+        timelock_allocation: Option<HashMap<IotaAddress, u64>>,
     ) {
-        use std::collections::HashMap;
-
         let mut validators: HashMap<IotaAddress, u64> =
             validators.into_iter().map(|a| (a, 0)).collect();
 
@@ -525,9 +524,18 @@ impl TokenDistributionSchedule {
         let minimum_required_stake = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_MICROS;
         for (validator, stake) in validators {
             if stake < minimum_required_stake {
-                panic!(
-                    "validator {validator} has '{stake}' stake and does not meet the minimum required stake threshold of '{minimum_required_stake}'"
-                );
+                let meets_threshold = timelock_allocation
+                    .as_ref()
+                    .and_then(|timelock_alloc| timelock_alloc.get(&validator))
+                    .map_or(false, |&timelock_alloc_stake| {
+                        timelock_alloc_stake + stake >= minimum_required_stake
+                    });
+
+                if !meets_threshold {
+                    panic!(
+                        "validator {validator} has '{stake}' stake and does not meet the minimum required stake threshold of '{minimum_required_stake}'"
+                    );
+                }
             }
         }
     }
@@ -631,6 +639,7 @@ pub struct TokenAllocation {
 #[serde(rename_all = "kebab-case")]
 pub struct TimelockAllocation {
     pub recipient_address: IotaAddress,
+    pub amount_micros: u64,
     /// The suprlus of the total balance of the
     /// timelock objects w.r.t. the target stake.
     pub surplus_micros: u64,

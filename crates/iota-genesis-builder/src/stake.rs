@@ -31,6 +31,11 @@ impl GenesisStake {
         std::mem::take(&mut self.timelock_allocations)
     }
 
+    /// Get a reference of the inner timelock allocations.
+    pub fn get_timelock_allocations(&self) -> &Vec<TimelockAllocation> {
+        &self.timelock_allocations
+    }
+
     /// Take the inner gas-coin objects that must be burned.
     ///
     /// This follows the semantics of [`std::mem::take`].
@@ -157,6 +162,7 @@ pub fn delegate_genesis_stake(
             // `TimelockAllocation` objects
             genesis_stake.timelock_allocations.push(TimelockAllocation {
                 recipient_address: delegator,
+                amount_micros: timelock_objects.amount_micros,
                 surplus_micros: timelock_objects.surplus_micros,
                 timelock_objects: timelock_objects.inner,
                 staked_with_validator: validator.info.iota_address(),

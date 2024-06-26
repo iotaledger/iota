@@ -292,6 +292,11 @@ impl MigrationObjects {
         std::mem::take(&mut self.inner)
     }
 
+    /// Checks if inner is empty.
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
     /// Get [`TimeLock`] objects created during the migration.
     ///
     /// The query is filtered by the object owner.

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     fs::{self, File},
     path::Path,
     sync::Arc,
@@ -200,6 +200,30 @@ impl Builder {
         Ok(self)
     }
 
+    pub fn add_stardust_genesis_stake(mut self) -> anyhow::Result<Self> {
+        if self.migration_objects.is_empty() {
+            bail!("no migration_objects for builder")
+        } else {
+            self.validate_inputs()?;
+
+            let validators = self.validators.clone().into_values().collect::<Vec<_>>();
+            let delegator =
+                stardust_to_iota_address(Address::try_from_bech32(IF_STARDUST_ADDRESS).unwrap())
+                    .unwrap();
+            // TODO: check whether we need to start with MIN_VALIDATOR_JOINING_STAKE_MICROS
+            let minimum_stake = iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_MICROS;
+
+            self.genesis_stake = delegate_genesis_stake(
+                &validators,
+                delegator,
+                &self.migration_objects,
+                minimum_stake,
+            )?;
+
+            Ok(self)
+        }
+    }
+
     pub fn unsigned_genesis_checkpoint(&self) -> Option<UnsignedGenesis> {
         self.built_genesis.clone()
     }
@@ -213,19 +237,6 @@ impl Builder {
         self.validate().unwrap();
 
         let validators = self.validators.clone().into_values().collect::<Vec<_>>();
-
-        let delegator =
-            stardust_to_iota_address(Address::try_from_bech32(IF_STARDUST_ADDRESS).unwrap())
-                .unwrap();
-        // TODO: check whether we need to start with MIN_VALIDATOR_JOINING_STAKE_MICROS
-        let minimum_stake = iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_MICROS;
-        self.genesis_stake = delegate_genesis_stake(
-            &validators,
-            delegator,
-            &self.migration_objects,
-            minimum_stake,
-        )
-        .unwrap();
 
         let token_distribution_schedule = if self.is_vanilla() {
             if let Some(token_distribution_schedule) = &self.token_distribution_schedule {
@@ -320,6 +331,7 @@ impl Builder {
     /// state is (input collection phase or output phase)
     pub fn validate(&self) -> anyhow::Result<(), anyhow::Error> {
         self.validate_inputs()?;
+        self.validate_token_distribution_schedule()?;
         self.validate_output();
         Ok(())
     }
@@ -340,10 +352,28 @@ impl Builder {
             })?;
         }
 
+        Ok(())
+    }
+
+    /// Runs through validation checks on the input token distribution schedule
+    fn validate_token_distribution_schedule(&self) -> anyhow::Result<(), anyhow::Error> {
         if let Some(token_distribution_schedule) = &self.token_distribution_schedule {
             token_distribution_schedule.validate();
             token_distribution_schedule.check_all_stake_operations_are_for_valid_validators(
                 self.validators.values().map(|v| v.info.iota_address()),
+                if !self.is_vanilla() {
+                    Some(
+                        self.genesis_stake
+                            .get_timelock_allocations()
+                            .iter()
+                            .map(|allocation| {
+                                (allocation.staked_with_validator, allocation.amount_micros)
+                            })
+                            .collect::<HashMap<_, _>>(),
+                    )
+                } else {
+                    None
+                },
             );
         }
 
@@ -814,6 +844,16 @@ fn build_unsigned_genesis_data(
     token_distribution_schedule.validate();
     token_distribution_schedule.check_all_stake_operations_are_for_valid_validators(
         genesis_validators.iter().map(|v| v.iota_address),
+        if !timelock_allocations.is_empty() {
+            Some(
+                timelock_allocations
+                    .iter()
+                    .map(|allocation| (allocation.staked_with_validator, allocation.amount_micros))
+                    .collect::<HashMap<_, _>>(),
+            )
+        } else {
+            None
+        },
     );
 
     let epoch_data = EpochData::new_genesis(genesis_chain_parameters.chain_start_timestamp_ms);
