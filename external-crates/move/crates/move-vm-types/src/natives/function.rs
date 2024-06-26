@@ -62,7 +62,7 @@ impl NativeResult {
         }
     }
 
-    /// Convert a PartialVMResult<()> into a PartialVMResult<NativeResult>
+    /// Convert a `PartialVMResult<()>` into a `PartialVMResult<NativeResult>`
     pub fn map_partial_vm_result_empty(
         cost: InternalGas,
         res: PartialVMResult<()>,
@@ -83,7 +83,8 @@ impl NativeResult {
         Ok(result)
     }
 
-    /// Convert a PartialVMResult<Value> into a PartialVMResult<NativeResult>
+    /// Convert a `PartialVMResult<Value>` into a
+    /// `PartialVMResult<NativeResult>`
     pub fn map_partial_vm_result_one(
         cost: InternalGas,
         res: PartialVMResult<Value>,
