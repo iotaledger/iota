@@ -29,7 +29,7 @@ use crate::{
 pub const MICROS_PER_IOTA: u64 = 1_000_000_000;
 
 /// Total supply denominated in Iota
-pub const TOTAL_SUPPLY_IOTA: u64 = 10_000_000_000;
+pub const TOTAL_SUPPLY_IOTA: u64 = 4_600_000_000;
 
 // Note: cannot use checked arithmetic here since `const unwrap` is still
 // unstable.
