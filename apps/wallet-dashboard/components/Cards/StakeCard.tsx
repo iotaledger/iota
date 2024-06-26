@@ -6,18 +6,20 @@ import { Box, Button } from '@/components/index';
 import { ExtendedDelegatedStake } from '@iota/core';
 
 interface StakeCardProps {
-    stake: ExtendedDelegatedStake;
-    onDetailsClick: (stake: ExtendedDelegatedStake) => void;
+    extendedStake: ExtendedDelegatedStake;
+    onDetailsClick: (extendedStake: ExtendedDelegatedStake) => void;
 }
 
-function StakeCard({ stake, onDetailsClick }: StakeCardProps): JSX.Element {
+function StakeCard({ extendedStake, onDetailsClick }: StakeCardProps): JSX.Element {
     return (
         <Box>
-            <div>Validator: {stake.validatorAddress}</div>
-            <div>Stake: {stake.principal}</div>
-            {stake.status === 'Active' && <p>Estimated reward: {stake.estimatedReward}</p>}
-            <div>Status: {stake.status}</div>
-            <Button onClick={() => onDetailsClick(stake)}>Details</Button>
+            <div>Validator: {extendedStake.validatorAddress}</div>
+            <div>Stake: {extendedStake.principal}</div>
+            {extendedStake.status === 'Active' && (
+                <p>Estimated reward: {extendedStake.estimatedReward}</p>
+            )}
+            <div>Status: {extendedStake.status}</div>
+            <Button onClick={() => onDetailsClick(extendedStake)}>Details</Button>
         </Box>
     );
 }
