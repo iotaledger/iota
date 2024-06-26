@@ -58,7 +58,7 @@ test('existing accounts', async () => {
         `addresses length mismatch ${accounts[0].addresses.length}/${expectedAddresses}`,
     );
 
-    accounts = await recoverAccounts(1, 0, 16, accounts, seed, coinType, client, GAS_TYPE_ARG);
+    accounts = await recoverAccounts(0, 1, 16, accounts, seed, coinType, client, GAS_TYPE_ARG);
     assert(accounts.length == accounts[accounts.length - 1].index + 1, `accounts length mismatch`);
     expectedAccounts = 3;
     assert(
@@ -96,7 +96,7 @@ test('empty accounts', async () => {
         `accounts length mismatch ${accounts.length}/${expectedAccounts}`,
     );
 
-    accounts = await recoverAccounts(1, 0, 10, accounts, seed, coinType, client, GAS_TYPE_ARG);
+    accounts = await recoverAccounts(0, 1, 10, accounts, seed, coinType, client, GAS_TYPE_ARG);
     expectedAccounts = 1;
     assert(
         accounts.length == expectedAccounts,
@@ -108,7 +108,7 @@ test('empty accounts', async () => {
         `addresses length mismatch ${accounts[0].addresses.length}/${expectedAddresses}`,
     );
 
-    accounts = await recoverAccounts(5, 0, 5, accounts, seed, coinType, client, GAS_TYPE_ARG);
+    accounts = await recoverAccounts(0, 5, 5, accounts, seed, coinType, client, GAS_TYPE_ARG);
     expectedAccounts = 6;
     assert(
         accounts.length == expectedAccounts,
