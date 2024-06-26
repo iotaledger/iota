@@ -107,7 +107,7 @@ export function ValidatorsCard() {
                                     ?.filter(({ inactiveValidator }) => inactiveValidator)
                                     .map((delegation) => (
                                         <StakeCard
-                                            delegationObject={delegation}
+                                            extendedStake={delegation}
                                             currentEpoch={Number(system.epoch)}
                                             key={delegation.stakedIotaId}
                                             inactiveValidator
@@ -149,7 +149,7 @@ export function ValidatorsCard() {
                                     ?.filter(({ inactiveValidator }) => !inactiveValidator)
                                     .map((delegation) => (
                                         <StakeCard
-                                            delegationObject={delegation}
+                                            extendedStake={delegation}
                                             currentEpoch={Number(system.epoch)}
                                             key={delegation.stakedIotaId}
                                         />
