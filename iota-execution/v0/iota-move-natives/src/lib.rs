@@ -8,13 +8,22 @@ use better_any::{Tid, TidAble};
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
-use move_core_types::{gas_algebra::InternalGas, identifier::Identifier};
+use move_core_types::{
+    annotated_value as A,
+    gas_algebra::InternalGas,
+    identifier::Identifier,
+    language_storage::{StructTag, TypeTag},
+    runtime_value as R,
+    vm_status::StatusCode,
+};
 use move_stdlib::natives::{GasParameters, NurseryGasParameters};
-use move_vm_runtime::native_functions::{NativeFunction, NativeFunctionTable};
+use move_vm_runtime::native_functions::{NativeContext, NativeFunction, NativeFunctionTable};
 use move_vm_types::{
+    loaded_data::runtime_types::Type,
     natives::function::NativeResult,
     values::{Struct, Value},
 };
+use transfer::TransferReceiveObjectInternalCostParams;
 
 use self::{
     address::{AddressFromBytesCostParams, AddressFromU256CostParams, AddressToU256CostParams},
@@ -40,6 +49,7 @@ use self::{
         hash::{HashBlake2b256CostParams, HashKeccak256CostParams},
         hmac,
         hmac::HmacHmacSha3256CostParams,
+        poseidon,
     },
     dynamic_field::{
         DynamicFieldAddChildObjectCostParams, DynamicFieldBorrowChildObjectCostParams,
@@ -54,6 +64,13 @@ use self::{
     tx_context::TxContextDeriveIdCostParams,
     types::TypesIsOneTimeWitnessCostParams,
     validator::ValidatorValidateMetadataBcsCostParams,
+};
+use crate::crypto::{
+    group_ops,
+    group_ops::GroupOpsCostParams,
+    poseidon::PoseidonBN254CostParams,
+    zklogin,
+    zklogin::{CheckZkloginIdCostParams, CheckZkloginIssuerCostParams},
 };
 
 mod address;
@@ -137,8 +154,21 @@ pub struct NativesCostTable {
     pub hash_blake2b256_cost_params: HashBlake2b256CostParams,
     pub hash_keccak256_cost_params: HashKeccak256CostParams,
 
+    // poseidon
+    pub poseidon_bn254_cost_params: PoseidonBN254CostParams,
+
     // hmac
     pub hmac_hmac_sha3_256_cost_params: HmacHmacSha3256CostParams,
+
+    // group ops
+    pub group_ops_cost_params: GroupOpsCostParams,
+
+    // zklogin
+    pub check_zklogin_id_cost_params: CheckZkloginIdCostParams,
+    pub check_zklogin_issuer_cost_params: CheckZkloginIssuerCostParams,
+
+    // Receive object
+    pub transfer_receive_object_internal_cost_params: TransferReceiveObjectInternalCostParams,
 }
 
 impl NativesCostTable {
@@ -475,6 +505,122 @@ impl NativesCostTable {
                     .hmac_hmac_sha3_256_input_cost_per_block()
                     .into(),
             },
+            transfer_receive_object_internal_cost_params: TransferReceiveObjectInternalCostParams {
+                transfer_receive_object_internal_cost_base: protocol_config
+                    .transfer_receive_object_cost_base_as_option()
+                    .unwrap_or(0)
+                    .into(),
+            },
+            check_zklogin_id_cost_params: CheckZkloginIdCostParams {
+                check_zklogin_id_cost_base: protocol_config
+                    .check_zklogin_id_cost_base_as_option()
+                    .map(Into::into),
+            },
+            check_zklogin_issuer_cost_params: CheckZkloginIssuerCostParams {
+                check_zklogin_issuer_cost_base: protocol_config
+                    .check_zklogin_issuer_cost_base_as_option()
+                    .map(Into::into),
+            },
+            poseidon_bn254_cost_params: PoseidonBN254CostParams {
+                poseidon_bn254_cost_base: protocol_config
+                    .poseidon_bn254_cost_base_as_option()
+                    .map(Into::into),
+                poseidon_bn254_data_cost_per_block: protocol_config
+                    .poseidon_bn254_cost_per_block_as_option()
+                    .map(Into::into),
+            },
+            group_ops_cost_params: GroupOpsCostParams {
+                bls12381_decode_scalar_cost: protocol_config
+                    .group_ops_bls12381_decode_scalar_cost_as_option()
+                    .map(Into::into),
+                bls12381_decode_g1_cost: protocol_config
+                    .group_ops_bls12381_decode_g1_cost_as_option()
+                    .map(Into::into),
+                bls12381_decode_g2_cost: protocol_config
+                    .group_ops_bls12381_decode_g2_cost_as_option()
+                    .map(Into::into),
+                bls12381_decode_gt_cost: protocol_config
+                    .group_ops_bls12381_decode_gt_cost_as_option()
+                    .map(Into::into),
+                bls12381_scalar_add_cost: protocol_config
+                    .group_ops_bls12381_scalar_add_cost_as_option()
+                    .map(Into::into),
+                bls12381_g1_add_cost: protocol_config
+                    .group_ops_bls12381_g1_add_cost_as_option()
+                    .map(Into::into),
+                bls12381_g2_add_cost: protocol_config
+                    .group_ops_bls12381_g2_add_cost_as_option()
+                    .map(Into::into),
+                bls12381_gt_add_cost: protocol_config
+                    .group_ops_bls12381_gt_add_cost_as_option()
+                    .map(Into::into),
+                bls12381_scalar_sub_cost: protocol_config
+                    .group_ops_bls12381_scalar_sub_cost_as_option()
+                    .map(Into::into),
+                bls12381_g1_sub_cost: protocol_config
+                    .group_ops_bls12381_g1_sub_cost_as_option()
+                    .map(Into::into),
+                bls12381_g2_sub_cost: protocol_config
+                    .group_ops_bls12381_g2_sub_cost_as_option()
+                    .map(Into::into),
+                bls12381_gt_sub_cost: protocol_config
+                    .group_ops_bls12381_gt_sub_cost_as_option()
+                    .map(Into::into),
+                bls12381_scalar_mul_cost: protocol_config
+                    .group_ops_bls12381_scalar_mul_cost_as_option()
+                    .map(Into::into),
+                bls12381_g1_mul_cost: protocol_config
+                    .group_ops_bls12381_g1_mul_cost_as_option()
+                    .map(Into::into),
+                bls12381_g2_mul_cost: protocol_config
+                    .group_ops_bls12381_g2_mul_cost_as_option()
+                    .map(Into::into),
+                bls12381_gt_mul_cost: protocol_config
+                    .group_ops_bls12381_gt_mul_cost_as_option()
+                    .map(Into::into),
+                bls12381_scalar_div_cost: protocol_config
+                    .group_ops_bls12381_scalar_div_cost_as_option()
+                    .map(Into::into),
+                bls12381_g1_div_cost: protocol_config
+                    .group_ops_bls12381_g1_div_cost_as_option()
+                    .map(Into::into),
+                bls12381_g2_div_cost: protocol_config
+                    .group_ops_bls12381_g2_div_cost_as_option()
+                    .map(Into::into),
+                bls12381_gt_div_cost: protocol_config
+                    .group_ops_bls12381_gt_div_cost_as_option()
+                    .map(Into::into),
+                bls12381_g1_hash_to_base_cost: protocol_config
+                    .group_ops_bls12381_g1_hash_to_base_cost_as_option()
+                    .map(Into::into),
+                bls12381_g2_hash_to_base_cost: protocol_config
+                    .group_ops_bls12381_g2_hash_to_base_cost_as_option()
+                    .map(Into::into),
+                bls12381_g1_hash_to_cost_per_byte: protocol_config
+                    .group_ops_bls12381_g1_hash_to_cost_per_byte_as_option()
+                    .map(Into::into),
+                bls12381_g2_hash_to_cost_per_byte: protocol_config
+                    .group_ops_bls12381_g2_hash_to_cost_per_byte_as_option()
+                    .map(Into::into),
+                bls12381_g1_msm_base_cost: protocol_config
+                    .group_ops_bls12381_g1_msm_base_cost_as_option()
+                    .map(Into::into),
+                bls12381_g2_msm_base_cost: protocol_config
+                    .group_ops_bls12381_g2_msm_base_cost_as_option()
+                    .map(Into::into),
+                bls12381_g1_msm_base_cost_per_input: protocol_config
+                    .group_ops_bls12381_g1_msm_base_cost_per_input_as_option()
+                    .map(Into::into),
+                bls12381_g2_msm_base_cost_per_input: protocol_config
+                    .group_ops_bls12381_g2_msm_base_cost_per_input_as_option()
+                    .map(Into::into),
+                bls12381_msm_max_len: protocol_config
+                    .group_ops_bls12381_msm_max_len_as_option()
+                    .map(Into::into),
+                bls12381_pairing_cost: protocol_config
+                    .group_ops_bls12381_pairing_cost_as_option()
+                    .map(Into::into),
+            },
         }
     }
 }
@@ -574,6 +720,46 @@ pub fn all_natives(silent: bool) -> NativeFunctionTable {
         ),
         ("hmac", "hmac_sha3_256", make_native!(hmac::hmac_sha3_256)),
         ("hash", "keccak256", make_native!(hash::keccak256)),
+        (
+            "group_ops",
+            "internal_validate",
+            make_native!(group_ops::internal_validate),
+        ),
+        (
+            "group_ops",
+            "internal_add",
+            make_native!(group_ops::internal_add),
+        ),
+        (
+            "group_ops",
+            "internal_sub",
+            make_native!(group_ops::internal_sub),
+        ),
+        (
+            "group_ops",
+            "internal_mul",
+            make_native!(group_ops::internal_mul),
+        ),
+        (
+            "group_ops",
+            "internal_div",
+            make_native!(group_ops::internal_div),
+        ),
+        (
+            "group_ops",
+            "internal_hash_to",
+            make_native!(group_ops::internal_hash_to),
+        ),
+        (
+            "group_ops",
+            "internal_multi_scalar_mul",
+            make_native!(group_ops::internal_multi_scalar_mul),
+        ),
+        (
+            "group_ops",
+            "internal_pairing",
+            make_native!(group_ops::internal_pairing),
+        ),
         ("object", "delete_impl", make_native!(object::delete_impl)),
         ("object", "borrow_uid", make_native!(object::borrow_uid)),
         (
@@ -652,6 +838,11 @@ pub fn all_natives(silent: bool) -> NativeFunctionTable {
             make_native!(transfer::share_object),
         ),
         (
+            "transfer",
+            "receive_impl",
+            make_native!(transfer::receive_object_internal),
+        ),
+        (
             "tx_context",
             "derive_id",
             make_native!(tx_context::derive_id),
@@ -666,6 +857,21 @@ pub fn all_natives(silent: bool) -> NativeFunctionTable {
             "test_utils",
             "create_one_time_witness",
             make_native!(test_utils::create_one_time_witness),
+        ),
+        (
+            "zklogin_verified_id",
+            "check_zklogin_id_internal",
+            make_native!(zklogin::check_zklogin_id_internal),
+        ),
+        (
+            "zklogin_verified_issuer",
+            "check_zklogin_issuer_internal",
+            make_native!(zklogin::check_zklogin_issuer_internal),
+        ),
+        (
+            "poseidon",
+            "poseidon_bn254_internal",
+            make_native!(poseidon::poseidon_bn254_internal),
         ),
     ];
     let iota_framework_natives_iter =
@@ -711,6 +917,12 @@ pub fn all_natives(silent: bool) -> NativeFunctionTable {
         .collect()
 }
 
+// ID { bytes: address }
+// Extract the first field of the struct to get the address bytes.
+pub fn get_receiver_object_id(object: Value) -> Result<Value, PartialVMError> {
+    get_nested_struct_field(object, &[0])
+}
+
 // Object { id: UID { id: ID { bytes: address } } .. }
 // Extract the first field of the struct 3 times to get the id bytes.
 pub fn get_object_id(object: Value) -> Result<Value, PartialVMError> {
@@ -729,6 +941,30 @@ pub fn get_nested_struct_field(mut v: Value, offsets: &[usize]) -> Result<Value,
 pub fn get_nth_struct_field(v: Value, n: usize) -> Result<Value, PartialVMError> {
     let mut itr = v.value_as::<Struct>()?.unpack()?;
     Ok(itr.nth(n).unwrap())
+}
+
+/// Returns the struct tag, non-annotated type layout, and fully annotated type
+/// layout of `ty`.
+pub(crate) fn get_tag_and_layouts(
+    context: &NativeContext,
+    ty: &Type,
+) -> PartialVMResult<Option<(StructTag, R::MoveTypeLayout, A::MoveTypeLayout)>> {
+    let tag = match context.type_to_type_tag(ty)? {
+        TypeTag::Struct(s) => s,
+        _ => {
+            return Err(
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                    .with_message("Iota verifier guarantees this is a struct".to_string()),
+            );
+        }
+    };
+    let Some(layout) = context.type_to_type_layout(ty)? else {
+        return Ok(None);
+    };
+    let Some(annotated_layout) = context.type_to_fully_annotated_layout(ty)? else {
+        return Ok(None);
+    };
+    Ok(Some((*tag, layout, annotated_layout)))
 }
 
 #[macro_export]

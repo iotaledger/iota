@@ -9,8 +9,8 @@ use iota_sdk::types::block::{
     output::{
         feature::{Irc30Metadata, MetadataFeature},
         unlock_condition::ImmutableAliasAddressUnlockCondition,
-        AliasId, Feature, FoundryOutput, FoundryOutputBuilder, NativeToken, Output, OutputId,
-        SimpleTokenScheme, TokenId, TokenScheme,
+        AliasId, Feature, FoundryOutput, FoundryOutputBuilder, NativeTokens, Output, OutputId,
+        SimpleTokenScheme, TokenScheme,
     },
 };
 use iota_types::{
@@ -234,17 +234,15 @@ fn object_migration_with_object_owner(
 
 /// Test that an Output that owns Native Tokens can extract those tokens from
 /// the contained bag.
-fn extract_native_token_from_bag(
+fn extract_native_tokens_from_bag(
     output_id: OutputId,
     total_supply: u64,
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
     module_name: &IdentStr,
-    native_token: NativeToken,
+    native_tokens: NativeTokens,
     expected_assets: ExpectedAssets,
     coin_type: CoinType,
 ) -> anyhow::Result<()> {
-    let native_token_id: &TokenId = native_token.token_id();
-
     let (mut executor, objects_map) = run_migration(total_supply, outputs, coin_type)?;
 
     // Find the corresponding objects to the migrated output.
@@ -252,19 +250,27 @@ fn extract_native_token_from_bag(
         .get(&output_id)
         .expect("output should have created objects");
 
+    // Get the corresponding output object from the object store.
     let output_object_ref = executor
         .store()
         .get_object(output_created_objects.output()?)
         .ok_or_else(|| anyhow!("missing output-created output"))?
         .compute_object_reference();
 
-    // Recreate the key under which the tokens are stored in the bag.
-    let foundry_ledger_data = executor
-        .native_tokens()
-        .get(native_token_id)
-        .ok_or_else(|| anyhow!("missing native token {native_token_id}"))?;
-    let token_type = foundry_ledger_data.canonical_coin_type();
-    let token_type_tag = token_type.parse::<TypeTag>()?;
+    // Recreate the keys under which the tokens are stored in the bag.
+    let native_tokens = native_tokens
+        .into_iter()
+        .map(|native_token| {
+            let native_token_id = native_token.token_id();
+            let foundry_ledger_data = executor
+                .native_tokens()
+                .get(native_token_id)
+                .ok_or_else(|| anyhow!("missing native token {native_token_id}"))?;
+            let token_type = foundry_ledger_data.canonical_coin_type();
+            let token_type_tag = token_type.parse::<TypeTag>()?;
+            Ok((native_token, token_type, token_type_tag))
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?;
 
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -286,11 +292,11 @@ fn extract_native_token_from_bag(
         if matches!(expected_assets, ExpectedAssets::BalanceBagObject) {
             // This is the inner object, i.e. the Alias extracted from an Alias Output
             // or NFT extracted from an NFT Output.
-            let inner_arg = Argument::NestedResult(result_idx, 2);
-            builder.transfer_arg(IotaAddress::default(), inner_arg);
+            let object_arg = Argument::NestedResult(result_idx, 2);
+            builder.transfer_arg(IotaAddress::default(), object_arg);
         }
 
-        let coin_arg = builder.programmable_move_call(
+        let gas_coin_arg = builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
             ident_str!("coin").into(),
             ident_str!("from_balance").into(),
@@ -298,29 +304,33 @@ fn extract_native_token_from_bag(
             vec![balance_arg],
         );
 
-        builder.transfer_arg(IotaAddress::default(), coin_arg);
+        builder.transfer_arg(IotaAddress::default(), gas_coin_arg);
 
-        let token_type_arg = builder.pure(token_type.clone())?;
-        let balance_arg = builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("bag").into(),
-            ident_str!("remove").into(),
-            vec![
-                NATIVE_TOKEN_BAG_KEY_TYPE
-                    .parse()
-                    .expect("should be a valid type tag"),
-                Balance::type_(token_type_tag.clone()).into(),
-            ],
-            vec![bag_arg, token_type_arg],
-        );
+        for (_, token_type, token_type_tag) in &native_tokens {
+            let token_type_arg = builder.pure(token_type.clone())?;
+            let token_balance_arg = builder.programmable_move_call(
+                IOTA_FRAMEWORK_PACKAGE_ID,
+                ident_str!("bag").into(),
+                ident_str!("remove").into(),
+                vec![
+                    NATIVE_TOKEN_BAG_KEY_TYPE
+                        .parse()
+                        .expect("should be a valid type tag"),
+                    Balance::type_(token_type_tag.clone()).into(),
+                ],
+                vec![bag_arg, token_type_arg],
+            );
 
-        let coin_arg = builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("coin").into(),
-            ident_str!("from_balance").into(),
-            vec![token_type_tag.clone()],
-            vec![balance_arg],
-        );
+            let minted_coin_arg = builder.programmable_move_call(
+                IOTA_FRAMEWORK_PACKAGE_ID,
+                ident_str!("coin").into(),
+                ident_str!("from_balance").into(),
+                vec![token_type_tag.clone()],
+                vec![token_balance_arg],
+            );
+
+            builder.transfer_arg(IotaAddress::default(), minted_coin_arg);
+        }
 
         // Destroying the bag only works if it's empty, hence asserting that it is in
         // fact empty.
@@ -331,8 +341,6 @@ fn extract_native_token_from_bag(
             vec![],
             vec![bag_arg],
         );
-
-        builder.transfer_arg(IotaAddress::default(), coin_arg);
 
         builder.finish()
     };
@@ -345,24 +353,27 @@ fn extract_native_token_from_bag(
     );
     let InnerTemporaryStore { written, .. } = executor.execute_pt_unmetered(input_objects, pt)?;
 
-    let coin_token_struct_tag = Coin::type_(token_type_tag);
-    let coin_token = written
-        .values()
-        .find(|obj| {
-            obj.struct_tag()
-                .map(|tag| tag == coin_token_struct_tag)
-                .unwrap_or(false)
-        })
-        .ok_or_else(|| anyhow!("missing coin object"))
-        .and_then(|obj| {
-            obj.as_coin_maybe()
-                .ok_or_else(|| anyhow!("object is not a coin"))
-        })?;
+    for (native_token, _, token_type_tag) in native_tokens {
+        let coin_token_struct_tag = Coin::type_(token_type_tag);
+        let coin_token = written
+            .values()
+            .find(|obj| {
+                obj.struct_tag()
+                    .map(|tag| tag == coin_token_struct_tag)
+                    .unwrap_or(false)
+            })
+            .ok_or_else(|| anyhow!("missing coin object"))
+            .and_then(|obj| {
+                obj.as_coin_maybe()
+                    .ok_or_else(|| anyhow!("object is not a coin"))
+            })?;
 
-    ensure!(
-        coin_token.balance.value() == native_token.amount().as_u64(),
-        "coin token balance does not match original native token amount"
-    );
+        ensure!(
+            coin_token.balance.value() == native_token.amount().as_u64(),
+            "coin token balance does not match original native token amount"
+        );
+    }
+
     Ok(())
 }
 

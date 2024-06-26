@@ -55,7 +55,7 @@ impl ProgrammableTransactionBuilder {
 
     pub fn pure<T: Serialize>(&mut self, value: T) -> anyhow::Result<Argument> {
         Ok(self.pure_bytes(
-            bcs::to_bytes(&value).context("Searlizing pure argument.")?,
+            bcs::to_bytes(&value).context("Serializing pure argument.")?,
             // force separate
             false,
         ))
@@ -64,7 +64,7 @@ impl ProgrammableTransactionBuilder {
     /// Like pure but forces a separate input entry
     pub fn force_separate_pure<T: Serialize>(&mut self, value: T) -> anyhow::Result<Argument> {
         Ok(self.pure_bytes(
-            bcs::to_bytes(&value).context("Searlizing pure argument.")?,
+            bcs::to_bytes(&value).context("Serializing pure argument.")?,
             // force separate
             true,
         ))
