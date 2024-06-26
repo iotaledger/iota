@@ -6,8 +6,10 @@ import { mnemonicToSeedHex } from '@iota/iota.js/cryptography';
 import { requestIotaFromFaucetV1 } from '@iota/iota.js/faucet';
 import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
 import { entropyToMnemonic, getRandomEntropy } from '_shared/utils/bip39';
-import { recoverAccounts, FoundAccount } from './accounts-finder';
+import { recoverAccounts } from './accounts-finder';
 import { test } from 'vitest';
+import { AccountFromFinder } from '_src/shared/accounts';
+import { MakeDerivationOptions, makeDerivationPath } from '../account-sources/bip44Path';
 
 const GAS_TYPE_ARG = '0x2::iota::IOTA';
 const IOTA_COIN_TYPE = 4218; // 4219 for Shimmer
@@ -22,6 +24,13 @@ test('existing accounts', async () => {
     const mnemonic =
         'power dragon mercy range fee book twenty cash room coil trend first seed apple accuse purity remain rather tip use card sock south retreat';
     const seed = mnemonicToSeedHex(mnemonic);
+    const publicKeyDerivator = (options: MakeDerivationOptions) => {
+        return Promise.resolve(
+            Ed25519Keypair.deriveKeypairFromSeed(seed, makeDerivationPath(options))
+                .getPublicKey()
+                .toIotaAddress(),
+        );
+    };
 
     // First time get funds to two addresses
     const firstAddress = Ed25519Keypair.deriveKeypairFromSeed(seed, `m/44'/${coinType}'/0'/0'/0'`)
@@ -38,14 +47,23 @@ test('existing accounts', async () => {
         });
     }
 
-    let accounts: FoundAccount[] = [
+    let accounts: AccountFromFinder[] = [
         {
             index: 0,
             addresses: [],
         },
     ];
 
-    accounts = await recoverAccounts(0, 0, 0, 1, accounts, seed, coinType, client, GAS_TYPE_ARG);
+    accounts = await recoverAccounts(
+        0,
+        0,
+        1,
+        accounts,
+        coinType,
+        client,
+        GAS_TYPE_ARG,
+        publicKeyDerivator,
+    );
     let expectedAccounts = 1;
     console.assert(
         accounts.length == expectedAccounts,
@@ -57,7 +75,16 @@ test('existing accounts', async () => {
         `addresses length mismatch ${accounts[0].addresses.length}/${expectedAddresses}`,
     );
 
-    accounts = await recoverAccounts(0, 1, 0, 16, accounts, seed, coinType, client, GAS_TYPE_ARG);
+    accounts = await recoverAccounts(
+        1,
+        0,
+        16,
+        accounts,
+        coinType,
+        client,
+        GAS_TYPE_ARG,
+        publicKeyDerivator,
+    );
     console.assert(
         accounts.length == accounts[accounts.length - 1].index + 1,
         `accounts length mismatch`,
@@ -88,17 +115,42 @@ test('empty accounts', async () => {
     const coinType = IOTA_COIN_TYPE;
     const mnemonic = entropyToMnemonic(getRandomEntropy());
     const seed = mnemonicToSeedHex(mnemonic);
+    const publicKeyDerivator = (options: MakeDerivationOptions) => {
+        return Promise.resolve(
+            Ed25519Keypair.deriveKeypairFromSeed(seed, makeDerivationPath(options))
+                .getPublicKey()
+                .toIotaAddress(),
+        );
+    };
 
-    let accounts: FoundAccount[] = [];
+    let accounts: AccountFromFinder[] = [];
 
-    accounts = await recoverAccounts(0, 0, 0, 10, accounts, seed, coinType, client, GAS_TYPE_ARG);
+    accounts = await recoverAccounts(
+        0,
+        0,
+        10,
+        accounts,
+        coinType,
+        client,
+        GAS_TYPE_ARG,
+        publicKeyDerivator,
+    );
     let expectedAccounts = 0;
     console.assert(
         accounts.length == expectedAccounts,
         `accounts length mismatch ${accounts.length}/${expectedAccounts}`,
     );
 
-    accounts = await recoverAccounts(0, 1, 0, 10, accounts, seed, coinType, client, GAS_TYPE_ARG);
+    accounts = await recoverAccounts(
+        1,
+        0,
+        10,
+        accounts,
+        coinType,
+        client,
+        GAS_TYPE_ARG,
+        publicKeyDerivator,
+    );
     expectedAccounts = 1;
     console.assert(
         accounts.length == expectedAccounts,
@@ -110,7 +162,16 @@ test('empty accounts', async () => {
         `addresses length mismatch ${accounts[0].addresses.length}/${expectedAddresses}`,
     );
 
-    accounts = await recoverAccounts(0, 5, 0, 5, accounts, seed, coinType, client, GAS_TYPE_ARG);
+    accounts = await recoverAccounts(
+        5,
+        0,
+        5,
+        accounts,
+        coinType,
+        client,
+        GAS_TYPE_ARG,
+        publicKeyDerivator,
+    );
     expectedAccounts = 6;
     console.assert(
         accounts.length == expectedAccounts,
