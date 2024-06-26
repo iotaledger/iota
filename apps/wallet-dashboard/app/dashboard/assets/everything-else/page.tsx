@@ -26,11 +26,7 @@ function EverythingElsePage(): JSX.Element {
         <div className="flex h-full w-full flex-col items-center justify-center space-y-4">
             <h1>EVERYTHING ELSE</h1>
             <div className="flex w-1/2">
-                <VirtualList
-                    items={nonVisualAssets}
-                    estimateSize={() => 130}
-                    render={virtualItem}
-                />
+                <VirtualList items={nonVisualAssets} estimateSize={() => 30} render={virtualItem} />
             </div>
         </div>
     );
