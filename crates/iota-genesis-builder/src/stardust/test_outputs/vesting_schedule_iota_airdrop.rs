@@ -5,7 +5,8 @@
 //! 2-years, initial unlock, bi-weekly unlock.
 //! One mnemonic, multi accounts, multi addresses.
 //! Some addresses have initial unlock, some don't.
-//! Some addresses have expired/unexpired timelocked outputs, some only have unexpired.
+//! Some addresses have expired/unexpired timelocked outputs, some only have
+//! unexpired.
 
 use std::time::SystemTime;
 
@@ -90,12 +91,14 @@ pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(Outpu
                     None,
                 )
                 .await?[0];
-            // VESTING_WEEKS / VESTING_WEEKS_FREQUENCY * 10 so that `vested_amount` doesn't lose precision.
+            // VESTING_WEEKS / VESTING_WEEKS_FREQUENCY * 10 so that `vested_amount` doesn't
+            // lose precision.
             let amount = rng.gen_range(1_000_000..10_000_000)
                 * (VESTING_WEEKS as u64 / VESTING_WEEKS_FREQUENCY as u64 * 10);
             // Initial unlock amount is 10% of the total address reward.
             let initial_unlock_amount = amount * 10 / 100;
-            // Vested amount is 90% of the total address reward spread across the vesting schedule.
+            // Vested amount is 90% of the total address reward spread across the vesting
+            // schedule.
             let vested_amount =
                 amount * 90 / 100 / (VESTING_WEEKS as u64 / VESTING_WEEKS_FREQUENCY as u64);
 
