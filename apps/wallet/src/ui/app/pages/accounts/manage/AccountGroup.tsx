@@ -5,7 +5,10 @@
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
 import { AccountIcon } from '_src/ui/app/components/accounts/AccountIcon';
 import { AccountItem } from '_src/ui/app/components/accounts/AccountItem';
-import { useAccountsFormContext } from '_src/ui/app/components/accounts/AccountsFormContext';
+import {
+    AccountsFormType,
+    useAccountsFormContext,
+} from '_src/ui/app/components/accounts/AccountsFormContext';
 import { NicknameDialog } from '_src/ui/app/components/accounts/NicknameDialog';
 import { VerifyPasswordModal } from '_src/ui/app/components/accounts/VerifyPasswordModal';
 import { useAccounts } from '_src/ui/app/hooks/useAccounts';
@@ -33,8 +36,8 @@ import toast from 'react-hot-toast';
 const ACCOUNT_TYPE_TO_LABEL: Record<AccountType, string> = {
     [AccountType.MnemonicDerived]: 'Passphrase Derived',
     [AccountType.SeedDerived]: 'Seed Derived',
-    [AccountType.Imported]: 'Imported',
-    [AccountType.Ledger]: 'Ledger',
+    [AccountType.PrivateKeyDerived]: 'Private Key',
+    [AccountType.LedgerDerived]: 'Ledger',
 };
 
 export function getGroupTitle(aGroupAccount: SerializedUIAccount) {
@@ -156,6 +159,9 @@ export function AccountGroup({
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
     const { data: accountSources } = useAccountSources();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceID);
+    const accountsFormType = isMnemonicDerivedGroup
+        ? AccountsFormType.MnemonicSource
+        : AccountsFormType.SeedSource;
     return (
         <>
             <CollapsiblePrimitive.Root defaultOpen asChild>
@@ -174,13 +180,15 @@ export function AccountGroup({
                                         // prevent the collapsible from closing when clicking the "new" button
                                         e.stopPropagation();
                                         setAccountsFormValues({
-                                            type,
+                                            type: accountsFormType,
                                             sourceID: accountSource.id,
                                         });
                                         if (accountSource.isLocked) {
                                             setPasswordModalVisible(true);
                                         } else {
-                                            createAccountMutation.mutate({ type });
+                                            createAccountMutation.mutate({
+                                                type: accountsFormType,
+                                            });
                                         }
                                     }}
                                     className="flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase text-hero outline-none hover:text-hero-darkest"
