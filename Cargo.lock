@@ -5775,59 +5775,6 @@ dependencies = [
  "move-vm-profiler",
  "move-vm-runtime-v0",
  "move-vm-types",
- "once_cell",
- "parking_lot 0.12.1",
- "serde",
- "tracing",
-]
-
-[[package]]
-name = "iota-adapter-v1"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bcs",
- "iota-macros",
- "iota-move-natives-v1",
- "iota-protocol-config",
- "iota-types",
- "iota-verifier-v1",
- "leb128",
- "move-binary-format",
- "move-bytecode-utils",
- "move-bytecode-verifier-v1",
- "move-core-types",
- "move-package",
- "move-vm-config",
- "move-vm-profiler",
- "move-vm-runtime-v1",
- "move-vm-types",
- "parking_lot 0.12.1",
- "serde",
- "tracing",
-]
-
-[[package]]
-name = "iota-adapter-v2"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bcs",
- "iota-macros",
- "iota-move-natives-v2",
- "iota-protocol-config",
- "iota-types",
- "iota-verifier-v2",
- "leb128",
- "move-binary-format",
- "move-bytecode-utils",
- "move-bytecode-verifier-v2",
- "move-core-types",
- "move-package",
- "move-vm-config",
- "move-vm-profiler",
- "move-vm-runtime-v2",
- "move-vm-types",
  "parking_lot 0.12.1",
  "serde",
  "tracing",
@@ -6432,28 +6379,18 @@ dependencies = [
  "cargo_metadata 0.15.4",
  "iota-adapter-latest",
  "iota-adapter-v0",
- "iota-adapter-v1",
- "iota-adapter-v2",
  "iota-move-natives-latest",
  "iota-move-natives-v0",
- "iota-move-natives-v1",
- "iota-move-natives-v2",
  "iota-protocol-config",
  "iota-types",
  "iota-verifier-latest",
  "iota-verifier-v0",
- "iota-verifier-v1",
- "iota-verifier-v2",
  "move-binary-format",
  "move-bytecode-verifier",
  "move-bytecode-verifier-v0",
- "move-bytecode-verifier-v1",
- "move-bytecode-verifier-v2",
  "move-vm-config",
  "move-vm-runtime",
  "move-vm-runtime-v0",
- "move-vm-runtime-v1",
- "move-vm-runtime-v2",
  "petgraph 0.5.1",
 ]
 
@@ -6574,13 +6511,13 @@ dependencies = [
  "fastcrypto",
  "fs_extra",
  "insta",
- "iota-adapter-v2",
+ "iota-adapter-v0",
  "iota-config",
  "iota-execution",
  "iota-framework",
  "iota-framework-snapshot",
  "iota-move-build",
- "iota-move-natives-v2",
+ "iota-move-natives-v0",
  "iota-protocol-config",
  "iota-sdk 1.1.4",
  "iota-simulator",
@@ -6591,7 +6528,7 @@ dependencies = [
  "move-compiler",
  "move-core-types",
  "move-package",
- "move-vm-runtime-v2",
+ "move-vm-runtime-v0",
  "packable",
  "prefix-hex",
  "prometheus",
@@ -7091,53 +7028,13 @@ dependencies = [
  "better_any",
  "fastcrypto",
  "fastcrypto-zkp",
- "iota-protocol-config",
- "iota-types",
- "linked-hash-map",
- "move-binary-format",
- "move-core-types",
- "move-stdlib-v0",
- "move-vm-runtime-v0",
- "move-vm-types",
- "smallvec",
- "tracing",
-]
-
-[[package]]
-name = "iota-move-natives-v1"
-version = "0.1.0"
-dependencies = [
- "bcs",
- "better_any",
- "fastcrypto",
- "fastcrypto-zkp",
- "iota-protocol-config",
- "iota-types",
- "linked-hash-map",
- "move-binary-format",
- "move-core-types",
- "move-stdlib-v1",
- "move-vm-runtime-v1",
- "move-vm-types",
- "smallvec",
- "tracing",
-]
-
-[[package]]
-name = "iota-move-natives-v2"
-version = "0.1.0"
-dependencies = [
- "bcs",
- "better_any",
- "fastcrypto",
- "fastcrypto-zkp",
  "indexmap 2.2.6",
  "iota-protocol-config",
  "iota-types",
  "move-binary-format",
  "move-core-types",
- "move-stdlib-v2",
- "move-vm-runtime-v2",
+ "move-stdlib-v0",
+ "move-vm-runtime-v0",
  "move-vm-types",
  "smallvec",
  "tracing",
@@ -8207,33 +8104,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iota-verifier-v1"
-version = "0.1.0"
-dependencies = [
- "iota-types",
- "move-abstract-stack",
- "move-binary-format",
- "move-bytecode-utils",
- "move-bytecode-verifier-v1",
- "move-core-types",
- "move-vm-config",
-]
-
-[[package]]
-name = "iota-verifier-v2"
-version = "0.1.0"
-dependencies = [
- "iota-protocol-config",
- "iota-types",
- "move-abstract-stack",
- "move-binary-format",
- "move-bytecode-utils",
- "move-bytecode-verifier-v2",
- "move-core-types",
- "move-vm-config",
-]
-
-[[package]]
 name = "iota_stronghold"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9252,30 +9122,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "move-bytecode-verifier-v1"
-version = "0.1.0"
-dependencies = [
- "move-abstract-stack",
- "move-binary-format",
- "move-borrow-graph",
- "move-core-types",
- "move-vm-config",
- "petgraph 0.5.1",
-]
-
-[[package]]
-name = "move-bytecode-verifier-v2"
-version = "0.1.0"
-dependencies = [
- "move-abstract-stack",
- "move-binary-format",
- "move-borrow-graph",
- "move-core-types",
- "move-vm-config",
- "petgraph 0.5.1",
-]
-
-[[package]]
 name = "move-bytecode-viewer"
 version = "0.1.0"
 dependencies = [
@@ -9695,48 +9541,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "move-stdlib-v1"
-version = "0.1.1"
-dependencies = [
- "anyhow",
- "hex",
- "log",
- "move-binary-format",
- "move-command-line-common",
- "move-core-types",
- "move-docgen",
- "move-errmapgen",
- "move-prover",
- "move-vm-runtime-v1",
- "move-vm-types",
- "sha2 0.9.9",
- "sha3 0.9.1",
- "smallvec",
- "walkdir",
-]
-
-[[package]]
-name = "move-stdlib-v2"
-version = "0.1.1"
-dependencies = [
- "anyhow",
- "hex",
- "log",
- "move-binary-format",
- "move-command-line-common",
- "move-core-types",
- "move-docgen",
- "move-errmapgen",
- "move-prover",
- "move-vm-runtime-v2",
- "move-vm-types",
- "sha2 0.9.9",
- "sha3 0.9.1",
- "smallvec",
- "walkdir",
-]
-
-[[package]]
 name = "move-symbol-pool"
 version = "0.1.0"
 dependencies = [
@@ -9850,44 +9654,6 @@ dependencies = [
  "fail",
  "move-binary-format",
  "move-bytecode-verifier-v0",
- "move-core-types",
- "move-vm-config",
- "move-vm-profiler",
- "move-vm-types",
- "once_cell",
- "parking_lot 0.11.2",
- "sha3 0.9.1",
- "smallvec",
- "tracing",
-]
-
-[[package]]
-name = "move-vm-runtime-v1"
-version = "0.1.0"
-dependencies = [
- "better_any",
- "fail",
- "move-binary-format",
- "move-bytecode-verifier-v1",
- "move-core-types",
- "move-vm-config",
- "move-vm-profiler",
- "move-vm-types",
- "once_cell",
- "parking_lot 0.11.2",
- "sha3 0.9.1",
- "smallvec",
- "tracing",
-]
-
-[[package]]
-name = "move-vm-runtime-v2"
-version = "0.1.0"
-dependencies = [
- "better_any",
- "fail",
- "move-binary-format",
- "move-bytecode-verifier-v2",
  "move-core-types",
  "move-vm-config",
  "move-vm-profiler",
