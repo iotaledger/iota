@@ -8,25 +8,36 @@ import { CoinItem, SendCoinPopup } from '@/components';
 import { usePopups } from '@/hooks';
 import { CoinBalance } from '@iota/iota.js/client';
 
-function AllCoins(): React.JSX.Element {
+function MyCoins(): React.JSX.Element {
     const { openPopup, closePopup } = usePopups();
     const account = useCurrentAccount();
-    const { data: coins } = useIotaClientQuery(
+    const activeAccountAddress = account?.address;
+
+    const { data: coinBalances } = useIotaClientQuery(
         'getAllBalances',
-        { owner: account?.address ?? '' },
+        { owner: activeAccountAddress! },
         {
-            enabled: !!account?.address,
+            enabled: !!activeAccountAddress,
+            staleTime: 1000 * 30, // 30 seconds
+            refetchInterval: 1000 * 30, // 30 seconds
             select: filterAndSortTokenBalances,
         },
     );
     const openSendTokenPopup = (coin: CoinBalance, address: string) => {
-        openPopup(<SendCoinPopup coin={coin} senderAddress={address} onClose={closePopup} />);
+        coinBalances &&
+            openPopup(
+                <SendCoinPopup
+                    coin={coin}
+                    senderAddress={address}
+                    onClose={closePopup}
+                    coins={coinBalances}
+                />,
+            );
     };
-
     return (
         <div className="flex w-2/3 flex-col items-center space-y-2">
             <h3>My Coins:</h3>
-            {coins?.map((coin, index) => {
+            {coinBalances?.map((coin, index) => {
                 return (
                     <CoinItem
                         key={index}
@@ -40,4 +51,4 @@ function AllCoins(): React.JSX.Element {
     );
 }
 
-export default AllCoins;
+export default MyCoins;
