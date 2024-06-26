@@ -3,3 +3,4 @@
 
 export * from './createUnstakeTransaction';
 export * from './formatDelegatedStake';
+export * from './createStakeTransaction';
