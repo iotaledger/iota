@@ -106,7 +106,7 @@ function StakeCardContent({
 }
 
 interface StakeCardProps {
-    delegationObject: ExtendedDelegatedStake;
+    extendedStake: ExtendedDelegatedStake;
     currentEpoch: number;
     inactiveValidator?: boolean;
 }
@@ -114,12 +114,12 @@ interface StakeCardProps {
 // For delegationsRequestEpoch n  through n + 2, show Start Earning
 // Show epoch number or date/time for n + 3 epochs
 export function StakeCard({
-    delegationObject,
+    extendedStake,
     currentEpoch,
     inactiveValidator = false,
 }: StakeCardProps) {
     const { stakedIotaId, principal, stakeRequestEpoch, estimatedReward, validatorAddress } =
-        delegationObject;
+        extendedStake;
 
     // TODO: Once two step withdraw is available, add cool down and withdraw now logic
     // For cool down epoch, show Available to withdraw add rewards to principal
@@ -178,7 +178,7 @@ export function StakeCard({
                         size="subtitle"
                         iconSize="md"
                         stacked
-                        activeEpoch={delegationObject.stakeRequestEpoch}
+                        activeEpoch={extendedStake.stakeRequestEpoch}
                     />
 
                     <div className="text-pBody text-steel opacity-0 group-hover:opacity-100">
