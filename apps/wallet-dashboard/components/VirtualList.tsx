@@ -27,6 +27,7 @@ function VirtualList<T>({
 }: VirtualListProps<T>): JSX.Element {
     const containerRef = React.useRef<HTMLDivElement | null>(null);
     const virtualizer = useVirtualizer({
+        // Render one more item if there is still pages to be fetched
         count: hasNextPage ? items.length + 1 : items.length,
         getScrollElement: () => containerRef.current,
         estimateSize: (index) => {
@@ -46,6 +47,7 @@ function VirtualList<T>({
             return;
         }
 
+        // Fetch the next page if the last rendered item is the one we added as extra, and there is still more pages to fetch
         if (lastItem.index >= items.length - 1 && hasNextPage && !isFetchingNextPage) {
             fetchNextPage();
         }
