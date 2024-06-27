@@ -19,6 +19,7 @@ function AllCoins(): React.JSX.Element {
             select: filterAndSortTokenBalances,
         },
     );
+    
     const openSendTokenPopup = (coin: CoinBalance, address: string) => {
         openPopup(<SendCoinPopup coin={coin} senderAddress={address} onClose={closePopup} />);
     };
