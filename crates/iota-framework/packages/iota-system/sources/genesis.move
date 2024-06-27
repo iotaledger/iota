@@ -11,7 +11,6 @@ module iota_system::genesis {
     use iota_system::validator::{Self, Validator};
     use iota_system::validator_set;
     use iota_system::iota_system_state_inner;
-    use iota_system::stake_subsidy;
 
     public struct GenesisValidatorMetadata has drop, copy {
         name: vector<u8>,
@@ -41,12 +40,6 @@ module iota_system::genesis {
         chain_start_timestamp_ms: u64,
         epoch_duration_ms: u64,
 
-        // Stake Subsidy parameters
-        stake_subsidy_start_epoch: u64,
-        stake_subsidy_initial_distribution_amount: u64,
-        stake_subsidy_period_length: u64,
-        stake_subsidy_decrease_rate: u16,
-
         // Validator committee parameters
         max_validator_count: u64,
         min_validator_joining_stake: u64,
@@ -56,7 +49,6 @@ module iota_system::genesis {
     }
 
     public struct TokenDistributionSchedule {
-        stake_subsidy_fund_micros: u64,
         allocations: vector<TokenAllocation>,
     }
 
@@ -81,7 +73,7 @@ module iota_system::genesis {
     fun create(
         iota_system_state_id: UID,
         iota_treasury_cap: TreasuryCap<IOTA>,
-        mut iota_supply: Balance<IOTA>,
+        iota_supply: Balance<IOTA>,
         genesis_chain_parameters: GenesisChainParameters,
         genesis_validators: vector<GenesisValidatorMetadata>,
         token_distribution_schedule: TokenDistributionSchedule,
@@ -91,11 +83,9 @@ module iota_system::genesis {
         assert!(ctx.epoch() == 0, ENotCalledAtGenesis);
 
         let TokenDistributionSchedule {
-            stake_subsidy_fund_micros,
             allocations,
         } = token_distribution_schedule;
 
-        let subsidy_fund = iota_supply.split(stake_subsidy_fund_micros);
         let storage_fund = balance::zero();
 
         // Create all the `Validator` structs
@@ -164,7 +154,6 @@ module iota_system::genesis {
 
         let system_parameters = iota_system_state_inner::create_system_parameters(
             genesis_chain_parameters.epoch_duration_ms,
-            genesis_chain_parameters.stake_subsidy_start_epoch,
 
             // Validator committee parameters
             genesis_chain_parameters.max_validator_count,
@@ -176,14 +165,6 @@ module iota_system::genesis {
             ctx,
         );
 
-        let stake_subsidy = stake_subsidy::create(
-            subsidy_fund,
-            genesis_chain_parameters.stake_subsidy_initial_distribution_amount,
-            genesis_chain_parameters.stake_subsidy_period_length,
-            genesis_chain_parameters.stake_subsidy_decrease_rate,
-            ctx,
-        );
-
         iota_system::create(
             iota_system_state_id,
             iota_treasury_cap,
@@ -192,7 +173,6 @@ module iota_system::genesis {
             genesis_chain_parameters.protocol_version,
             genesis_chain_parameters.chain_start_timestamp_ms,
             system_parameters,
-            stake_subsidy,
             ctx,
         );
     }
