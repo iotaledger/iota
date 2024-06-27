@@ -21,6 +21,7 @@ use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::types::block::address::Address;
 use iota_types::{
+    balance::Balance,
     base_types::{
         ExecutionDigests, IotaAddress, ObjectID, SequenceNumber, TransactionDigest, TxContext,
     },
@@ -1252,45 +1253,43 @@ pub fn generate_genesis_system_object(
                     vec![GAS::type_tag()],
                     arguments,
                 );
-                let transfer = Command::TransferObjects(
-                    vec![surplus_timelock],
-                    builder.pure(allocation.recipient_address)?,
-                );
-                builder.command(transfer);
-            }
-            // Add the stake
-            // NOTE: We cannot use `request_add_stake_mul_bal_non_entry`
-            // because there is no Move function for transferring the returned
-            // version of receipts.
-            for timelock in allocation.timelock_objects {
-                let arguments = vec![
-                    builder.obj(ObjectArg::SharedObject {
-                        id: IOTA_SYSTEM_STATE_OBJECT_ID,
-                        initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
-                        mutable: true,
-                    })?,
-                    builder.obj(ObjectArg::ImmOrOwnedObject(timelock))?,
-                    builder.pure(allocation.staked_with_validator)?,
-                ];
-                let receipt = builder.programmable_move_call(
-                    TIMELOCK_ADDRESS.into(),
-                    ident_str!("timelocked_staking").to_owned(),
-                    ident_str!("request_add_stake_non_entry").to_owned(),
-                    vec![],
-                    arguments,
-                );
-                let arguments = vec![receipt, builder.pure(allocation.recipient_address)?];
-                // This is running in `ExecutionMode::Genesis` that let's us
-                // bypass function visibility. So we can indeed call
-                // the private `timelocked_staked_iota::tranfer` Move function.
                 builder.programmable_move_call(
                     TIMELOCK_ADDRESS.into(),
-                    ident_str!("timelocked_staked_iota").to_owned(),
-                    ident_str!("transfer").to_owned(),
-                    vec![],
-                    arguments,
+                    ident_str!("timelock").to_owned(),
+                    ident_str!("self_transfer").to_owned(),
+                    vec![Balance::type_tag(GAS::type_tag())],
+                    vec![surplus_timelock],
                 );
             }
+            // Add the stake
+            let arguments = vec![
+                builder.obj(ObjectArg::SharedObject {
+                    id: IOTA_SYSTEM_STATE_OBJECT_ID,
+                    initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
+                    mutable: true,
+                })?,
+                builder.make_obj_vec(
+                    allocation
+                        .timelock_objects
+                        .iter()
+                        .map(|&timelock| ObjectArg::ImmOrOwnedObject(timelock)),
+                )?,
+                builder.pure(allocation.staked_with_validator)?,
+            ];
+            let receipt_vector = builder.programmable_move_call(
+                TIMELOCK_ADDRESS.into(),
+                ident_str!("timelocked_staking").to_owned(),
+                ident_str!("request_add_stake_mul_bal_non_entry").to_owned(),
+                vec![],
+                arguments,
+            );
+            builder.programmable_move_call(
+                TIMELOCK_ADDRESS.into(),
+                ident_str!("timelock").to_owned(),
+                ident_str!("self_transfer_multiple").to_owned(),
+                vec![],
+                vec![receipt_vector],
+            );
         }
         builder.finish()
     };
