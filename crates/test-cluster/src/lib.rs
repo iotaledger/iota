@@ -45,7 +45,7 @@ use iota_types::{
     crypto::{IotaKeyPair, KeypairTraits},
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
-    governance::MIN_VALIDATOR_JOINING_STAKE_MICROS,
+    governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
     iota_system_state::{
         epoch_start_iota_system_state::EpochStartSystemStateTrait, IotaSystemState,
         IotaSystemStateTrait,
@@ -921,7 +921,7 @@ impl TestClusterBuilder {
             .accounts
             .extend(addresses.into_iter().map(|address| AccountConfig {
                 address: Some(address),
-                gas_amounts: vec![DEFAULT_GAS_AMOUNT, MIN_VALIDATOR_JOINING_STAKE_MICROS],
+                gas_amounts: vec![DEFAULT_GAS_AMOUNT, MIN_VALIDATOR_JOINING_STAKE_NANOS],
             }));
         self
     }

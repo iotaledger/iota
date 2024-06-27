@@ -459,11 +459,11 @@ impl GenesisCeremonyParameters {
             stake_subsidy_period_length: self.stake_subsidy_period_length,
             stake_subsidy_decrease_rate: self.stake_subsidy_decrease_rate,
             max_validator_count: iota_types::governance::MAX_VALIDATOR_COUNT,
-            min_validator_joining_stake: iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_MICROS,
+            min_validator_joining_stake: iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
             validator_low_stake_threshold:
-                iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_MICROS,
+                iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS,
             validator_very_low_stake_threshold:
-                iota_types::governance::VALIDATOR_VERY_LOW_STAKE_THRESHOLD_MICROS,
+                iota_types::governance::VALIDATOR_VERY_LOW_STAKE_THRESHOLD_NANOS,
             validator_low_stake_grace_period:
                 iota_types::governance::VALIDATOR_LOW_STAKE_GRACE_PERIOD,
         }
@@ -479,13 +479,13 @@ impl Default for GenesisCeremonyParameters {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct TokenDistributionSchedule {
-    pub stake_subsidy_fund_micros: u64,
+    pub stake_subsidy_fund_nanos: u64,
     pub allocations: Vec<TokenAllocation>,
 }
 
 impl TokenDistributionSchedule {
     pub fn validate(&self) {
-        let mut total_nanos = self.stake_subsidy_fund_micros;
+        let mut total_nanos = self.stake_subsidy_fund_nanos;
 
         for allocation in &self.allocations {
             total_nanos += allocation.amount_nanos;
@@ -522,7 +522,7 @@ impl TokenDistributionSchedule {
 
         // Check that all validators have sufficient stake allocated to ensure they meet
         // the minimum stake threshold
-        let minimum_required_stake = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_MICROS;
+        let minimum_required_stake = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS;
         for (validator, stake) in validators {
             if stake < minimum_required_stake {
                 panic!(
@@ -536,7 +536,7 @@ impl TokenDistributionSchedule {
         validators: I,
     ) -> Self {
         let mut supply = TOTAL_SUPPLY_NANOS;
-        let default_allocation = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_MICROS;
+        let default_allocation = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS;
 
         let allocations = validators
             .into_iter()
@@ -551,7 +551,7 @@ impl TokenDistributionSchedule {
             .collect();
 
         let schedule = Self {
-            stake_subsidy_fund_micros: supply,
+            stake_subsidy_fund_nanos: supply,
             allocations,
         };
 
@@ -591,7 +591,7 @@ impl TokenDistributionSchedule {
         );
 
         let schedule = Self {
-            stake_subsidy_fund_micros: stake_subsidy_fund_allocation.amount_nanos,
+            stake_subsidy_fund_nanos: stake_subsidy_fund_allocation.amount_nanos,
             allocations,
         };
 
@@ -608,7 +608,7 @@ impl TokenDistributionSchedule {
 
         writer.serialize(TokenAllocation {
             recipient_address: IotaAddress::default(),
-            amount_nanos: self.stake_subsidy_fund_micros,
+            amount_nanos: self.stake_subsidy_fund_nanos,
             staked_with_validator: None,
         })?;
 
@@ -646,7 +646,7 @@ impl TokenDistributionScheduleBuilder {
         &mut self,
         validators: I,
     ) {
-        let default_allocation = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_MICROS;
+        let default_allocation = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS;
 
         for validator in validators {
             self.add_allocation(TokenAllocation {
@@ -664,7 +664,7 @@ impl TokenDistributionScheduleBuilder {
 
     pub fn build(&self) -> TokenDistributionSchedule {
         let schedule = TokenDistributionSchedule {
-            stake_subsidy_fund_micros: self.pool,
+            stake_subsidy_fund_nanos: self.pool,
             allocations: self.allocations.clone(),
         };
 

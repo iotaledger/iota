@@ -471,7 +471,7 @@ impl Builder {
         let token_distribution_schedule = self.token_distribution_schedule.clone().unwrap();
         assert_eq!(
             system_state.stake_subsidy.balance.value(),
-            token_distribution_schedule.stake_subsidy_fund_micros
+            token_distribution_schedule.stake_subsidy_fund_nanos
         );
 
         let mut gas_objects: BTreeMap<ObjectID, (&Object, GasCoin)> = unsigned_genesis

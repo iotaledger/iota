@@ -311,16 +311,16 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         self.epoch_state.reference_gas_price()
     }
 
-    /// Request that `amount` Micros be sent to `address` from a faucet account.
+    /// Request that `amount` Nanos be sent to `address` from a faucet account.
     ///
     /// ```
-    /// use iota_types::{base_types::IotaAddress, gas_coin::MICROS_PER_IOTA};
+    /// use iota_types::{base_types::IotaAddress, gas_coin::NANOS_PER_IOTA};
     /// use simulacrum::Simulacrum;
     ///
     /// # fn main() {
     /// let mut simulacrum = Simulacrum::new();
     /// let address = IotaAddress::generate(simulacrum.rng());
-    /// simulacrum.request_gas(address, MICROS_PER_IOTA).unwrap();
+    /// simulacrum.request_gas(address, NANOS_PER_IOTA).unwrap();
     ///
     /// // `account` now has a Coin<IOTA> object with single IOTA in it.
     /// // ...
@@ -338,7 +338,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
                 object.is_gas_coin() && object.get_coin_value_unsafe() > amount + NANOS_PER_IOTA
             })
             .ok_or_else(|| {
-                anyhow!("unable to find a coin with enough to satisfy request for {amount} Micros")
+                anyhow!("unable to find a coin with enough to satisfy request for {amount} Nanos")
             })?;
 
         let gas_data = iota_types::transaction::GasData {

@@ -215,7 +215,7 @@ impl ValidatorGenesisConfigBuilder {
             narwhal_worker_address,
             consensus_address,
             consensus_internal_worker_address: None,
-            stake: iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_MICROS,
+            stake: iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS,
             name: None,
         }
     }
@@ -276,7 +276,7 @@ fn default_multiaddr_address() -> Multiaddr {
 }
 
 fn default_stake() -> u64 {
-    iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_MICROS
+    iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS
 }
 
 fn default_bls12381_key_pair() -> AuthorityKeyPair {
