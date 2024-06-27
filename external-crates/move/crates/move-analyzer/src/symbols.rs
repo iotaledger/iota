@@ -45,8 +45,8 @@
 //! on-hover, type def and doc string info here; also note that identifier in
 //! the definition of the constant maps to itself):
 //!
-//! [7] -> [UseDef(col_start:6,  col_end:13, DefLoc(7:6, FHASH))]
-//! [9] -> [UseDef(col_start:0,  col_end: 9, DefLoc(7:6, FHASH))],
+//! \[7\] -> [UseDef(col_start:6,  col_end:13, DefLoc(7:6, FHASH))]
+//! \[9\] -> [UseDef(col_start:0,  col_end: 9, DefLoc(7:6, FHASH))],
 //!        [UseDef(col_start:13, col_end:22, DefLoc(7:6, FHASH))]
 //!
 //! We also associate all uses of an identifier with its definition to support
