@@ -12,7 +12,7 @@ use iota_genesis_builder::stardust::{
 
 fn parse_snapshot<P: AsRef<Path>>(path: P) -> anyhow::Result<()> {
     let file = File::open(path)?;
-    let parser = HornetGenesisSnapshotParser::new(file)?;
+    let mut parser = HornetGenesisSnapshotParser::new(file)?;
 
     println!("Output count: {}", parser.header.output_count());
 
