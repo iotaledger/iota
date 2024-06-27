@@ -22,7 +22,7 @@ use crate::{
     iota_system_state::{
         epoch_start_iota_system_state::EpochStartSystemState,
         get_validators_from_table_vec,
-        iota_system_state_inner_v1::{StakeSubsidyV1, StorageFundV1, ValidatorSetV1},
+        iota_system_state_inner_v1::{StorageFundV1, ValidatorSetV1},
     },
     storage::ObjectStore,
 };
@@ -76,7 +76,6 @@ pub struct IotaSystemStateInnerV2 {
     pub parameters: SystemParametersV2,
     pub reference_gas_price: u64,
     pub validator_report_records: VecMap<IotaAddress, VecSet<IotaAddress>>,
-    pub stake_subsidy: StakeSubsidyV1,
     pub safe_mode: bool,
     pub safe_mode_storage_rewards: Balance,
     pub safe_mode_computation_rewards: Balance,
@@ -257,15 +256,6 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV2 {
                 VecMap {
                     contents: validator_report_records,
                 },
-            stake_subsidy:
-                StakeSubsidyV1 {
-                    balance: stake_subsidy_balance,
-                    distribution_counter: stake_subsidy_distribution_counter,
-                    current_distribution_amount: stake_subsidy_current_distribution_amount,
-                    stake_subsidy_period_length,
-                    stake_subsidy_decrease_rate,
-                    extra_fields: _,
-                },
             safe_mode,
             safe_mode_storage_rewards,
             safe_mode_computation_rewards,
@@ -291,9 +281,10 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV2 {
             epoch_start_timestamp_ms,
             stake_subsidy_start_epoch,
             epoch_duration_ms,
-            stake_subsidy_distribution_counter,
-            stake_subsidy_balance: stake_subsidy_balance.value(),
-            stake_subsidy_current_distribution_amount,
+            // TODO: Remove
+            stake_subsidy_distribution_counter: 0,
+            stake_subsidy_balance: 0,
+            stake_subsidy_current_distribution_amount: 0,
             total_stake,
             active_validators: active_validators
                 .into_iter()
@@ -321,8 +312,9 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV2 {
             validator_low_stake_threshold,
             validator_very_low_stake_threshold,
             validator_low_stake_grace_period,
-            stake_subsidy_period_length,
-            stake_subsidy_decrease_rate,
+            // TODO: Remove
+            stake_subsidy_period_length: 0,
+            stake_subsidy_decrease_rate: 0,
         }
     }
 }
