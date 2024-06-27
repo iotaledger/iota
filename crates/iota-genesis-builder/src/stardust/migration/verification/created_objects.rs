@@ -4,7 +4,8 @@
 use anyhow::{anyhow, bail, Result};
 use iota_types::base_types::ObjectID;
 
-/// Defines objects that may have been created by migrating an [`Output`].
+/// Defines objects that may have been created by migrating an
+/// [`Output`](iota_sdk::types::block::output::Output).
 #[derive(Default)]
 pub struct CreatedObjects {
     output: Option<ObjectID>,

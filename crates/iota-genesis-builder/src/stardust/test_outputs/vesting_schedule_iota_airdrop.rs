@@ -5,7 +5,8 @@
 //! 2-years, initial unlock, bi-weekly unlock.
 //! One mnemonic, multi accounts, multi addresses.
 //! Some addresses have initial unlock, some don't.
-//! Some addresses have expired/unexpired timelocked outputs, some only have unexpired.
+//! Some addresses have expired/unexpired timelocked outputs, some only have
+//! unexpired.
 
 use std::time::SystemTime;
 
@@ -22,7 +23,7 @@ use iota_sdk::{
 use iota_types::timelock::timelock::VESTED_REWARD_ID_PREFIX;
 use rand::{random, rngs::StdRng, Rng, SeedableRng};
 
-use crate::stardust::types::output_header::OutputHeader;
+use crate::stardust::types::{output_header::OutputHeader, output_index::random_output_index};
 
 const MNEMONIC: &str = "sense silent picnic predict any public install educate trial depth faith voyage age exercise perfect hair favorite glimpse blame wood wave fiber maple receive";
 const ACCOUNTS: u32 = 10;
@@ -45,8 +46,7 @@ fn new_output(
 
     let output_header = OutputHeader::new_testing(
         *transaction_id,
-        // % 128 to pass the output index syntactic validation.
-        random::<u16>() % 128,
+        random_output_index(),
         [0; 32],
         MERGE_MILESTONE_INDEX,
         MERGE_TIMESTAMP_SECS,
@@ -90,12 +90,14 @@ pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(Outpu
                     None,
                 )
                 .await?[0];
-            // VESTING_WEEKS / VESTING_WEEKS_FREQUENCY * 10 so that `vested_amount` doesn't lose precision.
+            // VESTING_WEEKS / VESTING_WEEKS_FREQUENCY * 10 so that `vested_amount` doesn't
+            // lose precision.
             let amount = rng.gen_range(1_000_000..10_000_000)
                 * (VESTING_WEEKS as u64 / VESTING_WEEKS_FREQUENCY as u64 * 10);
             // Initial unlock amount is 10% of the total address reward.
             let initial_unlock_amount = amount * 10 / 100;
-            // Vested amount is 90% of the total address reward spread across the vesting schedule.
+            // Vested amount is 90% of the total address reward spread across the vesting
+            // schedule.
             let vested_amount =
                 amount * 90 / 100 / (VESTING_WEEKS as u64 / VESTING_WEEKS_FREQUENCY as u64);
 
