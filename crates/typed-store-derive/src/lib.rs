@@ -195,27 +195,41 @@ fn extract_generics_names(generics: &Generics) -> Vec<Ident> {
 /// 5. Other convenience features
 ///
 /// 1. Flexible configuration:
-/// a. Static options specified at struct definition
-/// The definer of the struct can specify the default options for each table
-/// using annotations We can also supply column family options on the default
-/// ones A user defined function of signature () -> Options can be provided for
-/// each table If a an override function is not specified, the default in
-/// `typed_store::rocks::default_db_options` is used ```
-/// use typed_store::rocks::DBOptions;
-/// use typed_store::rocks::DBMap;
-/// use typed_store::rocks::MetricConf;
-/// use typed_store_derive::DBMapUtils;
-/// use typed_store::traits::TypedStoreDebug;
-/// use typed_store::traits::TableSummary;
-/// use core::fmt::Error;
-/// /// Define a struct with all members having type DBMap<K, V>
 ///
-/// fn custom_fn_name1() -> DBOptions {DBOptions::default()}
+///     A. Static options specified at struct definition
+///
+///     The definer of the struct can specify the default options for each table
+///     using annotations We can also supply column family options on the
+///     default ones A user defined function of signature () -> Options can be
+///     provided for each table If a an override function is not specified, the
+///     default in `typed_store::rocks::default_db_options` is used
+///
+///     B. Options specified by DB opener
+///
+///     For finer control, we also allow the opener of the DB to specify their
+///     own options which override the defaults set by the definer. This is done
+///     via a configurator which gives one a struct with field similarly named
+///     as that of the DB, but of type Options
+///
+/// ```
+/// use core::fmt::Error;
+///
+/// use typed_store::{
+///     rocks::{DBMap, DBOptions, MetricConf},
+///     traits::{TableSummary, TypedStoreDebug},
+/// };
+/// use typed_store_derive::DBMapUtils;
+///
+/// fn custom_fn_name1() -> DBOptions {
+///     DBOptions::default()
+/// }
 /// fn custom_fn_name2() -> DBOptions {
 ///     let mut op = custom_fn_name1();
 ///     op.options.set_write_buffer_size(123456);
 ///     op
 /// }
+///
+/// /// Define a struct with all members having type DBMap<K, V>
 /// #[derive(DBMapUtils)]
 /// struct Tables {
 ///     /// Specify custom options function `custom_fn_name1`
@@ -229,30 +243,30 @@ fn extract_generics_names(generics: &Generics) -> Vec<Ident> {
 ///     table4: DBMap<i32, String>,
 /// }
 ///
-/// // b. Options specified by DB opener
-/// // For finer control, we also allow the opener of the DB to specify their
-/// own options which override the defaults set by the definer // This is done
-/// via a configurator which gives one a struct with field similarly named as
-/// that of the DB, but of type Options
-///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Error> {
-/// // Get a configurator for this table
-/// let mut config = Tables::configurator();
-/// // Config table 1
-/// config.table1 = DBOptions::default();
-/// config.table1.options.create_if_missing(true);
-/// config.table1.options.set_write_buffer_size(123456);
+///     // Get a configurator for this table
+///     let mut config = Tables::configurator();
+///     // Config table 1
+///     config.table1 = DBOptions::default();
+///     config.table1.options.create_if_missing(true);
+///     config.table1.options.set_write_buffer_size(123456);
 ///
-/// let primary_path = tempfile::tempdir().expect("Failed to open temporary
-/// directory").into_path();
+///     let primary_path = tempfile::tempdir()
+///         .expect("Failed to open temporary directory")
+///         .into_path();
 ///
-/// // We can then open the DB with the configs
-/// let _ = Tables::open_tables_read_write(primary_path, MetricConf::default(),
-/// None, Some(config.build())); Ok(())
+///     // We can then open the DB with the configs
+///     let _ = Tables::open_tables_read_write(
+///         primary_path,
+///         MetricConf::default(),
+///         None,
+///         Some(config.build()),
+///     );
+///     Ok(())
 /// }
 /// ```
-/// 
+///
 /// 2. Auto-generated `open` routine
 /// The function `open_tables_read_write` is generated which allows for
 /// specifying DB wide options and custom table configs as mentioned above
@@ -262,7 +276,8 @@ fn extract_generics_names(generics: &Generics) -> Vec<Ident> {
 /// has certain features like dumping and counting the keys in the tables
 ///
 /// Use the function `Tables::get_read_only_handle` which returns a handle that
-/// only allows read only features ```
+/// only allows read only features
+/// ```
 /// use core::fmt::Error;
 ///
 /// use typed_store::{
@@ -307,8 +322,8 @@ fn extract_generics_names(generics: &Generics) -> Vec<Ident> {
 ///
 ///     // Get the read only handle
 ///     let read_only_handle =
-///         Tables::get_read_only_handle(primary_path, None, None, MetricConf::default());
-///     // Use this handle for dumping
+///         Tables::get_read_only_handle(primary_path, None, None,
+/// MetricConf::default());     // Use this handle for dumping
 ///     let ret = read_only_handle.dump("table2", 100, 0).unwrap();
 ///     let key_count = read_only_handle.count_keys("table1").unwrap();
 ///     Ok(())
@@ -321,15 +336,17 @@ fn extract_generics_names(generics: &Generics) -> Vec<Ident> {
 /// `Tables::describe_tables` is used to get a list of the table names and
 /// key-value types as string in a BTreeMap
 ///
-/// // Bad usage example
-/// // Structs fields most only be of type Store<K, V> or DMBap<K, V>
-/// // This will fail to compile with error `All struct members must be of type
-/// Store<K, V> or DMBap<K, V>` // #[derive(DBMapUtils)]
-/// // struct BadTables {
-/// //     table1: Store<String, String>,
-/// //     bad_field: u32,
-/// // #}
-
+/// ### Bad usage example
+/// Structs fields most only be of type Store<K, V> or DMBap<K, V>
+/// This will fail to compile with error `All struct members must be of type
+/// Store<K, V> or DMBap<K, V>`
+/// ```ignore
+/// #[derive(DBMapUtils)]
+/// struct BadTables {
+///     table1: Store<String, String>,
+///     bad_field: u32,
+/// }
+/// ```
 #[proc_macro_derive(DBMapUtils, attributes(default_options_override_fn, rename))]
 pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as ItemStruct);

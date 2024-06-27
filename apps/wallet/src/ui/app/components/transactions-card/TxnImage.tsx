@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { useGetNFTMeta } from '@iota/core';
 import { Text } from '_app/shared/text';
 import { NftImage } from '_components/nft-display/NftImage';
-import { useGetNFTMeta } from '_hooks';
 import { cx } from 'class-variance-authority';
 
 //TODO merge all NFT image displays

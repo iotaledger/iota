@@ -10,7 +10,7 @@ module timelock::timelocked_balance_tests {
     use iota::test_utils::{Self, assert_eq};
 
     use timelock::labeler::LabelerCap;
-    use timelock::timelock;
+    use timelock::timelock::{Self, TimeLock};
     use timelock::timelocked_balance;
 
     use timelock::test_label_one::{Self, TEST_LABEL_ONE};
@@ -256,6 +256,39 @@ module timelock::timelocked_balance_tests {
         assert_eq(original.locked().value(), 7);
 
         // Check the splitted timelock.
+        assert_eq(splitted.expiration_timestamp_ms(), 100);
+        assert_eq(splitted.locked().value(), 3);
+
+        // Cleanup.
+        test_utils::destroy(original);
+        test_utils::destroy(splitted);
+
+        scenario.end();
+    }
+
+     #[test]
+    fun test_split_and_transfer_timelocked_balances() {
+        // Set up a test environment.
+        let sender = @0xA;
+        let mut scenario = test_scenario::begin(sender);
+
+        // Minting some IOTA.
+        let iota = balance::create_for_testing<IOTA>(10);
+
+        // Lock the IOTA balance.
+        let mut original = timelock::lock(iota, 100, scenario.ctx());
+
+        // Split and transfer the timelock.
+        let splitted = timelocked_balance::split(&mut original, 3, scenario.ctx());
+        splitted.self_transfer(scenario.ctx());
+        scenario.next_tx(sender);
+
+        // Check the original timelock.
+        assert_eq(original.expiration_timestamp_ms(), 100);
+        assert_eq(original.locked().value(), 7);
+
+        // Check the splitted timelock.
+        let splitted = scenario.take_from_address<TimeLock<Balance<IOTA>>>(sender);
         assert_eq(splitted.expiration_timestamp_ms(), 100);
         assert_eq(splitted.locked().value(), 3);
 
