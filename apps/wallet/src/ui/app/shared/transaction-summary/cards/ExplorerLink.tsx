@@ -30,7 +30,7 @@ function useShouldShowExplorerLink(timestamp?: string, digest?: string) {
 export function ExplorerLinkCard({ digest, timestamp }: { digest?: string; timestamp?: string }) {
     const shouldShowExplorerLink = useShouldShowExplorerLink(timestamp, digest);
     const explorerHref = useExplorerLink({
-        type: ExplorerLinkType.transaction,
+        type: ExplorerLinkType.Transaction,
         transactionID: digest!,
     });
     if (!shouldShowExplorerLink) return null;
