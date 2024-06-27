@@ -3,4 +3,5 @@
 
 export * from './InitAccountsFinder';
 export * from './SearchAccountsFinder';
-export * from './GetAccountsFinderResults';
+export * from './GetAccountsFinderResultsRequest';
+export * from './GetAccountsFinderResultsResponse';

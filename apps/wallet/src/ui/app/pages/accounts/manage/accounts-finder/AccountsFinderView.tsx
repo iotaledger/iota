@@ -14,7 +14,13 @@ export function AccountsFinderView(): JSX.Element {
         data: finderAddresses,
         searchMore,
         init,
-    } = useAccountsFinder(10, 2, activeAccount ? getKey(activeAccount) : ''); // TODO: getKey might return a type insted of the source ID if it is not a mnemonic or a seed account source
+    } = useAccountsFinder({
+        accountGapLimit: 10,
+        addressGapLimit: 2,
+        sourceID: activeAccount ? getKey(activeAccount) : '', // TODO: getKey might return a type insted of the source ID if it is not a mnemonic or a seed account source
+    });
+
+    console.log(finderAddresses);
 
     return (
         <div className="flex h-full flex-1 flex-col justify-between">

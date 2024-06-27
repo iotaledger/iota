@@ -48,7 +48,7 @@ import { Connection } from './Connection';
 import { SeedAccountSource } from '../account-sources/SeedAccountSource';
 import { AccountSourceType } from '../account-sources/AccountSource';
 import {
-    isGetAccountsFinderResults,
+    isGetAccountsFinderResultsRequest,
     isInitAccountsFinder,
     isSearchAccountsFinder,
 } from '_payloads/accounts-finder';
@@ -274,8 +274,8 @@ export class UiConnection extends Connection {
                     payload.addressGapLimit,
                 );
                 await this.send(createMessage({ type: 'done' }, msg.id));
-            } else if (isGetAccountsFinderResults(payload)) {
-                const results = await AccountsFinder.getResults(payload.accountGapLimit);
+            } else if (isGetAccountsFinderResultsRequest(payload)) {
+                const results = await AccountsFinder.getResults();
                 await this.send(createMessage({ type: 'done', results }, msg.id));
             } else {
                 throw new Error(

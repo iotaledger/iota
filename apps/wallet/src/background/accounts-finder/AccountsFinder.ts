@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type AccountFromFinder, type AddressFromFinder } from '_src/shared/accounts';
-import { findAccounts } from './accounts-finder';
+import { findAccounts, hasBalance } from './accounts-finder';
 import NetworkEnv from '../NetworkEnv';
 import { IotaClient, getFullnodeUrl } from '@iota/iota.js/client';
 import { getAccountSourceByID } from '../account-sources';
@@ -49,9 +49,10 @@ class AccountsFinder {
         );
     }
 
-    getResults(accountGapLimit: number): AddressFromFinder[] {
-        const addresses = this.accounts.flatMap((acc) => acc.addresses.flat());
-        return addresses.slice(addresses.length - accountGapLimit);
+    getResults(): AddressFromFinder[] {
+        return this.accounts
+            .flatMap((acc) => acc.addresses.flat())
+            .filter((addr) => hasBalance(addr.balance));
     }
 }
 

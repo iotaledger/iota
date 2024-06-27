@@ -40,7 +40,7 @@ import { queryClient } from '../helpers/queryClient';
 import { ACCOUNT_SOURCES_QUERY_KEY } from '../hooks/useAccountSources';
 import { AccountSourceType } from '_src/background/account-sources/AccountSource';
 import {
-    type GetAccountsFinderResults,
+    type GetAccountsFinderResultsRequest,
     type InitAccountsFinder,
     type SearchAccountsFinder,
 } from '_src/shared/messaging/messages/payloads/accounts-finder';
@@ -567,12 +567,11 @@ export class BackgroundClient {
         );
     }
 
-    public async getLastAccountFinderResults(accountGapLimit: number) {
+    public async getLastAccountFinderResults() {
         return await lastValueFrom(
             this.sendMessage(
-                createMessage<GetAccountsFinderResults>({
-                    type: 'get-accounts-finder-results',
-                    accountGapLimit,
+                createMessage<GetAccountsFinderResultsRequest>({
+                    type: 'get-accounts-finder-results-request',
                 }),
             ).pipe(take(1)),
         );

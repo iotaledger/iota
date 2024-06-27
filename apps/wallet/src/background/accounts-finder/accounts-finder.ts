@@ -125,6 +125,6 @@ async function searchAddressesWithObjects(
     return account;
 }
 
-function hasBalance(balance: CoinBalance): boolean {
+export function hasBalance(balance: CoinBalance): boolean {
     return balance.coinObjectCount > 0;
 }
