@@ -7,23 +7,20 @@ use std::{
 };
 
 use anyhow::anyhow;
-use iota_sdk::{
-    types::block::{
-        address::{AliasAddress, Ed25519Address, Hrp, NftAddress, ToBech32Ext},
-        output::{
-            feature::{
-                Attribute, Irc30Metadata, IssuerFeature, MetadataFeature, SenderFeature, TagFeature,
-            },
-            unlock_condition::{
-                AddressUnlockCondition, ExpirationUnlockCondition, GovernorAddressUnlockCondition,
-                StateControllerAddressUnlockCondition, StorageDepositReturnUnlockCondition,
-                TimelockUnlockCondition,
-            },
-            AliasId, AliasOutputBuilder, Feature, NativeToken, NftId, NftOutput as StardustNft,
-            NftOutputBuilder, SimpleTokenScheme,
+use iota_sdk::types::block::{
+    address::{AliasAddress, Ed25519Address, Hrp, NftAddress, ToBech32Ext},
+    output::{
+        feature::{
+            Attribute, Irc30Metadata, IssuerFeature, MetadataFeature, SenderFeature, TagFeature,
         },
+        unlock_condition::{
+            AddressUnlockCondition, ExpirationUnlockCondition, GovernorAddressUnlockCondition,
+            ImmutableAliasAddressUnlockCondition, StateControllerAddressUnlockCondition,
+            StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
+        },
+        AliasId, AliasOutputBuilder, Feature, FoundryOutputBuilder, NativeToken, NftId,
+        NftOutput as StardustNft, NftOutputBuilder, SimpleTokenScheme, TokenScheme,
     },
-    U256,
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
@@ -46,8 +43,8 @@ use move_core_types::ident_str;
 
 use crate::stardust::{
     migration::tests::{
-        create_foundry, extract_native_token_from_bag, object_migration_with_object_owner,
-        random_output_header, run_migration, unlock_object, ExpectedAssets, UnlockObjectTestResult,
+        extract_native_tokens_from_bag, object_migration_with_object_owner, random_output_header,
+        run_migration, unlock_object, ExpectedAssets, UnlockObjectTestResult,
     },
     types::output_header::OutputHeader,
 };
@@ -287,33 +284,43 @@ fn nft_migration_with_nft_owner() {
 /// contained bag.
 #[test]
 fn nft_migration_with_native_tokens() {
-    let (foundry_header, foundry_output) = create_foundry(
-        0,
-        SimpleTokenScheme::new(U256::from(100_000), U256::from(0), U256::from(100_000)).unwrap(),
-        Irc30Metadata::new("Rustcoin", "Rust", 0),
-        AliasId::null(),
-    )
-    .unwrap();
-    let native_token = NativeToken::new(foundry_output.id().into(), 100_000).unwrap();
-
+    let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
     let nft_header = random_output_header();
-    let nft = NftOutputBuilder::new_with_amount(1_000_000, NftId::new(rand::random()))
-        .add_unlock_condition(AddressUnlockCondition::new(Ed25519Address::from(
-            rand::random::<[u8; Ed25519Address::LENGTH]>(),
-        )))
-        .add_native_token(native_token)
-        .finish()
-        .unwrap();
+    let nft_output_id = nft_header.output_id();
 
-    extract_native_token_from_bag(
-        nft_header.output_id(),
+    let mut outputs = Vec::new();
+    let mut nft_builder = NftOutputBuilder::new_with_amount(1_000_000, NftId::new(rand::random()))
+        .add_unlock_condition(AddressUnlockCondition::new(random_address));
+
+    for i in 1..=10 {
+        let foundry_header = random_output_header();
+        let token_scheme = SimpleTokenScheme::new(100_000, 0, 100_000_000).unwrap();
+        let irc_30_metadata = Irc30Metadata::new(format!("Rustcoin{i}"), format!("Rust{i}"), 0);
+        let foundry_output =
+            FoundryOutputBuilder::new_with_amount(0, i, TokenScheme::Simple(token_scheme))
+                .add_unlock_condition(ImmutableAliasAddressUnlockCondition::new(
+                    AliasAddress::new(AliasId::null()),
+                ))
+                .add_immutable_feature(Feature::Metadata(
+                    MetadataFeature::new(irc_30_metadata).unwrap(),
+                ))
+                .finish()
+                .unwrap();
+        let native_token = NativeToken::new(foundry_output.id().into(), 100).unwrap();
+        nft_builder = nft_builder.add_native_token(native_token);
+        outputs.push((foundry_header, foundry_output.into()));
+    }
+
+    let nft_output = nft_builder.finish().unwrap();
+    let native_tokens = nft_output.native_tokens().clone();
+    outputs.push((nft_header, nft_output.into()));
+
+    extract_native_tokens_from_bag(
+        nft_output_id,
         1_000_000,
-        [
-            (nft_header.clone(), nft.into()),
-            (foundry_header, foundry_output.into()),
-        ],
+        outputs,
         NFT_OUTPUT_MODULE_NAME,
-        native_token,
+        native_tokens,
         ExpectedAssets::BalanceBagObject,
         CoinType::Iota,
     )

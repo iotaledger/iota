@@ -78,6 +78,7 @@ fn verify_output(
             total_value,
         ),
         Output::Foundry(output) => foundry::verify_foundry_output(
+            header.output_id(),
             output,
             created_objects,
             foundry_data,
