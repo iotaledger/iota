@@ -73,6 +73,7 @@ pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
     let new_outputs = [
         vesting_schedule_entity::outputs(&mut vested_index).await?,
         vesting_schedule_iota_airdrop::outputs(&mut vested_index).await?,
+        alias_ownership::outputs(),
     ]
     .concat();
     let new_amount = new_outputs.iter().map(|o| o.1.amount()).sum::<u64>();
