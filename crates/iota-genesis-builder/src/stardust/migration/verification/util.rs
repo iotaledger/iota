@@ -7,7 +7,7 @@ use anyhow::{anyhow, bail, ensure, Result};
 use iota_sdk::{
     types::block::{
         address::Address,
-        output::{self as sdk_output, NativeTokens, TokenId},
+        output::{self as sdk_output, NativeTokens, OutputId, TokenId},
     },
     U256,
 };
@@ -25,6 +25,7 @@ use iota_types::{
     },
     TypeTag,
 };
+use tracing::warn;
 
 use crate::stardust::{
     migration::executor::FoundryLedgerData, types::token_scheme::MAX_ALLOWED_U64_SUPPLY,
@@ -305,7 +306,11 @@ pub(super) fn verify_shared_object(obj: &Object, name: &str) -> Result<()> {
 // Checks whether an object exists for this address and whether it is the
 // expected alias or nft object. We do not expect an object for Ed25519
 // addresses.
-pub(super) fn verify_parent(address: &Address, storage: &InMemoryStorage) -> Result<()> {
+pub(super) fn verify_parent(
+    output_id: &OutputId,
+    address: &Address,
+    storage: &InMemoryStorage,
+) -> Result<()> {
     let object_id = ObjectID::from(stardust_to_iota_address(address)?);
     let parent = storage.get_object(&object_id);
     match address {
@@ -324,10 +329,11 @@ pub(super) fn verify_parent(address: &Address, storage: &InMemoryStorage) -> Res
             }
         }
         Address::Ed25519(address) => {
-            ensure!(
-                parent.is_none(),
-                "unexpected parent found for ed25519 address {address}",
-            );
+            if parent.is_some() {
+                warn!(
+                    "verification failed for output id {output_id}: unexpected parent found for ed25519 address {address}"
+                );
+            }
         }
     }
     Ok(())

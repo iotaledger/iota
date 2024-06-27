@@ -1,11 +1,15 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type CoinBalance, type IotaClient } from '@iota/iota.js/client';
+import { type GetBalanceParams, type CoinBalance } from '@iota/iota.js/client';
 import { type AccountFromFinder, type AddressFromFinder } from '_src/shared/accounts';
 import { type MakeDerivationOptions } from '../account-sources/bip44Path';
 
-export type PublicKeyDerivator = (makeDerivationOptions: MakeDerivationOptions) => Promise<string>;
+type GetBalanceCallback = (
+    makeDerivationOptions: MakeDerivationOptions,
+    params: GetBalanceParams,
+) => Promise<CoinBalance>;
+export type GetPublicKey = (makeDerivationOptions: MakeDerivationOptions) => Promise<string>;
 
 /**
  * Function to search for accounts/addresses with objects
@@ -16,15 +20,15 @@ export type PublicKeyDerivator = (makeDerivationOptions: MakeDerivationOptions) 
  *   TODO: addressStartIndex not used, maybe also not needed
  *   @param {number} addressGapLimit The number of addresses to search for, after the last address with unspent outputs, in each account.
  */
-export async function recoverAccounts(
+export async function findAccounts(
     accountStartIndex: number,
     accountGapLimit: number,
     addressGapLimit: number,
     accounts: AccountFromFinder[],
     coinType: number,
-    client: IotaClient,
+    getBalance: GetBalanceCallback,
     gasTypeArg: string,
-    publicKeyDerivator: PublicKeyDerivator,
+    getPublicKey: GetPublicKey,
 ): Promise<AccountFromFinder[]> {
     // TODO: first check that accounts: Account[] is correctly sorted, if not, throw exception or somethintg
     // Check new addresses for existing accounts
@@ -37,9 +41,9 @@ export async function recoverAccounts(
                 addressGapLimit,
                 account,
                 coinType,
-                client,
+                getBalance,
                 gasTypeArg,
-                publicKeyDerivator,
+                getPublicKey,
             );
         }
     }
@@ -56,9 +60,9 @@ export async function recoverAccounts(
             addressGapLimit,
             account,
             coinType,
-            client,
+            getBalance,
             gasTypeArg,
-            publicKeyDerivator,
+            getPublicKey,
         );
         accounts[accountIndex] = account;
         if (account.addresses.flat().find((a: AddressFromFinder) => hasBalance(a.balance))) {
@@ -74,9 +78,9 @@ async function searchAddressesWithObjects(
     addressGapLimit: number,
     account: AccountFromFinder,
     coinType: number,
-    client: IotaClient,
+    getBalance: GetBalanceCallback,
     gasTypeArg: string,
-    publicKeyDerivator: PublicKeyDerivator,
+    getPublicKey: GetPublicKey,
 ): Promise<AccountFromFinder> {
     const accountAddressesLength = account.addresses.length;
     let targetIndex = accountAddressesLength + addressGapLimit;
@@ -84,14 +88,15 @@ async function searchAddressesWithObjects(
     for (let addressIndex = accountAddressesLength; addressIndex < targetIndex; addressIndex += 1) {
         const changeIndexes = [0, 1]; // in the past the change indexes were used as 0=deposit & 1=internal
         for (const changeIndex of changeIndexes) {
-            const pubKeyHash = await publicKeyDerivator({
+            const bipPath = {
                 coinType,
                 accountIndex: account.index,
                 addressIndex,
                 changeIndex,
-            });
+            };
+            const pubKeyHash = await getPublicKey(bipPath);
 
-            const balance = await client.getBalance({
+            const balance = await getBalance(bipPath, {
                 owner: pubKeyHash,
                 coinType: gasTypeArg,
             });

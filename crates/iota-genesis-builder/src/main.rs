@@ -11,7 +11,7 @@ use clap::{Parser, Subcommand};
 use iota_genesis_builder::{
     stardust::{
         migration::{Migration, MigrationTargetNetwork},
-        parse::FullSnapshotParser,
+        parse::HornetGenesisSnapshotParser,
     },
     BROTLI_COMPRESSOR_BUFFER_SIZE, BROTLI_COMPRESSOR_LG_WINDOW_SIZE, BROTLI_COMPRESSOR_QUALITY,
     OBJECT_SNAPSHOT_FILE_PATH,
@@ -20,7 +20,7 @@ use iota_sdk::types::block::output::{
     unlock_condition::StorageDepositReturnUnlockCondition, AliasOutputBuilder, BasicOutputBuilder,
     FoundryOutputBuilder, NftOutputBuilder, Output,
 };
-use iota_types::stardust::{coin_type::CoinType, error::StardustError};
+use iota_types::stardust::coin_type::CoinType;
 use itertools::Itertools;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
@@ -71,7 +71,7 @@ fn main() -> Result<()> {
     };
 
     // Start the Hornet snapshot parser
-    let snapshot_parser = FullSnapshotParser::new(File::open(snapshot_path)?)?;
+    let snapshot_parser = HornetGenesisSnapshotParser::new(File::open(snapshot_path)?)?;
 
     // Prepare the migration using the parser output stream
     let migration = Migration::new(
@@ -136,19 +136,17 @@ fn scale_output_amount_for_iota(output: &mut Output) -> Result<()> {
                 );
             };
 
-            Output::from(builder.finish().map_err(StardustError::BlockError)?)
+            Output::from(builder.finish()?)
         }
         Output::Alias(ref alias_output) => Output::from(
             AliasOutputBuilder::from(alias_output)
                 .with_amount(multiply_amount(alias_output.amount())?)
-                .finish()
-                .map_err(StardustError::BlockError)?,
+                .finish()?,
         ),
         Output::Foundry(ref foundry_output) => Output::from(
             FoundryOutputBuilder::from(foundry_output)
                 .with_amount(multiply_amount(foundry_output.amount())?)
-                .finish()
-                .map_err(StardustError::BlockError)?,
+                .finish()?,
         ),
         Output::Nft(ref nft_output) => {
             // Update amount
@@ -171,7 +169,7 @@ fn scale_output_amount_for_iota(output: &mut Output) -> Result<()> {
                 );
             };
 
-            Output::from(builder.finish().map_err(StardustError::BlockError)?)
+            Output::from(builder.finish()?)
         }
         Output::Treasury(_) => return Ok(()),
     };
