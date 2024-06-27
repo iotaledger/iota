@@ -7,8 +7,8 @@ use std::{fs::File, path::Path};
 
 use iota_genesis_builder::stardust::{
     parse::HornetGenesisSnapshotParser, test_outputs::add_snapshot_test_outputs,
-    types::output_header::TOTAL_SUPPLY_IOTA,
 };
+use iota_types::gas_coin::TOTAL_SUPPLY_IOTA;
 
 fn parse_snapshot<P: AsRef<Path>>(path: P) -> anyhow::Result<()> {
     let file = File::open(path)?;

@@ -18,7 +18,7 @@ use iota_types::{
     deny_list::{get_coin_deny_list, PerTypeDenyList},
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
-    gas_coin::TOTAL_SUPPLY_MICROS,
+    gas_coin::TOTAL_SUPPLY_NANOS,
     iota_system_state::{
         get_iota_system_state, get_iota_system_state_wrapper, IotaSystemState,
         IotaSystemStateTrait, IotaSystemStateWrapper, IotaValidatorGenesis,
@@ -435,7 +435,7 @@ impl GenesisCeremonyParameters {
 
     fn default_initial_stake_subsidy_distribution_amount() -> u64 {
         // 1M Iota
-        1_000_000 * iota_types::gas_coin::MICROS_PER_IOTA
+        1_000_000 * iota_types::gas_coin::NANOS_PER_IOTA
     }
 
     fn default_stake_subsidy_period_length() -> u64 {
@@ -491,9 +491,9 @@ impl TokenDistributionSchedule {
             total_micros += allocation.amount_micros;
         }
 
-        if total_micros != TOTAL_SUPPLY_MICROS {
+        if total_micros != TOTAL_SUPPLY_NANOS {
             panic!(
-                "TokenDistributionSchedule adds up to {total_micros} and not expected {TOTAL_SUPPLY_MICROS}"
+                "TokenDistributionSchedule adds up to {total_micros} and not expected {TOTAL_SUPPLY_NANOS}"
             );
         }
     }
@@ -535,7 +535,7 @@ impl TokenDistributionSchedule {
     pub fn new_for_validators_with_default_allocation<I: IntoIterator<Item = IotaAddress>>(
         validators: I,
     ) -> Self {
-        let mut supply = TOTAL_SUPPLY_MICROS;
+        let mut supply = TOTAL_SUPPLY_NANOS;
         let default_allocation = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_MICROS;
 
         let allocations = validators
@@ -573,7 +573,7 @@ impl TokenDistributionSchedule {
         let mut allocations: Vec<TokenAllocation> =
             reader.deserialize().collect::<Result<_, _>>()?;
         assert_eq!(
-            TOTAL_SUPPLY_MICROS,
+            TOTAL_SUPPLY_NANOS,
             allocations.iter().map(|a| a.amount_micros).sum::<u64>(),
             "Token Distribution Schedule must add up to 10B Iota",
         );
@@ -637,7 +637,7 @@ impl TokenDistributionScheduleBuilder {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
-            pool: TOTAL_SUPPLY_MICROS,
+            pool: TOTAL_SUPPLY_NANOS,
             allocations: vec![],
         }
     }

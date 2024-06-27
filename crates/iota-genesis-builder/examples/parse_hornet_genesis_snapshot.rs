@@ -5,9 +5,8 @@
 //! and verifying the total supply.
 use std::fs::File;
 
-use iota_genesis_builder::stardust::{
-    parse::HornetGenesisSnapshotParser, types::output_header::TOTAL_SUPPLY_IOTA,
-};
+use iota_genesis_builder::stardust::parse::HornetGenesisSnapshotParser;
+use iota_types::gas_coin::TOTAL_SUPPLY_IOTA;
 
 fn main() -> anyhow::Result<()> {
     let Some(path) = std::env::args().nth(1) else {
