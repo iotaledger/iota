@@ -1,9 +1,12 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type CoinBalance, type IotaClient } from '@iota/iota.js/client';
+import { type GetBalanceParams, type CoinBalance } from '@iota/iota.js/client';
 import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
 import { type AccountFromFinder, type AddressFromFinder } from '_src/shared/accounts';
+import { makeDerivationPath } from '../account-sources/bip44Path';
+
+type GetBalanceCallback = (bipPath: string, params: GetBalanceParams) => Promise<CoinBalance>;
 
 /**
  * Function to search for accounts/addresses with objects
@@ -14,14 +17,14 @@ import { type AccountFromFinder, type AddressFromFinder } from '_src/shared/acco
  *   TODO: addressStartIndex not used, maybe also not needed
  *   @param {number} addressGapLimit The number of addresses to search for, after the last address with unspent outputs, in each account.
  */
-export async function recoverAccounts(
+export async function findAccounts(
     accountStartIndex: number,
     accountGapLimit: number,
     addressGapLimit: number,
     accounts: AccountFromFinder[],
     seed: string,
     coinType: number,
-    client: IotaClient,
+    getBalance: GetBalanceCallback,
     gasTypeArg: string,
 ): Promise<AccountFromFinder[]> {
     // TODO: first check that accounts: Account[] is correctly sorted, if not, throw exception or somethintg
@@ -36,7 +39,7 @@ export async function recoverAccounts(
                 account,
                 seed,
                 coinType,
-                client,
+                getBalance,
                 gasTypeArg,
             );
         }
@@ -55,7 +58,7 @@ export async function recoverAccounts(
             account,
             seed,
             coinType,
-            client,
+            getBalance,
             gasTypeArg,
         );
         accounts[accountIndex] = account;
@@ -73,7 +76,7 @@ async function searchAddressesWithObjects(
     account: AccountFromFinder,
     seed: string,
     coinType: number,
-    client: IotaClient,
+    getBalance: GetBalanceCallback,
     gasTypeArg: string,
 ): Promise<AccountFromFinder> {
     const accountAddressesLength = account.addresses.length;
@@ -82,12 +85,17 @@ async function searchAddressesWithObjects(
     for (let addressIndex = accountAddressesLength; addressIndex < targetIndex; addressIndex += 1) {
         const changeIndexes = [0, 1]; // in the past the change indexes were used as 0=deposit & 1=internal
         for (const changeIndex of changeIndexes) {
-            const bipPath = `m/44'/${coinType}'/${account.index}'/${changeIndex}'/${addressIndex}'`;
+            const bipPath = makeDerivationPath({
+                coinType,
+                accountIndex: account.index,
+                changeIndex,
+                addressIndex,
+            });
             const pubKeyHash = Ed25519Keypair.deriveKeypairFromSeed(seed, bipPath)
                 .getPublicKey()
                 .toIotaAddress();
 
-            const balance = await client.getBalance({
+            const balance = await getBalance(bipPath, {
                 owner: pubKeyHash,
                 coinType: gasTypeArg,
             });
