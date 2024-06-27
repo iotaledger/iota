@@ -206,12 +206,13 @@ const config = {
           width: 138,
           height: 48,
         },
-        copyright: `<div style={{ dispay: "flex", flexDirection: "column" }}>
-        © ${new Date().getFullYear()} IOTA Foundation
-        <div>
+        copyright: `
+        <div style="display: flex; flex-direction:column;">
+           ©  ${new Date().getFullYear()} IOTA Foundation
+          <div>
                  <a>Privacy Policy</a> • <a>Impressum</a> • <a>Contact Us</a>
-        </div>
-      </div>`,
+          </div>
+        </div>`,
       },
       prism: {
         theme: themes.github,
