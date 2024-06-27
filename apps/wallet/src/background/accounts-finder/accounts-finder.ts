@@ -17,8 +17,12 @@ export type GetPublicKey = (makeDerivationOptions: MakeDerivationOptions) => Pro
  * Assumes that change, accounts and address indexes have no gaps and are ordered (so having only 0,1,3 or 0,2,1 would be invalid)
  *   @param {number} accountStartIndex The index of the first account to search for.
  *   @param {number} accountGapLimit The number of accounts to search for, after the last account with unspent outputs.
- *   TODO: addressStartIndex not used, maybe also not needed
  *   @param {number} addressGapLimit The number of addresses to search for, after the last address with unspent outputs, in each account.
+ *   @param {AccountFromFinder[]} accounts Array buffer to store the found accounts.
+ *   @param {string} seed The seed of the wallet.
+ *   @param {number} coinType Coin ID to be used.
+ *   @param {GetBalanceCallback} getBalance Callback to retrieve a balance of a given address, usually by using the IotaClient.
+ *   @param {gasTypeArg} gasTypeArg The Coin type name of Move.
  */
 export async function findAccounts(
     accountStartIndex: number,

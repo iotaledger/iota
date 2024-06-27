@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinBalance, GetBalanceParams } from '@iota/iota.js/client';
+import { CoinBalance } from '@iota/iota.js/client';
 import { mnemonicToSeedHex } from '@iota/iota.js/cryptography';
 import { entropyToMnemonic, getRandomEntropy } from '_shared/utils/bip39';
 import { findAccounts } from './accounts-finder';
@@ -26,10 +26,7 @@ test('existing accounts', async () => {
         );
     };
 
-    const getBalance = (
-        bipPathOptions: MakeDerivationOptions,
-        params: GetBalanceParams,
-    ): Promise<CoinBalance> => {
+    const getBalance = (bipPathOptions: MakeDerivationOptions): Promise<CoinBalance> => {
         let balance: CoinBalance = {
             totalBalance: '0',
             coinType: '4218',
