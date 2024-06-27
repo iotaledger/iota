@@ -292,10 +292,12 @@ fn new_basic_or_nft_outputs(
     Ok(outputs)
 }
 
+type NewOutputsWithHeader = Vec<(OutputHeader, Output)>;
+
 fn random_alias_foundry_native_token(
     address: Ed25519Address,
     rng: &mut StdRng,
-) -> anyhow::Result<(Vec<(OutputHeader, Output)>, Vec<NativeToken>)> {
+) -> anyhow::Result<(NewOutputsWithHeader, Vec<NativeToken>)> {
     let mut native_tokens_for_basic_outputs = vec![];
     let mut outputs = vec![];
     for i in 0..rng.gen_range(0..3) {
