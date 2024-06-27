@@ -28,6 +28,7 @@ pub fn executor(
     let version = protocol_config.execution_version_as_option().unwrap_or(0);
     Ok(match version {
         0 => Arc::new(v0::Executor::new(protocol_config, silent, enable_profiler)?),
+
         1 => Arc::new(latest::Executor::new(
             protocol_config,
             silent,
