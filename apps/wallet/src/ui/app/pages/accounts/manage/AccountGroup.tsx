@@ -37,6 +37,11 @@ const ACCOUNT_TYPE_TO_LABEL: Record<AccountType, string> = {
     [AccountType.Imported]: 'Imported',
     [AccountType.Ledger]: 'Ledger',
 };
+const ACCOUNTS_WITH_ENABLED_BALANCE_FINDER: AccountType[] = [
+    AccountType.MnemonicDerived,
+    AccountType.SeedDerived,
+    AccountType.Ledger,
+];
 
 export function getGroupTitle(aGroupAccount: SerializedUIAccount) {
     return ACCOUNT_TYPE_TO_LABEL[aGroupAccount?.type] || '';
@@ -159,21 +164,6 @@ export function AccountGroup({
     const { data: accountSources } = useAccountSources();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceID);
 
-    const handleButtonClick = (action: () => void) => async (e: React.MouseEvent) => {
-        if (
-            !accountSource ||
-            (type !== AccountType.MnemonicDerived && type !== AccountType.SeedDerived)
-        ) {
-            return;
-        }
-        // prevent the collapsible from closing when clicking the "new" button
-        e.stopPropagation();
-        if (accountSource.isLocked) {
-            setPasswordModalVisible(true);
-        } else {
-            action();
-        }
-    };
     return (
         <>
             <CollapsiblePrimitive.Root defaultOpen asChild>
@@ -189,13 +179,19 @@ export function AccountGroup({
                                 <>
                                     <ButtonOrLink
                                         loading={createAccountMutation.isPending}
-                                        onClick={handleButtonClick(() => {
+                                        onClick={async (e) => {
+                                            // prevent the collapsible from closing when clicking the "new" button
+                                            e.stopPropagation();
                                             setAccountsFormValues({
                                                 type,
                                                 sourceID: accountSource.id,
                                             });
-                                            createAccountMutation.mutate({ type });
-                                        })}
+                                            if (accountSource.isLocked) {
+                                                setPasswordModalVisible(true);
+                                            } else {
+                                                createAccountMutation.mutate({ type });
+                                            }
+                                        }}
                                         className="flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase text-hero outline-none hover:text-hero-darkest"
                                     >
                                         <Plus12 />
@@ -203,17 +199,19 @@ export function AccountGroup({
                                             New
                                         </Text>
                                     </ButtonOrLink>
-                                    <ButtonOrLink
-                                        className="flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase text-hero outline-none hover:text-hero-darkest"
-                                        onClick={handleButtonClick(() =>
-                                            navigate(
-                                                `/accounts/manage/accounts-finder/${accountSource.id}`,
-                                            ),
-                                        )}
-                                    >
-                                        <Search16 />
-                                    </ButtonOrLink>
                                 </>
+                            ) : null}
+                            {ACCOUNTS_WITH_ENABLED_BALANCE_FINDER.includes(type) ? (
+                                <ButtonOrLink
+                                    className="flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase text-hero outline-none hover:text-hero-darkest"
+                                    onClick={() => {
+                                        navigate(
+                                            `/accounts/manage/accounts-finder/${accountSourceID}`,
+                                        );
+                                    }}
+                                >
+                                    <Search16 />
+                                </ButtonOrLink>
                             ) : null}
                         </div>
                     </CollapsiblePrimitive.Trigger>
