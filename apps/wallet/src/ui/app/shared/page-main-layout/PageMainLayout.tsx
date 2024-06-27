@@ -32,7 +32,7 @@ export function PageMainLayout({
 }: PageMainLayoutProps) {
     const network = useAppSelector(({ app: { network } }) => network);
     const appType = useAppSelector((state) => state.app.appType);
-    const isFullScreen = appType === AppType.fullscreen;
+    const isFullScreen = appType === AppType.Fullscreen;
     const [titlePortalContainer, setTitlePortalContainer] = useState<HTMLDivElement | null>(null);
 
     return (

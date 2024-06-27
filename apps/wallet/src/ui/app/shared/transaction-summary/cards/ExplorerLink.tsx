@@ -35,7 +35,7 @@ interface ExplorerLinkCardProps {
 export function ExplorerLinkCard({ digest, timestamp }: ExplorerLinkCardProps) {
     const shouldShowExplorerLink = useShouldShowExplorerLink(timestamp, digest);
     const explorerHref = useExplorerLink({
-        type: ExplorerLinkType.transaction,
+        type: ExplorerLinkType.Transaction,
         transactionID: digest!,
     });
     if (!shouldShowExplorerLink) return null;
