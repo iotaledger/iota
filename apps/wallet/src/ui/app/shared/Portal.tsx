@@ -5,10 +5,10 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-type PortalProps = {
+interface PortalProps {
     children: React.ReactNode;
     containerId: string;
-};
+}
 
 export function Portal({ children, containerId }: PortalProps) {
     const [hasMounted, setHasMounted] = useState(false);

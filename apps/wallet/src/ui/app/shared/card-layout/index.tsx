@@ -7,13 +7,13 @@ import { Text } from '_app/shared/text';
 import { Iota, ThumbUpFill32 } from '@iota/icons';
 import type { ReactNode } from 'react';
 
-export type CardLayoutProps = {
+export interface CardLayoutProps {
     title?: string;
     subtitle?: string;
     headerCaption?: string;
     icon?: 'success' | 'iota';
     children: ReactNode | ReactNode[];
-};
+}
 
 export function CardLayout({ children, title, subtitle, headerCaption, icon }: CardLayoutProps) {
     return (

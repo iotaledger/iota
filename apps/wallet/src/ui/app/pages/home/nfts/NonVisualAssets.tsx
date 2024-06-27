@@ -8,7 +8,11 @@ import { Text } from '_src/ui/app/shared/text';
 import { type IotaObjectData } from '@iota/iota.js/client';
 import { formatAddress, parseStructTag } from '@iota/iota.js/utils';
 
-export default function NonVisualAssets({ items }: { items: IotaObjectData[] }) {
+interface NonVisualAssetsProps {
+    items: IotaObjectData[];
+}
+
+export default function NonVisualAssets({ items }: NonVisualAssetsProps) {
     return (
         <div className="flex w-full flex-1 flex-col items-center gap-4">
             {items?.length ? (
