@@ -158,8 +158,11 @@ def do_cut(args):
     update_toml(args.feature, Path() / "iota-execution" / "Cargo.toml")
     generate_impls(args.feature, impl_module)
 
-    with open(Path() / "iota-execution" / "src" / "lib.rs", mode="w") as lib:
+    lib_path = Path() / "iota-execution" / "src" / "lib.rs"
+    with open(lib_path, mode="w") as lib:
         generate_lib(lib)
+
+    fmt_file(lib_path)
 
 
 def do_generate_lib(args):
@@ -170,14 +173,18 @@ def do_generate_lib(args):
         with open(lib_path, mode="w") as lib:
             generate_lib(lib)
 
-        try:
-            subprocess.run(['cargo', '+nightly', 'fmt', '--', lib_path, '--unstable-features', '--skip-children'],
-                           check=True)
-        except subprocess.CalledProcessError as e:
-            print(f"cargo fmt failed with error code {e.returncode}")
-            print("stderr:", e.stderr)
-        except Exception as e:
-            print(f"An error occurred: {e}")
+        fmt_file(lib_path)
+
+
+def fmt_file(path):
+    try:
+        subprocess.run(['cargo', '+nightly', 'fmt', '--', path, '--unstable-features', '--skip-children'],
+                       check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"cargo fmt failed with error code {e.returncode}")
+        print("stderr:", e.stderr)
+    except Exception as e:
+        print(f"An error occurred: {e}")
 
 
 def do_merge(args):
