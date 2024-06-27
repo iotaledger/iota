@@ -19,11 +19,13 @@
   },
   "dependencies": {
     "@amplitude/analytics-browser": "^2.8.1",
+    "@docsearch/react": "^3.6.0",
     "@docusaurus/core": "3.4.0",
     "@docusaurus/preset-classic": "3.4.0",
     "@docusaurus/remark-plugin-npm2yarn": "^3.4.0",
     "@docusaurus/theme-common": "^3.4.0",
     "@docusaurus/theme-mermaid": "^3.4.0",
+    "@docusaurus/theme-search-algolia": "^3.4.0",
     "@emotion/react": "^11.11.4",
     "@emotion/styled": "^11.11.5",
     "@graphql-markdown/docusaurus": "^1.24.1",
