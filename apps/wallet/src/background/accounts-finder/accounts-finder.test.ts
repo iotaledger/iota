@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinBalance, GetBalanceParams } from '@iota/iota.js/client';
+import { CoinBalance } from '@iota/iota.js/client';
 import { mnemonicToSeedHex } from '@iota/iota.js/cryptography';
 import { entropyToMnemonic, getRandomEntropy } from '_shared/utils/bip39';
 import { findAccounts } from './accounts-finder';
@@ -17,7 +17,7 @@ test('existing accounts', async () => {
         'power dragon mercy range fee book twenty cash room coil trend first seed apple accuse purity remain rather tip use card sock south retreat';
     const seed = mnemonicToSeedHex(mnemonic);
 
-    const getBalance = (bipPath: string, params: GetBalanceParams): Promise<CoinBalance> => {
+    const getBalance = (bipPath: string): Promise<CoinBalance> => {
         let balance: CoinBalance = {
             totalBalance: '0',
             coinType: '4218',

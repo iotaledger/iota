@@ -18,10 +18,13 @@ export interface Bip44Path {
 
 export interface AccountFromFinder {
     index: number;
+    /**
+     * - Example structure of 'addresses':
+     *    [
+     *       [change0, change1], // 'change0' and 'change1' are addresses for the account at index 0
+     *       [change0, change1], // 'change0' and 'change1' are addresses for the account at index 1
+     *       ...
+     *    ]
+     */
     addresses: Array<Array<AddressFromFinder>>;
-    // addresses: [
-    //     [change0, change1], // address index 0
-    //     [change0, change1], // address index 1
-    //     ...
-    //  ]
 }
