@@ -7,7 +7,6 @@ import React from "react";
 import Layout from "@theme/Layout";
 import Link from "@docusaurus/Link";
 import styles from "./index.module.css";
-
 export default function Home() {
   const HomeCard = (props) => {
     const { title, children } = props;
@@ -38,14 +37,29 @@ export default function Home() {
       }}
     >
       <div className="bg-iota-black overflow-hidden">
-        <div className="w-full mt-24 mb-12 mx-auto bg-iota-black">
-          <div className={styles.heroText}>
-            <h1 className="h1 center-text text-white">IOTA Documentation</h1>
-            <h2 className="h2 text-gray center-text h3">
-              Discover the power of IOTA through examples, guides, and concepts
-            </h2>
+        <div className={styles.backgroundImage}>
+          <div className="w-full mt-24 mb-12 mx-auto">
+            <div className={styles.heroText}>
+              <h1 className="text-5xl center-text text-white">
+                IOTA Documentation
+              </h1>
+              <h2
+                className="h2 text-gray center-text h3"
+                style={{ fontSize: "16px" }}
+              >
+                Discover the power of IOTA through examples, guides, and
+                concepts
+              </h2>
+              <Link
+                to="/guides#get-started-developing-on-iota"
+                className="button-cta"
+              >
+                Get started
+              </Link>
+            </div>
           </div>
         </div>
+
         <div className="flex flex-row flex-wrap justify-center gap-2 max-w-[1066px] mx-auto">
           <HomeCard title="About IOTA">
             <Link className={styles.cardLink} to="./concepts/tokenomics">

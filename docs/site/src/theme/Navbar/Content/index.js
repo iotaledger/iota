@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import React from "react";
-import Link from "@docusaurus/Link";
 import { useThemeConfig, ErrorCauseBoundary } from "@docusaurus/theme-common";
 import {
   splitNavbarItems,
@@ -79,14 +78,6 @@ export default function NavbarContent() {
           {!searchBarItem && (
             <NavbarSearch>
               <SearchBar />
-              {isHomePage && (
-                <Link
-                  to="/guides#get-started-developing-on-iota"
-                  className="button-cta"
-                >
-                  Get started
-                </Link>
-              )}
             </NavbarSearch>
           )}
         </>

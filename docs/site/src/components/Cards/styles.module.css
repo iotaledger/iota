@@ -8,7 +8,7 @@
 
 [data-theme="dark"] {
   --iota-cards-border-color: rgba(247, 247, 248, 0.05);
-  --iota-cards-background: rgba(247, 247, 248, 0.05);
+  --iota-cards-background: black;
   --iota-cards-background-hover: rgba(247, 247, 248, 0.15);
   --iota-cards-header: #4da2ff;
   --iota-cards-copy: #abbdcc;

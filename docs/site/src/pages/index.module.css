@@ -13,15 +13,24 @@
   display: flex;
   flex-direction: column;
   row-gap: 2.5rem;
-  margin: 0 auto;
-  text-align: center;
-  width: 43.375rem;
-  max-width: 95%;
-  margin: 10rem auto;
+  margin-top: 10rem;
+  margin-left: 16rem;
+  padding-top: 2rem;
+  width: 400px;
 }
-
+.backgroundImage {
+  background: black url(../../static/img/heroTextBg.svg);
+  height: 27rem;
+  margin-top: -10rem;
+  background-position: right;
+  background-repeat: no-repeat;
+  background-size: 50% 100%;
+  margin-bottom: 2rem;
+  /* background-size: 50% 100%; */
+}
 .card,
 .cardCTA {
+  height: 480px;
   background-color: black;
   border: 1px solid;
   border-color: var(--iota-line);
@@ -30,7 +39,10 @@
   padding: 1.875rem;
   justify-content: space-between;
   border-radius: 30px;
-  height: 20.3125rem;
+  background: black url(../../static/img/heroCardg.svg);
+  background-position: top;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 .cardCTA {
   height: 100%;
@@ -99,7 +111,7 @@
 }
 
 .cardB {
-  background-color: rgba(247, 247, 248, 0.05);
+  background-color: black;
   padding: 1.7rem;
   font-family: var(--headerFont);
   font-size: 1.5rem;
