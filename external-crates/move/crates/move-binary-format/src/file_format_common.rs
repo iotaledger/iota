@@ -10,7 +10,7 @@
 //! and deserialization of certain integer indexes.
 //!
 //! We use LEB128 for integer compression. LEB128 is a representation from the
-//! DWARF3 spec, http://dwarfstd.org/Dwarf3Std.php or https://en.wikipedia.org/wiki/LEB128.
+//! DWARF3 spec, <http://dwarfstd.org/Dwarf3Std.php> or <https://en.wikipedia.org/wiki/LEB128>.
 //! It's used to compress mostly indexes into the main binary tables.
 use std::{
     io::{Cursor, Read},

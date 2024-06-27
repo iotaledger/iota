@@ -6,3 +6,4 @@ export * from './usePopups';
 export * from './useNewStakeTransaction';
 export * from './useNotifications';
 export * from './useSendCoinTransaction';
+export * from './useNotifications';
