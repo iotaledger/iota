@@ -6,7 +6,7 @@
 //! This file defines types, data structures and corresponding functions to
 //! mark the operation (arithmetic or bitwise) that a variable or a field
 //! involves, which will be used later when the correct number type (int or
-//! bv<N>) in the boogie program
+//! `bv<N>`) in the boogie program
 
 use std::collections::BTreeMap;
 

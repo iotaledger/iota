@@ -31,7 +31,8 @@ pub const TIMELOCK_STRUCT_NAME: &IdentStr = ident_str!("TimeLock");
 
 /// All basic outputs whose IDs start with this prefix represent vested rewards
 /// that were created during the stardust upgrade on IOTA mainnet.
-const VESTED_REWARD_ID_PREFIX: &str = "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb18";
+pub const VESTED_REWARD_ID_PREFIX: &str =
+    "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb18";
 
 #[derive(Debug, thiserror::Error)]
 pub enum VestedRewardError {
@@ -221,7 +222,7 @@ pub fn is_timelock(other: &StructTag) -> bool {
         && other.name.as_ident_str() == TIMELOCK_STRUCT_NAME
 }
 
-/// Is this other StructTag representing a TimeLock<Balance<T>>?
+/// Is this other StructTag representing a `TimeLock<Balance<T>>`?
 pub fn is_timelocked_balance(other: &StructTag) -> bool {
     if !is_timelock(other) {
         return false;

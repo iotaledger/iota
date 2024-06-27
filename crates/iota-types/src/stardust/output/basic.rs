@@ -60,9 +60,9 @@ pub struct BasicOutput {
 }
 
 impl BasicOutput {
-    /// Construct the basic output with an empty [`Bag`] through the
-    /// [`OutputHeader`]
-    /// and [`Output`][iota_sdk::types::block::output::BasicOutput].
+    /// Construct the basic output with an empty [`Bag`] using the
+    /// Output Header ID and Stardust
+    /// [`BasicOutput`][iota_stardust_sdk::types::block::output::BasicOutput].
     pub fn new(
         header_object_id: ObjectID,
         output: &iota_stardust_sdk::types::block::output::BasicOutput,
