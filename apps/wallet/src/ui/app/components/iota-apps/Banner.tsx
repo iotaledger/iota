@@ -8,11 +8,11 @@ import { useFeature } from '@growthbook/growthbook-react';
 
 import ExternalLink from '../external-link';
 
-export type BannerProps = {
+export interface BannerProps {
     enabled: boolean;
     bannerUrl?: string;
     imageUrl?: string;
-};
+}
 
 export function AppsPageBanner() {
     const AppsBannerConfig = useFeature<BannerProps>(FEATURES.WALLET_APPS_BANNER_CONFIG);
