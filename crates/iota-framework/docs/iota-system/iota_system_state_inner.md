@@ -539,12 +539,6 @@ the epoch advancement transaction.
 
 </dd>
 <dt>
-<code>storage_fund_reinvestment: u64</code>
-</dt>
-<dd>
-
-</dd>
-<dt>
 <code>storage_charge: u64</code>
 </dt>
 <dd>
@@ -558,12 +552,6 @@ the epoch advancement transaction.
 </dd>
 <dt>
 <code>storage_fund_balance: u64</code>
-</dt>
-<dd>
-
-</dd>
-<dt>
-<code>stake_subsidy_amount: u64</code>
 </dt>
 <dd>
 
@@ -2115,11 +2103,6 @@ gas coins.
 
     <b>let</b> storage_fund_reward_amount = storage_fund_balance <b>as</b> u128 * computation_charge_u128 / total_stake_u128;
     <b>let</b> <b>mut</b> storage_fund_reward = computation_reward.split(storage_fund_reward_amount <b>as</b> u64);
-    <b>let</b> storage_fund_reinvestment_amount =
-        storage_fund_reward_amount * (storage_fund_reinvest_rate <b>as</b> u128) / <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_BASIS_POINT_DENOMINATOR">BASIS_POINT_DENOMINATOR</a>;
-    <b>let</b> storage_fund_reinvestment = storage_fund_reward.split(
-        storage_fund_reinvestment_amount <b>as</b> u64,
-    );
 
     self.epoch = self.epoch + 1;
     // Sanity check <b>to</b> make sure we are advancing <b>to</b> the right epoch.
@@ -2145,22 +2128,20 @@ gas coins.
     <b>let</b> storage_fund_reward_amount_after_distribution = storage_fund_reward.value();
     <b>let</b> computation_reward_distributed = computation_reward_amount_before_distribution - computation_reward_amount_after_distribution;
     <b>let</b> storage_fund_reward_distributed = storage_fund_reward_amount_before_distribution - storage_fund_reward_amount_after_distribution;
-
+    storage_fund_reward.destroy_zero();
     self.protocol_version = next_protocol_version;
 
     // Derive the reference gas price for the new epoch
     self.reference_gas_price = self.validators.derive_reference_gas_price();
     // Because of precision issues <b>with</b> integer divisions, we expect that there will be some
-    // remaining <a href="../iota-framework/balance.md#0x2_balance">balance</a> in `storage_fund_reward` and `computation_reward`.
+    // remaining <a href="../iota-framework/balance.md#0x2_balance">balance</a> in  `computation_reward`.
     // All of these go <b>to</b> the storage fund.
-    <b>let</b> <b>mut</b> leftover_staking_rewards = storage_fund_reward;
-    leftover_staking_rewards.join(computation_reward);
+    <b>let</b> leftover_staking_rewards = computation_reward;
     <b>let</b> leftover_storage_fund_inflow = leftover_staking_rewards.value();
 
     <b>let</b> refunded_storage_rebate =
         self.<a href="storage_fund.md#0x3_storage_fund">storage_fund</a>.<a href="iota_system_state_inner.md#0x3_iota_system_state_inner_advance_epoch">advance_epoch</a>(
             storage_reward,
-            storage_fund_reinvestment,
             leftover_staking_rewards,
             storage_rebate_amount,
             non_refundable_storage_fee_amount,
@@ -2173,11 +2154,8 @@ gas coins.
             reference_gas_price: self.reference_gas_price,
             total_stake: new_total_stake,
             storage_charge,
-            storage_fund_reinvestment: storage_fund_reinvestment_amount <b>as</b> u64,
             storage_rebate: storage_rebate_amount,
             storage_fund_balance: self.<a href="storage_fund.md#0x3_storage_fund">storage_fund</a>.total_balance(),
-            // TODO: Remove
-            stake_subsidy_amount: 0,
             total_gas_fees: computation_charge,
             total_stake_rewards_distributed: computation_reward_distributed + storage_fund_reward_distributed,
             leftover_storage_fund_inflow,

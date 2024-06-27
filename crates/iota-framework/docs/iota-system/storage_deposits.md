@@ -35,7 +35,13 @@ Struct representing the storage deposits fund, containing a <code>Balance</code>
 
 <dl>
 <dt>
-<code>storage_balance: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
+<code>refundable_balance: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
+</dt>
+<dd>
+
+</dd>
+<dt>
+<code>non_refundable_balance: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
 </dt>
 <dd>
 
@@ -64,7 +70,8 @@ Called by <code><a href="iota_system.md#0x3_iota_system">iota_system</a></code> 
 <pre><code><b>public</b>(package) <b>fun</b> <a href="storage_deposits.md#0x3_storage_deposits_new">new</a>(initial_balance: Balance&lt;IOTA&gt;) : <a href="storage_deposits.md#0x3_storage_deposits_StorageDeposits">StorageDeposits</a> {
     <a href="storage_deposits.md#0x3_storage_deposits_StorageDeposits">StorageDeposits</a> {
         // Initialize the storage deposits <a href="../iota-framework/balance.md#0x2_balance">balance</a>
-        storage_balance: initial_balance,
+        refundable_balance: initial_balance,
+        non_refundable_balance: <a href="../iota-framework/balance.md#0x2_balance_zero">balance::zero</a>()
     }
 }
 </code></pre>
@@ -94,9 +101,9 @@ Called by <code><a href="iota_system.md#0x3_iota_system">iota_system</a></code> 
     storage_charges: Balance&lt;IOTA&gt;,
     storage_rebate_amount: u64,
 ) : Balance&lt;IOTA&gt; {
-    self.storage_balance.join(storage_charges);
+    self.refundable_balance.join(storage_charges);
 
-    <b>let</b> storage_rebate = self.storage_balance.split(storage_rebate_amount);
+    <b>let</b> storage_rebate = self.refundable_balance.split(storage_rebate_amount);
 
     //TODO: possibly mint and burn tokens here
     // mint_iota(treasury_cap, storage_charges.value(), ctx);
@@ -125,7 +132,7 @@ Called by <code><a href="iota_system.md#0x3_iota_system">iota_system</a></code> 
 
 
 <pre><code><b>public</b> <b>fun</b> <a href="storage_deposits.md#0x3_storage_deposits_total_balance">total_balance</a>(self: &<a href="storage_deposits.md#0x3_storage_deposits_StorageDeposits">StorageDeposits</a>): u64 {
-    self.storage_balance.value()
+    self.refundable_balance.value() + self.non_refundable_balance.value()
 }
 </code></pre>
 

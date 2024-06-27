@@ -196,11 +196,9 @@ module iota_system::iota_system_state_inner {
         protocol_version: u64,
         reference_gas_price: u64,
         total_stake: u64,
-        storage_fund_reinvestment: u64,
         storage_charge: u64,
         storage_rebate: u64,
         storage_fund_balance: u64,
-        stake_subsidy_amount: u64,
         total_gas_fees: u64,
         total_stake_rewards_distributed: u64,
         leftover_storage_fund_inflow: u64,
@@ -797,6 +795,7 @@ module iota_system::iota_system_state_inner {
         candidate.update_candidate_network_pubkey(network_pubkey);
     }
 
+
     /// This function should be called at the end of an epoch, and advances the system to the next epoch.
     /// It does the following things:
     /// 1. Add storage charge to the storage fund.
@@ -865,11 +864,6 @@ module iota_system::iota_system_state_inner {
 
         let storage_fund_reward_amount = storage_fund_balance as u128 * computation_charge_u128 / total_stake_u128;
         let mut storage_fund_reward = computation_reward.split(storage_fund_reward_amount as u64);
-        let storage_fund_reinvestment_amount =
-            storage_fund_reward_amount * (storage_fund_reinvest_rate as u128) / BASIS_POINT_DENOMINATOR;
-        let storage_fund_reinvestment = storage_fund_reward.split(
-            storage_fund_reinvestment_amount as u64,
-        );
 
         self.epoch = self.epoch + 1;
         // Sanity check to make sure we are advancing to the right epoch.
@@ -893,24 +887,23 @@ module iota_system::iota_system_state_inner {
 
         let computation_reward_amount_after_distribution = computation_reward.value();
         let storage_fund_reward_amount_after_distribution = storage_fund_reward.value();
+        //TODO: remove
+        storage_fund_reward.destroy_zero();
         let computation_reward_distributed = computation_reward_amount_before_distribution - computation_reward_amount_after_distribution;
         let storage_fund_reward_distributed = storage_fund_reward_amount_before_distribution - storage_fund_reward_amount_after_distribution;
-
         self.protocol_version = next_protocol_version;
 
         // Derive the reference gas price for the new epoch
         self.reference_gas_price = self.validators.derive_reference_gas_price();
         // Because of precision issues with integer divisions, we expect that there will be some
-        // remaining balance in `storage_fund_reward` and `computation_reward`.
+        // remaining balance in  `computation_reward`.
         // All of these go to the storage fund.
-        let mut leftover_staking_rewards = storage_fund_reward;
-        leftover_staking_rewards.join(computation_reward);
+        let leftover_staking_rewards = computation_reward;
         let leftover_storage_fund_inflow = leftover_staking_rewards.value();
 
         let refunded_storage_rebate =
             self.storage_fund.advance_epoch(
                 storage_reward,
-                storage_fund_reinvestment,
                 leftover_staking_rewards,
                 storage_rebate_amount,
                 non_refundable_storage_fee_amount,
@@ -923,11 +916,8 @@ module iota_system::iota_system_state_inner {
                 reference_gas_price: self.reference_gas_price,
                 total_stake: new_total_stake,
                 storage_charge,
-                storage_fund_reinvestment: storage_fund_reinvestment_amount as u64,
                 storage_rebate: storage_rebate_amount,
                 storage_fund_balance: self.storage_fund.total_balance(),
-                // TODO: Remove
-                stake_subsidy_amount: 0,
                 total_gas_fees: computation_charge,
                 total_stake_rewards_distributed: computation_reward_distributed + storage_fund_reward_distributed,
                 leftover_storage_fund_inflow,
