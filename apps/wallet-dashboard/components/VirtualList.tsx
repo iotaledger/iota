@@ -3,11 +3,14 @@
 
 'use client';
 
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 
 interface VirtualListProps<T> {
     items: T[];
+    hasNextPage?: boolean;
+    isFetchingNextPage?: boolean;
+    fetchNextPage?: () => void;
     estimateSize: (index: number) => number;
     render: (item: T, index: number) => ReactNode;
     onClick?: (item: T) => void;
@@ -15,18 +18,45 @@ interface VirtualListProps<T> {
 
 function VirtualList<T>({
     items,
+    hasNextPage = false,
+    isFetchingNextPage = false,
+    fetchNextPage,
     estimateSize,
     render,
     onClick,
 }: VirtualListProps<T>): JSX.Element {
     const containerRef = React.useRef<HTMLDivElement | null>(null);
     const virtualizer = useVirtualizer({
-        count: items.length,
+        count: hasNextPage ? items.length + 1 : items.length,
         getScrollElement: () => containerRef.current,
-        estimateSize,
+        estimateSize: (index) => {
+            if (index > items.length - 1 && hasNextPage) {
+                return 20;
+            } else {
+                return estimateSize(index);
+            }
+        },
     });
 
     const virtualItems = virtualizer.getVirtualItems();
+
+    useEffect(() => {
+        const [lastItem] = [...virtualizer.getVirtualItems()].reverse();
+        if (!lastItem || !fetchNextPage) {
+            return;
+        }
+
+        if (lastItem.index >= items.length - 1 && hasNextPage && !isFetchingNextPage) {
+            fetchNextPage();
+        }
+    }, [
+        hasNextPage,
+        fetchNextPage,
+        items.length,
+        isFetchingNextPage,
+        virtualizer,
+        virtualizer.getVirtualItems(),
+    ]);
 
     return (
         <div className="relative h-[50vh] w-full overflow-auto" ref={containerRef}>
@@ -51,7 +81,11 @@ function VirtualList<T>({
                         }}
                         onClick={() => onClick && onClick(items[virtualItem.index])}
                     >
-                        {render(items[virtualItem.index], virtualItem.index)}
+                        {virtualItem.index > items.length - 1
+                            ? hasNextPage
+                                ? 'Loading more...'
+                                : 'Nothing more to load'
+                            : render(items[virtualItem.index], virtualItem.index)}
                     </div>
                 ))}
             </div>
