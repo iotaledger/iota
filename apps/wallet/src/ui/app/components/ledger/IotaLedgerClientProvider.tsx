@@ -2,8 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import TransportWebHID from '@ledgerhq/hw-transport-webhid';
-import TransportWebUSB from '@ledgerhq/hw-transport-webusb';
+import SpeculosHttpTransport from './SpeculosHttpTransport';
 import IotaLedgerClient from '@iota/ledgerjs-hw-app-iota';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
@@ -44,11 +43,11 @@ export function IotaLedgerClientProvider({ children }: IotaLedgerClientProviderP
         async (requestPermissionsFirst = false) => {
             // If we've already connected to a Ledger device, we need
             // to close the connection before we try to re-connect
+            if (requestPermissionsFirst) {
+                await requestLedgerConnection()
+            }
             await resetIotaLedgerClient();
-
-            const ledgerTransport = requestPermissionsFirst
-                ? await requestLedgerConnection()
-                : await openLedgerConnection();
+            const ledgerTransport = await openLedgerConnection();
             const ledgerClient = new IotaLedgerClient(ledgerTransport);
             setIotaLedgerClient(ledgerClient);
             return ledgerClient;
@@ -69,6 +68,15 @@ export function IotaLedgerClientProvider({ children }: IotaLedgerClientProviderP
     );
 }
 
+async function requestLedgerConnection() {
+    // const ledgerTransportClass = await getLedgerTransportClass();
+    try {
+        return await true;
+    } catch (error) {
+        throw convertErrorToLedgerConnectionFailedError(error);
+    }
+}
+
 export function useIotaLedgerClient() {
     const iotaLedgerClientContext = useContext(IotaLedgerClientContext);
     if (!iotaLedgerClientContext) {
@@ -77,22 +85,14 @@ export function useIotaLedgerClient() {
     return iotaLedgerClientContext;
 }
 
-async function requestLedgerConnection() {
-    const ledgerTransportClass = await getLedgerTransportClass();
-    try {
-        return await ledgerTransportClass.request();
-    } catch (error) {
-        throw convertErrorToLedgerConnectionFailedError(error);
-    }
-}
-
 async function openLedgerConnection() {
     const ledgerTransportClass = await getLedgerTransportClass();
-    let ledgerTransport: TransportWebHID | TransportWebUSB | null | undefined;
-
+    let ledgerTransport: SpeculosHttpTransport | null | undefined;
     try {
-        ledgerTransport = await ledgerTransportClass.openConnected();
+        console.log('openingggg')
+        ledgerTransport = await ledgerTransportClass.open({ baseURL: "", apiPort: '5005' });
     } catch (error) {
+        console.error(error);
         throw convertErrorToLedgerConnectionFailedError(error);
     }
     if (!ledgerTransport) {
@@ -104,10 +104,8 @@ async function openLedgerConnection() {
 }
 
 async function getLedgerTransportClass() {
-    if (await TransportWebHID.isSupported()) {
-        return TransportWebHID;
-    } else if (await TransportWebUSB.isSupported()) {
-        return TransportWebUSB;
+    if (await SpeculosHttpTransport.isSupported()) {
+        return SpeculosHttpTransport;
     }
     throw new LedgerNoTransportMechanismError(
         "There are no supported transport mechanisms to connect to the user's Ledger device",
