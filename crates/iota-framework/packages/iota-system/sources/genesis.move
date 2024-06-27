@@ -49,6 +49,7 @@ module iota_system::genesis {
     }
 
     public struct TokenDistributionSchedule {
+        funds_to_burn: u64,
         allocations: vector<TokenAllocation>,
     }
 
@@ -83,6 +84,7 @@ module iota_system::genesis {
         assert!(ctx.epoch() == 0, ENotCalledAtGenesis);
 
         let TokenDistributionSchedule {
+            funds_to_burn: _,
             allocations,
         } = token_distribution_schedule;
 

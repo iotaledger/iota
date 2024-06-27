@@ -349,12 +349,6 @@ pub struct GenesisChainParameters {
     pub chain_start_timestamp_ms: u64,
     pub epoch_duration_ms: u64,
 
-    // Stake Subsidy parameters
-    pub stake_subsidy_start_epoch: u64,
-    pub stake_subsidy_initial_distribution_amount: u64,
-    pub stake_subsidy_period_length: u64,
-    pub stake_subsidy_decrease_rate: u16,
-
     // Validator committee parameters
     pub max_validator_count: u64,
     pub min_validator_joining_stake: u64,
@@ -453,13 +447,8 @@ impl GenesisCeremonyParameters {
     pub fn to_genesis_chain_parameters(&self) -> GenesisChainParameters {
         GenesisChainParameters {
             protocol_version: self.protocol_version.as_u64(),
-            stake_subsidy_start_epoch: self.stake_subsidy_start_epoch,
             chain_start_timestamp_ms: self.chain_start_timestamp_ms,
             epoch_duration_ms: self.epoch_duration_ms,
-            stake_subsidy_initial_distribution_amount: self
-                .stake_subsidy_initial_distribution_amount,
-            stake_subsidy_period_length: self.stake_subsidy_period_length,
-            stake_subsidy_decrease_rate: self.stake_subsidy_decrease_rate,
             max_validator_count: iota_types::governance::MAX_VALIDATOR_COUNT,
             min_validator_joining_stake: iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_MICROS,
             validator_low_stake_threshold:
@@ -483,13 +472,13 @@ impl Default for GenesisCeremonyParameters {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct TokenDistributionSchedule {
-    pub stake_subsidy_fund_micros: u64,
+    pub funds_to_burn: u64,
     pub allocations: Vec<TokenAllocation>,
 }
 
 impl TokenDistributionSchedule {
     pub fn validate(&self) {
-        let mut total_micros = self.stake_subsidy_fund_micros;
+        let mut total_micros = self.funds_to_burn;
 
         for allocation in &self.allocations {
             total_micros += allocation.amount_micros;
@@ -536,6 +525,11 @@ impl TokenDistributionSchedule {
         }
     }
 
+    /// Creates a new distribution schedule that allocates a default amount to
+    /// every given validator address.
+    ///
+    /// The remainder of the total supply, if any, will be burned during the
+    /// genesis.
     pub fn new_for_validators_with_default_allocation<I: IntoIterator<Item = IotaAddress>>(
         validators: I,
     ) -> Self {
@@ -555,7 +549,7 @@ impl TokenDistributionSchedule {
             .collect();
 
         let schedule = Self {
-            stake_subsidy_fund_micros: supply,
+            funds_to_burn: supply,
             allocations,
         };
 
@@ -579,7 +573,7 @@ impl TokenDistributionSchedule {
         assert_eq!(
             TOTAL_SUPPLY_MICROS,
             allocations.iter().map(|a| a.amount_micros).sum::<u64>(),
-            "Token Distribution Schedule must add up to 10B Iota",
+            "Token Distribution Schedule must add up to the total IOTA supply of {TOTAL_SUPPLY_MICROS} nanos",
         );
         let stake_subsidy_fund_allocation = allocations.pop().unwrap();
         assert_eq!(
@@ -595,7 +589,7 @@ impl TokenDistributionSchedule {
         );
 
         let schedule = Self {
-            stake_subsidy_fund_micros: stake_subsidy_fund_allocation.amount_micros,
+            funds_to_burn: stake_subsidy_fund_allocation.amount_micros,
             allocations,
         };
 
@@ -612,7 +606,7 @@ impl TokenDistributionSchedule {
 
         writer.serialize(TokenAllocation {
             recipient_address: IotaAddress::default(),
-            amount_micros: self.stake_subsidy_fund_micros,
+            amount_micros: self.funds_to_burn,
             staked_with_validator: None,
         })?;
 
@@ -633,7 +627,8 @@ pub struct TokenAllocation {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TokenDistributionScheduleBuilder {
-    pool: u64,
+    remaining_supply: u64,
+    funds_to_burn: u64,
     allocations: Vec<TokenAllocation>,
 }
 
@@ -641,7 +636,8 @@ impl TokenDistributionScheduleBuilder {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
-            pool: TOTAL_SUPPLY_MICROS,
+            remaining_supply: TOTAL_SUPPLY_MICROS,
+            funds_to_burn: 0,
             allocations: vec![],
         }
     }
@@ -662,13 +658,22 @@ impl TokenDistributionScheduleBuilder {
     }
 
     pub fn add_allocation(&mut self, allocation: TokenAllocation) {
-        self.pool = self.pool.checked_sub(allocation.amount_micros).unwrap();
+        self.remaining_supply = self
+            .remaining_supply
+            .checked_sub(allocation.amount_micros)
+            .unwrap();
         self.allocations.push(allocation);
+    }
+
+    /// Designates the remaining supply to be burned during the genesis.
+    pub fn burn_remainder(&mut self) {
+        self.funds_to_burn += self.remaining_supply;
+        self.remaining_supply = 0;
     }
 
     pub fn build(&self) -> TokenDistributionSchedule {
         let schedule = TokenDistributionSchedule {
-            stake_subsidy_fund_micros: self.pool,
+            funds_to_burn: self.remaining_supply,
             allocations: self.allocations.clone(),
         };
 
