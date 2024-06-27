@@ -812,8 +812,6 @@ module iota_system::iota_system_state_inner {
         mut computation_reward: Balance<IOTA>,
         mut storage_rebate_amount: u64,
         mut non_refundable_storage_fee_amount: u64,
-        storage_fund_reinvest_rate: u64, // share of storage fund's rewards that's reinvested
-                                         // into storage fund, in basis point.
         reward_slashing_rate: u64, // how much rewards are slashed to punish a validator, in bps.
         epoch_start_timestamp_ms: u64, // Timestamp of the epoch start
         ctx: &mut TxContext,
@@ -822,11 +820,7 @@ module iota_system::iota_system_state_inner {
 
         let bps_denominator_u64 = BASIS_POINT_DENOMINATOR as u64;
         // Rates can't be higher than 100%.
-        assert!(
-            storage_fund_reinvest_rate <= bps_denominator_u64
-            && reward_slashing_rate <= bps_denominator_u64,
-            EBpsTooLarge,
-        );
+        assert!(reward_slashing_rate <= bps_denominator_u64, EBpsTooLarge);
 
         // Accumulate the gas summary during safe_mode before processing any rewards:
         let safe_mode_storage_rewards = self.safe_mode_storage_rewards.withdraw_all();

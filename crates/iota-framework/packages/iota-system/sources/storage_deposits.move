@@ -3,20 +3,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module iota_system::storage_deposits {
-    use iota::balance::Balance;
+    use iota::balance::{Self, Balance};
     use iota::iota::IOTA;
 
     /// Struct representing the storage deposits fund, containing a `Balance`:
     /// - `storage_balance` tracks the total balance of storage fees collected from transactions.
     public struct StorageDeposits has store {
-        storage_balance: Balance<IOTA>,
+        refundable_balance: Balance<IOTA>,
+        non_refundable_balance: Balance<IOTA>
     }
 
     /// Called by `iota_system` at genesis time.
     public(package) fun new(initial_balance: Balance<IOTA>) : StorageDeposits {
         StorageDeposits {
             // Initialize the storage deposits balance
-            storage_balance: initial_balance,
+            refundable_balance: initial_balance,
+            non_refundable_balance: balance::zero()
         }
     }
 
@@ -26,9 +28,9 @@ module iota_system::storage_deposits {
         storage_charges: Balance<IOTA>,
         storage_rebate_amount: u64,
     ) : Balance<IOTA> {
-        self.storage_balance.join(storage_charges);
+        self.refundable_balance.join(storage_charges);
 
-        let storage_rebate = self.storage_balance.split(storage_rebate_amount);
+        let storage_rebate = self.refundable_balance.split(storage_rebate_amount);
 
         //TODO: possibly mint and burn tokens here
         // mint_iota(treasury_cap, storage_charges.value(), ctx);
@@ -37,6 +39,6 @@ module iota_system::storage_deposits {
     }
 
     public fun total_balance(self: &StorageDeposits): u64 {
-        self.storage_balance.value()
+        self.refundable_balance.value() + self.non_refundable_balance.value()
     }
 }
