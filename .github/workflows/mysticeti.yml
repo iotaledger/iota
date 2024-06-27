@@ -56,6 +56,38 @@ env:
   RUSTDOCFLAGS: -D warnings
 
 jobs:
+  changes:
+    runs-on: [ubuntu-latest]
+    outputs:
+      components: ${{ steps.filter.outputs.changes }}
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          list-files: 'json'
+          filters: .github/crates-filters.yml
+  
+  test:
+    name: Test ${{ matrix.components }}
+    timeout-minutes: 45
+    env:
+      # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
+      # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
+      # non-deterministic `test` job.
+      IOTA_SKIP_SIMTESTS: 1
+    strategy:
+      matrix: 
+        components: ${{ fromJson(needs.changes.outputs.components) }}
+      fail-fast: false
+    runs-on: [ubuntu-latest]
+    needs: changes
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      - uses: taiki-e/install-action@nextest
+      - name: cargo test
+        run: cargo nextest run --profile ci -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
+
   diff:
     runs-on: [ubuntu-latest]
     outputs:
@@ -69,33 +101,6 @@ jobs:
       - name: Detect Changes
         uses: "./.github/actions/diffs"
         id: diff
-
-  test:
-    needs: diff
-    if: needs.diff.outputs.isRust == 'true'
-    timeout-minutes: 45
-    env:
-      # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
-      # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
-      # non-deterministic `test` job.
-      IOTA_SKIP_SIMTESTS: 1
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - [self-hosted-rust]
-      fail-fast: false
-    steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
-        with:
-          ref: ${{ github.event.inputs.iota_repo_ref || github.ref }}
-      - uses: taiki-e/install-action@nextest
-      - name: cargo test
-        run: |
-          cargo nextest run --profile ci
-      # Ensure there are no uncommitted changes in the repo after running tests
-      - run: scripts/changed-files.sh
-        shell: bash
 
   test-extra:
     needs: diff
@@ -141,10 +146,13 @@ jobs:
         shell: bash
 
   simtest:
-    needs: diff
-    if: needs.diff.outputs.isRust == 'true'
-    timeout-minutes: 45
-    runs-on: [self-hosted-rust]
+    name: Simtest ${{ matrix.components }}
+    needs: changes
+    runs-on: [ubuntu-latest]
+    strategy:
+      matrix: 
+        components: ${{ fromJson(needs.changes.outputs.components) }}
+      fail-fast: false
     env:
       MSIM_WATCHDOG_TIMEOUT_MS: 60000
     steps:
@@ -154,7 +162,7 @@ jobs:
       - uses: taiki-e/install-action@nextest
       - name: cargo simtest
         run: |
-          scripts/simtest/cargo-simtest simtest --no-fail-fast
+          scripts/simtest/cargo-simtest simtest -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
       - name: check new tests for flakiness
         run: |
-          scripts/simtest/stress-new-tests.sh
+          scripts/simtest/stress-new-tests.sh -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}

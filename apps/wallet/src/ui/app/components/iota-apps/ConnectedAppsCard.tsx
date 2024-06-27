@@ -5,7 +5,7 @@
 import { Heading } from '_app/shared/heading';
 import { Text } from '_app/shared/text';
 import { useAppSelector } from '_hooks';
-import { FEATURES } from '_src/shared/experimentation/features';
+import { Feature } from '_src/shared/experimentation/features';
 import { prepareLinkToCompare } from '_src/shared/utils';
 import { useFeature } from '@growthbook/growthbook-react';
 import { useEffect, useMemo } from 'react';
@@ -21,7 +21,7 @@ function ConnectedDapps() {
     useEffect(() => {
         backgroundClient.sendGetPermissionRequests();
     }, [backgroundClient]);
-    const ecosystemApps = useFeature<DAppEntry[]>(FEATURES.WALLET_DAPPS).value ?? [];
+    const ecosystemApps = useFeature<DAppEntry[]>(Feature.WalletDapps).value ?? [];
     const loading = useAppSelector(({ permissions }) => !permissions.initialized);
     const allPermissions = useAppSelector(permissionsSelectors.selectAll);
     const connectedApps = useMemo(
