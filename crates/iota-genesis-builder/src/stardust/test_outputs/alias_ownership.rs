@@ -5,7 +5,10 @@ use iota_sdk::types::block::{
     address::{AliasAddress, Ed25519Address},
     output::{
         feature::{Irc27Metadata, IssuerFeature, MetadataFeature},
-        unlock_condition::{AddressUnlockCondition, ImmutableAliasAddressUnlockCondition},
+        unlock_condition::{
+            AddressUnlockCondition, GovernorAddressUnlockCondition,
+            ImmutableAliasAddressUnlockCondition,
+        },
         AliasId, AliasOutputBuilder, BasicOutputBuilder, Feature, FoundryOutputBuilder, NftId,
         NftOutputBuilder, Output, SimpleTokenScheme, UnlockCondition,
     },
@@ -18,7 +21,7 @@ pub(crate) fn outputs() -> Vec<(OutputHeader, Output)> {
     let alias_owner = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
 
     let alias_output = AliasOutputBuilder::new_with_amount(1_000_000, AliasId::new(rand::random()))
-        .add_unlock_condition(AddressUnlockCondition::new(alias_owner))
+        .add_unlock_condition(GovernorAddressUnlockCondition::new(alias_owner))
         .finish()
         .unwrap();
     let alias_address = alias_output.alias_address(&alias_output_header.output_id());
@@ -73,7 +76,7 @@ fn owns_random_alias_output(owner: AliasAddress) -> (OutputHeader, Output) {
     let alias_output_header = random_output_header();
 
     let alias_output = AliasOutputBuilder::new_with_amount(1_000_000, AliasId::null())
-        .add_unlock_condition(AddressUnlockCondition::new(owner))
+        .add_unlock_condition(GovernorAddressUnlockCondition::new(owner))
         .finish()
         .unwrap();
 
