@@ -257,7 +257,7 @@ impl GenesisConfig {
             account.gas_amounts.iter().for_each(|a| {
                 allocations.push(TokenAllocation {
                     recipient_address: address,
-                    amount_micros: *a,
+                    amount_nanos: *a,
                     staked_with_validator: None,
                 });
             });

@@ -485,15 +485,15 @@ pub struct TokenDistributionSchedule {
 
 impl TokenDistributionSchedule {
     pub fn validate(&self) {
-        let mut total_micros = self.stake_subsidy_fund_micros;
+        let mut total_nanos = self.stake_subsidy_fund_micros;
 
         for allocation in &self.allocations {
-            total_micros += allocation.amount_micros;
+            total_nanos += allocation.amount_nanos;
         }
 
-        if total_micros != TOTAL_SUPPLY_NANOS {
+        if total_nanos != TOTAL_SUPPLY_NANOS {
             panic!(
-                "TokenDistributionSchedule adds up to {total_micros} and not expected {TOTAL_SUPPLY_NANOS}"
+                "TokenDistributionSchedule adds up to {total_nanos} and not expected {TOTAL_SUPPLY_NANOS}"
             );
         }
     }
@@ -516,7 +516,7 @@ impl TokenDistributionSchedule {
                 *validators
                     .get_mut(staked_with_validator)
                     .expect("allocation must be staked with valid validator") +=
-                    allocation.amount_micros;
+                    allocation.amount_nanos;
             }
         }
 
@@ -544,7 +544,7 @@ impl TokenDistributionSchedule {
                 supply -= default_allocation;
                 TokenAllocation {
                     recipient_address: a,
-                    amount_micros: default_allocation,
+                    amount_nanos: default_allocation,
                     staked_with_validator: Some(a),
                 }
             })
@@ -574,7 +574,7 @@ impl TokenDistributionSchedule {
             reader.deserialize().collect::<Result<_, _>>()?;
         assert_eq!(
             TOTAL_SUPPLY_NANOS,
-            allocations.iter().map(|a| a.amount_micros).sum::<u64>(),
+            allocations.iter().map(|a| a.amount_nanos).sum::<u64>(),
             "Token Distribution Schedule must add up to 10B Iota",
         );
         let stake_subsidy_fund_allocation = allocations.pop().unwrap();
@@ -591,7 +591,7 @@ impl TokenDistributionSchedule {
         );
 
         let schedule = Self {
-            stake_subsidy_fund_micros: stake_subsidy_fund_allocation.amount_micros,
+            stake_subsidy_fund_micros: stake_subsidy_fund_allocation.amount_nanos,
             allocations,
         };
 
@@ -608,7 +608,7 @@ impl TokenDistributionSchedule {
 
         writer.serialize(TokenAllocation {
             recipient_address: IotaAddress::default(),
-            amount_micros: self.stake_subsidy_fund_micros,
+            amount_nanos: self.stake_subsidy_fund_micros,
             staked_with_validator: None,
         })?;
 
@@ -620,7 +620,7 @@ impl TokenDistributionSchedule {
 #[serde(rename_all = "kebab-case")]
 pub struct TokenAllocation {
     pub recipient_address: IotaAddress,
-    pub amount_micros: u64,
+    pub amount_nanos: u64,
 
     /// Indicates if this allocation should be staked at genesis and with which
     /// validator
@@ -651,14 +651,14 @@ impl TokenDistributionScheduleBuilder {
         for validator in validators {
             self.add_allocation(TokenAllocation {
                 recipient_address: validator,
-                amount_micros: default_allocation,
+                amount_nanos: default_allocation,
                 staked_with_validator: Some(validator),
             });
         }
     }
 
     pub fn add_allocation(&mut self, allocation: TokenAllocation) {
-        self.pool = self.pool.checked_sub(allocation.amount_micros).unwrap();
+        self.pool = self.pool.checked_sub(allocation.amount_nanos).unwrap();
         self.allocations.push(allocation);
     }
 
