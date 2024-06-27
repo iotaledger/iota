@@ -13,7 +13,6 @@ const VisualAssetDetailPage = () => {
     const params = useParams();
     const objectId = params.objectId as string;
     const { data: asset } = useGetObject(objectId);
-
     const { openPopup, closePopup } = usePopups();
 
     const showSendAssetPopup = useCallback(() => {

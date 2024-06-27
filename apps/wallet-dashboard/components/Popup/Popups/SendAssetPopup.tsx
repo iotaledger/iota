@@ -9,7 +9,7 @@ import { FlexDirection } from '@/lib/ui/enums';
 
 interface SendAssetPopupProps {
     asset: IotaObjectData;
-    onClose?: () => void;
+    onClose: () => void;
 }
 
 export default function SendAssetPopup({ asset, onClose }: SendAssetPopupProps): JSX.Element {
