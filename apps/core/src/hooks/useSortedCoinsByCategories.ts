@@ -19,6 +19,8 @@ function sortCoins(balances: CoinBalance[]) {
 
 export function useSortedCoinsByCategories(coinBalances: CoinBalance[]) {
     const recognizedPackages = DEFAULT_RECOGNIZED_PACKAGES; // previous: useRecognizedPackages();
+
+    // Commented out pinnedCoinTypes until https://github.com/iotaledger/iota/issues/832 is resolved
     // const [pinnedCoinTypes] = usePinnedCoinTypes();
 
     return useMemo(() => {
