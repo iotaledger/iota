@@ -8,7 +8,7 @@ interface DropdownProps<T> {
     value: T | null | undefined;
     onChange: (selectedOption: T) => void;
     placeholder?: string;
-    keyFromOption: (option: T) => string | number;
+    valueFromOption: (option: T) => string | number;
     labelFromOption: (option: T) => React.ReactNode;
 }
 
@@ -17,20 +17,20 @@ function Dropdown<T>({
     value,
     onChange,
     placeholder,
-    keyFromOption: getKey,
+    valueFromOption: getValue,
     labelFromOption: getLabel,
 }: DropdownProps<T>): JSX.Element {
-    const handleSelectionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    function handleSelectionChange(e: React.ChangeEvent<HTMLSelectElement>): void {
         const selectedKey = e.target.value;
-        const selectedOption = options.find((option) => getKey(option) === selectedKey);
+        const selectedOption = options.find((option) => getValue(option) === selectedKey);
         if (selectedOption) {
             onChange(selectedOption);
         }
-    };
+    }
 
     return (
         <select
-            value={value ? getKey(value) : ''}
+            value={value ? getValue(value) : ''}
             onChange={handleSelectionChange}
             className="px-2 py-3"
         >
@@ -41,7 +41,7 @@ function Dropdown<T>({
             )}
 
             {options.map((option, index) => (
-                <option key={index} value={getKey(option)}>
+                <option key={index} value={getValue(option)}>
                     {getLabel(option)}
                 </option>
             ))}

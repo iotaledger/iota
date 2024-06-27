@@ -53,7 +53,7 @@ function SendCoinPopup({
         selectedCoin.totalBalance === formData.amount,
     );
 
-    const handleTransfer = async () => {
+    async function handleTransfer(): Promise<void> {
         if (!sendCoinData?.transaction) {
             addNotification('There was an error with the transaction', NotificationType.Error);
             return;
@@ -69,7 +69,7 @@ function SendCoinPopup({
                     addNotification('Transfer transaction was not sent', NotificationType.Error);
                 });
         }
-    };
+    }
 
     function onNext(): void {
         setStep(FormStep.ReviewValues);
@@ -94,7 +94,7 @@ function SendCoinPopup({
                 value={selectedCoin}
                 onChange={handleSelectedCoin}
                 placeholder="Select a coin to send"
-                keyFromOption={(_selectedCoin) => _selectedCoin.coinType}
+                valueFromOption={(_selectedCoin) => _selectedCoin.coinType}
                 labelFromOption={(_selectedCoin) => _selectedCoin.coinType}
             />
             {step === FormStep.EnterValues && (

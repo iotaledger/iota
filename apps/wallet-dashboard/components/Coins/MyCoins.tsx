@@ -28,10 +28,9 @@ function MyCoins(): React.JSX.Element {
             select: filterAndSortTokenBalances,
         },
     );
-
     const { recognized } = useSortedCoinsByCategories(coinBalances ?? []);
 
-    const openSendTokenPopup = (coin: CoinBalance, address: string) => {
+    function openSendTokenPopup(coin: CoinBalance, address: string): void {
         coinBalances &&
             openPopup(
                 <SendCoinPopup
@@ -41,7 +40,8 @@ function MyCoins(): React.JSX.Element {
                     coins={coinBalances}
                 />,
             );
-    };
+    }
+
     return (
         <div className="flex w-2/3 flex-col items-center space-y-2">
             <h3>My Coins:</h3>
