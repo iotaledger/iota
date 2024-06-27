@@ -102,7 +102,7 @@ impl Env {
                 let cluster = TestClusterBuilder::new()
                     .with_accounts(vec![AccountConfig {
                         address: Some(primary_gas_owner),
-                        // We can't use TOTAL_SUPPLY_MICROS because we need to account for validator
+                        // We can't use TOTAL_SUPPLY_NANOS because we need to account for validator
                         // stakes in genesis allocation.
                         gas_amounts: vec![TOTAL_SUPPLY_NANOS / 2],
                     }])
