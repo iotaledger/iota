@@ -161,7 +161,7 @@ pub(super) fn verify_alias_output(
         created_alias.immutable_metadata.as_ref(),
     )?;
 
-    verify_parent(output.governor_address(), storage)?;
+    verify_parent(&output_id, output.governor_address(), storage)?;
 
     ensure!(created_objects.coin().is_err(), "unexpected coin found");
 

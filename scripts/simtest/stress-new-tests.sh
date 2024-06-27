@@ -1,7 +1,5 @@
 #!/bin/bash -x
 # Copyright (c) Mysten Labs, Inc.
-# SPDX-License-Identifier: Apache-2.0
-
 # Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
@@ -34,4 +32,4 @@ done
 TEST_FILTER=$(printf %s' or ' "${NEW_TESTS[@]}" | sed 's/ or *$//')
 
 # use seed of 2, since 1 was already used by the main job
-MSIM_TEST_NUM=20 MSIM_TEST_SEED=2 cargo simtest -E "$TEST_FILTER"
+MSIM_TEST_NUM=20 MSIM_TEST_SEED=2 cargo simtest -E "$TEST_FILTER" "$@"

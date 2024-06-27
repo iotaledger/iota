@@ -15,7 +15,7 @@ import { useCreateSendAssetTransaction } from '@/hooks/useCreateSendAssetTransac
 
 interface SendAssetPopupProps {
     asset: IotaObjectData;
-    onClose?: () => void;
+    onClose: () => void;
 }
 
 export default function SendAssetPopup({ asset, onClose }: SendAssetPopupProps): JSX.Element {

@@ -6,13 +6,13 @@
 use std::{fs::File, path::Path};
 
 use iota_genesis_builder::stardust::{
-    parse::FullSnapshotParser, test_outputs::add_snapshot_test_outputs,
+    parse::HornetGenesisSnapshotParser, test_outputs::add_snapshot_test_outputs,
     types::output_header::TOTAL_SUPPLY_IOTA,
 };
 
 fn parse_snapshot<P: AsRef<Path>>(path: P) -> anyhow::Result<()> {
     let file = File::open(path)?;
-    let parser = FullSnapshotParser::new(file)?;
+    let parser = HornetGenesisSnapshotParser::new(file)?;
 
     println!("Output count: {}", parser.header.output_count());
 
@@ -33,7 +33,14 @@ async fn main() -> anyhow::Result<()> {
         anyhow::bail!("please provide path to the full-snapshot file");
     };
     let mut new_path = String::from("test-");
-    new_path.push_str(&current_path);
+    // prepend "test-" before the file name
+    if let Some(pos) = current_path.rfind('/') {
+        let mut current_path = current_path.clone();
+        current_path.insert_str(pos + 1, &new_path);
+        new_path = current_path;
+    } else {
+        new_path.push_str(&current_path);
+    }
 
     parse_snapshot(&current_path)?;
 
