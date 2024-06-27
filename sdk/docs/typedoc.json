@@ -3,7 +3,6 @@
         "../bcs",
         "../dapp-kit",
         "../deepbook",
-        "../enoki",
         "../graphql-transport",
         "../kiosk",
         "../typescript",
