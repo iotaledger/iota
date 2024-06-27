@@ -79,7 +79,6 @@ title: Module `0x3::iota_system_state_inner`
 <b>use</b> <a href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
 <b>use</b> <a href="../iota-framework/vec_map.md#0x2_vec_map">0x2::vec_map</a>;
 <b>use</b> <a href="../iota-framework/vec_set.md#0x2_vec_set">0x2::vec_set</a>;
-<b>use</b> <a href="stake_subsidy.md#0x3_stake_subsidy">0x3::stake_subsidy</a>;
 <b>use</b> <a href="staking_pool.md#0x3_staking_pool">0x3::staking_pool</a>;
 <b>use</b> <a href="storage_fund.md#0x3_storage_fund">0x3::storage_fund</a>;
 <b>use</b> <a href="validator.md#0x3_validator">0x3::validator</a>;
@@ -111,12 +110,6 @@ A list of system config parameters.
 </dt>
 <dd>
  The duration of an epoch, in milliseconds.
-</dd>
-<dt>
-<code>stake_subsidy_start_epoch: u64</code>
-</dt>
-<dd>
- The starting epoch in which stake subsidies start being paid out
 </dd>
 <dt>
 <code>max_validator_count: u64</code>
@@ -186,12 +179,6 @@ Added min_validator_count.
 </dt>
 <dd>
  The duration of an epoch, in milliseconds.
-</dd>
-<dt>
-<code>stake_subsidy_start_epoch: u64</code>
-</dt>
-<dd>
- The starting epoch in which stake subsidies start being paid out
 </dd>
 <dt>
 <code>min_validator_count: u64</code>
@@ -326,12 +313,6 @@ The top-level object containing all information of the Iota system.
  the reports should be based on validator ids
 </dd>
 <dt>
-<code><a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>: <a href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</a></code>
-</dt>
-<dd>
- Schedule of stake subsidies given out each epoch.
-</dd>
-<dt>
 <code>safe_mode: bool</code>
 </dt>
 <dd>
@@ -462,12 +443,6 @@ Uses SystemParametersV2 as the parameters.
  reporter doesn't explicitly remove their report.
  Note that in case we want to support validator address change in future,
  the reports should be based on validator ids
-</dd>
-<dt>
-<code><a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>: <a href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</a></code>
-</dt>
-<dd>
- Schedule of stake subsidies given out each epoch.
 </dd>
 <dt>
 <code>safe_mode: bool</code>
@@ -755,7 +730,7 @@ Create a new IotaSystemState object and make it shared.
 This function will be called only once in genesis.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_create">create</a>(iota_treasury_cap: <a href="../iota-framework/coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, validators: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;, initial_storage_fund: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, protocol_version: u64, epoch_start_timestamp_ms: u64, parameters: <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_SystemParameters">iota_system_state_inner::SystemParameters</a>, <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>: <a href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInner">iota_system_state_inner::IotaSystemStateInner</a>
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_create">create</a>(iota_treasury_cap: <a href="../iota-framework/coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, validators: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;, initial_storage_fund: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, protocol_version: u64, epoch_start_timestamp_ms: u64, parameters: <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_SystemParameters">iota_system_state_inner::SystemParameters</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInner">iota_system_state_inner::IotaSystemStateInner</a>
 </code></pre>
 
 
@@ -771,7 +746,6 @@ This function will be called only once in genesis.
     protocol_version: u64,
     epoch_start_timestamp_ms: u64,
     parameters: <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_SystemParameters">SystemParameters</a>,
-    <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>: StakeSubsidy,
     ctx: &<b>mut</b> TxContext,
 ): <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInner">IotaSystemStateInner</a> {
     <b>let</b> validators = <a href="validator_set.md#0x3_validator_set_new">validator_set::new</a>(validators, ctx);
@@ -787,7 +761,6 @@ This function will be called only once in genesis.
         parameters,
         reference_gas_price,
         validator_report_records: <a href="../iota-framework/vec_map.md#0x2_vec_map_empty">vec_map::empty</a>(),
-        <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>,
         safe_mode: <b>false</b>,
         safe_mode_storage_rewards: <a href="../iota-framework/balance.md#0x2_balance_zero">balance::zero</a>(),
         safe_mode_computation_rewards: <a href="../iota-framework/balance.md#0x2_balance_zero">balance::zero</a>(),
@@ -810,7 +783,7 @@ This function will be called only once in genesis.
 
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_create_system_parameters">create_system_parameters</a>(epoch_duration_ms: u64, stake_subsidy_start_epoch: u64, max_validator_count: u64, min_validator_joining_stake: u64, validator_low_stake_threshold: u64, validator_very_low_stake_threshold: u64, validator_low_stake_grace_period: u64, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_SystemParameters">iota_system_state_inner::SystemParameters</a>
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_create_system_parameters">create_system_parameters</a>(epoch_duration_ms: u64, max_validator_count: u64, min_validator_joining_stake: u64, validator_low_stake_threshold: u64, validator_very_low_stake_threshold: u64, validator_low_stake_grace_period: u64, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_SystemParameters">iota_system_state_inner::SystemParameters</a>
 </code></pre>
 
 
@@ -821,7 +794,6 @@ This function will be called only once in genesis.
 
 <pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_create_system_parameters">create_system_parameters</a>(
     epoch_duration_ms: u64,
-    stake_subsidy_start_epoch: u64,
 
     // Validator committee parameters
     max_validator_count: u64,
@@ -833,7 +805,6 @@ This function will be called only once in genesis.
 ): <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_SystemParameters">SystemParameters</a> {
     <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_SystemParameters">SystemParameters</a> {
         epoch_duration_ms,
-        stake_subsidy_start_epoch,
         max_validator_count,
         min_validator_joining_stake,
         validator_low_stake_threshold,
@@ -874,7 +845,6 @@ This function will be called only once in genesis.
         parameters,
         reference_gas_price,
         validator_report_records,
-        <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>,
         safe_mode,
         safe_mode_storage_rewards,
         safe_mode_computation_rewards,
@@ -885,7 +855,6 @@ This function will be called only once in genesis.
     } = self;
     <b>let</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_SystemParameters">SystemParameters</a> {
         epoch_duration_ms,
-        stake_subsidy_start_epoch,
         max_validator_count,
         min_validator_joining_stake,
         validator_low_stake_threshold,
@@ -902,7 +871,6 @@ This function will be called only once in genesis.
         <a href="storage_fund.md#0x3_storage_fund">storage_fund</a>,
         parameters: <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_SystemParametersV2">SystemParametersV2</a> {
             epoch_duration_ms,
-            stake_subsidy_start_epoch,
             min_validator_count: 4,
             max_validator_count,
             min_validator_joining_stake,
@@ -913,7 +881,6 @@ This function will be called only once in genesis.
         },
         reference_gas_price,
         validator_report_records,
-        <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>,
         safe_mode,
         safe_mode_storage_rewards,
         safe_mode_computation_rewards,
@@ -2111,11 +2078,6 @@ gas coins.
         && reward_slashing_rate &lt;= bps_denominator_u64,
         <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_EBpsTooLarge">EBpsTooLarge</a>,
     );
-
-    // TODO: remove this in later upgrade.
-    <b>if</b> (self.parameters.stake_subsidy_start_epoch &gt; 0) {
-        self.parameters.stake_subsidy_start_epoch = 20;
-    };
 
     // Accumulate the gas summary during safe_mode before processing any rewards:
     <b>let</b> safe_mode_storage_rewards = self.safe_mode_storage_rewards.withdraw_all();
