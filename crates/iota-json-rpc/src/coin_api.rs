@@ -1303,7 +1303,7 @@ mod tests {
             let response = coin_read_api.get_total_supply(coin_type.to_string()).await;
 
             let supply = response.unwrap();
-            let expected = expect!["10000000000000000000"];
+            let expected = expect!["4600000000000000000"];
             expected.assert_eq(&supply.value.to_string());
         }
 
