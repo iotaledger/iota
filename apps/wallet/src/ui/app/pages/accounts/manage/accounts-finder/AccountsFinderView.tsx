@@ -20,8 +20,6 @@ export function AccountsFinderView(): JSX.Element {
         sourceID: activeAccount ? getKey(activeAccount) : '', // TODO: getKey might return a type insted of the source ID if it is not a mnemonic or a seed account source
     });
 
-    console.log(finderAddresses);
-
     return (
         <div className="flex h-full flex-1 flex-col justify-between">
             <div className="flex h-96 flex-col gap-4 overflow-y-auto">
