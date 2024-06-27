@@ -64,7 +64,7 @@ export function ValidatorsCard() {
         ({ inactiveValidator }) => inactiveValidator,
     );
 
-    // // Get total rewards for all delegations
+    // Get total rewards for all delegations
     const delegatedStakes = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
     const totalDelegatedRewards = useTotalDelegatedRewards(delegatedStakes);
 
@@ -107,7 +107,7 @@ export function ValidatorsCard() {
                                     ?.filter(({ inactiveValidator }) => inactiveValidator)
                                     .map((delegation) => (
                                         <StakeCard
-                                            delegationObject={delegation}
+                                            extendedStake={delegation}
                                             currentEpoch={Number(system.epoch)}
                                             key={delegation.stakedIotaId}
                                             inactiveValidator
@@ -149,7 +149,7 @@ export function ValidatorsCard() {
                                     ?.filter(({ inactiveValidator }) => !inactiveValidator)
                                     .map((delegation) => (
                                         <StakeCard
-                                            delegationObject={delegation}
+                                            extendedStake={delegation}
                                             currentEpoch={Number(system.epoch)}
                                             key={delegation.stakedIotaId}
                                         />
