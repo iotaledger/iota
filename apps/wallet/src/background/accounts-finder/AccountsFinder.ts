@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type AccountFromFinder, type AddressFromFinder } from '_src/shared/accounts';
-import { recoverAccounts } from './accounts-finder';
+import { findAccounts } from './accounts-finder';
 import NetworkEnv from '../NetworkEnv';
 import { IotaClient, getFullnodeUrl } from '@iota/iota.js/client';
 import { getAccountSourceByID } from '../account-sources';
@@ -32,13 +32,15 @@ class AccountsFinder {
             throw new Error('Could not find account source');
         }
 
-        this.accounts = await recoverAccounts(
+        this.accounts = await findAccounts(
             0,
             accountGapLimit,
             addressGaspLimit,
             this.accounts,
             coinType,
-            client,
+            async (_, params) => {
+                return await client.getBalance(params);
+            },
             gasTypeArg,
             async (options) => {
                 const pubKey = await accountSource?.derivePubKey(options);
