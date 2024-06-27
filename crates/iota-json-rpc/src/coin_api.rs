@@ -1287,7 +1287,7 @@ mod tests {
     }
 
     mod get_total_supply_tests {
-        use iota_types::id::UID;
+        use iota_types::{gas_coin::TOKEN_SUPPLY_NANOS, id::UID};
         use mockall::predicate;
 
         use super::{super::*, *};
@@ -1303,8 +1303,7 @@ mod tests {
             let response = coin_read_api.get_total_supply(coin_type.to_string()).await;
 
             let supply = response.unwrap();
-            let expected = expect!["4600000000000000000"];
-            expected.assert_eq(&supply.value.to_string());
+            assert_eq!(supply.value, TOKEN_SUPPLY_NANOS);
         }
 
         #[tokio::test]
