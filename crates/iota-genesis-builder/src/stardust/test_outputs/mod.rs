@@ -3,6 +3,7 @@
 
 mod vesting_schedule_entity;
 mod vesting_schedule_iota_airdrop;
+mod vesting_schedule_portfolio_mix;
 
 use std::{
     fs::{File, OpenOptions},
@@ -80,6 +81,7 @@ pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
     let new_outputs = [
         vesting_schedule_entity::outputs(&mut vested_index).await?,
         vesting_schedule_iota_airdrop::outputs(&mut vested_index).await?,
+        vesting_schedule_portfolio_mix::outputs(&mut vested_index).await?,
     ]
     .concat();
     let new_amount = new_outputs.iter().map(|o| o.1.amount()).sum::<u64>();
