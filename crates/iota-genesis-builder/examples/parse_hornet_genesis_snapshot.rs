@@ -20,7 +20,8 @@ fn main() -> anyhow::Result<()> {
     let total_supply = parser.outputs().try_fold(0, |acc, output| {
         Ok::<_, anyhow::Error>(acc + output?.1.amount())
     })?;
-    assert_eq!(total_supply, TOTAL_SUPPLY_IOTA);
+    // Total supply is in IOTA, snapshot supply is is Micros
+    assert_eq!(total_supply, TOTAL_SUPPLY_IOTA * 1_000_000);
     println!("Total supply: {total_supply}");
     Ok(())
 }
