@@ -14,7 +14,8 @@ use crate::stardust::types::output_index::OutputIndex;
 /// The total supply on the iota-mainnet
 pub const TOTAL_SUPPLY_IOTA: u64 = 4_600_000_000_000_000;
 
-/// The header of an [`Output`] in the snapshot
+/// The header of an [`Output`](iota_sdk::types::block::output::Output) in the
+/// snapshot
 #[derive(Debug, Clone, Packable)]
 pub struct OutputHeader {
     output_id: OutputId,

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Serde compatible types to deserialize the schematized parts of the lock file
-//! (everything in the [move] table).  This module does not support
+//! (everything in the `[move]` table).  This module does not support
 //! serialization because of limitations in the `toml` crate related to
 //! serializing types as inline tables.
 
