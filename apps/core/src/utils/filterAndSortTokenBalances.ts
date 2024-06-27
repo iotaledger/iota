@@ -3,26 +3,16 @@
 
 import { type CoinBalance } from '@iota/iota.js/client';
 import { getCoinSymbol } from '../hooks';
-import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 
-/**
- * Filter and sort token balances by symbol and total balance.
- * IOTA tokens are always sorted first.
- * @param tokens The token balances to filter and sort.
- * @returns The filtered and sorted token balances.
- */
+// Sort tokens by symbol and total balance
+// Move this to the API backend
+// Filter out tokens with zero balance
 export function filterAndSortTokenBalances(tokens: CoinBalance[]) {
     return tokens
         .filter((token) => Number(token.totalBalance) > 0)
-        .sort((a, b) => {
-            if (a.coinType === IOTA_TYPE_ARG && b.coinType !== IOTA_TYPE_ARG) {
-                return -1;
-            } else if (a.coinType !== IOTA_TYPE_ARG && b.coinType === IOTA_TYPE_ARG) {
-                return 1;
-            }
-
-            return (getCoinSymbol(a.coinType) + Number(a.totalBalance)).localeCompare(
-                getCoinSymbol(a.coinType) + Number(b.totalBalance),
-            );
-        });
+        .sort((a, b) =>
+            (getCoinSymbol(a.coinType) + Number(a.totalBalance)).localeCompare(
+                getCoinSymbol(b.coinType) + Number(b.totalBalance),
+            ),
+        );
 }
