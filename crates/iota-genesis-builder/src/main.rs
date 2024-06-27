@@ -72,11 +72,15 @@ fn main() -> Result<()> {
 
     // Start the Hornet snapshot parser
     let snapshot_parser = HornetGenesisSnapshotParser::new(File::open(snapshot_path)?)?;
+    let total_supply = match coin_type {
+        CoinType::Iota => scale_amount(snapshot_parser.total_supply()?)?,
+        CoinType::Shimmer => snapshot_parser.total_supply()?,
+    };
 
     // Prepare the migration using the parser output stream
     let migration = Migration::new(
         snapshot_parser.target_milestone_timestamp(),
-        scale_amount(snapshot_parser.total_supply()?)?,
+        total_supply,
         target_network,
         coin_type,
     )?;
