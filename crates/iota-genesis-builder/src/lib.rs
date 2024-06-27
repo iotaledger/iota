@@ -33,7 +33,7 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     epoch_data::EpochData,
     gas::IotaGasStatus,
-    gas_coin::GasCoin,
+    gas_coin::{GasCoin, GAS, TOTAL_SUPPLY_MICROS},
     governance::StakedIota,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
@@ -297,6 +297,8 @@ impl Builder {
         Ok(())
     }
 
+    // TODO: Double check if we have to add additional checks here for newly
+    // introduced fields.
     /// Runs through validation checks on the generated output (the initial
     /// chain state) based on the input values present in the builder
     fn validate_output(&self) {
@@ -310,10 +312,6 @@ impl Builder {
             protocol_version,
             chain_start_timestamp_ms,
             epoch_duration_ms,
-            stake_subsidy_start_epoch,
-            stake_subsidy_initial_distribution_amount,
-            stake_subsidy_period_length,
-            stake_subsidy_decrease_rate,
             max_validator_count,
             min_validator_joining_stake,
             validator_low_stake_threshold,
@@ -412,10 +410,6 @@ impl Builder {
 
         assert_eq!(system_state.parameters.epoch_duration_ms, epoch_duration_ms);
         assert_eq!(
-            system_state.parameters.stake_subsidy_start_epoch,
-            stake_subsidy_start_epoch,
-        );
-        assert_eq!(
             system_state.parameters.max_validator_count,
             max_validator_count,
         );
@@ -436,20 +430,6 @@ impl Builder {
             validator_low_stake_grace_period,
         );
 
-        assert_eq!(system_state.stake_subsidy.distribution_counter, 0);
-        assert_eq!(
-            system_state.stake_subsidy.current_distribution_amount,
-            stake_subsidy_initial_distribution_amount,
-        );
-        assert_eq!(
-            system_state.stake_subsidy.stake_subsidy_period_length,
-            stake_subsidy_period_length,
-        );
-        assert_eq!(
-            system_state.stake_subsidy.stake_subsidy_decrease_rate,
-            stake_subsidy_decrease_rate,
-        );
-
         assert!(!system_state.safe_mode);
         assert_eq!(
             system_state.epoch_start_timestamp_ms,
@@ -467,13 +447,9 @@ impl Builder {
         assert_eq!(system_state.validators.inactive_validators.size, 0);
         assert_eq!(system_state.validators.validator_candidates.size, 0);
 
-        // Check distribution is correct
+        // TODO: Consider adding total supply check with changed distribution schedule,
+        // unless already in place. Check distribution is correct
         let token_distribution_schedule = self.token_distribution_schedule.clone().unwrap();
-        assert_eq!(
-            system_state.stake_subsidy.balance.value(),
-            token_distribution_schedule.stake_subsidy_fund_micros
-        );
-
         let mut gas_objects: BTreeMap<ObjectID, (&Object, GasCoin)> = unsigned_genesis
             .objects()
             .iter()
@@ -1114,27 +1090,54 @@ pub fn generate_genesis_system_object(
             vec![],
             vec![],
         );
-        let total_iota = builder.programmable_move_call(
+
+        let iota_supply = builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("iota").to_owned(),
-            ident_str!("increase_supply").to_owned(),
-            vec![],
+            ident_str!("coin").to_owned(),
+            ident_str!("supply_mut").to_owned(),
+            vec![GAS::type_().into()],
             vec![iota_treasury_cap],
         );
-        // TODO:
-        // IOTA supply that already distributed to the users needs to be burned here
-        // or inside the `genesis::new` function.
-        // Rename the `destroy_storage_rebates` function or create a specific one.
 
-        // builder.programmable_move_call(
-        //     IOTA_FRAMEWORK_PACKAGE_ID,
-        //     BALANCE_MODULE_NAME.to_owned(),
-        //     BALANCE_DESTROY_REBATES_FUNCTION_NAME.to_owned(),
-        //     vec![GAS::type_tag()],
-        //     vec![total_iota],
-        // );
+        let total_iota_supply = builder
+            .input(CallArg::Pure(
+                bcs::to_bytes(&TOTAL_SUPPLY_MICROS).expect("serialization of u64 should succeed"),
+            ))
+            .expect("adding the total IOTA supply argument should succeed");
+        let total_iota = builder.programmable_move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            ident_str!("balance").to_owned(),
+            ident_str!("increase_supply").to_owned(),
+            vec![GAS::type_().into()],
+            vec![iota_supply, total_iota_supply],
+        );
 
-        // Step 5: Run genesis.
+        // Step 5: Burn the tokens that are marked as such, according to the token distribution schedule.
+        let iotas_to_burn_arg = builder
+            .input(CallArg::Pure(
+                bcs::to_bytes(&token_distribution_schedule.funds_to_burn)
+                    .expect("serialization of u64 should succeed"),
+            ))
+            .expect("adding the funds to burn argument should succeed");
+        let iotas_to_burn_balance = builder.programmable_move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            ident_str!("balance").to_owned(),
+            ident_str!("split").to_owned(),
+            vec![GAS::type_().into()],
+            vec![total_iota, iotas_to_burn_arg],
+        );
+
+        builder.programmable_move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            ident_str!("balance").to_owned(),
+            ident_str!("decrease_supply").to_owned(),
+            vec![GAS::type_().into()],
+            vec![iota_supply, iotas_to_burn_balance],
+        );
+
+        // TODO: Rename the `destroy_storage_rebates` function or create a specific one.
+
+        // Step 6: Run genesis.
         // The first argument is the system state uid we got from step 1 and the second
         // one is the IOTA `TreasuryCap` we got from step 4.
         let mut arguments = vec![iota_system_state_uid, iota_treasury_cap, total_iota];

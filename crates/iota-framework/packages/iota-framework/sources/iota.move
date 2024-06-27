@@ -5,7 +5,6 @@
 /// Coin<IOTA> is the token used to pay for gas in IOTA.
 /// It has 9 decimals, and the smallest unit (10^-9) is called "nano".
 module iota::iota {
-    use iota::balance::Balance;
     use iota::coin::{Self, TreasuryCap};
     use iota::url;
 
@@ -18,6 +17,7 @@ module iota::iota {
     /// 10^-9 of a IOTA token
     const NANO_PER_IOTA: u64 = 1_000_000_000;
     
+    #[allow(unused_const)]
     /// The total supply of IOTA denominated in Nano (4.6 Billion * 10^9)
     const TOTAL_SUPPLY_NANO: u64 = 4_600_000_000_000_000_000;
 
@@ -44,16 +44,6 @@ module iota::iota {
         transfer::public_freeze_object(metadata);
 
         treasury
-    }
-
-    #[allow(unused_function)]
-    /// Increase the IOTA supply.
-    /// This should be called only once during genesis creation.
-    fun increase_supply(cap: &mut TreasuryCap<IOTA>, ctx: &TxContext): Balance<IOTA> {
-        assert!(ctx.sender() == @0x0, ENotSystemAddress);
-        assert!(ctx.epoch() == 0, EAlreadyMinted);
-
-        cap.supply_mut().increase_supply(TOTAL_SUPPLY_NANO)
     }
 
     public entry fun transfer(c: coin::Coin<IOTA>, recipient: address) {
