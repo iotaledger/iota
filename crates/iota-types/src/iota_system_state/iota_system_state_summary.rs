@@ -11,15 +11,7 @@ use serde_with::serde_as;
 
 use super::{IotaSystemState, IotaSystemStateTrait};
 use crate::{
-    base_types::{AuthorityName, IotaAddress, ObjectID},
-    committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata},
-    dynamic_field::get_dynamic_field_from_store,
-    error::IotaError,
-    id::ID,
-    iota_serde::{BigInt, Readable},
-    iota_system_state::get_validator_from_table,
-    multiaddr::Multiaddr,
-    storage::ObjectStore,
+    base_types::{AuthorityName, IotaAddress, ObjectID}, committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata}, dynamic_field::get_dynamic_field_from_store, error::IotaError, gas_coin::TOTAL_SUPPLY_MICROS, id::ID, iota_serde::{BigInt, Readable}, iota_system_state::get_validator_from_table, multiaddr::Multiaddr, storage::ObjectStore
 };
 
 /// This is the JSON-RPC type for the IOTA system state object.
@@ -127,6 +119,11 @@ pub struct IotaSystemStateSummary {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub validator_low_stake_grace_period: u64,
+
+    /// The current total supply of IOTA in nanos.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub total_iota_supply_nanos: u64,
 
     // Stake subsidy information
     /// Balance of IOTA set aside for stake subsidies that will be drawn down
@@ -359,6 +356,7 @@ impl Default for IotaSystemStateSummary {
             validator_low_stake_threshold: 0,
             validator_very_low_stake_threshold: 0,
             validator_low_stake_grace_period: 0,
+            total_iota_supply_nanos: TOTAL_SUPPLY_MICROS,
             stake_subsidy_balance: 0,
             stake_subsidy_distribution_counter: 0,
             stake_subsidy_current_distribution_amount: 0,

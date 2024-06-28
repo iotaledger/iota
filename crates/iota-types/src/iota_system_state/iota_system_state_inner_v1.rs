@@ -591,8 +591,7 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
             epoch,
             protocol_version,
             system_state_version,
-            // TODO: Add this to the system state summary.
-            iota_treasury_cap: _,
+            iota_treasury_cap,
             validators:
                 ValidatorSetV1 {
                     total_stake,
@@ -666,6 +665,7 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
             safe_mode_storage_rebates,
             safe_mode_non_refundable_storage_fee,
             epoch_start_timestamp_ms,
+            total_iota_supply_nanos: iota_treasury_cap.total_supply.value,
             // TODO: Remove
             stake_subsidy_start_epoch: 0,
             epoch_duration_ms,

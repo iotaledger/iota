@@ -659,8 +659,7 @@ pub struct ProtocolConfig {
     /// Unit gas price, Micros per internal gas unit.
     storage_gas_price: Option<u64>,
 
-    /// The number of tokens that validators should receive per epoch when
-    /// performing optimally.
+    /// The number of tokens that the set of validators should receive per epoch.
     validator_target_reward: Option<u64>,
 
     /// === Core Protocol ===
