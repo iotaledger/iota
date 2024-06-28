@@ -45,10 +45,9 @@ pub(crate) fn outputs() -> Vec<(OutputHeader, Output)> {
         let mut owning_addresses: VecDeque<Address> = vec![alias_address.into()].into();
 
         while let Some(owner) = owning_addresses.pop_front() {
-            // let each alias or nft own some variable amount of other outputs
-            let owned_assets_count = rng.gen_range(1usize..=5);
-
-            for _ in 0..owned_assets_count {
+            // randomly choose the number of owned assets
+            for _ in 0..rng.gen_range(1usize..=5) {
+                // randomly choose the type of asset
                 match rng.gen_range(0u8..=3) {
                     0 /* alias */ => {
                         let (output_header, output) = random_alias_output(owner);
