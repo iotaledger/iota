@@ -190,7 +190,7 @@ module timelock::timelock_tests {
         scenario.end();
     }
 
-        #[test]
+    #[test]
     fun test_lock_unlock_to_labeled_flow() {
         // Set up a test environment.
         let sender = @0xA;

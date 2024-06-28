@@ -112,6 +112,8 @@ impl Builder {
         }
     }
 
+    /// Checks if the genesis to be built is vanilla or if it includes Stardust
+    /// migration stakes
     pub fn is_vanilla(&self) -> bool {
         self.genesis_stake.is_empty()
     }
@@ -191,6 +193,8 @@ impl Builder {
         self
     }
 
+    /// Utility to load Stardust Migration Objects into the builder from a
+    /// snapshot file
     pub fn load_stardust_migration_objects(
         mut self,
         snapshot: impl AsRef<Path>,
@@ -364,10 +368,10 @@ impl Builder {
                 (!self.is_vanilla())
                     .then(|| {
                         self.genesis_stake
-                            .get_timelock_allocations()
+                            .timelock_allocations()
                             .iter()
                             .map(|allocation| {
-                                (allocation.staked_with_validator, allocation.amount_micros)
+                                (allocation.staked_with_validator, allocation.amount_nanos)
                             })
                             .collect()
                     })
@@ -552,7 +556,7 @@ impl Builder {
         let token_distribution_schedule = self.token_distribution_schedule.clone().unwrap();
         assert_eq!(
             system_state.stake_subsidy.balance.value(),
-            token_distribution_schedule.stake_subsidy_fund_micros
+            token_distribution_schedule.stake_subsidy_fund_nanos
         );
 
         let mut gas_objects: BTreeMap<ObjectID, (&Object, GasCoin)> = unsigned_genesis
@@ -846,7 +850,7 @@ fn build_unsigned_genesis_data(
             .then(|| {
                 timelock_allocations
                     .iter()
-                    .map(|allocation| (allocation.staked_with_validator, allocation.amount_micros))
+                    .map(|allocation| (allocation.staked_with_validator, allocation.amount_nanos))
                     .collect()
             })
             .unwrap_or_default(),
@@ -1234,7 +1238,7 @@ pub fn generate_genesis_system_object(
 
         // Step 6: Handle the timelock allocations.
         for allocation in timelock_allocations {
-            if allocation.surplus_micros > 0 {
+            if allocation.surplus_nanos > 0 {
                 // Split the surplus amount.
                 let timelock = *allocation
                     .timelock_objects
@@ -1242,7 +1246,7 @@ pub fn generate_genesis_system_object(
                     .expect("there should be at least two objects");
                 let arguments = vec![
                     builder.obj(ObjectArg::ImmOrOwnedObject(timelock))?,
-                    builder.pure(allocation.surplus_micros)?,
+                    builder.pure(allocation.surplus_nanos)?,
                 ];
                 let surplus_timelock = builder.programmable_move_call(
                     TIMELOCK_ADDRESS.into(),

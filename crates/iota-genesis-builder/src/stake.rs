@@ -32,7 +32,7 @@ impl GenesisStake {
     }
 
     /// Get a reference of the inner timelock allocations.
-    pub fn get_timelock_allocations(&self) -> &Vec<TimelockAllocation> {
+    pub fn timelock_allocations(&self) -> &Vec<TimelockAllocation> {
         &self.timelock_allocations
     }
 
@@ -80,7 +80,7 @@ impl GenesisStake {
         vanilla_schedule
             .allocations
             .extend(self.token_allocation.clone());
-        vanilla_schedule.stake_subsidy_fund_micros -= self.sum_token_allocation();
+        vanilla_schedule.stake_subsidy_fund_nanos -= self.sum_token_allocation();
         vanilla_schedule.validate();
         vanilla_schedule
     }
@@ -90,18 +90,18 @@ impl GenesisStake {
 #[derive(Default, Debug, Clone)]
 pub struct AllocationObjects {
     inner: Vec<ObjectRef>,
-    /// The total amount of micros to be allocated from this
+    /// The total amount of nanos to be allocated from this
     /// collection of objects.
-    amount_micros: u64,
+    amount_nanos: u64,
     /// The surplus amount that is not be allocated from this
     /// collection of objects.
-    surplus_micros: u64,
+    surplus_nanos: u64,
 }
 
 /// Pick gas-coin like objects from a pool to cover
 /// the `target_amount`.
 ///
-/// This does not split any suprlus balance, but delegates
+/// This does not split any surplus balance, but delegates
 /// splitting to the caller.
 pub fn pick_objects_for_allocation<'obj>(
     pool: &mut impl Iterator<Item = &'obj Object>,
@@ -121,12 +121,12 @@ pub fn pick_objects_for_allocation<'obj>(
         .collect();
     AllocationObjects {
         inner: objects,
-        amount_micros: amount.min(target_amount),
-        surplus_micros: amount.saturating_sub(target_amount),
+        amount_nanos: amount.min(target_amount),
+        surplus_nanos: amount.saturating_sub(target_amount),
     }
 }
 
-/// Create the necessary allocations to cover `amount_micros` for all
+/// Create the necessary allocations to cover `amount_nanos` for all
 /// `validators`.
 ///
 /// This function iterates in turn over [`TimeLock`] and
@@ -136,7 +136,7 @@ pub fn delegate_genesis_stake(
     validators: &[GenesisValidatorInfo],
     delegator: IotaAddress,
     migration_objects: &MigrationObjects,
-    amount_micros: u64,
+    amount_nanos: u64,
 ) -> anyhow::Result<GenesisStake> {
     let timelocks_pool = migration_objects.get_timelocks_by_owner(delegator);
     let gas_coins_pool = migration_objects.get_gas_coins_by_owner(delegator);
@@ -150,53 +150,53 @@ pub fn delegate_genesis_stake(
     // For each validator we try to fill their allocation up to
     // total_amount_to_stake_per_validator
     for validator in validators {
-        let target_stake = amount_micros;
+        let target_stake = amount_nanos;
 
         // Start filling allocations with timelocks
         let timelock_objects = pick_objects_for_allocation(&mut timelocks_pool, target_stake);
         // TODO: This is not an optimal solution because the last timelock
-        // might have a suprlus amount, which cannot be used without splitting.
+        // might have a surplus amount, which cannot be used without splitting.
 
         if !timelock_objects.inner.is_empty() {
             // For timelocks we need cannot add the stake directly, so we create
             // `TimelockAllocation` objects
             genesis_stake.timelock_allocations.push(TimelockAllocation {
                 recipient_address: delegator,
-                amount_micros: timelock_objects.amount_micros,
-                surplus_micros: timelock_objects.surplus_micros,
+                amount_nanos: timelock_objects.amount_nanos,
+                surplus_nanos: timelock_objects.surplus_nanos,
                 timelock_objects: timelock_objects.inner,
                 staked_with_validator: validator.info.iota_address(),
             })
         }
 
         // Then cover any remaining target stake with gas coins
-        let remainder_target_stake = target_stake - timelock_objects.amount_micros;
+        let remainder_target_stake = target_stake - timelock_objects.amount_nanos;
 
         let gas_coin_objects =
             pick_objects_for_allocation(&mut gas_coins_pool, remainder_target_stake);
         genesis_stake.gas_coins_to_burn = gas_coin_objects.inner;
 
         // TODO: also here, this is not an optimal solution because the last gas object
-        // might have a suprlus amount, which cannot be used without splitting.
+        // might have a surplus amount, which cannot be used without splitting.
 
-        if gas_coin_objects.amount_micros < remainder_target_stake {
+        if gas_coin_objects.amount_nanos < remainder_target_stake {
             return Err(anyhow::anyhow!(
                 "Not enough funds for delegator {:?}",
                 delegator
             ));
-        } else if gas_coin_objects.amount_micros > 0 {
+        } else if gas_coin_objects.amount_nanos > 0 {
             genesis_stake.token_allocation.push(TokenAllocation {
                 recipient_address: delegator,
-                amount_micros: gas_coin_objects.amount_micros,
+                amount_micros: gas_coin_objects.amount_nanos,
                 staked_with_validator: Some(validator.info.iota_address()),
             });
-            if gas_coin_objects.surplus_micros > 0 {
-                // This essentially schedules returning any suprlus amount
+            if gas_coin_objects.surplus_nanos > 0 {
+                // This essentially schedules returning any surplus amount
                 // from the last coin in `gas_coin_objects` to the delegator
                 // as a new coin
                 genesis_stake.token_allocation.push(TokenAllocation {
                     recipient_address: delegator,
-                    amount_micros: gas_coin_objects.surplus_micros,
+                    amount_micros: gas_coin_objects.surplus_nanos,
                     staked_with_validator: None,
                 });
             }

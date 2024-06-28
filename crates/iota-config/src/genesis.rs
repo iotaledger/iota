@@ -479,21 +479,21 @@ impl Default for GenesisCeremonyParameters {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct TokenDistributionSchedule {
-    pub stake_subsidy_fund_micros: u64,
+    pub stake_subsidy_fund_nanos: u64,
     pub allocations: Vec<TokenAllocation>,
 }
 
 impl TokenDistributionSchedule {
     pub fn validate(&self) {
-        let mut total_micros = self.stake_subsidy_fund_micros;
+        let mut total_nanos = self.stake_subsidy_fund_nanos;
 
         for allocation in &self.allocations {
-            total_micros += allocation.amount_micros;
+            total_nanos += allocation.amount_micros;
         }
 
-        if total_micros != TOTAL_SUPPLY_MICROS {
+        if total_nanos != TOTAL_SUPPLY_MICROS {
             panic!(
-                "TokenDistributionSchedule adds up to {total_micros} and not expected {TOTAL_SUPPLY_MICROS}"
+                "TokenDistributionSchedule adds up to {total_nanos} and not expected {TOTAL_SUPPLY_MICROS}"
             );
         }
     }
@@ -558,7 +558,7 @@ impl TokenDistributionSchedule {
             .collect();
 
         let schedule = Self {
-            stake_subsidy_fund_micros: supply,
+            stake_subsidy_fund_nanos: supply,
             allocations,
         };
 
@@ -598,7 +598,7 @@ impl TokenDistributionSchedule {
         );
 
         let schedule = Self {
-            stake_subsidy_fund_micros: stake_subsidy_fund_allocation.amount_micros,
+            stake_subsidy_fund_nanos: stake_subsidy_fund_allocation.amount_micros,
             allocations,
         };
 
@@ -615,7 +615,7 @@ impl TokenDistributionSchedule {
 
         writer.serialize(TokenAllocation {
             recipient_address: IotaAddress::default(),
-            amount_micros: self.stake_subsidy_fund_micros,
+            amount_micros: self.stake_subsidy_fund_nanos,
             staked_with_validator: None,
         })?;
 
@@ -638,10 +638,10 @@ pub struct TokenAllocation {
 #[serde(rename_all = "kebab-case")]
 pub struct TimelockAllocation {
     pub recipient_address: IotaAddress,
-    pub amount_micros: u64,
-    /// The suprlus of the total balance of the
+    pub amount_nanos: u64,
+    /// The surplus of the total balance of the
     /// timelock objects w.r.t. the target stake.
-    pub surplus_micros: u64,
+    pub surplus_nanos: u64,
     pub timelock_objects: Vec<ObjectRef>,
     pub staked_with_validator: IotaAddress,
 }
@@ -683,7 +683,7 @@ impl TokenDistributionScheduleBuilder {
 
     pub fn build(&self) -> TokenDistributionSchedule {
         let schedule = TokenDistributionSchedule {
-            stake_subsidy_fund_micros: self.pool,
+            stake_subsidy_fund_nanos: self.pool,
             allocations: self.allocations.clone(),
         };
 

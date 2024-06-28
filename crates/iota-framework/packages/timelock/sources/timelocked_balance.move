@@ -51,9 +51,9 @@ module timelock::timelocked_balance {
         timelock::pack(value, self.expiration_timestamp_ms(), self.label(), ctx)
     }
 
-    /// Split the given `TimeLock<Balance<T>>` to the two parts, one with principal `value`,
-    /// transfer the newly split part to the sender address.
-    public entry fun split_balance<T>(stake: &mut TimeLock<Balance<T>>, value: u64, ctx: &mut TxContext) {
-        split(stake, value, ctx).self_transfer(ctx)
+    /// Split the given `TimeLock<Balance<T>>` into two parts, one with principal `value`,
+    /// and transfer the newly split part to the sender address.
+    public entry fun split_balance<T>(self: &mut TimeLock<Balance<T>>, value: u64, ctx: &mut TxContext) {
+        split(self, value, ctx).self_transfer(ctx)
     }
 }

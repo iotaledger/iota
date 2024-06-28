@@ -16,9 +16,7 @@ fn main() -> anyhow::Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    let mut builder = Builder::new()
-        .load_stardust_migration_objects(OBJECT_SNAPSHOT_FILE_PATH)?
-        .add_stardust_genesis_stake()?;
+    let mut builder = Builder::new().load_stardust_migration_objects(OBJECT_SNAPSHOT_FILE_PATH)?;
     let mut key_pairs = Vec::new();
     let mut rng = OsRng;
     for i in 0..4 {
