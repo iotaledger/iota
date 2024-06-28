@@ -29,6 +29,6 @@ fn main() -> anyhow::Result<()> {
         builder = builder.add_validator_signature(key);
     }
     let genesis = builder.build();
-    println!("{:?}", genesis.objects().len());
+    genesis.save("genesis.blob")?;
     Ok(())
 }
