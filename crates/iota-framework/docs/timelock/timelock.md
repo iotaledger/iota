@@ -8,9 +8,9 @@ A timelock implementation.
 -  [Resource `TimeLock`](#0x10cf_timelock_TimeLock)
 -  [Constants](#@Constants_0)
 -  [Function `lock`](#0x10cf_timelock_lock)
--  [Function `lock_to`](#0x10cf_timelock_lock_to)
+-  [Function `lock_and_transfer_to`](#0x10cf_timelock_lock_and_transfer_to)
 -  [Function `lock_with_label`](#0x10cf_timelock_lock_with_label)
--  [Function `lock_with_label_to`](#0x10cf_timelock_lock_with_label_to)
+-  [Function `lock_with_label_and_transfer_to`](#0x10cf_timelock_lock_with_label_and_transfer_to)
 -  [Function `unlock`](#0x10cf_timelock_unlock)
 -  [Function `expiration_timestamp_ms`](#0x10cf_timelock_expiration_timestamp_ms)
 -  [Function `is_locked`](#0x10cf_timelock_is_locked)
@@ -21,7 +21,7 @@ A timelock implementation.
 -  [Function `is_labeled_with`](#0x10cf_timelock_is_labeled_with)
 -  [Function `pack`](#0x10cf_timelock_pack)
 -  [Function `unpack`](#0x10cf_timelock_unpack)
--  [Function `self_transfer`](#0x10cf_timelock_self_transfer)
+-  [Function `transfer_to_sender`](#0x10cf_timelock_transfer_to_sender)
 -  [Function `check_expiration_timestamp_ms`](#0x10cf_timelock_check_expiration_timestamp_ms)
 
 
@@ -135,15 +135,15 @@ Function to lock an object till a unix timestamp in milliseconds.
 
 </details>
 
-<a name="0x10cf_timelock_lock_to"></a>
+<a name="0x10cf_timelock_lock_and_transfer_to"></a>
 
-## Function `lock_to`
+## Function `lock_and_transfer_to`
 
 Function to lock an object <code>obj</code> until <code>expiration_timestamp_ms</code> and transfer it to address <code><b>to</b></code>.
 Since <code>Timelock&lt;T&gt;</code> does not support public transfer, use this function to lock an object to an address.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="timelock.md#0x10cf_timelock_lock_to">lock_to</a>&lt;T: store&gt;(obj: T, <b>to</b>: <b>address</b>, expiration_timestamp_ms: u64, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code><b>public</b> <b>fun</b> <a href="timelock.md#0x10cf_timelock_lock_and_transfer_to">lock_and_transfer_to</a>&lt;T: store&gt;(obj: T, <b>to</b>: <b>address</b>, expiration_timestamp_ms: u64, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -152,7 +152,7 @@ Since <code>Timelock&lt;T&gt;</code> does not support public transfer, use this 
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="timelock.md#0x10cf_timelock_lock_to">lock_to</a>&lt;T: store&gt;(
+<pre><code><b>public</b> <b>fun</b> <a href="timelock.md#0x10cf_timelock_lock_and_transfer_to">lock_and_transfer_to</a>&lt;T: store&gt;(
     obj: T,
     <b>to</b>: <b>address</b>,
     expiration_timestamp_ms: u64,
@@ -203,15 +203,15 @@ Function to lock a labeled object till a unix timestamp in milliseconds.
 
 </details>
 
-<a name="0x10cf_timelock_lock_with_label_to"></a>
+<a name="0x10cf_timelock_lock_with_label_and_transfer_to"></a>
 
-## Function `lock_with_label_to`
+## Function `lock_with_label_and_transfer_to`
 
 Function to lock a labeled object <code>obj</code> until <code>expiration_timestamp_ms</code> and transfer it to address <code><b>to</b></code>.
 Since <code>Timelock&lt;T&gt;</code> does not support public transfer, use this function to lock a labeled object to an address.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="timelock.md#0x10cf_timelock_lock_with_label_to">lock_with_label_to</a>&lt;T: store, L&gt;(<a href="labeler.md#0x10cf_labeler">labeler</a>: &<a href="labeler.md#0x10cf_labeler_LabelerCap">labeler::LabelerCap</a>&lt;L&gt;, obj: T, <b>to</b>: <b>address</b>, expiration_timestamp_ms: u64, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code><b>public</b> <b>fun</b> <a href="timelock.md#0x10cf_timelock_lock_with_label_and_transfer_to">lock_with_label_and_transfer_to</a>&lt;T: store, L&gt;(<a href="labeler.md#0x10cf_labeler">labeler</a>: &<a href="labeler.md#0x10cf_labeler_LabelerCap">labeler::LabelerCap</a>&lt;L&gt;, obj: T, <b>to</b>: <b>address</b>, expiration_timestamp_ms: u64, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -220,7 +220,7 @@ Since <code>Timelock&lt;T&gt;</code> does not support public transfer, use this 
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="timelock.md#0x10cf_timelock_lock_with_label_to">lock_with_label_to</a>&lt;T: store, L&gt;(
+<pre><code><b>public</b> <b>fun</b> <a href="timelock.md#0x10cf_timelock_lock_with_label_and_transfer_to">lock_with_label_and_transfer_to</a>&lt;T: store, L&gt;(
     <a href="labeler.md#0x10cf_labeler">labeler</a>: &LabelerCap&lt;L&gt;,
     obj: T,
     <b>to</b>: <b>address</b>,
@@ -529,14 +529,14 @@ An utility function to unpack a <code><a href="timelock.md#0x10cf_timelock_TimeL
 
 </details>
 
-<a name="0x10cf_timelock_self_transfer"></a>
+<a name="0x10cf_timelock_transfer_to_sender"></a>
 
-## Function `self_transfer`
+## Function `transfer_to_sender`
 
 A utility function to transfer a <code><a href="timelock.md#0x10cf_timelock_TimeLock">TimeLock</a></code> to its original owner.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="timelock.md#0x10cf_timelock_self_transfer">self_transfer</a>&lt;T: store&gt;(lock: <a href="timelock.md#0x10cf_timelock_TimeLock">timelock::TimeLock</a>&lt;T&gt;, ctx: &<a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code><b>public</b> <b>fun</b> <a href="timelock.md#0x10cf_timelock_transfer_to_sender">transfer_to_sender</a>&lt;T: store&gt;(lock: <a href="timelock.md#0x10cf_timelock_TimeLock">timelock::TimeLock</a>&lt;T&gt;, ctx: &<a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -545,7 +545,7 @@ A utility function to transfer a <code><a href="timelock.md#0x10cf_timelock_Time
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="timelock.md#0x10cf_timelock_self_transfer">self_transfer</a>&lt;T: store&gt;(lock: <a href="timelock.md#0x10cf_timelock_TimeLock">TimeLock</a>&lt;T&gt;, ctx: &TxContext) {
+<pre><code><b>public</b> <b>fun</b> <a href="timelock.md#0x10cf_timelock_transfer_to_sender">transfer_to_sender</a>&lt;T: store&gt;(lock: <a href="timelock.md#0x10cf_timelock_TimeLock">TimeLock</a>&lt;T&gt;, ctx: &TxContext) {
     <a href="../iota-framework/transfer.md#0x2_transfer_transfer">transfer::transfer</a>(lock, ctx.sender())
 }
 </code></pre>

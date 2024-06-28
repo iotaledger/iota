@@ -162,7 +162,7 @@ and transfer the newly split part to the sender address.
 
 
 <pre><code><b>public</b> entry <b>fun</b> <a href="timelocked_balance.md#0x10cf_timelocked_balance_split_balance">split_balance</a>&lt;T&gt;(self: &<b>mut</b> TimeLock&lt;Balance&lt;T&gt;&gt;, value: u64, ctx: &<b>mut</b> TxContext) {
-    <a href="timelocked_balance.md#0x10cf_timelocked_balance_split">split</a>(self, value, ctx).self_transfer(ctx)
+    <a href="timelocked_balance.md#0x10cf_timelocked_balance_split">split</a>(self, value, ctx).transfer_to_sender(ctx)
 }
 </code></pre>
 

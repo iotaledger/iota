@@ -253,7 +253,10 @@ impl Builder {
             self.genesis_stake.to_token_distribution_schedule()
         };
 
-        // Burn genesis stake gas objects id present
+        // If the genesis stake was created, then burn gas objects that were added to
+        // the token distribution schedule, because they will be created on the
+        // Move side during genesis. That means we need to prevent from being
+        // part of the initial genesis objects by evicting them here.
         self.migration_objects.evict(
             self.genesis_stake
                 .take_gas_coins_to_burn()
@@ -278,7 +281,7 @@ impl Builder {
         self.built_genesis = Some(build_unsigned_genesis_data(
             &self.parameters,
             &token_distribution_schedule,
-            self.genesis_stake.take_timelock_allocations(),
+            &self.genesis_stake.take_timelock_allocations(),
             &validators,
             &objects,
         ));
@@ -826,7 +829,7 @@ fn get_genesis_protocol_config(version: ProtocolVersion) -> ProtocolConfig {
 fn build_unsigned_genesis_data(
     parameters: &GenesisCeremonyParameters,
     token_distribution_schedule: &TokenDistributionSchedule,
-    timelock_allocations: Vec<TimelockAllocation>,
+    timelock_allocations: &[TimelockAllocation],
     validators: &[GenesisValidatorInfo],
     objects: &[Object],
 ) -> UnsignedGenesis {
@@ -1020,7 +1023,7 @@ fn create_genesis_objects(
     validators: &[GenesisValidatorMetadata],
     parameters: &GenesisChainParameters,
     token_distribution_schedule: &TokenDistributionSchedule,
-    timelock_allocations: Vec<TimelockAllocation>,
+    timelock_allocations: &[TimelockAllocation],
     system_packages: Vec<SystemPackage>,
     metrics: Arc<LimitsMetrics>,
 ) -> Vec<Object> {
@@ -1148,7 +1151,7 @@ pub fn generate_genesis_system_object(
     genesis_ctx: &mut TxContext,
     genesis_chain_parameters: &GenesisChainParameters,
     token_distribution_schedule: &TokenDistributionSchedule,
-    timelock_allocations: Vec<TimelockAllocation>,
+    timelock_allocations: &[TimelockAllocation],
     metrics: Arc<LimitsMetrics>,
 ) -> anyhow::Result<()> {
     let protocol_config = ProtocolConfig::get_for_version(
