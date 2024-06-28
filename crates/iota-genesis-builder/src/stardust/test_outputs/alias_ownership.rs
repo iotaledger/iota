@@ -1,42 +1,91 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::VecDeque;
+
 use iota_sdk::types::block::{
-    address::{AliasAddress, Ed25519Address},
+    address::{Address, AliasAddress, Ed25519Address},
     output::{
         feature::{Irc27Metadata, IssuerFeature, MetadataFeature},
         unlock_condition::{
             AddressUnlockCondition, GovernorAddressUnlockCondition,
             ImmutableAliasAddressUnlockCondition,
         },
-        AliasId, AliasOutputBuilder, BasicOutputBuilder, Feature, FoundryOutputBuilder, NftId,
-        NftOutputBuilder, Output, SimpleTokenScheme, UnlockCondition,
+        AliasId, AliasOutput, AliasOutputBuilder, BasicOutput, BasicOutputBuilder, Feature,
+        FoundryOutput, FoundryOutputBuilder, NftId, NftOutput, NftOutputBuilder, Output,
+        SimpleTokenScheme, UnlockCondition,
     },
 };
+use rand::{rngs::StdRng, Rng, SeedableRng};
 
 use crate::stardust::{test_outputs::random_output_header, types::output_header::OutputHeader};
 
 pub(crate) fn outputs() -> Vec<(OutputHeader, Output)> {
-    let alias_output_header = random_output_header();
-    let alias_owner = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
-
-    let alias_output = AliasOutputBuilder::new_with_amount(1_000_000, AliasId::new(rand::random()))
-        .add_unlock_condition(GovernorAddressUnlockCondition::new(alias_owner))
-        .finish()
-        .unwrap();
-    let alias_address = alias_output.alias_address(&alias_output_header.output_id());
-
     let mut outputs = Vec::new();
 
-    outputs.push((alias_output_header, Output::from(alias_output)));
-    outputs.push(owns_random_basic_output(alias_address));
-    outputs.push(owns_random_nft_output(alias_address));
-    outputs.push(owns_random_alias_output(alias_address));
-    outputs.push(owns_random_foundry_output(alias_address));
+    // create a randomized ownership dependency tree
+    let randomness_seed = rand::random();
+    let mut rng = StdRng::seed_from_u64(randomness_seed);
+    println!("alias ownership randomness seed: {randomness_seed}");
+
+    // create 10 different alias outputs with each owning various other assets
+    for _ in 0..10 {
+        let alias_output_header = random_output_header();
+        let alias_owner = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
+        let alias_output =
+            AliasOutputBuilder::new_with_amount(1_000_000, AliasId::new(rand::random()))
+                .add_unlock_condition(GovernorAddressUnlockCondition::new(alias_owner))
+                .finish()
+                .unwrap();
+        let alias_address = alias_output.alias_address(&alias_output_header.output_id());
+
+        // let this alias own various other assets, that may themselves own other assets
+        let max_depth = rng.gen_range(1usize..5);
+        let mut n = 0;
+        let mut owning_addresses: VecDeque<Address> = vec![alias_address.into()].into();
+
+        while let Some(owner) = owning_addresses.pop_front() {
+            // let each alias or nft own some variable amount of other outputs
+            let owned_assets_count = rng.gen_range(1usize..=5);
+
+            for _ in 0..owned_assets_count {
+                match rng.gen_range(0u8..=3) {
+                    0 /* alias */ => {
+                        let (output_header, output) = random_alias_output(owner);
+                        owning_addresses
+                            .push_back(output.alias_address(&output_header.output_id()).into());
+                        outputs.push((output_header, output.into()));
+                    }
+                    1 /* nft */ => {
+                        let (output_header, output) = random_nft_output(owner);
+                        owning_addresses
+                            .push_back(output.nft_address(&output_header.output_id()).into());
+                        outputs.push((output_header, output.into()));
+                    }
+                    2 /* basic */ => {
+                        let (output_header, output) = random_basic_output(owner);
+                        outputs.push((output_header, output.into()));
+                    }
+                    3 /* foundry */=> {
+                        if let Address::Alias(owner) = owner {
+                            let (output_header, output) = random_foundry_output(owner);
+                            outputs.push((output_header, output.into()));
+                        }
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            if n < max_depth {
+                n += 1;
+            } else {
+                break;
+            }
+        }
+    }
     outputs
 }
 
-fn owns_random_basic_output(owner: AliasAddress) -> (OutputHeader, Output) {
+fn random_basic_output(owner: impl Into<Address>) -> (OutputHeader, BasicOutput) {
     let basic_output_header = random_output_header();
 
     let basic_output = BasicOutputBuilder::new_with_amount(1_000_000)
@@ -44,10 +93,11 @@ fn owns_random_basic_output(owner: AliasAddress) -> (OutputHeader, Output) {
         .finish()
         .unwrap();
 
-    (basic_output_header, Output::from(basic_output))
+    (basic_output_header, basic_output)
 }
 
-fn owns_random_nft_output(owner: AliasAddress) -> (OutputHeader, Output) {
+fn random_nft_output(owner: impl Into<Address>) -> (OutputHeader, NftOutput) {
+    let owner = owner.into();
     let nft_output_header = random_output_header();
     let nft_metadata = Irc27Metadata::new(
         "image/png",
@@ -59,7 +109,7 @@ fn owns_random_nft_output(owner: AliasAddress) -> (OutputHeader, Output) {
     .with_description("description");
 
     let nft_output = NftOutputBuilder::new_with_amount(1_000_000, NftId::new(rand::random()))
-        .add_unlock_condition(AddressUnlockCondition::new(owner))
+        .add_unlock_condition(AddressUnlockCondition::new(owner.clone()))
         .with_immutable_features(vec![
             Feature::Metadata(
                 MetadataFeature::new(serde_json::to_vec(&nft_metadata).unwrap()).unwrap(),
@@ -69,10 +119,10 @@ fn owns_random_nft_output(owner: AliasAddress) -> (OutputHeader, Output) {
         .finish()
         .unwrap();
 
-    (nft_output_header, Output::from(nft_output))
+    (nft_output_header, nft_output)
 }
 
-fn owns_random_alias_output(owner: AliasAddress) -> (OutputHeader, Output) {
+fn random_alias_output(owner: impl Into<Address>) -> (OutputHeader, AliasOutput) {
     let alias_output_header = random_output_header();
 
     let alias_output = AliasOutputBuilder::new_with_amount(1_000_000, AliasId::null())
@@ -80,10 +130,10 @@ fn owns_random_alias_output(owner: AliasAddress) -> (OutputHeader, Output) {
         .finish()
         .unwrap();
 
-    (alias_output_header, Output::from(alias_output))
+    (alias_output_header, alias_output)
 }
 
-fn owns_random_foundry_output(owner: AliasAddress) -> (OutputHeader, Output) {
+fn random_foundry_output(owner: impl Into<AliasAddress>) -> (OutputHeader, FoundryOutput) {
     let foundry_output_header = random_output_header();
 
     let supply = 1_000_000;
@@ -95,5 +145,5 @@ fn owns_random_foundry_output(owner: AliasAddress) -> (OutputHeader, Output) {
         .finish_with_params(supply)
         .unwrap();
 
-    (foundry_output_header, Output::from(foundry_output))
+    (foundry_output_header, foundry_output)
 }
