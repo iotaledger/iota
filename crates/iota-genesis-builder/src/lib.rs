@@ -1239,8 +1239,61 @@ pub fn generate_genesis_system_object(
             arguments,
         );
 
+        builder.finish()
+    };
+
+    let InnerTemporaryStore { mut written, .. } = executor.update_genesis_state(
+        &*store,
+        &protocol_config,
+        metrics.clone(),
+        genesis_ctx,
+        CheckedInputObjects::new_for_genesis(vec![]),
+        pt,
+    )?;
+
+    // update the value of the clock to match the chain start time
+    {
+        let object = written.get_mut(&iota_types::IOTA_CLOCK_OBJECT_ID).unwrap();
+        object
+            .data
+            .try_as_move_mut()
+            .unwrap()
+            .set_clock_timestamp_ms_unsafe(genesis_chain_parameters.chain_start_timestamp_ms);
+    }
+
+    store.finish(written);
+
+    // Timelock allocation
+    let mut timelock_allocation_input_objects: Vec<ObjectReadResult> = vec![];
+    timelock_allocation_input_objects.push(ObjectReadResult::new(
+        InputObjectKind::SharedMoveObject {
+            id: IOTA_SYSTEM_STATE_OBJECT_ID,
+            initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
+            mutable: true,
+        },
+        store
+            .get_object(&IOTA_SYSTEM_STATE_OBJECT_ID)
+            .unwrap()
+            .clone()
+            .into(),
+    ));
+    let pt2 = {
         // Step 6: Handle the timelock allocations.
+        let mut builder = ProgrammableTransactionBuilder::new();
         for allocation in timelock_allocations {
+            timelock_allocation_input_objects.append(
+                &mut allocation
+                    .timelock_objects
+                    .iter()
+                    .map(|&timelock_ref| {
+                        ObjectReadResult::new(
+                            InputObjectKind::ImmOrOwnedMoveObject(timelock_ref),
+                            store.get_object(&timelock_ref.0).unwrap().clone().into(),
+                        )
+                    })
+                    .collect(),
+            );
+
             if allocation.surplus_nanos > 0 {
                 // Split the surplus amount.
                 let timelock = *allocation
@@ -1261,7 +1314,7 @@ pub fn generate_genesis_system_object(
                 builder.programmable_move_call(
                     TIMELOCK_ADDRESS.into(),
                     ident_str!("timelock").to_owned(),
-                    ident_str!("self_transfer").to_owned(),
+                    ident_str!("transfer_to_sender").to_owned(),
                     vec![Balance::type_tag(GAS::type_tag())],
                     vec![surplus_timelock],
                 );
@@ -1290,8 +1343,8 @@ pub fn generate_genesis_system_object(
             );
             builder.programmable_move_call(
                 TIMELOCK_ADDRESS.into(),
-                ident_str!("timelock").to_owned(),
-                ident_str!("self_transfer_multiple").to_owned(),
+                ident_str!("timelocked_staked_iota").to_owned(),
+                ident_str!("transfer_to_sender_multiple").to_owned(),
                 vec![],
                 vec![receipt_vector],
             );
@@ -1299,24 +1352,14 @@ pub fn generate_genesis_system_object(
         builder.finish()
     };
 
-    let InnerTemporaryStore { mut written, .. } = executor.update_genesis_state(
+    let InnerTemporaryStore { written, .. } = executor.update_genesis_state(
         &*store,
         &protocol_config,
         metrics,
         genesis_ctx,
-        CheckedInputObjects::new_for_genesis(vec![]),
-        pt,
+        CheckedInputObjects::new_for_genesis(timelock_allocation_input_objects),
+        pt2,
     )?;
-
-    // update the value of the clock to match the chain start time
-    {
-        let object = written.get_mut(&iota_types::IOTA_CLOCK_OBJECT_ID).unwrap();
-        object
-            .data
-            .try_as_move_mut()
-            .unwrap()
-            .set_clock_timestamp_ms_unsafe(genesis_chain_parameters.chain_start_timestamp_ms);
-    }
 
     store.finish(written);
 
