@@ -134,7 +134,6 @@ pub trait ReadApi {
         descending_order: bool,
     ) -> RpcResult<CheckpointPage>;
 
-    /// #[rustfmt::skip]
     /// Return transaction events.
     #[method(name = "getEvents")]
     async fn get_events(

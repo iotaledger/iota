@@ -1,7 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-mod dummy;
+mod stardust_mix;
+mod vesting_schedule_entity;
+mod vesting_schedule_iota_airdrop;
 
 use std::{
     fs::{File, OpenOptions},
@@ -10,17 +12,57 @@ use std::{
     str::FromStr,
 };
 
-use iota_sdk::types::block::output::{BasicOutputBuilder, Output, OutputId};
-use iota_types::stardust::error::StardustError;
+use iota_sdk::types::block::{
+    address::Ed25519Address,
+    output::{
+        unlock_condition::{AddressUnlockCondition, TimelockUnlockCondition},
+        BasicOutputBuilder, Output, OutputId,
+    },
+};
 use packable::{packer::IoPacker, Packable};
 
-use crate::stardust::parse::FullSnapshotParser;
+use crate::stardust::{
+    parse::HornetGenesisSnapshotParser,
+    types::{output_header::OutputHeader, output_index::random_output_index},
+};
 
 const OUTPUT_TO_DECREASE_AMOUNT_FROM: &str =
     "0xb462c8b2595d40d3ff19924e3731f501aab13e215613ce3e248d0ed9f212db160000";
+const MERGE_MILESTONE_INDEX: u32 = 7669900;
+const MERGE_TIMESTAMP_SECS: u32 = 1696406475;
+
+pub(crate) fn new_vested_output(
+    transaction_id: &mut [u8; 32],
+    vested_index: &mut u32,
+    amount: u64,
+    address: Ed25519Address,
+    timelock: Option<u32>,
+) -> anyhow::Result<(OutputHeader, Output)> {
+    transaction_id[28..32].copy_from_slice(&vested_index.to_le_bytes());
+    *vested_index -= 1;
+
+    let output_header = OutputHeader::new_testing(
+        *transaction_id,
+        random_output_index(),
+        [0; 32],
+        MERGE_MILESTONE_INDEX,
+        MERGE_TIMESTAMP_SECS,
+    );
+
+    let mut builder = BasicOutputBuilder::new_with_amount(amount)
+        .add_unlock_condition(AddressUnlockCondition::new(address));
+
+    if let Some(timelock) = timelock {
+        builder = builder.add_unlock_condition(TimelockUnlockCondition::new(timelock)?);
+    }
+
+    let output = Output::from(builder.finish().unwrap());
+
+    Ok((output_header, output))
+}
 
 /// Adds outputs to test specific and intricate scenario in the full snapshot.
-pub fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
+pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
     current_path: P,
     new_path: P,
 ) -> anyhow::Result<()> {
@@ -31,18 +73,24 @@ pub fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
         .truncate(true)
         .open(new_path)?;
     let mut writer = IoPacker::new(BufWriter::new(new_file));
-    let mut parser = FullSnapshotParser::new(current_file)?;
-    let output_to_decrease_amount_from =
-        OutputId::from_str(OUTPUT_TO_DECREASE_AMOUNT_FROM).map_err(StardustError::BlockError)?;
+    let parser = HornetGenesisSnapshotParser::new(current_file)?;
+    let output_to_decrease_amount_from = OutputId::from_str(OUTPUT_TO_DECREASE_AMOUNT_FROM)?;
+    let mut new_header = parser.header.clone();
+    let mut vested_index = u32::MAX;
 
-    let new_outputs = dummy::outputs();
+    let new_outputs = [
+        stardust_mix::outputs(&mut vested_index).await?,
+        vesting_schedule_entity::outputs(&mut vested_index).await?,
+        vesting_schedule_iota_airdrop::outputs(&mut vested_index).await?,
+    ]
+    .concat();
     let new_amount = new_outputs.iter().map(|o| o.1.amount()).sum::<u64>();
 
     // Increments the output count according to newly generated outputs.
-    parser.header.output_count += new_outputs.len() as u64;
+    new_header.output_count += new_outputs.len() as u64;
 
     // Writes the new header.
-    parser.header.pack(&mut writer)?;
+    new_header.pack(&mut writer)?;
 
     // Writes previous and new outputs.
     for (output_header, output) in parser.outputs().filter_map(|o| o.ok()).chain(new_outputs) {
@@ -57,8 +105,7 @@ pub fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
             let output = Output::from(
                 BasicOutputBuilder::from(basic)
                     .with_amount(amount)
-                    .finish()
-                    .map_err(StardustError::BlockError)?,
+                    .finish()?,
             );
 
             output.pack(&mut writer)?;

@@ -11,11 +11,11 @@ import { LabelValueItem } from '_components/LabelValueItem';
 import { LabelValuesContainer } from '_components/LabelValuesContainer';
 import Loading from '_components/loading';
 import { NFTDisplayCard } from '_components/nft-display';
-import { useGetNFTMeta, useNFTBasicData, useOwnedNFT } from '_hooks';
+import { useNFTBasicData, useOwnedNFT } from '_hooks';
 import { useExplorerLink } from '_src/ui/app/hooks/useExplorerLink';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import PageTitle from '_src/ui/app/shared/PageTitle';
-import { useGetKioskContents } from '@iota/core';
+import { useGetKioskContents, useGetNFTMeta } from '@iota/core';
 import { ArrowRight16, ArrowUpRight12 } from '@iota/icons';
 import { formatAddress } from '@iota/iota.js/utils';
 import cl from 'clsx';
@@ -58,7 +58,7 @@ function NFTDetailsPage() {
     const metaValues = metaFields ? metaFields.values : [];
     const { data: nftDisplayData, isPending: isPendingDisplay } = useGetNFTMeta(nftId || '');
     const objectExplorerLink = useExplorerLink({
-        type: ExplorerLinkType.object,
+        type: ExplorerLinkType.Object,
         objectID: nftId || '',
     });
     const ownerAddress =
@@ -68,7 +68,7 @@ function NFTDetailsPage() {
             objectData.owner.AddressOwner) ||
         '';
     const ownerExplorerLink = useExplorerLink({
-        type: ExplorerLinkType.address,
+        type: ExplorerLinkType.Address,
         address: ownerAddress,
     });
     const isGuardLoading = useUnlockedGuard();
