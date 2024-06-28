@@ -3,14 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export enum AppType {
-    unknown,
-    fullscreen,
-    popup,
+    Unknown,
+    Fullscreen,
+    Popup,
 }
 
 export function getFromLocationSearch(search: string) {
     if (/type=popup/.test(window.location.search)) {
-        return AppType.popup;
+        return AppType.Popup;
     }
-    return AppType.fullscreen;
+    return AppType.Fullscreen;
 }

@@ -1,6 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+mod stardust_mix;
 mod vesting_schedule_entity;
 mod vesting_schedule_iota_airdrop;
 
@@ -78,6 +79,7 @@ pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
     let mut vested_index = u32::MAX;
 
     let new_outputs = [
+        stardust_mix::outputs(&mut vested_index).await?,
         vesting_schedule_entity::outputs(&mut vested_index).await?,
         vesting_schedule_iota_airdrop::outputs(&mut vested_index).await?,
     ]

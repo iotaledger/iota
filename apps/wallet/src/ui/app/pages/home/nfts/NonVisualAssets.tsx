@@ -20,7 +20,7 @@ export default function NonVisualAssets({ items }: { items: IotaObjectData[] }) 
                                 <ExplorerLink
                                     className="text-hero-dark no-underline"
                                     objectID={item.objectId!}
-                                    type={ExplorerLinkType.object}
+                                    type={ExplorerLinkType.Object}
                                 >
                                     <Text variant="pBody">{formatAddress(item.objectId!)}</Text>
                                 </ExplorerLink>
