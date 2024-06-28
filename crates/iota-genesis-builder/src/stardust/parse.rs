@@ -24,7 +24,7 @@ impl<R: Read> HornetGenesisSnapshotParser<R> {
     pub fn new(reader: R) -> Result<Self> {
         let mut reader = IoUnpacker::new(std::io::BufReader::new(reader));
         // `true` ensures that only genesis snapshots unpack successfully
-        let header = FullSnapshotHeader::unpack::<_, true>(&mut reader, &())?;
+        let header = FullSnapshotHeader::unpack::<_, false>(&mut reader, &())?;
 
         Ok(Self { reader, header })
     }
