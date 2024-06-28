@@ -33,9 +33,6 @@ pub struct SystemParametersV2 {
     /// The duration of an epoch, in milliseconds.
     pub epoch_duration_ms: u64,
 
-    /// The starting epoch in which stake subsidies start being paid out
-    pub stake_subsidy_start_epoch: u64,
-
     /// Minimum number of active validators at any moment.
     pub min_validator_count: u64,
 
@@ -240,7 +237,6 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV2 {
             storage_fund,
             parameters:
                 SystemParametersV2 {
-                    stake_subsidy_start_epoch,
                     epoch_duration_ms,
                     min_validator_count: _, // TODO: Add it to RPC layer in the future.
                     max_validator_count,
@@ -278,13 +274,8 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV2 {
             safe_mode_storage_rebates,
             safe_mode_non_refundable_storage_fee,
             epoch_start_timestamp_ms,
-            stake_subsidy_start_epoch,
             epoch_duration_ms,
             total_iota_supply_nanos: iota_treasury_cap.total_supply.value,
-            // TODO: Remove
-            stake_subsidy_distribution_counter: 0,
-            stake_subsidy_balance: 0,
-            stake_subsidy_current_distribution_amount: 0,
             total_stake,
             active_validators: active_validators
                 .into_iter()
@@ -312,9 +303,6 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV2 {
             validator_low_stake_threshold,
             validator_very_low_stake_threshold,
             validator_low_stake_grace_period,
-            // TODO: Remove
-            stake_subsidy_period_length: 0,
-            stake_subsidy_decrease_rate: 0,
         }
     }
 }

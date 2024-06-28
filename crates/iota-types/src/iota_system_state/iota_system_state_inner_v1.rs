@@ -666,13 +666,7 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
             safe_mode_non_refundable_storage_fee,
             epoch_start_timestamp_ms,
             total_iota_supply_nanos: iota_treasury_cap.total_supply.value,
-            // TODO: Remove
-            stake_subsidy_start_epoch: 0,
             epoch_duration_ms,
-            // TODO: Remove
-            stake_subsidy_distribution_counter: 0,
-            stake_subsidy_balance: 0,
-            stake_subsidy_current_distribution_amount: 0,
             total_stake,
             active_validators: active_validators
                 .into_iter()
@@ -700,9 +694,6 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
             validator_low_stake_threshold,
             validator_very_low_stake_threshold,
             validator_low_stake_grace_period,
-            // TODO: Remove
-            stake_subsidy_period_length: 0,
-            stake_subsidy_decrease_rate: 0,
         }
     }
 }
