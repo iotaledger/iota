@@ -5,7 +5,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   diff:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted-rust
     outputs:
       isWallet: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'iota-wallet')) }}
       isExplorer: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'iota-explorer')) }}
@@ -26,7 +26,7 @@ jobs:
     name: Localnet
     needs: diff
     if: needs.diff.outputs.isExplorer == 'true' || needs.diff.outputs.isTypescriptSDK == 'true' || needs.diff.outputs.isWallet == 'true' || needs.diff.outputs.isRust == 'true'
-    runs-on: ubuntu-ghcloud
+    runs-on: self-hosted-rust
     services:
       postgres:
         image: postgres
@@ -112,7 +112,7 @@ jobs:
     needs: diff
     # TODO: add wallet e2e to the `if` condition when available
     if: needs.diff.outputs.isExplorer == 'true' || needs.diff.outputs.isTypescriptSDK == 'true'
-    runs-on: ubuntu-ghcloud
+    runs-on: self-hosted-rust
     services:
       postgres:
         image: postgres
@@ -141,7 +141,7 @@ jobs:
     needs: diff
     # TODO: add wallet e2e to the `if` condition when available
     if: needs.diff.outputs.isExplorer == 'true' || needs.diff.outputs.isTypescriptSDK == 'true'
-    runs-on: ubuntu-ghcloud
+    runs-on: self-hosted-rust
     services:
       postgres:
         image: postgres

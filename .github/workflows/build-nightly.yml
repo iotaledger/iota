@@ -40,7 +40,7 @@ jobs:
     timeout-minutes: 80
     strategy:
       matrix:
-        os: [ ubuntu-latest ]
+        os: [ self-hosted-rust ]
       fail-fast: false
     runs-on: ${{ matrix.os }}
     steps:
