@@ -11,7 +11,7 @@ use serde_with::serde_as;
 
 use super::{IotaSystemState, IotaSystemStateTrait};
 use crate::{
-    base_types::{AuthorityName, IotaAddress, ObjectID}, committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata}, dynamic_field::get_dynamic_field_from_store, error::IotaError, gas_coin::TOTAL_SUPPLY_MICROS, id::ID, iota_serde::{BigInt, Readable}, iota_system_state::get_validator_from_table, multiaddr::Multiaddr, storage::ObjectStore
+    base_types::{AuthorityName, IotaAddress, ObjectID}, committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata}, dynamic_field::get_dynamic_field_from_store, error::IotaError, gas_coin::TOTAL_SUPPLY_NANOS, id::ID, iota_serde::{BigInt, Readable}, iota_system_state::get_validator_from_table, multiaddr::Multiaddr, storage::ObjectStore
 };
 
 /// This is the JSON-RPC type for the IOTA system state object.
@@ -326,7 +326,7 @@ impl Default for IotaSystemStateSummary {
             validator_low_stake_threshold: 0,
             validator_very_low_stake_threshold: 0,
             validator_low_stake_grace_period: 0,
-            total_iota_supply_nanos: TOTAL_SUPPLY_MICROS,
+            total_iota_supply_nanos: TOTAL_SUPPLY_NANOS,
             total_stake: 0,
             active_validators: vec![],
             pending_active_validators_id: ObjectID::ZERO,

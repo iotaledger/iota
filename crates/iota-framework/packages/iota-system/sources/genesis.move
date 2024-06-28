@@ -55,7 +55,7 @@ module iota_system::genesis {
 
     public struct TokenAllocation {
         recipient_address: address,
-        amount_micros: u64,
+        amount_nanos: u64,
 
         /// Indicates if this allocation should be staked at genesis and with which validator
         staked_with_validator: Option<address>,
@@ -189,15 +189,17 @@ module iota_system::genesis {
         while (!allocations.is_empty()) {
             let TokenAllocation {
                 recipient_address,
-                amount_micros,
+                amount_nanos,
                 staked_with_validator,
             } = allocations.pop_back();
 
-            let allocation_balance = iota_supply.split(amount_micros);
+            let allocation_balance = iota_supply.split(amount_nanos);
 
             if (staked_with_validator.is_some()) {
                 let validator_address = staked_with_validator.destroy_some();
-                let validator = validator_set::get_validator_mut(validators, validator_address);
+                let validator = validator_set::get_validator_mut(
+                    validators, validator_address
+                );
                 validator.request_add_stake_at_genesis(
                     allocation_balance,
                     recipient_address,

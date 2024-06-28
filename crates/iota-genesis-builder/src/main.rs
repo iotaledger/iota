@@ -72,11 +72,15 @@ fn main() -> Result<()> {
 
     // Start the Hornet snapshot parser
     let snapshot_parser = HornetGenesisSnapshotParser::new(File::open(snapshot_path)?)?;
+    let total_supply = match coin_type {
+        CoinType::Iota => scale_amount_for_iota(snapshot_parser.total_supply()?)?,
+        CoinType::Shimmer => snapshot_parser.total_supply()?,
+    };
 
     // Prepare the migration using the parser output stream
     let migration = Migration::new(
         snapshot_parser.target_milestone_timestamp(),
-        snapshot_parser.total_supply()?,
+        total_supply,
         target_network,
         coin_type,
     )?;
@@ -106,19 +110,11 @@ fn main() -> Result<()> {
 }
 
 fn scale_output_amount_for_iota(output: &mut Output) -> Result<()> {
-    const IOTA_MULTIPLIER: u64 = 1000;
-
-    fn multiply_amount(amount: u64) -> Result<u64> {
-        amount
-            .checked_mul(IOTA_MULTIPLIER)
-            .ok_or_else(|| anyhow!("overflow multiplying amount {amount} by {IOTA_MULTIPLIER}"))
-    }
-
     *output = match output {
         Output::Basic(ref basic_output) => {
             // Update amount
             let mut builder = BasicOutputBuilder::from(basic_output)
-                .with_amount(multiply_amount(basic_output.amount())?);
+                .with_amount(scale_amount_for_iota(basic_output.amount())?);
 
             // Update amount in potential storage deposit return unlock condition
             if let Some(sdr_uc) = basic_output
@@ -129,7 +125,7 @@ fn scale_output_amount_for_iota(output: &mut Output) -> Result<()> {
                 builder = builder.replace_unlock_condition(
                     StorageDepositReturnUnlockCondition::new(
                         sdr_uc.return_address(),
-                        multiply_amount(sdr_uc.amount())?,
+                        scale_amount_for_iota(sdr_uc.amount())?,
                         u64::MAX,
                     )
                     .unwrap(),
@@ -140,18 +136,18 @@ fn scale_output_amount_for_iota(output: &mut Output) -> Result<()> {
         }
         Output::Alias(ref alias_output) => Output::from(
             AliasOutputBuilder::from(alias_output)
-                .with_amount(multiply_amount(alias_output.amount())?)
+                .with_amount(scale_amount_for_iota(alias_output.amount())?)
                 .finish()?,
         ),
         Output::Foundry(ref foundry_output) => Output::from(
             FoundryOutputBuilder::from(foundry_output)
-                .with_amount(multiply_amount(foundry_output.amount())?)
+                .with_amount(scale_amount_for_iota(foundry_output.amount())?)
                 .finish()?,
         ),
         Output::Nft(ref nft_output) => {
             // Update amount
             let mut builder = NftOutputBuilder::from(nft_output)
-                .with_amount(multiply_amount(nft_output.amount())?);
+                .with_amount(scale_amount_for_iota(nft_output.amount())?);
 
             // Update amount in potential storage deposit return unlock condition
             if let Some(sdr_uc) = nft_output
@@ -162,7 +158,7 @@ fn scale_output_amount_for_iota(output: &mut Output) -> Result<()> {
                 builder = builder.replace_unlock_condition(
                     StorageDepositReturnUnlockCondition::new(
                         sdr_uc.return_address(),
-                        multiply_amount(sdr_uc.amount())?,
+                        scale_amount_for_iota(sdr_uc.amount())?,
                         u64::MAX,
                     )
                     .unwrap(),
@@ -174,4 +170,12 @@ fn scale_output_amount_for_iota(output: &mut Output) -> Result<()> {
         Output::Treasury(_) => return Ok(()),
     };
     Ok(())
+}
+
+fn scale_amount_for_iota(amount: u64) -> Result<u64> {
+    const IOTA_MULTIPLIER: u64 = 1000;
+
+    amount
+        .checked_mul(IOTA_MULTIPLIER)
+        .ok_or_else(|| anyhow!("overflow multiplying amount {amount} by {IOTA_MULTIPLIER}"))
 }

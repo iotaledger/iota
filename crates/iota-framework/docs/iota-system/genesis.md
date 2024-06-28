@@ -265,7 +265,7 @@ title: Module `0x3::genesis`
 
 </dd>
 <dt>
-<code>amount_micros: u64</code>
+<code>amount_nanos: u64</code>
 </dt>
 <dd>
 
@@ -462,15 +462,17 @@ all the information we need in the system.
     <b>while</b> (!allocations.is_empty()) {
         <b>let</b> <a href="genesis.md#0x3_genesis_TokenAllocation">TokenAllocation</a> {
             recipient_address,
-            amount_micros,
+            amount_nanos,
             staked_with_validator,
         } = allocations.pop_back();
 
-        <b>let</b> allocation_balance = iota_supply.split(amount_micros);
+        <b>let</b> allocation_balance = iota_supply.split(amount_nanos);
 
         <b>if</b> (staked_with_validator.is_some()) {
             <b>let</b> validator_address = staked_with_validator.destroy_some();
-            <b>let</b> <a href="validator.md#0x3_validator">validator</a> = <a href="validator_set.md#0x3_validator_set_get_validator_mut">validator_set::get_validator_mut</a>(validators, validator_address);
+            <b>let</b> <a href="validator.md#0x3_validator">validator</a> = <a href="validator_set.md#0x3_validator_set_get_validator_mut">validator_set::get_validator_mut</a>(
+                validators, validator_address
+            );
             <a href="validator.md#0x3_validator">validator</a>.request_add_stake_at_genesis(
                 allocation_balance,
                 recipient_address,

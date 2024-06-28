@@ -14,7 +14,7 @@ type TxnAddressLinkProps = {
 export function TxnAddressLink({ address }: TxnAddressLinkProps) {
     return (
         <ExplorerLink
-            type={ExplorerLinkType.address}
+            type={ExplorerLinkType.Address}
             address={address}
             title="View on Iota Explorer"
             showIcon={false}
