@@ -5,7 +5,7 @@ import { type GetBalanceParams, type CoinBalance } from '@iota/iota.js/client';
 import { type AccountFromFinder, type AddressFromFinder } from '_src/shared/accounts';
 import { type MakeDerivationOptions } from '../account-sources/bip44Path';
 
-type GetBalanceCallback = (
+type GetBalance = (
     makeDerivationOptions: MakeDerivationOptions,
     params: GetBalanceParams,
 ) => Promise<CoinBalance>;
@@ -19,10 +19,10 @@ export type GetPublicKey = (makeDerivationOptions: MakeDerivationOptions) => Pro
  *   @param {number} accountGapLimit The number of accounts to search for, after the last account with unspent outputs.
  *   @param {number} addressGapLimit The number of addresses to search for, after the last address with unspent outputs, in each account.
  *   @param {AccountFromFinder[]} accounts Array buffer to store the found accounts.
- *   @param {string} seed The seed of the wallet.
  *   @param {number} coinType Coin ID to be used.
- *   @param {GetBalanceCallback} getBalance Callback to retrieve a balance of a given address, usually by using the IotaClient.
+ *   @param {GetBalance} getBalance Callback to retrieve a balance of a given address, usually by using the IotaClient.
  *   @param {gasTypeArg} gasTypeArg The Coin type name of Move.
+ *   @param {GetPublicKey} getPublicKey Callback to retrieve the public key of the keypair in a given bippath.
  */
 export async function findAccounts(
     accountStartIndex: number,
@@ -30,7 +30,7 @@ export async function findAccounts(
     addressGapLimit: number,
     accounts: AccountFromFinder[],
     coinType: number,
-    getBalance: GetBalanceCallback,
+    getBalance: GetBalance,
     gasTypeArg: string,
     getPublicKey: GetPublicKey,
 ): Promise<AccountFromFinder[]> {
@@ -82,7 +82,7 @@ async function searchAddressesWithObjects(
     addressGapLimit: number,
     account: AccountFromFinder,
     coinType: number,
-    getBalance: GetBalanceCallback,
+    getBalance: GetBalance,
     gasTypeArg: string,
     getPublicKey: GetPublicKey,
 ): Promise<AccountFromFinder> {

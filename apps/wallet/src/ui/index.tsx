@@ -63,7 +63,7 @@ function renderApp() {
 
 function AppWrapper() {
     const network = useAppSelector(({ app: { network, customRpc } }) => `${network}_${customRpc}`);
-    const isFullscreen = useAppSelector((state) => state.app.appType === AppType.fullscreen);
+    const isFullscreen = useAppSelector((state) => state.app.appType === AppType.Fullscreen);
     return (
         <GrowthBookProvider growthbook={growthbook}>
             <HashRouter>

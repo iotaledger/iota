@@ -39,7 +39,7 @@ function Overlay({
         [closeOverlay, setShowModal],
     );
     const appType = useAppSelector((state) => state.app.appType);
-    const isFullScreen = appType === AppType.fullscreen;
+    const isFullScreen = appType === AppType.Fullscreen;
 
     return showModal ? (
         <Portal containerId="overlay-portal-container">

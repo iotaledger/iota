@@ -51,7 +51,7 @@ export function GasSummary({ gasSummary }: { gasSummary?: GasSummaryType }) {
                                 Sponsor
                             </Text>
                             <ExplorerLink
-                                type={ExplorerLinkType.address}
+                                type={ExplorerLinkType.Address}
                                 address={gasSummary.owner}
                                 className="text-hero-dark no-underline"
                             >

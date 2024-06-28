@@ -11,7 +11,7 @@ import { CoinIcon } from '_components/coin-icon';
 import Loading from '_components/loading';
 import { useAppSelector, useCoinsReFetchingConfig, useSortedCoinsByCategories } from '_hooks';
 import { ampli } from '_src/shared/analytics/ampli';
-import { FEATURES } from '_src/shared/experimentation/features';
+import { Feature } from '_src/shared/experimentation/features';
 import { AccountsList } from '_src/ui/app/components/accounts/AccountsList';
 import { UnlockAccountButton } from '_src/ui/app/components/accounts/UnlockAccountButton';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
@@ -334,7 +334,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
     });
 
     const walletInterstitialConfig = useFeature<InterstitialConfig>(
-        FEATURES.WALLET_INTERSTITIAL_CONFIG,
+        Feature.WalletInterstitialConfig,
     ).value;
 
     const tokenBalance = BigInt(coinBalance?.totalBalance ?? 0);

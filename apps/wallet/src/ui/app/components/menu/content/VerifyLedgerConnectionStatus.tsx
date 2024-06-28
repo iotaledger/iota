@@ -22,9 +22,9 @@ export type VerifyLedgerConnectionLinkProps = {
 };
 
 enum VerificationStatus {
-    UNKNOWN = 'UNKNOWN',
-    VERIFIED = 'VERIFIED',
-    NOT_VERIFIED = 'NOT_VERIFIED',
+    Unknown = 'UNKNOWN',
+    Verified = 'VERIFIED',
+    NotVerified = 'NOT_VERIFIED',
 }
 
 const RESET_VERIFICATION_STATUS_DELAY = 5000;
@@ -36,10 +36,10 @@ export function VerifyLedgerConnectionStatus({
 }: VerifyLedgerConnectionLinkProps) {
     const { connectToLedger } = useIotaLedgerClient();
     const [isPending, setLoading] = useState(false);
-    const [verificationStatus, setVerificationStatus] = useState(VerificationStatus.UNKNOWN);
+    const [verificationStatus, setVerificationStatus] = useState(VerificationStatus.Unknown);
 
     switch (verificationStatus) {
-        case VerificationStatus.UNKNOWN:
+        case VerificationStatus.Unknown:
             if (isPending) {
                 return (
                     <div className="flex gap-1 text-hero-dark">
@@ -68,8 +68,8 @@ export function VerifyLedgerConnectionStatus({
 
                             setVerificationStatus(
                                 accountAddress === iotaAddress
-                                    ? VerificationStatus.VERIFIED
-                                    : VerificationStatus.NOT_VERIFIED,
+                                    ? VerificationStatus.Verified
+                                    : VerificationStatus.NotVerified,
                             );
                         } catch (error) {
                             const errorMessage =
@@ -78,13 +78,13 @@ export function VerifyLedgerConnectionStatus({
                                 'Something went wrong';
                             toast.error(errorMessage);
 
-                            setVerificationStatus(VerificationStatus.NOT_VERIFIED);
+                            setVerificationStatus(VerificationStatus.NotVerified);
                         } finally {
                             clearTimeout(loadingTimeoutId);
                             setLoading(false);
 
                             window.setTimeout(() => {
-                                setVerificationStatus(VerificationStatus.UNKNOWN);
+                                setVerificationStatus(VerificationStatus.Unknown);
                             }, RESET_VERIFICATION_STATUS_DELAY);
                         }
                     }}
@@ -92,7 +92,7 @@ export function VerifyLedgerConnectionStatus({
                     weight="medium"
                 />
             );
-        case VerificationStatus.NOT_VERIFIED:
+        case VerificationStatus.NotVerified:
             return (
                 <div className="flex items-center gap-1">
                     <X12 className="text-issue-dark" />
@@ -101,7 +101,7 @@ export function VerifyLedgerConnectionStatus({
                     </Text>
                 </div>
             );
-        case VerificationStatus.VERIFIED:
+        case VerificationStatus.Verified:
             return (
                 <div className="flex items-center gap-1">
                     <Check12 className="text-success-dark" />

@@ -83,7 +83,7 @@ function NftsPage() {
                     </Alert>
                 ) : null}
                 {filteredNFTs?.length ? (
-                    filterType === AssetFilterTypes.other ? (
+                    filterType === AssetFilterTypes.Other ? (
                         <NonVisualAssets items={filteredNFTs} />
                     ) : (
                         <VisualAssets items={filteredNFTs} />
