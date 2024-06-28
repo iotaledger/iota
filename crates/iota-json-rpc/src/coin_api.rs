@@ -16,7 +16,7 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID},
     coin::{CoinMetadata, TreasuryCap},
     effects::TransactionEffectsAPI,
-    gas_coin::{GAS, TOTAL_SUPPLY_MICROS},
+    gas_coin::{GAS, TOTAL_SUPPLY_NANOS},
     object::Object,
     parse_iota_struct_tag,
 };
@@ -219,7 +219,7 @@ impl CoinReadApiServer for CoinReadApi {
             let coin_struct = parse_to_struct_tag(&coin_type)?;
             Ok(if GAS::is_gas(&coin_struct) {
                 Supply {
-                    value: TOTAL_SUPPLY_MICROS,
+                    value: TOTAL_SUPPLY_NANOS,
                 }
             } else {
                 let treasury_cap_object = self
@@ -1287,7 +1287,7 @@ mod tests {
     }
 
     mod get_total_supply_tests {
-        use iota_types::id::UID;
+        use iota_types::{gas_coin::TOTAL_SUPPLY_NANOS, id::UID};
         use mockall::predicate;
 
         use super::{super::*, *};
@@ -1303,8 +1303,7 @@ mod tests {
             let response = coin_read_api.get_total_supply(coin_type.to_string()).await;
 
             let supply = response.unwrap();
-            let expected = expect!["10000000000000000000"];
-            expected.assert_eq(&supply.value.to_string());
+            assert_eq!(supply.value, TOTAL_SUPPLY_NANOS);
         }
 
         #[tokio::test]

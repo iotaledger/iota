@@ -54,13 +54,13 @@ module iota_system::genesis {
     }
 
     struct TokenDistributionSchedule has drop {
-        stake_subsidy_fund_micros: u64,
+        stake_subsidy_fund_nanos: u64,
         allocations: vector<TokenAllocation>,
     }
 
     struct TokenAllocation has drop {
         recipient_address: address,
-        amount_micros: u64,
+        amount_nanos: u64,
         staked_with_validator: Option<address>,
     }
 
@@ -117,7 +117,7 @@ module iota_system::genesis {
         iota_system::create(
             iota_system_state_id,
             validators,
-            iota_supply,     // storage_fund
+            iota_supply, // storage_fund
             genesis_chain_parameters.protocol_version,
             genesis_chain_parameters.chain_start_timestamp_ms,
             genesis_chain_parameters.epoch_duration_ms,
