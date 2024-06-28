@@ -30,6 +30,13 @@ use tracing_subscriber::FmtSubscriber;
 struct Cli {
     #[clap(subcommand)]
     snapshot: Snapshot,
+    #[clap(
+        short,
+        long,
+        default_value_t = false,
+        help = "Compress the resulting object snapshot"
+    )]
+    compress: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -40,13 +47,6 @@ enum Snapshot {
         snapshot_path: String,
         #[clap(long, value_parser = clap::value_parser!(MigrationTargetNetwork), help = "Target network for migration")]
         target_network: MigrationTargetNetwork,
-        #[clap(
-            short,
-            long,
-            default_value_t = false,
-            help = "Compress the resulting object snapshot"
-        )]
-        compress: bool,
     },
     #[clap(about = "Migrate a Shimmer Hornet full-snapshot file")]
     Shimmer {
@@ -54,13 +54,6 @@ enum Snapshot {
         snapshot_path: String,
         #[clap(long, value_parser = clap::value_parser!(MigrationTargetNetwork), help = "Target network for migration")]
         target_network: MigrationTargetNetwork,
-        #[clap(
-            short,
-            long,
-            default_value_t = false,
-            help = "Compress the resulting object snapshot"
-        )]
-        compress: bool,
     },
 }
 
@@ -73,17 +66,15 @@ fn main() -> Result<()> {
 
     // Parse the CLI arguments
     let cli = Cli::parse();
-    let (snapshot_path, target_network, coin_type, compress) = match cli.snapshot {
+    let (snapshot_path, target_network, coin_type) = match cli.snapshot {
         Snapshot::Iota {
             snapshot_path,
             target_network,
-            compress,
-        } => (snapshot_path, target_network, CoinType::Iota, compress),
+        } => (snapshot_path, target_network, CoinType::Iota),
         Snapshot::Shimmer {
             snapshot_path,
             target_network,
-            compress,
-        } => (snapshot_path, target_network, CoinType::Shimmer, compress),
+        } => (snapshot_path, target_network, CoinType::Shimmer),
     };
 
     // Start the Hornet snapshot parser
@@ -101,9 +92,9 @@ fn main() -> Result<()> {
         coin_type,
     )?;
 
-    // Prepare the compressor writer for the objects snapshot
+    // Prepare the writer for the objects snapshot
     let output_file = File::create(OBJECT_SNAPSHOT_FILE_PATH)?;
-    let object_snapshot_writer: Box<dyn Write> = if compress {
+    let object_snapshot_writer: Box<dyn Write> = if cli.compress {
         Box::new(brotli::CompressorWriter::new(
             output_file,
             BROTLI_COMPRESSOR_BUFFER_SIZE,
