@@ -467,7 +467,7 @@ impl Builder {
         let token_distribution_schedule = self.token_distribution_schedule.clone().unwrap();
         assert_eq!(
             system_state.stake_subsidy.balance.value(),
-            token_distribution_schedule.stake_subsidy_fund_micros
+            token_distribution_schedule.stake_subsidy_fund_nanos
         );
 
         let mut gas_objects: BTreeMap<ObjectID, (&Object, GasCoin)> = unsigned_genesis
@@ -493,7 +493,7 @@ impl Builder {
                             panic!("gas object owner must be address owner");
                         };
                         *owner == allocation.recipient_address
-                            && s.principal() == allocation.amount_micros
+                            && s.principal() == allocation.amount_nanos
                             && s.pool_id() == staking_pool_id
                     })
                     .map(|(k, _)| *k)
@@ -504,7 +504,7 @@ impl Builder {
                     staked_iota_object.0.owner,
                     Owner::AddressOwner(allocation.recipient_address)
                 );
-                assert_eq!(staked_iota_object.1.principal(), allocation.amount_micros);
+                assert_eq!(staked_iota_object.1.principal(), allocation.amount_nanos);
                 assert_eq!(staked_iota_object.1.pool_id(), staking_pool_id);
                 assert_eq!(staked_iota_object.1.activation_epoch(), 0);
             } else {
@@ -513,7 +513,7 @@ impl Builder {
                     .find(|(_k, (o, g))| {
                         if let Owner::AddressOwner(owner) = &o.owner {
                             *owner == allocation.recipient_address
-                                && g.value() == allocation.amount_micros
+                                && g.value() == allocation.amount_nanos
                         } else {
                             false
                         }
@@ -525,7 +525,7 @@ impl Builder {
                     gas_object.0.owner,
                     Owner::AddressOwner(allocation.recipient_address)
                 );
-                assert_eq!(gas_object.1.value(), allocation.amount_micros,);
+                assert_eq!(gas_object.1.value(), allocation.amount_nanos,);
             }
         }
 
