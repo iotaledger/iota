@@ -10,7 +10,7 @@ use crate::{
     base_types::ObjectID,
     committee::EpochId,
     error::IotaError,
-    gas_coin::MICROS_PER_IOTA,
+    gas_coin::NANOS_PER_IOTA,
     id::{ID, UID},
     object::{Data, Object},
     IOTA_SYSTEM_ADDRESS,
@@ -23,7 +23,7 @@ pub const MAX_VALIDATOR_COUNT: u64 = 150;
 /// Lower-bound on the amount of stake required to become a validator.
 ///
 /// 30 million IOTA
-pub const MIN_VALIDATOR_JOINING_STAKE_MICROS: u64 = 30_000_000 * MICROS_PER_IOTA;
+pub const MIN_VALIDATOR_JOINING_STAKE_NANOS: u64 = 30_000_000 * NANOS_PER_IOTA;
 
 /// Validators with stake amount below `validator_low_stake_threshold` are
 /// considered to have low stake and will be escorted out of the validator set
@@ -31,13 +31,13 @@ pub const MIN_VALIDATOR_JOINING_STAKE_MICROS: u64 = 30_000_000 * MICROS_PER_IOTA
 /// `validator_low_stake_grace_period` number of epochs.
 ///
 /// 20 million IOTA
-pub const VALIDATOR_LOW_STAKE_THRESHOLD_MICROS: u64 = 20_000_000 * MICROS_PER_IOTA;
+pub const VALIDATOR_LOW_STAKE_THRESHOLD_NANOS: u64 = 20_000_000 * NANOS_PER_IOTA;
 
 /// Validators with stake below `validator_very_low_stake_threshold` will be
 /// removed immediately at epoch change, no grace period.
 ///
 /// 15 million IOTA
-pub const VALIDATOR_VERY_LOW_STAKE_THRESHOLD_MICROS: u64 = 15_000_000 * MICROS_PER_IOTA;
+pub const VALIDATOR_VERY_LOW_STAKE_THRESHOLD_NANOS: u64 = 15_000_000 * NANOS_PER_IOTA;
 
 /// A validator can have stake below `validator_low_stake_threshold`
 /// for this many epochs before being kicked out.
