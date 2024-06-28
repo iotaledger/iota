@@ -11,12 +11,15 @@ import {
 import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import { Heading, Text } from '@iota/ui';
 
-import { CopyToClipboard } from '~/ui/CopyToClipboard';
-import { DescriptionItem } from '~/ui/DescriptionList';
-import { Divider } from '~/ui/Divider';
-import { AddressLink, ObjectLink } from '~/ui/InternalLink';
-import { CollapsibleCard } from '~/ui/collapsible/CollapsibleCard';
-import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
+import {
+    AddressLink,
+    CollapsibleCard,
+    CollapsibleSection,
+    CopyToClipboard,
+    DescriptionItem,
+    Divider,
+    ObjectLink,
+} from '~/components/ui';
 
 interface GasProps {
     amount?: bigint | number | string;

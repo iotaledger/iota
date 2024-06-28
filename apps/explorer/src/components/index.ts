@@ -22,6 +22,7 @@ export * from './top-validators-card';
 export * from './transaction-blocks-for-address';
 export * from './transactions';
 export * from './tx-time';
+export * from './ui';
 export * from './validator';
 export * from './validator-map';
 

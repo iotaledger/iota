@@ -12,7 +12,7 @@ import { useMemo, useState } from 'react';
 
 import OwnedCoinView from './OwnedCoinView';
 import { useRecognizedPackages } from '~/hooks/useRecognizedPackages';
-import { Pagination } from '~/ui/Pagination';
+import { Pagination } from '~/components/ui';
 
 export type CoinBalanceVerified = CoinBalance & {
     isRecognized?: boolean;

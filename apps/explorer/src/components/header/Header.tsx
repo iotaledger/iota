@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 
 import { NetworkSelector } from '../network';
 import Search from '../search/Search';
-import { LinkWithQuery } from '~/ui/LinkWithQuery';
+import { LinkWithQuery } from '~/components/ui';
 
 function Header(): JSX.Element {
     const [isScrolled, setIsScrolled] = useState(window.scrollY > 0);

@@ -6,8 +6,7 @@ import { type IotaCallArg } from '@iota/iota.js/client';
 import { Text } from '@iota/ui';
 
 import { ProgrammableTxnBlockCard } from '~/components';
-import { AddressLink, ObjectLink } from '~/ui/InternalLink';
-import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
+import { AddressLink, CollapsibleSection, ObjectLink } from '~/components/ui';
 
 const REGEX_NUMBER = /^\d+$/;
 

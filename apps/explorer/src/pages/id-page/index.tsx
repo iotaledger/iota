@@ -14,7 +14,7 @@ import { ErrorBoundary, PageLayout } from '~/components';
 import { TotalStaked } from '~/pages/address-result/TotalStaked';
 import { PageContent } from '~/pages/id-page/PageContent';
 import { ObjectView } from '~/pages/object-result/views/ObjectView';
-import { PageHeader } from '~/ui/PageHeader';
+import { PageHeader } from '~/components/ui';
 
 interface HeaderProps {
     address: string;

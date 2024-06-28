@@ -12,7 +12,7 @@ import { type ReactNode } from 'react';
 
 import { flattenIotaArguments } from './utils';
 import { ErrorBoundary } from '~/components';
-import { ObjectLink } from '~/ui/InternalLink';
+import { ObjectLink } from '~/components/ui';
 
 interface TransactionProps<T> {
     type: string;

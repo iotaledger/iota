@@ -5,5 +5,3 @@ export * from './FunctionExecutionResult';
 export * from './LinkGroup';
 export * from './ModuleFunction';
 export * from './ModuleFunctionsInteraction';
-export * from './useFunctionParamsDetails';
-export * from './useFunctionTypeArguments';

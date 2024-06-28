@@ -16,6 +16,17 @@ import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { type ReactNode, useEffect, useState } from 'react';
 
+import {
+    AddressLink,
+    Card,
+    Description,
+    Divider,
+    Link,
+    ObjectLink,
+    ObjectVideoImage,
+    Tooltip,
+    TransactionLink,
+} from '~/components/ui';
 import { useResolveVideo } from '~/hooks/useResolveVideo';
 import {
     extractName,
@@ -25,13 +36,6 @@ import {
     parseObjectType,
     trimStdLibPrefix,
 } from '~/lib/utils';
-import { Card } from '~/ui/Card';
-import { Description } from '~/ui/Description';
-import { Divider } from '~/ui/Divider';
-import { AddressLink, ObjectLink, TransactionLink } from '~/ui/InternalLink';
-import { Link } from '~/ui/Link';
-import { ObjectVideoImage } from '~/ui/ObjectVideoImage';
-import { Tooltip } from '~/ui/Tooltip';
 
 interface HeroVideoImageProps {
     title: string;

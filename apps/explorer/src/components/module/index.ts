@@ -4,4 +4,3 @@
 export * from './ModuleCodeTabs';
 export * from './ModuleView';
 export * from './PkgModulesWrapper';
-export * from './utils';

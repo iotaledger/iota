@@ -6,10 +6,9 @@ import { type IotaObjectResponse } from '@iota/iota.js/client';
 import { formatAddress } from '@iota/iota.js/utils';
 import { Placeholder, Text } from '@iota/ui';
 
+import { ObjectLink, ObjectVideoImage } from '~/components/ui';
 import { useResolveVideo } from '~/hooks/useResolveVideo';
 import { parseObjectType, trimStdLibPrefix } from '~/lib/utils';
-import { ObjectLink } from '~/ui/InternalLink';
-import { ObjectVideoImage } from '~/ui/ObjectVideoImage';
 
 function Thumbnail({ obj }: { obj: IotaObjectResponse }): JSX.Element {
     const video = useResolveVideo(obj);

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Activity, ErrorBoundary, PageLayout } from '~/components';
-import { useSearchParamsMerged } from '~/ui/LinkWithQuery';
+import { useSearchParamsMerged } from '~/components/ui';
 
 const TRANSACTIONS_LIMIT = 20;
 

@@ -9,7 +9,7 @@ import { useRef, useEffect, useState, useMemo } from 'react';
 
 import { UnderlyingObjectCard } from './UnderlyingObjectCard';
 import { FieldsCard, FieldCollapsible, FieldsContainer } from '~/components';
-import { ObjectLink } from '~/ui/InternalLink';
+import { ObjectLink } from '~/components/ui';
 
 interface DynamicFieldRowProps {
     id: string;

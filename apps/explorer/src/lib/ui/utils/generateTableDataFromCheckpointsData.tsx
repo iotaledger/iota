@@ -7,7 +7,7 @@ import { Text } from '@iota/ui';
 
 import { type ReactNode } from 'react';
 import { HighlightedTableCol, TxTimeType } from '~/components';
-import { CheckpointLink, CheckpointSequenceLink } from '~/ui/InternalLink';
+import { CheckpointLink, CheckpointSequenceLink } from '~/components/ui';
 
 interface CheckpointData {
     digest: ReactNode;

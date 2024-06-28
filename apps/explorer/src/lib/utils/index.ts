@@ -12,3 +12,4 @@ export * from './objectUtils';
 export * from './queryClient';
 export * from './sentry';
 export * from './stringUtils';
+export * from './iotaMoveTypeConverters';

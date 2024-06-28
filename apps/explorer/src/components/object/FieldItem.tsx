@@ -5,10 +5,9 @@
 import { type IotaMoveNormalizedType } from '@iota/iota.js/client';
 import { Text } from '@iota/ui';
 
-import { getFieldTypeValue } from './utils';
 import { SyntaxHighlighter } from '~/components';
-import { AddressLink, ObjectLink } from '~/ui/InternalLink';
-import { Link } from '~/ui/Link';
+import { AddressLink, Link, ObjectLink } from '~/components/ui';
+import { getFieldTypeValue } from '~/lib/ui';
 
 interface FieldItemProps {
     value: string | number | object | boolean;

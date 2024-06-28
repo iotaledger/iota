@@ -5,9 +5,13 @@
 import { ArrowRight12 } from '@iota/icons';
 import { Text } from '@iota/ui';
 
+import {
+    Link,
+    Pagination,
+    type PaginationResponse,
+    type usePaginationStack,
+} from '~/components/ui';
 import { numberSuffix } from '~/lib/utils';
-import { Link } from '~/ui/Link';
-import { Pagination, type PaginationResponse, type usePaginationStack } from '~/ui/Pagination';
 
 interface TableFooterProps {
     label: string;

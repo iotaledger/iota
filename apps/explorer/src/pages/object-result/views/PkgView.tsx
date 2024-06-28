@@ -7,10 +7,17 @@ import { LoadingIndicator, RadioGroup, RadioGroupItem } from '@iota/ui';
 import { useState } from 'react';
 import { type Direction } from 'react-resizable-panels';
 
-import { TransactionBlocksForAddress, PkgModulesWrapper, ErrorBoundary } from '~/components';
+import { ErrorBoundary, PkgModulesWrapper, TransactionBlocksForAddress } from '~/components';
+import {
+    AddressLink,
+    ObjectLink,
+    TabHeader,
+    Tabs,
+    TabsContent,
+    TabsList,
+    TabsTrigger,
+} from '~/components/ui';
 import { getOwnerStr, trimStdLibPrefix } from '~/lib/utils';
-import { AddressLink, ObjectLink } from '~/ui/InternalLink';
-import { TabHeader, Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
 import { type DataType } from '../ObjectResultType';
 
 import { ObjectFilterValue } from '~/lib/enums';

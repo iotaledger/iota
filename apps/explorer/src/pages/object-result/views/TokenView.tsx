@@ -9,7 +9,7 @@ import { Heading } from '@iota/ui';
 import { type ReactNode, useState } from 'react';
 
 import { DynamicFieldsCard, ObjectFieldsCard, TransactionBlocksForAddress } from '~/components';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui';
 
 interface FieldsContainerProps {
     children: ReactNode;

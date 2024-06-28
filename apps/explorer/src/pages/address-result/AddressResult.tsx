@@ -14,12 +14,9 @@ import {
     PageLayout,
     TransactionsForAddress,
 } from '~/components';
+import { Divider, PageHeader, SplitPanes, TabHeader, TabsList, TabsTrigger } from '~/components/ui';
 import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { LocalStorageSplitPaneKey } from '~/lib/enums';
-import { Divider } from '~/ui/Divider';
-import { PageHeader } from '~/ui/PageHeader';
-import { SplitPanes } from '~/ui/SplitPanes';
-import { TabHeader, TabsList, TabsTrigger } from '~/ui/Tabs';
 import { TotalStaked } from './TotalStaked';
 
 interface AddressResultPageHeaderProps {

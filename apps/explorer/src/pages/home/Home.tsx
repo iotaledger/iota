@@ -18,9 +18,8 @@ import {
     TopValidatorsCard,
     TransactionsCardGraph,
 } from '~/components';
+import { Card, TabHeader } from '~/components/ui';
 import { useNetwork } from '~/hooks';
-import { Card } from '~/ui/Card';
-import { TabHeader } from '~/ui/Tabs';
 
 const ValidatorMap = lazy(() => import('../../components/validator-map/ValidatorMap'));
 

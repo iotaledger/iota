@@ -17,17 +17,19 @@ import { Heading, Text } from '@iota/ui';
 import { lazy, Suspense, useMemo } from 'react';
 
 import { DelegationAmount, ErrorBoundary, PageLayout, StakeColumn } from '~/components';
+import {
+    Banner,
+    Card,
+    ImageIcon,
+    Link,
+    PlaceholderTable,
+    Stats,
+    TableCard,
+    TableHeader,
+    Tooltip,
+} from '~/components/ui';
 import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib/constants';
 import { ampli, getValidatorMoveEvent } from '~/lib/utils';
-import { Banner } from '~/ui/Banner';
-import { Card } from '~/ui/Card';
-import { ImageIcon } from '~/ui/ImageIcon';
-import { Link } from '~/ui/Link';
-import { PlaceholderTable } from '~/ui/PlaceholderTable';
-import { Stats } from '~/ui/Stats';
-import { TableCard } from '~/ui/TableCard';
-import { TableHeader } from '~/ui/TableHeader';
-import { Tooltip } from '~/ui/Tooltip';
 
 const ValidatorMap = lazy(() => import('../../components/validator-map/ValidatorMap'));
 

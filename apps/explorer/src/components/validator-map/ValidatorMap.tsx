@@ -12,9 +12,9 @@ import { TooltipWithBounds, useTooltip } from '@visx/tooltip';
 import React, { type ReactNode, useCallback, useMemo } from 'react';
 
 import { useNetwork } from '~/hooks';
-import { Card } from '~/ui/Card';
+import { Card } from '~/components/ui';
 import { WorldMap } from './WorldMap';
-import { type ValidatorMapResponse, type ValidatorMapValidator } from './types';
+import { type ValidatorMapResponse, type ValidatorMapValidator } from '~/lib/ui';
 
 type ValidatorsMap = Record<string, ValidatorMapValidator>;
 

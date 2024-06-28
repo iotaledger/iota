@@ -4,11 +4,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { Search as SearchBox, useNavigateWithQuery, type SearchResult } from '~/components/ui';
 import { useDebouncedValue } from '~/hooks/useDebouncedValue';
 import { useSearch } from '~/hooks/useSearch';
 import { ampli } from '~/lib/utils';
-import { useNavigateWithQuery } from '~/ui/LinkWithQuery';
-import { Search as SearchBox, type SearchResult } from '~/ui/Search';
 
 function Search(): JSX.Element {
     const [query, setQuery] = useState('');

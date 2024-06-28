@@ -6,16 +6,14 @@ import { type TransactionFilter } from '@iota/iota.js/client';
 import { Heading, RadioGroup, RadioGroupItem } from '@iota/ui';
 import { type Dispatch, type SetStateAction, useReducer, useState } from 'react';
 
-import { genTableDataFromTxData } from '../transactions/TxCardUtils';
+import clsx from 'clsx';
+import { Pagination, PlaceholderTable, TableCard } from '~/components/ui';
 import {
     DEFAULT_TRANSACTIONS_LIMIT,
     useGetTransactionBlocks,
 } from '~/hooks/useGetTransactionBlocks';
-import { Pagination } from '~/ui/Pagination';
-import { PlaceholderTable } from '~/ui/PlaceholderTable';
-import { TableCard } from '~/ui/TableCard';
-import clsx from 'clsx';
 import { ObjectFilterValue } from '~/lib/enums';
+import { genTableDataFromTxData } from '../transactions/TxCardUtils';
 
 type TransactionBlocksForAddressProps = {
     address: string;

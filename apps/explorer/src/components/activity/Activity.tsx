@@ -3,18 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
-// import { Filter16 } from '@iota/icons';
 import { Heading } from '@iota/ui';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 
+import { CheckpointsTable } from '../checkpoints/CheckpointsTable';
 import { EpochsActivityTable } from './EpochsActivityTable';
 import { TransactionsActivityTable } from './TransactionsActivityTable';
-import { CheckpointsTable } from '../checkpoints/CheckpointsTable';
-// import { useNetwork } from '~/lib/hooks';
-// import { DropdownMenu, DropdownMenuCheckboxItem } from '~/ui/DropdownMenu';
-import { PlayPause } from '~/ui/PlayPause';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
+import { PlayPause, Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui';
 
 const VALID_TABS = ['transactions', 'epochs', 'checkpoints'];
 

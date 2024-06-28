@@ -13,7 +13,7 @@ import { Outlet, ScrollRestoration } from 'react-router-dom';
 import { NetworkContext } from '~/contexts';
 import { useInitialPageView, useNetwork } from '~/hooks';
 import { createIotaClient, persistableStorage, SupportedNetworks } from '~/lib/utils';
-import { Banner, type BannerProps } from '~/ui/Banner';
+import { Banner, type BannerProps } from '~/components/ui';
 
 const TOAST_VARIANTS: Partial<Record<ToastType, BannerProps['variant']>> = {
     success: 'positive',

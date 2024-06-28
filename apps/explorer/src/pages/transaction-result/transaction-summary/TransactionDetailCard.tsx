@@ -6,10 +6,14 @@ import { formatDate, useResolveIotaNSName } from '@iota/core';
 import { Heading, Text } from '@iota/ui';
 import { type ReactNode } from 'react';
 
+import {
+    AddressLink,
+    CheckpointSequenceLink,
+    CollapsibleCard,
+    CollapsibleSection,
+    EpochLink,
+} from '~/components/ui';
 import { useBreakpoint } from '~/hooks/useBreakpoint';
-import { AddressLink, CheckpointSequenceLink, EpochLink } from '~/ui/InternalLink';
-import { CollapsibleCard } from '~/ui/collapsible/CollapsibleCard';
-import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
 
 export function TransactionDetail({
     label,

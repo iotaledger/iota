@@ -6,19 +6,16 @@ import { useGetObject } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 import {
-    TransactionBlocksForAddress,
     ErrorBoundary,
     OwnedCoins,
     OwnedObjects,
+    TransactionBlocksForAddress,
     TransactionsForAddressTable,
 } from '~/components';
+import { Banner, Divider, SplitPanes, TabHeader } from '~/components/ui';
 import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { LocalStorageSplitPaneKey } from '~/lib/enums';
 import { FieldsContent } from '~/pages/object-result/views/TokenView';
-import { Banner } from '~/ui/Banner';
-import { Divider } from '~/ui/Divider';
-import { SplitPanes } from '~/ui/SplitPanes';
-import { TabHeader } from '~/ui/Tabs';
 
 const LEFT_RIGHT_PANEL_MIN_SIZE = 30;
 

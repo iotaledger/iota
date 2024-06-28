@@ -7,7 +7,7 @@ import { useMemo } from 'react';
 
 import { ModuleFunction } from './ModuleFunction';
 import { useNormalizedMoveModule } from '~/hooks/useNormalizedMoveModule';
-import { Banner } from '~/ui/Banner';
+import { Banner } from '~/components/ui';
 
 type ModuleFunctionsInteractionProps = {
     packageId: string;

@@ -9,7 +9,7 @@ import { type IotaClient, type IotaTransactionBlockResponse } from '@iota/iota.j
 import { IotaAmount } from '../table/IotaAmount';
 import { TxTimeType } from '../tx-time/TxTimeType';
 import { HighlightedTableCol } from '~/components';
-import { AddressLink, TransactionLink } from '~/ui/InternalLink';
+import { AddressLink, TransactionLink } from '~/components/ui';
 import { type ReactNode } from 'react';
 
 interface TransactionData {

@@ -13,7 +13,7 @@ import { type ReactNode, useRef } from 'react';
 import Footer from '../footer/Footer';
 import Header from '../header/Header';
 import { useNetworkContext } from '~/contexts';
-import { Banner } from '~/ui/Banner';
+import { Banner } from '~/components/ui';
 
 type PageLayoutProps = {
     gradient?: {

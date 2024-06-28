@@ -8,10 +8,9 @@ import { Placeholder, Text } from '@iota/ui';
 import { type ReactNode } from 'react';
 
 import { OwnedObjectsText } from '~/components';
+import { ObjectLink, ObjectVideoImage } from '~/components/ui';
 import { useResolveVideo } from '~/hooks/useResolveVideo';
 import { parseObjectType, trimStdLibPrefix } from '~/lib/utils';
-import { ObjectLink } from '~/ui/InternalLink';
-import { ObjectVideoImage } from '~/ui/ObjectVideoImage';
 
 interface ListViewItemProps {
     assetCell?: ReactNode;

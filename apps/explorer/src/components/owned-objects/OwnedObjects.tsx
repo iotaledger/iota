@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { ListView, SmallThumbnailsView, ThumbnailsView } from '~/components';
 import { ObjectViewMode } from '~/lib/enums';
-import { Pagination, useCursorPagination } from '~/ui/Pagination';
+import { Pagination, useCursorPagination } from '~/components/ui';
 
 const PAGE_SIZES = [10, 20, 30, 40, 50];
 const SHOW_PAGINATION_MAX_ITEMS = 9;

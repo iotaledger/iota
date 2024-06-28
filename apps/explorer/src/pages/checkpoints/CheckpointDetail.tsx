@@ -8,11 +8,18 @@ import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 
 import { IotaAmount, PageLayout } from '~/components';
-import { Banner } from '~/ui/Banner';
-import { DescriptionItem, DescriptionList } from '~/ui/DescriptionList';
-import { EpochLink } from '~/ui/InternalLink';
-import { PageHeader } from '~/ui/PageHeader';
-import { TabHeader, Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
+import {
+    Banner,
+    DescriptionItem,
+    DescriptionList,
+    EpochLink,
+    PageHeader,
+    TabHeader,
+    Tabs,
+    TabsContent,
+    TabsList,
+    TabsTrigger,
+} from '~/components/ui';
 import { CheckpointTransactionBlocks } from './CheckpointTransactionBlocks';
 
 export default function CheckpointDetail(): JSX.Element {

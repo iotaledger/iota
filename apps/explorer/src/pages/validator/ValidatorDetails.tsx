@@ -12,7 +12,7 @@ import { useParams } from 'react-router-dom';
 import { PageLayout, ValidatorMeta, ValidatorStats } from '~/components';
 import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib/constants';
 import { getValidatorMoveEvent } from '~/lib/utils';
-import { Banner } from '~/ui/Banner';
+import { Banner } from '~/components/ui';
 
 const getAtRiskRemainingEpochs = (
     data: IotaSystemStateSummary | undefined,

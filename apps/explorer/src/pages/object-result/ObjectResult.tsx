@@ -9,9 +9,8 @@ import clsx from 'clsx';
 import { useParams } from 'react-router-dom';
 
 import { ErrorBoundary, PageLayout } from '~/components';
+import { Banner, PageHeader } from '~/components/ui';
 import { ObjectView } from '~/pages/object-result/views/ObjectView';
-import { Banner } from '~/ui/Banner';
-import { PageHeader } from '~/ui/PageHeader';
 import { translate, type DataType } from './ObjectResultType';
 import PkgView from './views/PkgView';
 import { TokenView } from './views/TokenView';
