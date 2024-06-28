@@ -42,7 +42,7 @@ jobs:
         os:
           [
             windows-ghcloud,
-            ubuntu-ghcloud,
+            self-hosted-rust,
             macos-latest-xl,
             macos-arm64-self-hosted
           ]
@@ -205,7 +205,7 @@ jobs:
   update-homebrew-formula:
     name: run brew bump-formula-pr for iota on testnet releases
     needs: release-build
-    runs-on: ubuntu-latest
+    runs-on: self-hosted-rust
     # releasing iota cli on testnet releases because it lags `main` less than mainnet, but is more likely to be stable than devnet
     if: ${{ contains( inputs.iota_tag, 'testnet') || contains( github.ref, 'testnet') }}
     steps:
@@ -232,7 +232,7 @@ jobs:
   update-homebrew-tap:
     name: update mysten-tap iota.rb file
     needs: release-build
-    runs-on: ubuntu-latest
+    runs-on: self-hosted-rust
     if: ${{ contains( inputs.iota_tag, 'testnet') || contains( github.ref, 'testnet') }}
     steps:
       - name: Clean up tag name ${{ env.TAG_NAME }}
@@ -257,7 +257,7 @@ jobs:
       - name: Fetch Ubuntu x86_64 Binary and Compute SHA256
         shell: bash
         run: |
-          echo "sha256_ubuntu_release=$(sha256sum iota-binaries-ubuntu-ghcloud/iota-${{ env.iota_tag }}-ubuntu-x86_64.tgz | awk '{print $1}')" >> $GITHUB_ENV
+          echo "sha256_ubuntu_release=$(sha256sum iota-binaries-self-hosted-rust/iota-${{ env.iota_tag }}-ubuntu-x86_64.tgz | awk '{print $1}')" >> $GITHUB_ENV
           echo "sha256_macos_x86_release=$(sha256sum iota-binaries-macos-latest-xl/iota-${{ env.iota_tag }}-macos-x86_64.tgz  | awk '{print $1}')" >> $GITHUB_ENV
           echo "sha256_macos_arm_release=$(sha256sum iota-binaries-macos-arm64-self-hosted/iota-${{ env.iota_tag }}-macos-arm64.tgz | awk '{print $1}' )" >> $GITHUB_ENV
 
@@ -306,7 +306,7 @@ jobs:
 
   # Tag all iota images with release tag, so that they can be easily found
   tag-docker-hub-images:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted-rust
     steps:
       - name: Dispatch Tagging of images in DockerHub, in MystenLabs/iota-operations
         uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # pin@v3.0.0
