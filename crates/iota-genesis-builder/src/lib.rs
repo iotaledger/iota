@@ -285,7 +285,7 @@ impl Builder {
             &token_distribution_schedule,
             &self.genesis_stake.take_timelock_allocations(),
             &validators,
-            &objects,
+            objects,
         ));
 
         self.token_distribution_schedule = Some(token_distribution_schedule);
@@ -844,7 +844,7 @@ fn build_unsigned_genesis_data(
     token_distribution_schedule: &TokenDistributionSchedule,
     timelock_allocations: &[TimelockAllocation],
     validators: &[GenesisValidatorInfo],
-    objects: &[Object],
+    objects: Vec<Object>,
 ) -> UnsignedGenesis {
     if !parameters.allow_insertion_of_extra_objects && !objects.is_empty() {
         panic!(
@@ -1032,7 +1032,7 @@ fn create_genesis_transaction(
 
 fn create_genesis_objects(
     genesis_ctx: &mut TxContext,
-    input_objects: &[Object],
+    input_objects: Vec<Object>,
     validators: &[GenesisValidatorMetadata],
     parameters: &GenesisChainParameters,
     token_distribution_schedule: &TokenDistributionSchedule,
