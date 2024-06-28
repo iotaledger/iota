@@ -895,6 +895,7 @@ module iota_system::iota_system_state_inner {
                 non_refundable_storage_fee_amount,
             );
 
+        // TODO: Consider emitting the minted or burned tokens from the IOTA supply here for informational purposes.
         event::emit(
             SystemEpochInfoEvent {
                 epoch: self.epoch,

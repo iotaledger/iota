@@ -2134,6 +2134,7 @@ gas coins.
             non_refundable_storage_fee_amount,
         );
 
+    // TODO: Consider emitting the minted or burned tokens from the IOTA supply here for informational purposes.
     <a href="../iota-framework/event.md#0x2_event_emit">event::emit</a>(
         <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_SystemEpochInfoEvent">SystemEpochInfoEvent</a> {
             epoch: self.epoch,
