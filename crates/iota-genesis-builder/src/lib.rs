@@ -168,7 +168,13 @@ impl Builder {
     }
 
     pub fn add_validator_signature(mut self, keypair: &AuthorityKeyPair) -> Self {
-        let UnsignedGenesis { checkpoint, .. } = self.build_unsigned_genesis_checkpoint();
+        if self.built_genesis.is_none() {
+            self.build_and_cache_unsigned_genesis_checkpoint();
+        }
+        let UnsignedGenesis { checkpoint, .. } = self
+            .built_genesis
+            .as_ref()
+            .expect("genesis should have been built");
 
         let name = keypair.public().into();
         assert!(
@@ -209,11 +215,7 @@ impl Builder {
         self.built_genesis.clone()
     }
 
-    pub fn build_unsigned_genesis_checkpoint(&mut self) -> UnsignedGenesis {
-        if let Some(built_genesis) = &self.built_genesis {
-            return built_genesis.clone();
-        }
-
+    fn build_and_cache_unsigned_genesis_checkpoint(&mut self) {
         // Verify that all input data is valid
         self.validate_inputs().unwrap();
         let validators = self.validators.clone().into_values().collect::<Vec<_>>();
@@ -287,8 +289,13 @@ impl Builder {
         ));
 
         self.token_distribution_schedule = Some(token_distribution_schedule);
+    }
 
-        self.built_genesis.clone().unwrap()
+    pub fn build_unsigned_genesis_checkpoint(&mut self) -> &UnsignedGenesis {
+        if self.built_genesis.is_none() {
+            self.build_and_cache_unsigned_genesis_checkpoint();
+        }
+        self.built_genesis.as_ref().unwrap()
     }
 
     fn committee(objects: &[Object]) -> Committee {
@@ -302,6 +309,9 @@ impl Builder {
     }
 
     pub fn build(mut self) -> Genesis {
+        if self.built_genesis.is_none() {
+            self.build_and_cache_unsigned_genesis_checkpoint();
+        }
         let UnsignedGenesis {
             checkpoint,
             checkpoint_contents,
@@ -309,7 +319,10 @@ impl Builder {
             effects,
             events,
             objects,
-        } = self.build_unsigned_genesis_checkpoint();
+        } = self
+            .built_genesis
+            .take()
+            .expect("genesis should have been built");
 
         let committee = Self::committee(&objects);
 
@@ -727,7 +740,7 @@ impl Builder {
             let built = builder.build_unsigned_genesis_checkpoint();
             loaded_genesis.checkpoint_contents.digest(); // cache digest before compare
             assert_eq!(
-                built, loaded_genesis,
+                *built, loaded_genesis,
                 "loaded genesis does not match built genesis"
             );
 
