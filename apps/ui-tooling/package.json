@@ -1,5 +1,5 @@
 {
-  "name": "@iota/ui",
+  "name": "@iota/ui-tooling",
   "private": true,
   "sideEffects": false,
   "main": "./src/index.ts",
