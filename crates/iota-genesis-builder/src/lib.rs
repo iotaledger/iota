@@ -5,6 +5,7 @@
 use std::{
     collections::{BTreeMap, HashSet},
     fs::{self, File},
+    io::BufReader,
     path::Path,
     sync::Arc,
 };
@@ -199,9 +200,8 @@ impl Builder {
         mut self,
         snapshot: impl AsRef<Path>,
     ) -> anyhow::Result<Self> {
-        self.migration_objects = MigrationObjects::new(bcs::from_reader(
-            brotli::Decompressor::new(File::open(snapshot)?, BROTLI_COMPRESSOR_BUFFER_SIZE),
-        )?);
+        self.migration_objects =
+            MigrationObjects::new(bcs::from_reader(BufReader::new(File::open(snapshot)?))?);
         Ok(self)
     }
 
