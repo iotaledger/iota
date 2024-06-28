@@ -201,8 +201,8 @@ const config = {
       footer: {
         logo: {
           alt: "IOTA Wiki Logo",
-          src: "img/IOTA-logo.svg",
-          srcDark: "img/IOTA-logo.svg",
+          src: "img/iota-logo.svg",
+          srcDark: "img/iota-logo.svg",
           width: 138,
           height: 48,
         },
