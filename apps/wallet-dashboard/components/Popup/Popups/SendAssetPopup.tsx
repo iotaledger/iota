@@ -11,7 +11,7 @@ import { createNftSendValidationSchema, ValidationError } from '@iota/core';
 import { useRouter } from 'next/navigation';
 import { useNotifications } from '@/hooks';
 import { NotificationType } from '@/stores/notificationStore';
-import { useCreateSendAssetTransaction } from '@/hooks/useCreateSendAssetTransaction';
+import { useCreateSendAssetTransaction } from '@/hooks';
 
 interface SendAssetPopupProps {
     asset: IotaObjectData;
