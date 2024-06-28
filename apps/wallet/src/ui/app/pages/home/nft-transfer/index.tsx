@@ -11,6 +11,7 @@ import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 
 import { TransferNFTForm } from './TransferNFTForm';
+import { isAssetTransferable } from '@iota/core';
 
 function NftTransferPage() {
     const { nftId } = useParams();
@@ -24,10 +25,7 @@ function NftTransferPage() {
         <Overlay showModal={true} title="Send NFT" closeOverlay={() => navigate('/nfts')}>
             <div className="flex h-full w-full flex-col">
                 <Loading loading={isPending}>
-                    {ownedNFT &&
-                    nftId &&
-                    ownedNFT.content?.dataType === 'moveObject' &&
-                    ownedNFT.content.hasPublicTransfer ? (
+                    {nftId && !!ownedNFT && isAssetTransferable(ownedNFT) ? (
                         <>
                             <div className="mb-7.5">
                                 <NFTDisplayCard objectId={nftId} wideView size="sm" />

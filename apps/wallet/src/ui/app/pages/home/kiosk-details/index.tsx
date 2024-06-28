@@ -73,7 +73,7 @@ function KioskDetailsPage() {
                                 <ExplorerLink
                                     className="font-mono text-hero-dark no-underline"
                                     objectID={kioskId!}
-                                    type={ExplorerLinkType.object}
+                                    type={ExplorerLinkType.Object}
                                 >
                                     {formatAddress(kioskId!)}
                                 </ExplorerLink>

@@ -144,7 +144,7 @@ impl ModuleCache {
     // Retrieve a module by `ModuleId`. The module may have not been loaded yet in
     // which case `None` is returned
     fn compiled_module_at(&self, id: &ModuleId) -> Option<Arc<CompiledModule>> {
-        self.compiled_modules.get(id).map(Arc::clone)
+        self.compiled_modules.get(id).cloned()
     }
 
     // Retrieve a module by `ModuleId`. The module may have not been loaded yet in
@@ -156,7 +156,7 @@ impl ModuleCache {
     ) -> Option<Arc<LoadedModule>> {
         self.loaded_modules
             .get(&(link_context, runtime_id.clone()))
-            .map(Arc::clone)
+            .cloned()
     }
 
     // Retrieve a function by index
@@ -1343,7 +1343,7 @@ impl Loader {
             .structs
             .binaries
             .get(idx.0)
-            .map(Arc::clone)
+            .cloned()
     }
 
     pub(crate) fn abilities(&self, ty: &Type) -> PartialVMResult<AbilitySet> {

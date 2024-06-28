@@ -11,22 +11,20 @@ use iota_types::{
     dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo, Field},
     in_memory_storage::InMemoryStorage,
     object::Owner,
+    stardust::output::{
+        Alias, AliasOutput, ALIAS_DYNAMIC_OBJECT_FIELD_KEY, ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE,
+    },
     TypeTag,
 };
 
-use crate::stardust::{
-    migration::{
-        executor::FoundryLedgerData,
-        verification::{
-            created_objects::CreatedObjects,
-            util::{
-                verify_address_owner, verify_issuer_feature, verify_metadata_feature,
-                verify_native_tokens, verify_parent, verify_sender_feature,
-            },
+use crate::stardust::migration::{
+    executor::FoundryLedgerData,
+    verification::{
+        created_objects::CreatedObjects,
+        util::{
+            verify_address_owner, verify_issuer_feature, verify_metadata_feature,
+            verify_native_tokens, verify_parent, verify_sender_feature,
         },
-    },
-    types::{
-        Alias, AliasOutput, ALIAS_DYNAMIC_OBJECT_FIELD_KEY, ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE,
     },
 };
 
@@ -163,7 +161,7 @@ pub(super) fn verify_alias_output(
         created_alias.immutable_metadata.as_ref(),
     )?;
 
-    verify_parent(output.governor_address(), storage)?;
+    verify_parent(&output_id, output.governor_address(), storage)?;
 
     ensure!(created_objects.coin().is_err(), "unexpected coin found");
 

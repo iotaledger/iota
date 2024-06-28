@@ -22,7 +22,7 @@ type AppState = {
 };
 
 const initialState: AppState = {
-    appType: AppType.unknown,
+    appType: AppType.Unknown,
     network: getDefaultNetwork(),
     customRpc: null,
     navVisible: true,

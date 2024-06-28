@@ -450,13 +450,15 @@ async fn test_zklogin_transfer_with_bad_ephemeral_sig() {
             *zklogin.user_signature_mut_for_testing() = sig;
         },
     )
-    .await;
+    .await
+    .unwrap();
 }
+
 #[sim_test]
 async fn test_zklogin_transfer_with_large_address_seed() {
     telemetry_subscribers::init_for_testing();
     let (object_ids, gas_object_ids, authority_state, _epoch_store, _, _, _server, client) =
-        setup_zklogin_network(|_| {}).await;
+        setup_zklogin_network(|_| {}).await.unwrap();
 
     let ephemeral_key = Ed25519KeyPair::generate(&mut StdRng::from_seed([3; 32]));
 
@@ -493,7 +495,7 @@ async fn zklogin_test_cached_proof_wrong_key() {
         metrics,
         _server,
         client,
-    ) = setup_zklogin_network(|_| {}).await;
+    ) = setup_zklogin_network(|_| {}).await.unwrap();
 
     let res = client.handle_transaction(transfer_transaction).await;
     assert!(res.is_ok());
@@ -508,7 +510,7 @@ async fn zklogin_test_cached_proof_wrong_key() {
     // );
 
     let (skp, _eph_pk, zklogin) =
-        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1];
+        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()[1];
     let ephemeral_key = match skp {
         IotaKeyPair::Ed25519(kp) => kp,
         _ => panic!(),
@@ -571,7 +573,7 @@ async fn do_zklogin_transaction_test(
     expected_sig_errors: u64,
     pre_sign_mutations: impl FnOnce(&mut TransactionData),
     post_sign_mutations: impl FnOnce(&mut Transaction),
-) {
+) -> eyre::Result<()> {
     let (
         object_ids,
         _gas_object_id,
@@ -581,7 +583,7 @@ async fn do_zklogin_transaction_test(
         metrics,
         _server,
         client,
-    ) = setup_zklogin_network(pre_sign_mutations).await;
+    ) = setup_zklogin_network(pre_sign_mutations).await?;
 
     post_sign_mutations(&mut transfer_transaction);
 
@@ -605,6 +607,8 @@ async fn do_zklogin_transaction_test(
     assert_eq!(metrics.signature_errors.get(), expected_sig_errors);
 
     check_locks(authority_state, object_ids).await;
+
+    Ok(())
 }
 
 async fn check_locks(authority_state: Arc<AuthorityState>, object_ids: Vec<ObjectID>) {
@@ -629,7 +633,7 @@ async fn check_locks(authority_state: Arc<AuthorityState>, object_ids: Vec<Objec
 
 async fn setup_zklogin_network(
     pre_sign_mutations: impl FnOnce(&mut TransactionData),
-) -> (
+) -> eyre::Result<(
     Vec<ObjectID>, // objects
     Vec<ObjectID>, // gas objects
     Arc<AuthorityState>,
@@ -638,9 +642,9 @@ async fn setup_zklogin_network(
     Arc<crate::authority_server::ValidatorServiceMetrics>,
     AuthorityServerHandle,
     NetworkAuthorityClient,
-) {
+)> {
     let (skp, _eph_pk, zklogin) =
-        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1];
+        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")?[1];
     let ephemeral_key = match skp {
         IotaKeyPair::Ed25519(kp) => kp,
         _ => panic!(),
@@ -700,7 +704,7 @@ async fn setup_zklogin_network(
     let client = NetworkAuthorityClient::connect(server_handle.address())
         .await
         .unwrap();
-    (
+    Ok((
         object_ids,
         gas_object_ids,
         authority_state,
@@ -709,7 +713,7 @@ async fn setup_zklogin_network(
         metrics,
         server_handle,
         client,
-    )
+    ))
 }
 
 async fn init_zklogin_transfer(
@@ -766,7 +770,7 @@ async fn zklogin_txn_fail_if_missing_jwk() {
 
     // Initialize an authorty state with some objects under a zklogin address.
     let (skp, _eph_pk, zklogin) =
-        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1];
+        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()[1];
     let ephemeral_key = match skp {
         IotaKeyPair::Ed25519(kp) => kp,
         _ => panic!(),
@@ -896,7 +900,7 @@ async fn zk_multisig_test() {
 
     // Step 1. construct 2 zklogin signatures
     let test_vectors =
-        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1..];
+        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()[1..];
     let mut zklogin_sigs = vec![];
     for (kp, _pk_zklogin, inputs) in test_vectors {
         let intent_message = IntentMessage::new(Intent::iota_transaction(), data.clone());

@@ -9,14 +9,9 @@ import { ButtonOrLink } from '_app/shared/utils/ButtonOrLink';
 import Alert from '_components/alert';
 import { CoinIcon } from '_components/coin-icon';
 import Loading from '_components/loading';
-import { filterAndSortTokenBalances } from '_helpers';
 import { useAppSelector, useCoinsReFetchingConfig, useSortedCoinsByCategories } from '_hooks';
-import {
-    DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
-    DELEGATED_STAKES_QUERY_STALE_TIME,
-} from '_shared/constants';
 import { ampli } from '_src/shared/analytics/ampli';
-import { FEATURES } from '_src/shared/experimentation/features';
+import { Feature } from '_src/shared/experimentation/features';
 import { AccountsList } from '_src/ui/app/components/accounts/AccountsList';
 import { UnlockAccountButton } from '_src/ui/app/components/accounts/UnlockAccountButton';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
@@ -25,6 +20,7 @@ import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import PageTitle from '_src/ui/app/shared/PageTitle';
 import { useFeature } from '@growthbook/growthbook-react';
 import {
+    filterAndSortTokenBalances,
     useAppsBackend,
     useBalance,
     useBalanceInUSD,
@@ -32,6 +28,8 @@ import {
     useFormatCoin,
     useGetDelegatedStake,
     useResolveIotaNSName,
+    DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
+    DELEGATED_STAKES_QUERY_STALE_TIME,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Info12, Pin16, Unpin16 } from '@iota/icons';
@@ -336,7 +334,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
     });
 
     const walletInterstitialConfig = useFeature<InterstitialConfig>(
-        FEATURES.WALLET_INTERSTITIAL_CONFIG,
+        Feature.WalletInterstitialConfig,
     ).value;
 
     const tokenBalance = BigInt(coinBalance?.totalBalance ?? 0);

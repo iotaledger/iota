@@ -69,7 +69,7 @@ Add a time-locked stake to a validator's staking pool.
     <b>let</b> <a href="timelocked_staked_iota.md#0x10cf_timelocked_staked_iota">timelocked_staked_iota</a> = <a href="timelocked_staking.md#0x10cf_timelocked_staking_request_add_stake_non_entry">request_add_stake_non_entry</a>(<a href="../iota-system/iota_system.md#0x3_iota_system">iota_system</a>, <a href="timelocked_balance.md#0x10cf_timelocked_balance">timelocked_balance</a>, validator_address, ctx);
 
     // Transfer the receipt <b>to</b> the sender.
-    <a href="timelocked_staked_iota.md#0x10cf_timelocked_staked_iota_transfer">timelocked_staked_iota::transfer</a>(<a href="timelocked_staked_iota.md#0x10cf_timelocked_staked_iota">timelocked_staked_iota</a>, ctx.sender());
+    <a href="timelocked_staked_iota.md#0x10cf_timelocked_staked_iota">timelocked_staked_iota</a>.self_transfer(ctx);
 }
 </code></pre>
 
@@ -160,7 +160,7 @@ Add a time-locked stake to a validator's staking pool using multiple time-locked
         <b>let</b> receipt = receipts.pop_back();
 
         // Transfer the receipt <b>to</b> the sender.
-        <a href="timelocked_staked_iota.md#0x10cf_timelocked_staked_iota_transfer">timelocked_staked_iota::transfer</a>(receipt, ctx.sender());
+        receipt.self_transfer(ctx);
 
         i = i + 1
     };
@@ -253,7 +253,7 @@ Withdraw a time-locked stake from a validator's staking pool.
     <b>let</b> (<a href="timelocked_balance.md#0x10cf_timelocked_balance">timelocked_balance</a>, reward) = <a href="timelocked_staking.md#0x10cf_timelocked_staking_request_withdraw_stake_non_entry">request_withdraw_stake_non_entry</a>(<a href="../iota-system/iota_system.md#0x3_iota_system">iota_system</a>, <a href="timelocked_staked_iota.md#0x10cf_timelocked_staked_iota">timelocked_staked_iota</a>, ctx);
 
     // Transfer the withdrawn time-locked <a href="../iota-framework/balance.md#0x2_balance">balance</a> <b>to</b> the sender.
-    <a href="timelock.md#0x10cf_timelock_transfer">timelock::transfer</a>(<a href="timelocked_balance.md#0x10cf_timelocked_balance">timelocked_balance</a>, ctx.sender());
+   <a href="timelocked_balance.md#0x10cf_timelocked_balance">timelocked_balance</a>.self_transfer(ctx);
 
     // Send coins only <b>if</b> the reward is not zero.
     <b>if</b> (reward.value() &gt; 0) {

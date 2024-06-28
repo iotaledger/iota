@@ -12,7 +12,7 @@ fn serde_keypair() {
     let encoded = skp.encode().unwrap();
     assert_eq!(
         encoded,
-        "iotaprivkey1qzdlfxn2qa2lj5uprl8pyhexs02sg2wrhdy7qaq50cqgnffw4c2477kg9h3"
+        "iotaprivkey1qzdlfxn2qa2lj5uprl8pyhexs02sg2wrhdy7qaq50cqgnffw4c247zslwv6"
     );
     let decoded = IotaKeyPair::decode(&encoded).unwrap();
     assert_eq!(skp, decoded);

@@ -24,11 +24,12 @@ import { backupDB, getDB } from '../db';
 import { makeUniqueKey } from '../storage-utils';
 import {
     AccountSource,
+    AccountSourceType,
     type AccountSourceSerialized,
     type AccountSourceSerializedUI,
 } from './AccountSource';
 import { accountSourcesEvents } from './events';
-import { makeDerivationPath } from './bipPath';
+import { type MakeDerivationOptions, makeDerivationPath } from './bip44Path';
 
 type DataDecrypted = {
     entropyHex: string;
@@ -36,14 +37,14 @@ type DataDecrypted = {
 };
 
 interface MnemonicAccountSourceSerialized extends AccountSourceSerialized {
-    type: 'mnemonic';
+    type: AccountSourceType.Mnemonic;
     encryptedData: string;
     // hash of entropy to be used for comparing sources (even when locked)
     sourceHash: string;
 }
 
 interface MnemonicAccountSourceSerializedUI extends AccountSourceSerializedUI {
-    type: 'mnemonic';
+    type: AccountSourceType.Mnemonic;
 }
 
 export function deriveKeypairFromSeed(mnemonicSeedHex: string, derivationPath: string) {
@@ -67,7 +68,7 @@ export class MnemonicAccountSource extends AccountSource<
         }
         const dataSerialized: MnemonicAccountSourceSerialized = {
             id: makeUniqueKey(),
-            type: 'mnemonic',
+            type: AccountSourceType.Mnemonic,
             encryptedData: await MnemonicAccountSource.createEncryptedData(entropy, password),
             sourceHash: bytesToHex(sha256(entropy)),
             createdAt: Date.now(),
@@ -87,7 +88,7 @@ export class MnemonicAccountSource extends AccountSource<
     static isOfType(
         serialized: AccountSourceSerialized,
     ): serialized is MnemonicAccountSourceSerialized {
-        return serialized.type === 'mnemonic';
+        return serialized.type === AccountSourceType.Mnemonic;
     }
 
     static async save(
@@ -116,7 +117,7 @@ export class MnemonicAccountSource extends AccountSource<
     }
 
     constructor(id: string) {
-        super({ type: 'mnemonic', id });
+        super({ type: AccountSourceType.Mnemonic, id });
     }
 
     async isLocked() {
@@ -139,12 +140,12 @@ export class MnemonicAccountSource extends AccountSource<
         accountSourcesEvents.emit('accountSourceStatusUpdated', { accountSourceID: this.id });
     }
 
-    async deriveAccount({ derivationPathIndex }: { derivationPathIndex?: number } = {}): Promise<
-        Omit<MnemonicSerializedAccount, 'id'>
-    > {
+    async deriveAccount(
+        derivationOptions?: MakeDerivationOptions,
+    ): Promise<Omit<MnemonicSerializedAccount, 'id'>> {
         const derivationPath =
-            typeof derivationPathIndex !== 'undefined'
-                ? makeDerivationPath(derivationPathIndex)
+            typeof derivationOptions !== 'undefined'
+                ? makeDerivationPath(derivationOptions)
                 : await this.#getAvailableDerivationPath();
         const keyPair = await this.deriveKeyPair(derivationPath);
         return MnemonicAccount.createNew({ keyPair, derivationPath, sourceID: this.id });
@@ -201,7 +202,9 @@ export class MnemonicAccountSource extends AccountSource<
         let derivationPath = '';
         let temp;
         do {
-            temp = makeDerivationPath(index++);
+            temp = makeDerivationPath({
+                accountIndex: index++,
+            });
             if (!derivationPathMap[temp]) {
                 derivationPath = temp;
             }

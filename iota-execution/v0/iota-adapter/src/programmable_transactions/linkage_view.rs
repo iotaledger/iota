@@ -30,7 +30,7 @@ pub struct LinkageView<'state> {
     /// store.
     resolver: Box<dyn IotaResolver + 'state>,
     /// Information used to change module and type identities during linkage.
-    linkage_info: LinkageInfo,
+    linkage_info: Option<LinkageInfo>,
     /// Cache containing the type origin information from every package that has
     /// been set as the link context, and every other type that has been
     /// requested by the loader in this session. It's okay to retain entries
@@ -48,66 +48,40 @@ pub struct LinkageView<'state> {
 }
 
 #[derive(Debug)]
-pub enum LinkageInfo {
-    /// No linkage information -- requests to relink will fail with an invariant
-    /// violation.
-    Unset,
-    /// Linkage information cannot be altered, and does not affect type or
-    /// module identity.
-    Universal,
-    /// Linkage provided by the package found at `storage_id` whose module
-    /// self-addresses are `runtime_id`.
-    Set(PackageLinkage),
-}
-
-#[derive(Debug)]
-pub struct PackageLinkage {
+pub struct LinkageInfo {
     storage_id: AccountAddress,
     runtime_id: AccountAddress,
     link_table: BTreeMap<ObjectID, UpgradeInfo>,
 }
 
-pub struct SavedLinkage(PackageLinkage);
+pub struct SavedLinkage(LinkageInfo);
 
 impl<'state> LinkageView<'state> {
-    pub fn new(resolver: Box<dyn IotaResolver + 'state>, linkage_info: LinkageInfo) -> Self {
+    pub fn new(resolver: Box<dyn IotaResolver + 'state>) -> Self {
         Self {
             resolver,
-            linkage_info,
+            linkage_info: None,
             type_origin_cache: RefCell::new(HashMap::new()),
             past_contexts: RefCell::new(HashSet::new()),
         }
     }
 
     pub fn reset_linkage(&mut self) {
-        if let LinkageInfo::Set(_) = &self.linkage_info {
-            // Resetting does not affect "universal" linkage.
-            self.linkage_info = LinkageInfo::Unset;
-        }
+        self.linkage_info = None;
     }
 
     /// Indicates whether this `LinkageView` has had its context set to match
     /// the linkage in `context`.
     pub fn has_linkage(&self, context: ObjectID) -> bool {
-        match &self.linkage_info {
-            LinkageInfo::Unset => false,
-            LinkageInfo::Universal => true,
-            LinkageInfo::Set(linkage) => linkage.storage_id == *context,
-        }
+        self.linkage_info
+            .as_ref()
+            .is_some_and(|l| l.storage_id == *context)
     }
 
     /// Reset the linkage, but save the context that existed before, if there
     /// was one.
     pub fn steal_linkage(&mut self) -> Option<SavedLinkage> {
-        if let LinkageInfo::Universal = &self.linkage_info {
-            None
-        } else {
-            match std::mem::replace(&mut self.linkage_info, LinkageInfo::Unset) {
-                LinkageInfo::Set(linkage) => Some(SavedLinkage(linkage)),
-                LinkageInfo::Unset => None,
-                LinkageInfo::Universal => unreachable!(),
-            }
-        }
+        Some(SavedLinkage(self.linkage_info.take()?))
     }
 
     /// Restore a previously saved linkage context.  Fails if there is already a
@@ -117,21 +91,17 @@ impl<'state> LinkageView<'state> {
             return Ok(());
         };
 
-        match &self.linkage_info {
-            LinkageInfo::Unset => (),
-            LinkageInfo::Universal => (),
-            LinkageInfo::Set(existing) => {
-                invariant_violation!(
-                    "Attempt to overwrite linkage by restoring: {saved:#?} \
-                     Existing linkage: {existing:#?}",
-                )
-            }
+        if let Some(existing) = &self.linkage_info {
+            invariant_violation!(
+                "Attempt to overwrite linkage by restoring: {saved:#?} \
+                 Existing linkage: {existing:#?}",
+            )
         }
 
         // No need to populate type origin cache, because a saved context must have been
         // set as a linkage before, and the cache would have been populated at
         // that time.
-        self.linkage_info = LinkageInfo::Set(saved);
+        self.linkage_info = Some(saved);
         Ok(())
     }
 
@@ -139,23 +109,18 @@ impl<'state> LinkageView<'state> {
     /// origin tables from the `context` package.  Returns the original
     /// package ID (aka the runtime ID) of the context package on success.
     pub fn set_linkage(&mut self, context: &MovePackage) -> Result<AccountAddress, ExecutionError> {
-        match &self.linkage_info {
-            LinkageInfo::Unset => (),
-            LinkageInfo::Universal => return Ok(*context.id()),
-
-            LinkageInfo::Set(existing) => {
-                invariant_violation!(
-                    "Attempt to overwrite linkage info with context from {}. \
-                     Existing linkage: {existing:#?}",
-                    context.id(),
-                )
-            }
+        if let Some(existing) = &self.linkage_info {
+            invariant_violation!(
+                "Attempt to overwrite linkage info with context from {}. \
+                    Existing linkage: {existing:#?}",
+                context.id(),
+            )
         }
 
-        let linkage = PackageLinkage::from(context);
+        let linkage = LinkageInfo::from(context);
         let storage_id = context.id();
         let runtime_id = linkage.runtime_id;
-        self.linkage_info = LinkageInfo::Set(linkage);
+        self.linkage_info = Some(linkage);
 
         if !self.past_contexts.borrow_mut().insert(storage_id) {
             return Ok(runtime_id);
@@ -186,11 +151,7 @@ impl<'state> LinkageView<'state> {
     }
 
     pub fn original_package_id(&self) -> Option<AccountAddress> {
-        if let LinkageInfo::Set(linkage) = &self.linkage_info {
-            Some(linkage.runtime_id)
-        } else {
-            None
-        }
+        Some(self.linkage_info.as_ref()?.runtime_id)
     }
 
     fn get_cached_type_origin(
@@ -234,37 +195,16 @@ impl<'state> LinkageView<'state> {
 
         Ok(())
     }
-}
 
-impl From<&MovePackage> for PackageLinkage {
-    fn from(package: &MovePackage) -> Self {
-        Self {
-            storage_id: package.id().into(),
-            runtime_id: package.original_package_id().into(),
-            link_table: package.linkage_table().clone(),
-        }
-    }
-}
-
-impl<'state> LinkageResolver for LinkageView<'state> {
-    type Error = IotaError;
-
-    fn link_context(&self) -> AccountAddress {
-        if let LinkageInfo::Set(linkage) = &self.linkage_info {
-            linkage.storage_id
-        } else {
-            AccountAddress::ZERO
-        }
+    pub(crate) fn link_context(&self) -> AccountAddress {
+        self.linkage_info
+            .as_ref()
+            .map_or(AccountAddress::ZERO, |l| l.storage_id)
     }
 
-    fn relocate(&self, module_id: &ModuleId) -> Result<ModuleId, Self::Error> {
-        let linkage = match &self.linkage_info {
-            LinkageInfo::Set(linkage) => linkage,
-            LinkageInfo::Universal => return Ok(module_id.clone()),
-
-            LinkageInfo::Unset => {
-                invariant_violation!("No linkage context set while relocating {module_id}.")
-            }
+    pub(crate) fn relocate(&self, module_id: &ModuleId) -> Result<ModuleId, IotaError> {
+        let Some(linkage) = &self.linkage_info else {
+            invariant_violation!("No linkage context set while relocating {module_id}.")
         };
 
         // The request is to relocate a module in the package that the link context is
@@ -292,21 +232,16 @@ impl<'state> LinkageResolver for LinkageView<'state> {
         ))
     }
 
-    fn defining_module(
+    pub(crate) fn defining_module(
         &self,
         runtime_id: &ModuleId,
         struct_: &IdentStr,
-    ) -> Result<ModuleId, Self::Error> {
-        match &self.linkage_info {
-            LinkageInfo::Set(_) => (),
-            LinkageInfo::Universal => return Ok(runtime_id.clone()),
-
-            LinkageInfo::Unset => {
-                invariant_violation!(
-                    "No linkage context set for defining module query on {runtime_id}::{struct_}."
-                )
-            }
-        };
+    ) -> Result<ModuleId, IotaError> {
+        if self.linkage_info.is_none() {
+            invariant_violation!(
+                "No linkage context set for defining module query on {runtime_id}::{struct_}."
+            )
+        }
 
         if let Some(cached) = self.get_cached_type_origin(runtime_id, struct_) {
             return Ok(ModuleId::new(cached, runtime_id.name().to_owned()));
@@ -333,6 +268,36 @@ impl<'state> LinkageResolver for LinkageView<'state> {
             "{runtime_id}::{struct_} not found in type origin table in {storage_id} (v{})",
             package.move_package().version(),
         )
+    }
+}
+
+impl From<&MovePackage> for LinkageInfo {
+    fn from(package: &MovePackage) -> Self {
+        Self {
+            storage_id: package.id().into(),
+            runtime_id: package.original_package_id().into(),
+            link_table: package.linkage_table().clone(),
+        }
+    }
+}
+
+impl<'state> LinkageResolver for LinkageView<'state> {
+    type Error = IotaError;
+
+    fn link_context(&self) -> AccountAddress {
+        LinkageView::link_context(self)
+    }
+
+    fn relocate(&self, module_id: &ModuleId) -> Result<ModuleId, Self::Error> {
+        LinkageView::relocate(self, module_id)
+    }
+
+    fn defining_module(
+        &self,
+        runtime_id: &ModuleId,
+        struct_: &IdentStr,
+    ) -> Result<ModuleId, Self::Error> {
+        LinkageView::defining_module(self, runtime_id, struct_)
     }
 }
 

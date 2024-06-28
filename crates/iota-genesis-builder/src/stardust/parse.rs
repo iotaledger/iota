@@ -8,32 +8,29 @@ use anyhow::Result;
 use iota_sdk::types::block::{
     output::Output, payload::milestone::MilestoneOption, protocol::ProtocolParameters,
 };
+use iota_types::stardust::error::StardustError;
 use packable::{unpacker::IoUnpacker, Packable};
 
-use super::{
-    error::StardustError,
-    types::snapshot::{FullSnapshotHeader, OutputHeader},
-};
+use super::types::{output_header::OutputHeader, snapshot::FullSnapshotHeader};
 
-/// Parse a full-snapshot using a [`BufReader`] internally.
-pub struct FullSnapshotParser<R: Read> {
+/// Parse a Hornet genesis snapshot using a [`BufReader`] internally.
+pub struct HornetGenesisSnapshotParser<R: Read> {
     reader: IoUnpacker<BufReader<R>>,
     /// The full-snapshot header
     pub header: FullSnapshotHeader,
 }
 
-impl<R: Read> FullSnapshotParser<R> {
+impl<R: Read> HornetGenesisSnapshotParser<R> {
     pub fn new(reader: R) -> Result<Self> {
         let mut reader = IoUnpacker::new(std::io::BufReader::new(reader));
+        // `true` ensures that only genesis snapshots unpack successfully
         let header = FullSnapshotHeader::unpack::<_, true>(&mut reader, &())?;
 
         Ok(Self { reader, header })
     }
 
     /// Provide an iterator over the Stardust UTXOs recorded in the snapshot.
-    pub fn outputs(
-        mut self,
-    ) -> impl Iterator<Item = Result<(OutputHeader, Output), anyhow::Error>> {
+    pub fn outputs(mut self) -> impl Iterator<Item = anyhow::Result<(OutputHeader, Output)>> {
         (0..self.header.output_count()).map(move |_| {
             Ok((
                 OutputHeader::unpack::<_, true>(&mut self.reader, &())?,
@@ -48,22 +45,17 @@ impl<R: Read> FullSnapshotParser<R> {
         self.header.target_milestone_timestamp()
     }
 
-    /// Provide the protocol parameters extracted from the snapshot header.
-    pub fn protocol_parameters(&self) -> Result<ProtocolParameters> {
+    /// Provide the network main token total supply through the snapshot
+    /// protocol parameters.
+    pub fn total_supply(&self) -> Result<u64> {
         if let MilestoneOption::Parameters(params) = self.header.parameters_milestone_option() {
             let protocol_params = <ProtocolParameters as packable::PackableExt>::unpack_unverified(
                 params.binary_parameters(),
             )
             .expect("invalid protocol params");
-            Ok(protocol_params)
+            Ok(protocol_params.token_supply())
         } else {
             Err(StardustError::HornetSnapshotParametersNotFound.into())
         }
-    }
-
-    /// Provide the network main token total supply through the snapshot
-    /// protocol parameters.
-    pub fn total_supply(&self) -> Result<u64> {
-        self.protocol_parameters().map(|p| p.token_supply())
     }
 }

@@ -3,54 +3,95 @@
 
 import React, { useState } from 'react';
 import { EnterValuesFormView, ReviewValuesFormView } from './views';
-import { CoinStruct } from '@iota/iota.js/client';
+import { CoinBalance } from '@iota/iota.js/client';
+import { useSendCoinTransaction, useNotifications } from '@/hooks';
+import { useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
+import { useGetAllCoins } from '@iota/core';
+import { NotificationType } from '@/stores/notificationStore';
 
 export interface FormDataValues {
     amount: string;
     recipientAddress: string;
-    senderAddress: string;
 }
 
 interface SendCoinPopupProps {
-    coin: CoinStruct;
+    coin: CoinBalance;
     senderAddress: string;
     onClose: () => void;
 }
 
-enum Step {
+enum FormStep {
     EnterValues,
     ReviewValues,
 }
 
 function SendCoinPopup({ coin, senderAddress, onClose }: SendCoinPopupProps): JSX.Element {
-    const [step, setStep] = useState<Step>(Step.EnterValues);
+    const [step, setStep] = useState<FormStep>(FormStep.EnterValues);
     const [formData, setFormData] = useState<FormDataValues>({
         amount: '',
         recipientAddress: '',
-        senderAddress,
     });
+    const { data: coins } = useGetAllCoins(coin.coinType, senderAddress);
+    const { addNotification } = useNotifications();
+    const totalCoins = coins?.reduce((partialSum, c) => partialSum + BigInt(c.balance), BigInt(0));
 
-    const handleNext = () => {
-        setStep(Step.ReviewValues);
+    const {
+        mutateAsync: signAndExecuteTransactionBlock,
+        error,
+        isPending,
+    } = useSignAndExecuteTransactionBlock();
+    const { data: sendCoinData } = useSendCoinTransaction(
+        coin,
+        senderAddress,
+        formData.recipientAddress,
+        formData.amount,
+        totalCoins === BigInt(formData.amount),
+    );
+
+    const handleTransfer = async () => {
+        if (!sendCoinData?.transaction) return;
+        signAndExecuteTransactionBlock({
+            transactionBlock: sendCoinData.transaction,
+        })
+            .then(() => {
+                onClose();
+                addNotification('Transfer transaction has been sent');
+            })
+            .catch(() => {
+                addNotification('Transfer transaction was not sent', NotificationType.Error);
+            });
     };
 
-    const handleBack = () => {
-        setStep(Step.EnterValues);
+    const onNext = () => {
+        setStep(FormStep.ReviewValues);
+    };
+
+    const onBack = () => {
+        setStep(FormStep.EnterValues);
     };
 
     return (
         <>
-            {step === Step.EnterValues && (
+            {step === FormStep.EnterValues && (
                 <EnterValuesFormView
                     coin={coin}
                     onClose={onClose}
-                    handleNext={handleNext}
+                    onNext={onNext}
                     formData={formData}
+                    gasBudget={sendCoinData?.gasBudget?.toString() || '--'}
                     setFormData={setFormData}
                 />
             )}
-            {step === Step.ReviewValues && (
-                <ReviewValuesFormView formData={formData} handleBack={handleBack} />
+            {step === FormStep.ReviewValues && (
+                <ReviewValuesFormView
+                    formData={formData}
+                    onBack={onBack}
+                    executeTransfer={handleTransfer}
+                    senderAddress={senderAddress}
+                    gasBudget={sendCoinData?.gasBudget?.toString() || '--'}
+                    error={error?.message}
+                    isPending={isPending}
+                />
             )}
         </>
     );
