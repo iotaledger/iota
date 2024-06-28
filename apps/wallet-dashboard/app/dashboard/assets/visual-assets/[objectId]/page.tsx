@@ -3,28 +3,35 @@
 
 'use client';
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { AssetCard, Button, RouteLink } from '@/components';
+import { AssetCard, Button, RouteLink, SendAssetPopup } from '@/components';
 import { isAssetTransferable, useGetObject } from '@iota/core';
+import { usePopups } from '@/hooks';
 
 const VisualAssetDetailPage = () => {
     const params = useParams();
     const objectId = params.objectId as string;
-    const { data: visualAsset } = useGetObject(objectId);
-    const assetIsTransferable = visualAsset?.data ? isAssetTransferable(visualAsset?.data) : false;
+    const { data: asset } = useGetObject(objectId);
+    const { openPopup, closePopup } = usePopups();
+
+    const showSendAssetPopup = useCallback(() => {
+        if (asset?.data) {
+            openPopup(<SendAssetPopup asset={asset?.data} onClose={closePopup} />);
+        }
+    }, [asset, openPopup, closePopup]);
+
+    const assetIsTransferable = asset?.data ? isAssetTransferable(asset?.data) : false;
 
     return (
         <div className="flex h-full w-full flex-col space-y-4 px-40">
             <RouteLink path="/dashboard/assets/visual-assets" title="Back" />
-            {visualAsset?.data ? (
-                <AssetCard key={visualAsset.data.objectId} asset={visualAsset.data} />
+            {asset?.data ? (
+                <AssetCard key={asset.data.objectId} asset={asset.data} />
             ) : (
                 <div className="flex justify-center p-20">Asset not found</div>
             )}
-            {assetIsTransferable ? (
-                <Button onClick={() => console.log('Send Visual Asset')}>Send Asset</Button>
-            ) : null}
+            {assetIsTransferable ? <Button onClick={showSendAssetPopup}>Send Asset</Button> : null}
         </div>
     );
 };

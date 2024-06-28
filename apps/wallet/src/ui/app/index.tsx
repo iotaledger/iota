@@ -70,7 +70,7 @@ const NOTIFY_USER_ACTIVE_INTERVAL = 5 * 1000; // 5 seconds
 
 const App = () => {
     const dispatch = useAppDispatch();
-    const isPopup = useAppSelector((state) => state.app.appType === AppType.popup);
+    const isPopup = useAppSelector((state) => state.app.appType === AppType.Popup);
     useEffect(() => {
         document.body.classList.remove('app-initializing');
     }, [isPopup]);

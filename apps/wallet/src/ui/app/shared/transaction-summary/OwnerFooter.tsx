@@ -26,7 +26,7 @@ export function OwnerFooter({ owner, ownerType }: { owner?: string; ownerType?: 
                     </Text>
                 ) : (
                     <ExplorerLink
-                        type={ExplorerLinkType.address}
+                        type={ExplorerLinkType.Address}
                         title={owner}
                         address={owner}
                         className="font-mono text-body font-medium text-hero-dark no-underline"

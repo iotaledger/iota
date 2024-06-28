@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The [`verification`] module contains the validation logic to make sure that
+//! The `verification` module contains the validation logic to make sure that
 //! the stardust outputs are correctly converted to the move objects.
 
 use std::collections::HashMap;

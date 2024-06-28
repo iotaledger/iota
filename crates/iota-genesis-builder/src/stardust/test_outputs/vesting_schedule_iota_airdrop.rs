@@ -12,58 +12,22 @@ use std::time::SystemTime;
 
 use iota_sdk::{
     client::secret::{mnemonic::MnemonicSecretManager, SecretManage},
-    types::block::{
-        address::Ed25519Address,
-        output::{
-            unlock_condition::{AddressUnlockCondition, TimelockUnlockCondition},
-            BasicOutputBuilder, Output,
-        },
-    },
+    types::block::output::Output,
 };
 use iota_types::timelock::timelock::VESTED_REWARD_ID_PREFIX;
 use rand::{random, rngs::StdRng, Rng, SeedableRng};
 
-use crate::stardust::types::output_header::OutputHeader;
+use crate::stardust::{
+    test_outputs::{new_vested_output, MERGE_TIMESTAMP_SECS},
+    types::output_header::OutputHeader,
+};
 
-const MNEMONIC: &str = "sense silent picnic predict any public install educate trial depth faith voyage age exercise perfect hair favorite glimpse blame wood wave fiber maple receive";
+const MNEMONIC: &str = "mesh dose off wage gas tent key light help girl faint catch sock trouble guard moon talk pill enemy hawk gain mix sad mimic";
 const ACCOUNTS: u32 = 10;
 const ADDRESSES_PER_ACCOUNT: u32 = 20;
 const COIN_TYPE: u32 = 4218;
 const VESTING_WEEKS: usize = 104;
 const VESTING_WEEKS_FREQUENCY: usize = 2;
-const MERGE_MILESTONE_INDEX: u32 = 7669900;
-const MERGE_TIMESTAMP_SECS: u32 = 1696406475;
-
-fn new_output(
-    transaction_id: &mut [u8; 32],
-    vested_index: &mut u32,
-    amount: u64,
-    address: Ed25519Address,
-    timelock: Option<u32>,
-) -> anyhow::Result<(OutputHeader, Output)> {
-    transaction_id[28..32].copy_from_slice(&vested_index.to_le_bytes());
-    *vested_index -= 1;
-
-    let output_header = OutputHeader::new_testing(
-        *transaction_id,
-        // % 128 to pass the output index syntactic validation.
-        random::<u16>() % 128,
-        [0; 32],
-        MERGE_MILESTONE_INDEX,
-        MERGE_TIMESTAMP_SECS,
-    );
-
-    let mut builder = BasicOutputBuilder::new_with_amount(amount)
-        .add_unlock_condition(AddressUnlockCondition::new(address));
-
-    if let Some(timelock) = timelock {
-        builder = builder.add_unlock_condition(TimelockUnlockCondition::new(timelock)?);
-    }
-
-    let output = Output::from(builder.finish().unwrap());
-
-    Ok((output_header, output))
-}
 
 pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let now = SystemTime::now()
@@ -104,11 +68,11 @@ pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(Outpu
 
             // The modulos 3 and 5 are chosen because they create a pattern of
             // all possible combinations of having an initial unlock and having
-            //  expired timelock outputs.
+            // expired timelock outputs.
 
             // 2 addresses out of 3 have an initial unlock.
             if address_index % 3 != 0 {
-                outputs.push(new_output(
+                outputs.push(new_vested_output(
                     &mut transaction_id,
                     vested_index,
                     initial_unlock_amount,
@@ -123,7 +87,7 @@ pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(Outpu
                 // 4 addresses out of 5 have unexpired and expired timelocked vested outputs.
                 // 1 address out of 4 only has unexpired timelocked vested outputs.
                 if address_index % 5 != 0 || timelock > now {
-                    outputs.push(new_output(
+                    outputs.push(new_vested_output(
                         &mut transaction_id,
                         vested_index,
                         vested_amount,
