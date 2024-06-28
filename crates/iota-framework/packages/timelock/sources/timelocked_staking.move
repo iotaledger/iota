@@ -25,7 +25,7 @@ module timelock::timelocked_staking {
         let timelocked_staked_iota = request_add_stake_non_entry(iota_system, timelocked_balance, validator_address, ctx);
 
         // Transfer the receipt to the sender.
-        timelocked_staked_iota.self_transfer(ctx);
+        timelocked_staked_iota.transfer_to_sender(ctx);
     }
 
     /// The non-entry version of `request_add_stake`, which returns the time-locked staked IOTA instead of transferring it to the sender.
@@ -76,7 +76,7 @@ module timelock::timelocked_staking {
             let receipt = receipts.pop_back();
 
             // Transfer the receipt to the sender.
-            receipt.self_transfer(ctx);
+            receipt.transfer_to_sender(ctx);
 
             i = i + 1
         };
@@ -129,7 +129,7 @@ module timelock::timelocked_staking {
         let (timelocked_balance, reward) = request_withdraw_stake_non_entry(iota_system, timelocked_staked_iota, ctx);
 
         // Transfer the withdrawn time-locked balance to the sender.
-       timelocked_balance.self_transfer(ctx);
+       timelocked_balance.transfer_to_sender(ctx);
 
         // Send coins only if the reward is not zero.
         if (reward.value() > 0) {

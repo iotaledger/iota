@@ -280,7 +280,7 @@ module timelock::timelocked_balance_tests {
 
         // Split and transfer the timelock.
         let splitted = timelocked_balance::split(&mut original, 3, scenario.ctx());
-        splitted.self_transfer(scenario.ctx());
+        splitted.transfer_to_sender(scenario.ctx());
         scenario.next_tx(sender);
 
         // Check the original timelock.

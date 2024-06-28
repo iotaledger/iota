@@ -88,7 +88,7 @@ module timelock::timelocked_staked_iota {
     /// Split the given `TimelockedStakedIota` to the two parts, one with principal `split_amount`,
     /// transfer the newly split part to the sender address.
     public entry fun split_staked_iota(stake: &mut TimelockedStakedIota, split_amount: u64, ctx: &mut TxContext) {
-        split(stake, split_amount, ctx).self_transfer(ctx);
+        split(stake, split_amount, ctx).transfer_to_sender(ctx);
     }
 
     /// Allows calling `.split_to_sender()` on `TimelockedStakedIota` to invoke `split_staked_iota`
@@ -136,16 +136,16 @@ module timelock::timelocked_staked_iota {
     }
 
     /// A utility function to transfer a `TimelockedStakedIota`.
-    public fun self_transfer(stake: TimelockedStakedIota, ctx: &TxContext) {
+    public fun transfer_to_sender(stake: TimelockedStakedIota, ctx: &TxContext) {
         transfer::transfer(stake, ctx.sender())
     }
 
     /// A utility function to transfer multiple `TimelockedStakedIota`.
-    public fun self_transfer_multiple(mut stakes: vector<TimelockedStakedIota>, ctx: &TxContext) {
+    public fun transfer_to_sender_multiple(mut stakes: vector<TimelockedStakedIota>, ctx: &TxContext) {
         // Transfer all the time-locked stakes to the recipient.
         while (!stakes.is_empty()) {
            let stake = stakes.pop_back();
-           self_transfer(stake, ctx);
+           transfer_to_sender(stake, ctx);
         };
 
         // Destroy the empty vector.

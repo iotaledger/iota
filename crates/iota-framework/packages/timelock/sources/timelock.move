@@ -35,7 +35,7 @@ module timelock::timelock {
 
     /// Function to lock an object `obj` until `expiration_timestamp_ms` and transfer it to address `to`.
     /// Since `Timelock<T>` does not support public transfer, use this function to lock an object to an address.
-    public fun lock_to<T: store>(
+    public fun lock_and_transfer_to<T: store>(
         obj: T,
         to: address,
         expiration_timestamp_ms: u64,
@@ -63,7 +63,7 @@ module timelock::timelock {
 
     /// Function to lock a labeled object `obj` until `expiration_timestamp_ms` and transfer it to address `to`.
     /// Since `Timelock<T>` does not support public transfer, use this function to lock a labeled object to an address.
-    public fun lock_with_label_to<T: store, L>(
+    public fun lock_with_label_and_transfer_to<T: store, L>(
         labeler: &LabelerCap<L>,
         obj: T,
         to: address,
@@ -168,7 +168,7 @@ module timelock::timelock {
     }
 
     /// A utility function to transfer a `TimeLock` to its original owner.
-    public fun self_transfer<T: store>(lock: TimeLock<T>, ctx: &TxContext) {
+    public fun transfer_to_sender<T: store>(lock: TimeLock<T>, ctx: &TxContext) {
         transfer::transfer(lock, ctx.sender())
     }
 
