@@ -575,21 +575,19 @@ impl TokenDistributionSchedule {
             allocations.iter().map(|a| a.amount_nanos).sum::<u64>(),
             "Token Distribution Schedule must add up to the total IOTA supply of {TOTAL_SUPPLY_NANOS} nanos",
         );
-        let stake_subsidy_fund_allocation = allocations.pop().unwrap();
+        let funds_to_burn_allocation = allocations.pop().unwrap();
         assert_eq!(
             IotaAddress::default(),
-            stake_subsidy_fund_allocation.recipient_address,
+            funds_to_burn_allocation.recipient_address,
             "Final allocation must be for stake subsidy fund",
         );
         assert!(
-            stake_subsidy_fund_allocation
-                .staked_with_validator
-                .is_none(),
+            funds_to_burn_allocation.staked_with_validator.is_none(),
             "Can't stake the stake subsidy fund",
         );
 
         let schedule = Self {
-            funds_to_burn: stake_subsidy_fund_allocation.amount_nanos,
+            funds_to_burn: funds_to_burn_allocation.amount_nanos,
             allocations,
         };
 
