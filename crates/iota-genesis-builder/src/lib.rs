@@ -368,10 +368,7 @@ impl Builder {
                             .get_timelock_allocations()
                             .iter()
                             .map(|allocation| {
-                                (
-                                    allocation.staked_with_validator.clone(),
-                                    allocation.amount_micros,
-                                )
+                                (allocation.staked_with_validator, allocation.amount_micros)
                             })
                             .collect()
                     })
