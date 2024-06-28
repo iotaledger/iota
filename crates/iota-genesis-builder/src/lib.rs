@@ -4,7 +4,8 @@
 
 use std::{
     collections::{BTreeMap, HashSet},
-    fs::{self, File},
+    fs,
+    io::prelude::Read,
     path::Path,
     sync::Arc,
 };
@@ -71,6 +72,7 @@ pub const BROTLI_COMPRESSOR_QUALITY: u32 = 11;
 pub const BROTLI_COMPRESSOR_LG_WINDOW_SIZE: u32 = 22;
 
 pub const OBJECT_SNAPSHOT_FILE_PATH: &str = "stardust_object_snapshot.bin";
+
 pub struct Builder {
     parameters: GenesisCeremonyParameters,
     token_distribution_schedule: Option<TokenDistributionSchedule>,
@@ -174,14 +176,8 @@ impl Builder {
         self
     }
 
-    pub fn load_stardust_migration_objects(
-        self,
-        snapshot: impl AsRef<Path>,
-    ) -> anyhow::Result<Self> {
-        Ok(self.add_objects(bcs::from_reader(brotli::Decompressor::new(
-            File::open(snapshot)?,
-            BROTLI_COMPRESSOR_BUFFER_SIZE,
-        ))?))
+    pub fn add_migration_objects(self, reader: impl Read) -> anyhow::Result<Self> {
+        Ok(self.add_objects(bcs::from_reader(reader)?))
     }
 
     pub fn unsigned_genesis_checkpoint(&self) -> Option<UnsignedGenesis> {
