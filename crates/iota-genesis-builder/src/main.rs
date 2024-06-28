@@ -11,7 +11,7 @@ use clap::{Parser, Subcommand};
 use iota_genesis_builder::{
     stardust::{
         migration::{Migration, MigrationTargetNetwork},
-        parse::HornetGenesisSnapshotParser,
+        parse::HornetSnapshotParser,
     },
     BROTLI_COMPRESSOR_BUFFER_SIZE, BROTLI_COMPRESSOR_LG_WINDOW_SIZE, BROTLI_COMPRESSOR_QUALITY,
     OBJECT_SNAPSHOT_FILE_PATH,
@@ -30,6 +30,8 @@ use tracing_subscriber::FmtSubscriber;
 struct Cli {
     #[clap(subcommand)]
     snapshot: Snapshot,
+    #[clap(default_value = "true")]
+    global_snapshot_verification: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -71,7 +73,8 @@ fn main() -> Result<()> {
     };
 
     // Start the Hornet snapshot parser
-    let snapshot_parser = HornetGenesisSnapshotParser::new(File::open(snapshot_path)?)?;
+    let snapshot_parser =
+        HornetSnapshotParser::new(File::open(snapshot_path)?, cli.global_snapshot_verification)?;
     let total_supply = match coin_type {
         CoinType::Iota => scale_amount_for_iota(snapshot_parser.total_supply()?)?,
         CoinType::Shimmer => snapshot_parser.total_supply()?,

@@ -22,7 +22,7 @@ use iota_sdk::types::block::{
 use packable::{packer::IoPacker, Packable};
 
 use crate::stardust::{
-    parse::HornetGenesisSnapshotParser,
+    parse::HornetSnapshotParser,
     types::{output_header::OutputHeader, output_index::random_output_index},
 };
 
@@ -73,7 +73,7 @@ pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
         .truncate(true)
         .open(new_path)?;
     let mut writer = IoPacker::new(BufWriter::new(new_file));
-    let parser = HornetGenesisSnapshotParser::new(current_file)?;
+    let parser = HornetSnapshotParser::new(current_file, false)?;
     let output_to_decrease_amount_from = OutputId::from_str(OUTPUT_TO_DECREASE_AMOUNT_FROM)?;
     let mut new_header = parser.header.clone();
     let mut vested_index = u32::MAX;
