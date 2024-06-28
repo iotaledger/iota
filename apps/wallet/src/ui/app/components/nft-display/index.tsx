@@ -5,8 +5,8 @@
 import { Heading } from '_app/shared/heading';
 import Loading from '_components/loading';
 import { NftImage, type NftImageProps } from '_components/nft-display/NftImage';
-import { useFileExtensionType, useGetNFTMeta } from '_hooks';
-import { isKioskOwnerToken, useGetObject, useKioskClient } from '@iota/core';
+import { useFileExtensionType } from '_hooks';
+import { isKioskOwnerToken, useGetNFTMeta, useGetObject, useKioskClient } from '@iota/core';
 import { formatAddress } from '@iota/iota.js/utils';
 import { cva } from 'class-variance-authority';
 import type { VariantProps } from 'class-variance-authority';

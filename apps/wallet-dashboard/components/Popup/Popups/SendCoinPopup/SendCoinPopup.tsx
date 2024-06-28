@@ -3,11 +3,10 @@
 
 import React, { useState } from 'react';
 import { EnterValuesFormView, ReviewValuesFormView } from './views';
-import { CoinStruct } from '@iota/iota.js/client';
-import { useSendCoinTransaction } from '@/hooks';
+import { CoinBalance } from '@iota/iota.js/client';
+import { useSendCoinTransaction, useNotifications } from '@/hooks';
 import { useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
 import { useGetAllCoins } from '@iota/core';
-import { useNotifications } from '@/hooks/useNotifications';
 import { NotificationType } from '@/stores/notificationStore';
 
 export interface FormDataValues {
@@ -16,7 +15,7 @@ export interface FormDataValues {
 }
 
 interface SendCoinPopupProps {
-    coin: CoinStruct;
+    coin: CoinBalance;
     senderAddress: string;
     onClose: () => void;
 }

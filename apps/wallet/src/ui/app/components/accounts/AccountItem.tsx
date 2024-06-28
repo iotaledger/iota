@@ -58,7 +58,7 @@ export const AccountItem = forwardRef<HTMLDivElement, AccountItemProps>(
             copySuccessMessage: 'Address copied',
         });
         const explorerHref = useExplorerLink({
-            type: ExplorerLinkType.address,
+            type: ExplorerLinkType.Address,
             address: account?.address,
         });
         if (!account) return null;

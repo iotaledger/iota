@@ -41,7 +41,7 @@ pub type TableSize = u16;
 
 impl CompiledModule {
     /// Convenience wrapper around
-    /// [`CompiledModuleStrategyGen`][CompiledModuleStrategyGen] that
+    /// [`CompiledModuleStrategyGen`] that
     /// generates valid modules with the given size.
     pub fn valid_strategy(size: usize) -> impl Strategy<Value = Self> {
         CompiledModuleStrategyGen::new(size as TableSize).generate()

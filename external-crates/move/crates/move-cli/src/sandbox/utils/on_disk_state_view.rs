@@ -27,7 +27,7 @@ use move_ir_types::location::Spanned;
 
 use crate::{DEFAULT_BUILD_DIR, DEFAULT_STORAGE_DIR};
 
-/// subdirectory of `DEFAULT_STORAGE_DIR`/<addr> where modules are stored
+/// subdirectory of `DEFAULT_STORAGE_DIR/<addr>` where modules are stored
 pub const MODULES_DIR: &str = "modules";
 
 /// file under `DEFAULT_BUILD_DIR` where a registry of generated struct layouts
