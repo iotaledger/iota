@@ -3,7 +3,6 @@
   "private": true,
   "sideEffects": false,
   "main": "./src/index.ts",
-  "author": "Mysten Labs <build@mystenlabs.com>",
   "repository": {
     "type": "git",
     "url": "github.com:iotaledger/iota.git"
