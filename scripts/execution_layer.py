@@ -158,8 +158,11 @@ def do_cut(args):
     update_toml(args.feature, Path() / "iota-execution" / "Cargo.toml")
     generate_impls(args.feature, impl_module)
 
-    with open(Path() / "iota-execution" / "src" / "lib.rs", mode="w") as lib:
+    lib_path = Path() / "iota-execution" / "src" / "lib.rs"
+    with open(lib_path, mode="w") as lib:
         generate_lib(lib)
+
+    fmt_file(lib_path)
 
 
 def do_generate_lib(args):
@@ -169,6 +172,20 @@ def do_generate_lib(args):
         lib_path = Path() / "iota-execution" / "src" / "lib.rs"
         with open(lib_path, mode="w") as lib:
             generate_lib(lib)
+
+        fmt_file(lib_path)
+
+
+def fmt_file(path):
+    try:
+        subprocess.run(['cargo', '+nightly', 'fmt', '--', path, '--unstable-features', '--skip-children'],
+                       check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"cargo fmt failed with error code {e.returncode}")
+        print("stderr:", e.stderr)
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
 
 def do_merge(args):
     from_module = impl(args.feature)
@@ -407,7 +424,8 @@ def impl(feature):
 
 def clean_up_cut(feature):
     """Remove some special-case files/directories from a given cut"""
-    move_exec = Path() / "external-crates" / "move" / "move-execution" / feature / "crates"
+    move_exec = Path() / "external-crates" / "move" / \
+        "move-execution" / feature / "crates"
     remove(move_exec / "move-stdlib" / "src" / "main.rs")
     rmtree(move_exec / "move-stdlib" / "tests")
 
@@ -442,7 +460,8 @@ def generate_impls(feature, copy):
     orig = Path() / "iota-execution" / "src" / "latest.rs"
     with open(orig, mode="r") as orig, open(copy, mode="w") as copy:
         for line in orig:
-            line = re.sub(r"^use (.*)_latest::", rf"use \1_{feature.replace('-', '_')}::", line)
+            line = re.sub(r"^use (.*)_latest::",
+                          rf"use \1_{feature.replace('-', '_')}::", line)
             copy.write(line)
 
 
@@ -506,23 +525,15 @@ def generate_lib(output_file: TextIO):
         else:
             raise Exception(f"Don't know how to substitute {var}")
 
-
     rust_code = re.sub(
-            r"^(\s*)// \$([A-Z_]+)$",
-            substitute,
-            template,
-            flags=re.MULTILINE,
-        )
+        r"^(\s*)// \$([A-Z_]+)$",
+        substitute,
+        template,
+        flags=re.MULTILINE,
+    )
 
-    try:
-        result = subprocess.run(['cargo', '+nightly', 'fmt'], input=rust_code, text=True, capture_output=True, check=True)
-        formatted_code = result.stdout
-        output_file.write(formatted_code)
-    except subprocess.CalledProcessError as e:
-        print(f"cargo fmt failed with error code {e.returncode}")
-        print("stderr:", e.stderr)
-    except Exception as e:
-        print(f"An error occurred: {e}")
+    output_file.write(rust_code)
+
 
 # Modules in `iota-execution` that don't count as "cuts" (they are
 # other supporting modules)

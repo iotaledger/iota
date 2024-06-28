@@ -6,7 +6,7 @@ import { Content } from '_app/shared/bottom-menu-layout';
 import FiltersPortal from '_components/filters-tags';
 import AppsPlayGround, { ConnectedAppsCard } from '_components/iota-apps';
 import { getFromSessionStorage, setToSessionStorage } from '_src/background/storage-utils';
-import { FEATURES } from '_src/shared/experimentation/features';
+import { Feature } from '_src/shared/experimentation/features';
 import type { DAppEntry } from '_src/ui/app/components/iota-apps/IotaApp';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { useFeature } from '@growthbook/growthbook-react';
@@ -35,7 +35,7 @@ function AppsPage() {
             link: 'apps',
         },
     ];
-    const ecosystemApps = useFeature<DAppEntry[]>(FEATURES.WALLET_DAPPS).value ?? [];
+    const ecosystemApps = useFeature<DAppEntry[]>(Feature.WalletDapps).value ?? [];
 
     const uniqueAppTags = Array.from(new Set(ecosystemApps.flatMap((app) => app.tags)))
         .map((tag) => ({

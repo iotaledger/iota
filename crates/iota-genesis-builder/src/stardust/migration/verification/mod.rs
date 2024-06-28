@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The [`verification`] module contains the validation logic to make sure that
+//! The `verification` module contains the validation logic to make sure that
 //! the stardust outputs are correctly converted to the move objects.
 
 use std::collections::HashMap;
@@ -78,6 +78,7 @@ fn verify_output(
             total_value,
         ),
         Output::Foundry(output) => foundry::verify_foundry_output(
+            header.output_id(),
             output,
             created_objects,
             foundry_data,

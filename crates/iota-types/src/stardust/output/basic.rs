@@ -20,7 +20,7 @@ use crate::{
     collection_types::Bag,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
-    stardust::coin_type::CoinType,
+    stardust::{coin_type::CoinType, stardust_to_iota_address},
     TypeTag, STARDUST_PACKAGE_ID,
 };
 
@@ -60,9 +60,9 @@ pub struct BasicOutput {
 }
 
 impl BasicOutput {
-    /// Construct the basic output with an empty [`Bag`] through the
-    /// [`OutputHeader`]
-    /// and [`Output`][iota_sdk::types::block::output::BasicOutput].
+    /// Construct the basic output with an empty [`Bag`] using the
+    /// Output Header ID and Stardust
+    /// [`BasicOutput`][iota_stardust_sdk::types::block::output::BasicOutput].
     pub fn new(
         header_object_id: ObjectID,
         output: &iota_stardust_sdk::types::block::output::BasicOutput,
@@ -81,6 +81,16 @@ impl BasicOutput {
             .expiration()
             .map(|expiration| ExpirationUnlockCondition::new(output.address(), expiration))
             .transpose()?;
+        let metadata = output
+            .features()
+            .metadata()
+            .map(|metadata| metadata.data().to_vec());
+        let tag = output.features().tag().map(|tag| tag.tag().to_vec());
+        let sender = output
+            .features()
+            .sender()
+            .map(|sender| stardust_to_iota_address(sender.address()))
+            .transpose()?;
 
         Ok(BasicOutput {
             id,
@@ -89,9 +99,9 @@ impl BasicOutput {
             storage_deposit_return,
             timelock,
             expiration,
-            metadata: Default::default(),
-            tag: Default::default(),
-            sender: Default::default(),
+            metadata,
+            tag,
+            sender,
         })
     }
 
@@ -109,13 +119,16 @@ impl BasicOutput {
     ///
     /// Returns `true` in particular when the given milestone timestamp is equal
     /// or past the unix timestamp in a present timelock and no other unlock
-    /// condition is present.
+    /// condition or metadata, tag, sender feature is present.
     pub fn is_simple_coin(&self, target_milestone_timestamp_sec: u32) -> bool {
         !(self.expiration.is_some()
             || self.storage_deposit_return.is_some()
             || self.timelock.as_ref().map_or(false, |timelock| {
                 target_milestone_timestamp_sec < timelock.unix_time
-            }))
+            })
+            || self.metadata.is_some()
+            || self.tag.is_some()
+            || self.sender.is_some())
     }
 
     pub fn to_genesis_object(

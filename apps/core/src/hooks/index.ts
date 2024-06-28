@@ -29,5 +29,8 @@ export * from './useLocalStorage';
 export * from './useTokenPrice';
 export * from './useKioskClient';
 export * from './useQueryTransactionsByAddress';
+export * from './useGetTransaction';
+export * from './useExtendedTransactionSummary';
+export * from './useGetNFTMeta';
 
 export * from './stake';

@@ -10,14 +10,12 @@ import Alert from '_components/alert';
 import LoadingIndicator from '_components/loading/LoadingIndicator';
 import { ampli } from '_src/shared/analytics/ampli';
 import {
-    DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
-    DELEGATED_STAKES_QUERY_STALE_TIME,
-} from '_src/shared/constants';
-import {
     formatDelegatedStake,
     useGetDelegatedStake,
     useTotalDelegatedRewards,
     useTotalDelegatedStake,
+    DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
+    DELEGATED_STAKES_QUERY_STALE_TIME,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Plus12 } from '@iota/icons';
@@ -66,7 +64,7 @@ export function ValidatorsCard() {
         ({ inactiveValidator }) => inactiveValidator,
     );
 
-    // // Get total rewards for all delegations
+    // Get total rewards for all delegations
     const delegatedStakes = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
     const totalDelegatedRewards = useTotalDelegatedRewards(delegatedStakes);
 
@@ -109,7 +107,7 @@ export function ValidatorsCard() {
                                     ?.filter(({ inactiveValidator }) => inactiveValidator)
                                     .map((delegation) => (
                                         <StakeCard
-                                            delegationObject={delegation}
+                                            extendedStake={delegation}
                                             currentEpoch={Number(system.epoch)}
                                             key={delegation.stakedIotaId}
                                             inactiveValidator
@@ -151,7 +149,7 @@ export function ValidatorsCard() {
                                     ?.filter(({ inactiveValidator }) => !inactiveValidator)
                                     .map((delegation) => (
                                         <StakeCard
-                                            delegationObject={delegation}
+                                            extendedStake={delegation}
                                             currentEpoch={Number(system.epoch)}
                                             key={delegation.stakedIotaId}
                                         />
