@@ -169,7 +169,7 @@ impl Builder {
 
     pub fn add_validator_signature(mut self, keypair: &AuthorityKeyPair) -> Self {
         if self.built_genesis.is_none() {
-            self.build_and_cache_unsigned_genesis_checkpoint();
+            self.build_and_cache_unsigned_genesis();
         }
         let UnsignedGenesis { checkpoint, .. } = self
             .built_genesis
@@ -215,7 +215,7 @@ impl Builder {
         self.built_genesis.clone()
     }
 
-    fn build_and_cache_unsigned_genesis_checkpoint(&mut self) {
+    fn build_and_cache_unsigned_genesis(&mut self) {
         // Verify that all input data is valid
         self.validate_inputs().unwrap();
         let validators = self.validators.clone().into_values().collect::<Vec<_>>();
@@ -291,9 +291,9 @@ impl Builder {
         self.token_distribution_schedule = Some(token_distribution_schedule);
     }
 
-    pub fn build_unsigned_genesis_checkpoint(&mut self) -> &UnsignedGenesis {
+    pub fn get_or_build_unsigned_genesis(&mut self) -> &UnsignedGenesis {
         if self.built_genesis.is_none() {
-            self.build_and_cache_unsigned_genesis_checkpoint();
+            self.build_and_cache_unsigned_genesis();
         }
         self.built_genesis.as_ref().unwrap()
     }
@@ -310,7 +310,7 @@ impl Builder {
 
     pub fn build(mut self) -> Genesis {
         if self.built_genesis.is_none() {
-            self.build_and_cache_unsigned_genesis_checkpoint();
+            self.build_and_cache_unsigned_genesis();
         }
         let UnsignedGenesis {
             checkpoint,
@@ -737,7 +737,7 @@ impl Builder {
             );
 
             // Verify loaded genesis matches one build from the constituent parts
-            let built = builder.build_unsigned_genesis_checkpoint();
+            let built = builder.get_or_build_unsigned_genesis();
             loaded_genesis.checkpoint_contents.digest(); // cache digest before compare
             assert_eq!(
                 *built, loaded_genesis,
@@ -1399,7 +1399,7 @@ mod test {
         let pop = generate_proof_of_possession(&key, account_key.public().into());
         let mut builder = Builder::new().add_validator(validator, pop);
 
-        let genesis = builder.build_unsigned_genesis_checkpoint();
+        let genesis = builder.get_or_build_unsigned_genesis();
         for object in genesis.objects() {
             println!("ObjectID: {} Type: {:?}", object.id(), object.type_());
         }
