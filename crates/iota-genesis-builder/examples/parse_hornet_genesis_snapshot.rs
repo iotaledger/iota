@@ -5,9 +5,8 @@
 //! and verifying the total supply.
 use std::fs::File;
 
-use iota_genesis_builder::stardust::{
-    parse::HornetGenesisSnapshotParser, types::output_header::TOTAL_SUPPLY_IOTA,
-};
+use iota_genesis_builder::stardust::parse::HornetGenesisSnapshotParser;
+use iota_types::gas_coin::TOTAL_SUPPLY_IOTA;
 
 fn main() -> anyhow::Result<()> {
     let Some(path) = std::env::args().nth(1) else {
@@ -21,7 +20,8 @@ fn main() -> anyhow::Result<()> {
     let total_supply = parser.outputs().try_fold(0, |acc, output| {
         Ok::<_, anyhow::Error>(acc + output?.1.amount())
     })?;
-    assert_eq!(total_supply, TOTAL_SUPPLY_IOTA);
+    // Total supply is in IOTA, snapshot supply is Micros
+    assert_eq!(total_supply, TOTAL_SUPPLY_IOTA * 1_000_000);
     println!("Total supply: {total_supply}");
     Ok(())
 }
