@@ -77,3 +77,5 @@ docs/content/references/framework/**
 
 lcov.info
 **/venv/
+
+*storybook.log
