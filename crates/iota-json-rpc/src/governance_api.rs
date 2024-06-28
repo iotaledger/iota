@@ -412,14 +412,16 @@ impl GovernanceReadApiServer for GovernanceReadApi {
         let system_state_summary: IotaSystemStateSummary =
             self.get_latest_iota_system_state().await?;
 
-        let exchange_rate_table = exchange_rates(&self.state, system_state_summary.epoch)
-            .await
-            .map_err(Error::from)?;
+        // let exchange_rate_table = exchange_rates(&self.state, system_state_summary.epoch)
+        //     .await
+        //     .map_err(Error::from)?;
 
-        let apys = calculate_apys(
-            system_state_summary.stake_subsidy_start_epoch,
-            exchange_rate_table,
-        );
+        let apys = vec![];
+        // TODO: Create issue to fix this later.
+        //  = calculate_apys(
+        //     system_state_summary.stake_subsidy_start_epoch,
+        //     exchange_rate_table,
+        // );
 
         Ok(ValidatorApys {
             apys,
