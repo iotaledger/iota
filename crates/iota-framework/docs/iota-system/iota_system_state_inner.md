@@ -2078,19 +2078,11 @@ gas coins.
     <b>let</b> storage_charge = storage_reward.value();
     <b>let</b> computation_charge = computation_reward.value();
 
-    <b>let</b> <b>mut</b> computation_reward = <b>if</b> (computation_reward.value() &lt; validator_target_reward) {
-      <b>let</b> tokens_to_mint = validator_target_reward - computation_reward.value();
-      <b>let</b> new_tokens = self.iota_treasury_cap.supply_mut().increase_supply(tokens_to_mint);
-      computation_reward.join(new_tokens);
-      computation_reward
-    } <b>else</b> <b>if</b> (computation_reward.value() &gt; validator_target_reward) {
-      <b>let</b> tokens_to_burn = computation_reward.value() - validator_target_reward;
-      <b>let</b> rewards_to_burn = computation_reward.split(tokens_to_burn);
-      self.iota_treasury_cap.supply_mut().decrease_supply(rewards_to_burn);
-      computation_reward
-    } <b>else</b> {
-      computation_reward
-    };
+    <b>let</b> <b>mut</b> computation_reward = self.validators.match_iota_supply_to_target_reward(
+      validator_target_reward,
+      computation_reward,
+      &<b>mut</b> self.iota_treasury_cap,
+    );
 
     <b>let</b> total_stake_u128 = total_stake <b>as</b> u128;
     <b>let</b> computation_charge_u128 = computation_charge <b>as</b> u128;

@@ -580,6 +580,31 @@ module iota_system::validator_set {
        find_validator(&self.active_validators, validator_address).is_some()
     }
 
+    /// Inflate or deflate the IOTA supply depending on the given target reward per validator
+    /// and the amount of computation fees burned in this epoch.
+    public(package) fun match_iota_supply_to_target_reward(
+      self: &ValidatorSet,
+      validator_target_reward: u64,
+      mut computation_reward: Balance<IOTA>,
+      iota_treasury_cap: &mut iota::coin::TreasuryCap<IOTA>
+    ): Balance<IOTA> {
+      let validator_reward_total = validator_target_reward * self.active_validators.length();
+
+      if (computation_reward.value() < validator_reward_total) {
+        let tokens_to_mint = validator_reward_total - computation_reward.value();
+        let new_tokens = iota_treasury_cap.supply_mut().increase_supply(tokens_to_mint);
+        computation_reward.join(new_tokens);
+        computation_reward
+      } else if (computation_reward.value() > validator_reward_total) {
+        let tokens_to_burn = computation_reward.value() - validator_reward_total;
+        let rewards_to_burn = computation_reward.split(tokens_to_burn);
+        iota_treasury_cap.supply_mut().decrease_supply(rewards_to_burn);
+        computation_reward
+      } else {
+        computation_reward
+      }
+    }
+
     // ==== private helpers ====
 
     /// Checks whether `new_validator` is duplicate with any currently active validators.

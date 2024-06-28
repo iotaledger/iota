@@ -839,19 +839,11 @@ module iota_system::iota_system_state_inner {
         let storage_charge = storage_reward.value();
         let computation_charge = computation_reward.value();
 
-        let mut computation_reward = if (computation_reward.value() < validator_target_reward) {
-          let tokens_to_mint = validator_target_reward - computation_reward.value();
-          let new_tokens = self.iota_treasury_cap.supply_mut().increase_supply(tokens_to_mint);
-          computation_reward.join(new_tokens);
-          computation_reward
-        } else if (computation_reward.value() > validator_target_reward) {
-          let tokens_to_burn = computation_reward.value() - validator_target_reward;
-          let rewards_to_burn = computation_reward.split(tokens_to_burn);
-          self.iota_treasury_cap.supply_mut().decrease_supply(rewards_to_burn);
-          computation_reward
-        } else {
-          computation_reward
-        };
+        let mut computation_reward = self.validators.match_iota_supply_to_target_reward(
+          validator_target_reward,
+          computation_reward,
+          &mut self.iota_treasury_cap,
+        );
 
         let total_stake_u128 = total_stake as u128;
         let computation_charge_u128 = computation_charge as u128;
