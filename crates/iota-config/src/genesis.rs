@@ -229,13 +229,12 @@ impl Serialize for Genesis {
             objects: &self.objects,
         };
 
-        let bytes = bcs::to_bytes(&raw_genesis).map_err(|e| Error::custom(e.to_string()))?;
-
         if serializer.is_human_readable() {
-            let s = Base64::encode(&bytes);
+            let bytes = bcs::to_bytes(&raw_genesis).map_err(|e| Error::custom(e.to_string()))?;
+            let s = Base64::encode(bytes);
             serializer.serialize_str(&s)
         } else {
-            serializer.serialize_bytes(&bytes)
+            raw_genesis.serialize(serializer)
         }
     }
 }
@@ -257,30 +256,21 @@ impl<'de> Deserialize<'de> for Genesis {
             objects: Vec<Object>,
         }
 
-        let bytes = if deserializer.is_human_readable() {
+        let raw_genesis = if deserializer.is_human_readable() {
             let s = String::deserialize(deserializer)?;
-            Base64::decode(&s).map_err(|e| Error::custom(e.to_string()))?
+            let bytes = Base64::decode(&s).map_err(|e| Error::custom(e.to_string()))?;
+            bcs::from_bytes(&bytes).map_err(|e| Error::custom(e.to_string()))?
         } else {
-            let data: Vec<u8> = Vec::deserialize(deserializer)?;
-            data
+            RawGenesis::deserialize(deserializer)?
         };
 
-        let RawGenesis {
-            checkpoint,
-            checkpoint_contents,
-            transaction,
-            effects,
-            events,
-            objects,
-        } = bcs::from_bytes(&bytes).map_err(|e| Error::custom(e.to_string()))?;
-
         Ok(Genesis {
-            checkpoint,
-            checkpoint_contents,
-            transaction,
-            effects,
-            events,
-            objects,
+            checkpoint: raw_genesis.checkpoint,
+            checkpoint_contents: raw_genesis.checkpoint_contents,
+            transaction: raw_genesis.transaction,
+            effects: raw_genesis.effects,
+            events: raw_genesis.events,
+            objects: raw_genesis.objects,
         })
     }
 }
