@@ -139,7 +139,7 @@ module timelock::timelock_tests {
         let iota = balance::create_for_testing<IOTA>(10);
 
         // Lock the IOTA balance to recipient.
-        timelock::lock_and_transfer_to(iota, recipient, 100, scenario.ctx());
+        timelock::lock_and_transfer(iota, recipient, 100, scenario.ctx());
 
         // Advance the scenario to a new transaction.
         scenario.next_tx(recipient);
@@ -210,7 +210,7 @@ module timelock::timelock_tests {
         let iota = balance::create_for_testing<IOTA>(10);
 
         // Lock the IOTA balance.
-        timelock::lock_with_label_and_transfer_to(&labeler_one, iota, recipient, 100, scenario.ctx());
+        timelock::lock_with_label_and_transfer(&labeler_one, iota, recipient, 100, scenario.ctx());
         scenario.return_to_sender(labeler_one);
 
         scenario.next_tx(recipient);
