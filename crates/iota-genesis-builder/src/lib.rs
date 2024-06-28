@@ -201,30 +201,6 @@ impl Builder {
         Ok(self)
     }
 
-    pub fn add_stardust_genesis_stake(mut self) -> anyhow::Result<Self> {
-        if self.migration_objects.is_empty() {
-            bail!("no migration_objects for builder")
-        } else {
-            self.validate_inputs()?;
-
-            let validators = self.validators.clone().into_values().collect::<Vec<_>>();
-            let delegator =
-                stardust_to_iota_address(Address::try_from_bech32(IF_STARDUST_ADDRESS).unwrap())
-                    .unwrap();
-            // TODO: check whether we need to start with MIN_VALIDATOR_JOINING_STAKE_MICROS
-            let minimum_stake = iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_MICROS;
-
-            self.genesis_stake = delegate_genesis_stake(
-                &validators,
-                delegator,
-                &self.migration_objects,
-                minimum_stake,
-            )?;
-
-            Ok(self)
-        }
-    }
-
     pub fn unsigned_genesis_checkpoint(&self) -> Option<UnsignedGenesis> {
         self.built_genesis.clone()
     }
@@ -235,10 +211,29 @@ impl Builder {
         }
 
         // Verify that all input data is valid
-        self.validate().unwrap();
-
+        self.validate_inputs().unwrap();
         let validators = self.validators.clone().into_values().collect::<Vec<_>>();
 
+        // If not vanilla then create genesis_stake
+        if !self.migration_objects.is_empty() {
+            let delegator =
+                stardust_to_iota_address(Address::try_from_bech32(IF_STARDUST_ADDRESS).unwrap())
+                    .unwrap();
+            // TODO: check whether we need to start with
+            // VALIDATOR_LOW_STAKE_THRESHOLD_MICROS
+            let minimum_stake = iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_MICROS;
+            self.genesis_stake = delegate_genesis_stake(
+                &validators,
+                delegator,
+                &self.migration_objects,
+                minimum_stake,
+            )
+            .unwrap();
+        }
+
+        // Verify that token distribution schedule is valid
+        self.validate_token_distribution_schedule().unwrap();
+        // Get the vanilla token distribution schedule or merge it with genesis stake
         let token_distribution_schedule = if self.is_vanilla() {
             if let Some(token_distribution_schedule) = &self.token_distribution_schedule {
                 token_distribution_schedule.clone()
@@ -254,6 +249,7 @@ impl Builder {
             self.genesis_stake.to_token_distribution_schedule()
         };
 
+        // Burn genesis stake gas objects id present
         self.migration_objects.evict(
             self.genesis_stake
                 .take_gas_coins_to_burn()
@@ -263,6 +259,7 @@ impl Builder {
         let mut objects = self.migration_objects.take_objects();
         objects.extend(self.objects.values().cloned());
 
+        // Use stake_subsidy_start_epoch to mimic the burn of newly minted IOTA coins
         if !self.is_vanilla() {
             // Because we set the `stake_subsidy_fund` as non-zero
             // we need to effectively disable subsidy rewards
@@ -272,6 +269,8 @@ impl Builder {
             // implementation.
             self.parameters.stake_subsidy_start_epoch = u64::MAX;
         }
+
+        // Finally build the genesis data
         self.built_genesis = Some(build_unsigned_genesis_data(
             &self.parameters,
             &token_distribution_schedule,
@@ -446,9 +445,11 @@ impl Builder {
 
             // Validators should not have duplicate addresses so the result of insertion
             // should be None.
-            assert!(address_to_pool_id
-                .insert(metadata.iota_address, onchain_validator.staking_pool.id)
-                .is_none());
+            assert!(
+                address_to_pool_id
+                    .insert(metadata.iota_address, onchain_validator.staking_pool.id)
+                    .is_none()
+            );
             assert_eq!(validator.info.iota_address(), metadata.iota_address);
             assert_eq!(validator.info.protocol_key(), metadata.iota_pubkey_bytes());
             assert_eq!(validator.info.network_key, metadata.network_pubkey);
