@@ -22,8 +22,8 @@ export interface AddressInputProps {
 }
 
 enum RecipientWarningType {
-    OBJECT = 'OBJECT',
-    EMPTY = 'EMPTY',
+    Object = 'OBJECT',
+    Empty = 'EMPTY',
 }
 
 export function AddressInput({
@@ -45,7 +45,7 @@ export function AddressInput({
             const object = await client.getObject({ id: field.value });
 
             if (object && 'data' in object) {
-                return RecipientWarningType.OBJECT;
+                return RecipientWarningType.Object;
             }
 
             const [fromAddr, toAddr] = await Promise.all([
@@ -60,7 +60,7 @@ export function AddressInput({
             ]);
 
             if (fromAddr.data?.length === 0 && toAddr.data?.length === 0) {
-                return RecipientWarningType.EMPTY;
+                return RecipientWarningType.Empty;
             }
 
             return null;
@@ -139,7 +139,7 @@ export function AddressInput({
                         rounded="lg"
                         mode={meta.error || warningData ? 'issue' : 'success'}
                     >
-                        {warningData === RecipientWarningType.OBJECT ? (
+                        {warningData === RecipientWarningType.Object ? (
                             <>
                                 <Text variant="pBody" weight="semibold">
                                     This address is an Object
@@ -149,7 +149,7 @@ export function AddressInput({
                                     want to send coins to this address.
                                 </Text>
                             </>
-                        ) : warningData === RecipientWarningType.EMPTY ? (
+                        ) : warningData === RecipientWarningType.Empty ? (
                             <>
                                 <Text variant="pBody" weight="semibold">
                                     This address has no prior transactions

@@ -15,8 +15,8 @@ type OwnedAssets = {
 };
 
 export enum AssetFilterTypes {
-    visual = 'visual',
-    other = 'other',
+    Visual = 'visual',
+    Other = 'other',
 }
 
 export function useGetNFTs(address?: string | null) {

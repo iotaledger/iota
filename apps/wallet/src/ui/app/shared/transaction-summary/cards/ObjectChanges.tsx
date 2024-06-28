@@ -61,7 +61,7 @@ export function ObjectDetail({
                         {change.objectId && (
                             <div className="justify-self-end">
                                 <ExplorerLink
-                                    type={ExplorerLinkType.object}
+                                    type={ExplorerLinkType.Object}
                                     objectID={change.objectId}
                                     className="text-hero-dark no-underline"
                                 >
@@ -80,7 +80,7 @@ export function ObjectDetail({
                                 </Text>
                                 <div className="flex justify-end">
                                     <ExplorerLink
-                                        type={ExplorerLinkType.object}
+                                        type={ExplorerLinkType.Object}
                                         objectID={packageId}
                                         className="justify-self-end overflow-auto text-captionSmall text-hero-dark no-underline"
                                     >
@@ -96,7 +96,7 @@ export function ObjectDetail({
                                 </Text>
                                 <div className="flex justify-end">
                                     <ExplorerLink
-                                        type={ExplorerLinkType.object}
+                                        type={ExplorerLinkType.Object}
                                         objectID={packageId}
                                         moduleName={moduleName}
                                         className="justify-self-end overflow-auto text-hero-dark no-underline"
@@ -113,7 +113,7 @@ export function ObjectDetail({
                                 </Text>
                                 <div className="flex justify-end">
                                     <ExplorerLink
-                                        type={ExplorerLinkType.object}
+                                        type={ExplorerLinkType.Object}
                                         objectID={packageId}
                                         moduleName={moduleName}
                                         className="justify-self-end overflow-auto text-hero-dark no-underline"
