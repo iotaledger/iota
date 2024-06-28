@@ -10,18 +10,17 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 
-import { EpochProgress } from './stats/EpochProgress';
-import { EpochStats } from './stats/EpochStats';
-import { ValidatorStatus } from './stats/ValidatorStatus';
-import { validatorsTableData } from '../validators/Validators';
-import { PageLayout } from '~/components/layout/PageLayout';
-import { CheckpointsTable } from '~/components/checkpoints/CheckpointsTable';
+import { CheckpointsTable, PageLayout } from '~/components';
 import { useEnhancedRpcClient } from '~/hooks/useEnhancedRpc';
+import { getEpochStorageFundFlow } from '~/lib/utils';
 import { Banner } from '~/ui/Banner';
 import { Stats, type StatsProps } from '~/ui/Stats';
 import { TableCard } from '~/ui/TableCard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
-import { getEpochStorageFundFlow } from '~/utils/getStorageFundFlow';
+import { validatorsTableData } from '../validators/Validators';
+import { EpochProgress } from './stats/EpochProgress';
+import { EpochStats } from './stats/EpochStats';
+import { ValidatorStatus } from './stats/ValidatorStatus';
 
 function IotaStats({
     amount,

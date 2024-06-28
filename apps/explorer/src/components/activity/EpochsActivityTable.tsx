@@ -8,12 +8,12 @@ import { Text } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { generateTableDataFromEpochsData } from './utils';
+import { numberSuffix } from '~/lib/utils';
 import { Link } from '~/ui/Link';
 import { Pagination, useCursorPagination } from '~/ui/Pagination';
 import { PlaceholderTable } from '~/ui/PlaceholderTable';
 import { TableCard } from '~/ui/TableCard';
-import { numberSuffix } from '~/utils/numberUtil';
+import { generateTableDataFromEpochsData } from './utils';
 
 const DEFAULT_EPOCHS_LIMIT = 20;
 

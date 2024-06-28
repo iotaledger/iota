@@ -2,13 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useState, useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { useDebouncedValue } from '~/hooks/useDebouncedValue';
 import { useSearch } from '~/hooks/useSearch';
-import { Search as SearchBox, type SearchResult } from '~/ui/Search';
+import { ampli } from '~/lib/utils';
 import { useNavigateWithQuery } from '~/ui/LinkWithQuery';
-import { ampli } from '~/utils/analytics/ampli';
+import { Search as SearchBox, type SearchResult } from '~/ui/Search';
 
 function Search(): JSX.Element {
     const [query, setQuery] = useState('');

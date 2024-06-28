@@ -8,9 +8,7 @@ import { type IotaObjectResponse } from '@iota/iota.js/client';
 import { Heading } from '@iota/ui';
 import { type ReactNode, useState } from 'react';
 
-import { DynamicFieldsCard } from '~/components/object/DynamicFieldsCard';
-import { ObjectFieldsCard } from '~/components/object/ObjectFieldsCard';
-import TransactionBlocksForAddress from '~/components/transaction-blocks-for-address';
+import { DynamicFieldsCard, ObjectFieldsCard, TransactionBlocksForAddress } from '~/components';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
 
 interface FieldsContainerProps {

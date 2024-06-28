@@ -18,17 +18,17 @@ import { ModuleCodeTabs } from './ModuleCodeTabs';
 
 type ModuleType = [moduleName: string, code: string];
 
-interface PkgModuleViewWrapperProps {
+interface PkgModulesWrapperProps {
     id: string;
     modules: ModuleType[];
     splitPanelOrientation: Direction;
 }
 
-function PkgModuleViewWrapper({
+export function PkgModulesWrapper({
     id,
     modules,
     splitPanelOrientation,
-}: PkgModuleViewWrapperProps): JSX.Element {
+}: PkgModulesWrapperProps): JSX.Element {
     const isMediumOrAbove = useBreakpoint('md');
 
     const [searchParams, setSearchParams] = useSearchParamsMerged();
@@ -157,4 +157,3 @@ function PkgModuleViewWrapper({
         </div>
     );
 }
-export default PkgModuleViewWrapper;

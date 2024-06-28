@@ -11,11 +11,10 @@ import toast from 'react-hot-toast';
 import { EpochsActivityTable } from './EpochsActivityTable';
 import { TransactionsActivityTable } from './TransactionsActivityTable';
 import { CheckpointsTable } from '../checkpoints/CheckpointsTable';
-// import { useNetwork } from '~/context';
+// import { useNetwork } from '~/lib/hooks';
 // import { DropdownMenu, DropdownMenuCheckboxItem } from '~/ui/DropdownMenu';
 import { PlayPause } from '~/ui/PlayPause';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
-// import { Network } from '~/utils/api/defaultRpcClient';
 
 const VALID_TABS = ['transactions', 'epochs', 'checkpoints'];
 

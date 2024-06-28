@@ -2,18 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCookieConsentBanner, KioskClientProvider } from '@iota/core';
+import { KioskClientProvider, useCookieConsentBanner } from '@iota/core';
 import { IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
+import type { Network } from '@iota/iota.js/client';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Fragment } from 'react';
 import { resolveValue, Toaster, type ToastType } from 'react-hot-toast';
 import { Outlet, ScrollRestoration } from 'react-router-dom';
 
-import { useInitialPageView } from '../../hooks/useInitialPageView';
-import { NetworkContext, useNetwork } from '~/context';
+import { NetworkContext } from '~/contexts';
+import { useInitialPageView, useNetwork } from '~/hooks';
+import { createIotaClient, persistableStorage, SupportedNetworks } from '~/lib/utils';
 import { Banner, type BannerProps } from '~/ui/Banner';
-import { persistableStorage } from '~/utils/analytics/amplitude';
-import { type Network, createIotaClient, SupportedNetworks } from '~/utils/api/defaultRpcClient';
 
 const TOAST_VARIANTS: Partial<Record<ToastType, BannerProps['variant']>> = {
     success: 'positive',

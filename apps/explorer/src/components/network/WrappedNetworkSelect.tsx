@@ -5,12 +5,12 @@
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useContext } from 'react';
 
-import { NetworkContext } from '../../context';
+import { NetworkContext } from '~/contexts';
 import { NetworkSelect, type NetworkOption } from '~/ui/header/NetworkSelect';
-import { ampli } from '~/utils/analytics/ampli';
+import { ampli } from '~/lib/utils';
 import { getAllNetworks } from '@iota/iota.js/client';
 
-export default function WrappedNetworkSelect(): JSX.Element {
+export function NetworkSelector(): JSX.Element {
     const [network, setNetwork] = useContext(NetworkContext);
     const { data } = useIotaClientQuery('getLatestIotaSystemState');
     const { data: binaryVersion } = useIotaClientQuery('getRpcApiVersion');

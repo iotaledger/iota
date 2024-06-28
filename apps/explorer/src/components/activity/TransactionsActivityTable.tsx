@@ -8,16 +8,16 @@ import { Text } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 
-import { genTableDataFromTxData } from '../transactions/TxCardUtils';
 import {
     DEFAULT_TRANSACTIONS_LIMIT,
     useGetTransactionBlocks,
 } from '~/hooks/useGetTransactionBlocks';
+import { numberSuffix } from '~/lib/utils';
 import { Link } from '~/ui/Link';
 import { Pagination, useCursorPagination } from '~/ui/Pagination';
 import { PlaceholderTable } from '~/ui/PlaceholderTable';
 import { TableCard } from '~/ui/TableCard';
-import { numberSuffix } from '~/utils/numberUtil';
+import { genTableDataFromTxData } from '../transactions/TxCardUtils';
 
 interface TransactionsActivityTableProps {
     disablePagination?: boolean;

@@ -3,20 +3,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useGetObject } from '@iota/core';
-import { Banner } from '~/ui/Banner';
-import { Divider } from '~/ui/Divider';
-import { FieldsContent } from '~/pages/object-result/views/TokenView';
-import { TabHeader } from '~/ui/Tabs';
-import { ErrorBoundary } from '~/components/error-boundary/ErrorBoundary';
-import { TransactionsForAddressTable } from '~/components/transactions/TransactionsForAddress';
-import TransactionBlocksForAddress from '~/components/transaction-blocks-for-address';
-import { useBreakpoint } from '~/hooks/useBreakpoint';
-import { OwnedCoins } from '~/components/owned-coins';
-import { OwnedObjects } from '~/components/owned-objects';
-import { SplitPanes } from '~/ui/SplitPanes';
 import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
+import {
+    TransactionBlocksForAddress,
+    ErrorBoundary,
+    OwnedCoins,
+    OwnedObjects,
+    TransactionsForAddressTable,
+} from '~/components';
+import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { LocalStorageSplitPaneKey } from '~/lib/enums';
+import { FieldsContent } from '~/pages/object-result/views/TokenView';
+import { Banner } from '~/ui/Banner';
+import { Divider } from '~/ui/Divider';
+import { SplitPanes } from '~/ui/SplitPanes';
+import { TabHeader } from '~/ui/Tabs';
 
 const LEFT_RIGHT_PANEL_MIN_SIZE = 30;
 

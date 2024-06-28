@@ -7,9 +7,9 @@ import { Text } from '@iota/ui';
 
 import { IotaAmount } from '../table/IotaAmount';
 import { TxTimeType } from '../tx-time/TxTimeType';
-import { HighlightedTableCol } from '~/components/table/HighlightedTableCol';
+import { HighlightedTableCol } from '~/components';
 import { CheckpointSequenceLink, EpochLink } from '~/ui/InternalLink';
-import { getEpochStorageFundFlow } from '~/utils/getStorageFundFlow';
+import { getEpochStorageFundFlow } from '~/lib/utils';
 import { type ReactNode } from 'react';
 
 interface EpochData {

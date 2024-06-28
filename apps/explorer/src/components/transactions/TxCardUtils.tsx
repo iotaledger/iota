@@ -8,7 +8,7 @@ import { type IotaClient, type IotaTransactionBlockResponse } from '@iota/iota.j
 
 import { IotaAmount } from '../table/IotaAmount';
 import { TxTimeType } from '../tx-time/TxTimeType';
-import { HighlightedTableCol } from '~/components/table/HighlightedTableCol';
+import { HighlightedTableCol } from '~/components';
 import { AddressLink, TransactionLink } from '~/ui/InternalLink';
 import { type ReactNode } from 'react';
 

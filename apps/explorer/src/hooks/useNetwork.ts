@@ -1,24 +1,13 @@
-// Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import * as Sentry from '@sentry/react';
-import { createContext, useContext, useLayoutEffect, useMemo } from 'react';
+import { getDefaultNetwork, Network } from '@iota/iota.js/client';
+import { useLayoutEffect, useMemo } from 'react';
 // eslint-disable-next-line no-restricted-imports
 import { useSearchParams } from 'react-router-dom';
-
-import { Network } from './utils/api/defaultRpcClient';
-import { growthbook } from './utils/growthbook';
-import { queryClient } from './utils/queryClient';
-import { getDefaultNetwork } from '@iota/iota.js/client';
-
-export const NetworkContext = createContext<
-    [Network | string, (network: Network | string) => void]
->(['', () => null]);
-
-export function useNetworkContext(): [Network | string, (network: Network | string) => void] {
-    return useContext(NetworkContext);
-}
+import { growthbook } from '~/lib/utils/growthbook';
+import { queryClient } from '~/lib/utils/queryClient';
+import * as Sentry from '@sentry/react';
 
 export function useNetwork(): [string, (network: Network | string) => void] {
     const [searchParams, setSearchParams] = useSearchParams();

@@ -16,7 +16,7 @@ import {
     type LinkProps,
 } from 'react-router-dom';
 
-export { LinkProps };
+export { LinkProps as RouterLinkProps };
 
 /** Query params that we want to be preserved between all pages. */
 export const PRESERVE_QUERY = ['network'];

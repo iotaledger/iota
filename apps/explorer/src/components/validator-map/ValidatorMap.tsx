@@ -4,17 +4,17 @@
 
 import { useAppsBackend } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { Heading, Text, Placeholder } from '@iota/ui';
+import { Network } from '@iota/iota.js/client';
+import { Heading, Placeholder, Text } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import { ParentSize } from '@visx/responsive';
 import { TooltipWithBounds, useTooltip } from '@visx/tooltip';
 import React, { type ReactNode, useCallback, useMemo } from 'react';
 
+import { useNetwork } from '~/hooks';
+import { Card } from '~/ui/Card';
 import { WorldMap } from './WorldMap';
 import { type ValidatorMapResponse, type ValidatorMapValidator } from './types';
-import { useNetwork } from '~/context';
-import { Card } from '~/ui/Card';
-import { Network } from '~/utils/api/defaultRpcClient';
 
 type ValidatorsMap = Record<string, ValidatorMapValidator>;
 

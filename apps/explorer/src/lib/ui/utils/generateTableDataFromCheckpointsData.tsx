@@ -5,10 +5,9 @@
 import { type CheckpointPage } from '@iota/iota.js/client';
 import { Text } from '@iota/ui';
 
-import { TxTimeType } from '../tx-time/TxTimeType';
-import { HighlightedTableCol } from '~/components/table/HighlightedTableCol';
-import { CheckpointLink, CheckpointSequenceLink } from '~/ui/InternalLink';
 import { type ReactNode } from 'react';
+import { HighlightedTableCol, TxTimeType } from '~/components';
+import { CheckpointLink, CheckpointSequenceLink } from '~/ui/InternalLink';
 
 interface CheckpointData {
     digest: ReactNode;

@@ -10,12 +10,12 @@ import * as Collapsible from '@radix-ui/react-collapsible';
 import clsx from 'clsx';
 import { useState } from 'react';
 
-import { type CoinBalanceVerified } from '.';
+import { type CoinBalanceVerified } from './OwnedCoins';
 import { CoinIcon } from './CoinIcon';
 import CoinsPanel from './OwnedCoinsPanel';
 import { Banner } from '~/ui/Banner';
 import { Tooltip } from '~/ui/Tooltip';
-import { ampli } from '~/utils/analytics/ampli';
+import { ampli } from '~/lib/utils';
 
 type OwnedCoinViewProps = {
     coin: CoinBalanceVerified;

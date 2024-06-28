@@ -4,12 +4,12 @@
 
 import { CoinFormat, useFormatCoin, useResolveIotaNSName } from '@iota/core';
 import { ArrowUpRight16, Info16 } from '@iota/icons';
-import { type ObjectOwner, type IotaObjectResponse } from '@iota/iota.js/client';
+import { type IotaObjectResponse, type ObjectOwner } from '@iota/iota.js/client';
 import {
     formatAddress,
+    IOTA_TYPE_ARG,
     normalizeStructTag,
     parseStructTag,
-    IOTA_TYPE_ARG,
 } from '@iota/iota.js/utils';
 import { Heading, Text } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
@@ -17,14 +17,20 @@ import clsx from 'clsx';
 import { type ReactNode, useEffect, useState } from 'react';
 
 import { useResolveVideo } from '~/hooks/useResolveVideo';
+import {
+    extractName,
+    genFileTypeMsg,
+    getDisplayUrl,
+    parseImageURL,
+    parseObjectType,
+    trimStdLibPrefix,
+} from '~/lib/utils';
 import { Card } from '~/ui/Card';
 import { Description } from '~/ui/Description';
 import { Divider } from '~/ui/Divider';
 import { AddressLink, ObjectLink, TransactionLink } from '~/ui/InternalLink';
 import { Link } from '~/ui/Link';
 import { ObjectVideoImage } from '~/ui/ObjectVideoImage';
-import { extractName, getDisplayUrl, parseImageURL, parseObjectType } from '~/utils/objectUtils';
-import { genFileTypeMsg, trimStdLibPrefix } from '~/utils/stringUtils';
 import { Tooltip } from '~/ui/Tooltip';
 
 interface HeroVideoImageProps {

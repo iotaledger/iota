@@ -16,7 +16,7 @@ import {
 
 import { Tooltip } from './Tooltip';
 import { ReactComponent as InfoSvg } from './icons/info_10x10.svg';
-import { ampli } from '~/utils/analytics/ampli';
+import { ampli } from '~/lib/utils';
 
 type TabSize = 'md' | 'lg' | 'sm';
 

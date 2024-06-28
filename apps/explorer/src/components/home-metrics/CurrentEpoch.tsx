@@ -7,12 +7,12 @@ import { Text, Heading } from '@iota/ui';
 import { format, isToday, isYesterday } from 'date-fns';
 import { useMemo } from 'react';
 
-import { Checkpoint } from '~/components/home-metrics/Checkpoint';
+import { Checkpoint } from '~/components';
 import { useEpochProgress } from '~/pages/epochs/utils';
 import { Card } from '~/ui/Card';
 import { ProgressBar } from '~/ui/ProgressBar';
 import { LinkWithQuery } from '~/ui/LinkWithQuery';
-import { ampli } from '~/utils/analytics/ampli';
+import { ampli } from '~/lib/utils';
 
 export function CurrentEpoch(): JSX.Element {
     const { epoch, progress, label, end, start } = useEpochProgress();

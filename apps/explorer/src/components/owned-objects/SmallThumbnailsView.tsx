@@ -7,12 +7,11 @@ import { formatAddress } from '@iota/iota.js/utils';
 import { Placeholder } from '@iota/ui';
 import { type ReactNode } from 'react';
 
-import { OwnedObjectsText } from '~/components/owned-objects/OwnedObjectsText';
+import { OwnedObjectsText } from '~/components';
 import { useResolveVideo } from '~/hooks/useResolveVideo';
+import { parseObjectType, trimStdLibPrefix } from '~/lib/utils';
 import { ObjectLink } from '~/ui/InternalLink';
 import { ObjectVideoImage } from '~/ui/ObjectVideoImage';
-import { parseObjectType } from '~/utils/objectUtils';
-import { trimStdLibPrefix } from '~/utils/stringUtils';
 
 interface SmallThumbnailsViewProps {
     limit: number;

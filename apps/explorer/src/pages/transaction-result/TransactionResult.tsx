@@ -7,7 +7,7 @@ import { useGetTransaction } from '@iota/core';
 import { useParams } from 'react-router-dom';
 
 import { TransactionView } from './TransactionView';
-import { PageLayout } from '~/components/layout/PageLayout';
+import { PageLayout } from '~/components';
 import { Banner } from '~/ui/Banner';
 import { PageHeader } from '~/ui/PageHeader';
 import { StatusIcon } from '~/ui/StatusIcon';

@@ -5,9 +5,8 @@
 import { type IotaObjectResponse } from '@iota/iota.js/client';
 
 import { useResolveVideo } from '~/hooks/useResolveVideo';
+import { parseObjectType, trimStdLibPrefix } from '~/lib/utils';
 import { ObjectDetails } from '~/ui/ObjectDetails';
-import { parseObjectType } from '~/utils/objectUtils';
-import { trimStdLibPrefix } from '~/utils/stringUtils';
 
 type OwnedObjectProps = {
     obj: IotaObjectResponse;

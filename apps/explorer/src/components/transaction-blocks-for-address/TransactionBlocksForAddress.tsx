@@ -88,7 +88,7 @@ export function FiltersControl({ filterValue, setFilterValue }: FiltersControlPr
     );
 }
 
-function TransactionBlocksForAddress({
+export function TransactionBlocksForAddress({
     address,
     filter = ObjectFilterValue.Changed,
     header,
@@ -182,5 +182,3 @@ function TransactionBlocksForAddress({
         </div>
     );
 }
-
-export default TransactionBlocksForAddress;
