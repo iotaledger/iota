@@ -5,6 +5,7 @@
 use std::{
     collections::{BTreeMap, HashSet},
     fs::{self, File},
+    io::{BufReader, BufWriter},
     path::Path,
     sync::Arc,
 };
@@ -691,10 +692,8 @@ impl Builder {
             }
 
             let path = entry.path();
-            let validator_info_bytes = fs::read(path)?;
-            let validator_info: GenesisValidatorInfo =
-                serde_yaml::from_slice(&validator_info_bytes)
-                    .with_context(|| format!("unable to load validator info for {path}"))?;
+            let validator_info: GenesisValidatorInfo = serde_yaml::from_slice(&fs::read(path)?)
+                .with_context(|| format!("unable to load validator info for {path}"))?;
             committee.insert(validator_info.info.protocol_key(), validator_info);
         }
 
@@ -707,8 +706,7 @@ impl Builder {
             }
 
             let path = entry.path();
-            let signature_bytes = fs::read(path)?;
-            let sigs: AuthoritySignInfo = bcs::from_bytes(&signature_bytes)
+            let sigs: AuthoritySignInfo = bcs::from_bytes(&fs::read(path)?)
                 .with_context(|| format!("unable to load validator signatrue for {path}"))?;
             signatures.insert(sigs.authority, sigs);
         }
@@ -726,8 +724,8 @@ impl Builder {
 
         let unsigned_genesis_file = path.join(GENESIS_BUILDER_UNSIGNED_GENESIS_FILE);
         if unsigned_genesis_file.exists() {
-            let unsigned_genesis_bytes = fs::read(unsigned_genesis_file)?;
-            let loaded_genesis: UnsignedGenesis = bcs::from_bytes(&unsigned_genesis_bytes)?;
+            let loaded_genesis: UnsignedGenesis =
+                bcs::from_reader(BufReader::new(File::open(unsigned_genesis_file)?))?;
 
             // If we have a built genesis, then we must have a token_distribution_schedule
             // present as well.
@@ -739,8 +737,8 @@ impl Builder {
             // Verify loaded genesis matches one build from the constituent parts
             let built = builder.get_or_build_unsigned_genesis();
             loaded_genesis.checkpoint_contents.digest(); // cache digest before compare
-            assert_eq!(
-                *built, loaded_genesis,
+            assert!(
+                *built == loaded_genesis,
                 "loaded genesis does not match built genesis"
             );
 
@@ -771,9 +769,8 @@ impl Builder {
         let signature_dir = path.join(GENESIS_BUILDER_SIGNATURE_DIR);
         std::fs::create_dir_all(&signature_dir)?;
         for (pubkey, sigs) in self.signatures {
-            let sig_bytes = bcs::to_bytes(&sigs)?;
             let name = self.validators.get(&pubkey).unwrap().info.name();
-            fs::write(signature_dir.join(name), sig_bytes)?;
+            fs::write(signature_dir.join(name), &bcs::to_bytes(&sigs)?)?;
         }
 
         // Write validator infos
@@ -781,19 +778,17 @@ impl Builder {
         fs::create_dir_all(&committee_dir)?;
 
         for (_pubkey, validator) in self.validators {
-            let validator_info_bytes = serde_yaml::to_string(&validator)?;
             fs::write(
                 committee_dir.join(validator.info.name()),
-                validator_info_bytes,
+                &serde_yaml::to_string(&validator)?,
             )?;
         }
 
         if let Some(genesis) = &self.built_genesis {
-            let genesis_bytes = bcs::to_bytes(&genesis)?;
-            fs::write(
+            let mut write = BufWriter::new(File::create(
                 path.join(GENESIS_BUILDER_UNSIGNED_GENESIS_FILE),
-                genesis_bytes,
-            )?;
+            )?);
+            bcs::serialize_into(&mut write, &genesis)?;
         }
 
         Ok(())
