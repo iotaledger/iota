@@ -281,7 +281,7 @@ impl Builder {
         self.built_genesis = Some(build_unsigned_genesis_data(
             &self.parameters,
             &token_distribution_schedule,
-            &self.genesis_stake.take_timelock_allocations(),
+            &self.genesis_stake.timelock_allocations(),
             &validators,
             &objects,
         ));

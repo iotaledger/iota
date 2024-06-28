@@ -514,15 +514,18 @@ impl TokenDistributionSchedule {
         let minimum_required_stake = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_MICROS;
         for (validator, stake) in validators {
             if stake < minimum_required_stake {
-                let meets_threshold = timelock_allocation
-                    .get(&validator)
-                    .map_or(false, |&timelock_alloc_stake| {
-                        timelock_alloc_stake + stake >= minimum_required_stake
-                    });
+                let mut total_stake = stake;
+                let meets_threshold =
+                    timelock_allocation
+                        .get(&validator)
+                        .map_or(false, |&timelock_alloc_stake| {
+                            total_stake += timelock_alloc_stake;
+                            total_stake >= minimum_required_stake
+                        });
 
                 if !meets_threshold {
                     panic!(
-                        "validator {validator} has '{stake}' stake and does not meet the minimum required stake threshold of '{minimum_required_stake}'"
+                        "validator {validator} has '{total_stake}' stake and does not meet the minimum required stake threshold of '{minimum_required_stake}'"
                     );
                 }
             }

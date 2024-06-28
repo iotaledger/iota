@@ -24,13 +24,6 @@ pub struct GenesisStake {
 }
 
 impl GenesisStake {
-    /// Take the inner timelock allocations.
-    ///
-    /// This follows the semantics of [`std::mem::take`].
-    pub fn take_timelock_allocations(&mut self) -> Vec<TimelockAllocation> {
-        std::mem::take(&mut self.timelock_allocations)
-    }
-
     /// Get a reference of the inner timelock allocations.
     pub fn timelock_allocations(&self) -> &Vec<TimelockAllocation> {
         &self.timelock_allocations
