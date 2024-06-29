@@ -234,12 +234,6 @@ each validator, emitted during epoch advancement.
 
 </dd>
 <dt>
-<code>storage_fund_staking_reward: u64</code>
-</dt>
-<dd>
-
-</dd>
-<dt>
 <code>pool_token_exchange_rate: <a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</a></code>
 </dt>
 <dd>
@@ -317,12 +311,6 @@ V2 of ValidatorEpochInfoEvent containing more information about the validator.
 </dd>
 <dt>
 <code>pool_staking_reward: u64</code>
-</dt>
-<dd>
-
-</dd>
-<dt>
-<code>storage_fund_staking_reward: u64</code>
 </dt>
 <dd>
 
@@ -994,7 +982,7 @@ It does the following things:
 5. At the end, we calculate the total stake for the new epoch.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator_set.md#0x3_validator_set_advance_epoch">advance_epoch</a>(self: &<b>mut</b> <a href="validator_set.md#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</a>, computation_reward: &<b>mut</b> <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, storage_fund_reward: &<b>mut</b> <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, validator_report_records: &<b>mut</b> <a href="../iota-framework/vec_map.md#0x2_vec_map_VecMap">vec_map::VecMap</a>&lt;<b>address</b>, <a href="../iota-framework/vec_set.md#0x2_vec_set_VecSet">vec_set::VecSet</a>&lt;<b>address</b>&gt;&gt;, reward_slashing_rate: u64, low_stake_threshold: u64, very_low_stake_threshold: u64, low_stake_grace_period: u64, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator_set.md#0x3_validator_set_advance_epoch">advance_epoch</a>(self: &<b>mut</b> <a href="validator_set.md#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</a>, computation_reward: &<b>mut</b> <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, validator_report_records: &<b>mut</b> <a href="../iota-framework/vec_map.md#0x2_vec_map_VecMap">vec_map::VecMap</a>&lt;<b>address</b>, <a href="../iota-framework/vec_set.md#0x2_vec_set_VecSet">vec_set::VecSet</a>&lt;<b>address</b>&gt;&gt;, reward_slashing_rate: u64, low_stake_threshold: u64, very_low_stake_threshold: u64, low_stake_grace_period: u64, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -1006,7 +994,6 @@ It does the following things:
 <pre><code><b>public</b>(package) <b>fun</b> <a href="validator_set.md#0x3_validator_set_advance_epoch">advance_epoch</a>(
     self: &<b>mut</b> <a href="validator_set.md#0x3_validator_set_ValidatorSet">ValidatorSet</a>,
     computation_reward: &<b>mut</b> Balance&lt;IOTA&gt;,
-    storage_fund_reward: &<b>mut</b> Balance&lt;IOTA&gt;,
     validator_report_records: &<b>mut</b> VecMap&lt;<b>address</b>, VecSet&lt;<b>address</b>&gt;&gt;,
     reward_slashing_rate: u64,
     low_stake_threshold: u64,
@@ -1018,11 +1005,10 @@ It does the following things:
     <b>let</b> total_voting_power = <a href="voting_power.md#0x3_voting_power_total_voting_power">voting_power::total_voting_power</a>();
 
     // Compute the reward distribution without taking into account the tallying rule slashing.
-    <b>let</b> (unadjusted_staking_reward_amounts, unadjusted_storage_fund_reward_amounts) = <a href="validator_set.md#0x3_validator_set_compute_unadjusted_reward_distribution">compute_unadjusted_reward_distribution</a>(
+    <b>let</b> unadjusted_staking_reward_amounts = <a href="validator_set.md#0x3_validator_set_compute_unadjusted_reward_distribution">compute_unadjusted_reward_distribution</a>(
         &self.active_validators,
         total_voting_power,
         computation_reward.value(),
-        storage_fund_reward.value(),
     );
 
     // Use the tallying rule report records for the epoch <b>to</b> compute validators that will be
@@ -1033,30 +1019,24 @@ It does the following things:
 
     // Compute the reward adjustments of slashed validators, <b>to</b> be taken into
     // account in adjusted reward computation.
-    <b>let</b> (total_staking_reward_adjustment, individual_staking_reward_adjustments,
-         total_storage_fund_reward_adjustment, individual_storage_fund_reward_adjustments
-        ) =
+    <b>let</b> (total_staking_reward_adjustment, individual_staking_reward_adjustments) =
         <a href="validator_set.md#0x3_validator_set_compute_reward_adjustments">compute_reward_adjustments</a>(
             <a href="validator_set.md#0x3_validator_set_get_validator_indices">get_validator_indices</a>(&self.active_validators, &slashed_validators),
             reward_slashing_rate,
             &unadjusted_staking_reward_amounts,
-            &unadjusted_storage_fund_reward_amounts,
         );
 
     // Compute the adjusted amounts of stake each <a href="validator.md#0x3_validator">validator</a> should get given the tallying rule
     // reward adjustments we computed before.
     // `compute_adjusted_reward_distribution` must be called before `distribute_reward` and `adjust_stake_and_gas_price` <b>to</b>
     // make sure we are using the current epoch's stake information <b>to</b> compute reward distribution.
-    <b>let</b> (adjusted_staking_reward_amounts, adjusted_storage_fund_reward_amounts) = <a href="validator_set.md#0x3_validator_set_compute_adjusted_reward_distribution">compute_adjusted_reward_distribution</a>(
+    <b>let</b> adjusted_staking_reward_amounts = <a href="validator_set.md#0x3_validator_set_compute_adjusted_reward_distribution">compute_adjusted_reward_distribution</a>(
         &self.active_validators,
         total_voting_power,
         total_slashed_validator_voting_power,
         unadjusted_staking_reward_amounts,
-        unadjusted_storage_fund_reward_amounts,
         total_staking_reward_adjustment,
         individual_staking_reward_adjustments,
-        total_storage_fund_reward_adjustment,
-        individual_storage_fund_reward_adjustments
     );
 
     // Distribute the rewards before adjusting stake so that we immediately start compounding
@@ -1064,9 +1044,7 @@ It does the following things:
     <a href="validator_set.md#0x3_validator_set_distribute_reward">distribute_reward</a>(
         &<b>mut</b> self.active_validators,
         &adjusted_staking_reward_amounts,
-        &adjusted_storage_fund_reward_amounts,
         computation_reward,
-        storage_fund_reward,
         ctx
     );
 
@@ -1075,8 +1053,7 @@ It does the following things:
     <a href="validator_set.md#0x3_validator_set_process_pending_stakes_and_withdraws">process_pending_stakes_and_withdraws</a>(&<b>mut</b> self.active_validators, ctx);
 
     // Emit events after we have processed all the rewards distribution and pending stakes.
-    <a href="validator_set.md#0x3_validator_set_emit_validator_epoch_events">emit_validator_epoch_events</a>(new_epoch, &self.active_validators, &adjusted_staking_reward_amounts,
-        &adjusted_storage_fund_reward_amounts, validator_report_records, &slashed_validators);
+    <a href="validator_set.md#0x3_validator_set_emit_validator_epoch_events">emit_validator_epoch_events</a>(new_epoch, &self.active_validators, &adjusted_staking_reward_amounts, validator_report_records, &slashed_validators);
 
     // Note that all their staged next epoch metadata will be effectuated below.
     <a href="validator_set.md#0x3_validator_set_process_pending_validators">process_pending_validators</a>(self, new_epoch);
@@ -2437,7 +2414,7 @@ Compute both the individual reward adjustments and total reward adjustment for s
 as well as storage fund rewards.
 
 
-<pre><code><b>fun</b> <a href="validator_set.md#0x3_validator_set_compute_reward_adjustments">compute_reward_adjustments</a>(slashed_validator_indices: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;, reward_slashing_rate: u64, unadjusted_staking_reward_amounts: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;, unadjusted_storage_fund_reward_amounts: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;): (u64, <a href="../iota-framework/vec_map.md#0x2_vec_map_VecMap">vec_map::VecMap</a>&lt;u64, u64&gt;, u64, <a href="../iota-framework/vec_map.md#0x2_vec_map_VecMap">vec_map::VecMap</a>&lt;u64, u64&gt;)
+<pre><code><b>fun</b> <a href="validator_set.md#0x3_validator_set_compute_reward_adjustments">compute_reward_adjustments</a>(slashed_validator_indices: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;, reward_slashing_rate: u64, unadjusted_staking_reward_amounts: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;): (u64, <a href="../iota-framework/vec_map.md#0x2_vec_map_VecMap">vec_map::VecMap</a>&lt;u64, u64&gt;)
 </code></pre>
 
 
@@ -2450,17 +2427,12 @@ as well as storage fund rewards.
     <b>mut</b> slashed_validator_indices: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;,
     reward_slashing_rate: u64,
     unadjusted_staking_reward_amounts: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;,
-    unadjusted_storage_fund_reward_amounts: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;,
 ): (
     u64, // sum of staking reward adjustments
     VecMap&lt;u64, u64&gt;, // mapping of individual <a href="validator.md#0x3_validator">validator</a>'s staking reward adjustment from index -&gt; amount
-    u64, // sum of storage fund reward adjustments
-    VecMap&lt;u64, u64&gt;, // mapping of individual <a href="validator.md#0x3_validator">validator</a>'s storage fund reward adjustment from index -&gt; amount
 ) {
     <b>let</b> <b>mut</b> total_staking_reward_adjustment = 0;
     <b>let</b> <b>mut</b> individual_staking_reward_adjustments = <a href="../iota-framework/vec_map.md#0x2_vec_map_empty">vec_map::empty</a>();
-    <b>let</b> <b>mut</b> total_storage_fund_reward_adjustment = 0;
-    <b>let</b> <b>mut</b> individual_storage_fund_reward_adjustments = <a href="../iota-framework/vec_map.md#0x2_vec_map_empty">vec_map::empty</a>();
 
     <b>while</b> (!slashed_validator_indices.is_empty()) {
         <b>let</b> validator_index = slashed_validator_indices.pop_back();
@@ -2475,19 +2447,9 @@ as well as storage fund rewards.
         individual_staking_reward_adjustments.insert(validator_index, staking_reward_adjustment_u128 <b>as</b> u64);
         total_staking_reward_adjustment = total_staking_reward_adjustment + (staking_reward_adjustment_u128 <b>as</b> u64);
 
-        // Do the same thing for storage fund rewards.
-        <b>let</b> unadjusted_storage_fund_reward = unadjusted_storage_fund_reward_amounts[validator_index];
-        <b>let</b> storage_fund_reward_adjustment_u128 =
-            unadjusted_storage_fund_reward <b>as</b> u128 * (reward_slashing_rate <b>as</b> u128)
-            / <a href="validator_set.md#0x3_validator_set_BASIS_POINT_DENOMINATOR">BASIS_POINT_DENOMINATOR</a>;
-        individual_storage_fund_reward_adjustments.insert(validator_index, storage_fund_reward_adjustment_u128 <b>as</b> u64);
-        total_storage_fund_reward_adjustment = total_storage_fund_reward_adjustment + (storage_fund_reward_adjustment_u128 <b>as</b> u64);
     };
 
-    (
-        total_staking_reward_adjustment, individual_staking_reward_adjustments,
-        total_storage_fund_reward_adjustment, individual_storage_fund_reward_adjustments
-    )
+    (total_staking_reward_adjustment, individual_staking_reward_adjustments,)
 }
 </code></pre>
 
@@ -2548,7 +2510,7 @@ account the tallying rule results.
 Returns the unadjusted amounts of staking reward and storage fund reward for each validator.
 
 
-<pre><code><b>fun</b> <a href="validator_set.md#0x3_validator_set_compute_unadjusted_reward_distribution">compute_unadjusted_reward_distribution</a>(validators: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;, total_voting_power: u64, total_staking_reward: u64, total_storage_fund_reward: u64): (<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;, <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;)
+<pre><code><b>fun</b> <a href="validator_set.md#0x3_validator_set_compute_unadjusted_reward_distribution">compute_unadjusted_reward_distribution</a>(validators: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;, total_voting_power: u64, total_staking_reward: u64): <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;
 </code></pre>
 
 
@@ -2561,12 +2523,9 @@ Returns the unadjusted amounts of staking reward and storage fund reward for eac
     validators: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;Validator&gt;,
     total_voting_power: u64,
     total_staking_reward: u64,
-    total_storage_fund_reward: u64,
-): (<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;, <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;) {
+): <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt; {
     <b>let</b> <b>mut</b> staking_reward_amounts = <a href="../move-stdlib/vector.md#0x1_vector">vector</a>[];
-    <b>let</b> <b>mut</b> storage_fund_reward_amounts = <a href="../move-stdlib/vector.md#0x1_vector">vector</a>[];
     <b>let</b> length = validators.length();
-    <b>let</b> storage_fund_reward_per_validator = total_storage_fund_reward / length;
     <b>let</b> <b>mut</b> i = 0;
     <b>while</b> (i &lt; length) {
         <b>let</b> <a href="validator.md#0x3_validator">validator</a> = &validators[i];
@@ -2577,10 +2536,9 @@ Returns the unadjusted amounts of staking reward and storage fund reward for eac
         <b>let</b> reward_amount = <a href="voting_power.md#0x3_voting_power">voting_power</a> * (total_staking_reward <b>as</b> u128) / (total_voting_power <b>as</b> u128);
         staking_reward_amounts.push_back(reward_amount <b>as</b> u64);
         // Storage fund's share of the rewards are equally distributed among validators.
-        storage_fund_reward_amounts.push_back(storage_fund_reward_per_validator);
         i = i + 1;
     };
-    (staking_reward_amounts, storage_fund_reward_amounts)
+    staking_reward_amounts
 }
 </code></pre>
 
@@ -2597,7 +2555,7 @@ Returns the staking rewards each validator gets and the storage fund rewards eac
 The staking rewards are shared with the stakers while the storage fund ones are not.
 
 
-<pre><code><b>fun</b> <a href="validator_set.md#0x3_validator_set_compute_adjusted_reward_distribution">compute_adjusted_reward_distribution</a>(validators: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;, total_voting_power: u64, total_slashed_validator_voting_power: u64, unadjusted_staking_reward_amounts: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;, unadjusted_storage_fund_reward_amounts: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;, total_staking_reward_adjustment: u64, individual_staking_reward_adjustments: <a href="../iota-framework/vec_map.md#0x2_vec_map_VecMap">vec_map::VecMap</a>&lt;u64, u64&gt;, total_storage_fund_reward_adjustment: u64, individual_storage_fund_reward_adjustments: <a href="../iota-framework/vec_map.md#0x2_vec_map_VecMap">vec_map::VecMap</a>&lt;u64, u64&gt;): (<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;, <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;)
+<pre><code><b>fun</b> <a href="validator_set.md#0x3_validator_set_compute_adjusted_reward_distribution">compute_adjusted_reward_distribution</a>(validators: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;, total_voting_power: u64, total_slashed_validator_voting_power: u64, unadjusted_staking_reward_amounts: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;, total_staking_reward_adjustment: u64, individual_staking_reward_adjustments: <a href="../iota-framework/vec_map.md#0x2_vec_map_VecMap">vec_map::VecMap</a>&lt;u64, u64&gt;): <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;
 </code></pre>
 
 
@@ -2611,18 +2569,13 @@ The staking rewards are shared with the stakers while the storage fund ones are 
     total_voting_power: u64,
     total_slashed_validator_voting_power: u64,
     unadjusted_staking_reward_amounts: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;,
-    unadjusted_storage_fund_reward_amounts: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;,
     total_staking_reward_adjustment: u64,
     individual_staking_reward_adjustments: VecMap&lt;u64, u64&gt;,
-    total_storage_fund_reward_adjustment: u64,
-    individual_storage_fund_reward_adjustments: VecMap&lt;u64, u64&gt;,
-): (<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;, <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;) {
+): <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt; {
     <b>let</b> total_unslashed_validator_voting_power = total_voting_power - total_slashed_validator_voting_power;
     <b>let</b> <b>mut</b> adjusted_staking_reward_amounts = <a href="../move-stdlib/vector.md#0x1_vector">vector</a>[];
-    <b>let</b> <b>mut</b> adjusted_storage_fund_reward_amounts = <a href="../move-stdlib/vector.md#0x1_vector">vector</a>[];
 
     <b>let</b> length = validators.length();
-    <b>let</b> num_unslashed_validators = length - individual_staking_reward_adjustments.size();
 
     <b>let</b> <b>mut</b> i = 0;
     <b>while</b> (i &lt; length) {
@@ -2648,24 +2601,10 @@ The staking rewards are shared with the stakers while the storage fund ones are 
             };
         adjusted_staking_reward_amounts.push_back(adjusted_staking_reward_amount);
 
-        // Compute adjusted storage fund reward.
-        <b>let</b> unadjusted_storage_fund_reward_amount = unadjusted_storage_fund_reward_amounts[i];
-        <b>let</b> adjusted_storage_fund_reward_amount =
-            // If the <a href="validator.md#0x3_validator">validator</a> is one of the slashed ones, then subtract the adjustment.
-            <b>if</b> (individual_storage_fund_reward_adjustments.contains(&i)) {
-                <b>let</b> adjustment = individual_storage_fund_reward_adjustments[&i];
-                unadjusted_storage_fund_reward_amount - adjustment
-            } <b>else</b> {
-                // Otherwise the slashed rewards should be equally distributed among the unslashed validators.
-                <b>let</b> adjustment = total_storage_fund_reward_adjustment / num_unslashed_validators;
-                unadjusted_storage_fund_reward_amount + adjustment
-            };
-        adjusted_storage_fund_reward_amounts.push_back(adjusted_storage_fund_reward_amount);
-
         i = i + 1;
     };
 
-    (adjusted_staking_reward_amounts, adjusted_storage_fund_reward_amounts)
+    adjusted_staking_reward_amounts
 }
 </code></pre>
 
@@ -2679,7 +2618,7 @@ The staking rewards are shared with the stakers while the storage fund ones are 
 
 
 
-<pre><code><b>fun</b> <a href="validator_set.md#0x3_validator_set_distribute_reward">distribute_reward</a>(validators: &<b>mut</b> <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;, adjusted_staking_reward_amounts: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;, adjusted_storage_fund_reward_amounts: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;, staking_rewards: &<b>mut</b> <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, storage_fund_reward: &<b>mut</b> <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code><b>fun</b> <a href="validator_set.md#0x3_validator_set_distribute_reward">distribute_reward</a>(validators: &<b>mut</b> <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;, adjusted_staking_reward_amounts: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;, staking_rewards: &<b>mut</b> <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -2691,9 +2630,7 @@ The staking rewards are shared with the stakers while the storage fund ones are 
 <pre><code><b>fun</b> <a href="validator_set.md#0x3_validator_set_distribute_reward">distribute_reward</a>(
     validators: &<b>mut</b> <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;Validator&gt;,
     adjusted_staking_reward_amounts: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;,
-    adjusted_storage_fund_reward_amounts: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;,
     staking_rewards: &<b>mut</b> Balance&lt;IOTA&gt;,
-    storage_fund_reward: &<b>mut</b> Balance&lt;IOTA&gt;,
     ctx: &<b>mut</b> TxContext
 ) {
     <b>let</b> length = validators.length();
@@ -2708,12 +2645,7 @@ The staking rewards are shared with the stakers while the storage fund ones are 
         <b>let</b> validator_commission_amount = (staking_reward_amount <b>as</b> u128) * (<a href="validator.md#0x3_validator">validator</a>.commission_rate() <b>as</b> u128) / <a href="validator_set.md#0x3_validator_set_BASIS_POINT_DENOMINATOR">BASIS_POINT_DENOMINATOR</a>;
 
         // The <a href="validator.md#0x3_validator">validator</a> reward = storage_fund_reward + commission.
-        <b>let</b> <b>mut</b> validator_reward = staker_reward.split(validator_commission_amount <b>as</b> u64);
-
-        // Add storage fund rewards <b>to</b> the <a href="validator.md#0x3_validator">validator</a>'s reward.
-        validator_reward.join(
-	    	storage_fund_reward.split(adjusted_storage_fund_reward_amounts[i])
-	    );
+        <b>let</b> validator_reward = staker_reward.split(validator_commission_amount <b>as</b> u64);
 
         // Add rewards <b>to</b> the <a href="validator.md#0x3_validator">validator</a>. Don't try and distribute rewards though <b>if</b> the payout is zero.
         <b>if</b> (validator_reward.value() &gt; 0) {
@@ -2743,7 +2675,7 @@ Emit events containing information of each validator for the epoch,
 including stakes, rewards, performance, etc.
 
 
-<pre><code><b>fun</b> <a href="validator_set.md#0x3_validator_set_emit_validator_epoch_events">emit_validator_epoch_events</a>(new_epoch: u64, vs: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;, pool_staking_reward_amounts: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;, storage_fund_staking_reward_amounts: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;, report_records: &<a href="../iota-framework/vec_map.md#0x2_vec_map_VecMap">vec_map::VecMap</a>&lt;<b>address</b>, <a href="../iota-framework/vec_set.md#0x2_vec_set_VecSet">vec_set::VecSet</a>&lt;<b>address</b>&gt;&gt;, slashed_validators: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<b>address</b>&gt;)
+<pre><code><b>fun</b> <a href="validator_set.md#0x3_validator_set_emit_validator_epoch_events">emit_validator_epoch_events</a>(new_epoch: u64, vs: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="validator.md#0x3_validator_Validator">validator::Validator</a>&gt;, pool_staking_reward_amounts: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;, report_records: &<a href="../iota-framework/vec_map.md#0x2_vec_map_VecMap">vec_map::VecMap</a>&lt;<b>address</b>, <a href="../iota-framework/vec_set.md#0x2_vec_set_VecSet">vec_set::VecSet</a>&lt;<b>address</b>&gt;&gt;, slashed_validators: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<b>address</b>&gt;)
 </code></pre>
 
 
@@ -2756,7 +2688,6 @@ including stakes, rewards, performance, etc.
     new_epoch: u64,
     vs: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;Validator&gt;,
     pool_staking_reward_amounts: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;,
-    storage_fund_staking_reward_amounts: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u64&gt;,
     report_records: &VecMap&lt;<b>address</b>, VecSet&lt;<b>address</b>&gt;&gt;,
     slashed_validators: &<a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<b>address</b>&gt;,
 ) {
@@ -2783,7 +2714,6 @@ including stakes, rewards, performance, etc.
                 <a href="voting_power.md#0x3_voting_power">voting_power</a>: v.<a href="voting_power.md#0x3_voting_power">voting_power</a>(),
                 commission_rate: v.commission_rate(),
                 pool_staking_reward: pool_staking_reward_amounts[i],
-                storage_fund_staking_reward: storage_fund_staking_reward_amounts[i],
                 pool_token_exchange_rate: v.pool_token_exchange_rate_at_epoch(new_epoch),
                 tallying_rule_reporters,
                 tallying_rule_global_score,

@@ -32,21 +32,12 @@ module iota_system::storage_fund {
     public(package) fun advance_epoch(
         self: &mut StorageFund,
         storage_charges: Balance<IOTA>,
-        leftover_staking_rewards: Balance<IOTA>,
         storage_rebate_amount: u64,
-        non_refundable_storage_fee_amount: u64,
     ) : Balance<IOTA> {
-        // Add any leftover staking rewards to the non-refundable balance.
-        self.non_refundable_balance.join(leftover_staking_rewards);
-
         // The storage charges for the epoch come from the storage rebate of the new objects created
         // and the new storage rebates of the objects modified during the epoch so we put the charges
         // into `total_object_storage_rebates`.
         self.total_object_storage_rebates.join(storage_charges);
-
-        // Split out the non-refundable portion of the storage rebate and put it into the non-refundable balance.
-        let non_refundable_storage_fee = self.total_object_storage_rebates.split(non_refundable_storage_fee_amount);
-        self.non_refundable_balance.join(non_refundable_storage_fee);
 
         // `storage_rebates` include the already refunded rebates of deleted objects and old rebates of modified objects and
         // should be taken out of the `total_object_storage_rebates`.
@@ -62,6 +53,7 @@ module iota_system::storage_fund {
     }
 
     public fun total_balance(self: &StorageFund): u64 {
+        //TODO: fix
         self.total_object_storage_rebates.value() + self.non_refundable_balance.value()
     }
 }

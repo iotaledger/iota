@@ -542,7 +542,6 @@ module iota_system::iota_system {
         new_epoch: u64,
         next_protocol_version: u64,
         storage_rebate: u64,
-        non_refundable_storage_fee: u64,
         reward_slashing_rate: u64, // how much rewards are slashed to punish a validator, in bps.
         epoch_start_timestamp_ms: u64, // Timestamp of the epoch start
         ctx: &mut TxContext,
@@ -557,7 +556,6 @@ module iota_system::iota_system {
             storage_reward,
             computation_reward,
             storage_rebate,
-            non_refundable_storage_fee,
             reward_slashing_rate,
             epoch_start_timestamp_ms,
             ctx,
@@ -746,7 +744,6 @@ module iota_system::iota_system {
         storage_charge: u64,
         computation_charge: u64,
         storage_rebate: u64,
-        non_refundable_storage_fee: u64,
         reward_slashing_rate: u64,
         epoch_start_timestamp_ms: u64,
         ctx: &mut TxContext,
@@ -761,7 +758,6 @@ module iota_system::iota_system {
             new_epoch,
             next_protocol_version,
             storage_rebate,
-            non_refundable_storage_fee,
             reward_slashing_rate,
             epoch_start_timestamp_ms,
             ctx,

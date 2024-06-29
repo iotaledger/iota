@@ -94,7 +94,7 @@ Called by <code><a href="iota_system.md#0x3_iota_system">iota_system</a></code> 
 Called by <code><a href="iota_system.md#0x3_iota_system">iota_system</a></code> at epoch change times to process the inflows and outflows of storage fund.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_advance_epoch">advance_epoch</a>(self: &<b>mut</b> <a href="storage_fund.md#0x3_storage_fund_StorageFund">storage_fund::StorageFund</a>, storage_charges: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, leftover_staking_rewards: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, storage_rebate_amount: u64, non_refundable_storage_fee_amount: u64): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_advance_epoch">advance_epoch</a>(self: &<b>mut</b> <a href="storage_fund.md#0x3_storage_fund_StorageFund">storage_fund::StorageFund</a>, storage_charges: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, storage_rebate_amount: u64): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
 </code></pre>
 
 
@@ -106,21 +106,12 @@ Called by <code><a href="iota_system.md#0x3_iota_system">iota_system</a></code> 
 <pre><code><b>public</b>(package) <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_advance_epoch">advance_epoch</a>(
     self: &<b>mut</b> <a href="storage_fund.md#0x3_storage_fund_StorageFund">StorageFund</a>,
     storage_charges: Balance&lt;IOTA&gt;,
-    leftover_staking_rewards: Balance&lt;IOTA&gt;,
     storage_rebate_amount: u64,
-    non_refundable_storage_fee_amount: u64,
 ) : Balance&lt;IOTA&gt; {
-    // Add any leftover staking rewards <b>to</b> the non-refundable <a href="../iota-framework/balance.md#0x2_balance">balance</a>.
-    self.non_refundable_balance.join(leftover_staking_rewards);
-
     // The storage charges for the epoch come from the storage rebate of the new objects created
     // and the new storage rebates of the objects modified during the epoch so we put the charges
     // into `total_object_storage_rebates`.
     self.total_object_storage_rebates.join(storage_charges);
-
-    // Split out the non-refundable portion of the storage rebate and put it into the non-refundable <a href="../iota-framework/balance.md#0x2_balance">balance</a>.
-    <b>let</b> non_refundable_storage_fee = self.total_object_storage_rebates.split(non_refundable_storage_fee_amount);
-    self.non_refundable_balance.join(non_refundable_storage_fee);
 
     // `storage_rebates` <b>include</b> the already refunded rebates of deleted objects and <b>old</b> rebates of modified objects and
     // should be taken out of the `total_object_storage_rebates`.
@@ -176,6 +167,7 @@ Called by <code><a href="iota_system.md#0x3_iota_system">iota_system</a></code> 
 
 
 <pre><code><b>public</b> <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_total_balance">total_balance</a>(self: &<a href="storage_fund.md#0x3_storage_fund_StorageFund">StorageFund</a>): u64 {
+    //TODO: fix
     self.total_object_storage_rebates.value() + self.non_refundable_balance.value()
 }
 </code></pre>
