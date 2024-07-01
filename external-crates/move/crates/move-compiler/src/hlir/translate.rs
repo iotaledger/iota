@@ -762,7 +762,11 @@ fn tail(
                     block: loop_body,
                 },
             ));
-            if has_break { Some(result) } else { None }
+            if has_break {
+                Some(result)
+            } else {
+                None
+            }
         }
         e_ @ E::Loop { .. } => {
             // A loop wthout a break has no concrete type for its binders, but since we'll
@@ -2433,7 +2437,7 @@ fn freeze(context: &mut Context, expected_type: &H::Type, e: H::Exp) -> (Block, 
                         T::Single(s) => s.clone(),
                         _ => {
                             let msg = format!(
-                                "ICE list item has Multple type: {}",
+                                "ICE list item has Multiple type: {}",
                                 debug_display_verbose!(e.ty)
                             );
                             context.env.add_diag(ice!((e.ty.loc, msg)));

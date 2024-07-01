@@ -46,7 +46,7 @@ pub(crate) struct Page<C> {
 
     /// In case there are more than `limit` entries in the range described by
     /// `(after, before)`, this field states whether the entries up to limit
-    /// are taken fron the `Front` or `Back` of that range.
+    /// are taken from the `Front` or `Back` of that range.
     end: End,
 }
 
@@ -587,7 +587,7 @@ impl<C: fmt::Debug> fmt::Debug for BcsCursor<C> {
 
 impl<C: Clone> Clone for JsonCursor<C> {
     fn clone(&self) -> Self {
-        JsonCursor::new(self.0.0.clone())
+        JsonCursor::new(self.0 .0.clone())
     }
 }
 

@@ -3834,7 +3834,8 @@ fn check_valid_address_name(
 }
 
 fn check_valid_function_parameter_name(context: &mut Context, is_macro: Option<Loc>, v: &Var) {
-    const SYNTAX_IDENTIFIER_NOTE: &str = "'macro' parameters start with '$' to indicate that their arguments are not evaluated \
+    const SYNTAX_IDENTIFIER_NOTE: &str =
+        "'macro' parameters start with '$' to indicate that their arguments are not evaluated \
         before the macro is expanded, meaning the entire expression is substituted. \
         This is different from regular function parameters that are evaluated before the \
         function is called.";
@@ -4115,7 +4116,7 @@ fn check_restricted_name_all_cases(
             if Var::is_syntax_identifier_name(n.value) {
                 let msg = format!(
                     "Invalid {} name '{}'. Identifiers starting with '$' can be used only for \
-                    parameters and type paramters",
+                    parameters and type parameters",
                     case.name(),
                     n,
                 );

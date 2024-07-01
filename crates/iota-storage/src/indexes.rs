@@ -407,7 +407,7 @@ impl IndexStore {
             });
             let coin = obj.as_coin_maybe().unwrap_or_else(|| {
                 panic!(
-                    "object_id: {:?} in written_coins cannot be deserialzied as a Coin, written_coins: {:?}, tx_digest: {:?}",
+                    "object_id: {:?} in written_coins cannot be deserialized as a Coin, written_coins: {:?}, tx_digest: {:?}",
                     obj_id, written_coins, digest
                 )
             });
@@ -1160,7 +1160,7 @@ impl IndexStore {
             .skip_to(&(object, cursor.unwrap_or(ObjectID::ZERO)))?
             // skip an extra b/c the cursor is exclusive
             .skip(usize::from(cursor.is_some()))
-            .take_while(move |result| result.is_err() || (result.as_ref().unwrap().0.0 == object))
+            .take_while(move |result| result.is_err() || (result.as_ref().unwrap().0 .0 == object))
             .map_ok(|((_, c), object_info)| (c, object_info)))
     }
 

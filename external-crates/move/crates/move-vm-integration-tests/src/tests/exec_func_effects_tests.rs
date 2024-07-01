@@ -54,7 +54,7 @@ fn fail_arg_deserialize() {
     }
 }
 
-// check happy path for writing to mut ref args - may be unecessary / covered by
+// check happy path for writing to mut ref args - may be unnecessary / covered by
 // other tests
 #[test]
 fn mutref_output_success() {

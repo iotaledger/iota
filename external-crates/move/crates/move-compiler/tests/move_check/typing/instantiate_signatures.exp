@@ -10,7 +10,7 @@ error[E05001]: ability constraint not satisfied
    │             ^^^^
    │             │ │
    │             │ The type '0x42::M::R' does not have the ability 'drop'
-   │             'drop' constraint not satisifed
+   │             'drop' constraint not satisfied
 
 error[E04004]: expected a single non-reference type
    ┌─ tests/move_check/typing/instantiate_signatures.move:12:13
@@ -60,7 +60,7 @@ error[E05001]: ability constraint not satisfied
    │              ^^^^
    │              │ │
    │              │ The type '0x42::M::R' does not have the ability 'drop'
-   │              'drop' constraint not satisifed
+   │              'drop' constraint not satisfied
 
 error[E04004]: expected a single non-reference type
    ┌─ tests/move_check/typing/instantiate_signatures.move:19:14
@@ -101,7 +101,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^
    │         │ │
    │         │ The type '0x42::M::R' does not have the ability 'drop'
-   │         'drop' constraint not satisifed
+   │         'drop' constraint not satisfied
 
 error[E04004]: expected a single non-reference type
    ┌─ tests/move_check/typing/instantiate_signatures.move:24:9
@@ -142,7 +142,7 @@ error[E05001]: ability constraint not satisfied
    │                  ^^^^
    │                  │ │
    │                  │ The type '0x42::M::R' does not have the ability 'drop'
-   │                  'drop' constraint not satisifed
+   │                  'drop' constraint not satisfied
 
 error[E04004]: expected a single non-reference type
    ┌─ tests/move_check/typing/instantiate_signatures.move:33:18
@@ -193,7 +193,7 @@ error[E05001]: ability constraint not satisfied
    │            ^^^^
    │            │ │
    │            │ The type '0x42::M::R' does not have the ability 'drop'
-   │            'drop' constraint not satisifed
+   │            'drop' constraint not satisfied
 
 error[E04004]: expected a single non-reference type
    ┌─ tests/move_check/typing/instantiate_signatures.move:38:12
@@ -242,7 +242,7 @@ error[E05001]: ability constraint not satisfied
    │         │ │ │
    │         │ │ The type '0x42::M::S<0x42::M::R>' can have the ability 'drop' but the type argument '0x42::M::R' does not have the required ability 'drop'
    │         │ The type '0x42::M::S<0x42::M::R>' does not have the ability 'drop'
-   │         'drop' constraint not satisifed
+   │         'drop' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/instantiate_signatures.move:42:9
@@ -266,7 +266,7 @@ error[E05001]: ability constraint not satisfied
    │           ^^^^
    │           │ │
    │           │ The type '0x42::M::R' does not have the ability 'drop'
-   │           'drop' constraint not satisifed
+   │           'drop' constraint not satisfied
 
 error[E04004]: expected a single non-reference type
    ┌─ tests/move_check/typing/instantiate_signatures.move:43:11
