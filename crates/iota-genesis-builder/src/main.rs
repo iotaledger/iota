@@ -71,7 +71,7 @@ fn main() -> Result<()> {
     };
 
     // Start the Hornet snapshot parser
-    let snapshot_parser = HornetGenesisSnapshotParser::new(File::open(snapshot_path)?)?;
+    let mut snapshot_parser = HornetGenesisSnapshotParser::new(File::open(snapshot_path)?)?;
     let total_supply = match coin_type {
         CoinType::Iota => scale_amount_for_iota(snapshot_parser.total_supply()?)?,
         CoinType::Shimmer => snapshot_parser.total_supply()?,
