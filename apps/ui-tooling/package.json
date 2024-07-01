@@ -25,7 +25,8 @@
     "lint": "pnpm run eslint:check && pnpm run prettier:check",
     "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "dev": "pnpm run storybook"
   },
   "dependencies": {
     "@iota/core": "workspace:*",
@@ -46,6 +47,8 @@
     "@types/react": "^18.2.15",
     "storybook": "^8.1.11",
     "tailwindcss": "^3.4.4",
-    "typescript": "^5.5.2"
+    "typescript": "^5.5.2",
+    "vite": "^4.4.4",
+    "vite-tsconfig-paths": "^4.2.0"
   }
 }

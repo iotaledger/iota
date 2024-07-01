@@ -13,8 +13,23 @@
         "noEmit": true,
         "isolatedModules": true,
         "sourceMap": true,
-        "jsx": "react-jsx"
+        "jsx": "react-jsx",
+        "paths": {
+            "~/*": [
+                "./src/*"
+            ],
+            "~/components": [
+                "./src/lib/components"
+            ],
+            "~/components/*": [
+                "./src/lib/components/*"
+            ],
+        }
     },
-    "include": ["src"],
-    "exclude": ["node_modules"]
+    "include": [
+        "src"
+    ],
+    "exclude": [
+        "node_modules"
+    ]
 }

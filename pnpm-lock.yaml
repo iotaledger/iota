@@ -312,7 +312,7 @@ importers:
         version: link:../../sdk/typescript
       '@iota/ui':
         specifier: workspace:*
-        version: link:../ui-tooling
+        version: link:../ui
       '@radix-ui/react-collapsible':
         specifier: ^1.0.3
         version: 1.0.3(@types/react-dom@18.2.7)(@types/react@18.2.15)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -682,6 +682,12 @@ importers:
       typescript:
         specifier: ^5.5.2
         version: 5.5.2
+      vite:
+        specifier: ^4.4.4
+        version: 4.4.11(@types/node@20.4.2)(sass@1.63.6)(terser@5.31.0)
+      vite-tsconfig-paths:
+        specifier: ^4.2.0
+        version: 4.2.0(typescript@5.5.2)(vite@4.4.11(@types/node@20.4.2)(sass@1.63.6)(terser@5.31.0))
 
   apps/wallet:
     dependencies:
@@ -34413,6 +34419,10 @@ snapshots:
     optionalDependencies:
       typescript: 5.3.3
 
+  tsconfck@2.1.1(typescript@5.5.2):
+    optionalDependencies:
+      typescript: 5.5.2
+
   tsconfig-paths-webpack-plugin@4.1.0:
     dependencies:
       chalk: 4.1.2
@@ -34918,6 +34928,17 @@ snapshots:
       tsconfck: 2.1.1(typescript@5.3.3)
     optionalDependencies:
       vite: 4.4.4(@types/node@20.4.2)(sass@1.63.6)(terser@5.31.0)
+    transitivePeerDependencies:
+      - supports-color
+      - typescript
+
+  vite-tsconfig-paths@4.2.0(typescript@5.5.2)(vite@4.4.11(@types/node@20.4.2)(sass@1.63.6)(terser@5.31.0)):
+    dependencies:
+      debug: 4.3.4(supports-color@8.1.1)
+      globrex: 0.1.2
+      tsconfck: 2.1.1(typescript@5.5.2)
+    optionalDependencies:
+      vite: 4.4.11(@types/node@20.4.2)(sass@1.63.6)(terser@5.31.0)
     transitivePeerDependencies:
       - supports-color
       - typescript
