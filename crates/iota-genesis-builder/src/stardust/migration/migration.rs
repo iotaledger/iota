@@ -14,12 +14,13 @@ use iota_move_build::CompiledPackage;
 use iota_protocol_config::ProtocolVersion;
 use iota_sdk::types::block::output::{FoundryOutput, Output, OutputId};
 use iota_types::{
+    balance::Balance,
     base_types::{IotaAddress, ObjectID, TxContext},
     crypto::DefaultHash,
     digests::TransactionDigest,
     epoch_data::EpochData,
     object::Object,
-    timelock::timelock::is_timelocked_balance,
+    timelock::timelock::{is_timelocked_balance, TimeLock},
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
     TIMELOCK_PACKAGE_ID,
 };
@@ -295,6 +296,25 @@ impl MigrationObjects {
     /// Checks if inner is empty.
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
+    }
+
+    /// Get [`TimeLock`] objects created during the migration.
+    ///
+    /// The query is filtered by the object owner.
+    ///
+    /// The returned objects are ordered by expiration timestamp, in descending
+    /// order.
+    pub fn get_sorted_timelocks_by_owner(&self, address: IotaAddress) -> Option<Vec<&Object>> {
+        self.get_timelocks_by_owner(address).map(|mut timelocks| {
+            timelocks.sort_by_cached_key(|object| {
+                object
+                    .to_rust::<TimeLock<Balance>>()
+                    .expect("this should be a TimeLock object")
+                    .expiration_timestamp_ms()
+            });
+            timelocks.reverse();
+            timelocks
+        })
     }
 
     /// Get [`TimeLock`] objects created during the migration.
