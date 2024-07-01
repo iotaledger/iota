@@ -33,7 +33,7 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     epoch_data::EpochData,
     gas::IotaGasStatus,
-    gas_coin::{GasCoin, GAS, NANOS_PER_IOTA},
+    gas_coin::{GasCoin, GAS, TOTAL_SUPPLY_NANOS},
     governance::StakedIota,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
@@ -1101,7 +1101,7 @@ pub fn generate_genesis_system_object(
 
         let total_iota_supply = builder
             .input(CallArg::Pure(
-                bcs::to_bytes(&NANOS_PER_IOTA).expect("serialization of u64 should succeed"),
+                bcs::to_bytes(&TOTAL_SUPPLY_NANOS).expect("serialization of u64 should succeed"),
             ))
             .expect("adding the total IOTA supply argument should succeed");
         let total_iota = builder.programmable_move_call(

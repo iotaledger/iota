@@ -144,11 +144,13 @@ impl IndexedEpochInfo {
             ),
             last_checkpoint_id: Some(*last_checkpoint_summary.sequence_number()),
             epoch_end_timestamp: Some(last_checkpoint_summary.timestamp_ms),
-            storage_fund_reinvestment: Some(event.storage_fund_reinvestment),
+            // TODO: Remove in a later step.
+            storage_fund_reinvestment: None,
             storage_charge: Some(event.storage_charge),
             storage_rebate: Some(event.storage_rebate),
             leftover_storage_fund_inflow: Some(event.leftover_storage_fund_inflow),
-            stake_subsidy_amount: Some(event.stake_subsidy_amount),
+            // TODO: Remove in a later step.
+            stake_subsidy_amount: None,
             total_gas_fees: Some(event.total_gas_fees),
             total_stake_rewards_distributed: Some(event.total_stake_rewards_distributed),
             epoch_commitments: last_checkpoint_summary
@@ -589,7 +591,7 @@ impl From<IndexedObjectChange> for ObjectChange {
                 object_id,
                 version,
                 digest,
-            },
+           },
         }
     }
 }
