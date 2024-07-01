@@ -36,9 +36,11 @@ The following code sample demonstrates how to derive an ED25519 (default) IOTA a
 
 ```rust
 let mut hasher = iota_types::crypto::DefaultHash::default();
+let pk: &str = "Your ED25519 public key here";
 hasher.update(pk);
 let arr = hasher.finalize();
 let iota_address_string = hex::encode(arr);
+println!("Address: 0x{}", iota_address_string);
 ```
 
 This example uses a alternative `Secp256k1` signature scheme:
@@ -47,10 +49,12 @@ This example uses a alternative `Secp256k1` signature scheme:
 let flag = 0x01; // 0x01 = Secp256k1, 0x02 = Secp256r1, 0x03 = multiSig
 // Hash the [flag, public key] bytearray using Blake2b
 let mut hasher = iota_types::crypto::DefaultHash::default();
+let pk: &str = "Your public key here";
 hasher.update([flag]);
 hasher.update(pk);
 let arr = hasher.finalize();
 let iota_address_string = hex::encode(arr);
+println!("Address: 0x{}", iota_address_string);
 ```
 
 This example generate a new address with the TypeScript SDK:
@@ -113,8 +117,7 @@ The following example demonstrates using `iotax_getBalance` in Rust:
 ```rust
 use std::str::FromStr;
 use iota_sdk::types::base_types::IotaAddress;
-use iota_sdk::{IotaClient, IotaClientBuilder};
-
+use iota_sdk::IotaClientBuilder;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -122,7 +125,7 @@ async fn main() -> Result<(), anyhow::Error> {
       "https://fullnode.devnet.iota.org:443",
    ).await.unwrap();
    let address = IotaAddress::from_str("0x849d63687330447431a2e76fecca4f3c10f6884ebaa9909674123c6c662612a3")?;
-   let objects = iota.read_api().get_balance(address).await?;
+   let objects = iota.coin_read_api().get_balance(address, None).await?;
    println!("{:?}", objects);
    Ok(())
 }
