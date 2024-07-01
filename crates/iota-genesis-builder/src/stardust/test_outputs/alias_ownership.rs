@@ -41,43 +41,40 @@ pub(crate) fn outputs() -> Vec<(OutputHeader, Output)> {
 
         // let this alias own various other assets, that may themselves own other assets
         let max_depth = rng.gen_range(1usize..5);
-        let mut n = 0;
-        let mut owning_addresses: VecDeque<Address> = vec![alias_address.into()].into();
+        let mut owning_addresses: VecDeque<(usize, Address)> =
+            vec![(0, alias_address.into())].into();
 
-        while let Some(owner) = owning_addresses.pop_front() {
-            // randomly choose the number of owned assets
+        while let Some((depth, owning_addr)) = owning_addresses.pop_front() {
+            if depth > max_depth {
+                continue;
+            }
+            // create a random number of random assets
             for _ in 0..rng.gen_range(1usize..=5) {
-                // randomly choose the type of asset
                 match rng.gen_range(0u8..=3) {
                     0 /* alias */ => {
-                        let (output_header, output) = random_alias_output(owner);
+                        let (output_header, alias) = random_alias_output(owning_addr);
                         owning_addresses
-                            .push_back(output.alias_address(&output_header.output_id()).into());
-                        outputs.push((output_header, output.into()));
+                            .push_back((depth + 1, alias.alias_address(&output_header.output_id()).into()));
+                        outputs.push((output_header, alias.into()));
                     }
                     1 /* nft */ => {
-                        let (output_header, output) = random_nft_output(owner);
+                        let (output_header, nft) = random_nft_output(owning_addr);
                         owning_addresses
-                            .push_back(output.nft_address(&output_header.output_id()).into());
-                        outputs.push((output_header, output.into()));
+                            .push_back((depth + 1, nft.nft_address(&output_header.output_id()).into()));
+                        outputs.push((output_header, nft.into()));
                     }
                     2 /* basic */ => {
-                        let (output_header, output) = random_basic_output(owner);
-                        outputs.push((output_header, output.into()));
+                        let (output_header, basic) = random_basic_output(owning_addr);
+                        outputs.push((output_header, basic.into()));
                     }
                     3 /* foundry */=> {
-                        if let Address::Alias(owner) = owner {
-                            let (output_header, output) = random_foundry_output(owner);
-                            outputs.push((output_header, output.into()));
+                        if let Address::Alias(child) = owning_addr {
+                            let (output_header, foundry) = random_foundry_output(child);
+                            outputs.push((output_header, foundry.into()));
                         }
                     }
                     _ => unreachable!(),
                 }
-            }
-            if n < max_depth {
-                n += 1;
-            } else {
-                break;
             }
         }
     }
