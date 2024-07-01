@@ -9,7 +9,7 @@ use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
     base_types::{ConciseableName, IotaAddress, ObjectID},
     crypto::{deterministic_random_account_key, AccountKeyPair},
-    gas_coin::TOTAL_SUPPLY_MICROS,
+    gas_coin::TOTAL_SUPPLY_NANOS,
     object::Owner,
 };
 use prometheus::Registry;
@@ -102,9 +102,9 @@ impl Env {
                 let cluster = TestClusterBuilder::new()
                     .with_accounts(vec![AccountConfig {
                         address: Some(primary_gas_owner),
-                        // We can't use TOTAL_SUPPLY_MICROS because we need to account for validator
+                        // We can't use TOTAL_SUPPLY_NANOS because we need to account for validator
                         // stakes in genesis allocation.
-                        gas_amounts: vec![TOTAL_SUPPLY_MICROS / 2],
+                        gas_amounts: vec![TOTAL_SUPPLY_NANOS / 2],
                     }])
                     .with_num_validators(committee_size)
                     .build()
