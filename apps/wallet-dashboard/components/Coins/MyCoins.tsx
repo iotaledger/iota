@@ -31,7 +31,7 @@ function MyCoins(): React.JSX.Element {
     const { recognized } = useSortedCoinsByCategories(coinBalances ?? []);
 
     function openSendTokenPopup(coin: CoinBalance, address: string): void {
-        coinBalances &&
+        if (coinBalances) {
             openPopup(
                 <SendCoinPopup
                     coin={coin}
@@ -40,6 +40,7 @@ function MyCoins(): React.JSX.Element {
                     coins={coinBalances}
                 />,
             );
+        }
     }
 
     return (

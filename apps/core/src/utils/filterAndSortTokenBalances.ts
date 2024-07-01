@@ -4,9 +4,13 @@
 import { type CoinBalance } from '@iota/iota.js/client';
 import { getCoinSymbol } from '../hooks';
 
-// Sort tokens by symbol and total balance
-// Move this to the API backend
-// Filter out tokens with zero balance
+// Move this to the API backend https://github.com/iotaledger/iota/issues/922
+/**
+ * Filter and sort token balances by symbol and total balance.
+ * IOTA tokens are always sorted first.
+ * @param tokens The token balances to filter and sort.
+ * @returns The filtered and sorted token balances.
+ */
 export function filterAndSortTokenBalances(tokens: CoinBalance[]) {
     return tokens
         .filter((token) => Number(token.totalBalance) > 0)
