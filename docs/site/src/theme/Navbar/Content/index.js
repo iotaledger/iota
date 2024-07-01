@@ -81,7 +81,7 @@ export default function NavbarContent() {
               <SearchBar />
               {isHomePage && (
                 <Link
-                  to="/guides#get-started-developing-on-iota"
+                  to="/developer/guides#get-started-developing-on-iota"
                   className="button-cta"
                 >
                   Get started

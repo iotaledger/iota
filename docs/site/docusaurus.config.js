@@ -181,20 +181,24 @@ const config = {
         },
         items: [
           {
-            label: "Guides",
-            to: "guides",
+            label: "About IOTA",
+            to: "about-iota",
           },
           {
-            label: "Concepts",
-            to: "concepts",
+              label: "Developers",
+              to: "developer",
           },
           {
-            label: "Standards",
-            to: "standards",
+              label: "Node Operators",
+              to: "operator",
           },
           {
-            label: "References",
-            to: "references",
+              label: "References",
+              to: "references",
+          },
+          {
+              label: "Integrate Your Exchange",
+              to: "developer/exchange-integration/",
           },
 
           /*

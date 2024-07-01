@@ -6,7 +6,7 @@ const references = [
 	{
 		type: 'doc',
 		label: 'References',
-		id: 'references',
+		id: 'references/references',
 	},
 	{
 		type: 'category',
