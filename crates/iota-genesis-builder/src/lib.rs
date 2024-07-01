@@ -296,7 +296,9 @@ impl Builder {
         if self.built_genesis.is_none() {
             self.build_and_cache_unsigned_genesis();
         }
-        self.built_genesis.as_ref().expect("genesis should have been built and cached")
+        self.built_genesis
+            .as_ref()
+            .expect("genesis should have been built and cached")
     }
 
     fn committee(objects: &[Object]) -> Committee {
@@ -1061,10 +1063,8 @@ fn create_genesis_objects(
         .unwrap();
     }
 
-    {
-        for object in input_objects {
-            store.insert_object(object.to_owned());
-        }
+    for object in input_objects {
+        store.insert_object(object);
     }
 
     generate_genesis_system_object(
