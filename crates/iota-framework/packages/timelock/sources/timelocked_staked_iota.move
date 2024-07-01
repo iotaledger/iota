@@ -137,15 +137,25 @@ module timelock::timelocked_staked_iota {
 
     /// A utility function to transfer a `TimelockedStakedIota`.
     public fun transfer_to_sender(stake: TimelockedStakedIota, ctx: &TxContext) {
-        transfer::transfer(stake, ctx.sender())
+        transfer(stake, ctx.sender())
     }
 
     /// A utility function to transfer multiple `TimelockedStakedIota`.
-    public fun transfer_to_sender_multiple(mut stakes: vector<TimelockedStakedIota>, ctx: &TxContext) {
+    public fun transfer_to_sender_multiple(stakes: vector<TimelockedStakedIota>, ctx: &TxContext) {
+        transfer_multiple(stakes, ctx.sender())
+    }
+
+    /// A utility public(package) function to transfer a `TimelockedStakedIota` to a receiver.
+    public(package) fun transfer(stake: TimelockedStakedIota, receiver: address) {
+        transfer::transfer(stake, receiver);
+    }
+
+    /// A utility public(package) function to transfer a vector of `TimelockedStakedIota` to a receiver.
+    public(package) fun transfer_multiple(mut stakes: vector<TimelockedStakedIota>, receiver: address) {
         // Transfer all the time-locked stakes to the recipient.
         while (!stakes.is_empty()) {
            let stake = stakes.pop_back();
-           transfer_to_sender(stake, ctx);
+           transfer::transfer(stake, receiver);
         };
 
         // Destroy the empty vector.

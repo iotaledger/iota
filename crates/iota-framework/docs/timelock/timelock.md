@@ -22,6 +22,7 @@ A timelock implementation.
 -  [Function `pack`](#0x10cf_timelock_pack)
 -  [Function `unpack`](#0x10cf_timelock_unpack)
 -  [Function `transfer_to_sender`](#0x10cf_timelock_transfer_to_sender)
+-  [Function `transfer`](#0x10cf_timelock_transfer)
 -  [Function `check_expiration_timestamp_ms`](#0x10cf_timelock_check_expiration_timestamp_ms)
 
 
@@ -158,7 +159,7 @@ Since <code>Timelock&lt;T&gt;</code> does not support public transfer, use this 
     expiration_timestamp_ms: u64,
     ctx: &<b>mut</b> TxContext
 ) {
-    <a href="../iota-framework/transfer.md#0x2_transfer_transfer">transfer::transfer</a>(<a href="timelock.md#0x10cf_timelock_lock">lock</a>(obj, expiration_timestamp_ms, ctx), <b>to</b>);
+    <a href="../iota-framework/transfer.md#0x2_transfer">transfer</a>(<a href="timelock.md#0x10cf_timelock_lock">lock</a>(obj, expiration_timestamp_ms, ctx), <b>to</b>);
 }
 </code></pre>
 
@@ -227,7 +228,7 @@ Since <code>Timelock&lt;T&gt;</code> does not support public transfer, use this 
     expiration_timestamp_ms: u64,
     ctx: &<b>mut</b> TxContext
 ) {
-    <a href="../iota-framework/transfer.md#0x2_transfer_transfer">transfer::transfer</a>(<a href="timelock.md#0x10cf_timelock_lock_with_label">lock_with_label</a>(<a href="labeler.md#0x10cf_labeler">labeler</a>, obj, expiration_timestamp_ms, ctx), <b>to</b>);
+    <a href="../iota-framework/transfer.md#0x2_transfer">transfer</a>(<a href="timelock.md#0x10cf_timelock_lock_with_label">lock_with_label</a>(<a href="labeler.md#0x10cf_labeler">labeler</a>, obj, expiration_timestamp_ms, ctx), <b>to</b>);
 }
 </code></pre>
 
@@ -546,7 +547,32 @@ A utility function to transfer a <code><a href="timelock.md#0x10cf_timelock_Time
 
 
 <pre><code><b>public</b> <b>fun</b> <a href="timelock.md#0x10cf_timelock_transfer_to_sender">transfer_to_sender</a>&lt;T: store&gt;(lock: <a href="timelock.md#0x10cf_timelock_TimeLock">TimeLock</a>&lt;T&gt;, ctx: &TxContext) {
-    <a href="../iota-framework/transfer.md#0x2_transfer_transfer">transfer::transfer</a>(lock, ctx.sender())
+    <a href="../iota-framework/transfer.md#0x2_transfer">transfer</a>(lock, ctx.sender())
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="0x10cf_timelock_transfer"></a>
+
+## Function `transfer`
+
+A utility public(package) function to transfer a <code><a href="timelock.md#0x10cf_timelock_TimeLock">TimeLock</a></code> to a receiver.
+
+
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="../iota-framework/transfer.md#0x2_transfer">transfer</a>&lt;T: store&gt;(lock: <a href="timelock.md#0x10cf_timelock_TimeLock">timelock::TimeLock</a>&lt;T&gt;, receiver: <b>address</b>)
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b>(package) <b>fun</b> <a href="../iota-framework/transfer.md#0x2_transfer">transfer</a>&lt;T: store&gt;(lock: <a href="timelock.md#0x10cf_timelock_TimeLock">TimeLock</a>&lt;T&gt;, receiver: <b>address</b>) {
+    <a href="../iota-framework/transfer.md#0x2_transfer_transfer">transfer::transfer</a>(lock, receiver);
 }
 </code></pre>
 

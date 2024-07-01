@@ -1335,12 +1335,16 @@ pub fn generate_genesis_timelock_allocation(
                     vec![GAS::type_tag()],
                     arguments,
                 );
+                let arguments = vec![
+                    surplus_timelock,
+                    builder.pure(allocation.recipient_address)?,
+                ];
                 builder.programmable_move_call(
                     TIMELOCK_ADDRESS.into(),
                     ident_str!("timelock").to_owned(),
-                    ident_str!("transfer_to_sender").to_owned(),
+                    ident_str!("transfer").to_owned(),
                     vec![Balance::type_tag(GAS::type_tag())],
-                    vec![surplus_timelock],
+                    arguments,
                 );
             }
             // Add the stake
@@ -1365,12 +1369,13 @@ pub fn generate_genesis_timelock_allocation(
                 vec![],
                 arguments,
             );
+            let arguments = vec![receipt_vector, builder.pure(allocation.recipient_address)?];
             builder.programmable_move_call(
                 TIMELOCK_ADDRESS.into(),
                 ident_str!("timelocked_staked_iota").to_owned(),
-                ident_str!("transfer_to_sender_multiple").to_owned(),
+                ident_str!("transfer_multiple").to_owned(),
                 vec![],
-                vec![receipt_vector],
+                arguments,
             );
         }
         builder.finish()

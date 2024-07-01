@@ -41,7 +41,7 @@ module timelock::timelock {
         expiration_timestamp_ms: u64,
         ctx: &mut TxContext
     ) {
-        transfer::transfer(lock(obj, expiration_timestamp_ms, ctx), to);
+        transfer(lock(obj, expiration_timestamp_ms, ctx), to);
     }
 
     /// Function to lock a labeled object till a unix timestamp in milliseconds.
@@ -70,7 +70,7 @@ module timelock::timelock {
         expiration_timestamp_ms: u64,
         ctx: &mut TxContext
     ) {
-        transfer::transfer(lock_with_label(labeler, obj, expiration_timestamp_ms, ctx), to);
+        transfer(lock_with_label(labeler, obj, expiration_timestamp_ms, ctx), to);
     }
 
     /// Function to unlock the object from a `TimeLock`.
@@ -169,7 +169,12 @@ module timelock::timelock {
 
     /// A utility function to transfer a `TimeLock` to its original owner.
     public fun transfer_to_sender<T: store>(lock: TimeLock<T>, ctx: &TxContext) {
-        transfer::transfer(lock, ctx.sender())
+        transfer(lock, ctx.sender())
+    }
+
+    /// A utility public(package) function to transfer a `TimeLock` to a receiver.
+    public(package) fun transfer<T: store>(lock: TimeLock<T>, receiver: address) {
+        transfer::transfer(lock, receiver);
     }
 
     /// An utility function to check that the `expiration_timestamp_ms` value is valid.
