@@ -8,10 +8,10 @@ import { CheckFill16 } from '@iota/icons';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import cl from 'clsx';
 
-type LedgerAccountRowProps = {
+interface LedgerAccountRowProps {
     isSelected: boolean;
     address: string;
-};
+}
 
 export function LedgerAccountRow({ isSelected, address }: LedgerAccountRowProps) {
     const { data: coinBalance } = useBalance(address);

@@ -31,7 +31,7 @@ jobs:
       # able to authenticate with the cluster.
       id-token: write
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: self-hosted-rust
 
     steps:
       - name: Install Teleport
@@ -80,7 +80,7 @@ jobs:
   notify:
     name: Notify
     needs: [simtest]
-    runs-on: ubuntu-latest
+    runs-on: self-hosted-rust
     if: github.event_name == 'schedule' && failure()
 
     steps:

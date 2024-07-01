@@ -5,9 +5,9 @@
 import { IotaCustomRpc, IotaDevnet, IotaLocal, IotaMainnet, IotaTestnet } from '@iota/icons';
 import { Network } from '@iota/iota.js/client';
 
-type LogoProps = {
+interface LogoProps {
     network?: Network;
-};
+}
 
 const NETWORK_LOGOS = {
     [Network.Mainnet]: IotaMainnet,

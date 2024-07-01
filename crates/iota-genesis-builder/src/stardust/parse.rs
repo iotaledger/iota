@@ -9,7 +9,10 @@ use iota_sdk::types::block::{
     output::Output, payload::milestone::MilestoneOption, protocol::ProtocolParameters,
 };
 use iota_types::stardust::error::StardustError;
-use packable::{unpacker::IoUnpacker, Packable};
+use packable::{
+    unpacker::{IoUnpacker, Unpacker},
+    Packable,
+};
 
 use super::types::{output_header::OutputHeader, snapshot::FullSnapshotHeader};
 
@@ -30,13 +33,30 @@ impl<R: Read> HornetGenesisSnapshotParser<R> {
     }
 
     /// Provide an iterator over the Stardust UTXOs recorded in the snapshot.
-    pub fn outputs(mut self) -> impl Iterator<Item = anyhow::Result<(OutputHeader, Output)>> {
+    pub fn outputs(&mut self) -> impl Iterator<Item = anyhow::Result<(OutputHeader, Output)>> + '_ {
         (0..self.header.output_count()).map(move |_| {
             Ok((
                 OutputHeader::unpack::<_, true>(&mut self.reader, &())?,
                 Output::unpack::<_, true>(&mut self.reader, &ProtocolParameters::default())?,
             ))
         })
+    }
+
+    /// Get the bytes of the solid entry points.
+    pub fn solid_entry_points_bytes(mut self) -> anyhow::Result<Vec<u8>> {
+        let mut remaining_bytes = vec![];
+        // Workaround as .read_to_end() is not available
+        let mut next_byte = vec![0u8; 1];
+        while self.reader.unpack_bytes(&mut next_byte).is_ok() {
+            remaining_bytes.push(next_byte[0]);
+        }
+
+        let sep_bytes = remaining_bytes
+            .get(remaining_bytes.len() - self.header.sep_count() as usize * 32..)
+            .expect("missing SEP bytes")
+            .to_vec();
+
+        Ok(sep_bytes)
     }
 
     /// Provide the target milestone timestamp extracted from the snapshot

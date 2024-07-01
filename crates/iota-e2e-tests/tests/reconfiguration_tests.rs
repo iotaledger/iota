@@ -23,7 +23,7 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     error::IotaError,
     gas::GasCostSummary,
-    governance::MIN_VALIDATOR_JOINING_STAKE_MICROS,
+    governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
     iota_system_state::{
         get_validator_from_table, iota_system_state_summary::get_validator_by_pool_id,
         IotaSystemStateTrait,
@@ -880,7 +880,7 @@ async fn execute_add_validator_transactions(
         .wallet
         .gas_for_owner_budget(
             address,
-            MIN_VALIDATOR_JOINING_STAKE_MICROS,
+            MIN_VALIDATOR_JOINING_STAKE_NANOS,
             Default::default(),
         )
         .await
