@@ -1160,7 +1160,7 @@ impl IndexStore {
             .skip_to(&(object, cursor.unwrap_or(ObjectID::ZERO)))?
             // skip an extra b/c the cursor is exclusive
             .skip(usize::from(cursor.is_some()))
-            .take_while(move |result| result.is_err() || (result.as_ref().unwrap().0 .0 == object))
+            .take_while(move |result| result.is_err() || (result.as_ref().unwrap().0.0 == object))
             .map_ok(|((_, c), object_info)| (c, object_info)))
     }
 
