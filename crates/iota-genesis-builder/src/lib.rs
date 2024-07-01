@@ -296,7 +296,7 @@ impl Builder {
         if self.built_genesis.is_none() {
             self.build_and_cache_unsigned_genesis();
         }
-        self.built_genesis.as_ref().unwrap()
+        self.built_genesis.as_ref().expect("genesis should have been built and cached")
     }
 
     fn committee(objects: &[Object]) -> Committee {
