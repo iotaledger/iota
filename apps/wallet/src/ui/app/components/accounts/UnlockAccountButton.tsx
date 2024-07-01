@@ -7,10 +7,11 @@ import { type SerializedUIAccount } from '_src/background/accounts/Account';
 import { Button } from '../../shared/ButtonUI';
 import { useUnlockAccount } from './UnlockAccountContext';
 
-export type UnlockAccountButtonProps = {
+export interface UnlockAccountButtonProps {
     account: SerializedUIAccount;
     title?: string;
-};
+}
+
 export function UnlockAccountButton({
     account,
     title = 'Unlock Account',
