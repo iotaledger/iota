@@ -4,6 +4,7 @@
 //! Contains the logic for the migration process.
 
 use std::{
+    cmp::Reverse,
     collections::{HashMap, HashSet},
     io::{prelude::Write, BufWriter},
 };
@@ -307,12 +308,13 @@ impl MigrationObjects {
     pub fn get_sorted_timelocks_by_owner(&self, address: IotaAddress) -> Option<Vec<&Object>> {
         self.get_timelocks_by_owner(address).map(|mut timelocks| {
             timelocks.sort_by_cached_key(|object| {
-                object
-                    .to_rust::<TimeLock<Balance>>()
-                    .expect("this should be a TimeLock object")
-                    .expiration_timestamp_ms()
+                Reverse(
+                    object
+                        .to_rust::<TimeLock<Balance>>()
+                        .expect("this should be a TimeLock object")
+                        .expiration_timestamp_ms(),
+                )
             });
-            timelocks.reverse();
             timelocks
         })
     }
