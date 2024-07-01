@@ -8,11 +8,11 @@ import { useSetGrowthbookAttributes } from '_shared/utils';
 import { PageMainLayout } from '_src/ui/app/shared/page-main-layout/PageMainLayout';
 import { Outlet } from 'react-router-dom';
 
-interface Props {
+interface HomePageProps {
     disableNavigation?: boolean;
 }
 
-const HomePage = ({ disableNavigation }: Props) => {
+const HomePage = ({ disableNavigation }: HomePageProps) => {
     const initChecking = useInitializedGuard(true);
     const guardChecking = initChecking;
 

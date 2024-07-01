@@ -4,7 +4,10 @@
 //! Creating a stardust objects snapshot out of a Hornet snapshot.
 //! TIP that defines the Hornet snapshot file format:
 //! https://github.com/iotaledger/tips/blob/main/tips/TIP-0035/tip-0035.md
-use std::fs::File;
+use std::{
+    fs::File,
+    io::{BufWriter, Write},
+};
 
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
@@ -30,6 +33,13 @@ use tracing_subscriber::FmtSubscriber;
 struct Cli {
     #[clap(subcommand)]
     snapshot: Snapshot,
+    #[clap(
+        short,
+        long,
+        default_value_t = false,
+        help = "Compress the resulting object snapshot"
+    )]
+    compress: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -85,13 +95,18 @@ fn main() -> Result<()> {
         coin_type,
     )?;
 
-    // Prepare the compressor writer for the objects snapshot
-    let object_snapshot_writer = brotli::CompressorWriter::new(
-        File::create(OBJECT_SNAPSHOT_FILE_PATH)?,
-        BROTLI_COMPRESSOR_BUFFER_SIZE,
-        BROTLI_COMPRESSOR_QUALITY,
-        BROTLI_COMPRESSOR_LG_WINDOW_SIZE,
-    );
+    // Prepare the writer for the objects snapshot
+    let output_file = File::create(OBJECT_SNAPSHOT_FILE_PATH)?;
+    let object_snapshot_writer: Box<dyn Write> = if cli.compress {
+        Box::new(brotli::CompressorWriter::new(
+            output_file,
+            BROTLI_COMPRESSOR_BUFFER_SIZE,
+            BROTLI_COMPRESSOR_QUALITY,
+            BROTLI_COMPRESSOR_LG_WINDOW_SIZE,
+        ))
+    } else {
+        Box::new(BufWriter::new(output_file))
+    };
 
     // Run the migration and write the objects snapshot
     snapshot_parser
