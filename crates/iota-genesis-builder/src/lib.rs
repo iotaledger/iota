@@ -411,8 +411,8 @@ impl Builder {
 
         // In non-testing code, genesis type must always be V1.
         let system_state = match unsigned_genesis.iota_system_object() {
-            IotaSystemState::V1(inner) => inner,
-            IotaSystemState::V2(_) => unreachable!(),
+            IotaSystemState::V1(_) => unreachable!(),
+            IotaSystemState::V2(inner) => inner,
             #[cfg(msim)]
             _ => {
                 // Types other than V1 used in simtests do not need to be validated.
