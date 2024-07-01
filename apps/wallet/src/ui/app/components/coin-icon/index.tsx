@@ -33,9 +33,9 @@ function IotaCoin() {
     );
 }
 
-type NonIotaCoinProps = {
+interface NonIotaCoinProps {
     coinType: string;
-};
+}
 
 function NonIotaCoin({ coinType }: NonIotaCoinProps) {
     const { data: coinMeta } = useCoinMetadata(coinType);

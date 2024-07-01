@@ -5,11 +5,11 @@
 import { GAS_TYPE_ARG } from '_redux/slices/iota-objects/Coin';
 import { useFormatCoin } from '@iota/core';
 
-export type FaucetMessageInfoProps = {
+export interface FaucetMessageInfoProps {
     error?: string | null;
     loading?: boolean;
     totalReceived?: number | null;
-};
+}
 
 function FaucetMessageInfo({
     error = null,

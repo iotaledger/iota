@@ -60,12 +60,12 @@ const formSchema = z
 
 export type FormValues = z.infer<typeof formSchema>;
 
-type ProtectAccountFormProps = {
+interface ProtectAccountFormProps {
     submitButtonText: string;
     cancelButtonText?: string;
     onSubmit: SubmitHandler<FormValues>;
     displayToS?: boolean;
-};
+}
 
 export function ProtectAccountForm({
     submitButtonText,

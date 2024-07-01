@@ -8,12 +8,12 @@ import { useState, type ReactNode } from 'react';
 
 import { Text } from '../../../shared/text';
 
-type SummaryCardProps = {
+interface SummaryCardProps {
     header: ReactNode;
     children: ReactNode;
     badge?: ReactNode;
     initialExpanded?: boolean;
-};
+}
 
 export function SummaryCard({
     children,

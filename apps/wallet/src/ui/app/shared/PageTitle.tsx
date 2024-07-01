@@ -9,11 +9,11 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from './ButtonUI';
 import { Heading } from './heading';
 
-export type PageTitleProps = {
+export interface PageTitleProps {
     title?: string;
     back?: boolean | string | (() => void);
     after?: ReactNode;
-};
+}
 
 function PageTitle({ title = '', back, after }: PageTitleProps) {
     const navigate = useNavigate();

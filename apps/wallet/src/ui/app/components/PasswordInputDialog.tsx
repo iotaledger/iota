@@ -21,7 +21,7 @@ const validation = object({
     password: YupString().ensure().required().label('Password'),
 });
 
-export type PasswordExportDialogProps = {
+export interface PasswordExportDialogProps {
     title: string;
     continueLabel?: string;
     showArrowIcon?: boolean;
@@ -30,7 +30,7 @@ export type PasswordExportDialogProps = {
     showBackButton?: boolean;
     spacing?: boolean;
     background?: boolean;
-};
+}
 
 /** @deprecated - use UnlockAccountModal instead **/
 export function PasswordInputDialog({
