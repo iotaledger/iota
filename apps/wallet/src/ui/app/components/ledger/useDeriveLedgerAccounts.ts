@@ -42,11 +42,9 @@ async function deriveAccountsFromLedger(
 ) {
     const ledgerAccounts: DerivedLedgerAccount[] = [];
     const derivationPaths = getDerivationPathsForLedger(numAccountsToDerive);
-    console.log('derivationPaths', derivationPaths)
 
     for (const derivationPath of derivationPaths) {
         const publicKeyResult = await iotaLedgerClient.getPublicKey(derivationPath);
-        console.log('publicKeyResult', publicKeyResult)
         const publicKey = new Ed25519PublicKey(publicKeyResult.publicKey);
         const iotaAddress = publicKey.toIotaAddress();
         ledgerAccounts.push({

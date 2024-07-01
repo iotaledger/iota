@@ -1,9 +1,12 @@
-import axios from "axios";
-import { AxiosInstance } from "axios";
-import { DisconnectedDevice } from "@ledgerhq/errors";
-import Transport from "@ledgerhq/hw-transport";
-import { log } from "@ledgerhq/logs";
-import { Subject } from "rxjs";
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import axios, { type AxiosInstance } from 'axios';
+import { DisconnectedDevice } from '@ledgerhq/errors';
+import Transport from '@ledgerhq/hw-transport';
+import { log } from '@ledgerhq/logs';
+import { Subject } from 'rxjs';
 
 export type SpeculosHttpTransportOpts = {
     apiPort?: string;
@@ -12,9 +15,9 @@ export type SpeculosHttpTransportOpts = {
 };
 
 enum SpeculosButton {
-    LEFT = "Ll",
-    RIGHT = "Rr",
-    BOTH = "LRlr",
+    LEFT = 'Ll',
+    RIGHT = 'Rr',
+    BOTH = 'LRlr',
 }
 
 /**
@@ -28,7 +31,9 @@ enum SpeculosButton {
 export default class SpeculosHttpTransport extends Transport {
     instance: AxiosInstance;
     opts: SpeculosHttpTransportOpts;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     eventStream: any; // ReadStream?
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     automationEvents: Subject<Record<string, any>> = new Subject();
 
     constructor(instance: AxiosInstance, opts: SpeculosHttpTransportOpts) {
@@ -39,106 +44,116 @@ export default class SpeculosHttpTransport extends Transport {
 
     static isSupported = (): Promise<boolean> => Promise.resolve(true);
     // this transport is not discoverable
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     static list = (): any => Promise.resolve([]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     static listen = (_observer: any) => ({
-        unsubscribe: () => { },
+        unsubscribe: () => {},
     });
 
     buttonTable = {
-        [SpeculosButton.BOTH]: "both",
-        [SpeculosButton.RIGHT]: "right",
-        [SpeculosButton.LEFT]: "left",
+        [SpeculosButton.BOTH]: 'both',
+        [SpeculosButton.RIGHT]: 'right',
+        [SpeculosButton.LEFT]: 'left',
     };
 
     static open = (opts: SpeculosHttpTransportOpts): Promise<SpeculosHttpTransport> =>
         new Promise((resolve, reject) => {
             const instance = axios.create({
-                baseURL: `http://localhost:${opts.apiPort || "5000"}`,
+                baseURL: `http://localhost:${opts.apiPort || '5000'}`,
                 timeout: opts.timeout,
-                adapter: 'fetch' // Use fetch adapter
+                adapter: 'fetch', // Use fetch adapter
             });
 
             const transport = new SpeculosHttpTransport(instance, opts);
 
-            instance.get('/events?stream=true', {
-                headers: {
-                    'Accept': 'text/event-stream',
-                },
-                responseType: 'stream'
-            })
-                .then(async response => {
-                    console.log('response', response);
+            instance
+                .get('/events?stream=true', {
+                    headers: {
+                        Accept: 'text/event-stream',
+                    },
+                    responseType: 'stream',
+                })
+                .then(async (response) => {
                     const stream = response.data;
                     const reader = stream.pipeThrough(new TextDecoderStream()).getReader();
 
                     const readChunk = async () => {
+                        // eslint-disable-next-line no-constant-condition
                         while (true) {
                             const { value, done } = await reader.read();
                             if (done) {
                                 break;
                             }
 
-                            log("speculos-event", value);
-                            const split = value.replace("data: ", "");
+                            log('speculos-event', value);
+                            const split = value.replace('data: ', '');
                             try {
                                 const json = JSON.parse(split);
                                 transport.automationEvents.next(json);
                             } catch (e) {
-                                log("speculos-event-error", e);
+                                // @ts-expect-error any
+                                log('speculos-event-error', e);
                             }
                         }
 
-                        log("speculos-event", "close");
-                        transport.emit("disconnect", new DisconnectedDevice("Speculos exited!"));
+                        log('speculos-event', 'close');
+                        transport.emit('disconnect', new DisconnectedDevice('Speculos exited!'));
                     };
 
-                    reader.read().then(readChunk).catch(error => {
-                        log("speculos-event-error", error);
-                        reject(error);
-                    });
+                    reader
+                        .read()
+                        .then(readChunk)
+                        // @ts-expect-error any
+                        .catch((error) => {
+                            log('speculos-event-error', error);
+                            reject(error);
+                        });
 
                     // Resolve the promise as soon as the stream is connected and handled
                     transport.eventStream = stream;
                     resolve(transport);
                 })
-                .catch(error => {
+                .catch((error) => {
                     reject(error);
                 });
         });
 
-    /**
-     * Press and release button
-     * buttons available: left, right, both
-     * @param {*} but
-     */
-    button = (but: string): Promise<void> =>
-        new Promise((resolve, reject) => {
-            const input = this.buttonTable[but] ?? but;
-            log("speculos-button", "press-and-release", input);
-            this.instance
-                .post(`/button/${input}`, { action: "press-and-release" })
-                .then(response => {
-                    resolve(response.data);
-                })
-                .catch(e => {
-                    reject(e);
-                });
+    static check = async (opts: SpeculosHttpTransportOpts): Promise<boolean> => {
+        const instance = axios.create({
+            baseURL: `http://localhost:${opts.apiPort || '5000'}`,
+            timeout: opts.timeout,
         });
 
+        try {
+            const response = await instance.get('/');
+            if (response.status === 200) {
+                return true;
+            }
+        } catch (err) {
+            return false;
+        }
+
+        return false;
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async exchange(apdu: Buffer): Promise<any> {
-        const hex = apdu.toString("hex");
-        log("apdu", "=> " + hex);
-        return this.instance.post("/apdu", { data: hex }).then(r => {
+        const hex = apdu.toString('hex');
+        log('apdu', '=> ' + hex);
+        return this.instance.post('/apdu', { data: hex }).then((r) => {
             // r.data is {"data": "hex value of response"}
             const data = r.data.data;
-            log("apdu", "<= " + data);
-            return Buffer.from(data, "hex");
+            log('apdu', '<= ' + data);
+            return Buffer.from(data, 'hex');
         });
     }
 
     async close() {
         // close event stream
-        this.eventStream.destroy();
+        if (!this.eventStream.locked) {
+            this.eventStream.cancel();
+        }
         return Promise.resolve();
     }
 }
