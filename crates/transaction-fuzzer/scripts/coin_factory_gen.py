@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
 # Generates ../data/coin_factory/sources/coin_factory.move to create NUM_VARIANTS of a function returning an N-tuple of coins
