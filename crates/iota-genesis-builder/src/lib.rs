@@ -281,7 +281,7 @@ impl Builder {
         self.built_genesis = Some(build_unsigned_genesis_data(
             &self.parameters,
             &token_distribution_schedule,
-            &self.genesis_stake.timelock_allocations(),
+            self.genesis_stake.timelock_allocations(),
             &validators,
             &objects,
         ));
@@ -452,11 +452,9 @@ impl Builder {
 
             // Validators should not have duplicate addresses so the result of insertion
             // should be None.
-            assert!(
-                address_to_pool_id
-                    .insert(metadata.iota_address, onchain_validator.staking_pool.id)
-                    .is_none()
-            );
+            assert!(address_to_pool_id
+                .insert(metadata.iota_address, onchain_validator.staking_pool.id)
+                .is_none());
             assert_eq!(validator.info.iota_address(), metadata.iota_address);
             assert_eq!(validator.info.protocol_key(), metadata.iota_pubkey_bytes());
             assert_eq!(validator.info.network_key, metadata.network_pubkey);
@@ -1066,10 +1064,21 @@ fn create_genesis_objects(
         genesis_ctx,
         parameters,
         token_distribution_schedule,
-        timelock_allocations,
-        metrics,
+        metrics.clone(),
     )
     .unwrap();
+
+    if !timelock_allocations.is_empty() {
+        generate_genesis_timelock_allocation(
+            &mut store,
+            executor.as_ref(),
+            genesis_ctx,
+            parameters,
+            timelock_allocations,
+            metrics,
+        )
+        .unwrap();
+    }
 
     store.into_inner().into_values().collect()
 }
@@ -1151,7 +1160,6 @@ pub fn generate_genesis_system_object(
     genesis_ctx: &mut TxContext,
     genesis_chain_parameters: &GenesisChainParameters,
     token_distribution_schedule: &TokenDistributionSchedule,
-    timelock_allocations: &[TimelockAllocation],
     metrics: Arc<LimitsMetrics>,
 ) -> anyhow::Result<()> {
     let protocol_config = ProtocolConfig::get_for_version(
@@ -1245,7 +1253,7 @@ pub fn generate_genesis_system_object(
     let InnerTemporaryStore { mut written, .. } = executor.update_genesis_state(
         &*store,
         &protocol_config,
-        metrics.clone(),
+        metrics,
         genesis_ctx,
         CheckedInputObjects::new_for_genesis(vec![]),
         pt,
@@ -1263,6 +1271,22 @@ pub fn generate_genesis_system_object(
 
     store.finish(written);
 
+    Ok(())
+}
+
+pub fn generate_genesis_timelock_allocation(
+    store: &mut InMemoryStorage,
+    executor: &dyn Executor,
+    genesis_ctx: &mut TxContext,
+    genesis_chain_parameters: &GenesisChainParameters,
+    timelock_allocations: &[TimelockAllocation],
+    metrics: Arc<LimitsMetrics>,
+) -> anyhow::Result<()> {
+    let protocol_config = ProtocolConfig::get_for_version(
+        ProtocolVersion::new(genesis_chain_parameters.protocol_version),
+        ChainIdentifier::default().chain(),
+    );
+
     // Timelock allocation
     let mut timelock_allocation_input_objects: Vec<ObjectReadResult> = vec![];
     timelock_allocation_input_objects.push(ObjectReadResult::new(
@@ -1277,7 +1301,7 @@ pub fn generate_genesis_system_object(
             .clone()
             .into(),
     ));
-    let pt2 = {
+    let pt = {
         // Step 6: Handle the timelock allocations.
         let mut builder = ProgrammableTransactionBuilder::new();
         for allocation in timelock_allocations {
@@ -1358,7 +1382,7 @@ pub fn generate_genesis_system_object(
         metrics,
         genesis_ctx,
         CheckedInputObjects::new_for_genesis(timelock_allocation_input_objects),
-        pt2,
+        pt,
     )?;
 
     store.finish(written);
