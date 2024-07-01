@@ -18,7 +18,7 @@ export function useInitialPageView() {
     const location = useLocation();
     const { network, customRpc, activeOrigin, appType } = useAppSelector((state) => state.app);
     const activeNetwork = customRpc ? getCustomNetwork(customRpc).url : getNetwork(network)?.url;
-    const isFullScreen = appType === AppType.fullscreen;
+    const isFullScreen = appType === AppType.Fullscreen;
 
     useEffect(() => {
         ampli.identify(undefined, {

@@ -1,6 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+mod stardust_mix;
 mod vesting_schedule_entity;
 mod vesting_schedule_iota_airdrop;
 
@@ -18,7 +19,10 @@ use iota_sdk::types::block::{
         BasicOutputBuilder, Output, OutputId,
     },
 };
-use packable::{packer::IoPacker, Packable};
+use packable::{
+    packer::{IoPacker, Packer},
+    Packable,
+};
 
 use crate::stardust::{
     parse::HornetGenesisSnapshotParser,
@@ -72,12 +76,13 @@ pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
         .truncate(true)
         .open(new_path)?;
     let mut writer = IoPacker::new(BufWriter::new(new_file));
-    let parser = HornetGenesisSnapshotParser::new(current_file)?;
+    let mut parser = HornetGenesisSnapshotParser::new(current_file)?;
     let output_to_decrease_amount_from = OutputId::from_str(OUTPUT_TO_DECREASE_AMOUNT_FROM)?;
     let mut new_header = parser.header.clone();
     let mut vested_index = u32::MAX;
 
     let new_outputs = [
+        stardust_mix::outputs(&mut vested_index).await?,
         vesting_schedule_entity::outputs(&mut vested_index).await?,
         vesting_schedule_iota_airdrop::outputs(&mut vested_index).await?,
     ]
@@ -111,6 +116,9 @@ pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
             output.pack(&mut writer)?;
         }
     }
+
+    // Add the solid entry points from the snapshot
+    writer.pack_bytes(parser.solid_entry_points_bytes()?)?;
 
     Ok(())
 }

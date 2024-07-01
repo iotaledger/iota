@@ -11,14 +11,19 @@ import { CheckFill16 } from '@iota/icons';
 import { formatAddress } from '@iota/iota.js/utils';
 import clsx from 'clsx';
 
-interface Props {
+interface AccountItemApproveConnectionProps {
     account: SerializedUIAccount;
     disabled: boolean;
     selected?: boolean;
     showLock?: boolean;
 }
 
-export function AccountItemApproveConnection({ account, selected, disabled, showLock }: Props) {
+export function AccountItemApproveConnection({
+    account,
+    selected,
+    disabled,
+    showLock,
+}: AccountItemApproveConnectionProps) {
     const { data: domainName } = useResolveIotaNSName(account?.address);
     const accountName = account?.nickname ?? domainName ?? formatAddress(account?.address || '');
     const { unlockAccount, lockAccount, isPending, accountToUnlock } = useUnlockAccount();

@@ -11,7 +11,9 @@ import { useCurrentAccount, useIotaClientContext } from '@iota/dapp-kit';
 
 function EverythingElsePage(): JSX.Element {
     const account = useCurrentAccount();
-    const { data } = useGetOwnedObjects(account?.address);
+    const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useGetOwnedObjects(
+        account?.address,
+    );
 
     const { network } = useIotaClientContext();
     const { explorer } = getNetwork(network);
@@ -32,7 +34,14 @@ function EverythingElsePage(): JSX.Element {
         <div className="flex h-full w-full flex-col items-center justify-center space-y-4">
             <h1>EVERYTHING ELSE</h1>
             <div className="flex w-1/2">
-                <VirtualList items={nonVisualAssets} estimateSize={() => 30} render={virtualItem} />
+                <VirtualList
+                    items={nonVisualAssets}
+                    hasNextPage={hasNextPage}
+                    isFetchingNextPage={isFetchingNextPage}
+                    fetchNextPage={fetchNextPage}
+                    estimateSize={() => 30}
+                    render={virtualItem}
+                />
             </div>
         </div>
     );

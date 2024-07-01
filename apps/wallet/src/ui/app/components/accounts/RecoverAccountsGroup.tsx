@@ -10,13 +10,13 @@ import { Text } from '../../shared/text';
 import { Tooltip } from '../../shared/tooltip';
 import { AccountListItem } from './AccountListItem';
 
-export type RecoverAccountsGroupProps = {
+export interface RecoverAccountsGroupProps {
     title: string;
     accounts: SerializedUIAccount[];
     showRecover?: boolean;
     onRecover?: () => void;
     recoverDone?: boolean;
-};
+}
 
 export function RecoverAccountsGroup({
     title,
