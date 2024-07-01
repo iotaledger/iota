@@ -48,6 +48,7 @@ title: Module `0x3::iota_system_state_inner`
 -  [Function `update_validator_next_epoch_network_pubkey`](#0x3_iota_system_state_inner_update_validator_next_epoch_network_pubkey)
 -  [Function `update_candidate_validator_network_pubkey`](#0x3_iota_system_state_inner_update_candidate_validator_network_pubkey)
 -  [Function `advance_epoch`](#0x3_iota_system_state_inner_advance_epoch)
+-  [Function `match_iota_supply_to_target_reward`](#0x3_iota_system_state_inner_match_iota_supply_to_target_reward)
 -  [Function `epoch`](#0x3_iota_system_state_inner_epoch)
 -  [Function `protocol_version`](#0x3_iota_system_state_inner_protocol_version)
 -  [Function `system_state_version`](#0x3_iota_system_state_inner_system_state_version)
@@ -2059,8 +2060,7 @@ gas coins.
 
     <b>let</b> storage_charge = storage_reward.value();
     <b>let</b> computation_charge = computation_reward.value();
-
-    <b>let</b> <b>mut</b> computation_reward = self.validators.match_iota_supply_to_target_reward(
+    <b>let</b> <b>mut</b> computation_reward = <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_match_iota_supply_to_target_reward">match_iota_supply_to_target_reward</a>(
       validator_target_reward,
       computation_reward,
       &<b>mut</b> self.iota_treasury_cap,
@@ -2080,9 +2080,9 @@ gas coins.
         ctx,
     );
 
+    // Burn any leftover rewards that were not distributed (e.g. due <b>to</b> slashing).
     self.iota_treasury_cap.supply_mut().decrease_supply(computation_reward);
     <b>let</b> new_total_stake = self.validators.total_stake();
-
 
     self.protocol_version = next_protocol_version;
 
@@ -2117,6 +2117,48 @@ gas coins.
     // Return the storage rebate split from storage fund that's already refunded <b>to</b> the transaction senders.
     // This will be burnt at the last step of epoch change programmable transaction.
     refunded_storage_rebate
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="0x3_iota_system_state_inner_match_iota_supply_to_target_reward"></a>
+
+## Function `match_iota_supply_to_target_reward`
+
+Inflate or deflate the IOTA supply depending on the given target reward per validator
+and the amount of computation fees burned in this epoch.
+
+
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_match_iota_supply_to_target_reward">match_iota_supply_to_target_reward</a>(validator_target_reward: u64, computation_reward: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, iota_treasury_cap: &<b>mut</b> <a href="../iota-framework/coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_match_iota_supply_to_target_reward">match_iota_supply_to_target_reward</a>(
+  validator_target_reward: u64,
+  <b>mut</b> computation_reward: Balance&lt;IOTA&gt;,
+  iota_treasury_cap: &<b>mut</b> iota::coin::TreasuryCap&lt;IOTA&gt;
+): Balance&lt;IOTA&gt; {
+  <b>if</b> (computation_reward.value() &lt; validator_target_reward) {
+    <b>let</b> tokens_to_mint = validator_target_reward - computation_reward.value();
+    <b>let</b> new_tokens = iota_treasury_cap.supply_mut().increase_supply(tokens_to_mint);
+    computation_reward.join(new_tokens);
+    computation_reward
+  } <b>else</b> <b>if</b> (computation_reward.value() &gt; validator_target_reward) {
+    <b>let</b> tokens_to_burn = computation_reward.value() - validator_target_reward;
+    <b>let</b> rewards_to_burn = computation_reward.split(tokens_to_burn);
+    iota_treasury_cap.supply_mut().decrease_supply(rewards_to_burn);
+    computation_reward
+  } <b>else</b> {
+    computation_reward
+  }
 }
 </code></pre>
 

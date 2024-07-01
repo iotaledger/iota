@@ -31,7 +31,6 @@ title: Module `0x3::validator_set`
 -  [Function `pool_exchange_rates`](#0x3_validator_set_pool_exchange_rates)
 -  [Function `next_epoch_validator_count`](#0x3_validator_set_next_epoch_validator_count)
 -  [Function `is_active_validator_by_iota_address`](#0x3_validator_set_is_active_validator_by_iota_address)
--  [Function `match_iota_supply_to_target_reward`](#0x3_validator_set_match_iota_supply_to_target_reward)
 -  [Function `is_duplicate_with_active_validator`](#0x3_validator_set_is_duplicate_with_active_validator)
 -  [Function `is_duplicate_validator`](#0x3_validator_set_is_duplicate_validator)
 -  [Function `count_duplicates_vec`](#0x3_validator_set_count_duplicates_vec)
@@ -76,7 +75,6 @@ title: Module `0x3::validator_set`
 <b>use</b> <a href="../move-stdlib/vector.md#0x1_vector">0x1::vector</a>;
 <b>use</b> <a href="../iota-framework/bag.md#0x2_bag">0x2::bag</a>;
 <b>use</b> <a href="../iota-framework/balance.md#0x2_balance">0x2::balance</a>;
-<b>use</b> <a href="../iota-framework/coin.md#0x2_coin">0x2::coin</a>;
 <b>use</b> <a href="../iota-framework/event.md#0x2_event">0x2::event</a>;
 <b>use</b> <a href="../iota-framework/iota.md#0x2_iota">0x2::iota</a>;
 <b>use</b> <a href="../iota-framework/object.md#0x2_object">0x2::object</a>;
@@ -1435,51 +1433,6 @@ Returns true iff the address exists in active validators.
     validator_address: <b>address</b>,
 ): bool {
    <a href="validator_set.md#0x3_validator_set_find_validator">find_validator</a>(&self.active_validators, validator_address).is_some()
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="0x3_validator_set_match_iota_supply_to_target_reward"></a>
-
-## Function `match_iota_supply_to_target_reward`
-
-Inflate or deflate the IOTA supply depending on the given target reward per validator
-and the amount of computation fees burned in this epoch.
-
-
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator_set.md#0x3_validator_set_match_iota_supply_to_target_reward">match_iota_supply_to_target_reward</a>(self: &<a href="validator_set.md#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</a>, validator_target_reward: u64, computation_reward: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, iota_treasury_cap: &<b>mut</b> <a href="../iota-framework/coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b>(package) <b>fun</b> <a href="validator_set.md#0x3_validator_set_match_iota_supply_to_target_reward">match_iota_supply_to_target_reward</a>(
-  self: &<a href="validator_set.md#0x3_validator_set_ValidatorSet">ValidatorSet</a>,
-  validator_target_reward: u64,
-  <b>mut</b> computation_reward: Balance&lt;IOTA&gt;,
-  iota_treasury_cap: &<b>mut</b> iota::coin::TreasuryCap&lt;IOTA&gt;
-): Balance&lt;IOTA&gt; {
-  <b>let</b> validator_reward_total = validator_target_reward * self.active_validators.length();
-
-  <b>if</b> (computation_reward.value() &lt; validator_reward_total) {
-    <b>let</b> tokens_to_mint = validator_reward_total - computation_reward.value();
-    <b>let</b> new_tokens = iota_treasury_cap.supply_mut().increase_supply(tokens_to_mint);
-    computation_reward.join(new_tokens);
-    computation_reward
-  } <b>else</b> <b>if</b> (computation_reward.value() &gt; validator_reward_total) {
-    <b>let</b> tokens_to_burn = computation_reward.value() - validator_reward_total;
-    <b>let</b> rewards_to_burn = computation_reward.split(tokens_to_burn);
-    iota_treasury_cap.supply_mut().decrease_supply(rewards_to_burn);
-    computation_reward
-  } <b>else</b> {
-    computation_reward
-  }
 }
 </code></pre>
 
