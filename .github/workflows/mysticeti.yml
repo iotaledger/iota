@@ -57,7 +57,7 @@ env:
 
 jobs:
   changes:
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     outputs:
       components: ${{ steps.filter.outputs.changes }}
     steps:
@@ -80,7 +80,7 @@ jobs:
       matrix: 
         components: ${{ fromJson(needs.changes.outputs.components) }}
       fail-fast: false
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     needs: changes
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
@@ -89,7 +89,7 @@ jobs:
         run: cargo nextest run --profile ci -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
 
   diff:
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     outputs:
       isRust: ${{ steps.diff.outputs.isRust }}
       isMove: ${{ steps.diff.outputs.isMove }}
@@ -148,7 +148,7 @@ jobs:
   simtest:
     name: Simtest ${{ matrix.components }}
     needs: changes
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     strategy:
       matrix: 
         components: ${{ fromJson(needs.changes.outputs.components) }}

@@ -16,10 +16,10 @@ import toast from 'react-hot-toast';
 import { useIotaLedgerClient } from '../../ledger/IotaLedgerClientProvider';
 import LoadingIndicator from '../../loading/LoadingIndicator';
 
-export type VerifyLedgerConnectionLinkProps = {
+export interface VerifyLedgerConnectionLinkProps {
     accountAddress: string;
     derivationPath: string;
-};
+}
 
 enum VerificationStatus {
     Unknown = 'UNKNOWN',

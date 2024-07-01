@@ -12,11 +12,11 @@ import { Text } from '../shared/text';
 
 const AUTO_HIDE_INTERVAL = 3 * 60 * 1000;
 
-export type HideShowDisplayBoxProps = {
+export interface HideShowDisplayBoxProps {
     value: string | string[];
     hideCopy?: boolean;
     copiedMessage?: string;
-};
+}
 
 export function HideShowDisplayBox({
     value,

@@ -9,7 +9,7 @@ use iota_config::genesis::UnsignedGenesis;
 use iota_types::{
     base_types::ObjectID,
     coin::CoinMetadata,
-    gas_coin::{GasCoin, MICROS_PER_IOTA, TOTAL_SUPPLY_MICROS},
+    gas_coin::{GasCoin, NANOS_PER_IOTA, TOTAL_SUPPLY_NANOS},
     governance::StakedIota,
     iota_system_state::IotaValidatorGenesis,
     move_package::MovePackage,
@@ -268,21 +268,21 @@ fn examine_total_supply(
         if print {
             println!("Owner {:?}", owner);
             println!(
-                "Total Amount of Iota/StakedIota Owned: {amount_sum} MICROS or {} IOTA:",
-                amount_sum / MICROS_PER_IOTA
+                "Total Amount of Iota/StakedIota Owned: {amount_sum} NANOS or {} IOTA:",
+                amount_sum / NANOS_PER_IOTA
             );
             println!("{:#?}\n", coins);
         }
     }
-    assert_eq!(total_iota, TOTAL_SUPPLY_MICROS);
+    assert_eq!(total_iota, TOTAL_SUPPLY_NANOS);
     // Always print this.
     println!(
-        "Total Supply of Iota: {total_iota} MICROS or {} IOTA",
-        total_iota / MICROS_PER_IOTA
+        "Total Supply of Iota: {total_iota} NANOS or {} IOTA",
+        total_iota / NANOS_PER_IOTA
     );
     println!(
-        "Total Amount of StakedIota: {total_staked_iota} MICROS or {} IOTA\n",
-        total_staked_iota / MICROS_PER_IOTA
+        "Total Amount of StakedIota: {total_staked_iota} NANOS or {} IOTA\n",
+        total_staked_iota / NANOS_PER_IOTA
     );
     if print {
         print_divider("Iota Distribution");

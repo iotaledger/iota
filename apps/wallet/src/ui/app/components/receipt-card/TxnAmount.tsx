@@ -6,12 +6,12 @@ import { Heading } from '_src/ui/app/shared/heading';
 import { Text } from '_src/ui/app/shared/text';
 import { useFormatCoin } from '@iota/core';
 
-type TxnAmountProps = {
+interface TxnAmountProps {
     amount: string | number;
     coinType: string;
     label: string;
     approximation?: boolean;
-};
+}
 
 // dont show amount if it is 0
 // This happens when a user sends a transaction to self;

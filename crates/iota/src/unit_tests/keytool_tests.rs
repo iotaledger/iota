@@ -204,19 +204,19 @@ async fn test_private_keys_import_export() -> Result<(), anyhow::Error> {
     // Iota address in Hex
     const TEST_CASES: &[(&str, &str, &str, &str)] = &[
         (
-            "iotaprivkey1qzwant3kaegmjy4qxex93s0jzvemekkjmyv3r2sjwgnv2y479pgsywhveae",
+            "iotaprivkey1qzwant3kaegmjy4qxex93s0jzvemekkjmyv3r2sjwgnv2y479pgsyj3mjxj",
             "0x9dd9ae36ee51b912a0364c58c1f21333bcdad2d91911aa127226c512be285102",
             "AJ3ZrjbuUbkSoDZMWMHyEzO82tLZGRGqEnImxRK+KFEC",
             "0x80ebb793af9b40569ed2c3be16e5bd76358997e28cc35ff48681157224c8b038",
         ),
         (
-            "iotaprivkey1qrh2sjl88rze74hwjndw3l26dqyz63tea5u9frtwcsqhmfk9vxdlx8cpv0g",
+            "iotaprivkey1qrh2sjl88rze74hwjndw3l26dqyz63tea5u9frtwcsqhmfk9vxdlxm7k85r",
             "0xeea84be738c59f56ee94dae8fd5a68082d4579ed38548d6ec4017da6c5619bf3",
             "AO6oS+c4xZ9W7pTa6P1aaAgtRXntOFSNbsQBfabFYZvz",
             "0xee64bf4dedc0d6d853e156b04b4adae937da0b549d740b9de26d0360813f8f1c",
         ),
         (
-            "iotaprivkey1qzg73qyvfz0wpnyectkl08nrhe4pgnu0vqx8gydu96qx7uj4wyr8gcrjlh3",
+            "iotaprivkey1qzg73qyvfz0wpnyectkl08nrhe4pgnu0vqx8gydu96qx7uj4wyr8gy995v6",
             "0x91e8808c489ee0cc99c2edf79e63be6a144f8f600c7411bc2e806f7255710674",
             "AJHogIxInuDMmcLt955jvmoUT49gDHQRvC6Ab3JVcQZ0",
             "0x3a3bf7803ccb4903e2d9c4c11f80a24fe0c57a3a298f4ebd52667849554021b5",
@@ -295,17 +295,17 @@ async fn test_mnemonics_ed25519() -> Result<(), anyhow::Error> {
     const TEST_CASES: [[&str; 3]; 3] = [
         [
             "film crazy soon outside stand loop subway crumble thrive popular green nuclear struggle pistol arm wife phrase warfare march wheat nephew ask sunny firm",
-            "iotaprivkey1qrqqxhsu3ndp96644fjk4z5ams5ulgmvprklngt2jhvg2ujn5w4q23vm2y8",
+            "iotaprivkey1qrqqxhsu3ndp96644fjk4z5ams5ulgmvprklngt2jhvg2ujn5w4q2d2vplv",
             "0x9f8e5379678525edf768d7b507dc1ba9016fc4f0eac976ab7f74077d95fba312",
         ],
         [
             "require decline left thought grid priority false tiny gasp angle royal system attack beef setup reward aunt skill wasp tray vital bounce inflict level",
-            "iotaprivkey1qqcxaf57fnenvflpacacaumf6vl0rt0edddhytanvzhkqhwnjk0zsawjy3x",
+            "iotaprivkey1qqcxaf57fnenvflpacacaumf6vl0rt0edddhytanvzhkqhwnjk0zspg902d",
             "0x862738192e40540e0a5c9a5aca636f53b0cd76b0a9bef3386e05647feb4914ac",
         ],
         [
             "organ crash swim stick traffic remember army arctic mesh slice swear summer police vast chaos cradle squirrel hood useless evidence pet hub soap lake",
-            "iotaprivkey1qzq39vxzm0gq7l8dc5dj5allpuww4mavhwhg8mua4cl3lj2c3fvhcsjgphc",
+            "iotaprivkey1qzq39vxzm0gq7l8dc5dj5allpuww4mavhwhg8mua4cl3lj2c3fvhcv5l2vn",
             "0x2391788ca49c7f0f00699bc2bad45f80c343b4d1df024285c132259433d7ff31",
         ],
     ];
@@ -335,17 +335,17 @@ async fn test_mnemonics_secp256k1() -> Result<(), anyhow::Error> {
     const TEST_CASES: [[&str; 3]; 3] = [
         [
             "film crazy soon outside stand loop subway crumble thrive popular green nuclear struggle pistol arm wife phrase warfare march wheat nephew ask sunny firm",
-            "iotaprivkey1q8cy2ll8a0dmzzzwn9zavrug0qf47cyuj6k2r4r6rnjtpjhrdh52vallxwz",
+            "iotaprivkey1q8cy2ll8a0dmzzzwn9zavrug0qf47cyuj6k2r4r6rnjtpjhrdh52vpegd4f",
             "0x8520d58dde1ab268349b9a46e5124ae6fe7e4c61df4ca2bc9c97d3c4d07b0b55",
         ],
         [
             "require decline left thought grid priority false tiny gasp angle royal system attack beef setup reward aunt skill wasp tray vital bounce inflict level",
-            "iotaprivkey1q9hm330d05jcxfvmztv046p8kclyaj39hk6elqghgpq4sz4x23hk2jtdnjf",
+            "iotaprivkey1q9hm330d05jcxfvmztv046p8kclyaj39hk6elqghgpq4sz4x23hk2wd6cfz",
             "0x3740d570eefba29dfc0fdd5829848902064e31ecd059ca05c401907fa8646f61",
         ],
         [
             "organ crash swim stick traffic remember army arctic mesh slice swear summer police vast chaos cradle squirrel hood useless evidence pet hub soap lake",
-            "iotaprivkey1qx2dnch6363h7gdqqfkzmmlequzj4ul3x4fq6dzyajk7wc2c0jgcxdv2dvl",
+            "iotaprivkey1qx2dnch6363h7gdqqfkzmmlequzj4ul3x4fq6dzyajk7wc2c0jgcx32axh5",
             "0x943b852c37fef403047e06ff5a2fa216557a4386212fb29554babdd3e1899da5",
         ],
     ];
@@ -375,17 +375,17 @@ async fn test_mnemonics_secp256r1() -> Result<(), anyhow::Error> {
     const TEST_CASES: [[&str; 3]; 3] = [
         [
             "act wing dilemma glory episode region allow mad tourist humble muffin oblige",
-            "iotaprivkey1qtt65ua2lhal76zg4cxd6umdqynv2rj2gzrntp5rwlnyj370jg3pwhxg9kc",
+            "iotaprivkey1qtt65ua2lhal76zg4cxd6umdqynv2rj2gzrntp5rwlnyj370jg3pwtqlwdn",
             "0x779a63b28528210a5ec6c4af5a70382fa3f0c2d3f98dcbe4e3a4ae2f8c39cc9c",
         ],
         [
             "flag rebel cabbage captain minimum purpose long already valley horn enrich salt",
-            "iotaprivkey1qtcjgmue7q8u4gtutfvfpx3zj3aa2r9pqssuusrltxfv68eqhzsgjyhk7e4",
+            "iotaprivkey1qtcjgmue7q8u4gtutfvfpx3zj3aa2r9pqssuusrltxfv68eqhzsgjc3p4z7",
             "0x8b45523042933aa55f57e2ccc661304baed292529b6e67a0c9857c1f3f871806",
         ],
         [
             "area renew bar language pudding trial small host remind supreme cabbage era",
-            "iotaprivkey1qtxafg26qxeqy7f56gd2rvsup0a5kl4cre7nt2rtcrf0p3v5pwd4c595zjp",
+            "iotaprivkey1qtxafg26qxeqy7f56gd2rvsup0a5kl4cre7nt2rtcrf0p3v5pwd4cgrrff2",
             "0x8528ef86150ec331928a8b3edb8adbe2fb523db8c84679aa57a931da6a4cdb25",
         ],
     ];

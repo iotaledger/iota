@@ -5,10 +5,10 @@
 import { Text } from '_app/shared/text';
 import type { ReactNode } from 'react';
 
-export type CardItemProps = {
+export interface CardItemProps {
     title: ReactNode;
     children: ReactNode;
-};
+}
 
 export function CardItem({ title, children }: CardItemProps) {
     return (

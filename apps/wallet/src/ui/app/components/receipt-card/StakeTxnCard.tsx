@@ -21,9 +21,9 @@ import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 
 import { Card } from '../../shared/transaction-summary/Card';
 
-type StakeTxnCardProps = {
+interface StakeTxnCardProps {
     event: IotaEvent;
-};
+}
 
 // For Staked Transaction use moveEvent Field to get the validator address, delegation amount, epoch
 export function StakeTxnCard({ event }: StakeTxnCardProps) {

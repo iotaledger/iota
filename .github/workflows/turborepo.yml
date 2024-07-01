@@ -9,7 +9,7 @@ on:
 jobs:
   audit:
     name: pnpm audit
-    runs-on: ubuntu-latest
+    runs-on: self-hosted-rust
     steps:
       - name: Checkout
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
@@ -25,7 +25,7 @@ jobs:
 
   build:
     name: Lint, Build, and Test
-    runs-on: ubuntu-latest
+    runs-on: self-hosted-rust
     steps:
       - name: Checkout
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
