@@ -1,7 +1,5 @@
 # Copyright(C) Facebook, Inc. and its affiliates.
 # Copyright (c) Mysten Labs, Inc.
-# SPDX-License-Identifier: Apache-2.0
-
 # Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 from json import dump, load
@@ -11,6 +9,7 @@ from benchmark.utils import multiaddr_to_url_data
 
 class ConfigError(Exception):
     pass
+
 
 class WorkerCache:
     ''' The worker cache looks as follows:
