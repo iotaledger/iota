@@ -37,7 +37,7 @@ interface SeedAccountSourceSerializedUI extends AccountSourceSerializedUI {
     type: AccountSourceType.Seed;
 }
 
-export function deriveKeypairFromSeed(seedHex: string, derivationPath: string) {
+function deriveKeypairFromSeed(seedHex: string, derivationPath: string) {
     return Ed25519Keypair.deriveKeypairFromSeed(seedHex, derivationPath);
 }
 

@@ -19,3 +19,4 @@ export { useSortedCoinsByCategories } from './useSortedCoinsByCategories';
 export * from './useTransactionData';
 export * from './useActiveAddress';
 export * from './useCoinsReFetchingConfig';
+export * from './useSetGrowthbookAttributes';

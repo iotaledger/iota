@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type GetBalanceParams, type CoinBalance } from '@iota/iota.js/client';
-import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
 import { type AccountFromFinder, type AddressFromFinder } from '_src/shared/accounts';
 import { makeDerivationPath } from '../account-sources/bip44Path';
+import { deriveKeypairFromSeed } from '_src/shared/utils';
 
 type GetBalanceCallback = (bipPath: string, params: GetBalanceParams) => Promise<CoinBalance>;
 
@@ -95,9 +95,7 @@ async function searchAddressesWithObjects(
                 changeIndex,
                 addressIndex,
             });
-            const pubKeyHash = Ed25519Keypair.deriveKeypairFromSeed(seed, bipPath)
-                .getPublicKey()
-                .toIotaAddress();
+            const pubKeyHash = deriveKeypairFromSeed(seed, bipPath).getPublicKey().toIotaAddress();
 
             const balance = await getBalance(bipPath, {
                 owner: pubKeyHash,

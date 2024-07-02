@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
-import { fromExportedKeypair } from '_src/shared/utils/from-exported-keypair';
+import { fromExportedKeypair } from '_src/shared/utils';
 
 import {
     Account,
