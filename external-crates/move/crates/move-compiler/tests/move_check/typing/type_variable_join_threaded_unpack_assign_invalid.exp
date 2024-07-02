@@ -17,7 +17,7 @@ error[E05001]: ability constraint not satisfied
    │                       ---- 'drop' constraint declared here
    ·
 43 │         Box { f1, f2 }  = Container::get(&v);
-   │         --------------    ^^^^^^^^^^^^^^^^^^ 'drop' constraint not satisifed
+   │         --------------    ^^^^^^^^^^^^^^^^^^ 'drop' constraint not satisfied
    │         │                  
    │         The type '0x2::M::Box<0x2::M::R>' does not have the ability 'drop'
    │         The type '0x2::M::Box<0x2::M::R>' can have the ability 'drop' but the type argument '0x2::M::R' does not have the required ability 'drop'
