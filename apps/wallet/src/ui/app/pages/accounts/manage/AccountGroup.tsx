@@ -163,7 +163,6 @@ export function AccountGroup({
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
     const { data: accountSources } = useAccountSources();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceID);
-
     return (
         <>
             <CollapsiblePrimitive.Root defaultOpen asChild>
