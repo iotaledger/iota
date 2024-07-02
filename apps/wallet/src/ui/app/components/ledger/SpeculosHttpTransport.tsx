@@ -62,7 +62,7 @@ export default class SpeculosHttpTransport extends Transport {
             const instance = axios.create({
                 baseURL: `http://localhost:${opts.apiPort || '5000'}`,
                 timeout: opts.timeout,
-                adapter: 'fetch', // Use fetch adapter
+                adapter: 'fetch', // Use fetch adapter for it to work in web env
             });
 
             const transport = new SpeculosHttpTransport(instance, opts);
