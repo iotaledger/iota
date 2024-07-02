@@ -7,6 +7,8 @@ import Transport from '@ledgerhq/hw-transport';
 import { log } from '@ledgerhq/logs';
 import { Subject } from 'rxjs';
 
+const SPECULOS_API_DEFAULT_PORT = '5000';
+
 export type SpeculosHttpTransportOpts = {
     apiPort?: string;
     timeout?: number;
@@ -59,7 +61,7 @@ export default class SpeculosHttpTransport extends Transport {
     static open = (opts?: SpeculosHttpTransportOpts): Promise<SpeculosHttpTransport> =>
         new Promise((resolve, reject) => {
             const instance = axios.create({
-                baseURL: `http://localhost:${opts?.apiPort || '5000'}`,
+                baseURL: `http://localhost:${opts?.apiPort || SPECULOS_API_DEFAULT_PORT}`,
                 timeout: opts?.timeout,
                 adapter: 'fetch', // Use fetch adapter for it to work in web env
             });
@@ -120,7 +122,7 @@ export default class SpeculosHttpTransport extends Transport {
 
     static check = async (opts?: SpeculosHttpTransportOpts): Promise<boolean> => {
         const instance = axios.create({
-            baseURL: `http://localhost:${opts?.apiPort || '5000'}`,
+            baseURL: `http://localhost:${opts?.apiPort || SPECULOS_API_DEFAULT_PORT}`,
             timeout: opts?.timeout,
         });
 
