@@ -407,7 +407,7 @@ impl IndexStore {
             });
             let coin = obj.as_coin_maybe().unwrap_or_else(|| {
                 panic!(
-                    "object_id: {:?} in written_coins cannot be deserialzied as a Coin, written_coins: {:?}, tx_digest: {:?}",
+                    "object_id: {:?} in written_coins cannot be deserialized as a Coin, written_coins: {:?}, tx_digest: {:?}",
                     obj_id, written_coins, digest
                 )
             });

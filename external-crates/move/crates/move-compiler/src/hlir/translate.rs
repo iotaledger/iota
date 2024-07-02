@@ -2433,7 +2433,7 @@ fn freeze(context: &mut Context, expected_type: &H::Type, e: H::Exp) -> (Block, 
                         T::Single(s) => s.clone(),
                         _ => {
                             let msg = format!(
-                                "ICE list item has Multple type: {}",
+                                "ICE list item has Multiple type: {}",
                                 debug_display_verbose!(e.ty)
                             );
                             context.env.add_diag(ice!((e.ty.loc, msg)));
