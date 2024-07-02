@@ -5,7 +5,7 @@
 //# init --protocol-version 1 --simulator --accounts C
 
 //# run-graphql
-{ # init --protocol-version 1ial query yields only the validator's stake
+{ # Initial query yields only the validator's stake
   objects(filter: { type: "0x3::staking_pool::StakedIota" }) {
     edges {
       cursor

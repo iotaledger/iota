@@ -37,22 +37,26 @@ task 7 'view-object'. lines 47-49:
 1,5::regulated_coin
 
 task 8 'run'. lines 50-52:
-Error: Transaction Effects Status: Invalid command argument at 0. Immutable objects cannot be passed by mutable reference, &mut.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: InvalidObjectByMutRef }, source: None, command: Some(0) } }
+created: object(8,0)
+mutated: object(0,0), object(1,0)
+gas summary: computation_cost: 1000000, storage_cost: 3936800,  storage_rebate: 2437776, non_refundable_storage_fee: 24624
 
 task 9 'run'. lines 53-55:
-Error: Transaction Effects Status: Invalid command argument at 1. Immutable objects cannot be passed by mutable reference, &mut.
-Debug of error: CommandArgumentError { arg_idx: 1, kind: InvalidObjectByMutRef } at command Some(0)
+created: object(9,0), object(9,1)
+mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2)
+gas summary: computation_cost: 1000000, storage_cost: 11415200,  storage_rebate: 2723688, non_refundable_storage_fee: 27512
 
 task 10 'transfer-object'. lines 56-58:
-Error: INVALID TEST. Unknown object, object(8,0)
+Error: Error checking transaction input objects: AddressDeniedForCoin { address: @B, coin_type: "object(1,5)::regulated_coin::REGULATED_COIN" }
 
 task 11 'run'. lines 59-61:
-Error: INVALID TEST. Unknown object, object(8,0)
+Error: Error checking transaction input objects: AddressDeniedForCoin { address: @B, coin_type: "object(1,5)::regulated_coin::REGULATED_COIN" }
 
 task 12 'run'. lines 62-64:
-Error: Transaction Effects Status: Invalid command argument at 1. Immutable objects cannot be passed by mutable reference, &mut.
-Debug of error: CommandArgumentError { arg_idx: 1, kind: InvalidObjectByMutRef } at command Some(0)
+mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2), object(9,1)
+deleted: object(9,0)
+gas summary: computation_cost: 1000000, storage_cost: 9522800,  storage_rebate: 11301048, non_refundable_storage_fee: 114152
 
 task 13 'transfer-object'. lines 65-65:
-Error: INVALID TEST. Unknown object, object(8,0)
+mutated: object(0,1), object(8,0)
+gas summary: computation_cost: 1000000, storage_cost: 2462400,  storage_rebate: 1459656, non_refundable_storage_fee: 14744

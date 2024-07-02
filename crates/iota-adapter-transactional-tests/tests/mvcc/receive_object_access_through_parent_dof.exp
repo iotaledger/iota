@@ -68,7 +68,9 @@ Error: Transaction Effects Status: Move Runtime Abort. Location: iota::transfer:
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("transfer") }, function: 12, instruction: 0, function_name: Some("receive_impl") }, 2), source: Some(VMError { major_status: ABORTED, sub_status: Some(2), message: None, exec_state: None, location: Module(ModuleId { address: iota, name: Identifier("transfer") }), indices: [], offsets: [(FunctionDefinitionIndex(12), 0)] }), command: Some(0) } }
 
 task 14 'run'. lines 105-105:
-Error: Error checking transaction input objects: InvalidChildObjectArgument { child_id: object(2,6), parent_id: object(2,1) }
+created: object(14,0)
+mutated: object(0,0), object(2,7), object(2,8)
+gas summary: computation_cost: 1000000, storage_cost: 6011600,  storage_rebate: 3521232, non_refundable_storage_fee: 35568
 
 task 15 'run'. lines 107-107:
 created: object(15,0)

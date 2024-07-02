@@ -54,10 +54,17 @@ Version: 2
 Contents: tto::M1::Wrapper<tto::M1::A> {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,7)}}, value: tto::M1::A {id: iota::object::UID {id: iota::object::ID {bytes: _}}, value: vector[119u8, 114u8, 97u8, 112u8, 112u8, 101u8, 100u8]}}
 
 task 11 'run'. lines 99-99:
-Error: Error checking transaction input objects: InvalidChildObjectArgument { child_id: object(2,4), parent_id: object(2,0) }
+Error: Transaction Effects Status: Move Runtime Abort. Location: iota::transfer::receive_impl (function index 12) at offset 0, Abort Code: 2
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("transfer") }, function: 12, instruction: 0, function_name: Some("receive_impl") }, 2), source: Some(VMError { major_status: ABORTED, sub_status: Some(2), message: None, exec_state: None, location: Module(ModuleId { address: iota, name: Identifier("transfer") }), indices: [], offsets: [(FunctionDefinitionIndex(12), 0)] }), command: Some(0) } }
 
 task 12 'run'. lines 101-101:
-Error: Error checking transaction input objects: InvalidChildObjectArgument { child_id: object(2,4), parent_id: object(2,0) }
+created: object(12,0)
+mutated: object(0,0), object(2,6)
+wrapped: object(2,5)
+gas summary: computation_cost: 1000000, storage_cost: 4278800,  storage_rebate: 3521232, non_refundable_storage_fee: 35568
 
 task 13 'run'. lines 103-103:
-Error: Error checking transaction input objects: InvalidChildObjectArgument { child_id: object(2,4), parent_id: object(2,0) }
+created: object(13,0)
+mutated: object(0,0), object(2,6)
+wrapped: object(2,7)
+gas summary: computation_cost: 1000000, storage_cost: 4856400,  storage_rebate: 4093056, non_refundable_storage_fee: 41344

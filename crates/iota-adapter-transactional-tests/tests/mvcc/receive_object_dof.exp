@@ -19,14 +19,14 @@ Version: 2
 Contents: iota::dynamic_field::Field<iota::dynamic_object_field::Wrapper<u64>, iota::object::ID> {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}, name: iota::dynamic_object_field::Wrapper<u64> {name: 0u64}, value: iota::object::ID {bytes: fake(2,1)}}
 
 task 4 'view-object'. lines 65-65:
-Owner: Account Address ( fake(2,2) )
-Version: 2
-Contents: tto::M1::A {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,3)}}, value: 0u64}
-
-task 5 'view-object'. lines 67-67:
 Owner: Object ID: ( fake(2,0) )
 Version: 2
 Contents: tto::M1::A {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,1)}}, value: 0u64}
+
+task 5 'view-object'. lines 67-67:
+Owner: Account Address ( fake(2,2) )
+Version: 2
+Contents: tto::M1::A {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,3)}}, value: 0u64}
 
 task 6 'view-object'. lines 69-69:
 Owner: Account Address ( A )
@@ -34,7 +34,9 @@ Version: 2
 Contents: tto::M1::A {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,2)}}, value: 0u64}
 
 task 7 'run'. lines 71-71:
-Error: Error checking transaction input objects: InvalidChildObjectArgument { child_id: object(2,1), parent_id: object(2,0) }
+created: object(7,0)
+mutated: object(0,0), object(2,2), object(2,3)
+gas summary: computation_cost: 1000000, storage_cost: 5996400,  storage_rebate: 3506184, non_refundable_storage_fee: 35416
 
 task 8 'view-object'. lines 73-75:
 Owner: Object ID: ( fake(2,3) )
@@ -42,23 +44,23 @@ Version: 2
 Contents: iota::dynamic_field::Field<iota::dynamic_object_field::Wrapper<u64>, iota::object::ID> {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}, name: iota::dynamic_object_field::Wrapper<u64> {name: 0u64}, value: iota::object::ID {bytes: fake(2,1)}}
 
 task 9 'view-object'. lines 76-76:
-Owner: Account Address ( fake(2,2) )
-Version: 2
-Contents: tto::M1::A {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,3)}}, value: 0u64}
-
-task 10 'view-object'. lines 78-78:
 Owner: Object ID: ( fake(2,0) )
 Version: 2
 Contents: tto::M1::A {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,1)}}, value: 0u64}
 
+task 10 'view-object'. lines 78-78:
+Owner: Object ID: ( fake(7,0) )
+Version: 3
+Contents: tto::M1::A {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,3)}}, value: 0u64}
+
 task 11 'view-object'. lines 80-80:
 Owner: Account Address ( A )
-Version: 2
+Version: 3
 Contents: tto::M1::A {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,2)}}, value: 0u64}
 
 task 12 'programmable'. lines 82-83:
-Error: Transaction Effects Status: Move Runtime Abort. Location: iota::dynamic_field::borrow_child_object_mut (function index 12) at offset 0, Abort Code: 1
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("dynamic_field") }, function: 12, instruction: 0, function_name: Some("borrow_child_object_mut") }, 1), source: Some(VMError { major_status: ABORTED, sub_status: Some(1), message: None, exec_state: None, location: Module(ModuleId { address: iota, name: Identifier("dynamic_field") }), indices: [], offsets: [(FunctionDefinitionIndex(12), 0)] }), command: Some(0) } }
+mutated: object(0,0), object(2,1), object(2,2), object(2,3)
+gas summary: computation_cost: 1000000, storage_cost: 4818400,  storage_rebate: 4770216, non_refundable_storage_fee: 48184
 
 task 13 'view-object'. lines 85-87:
 Owner: Object ID: ( fake(2,3) )
@@ -66,41 +68,44 @@ Version: 2
 Contents: iota::dynamic_field::Field<iota::dynamic_object_field::Wrapper<u64>, iota::object::ID> {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}, name: iota::dynamic_object_field::Wrapper<u64> {name: 0u64}, value: iota::object::ID {bytes: fake(2,1)}}
 
 task 14 'view-object'. lines 88-88:
-Owner: Account Address ( fake(2,2) )
-Version: 2
-Contents: tto::M1::A {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,3)}}, value: 0u64}
+Owner: Object ID: ( fake(2,0) )
+Version: 4
+Contents: tto::M1::A {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,1)}}, value: 3u64}
 
 task 15 'view-object'. lines 90-90:
-Owner: Object ID: ( fake(2,0) )
-Version: 2
-Contents: tto::M1::A {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,1)}}, value: 0u64}
+Owner: Object ID: ( fake(7,0) )
+Version: 4
+Contents: tto::M1::A {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,3)}}, value: 2u64}
 
 task 16 'view-object'. lines 92-92:
 Owner: Account Address ( A )
-Version: 3
-Contents: tto::M1::A {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,2)}}, value: 0u64}
+Version: 4
+Contents: tto::M1::A {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,2)}}, value: 1u64}
 
 task 17 'programmable'. lines 94-97:
-Error: Transaction Effects Status: Move Runtime Abort. Location: iota::dynamic_field::borrow_child_object_mut (function index 12) at offset 0, Abort Code: 1
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("dynamic_field") }, function: 12, instruction: 0, function_name: Some("borrow_child_object_mut") }, 1), source: Some(VMError { major_status: ABORTED, sub_status: Some(1), message: None, exec_state: None, location: Module(ModuleId { address: iota, name: Identifier("dynamic_field") }), indices: [], offsets: [(FunctionDefinitionIndex(12), 0)] }), command: Some(0) } }
+mutated: object(0,0), object(2,2)
+deleted: object(2,0), object(2,1)
+gas summary: computation_cost: 1000000, storage_cost: 2264800,  storage_rebate: 5936436, non_refundable_storage_fee: 59964
 
 task 18 'programmable'. lines 99-100:
-Error: Transaction Effects Status: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("dynamic_field") }, function: 11, instruction: 0, function_name: Some("borrow_child_object") }, 1) in command 0
-Execution Error: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("dynamic_field") }, function: 11, instruction: 0, function_name: Some("borrow_child_object") }, 1) in command 0
+mutated: object(_), object(2,2)
+gas summary: computation_cost: 500000, storage_cost: 2264800,  storage_rebate: 1264032, non_refundable_storage_fee: 12768
 
 task 19 'programmable'. lines 102-103:
+mutated: object(_), object(2,2)
+gas summary: computation_cost: 500000, storage_cost: 2264800,  storage_rebate: 1264032, non_refundable_storage_fee: 12768
+
+task 20 'programmable'. lines 105-108:
+mutated: object(_), object(2,2)
+gas summary: computation_cost: 500000, storage_cost: 2264800,  storage_rebate: 1264032, non_refundable_storage_fee: 12768
+
+task 21 'programmable'. lines 110-111:
 Error: Transaction Effects Status: MoveAbort(MoveLocation { module: ModuleId { address: tto, name: Identifier("M1") }, function: 4, instruction: 10, function_name: Some("check") }, 0) in command 0
 Execution Error: MoveAbort(MoveLocation { module: ModuleId { address: tto, name: Identifier("M1") }, function: 4, instruction: 10, function_name: Some("check") }, 0) in command 0
 
-task 20 'programmable'. lines 105-108:
-Error: INVALID TEST. Could not load object argument object(2,2)
-
-task 21 'programmable'. lines 110-111:
+task 22 'programmable'. lines 113-114:
 Error: Transaction Effects Status: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("dynamic_field") }, function: 11, instruction: 0, function_name: Some("borrow_child_object") }, 1) in command 0
 Execution Error: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("dynamic_field") }, function: 11, instruction: 0, function_name: Some("borrow_child_object") }, 1) in command 0
-
-task 22 'programmable'. lines 113-114:
-Error: INVALID TEST. Could not load object argument object(2,2)
 
 task 23 'programmable'. lines 116-117:
 Error: Transaction Effects Status: MoveAbort(MoveLocation { module: ModuleId { address: tto, name: Identifier("M1") }, function: 4, instruction: 10, function_name: Some("check") }, 0) in command 0
