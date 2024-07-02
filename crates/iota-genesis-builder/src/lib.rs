@@ -169,19 +169,14 @@ impl Builder {
     }
 
     pub fn add_validator_signature(mut self, keypair: &AuthorityKeyPair) -> Self {
-        if self.built_genesis.is_none() {
-            self.build_and_cache_unsigned_genesis();
-        }
-        let UnsignedGenesis { checkpoint, .. } = self
-            .built_genesis
-            .as_ref()
-            .expect("genesis should have been built");
-
         let name = keypair.public().into();
         assert!(
             self.validators.contains_key(&name),
             "provided keypair does not correspond to a validator in the validator set"
         );
+
+        let UnsignedGenesis { checkpoint, .. } = self.get_or_build_unsigned_genesis();
+
         let checkpoint_signature = {
             let intent_msg = IntentMessage::new(
                 Intent::iota_app(IntentScope::CheckpointSummary),
