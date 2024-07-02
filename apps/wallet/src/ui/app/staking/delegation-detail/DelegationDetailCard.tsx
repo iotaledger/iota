@@ -34,10 +34,10 @@ import { Heading } from '../../shared/heading';
 import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
 import { StakeAmount } from '../home/StakeAmount';
 
-type DelegationDetailCardProps = {
+interface DelegationDetailCardProps {
     validatorAddress: string;
     stakedId: string;
-};
+}
 
 export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationDetailCardProps) {
     const {

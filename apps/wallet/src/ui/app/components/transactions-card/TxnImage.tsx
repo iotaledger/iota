@@ -7,8 +7,13 @@ import { Text } from '_app/shared/text';
 import { NftImage } from '_components/nft-display/NftImage';
 import { cx } from 'class-variance-authority';
 
+interface TxnImageProps {
+    id: string;
+    actionLabel?: string;
+}
+
 //TODO merge all NFT image displays
-export function TxnImage({ id, actionLabel }: { id: string; actionLabel?: string }) {
+export function TxnImage({ id, actionLabel }: TxnImageProps) {
     const { data: nftMeta } = useGetNFTMeta(id);
 
     return nftMeta?.imageUrl ? (

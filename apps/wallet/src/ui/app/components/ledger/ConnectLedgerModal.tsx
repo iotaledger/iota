@@ -17,11 +17,11 @@ import { useState } from 'react';
 
 import { Link } from '../../shared/Link';
 
-type ConnectLedgerModalProps = {
+interface ConnectLedgerModalProps {
     onClose: () => void;
     onConfirm: () => void;
     onError: (error: unknown) => void;
-};
+}
 
 export function ConnectLedgerModal({ onClose, onConfirm, onError }: ConnectLedgerModalProps) {
     const [isConnectingToLedger, setConnectingToLedger] = useState(false);

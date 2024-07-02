@@ -7,9 +7,9 @@ import { CheckFill12 } from '@iota/icons';
 
 import { Text } from '../shared/text';
 
-export type DAppPermissionsListProps = {
+export interface DAppPermissionsListProps {
     permissions: PermissionType[];
-};
+}
 
 const PERMISSION_TYPE_TO_TEXT: Record<PermissionType, string> = {
     viewAccount: 'Share wallet address',
