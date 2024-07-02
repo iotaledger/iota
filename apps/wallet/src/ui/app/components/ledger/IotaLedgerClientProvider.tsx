@@ -48,8 +48,8 @@ export function IotaLedgerClientProvider({ children }: IotaLedgerClientProviderP
             // to close the connection before we try to re-connect
             await resetIotaLedgerClient();
 
-            if (await SpeculosHttpTransport.check({ apiPort: '5001' })) {
-                ledgerTransport = await SpeculosHttpTransport.open({ apiPort: '5001' });
+            if (await SpeculosHttpTransport.check()) {
+                ledgerTransport = await SpeculosHttpTransport.open();
             } else {
                 ledgerTransport = requestPermissionsFirst
                     ? await requestLedgerConnection()

@@ -57,15 +57,15 @@ export default class SpeculosHttpTransport extends Transport {
         [SpeculosButton.LEFT]: 'left',
     };
 
-    static open = (opts: SpeculosHttpTransportOpts): Promise<SpeculosHttpTransport> =>
+    static open = (opts?: SpeculosHttpTransportOpts): Promise<SpeculosHttpTransport> =>
         new Promise((resolve, reject) => {
             const instance = axios.create({
-                baseURL: `http://localhost:${opts.apiPort || '5000'}`,
-                timeout: opts.timeout,
+                baseURL: `http://localhost:${opts?.apiPort || '5000'}`,
+                timeout: opts?.timeout,
                 adapter: 'fetch', // Use fetch adapter for it to work in web env
             });
 
-            const transport = new SpeculosHttpTransport(instance, opts);
+            const transport = new SpeculosHttpTransport(instance, opts ?? {});
 
             instance
                 .get('/events?stream=true', {
@@ -119,10 +119,10 @@ export default class SpeculosHttpTransport extends Transport {
                 });
         });
 
-    static check = async (opts: SpeculosHttpTransportOpts): Promise<boolean> => {
+    static check = async (opts?: SpeculosHttpTransportOpts): Promise<boolean> => {
         const instance = axios.create({
-            baseURL: `http://localhost:${opts.apiPort || '5000'}`,
-            timeout: opts.timeout,
+            baseURL: `http://localhost:${opts?.apiPort || '5000'}`,
+            timeout: opts?.timeout,
         });
 
         try {
