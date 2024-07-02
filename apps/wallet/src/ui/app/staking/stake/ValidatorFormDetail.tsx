@@ -25,10 +25,10 @@ import { getTokenStakeIotaForValidator } from '../getTokenStakeIotaForValidator'
 import { StakeAmount } from '../home/StakeAmount';
 import { ValidatorLogo } from '../validators/ValidatorLogo';
 
-type ValidatorFormDetailProps = {
+interface ValidatorFormDetailProps {
     validatorAddress: string;
     unstake?: boolean;
-};
+}
 
 export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorFormDetailProps) {
     const accountAddress = useActiveAddress();

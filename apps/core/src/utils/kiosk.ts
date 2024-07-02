@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { KIOSK_OWNER_CAP, Network, PERSONAL_KIOSK_RULE_ADDRESS } from '@iota/kiosk';
-import { IotaObjectData, IotaObjectResponse } from '@iota/iota.js/client';
+import { KIOSK_OWNER_CAP } from '@iota/kiosk';
+import { IotaObjectData, IotaObjectResponse, NetworkId, getNetwork } from '@iota/iota.js/client';
 
 export const ORIGINBYTE_KIOSK_MODULE =
     '0x95a441d389b07437d00dd07e0b6f05f513d7659b13fd7c5d3923c7d9d847199b::ob_kiosk';
@@ -11,14 +11,14 @@ export const ORIGINBYTE_KIOSK_MODULE =
 export const ORIGINBYTE_KIOSK_OWNER_TOKEN = `${ORIGINBYTE_KIOSK_MODULE}::OwnerToken`;
 
 export function isKioskOwnerToken(
-    network: Network,
+    network: NetworkId,
     object?: IotaObjectResponse | IotaObjectData | null,
 ) {
     if (!object) return false;
     const objectData = 'data' in object && object.data ? object.data : (object as IotaObjectData);
     return [
         KIOSK_OWNER_CAP,
-        `${PERSONAL_KIOSK_RULE_ADDRESS[network]}::personal_kiosk::PersonalKioskCap`,
+        `${getNetwork(network).kiosk?.personalKioskRulePackageId}::personal_kiosk::PersonalKioskCap`,
         ORIGINBYTE_KIOSK_OWNER_TOKEN,
     ].includes(objectData?.type ?? '');
 }

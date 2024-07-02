@@ -670,13 +670,13 @@ expression: parsed
                 Spanned {
                     span: Span {
                         start: 0,
-                        end: 71,
+                        end: 72,
                     },
                     value: MoveCall(
                         Spanned {
                             span: Span {
                                 start: 12,
-                                end: 46,
+                                end: 47,
                             },
                             value: ModuleAccess {
                                 address: Spanned {
@@ -691,7 +691,7 @@ expression: parsed
                                 module_name: Spanned {
                                     span: Span {
                                         start: 17,
-                                        end: 27,
+                                        end: 28,
                                     },
                                     value: Identifier(
                                         "iota_system",
@@ -699,8 +699,8 @@ expression: parsed
                                 },
                                 function_name: Spanned {
                                     span: Span {
-                                        start: 29,
-                                        end: 46,
+                                        start: 30,
+                                        end: 47,
                                     },
                                     value: Identifier(
                                         "request_add_stake",
@@ -712,8 +712,8 @@ expression: parsed
                         [
                             Spanned {
                                 span: Span {
-                                    start: 47,
-                                    end: 53,
+                                    start: 48,
+                                    end: 54,
                                 },
                                 value: Identifier(
                                     "system",
@@ -721,22 +721,22 @@ expression: parsed
                             },
                             Spanned {
                                 span: Span {
-                                    start: 54,
-                                    end: 61,
+                                    start: 55,
+                                    end: 62,
                                 },
                                 value: VariableAccess(
                                     Spanned {
                                         span: Span {
-                                            start: 54,
-                                            end: 59,
+                                            start: 55,
+                                            end: 60,
                                         },
                                         value: "coins",
                                     },
                                     [
                                         Spanned {
                                             span: Span {
-                                                start: 60,
-                                                end: 61,
+                                                start: 61,
+                                                end: 62,
                                             },
                                             value: "0",
                                         },
@@ -745,8 +745,8 @@ expression: parsed
                             },
                             Spanned {
                                 span: Span {
-                                    start: 62,
-                                    end: 71,
+                                    start: 63,
+                                    end: 72,
                                 },
                                 value: Identifier(
                                     "validator",
@@ -767,8 +767,8 @@ expression: parsed
             json_set: false,
             gas_budget: Spanned {
                 span: Span {
-                    start: 72,
-                    end: 86,
+                    start: 73,
+                    end: 87,
                 },
                 value: 1,
             },
