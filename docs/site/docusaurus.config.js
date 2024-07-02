@@ -214,7 +214,7 @@ const config = {
         logo: {
           alt: "IOTA Logo",
           src: "img/iota-logo-footer.svg",
-          href: "https://iota.io",
+          href: "https://iota.org",
         },
         style: "dark",
         copyright: `© ${new Date().getFullYear()} IOTA Foundation | Documentation distributed under <a href="https://github.com/iota-foundation/iota-docs/blob/main/LICENSE">CC BY 4.0</a>`,
