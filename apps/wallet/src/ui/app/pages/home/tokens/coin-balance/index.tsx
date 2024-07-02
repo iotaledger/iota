@@ -10,12 +10,16 @@ import { Network } from '@iota/iota.js/client';
 import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import { useMemo } from 'react';
 
-export type CoinProps = {
+export interface CoinProps {
     type: string;
     amount: bigint;
-};
+}
 
-function WalletBalanceUsd({ amount: walletBalance }: { amount: bigint }) {
+interface WalletBalanceUsdProps {
+    amount: bigint;
+}
+
+function WalletBalanceUsd({ amount: walletBalance }: WalletBalanceUsdProps) {
     const isDefiWalletEnabled = useIsWalletDefiEnabled();
     const formattedWalletBalance = useBalanceInUSD(IOTA_TYPE_ARG, walletBalance);
 

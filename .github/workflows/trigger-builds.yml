@@ -13,7 +13,7 @@ concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
   docker-images:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted-rust
     steps:
       - name: Dispatch Docker Builds in MystenLabs/iota-operations
         uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # pin@v3.0.0
@@ -24,7 +24,7 @@ jobs:
           client-payload: '{"iota_commit": "${{ github.sha }}", "docker_hub_tag": "${{ github.ref }}"}'
 
   release-binaries:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted-rust
     steps:
       - name: Dispatch Release binaries builds in MystenLabs/iota-operations
         uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # pin@v3.0.0

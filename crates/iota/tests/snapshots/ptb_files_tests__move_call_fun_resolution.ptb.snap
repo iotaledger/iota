@@ -16,7 +16,7 @@ expression: "results.join(\"\\n\")"
 │ move-call  │ std::option::isnone<u64> a             │
 │ move-call  │ std::option::is_none<u64>              │
 │ move-call  │ std::option::is_none<u64> a b          │
-│ move-call  │ iota::coin::destroy_zero @0x1           │
+│ move-call  │ iota::coin::destroy_zero @0x1          │
 │ move-call  │ std::option::is_none<u64, bool> a      │
 ├────────────┼────────────────────────────────────────┤
 │ gas-budget │ 1000                                   │
@@ -82,11 +82,10 @@ expression: "results.join(\"\\n\")"
     ╰────
 
   × Error when processing PTB
-    ╭─[10:37]
+    ╭─[10:38]
   9 │ --move-call std::option::is_none<u64> a b
  10 │ --move-call iota::coin::destroy_zero @0x1
-    ·                                     ──┬─
-    ·                                       ╰── Not enough type parameters supplied for Move call
+    ·                                      ──┬─
+    ·                                        ╰── Not enough type parameters supplied for Move call
  11 │ --move-call std::option::is_none<u64, bool> a 
     ╰────
-

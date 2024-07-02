@@ -5,9 +5,9 @@
 import { Text } from '_src/ui/app/shared/text';
 import { type ReactNode } from 'react';
 
-type BadgeLabelProps = {
+interface BadgeLabelProps {
     label: ReactNode;
-};
+}
 
 export function BadgeLabel({ label }: BadgeLabelProps) {
     return (
