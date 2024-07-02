@@ -612,17 +612,13 @@ impl<T: Cache> CertificateStore<T> {
     /// Retrieves the highest round number in the store.
     /// Returns 0 if there is no certificate in the store.
     pub fn highest_round_number(&self) -> Round {
-        if let Some(((round, _), _)) = self
-            .certificate_id_by_round
+        self.certificate_id_by_round
             .unbounded_iter()
             .skip_to_last()
             .reverse()
             .next()
-        {
-            round
-        } else {
-            0
-        }
+            .map(|((round, _), _)| round)
+            .unwrap_or_default()
     }
 
     /// Retrieves the last round number of the given origin.

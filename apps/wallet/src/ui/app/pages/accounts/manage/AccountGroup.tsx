@@ -41,7 +41,7 @@ export function getGroupTitle(aGroupAccount: SerializedUIAccount) {
     return ACCOUNT_TYPE_TO_LABEL[aGroupAccount?.type] || '';
 }
 
-// todo: we probbaly have some duplication here with the various FooterLink / ButtonOrLink
+// todo: we probably have some duplication here with the various FooterLink / ButtonOrLink
 // components - we should look to add these to base components somewhere
 const FooterLink = forwardRef<HTMLAnchorElement | HTMLButtonElement, ButtonOrLinkProps>(
     ({ children, to, ...props }, ref) => {

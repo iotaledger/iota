@@ -287,7 +287,7 @@ impl Compiler {
         /// canonicalized when converted to virtual file system paths
         /// and would show up as absolute in the test output
         /// which wouldn't be machine-agnostic. We need to relativize using
-        /// `vfs_root` beacuse it was also used during canonicalization
+        /// `vfs_root` because it was also used during canonicalization
         /// and might have altered path prefix in a non-standard way
         /// (e.g., this can happen on Windows).
         fn relativize_path(vsf_root: &VfsPath, path: Symbol) -> Symbol {
