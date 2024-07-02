@@ -277,7 +277,7 @@ def main():
     parser.add_argument('--path', '-p',  help='The path of the folder to process, defaults to the main folder of the project if left out')
     parser.add_argument('--execute', action='store_true', default=False, help='Flag to execute the replacements, if omitted it will just be a dry-run')
     parser.add_argument('--respect-gitignore', action='store_true', default=True, help='Respect what is set in .gitignore to be ignored, defaults to True')
-    parser.add_argument('--skip-filemod', action='store_true', default=False, help='Skip file modifcation and only do the rename part')
+    parser.add_argument('--skip-filemod', action='store_true', default=False, help='Skip file modification and only do the rename part')
     parser.add_argument('--use-git-mv', action='store_true', default=False, help='Use git mv instead of a normal mv, for same repo modifications')
 
     args = parser.parse_args()

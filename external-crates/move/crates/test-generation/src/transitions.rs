@@ -101,9 +101,9 @@ impl Subst {
 pub fn abilities_for_token(
     state: &AbstractState,
     token: &SignatureToken,
-    type_paramters: &[AbilitySet],
+    type_parameters: &[AbilitySet],
 ) -> AbilitySet {
-    abilities(&state.module.module, token, type_paramters)
+    abilities(&state.module.module, token, type_parameters)
 }
 
 /// Given a locals signature index, determine the abilities for each signature
