@@ -15,13 +15,13 @@
         "sourceMap": true,
         "jsx": "react-jsx",
         "paths": {
-            "~/*": [
+            "@/*": [
                 "./src/*"
             ],
-            "~/components": [
+            "@/components": [
                 "./src/lib/components"
             ],
-            "~/components/*": [
+            "@/components/*": [
                 "./src/lib/components/*"
             ],
         }
