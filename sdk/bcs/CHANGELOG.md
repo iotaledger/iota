@@ -104,7 +104,7 @@
   Similar approach applies to `bcs.ser()` and `bcs.de()` as well as to other register\* methods
 
 - a0955c479: Switch from 20 to 32-byte address. Match Secp256k1.deriveKeypair with Ed25519.
-- 0a7b42a6d: This changes almost all occurences of "delegate", "delegation" (and various capitalizations/forms) to their equivalent "stake"-based name. Function names, function argument names, RPC endpoints, Move functions, and object fields have been updated with this new naming convention.
+- 0a7b42a6d: This changes almost all occurrences of "delegate", "delegation" (and various capitalizations/forms) to their equivalent "stake"-based name. Function names, function argument names, RPC endpoints, Move functions, and object fields have been updated with this new naming convention.
 - 77bdf907f: When parsing u64, u128, and u256 values with bcs, they are now string encoded.
 
 ## 0.6.1
