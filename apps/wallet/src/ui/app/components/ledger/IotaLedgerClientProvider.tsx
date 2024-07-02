@@ -76,6 +76,14 @@ export function IotaLedgerClientProvider({ children }: IotaLedgerClientProviderP
     );
 }
 
+export function useIotaLedgerClient() {
+    const iotaLedgerClientContext = useContext(IotaLedgerClientContext);
+    if (!iotaLedgerClientContext) {
+        throw new Error('useIotaLedgerClient must be used within IotaLedgerClientContext');
+    }
+    return iotaLedgerClientContext;
+}
+
 async function requestLedgerConnection() {
     const ledgerTransportClass = await getLedgerTransportClass();
     try {
@@ -83,14 +91,6 @@ async function requestLedgerConnection() {
     } catch (error) {
         throw convertErrorToLedgerConnectionFailedError(error);
     }
-}
-
-export function useIotaLedgerClient() {
-    const iotaLedgerClientContext = useContext(IotaLedgerClientContext);
-    if (!iotaLedgerClientContext) {
-        throw new Error('useIotaLedgerClient must be used within IotaLedgerClientContext');
-    }
-    return iotaLedgerClientContext;
 }
 
 async function openLedgerConnection() {
