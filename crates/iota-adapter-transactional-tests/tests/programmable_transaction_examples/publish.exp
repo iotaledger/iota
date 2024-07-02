@@ -3,20 +3,28 @@ processed 9 tasks
 init:
 A: object(0,0)
 
-task 3 'programmable'. lines 27-32:
+task 3 'programmable'. lines 28-33:
 created: object(3,0), object(3,1), object(3,2), object(3,3), object(3,4)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 8876800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 6 'programmable'. lines 38-40:
-mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+task 6 'programmable'. lines 39-41:
+Error: Error checking transaction input objects: MoveObjectAsPackage { object_id: object(3,1) }
 
-task 7 'publish'. lines 42-47:
-created: object(7,0)
-mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 5221200,  storage_rebate: 0, non_refundable_storage_fee: 0
+task 7 'publish'. lines 43-48:
+Error: error[E03002]: unbound module
+   ┌─ ../../../../../../private/var/folders/dm/cn5mtnqn0g315ly6b9rxx0br0000gn/T/tmp.2cGGWwrMGg/.tmpoAxJIO:46:9
+   │
+46 │         p::m::foo(q::m::x())
+   │         ^^^^ Unbound module 'p::m'
 
-task 8 'run'. lines 49-49:
-mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 978120, non_refundable_storage_fee: 9880
+error[E03002]: unbound module
+   ┌─ ../../../../../../private/var/folders/dm/cn5mtnqn0g315ly6b9rxx0br0000gn/T/tmp.2cGGWwrMGg/.tmpoAxJIO:46:19
+   │
+46 │         p::m::foo(q::m::x())
+   │                   ^^^^ Unbound module 'q::m'
+
+
+
+task 8 'run'. lines 50-50:
+Error: Error checking transaction input objects: DependentPackageNotFound { package_id: 0x0000000000000000000000000000000000000000000000000000000000000000 }

@@ -16,6 +16,15 @@ ci-clippy-external = [
 ]
 ci-license = "license-template --template .license_template"
 
+check-simtest = [
+  "check",
+  "--config", "build.rustflags = ['--cfg', 'msim']",
+  "--config", "patch.crates-io.tokio.git = 'https://github.com/MystenLabs/mysten-sim.git'", 
+  "--config", "patch.crates-io.tokio.rev = '6f88ec84644cb1a6809c010f1f534d0d09e0cd89'",
+  "--config", "patch.crates-io.futures-timer.git = 'https://github.com/MystenLabs/mysten-sim.git'", 
+  "--config", "patch.crates-io.futures-timer.rev = '6f88ec84644cb1a6809c010f1f534d0d09e0cd89'"
+]
+
 [build]
 rustflags = ["-C", "force-frame-pointers=yes", "-C", "force-unwind-tables=yes"]
 
