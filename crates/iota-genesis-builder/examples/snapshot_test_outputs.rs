@@ -16,7 +16,7 @@ fn parse_snapshot<P: AsRef<Path>, const VERIFY: bool>(path: P) -> anyhow::Result
 
     println!("Output count: {}", parser.header.output_count());
 
-    let total_supply = parser.outputs::<VERIFY>().try_fold(0, |acc, output| {
+    let total_supply = parser.outputs().try_fold(0, |acc, output| {
         Ok::<_, anyhow::Error>(acc + output?.1.amount())
     })?;
 

@@ -96,11 +96,7 @@ pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug, const 
     new_header.pack(&mut writer)?;
 
     // Writes previous and new outputs.
-    for (output_header, output) in parser
-        .outputs::<VERIFY>()
-        .filter_map(|o| o.ok())
-        .chain(new_outputs)
-    {
+    for (output_header, output) in parser.outputs().filter_map(|o| o.ok()).chain(new_outputs) {
         output_header.pack(&mut writer)?;
 
         if output_header.output_id() == output_to_decrease_amount_from {
