@@ -7,11 +7,11 @@ import { Text } from '_src/ui/app/shared/text';
 import { useFormatCoin } from '@iota/core';
 import type { GasCostSummary } from '@iota/iota.js/client';
 
-type TxnGasSummaryProps = {
+interface TxnGasSummaryProps {
     gasSummary?: GasCostSummary;
     totalGas: bigint;
     transferAmount: bigint | null;
-};
+}
 
 //TODO add gas breakdown
 export function TxnGasSummary({ gasSummary, totalGas, transferAmount }: TxnGasSummaryProps) {

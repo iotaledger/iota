@@ -16,12 +16,12 @@ function getDisplayUrl(link: string) {
     }
 }
 
-export type LabelValueItemProps = {
+export interface LabelValueItemProps {
     label: string;
     value: ReactNode;
     multiline?: boolean;
     parseUrl?: boolean;
-};
+}
 
 export function LabelValueItem({
     label,

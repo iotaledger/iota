@@ -13,7 +13,11 @@ function IotaIcon() {
     );
 }
 
-export function AccountIcon({ account }: { account: SerializedUIAccount }) {
+interface AccountIconProps {
+    account: SerializedUIAccount;
+}
+
+export function AccountIcon({ account }: AccountIconProps) {
     if (account.type === AccountType.Ledger) {
         return <LedgerLogo17 className="h-4 w-4" />;
     }

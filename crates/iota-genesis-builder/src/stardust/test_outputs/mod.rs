@@ -19,7 +19,10 @@ use iota_sdk::types::block::{
         BasicOutputBuilder, Output, OutputId,
     },
 };
-use packable::{packer::IoPacker, Packable};
+use packable::{
+    packer::{IoPacker, Packer},
+    Packable,
+};
 
 use crate::stardust::{
     parse::HornetSnapshotParser,
@@ -113,6 +116,9 @@ pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
             output.pack(&mut writer)?;
         }
     }
+
+    // Add the solid entry points from the snapshot
+    writer.pack_bytes(parser.solid_entry_points_bytes()?)?;
 
     Ok(())
 }

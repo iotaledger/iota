@@ -5,12 +5,12 @@
 import { Text } from '_app/shared/text';
 import { formatAddress } from '@iota/iota.js/utils';
 
-type TxnTypeProps = {
+interface TxnTypeProps {
     address: string;
     moveCallFnName?: string;
     isTransfer: boolean;
     isSender: boolean;
-};
+}
 
 export function TxnTypeLabel({ address, moveCallFnName, isTransfer, isSender }: TxnTypeProps) {
     const transferLabel = isSender ? 'To' : 'From';
