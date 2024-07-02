@@ -8,7 +8,6 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
-    usize,
 };
 
 use anyhow::Result;
