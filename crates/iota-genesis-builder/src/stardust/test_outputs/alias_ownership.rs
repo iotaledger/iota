@@ -162,8 +162,8 @@ fn random_alias_output(rng: &mut StdRng, owner: impl Into<Address>) -> (OutputHe
 fn random_foundry_output(owner: impl Into<AliasAddress>) -> (OutputHeader, FoundryOutput) {
     let foundry_output_header = random_output_header();
 
-    let amount = rng.gen_range(1_000_000..10_000_000);
     let supply = rng.gen_range(1_000_000..100_000_000);
+    let amount = rng.gen_range(1_000_000..10_000_000).min(supply);
     let token_scheme = SimpleTokenScheme::new(supply, 0, supply).unwrap();
     let foundry_output =
         FoundryOutputBuilder::new_with_amount(amount, *serial_number, token_scheme.into())
