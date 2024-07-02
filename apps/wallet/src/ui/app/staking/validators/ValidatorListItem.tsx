@@ -9,12 +9,13 @@ import { AnimatePresence, motion } from 'framer-motion';
 
 import { ValidatorLogo } from './ValidatorLogo';
 
-type ValidatorListItemProp = {
+interface ValidatorListItemProps {
     selected?: boolean;
     value: string | number;
     validatorAddress: string;
-};
-export function ValidatorListItem({ selected, value, validatorAddress }: ValidatorListItemProp) {
+}
+
+export function ValidatorListItem({ selected, value, validatorAddress }: ValidatorListItemProps) {
     return (
         <AnimatePresence>
             <motion.div

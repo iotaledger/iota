@@ -32,32 +32,32 @@
 #### &emsp;&emsp;[Event Connection](#524280)
 #### &emsp;&emsp;[Filter By Emitting Package Module And Event Type](#524281)
 #### &emsp;&emsp;[Filter By Sender](#524282)
-### [Name Service](#9)
-#### &emsp;&emsp;[Name Service](#589815)
-### [Object](#10)
-#### &emsp;&emsp;[Object](#655350)
-### [Object Connection](#11)
-#### &emsp;&emsp;[Filter Object Ids](#720885)
-#### &emsp;&emsp;[Filter On Generic Type](#720886)
-#### &emsp;&emsp;[Filter On Type](#720887)
-#### &emsp;&emsp;[Filter Owner](#720888)
-#### &emsp;&emsp;[Object Connection](#720889)
-### [Owner](#12)
-#### &emsp;&emsp;[Dynamic Field](#786420)
-#### &emsp;&emsp;[Dynamic Field Connection](#786421)
-#### &emsp;&emsp;[Dynamic Object Field](#786422)
-#### &emsp;&emsp;[Owner](#786423)
-### [Protocol Configs](#13)
-#### &emsp;&emsp;[Key Value](#851955)
-#### &emsp;&emsp;[Key Value Feature Flag](#851956)
-#### &emsp;&emsp;[Specific Config](#851957)
-#### &emsp;&emsp;[Specific Feature Flag](#851958)
-### [Service Config](#14)
-#### &emsp;&emsp;[Service Config](#917490)
-### [Stake Connection](#15)
-#### &emsp;&emsp;[Stake Connection](#983025)
-### [Iota System State Summary](#16)
-#### &emsp;&emsp;[Iota System State Summary](#1048560)
+### [Iota System State Summary](#9)
+#### &emsp;&emsp;[Iota System State Summary](#589815)
+### [Name Service](#10)
+#### &emsp;&emsp;[Name Service](#655350)
+### [Object](#11)
+#### &emsp;&emsp;[Object](#720885)
+### [Object Connection](#12)
+#### &emsp;&emsp;[Filter Object Ids](#786420)
+#### &emsp;&emsp;[Filter On Generic Type](#786421)
+#### &emsp;&emsp;[Filter On Type](#786422)
+#### &emsp;&emsp;[Filter Owner](#786423)
+#### &emsp;&emsp;[Object Connection](#786424)
+### [Owner](#13)
+#### &emsp;&emsp;[Dynamic Field](#851955)
+#### &emsp;&emsp;[Dynamic Field Connection](#851956)
+#### &emsp;&emsp;[Dynamic Object Field](#851957)
+#### &emsp;&emsp;[Owner](#851958)
+### [Protocol Configs](#14)
+#### &emsp;&emsp;[Key Value](#917490)
+#### &emsp;&emsp;[Key Value Feature Flag](#917491)
+#### &emsp;&emsp;[Specific Config](#917492)
+#### &emsp;&emsp;[Specific Feature Flag](#917493)
+### [Service Config](#15)
+#### &emsp;&emsp;[Service Config](#983025)
+### [Stake Connection](#16)
+#### &emsp;&emsp;[Stake Connection](#1048560)
 ### [Transaction Block](#17)
 #### &emsp;&emsp;[Transaction Block](#1114095)
 #### &emsp;&emsp;[Transaction Block Kind](#1114096)
@@ -748,8 +748,51 @@
 >}</pre>
 
 ## <a id=9></a>
-## Name Service
+## Iota System State Summary
 ### <a id=589815></a>
+### Iota System State Summary
+####  Get the latest iota system state data
+
+><pre>{
+>  epoch {
+>    storageFund {
+>      totalObjectStorageRebates
+>      nonRefundableBalance
+>    }
+>    safeMode {
+>      enabled
+>      gasSummary {
+>         computationCost
+>         storageCost
+>         storageRebate
+>         nonRefundableStorageFee
+>      }
+>    }
+>    systemStateVersion
+>    systemParameters {
+>      durationMs
+>      stakeSubsidyStartEpoch
+>      minValidatorCount
+>      maxValidatorCount
+>      minValidatorJoiningStake
+>      validatorLowStakeThreshold
+>      validatorVeryLowStakeThreshold
+>      validatorLowStakeGracePeriod
+>    }
+>    systemStakeSubsidy {
+>      balance
+>      distributionCounter
+>      currentDistributionAmount
+>      periodLength
+>      decreaseRate
+>
+>    }
+>  }
+>}</pre>
+
+## <a id=10></a>
+## Name Service
+### <a id=655350></a>
 ### Name Service
 
 ><pre>{
@@ -771,9 +814,9 @@
 >  }
 >}</pre>
 
-## <a id=10></a>
+## <a id=11></a>
 ## Object
-### <a id=655350></a>
+### <a id=720885></a>
 ### Object
 
 ><pre>{
@@ -808,9 +851,9 @@
 >  }
 >}</pre>
 
-## <a id=11></a>
+## <a id=12></a>
 ## Object Connection
-### <a id=720885></a>
+### <a id=786420></a>
 ### Filter Object Ids
 ####  Filter on objectIds
 
@@ -844,7 +887,7 @@
 >  }
 >}</pre>
 
-### <a id=720886></a>
+### <a id=786421></a>
 ### Filter On Generic Type
 
 ><pre>{
@@ -861,7 +904,7 @@
 >  }
 >}</pre>
 
-### <a id=720887></a>
+### <a id=786422></a>
 ### Filter On Type
 
 ><pre>{
@@ -880,7 +923,7 @@
 >  }
 >}</pre>
 
-### <a id=720888></a>
+### <a id=786423></a>
 ### Filter Owner
 ####  Filter on owner
 
@@ -914,7 +957,7 @@
 >  }
 >}</pre>
 
-### <a id=720889></a>
+### <a id=786424></a>
 ### Object Connection
 
 ><pre>{
@@ -938,9 +981,9 @@
 >  }
 >}</pre>
 
-## <a id=12></a>
+## <a id=13></a>
 ## Owner
-### <a id=786420></a>
+### <a id=851955></a>
 ### Dynamic Field
 
 ><pre>fragment DynamicFieldValueSelection on DynamicFieldValue {
@@ -995,7 +1038,7 @@
 >  }
 >}</pre>
 
-### <a id=786421></a>
+### <a id=851956></a>
 ### Dynamic Field Connection
 
 ><pre>fragment DynamicFieldValueSelection on DynamicFieldValue {
@@ -1052,7 +1095,7 @@
 >  }
 >}</pre>
 
-### <a id=786422></a>
+### <a id=851957></a>
 ### Dynamic Object Field
 
 ><pre>fragment DynamicFieldValueSelection on DynamicFieldValue {
@@ -1104,7 +1147,7 @@
 >  }
 >}</pre>
 
-### <a id=786423></a>
+### <a id=851958></a>
 ### Owner
 
 ><pre>{
@@ -1115,9 +1158,9 @@
 >  }
 >}</pre>
 
-## <a id=13></a>
+## <a id=14></a>
 ## Protocol Configs
-### <a id=851955></a>
+### <a id=917490></a>
 ### Key Value
 ####  Select the key and value of the protocol configuration
 
@@ -1130,7 +1173,7 @@
 >  }
 >}</pre>
 
-### <a id=851956></a>
+### <a id=917491></a>
 ### Key Value Feature Flag
 ####  Select the key and value of the feature flag
 
@@ -1143,7 +1186,7 @@
 >  }
 >}</pre>
 
-### <a id=851957></a>
+### <a id=917492></a>
 ### Specific Config
 ####  Select the key and value of the specific protocol configuration, in this case `max_move_identifier_len`
 
@@ -1156,7 +1199,7 @@
 >  }
 >}</pre>
 
-### <a id=851958></a>
+### <a id=917493></a>
 ### Specific Feature Flag
 
 ><pre>{
@@ -1168,9 +1211,9 @@
 >  }
 >}</pre>
 
-## <a id=14></a>
+## <a id=15></a>
 ## Service Config
-### <a id=917490></a>
+### <a id=983025></a>
 ### Service Config
 ####  Get the configuration of the running service
 
@@ -1188,9 +1231,9 @@
 >  }
 >}</pre>
 
-## <a id=15></a>
+## <a id=16></a>
 ## Stake Connection
-### <a id=983025></a>
+### <a id=1048560></a>
 ### Stake Connection
 ####  Get all the staked objects for this address and all the active validators at the epoch when the stake became active
 
@@ -1228,49 +1271,6 @@
 >          epochId
 >        }
 >      }
->    }
->  }
->}</pre>
-
-## <a id=16></a>
-## Iota System State Summary
-### <a id=1048560></a>
-### Iota System State Summary
-####  Get the latest iota system state data
-
-><pre>{
->  epoch {
->    storageFund {
->      totalObjectStorageRebates
->      nonRefundableBalance
->    }
->    safeMode {
->      enabled
->      gasSummary {
->         computationCost
->         storageCost
->         storageRebate
->         nonRefundableStorageFee
->      }
->    }
->    systemStateVersion
->    systemParameters {
->      durationMs
->      stakeSubsidyStartEpoch
->      minValidatorCount
->      maxValidatorCount
->      minValidatorJoiningStake
->      validatorLowStakeThreshold
->      validatorVeryLowStakeThreshold
->      validatorLowStakeGracePeriod
->    }
->    systemStakeSubsidy {
->      balance
->      distributionCounter
->      currentDistributionAmount
->      periodLength
->      decreaseRate
->
 >    }
 >  }
 >}</pre>

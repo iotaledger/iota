@@ -41,7 +41,7 @@ export function AddAccountPage() {
     const forceShowLedger =
         searchParams.has('showLedger') && searchParams.get('showLedger') !== 'false';
     const [, setAccountsFormValues] = useAccountsFormContext();
-    const isPopup = useAppSelector((state) => state.app.appType === AppType.popup);
+    const isPopup = useAppSelector((state) => state.app.appType === AppType.Popup);
     const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(forceShowLedger);
     const createAccountsMutation = useCreateAccountsMutation();
 

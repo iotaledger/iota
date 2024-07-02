@@ -7,7 +7,7 @@ import clsx from 'clsx';
 import type { MouseEventHandler, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
-export type ItemProps = {
+export interface ItemProps {
     icon: ReactNode;
     title: ReactNode;
     subtitle?: ReactNode;
@@ -15,7 +15,7 @@ export type ItemProps = {
     to?: string;
     href?: string;
     onClick?: MouseEventHandler<Element>;
-};
+}
 
 function MenuListItem({
     icon,

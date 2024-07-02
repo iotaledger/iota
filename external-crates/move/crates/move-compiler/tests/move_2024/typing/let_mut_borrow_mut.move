@@ -3,7 +3,7 @@ module a::m {
     public fun t(x: u64, s: S) {
         let y = 0;
         let S { f } = s;
-        // these three borrows necessiate mut annotations above
+        // these three borrows necessitate mut annotations above
         foo(&mut x);
         foo(&mut y);
         foo(&mut f);

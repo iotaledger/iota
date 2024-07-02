@@ -17,7 +17,6 @@ packages:
   - '!sdk/typescript/utils'
   - '!sdk/typescript/bcs'
   - '!sdk/typescript/zklogin'
-  - '!sdk/enoki/react'
   - '!sdk/move-bytecode-template/pkg'
   - '!sdk/move-bytecode-template/pkg'
   - '!sdk/typescript/graphql'

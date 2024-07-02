@@ -10,7 +10,7 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{IotaAddress, ObjectRef},
     crypto::{get_key_pair, AccountKeyPair},
-    gas_coin::MICROS_PER_IOTA,
+    gas_coin::NANOS_PER_IOTA,
     transaction::Transaction,
 };
 use rand::seq::IteratorRandom;
@@ -79,7 +79,7 @@ impl Payload for DelegationTestPayload {
             None => make_transfer_iota_transaction(
                 self.gas,
                 self.sender,
-                Some(MICROS_PER_IOTA),
+                Some(NANOS_PER_IOTA),
                 self.sender,
                 &self.keypair,
                 self.system_state_observer

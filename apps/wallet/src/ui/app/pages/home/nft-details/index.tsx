@@ -58,7 +58,7 @@ function NFTDetailsPage() {
     const metaValues = metaFields ? metaFields.values : [];
     const { data: nftDisplayData, isPending: isPendingDisplay } = useGetNFTMeta(nftId || '');
     const objectExplorerLink = useExplorerLink({
-        type: ExplorerLinkType.object,
+        type: ExplorerLinkType.Object,
         objectID: nftId || '',
     });
     const ownerAddress =
@@ -68,7 +68,7 @@ function NFTDetailsPage() {
             objectData.owner.AddressOwner) ||
         '';
     const ownerExplorerLink = useExplorerLink({
-        type: ExplorerLinkType.address,
+        type: ExplorerLinkType.Address,
         address: ownerAddress,
     });
     const isGuardLoading = useUnlockedGuard();
