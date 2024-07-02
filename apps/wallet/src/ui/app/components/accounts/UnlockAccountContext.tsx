@@ -25,7 +25,7 @@ interface UnlockAccountProviderProps {
     children: ReactNode;
 }
 
-export const UnlockAccountProvider = ({ children }: UnlockAccountProviderProps) => {
+export function UnlockAccountProvider({ children }: UnlockAccountProviderProps) {
     const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
     const [accountToUnlock, setAccountToUnlock] = useState<SerializedUIAccount | null>(null);
     const unlockAccountMutation = useUnlockMutation();
@@ -90,12 +90,12 @@ export const UnlockAccountProvider = ({ children }: UnlockAccountProviderProps) 
             />
         </UnlockAccountContext.Provider>
     );
-};
+}
 
-export const useUnlockAccount = (): UnlockAccountContextType => {
+export function useUnlockAccount(): UnlockAccountContextType {
     const context = useContext(UnlockAccountContext);
     if (!context) {
         throw new Error('useUnlockAccount must be used within an UnlockAccountProvider');
     }
     return context;
-};
+}
