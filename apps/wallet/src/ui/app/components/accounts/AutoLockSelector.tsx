@@ -35,9 +35,9 @@ export const zodSchema = z.object({
         }),
 });
 
-interface AutoLockSelectorProps {
+type AutoLockSelectorProps = {
     disabled?: boolean;
-}
+};
 
 export function AutoLockSelector({ disabled }: AutoLockSelectorProps) {
     const { register, watch, trigger } = useFormContext();

@@ -9,13 +9,13 @@ import { MICROS_PER_IOTA } from '@iota/iota.js/utils';
 import { type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
-type TokenLinkProps = {
+type Props = {
     coinBalance: CoinBalance;
     centerAction?: ReactNode;
     subtitle?: string;
 };
 
-export function TokenLink({ coinBalance, centerAction, subtitle }: TokenLinkProps) {
+export function TokenLink({ coinBalance, centerAction, subtitle }: Props) {
     return (
         <Link
             to={`/send?type=${encodeURIComponent(coinBalance.coinType)}`}

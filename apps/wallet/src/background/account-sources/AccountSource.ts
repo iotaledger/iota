@@ -59,8 +59,8 @@ export interface AccountSourceSerialized {
     readonly createdAt: number;
 }
 
-export interface AccountSourceSerializedUI {
+export type AccountSourceSerializedUI = {
     readonly id: string;
     readonly type: AccountSourceType;
     readonly isLocked: boolean;
-}
+};

@@ -5,10 +5,10 @@
 import { Text } from '_app/shared/text';
 import type { ReactNode } from 'react';
 
-export interface FormLabelProps {
+export type FormLabelProps = {
     label?: ReactNode;
     children: ReactNode;
-}
+};
 
 export function FormLabel({ label, children }: FormLabelProps) {
     return (

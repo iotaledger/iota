@@ -5,13 +5,13 @@
 import { memo } from 'react';
 import type { ReactNode } from 'react';
 
-export interface ExternalLinkProps {
+export type ExternalLinkProps = {
     href: string;
     className?: string;
     children: ReactNode;
     title?: string;
     onClick?(): void;
-}
+};
 
 function ExternalLink({ href, className, children, title, onClick }: ExternalLinkProps) {
     return (

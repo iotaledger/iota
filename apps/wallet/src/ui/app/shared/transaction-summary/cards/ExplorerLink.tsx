@@ -27,12 +27,7 @@ function useShouldShowExplorerLink(timestamp?: string, digest?: string) {
     return shouldShow;
 }
 
-interface ExplorerLinkCardProps {
-    digest?: string;
-    timestamp?: string;
-}
-
-export function ExplorerLinkCard({ digest, timestamp }: ExplorerLinkCardProps) {
+export function ExplorerLinkCard({ digest, timestamp }: { digest?: string; timestamp?: string }) {
     const shouldShowExplorerLink = useShouldShowExplorerLink(timestamp, digest);
     const explorerHref = useExplorerLink({
         type: ExplorerLinkType.Transaction,

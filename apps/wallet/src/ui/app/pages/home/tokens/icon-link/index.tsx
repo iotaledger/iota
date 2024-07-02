@@ -9,12 +9,12 @@ import { Link } from 'react-router-dom';
 
 import st from './IconLink.module.scss';
 
-export interface IconLinkProps {
+export type IconLinkProps = {
     to: string;
     icon: ReactNode;
     disabled?: boolean;
     text: string;
-}
+};
 
 function IconLink({ to, icon, disabled = false, text }: IconLinkProps) {
     return (

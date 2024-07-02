@@ -11,9 +11,9 @@ import { useMemo } from 'react';
 
 const APY_DECIMALS = 3;
 
-interface DelegatedAPYProps {
+type DelegatedAPYProps = {
     stakedValidators: string[];
-}
+};
 
 export function DelegatedAPY({ stakedValidators }: DelegatedAPYProps) {
     const { data, isPending } = useIotaClientQuery('getLatestIotaSystemState');

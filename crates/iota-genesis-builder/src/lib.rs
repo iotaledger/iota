@@ -4,8 +4,7 @@
 
 use std::{
     collections::{BTreeMap, HashSet},
-    fs,
-    io::prelude::Read,
+    fs::{self, File},
     path::Path,
     sync::Arc,
 };
@@ -72,7 +71,6 @@ pub const BROTLI_COMPRESSOR_QUALITY: u32 = 11;
 pub const BROTLI_COMPRESSOR_LG_WINDOW_SIZE: u32 = 22;
 
 pub const OBJECT_SNAPSHOT_FILE_PATH: &str = "stardust_object_snapshot.bin";
-
 pub struct Builder {
     parameters: GenesisCeremonyParameters,
     token_distribution_schedule: Option<TokenDistributionSchedule>,
@@ -176,8 +174,14 @@ impl Builder {
         self
     }
 
-    pub fn add_migration_objects(self, reader: impl Read) -> anyhow::Result<Self> {
-        Ok(self.add_objects(bcs::from_reader(reader)?))
+    pub fn load_stardust_migration_objects(
+        self,
+        snapshot: impl AsRef<Path>,
+    ) -> anyhow::Result<Self> {
+        Ok(self.add_objects(bcs::from_reader(brotli::Decompressor::new(
+            File::open(snapshot)?,
+            BROTLI_COMPRESSOR_BUFFER_SIZE,
+        ))?))
     }
 
     pub fn unsigned_genesis_checkpoint(&self) -> Option<UnsignedGenesis> {
@@ -467,7 +471,7 @@ impl Builder {
         let token_distribution_schedule = self.token_distribution_schedule.clone().unwrap();
         assert_eq!(
             system_state.stake_subsidy.balance.value(),
-            token_distribution_schedule.stake_subsidy_fund_nanos
+            token_distribution_schedule.stake_subsidy_fund_micros
         );
 
         let mut gas_objects: BTreeMap<ObjectID, (&Object, GasCoin)> = unsigned_genesis
@@ -493,7 +497,7 @@ impl Builder {
                             panic!("gas object owner must be address owner");
                         };
                         *owner == allocation.recipient_address
-                            && s.principal() == allocation.amount_nanos
+                            && s.principal() == allocation.amount_micros
                             && s.pool_id() == staking_pool_id
                     })
                     .map(|(k, _)| *k)
@@ -504,7 +508,7 @@ impl Builder {
                     staked_iota_object.0.owner,
                     Owner::AddressOwner(allocation.recipient_address)
                 );
-                assert_eq!(staked_iota_object.1.principal(), allocation.amount_nanos);
+                assert_eq!(staked_iota_object.1.principal(), allocation.amount_micros);
                 assert_eq!(staked_iota_object.1.pool_id(), staking_pool_id);
                 assert_eq!(staked_iota_object.1.activation_epoch(), 0);
             } else {
@@ -513,7 +517,7 @@ impl Builder {
                     .find(|(_k, (o, g))| {
                         if let Owner::AddressOwner(owner) = &o.owner {
                             *owner == allocation.recipient_address
-                                && g.value() == allocation.amount_nanos
+                                && g.value() == allocation.amount_micros
                         } else {
                             false
                         }
@@ -525,7 +529,7 @@ impl Builder {
                     gas_object.0.owner,
                     Owner::AddressOwner(allocation.recipient_address)
                 );
-                assert_eq!(gas_object.1.value(), allocation.amount_nanos,);
+                assert_eq!(gas_object.1.value(), allocation.amount_micros,);
             }
         }
 

@@ -34,7 +34,7 @@ jobs:
       # able to authenticate with the cluster.
       id-token: write
       contents: read
-    runs-on: self-hosted-rust
+    runs-on: ubuntu-latest
 
     steps:
       - name: Install Teleport

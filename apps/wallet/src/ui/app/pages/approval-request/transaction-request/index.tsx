@@ -21,9 +21,9 @@ import { ConfirmationModal } from '../../../shared/ConfirmationModal';
 import { GasFees } from './GasFees';
 import { TransactionDetails } from './TransactionDetails';
 
-export interface TransactionRequestProps {
+export type TransactionRequestProps = {
     txRequest: TransactionApprovalRequest;
-}
+};
 
 // Some applications require *a lot* of transactions to interact with, and this
 // eats up our analytics event quota. As a short-term solution so we don't have

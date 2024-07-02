@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) Mysten Labs, Inc.
+# SPDX-License-Identifier: Apache-2.0
+
 # Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 """Generate a committee.json file
@@ -32,6 +34,7 @@ def main():
     for i in range(args.n):
         k = open("{}/validator-{:02d}/network-key.json".format(args.d, i)).read()
         network_keys.append(json.loads(k))
+
 
     temp = {}
     for i, (k, nk) in enumerate(zip(keys, network_keys)):

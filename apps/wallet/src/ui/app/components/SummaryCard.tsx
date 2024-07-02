@@ -7,7 +7,7 @@ import type { ReactNode } from 'react';
 
 import { Text } from '../shared/text';
 
-export interface SummaryCardProps {
+export type SummaryCardProps = {
     header?: string;
     body: ReactNode;
     footer?: ReactNode;
@@ -15,7 +15,7 @@ export interface SummaryCardProps {
     showDivider?: boolean;
     noBorder?: boolean;
     boxShadow?: boolean;
-}
+};
 
 export function SummaryCard({
     body,

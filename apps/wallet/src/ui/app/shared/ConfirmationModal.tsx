@@ -8,7 +8,7 @@ import { Button, type ButtonProps } from './ButtonUI';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './Dialog';
 import { Text } from './text';
 
-export interface ConfirmationModalProps {
+export type ConfirmationModalProps = {
     isOpen: boolean;
     title?: string;
     hint?: string;
@@ -17,7 +17,7 @@ export interface ConfirmationModalProps {
     cancelText?: string;
     cancelStyle?: ButtonProps['variant'];
     onResponse: (confirmed: boolean) => void;
-}
+};
 
 export function ConfirmationModal({
     isOpen,

@@ -14,12 +14,12 @@ import { StakeTxnCard } from './StakeTxnCard';
 import { StatusIcon } from './StatusIcon';
 import { UnStakeTxnCard } from './UnstakeTxnCard';
 
-interface TransactionStatusProps {
-    success: boolean;
-    timestamp?: string;
-}
+type ReceiptCardProps = {
+    txn: IotaTransactionBlockResponse;
+    activeAddress: string;
+};
 
-function TransactionStatus({ success, timestamp }: TransactionStatusProps) {
+function TransactionStatus({ success, timestamp }: { success: boolean; timestamp?: string }) {
     return (
         <div className="mb-4 flex flex-col items-center justify-center gap-3">
             <StatusIcon status={success} />
@@ -29,11 +29,6 @@ function TransactionStatus({ success, timestamp }: TransactionStatusProps) {
             {timestamp && <DateCard timestamp={Number(timestamp)} size="md" />}
         </div>
     );
-}
-
-interface ReceiptCardProps {
-    txn: IotaTransactionBlockResponse;
-    activeAddress: string;
 }
 
 export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {

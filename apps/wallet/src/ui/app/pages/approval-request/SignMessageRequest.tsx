@@ -15,9 +15,9 @@ import { Heading } from '../../shared/heading';
 import { PageMainLayoutTitle } from '../../shared/page-main-layout/PageMainLayoutTitle';
 import { Text } from '../../shared/text';
 
-export interface SignMessageRequestProps {
+export type SignMessageRequestProps = {
     request: SignMessageApprovalRequest;
-}
+};
 
 export function SignMessageRequest({ request }: SignMessageRequestProps) {
     const { message, type } = useMemo(() => toUtf8OrB64(request.tx.message), [request.tx.message]);

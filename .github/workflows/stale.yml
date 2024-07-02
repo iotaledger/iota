@@ -4,7 +4,7 @@ on:
     - cron: "30 1 * * *"
 jobs:
   stale:
-    runs-on: self-hosted-rust
+    runs-on: ubuntu-latest
     permissions:
       issues: write
       pull-requests: write

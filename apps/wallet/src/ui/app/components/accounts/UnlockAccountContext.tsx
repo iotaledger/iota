@@ -21,11 +21,7 @@ interface UnlockAccountContextType {
 
 const UnlockAccountContext = createContext<UnlockAccountContextType | null>(null);
 
-interface UnlockAccountProviderProps {
-    children: ReactNode;
-}
-
-export const UnlockAccountProvider = ({ children }: UnlockAccountProviderProps) => {
+export const UnlockAccountProvider = ({ children }: { children: ReactNode }) => {
     const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
     const [accountToUnlock, setAccountToUnlock] = useState<SerializedUIAccount | null>(null);
     const unlockAccountMutation = useUnlockMutation();

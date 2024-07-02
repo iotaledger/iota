@@ -46,16 +46,11 @@ import { TokenIconLink } from './TokenIconLink';
 import { TokenLink } from './TokenLink';
 import { TokenList } from './TokenList';
 
-interface TokenDetailsProps {
+type TokenDetailsProps = {
     coinType?: string;
-}
+};
 
-interface PinButtonProps {
-    unpin?: boolean;
-    onClick: () => void;
-}
-
-function PinButton({ unpin, onClick }: PinButtonProps) {
+function PinButton({ unpin, onClick }: { unpin?: boolean; onClick: () => void }) {
     return (
         <button
             type="button"
@@ -72,14 +67,17 @@ function PinButton({ unpin, onClick }: PinButtonProps) {
     );
 }
 
-interface TokenRowButtonProps {
+function TokenRowButton({
+    coinBalance,
+    children,
+    to,
+    onClick,
+}: {
     coinBalance: CoinBalanceType;
     children: ReactNode;
     to: string;
     onClick?: () => void;
-}
-
-function TokenRowButton({ coinBalance, children, to, onClick }: TokenRowButtonProps) {
+}) {
     return (
         <ButtonOrLink
             to={to}
@@ -92,13 +90,15 @@ function TokenRowButton({ coinBalance, children, to, onClick }: TokenRowButtonPr
     );
 }
 
-interface TokenRowProps {
+export function TokenRow({
+    coinBalance,
+    renderActions,
+    onClick,
+}: {
     coinBalance: CoinBalanceType;
     renderActions?: boolean;
     onClick?: () => void;
-}
-
-export function TokenRow({ coinBalance, renderActions, onClick }: TokenRowProps) {
+}) {
     const coinType = coinBalance.coinType;
     const balance = BigInt(coinBalance.totalBalance);
     const [formatted, symbol, { data: coinMeta }] = useFormatCoin(balance, coinType);
@@ -179,13 +179,15 @@ export function TokenRow({ coinBalance, renderActions, onClick }: TokenRowProps)
     );
 }
 
-interface MyTokensProps {
+export function MyTokens({
+    coinBalances,
+    isLoading,
+    isFetched,
+}: {
     coinBalances: CoinBalanceType[];
     isLoading: boolean;
     isFetched: boolean;
-}
-
-export function MyTokens({ coinBalances, isLoading, isFetched }: MyTokensProps) {
+}) {
     const isDefiWalletEnabled = useIsWalletDefiEnabled();
     const network = useAppSelector(({ app }) => app.network);
 

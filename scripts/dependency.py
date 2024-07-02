@@ -1,4 +1,6 @@
 # Copyright (c) Mysten Labs, Inc.
+# SPDX-License-Identifier: Apache-2.0
+
 # Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
@@ -8,7 +10,6 @@ import re
 
 ROOT = os.path.join(os.path.dirname(__file__), "../")
 PATTERN = None
-
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -30,7 +31,6 @@ def parse_args():
     upgrade_group.add_argument("--rev")
     upgrade_group.add_argument("--branch")
     return parser.parse_args()
-
 
 def scan_file(file, process_line, depth=0):
     new_content = []
@@ -63,7 +63,6 @@ def try_match_line(line):
             extra = m.group(2).replace(',', ', ').replace('=', ' = ')
         return (name, extra)
     return None
-
 
 def switch_to_local(project):
     default_path_map = {
@@ -123,7 +122,6 @@ def switch_to_local(project):
 
 def upgrade_revision(project, repo, rev, branch):
     assert (args.rev is None) != (args.branch is None)
-
     def process_line(line, _):
         m = try_match_line(line)
         if m:
@@ -140,11 +138,10 @@ def upgrade_revision(project, repo, rev, branch):
 
 
 args = parse_args()
-assert (args.project == "move" or args.project == "narwhal")
+assert(args.project == "move" or args.project == "narwhal")
 
 PATTERN = re.compile(
-    '(.+)={git="https://github.com/.+/' +
-    args.project + '",(?:rev|branch)="[^"]+"(,.*)?}'
+    '(.+)={git="https://github.com/.+/' + args.project + '",(?:rev|branch)="[^"]+"(,.*)?}'
 )
 
 if args.command == "local":

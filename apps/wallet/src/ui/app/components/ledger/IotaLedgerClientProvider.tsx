@@ -13,14 +13,14 @@ import {
     LedgerNoTransportMechanismError,
 } from './ledgerErrors';
 
-interface IotaLedgerClientProviderProps {
+type IotaLedgerClientProviderProps = {
     children: React.ReactNode;
-}
+};
 
-interface IotaLedgerClientContextValue {
+type IotaLedgerClientContextValue = {
     iotaLedgerClient: IotaLedgerClient | undefined;
     connectToLedger: (requestPermissionsFirst?: boolean) => Promise<IotaLedgerClient>;
-}
+};
 
 const IotaLedgerClientContext = createContext<IotaLedgerClientContextValue | undefined>(undefined);
 

@@ -19,9 +19,9 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-interface ImportPrivateKeyFormProps {
+type ImportPrivateKeyFormProps = {
     onSubmit: SubmitHandler<FormValues>;
-}
+};
 
 export function ImportPrivateKeyForm({ onSubmit }: ImportPrivateKeyFormProps) {
     const form = useZodForm({

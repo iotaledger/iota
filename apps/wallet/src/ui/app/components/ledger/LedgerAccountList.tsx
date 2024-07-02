@@ -9,10 +9,10 @@ export type SelectableLedgerAccount = DerivedLedgerAccount & {
     isSelected: boolean;
 };
 
-interface LedgerAccountListProps {
+type LedgerAccountListProps = {
     accounts: SelectableLedgerAccount[];
     onAccountClick: (account: SelectableLedgerAccount) => void;
-}
+};
 
 export function LedgerAccountList({ accounts, onAccountClick }: LedgerAccountListProps) {
     return (

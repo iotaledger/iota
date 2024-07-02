@@ -21,11 +21,7 @@ import { Card } from '../Card';
 import { OwnerFooter } from '../OwnerFooter';
 import { ObjectChangeDisplay } from './objectSummary/ObjectChangeDisplay';
 
-interface ChevronDownProps {
-    expanded: boolean;
-}
-
-function ChevronDown({ expanded }: ChevronDownProps) {
+function ChevronDown({ expanded }: { expanded: boolean }) {
     return expanded ? (
         <ChevronDown12 className="text-gray-45" />
     ) : (
@@ -33,13 +29,14 @@ function ChevronDown({ expanded }: ChevronDownProps) {
     );
 }
 
-interface ObjectDetailProps {
+export function ObjectDetail({
+    change,
+    display,
+}: {
     change: IotaObjectChangeWithDisplay;
     ownerKey: string;
     display?: boolean;
-}
-
-export function ObjectDetail({ change, display }: ObjectDetailProps) {
+}) {
     if (change.type === 'transferred' || change.type === 'published') {
         return null;
     }
@@ -221,11 +218,7 @@ export function ObjectChangeEntry({ changes, type }: ObjectChangeEntryProps) {
     );
 }
 
-interface ObjectChangesProps {
-    changes?: ObjectChangeSummary | null;
-}
-
-export function ObjectChanges({ changes }: ObjectChangesProps) {
+export function ObjectChanges({ changes }: { changes?: ObjectChangeSummary | null }) {
     if (!changes) return null;
 
     return (

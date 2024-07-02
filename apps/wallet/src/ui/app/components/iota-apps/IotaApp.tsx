@@ -20,13 +20,13 @@ export type DAppEntry = {
 };
 export type DisplayType = 'full' | 'card';
 
-interface CardViewProps {
+type CardViewProp = {
     name: string;
     link: string;
     icon?: string;
-}
+};
 
-function CardView({ name, link, icon }: CardViewProps) {
+function CardView({ name, link, icon }: CardViewProp) {
     const appUrl = getDAppUrl(link);
     const originLabel = appUrl.hostname;
     return (
@@ -49,14 +49,14 @@ function CardView({ name, link, icon }: CardViewProps) {
     );
 }
 
-interface ListViewProps {
+type ListViewProp = {
     name: string;
     icon?: string;
     description: string;
     tags?: string[];
-}
+};
 
-function ListView({ name, icon, description, tags }: ListViewProps) {
+function ListView({ name, icon, description, tags }: ListViewProp) {
     return (
         <div className="item-center box-border flex gap-3 rounded bg-white px-1.25 py-3.5 hover:bg-iota/10">
             <ImageIcon src={icon || null} label={name} fallback={name} size="xxl" rounded="lg" />

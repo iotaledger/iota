@@ -13,11 +13,7 @@ import { Link } from 'react-router-dom';
 import { useHiddenAssets } from '../hidden-assets/HiddenAssetsProvider';
 import { getKioskIdFromOwnerCap, isKioskOwnerToken, useKioskClient } from '@iota/core';
 
-interface VisualAssetsProps {
-    items: IotaObjectData[];
-}
-
-export default function VisualAssets({ items }: VisualAssetsProps) {
+export default function VisualAssets({ items }: { items: IotaObjectData[] }) {
     const { hideAsset } = useHiddenAssets();
     const kioskClient = useKioskClient();
 

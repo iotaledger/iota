@@ -13,10 +13,9 @@ import { AccountType } from '_src/background/accounts/Account';
 type LedgerAccountKeys = 'address' | 'publicKey' | 'type' | 'derivationPath';
 
 export type DerivedLedgerAccount = Pick<LedgerAccountSerializedUI, LedgerAccountKeys>;
-interface UseDeriveLedgerAccountOptions
-    extends Pick<UseQueryOptions<DerivedLedgerAccount[], unknown>, 'select'> {
+type UseDeriveLedgerAccountOptions = {
     numAccountsToDerive: number;
-}
+} & Pick<UseQueryOptions<DerivedLedgerAccount[], unknown>, 'select'>;
 
 export function useDeriveLedgerAccounts(options: UseDeriveLedgerAccountOptions) {
     const { numAccountsToDerive, ...useQueryOptions } = options;

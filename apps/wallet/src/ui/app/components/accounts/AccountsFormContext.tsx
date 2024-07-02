@@ -42,11 +42,7 @@ type AccountsFormContextType = [
 
 const AccountsFormContext = createContext<AccountsFormContextType | null>(null);
 
-interface AccountsFormProviderProps {
-    children: ReactNode;
-}
-
-export const AccountsFormProvider = ({ children }: AccountsFormProviderProps) => {
+export const AccountsFormProvider = ({ children }: { children: ReactNode }) => {
     const valuesRef = useRef<AccountsFormValues>(null);
     const setter = useCallback((values: AccountsFormValues) => {
         valuesRef.current = values;

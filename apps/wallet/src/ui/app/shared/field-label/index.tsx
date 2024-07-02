@@ -5,10 +5,10 @@
 import { Text } from '_app/shared/text';
 import type { ReactNode } from 'react';
 
-export interface FieldLabelProps {
+export type FieldLabelProps = {
     txt: string;
     children: ReactNode | ReactNode[];
-}
+};
 
 export default function FieldLabel({ txt, children }: FieldLabelProps) {
     return (

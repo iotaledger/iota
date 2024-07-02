@@ -22,14 +22,6 @@ export interface NetworkConfiguration {
     explorer: string;
     chain: ChainType;
     faucet?: string;
-    kiosk?: KioskConfiguration;
-}
-
-export interface KioskConfiguration {
-    royaltyRulePackageId: string;
-    kioskLockRulePackageId: string;
-    floorPriceRulePackageId: string;
-    personalKioskRulePackageId: string;
 }
 
 type NetworksConfiguration = Record<NetworkId, NetworkConfiguration>;

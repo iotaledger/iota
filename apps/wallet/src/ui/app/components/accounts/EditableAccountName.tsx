@@ -3,14 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useZodForm } from '@iota/core';
-import { forwardRef, useRef } from 'react';
+import { forwardRef, useRef, type ComponentProps } from 'react';
 import toast from 'react-hot-toast';
 import { z } from 'zod';
 
 import { useBackgroundClient } from '../../hooks/useBackgroundClient';
 import { Form } from '../../shared/forms/Form';
 
-interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'className'> {}
+type InputProps = Omit<ComponentProps<'input'>, 'className'>;
 
 export const Input = forwardRef<HTMLInputElement, InputProps>((props, forwardedRef) => (
     <input

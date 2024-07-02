@@ -27,11 +27,11 @@ const formSchema = z.object({
 
 export type FormValues = z.infer<typeof formSchema>;
 
-interface ImportRecoveryPhraseFormProps {
+type ImportRecoveryPhraseFormProps = {
     submitButtonText: string;
     cancelButtonText?: string;
     onSubmit: SubmitHandler<FormValues>;
-}
+};
 
 export function ImportRecoveryPhraseForm({
     submitButtonText,

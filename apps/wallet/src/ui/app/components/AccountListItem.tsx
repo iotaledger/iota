@@ -11,10 +11,10 @@ import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 import { Text } from '../shared/text';
 import { AccountBadge } from './AccountBadge';
 
-export interface AccountItemProps {
+export type AccountItemProps = {
     account: SerializedUIAccount;
     onAccountSelected: (account: SerializedUIAccount) => void;
-}
+};
 
 /** @deprecated - use AccountListItem from the `accounts` folder **/
 export function AccountListItem({ account, onAccountSelected }: AccountItemProps) {

@@ -8,10 +8,10 @@ import type { ReactNode } from 'react';
 
 import st from './BottomMenuLayout.module.scss';
 
-export interface BottomMenuLayoutProps {
+export type BottomMenuLayoutProps = {
     className?: string;
     children: [ReactNode, ReactNode];
-}
+};
 
 function BottomMenuLayout({ className, children }: BottomMenuLayoutProps) {
     if (Children.count(children) < 2) {
@@ -23,10 +23,10 @@ function BottomMenuLayout({ className, children }: BottomMenuLayoutProps) {
     return <div className={cl(st.container, className)}>{children}</div>;
 }
 
-interface ContentMenuProps {
+type ContentMenuProps = {
     className?: string;
     children: ReactNode | ReactNode[];
-}
+};
 
 function ContentNoMemo({ className, children }: ContentMenuProps) {
     return <div className={cl(className, st.content)}>{children}</div>;

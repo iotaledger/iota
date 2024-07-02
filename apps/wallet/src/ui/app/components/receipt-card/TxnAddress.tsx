@@ -7,10 +7,10 @@ import { useResolveIotaNSName } from '@iota/core';
 
 import { TxnAddressLink } from './TxnAddressLink';
 
-interface TxnAddressProps {
+type TxnAddressProps = {
     address: string;
     label: string;
-}
+};
 
 export function TxnAddress({ address, label }: TxnAddressProps) {
     const { data: domainName } = useResolveIotaNSName(address);

@@ -9,11 +9,10 @@ import { Link, type LinkProps } from 'react-router-dom';
 import LoadingIndicator from '../../components/loading/LoadingIndicator';
 import { Tooltip } from '../tooltip';
 
-interface WithTooltipProps {
+type WithTooltipProps = {
     title?: ReactNode;
     children: ReactNode;
-}
-
+};
 function WithTooltip({ title, children }: WithTooltipProps) {
     if (title) {
         return <Tooltip tip={title}>{children}</Tooltip>;

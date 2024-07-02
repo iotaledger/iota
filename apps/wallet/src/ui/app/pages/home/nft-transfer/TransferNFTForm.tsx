@@ -23,12 +23,13 @@ import { useNavigate } from 'react-router-dom';
 import { useTransferKioskItem } from './useTransferKioskItem';
 import { createValidationSchema } from './validation';
 
-interface TransferNFTFormProps {
+export function TransferNFTForm({
+    objectId,
+    objectType,
+}: {
     objectId: string;
     objectType?: string | null;
-}
-
-export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) {
+}) {
     const activeAddress = useActiveAddress();
     const rpc = useIotaClient();
     const iotaNSEnabled = useIotaNSEnabled();

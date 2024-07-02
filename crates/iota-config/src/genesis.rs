@@ -18,7 +18,7 @@ use iota_types::{
     deny_list::{get_coin_deny_list, PerTypeDenyList},
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
-    gas_coin::TOTAL_SUPPLY_NANOS,
+    gas_coin::TOTAL_SUPPLY_MICROS,
     iota_system_state::{
         get_iota_system_state, get_iota_system_state_wrapper, IotaSystemState,
         IotaSystemStateTrait, IotaSystemStateWrapper, IotaValidatorGenesis,
@@ -435,7 +435,7 @@ impl GenesisCeremonyParameters {
 
     fn default_initial_stake_subsidy_distribution_amount() -> u64 {
         // 1M Iota
-        1_000_000 * iota_types::gas_coin::NANOS_PER_IOTA
+        1_000_000 * iota_types::gas_coin::MICROS_PER_IOTA
     }
 
     fn default_stake_subsidy_period_length() -> u64 {
@@ -459,11 +459,11 @@ impl GenesisCeremonyParameters {
             stake_subsidy_period_length: self.stake_subsidy_period_length,
             stake_subsidy_decrease_rate: self.stake_subsidy_decrease_rate,
             max_validator_count: iota_types::governance::MAX_VALIDATOR_COUNT,
-            min_validator_joining_stake: iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
+            min_validator_joining_stake: iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_MICROS,
             validator_low_stake_threshold:
-                iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS,
+                iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_MICROS,
             validator_very_low_stake_threshold:
-                iota_types::governance::VALIDATOR_VERY_LOW_STAKE_THRESHOLD_NANOS,
+                iota_types::governance::VALIDATOR_VERY_LOW_STAKE_THRESHOLD_MICROS,
             validator_low_stake_grace_period:
                 iota_types::governance::VALIDATOR_LOW_STAKE_GRACE_PERIOD,
         }
@@ -479,21 +479,21 @@ impl Default for GenesisCeremonyParameters {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct TokenDistributionSchedule {
-    pub stake_subsidy_fund_nanos: u64,
+    pub stake_subsidy_fund_micros: u64,
     pub allocations: Vec<TokenAllocation>,
 }
 
 impl TokenDistributionSchedule {
     pub fn validate(&self) {
-        let mut total_nanos = self.stake_subsidy_fund_nanos;
+        let mut total_micros = self.stake_subsidy_fund_micros;
 
         for allocation in &self.allocations {
-            total_nanos += allocation.amount_nanos;
+            total_micros += allocation.amount_micros;
         }
 
-        if total_nanos != TOTAL_SUPPLY_NANOS {
+        if total_micros != TOTAL_SUPPLY_MICROS {
             panic!(
-                "TokenDistributionSchedule adds up to {total_nanos} and not expected {TOTAL_SUPPLY_NANOS}"
+                "TokenDistributionSchedule adds up to {total_micros} and not expected {TOTAL_SUPPLY_MICROS}"
             );
         }
     }
@@ -516,13 +516,13 @@ impl TokenDistributionSchedule {
                 *validators
                     .get_mut(staked_with_validator)
                     .expect("allocation must be staked with valid validator") +=
-                    allocation.amount_nanos;
+                    allocation.amount_micros;
             }
         }
 
         // Check that all validators have sufficient stake allocated to ensure they meet
         // the minimum stake threshold
-        let minimum_required_stake = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS;
+        let minimum_required_stake = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_MICROS;
         for (validator, stake) in validators {
             if stake < minimum_required_stake {
                 panic!(
@@ -535,8 +535,8 @@ impl TokenDistributionSchedule {
     pub fn new_for_validators_with_default_allocation<I: IntoIterator<Item = IotaAddress>>(
         validators: I,
     ) -> Self {
-        let mut supply = TOTAL_SUPPLY_NANOS;
-        let default_allocation = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS;
+        let mut supply = TOTAL_SUPPLY_MICROS;
+        let default_allocation = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_MICROS;
 
         let allocations = validators
             .into_iter()
@@ -544,14 +544,14 @@ impl TokenDistributionSchedule {
                 supply -= default_allocation;
                 TokenAllocation {
                     recipient_address: a,
-                    amount_nanos: default_allocation,
+                    amount_micros: default_allocation,
                     staked_with_validator: Some(a),
                 }
             })
             .collect();
 
         let schedule = Self {
-            stake_subsidy_fund_nanos: supply,
+            stake_subsidy_fund_micros: supply,
             allocations,
         };
 
@@ -573,8 +573,8 @@ impl TokenDistributionSchedule {
         let mut allocations: Vec<TokenAllocation> =
             reader.deserialize().collect::<Result<_, _>>()?;
         assert_eq!(
-            TOTAL_SUPPLY_NANOS,
-            allocations.iter().map(|a| a.amount_nanos).sum::<u64>(),
+            TOTAL_SUPPLY_MICROS,
+            allocations.iter().map(|a| a.amount_micros).sum::<u64>(),
             "Token Distribution Schedule must add up to 10B Iota",
         );
         let stake_subsidy_fund_allocation = allocations.pop().unwrap();
@@ -591,7 +591,7 @@ impl TokenDistributionSchedule {
         );
 
         let schedule = Self {
-            stake_subsidy_fund_nanos: stake_subsidy_fund_allocation.amount_nanos,
+            stake_subsidy_fund_micros: stake_subsidy_fund_allocation.amount_micros,
             allocations,
         };
 
@@ -608,7 +608,7 @@ impl TokenDistributionSchedule {
 
         writer.serialize(TokenAllocation {
             recipient_address: IotaAddress::default(),
-            amount_nanos: self.stake_subsidy_fund_nanos,
+            amount_micros: self.stake_subsidy_fund_micros,
             staked_with_validator: None,
         })?;
 
@@ -620,7 +620,7 @@ impl TokenDistributionSchedule {
 #[serde(rename_all = "kebab-case")]
 pub struct TokenAllocation {
     pub recipient_address: IotaAddress,
-    pub amount_nanos: u64,
+    pub amount_micros: u64,
 
     /// Indicates if this allocation should be staked at genesis and with which
     /// validator
@@ -637,7 +637,7 @@ impl TokenDistributionScheduleBuilder {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
-            pool: TOTAL_SUPPLY_NANOS,
+            pool: TOTAL_SUPPLY_MICROS,
             allocations: vec![],
         }
     }
@@ -646,25 +646,25 @@ impl TokenDistributionScheduleBuilder {
         &mut self,
         validators: I,
     ) {
-        let default_allocation = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS;
+        let default_allocation = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_MICROS;
 
         for validator in validators {
             self.add_allocation(TokenAllocation {
                 recipient_address: validator,
-                amount_nanos: default_allocation,
+                amount_micros: default_allocation,
                 staked_with_validator: Some(validator),
             });
         }
     }
 
     pub fn add_allocation(&mut self, allocation: TokenAllocation) {
-        self.pool = self.pool.checked_sub(allocation.amount_nanos).unwrap();
+        self.pool = self.pool.checked_sub(allocation.amount_micros).unwrap();
         self.allocations.push(allocation);
     }
 
     pub fn build(&self) -> TokenDistributionSchedule {
         let schedule = TokenDistributionSchedule {
-            stake_subsidy_fund_nanos: self.pool,
+            stake_subsidy_fund_micros: self.pool,
             allocations: self.allocations.clone(),
         };
 

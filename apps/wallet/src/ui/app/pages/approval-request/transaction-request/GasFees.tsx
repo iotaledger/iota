@@ -10,12 +10,12 @@ import { formatAddress } from '@iota/iota.js/utils';
 import { DescriptionItem, DescriptionList } from './DescriptionList';
 import { SummaryCard } from './SummaryCard';
 
-interface GasFeesProps {
+interface Props {
     sender?: string;
     transaction: TransactionBlock;
 }
 
-export function GasFees({ sender, transaction }: GasFeesProps) {
+export function GasFees({ sender, transaction }: Props) {
     const { data: transactionData } = useTransactionData(sender, transaction);
     const { data: gasBudget, isPending, isError } = useTransactionGasBudget(sender, transaction);
     const isSponsored =

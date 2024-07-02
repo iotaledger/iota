@@ -8,11 +8,11 @@ import { Link } from 'react-router-dom';
 
 import Logo from '../../components/logo';
 
-interface HeaderProps {
+type HeaderProps = {
     network: Network;
     middleContent?: ReactNode;
     rightContent?: ReactNode;
-}
+};
 
 /**
  * General page header that can render arbitrary content where the content

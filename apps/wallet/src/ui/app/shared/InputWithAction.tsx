@@ -40,13 +40,13 @@ const styles = cva(
     },
 );
 
-interface ActionButtonProps {
+type ActionButtonProps = {
     actionText?: string;
     onActionClicked?: PillProps['onClick'];
     actionType?: PillProps['type'];
     name: string;
     actionDisabled?: boolean | 'auto';
-}
+};
 
 export type InputWithActionProps = VariantProps<typeof styles> &
     (

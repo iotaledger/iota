@@ -9,11 +9,11 @@ import { useState } from 'react';
 
 import { SelectAllButton } from '_components/accounts/SelectAllButton';
 
-interface AccountMultiSelectProps {
+type AccountMultiSelectProps = {
     accounts: SerializedUIAccount[];
     selectedAccountIDs: string[];
     onChange: (value: string[]) => void;
-}
+};
 
 export function AccountMultiSelect({
     accounts,

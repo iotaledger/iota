@@ -17,12 +17,12 @@ import { Toaster } from '../toaster';
 
 export const PageMainLayoutContext = createContext<HTMLDivElement | null>(null);
 
-export interface PageMainLayoutProps {
+export type PageMainLayoutProps = {
     children: ReactNode | ReactNode[];
     bottomNavEnabled?: boolean;
     topNavMenuEnabled?: boolean;
     dappStatusEnabled?: boolean;
-}
+};
 
 export function PageMainLayout({
     children,

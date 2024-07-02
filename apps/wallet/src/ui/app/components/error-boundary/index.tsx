@@ -19,9 +19,9 @@ function Fallback({ error }: FallbackProps) {
     );
 }
 
-export interface ErrorBoundaryProps {
+export type ErrorBoundaryProps = {
     children: ReactNode | ReactNode[];
-}
+};
 
 export function ErrorBoundary({ children }: ErrorBoundaryProps) {
     const location = useLocation();

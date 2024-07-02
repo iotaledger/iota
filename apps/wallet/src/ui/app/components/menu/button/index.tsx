@@ -9,9 +9,9 @@ import { Link } from 'react-router-dom';
 
 import st from './MenuButton.module.scss';
 
-export interface MenuButtonProps {
+export type MenuButtonProps = {
     className?: string;
-}
+};
 
 function MenuButton({ className }: MenuButtonProps) {
     const isOpen = useMenuIsOpen();
