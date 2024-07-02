@@ -21,6 +21,7 @@ use iota_config::genesis::{
 use iota_execution::{self, Executor};
 use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_sdk::Url;
 use iota_types::{
     base_types::{
         ExecutionDigests, IotaAddress, ObjectID, SequenceNumber, TransactionDigest, TxContext,
@@ -184,13 +185,15 @@ impl Builder {
         Ok(self.add_objects(bcs::from_reader(reader)?))
     }
 
-    pub fn download_tar_gz_object_snapshot_and_extract(
+    /// Downloads a .tar.gz object snapshot file from the given URL, extracts
+    /// it, and returns a reader.
+    pub fn download_tar_gz_snapshot_and_extract(
         url: TarGzSnapshotUrl,
     ) -> anyhow::Result<Box<dyn Read>> {
         // Step 1: Create a temporary file to download the .tar.gz file directly
         let mut temp_tar_gz = tempfile()?;
         let client = Client::new();
-        let mut response = client.get(url.to_url_string()).send()?;
+        let mut response = client.get(url.to_url()).send()?;
 
         // Stream the response directly into the temporary file
         {
@@ -1209,6 +1212,7 @@ pub fn generate_genesis_system_object(
     Ok(())
 }
 
+/// The URLs to download Iota or Shimmer object snapshots.
 #[derive(Debug, Clone)]
 pub enum TarGzSnapshotUrl {
     Iota,
@@ -1216,10 +1220,11 @@ pub enum TarGzSnapshotUrl {
 }
 
 impl TarGzSnapshotUrl {
-    fn to_url_string(&self) -> String {
+    /// Returns the Iota or Shimmer object snapshot download URL.
+    pub fn to_url(&self) -> Url {
         match self {
-            Self::Iota => IOTA_OBJECT_SNAPSHOT_URL.to_string(),
-            Self::Shimmer => SHIMMER_OBJECT_SNAPSHOT_URL.to_string(),
+            Self::Iota => Url::parse(IOTA_OBJECT_SNAPSHOT_URL).expect("should be valid URL"),
+            Self::Shimmer => Url::parse(SHIMMER_OBJECT_SNAPSHOT_URL).expect("should be valid URL"),
         }
     }
 }
