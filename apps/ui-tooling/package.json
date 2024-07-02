@@ -1,44 +1,62 @@
 {
-  "name": "@iota/ui-tooling",
-  "private": true,
-  "sideEffects": false,
-  "repository": {
-    "type": "git",
-    "url": "github.com:iotaledger/iota.git"
-  },
-  "license": "Apache-2.0",
-  "scripts": {
-    "prettier:check": "prettier -c --ignore-unknown .",
-    "prettier:fix": "prettier -w --ignore-unknown .",
-    "eslint:check": "eslint --max-warnings=0 .",
-    "eslint:fix": "pnpm run eslint:check --fix",
-    "lint": "pnpm run eslint:check && pnpm run prettier:check",
-    "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
-    "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build",
-    "dev": "pnpm run storybook"
-  },
-  "dependencies": {
-    "@iota/core": "workspace:*",
-    "@iota/icons": "workspace:*",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
-  },
-  "devDependencies": {
-    "@chromatic-com/storybook": "^1.6.0",
-    "@storybook/addon-essentials": "^7.1.0",
-    "@storybook/addon-interactions": "^7.1.0",
-    "@storybook/addon-links": "^7.1.0",
-    "@storybook/addon-onboarding": "^8.1.11",
-    "@storybook/blocks": "^7.1.0",
-    "@storybook/react": "^7.1.0",
-    "@storybook/react-vite": "^7.1.0",
-    "@storybook/test": "^8.1.11",
-    "@types/react": "^18.2.15",
-    "storybook": "^7.1.0",
-    "tailwindcss": "^3.3.3",
-    "typescript": "^5.3.3",
-    "vite": "^4.4.4",
-    "vite-tsconfig-paths": "^4.2.0"
-  }
+    "name": "@iota/ui-tooling",
+    "version": "0.0.1-rc.1",
+    "repository": {
+        "type": "git",
+        "url": "github.com:iotaledger/iota.git"
+    },
+    "license": "Apache-2.0",
+    "files": [
+        "dist"
+    ],
+    "scripts": {
+        "prettier:check": "prettier -c --ignore-unknown .",
+        "prettier:fix": "prettier -w --ignore-unknown .",
+        "eslint:check": "eslint --max-warnings=0 .",
+        "eslint:fix": "pnpm run eslint:check --fix",
+        "lint": "pnpm run eslint:check && pnpm run prettier:check",
+        "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
+        "storybook": "storybook dev -p 6006",
+        "build-storybook": "storybook build",
+        "build": "tsc && vite build",
+        "dev": "pnpm run storybook"
+    },
+    "exports": {
+        ".": {
+            "import": "./dist/index.es.js",
+            "require": "./dist/index.umd.js",
+            "types": "./dist/index.d.ts"
+        },
+        "./styles": "./dist/style.css",
+        "./preset": "./dist/tailwind/responsive.preset.js",
+        "./preset/static": "./dist/tailwind/static.preset.js"
+    },
+    "dependencies": {
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0",
+        "lodash.merge": "^4.6.2"
+    },
+    "devDependencies": {
+        "@types/lodash.merge": "^4.6.9",
+        "@chromatic-com/storybook": "^1.6.0",
+        "@storybook/addon-essentials": "^7.1.0",
+        "@storybook/addon-interactions": "^7.1.0",
+        "@storybook/addon-links": "^7.1.0",
+        "@storybook/addon-onboarding": "^8.1.11",
+        "@storybook/blocks": "^7.1.0",
+        "@storybook/react": "^7.1.0",
+        "@storybook/react-vite": "^7.1.0",
+        "@storybook/test": "^8.1.11",
+        "@types/node": "^20.4.2",
+        "@types/react": "^18.2.15",
+        "@vitejs/plugin-react-swc": "^3.3.2",
+        "autoprefixer": "^10.4.14",
+        "postcss": "^8.4.31",
+        "storybook": "^7.1.0",
+        "tailwindcss": "^3.4.4",
+        "typescript": "^5.3.3",
+        "vite": "^4.4.4",
+        "vite-plugin-dts": "^3.9.1",
+        "vite-tsconfig-paths": "^4.2.0"
+    }
 }

@@ -10,7 +10,7 @@ const meta = {
     tags: ['autodocs'],
     render: (props) => {
         return (
-            <div className="flex flex-col gap-2 items-start">
+            <div className="flex flex-col items-start gap-2">
                 <Button {...props}>Primary</Button>
             </div>
         );
