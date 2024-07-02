@@ -26,8 +26,7 @@ use crate::stardust::{
     types::{output_header::OutputHeader, output_index::OutputIndex},
 };
 
-// TODO: use different one
-const MNEMONIC: &str = "giant dynamic museum toddler six deny defense ostrich bomb access mercy blood explain muscle shoot shallow glad autumn author calm heavy hawk abuse rally";
+const MNEMONIC: &str = "few hood high omit camp keep burger give happy iron evolve draft few dawn pulp jazz box dash load snake gown bag draft car";
 const COIN_TYPE: u32 = 4218;
 const OWNING_ALIAS_COUNT: u32 = 10;
 
