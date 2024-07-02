@@ -14,7 +14,7 @@ const config = {
   title: "IOTA Documentation",
   tagline:
     "IOTA is a next-generation smart contract platform with high throughput, low latency, and an asset-oriented programming model powered by Move",
-  favicon: "/img/favicon.ico",
+  favicon: "/img/favicon.png",
 
   // Set the production url of your site here
   url: "https://docs.iota.io",
@@ -216,7 +216,7 @@ const config = {
       },
       prism: {
         theme: themes.github,
-        darkTheme: themes.nightOwl,
+        darkTheme: themes.jettwaveDark,
         additionalLanguages: ["rust", "typescript", "toml", "solidity"],
       },
     }),

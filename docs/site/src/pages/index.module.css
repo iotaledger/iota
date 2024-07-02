@@ -200,6 +200,13 @@
   padding: 0 1rem;
   row-gap: 1rem;
 }
+.whyImgCard {
+  background-color: black;
+  border-radius: 35px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 .TwoColParagraph {
   display: flex;

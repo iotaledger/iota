@@ -191,12 +191,8 @@ export default function Home() {
           </h3>
         </div>
         <div className={styles.why}>
-          <div className="">
-            <img
-              height={"100%"}
-              src="/img/index/blocks.png"
-              alt="Decorative visual"
-            />
+          <div className={styles.whyImgCard}>
+            <img height={"90%"} src="/img/blocks.png" alt="Decorative visual" />
           </div>
           <div className={styles.cardsB}>
             <div className={styles.cardB}>
