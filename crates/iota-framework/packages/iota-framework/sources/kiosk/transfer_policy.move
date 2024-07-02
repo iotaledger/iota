@@ -16,7 +16,7 @@
 /// - Type owner (creator) can set any Rules as long as the ecosystem supports
 /// them. All of the Rules need to be resolved within a single transaction (eg
 /// pay royalty and pay fixed commission). Once required actions are performed,
-/// the `TransferRequest` can be "confimed" via `confirm_request` call.
+/// the `TransferRequest` can be "confirmed" via `confirm_request` call.
 ///
 /// - `TransferPolicy` aims to be the main interface for creators to control trades
 /// of their types and collect profits if a fee is required on sales. Custom

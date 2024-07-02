@@ -2668,7 +2668,7 @@ impl<'env> FunctionEnv<'env> {
         self.definition_view().visibility()
     }
 
-    /// Return true if the function is an entry fucntion
+    /// Return true if the function is an entry function
     pub fn is_entry(&self) -> bool {
         self.definition_view().is_entry()
     }
@@ -2705,7 +2705,7 @@ impl<'env> FunctionEnv<'env> {
 
     /// Returns true if the function is a script function
     pub fn is_script(&self) -> bool {
-        // The main function of a scipt is a script function
+        // The main function of a script is a script function
         self.module_env.is_script_module() || self.definition_view().is_entry()
     }
 

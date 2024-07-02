@@ -2786,7 +2786,7 @@ Place a market order to the order book.
     // If the total quantity of open orders at the lowest price level is not large enough <b>to</b> fully fill the market order,
     // we <b>move</b> on <b>to</b> the next price level by calling next_leaf on the asks Critbit Tree and repeat the same procedure.
     // Continue iterating over the price levels in ascending order until the market order is completely filled.
-    // If ther market order cannot be completely filled even after consuming all the open ask orders,
+    // If their market order cannot be completely filled even after consuming all the open ask orders,
     // the unfilled quantity will be cancelled.
     // Market ask order follows similar procedure.
     // The difference is that market ask order is matched against the open bid orders.
