@@ -5,7 +5,7 @@
 use std::{
     collections::{BTreeMap, HashSet},
     fs::{self, File},
-    io::BufReader,
+    io::{BufReader, BufWriter},
     path::Path,
     sync::Arc,
 };
@@ -169,13 +169,14 @@ impl Builder {
     }
 
     pub fn add_validator_signature(mut self, keypair: &AuthorityKeyPair) -> Self {
-        let UnsignedGenesis { checkpoint, .. } = self.build_unsigned_genesis_checkpoint();
-
         let name = keypair.public().into();
         assert!(
             self.validators.contains_key(&name),
             "provided keypair does not correspond to a validator in the validator set"
         );
+
+        let UnsignedGenesis { checkpoint, .. } = self.get_or_build_unsigned_genesis();
+
         let checkpoint_signature = {
             let intent_msg = IntentMessage::new(
                 Intent::iota_app(IntentScope::CheckpointSummary),
@@ -209,11 +210,7 @@ impl Builder {
         self.built_genesis.clone()
     }
 
-    pub fn build_unsigned_genesis_checkpoint(&mut self) -> UnsignedGenesis {
-        if let Some(built_genesis) = &self.built_genesis {
-            return built_genesis.clone();
-        }
-
+    fn build_and_cache_unsigned_genesis(&mut self) {
         // Verify that all input data is valid
         self.validate_inputs().unwrap();
         let validators = self.validators.clone().into_values().collect::<Vec<_>>();
@@ -283,12 +280,19 @@ impl Builder {
             &token_distribution_schedule,
             self.genesis_stake.timelock_allocations(),
             &validators,
-            &objects,
+            objects,
         ));
 
         self.token_distribution_schedule = Some(token_distribution_schedule);
+    }
 
-        self.built_genesis.clone().unwrap()
+    pub fn get_or_build_unsigned_genesis(&mut self) -> &UnsignedGenesis {
+        if self.built_genesis.is_none() {
+            self.build_and_cache_unsigned_genesis();
+        }
+        self.built_genesis
+            .as_ref()
+            .expect("genesis should have been built and cached")
     }
 
     fn committee(objects: &[Object]) -> Committee {
@@ -302,6 +306,9 @@ impl Builder {
     }
 
     pub fn build(mut self) -> Genesis {
+        if self.built_genesis.is_none() {
+            self.build_and_cache_unsigned_genesis();
+        }
         let UnsignedGenesis {
             checkpoint,
             checkpoint_contents,
@@ -309,7 +316,10 @@ impl Builder {
             effects,
             events,
             objects,
-        } = self.build_unsigned_genesis_checkpoint();
+        } = self
+            .built_genesis
+            .take()
+            .expect("genesis should have been built");
 
         let committee = Self::committee(&objects);
 
@@ -678,10 +688,8 @@ impl Builder {
             }
 
             let path = entry.path();
-            let validator_info_bytes = fs::read(path)?;
-            let validator_info: GenesisValidatorInfo =
-                serde_yaml::from_slice(&validator_info_bytes)
-                    .with_context(|| format!("unable to load validator info for {path}"))?;
+            let validator_info: GenesisValidatorInfo = serde_yaml::from_slice(&fs::read(path)?)
+                .with_context(|| format!("unable to load validator info for {path}"))?;
             committee.insert(validator_info.info.protocol_key(), validator_info);
         }
 
@@ -694,8 +702,7 @@ impl Builder {
             }
 
             let path = entry.path();
-            let signature_bytes = fs::read(path)?;
-            let sigs: AuthoritySignInfo = bcs::from_bytes(&signature_bytes)
+            let sigs: AuthoritySignInfo = bcs::from_bytes(&fs::read(path)?)
                 .with_context(|| format!("unable to load validator signatrue for {path}"))?;
             signatures.insert(sigs.authority, sigs);
         }
@@ -713,8 +720,8 @@ impl Builder {
 
         let unsigned_genesis_file = path.join(GENESIS_BUILDER_UNSIGNED_GENESIS_FILE);
         if unsigned_genesis_file.exists() {
-            let unsigned_genesis_bytes = fs::read(unsigned_genesis_file)?;
-            let loaded_genesis: UnsignedGenesis = bcs::from_bytes(&unsigned_genesis_bytes)?;
+            let loaded_genesis: UnsignedGenesis =
+                bcs::from_reader(BufReader::new(File::open(unsigned_genesis_file)?))?;
 
             // If we have a built genesis, then we must have a token_distribution_schedule
             // present as well.
@@ -724,10 +731,10 @@ impl Builder {
             );
 
             // Verify loaded genesis matches one build from the constituent parts
-            let built = builder.build_unsigned_genesis_checkpoint();
+            let built = builder.get_or_build_unsigned_genesis();
             loaded_genesis.checkpoint_contents.digest(); // cache digest before compare
-            assert_eq!(
-                built, loaded_genesis,
+            assert!(
+                *built == loaded_genesis,
                 "loaded genesis does not match built genesis"
             );
 
@@ -758,9 +765,8 @@ impl Builder {
         let signature_dir = path.join(GENESIS_BUILDER_SIGNATURE_DIR);
         std::fs::create_dir_all(&signature_dir)?;
         for (pubkey, sigs) in self.signatures {
-            let sig_bytes = bcs::to_bytes(&sigs)?;
             let name = self.validators.get(&pubkey).unwrap().info.name();
-            fs::write(signature_dir.join(name), sig_bytes)?;
+            fs::write(signature_dir.join(name), &bcs::to_bytes(&sigs)?)?;
         }
 
         // Write validator infos
@@ -768,19 +774,17 @@ impl Builder {
         fs::create_dir_all(&committee_dir)?;
 
         for (_pubkey, validator) in self.validators {
-            let validator_info_bytes = serde_yaml::to_string(&validator)?;
             fs::write(
                 committee_dir.join(validator.info.name()),
-                validator_info_bytes,
+                &serde_yaml::to_string(&validator)?,
             )?;
         }
 
         if let Some(genesis) = &self.built_genesis {
-            let genesis_bytes = bcs::to_bytes(&genesis)?;
-            fs::write(
+            let mut write = BufWriter::new(File::create(
                 path.join(GENESIS_BUILDER_UNSIGNED_GENESIS_FILE),
-                genesis_bytes,
-            )?;
+            )?);
+            bcs::serialize_into(&mut write, &genesis)?;
         }
 
         Ok(())
@@ -831,7 +835,7 @@ fn build_unsigned_genesis_data(
     token_distribution_schedule: &TokenDistributionSchedule,
     timelock_allocations: &[TimelockAllocation],
     validators: &[GenesisValidatorInfo],
-    objects: &[Object],
+    objects: Vec<Object>,
 ) -> UnsignedGenesis {
     if !parameters.allow_insertion_of_extra_objects && !objects.is_empty() {
         panic!(
@@ -1019,7 +1023,7 @@ fn create_genesis_transaction(
 
 fn create_genesis_objects(
     genesis_ctx: &mut TxContext,
-    input_objects: &[Object],
+    input_objects: Vec<Object>,
     validators: &[GenesisValidatorMetadata],
     parameters: &GenesisChainParameters,
     token_distribution_schedule: &TokenDistributionSchedule,
@@ -1053,10 +1057,8 @@ fn create_genesis_objects(
         .unwrap();
     }
 
-    {
-        for object in input_objects {
-            store.insert_object(object.to_owned());
-        }
+    for object in input_objects {
+        store.insert_object(object);
     }
 
     generate_genesis_system_object(
@@ -1460,7 +1462,7 @@ mod test {
         let pop = generate_proof_of_possession(&key, account_key.public().into());
         let mut builder = Builder::new().add_validator(validator, pop);
 
-        let genesis = builder.build_unsigned_genesis_checkpoint();
+        let genesis = builder.get_or_build_unsigned_genesis();
         for object in genesis.objects() {
             println!("ObjectID: {} Type: {:?}", object.id(), object.type_());
         }

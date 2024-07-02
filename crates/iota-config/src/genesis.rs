@@ -2,7 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, fs, path::Path};
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::{BufReader, BufWriter},
+    path::Path,
+};
 
 use anyhow::{Context, Result};
 use fastcrypto::{
@@ -174,17 +179,17 @@ impl Genesis {
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, anyhow::Error> {
         let path = path.as_ref();
         trace!("Reading Genesis from {}", path.display());
-        let bytes = fs::read(path)
+        let read = File::open(path)
             .with_context(|| format!("Unable to load Genesis from {}", path.display()))?;
-        bcs::from_bytes(&bytes)
+        bcs::from_reader(BufReader::new(read))
             .with_context(|| format!("Unable to parse Genesis from {}", path.display()))
     }
 
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), anyhow::Error> {
         let path = path.as_ref();
         trace!("Writing Genesis to {}", path.display());
-        let bytes = bcs::to_bytes(&self)?;
-        fs::write(path, bytes)
+        let mut write = BufWriter::new(File::create(path)?);
+        bcs::serialize_into(&mut write, &self)
             .with_context(|| format!("Unable to save Genesis to {}", path.display()))?;
         Ok(())
     }
