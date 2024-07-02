@@ -121,7 +121,7 @@ pub fn publish(
                     if let Err(err) = res {
                         println!("Invalid multi-module publishing: {}", err);
                         if let Location::Module(module_id) = err.location() {
-                            // find the module where error occures and explain
+                            // find the module where error occurres and explain
                             if let Some(unit) = modules_to_publish
                                 .into_iter()
                                 .find(|&x| x.unit.name().as_str() == module_id.name().as_str())
