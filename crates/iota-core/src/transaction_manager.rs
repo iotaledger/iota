@@ -68,6 +68,7 @@ pub struct TransactionManager {
 #[derive(Clone, Debug)]
 pub struct PendingCertificateStats {
     // The time this certificate enters transaction manager.
+    #[allow(dead_code)]
     pub enqueue_time: Instant,
     // The time this certificate becomes ready for execution.
     pub ready_time: Option<Instant>,
