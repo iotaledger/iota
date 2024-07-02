@@ -30,7 +30,7 @@ export function ConnectLedgerModal({ onClose, onConfirm, onError }: ConnectLedge
     const onContinueClick = async () => {
         try {
             setConnectingToLedger(true);
-            await connectToLedger(false);
+            await connectToLedger(true);
             onConfirm();
         } catch (error) {
             onError(error);
