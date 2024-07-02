@@ -428,7 +428,7 @@ available for use, the type can not be traded in kiosks.
 
 ## Function `default`
 
-Initialize the Tranfer Policy in the default scenario: Create and share
+Initialize the Transfer Policy in the default scenario: Create and share
 the <code><a href="transfer_policy.md#0x2_transfer_policy_TransferPolicy">TransferPolicy</a></code>, transfer <code><a href="transfer_policy.md#0x2_transfer_policy_TransferPolicyCap">TransferPolicyCap</a></code> to the transaction
 sender.
 

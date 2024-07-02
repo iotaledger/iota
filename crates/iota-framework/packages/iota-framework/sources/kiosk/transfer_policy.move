@@ -130,7 +130,7 @@ module iota::transfer_policy {
     }
 
     #[allow(lint(self_transfer, share_owned))]
-    /// Initialize the Tranfer Policy in the default scenario: Create and share
+    /// Initialize the Transfer Policy in the default scenario: Create and share
     /// the `TransferPolicy`, transfer `TransferPolicyCap` to the transaction
     /// sender.
     entry fun default<T>(pub: &Publisher, ctx: &mut TxContext) {
