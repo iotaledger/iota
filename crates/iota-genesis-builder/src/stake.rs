@@ -138,7 +138,7 @@ pub fn delegate_genesis_stake(
     migration_objects: &MigrationObjects,
     amount_nanos: u64,
 ) -> anyhow::Result<GenesisStake> {
-    let timelocks_pool = migration_objects.get_timelocks_by_owner(delegator);
+    let timelocks_pool = migration_objects.get_sorted_timelocks_by_owner(delegator);
     let gas_coins_pool = migration_objects.get_gas_coins_by_owner(delegator);
     if timelocks_pool.is_none() && gas_coins_pool.is_none() {
         anyhow::bail!("no timelocks or gas-coin objects found for delegator {delegator:?}");
