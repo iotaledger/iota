@@ -159,9 +159,6 @@ export function AccountGroup({
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
     const { data: accountSources } = useAccountSources();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceID);
-    const accountsFormType = isMnemonicDerivedGroup
-        ? AccountsFormType.MnemonicSource
-        : AccountsFormType.SeedSource;
     return (
         <>
             <CollapsiblePrimitive.Root defaultOpen asChild>
@@ -179,6 +176,9 @@ export function AccountGroup({
                                     onClick={async (e) => {
                                         // prevent the collapsible from closing when clicking the "new" button
                                         e.stopPropagation();
+                                        const accountsFormType = isMnemonicDerivedGroup
+                                            ? AccountsFormType.MnemonicSource
+                                            : AccountsFormType.SeedSource;
                                         setAccountsFormValues({
                                             type: accountsFormType,
                                             sourceID: accountSource.id,
