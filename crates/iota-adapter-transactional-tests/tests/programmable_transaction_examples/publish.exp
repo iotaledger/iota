@@ -13,13 +13,13 @@ Error: Error checking transaction input objects: MoveObjectAsPackage { object_id
 
 task 7 'publish'. lines 43-48:
 Error: error[E03002]: unbound module
-   ┌─ ../../../../../../private/var/folders/dm/cn5mtnqn0g315ly6b9rxx0br0000gn/T/tmp.2cGGWwrMGg/.tmpoAxJIO:46:9
+   ┌─ ../../../../../../private/var/folders/dm/cn5mtnqn0g315ly6b9rxx0br0000gn/T/tmp.O3fS5PUgjY/.tmpEihcmB:46:9
    │
 46 │         p::m::foo(q::m::x())
    │         ^^^^ Unbound module 'p::m'
 
 error[E03002]: unbound module
-   ┌─ ../../../../../../private/var/folders/dm/cn5mtnqn0g315ly6b9rxx0br0000gn/T/tmp.2cGGWwrMGg/.tmpoAxJIO:46:19
+   ┌─ ../../../../../../private/var/folders/dm/cn5mtnqn0g315ly6b9rxx0br0000gn/T/tmp.O3fS5PUgjY/.tmpEihcmB:46:19
    │
 46 │         p::m::foo(q::m::x())
    │                   ^^^^ Unbound module 'q::m'

@@ -5,7 +5,7 @@
 // Tests `public_receive` should fail for an object _without_ public transfer,
 // and that we cannot directly call `receive` from a PTB.
 
-//# init --accounts A B --addresses test=0x0 --protocol-version 30
+//# init --accounts A B --addresses test=0x0 --protocol-version 1
 
 //# publish
 module test::m {
