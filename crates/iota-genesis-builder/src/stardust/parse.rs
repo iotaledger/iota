@@ -24,14 +24,10 @@ pub struct HornetSnapshotParser<R: Read> {
 }
 
 impl<R: Read> HornetSnapshotParser<R> {
-    pub fn new(reader: R, global_snapshot_verification: bool) -> Result<Self> {
+    pub fn new<const VERIFY: bool>(reader: R) -> Result<Self> {
         let mut reader = IoUnpacker::new(std::io::BufReader::new(reader));
-        let header = if global_snapshot_verification {
-            // `true` ensures that only global snapshots unpack successfully
-            FullSnapshotHeader::unpack::<_, true>(&mut reader, &())?
-        } else {
-            FullSnapshotHeader::unpack::<_, false>(&mut reader, &())?
-        };
+        // `VERIFY = true` ensures that only global snapshots unpack successfully
+        let header = FullSnapshotHeader::unpack::<_, VERIFY>(&mut reader, &())?;
         Ok(Self { reader, header })
     }
 

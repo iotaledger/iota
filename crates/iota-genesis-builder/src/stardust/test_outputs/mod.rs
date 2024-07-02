@@ -65,7 +65,7 @@ pub(crate) fn new_vested_output(
 }
 
 /// Adds outputs to test specific and intricate scenario in the full snapshot.
-pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
+pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug, const VERIFY: bool>(
     current_path: P,
     new_path: P,
 ) -> anyhow::Result<()> {
@@ -76,7 +76,7 @@ pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
         .truncate(true)
         .open(new_path)?;
     let mut writer = IoPacker::new(BufWriter::new(new_file));
-    let parser = HornetSnapshotParser::new(current_file, false)?;
+    let mut parser = HornetSnapshotParser::new::<VERIFY>(current_file)?;
     let output_to_decrease_amount_from = OutputId::from_str(OUTPUT_TO_DECREASE_AMOUNT_FROM)?;
     let mut new_header = parser.header.clone();
     let mut vested_index = u32::MAX;
@@ -96,7 +96,11 @@ pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
     new_header.pack(&mut writer)?;
 
     // Writes previous and new outputs.
-    for (output_header, output) in parser.outputs().filter_map(|o| o.ok()).chain(new_outputs) {
+    for (output_header, output) in parser
+        .outputs::<VERIFY>()
+        .filter_map(|o| o.ok())
+        .chain(new_outputs)
+    {
         output_header.pack(&mut writer)?;
 
         if output_header.output_id() == output_to_decrease_amount_from {

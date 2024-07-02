@@ -14,7 +14,7 @@ fn main() -> anyhow::Result<()> {
     };
     let file = File::open(path)?;
 
-    let parser = HornetSnapshotParser::new(file)?;
+    let mut parser = HornetSnapshotParser::new::<true>(file)?;
     println!("Output count: {}", parser.header.output_count());
 
     let total_supply = parser.outputs().try_fold(0, |acc, output| {

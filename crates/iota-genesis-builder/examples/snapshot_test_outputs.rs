@@ -10,13 +10,13 @@ use iota_genesis_builder::stardust::{
 };
 use iota_types::gas_coin::TOTAL_SUPPLY_IOTA;
 
-fn parse_snapshot<P: AsRef<Path>>(path: P) -> anyhow::Result<()> {
+fn parse_snapshot<P: AsRef<Path>, const VERIFY: bool>(path: P) -> anyhow::Result<()> {
     let file = File::open(path)?;
-    let parser = HornetSnapshotParser::new(file)?;
+    let mut parser = HornetSnapshotParser::new::<VERIFY>(file)?;
 
     println!("Output count: {}", parser.header.output_count());
 
-    let total_supply = parser.outputs().try_fold(0, |acc, output| {
+    let total_supply = parser.outputs::<VERIFY>().try_fold(0, |acc, output| {
         Ok::<_, anyhow::Error>(acc + output?.1.amount())
     })?;
 
@@ -43,11 +43,11 @@ async fn main() -> anyhow::Result<()> {
         new_path.push_str(&current_path);
     }
 
-    parse_snapshot(&current_path)?;
+    parse_snapshot::<_, true>(&current_path)?;
 
-    add_snapshot_test_outputs(&current_path, &new_path).await?;
+    add_snapshot_test_outputs::<_, true>(&current_path, &new_path).await?;
 
-    parse_snapshot(&new_path)?;
+    parse_snapshot::<_, true>(&new_path)?;
 
     Ok(())
 }
