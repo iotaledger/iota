@@ -6,6 +6,7 @@
 /// It has 9 decimals, and the smallest unit (10^-9) is called "nano".
 module iota::iota {
     use iota::coin::{Self, TreasuryCap};
+    use iota::balance::Balance;
     use iota::url;
 
     const EAlreadyMinted: u64 = 0;
@@ -44,6 +45,16 @@ module iota::iota {
         transfer::public_freeze_object(metadata);
 
         treasury
+    }
+
+    #[allow(unused_function)]
+    /// Increase the IOTA supply.
+    /// This should be called only once during genesis creation.
+    fun mint_genesis_supply(cap: &mut TreasuryCap<IOTA>, amount: u64, ctx: &TxContext): Balance<IOTA> {
+        assert!(ctx.sender() == @0x0, ENotSystemAddress);
+        assert!(ctx.epoch() == 0, EAlreadyMinted);
+
+        cap.supply_mut().increase_supply(amount)
     }
 
     public entry fun transfer(c: coin::Coin<IOTA>, recipient: address) {

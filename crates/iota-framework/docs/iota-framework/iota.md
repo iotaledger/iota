@@ -9,10 +9,12 @@ It has 9 decimals, and the smallest unit (10^-9) is called "nano".
 -  [Struct `IOTA`](#0x2_iota_IOTA)
 -  [Constants](#@Constants_0)
 -  [Function `new`](#0x2_iota_new)
+-  [Function `mint_genesis_supply`](#0x2_iota_mint_genesis_supply)
 -  [Function `transfer`](#0x2_iota_transfer)
 
 
 <pre><code><b>use</b> <a href="../move-stdlib/option.md#0x1_option">0x1::option</a>;
+<b>use</b> <a href="../iota-framework/balance.md#0x2_balance">0x2::balance</a>;
 <b>use</b> <a href="../iota-framework/coin.md#0x2_coin">0x2::coin</a>;
 <b>use</b> <a href="../iota-framework/transfer.md#0x2_transfer">0x2::transfer</a>;
 <b>use</b> <a href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
@@ -128,6 +130,35 @@ This should be called only once during genesis creation.
     <a href="../iota-framework/transfer.md#0x2_transfer_public_freeze_object">transfer::public_freeze_object</a>(metadata);
 
     treasury
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="0x2_iota_mint_genesis_supply"></a>
+
+## Function `mint_genesis_supply`
+
+Increase the IOTA supply.
+This should be called only once during genesis creation.
+
+
+<pre><code><b>fun</b> <a href="../iota-framework/iota.md#0x2_iota_mint_genesis_supply">mint_genesis_supply</a>(cap: &<b>mut</b> <a href="../iota-framework/coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, amount: u64, ctx: &<a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>fun</b> <a href="../iota-framework/iota.md#0x2_iota_mint_genesis_supply">mint_genesis_supply</a>(cap: &<b>mut</b> TreasuryCap&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">IOTA</a>&gt;, amount: u64, ctx: &TxContext): Balance&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">IOTA</a>&gt; {
+    <b>assert</b>!(ctx.sender() == @0x0, <a href="../iota-framework/iota.md#0x2_iota_ENotSystemAddress">ENotSystemAddress</a>);
+    <b>assert</b>!(ctx.epoch() == 0, <a href="../iota-framework/iota.md#0x2_iota_EAlreadyMinted">EAlreadyMinted</a>);
+
+    cap.supply_mut().increase_supply(amount)
 }
 </code></pre>
 

@@ -1091,53 +1091,22 @@ pub fn generate_genesis_system_object(
             vec![],
         );
 
-        let iota_supply = builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("coin").to_owned(),
-            ident_str!("supply_mut").to_owned(),
-            vec![GAS::type_().into()],
-            vec![iota_treasury_cap],
-        );
-
+        // TODO: This is will need to be modified after the timelock staking changes and
+        // to account for the migration objects with pre-allocated funds.
         let total_iota_supply = builder
-            .input(CallArg::Pure(
-                bcs::to_bytes(&TOTAL_SUPPLY_NANOS).expect("serialization of u64 should succeed"),
-            ))
-            .expect("adding the total IOTA supply argument should succeed");
+            .pure(&(TOTAL_SUPPLY_NANOS - token_distribution_schedule.funds_to_burn))
+            .expect("serialization of u64 should succeed");
         let total_iota = builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("balance").to_owned(),
-            ident_str!("increase_supply").to_owned(),
-            vec![GAS::type_().into()],
-            vec![iota_supply, total_iota_supply],
-        );
-
-        // Step 5: Burn the tokens that are marked as such, according to the token distribution schedule.
-        let iotas_to_burn_arg = builder
-            .input(CallArg::Pure(
-                bcs::to_bytes(&token_distribution_schedule.funds_to_burn)
-                    .expect("serialization of u64 should succeed"),
-            ))
-            .expect("adding the funds to burn argument should succeed");
-        let iotas_to_burn_balance = builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("balance").to_owned(),
-            ident_str!("split").to_owned(),
-            vec![GAS::type_().into()],
-            vec![total_iota, iotas_to_burn_arg],
-        );
-
-        builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("balance").to_owned(),
-            ident_str!("decrease_supply").to_owned(),
-            vec![GAS::type_().into()],
-            vec![iota_supply, iotas_to_burn_balance],
+            ident_str!("iota").to_owned(),
+            ident_str!("mint_genesis_supply").to_owned(),
+            vec![],
+            vec![iota_treasury_cap, total_iota_supply],
         );
 
         // TODO: Rename the `destroy_storage_rebates` function or create a specific one.
 
-        // Step 6: Run genesis.
+        // Step 5: Run genesis.
         // The first argument is the system state uid we got from step 1 and the second
         // one is the IOTA `TreasuryCap` we got from step 4.
         let mut arguments = vec![iota_system_state_uid, iota_treasury_cap, total_iota];
