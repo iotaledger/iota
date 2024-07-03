@@ -13,88 +13,88 @@ import {
 import { getAccountSourceByID } from '../account-sources';
 import { type MakeDerivationOptions } from '_src/background/account-sources/bip44Path';
 
-interface SearchRange {
+interface SearchBoundaries {
     [x: number]: {
         start: number;
         end: number;
-        accountGapLimit: number;
+        accountMax: number;
     };
 }
 
 class AccountsFinder {
-    private isSearchFirstTime: boolean = true;
-    private xLastIndex: number = 0;
-    private searchRange: SearchRange = {};
+    private isFirstSearch: boolean = true;
+    private lastColumn: number = 0;
+    private searchBoundaries: SearchBoundaries = {};
     private accountGapLimit: number = 0;
     private addressGapLimit: number = 0;
     private coinType: number = 0;
     private gasTypeArg: string = '';
     private sourceID: string = '';
-    private client: IotaClient | null = null;
+    public client: IotaClient | null = null;
 
     accounts: AccountFromFinder[] = [];
-    counter: number = 0;
 
     init() {
         this.accounts = [];
     }
 
-    initSearchRange() {
+    setupInitialBoundaries() {
         for (let x = 0; x < this.accountGapLimit; x++) {
-            this.addSearchRangeColumn(x);
+            this.addColumnBoundary(x);
         }
 
-        this.isSearchFirstTime = false;
+        this.isFirstSearch = false;
     }
 
-    increaseSearchRange() {
-        for (let x = 0; x <= this.xLastIndex; x++) {
-            const { end } = this.searchRange[x];
+    expandSearchBoundaries() {
+        for (let x = 0; x <= this.lastColumn; x++) {
+            const { end } = this.searchBoundaries[x];
 
-            this.searchRange[x].start = end + 1;
-            this.searchRange[x].end = end + this.addressGapLimit;
+            this.searchBoundaries[x].start = end + 1;
+            this.searchBoundaries[x].end = end + this.addressGapLimit;
         }
 
-        this.addSearchRangeColumns(this.xLastIndex);
+        this.addColumnsToBoundaries(this.lastColumn);
     }
 
-    addSearchRangeColumns(x: number) {
-        const leftColumns = this.xLastIndex - x;
-        const columnsToAdd = this.accountGapLimit - leftColumns;
+    addColumnsToBoundaries(columnIndex: number) {
+        const columnsLeft = this.lastColumn - columnIndex;
+        const columnsToAdd = this.accountGapLimit - columnsLeft;
 
-        const fromIndex = this.xLastIndex + 1;
-        const toIndex = this.xLastIndex + columnsToAdd;
+        const fromIndex = this.lastColumn + 1;
+        const toIndex = this.lastColumn + columnsToAdd;
 
         for (let i = fromIndex; i <= toIndex; i++) {
-            this.addSearchRangeColumn(i);
+            this.addColumnBoundary(i);
         }
     }
 
-    addSearchRangeColumn(x: number) {
-        const accountGapLimitIndex = this.accountGapLimit - 1;
-        this.searchRange[x] = {
+    addColumnBoundary(columnIndex: number) {
+        const accountLimitIndex = this.accountGapLimit - 1;
+        this.searchBoundaries[columnIndex] = {
             start: 0,
-            end: accountGapLimitIndex + this.addressGapLimit,
-            accountGapLimit: accountGapLimitIndex,
+            end: accountLimitIndex + this.addressGapLimit,
+            accountMax: accountLimitIndex,
         };
-        this.xLastIndex = x;
+        this.lastColumn = columnIndex;
     }
 
     updateSearchRange(x: number, y: number) {
-        const { end, accountGapLimit } = this.searchRange[x];
+        const { end, accountMax } = this.searchBoundaries[x];
 
-        if (y <= accountGapLimit) {
+        if (y <= accountMax) {
             // increase limit in column
-            const accountGapLimitDiff = accountGapLimit - y;
-            const accountGapNeedAdd = this.accountGapLimit - accountGapLimitDiff;
-            this.searchRange[x].accountGapLimit += accountGapNeedAdd;
-            this.searchRange[x].end += accountGapNeedAdd;
+            const accountLimitDiff = accountMax - y;
+            const accountsToAdd = this.accountGapLimit - accountLimitDiff;
+            this.searchBoundaries[x].accountMax += accountsToAdd;
+            this.searchBoundaries[x].end += accountsToAdd;
 
-            this.addSearchRangeColumns(x);
+            // add more columns
+            this.addColumnsToBoundaries(x);
         } else if (y <= end) {
-            const addressGapLimitDiff = end - y;
-            const addressGapNeedAdd = this.addressGapLimit - addressGapLimitDiff;
-            this.searchRange[x].end += addressGapNeedAdd;
+            const addressLimitDiff = end - y;
+            const addressesToAdd = this.addressGapLimit - addressLimitDiff;
+            this.searchBoundaries[x].end += addressesToAdd;
         }
     }
 
@@ -104,7 +104,8 @@ class AccountsFinder {
             index: x,
             addresses: [],
         };
-        for (let y = this.searchRange[x].start; y <= this.searchRange[x].end; y++) {
+        const { start, end } = this.searchBoundaries[x];
+        for (let y = start; y <= end; y++) {
             const changeIndexes = [0, 1]; // in the past the change indexes were used as 0=deposit & 1=internal
 
             for (const changeIndex of changeIndexes) {
@@ -164,13 +165,13 @@ class AccountsFinder {
         this.addressGapLimit = addressGaspLimit;
         this.sourceID = sourceID;
 
-        if (this.isSearchFirstTime) {
-            this.initSearchRange();
+        if (this.isFirstSearch) {
+            this.setupInitialBoundaries();
         } else {
-            this.increaseSearchRange();
+            this.expandSearchBoundaries();
         }
 
-        for (let x = 0; x <= this.xLastIndex; x++) {
+        for (let x = 0; x <= this.lastColumn; x++) {
             await this.searchByColumn(x);
         }
     }
