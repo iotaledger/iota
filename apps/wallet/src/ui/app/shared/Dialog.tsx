@@ -50,13 +50,13 @@ const DialogContent = React.forwardRef<
 });
 DialogContent.displayName = RadixDialog.Content.displayName;
 
-function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-    <div className={cx('flex flex-col gap-1.5 text-center', className)} {...props} />;
-}
+const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+    <div className={cx('flex flex-col gap-1.5 text-center', className)} {...props} />
+);
 
-function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-    <div className={cx('mt-3', className)} {...props} />;
-}
+const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+    <div className={cx('mt-3', className)} {...props} />
+);
 
 const DialogTitle = React.forwardRef<
     React.ElementRef<typeof RadixDialog.Title>,
