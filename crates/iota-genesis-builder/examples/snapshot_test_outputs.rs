@@ -43,11 +43,11 @@ async fn main() -> anyhow::Result<()> {
         new_path.push_str(&current_path);
     }
 
-    parse_snapshot::<true>(&current_path)?;
+    parse_snapshot::<false>(&current_path)?;
 
-    add_snapshot_test_outputs::<_, true>(&current_path, &new_path).await?;
+    add_snapshot_test_outputs::<false>(&current_path, &new_path).await?;
 
-    parse_snapshot::<true>(&new_path)?;
+    parse_snapshot::<false>(&new_path)?;
 
     Ok(())
 }

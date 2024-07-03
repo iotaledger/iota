@@ -61,9 +61,9 @@ pub(crate) fn new_vested_output(
 }
 
 /// Adds outputs to test specific and intricate scenario in the full snapshot.
-pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug, const VERIFY: bool>(
-    current_path: P,
-    new_path: P,
+pub async fn add_snapshot_test_outputs<const VERIFY: bool>(
+    current_path: impl AsRef<Path> + core::fmt::Debug,
+    new_path: impl AsRef<Path> + core::fmt::Debug,
 ) -> anyhow::Result<()> {
     let current_file = File::open(current_path)?;
     let new_file = File::create(new_path)?;
