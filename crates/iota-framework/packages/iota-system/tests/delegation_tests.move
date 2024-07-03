@@ -546,6 +546,10 @@ module iota_system::stake_tests {
             create_validator_for_testing(VALIDATOR_ADDR_2, 100, ctx)
         ];
         create_iota_system_state_for_testing(validators, 0, 0, ctx);
+        scenario.next_tx(@0x0);
+        let mut system_state = scenario.take_shared<IotaSystemState>();
+        system_state.init_voting_power_and_reference_gas_price();
+        test_scenario::return_shared(system_state);
         scenario_val.end();
     }
 
@@ -559,6 +563,10 @@ module iota_system::stake_tests {
             create_validator_for_testing(VALIDATOR_ADDR_2, 100, ctx)
         ];
         create_iota_system_state_for_testing(validators, 300, 100, ctx);
+        scenario.next_tx(@0x0);
+        let mut system_state = scenario.take_shared<IotaSystemState>();
+        system_state.init_voting_power_and_reference_gas_price();
+        test_scenario::return_shared(system_state);
         scenario_val.end();
     }
 }

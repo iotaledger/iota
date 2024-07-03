@@ -28,6 +28,7 @@ module iota_system::validator_set_tests {
 
         // Create a validator set with only the first validator in it.
         let mut validator_set = validator_set::new(vector[validator1], ctx);
+        validator_set::init_voting_power(&mut validator_set);
         assert!(validator_set.total_stake() == 100 * MICROS_PER_IOTA, 0);
 
         // Add the other 3 validators one by one.
@@ -101,6 +102,7 @@ module iota_system::validator_set_tests {
         let v5 = create_validator(@0x5, 10, 43, false, ctx);
         // Create a validator set with only the first validator in it.
         let mut validator_set = validator_set::new(vector[v1], ctx);
+        validator_set::init_voting_power(&mut validator_set);
 
         assert_eq(validator_set.derive_reference_gas_price(), 45);
 
@@ -149,6 +151,7 @@ module iota_system::validator_set_tests {
 
         let validator1 = create_validator(@0x1, 1, 1, true, ctx);
         let mut validator_set = validator_set::new(vector[validator1], ctx);
+        validator_set::init_voting_power(&mut validator_set);
         assert_eq(validator_set.total_stake(), 100 * MICROS_PER_IOTA);
         scenario_val.end();
 
@@ -174,6 +177,7 @@ module iota_system::validator_set_tests {
 
         let validator1 = create_validator(@0x1, 1, 1, true, ctx);
         let mut validator_set = validator_set::new(vector[validator1], ctx);
+        validator_set::init_voting_power(&mut validator_set);
         assert_eq(validator_set.total_stake(), 100 * MICROS_PER_IOTA);
         scenario_val.end();
 
@@ -207,6 +211,7 @@ module iota_system::validator_set_tests {
 
         // Create a validator set with only the first validator in it.
         let mut validator_set = validator_set::new(vector[validator1], ctx);
+        validator_set::init_voting_power(&mut validator_set);
         assert_eq(validator_set.total_stake(), 100 * MICROS_PER_IOTA);
         scenario_val.end();
 
@@ -248,6 +253,7 @@ module iota_system::validator_set_tests {
 
         // Create a validator set with only the first validator in it.
         let mut validator_set = validator_set::new(vector[validator1], ctx);
+        validator_set::init_voting_power(&mut validator_set);
         assert_eq(validator_set.total_stake(), 100 * MICROS_PER_IOTA);
         scenario_val.end();
 
@@ -291,6 +297,7 @@ module iota_system::validator_set_tests {
 
         // Create a validator set with only the first validator in it.
         let mut validator_set = validator_set::new(vector[validator1], ctx);
+        validator_set::init_voting_power(&mut validator_set);
         assert_eq(validator_set.total_stake(), 100 * MICROS_PER_IOTA);
         scenario_val.end();
 
@@ -323,6 +330,7 @@ module iota_system::validator_set_tests {
         let v4 = create_validator(@0x4, 4, 1, true, ctx); // 400 IOTA of stake
 
         let mut validator_set = validator_set::new(vector[v1, v2, v3, v4], ctx);
+        validator_set::init_voting_power(&mut validator_set);
         scenario_val.end();
 
         let mut scenario_val = test_scenario::begin(@0x1);

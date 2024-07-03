@@ -105,6 +105,10 @@ module iota_system::governance_test_utils {
         };
 
         create_iota_system_state_for_testing(validators, 1000, 0, ctx);
+        scenario.next_tx(@0x0);
+        let mut system_state = scenario.take_shared<IotaSystemState>();
+        system_state.init_voting_power_and_reference_gas_price();
+        test_scenario::return_shared(system_state);
         scenario.end();
     }
 
