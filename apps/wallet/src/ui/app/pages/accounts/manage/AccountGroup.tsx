@@ -177,6 +177,18 @@ export function AccountGroup({
                                 {getGroupTitle(accounts[0])}
                             </Heading>
                             <div className="flex h-px flex-1 flex-shrink-0 bg-gray-45" />
+                            {ACCOUNTS_WITH_ENABLED_BALANCE_FINDER.includes(type) ? (
+                                <ButtonOrLink
+                                    className="flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase text-hero outline-none hover:text-hero-darkest"
+                                    onClick={() => {
+                                        navigate(
+                                            `/accounts/manage/accounts-finder/${accountSourceID}`,
+                                        );
+                                    }}
+                                >
+                                    <Search16 />
+                                </ButtonOrLink>
+                            ) : null}
                             {(isMnemonicDerivedGroup || isSeedDerivedGroup) && accountSource ? (
                                 <>
                                     <ButtonOrLink
@@ -207,18 +219,6 @@ export function AccountGroup({
                                         </Text>
                                     </ButtonOrLink>
                                 </>
-                            ) : null}
-                            {ACCOUNTS_WITH_ENABLED_BALANCE_FINDER.includes(type) ? (
-                                <ButtonOrLink
-                                    className="flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase text-hero outline-none hover:text-hero-darkest"
-                                    onClick={() => {
-                                        navigate(
-                                            `/accounts/manage/accounts-finder/${accountSourceID}`,
-                                        );
-                                    }}
-                                >
-                                    <Search16 />
-                                </ButtonOrLink>
                             ) : null}
                         </div>
                     </CollapsiblePrimitive.Trigger>
