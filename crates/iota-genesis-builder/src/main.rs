@@ -17,6 +17,7 @@ use iota_genesis_builder::{
         parse::HornetSnapshotParser,
     },
     BROTLI_COMPRESSOR_BUFFER_SIZE, BROTLI_COMPRESSOR_LG_WINDOW_SIZE, BROTLI_COMPRESSOR_QUALITY,
+    OBJECT_SNAPSHOT_FILE_PATH,
 };
 use iota_sdk::types::block::output::{
     unlock_condition::StorageDepositReturnUnlockCondition, AliasOutputBuilder, BasicOutputBuilder,
@@ -26,8 +27,6 @@ use iota_types::stardust::coin_type::CoinType;
 use itertools::Itertools;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
-
-const OBJECT_SNAPSHOT_FILE_PATH: &str = "stardust_object_snapshot.bin";
 
 #[derive(Parser, Debug)]
 #[clap(about = "Tool for migrating Iota and Shimmer Hornet full-snapshot files")]

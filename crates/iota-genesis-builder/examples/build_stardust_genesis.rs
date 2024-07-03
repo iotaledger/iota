@@ -9,13 +9,11 @@ use std::{
 };
 
 use clap::Parser;
-use iota_genesis_builder::{Builder, BROTLI_COMPRESSOR_BUFFER_SIZE};
+use iota_genesis_builder::{Builder, BROTLI_COMPRESSOR_BUFFER_SIZE, OBJECT_SNAPSHOT_FILE_PATH};
 use iota_swarm_config::genesis_config::ValidatorGenesisConfigBuilder;
 use rand::rngs::OsRng;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
-
-const OBJECT_SNAPSHOT_FILE_PATH: &str = "stardust_object_snapshot.bin";
 
 #[derive(Parser, Debug)]
 #[clap(

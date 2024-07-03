@@ -6545,7 +6545,6 @@ dependencies = [
  "serde_with",
  "serde_yaml 0.8.26",
  "shared-crypto",
- "tar",
  "tempfile",
  "thiserror",
  "tokio",

@@ -72,6 +72,7 @@ pub const BROTLI_COMPRESSOR_BUFFER_SIZE: usize = 4096;
 pub const BROTLI_COMPRESSOR_QUALITY: u32 = 11;
 /// The LZ77 window size (0, 10-24) where bigger windows size improves density.
 pub const BROTLI_COMPRESSOR_LG_WINDOW_SIZE: u32 = 22;
+pub const OBJECT_SNAPSHOT_FILE_PATH: &str = "stardust_object_snapshot.bin";
 pub const IOTA_OBJECT_SNAPSHOT_URL: &str = "https://stardust-objects.s3.eu-central-1.amazonaws.com/iota/alphanet/latest/stardust_object_snapshot.bin.gz";
 pub const SHIMMER_OBJECT_SNAPSHOT_URL: &str = "https://stardust-objects.s3.eu-central-1.amazonaws.com/shimmer/alphanet/latest/stardust_object_snapshot.bin.gz";
 
