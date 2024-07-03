@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { TypeSetItem } from './TypeSetItem';
-import { getTypeSetSize } from '../constants';
-import { CustomFontSize } from '@/lib/tailwind/constants';
+import { getFontSizeLabelFromClass } from '../helpers';
+import { TailwindCustomFonts } from '@/lib/tailwind/constants';
 
-interface TypeSetProps {
-    typeset: CustomFontSize;
+export interface TypeSetProps {
+    typeset: TailwindCustomFonts;
     fontWeight: number;
     fontFamily: string;
     label: string;
@@ -15,24 +15,20 @@ interface TypeSetProps {
 export function TypeSet({ typeset, label, fontWeight, fontFamily }: TypeSetProps) {
     return (
         <div>
-            <p className="!m-0">
-                Font Weight: <span className="!text-sm !font-semibold">{fontWeight}</span>
-            </p>
+            <p>Font Weight: {fontWeight}</p>
+            <span>Font Family: {fontFamily}</span>
 
-            <p className="!m-0">
-                Font Family: <span className="!text-sm !font-semibold">{fontFamily}</span>
-            </p>
-
-            <div className="border border-gray-400 p-4">
+            <div className="mt-4 flex flex-col gap-y-2 rounded-md border border-gray-200 px-5 py-8 shadow-md">
                 {Object.entries(typeset).map(([fontClass, [fontSize]], index) => {
-                    const sizeText = getTypeSetSize(typeset);
                     const size = Number(fontSize.replace('px', ''));
+                    const sizeText = getFontSizeLabelFromClass(fontClass);
                     return (
                         <TypeSetItem
                             key={index}
-                            sampleText={label + ' ' + sizeText}
-                            fontClass={'text-' + fontClass}
+                            sampleText={label}
+                            fontClass={fontClass}
                             fontSize={size}
+                            sizeText={sizeText}
                         />
                     );
                 })}

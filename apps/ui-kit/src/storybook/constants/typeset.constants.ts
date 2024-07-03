@@ -2,70 +2,50 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-    LABEL_SIZES,
-    BODY_SIZES,
-    BODY_DISAMBIGUOUS_SIZES,
-    TITLE_SIZES,
-    HEADLINE_SIZES,
-    DISPLAY_SIZES,
-    type CustomFontSize,
-} from '@/lib/tailwind/constants';
+    TEXT_LABEL_CLASSES,
+    TEXT_BODY_CLASSES,
+    TEXT_BODY_DISAMBIGUOUS_CLASSES,
+    TEXT_TITLE_CLASSES,
+    TEXT_HEADLINE_CLASSES,
+    TEXT_DISPLAY_CLASSES,
+} from '@/lib/constants';
+import type { TypeSetProps } from '../blocks';
 
-export type TypeSetConfig = {
-    label: string;
-    fontFamily: string;
-    typeset: CustomFontSize;
-    fontWeight: number;
-};
-
-const sizeToLabelMap: Record<string, string> = {
-    sm: 'Small',
-    md: 'Medium',
-    lg: 'Large',
-};
-
-export function getTypeSetSize(font: CustomFontSize): string {
-    const label = Object.keys(font)[0];
-    const labelSplit = label.split('-');
-    const size = sizeToLabelMap[label.split('-')[labelSplit.length - 1]];
-    return size;
-}
-
-export const TYPESETS: TypeSetConfig[] = [
+export const TYPESETS: TypeSetProps[] = [
     {
         label: 'Label',
         fontFamily: 'Inter',
-        typeset: LABEL_SIZES,
+        typeset: TEXT_LABEL_CLASSES,
         fontWeight: 500,
     },
     {
         label: 'Body',
         fontFamily: 'Inter',
-        typeset: BODY_SIZES,
+        typeset: TEXT_BODY_CLASSES,
         fontWeight: 400,
     },
     {
         label: 'Body Disambiguous',
         fontFamily: 'Inter',
-        typeset: BODY_DISAMBIGUOUS_SIZES,
+        typeset: TEXT_BODY_DISAMBIGUOUS_CLASSES,
         fontWeight: 400,
     },
     {
         label: 'Title',
         fontFamily: 'AllianceNo2',
-        typeset: TITLE_SIZES,
+        typeset: TEXT_TITLE_CLASSES,
         fontWeight: 500,
     },
     {
         label: 'Headline',
         fontFamily: 'AllianceNo2',
-        typeset: HEADLINE_SIZES,
+        typeset: TEXT_HEADLINE_CLASSES,
         fontWeight: 400,
     },
     {
         label: 'Display',
         fontFamily: 'AllianceNo2',
-        typeset: DISPLAY_SIZES,
+        typeset: TEXT_DISPLAY_CLASSES,
         fontWeight: 400,
     },
 ];

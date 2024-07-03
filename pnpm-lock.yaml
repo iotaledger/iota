@@ -633,12 +633,9 @@ importers:
 
   apps/ui-kit:
     dependencies:
-      '@iota/core':
-        specifier: workspace:*
-        version: link:../core
-      '@iota/icons':
-        specifier: workspace:*
-        version: link:../icons
+      '@fontsource/inter':
+        specifier: ^5.0.17
+        version: 5.0.18
       lodash.merge:
         specifier: ^4.6.2
         version: 4.6.2

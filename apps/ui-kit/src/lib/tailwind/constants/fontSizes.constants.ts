@@ -1,20 +1,12 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export type CustomFontSize = Record<
-    string,
-    [
-        string,
-        Partial<{
-            lineHeight: string;
-            letterSpacing: string;
-            fontWeight: number;
-        }>,
-    ]
->;
+import { ThemeConfig } from 'tailwindcss/types/config';
 
-export const LABEL_SIZES: CustomFontSize = {
-    'label-sm': [
+export type TailwindCustomFonts = ThemeConfig['fontSize'];
+
+export const TEXT_LABEL_CLASSES: TailwindCustomFonts = {
+    'text-label-sm': [
         '11px',
         {
             lineHeight: '16px',
@@ -22,7 +14,7 @@ export const LABEL_SIZES: CustomFontSize = {
             fontWeight: 500,
         },
     ],
-    'label-md': [
+    'text-label-md': [
         '12px',
         {
             lineHeight: '16px',
@@ -30,7 +22,7 @@ export const LABEL_SIZES: CustomFontSize = {
             fontWeight: 500,
         },
     ],
-    'label-lg': [
+    'text-label-lg': [
         '14px',
         {
             lineHeight: '20px',
@@ -40,8 +32,8 @@ export const LABEL_SIZES: CustomFontSize = {
     ],
 };
 
-export const BODY_SIZES: CustomFontSize = {
-    'body-sm': [
+export const TEXT_BODY_CLASSES: TailwindCustomFonts = {
+    'text-body-sm': [
         '12px',
         {
             lineHeight: '16px',
@@ -49,7 +41,7 @@ export const BODY_SIZES: CustomFontSize = {
             fontWeight: 400,
         },
     ],
-    'body-md': [
+    'text-body-md': [
         '14px',
         {
             lineHeight: '20px',
@@ -57,7 +49,7 @@ export const BODY_SIZES: CustomFontSize = {
             fontWeight: 400,
         },
     ],
-    'body-lg': [
+    'text-body-lg': [
         '16px',
         {
             lineHeight: '24px',
@@ -67,8 +59,8 @@ export const BODY_SIZES: CustomFontSize = {
     ],
 };
 
-export const BODY_DISAMBIGUOUS_SIZES: CustomFontSize = {
-    'body-ds-sm': [
+export const TEXT_BODY_DISAMBIGUOUS_CLASSES: TailwindCustomFonts = {
+    'text-body-ds-sm': [
         '12px',
         {
             lineHeight: '16px',
@@ -76,7 +68,7 @@ export const BODY_DISAMBIGUOUS_SIZES: CustomFontSize = {
             fontWeight: 400,
         },
     ],
-    'body-ds-md': [
+    'text-body-ds-md': [
         '14px',
         {
             lineHeight: '20px',
@@ -84,7 +76,7 @@ export const BODY_DISAMBIGUOUS_SIZES: CustomFontSize = {
             fontWeight: 400,
         },
     ],
-    'body-ds-lg': [
+    'text-body-ds-lg': [
         '16px',
         {
             lineHeight: '24px',
@@ -94,8 +86,8 @@ export const BODY_DISAMBIGUOUS_SIZES: CustomFontSize = {
     ],
 };
 
-export const TITLE_SIZES: CustomFontSize = {
-    'title-sm': [
+export const TEXT_TITLE_CLASSES: TailwindCustomFonts = {
+    'text-title-sm': [
         '14px',
         {
             lineHeight: '120%',
@@ -103,7 +95,7 @@ export const TITLE_SIZES: CustomFontSize = {
             fontWeight: 500,
         },
     ],
-    'title-md': [
+    'text-title-md': [
         '16px',
         {
             lineHeight: '120%',
@@ -111,7 +103,7 @@ export const TITLE_SIZES: CustomFontSize = {
             fontWeight: 500,
         },
     ],
-    'title-lg': [
+    'text-title-lg': [
         '20px',
         {
             lineHeight: '120%',
@@ -121,8 +113,8 @@ export const TITLE_SIZES: CustomFontSize = {
     ],
 };
 
-export const HEADLINE_SIZES: CustomFontSize = {
-    'headline-sm': [
+export const TEXT_HEADLINE_CLASSES: TailwindCustomFonts = {
+    'text-headline-sm': [
         '24px',
         {
             lineHeight: '120%',
@@ -130,7 +122,7 @@ export const HEADLINE_SIZES: CustomFontSize = {
             fontWeight: 400,
         },
     ],
-    'headline-md': [
+    'text-headline-md': [
         '28px',
         {
             lineHeight: '120%',
@@ -138,7 +130,7 @@ export const HEADLINE_SIZES: CustomFontSize = {
             fontWeight: 400,
         },
     ],
-    'headline-lg': [
+    'text-headline-lg': [
         '32px',
         {
             lineHeight: '120%',
@@ -148,22 +140,22 @@ export const HEADLINE_SIZES: CustomFontSize = {
     ],
 };
 
-export const DISPLAY_SIZES: CustomFontSize = {
-    'display-sm': [
+export const TEXT_DISPLAY_CLASSES: TailwindCustomFonts = {
+    'text-display-sm': [
         '36px',
         {
             lineHeight: '120%',
             fontWeight: 400,
         },
     ],
-    'display-md': [
+    'text-display-md': [
         '48px',
         {
             lineHeight: '120%',
             fontWeight: 400,
         },
     ],
-    'display-lg': [
+    'text-display-lg': [
         '60px',
         {
             lineHeight: '120%',
@@ -172,11 +164,20 @@ export const DISPLAY_SIZES: CustomFontSize = {
     ],
 };
 
-export const TAILWIND_FONT_SIZES: CustomFontSize = {
-    ...LABEL_SIZES,
-    ...BODY_SIZES,
-    ...BODY_DISAMBIGUOUS_SIZES,
-    ...TITLE_SIZES,
-    ...HEADLINE_SIZES,
-    ...DISPLAY_SIZES,
+const CUSTOM_TEXT_CLASSES: TailwindCustomFonts = {
+    ...TEXT_LABEL_CLASSES,
+    ...TEXT_BODY_CLASSES,
+    ...TEXT_BODY_DISAMBIGUOUS_CLASSES,
+    ...TEXT_TITLE_CLASSES,
+    ...TEXT_HEADLINE_CLASSES,
+    ...TEXT_DISPLAY_CLASSES,
 };
+
+// Remove the 'text-' prefix from the keys to match the TailwindCSS font size keys
+export const CUSTOM_FONT_SIZES: TailwindCustomFonts = Object.entries(CUSTOM_TEXT_CLASSES).reduce(
+    (acc, [className, properties]) => {
+        const key = className.startsWith('text-') ? className.replace('text-', '') : className;
+        return { ...acc, [key]: properties };
+    },
+    {},
+);

@@ -3,15 +3,18 @@
 
 interface TypeSetItemProps {
     sampleText: string;
-    fontClass: string;
-    fontSize: number;
+    fontClass?: string;
+    fontSize?: number;
+    sizeText?: string;
 }
 
-export function TypeSetItem({ sampleText, fontClass, fontSize }: TypeSetItemProps) {
+export function TypeSetItem({ sampleText, fontClass, fontSize, sizeText }: TypeSetItemProps) {
     return (
-        <div className="flex flex-row gap-x-4">
-            <div className="text-xs">{fontSize}</div>
-            <div className={fontClass}>{sampleText}</div>
+        <div className="flex flex-row items-center gap-x-4">
+            <div className="text-xs text-gray-500">{fontSize}</div>
+            <div className={fontClass}>
+                {sampleText} {sizeText}
+            </div>
         </div>
     );
 }
