@@ -264,7 +264,7 @@ export class UiConnection extends Connection {
                 await this.send(createMessage({ type: 'done' }, msg.id));
             } else if (isInitAccountsFinder(payload)) {
                 AccountsFinder.init();
-                await this.send(createMessage({ type: 'done' }, msg.id));
+                this.send(createMessage({ type: 'done' }, msg.id));
             } else if (isSearchAccountsFinder(payload)) {
                 await AccountsFinder.findMore(
                     payload.coinType,
@@ -273,10 +273,10 @@ export class UiConnection extends Connection {
                     payload.accountGapLimit,
                     payload.addressGapLimit,
                 );
-                await this.send(createMessage({ type: 'done' }, msg.id));
+                this.send(createMessage({ type: 'done' }, msg.id));
             } else if (isGetAccountsFinderResultsRequest(payload)) {
                 const results = await AccountsFinder.getResults();
-                await this.send(createMessage({ type: 'done', results }, msg.id));
+                this.send(createMessage({ type: 'done', results }, msg.id));
             } else {
                 throw new Error(
                     `Unhandled message ${msg.id}. (${JSON.stringify(
