@@ -9,7 +9,7 @@ import { bcs } from '../../bcs/index.js';
 import { TransactionBlock, Transactions } from '../index.js';
 import { Inputs } from '../Inputs.js';
 
-it('can construct and serialize an empty tranaction', () => {
+it('can construct and serialize an empty transaction', () => {
     const tx = new TransactionBlock();
     expect(() => tx.serialize()).not.toThrow();
 });

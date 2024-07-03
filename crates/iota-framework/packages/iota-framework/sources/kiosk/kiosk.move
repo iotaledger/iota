@@ -163,7 +163,7 @@ module iota::kiosk {
     /// purchase it from a `Kiosk` for any price no less than `min_price`.
     ///
     /// Allows exclusive listing: only bearer of the `PurchaseCap` can
-    /// purchase the asset. However, the capablity should be used
+    /// purchase the asset. However, the capability should be used
     /// carefully as losing it would lock the asset in the `Kiosk`.
     ///
     /// The main application for the `PurchaseCap` is building extensions

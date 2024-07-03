@@ -24,6 +24,7 @@ const GIT_REVISION: &str = {
 };
 
 const VERSION: &str = {
+    #[allow(clippy::const_is_empty)]
     if GIT_REVISION.is_empty() {
         env!("CARGO_PKG_VERSION")
     } else {

@@ -10,5 +10,5 @@ error[E05001]: ability constraint not satisfied
   │             ^^^^^^^
   │             │    │
   │             │    The type '0x8675309::M::R' does not have the ability 'copy'
-  │             'copy' constraint not satisifed
+  │             'copy' constraint not satisfied
 
