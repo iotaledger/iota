@@ -47,12 +47,15 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     for alias_owner in alias_owners {
         let alias_output_header = random_output_header(&mut rng);
 
-        let alias_output = AliasOutputBuilder::new_with_amount(1_000_000, AliasId::new(rng.gen()))
-            .add_unlock_condition(GovernorAddressUnlockCondition::new(alias_owner))
-            .add_unlock_condition(StateControllerAddressUnlockCondition::new(alias_owner))
-            .finish()
-            .unwrap();
-        let alias_address = alias_output.alias_address(&alias_output_header.output_id());
+        let alias_output = AliasOutputBuilder::new_with_amount(
+            1_000_000,
+            (&alias_output_header.output_id()).into(),
+        )
+        .add_unlock_condition(GovernorAddressUnlockCondition::new(alias_owner))
+        .add_unlock_condition(StateControllerAddressUnlockCondition::new(alias_owner))
+        .finish()
+        .unwrap();
+        let alias_address = AliasAddress::new(*alias_output.alias_id());
 
         // let this alias own various other assets, that may themselves own other assets
         let max_depth = rng.gen_range(1usize..5);
@@ -70,10 +73,8 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
                     0 => {
                         // alias
                         let (output_header, alias) = random_alias_output(&mut rng, owning_addr);
-                        owning_addresses.push_back((
-                            depth + 1,
-                            alias.alias_address(&output_header.output_id()).into(),
-                        ));
+                        owning_addresses
+                            .push_back((depth + 1, AliasAddress::new(*alias.alias_id()).into()));
                         outputs.push((output_header, alias.into()));
                     }
                     1 => {
