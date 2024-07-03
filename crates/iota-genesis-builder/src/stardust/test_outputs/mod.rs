@@ -25,7 +25,7 @@ use packable::{
 };
 
 use crate::stardust::{
-    parse::HornetGenesisSnapshotParser,
+    parse::HornetSnapshotParser,
     types::{output_header::OutputHeader, output_index::random_output_index},
 };
 
@@ -65,7 +65,7 @@ pub(crate) fn new_vested_output(
 }
 
 /// Adds outputs to test specific and intricate scenario in the full snapshot.
-pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
+pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug, const VERIFY: bool>(
     current_path: P,
     new_path: P,
 ) -> anyhow::Result<()> {
@@ -76,7 +76,7 @@ pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
         .truncate(true)
         .open(new_path)?;
     let mut writer = IoPacker::new(BufWriter::new(new_file));
-    let mut parser = HornetGenesisSnapshotParser::new(current_file)?;
+    let mut parser = HornetSnapshotParser::new::<VERIFY>(current_file)?;
     let output_to_decrease_amount_from = OutputId::from_str(OUTPUT_TO_DECREASE_AMOUNT_FROM)?;
     let mut new_header = parser.header.clone();
     let mut vested_index = u32::MAX;
