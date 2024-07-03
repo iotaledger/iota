@@ -18,58 +18,82 @@ interface GapConfiguration {
     accountGapLimit: number;
     addressGapLimit: number;
 }
-
 interface RecoverAccountParams {
     accountStartIndex: number;
     accountGapLimit: number;
     addressStartIndex: number;
     addressGapLimit: number;
 }
-
+enum AllowedBip44CoinTypes {
+    IOTA = 4218,
+    Shimmer = 4219,
+}
 export enum SearchAlgorithm {
     BREADTH,
     DEPTH,
     ITERATIVE_DEEPENING_BREADTH_FIRST,
 }
-
-const GAP_CONFIGURATION: { [key in AccountType]: GapConfiguration } = {
-    [AccountType.Ledger]: {
-        accountGapLimit: 1,
-        addressGapLimit: 5,
+// Note: we exclude private keys for the account finder because more addresses cant be derived from them
+type AllowedAccountTypes = Exclude<AccountType, AccountType.Imported>;
+type GapConfigurationByCoinType = {
+    [key in AllowedAccountTypes]: GapConfiguration;
+};
+const GAP_CONFIGURATION: { [key in AllowedBip44CoinTypes]: GapConfigurationByCoinType } = {
+    // in IOTA we have chrysalis users which could have rotated addresses
+    [AllowedBip44CoinTypes.IOTA]: {
+        [AccountType.Ledger]: {
+            accountGapLimit: 1,
+            addressGapLimit: 5,
+        },
+        [AccountType.MnemonicDerived]: {
+            accountGapLimit: 3,
+            addressGapLimit: 30,
+        },
+        [AccountType.SeedDerived]: {
+            accountGapLimit: 3,
+            addressGapLimit: 30,
+        },
     },
-    [AccountType.MnemonicDerived]: {
-        accountGapLimit: 3,
-        addressGapLimit: 30,
+    // In shimmer we focus on accounts indexes and never rotate addresses
+    [AllowedBip44CoinTypes.Shimmer]: {
+        [AccountType.Ledger]: {
+            accountGapLimit: 3,
+            addressGapLimit: 0,
+        },
+        [AccountType.MnemonicDerived]: {
+            accountGapLimit: 10,
+            addressGapLimit: 0,
+        },
+        [AccountType.SeedDerived]: {
+            accountGapLimit: 10,
+            addressGapLimit: 0,
+        },
     },
-    [AccountType.SeedDerived]: {
-        accountGapLimit: 3,
-        addressGapLimit: 30,
-    },
-    // Private key accounts are fixed bip paths, so we don't need to search for them
-    [AccountType.Imported]: {
-        accountGapLimit: 0,
-        addressGapLimit: 0,
-    },
+};
+const CHANGE_INDEXES: { [key in AllowedBip44CoinTypes]: number[] } = {
+    [AllowedBip44CoinTypes.IOTA]: [0, 1],
+    [AllowedBip44CoinTypes.Shimmer]: [0],
 };
 
 class AccountsFinder {
     // configured with parameters at init()
     private algorithm: SearchAlgorithm = SearchAlgorithm.ITERATIVE_DEEPENING_BREADTH_FIRST;
-    private bip44CoinType: number = 0;
+    private bip44CoinType: AllowedBip44CoinTypes = AllowedBip44CoinTypes.IOTA;
     private coinType: string = '';
     private sourceID: string = '';
-    // configured automatically after init()
+    // configured through predefined values at init()
     private accountGapLimit: number = 0;
     private addressGapLimit: number = 0;
+    private changeIndexes: number[] = [0];
 
     public client: IotaClient | null = null;
 
     accounts: AccountFromFinder[] = [];
 
     init(
-        accountType: AccountType,
+        accountType: AllowedAccountTypes,
         algorithm: SearchAlgorithm,
-        bip44CoinType: number,
+        bip44CoinType: AllowedBip44CoinTypes,
         coinType: string,
         sourceID: string,
     ) {
@@ -80,8 +104,9 @@ class AccountsFinder {
         this.coinType = coinType;
         this.sourceID = sourceID;
 
-        this.accountGapLimit = GAP_CONFIGURATION[accountType].accountGapLimit;
-        this.addressGapLimit = GAP_CONFIGURATION[accountType].addressGapLimit;
+        this.accountGapLimit = GAP_CONFIGURATION[bip44CoinType][accountType].accountGapLimit; // this could configured too by the user
+        this.addressGapLimit = GAP_CONFIGURATION[bip44CoinType][accountType].addressGapLimit; // this could configured too by the user
+        this.changeIndexes = CHANGE_INDEXES[bip44CoinType]; // this could configured too by the user;
     }
 
     async find() {
@@ -90,12 +115,14 @@ class AccountsFinder {
             this.algorithm === SearchAlgorithm.ITERATIVE_DEEPENING_BREADTH_FIRST
         ) {
             this.accounts = await this.runBreadthSearch();
+            // if we wanted, we could increase the account gap limit for example at this point
         }
         if (
             this.algorithm === SearchAlgorithm.DEPTH ||
             this.algorithm === SearchAlgorithm.ITERATIVE_DEEPENING_BREADTH_FIRST
         ) {
             this.accounts = await this.runDepthSearch();
+            // if we wanted, we could increase the address gap limit for example at this point
         }
     }
 
@@ -111,7 +138,7 @@ class AccountsFinder {
             addressStartIndex: 0, // we start from the first address index
             addressGapLimit: this.addressGapLimit, // we search for the full address gap limit
         });
-        // we merge the results into the existing accounts
+        // we merge the results into the existing accounts and persist them
         return this.accounts.concat(searchedAccounts);
     }
 
@@ -135,7 +162,7 @@ class AccountsFinder {
                 addressStartIndex: account.addresses.length, // we start from the last address index
                 addressGapLimit: this.addressGapLimit, // we search for the full address gap limit
             });
-            // we merge the results into the existing accounts
+            // we merge the results into the existing accounts and persist them
             depthAccounts[account.index].addresses = depthAccounts[account.index].addresses.concat(
                 searchedAccounts[account.index].addresses,
             );
@@ -143,7 +170,10 @@ class AccountsFinder {
         return depthAccounts;
     }
 
+    // This function simulates what the old SDK used to do.
     // Generic low level function that can be used to implement different search algorithms
+    // In this case we use it to implement all 3 search algorithms, but it could be used for other models
+    // Additionally, this function could be changed so that it behaves differently, impacting the whole search
     async recoverAccounts(
         params: RecoverAccountParams = {
             accountStartIndex: 0,
@@ -153,12 +183,15 @@ class AccountsFinder {
         },
     ) {
         const { accountStartIndex, accountGapLimit, addressStartIndex, addressGapLimit } = params;
+
         const network = await NetworkEnv.getActiveNetwork();
         this.client = new IotaClient({
             url: network.customRpcUrl ? network.customRpcUrl : getFullnodeUrl(network.network),
         });
+
         const accounts: AccountFromFinder[] = [];
         let targetAccountIndex = accountStartIndex + accountGapLimit;
+        // we search for accounts in the given range
         for (
             let accountIndex = accountStartIndex;
             accountIndex < targetAccountIndex;
@@ -168,7 +201,7 @@ class AccountsFinder {
                 index: accountIndex,
                 addresses: [],
             };
-
+            // on each fixed account index, we search for addresses in the given range
             let targetAddressIndex = addressStartIndex + addressGapLimit;
             for (
                 let addressIndex = addressStartIndex;
@@ -176,11 +209,15 @@ class AccountsFinder {
                 addressIndex++
             ) {
                 const addresses = await this.searchBalances(accountIndex, addressIndex);
+                // if any of the addresses has a balance, we increase the target address index to keep searching
                 if (addresses.some((addr) => addr.balance && hasBalance(addr.balance))) {
                     targetAddressIndex = addressIndex + 1 + addressGapLimit;
                 }
+                // we add the addresses to the account
                 account.addresses.push(addresses);
             }
+            // if any of the addresses of the given account has a balance,
+            // we increase the target account index to keep searching
             if (
                 account.addresses.some((addrIndexSet) =>
                     addrIndexSet.some((address) => address.balance && hasBalance(address.balance)),
@@ -188,15 +225,15 @@ class AccountsFinder {
             ) {
                 targetAccountIndex = accountIndex + 1 + accountGapLimit;
             }
+            // we add the account to the list of accounts
             accounts.push(account);
         }
         return accounts;
     }
 
     async searchBalances(accountIndex: number, addressIndex: number) {
-        const changeIndexes = [0, 1]; // in the past the change indexes were used as 0=deposit & 1=internal
         const addresses = [];
-        for (const changeIndex of changeIndexes) {
+        for (const changeIndex of this.changeIndexes) {
             const bipPath = {
                 bip44CoinType: this.bip44CoinType,
                 accountIndex: accountIndex,
