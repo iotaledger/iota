@@ -27,11 +27,12 @@ import {
 import { Heading } from '_src/ui/app/shared/heading';
 import { Text } from '_src/ui/app/shared/text';
 import { ButtonOrLink, type ButtonOrLinkProps } from '_src/ui/app/shared/utils/ButtonOrLink';
-import { ArrowBgFill16, Plus12 } from '@iota/icons';
+import { ArrowBgFill16, Plus12, Search16 } from '@iota/icons';
 import * as CollapsiblePrimitive from '@radix-ui/react-collapsible';
 import { useMutation } from '@tanstack/react-query';
 import { forwardRef, useState } from 'react';
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
 const ACCOUNT_TYPE_TO_LABEL: Record<AccountType, string> = {
     [AccountType.MnemonicDerived]: 'Passphrase Derived',
@@ -39,12 +40,17 @@ const ACCOUNT_TYPE_TO_LABEL: Record<AccountType, string> = {
     [AccountType.PrivateKeyDerived]: 'Private Key',
     [AccountType.LedgerDerived]: 'Ledger',
 };
+const ACCOUNTS_WITH_ENABLED_BALANCE_FINDER: AccountType[] = [
+    AccountType.MnemonicDerived,
+    AccountType.SeedDerived,
+    AccountType.LedgerDerived,
+];
 
 export function getGroupTitle(aGroupAccount: SerializedUIAccount) {
     return ACCOUNT_TYPE_TO_LABEL[aGroupAccount?.type] || '';
 }
 
-// todo: we probbaly have some duplication here with the various FooterLink / ButtonOrLink
+// todo: we probably have some duplication here with the various FooterLink / ButtonOrLink
 // components - we should look to add these to base components somewhere
 const FooterLink = forwardRef<HTMLAnchorElement | HTMLButtonElement, ButtonOrLinkProps>(
     ({ children, to, ...props }, ref) => {
@@ -152,6 +158,7 @@ export function AccountGroup({
     type: AccountType;
     accountSourceID?: string;
 }) {
+    const navigate = useNavigate();
     const createAccountMutation = useCreateAccountsMutation();
     const isMnemonicDerivedGroup = type === AccountType.MnemonicDerived;
     const isSeedDerivedGroup = type === AccountType.SeedDerived;
@@ -171,32 +178,46 @@ export function AccountGroup({
                             </Heading>
                             <div className="flex h-px flex-1 flex-shrink-0 bg-gray-45" />
                             {(isMnemonicDerivedGroup || isSeedDerivedGroup) && accountSource ? (
-                                <ButtonOrLink
-                                    loading={createAccountMutation.isPending}
-                                    onClick={async (e) => {
-                                        // prevent the collapsible from closing when clicking the "new" button
-                                        e.stopPropagation();
-                                        const accountsFormType = isMnemonicDerivedGroup
-                                            ? AccountsFormType.MnemonicSource
-                                            : AccountsFormType.SeedSource;
-                                        setAccountsFormValues({
-                                            type: accountsFormType,
-                                            sourceID: accountSource.id,
-                                        });
-                                        if (accountSource.isLocked) {
-                                            setPasswordModalVisible(true);
-                                        } else {
-                                            createAccountMutation.mutate({
+                                <>
+                                    <ButtonOrLink
+                                        loading={createAccountMutation.isPending}
+                                        onClick={async (e) => {
+                                            // prevent the collapsible from closing when clicking the "new" button
+                                            e.stopPropagation();
+                                            const accountsFormType = isMnemonicDerivedGroup
+                                                ? AccountsFormType.MnemonicSource
+                                                : AccountsFormType.SeedSource;
+                                            setAccountsFormValues({
                                                 type: accountsFormType,
+                                                sourceID: accountSource.id,
                                             });
-                                        }
-                                    }}
+                                            if (accountSource.isLocked) {
+                                                setPasswordModalVisible(true);
+                                            } else {
+                                                createAccountMutation.mutate({
+                                                    type: accountsFormType,
+                                                });
+                                            }
+                                        }}
+                                        className="flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase text-hero outline-none hover:text-hero-darkest"
+                                    >
+                                        <Plus12 />
+                                        <Text variant="bodySmall" weight="semibold">
+                                            New
+                                        </Text>
+                                    </ButtonOrLink>
+                                </>
+                            ) : null}
+                            {ACCOUNTS_WITH_ENABLED_BALANCE_FINDER.includes(type) ? (
+                                <ButtonOrLink
                                     className="flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase text-hero outline-none hover:text-hero-darkest"
+                                    onClick={() => {
+                                        navigate(
+                                            `/accounts/manage/accounts-finder/${accountSourceID}`,
+                                        );
+                                    }}
                                 >
-                                    <Plus12 />
-                                    <Text variant="bodySmall" weight="semibold">
-                                        New
-                                    </Text>
+                                    <Search16 />
                                 </ButtonOrLink>
                             ) : null}
                         </div>

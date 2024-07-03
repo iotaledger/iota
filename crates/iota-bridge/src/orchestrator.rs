@@ -217,7 +217,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_iota_watcher_task() {
-        // Note: this test may fail beacuse of the following reasons:
+        // Note: this test may fail because of the following reasons:
         // the IotaEvent's struct tag does not match the ones in events.rs
 
         let (iota_events_tx, iota_events_rx, _eth_events_tx, eth_events_rx, iota_client, store) =
@@ -268,7 +268,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_eth_watcher_task() {
-        // Note: this test may fail beacuse of the following reasons:
+        // Note: this test may fail because of the following reasons:
         // 1. Log and BridgeAction returned from `get_test_log_and_action` are not in
         //    sync
         // 2. Log returned from `get_test_log_and_action` is not parseable log (not

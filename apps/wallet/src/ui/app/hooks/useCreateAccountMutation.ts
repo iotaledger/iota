@@ -113,6 +113,12 @@ export function useCreateAccountsMutation() {
                 type === AccountsFormType.SeedSource &&
                 validateAccountFormValues(type, accountsFormValues, password)
             ) {
+                if (password) {
+                    await backgroundClient.unlockAccountSourceOrAccount({
+                        password,
+                        id: accountsFormValues.sourceID,
+                    });
+                }
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.SeedDerived,
                     sourceID: accountsFormValues.sourceID,

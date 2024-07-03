@@ -5,7 +5,7 @@ error[E05001]: ability constraint not satisfied
    │                            ^^^^^^^^^^^^^^
    │                            │         │
    │                            │         The type 'u64' does not have the ability 'key'
-   │                            'key' constraint not satisifed
+   │                            'key' constraint not satisfied
    ·
 10 │     struct Receiving<phantom T: key> has drop {
    │                                 --- 'key' constraint declared here

@@ -14,7 +14,7 @@ use clap::{Parser, Subcommand};
 use iota_genesis_builder::{
     stardust::{
         migration::{Migration, MigrationTargetNetwork},
-        parse::HornetGenesisSnapshotParser,
+        parse::HornetSnapshotParser,
     },
     BROTLI_COMPRESSOR_BUFFER_SIZE, BROTLI_COMPRESSOR_LG_WINDOW_SIZE, BROTLI_COMPRESSOR_QUALITY,
     OBJECT_SNAPSHOT_FILE_PATH,
@@ -40,6 +40,12 @@ struct Cli {
         help = "Compress the resulting object snapshot"
     )]
     compress: bool,
+    #[clap(
+        long,
+        help = "Enable global snapshot verification",
+        default_value_t = true
+    )]
+    global_snapshot_verification: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -81,7 +87,11 @@ fn main() -> Result<()> {
     };
 
     // Start the Hornet snapshot parser
-    let mut snapshot_parser = HornetGenesisSnapshotParser::new(File::open(snapshot_path)?)?;
+    let mut snapshot_parser = if cli.global_snapshot_verification {
+        HornetSnapshotParser::new::<true>(File::open(snapshot_path)?)?
+    } else {
+        HornetSnapshotParser::new::<false>(File::open(snapshot_path)?)?
+    };
     let total_supply = match coin_type {
         CoinType::Iota => scale_amount_for_iota(snapshot_parser.total_supply()?)?,
         CoinType::Shimmer => snapshot_parser.total_supply()?,
@@ -121,6 +131,7 @@ fn main() -> Result<()> {
             }
         })
         .process_results(|outputs| migration.run(outputs, object_snapshot_writer))??;
+
     Ok(())
 }
 

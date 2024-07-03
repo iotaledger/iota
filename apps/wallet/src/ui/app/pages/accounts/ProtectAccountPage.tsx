@@ -4,6 +4,7 @@
 
 import { Text } from '_app/shared/text';
 import { isMnemonicSerializedUiAccount } from '_src/background/accounts/MnemonicAccount';
+import { isSeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
@@ -76,8 +77,12 @@ export function ProtectAccountPage() {
                             onboarding: true,
                         },
                     });
-                } else if (REDIRECT_TO_ACCOUNTS_FINDER.includes(type)) {
-                    const path = '/accounts/manage/accounts-finder/';
+                } else if (
+                    REDIRECT_TO_ACCOUNTS_FINDER.includes(type) &&
+                    (isMnemonicSerializedUiAccount(createdAccounts[0]) ||
+                        isSeedSerializedUiAccount(createdAccounts[0]))
+                ) {
+                    const path = `/accounts/manage/accounts-finder/${createdAccounts[0].sourceID}`;
                     navigate(path, {
                         replace: true,
                         state: {
