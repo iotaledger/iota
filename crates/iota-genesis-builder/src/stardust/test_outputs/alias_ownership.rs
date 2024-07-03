@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 use iota_sdk::{
     client::secret::{mnemonic::MnemonicSecretManager, SecretManage},
     types::block::{
-        address::{Address, AliasAddress},
+        address::{Address, AliasAddress, NftAddress},
         output::{
             feature::{Irc27Metadata, IssuerFeature, MetadataFeature},
             unlock_condition::{
@@ -80,10 +80,8 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
                     1 => {
                         // nft
                         let (output_header, nft) = random_nft_output(&mut rng, owning_addr);
-                        owning_addresses.push_back((
-                            depth + 1,
-                            nft.nft_address(&output_header.output_id()).into(),
-                        ));
+                        owning_addresses
+                            .push_back((depth + 1, NftAddress::new(*nft.nft_id()).into()));
                         outputs.push((output_header, nft.into()));
                     }
                     2 => {
