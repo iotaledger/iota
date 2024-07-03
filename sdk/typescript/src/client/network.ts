@@ -61,7 +61,7 @@ export function getNetwork(network: NetworkId): NetworkConfiguration {
 }
 
 export function getDefaultNetwork(): Network {
-    return (process.env.DEFAULT_NETWORK as Network) || Network.Mainnet || Network.Testnet;
+    return process.env.DEFAULT_NETWORK as Network
 }
 
 export function getFullnodeUrl(network: NetworkId): string {

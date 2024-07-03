@@ -6,13 +6,9 @@ import { exec } from 'child_process';
 import { resolve } from 'path';
 import { randomBytes } from '@noble/hashes/utils';
 import SentryWebpackPlugin from '@sentry/webpack-plugin';
-import CopyPlugin from 'copy-webpack-plugin';
 import dotenv from 'dotenv';
 import gitRevSync from 'git-rev-sync';
-import HtmlWebpackPlugin from 'html-webpack-plugin';
-import MiniCssExtractPlugin from 'mini-css-extract-plugin';
-import { DefinePlugin, ProvidePlugin } from 'webpack';
-import type { Configuration } from 'webpack';
+import { rspack } from '@rspack/core';
 
 import packageJson from '../../package.json';
 
@@ -97,7 +93,7 @@ async function generateAliasFromTs() {
     return alias;
 }
 
-const commonConfig: () => Promise<Configuration> = async () => {
+const commonConfig: () => Promise<any> = async () => {
     const alias = await generateAliasFromTs();
     const walletVersionDetails = generateDateVersion(PATCH_VERISON);
     const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN;
@@ -114,10 +110,13 @@ const commonConfig: () => Promise<Configuration> = async () => {
             clean: true,
         },
         stats: {
-            preset: 'summary',
+            preset: 'errors-warnings',
             timings: true,
             errors: true,
             warnings: true,
+        },
+        experiments: {
+            css: false,
         },
         resolve: {
             extensions: ['.ts', '.tsx', '.js'],
@@ -133,21 +132,36 @@ const commonConfig: () => Promise<Configuration> = async () => {
                 stream: require.resolve('stream-browserify'),
                 buffer: require.resolve('buffer/'),
             },
+            tsConfig: {
+                configFile: TS_CONFIG_FILE,
+                references: 'auto'
+            },
         },
         module: {
             rules: [
                 {
                     test: /\.(t|j)sx?$/,
-                    loader: 'ts-loader',
+                    loader: 'builtin:swc-loader',
                     options: {
-                        configFile: TS_CONFIG_FILE,
+                        jsc: {
+                            parser: {
+                                syntax: 'typescript',
+                                tsx: true,
+                            },
+                            transform: {
+                                react: {
+                                    runtime: 'automatic'
+                                }
+                            }
+                        },
                     },
+                    type: 'javascript/auto',
                     exclude: /node_modules/,
                 },
                 {
                     test: /\.(s)?css$/i,
                     use: [
-                        MiniCssExtractPlugin.loader,
+                        rspack.CssExtractRspackPlugin.loader,
                         {
                             loader: 'css-loader',
                             options: {
@@ -177,14 +191,14 @@ const commonConfig: () => Promise<Configuration> = async () => {
             ],
         },
         plugins: [
-            new MiniCssExtractPlugin(),
-            new HtmlWebpackPlugin({
+            new rspack.CssExtractRspackPlugin(),
+            new rspack.HtmlRspackPlugin({
                 chunks: ['ui'],
                 filename: 'ui.html',
                 template: resolve(SRC_ROOT, 'ui', 'index.template.html'),
                 title: APP_NAME,
             }),
-            new CopyPlugin({
+            new rspack.CopyRspackPlugin({
                 patterns: [
                     {
                         from: resolve(SRC_ROOT, 'manifest', 'icons', '**', '*'),
@@ -209,7 +223,7 @@ const commonConfig: () => Promise<Configuration> = async () => {
                     },
                 ],
             }),
-            new DefinePlugin({
+            new rspack.DefinePlugin({
                 // This brakes bg service, js-sha3 checks if window is defined,
                 // but it's not defined in background service.
                 // TODO: check if this is worth investigating a fix and maybe do a separate build for UI and bg?
@@ -224,7 +238,7 @@ const commonConfig: () => Promise<Configuration> = async () => {
                 'process.env.IOTA_NETWORKS': JSON.stringify(process.env.IOTA_NETWORKS),
                 'process.env.APPS_BACKEND': JSON.stringify(process.env.APPS_BACKEND),
             }),
-            new ProvidePlugin({
+            new rspack.ProvidePlugin({
                 Buffer: ['buffer', 'Buffer'],
             }),
             new SentryWebpackPlugin({

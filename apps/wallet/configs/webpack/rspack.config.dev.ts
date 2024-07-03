@@ -2,13 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import ESLintPlugin from 'eslint-webpack-plugin';
-import type { Configuration } from 'webpack';
+import ESLintPlugin from 'eslint-rspack-plugin';
 import { merge } from 'webpack-merge';
 
-import configCommon from './webpack.config.common';
+import configCommon from './rspack.config.common';
 
-const configDev: Configuration = {
+const configDev = {
     mode: 'development',
     devtool: 'cheap-source-map',
     plugins: [new ESLintPlugin({ extensions: ['ts', 'tsx', 'js', 'jsx'] })],

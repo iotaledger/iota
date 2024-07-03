@@ -5,7 +5,7 @@
 import type { Configuration } from 'webpack';
 import { merge } from 'webpack-merge';
 
-import configCommon from './webpack.config.common';
+import configCommon from './rspack.config.common';
 
 const configProd: Configuration = {
     mode: 'production',

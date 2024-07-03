@@ -27,7 +27,7 @@ export const bcs = {
             readMethod: 'read8',
             writeMethod: 'write8',
             size: 1,
-            maxValue: 2 ** 8 - 1,
+            maxValue: 1,
             ...options,
         });
     },
@@ -43,7 +43,7 @@ export const bcs = {
             readMethod: 'read16',
             writeMethod: 'write16',
             size: 2,
-            maxValue: 2 ** 16 - 1,
+            maxValue:  1,
             ...options,
         });
     },
@@ -59,7 +59,7 @@ export const bcs = {
             readMethod: 'read32',
             writeMethod: 'write32',
             size: 4,
-            maxValue: 2 ** 32 - 1,
+            maxValue:  1,
             ...options,
         });
     },
@@ -75,7 +75,7 @@ export const bcs = {
             readMethod: 'read64',
             writeMethod: 'write64',
             size: 8,
-            maxValue: 2n ** 64n - 1n,
+            maxValue: BigInt(1),
             ...options,
         });
     },
@@ -91,7 +91,7 @@ export const bcs = {
             readMethod: 'read128',
             writeMethod: 'write128',
             size: 16,
-            maxValue: 2n ** 128n - 1n,
+            maxValue:  BigInt(1),
             ...options,
         });
     },
@@ -107,7 +107,7 @@ export const bcs = {
             readMethod: 'read256',
             writeMethod: 'write256',
             size: 32,
-            maxValue: 2n ** 256n - 1n,
+            maxValue:  BigInt(1),
             ...options,
         });
     },
