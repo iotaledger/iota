@@ -4,7 +4,7 @@
 import { type AddressFromFinder } from '_src/shared/accounts';
 import { useBackgroundClient } from './useBackgroundClient';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { COIN_TYPE_ID, GAS_TYPE_ARG } from '../redux/slices/iota-objects/Coin';
+import { IOTA_COIN_TYPE_ID, GAS_TYPE_ARG } from '../redux/slices/iota-objects/Coin';
 import { type GetAccountsFinderResultsResponse } from '_src/shared/messaging/messages/payloads/accounts-finder';
 
 export interface UseAccountFinderOptions {
@@ -16,7 +16,7 @@ export interface UseAccountFinderOptions {
 }
 
 export function useAccountsFinder({
-    coinType = COIN_TYPE_ID,
+    coinType = IOTA_COIN_TYPE_ID,
     gasType = GAS_TYPE_ARG,
     addressGapLimit,
     accountGapLimit,
