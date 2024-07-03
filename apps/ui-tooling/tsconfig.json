@@ -15,21 +15,11 @@
         "sourceMap": true,
         "jsx": "react-jsx",
         "paths": {
-            "@/*": [
-                "./src/*"
-            ],
-            "@/components": [
-                "./src/lib/components"
-            ],
-            "@/components/*": [
-                "./src/lib/components/*"
-            ],
+            "@/*": ["./src/*"],
+            "@/components": ["./src/lib/components"],
+            "@/components/*": ["./src/lib/components/*"]
         }
     },
-    "include": [
-        "src"
-    ],
-    "exclude": [
-        "node_modules"
-    ]
+    "include": ["src"],
+    "exclude": ["node_modules"]
 }
