@@ -5,7 +5,10 @@
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
 import { AccountIcon } from '_src/ui/app/components/accounts/AccountIcon';
 import { AccountItem } from '_src/ui/app/components/accounts/AccountItem';
-import { useAccountsFormContext } from '_src/ui/app/components/accounts/AccountsFormContext';
+import {
+    AccountsFormType,
+    useAccountsFormContext,
+} from '_src/ui/app/components/accounts/AccountsFormContext';
 import { NicknameDialog } from '_src/ui/app/components/accounts/NicknameDialog';
 import { VerifyPasswordModal } from '_src/ui/app/components/accounts/VerifyPasswordModal';
 import { useAccounts } from '_src/ui/app/hooks/useAccounts';
@@ -34,13 +37,13 @@ import { useNavigate } from 'react-router-dom';
 const ACCOUNT_TYPE_TO_LABEL: Record<AccountType, string> = {
     [AccountType.MnemonicDerived]: 'Passphrase Derived',
     [AccountType.SeedDerived]: 'Seed Derived',
-    [AccountType.Imported]: 'Imported',
-    [AccountType.Ledger]: 'Ledger',
+    [AccountType.PrivateKeyDerived]: 'Private Key',
+    [AccountType.LedgerDerived]: 'Ledger',
 };
 const ACCOUNTS_WITH_ENABLED_BALANCE_FINDER: AccountType[] = [
     AccountType.MnemonicDerived,
     AccountType.SeedDerived,
-    AccountType.Ledger,
+    AccountType.LedgerDerived,
 ];
 
 export function getGroupTitle(aGroupAccount: SerializedUIAccount) {
@@ -174,32 +177,6 @@ export function AccountGroup({
                                 {getGroupTitle(accounts[0])}
                             </Heading>
                             <div className="flex h-px flex-1 flex-shrink-0 bg-gray-45" />
-                            {(isMnemonicDerivedGroup || isSeedDerivedGroup) && accountSource ? (
-                                <>
-                                    <ButtonOrLink
-                                        loading={createAccountMutation.isPending}
-                                        onClick={async (e) => {
-                                            // prevent the collapsible from closing when clicking the "new" button
-                                            e.stopPropagation();
-                                            setAccountsFormValues({
-                                                type,
-                                                sourceID: accountSource.id,
-                                            });
-                                            if (accountSource.isLocked) {
-                                                setPasswordModalVisible(true);
-                                            } else {
-                                                createAccountMutation.mutate({ type });
-                                            }
-                                        }}
-                                        className="flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase text-hero outline-none hover:text-hero-darkest"
-                                    >
-                                        <Plus12 />
-                                        <Text variant="bodySmall" weight="semibold">
-                                            New
-                                        </Text>
-                                    </ButtonOrLink>
-                                </>
-                            ) : null}
                             {ACCOUNTS_WITH_ENABLED_BALANCE_FINDER.includes(type) ? (
                                 <ButtonOrLink
                                     className="flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase text-hero outline-none hover:text-hero-darkest"
@@ -211,6 +188,37 @@ export function AccountGroup({
                                 >
                                     <Search16 />
                                 </ButtonOrLink>
+                            ) : null}
+                            {(isMnemonicDerivedGroup || isSeedDerivedGroup) && accountSource ? (
+                                <>
+                                    <ButtonOrLink
+                                        loading={createAccountMutation.isPending}
+                                        onClick={async (e) => {
+                                            // prevent the collapsible from closing when clicking the "new" button
+                                            e.stopPropagation();
+                                            const accountsFormType = isMnemonicDerivedGroup
+                                                ? AccountsFormType.MnemonicSource
+                                                : AccountsFormType.SeedSource;
+                                            setAccountsFormValues({
+                                                type: accountsFormType,
+                                                sourceID: accountSource.id,
+                                            });
+                                            if (accountSource.isLocked) {
+                                                setPasswordModalVisible(true);
+                                            } else {
+                                                createAccountMutation.mutate({
+                                                    type: accountsFormType,
+                                                });
+                                            }
+                                        }}
+                                        className="flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase text-hero outline-none hover:text-hero-darkest"
+                                    >
+                                        <Plus12 />
+                                        <Text variant="bodySmall" weight="semibold">
+                                            New
+                                        </Text>
+                                    </ButtonOrLink>
+                                </>
                             ) : null}
                         </div>
                     </CollapsiblePrimitive.Trigger>
