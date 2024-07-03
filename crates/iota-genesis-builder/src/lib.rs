@@ -4,8 +4,8 @@
 
 use std::{
     collections::{BTreeMap, HashSet},
-    fs, io,
-    io::{prelude::Read, BufReader, BufWriter, Seek, SeekFrom, Write},
+    fs,
+    io::{prelude::Read, BufReader},
     path::Path,
     sync::Arc,
 };
@@ -53,10 +53,7 @@ use iota_types::{
 };
 use move_binary_format::CompiledModule;
 use move_core_types::ident_str;
-use reqwest::blocking::Client;
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
-use tar::Archive;
-use tempfile::tempfile;
 use tracing::trace;
 use validator_info::{GenesisValidatorInfo, GenesisValidatorMetadata, ValidatorInfo};
 
@@ -75,8 +72,8 @@ pub const BROTLI_COMPRESSOR_BUFFER_SIZE: usize = 4096;
 pub const BROTLI_COMPRESSOR_QUALITY: u32 = 11;
 /// The LZ77 window size (0, 10-24) where bigger windows size improves density.
 pub const BROTLI_COMPRESSOR_LG_WINDOW_SIZE: u32 = 22;
-pub const IOTA_OBJECT_SNAPSHOT_URL: &str = "https://stardust-objects.s3.eu-central-1.amazonaws.com/iota/alphanet/latest/stardust_object_snapshot.tar.gz";
-pub const SHIMMER_OBJECT_SNAPSHOT_URL: &str = "https://stardust-objects.s3.eu-central-1.amazonaws.com/shimmer/alphanet/latest/stardust_object_snapshot.tar.gz";
+pub const IOTA_OBJECT_SNAPSHOT_URL: &str = "https://stardust-objects.s3.eu-central-1.amazonaws.com/iota/alphanet/latest/stardust_object_snapshot.bin.gz";
+pub const SHIMMER_OBJECT_SNAPSHOT_URL: &str = "https://stardust-objects.s3.eu-central-1.amazonaws.com/shimmer/alphanet/latest/stardust_object_snapshot.bin.gz";
 
 pub struct Builder {
     parameters: GenesisCeremonyParameters,
@@ -185,53 +182,11 @@ impl Builder {
         Ok(self.add_objects(bcs::from_reader(reader)?))
     }
 
-    /// Downloads a .tar.gz object snapshot file from the given URL, extracts
-    /// it, and returns a reader.
-    pub fn download_tar_gz_snapshot_and_extract(
-        url: TarGzSnapshotUrl,
-    ) -> anyhow::Result<Box<dyn Read>> {
-        // Step 1: Create a temporary file to download the .tar.gz file directly
-        let mut temp_tar_gz = tempfile()?;
-        let client = Client::new();
-        let mut response = client.get(url.to_url()).send()?;
-
-        // Stream the response directly into the temporary file
-        {
-            let mut dest = BufWriter::new(&mut temp_tar_gz);
-            io::copy(&mut response, &mut dest)?;
-        }
-
-        // Seek to the beginning of the temp file to read from it
-        temp_tar_gz.seek(SeekFrom::Start(0))?;
-
-        // Wrap the File in a BufReader
-        let buf_reader = BufReader::new(temp_tar_gz);
-
-        // Step 2: Decompress the .tar.gz file
-        let tar_gz = GzDecoder::new(buf_reader);
-
-        // Step 3: Extract the tar archive
-        let mut archive = Archive::new(tar_gz);
-
-        // There is only one file in the archive, extract it
-        for entry in archive.entries()? {
-            let mut entry = entry?;
-            if entry.header().entry_type().is_file() {
-                // Use a temporary file to store the extracted file
-                let mut temp_file = tempfile()?;
-                {
-                    let mut buffer = BufWriter::new(&temp_file);
-                    io::copy(&mut entry, &mut buffer)?;
-                    buffer.flush()?;
-                }
-
-                // Seek to the beginning of the temp file to read from it
-                temp_file.seek(SeekFrom::Start(0))?;
-                return Ok(Box::new(BufReader::new(temp_file)));
-            }
-        }
-
-        Err(anyhow::anyhow!("No file found in the archive."))
+    /// Reads a gzip compressed object snapshot from the S3.
+    pub fn read_snapshot_from_s3(url: SnapshotUrl) -> anyhow::Result<impl Read> {
+        Ok(GzDecoder::new(BufReader::new(reqwest::blocking::get(
+            url.to_url(),
+        )?)))
     }
 
     pub fn unsigned_genesis_checkpoint(&self) -> Option<UnsignedGenesis> {
@@ -1214,12 +1169,12 @@ pub fn generate_genesis_system_object(
 
 /// The URLs to download Iota or Shimmer object snapshots.
 #[derive(Debug, Clone)]
-pub enum TarGzSnapshotUrl {
+pub enum SnapshotUrl {
     Iota,
     Shimmer,
 }
 
-impl TarGzSnapshotUrl {
+impl SnapshotUrl {
     /// Returns the Iota or Shimmer object snapshot download URL.
     pub fn to_url(&self) -> Url {
         match self {
