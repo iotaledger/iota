@@ -1,5 +1,5 @@
 {
-    "name": "@iota/ui-tooling",
+    "name": "@iota/apps-ui-kit",
     "version": "0.0.1-rc.1",
     "repository": {
         "type": "git",
@@ -32,12 +32,13 @@
         "./preset/static": "./dist/tailwind/static.preset.js"
     },
     "dependencies": {
+        "@iota/core": "workspace:*",
+        "@iota/icons": "workspace:*",
+        "lodash.merge": "^4.6.2",
         "react": "^18.2.0",
-        "react-dom": "^18.2.0",
-        "lodash.merge": "^4.6.2"
+        "react-dom": "^18.2.0"
     },
     "devDependencies": {
-        "@types/lodash.merge": "^4.6.9",
         "@chromatic-com/storybook": "^1.6.0",
         "@storybook/addon-essentials": "^7.1.0",
         "@storybook/addon-interactions": "^7.1.0",
@@ -47,13 +48,14 @@
         "@storybook/react": "^7.1.0",
         "@storybook/react-vite": "^7.1.0",
         "@storybook/test": "^8.1.11",
+        "@types/lodash.merge": "^4.6.9",
         "@types/node": "^20.4.2",
         "@types/react": "^18.2.15",
         "@vitejs/plugin-react-swc": "^3.3.2",
         "autoprefixer": "^10.4.14",
         "postcss": "^8.4.31",
         "storybook": "^7.1.0",
-        "tailwindcss": "^3.4.4",
+        "tailwindcss": "^3.3.3",
         "typescript": "^5.3.3",
         "vite": "^4.4.4",
         "vite-plugin-dts": "^3.9.1",

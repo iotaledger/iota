@@ -17,18 +17,19 @@ use packable::{
 use super::types::{output_header::OutputHeader, snapshot::FullSnapshotHeader};
 
 /// Parse a Hornet genesis snapshot using a [`BufReader`] internally.
-pub struct HornetGenesisSnapshotParser<R: Read> {
+pub struct HornetSnapshotParser<R: Read> {
     reader: IoUnpacker<BufReader<R>>,
     /// The full-snapshot header
     pub header: FullSnapshotHeader,
 }
 
-impl<R: Read> HornetGenesisSnapshotParser<R> {
-    pub fn new(reader: R) -> Result<Self> {
+impl<R: Read> HornetSnapshotParser<R> {
+    /// Creates a new [`HornetSnapshotParser`].
+    ///
+    /// `VERIFY = true` ensures that only global snapshots parse successfully.
+    pub fn new<const VERIFY: bool>(reader: R) -> Result<Self> {
         let mut reader = IoUnpacker::new(std::io::BufReader::new(reader));
-        // `true` ensures that only genesis snapshots unpack successfully
-        let header = FullSnapshotHeader::unpack::<_, true>(&mut reader, &())?;
-
+        let header = FullSnapshotHeader::unpack::<_, VERIFY>(&mut reader, &())?;
         Ok(Self { reader, header })
     }
 

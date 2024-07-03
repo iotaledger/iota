@@ -221,9 +221,9 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
                 throw new Error(`Invalid account source type`);
             }
             newSerializedAccounts.push(await accountSource.deriveAccount());
-        } else if (type === AccountType.Imported) {
+        } else if (type === AccountType.PrivateKeyDerived) {
             newSerializedAccounts.push(await ImportedAccount.createNew(payload.args));
-        } else if (type === AccountType.Ledger) {
+        } else if (type === AccountType.LedgerDerived) {
             const { password, accounts } = payload.args;
             for (const aLedgerAccount of accounts) {
                 newSerializedAccounts.push(
