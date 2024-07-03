@@ -7,11 +7,11 @@ import { Controller, useFormContext } from 'react-hook-form';
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './controls/Select';
 
-type SelectFieldProps = {
+interface SelectFieldProps {
     name: string;
     options: string[] | { id: string; label: ReactNode }[];
     disabled?: boolean;
-};
+}
 
 export const SelectField = forwardRef<HTMLButtonElement, SelectFieldProps>(
     ({ name, options, ...props }, forwardedRef) => {

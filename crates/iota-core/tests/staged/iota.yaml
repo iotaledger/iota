@@ -500,6 +500,11 @@ IntentMessage:
         TYPENAME: Intent
     - value:
         TYPENAME: TransactionData
+IotaAddress:
+  NEWTYPESTRUCT:
+    TUPLEARRAY:
+      CONTENT: U8
+      SIZE: 32
 JWK:
   STRUCT:
     - kty: STR
@@ -784,11 +789,6 @@ StructTag:
     - type_args:
         SEQ:
           TYPENAME: TypeTag
-IotaAddress:
-  NEWTYPESTRUCT:
-    TUPLEARRAY:
-      CONTENT: U8
-      SIZE: 32
 TransactionData:
   ENUM:
     0:

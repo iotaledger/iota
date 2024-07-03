@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, ensure, Result};
-use iota_sdk::types::block::output::{FoundryOutput, TokenId};
+use iota_sdk::types::block::output::{FoundryOutput, OutputId, TokenId};
 use iota_types::{
     base_types::IotaAddress, coin_manager::CoinManager, in_memory_storage::InMemoryStorage,
     object::Owner, Identifier,
@@ -27,6 +27,7 @@ use crate::stardust::{
 };
 
 pub(super) fn verify_foundry_output(
+    output_id: OutputId,
     output: &FoundryOutput,
     created_objects: &CreatedObjects,
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
@@ -240,7 +241,7 @@ pub(super) fn verify_foundry_output(
         "coin manager treasury cap",
     )?;
 
-    verify_parent(alias_address, storage)?;
+    verify_parent(&output_id, alias_address, storage)?;
 
     ensure!(
         created_objects.output().is_err(),

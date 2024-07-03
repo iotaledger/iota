@@ -10,10 +10,12 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum StardustError {
-    #[error("unsupported snapshot version: expected {0}, got {1}")]
-    UnsupportedSnapshotVersion(u8, u8),
+    #[error("unsupported Hornet snapshot version: expected {0}, got {1}")]
+    UnsupportedHornetSnapshotVersion(u8, u8),
     #[error("invalid snapshot kind: {0}")]
-    InvalidSnapshotKind(u8),
+    InvalidHornetSnapshotKind(u8),
+    #[error("invalid Hornet genesis snapshot: milestone diff count must be 0, but was {0}")]
+    InvalidHornetGenesisSnapshot(u32),
     #[error("block error: {0}")]
     BlockError(#[from] iota_stardust_sdk::types::block::Error),
     #[error("{0}")]
@@ -35,7 +37,7 @@ pub enum StardustError {
     MeltingTokensMustNotBeGreaterThanMintedTokens,
     #[error("circulating supply must not be greater than maximum supply")]
     CirculatingSupplyMustNotBeGreaterThanMaximumSupply,
-    #[error("hornet stardust snapshot parameters not found")]
+    #[error("Hornet Stardust snapshot parameters not found")]
     HornetSnapshotParametersNotFound,
 }
 

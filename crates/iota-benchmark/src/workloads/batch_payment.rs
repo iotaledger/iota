@@ -10,7 +10,7 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     crypto::get_key_pair,
     digests::ObjectDigest,
-    gas_coin::MICROS_PER_IOTA,
+    gas_coin::NANOS_PER_IOTA,
     object::Owner,
     transaction::Transaction,
 };
@@ -28,12 +28,12 @@ use crate::{
     ExecutionEffects, ValidatorProxy,
 };
 
-/// Value of each address's "primary coin" in micros. The first transaction
+/// Value of each address's "primary coin" in nanos. The first transaction
 /// gives each address a coin worth PRIMARY_COIN_VALUE, and all subsequent
 /// transfers send TRANSFER_AMOUNT coins each time
-const PRIMARY_COIN_VALUE: u64 = 100 * MICROS_PER_IOTA;
+const PRIMARY_COIN_VALUE: u64 = 100 * NANOS_PER_IOTA;
 
-/// Number of micros sent to each address on each batch transfer
+/// Number of nanos sent to each address on each batch transfer
 const BATCH_TRANSFER_AMOUNT: u64 = 1;
 
 const DUMMY_GAS: ObjectRef = (ObjectID::ZERO, SequenceNumber::MIN, ObjectDigest::MIN);

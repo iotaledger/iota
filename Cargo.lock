@@ -4744,6 +4744,7 @@ dependencies = [
  "futures-core",
  "futures-task",
  "futures-util",
+ "num_cpus",
 ]
 
 [[package]]
@@ -5774,59 +5775,6 @@ dependencies = [
  "move-vm-profiler",
  "move-vm-runtime-v0",
  "move-vm-types",
- "once_cell",
- "parking_lot 0.12.1",
- "serde",
- "tracing",
-]
-
-[[package]]
-name = "iota-adapter-v1"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bcs",
- "iota-macros",
- "iota-move-natives-v1",
- "iota-protocol-config",
- "iota-types",
- "iota-verifier-v1",
- "leb128",
- "move-binary-format",
- "move-bytecode-utils",
- "move-bytecode-verifier-v1",
- "move-core-types",
- "move-package",
- "move-vm-config",
- "move-vm-profiler",
- "move-vm-runtime-v1",
- "move-vm-types",
- "parking_lot 0.12.1",
- "serde",
- "tracing",
-]
-
-[[package]]
-name = "iota-adapter-v2"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bcs",
- "iota-macros",
- "iota-move-natives-v2",
- "iota-protocol-config",
- "iota-types",
- "iota-verifier-v2",
- "leb128",
- "move-binary-format",
- "move-bytecode-utils",
- "move-bytecode-verifier-v2",
- "move-core-types",
- "move-package",
- "move-vm-config",
- "move-vm-profiler",
- "move-vm-runtime-v2",
- "move-vm-types",
  "parking_lot 0.12.1",
  "serde",
  "tracing",
@@ -6373,6 +6321,7 @@ dependencies = [
  "bcs",
  "clap",
  "expect-test",
+ "eyre",
  "fastcrypto",
  "fastcrypto-zkp",
  "fs_extra",
@@ -6430,28 +6379,18 @@ dependencies = [
  "cargo_metadata 0.15.4",
  "iota-adapter-latest",
  "iota-adapter-v0",
- "iota-adapter-v1",
- "iota-adapter-v2",
  "iota-move-natives-latest",
  "iota-move-natives-v0",
- "iota-move-natives-v1",
- "iota-move-natives-v2",
  "iota-protocol-config",
  "iota-types",
  "iota-verifier-latest",
  "iota-verifier-v0",
- "iota-verifier-v1",
- "iota-verifier-v2",
  "move-binary-format",
  "move-bytecode-verifier",
  "move-bytecode-verifier-v0",
- "move-bytecode-verifier-v1",
- "move-bytecode-verifier-v2",
  "move-vm-config",
  "move-vm-runtime",
  "move-vm-runtime-v0",
- "move-vm-runtime-v1",
- "move-vm-runtime-v2",
  "petgraph 0.5.1",
 ]
 
@@ -6570,15 +6509,16 @@ dependencies = [
  "camino",
  "clap",
  "fastcrypto",
+ "flate2",
  "fs_extra",
  "insta",
- "iota-adapter-v2",
+ "iota-adapter-v0",
  "iota-config",
  "iota-execution",
  "iota-framework",
  "iota-framework-snapshot",
  "iota-move-build",
- "iota-move-natives-v2",
+ "iota-move-natives-v0",
  "iota-protocol-config",
  "iota-sdk 1.1.4",
  "iota-simulator",
@@ -6589,14 +6529,16 @@ dependencies = [
  "move-compiler",
  "move-core-types",
  "move-package",
- "move-vm-runtime-v2",
+ "move-vm-runtime-v0",
  "packable",
+ "prefix-hex",
  "prometheus",
  "rand 0.8.5",
  "rand_pcg",
  "rand_regex",
  "rand_seeder",
  "regex",
+ "reqwest",
  "schemars",
  "serde",
  "serde_json",
@@ -6605,6 +6547,7 @@ dependencies = [
  "shared-crypto",
  "tempfile",
  "thiserror",
+ "tokio",
  "tracing",
  "tracing-subscriber",
 ]
@@ -7087,53 +7030,13 @@ dependencies = [
  "better_any",
  "fastcrypto",
  "fastcrypto-zkp",
- "iota-protocol-config",
- "iota-types",
- "linked-hash-map",
- "move-binary-format",
- "move-core-types",
- "move-stdlib-v0",
- "move-vm-runtime-v0",
- "move-vm-types",
- "smallvec",
- "tracing",
-]
-
-[[package]]
-name = "iota-move-natives-v1"
-version = "0.1.0"
-dependencies = [
- "bcs",
- "better_any",
- "fastcrypto",
- "fastcrypto-zkp",
- "iota-protocol-config",
- "iota-types",
- "linked-hash-map",
- "move-binary-format",
- "move-core-types",
- "move-stdlib-v1",
- "move-vm-runtime-v1",
- "move-vm-types",
- "smallvec",
- "tracing",
-]
-
-[[package]]
-name = "iota-move-natives-v2"
-version = "0.1.0"
-dependencies = [
- "bcs",
- "better_any",
- "fastcrypto",
- "fastcrypto-zkp",
  "indexmap 2.2.6",
  "iota-protocol-config",
  "iota-types",
  "move-binary-format",
  "move-core-types",
- "move-stdlib-v2",
- "move-vm-runtime-v2",
+ "move-stdlib-v0",
+ "move-vm-runtime-v0",
  "move-vm-types",
  "smallvec",
  "tracing",
@@ -7533,28 +7436,36 @@ version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "76d62d16468c4bc555cac621734b5aa4fa971341f8fe3938d4481f7f394b9167"
 dependencies = [
+ "async-trait",
  "bech32",
  "bitflags 2.4.1",
  "bytemuck",
  "derive_more",
+ "futures",
  "getset",
  "gloo-timers 0.3.0",
  "hashbrown 0.14.3",
  "hex",
+ "instant",
  "iota-crypto",
  "iota_stronghold",
  "iterator-sorted",
  "itertools 0.12.0",
  "lazy_static",
+ "log",
+ "num_cpus",
  "once_cell",
  "packable",
  "prefix-hex",
  "primitive-types 0.12.2",
  "rand 0.8.5",
  "regex",
+ "reqwest",
  "serde",
  "serde_json",
  "serde_repr",
+ "thiserror",
+ "tokio",
  "url",
  "zeroize",
 ]
@@ -8190,33 +8101,6 @@ dependencies = [
  "move-binary-format",
  "move-bytecode-utils",
  "move-bytecode-verifier-v0",
- "move-core-types",
- "move-vm-config",
-]
-
-[[package]]
-name = "iota-verifier-v1"
-version = "0.1.0"
-dependencies = [
- "iota-types",
- "move-abstract-stack",
- "move-binary-format",
- "move-bytecode-utils",
- "move-bytecode-verifier-v1",
- "move-core-types",
- "move-vm-config",
-]
-
-[[package]]
-name = "iota-verifier-v2"
-version = "0.1.0"
-dependencies = [
- "iota-protocol-config",
- "iota-types",
- "move-abstract-stack",
- "move-binary-format",
- "move-bytecode-utils",
- "move-bytecode-verifier-v2",
  "move-core-types",
  "move-vm-config",
 ]
@@ -9240,30 +9124,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "move-bytecode-verifier-v1"
-version = "0.1.0"
-dependencies = [
- "move-abstract-stack",
- "move-binary-format",
- "move-borrow-graph",
- "move-core-types",
- "move-vm-config",
- "petgraph 0.5.1",
-]
-
-[[package]]
-name = "move-bytecode-verifier-v2"
-version = "0.1.0"
-dependencies = [
- "move-abstract-stack",
- "move-binary-format",
- "move-borrow-graph",
- "move-core-types",
- "move-vm-config",
- "petgraph 0.5.1",
-]
-
-[[package]]
 name = "move-bytecode-viewer"
 version = "0.1.0"
 dependencies = [
@@ -9683,48 +9543,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "move-stdlib-v1"
-version = "0.1.1"
-dependencies = [
- "anyhow",
- "hex",
- "log",
- "move-binary-format",
- "move-command-line-common",
- "move-core-types",
- "move-docgen",
- "move-errmapgen",
- "move-prover",
- "move-vm-runtime-v1",
- "move-vm-types",
- "sha2 0.9.9",
- "sha3 0.9.1",
- "smallvec",
- "walkdir",
-]
-
-[[package]]
-name = "move-stdlib-v2"
-version = "0.1.1"
-dependencies = [
- "anyhow",
- "hex",
- "log",
- "move-binary-format",
- "move-command-line-common",
- "move-core-types",
- "move-docgen",
- "move-errmapgen",
- "move-prover",
- "move-vm-runtime-v2",
- "move-vm-types",
- "sha2 0.9.9",
- "sha3 0.9.1",
- "smallvec",
- "walkdir",
-]
-
-[[package]]
 name = "move-symbol-pool"
 version = "0.1.0"
 dependencies = [
@@ -9838,44 +9656,6 @@ dependencies = [
  "fail",
  "move-binary-format",
  "move-bytecode-verifier-v0",
- "move-core-types",
- "move-vm-config",
- "move-vm-profiler",
- "move-vm-types",
- "once_cell",
- "parking_lot 0.11.2",
- "sha3 0.9.1",
- "smallvec",
- "tracing",
-]
-
-[[package]]
-name = "move-vm-runtime-v1"
-version = "0.1.0"
-dependencies = [
- "better_any",
- "fail",
- "move-binary-format",
- "move-bytecode-verifier-v1",
- "move-core-types",
- "move-vm-config",
- "move-vm-profiler",
- "move-vm-types",
- "once_cell",
- "parking_lot 0.11.2",
- "sha3 0.9.1",
- "smallvec",
- "tracing",
-]
-
-[[package]]
-name = "move-vm-runtime-v2"
-version = "0.1.0"
-dependencies = [
- "better_any",
- "fail",
- "move-binary-format",
- "move-bytecode-verifier-v2",
  "move-core-types",
  "move-vm-config",
  "move-vm-profiler",
@@ -10553,6 +10333,17 @@ dependencies = [
  "cfg-if",
  "libc",
  "memoffset 0.6.5",
+]
+
+[[package]]
+name = "nix"
+version = "0.26.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "598beaf3cc6fdd9a5dfb1630c2800c7acd31df7aaf0f565796fba2b53ca1af1b"
+dependencies = [
+ "bitflags 1.3.2",
+ "cfg-if",
+ "libc",
 ]
 
 [[package]]
@@ -11726,16 +11517,16 @@ checksum = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391"
 
 [[package]]
 name = "pprof"
-version = "0.11.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e20150f965e0e4c925982b9356da71c84bcd56cb66ef4e894825837cbcf6613e"
+checksum = "ef5c97c51bd34c7e742402e216abdeb44d415fbe6ae41d56b114723e953711cb"
 dependencies = [
  "backtrace",
  "cfg-if",
  "findshlibs",
  "libc",
  "log",
- "nix 0.24.3",
+ "nix 0.26.4",
  "once_cell",
  "parking_lot 0.12.1",
  "smallvec",
@@ -14325,9 +14116,9 @@ checksum = "b7401a30af6cb5818bb64852270bb722533397edcfc7344954a38f420819ece2"
 
 [[package]]
 name = "symbolic-common"
-version = "10.2.1"
+version = "12.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b55cdc318ede251d0957f07afe5fed912119b8c1bc5a7804151826db999e737"
+checksum = "26212dc7aeb75abb4cc84320a50dd482977089402f7b4043b454d6d79d8536e7"
 dependencies = [
  "debugid",
  "memmap2",
@@ -14337,9 +14128,9 @@ dependencies = [
 
 [[package]]
 name = "symbolic-demangle"
-version = "10.2.1"
+version = "12.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79be897be8a483a81fff6a3a4e195b4ac838ef73ca42d348b3f722da9902e489"
+checksum = "76f1b0155f588568b2df0d693b30aeedb59360b647b85fc3c23942e81e8cc97a"
 dependencies = [
  "cpp_demangle",
  "rustc-demangle",

@@ -332,7 +332,7 @@ fn type_parameter_phantom_decl_compatible(
         // phantom/non-phantom cannot change from one version to the next.
         old_type_parameter.is_phantom == new_type_parameter.is_phantom
     } else {
-        // old_type_paramter.is_phantom => new_type_parameter.is_phantom
+        // old_type_parameter.is_phantom => new_type_parameter.is_phantom
         !old_type_parameter.is_phantom || new_type_parameter.is_phantom
     }
 }

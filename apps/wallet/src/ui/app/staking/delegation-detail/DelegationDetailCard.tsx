@@ -12,13 +12,16 @@ import Alert from '_components/alert';
 import LoadingIndicator from '_components/loading/LoadingIndicator';
 import { useAppSelector } from '_hooks';
 import { ampli } from '_src/shared/analytics/ampli';
+import { MIN_NUMBER_IOTA_TO_STAKE } from '_src/shared/constants';
+import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import {
+    useBalance,
+    useCoinMetadata,
+    useGetDelegatedStake,
+    useGetValidatorsApy,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
-    MIN_NUMBER_IOTA_TO_STAKE,
-} from '_src/shared/constants';
-import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
-import { useBalance, useCoinMetadata, useGetDelegatedStake, useGetValidatorsApy } from '@iota/core';
+} from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { ArrowLeft16, StakeAdd16, StakeRemove16 } from '@iota/icons';
 import { Network, type StakeObject } from '@iota/iota.js/client';
@@ -31,10 +34,10 @@ import { Heading } from '../../shared/heading';
 import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
 import { StakeAmount } from '../home/StakeAmount';
 
-type DelegationDetailCardProps = {
+interface DelegationDetailCardProps {
     validatorAddress: string;
     stakedId: string;
-};
+}
 
 export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationDetailCardProps) {
     const {

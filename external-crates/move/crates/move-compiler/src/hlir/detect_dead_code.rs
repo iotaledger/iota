@@ -25,7 +25,7 @@ use crate::{
 // flow. It tracks control flow in a somewhat fine-grained way, and when it
 // finds a position that diverges it reports that as an error.
 //
-// For simplicity, it aims to satify the following requirements:
+// For simplicity, it aims to satisfy the following requirements:
 //
 //     1. For each block, if we discover a divergent instruction either at the
 //        top level or embedded in a value position (e.g., the RHS of a let, or

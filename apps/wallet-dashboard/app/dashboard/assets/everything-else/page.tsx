@@ -4,27 +4,31 @@
 'use client';
 
 import React from 'react';
-import { IotaObjectData } from '@iota/iota.js/client';
-import { AssetCard, VirtualList } from '@/components/index';
+import { IotaObjectData, getNetwork } from '@iota/iota.js/client';
+import { VirtualList } from '@/components/index';
 import { hasDisplayData, useGetOwnedObjects } from '@iota/core';
-import { useCurrentAccount } from '@iota/dapp-kit';
-import { useRouter } from 'next/navigation';
+import { useCurrentAccount, useIotaClientContext } from '@iota/dapp-kit';
 
 function EverythingElsePage(): JSX.Element {
     const account = useCurrentAccount();
-    const router = useRouter();
-    const { data } = useGetOwnedObjects(account?.address);
+    const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useGetOwnedObjects(
+        account?.address,
+    );
+
+    const { network } = useIotaClientContext();
+    const { explorer } = getNetwork(network);
+
     const nonVisualAssets =
         data?.pages
             .flatMap((page) => page.data)
             .filter((asset) => asset.data && asset.data.objectId && !hasDisplayData(asset))
             .map((response) => response.data!) ?? [];
 
-    const virtualItem = (asset: IotaObjectData): JSX.Element => <AssetCard asset={asset} />;
-
-    const handleClick = (objectId: string) => {
-        router.push(`/dashboard/assets/everything-else/${objectId}`);
-    };
+    const virtualItem = (asset: IotaObjectData): JSX.Element => (
+        <a href={`${explorer}/object/${asset.objectId}`} target="_blank" rel="noreferrer">
+            {asset.objectId}
+        </a>
+    );
 
     return (
         <div className="flex h-full w-full flex-col items-center justify-center space-y-4">
@@ -32,9 +36,11 @@ function EverythingElsePage(): JSX.Element {
             <div className="flex w-1/2">
                 <VirtualList
                     items={nonVisualAssets}
-                    estimateSize={() => 140}
+                    hasNextPage={hasNextPage}
+                    isFetchingNextPage={isFetchingNextPage}
+                    fetchNextPage={fetchNextPage}
+                    estimateSize={() => 30}
                     render={virtualItem}
-                    onClick={(asset) => handleClick(asset.objectId)}
                 />
             </div>
         </div>

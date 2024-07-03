@@ -4,7 +4,8 @@
 
 use std::{
     collections::{BTreeMap, HashSet},
-    fs::{self, File},
+    fs,
+    io::{prelude::Read, BufReader},
     path::Path,
     sync::Arc,
 };
@@ -12,6 +13,7 @@ use std::{
 use anyhow::{bail, Context};
 use camino::Utf8Path;
 use fastcrypto::{hash::HashFunction, traits::KeyPair};
+use flate2::bufread::GzDecoder;
 use iota_config::genesis::{
     Genesis, GenesisCeremonyParameters, GenesisChainParameters, TokenDistributionSchedule,
     UnsignedGenesis,
@@ -19,6 +21,7 @@ use iota_config::genesis::{
 use iota_execution::{self, Executor};
 use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_sdk::Url;
 use iota_types::{
     base_types::{
         ExecutionDigests, IotaAddress, ObjectID, SequenceNumber, TransactionDigest, TxContext,
@@ -69,8 +72,10 @@ pub const BROTLI_COMPRESSOR_BUFFER_SIZE: usize = 4096;
 pub const BROTLI_COMPRESSOR_QUALITY: u32 = 11;
 /// The LZ77 window size (0, 10-24) where bigger windows size improves density.
 pub const BROTLI_COMPRESSOR_LG_WINDOW_SIZE: u32 = 22;
-
 pub const OBJECT_SNAPSHOT_FILE_PATH: &str = "stardust_object_snapshot.bin";
+pub const IOTA_OBJECT_SNAPSHOT_URL: &str = "https://stardust-objects.s3.eu-central-1.amazonaws.com/iota/alphanet/latest/stardust_object_snapshot.bin.gz";
+pub const SHIMMER_OBJECT_SNAPSHOT_URL: &str = "https://stardust-objects.s3.eu-central-1.amazonaws.com/shimmer/alphanet/latest/stardust_object_snapshot.bin.gz";
+
 pub struct Builder {
     parameters: GenesisCeremonyParameters,
     token_distribution_schedule: Option<TokenDistributionSchedule>,
@@ -174,14 +179,15 @@ impl Builder {
         self
     }
 
-    pub fn load_stardust_migration_objects(
-        self,
-        snapshot: impl AsRef<Path>,
-    ) -> anyhow::Result<Self> {
-        Ok(self.add_objects(bcs::from_reader(brotli::Decompressor::new(
-            File::open(snapshot)?,
-            BROTLI_COMPRESSOR_BUFFER_SIZE,
-        ))?))
+    pub fn add_migration_objects(self, reader: impl Read) -> anyhow::Result<Self> {
+        Ok(self.add_objects(bcs::from_reader(reader)?))
+    }
+
+    /// Reads a gzip compressed object snapshot from the S3.
+    pub fn read_snapshot_from_s3(url: SnapshotUrl) -> anyhow::Result<impl Read> {
+        Ok(GzDecoder::new(BufReader::new(reqwest::blocking::get(
+            url.to_url(),
+        )?)))
     }
 
     pub fn unsigned_genesis_checkpoint(&self) -> Option<UnsignedGenesis> {
@@ -471,7 +477,7 @@ impl Builder {
         let token_distribution_schedule = self.token_distribution_schedule.clone().unwrap();
         assert_eq!(
             system_state.stake_subsidy.balance.value(),
-            token_distribution_schedule.stake_subsidy_fund_micros
+            token_distribution_schedule.stake_subsidy_fund_nanos
         );
 
         let mut gas_objects: BTreeMap<ObjectID, (&Object, GasCoin)> = unsigned_genesis
@@ -497,7 +503,7 @@ impl Builder {
                             panic!("gas object owner must be address owner");
                         };
                         *owner == allocation.recipient_address
-                            && s.principal() == allocation.amount_micros
+                            && s.principal() == allocation.amount_nanos
                             && s.pool_id() == staking_pool_id
                     })
                     .map(|(k, _)| *k)
@@ -508,7 +514,7 @@ impl Builder {
                     staked_iota_object.0.owner,
                     Owner::AddressOwner(allocation.recipient_address)
                 );
-                assert_eq!(staked_iota_object.1.principal(), allocation.amount_micros);
+                assert_eq!(staked_iota_object.1.principal(), allocation.amount_nanos);
                 assert_eq!(staked_iota_object.1.pool_id(), staking_pool_id);
                 assert_eq!(staked_iota_object.1.activation_epoch(), 0);
             } else {
@@ -517,7 +523,7 @@ impl Builder {
                     .find(|(_k, (o, g))| {
                         if let Owner::AddressOwner(owner) = &o.owner {
                             *owner == allocation.recipient_address
-                                && g.value() == allocation.amount_micros
+                                && g.value() == allocation.amount_nanos
                         } else {
                             false
                         }
@@ -529,7 +535,7 @@ impl Builder {
                     gas_object.0.owner,
                     Owner::AddressOwner(allocation.recipient_address)
                 );
-                assert_eq!(gas_object.1.value(), allocation.amount_micros,);
+                assert_eq!(gas_object.1.value(), allocation.amount_nanos,);
             }
         }
 
@@ -1160,6 +1166,23 @@ pub fn generate_genesis_system_object(
     store.finish(written);
 
     Ok(())
+}
+
+/// The URLs to download Iota or Shimmer object snapshots.
+#[derive(Debug, Clone)]
+pub enum SnapshotUrl {
+    Iota,
+    Shimmer,
+}
+
+impl SnapshotUrl {
+    /// Returns the Iota or Shimmer object snapshot download URL.
+    pub fn to_url(&self) -> Url {
+        match self {
+            Self::Iota => Url::parse(IOTA_OBJECT_SNAPSHOT_URL).expect("should be valid URL"),
+            Self::Shimmer => Url::parse(SHIMMER_OBJECT_SNAPSHOT_URL).expect("should be valid URL"),
+        }
+    }
 }
 
 #[cfg(test)]
