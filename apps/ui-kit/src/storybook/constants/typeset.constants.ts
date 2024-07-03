@@ -8,7 +8,7 @@ import {
     TEXT_TITLE_CLASSES,
     TEXT_HEADLINE_CLASSES,
     TEXT_DISPLAY_CLASSES,
-} from '@/lib/constants';
+} from '@/lib/tailwind/constants';
 import type { TypeSetProps } from '../blocks';
 
 export const TYPESETS: TypeSetProps[] = [
