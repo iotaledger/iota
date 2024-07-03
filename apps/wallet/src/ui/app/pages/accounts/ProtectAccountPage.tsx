@@ -15,35 +15,34 @@ import Loading from '../../components/loading';
 import { useAccounts } from '../../hooks/useAccounts';
 import { autoLockDataToMinutes } from '../../hooks/useAutoLockMinutes';
 import { useAutoLockMinutesMutation } from '../../hooks/useAutoLockMinutesMutation';
-import { useCreateAccountsMutation, type CreateType } from '../../hooks/useCreateAccountMutation';
+import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation';
 import { Heading } from '../../shared/heading';
-import { CreateAccountType } from '../../components/accounts/AccountsFormContext';
-import { AccountType } from '_src/background/accounts/Account';
+import { AccountsFormType } from '../../components/accounts/AccountsFormContext';
 
-const ALLOWED_ACCOUNT_TYPES: CreateType[] = [
-    CreateAccountType.NewMnemonic,
-    CreateAccountType.ImportMnemonic,
-    CreateAccountType.ImportSeed,
-    AccountType.MnemonicDerived,
-    AccountType.SeedDerived,
-    AccountType.Imported,
-    AccountType.Ledger,
+const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
+    AccountsFormType.NewMnemonic,
+    AccountsFormType.ImportMnemonic,
+    AccountsFormType.ImportSeed,
+    AccountsFormType.MnemonicSource,
+    AccountsFormType.SeedSource,
+    AccountsFormType.ImportPrivateKey,
+    AccountsFormType.ImportLedger,
 ];
 
-const REDIRECT_TO_ACCOUNTS_FINDER: CreateType[] = [
-    CreateAccountType.ImportMnemonic,
-    CreateAccountType.ImportSeed,
+const REDIRECT_TO_ACCOUNTS_FINDER: AccountsFormType[] = [
+    AccountsFormType.ImportMnemonic,
+    AccountsFormType.ImportSeed,
 ];
 
 type AllowedAccountTypes = (typeof ALLOWED_ACCOUNT_TYPES)[number];
 
 function isAllowedAccountType(accountType: string): accountType is AllowedAccountTypes {
-    return ALLOWED_ACCOUNT_TYPES.includes(accountType as CreateType);
+    return ALLOWED_ACCOUNT_TYPES.includes(accountType as AccountsFormType);
 }
 
 export function ProtectAccountPage() {
     const [searchParams] = useSearchParams();
-    const accountType = searchParams.get('accountType') || '';
+    const accountsFormType = searchParams.get('accountsFormType') || '';
     const successRedirect = searchParams.get('successRedirect') || '/tokens';
     const navigate = useNavigate();
     const { data: accounts } = useAccounts();
@@ -62,14 +61,14 @@ export function ProtectAccountPage() {
         }
     }, [hasPasswordAccounts, createMutation.isSuccess, createMutation.isPending]);
     const createAccountCallback = useCallback(
-        async (password: string, type: CreateType) => {
+        async (password: string, type: AccountsFormType) => {
             try {
                 const createdAccounts = await createMutation.mutateAsync({
                     type,
                     password,
                 });
                 if (
-                    type === CreateAccountType.NewMnemonic &&
+                    type === AccountsFormType.NewMnemonic &&
                     isMnemonicSerializedUiAccount(createdAccounts[0])
                 ) {
                     navigate(`/accounts/backup/${createdAccounts[0].sourceID}`, {
@@ -100,7 +99,7 @@ export function ProtectAccountPage() {
         [createMutation, navigate, successRedirect],
     );
     const autoLockMutation = useAutoLockMinutesMutation();
-    if (!isAllowedAccountType(accountType)) {
+    if (!isAllowedAccountType(accountsFormType)) {
         return <Navigate to="/" replace />;
     }
 
@@ -111,7 +110,7 @@ export function ProtectAccountPage() {
                     <VerifyPasswordModal
                         open
                         onClose={() => navigate(-1)}
-                        onVerify={(password) => createAccountCallback(password, accountType)}
+                        onVerify={(password) => createAccountCallback(password, accountsFormType)}
                     />
                 ) : (
                     <>
@@ -131,7 +130,7 @@ export function ProtectAccountPage() {
                                     await autoLockMutation.mutateAsync({
                                         minutes: autoLockDataToMinutes(autoLock),
                                     });
-                                    await createAccountCallback(password.input, accountType);
+                                    await createAccountCallback(password.input, accountsFormType);
                                 }}
                             />
                         </div>
