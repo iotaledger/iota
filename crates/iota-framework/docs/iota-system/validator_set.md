@@ -11,6 +11,7 @@ title: Module `0x3::validator_set`
 -  [Struct `ValidatorLeaveEvent`](#0x3_validator_set_ValidatorLeaveEvent)
 -  [Constants](#@Constants_0)
 -  [Function `new`](#0x3_validator_set_new)
+-  [Function `init_voting_power`](#0x3_validator_set_init_voting_power)
 -  [Function `request_add_validator_candidate`](#0x3_validator_set_request_add_validator_candidate)
 -  [Function `request_remove_validator_candidate`](#0x3_validator_set_request_remove_validator_candidate)
 -  [Function `request_add_validator`](#0x3_validator_set_request_add_validator)
@@ -637,7 +638,6 @@ The epoch value corresponds to the first epoch this change takes place.
 
 
 <pre><code><b>public</b>(package) <b>fun</b> <a href="validator_set.md#0x3_validator_set_new">new</a>(init_active_validators: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;Validator&gt;, ctx: &<b>mut</b> TxContext): <a href="validator_set.md#0x3_validator_set_ValidatorSet">ValidatorSet</a> {
-    <b>let</b> total_stake = <a href="validator_set.md#0x3_validator_set_calculate_total_stakes">calculate_total_stakes</a>(&init_active_validators);
     <b>let</b> <b>mut</b> staking_pool_mappings = <a href="../iota-framework/table.md#0x2_table_new">table::new</a>(ctx);
     <b>let</b> num_validators = init_active_validators.length();
     <b>let</b> <b>mut</b> i = 0;
@@ -646,8 +646,8 @@ The epoch value corresponds to the first epoch this change takes place.
         staking_pool_mappings.add(staking_pool_id(<a href="validator.md#0x3_validator">validator</a>), iota_address(<a href="validator.md#0x3_validator">validator</a>));
         i = i + 1;
     };
-    <b>let</b> <b>mut</b> validators = <a href="validator_set.md#0x3_validator_set_ValidatorSet">ValidatorSet</a> {
-        total_stake,
+    <a href="validator_set.md#0x3_validator_set_ValidatorSet">ValidatorSet</a> {
+        total_stake: 0, //temp, <b>to</b> be filled <b>with</b> init_voting_power
         active_validators: init_active_validators,
         pending_active_validators: <a href="../iota-framework/table_vec.md#0x2_table_vec_empty">table_vec::empty</a>(ctx),
         pending_removals: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>[],
@@ -656,9 +656,33 @@ The epoch value corresponds to the first epoch this change takes place.
         validator_candidates: <a href="../iota-framework/table.md#0x2_table_new">table::new</a>(ctx),
         at_risk_validators: <a href="../iota-framework/vec_map.md#0x2_vec_map_empty">vec_map::empty</a>(),
         extra_fields: <a href="../iota-framework/bag.md#0x2_bag_new">bag::new</a>(ctx),
-    };
-    <a href="voting_power.md#0x3_voting_power_set_voting_power">voting_power::set_voting_power</a>(&<b>mut</b> validators.active_validators);
-    validators
+    }
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="0x3_validator_set_init_voting_power"></a>
+
+## Function `init_voting_power`
+
+Called by <code><a href="iota_system.md#0x3_iota_system">iota_system</a></code> to init the total_stake and voting power
+
+
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator_set.md#0x3_validator_set_init_voting_power">init_voting_power</a>(<a href="validator_set.md#0x3_validator_set">validator_set</a>: &<b>mut</b> <a href="validator_set.md#0x3_validator_set_ValidatorSet">validator_set::ValidatorSet</a>)
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b>(package) <b>fun</b> <a href="validator_set.md#0x3_validator_set_init_voting_power">init_voting_power</a>(<a href="validator_set.md#0x3_validator_set">validator_set</a>: &<b>mut</b> <a href="validator_set.md#0x3_validator_set_ValidatorSet">ValidatorSet</a>) {
+    <a href="validator_set.md#0x3_validator_set">validator_set</a>.total_stake = <a href="validator_set.md#0x3_validator_set_calculate_total_stakes">calculate_total_stakes</a>(&<a href="validator_set.md#0x3_validator_set">validator_set</a>.active_validators);
+    <a href="voting_power.md#0x3_voting_power_set_voting_power">voting_power::set_voting_power</a>(&<b>mut</b> <a href="validator_set.md#0x3_validator_set">validator_set</a>.active_validators);
 }
 </code></pre>
 

@@ -11,6 +11,7 @@ title: Module `0x3::iota_system_state_inner`
 -  [Struct `SystemEpochInfoEvent`](#0x3_iota_system_state_inner_SystemEpochInfoEvent)
 -  [Constants](#@Constants_0)
 -  [Function `create`](#0x3_iota_system_state_inner_create)
+-  [Function `init_voting_power_and_reference_gas_price`](#0x3_iota_system_state_inner_init_voting_power_and_reference_gas_price)
 -  [Function `create_system_parameters`](#0x3_iota_system_state_inner_create_system_parameters)
 -  [Function `v1_to_v2`](#0x3_iota_system_state_inner_v1_to_v2)
 -  [Function `request_add_validator_candidate`](#0x3_iota_system_state_inner_request_add_validator_candidate)
@@ -760,7 +761,6 @@ This function will be called only once in genesis.
     ctx: &<b>mut</b> TxContext,
 ): <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInner">IotaSystemStateInner</a> {
     <b>let</b> validators = <a href="validator_set.md#0x3_validator_set_new">validator_set::new</a>(validators, ctx);
-    <b>let</b> reference_gas_price = validators.derive_reference_gas_price();
     // This type is fixed <b>as</b> it's created at <a href="genesis.md#0x3_genesis">genesis</a>. It should not be updated during type upgrade.
     <b>let</b> system_state = <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInner">IotaSystemStateInner</a> {
         epoch: 0,
@@ -769,7 +769,7 @@ This function will be called only once in genesis.
         validators,
         <a href="storage_fund.md#0x3_storage_fund">storage_fund</a>: <a href="storage_fund.md#0x3_storage_fund_new">storage_fund::new</a>(initial_storage_fund),
         parameters,
-        reference_gas_price,
+        reference_gas_price: 0, //temp, <b>to</b> be filled <b>with</b> init_voting_power
         validator_report_records: <a href="../iota-framework/vec_map.md#0x2_vec_map_empty">vec_map::empty</a>(),
         <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>,
         safe_mode: <b>false</b>,
@@ -781,6 +781,35 @@ This function will be called only once in genesis.
         extra_fields: <a href="../iota-framework/bag.md#0x2_bag_new">bag::new</a>(ctx),
     };
     system_state
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="0x3_iota_system_state_inner_init_voting_power_and_reference_gas_price"></a>
+
+## Function `init_voting_power_and_reference_gas_price`
+
+Updates a IotaSystemStateInner object to init the
+validators voting power and the reference gas price.
+
+
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_init_voting_power_and_reference_gas_price">init_voting_power_and_reference_gas_price</a>(self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">iota_system_state_inner::IotaSystemStateInnerV2</a>)
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_init_voting_power_and_reference_gas_price">init_voting_power_and_reference_gas_price</a>(
+    self: &<b>mut</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_IotaSystemStateInnerV2">IotaSystemStateInnerV2</a>
+) {
+    self.validators.init_voting_power();
+    self.reference_gas_price = self.validators.derive_reference_gas_price();
 }
 </code></pre>
 

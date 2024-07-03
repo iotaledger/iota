@@ -43,6 +43,7 @@ the IotaSystemStateInner version, or vice versa.
 -  [Resource `IotaSystemState`](#0x3_iota_system_IotaSystemState)
 -  [Constants](#@Constants_0)
 -  [Function `create`](#0x3_iota_system_create)
+-  [Function `init_voting_power_and_reference_gas_price`](#0x3_iota_system_init_voting_power_and_reference_gas_price)
 -  [Function `request_add_validator_candidate`](#0x3_iota_system_request_add_validator_candidate)
 -  [Function `request_remove_validator_candidate`](#0x3_iota_system_request_remove_validator_candidate)
 -  [Function `request_add_validator`](#0x3_iota_system_request_add_validator)
@@ -202,6 +203,36 @@ This function will be called only once in genesis.
     };
     <a href="../iota-framework/dynamic_field.md#0x2_dynamic_field_add">dynamic_field::add</a>(&<b>mut</b> self.id, version, system_state);
     <a href="../iota-framework/transfer.md#0x2_transfer_share_object">transfer::share_object</a>(self);
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="0x3_iota_system_init_voting_power_and_reference_gas_price"></a>
+
+## Function `init_voting_power_and_reference_gas_price`
+
+This function will be explicitly called once at genesis.
+It will update a IotaSystemState object to init the
+validators voting power and the reference gas price.
+
+
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="iota_system.md#0x3_iota_system_init_voting_power_and_reference_gas_price">init_voting_power_and_reference_gas_price</a>(wrapper: &<b>mut</b> <a href="iota_system.md#0x3_iota_system_IotaSystemState">iota_system::IotaSystemState</a>)
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b>(package) <b>fun</b> <a href="iota_system.md#0x3_iota_system_init_voting_power_and_reference_gas_price">init_voting_power_and_reference_gas_price</a>(
+    wrapper: &<b>mut</b> <a href="iota_system.md#0x3_iota_system_IotaSystemState">IotaSystemState</a>,
+) {
+    <b>let</b> self = <a href="iota_system.md#0x3_iota_system_load_system_state_mut">load_system_state_mut</a>(wrapper);
+    self.<a href="iota_system.md#0x3_iota_system_init_voting_power_and_reference_gas_price">init_voting_power_and_reference_gas_price</a>();
 }
 </code></pre>
 
