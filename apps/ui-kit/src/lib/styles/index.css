@@ -1,3 +1,9 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+    .font-display-sm {
+        font-feature-settings: 'ss02' on;
+    }
+}

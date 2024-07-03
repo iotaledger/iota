@@ -1,0 +1,10 @@
+import { Meta, ColorPalette, ColorItem } from '@storybook/blocks';
+import { IOTA_COLOR_PALETTE } from '../../../lib/tailwind/constants/colors.constants';
+
+<Meta title="Design Tokens/Colors" />
+
+<ColorPalette>
+    {Object.entries(IOTA_COLOR_PALETTE).map(([color, values]) => {
+        return <ColorItem key={color} title={color} colors={values} />
+    })}
+</ColorPalette>

@@ -1,0 +1,13 @@
+import { Meta, Typeset } from '@storybook/blocks';
+import { TYPESETS } from '../../constants'
+import { TypeSet, TypeSetItem } from '../../blocks'
+
+<Meta title="Typesets" />
+
+# Typesets
+
+{TYPESETS.map((typeset, typeSetIndex) => {
+    return (
+        <TypeSet key={typeSetIndex} {...typeset} />
+)})}
+

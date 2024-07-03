@@ -3842,6 +3842,9 @@ packages:
   '@fontsource-variable/red-hat-mono@5.0.6':
     resolution: {integrity: sha512-kAb8agTzo12mt6C5ATPb9t+kgkZG6ScRjgmjcJonCMYGq6J/07zcrcsxiMdj8nLgNAwEkmDXjvdEIrqEP3tfJw==}
 
+  '@fontsource/inter@5.0.18':
+    resolution: {integrity: sha512-YCsoYPTcs713sI7tLtxaPrIhXAXvEetGg5Ry02ivA8qUOb3fQHojbK/X9HLD5OOKvFUNR2Ynkwb1kR1hVKQHpw==}
+
   '@gql.tada/cli-utils@1.3.9':
     resolution: {integrity: sha512-oRb7SG/+csx9CiypSJTI21KaLfulOUnhX1vxg4FXi2snub9XShkGR2XnnlJVTAOZXY9Vcxti1NutAElxdDkycA==}
     peerDependencies:
@@ -17913,6 +17916,8 @@ snapshots:
   '@fontsource-variable/inter@5.0.5': {}
 
   '@fontsource-variable/red-hat-mono@5.0.6': {}
+
+  '@fontsource/inter@5.0.18': {}
 
   '@gql.tada/cli-utils@1.3.9(graphql@16.8.1)(typescript@5.3.3)':
     dependencies:
