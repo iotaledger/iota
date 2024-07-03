@@ -19,20 +19,20 @@ type SessionStorageData = { keyPair: string };
 type EncryptedData = { keyPair: string };
 
 export interface ImportedAccountSerialized extends SerializedAccount {
-    type: AccountType.Imported;
+    type: AccountType.PrivateKeyDerived;
     encrypted: string;
     publicKey: string;
 }
 
 export interface ImportedAccountSerializedUI extends SerializedUIAccount {
-    type: AccountType.Imported;
+    type: AccountType.PrivateKeyDerived;
     publicKey: string;
 }
 
 export function isImportedAccountSerializedUI(
     account: SerializedUIAccount,
 ): account is ImportedAccountSerializedUI {
-    return account.type === AccountType.Imported;
+    return account.type === AccountType.PrivateKeyDerived;
 }
 
 export class ImportedAccount
@@ -52,7 +52,7 @@ export class ImportedAccount
             keyPair: inputs.keyPair,
         };
         return {
-            type: AccountType.Imported,
+            type: AccountType.PrivateKeyDerived,
             address: keyPair.getPublicKey().toIotaAddress(),
             publicKey: keyPair.getPublicKey().toBase64(),
             encrypted: await encrypt(inputs.password, dataToEncrypt),
@@ -64,11 +64,11 @@ export class ImportedAccount
     }
 
     static isOfType(serialized: SerializedAccount): serialized is ImportedAccountSerialized {
-        return serialized.type === AccountType.Imported;
+        return serialized.type === AccountType.PrivateKeyDerived;
     }
 
     constructor({ id, cachedData }: { id: string; cachedData?: ImportedAccountSerialized }) {
-        super({ type: AccountType.Imported, id, cachedData });
+        super({ type: AccountType.PrivateKeyDerived, id, cachedData });
     }
 
     async lock(allowRead = false): Promise<void> {
