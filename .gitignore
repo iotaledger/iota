@@ -78,6 +78,8 @@ docs/content/references/framework/**
 lcov.info
 **/venv/
 
+*storybook.log
+
 # iota-private-network
 docker/iota-private-network/data
 docker/iota-private-network/configs/validators/validator*
