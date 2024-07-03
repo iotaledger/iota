@@ -202,9 +202,6 @@ const config = {
         logo: {
           alt: "IOTA Wiki Logo",
           src: "img/iota-logo.svg",
-          srcDark: "img/iota-logo.svg",
-          width: 138,
-          height: 48,
         },
         copyright: `
         <div style="display: flex; flex-direction:column;">
