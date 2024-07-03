@@ -36,7 +36,7 @@ env:
 
 jobs:
   changes:
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     outputs:
       components: ${{ steps.filter.outputs.changes }}
     steps:
@@ -58,7 +58,7 @@ jobs:
       matrix: 
         components: ${{ fromJson(needs.changes.outputs.components) }}
       fail-fast: false
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     needs: changes
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
@@ -75,7 +75,7 @@ jobs:
           --profile ci
 
   diff:
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     outputs:
       isRust: ${{ steps.diff.outputs.isRust }}
       isMove: ${{ steps.diff.outputs.isMove }}
@@ -88,7 +88,7 @@ jobs:
   clippy:
     needs: diff
     if: needs.diff.outputs.isRust == 'true'
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
       - run: rustup component add clippy
@@ -101,7 +101,7 @@ jobs:
   rustfmt:
     needs: diff
     if: needs.diff.outputs.isRust == 'true'
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
       - name: Install latest nightly
@@ -114,7 +114,7 @@ jobs:
     name: cargo-deny (advisories, licenses, bans, ...)
     needs: diff
     if: needs.diff.outputs.isRust == 'true'
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
       - uses: EmbarkStudios/cargo-deny-action@v1

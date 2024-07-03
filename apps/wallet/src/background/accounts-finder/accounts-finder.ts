@@ -34,7 +34,7 @@ export async function findAccounts(
     gasTypeArg: string,
     getPublicKey: GetPublicKey,
 ): Promise<AccountFromFinder[]> {
-    // TODO: first check that accounts: Account[] is correctly sorted, if not, throw exception or somethintg
+    // TODO: first check that accounts: Account[] is correctly sorted, if not, throw exception or something
     // Check new addresses for existing accounts
     if (addressGapLimit > 0) {
         for (const account of accounts) {

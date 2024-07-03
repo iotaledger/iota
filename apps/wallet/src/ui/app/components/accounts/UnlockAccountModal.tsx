@@ -8,12 +8,12 @@ import { toast } from 'react-hot-toast';
 import { useBackgroundClient } from '../../hooks/useBackgroundClient';
 import { PasswordModalDialog } from './PasswordInputDialog';
 
-type UnlockAccountModalProps = {
+interface UnlockAccountModalProps {
     onClose: () => void;
     onSuccess: () => void;
     account: SerializedUIAccount | null;
     open: boolean;
-};
+}
 
 export function UnlockAccountModal({ onClose, onSuccess, account, open }: UnlockAccountModalProps) {
     const backgroundService = useBackgroundClient();

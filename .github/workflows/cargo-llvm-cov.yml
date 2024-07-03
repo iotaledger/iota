@@ -74,7 +74,7 @@ jobs:
   notify:
     name: Notify
     needs: [cargo-llvm-cov]
-    runs-on: ubuntu-latest
+    runs-on: self-hosted-rust
     if: always() # always notify
 
     steps:
@@ -94,9 +94,9 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        export iota_branch_name=$(gh api -H 'Accept: application/vnd.github+json' /repos/MystenLabs/iota/commits/${{ env.iota_sha }}/branches-where-head --jq '.[].name' | head -n 1)
+        export iota_branch_name=$(gh api -H 'Accept: application/vnd.github+json' /repos/iotaledger/iota/commits/${{ env.iota_sha }}/branches-where-head --jq '.[].name' | head -n 1)
         # if the commit is not the head of the branch, get it's base branch 
-        [[ -z $iota_branch_name ]] && export iota_branch_name=$(gh api -H 'Accept: application/vnd.github+json' /repos/MystenLabs/iota/commits/${{ env.iota_sha }}/pulls --jq '.[].base.ref' | head -n 1)
+        [[ -z $iota_branch_name ]] && export iota_branch_name=$(gh api -H 'Accept: application/vnd.github+json' /repos/iotaledger/iota/commits/${{ env.iota_sha }}/pulls --jq '.[].base.ref' | head -n 1)
         echo "iota_branch_name=${iota_branch_name}" >> $GITHUB_ENV
         echo "iota_branch_name_url=$(echo ${iota_branch_name} | sed 's\/\%2F\g')" >> $GITHUB_ENV
 
@@ -104,7 +104,7 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh_job_link=$(gh api -X GET 'repos/MystenLabs/iota/actions/runs/${{ github.run_id }}/jobs' --jq '.jobs.[0].html_url')
+        gh_job_link=$(gh api -X GET 'repos/iotaledger/iota/actions/runs/${{ github.run_id }}/jobs' --jq '.jobs.[0].html_url')
         echo "gh_job_link=${gh_job_link}" >> $GITHUB_ENV
 
     - name: Get current oncall
@@ -167,7 +167,7 @@ jobs:
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "IOTA commit: <https://github.com/MystenLabs/iota/commit/${{ env.IOTA_SHA }}|${{ env.IOTA_SHA }}>\nIOTA branch: `${{ env.IOTA_BRANCH_NAME }}`\nRun: <${{ env.GH_JOB_LINK }}|${{ github.run_id }}>"
+                  "text": "IOTA commit: <https://github.com/iotaledger/iota/commit/${{ env.IOTA_SHA }}|${{ env.IOTA_SHA }}>\nIOTA branch: `${{ env.IOTA_BRANCH_NAME }}`\nRun: <${{ env.GH_JOB_LINK }}|${{ github.run_id }}>"
                 }
               },
               {
@@ -177,7 +177,7 @@ jobs:
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "<@${{ env.SLACK_ID }}>, current `${{ env.ONCALL_NAME }}` oncall, please look over the code coverage <https://app.codecov.io/github/MystenLabs/iota/tree/${{ env.IOTA_BRANCH_NAME_URL }}|report> for the `${{ env.IOTA_BRANCH_NAME }}` branch in IOTA repo."
+                  "text": "<@${{ env.SLACK_ID }}>, current `${{ env.ONCALL_NAME }}` oncall, please look over the code coverage <https://app.codecov.io/github/iotaledger/iota/tree/${{ env.IOTA_BRANCH_NAME_URL }}|report> for the `${{ env.IOTA_BRANCH_NAME }}` branch in IOTA repo."
                 }
               }
             ]

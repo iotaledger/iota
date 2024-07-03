@@ -17,14 +17,14 @@ const cardStyles = cva(
     },
 );
 
-interface Props extends VariantProps<typeof cardStyles> {
+interface CardProps extends VariantProps<typeof cardStyles> {
     heading?: string;
     after?: ReactNode;
     children: ReactNode;
     footer?: ReactNode;
 }
 
-type CardProps = Props & AnchorHTMLAttributes<HTMLAnchorElement>;
+type ExtendedCardProps = CardProps & AnchorHTMLAttributes<HTMLAnchorElement>;
 
 export const SummaryCardFooter = ({ children }: { children: ReactNode }) => {
     return (
@@ -34,7 +34,14 @@ export const SummaryCardFooter = ({ children }: { children: ReactNode }) => {
     );
 };
 
-export function Card({ as = 'div', heading, children, after, footer = null, ...props }: CardProps) {
+export function Card({
+    as = 'div',
+    heading,
+    children,
+    after,
+    footer = null,
+    ...props
+}: ExtendedCardProps) {
     const Component = as as ElementType;
     return (
         <Component className={cardStyles({ as })} {...props}>

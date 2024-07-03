@@ -14,7 +14,6 @@ export type InterstitialConfig = {
     enabled: boolean;
     dismissKey?: string;
     imageUrl?: string;
-
     bannerUrl?: string;
 };
 
