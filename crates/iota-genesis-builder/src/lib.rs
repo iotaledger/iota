@@ -1077,12 +1077,21 @@ fn create_genesis_objects(
             &mut store,
             executor.as_ref(),
             genesis_ctx,
-            parameters,
+            &protocol_config,
             timelock_allocations,
-            metrics,
+            metrics.clone(),
         )
         .unwrap();
     }
+
+    finish_genesis_generation(
+        &mut store,
+        executor.as_ref(),
+        genesis_ctx,
+        &protocol_config,
+        metrics,
+    )
+    .unwrap();
 
     store.into_inner().into_values().collect()
 }
@@ -1282,15 +1291,10 @@ pub fn generate_genesis_timelock_allocation(
     store: &mut InMemoryStorage,
     executor: &dyn Executor,
     genesis_ctx: &mut TxContext,
-    genesis_chain_parameters: &GenesisChainParameters,
+    protocol_config: &ProtocolConfig,
     timelock_allocations: &[TimelockAllocation],
     metrics: Arc<LimitsMetrics>,
 ) -> anyhow::Result<()> {
-    let protocol_config = ProtocolConfig::get_for_version(
-        ProtocolVersion::new(genesis_chain_parameters.protocol_version),
-        ChainIdentifier::default().chain(),
-    );
-
     // Timelock allocation
     let mut timelock_allocation_input_objects: Vec<ObjectReadResult> = vec![];
     timelock_allocation_input_objects.push(ObjectReadResult::new(
@@ -1387,10 +1391,61 @@ pub fn generate_genesis_timelock_allocation(
 
     let InnerTemporaryStore { written, .. } = executor.update_genesis_state(
         &*store,
-        &protocol_config,
+        protocol_config,
         metrics,
         genesis_ctx,
         CheckedInputObjects::new_for_genesis(timelock_allocation_input_objects),
+        pt,
+    )?;
+
+    store.finish(written);
+
+    Ok(())
+}
+
+pub fn finish_genesis_generation(
+    store: &mut InMemoryStorage,
+    executor: &dyn Executor,
+    genesis_ctx: &mut TxContext,
+    protocol_config: &ProtocolConfig,
+    metrics: Arc<LimitsMetrics>,
+) -> anyhow::Result<()> {
+    let input_objects: Vec<ObjectReadResult> = vec![ObjectReadResult::new(
+        InputObjectKind::SharedMoveObject {
+            id: IOTA_SYSTEM_STATE_OBJECT_ID,
+            initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
+            mutable: true,
+        },
+        store
+            .get_object(&IOTA_SYSTEM_STATE_OBJECT_ID)
+            .unwrap()
+            .clone()
+            .into(),
+    )];
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let arguments = vec![builder.obj(ObjectArg::SharedObject {
+            id: IOTA_SYSTEM_STATE_OBJECT_ID,
+            initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
+            mutable: true,
+        })?];
+        builder.programmable_move_call(
+            IOTA_SYSTEM_ADDRESS.into(),
+            ident_str!("iota_system").to_owned(),
+            ident_str!("init_voting_power_and_reference_gas_price").to_owned(),
+            vec![],
+            arguments,
+        );
+
+        builder.finish()
+    };
+
+    let InnerTemporaryStore { written, .. } = executor.update_genesis_state(
+        &*store,
+        protocol_config,
+        metrics,
+        genesis_ctx,
+        CheckedInputObjects::new_for_genesis(input_objects),
         pt,
     )?;
 
