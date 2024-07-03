@@ -8,11 +8,14 @@ import { useParams } from 'next/navigation';
 import { AssetCard, Button, RouteLink, SendAssetPopup } from '@/components';
 import { isAssetTransferable, useGetObject } from '@iota/core';
 import { usePopups } from '@/hooks';
+import { useCurrentAccount } from '@iota/dapp-kit';
 
 const VisualAssetDetailPage = () => {
     const params = useParams();
     const objectId = params.objectId as string;
     const { data: asset } = useGetObject(objectId);
+    const activeAccount = useCurrentAccount();
+
     const { openPopup, closePopup } = usePopups();
 
     const showSendAssetPopup = useCallback(() => {
@@ -31,7 +34,9 @@ const VisualAssetDetailPage = () => {
             ) : (
                 <div className="flex justify-center p-20">Asset not found</div>
             )}
-            {assetIsTransferable ? <Button onClick={showSendAssetPopup}>Send Asset</Button> : null}
+            {assetIsTransferable && activeAccount ? (
+                <Button onClick={showSendAssetPopup}>Send Asset</Button>
+            ) : null}
         </div>
     );
 };

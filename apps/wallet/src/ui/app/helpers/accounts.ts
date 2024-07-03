@@ -15,8 +15,8 @@ function getKey(account: SerializedUIAccount): string {
 export const DEFAULT_SORT_ORDER: AccountType[] = [
     AccountType.MnemonicDerived,
     AccountType.SeedDerived,
-    AccountType.Imported,
-    AccountType.Ledger,
+    AccountType.PrivateKeyDerived,
+    AccountType.LedgerDerived,
 ];
 
 export function groupByType(accounts: SerializedUIAccount[]) {
