@@ -104,6 +104,17 @@ module iota_system::iota_system {
         transfer::share_object(self);
     }
 
+
+    /// This function will be explicitly called once at genesis.
+    /// It will update a IotaSystemState object to init the 
+    /// validators voting power and the reference gas price.
+    public(package) fun init_voting_power_and_reference_gas_price(
+        wrapper: &mut IotaSystemState,
+    ) {
+        let self = load_system_state_mut(wrapper);
+        self.init_voting_power_and_reference_gas_price();
+    }
+
     // ==== entry functions ====
 
     /// Can be called by anyone who wishes to become a validator candidate and starts accuring delegated

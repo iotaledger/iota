@@ -241,7 +241,6 @@ module iota_system::iota_system_state_inner {
         ctx: &mut TxContext,
     ): IotaSystemStateInner {
         let validators = validator_set::new(validators, ctx);
-        let reference_gas_price = validators.derive_reference_gas_price();
         // This type is fixed as it's created at genesis. It should not be updated during type upgrade.
         let system_state = IotaSystemStateInner {
             epoch: 0,
@@ -250,7 +249,7 @@ module iota_system::iota_system_state_inner {
             validators,
             storage_fund: storage_fund::new(initial_storage_fund),
             parameters,
-            reference_gas_price,
+            reference_gas_price: 0, //temp, to be filled with init_voting_power
             validator_report_records: vec_map::empty(),
             stake_subsidy,
             safe_mode: false,
@@ -262,6 +261,15 @@ module iota_system::iota_system_state_inner {
             extra_fields: bag::new(ctx),
         };
         system_state
+    }
+
+    /// Updates a IotaSystemStateInner object to init the 
+    /// validators voting power and the reference gas price.
+    public(package) fun init_voting_power_and_reference_gas_price(
+        self: &mut IotaSystemStateInnerV2
+    ) {
+        self.validators.init_voting_power();
+        self.reference_gas_price = self.validators.derive_reference_gas_price();
     }
 
     public(package) fun create_system_parameters(

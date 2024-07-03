@@ -146,7 +146,6 @@ module iota_system::validator_set {
     // ==== initialization at genesis ====
 
     public(package) fun new(init_active_validators: vector<Validator>, ctx: &mut TxContext): ValidatorSet {
-        let total_stake = calculate_total_stakes(&init_active_validators);
         let mut staking_pool_mappings = table::new(ctx);
         let num_validators = init_active_validators.length();
         let mut i = 0;
@@ -155,8 +154,8 @@ module iota_system::validator_set {
             staking_pool_mappings.add(staking_pool_id(validator), iota_address(validator));
             i = i + 1;
         };
-        let mut validators = ValidatorSet {
-            total_stake,
+        ValidatorSet {
+            total_stake: 0, //temp, to be filled with init_voting_power
             active_validators: init_active_validators,
             pending_active_validators: table_vec::empty(ctx),
             pending_removals: vector[],
@@ -165,11 +164,14 @@ module iota_system::validator_set {
             validator_candidates: table::new(ctx),
             at_risk_validators: vec_map::empty(),
             extra_fields: bag::new(ctx),
-        };
-        voting_power::set_voting_power(&mut validators.active_validators);
-        validators
+        }
     }
 
+    /// Called by `iota_system` to init the total_stake and voting power
+    public(package) fun init_voting_power(validator_set: &mut ValidatorSet) {
+        validator_set.total_stake = calculate_total_stakes(&validator_set.active_validators);
+        voting_power::set_voting_power(&mut validator_set.active_validators);
+    }
 
     // ==== functions to add or remove validators ====
 
