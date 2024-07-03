@@ -129,6 +129,10 @@
   font-weight: bold;
   color: #525860;
 }
+[data-theme="dark"] .menu__link--active {
+  font-weight: bold;
+  color: white;
+}
 .navbar-sidebar,
 .menu__link {
   color: rgba(255, 255, 255, 0.7);
