@@ -32,11 +32,6 @@ function VisualAssetsPage(): JSX.Element {
         router.push(`/dashboard/assets/visual-assets/${objectId}`);
     };
 
-    const calculateEstimateSize = (index: number) => {
-        const asset = visualAssets[index];
-        return asset.display?.data ? 180 : 130;
-    };
-
     return (
         <div className="flex h-full w-full flex-col items-center justify-center space-y-4">
             <h1>VISUAL ASSETS</h1>
@@ -46,7 +41,7 @@ function VisualAssetsPage(): JSX.Element {
                     hasNextPage={hasNextPage}
                     isFetchingNextPage={isFetchingNextPage}
                     fetchNextPage={fetchNextPage}
-                    estimateSize={calculateEstimateSize}
+                    estimateSize={() => 180}
                     render={virtualItem}
                     onClick={(asset) => handleClick(asset.objectId)}
                 />
