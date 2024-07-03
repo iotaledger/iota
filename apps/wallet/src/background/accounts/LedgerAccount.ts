@@ -13,21 +13,21 @@ import {
 } from './Account';
 
 export interface LedgerAccountSerialized extends SerializedAccount {
-    type: AccountType.Ledger;
+    type: AccountType.LedgerDerived;
     derivationPath: string;
     // just used for authentication nothing is stored here at the moment
     encrypted: string;
 }
 
 export interface LedgerAccountSerializedUI extends SerializedUIAccount {
-    type: AccountType.Ledger;
+    type: AccountType.LedgerDerived;
     derivationPath: string;
 }
 
 export function isLedgerAccountSerializedUI(
     account: SerializedUIAccount,
 ): account is LedgerAccountSerializedUI {
-    return account.type === AccountType.Ledger;
+    return account.type === AccountType.LedgerDerived;
 }
 
 type EphemeralData = {
@@ -52,7 +52,7 @@ export class LedgerAccount
         derivationPath: string;
     }): Promise<Omit<LedgerAccountSerialized, 'id'>> {
         return {
-            type: AccountType.Ledger,
+            type: AccountType.LedgerDerived,
             address,
             publicKey,
             encrypted: await encrypt(password, {}),
@@ -65,11 +65,11 @@ export class LedgerAccount
     }
 
     static isOfType(serialized: SerializedAccount): serialized is LedgerAccountSerialized {
-        return serialized.type === AccountType.Ledger;
+        return serialized.type === AccountType.LedgerDerived;
     }
 
     constructor({ id, cachedData }: { id: string; cachedData?: LedgerAccountSerialized }) {
-        super({ type: AccountType.Ledger, id, cachedData });
+        super({ type: AccountType.LedgerDerived, id, cachedData });
     }
 
     async lock(allowRead = false): Promise<void> {

@@ -109,9 +109,9 @@ export interface AddedAccountsProperties {
      *
      * | Rule | Value |
      * |---|---|
-     * | Enum Values | Ledger, Derived, Imported|
+     * | Enum Values | Ledger, Derived, Private Key|
      */
-    accountType: 'Ledger' | 'Derived' | 'Imported';
+    accountType: 'Ledger' | 'Derived' | 'Private Key';
     /**
      * The number of accounts imported.
      *

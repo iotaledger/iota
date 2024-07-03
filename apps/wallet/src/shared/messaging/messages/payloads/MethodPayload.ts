@@ -46,9 +46,9 @@ type MethodPayloads = {
     createAccounts:
         | { type: AccountType.MnemonicDerived; sourceID: string }
         | { type: AccountType.SeedDerived; sourceID: string }
-        | { type: AccountType.Imported; keyPair: string; password: string }
+        | { type: AccountType.PrivateKeyDerived; keyPair: string; password: string }
         | {
-              type: AccountType.Ledger;
+              type: AccountType.LedgerDerived;
               accounts: { publicKey: string; derivationPath: string; address: string }[];
               password: string;
           };

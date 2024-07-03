@@ -48,7 +48,7 @@ async function deriveAccountsFromLedger(
         const publicKey = new Ed25519PublicKey(publicKeyResult.publicKey);
         const iotaAddress = publicKey.toIotaAddress();
         ledgerAccounts.push({
-            type: AccountType.Ledger,
+            type: AccountType.LedgerDerived,
             address: iotaAddress,
             derivationPath,
             publicKey: publicKey.toBase64(),
