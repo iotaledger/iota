@@ -19,6 +19,13 @@ interface GapConfiguration {
     addressGapLimit: number;
 }
 
+interface RecoverAccountParams {
+    accountStartIndex: number;
+    accountGapLimit: number;
+    addressStartIndex: number;
+    addressGapLimit: number;
+}
+
 export enum SearchAlgorithm {
     BREADTH,
     DEPTH,
@@ -93,25 +100,24 @@ class AccountsFinder {
     }
 
     async runBreadthSearch() {
-        // during breadth search we always search the last known account index + 1
+        // during breadth search we always start by searching for new account indexes
         const initialAccountIndex = this.accounts.length
-            ? this.accounts[this.accounts.length - 1].index + 1
+            ? this.accounts[this.accounts.length - 1].index
             : 0;
-        // during breadth search we always search starting from the address index 0
-        const initialAddressIndex = 0;
 
-        const searchedAccounts = await this.recoverAccounts(
-            initialAccountIndex,
-            this.accountGapLimit,
-            initialAddressIndex,
-            this.addressGapLimit,
-        );
+        const searchedAccounts = await this.recoverAccounts({
+            accountStartIndex: initialAccountIndex, // we start from the last existing account index
+            accountGapLimit: this.accountGapLimit, // we search for the full account gap limit
+            addressStartIndex: 0, // we start from the first address index
+            addressGapLimit: this.addressGapLimit, // we search for the full address gap limit
+        });
+        // we merge the results into the existing accounts
         return this.accounts.concat(searchedAccounts);
     }
 
     async runDepthSearch() {
         const depthAccounts = this.accounts;
-        // if we have no accounts yet, we start with the first account
+        // if we have no accounts yet, we populate with empty accounts
         if (!depthAccounts.length) {
             for (let accountIndex = 0; accountIndex < this.accountGapLimit; accountIndex++) {
                 depthAccounts.push({
@@ -120,13 +126,16 @@ class AccountsFinder {
                 });
             }
         }
+        // depth search is done by searching for more addresses for each account in isolation
         for (const account of depthAccounts) {
-            const searchedAccounts = await this.recoverAccounts(
-                account.index,
-                0,
-                account.addresses.length,
-                this.addressGapLimit,
-            );
+            // during depth search we search for 1 account at a time and start from the last address index
+            const searchedAccounts = await this.recoverAccounts({
+                accountStartIndex: account.index, // we search for the current account
+                accountGapLimit: 0, // we only search for 1 account
+                addressStartIndex: account.addresses.length, // we start from the last address index
+                addressGapLimit: this.addressGapLimit, // we search for the full address gap limit
+            });
+            // we merge the results into the existing accounts
             depthAccounts[account.index].addresses = depthAccounts[account.index].addresses.concat(
                 searchedAccounts[account.index].addresses,
             );
@@ -136,11 +145,14 @@ class AccountsFinder {
 
     // Generic low level function that can be used to implement different search algorithms
     async recoverAccounts(
-        accountStartIndex: number = 0,
-        accountGapLimit: number = 0,
-        addressStartIndex: number = 0,
-        addressGapLimit: number = 0,
+        params: RecoverAccountParams = {
+            accountStartIndex: 0,
+            accountGapLimit: 0,
+            addressStartIndex: 0,
+            addressGapLimit: 0,
+        },
     ) {
+        const { accountStartIndex, accountGapLimit, addressStartIndex, addressGapLimit } = params;
         const network = await NetworkEnv.getActiveNetwork();
         this.client = new IotaClient({
             url: network.customRpcUrl ? network.customRpcUrl : getFullnodeUrl(network.network),
