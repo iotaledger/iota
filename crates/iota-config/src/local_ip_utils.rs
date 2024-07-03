@@ -64,7 +64,7 @@ pub fn get_new_ip() -> String {
 
 /// Returns localhost, which is always 127.0.0.1.
 pub fn localhost_for_testing() -> String {
-    "0.0.0.0".to_string()
+    "127.0.0.1".to_string()
 }
 
 /// Returns an available port for the given host in simtest.
