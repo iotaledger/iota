@@ -4,7 +4,7 @@
 import { type GetBalanceParams, type CoinBalance } from '@iota/iota.js/client';
 import { type AccountFromFinder, type AddressFromFinder } from '_src/shared/accounts';
 import { makeDerivationPath } from '../account-sources/bip44Path';
-import { deriveKeypairFromSeed } from '_src/shared/utils';
+import { deriveKeypairFromSeed } from '_src/shared/utils/keypair';
 
 type GetBalanceCallback = (bipPath: string, params: GetBalanceParams) => Promise<CoinBalance>;
 
