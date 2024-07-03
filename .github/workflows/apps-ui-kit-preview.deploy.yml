@@ -9,7 +9,7 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - 'apps/ui-kit/**'
-
+      - '.github/workflows/apps-ui-kit-preview.deploy.yml'
 
 jobs:
   deploy-preview:
