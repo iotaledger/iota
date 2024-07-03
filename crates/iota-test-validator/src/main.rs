@@ -106,7 +106,7 @@ async fn main() -> Result<()> {
     let args = Args::parse();
     let Args {
         config_dir,
-        full_node_rpc_host,
+        fullnode_rpc_host,
         fullnode_rpc_port,
         graphql_host,
         graphql_port,
@@ -139,7 +139,7 @@ async fn main() -> Result<()> {
     let cluster_config = ClusterTestOpt {
         env: Env::NewLocal,
 
-        fullnode_address: Some(format!("{}:{}", full_node_rpc_host, fullnode_rpc_port)),
+        fullnode_address: Some(format!("{}:{}", fullnode_rpc_host, fullnode_rpc_port)),
         indexer_address: with_indexer.then_some(format!("0.0.0.0:{}", indexer_rpc_port)),
         pg_address: Some(format!(
             "postgres://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db_name}"
