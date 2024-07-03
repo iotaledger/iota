@@ -1,0 +1,28 @@
+name: Preview Deploy for Apps UI Kit Storybook
+
+env:
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+on:
+  push:
+    paths:
+        - 'apps/ui-kit/**'
+    branches-ignore:
+      - develop
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Vercel CLI
+        run: pnpm add --global vercel@canary
+      - name: Pull Vercel Environment Information
+        run: vercel pull ./apps/ui-kit --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Set Working Directory
+        run: cd apps/ui-kit
+      - name: Build Project Artifacts
+        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Deploy Project Artifacts to Vercel
+        run: vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
