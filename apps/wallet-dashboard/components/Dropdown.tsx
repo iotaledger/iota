@@ -9,7 +9,6 @@ interface DropdownProps<T> {
     onChange: (selectedOption: T) => void;
     placeholder?: string;
     valueFromOption: (option: T) => string | number;
-    labelFromOption: (option: T) => React.ReactNode;
 }
 
 function Dropdown<T>({
@@ -18,7 +17,6 @@ function Dropdown<T>({
     onChange,
     placeholder,
     valueFromOption: getValue,
-    labelFromOption: getLabel,
 }: DropdownProps<T>): JSX.Element {
     function handleSelectionChange(e: React.ChangeEvent<HTMLSelectElement>): void {
         const selectedKey = e.target.value;
@@ -42,7 +40,7 @@ function Dropdown<T>({
 
             {options.map((option, index) => (
                 <option key={index} value={getValue(option)}>
-                    {getLabel(option)}
+                    {getValue(option)}
                 </option>
             ))}
         </select>
