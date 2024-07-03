@@ -20,7 +20,7 @@ export default {
                         args={{
                             ...ctx.args,
                             isOpen,
-                            onResponse: () => setIsOpen(false),
+                            onResponse: () => Promise.resolve(setIsOpen(false)),
                         }}
                     />
                 </>
