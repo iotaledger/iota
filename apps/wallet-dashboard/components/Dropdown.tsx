@@ -8,6 +8,7 @@ interface DropdownProps<T> {
     value: T | null | undefined;
     onChange: (selectedOption: T) => void;
     placeholder?: string;
+    disabled?: boolean;
     valueFromOption: (option: T) => string | number;
 }
 
@@ -16,6 +17,7 @@ function Dropdown<T>({
     value,
     onChange,
     placeholder,
+    disabled = false,
     valueFromOption: getValue,
 }: DropdownProps<T>): JSX.Element {
     function handleSelectionChange(e: React.ChangeEvent<HTMLSelectElement>): void {
@@ -31,6 +33,7 @@ function Dropdown<T>({
             value={value ? getValue(value) : ''}
             onChange={handleSelectionChange}
             className="px-2 py-3"
+            disabled={disabled}
         >
             {placeholder && (
                 <option value="" disabled>

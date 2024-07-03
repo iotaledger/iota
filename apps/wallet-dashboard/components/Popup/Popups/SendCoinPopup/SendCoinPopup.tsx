@@ -94,6 +94,7 @@ function SendCoinPopup({
                 value={selectedCoin}
                 onChange={handleSelectedCoin}
                 placeholder="Select a coin to send"
+                disabled={step !== FormStep.EnterValues}
                 valueFromOption={(_selectedCoin) => _selectedCoin.coinType}
             />
             {step === FormStep.EnterValues && (
