@@ -223,10 +223,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             None,
         )
         .unwrap();
-        let expensive_safety_checks = match self.expensive_safety_checks {
-            None => ExpensiveSafetyCheckConfig::default(),
-            Some(config) => config,
-        };
+        let expensive_safety_checks = self.expensive_safety_checks.unwrap_or_default();
         let cache = Arc::new(ExecutionCache::new_for_tests(
             authority_store.clone(),
             &registry,

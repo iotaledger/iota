@@ -33,7 +33,7 @@ function generateDateVersion(patch: number) {
 }
 
 const WALLET_BETA = process.env.WALLET_BETA === 'true';
-const PATCH_VERISON = Number(process.env.PATCH_VERSION) || 0;
+const PATCH_VERSION = Number(process.env.PATCH_VERSION) || 0;
 
 const SDK_ROOT = resolve(__dirname, '..', '..', '..', '..', 'sdk');
 const PROJECT_ROOT = resolve(__dirname, '..', '..');
@@ -99,7 +99,7 @@ async function generateAliasFromTs() {
 
 const commonConfig: () => Promise<Configuration> = async () => {
     const alias = await generateAliasFromTs();
-    const walletVersionDetails = generateDateVersion(PATCH_VERISON);
+    const walletVersionDetails = generateDateVersion(PATCH_VERSION);
     const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN;
     return {
         context: SRC_ROOT,

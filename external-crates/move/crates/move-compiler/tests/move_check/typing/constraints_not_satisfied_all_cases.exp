@@ -8,7 +8,7 @@ error[E05001]: ability constraint not satisfied
   │                       -      ^^^^^^^
   │                       │      │    │
   │                       │      │    The type 'T' does not have the ability 'copy'
-  │                       │      'copy' constraint not satisifed
+  │                       │      'copy' constraint not satisfied
   │                       To satisfy the constraint, the 'copy' ability would need to be added here
 
 error[E05001]: ability constraint not satisfied
@@ -21,7 +21,7 @@ error[E05001]: ability constraint not satisfied
   │                       -                   ^^^^^^^
   │                       │                   │    │
   │                       │                   │    The type 'T' does not have the ability 'key'
-  │                       │                   'key' constraint not satisifed
+  │                       │                   'key' constraint not satisfied
   │                       To satisfy the constraint, the 'key' ability would need to be added here
 
 error[E05001]: ability constraint not satisfied
@@ -34,7 +34,7 @@ error[E05001]: ability constraint not satisfied
   │                    -           ^^^^^^^
   │                    │           │    │
   │                    │           │    The type 'T' does not have the ability 'copy'
-  │                    │           'copy' constraint not satisifed
+  │                    │           'copy' constraint not satisfied
   │                    To satisfy the constraint, the 'copy' ability would need to be added here
 
 error[E05001]: ability constraint not satisfied
@@ -47,7 +47,7 @@ error[E05001]: ability constraint not satisfied
    │                    -                         ^^^^^^^
    │                    │                         │    │
    │                    │                         │    The type 'T' does not have the ability 'key'
-   │                    │                         'key' constraint not satisifed
+   │                    │                         'key' constraint not satisfied
    │                    To satisfy the constraint, the 'key' ability would need to be added here
 
 error[E05001]: ability constraint not satisfied
@@ -62,7 +62,7 @@ error[E05001]: ability constraint not satisfied
    │               ^^^^^^^
    │               │    │
    │               │    The type '0x8675309::M::R' does not have the ability 'copy'
-   │               'copy' constraint not satisifed
+   │               'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/constraints_not_satisfied_all_cases.move:15:28
@@ -77,5 +77,5 @@ error[E05001]: ability constraint not satisfied
    │                            ^^^^^^^
    │                            │    │
    │                            │    The type '0x8675309::M::C' does not have the ability 'key'
-   │                            'key' constraint not satisifed
+   │                            'key' constraint not satisfied
 
