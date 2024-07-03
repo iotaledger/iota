@@ -157,7 +157,6 @@ const references = [
 									'references/ts-sdk/dapp-kit/wallet-hooks/useSignAndExecuteTransactionBlock',
 								],
 							},
-							'references/ts-sdk/dapp-kit/zksend',
 							'references/ts-sdk/dapp-kit/themes',
 						]
 					},
@@ -194,15 +193,6 @@ const references = [
 							},
 							'references/ts-sdk/kiosk/advanced-examples',
 							'references/ts-sdk/kiosk/from-v1',
-						]
-					},
-					{
-						type: 'category',
-						label: 'zkSend SDK',
-						items: [
-							'references/ts-sdk/zksend/index',
-							'references/ts-sdk/zksend/dapp',
-							'references/ts-sdk/zksend/link-builder',
 						]
 					},
 					'references/ts-sdk/bcs',
