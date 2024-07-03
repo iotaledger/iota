@@ -4,7 +4,7 @@
 management. It's used similar to `KioskTransaction`, and helps in crafting transactions to manage a
 transfer policy.
 
-You need to instatiate it once in every Programmable Transaction Block (PTB) that you're building.
+You need to instantiate it once in every Programmable Transaction Block (PTB) that you're building.
 
 Similar to `KioskTransaction`, you can either create a new transfer policy, or use an existing one.
 
@@ -12,10 +12,10 @@ Similar to `KioskTransaction`, you can either create a new transfer policy, or u
 
 If you have already retrieved a transfer policy from `kioskClient.getOwnedTransferPolicies()`, or
 `kioskClient.getOwnedTransferPoliciesByType()`, you can pass a `TransferPolicyCap` result when
-instatiating.
+instantiating.
 
 ```typescript
-// Initiliazed somewhere in the app.
+// Initialized somewhere in the app.
 const kioskClient = new KioskClient({...});
 
 // You could have more than one cap, since we can create more than one transfer policy.

@@ -104,7 +104,7 @@ const eshandler = await ExecutorServiceHandler.initialize(adminKeypair, client);
 const promises = [];
 let txb: TransactionBlockWithLambda;
 for (let i = 0; i < 10; i++) {
-    txb = new TransactionBlockWithLambda(() => ceatePaymentTxb('<recipient-address>'));
+    txb = new TransactionBlockWithLambda(() => createPaymentTxb('<recipient-address>'));
     promises.push(eshandler.execute(txb, client));
 }
 

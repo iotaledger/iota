@@ -3,7 +3,7 @@
 `KioskTransaction` is the client to build transactions that involve Kiosk. It's used similar to
 `TransactionBlock`, and helps in building a transaction.
 
-You need to instatiate it once in every Programmable Transaction Block (PTB) that you're building.
+You need to instantiate it once in every Programmable Transaction Block (PTB) that you're building.
 
 There are two flows to follow, the first being managing an existing kiosk, and the second is
 creating a new one. It hides all the complexity between a personal and a non-personal kiosk.
@@ -16,7 +16,7 @@ If you have already retrieved a kiosk from `kioskClient.getOwnedKiosks()`, you c
 > last command.
 
 ```typescript
-// Initiliazed somewhere in the app.
+// Initialized somewhere in the app.
 const kioskClient = new KioskClient({...});
 const { kioskOwnerCaps } = await kioskClient.getOwnedKiosks({ address: '0xMyAddress'});
 
@@ -52,7 +52,7 @@ If you don't have a kiosk yet, you can create one using `create()`. The `KioskTr
 use of the newly created kiosk to execute some functionality in the same PTB.
 
 ```typescript
-// Initiliazed somewhere in the app.
+// Initialized somewhere in the app.
 const kioskClient = new KioskClient({...});
 
 const txb = new TransactionBlock();
@@ -83,7 +83,7 @@ await signAndExecuteTransactionBlock({tx: txb});
 `KioskTransaction` makes it easy to create a new personal kiosk, and use it in the same PTB.
 
 ```typescript
-// Initiliazed somewhere in the app.
+// Initialized somewhere in the app.
 const kioskClient = new KioskClient({...});
 
 const txb = new TransactionBlock();
