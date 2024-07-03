@@ -5,11 +5,10 @@ import { Search24 } from '@iota/icons';
 import { Button } from '_src/ui/app/shared/ButtonUI';
 import { AccountBalanceItem } from '_src/ui/app/components/accounts/AccountBalanceItem';
 import { useAccountsFinder } from '_src/ui/app/hooks/useAccountsFinder';
-import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
-import { getKey } from '_src/ui/app/helpers/accounts';
+import { useParams } from 'react-router-dom';
 
 export function AccountsFinderView(): JSX.Element {
-    const activeAccount = useActiveAccount();
+    const { accountSourceId } = useParams();
     const {
         data: finderAddresses,
         searchMore,
@@ -17,7 +16,7 @@ export function AccountsFinderView(): JSX.Element {
     } = useAccountsFinder({
         accountGapLimit: 10,
         addressGapLimit: 2,
-        sourceID: activeAccount ? getKey(activeAccount) : '', // TODO: getKey might return a type insted of the source ID if it is not a mnemonic or a seed account source
+        sourceID: accountSourceId || '',
     });
 
     return (
