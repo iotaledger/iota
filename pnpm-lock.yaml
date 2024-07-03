@@ -628,7 +628,7 @@ importers:
         specifier: ^5.3.3
         version: 5.3.3
 
-  apps/ui-tooling:
+  apps/ui-kit:
     dependencies:
       '@iota/core':
         specifier: workspace:*
