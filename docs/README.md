@@ -9,7 +9,7 @@ pnpm install
 Still in root, the site should be built locally:
 
 ```shell
-pnpm build
+pnpm iota-docs build
 ```
 
 This is necessary in the first instance with a freshly cloned repo as it will [download the OpenRPC specifications](/docs/site/src/utils/getopenrpcspecs.js) which are required to deploy the site.
@@ -17,7 +17,7 @@ This is necessary in the first instance with a freshly cloned repo as it will [d
 Next, use the following command to deploy a development preview of the site to `localhost:3000`:
 
 ```shell
-pnpm dev
+pnpm iota-docs dev
 ```
 
 > If you're running the site locally and getting an error saying that you don't have `open-rpc` specs, run `pnpm build` first. It will prepare the files and fix the issue.
