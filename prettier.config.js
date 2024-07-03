@@ -32,10 +32,10 @@ module.exports = {
             },
         },
         {
-            files: 'apps/ui-tooling/**/*',
+            files: 'apps/ui-kit/**/*',
             options: {
                 plugins: ['prettier-plugin-tailwindcss'],
-                tailwindConfig: './apps/ui-tooling/tailwind.config.ts',
+                tailwindConfig: './apps/ui-kit/tailwind.config.ts',
             },
         },
         {

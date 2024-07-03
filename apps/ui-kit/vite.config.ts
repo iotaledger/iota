@@ -9,7 +9,7 @@ export default defineConfig({
     build: {
         lib: {
             entry: resolve(__dirname, './src/lib/index.ts'),
-            name: '@iota/ui-tooling',
+            name: '@iota/apps-ui-kit',
             fileName: (format) => `index.${format}.js`,
         },
         rollupOptions: {
