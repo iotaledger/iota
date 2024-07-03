@@ -136,7 +136,6 @@
 .navbar-sidebar,
 .menu__link {
   color: rgba(255, 255, 255, 0.7);
-  font-weight: lighter;
 }
 
 [data-theme="light"] .menu__link--active {
