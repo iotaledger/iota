@@ -179,7 +179,7 @@ struct UncommittedData {
 
     // Because TransactionEvents are not unique to the transaction that created them, we must
     // reference count them in order to know when we can remove them from the cache. For now
-    // we track all referers explicitly, but we can use a ref count when we are confident in
+    // we track all referrers explicitly, but we can use a ref count when we are confident in
     // the correctness of the code.
     transaction_events:
         DashMap<TransactionEventsDigest, (BTreeSet<TransactionDigest>, TransactionEvents)>,
@@ -743,7 +743,7 @@ impl ExecutionCacheRead for WritebackCache {
         }
     }
 
-    // TOOO: we may not need this function now that all writes go through the cache
+    // TODO: we may not need this function now that all writes go through the cache
     fn force_reload_system_packages(&self, system_package_ids: &[ObjectID]) {
         for package_id in system_package_ids {
             if let Some(p) = self

@@ -602,7 +602,7 @@ Trying to withdraw profits and sender is not owner.
 
 <a name="0x2_kiosk_EAlreadyListed"></a>
 
-Tryng to exclusively list an already listed item.
+Trying to exclusively list an already listed item.
 
 
 <pre><code><b>const</b> <a href="kiosk.md#0x2_kiosk_EAlreadyListed">EAlreadyListed</a>: u64 = 6;
