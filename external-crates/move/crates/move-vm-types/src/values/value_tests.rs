@@ -164,7 +164,7 @@ fn leagacy_ref_abstract_memory_size_consistency() -> PartialVMResult<()> {
 }
 
 #[test]
-fn legacy_struct_abstract_memory_size_consistenty() -> PartialVMResult<()> {
+fn legacy_struct_abstract_memory_size_consistency() -> PartialVMResult<()> {
     let structs = [
         Struct::pack([]),
         Struct::pack([Value::struct_(Struct::pack([Value::u8(0), Value::u64(0)]))]),

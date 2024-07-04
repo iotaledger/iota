@@ -9,9 +9,17 @@ interface InputProps {
     onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
     placeholder?: string;
     type?: React.HTMLInputTypeAttribute;
+    error?: string;
 }
 
-function Input({ label, value, onChange, placeholder, type = 'text' }: InputProps): JSX.Element {
+function Input({
+    label,
+    value,
+    onChange,
+    placeholder,
+    type = 'text',
+    error,
+}: InputProps): JSX.Element {
     return (
         <div className="flex flex-col gap-1">
             {label && <label>{label}</label>}
@@ -22,6 +30,7 @@ function Input({ label, value, onChange, placeholder, type = 'text' }: InputProp
                 placeholder={placeholder}
                 className="w-full rounded-lg border border-gray-400 p-2"
             />
+            {error && <span className="text-red-500">{error}</span>}
         </div>
     );
 }

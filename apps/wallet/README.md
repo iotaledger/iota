@@ -1,6 +1,6 @@
 # Iota Wallet
 
-A Chrome extension wallet for [Iota](https://iota.io).
+A Chrome extension wallet for [Iota](https://iota.org).
 
 # Set Up
 

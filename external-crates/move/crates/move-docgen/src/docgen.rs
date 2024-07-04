@@ -451,7 +451,7 @@ impl<'env> Docgen<'env> {
                             .to_string(),
                     )
                 } else {
-                    // If it's a dependency traverse back up to finde the package name so that we
+                    // If it's a dependency traverse back up to find the package name so that we
                     // can generate the documentation in the right place.
                     let path = PathBuf::from(module_env.get_source_path());
                     let package_name = path.ancestors().find_map(|dir| {

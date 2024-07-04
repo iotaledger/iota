@@ -175,7 +175,7 @@ impl PgIndexerStore {
         object_id: ObjectID,
         version: Option<SequenceNumber>,
     ) -> Result<ObjectRead, IndexerError> {
-        // TOOD: read remote object_history kv store
+        // TODO: read remote object_history kv store
         read_only_blocking!(&self.blocking_cp, |conn| {
             let query =
                 objects::dsl::objects.filter(objects::dsl::object_id.eq(object_id.to_vec()));

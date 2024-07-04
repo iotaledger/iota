@@ -45,7 +45,7 @@ impl TransactionInputLoader {
         receiving_objects: &[ObjectRef],
         epoch_id: EpochId,
     ) -> IotaResult<(InputObjects, ReceivingObjects)> {
-        // Length of input_object_kinds have beeen checked via validity_check() for
+        // Length of input_object_kinds have been checked via validity_check() for
         // ProgrammableTransaction.
         let mut input_results = vec![None; input_object_kinds.len()];
         let mut object_refs = Vec::with_capacity(input_object_kinds.len());
@@ -293,7 +293,7 @@ impl TransactionInputLoader {
         _protocol_config: &ProtocolConfig,
     ) -> IotaResult<(InputObjects, ReceivingObjects)> {
         let mut results = Vec::with_capacity(input_object_kinds.len());
-        // Length of input_object_kinds have beeen checked via validity_check() for
+        // Length of input_object_kinds have been checked via validity_check() for
         // ProgrammableTransaction.
         for kind in input_object_kinds {
             let obj = match kind {
