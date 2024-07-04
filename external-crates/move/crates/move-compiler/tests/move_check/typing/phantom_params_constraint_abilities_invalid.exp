@@ -9,7 +9,7 @@ error[E05001]: ability constraint not satisfied
    │            │  │            │
    │            │  │            The type '0x42::M::HasAbilities<0x42::M::NoAbilities, 0x42::M::NoAbilities>' can have the ability 'copy' but the type argument '0x42::M::NoAbilities' does not have the required ability 'copy'
    │            │  The type '0x42::M::HasAbilities<0x42::M::NoAbilities, 0x42::M::NoAbilities>' does not have the ability 'copy'
-   │            'copy' constraint not satisifed
+   │            'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/phantom_params_constraint_abilities_invalid.move:11:12
@@ -22,7 +22,7 @@ error[E05001]: ability constraint not satisfied
    │            │  │            │
    │            │  │            The type '0x42::M::HasAbilities<0x42::M::NoAbilities, 0x42::M::NoAbilities>' can have the ability 'drop' but the type argument '0x42::M::NoAbilities' does not have the required ability 'drop'
    │            │  The type '0x42::M::HasAbilities<0x42::M::NoAbilities, 0x42::M::NoAbilities>' does not have the ability 'drop'
-   │            'drop' constraint not satisifed
+   │            'drop' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/phantom_params_constraint_abilities_invalid.move:11:12
@@ -35,7 +35,7 @@ error[E05001]: ability constraint not satisfied
    │            │  │            │
    │            │  │            The type '0x42::M::HasAbilities<0x42::M::NoAbilities, 0x42::M::NoAbilities>' can have the ability 'store' but the type argument '0x42::M::NoAbilities' does not have the required ability 'store'
    │            │  The type '0x42::M::HasAbilities<0x42::M::NoAbilities, 0x42::M::NoAbilities>' does not have the ability 'store'
-   │            'store' constraint not satisifed
+   │            'store' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/phantom_params_constraint_abilities_invalid.move:11:12
@@ -48,7 +48,7 @@ error[E05001]: ability constraint not satisfied
    │            │  │            │
    │            │  │            The type '0x42::M::HasAbilities<0x42::M::NoAbilities, 0x42::M::NoAbilities>' can have the ability 'key' but the type argument '0x42::M::NoAbilities' does not have the required ability 'store'
    │            │  The type '0x42::M::HasAbilities<0x42::M::NoAbilities, 0x42::M::NoAbilities>' does not have the ability 'key'
-   │            'key' constraint not satisifed
+   │            'key' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/phantom_params_constraint_abilities_invalid.move:16:12
@@ -66,7 +66,7 @@ error[E05001]: ability constraint not satisfied
 18 │ │                HasStore<NoAbilities, NoAbilities>,
 19 │ │                HasKey<NoAbilities, NoAbilities>
 20 │ │              >
-   │ ╰──────────────^ 'drop' constraint not satisifed
+   │ ╰──────────────^ 'drop' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/phantom_params_constraint_abilities_invalid.move:16:12
@@ -84,7 +84,7 @@ error[E05001]: ability constraint not satisfied
 18 │ │                HasStore<NoAbilities, NoAbilities>,
 19 │ │                HasKey<NoAbilities, NoAbilities>
 20 │ │              >
-   │ ╰──────────────^ 'copy' constraint not satisifed
+   │ ╰──────────────^ 'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/phantom_params_constraint_abilities_invalid.move:16:12
@@ -102,7 +102,7 @@ error[E05001]: ability constraint not satisfied
    │ │                The type '0x42::M::HasStore<0x42::M::NoAbilities, 0x42::M::NoAbilities>' does not have the ability 'store'
 19 │ │                HasKey<NoAbilities, NoAbilities>
 20 │ │              >
-   │ ╰──────────────^ 'store' constraint not satisifed
+   │ ╰──────────────^ 'store' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/phantom_params_constraint_abilities_invalid.move:16:12
@@ -120,7 +120,7 @@ error[E05001]: ability constraint not satisfied
    │ │                │      The type '0x42::M::HasKey<0x42::M::NoAbilities, 0x42::M::NoAbilities>' can have the ability 'key' but the type argument '0x42::M::NoAbilities' does not have the required ability 'store'
    │ │                The type '0x42::M::HasKey<0x42::M::NoAbilities, 0x42::M::NoAbilities>' does not have the ability 'key'
 20 │ │              >
-   │ ╰──────────────^ 'key' constraint not satisifed
+   │ ╰──────────────^ 'key' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/phantom_params_constraint_abilities_invalid.move:25:9
@@ -133,7 +133,7 @@ error[E05001]: ability constraint not satisfied
    │         │  │            │
    │         │  │            The type '0x42::M::HasAbilities<0x42::M::NoAbilities, 0x42::M::NoAbilities>' can have the ability 'copy' but the type argument '0x42::M::NoAbilities' does not have the required ability 'copy'
    │         │  The type '0x42::M::HasAbilities<0x42::M::NoAbilities, 0x42::M::NoAbilities>' does not have the ability 'copy'
-   │         'copy' constraint not satisifed
+   │         'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/phantom_params_constraint_abilities_invalid.move:25:9
@@ -146,7 +146,7 @@ error[E05001]: ability constraint not satisfied
    │         │  │            │
    │         │  │            The type '0x42::M::HasAbilities<0x42::M::NoAbilities, 0x42::M::NoAbilities>' can have the ability 'drop' but the type argument '0x42::M::NoAbilities' does not have the required ability 'drop'
    │         │  The type '0x42::M::HasAbilities<0x42::M::NoAbilities, 0x42::M::NoAbilities>' does not have the ability 'drop'
-   │         'drop' constraint not satisifed
+   │         'drop' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/phantom_params_constraint_abilities_invalid.move:25:9
@@ -159,7 +159,7 @@ error[E05001]: ability constraint not satisfied
    │         │  │            │
    │         │  │            The type '0x42::M::HasAbilities<0x42::M::NoAbilities, 0x42::M::NoAbilities>' can have the ability 'store' but the type argument '0x42::M::NoAbilities' does not have the required ability 'store'
    │         │  The type '0x42::M::HasAbilities<0x42::M::NoAbilities, 0x42::M::NoAbilities>' does not have the ability 'store'
-   │         'store' constraint not satisifed
+   │         'store' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/phantom_params_constraint_abilities_invalid.move:25:9
@@ -172,7 +172,7 @@ error[E05001]: ability constraint not satisfied
    │         │  │            │
    │         │  │            The type '0x42::M::HasAbilities<0x42::M::NoAbilities, 0x42::M::NoAbilities>' can have the ability 'key' but the type argument '0x42::M::NoAbilities' does not have the required ability 'store'
    │         │  The type '0x42::M::HasAbilities<0x42::M::NoAbilities, 0x42::M::NoAbilities>' does not have the ability 'key'
-   │         'key' constraint not satisifed
+   │         'key' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/phantom_params_constraint_abilities_invalid.move:30:9
@@ -189,7 +189,7 @@ error[E05001]: ability constraint not satisfied
 32 │ │             HasStore<NoAbilities, NoAbilities>,
 33 │ │             HasKey<NoAbilities, NoAbilities>
 34 │ │           >();
-   │ ╰─────────────^ 'drop' constraint not satisifed
+   │ ╰─────────────^ 'drop' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/phantom_params_constraint_abilities_invalid.move:30:9
@@ -206,7 +206,7 @@ error[E05001]: ability constraint not satisfied
 32 │ │             HasStore<NoAbilities, NoAbilities>,
 33 │ │             HasKey<NoAbilities, NoAbilities>
 34 │ │           >();
-   │ ╰─────────────^ 'copy' constraint not satisifed
+   │ ╰─────────────^ 'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/phantom_params_constraint_abilities_invalid.move:30:9
@@ -223,7 +223,7 @@ error[E05001]: ability constraint not satisfied
    │ │             The type '0x42::M::HasStore<0x42::M::NoAbilities, 0x42::M::NoAbilities>' does not have the ability 'store'
 33 │ │             HasKey<NoAbilities, NoAbilities>
 34 │ │           >();
-   │ ╰─────────────^ 'store' constraint not satisifed
+   │ ╰─────────────^ 'store' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/phantom_params_constraint_abilities_invalid.move:30:9
@@ -240,5 +240,5 @@ error[E05001]: ability constraint not satisfied
    │ │             │      The type '0x42::M::HasKey<0x42::M::NoAbilities, 0x42::M::NoAbilities>' can have the ability 'key' but the type argument '0x42::M::NoAbilities' does not have the required ability 'store'
    │ │             The type '0x42::M::HasKey<0x42::M::NoAbilities, 0x42::M::NoAbilities>' does not have the ability 'key'
 34 │ │           >();
-   │ ╰─────────────^ 'key' constraint not satisifed
+   │ ╰─────────────^ 'key' constraint not satisfied
 

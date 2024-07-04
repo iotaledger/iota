@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClient } from '@iota/dapp-kit';
-import { KioskClient, Network } from '@iota/kiosk';
+import { Network } from '@iota/iota.js/client';
+import { KioskClient } from '@iota/kiosk';
 import { createContext, ReactNode, useContext, useMemo } from 'react';
 
 export const KioskClientContext = createContext<KioskClient | undefined>(undefined);
@@ -14,7 +15,7 @@ export function KisokClientProvider({ children }: { children: ReactNode }) {
         () =>
             new KioskClient({
                 client: iotaClient,
-                network: Network.TESTNET,
+                network: Network.Testnet,
             }),
         [iotaClient],
     );

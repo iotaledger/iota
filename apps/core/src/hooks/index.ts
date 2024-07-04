@@ -32,5 +32,6 @@ export * from './useQueryTransactionsByAddress';
 export * from './useGetTransaction';
 export * from './useExtendedTransactionSummary';
 export * from './useGetNFTMeta';
+export * from './useIotaAddressValidation';
 
 export * from './stake';

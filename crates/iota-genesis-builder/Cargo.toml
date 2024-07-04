@@ -12,6 +12,7 @@ bcs.workspace = true
 camino.workspace = true
 clap.workspace = true
 fastcrypto.workspace = true
+flate2.workspace = true
 itertools.workspace = true
 move-binary-format.workspace = true
 move-compiler.workspace = true
@@ -22,6 +23,7 @@ prometheus.workspace = true
 rand = { workspace = true, features = ["std_rng"] }
 rand_regex.workspace = true
 regex.workspace = true
+reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_with.workspace = true

@@ -178,7 +178,7 @@
   - Added pure helpers (`txb.pure.address()`, `txb.bool()`, and `txb.pure.u{8-256}()`) to simplify serialization of pure values
   - Deprecated using `txb.pure` with raw JavaScript values, or an explicit type argument.
 
-- 1bc430161: Updated BCS defintions to use new BCS schema builder
+- 1bc430161: Updated BCS definitions to use new BCS schema builder
 
 ### Patch Changes
 
@@ -534,7 +534,7 @@
 - a0955c479: Switch from 20 to 32-byte address. Match Secp256k1.deriveKeypair with Ed25519.
 - 0c9047698: Remove all gas selection APIs from the json rpc provider.
 - d5ef1b6e5: Added dependencies to publish command, dependencies now also returned from the iota move CLI with the `--dump-bytecode-as-base64` flag
-- 0a7b42a6d: This changes almost all occurences of "delegate", "delegation" (and various capitalizations/forms) to their equivalent "stake"-based name. Function names, function argument names, RPC endpoints, Move functions, and object fields have been updated with this new naming convention.
+- 0a7b42a6d: This changes almost all occurrences of "delegate", "delegation" (and various capitalizations/forms) to their equivalent "stake"-based name. Function names, function argument names, RPC endpoints, Move functions, and object fields have been updated with this new naming convention.
 - 3de8de361: Remove `getValidators` API. Use `getLatestIotaSystemState` instead.
 - dd348cf03: Refactor `getTransactions` to `queryTransactions`
 - 57c17e02a: Removed `JsonRpcProviderWithCache`, use `JsonRpcProvider` instead.
@@ -543,7 +543,7 @@
 - fe335e6ba: Removed usage of `cross-fetch` in the TypeScript SDK. If you are running in an environment that does not have `fetch` defined, you will need to polyfill it.
 - 5dc25faad: Remove getTransactionDigestsInRange from the SDK
 - 64234baaf: added combined `getCheckpoint` endpoint for retrieving information about a checkpoint
-- d3170ba41: All JSON-RPC APIs now accept objects instead of positional arugments.
+- d3170ba41: All JSON-RPC APIs now accept objects instead of positional arguments.
 - a6ffb8088: Removed events from transaction effects, TransactionEvents will now be provided in the TransactionResponse, along side TransactionEffects.
 - 3304eb83b: Refactor Rust IotaTransactionBlockKind to be internally tagged for Json serialization with tag="type" and IotaEvent to be adjacently tagged with tag="type" and content="content"
 - 4189171ef: Adds support for validator candidate.
@@ -704,7 +704,7 @@
   - renames `newTransferTx` function from framework Coin to `newPayTransaction`. Also it's now a public method and without the need of signer so a dapp can use it
   - fixes edge cases with pay txs
 - bb14ffdc5: Remove ImmediateReturn and WaitForTxCert from ExecuteTransactionRequestType
-- d2015f815: Rebuilt type-narrowing utilties (e.g. `isIotaObject`) on top of Superstruct, which should make them more reliable.
+- d2015f815: Rebuilt type-narrowing utilities (e.g. `isIotaObject`) on top of Superstruct, which should make them more reliable.
   The type-narrowing functions are no longer exported, instead a Superstruct schema is exported, in addition to an `is` and `assert` function, both of which can be used to replace the previous narrowing functions. For example, `isIotaObject(data)` becomes `is(data, IotaObject)`.
 - 7d0f25b61: Add devInspectTransaction, which is similar to dryRunTransaction, but lets you call any Move function(including non-entry function) with arbitrary values.
 
