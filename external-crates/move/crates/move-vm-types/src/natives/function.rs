@@ -14,7 +14,7 @@
 //! ) -> PartialVMResult<NativeResult>;`
 //!
 //! arguments are passed with first argument at position 0 and so forth.
-//! Popping values from `arguments` gives the aguments in reverse order (last
+//! Popping values from `arguments` gives the arguments in reverse order (last
 //! first). This module contains the declarations and utilities to implement a
 //! native function.
 
