@@ -6,16 +6,16 @@ import { getFromLocalStorage } from './storage-utils';
 
 export type Status = 'required' | 'inProgress' | 'ready';
 
-const migrationDoneStorageKey = 'storage-migration-done';
+const MIGRATION_DONE_STORAGE_KEY = 'storage-migration-done';
 
 let statusCache: Status | null = null;
 
 export async function getStatus() {
-    // placeholde for migration status, always returns ready
+    // placeholder for migration status, always returns ready
     if (statusCache) {
         return statusCache;
     }
-    const isMigrationDone = await getFromLocalStorage<boolean>(migrationDoneStorageKey);
+    const isMigrationDone = await getFromLocalStorage<boolean>(MIGRATION_DONE_STORAGE_KEY);
     if (isMigrationDone) {
         return (statusCache = 'ready');
     }

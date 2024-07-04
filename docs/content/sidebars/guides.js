@@ -138,6 +138,7 @@ const guides = [
 					'guides/developer/advanced/move-2024-migration',
 					'guides/developer/advanced/asset-tokenization',
 					'guides/developer/advanced/custom-indexer',
+					'guides/developer/advanced/stardust-on-move',
 				],
 			},
 			{
@@ -207,6 +208,25 @@ const guides = [
 			'guides/operator/validator-tasks',
 			'guides/operator/node-tools',
 			'guides/operator/exchange-integration',
+		],
+	},
+	{
+		type: 'category',
+		label: 'Migrating IOTA/Shimmer Stardust',
+		link: {
+			type: 'doc',
+			id: 'guides/stardust-migration',
+		},
+		items: [
+			'guides/stardust/move-models',
+			'guides/stardust/addresses',
+			'guides/stardust/units',
+			'guides/stardust/migration-process',
+			'guides/stardust/claiming',
+			'guides/stardust/vested',
+			'guides/stardust/testing',
+			'guides/stardust/if-tools',
+			'guides/stardust/faq',
 		],
 	},
 ];

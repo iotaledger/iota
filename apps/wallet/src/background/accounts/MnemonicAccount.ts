@@ -8,6 +8,7 @@ import { type Keypair } from '@iota/iota.js/cryptography';
 import { MnemonicAccountSource } from '../account-sources/MnemonicAccountSource';
 import {
     Account,
+    AccountType,
     type KeyPairExportableAccount,
     type PasswordUnlockableAccount,
     type SerializedAccount,
@@ -16,14 +17,14 @@ import {
 } from './Account';
 
 export interface MnemonicSerializedAccount extends SerializedAccount {
-    type: 'mnemonic-derived';
+    type: AccountType.MnemonicDerived;
     sourceID: string;
     derivationPath: string;
     publicKey: string;
 }
 
 export interface MnemonicSerializedUiAccount extends SerializedUIAccount {
-    type: 'mnemonic-derived';
+    type: AccountType.MnemonicDerived;
     publicKey: string;
     derivationPath: string;
     sourceID: string;
@@ -32,7 +33,7 @@ export interface MnemonicSerializedUiAccount extends SerializedUIAccount {
 export function isMnemonicSerializedUiAccount(
     account: SerializedUIAccount,
 ): account is MnemonicSerializedUiAccount {
-    return account.type === 'mnemonic-derived';
+    return account.type === AccountType.MnemonicDerived;
 }
 
 type SessionStorageData = { keyPair: string };
@@ -46,7 +47,7 @@ export class MnemonicAccount
     readonly exportableKeyPair = true;
 
     static isOfType(serialized: SerializedAccount): serialized is MnemonicSerializedAccount {
-        return serialized.type === 'mnemonic-derived';
+        return serialized.type === AccountType.MnemonicDerived;
     }
 
     static createNew({
@@ -59,7 +60,7 @@ export class MnemonicAccount
         sourceID: string;
     }): Omit<MnemonicSerializedAccount, 'id'> {
         return {
-            type: 'mnemonic-derived',
+            type: AccountType.MnemonicDerived,
             sourceID,
             address: keyPair.getPublicKey().toIotaAddress(),
             derivationPath,
@@ -72,7 +73,7 @@ export class MnemonicAccount
     }
 
     constructor({ id, cachedData }: { id: string; cachedData?: MnemonicSerializedAccount }) {
-        super({ type: 'mnemonic-derived', id, cachedData });
+        super({ type: AccountType.MnemonicDerived, id, cachedData });
     }
 
     async isLocked(): Promise<boolean> {

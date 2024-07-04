@@ -18,21 +18,21 @@ import useAppSelector from './useAppSelector';
 
 export type ExplorerLinkConfig =
     | {
-          type: ExplorerLinkType.address;
+          type: ExplorerLinkType.Address;
           address?: string;
           useActiveAddress?: false;
       }
     | {
-          type: ExplorerLinkType.address;
+          type: ExplorerLinkType.Address;
           useActiveAddress: true;
       }
-    | { type: ExplorerLinkType.object; objectID: string; moduleName?: string }
-    | { type: ExplorerLinkType.transaction; transactionID: string }
-    | { type: ExplorerLinkType.validator; validator: string };
+    | { type: ExplorerLinkType.Object; objectID: string; moduleName?: string }
+    | { type: ExplorerLinkType.Transaction; transactionID: string }
+    | { type: ExplorerLinkType.Validator; validator: string };
 
 function useAddress(linkConfig: ExplorerLinkConfig) {
     const { type } = linkConfig;
-    const isAddress = type === ExplorerLinkType.address;
+    const isAddress = type === ExplorerLinkType.Address;
     const isProvidedAddress = isAddress && !linkConfig.useActiveAddress;
     const activeAddress = useActiveAddress();
     return isProvidedAddress ? linkConfig.address : activeAddress;
@@ -42,10 +42,10 @@ export function useExplorerLink(linkConfig: ExplorerLinkConfig) {
     const { type } = linkConfig;
     const address = useAddress(linkConfig);
     const network = useAppSelector(({ app }) => app.network);
-    const objectID = type === ExplorerLinkType.object ? linkConfig.objectID : null;
-    const transactionID = type === ExplorerLinkType.transaction ? linkConfig.transactionID : null;
-    const validator = type === ExplorerLinkType.validator ? linkConfig.validator : null;
-    const moduleName = type === ExplorerLinkType.object ? linkConfig.moduleName : null;
+    const objectID = type === ExplorerLinkType.Object ? linkConfig.objectID : null;
+    const transactionID = type === ExplorerLinkType.Transaction ? linkConfig.transactionID : null;
+    const validator = type === ExplorerLinkType.Validator ? linkConfig.validator : null;
+    const moduleName = type === ExplorerLinkType.Object ? linkConfig.moduleName : null;
 
     // fallback to localhost if customRPC is not set
     const customExplorer =
@@ -53,13 +53,13 @@ export function useExplorerLink(linkConfig: ExplorerLinkConfig) {
     return useMemo(() => {
         if (!address) return null;
         switch (type) {
-            case ExplorerLinkType.address:
+            case ExplorerLinkType.Address:
                 return address && getAddressUrl(address, network, customExplorer);
-            case ExplorerLinkType.object:
+            case ExplorerLinkType.Object:
                 return objectID && getObjectUrl(objectID, network, customExplorer, moduleName);
-            case ExplorerLinkType.transaction:
+            case ExplorerLinkType.Transaction:
                 return transactionID && getTransactionUrl(transactionID, network, customExplorer);
-            case ExplorerLinkType.validator:
+            case ExplorerLinkType.Validator:
                 return validator && getValidatorUrl(validator, network, customExplorer);
         }
     }, [type, address, network, customExplorer, moduleName, objectID, transactionID, validator]);

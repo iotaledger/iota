@@ -12,18 +12,18 @@ import st from './Filters.module.scss';
 const ELEMENT_ID = '#iota-apps-filters';
 
 // TODO: extend this interface to include params and functions for the filter tags
-export interface Props {
+export interface Tag {
     name: string;
     link: string;
 }
 
-type Tags = {
-    tags: Props[];
+interface FiltersPortalProps {
+    tags: Tag[];
     firstLastMargin?: boolean;
-    callback?: (tag: Props) => void;
-};
+    callback?: (tag: Tag) => void;
+}
 
-function FiltersPortal({ tags, callback, firstLastMargin }: Tags) {
+function FiltersPortal({ tags, callback, firstLastMargin }: FiltersPortalProps) {
     const [element, setElement] = useState<HTMLElement | null>(null);
 
     useEffect(() => {

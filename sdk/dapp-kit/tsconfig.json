@@ -8,9 +8,5 @@
         "jsx": "react-jsx",
         "rootDir": "src"
     },
-    "references": [
-        { "path": "../typescript" },
-        { "path": "../wallet-standard" },
-        { "path": "../zksend" }
-    ]
+    "references": [{ "path": "../typescript" }, { "path": "../wallet-standard" }]
 }

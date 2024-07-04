@@ -21,7 +21,11 @@ import { Card } from '../Card';
 import { OwnerFooter } from '../OwnerFooter';
 import { ObjectChangeDisplay } from './objectSummary/ObjectChangeDisplay';
 
-function ChevronDown({ expanded }: { expanded: boolean }) {
+interface ChevronDownProps {
+    expanded: boolean;
+}
+
+function ChevronDown({ expanded }: ChevronDownProps) {
     return expanded ? (
         <ChevronDown12 className="text-gray-45" />
     ) : (
@@ -29,14 +33,13 @@ function ChevronDown({ expanded }: { expanded: boolean }) {
     );
 }
 
-export function ObjectDetail({
-    change,
-    display,
-}: {
+interface ObjectDetailProps {
     change: IotaObjectChangeWithDisplay;
     ownerKey: string;
     display?: boolean;
-}) {
+}
+
+export function ObjectDetail({ change, display }: ObjectDetailProps) {
     if (change.type === 'transferred' || change.type === 'published') {
         return null;
     }
@@ -61,7 +64,7 @@ export function ObjectDetail({
                         {change.objectId && (
                             <div className="justify-self-end">
                                 <ExplorerLink
-                                    type={ExplorerLinkType.object}
+                                    type={ExplorerLinkType.Object}
                                     objectID={change.objectId}
                                     className="text-hero-dark no-underline"
                                 >
@@ -80,7 +83,7 @@ export function ObjectDetail({
                                 </Text>
                                 <div className="flex justify-end">
                                     <ExplorerLink
-                                        type={ExplorerLinkType.object}
+                                        type={ExplorerLinkType.Object}
                                         objectID={packageId}
                                         className="justify-self-end overflow-auto text-captionSmall text-hero-dark no-underline"
                                     >
@@ -96,7 +99,7 @@ export function ObjectDetail({
                                 </Text>
                                 <div className="flex justify-end">
                                     <ExplorerLink
-                                        type={ExplorerLinkType.object}
+                                        type={ExplorerLinkType.Object}
                                         objectID={packageId}
                                         moduleName={moduleName}
                                         className="justify-self-end overflow-auto text-hero-dark no-underline"
@@ -113,7 +116,7 @@ export function ObjectDetail({
                                 </Text>
                                 <div className="flex justify-end">
                                     <ExplorerLink
-                                        type={ExplorerLinkType.object}
+                                        type={ExplorerLinkType.Object}
                                         objectID={packageId}
                                         moduleName={moduleName}
                                         className="justify-self-end overflow-auto text-hero-dark no-underline"
@@ -218,7 +221,11 @@ export function ObjectChangeEntry({ changes, type }: ObjectChangeEntryProps) {
     );
 }
 
-export function ObjectChanges({ changes }: { changes?: ObjectChangeSummary | null }) {
+interface ObjectChangesProps {
+    changes?: ObjectChangeSummary | null;
+}
+
+export function ObjectChanges({ changes }: ObjectChangesProps) {
     if (!changes) return null;
 
     return (

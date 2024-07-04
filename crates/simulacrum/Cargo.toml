@@ -32,3 +32,6 @@ iota-transaction-checks.workspace = true
 iota-types.workspace = true
 move-bytecode-utils.workspace = true
 shared-crypto.workspace = true
+
+[dev-dependencies]
+iota-types = { workspace = true, features = ["test-utils"] }

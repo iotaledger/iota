@@ -13,13 +13,12 @@ import { Link } from 'react-router-dom';
 import { TxnTypeLabel } from './TxnActionLabel';
 import { TxnIcon } from './TxnIcon';
 
-export function TransactionCard({
-    txn,
-    address,
-}: {
+interface TransactionCardProps {
     txn: IotaTransactionBlockResponse;
     address: string;
-}) {
+}
+
+export function TransactionCard({ txn, address }: TransactionCardProps) {
     const executionStatus = txn.effects?.status.status;
     const recognizedPackagesList = useRecognizedPackages();
 
@@ -44,7 +43,7 @@ export function TransactionCard({
 
     // TODO: Support programmable tx:
     // Show iota symbol only if transfer transferAmount coinType is IOTA_TYPE_ARG, staking or unstaking
-    const showIotaSymbol = false;
+    const SHOW_IOTA_SYMBOL = false;
 
     const timestamp = txn.timestampMs;
 
@@ -87,7 +86,7 @@ export function TransactionCard({
                                     <Text color="gray-90" weight="semibold">
                                         {summary?.label}
                                     </Text>
-                                    {showIotaSymbol && (
+                                    {SHOW_IOTA_SYMBOL && (
                                         <Text
                                             color="gray-90"
                                             weight="normal"

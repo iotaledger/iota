@@ -11,9 +11,9 @@ import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 
 import { Card } from '../../shared/transaction-summary/Card';
 
-type UnStakeTxnCardProps = {
+interface UnStakeTxnCardProps {
     event: IotaEvent;
-};
+}
 
 export function UnStakeTxnCard({ event }: UnStakeTxnCardProps) {
     const json = event.parsedJson as {

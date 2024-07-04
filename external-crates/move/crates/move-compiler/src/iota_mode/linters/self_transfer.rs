@@ -10,8 +10,8 @@ use std::collections::BTreeMap;
 use move_ir_types::location::*;
 
 use super::{
-    type_abilities, LinterDiagCategory, INVALID_LOC, LINTER_DEFAULT_DIAG_CODE, LINT_WARNING_PREFIX,
-    PUBLIC_TRANSFER_FUN, IOTA_PKG_NAME, TRANSFER_FUN, TRANSFER_MOD_NAME,
+    type_abilities, LinterDiagCategory, INVALID_LOC, IOTA_PKG_NAME, LINTER_DEFAULT_DIAG_CODE,
+    LINT_WARNING_PREFIX, PUBLIC_TRANSFER_FUN, TRANSFER_FUN, TRANSFER_MOD_NAME,
 };
 use crate::{
     cfgir::{

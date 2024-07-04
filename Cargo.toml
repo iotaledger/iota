@@ -55,15 +55,9 @@ exclude = [
   "external-crates/move/crates/move-vm-types",
   "external-crates/move/crates/serializer-tests",
   "external-crates/move/crates/test-generation",
-  "external-crates/move/move-execution/v0/move-bytecode-verifier",
-  "external-crates/move/move-execution/v0/move-stdlib",
-  "external-crates/move/move-execution/v0/move-vm/runtime",
-  "external-crates/move/move-execution/v1/crates/move-bytecode-verifier",
-  "external-crates/move/move-execution/v1/crates/move-stdlib",
-  "external-crates/move/move-execution/v1/crates/move-vm-runtime",
-  "external-crates/move/move-execution/v2/crates/move-bytecode-verifier",
-  "external-crates/move/move-execution/v2/crates/move-stdlib",
-  "external-crates/move/move-execution/v2/crates/move-vm-runtime",
+  "external-crates/move/move-execution/v0/crates/move-bytecode-verifier",
+  "external-crates/move/move-execution/v0/crates/move-stdlib",
+  "external-crates/move/move-execution/v0/crates/move-vm-runtime",
   "sdk/move-bytecode-template",
 ]
 
@@ -164,7 +158,6 @@ members = [
   "crates/typed-store",
   "crates/typed-store-derive",
   "crates/typed-store-error",
-  "crates/x",
   "iota-execution",
   "iota-execution/cut",
   "iota-execution/latest/iota-adapter",
@@ -173,12 +166,6 @@ members = [
   "iota-execution/v0/iota-adapter",
   "iota-execution/v0/iota-move-natives",
   "iota-execution/v0/iota-verifier",
-  "iota-execution/v1/iota-adapter",
-  "iota-execution/v1/iota-move-natives",
-  "iota-execution/v1/iota-verifier",
-  "iota-execution/v2/iota-adapter",
-  "iota-execution/v2/iota-move-natives",
-  "iota-execution/v2/iota-verifier",
   "narwhal/config",
   "narwhal/crypto",
   "narwhal/executor",
@@ -250,7 +237,7 @@ aws-smithy-runtime-api = "0.56"
 axum = { version = "0.6.6", default-features = false, features = ["headers", "tokio", "http1", "http2", "json", "matched-path", "original-uri", "form", "query", "ws"] }
 axum-extra = "0.4.2"
 axum-server = { version = "0.5.1", default-features = false, features = ["tls-rustls"] }
-backoff = { version = "0.4.0", features = ["futures", "futures-core", "pin-project-lite", "tokio", "tokio_1"] }
+backoff = { version = "0.4.0", features = ["tokio"] }
 base64 = "0.21.2"
 base64-url = "2"
 bcs = "0.1.4"
@@ -320,7 +307,7 @@ integer-encoding = "3.0.1"
 ipnetwork = "0.20.0"
 itertools = "0.11"
 jemalloc-ctl = "^0.5"
-json_to_table = { git = "https://github.com/zhiburt/tabled/", rev = "e449317a1c02eb6b29e409ad6617e5d9eb7b3bd4" }
+json_to_table = { git = "https://github.com/zhiburt/tabled.git", rev = "e449317a1c02eb6b29e409ad6617e5d9eb7b3bd4" }
 jsonrpsee = { git = "https://github.com/wlmyng/jsonrpsee.git", rev = "b1b300784795f6a64d0fcdf8f03081a9bc38bde8", features = ["server", "macros", "ws-client", "http-client", "jsonrpsee-core"] }
 leb128 = "0.2.5"
 linked-hash-map = "0.5.6"
@@ -350,12 +337,12 @@ parking_lot = "0.12.1"
 parquet = "50.0.0"
 petgraph = "0.5.1"
 pkcs8 = { version = "0.9.0", features = ["std"] }
-pprof = { version = "0.11.0", features = ["cpp", "frame-pointer"] }
+pprof = { version = "0.13.0", features = ["cpp", "frame-pointer"] }
 pretty_assertions = "1.3.0"
 prettytable-rs = "0.10.0"
 proc-macro2 = "1.0.47"
 prometheus = "0.13.3"
-prometheus-http-query = { version = "0.6.6", default_features = false, features = ["rustls-tls"] }
+prometheus-http-query = { version = "0.6.6", default-features = false, features = ["rustls-tls"] }
 prometheus-parse = { git = "https://github.com/asonnino/prometheus-parser.git", rev = "75334db" }
 proptest = "1.1.0"
 proptest-derive = "0.3.0"
@@ -370,13 +357,13 @@ rand_regex = "0.15.1"
 rayon = "1.5.3"
 rcgen = "0.9.2"
 regex = "1.7.1"
-reqwest = { version = "0.11.20", default_features = false, features = ["blocking", "json", "rustls-tls"] }
+reqwest = { version = "0.11.20", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 roaring = "0.10.1"
 rocksdb = { version = "0.21.0", features = ["snappy", "lz4", "zstd", "zlib", "multi-threaded-cf"], default-features = false }
 ron = "0.8.0"
 rstest = "0.16.0"
-rusoto_core = { version = "0.48.0", default_features = false, features = ["rustls"] }
-rusoto_kms = { version = "0.48.0", default_features = false, features = ["rustls"] }
+rusoto_core = { version = "0.48.0", default-features = false, features = ["rustls"] }
+rusoto_kms = { version = "0.48.0", default-features = false, features = ["rustls"] }
 russh = "0.38.0"
 russh-keys = "0.38.0"
 rust-version = "1.56.1"
@@ -566,7 +553,6 @@ transaction-fuzzer = { path = "crates/transaction-fuzzer" }
 typed-store = { path = "crates/typed-store" }
 typed-store-derive = { path = "crates/typed-store-derive" }
 typed-store-error = { path = "crates/typed-store-error" }
-x = { path = "crates/x" }
 
 consensus-config = { path = "consensus/config" }
 consensus-core = { path = "consensus/core" }

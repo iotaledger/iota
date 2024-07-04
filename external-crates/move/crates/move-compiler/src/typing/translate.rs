@@ -19,7 +19,7 @@ use crate::{
         Attribute, AttributeValue_, Attribute_, DottedUsage, Fields, Friend, ModuleAccess_,
         ModuleIdent, ModuleIdent_, Mutability, Value_, Visibility,
     },
-    ice,
+    ice, iota_mode,
     naming::ast::{
         self as N, BlockLabel, IndexSyntaxMethods, TParam, TParamID, Type, TypeName_, Type_,
     },
@@ -33,7 +33,6 @@ use crate::{
         unique_map::UniqueMap,
         *,
     },
-    iota_mode,
     typing::{
         ast as T,
         core::{
@@ -2132,7 +2131,7 @@ fn add_field_types<T>(
         N::StructFields::Native(nloc) => {
             let msg = format!(
                 "Invalid {} usage for native struct '{}::{}'. Native structs cannot be directly \
-                 constructed/deconstructed, and their fields cannot be dirctly accessed",
+                 constructed/deconstructed, and their fields cannot be directly accessed",
                 verb, m, n
             );
             context.env.add_diag(diag!(

@@ -159,7 +159,7 @@ impl Operations {
             .metadata
             .ok_or_else(|| Error::MissingInput("Stake metadata".to_string()))?;
 
-        // Total issued SUi is less than u64, safe to cast.
+        // Total issued IOTA is less than u64, safe to cast.
         let amount = if let Some(amount) = op.amount {
             if amount.value.is_positive() {
                 return Err(Error::MalformedOperationError(

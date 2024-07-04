@@ -21,7 +21,7 @@ export function Input({ input }: InputProps) {
                 {'Pure' in input.value ? (
                     `${toB64(new Uint8Array(input.value.Pure))}`
                 ) : 'Object' in input.value ? (
-                    <ExplorerLink type={ExplorerLinkType.object} objectID={objectId}>
+                    <ExplorerLink type={ExplorerLinkType.Object} objectID={objectId}>
                         {formatAddress(objectId)}
                     </ExplorerLink>
                 ) : (

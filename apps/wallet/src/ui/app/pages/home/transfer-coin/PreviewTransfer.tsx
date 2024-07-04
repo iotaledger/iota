@@ -5,10 +5,9 @@
 import { Text } from '_app/shared/text';
 import { TxnAddress } from '_components/receipt-card/TxnAddress';
 import { TxnAmount } from '_components/receipt-card/TxnAmount';
-import { parseAmount } from '_helpers';
 import { useActiveAddress } from '_src/ui/app/hooks/useActiveAddress';
 import { GAS_SYMBOL } from '_src/ui/app/redux/slices/iota-objects/Coin';
-import { useCoinMetadata } from '@iota/core';
+import { parseAmount, useCoinMetadata } from '@iota/core';
 
 export type PreviewTransferProps = {
     coinType: string;

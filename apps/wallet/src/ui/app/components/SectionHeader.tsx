@@ -4,7 +4,11 @@
 
 import { Text } from '../shared/text';
 
-export function SectionHeader({ title }: { title: string }) {
+interface SectionHeaderProps {
+    title: string;
+}
+
+export function SectionHeader({ title }: SectionHeaderProps) {
     return (
         <div className="flex items-center justify-center gap-3">
             <div className="flex h-px flex-1 flex-shrink-0 bg-gray-45" />

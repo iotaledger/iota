@@ -21,15 +21,15 @@ import { ConfirmationModal } from '../../../shared/ConfirmationModal';
 import { GasFees } from './GasFees';
 import { TransactionDetails } from './TransactionDetails';
 
-export type TransactionRequestProps = {
+export interface TransactionRequestProps {
     txRequest: TransactionApprovalRequest;
-};
+}
 
 // Some applications require *a lot* of transactions to interact with, and this
 // eats up our analytics event quota. As a short-term solution so we don't have
 // to stop tracking this event entirely, we'll just manually exclude application
 // origins with this list
-const appOriginsToExcludeFromAnalytics = ['https://iota8192.ethoswallet.xyz'];
+const APP_ORIGINS_TO_EXCLUDE_FROM_ANALYTICS = ['https://iota8192.ethoswallet.xyz'];
 
 export function TransactionRequest({ txRequest }: TransactionRequestProps) {
     const addressForTransaction = txRequest.tx.account;
@@ -81,7 +81,7 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
                             signer,
                         }),
                     );
-                    if (!appOriginsToExcludeFromAnalytics.includes(txRequest.origin)) {
+                    if (!APP_ORIGINS_TO_EXCLUDE_FROM_ANALYTICS.includes(txRequest.origin)) {
                         ampli.respondedToTransactionRequest({
                             applicationUrl: txRequest.origin,
                             approvedTransaction: approved,

@@ -35,13 +35,14 @@ import { type QueryKey } from '@tanstack/react-query';
 import { lastValueFrom, map, take } from 'rxjs';
 
 import { growthbook } from '../experimentation/feature-gating';
-import { accountsQueryKey } from '../helpers/query-client-keys';
+import { ACCOUNTS_QUERY_KEY } from '../helpers/query-client-keys';
 import { queryClient } from '../helpers/queryClient';
-import { accountSourcesQueryKey } from '../hooks/useAccountSources';
+import { ACCOUNT_SOURCES_QUERY_KEY } from '../hooks/useAccountSources';
+import { AccountSourceType } from '_src/background/account-sources/AccountSource';
 
-const entitiesToClientQueryKeys: Record<UIAccessibleEntityType, QueryKey> = {
-    accounts: accountsQueryKey,
-    accountSources: accountSourcesQueryKey,
+const ENTITIES_TO_CLIENT_QUERY_KEYS: Record<UIAccessibleEntityType, QueryKey> = {
+    accounts: ACCOUNTS_QUERY_KEY,
+    accountSources: ACCOUNT_SOURCES_QUERY_KEY,
 };
 
 export class BackgroundClient {
@@ -253,7 +254,7 @@ export class BackgroundClient {
                 createMessage<MethodPayload<'createAccountSource'>>({
                     method: 'createAccountSource',
                     type: 'method-payload',
-                    args: { type: 'mnemonic', params: inputs },
+                    args: { type: AccountSourceType.Mnemonic, params: inputs },
                 }),
             ).pipe(
                 take(1),
@@ -261,7 +262,7 @@ export class BackgroundClient {
                     if (!isMethodPayload(payload, 'accountSourceCreationResponse')) {
                         throw new Error('Unknown response');
                     }
-                    if ('mnemonic' !== payload.args.accountSource.type) {
+                    if (AccountSourceType.Mnemonic !== payload.args.accountSource.type) {
                         throw new Error(
                             `Unexpected account source type response ${payload.args.accountSource.type}`,
                         );
@@ -278,7 +279,7 @@ export class BackgroundClient {
                 createMessage<MethodPayload<'createAccountSource'>>({
                     method: 'createAccountSource',
                     type: 'method-payload',
-                    args: { type: 'seed', params: inputs },
+                    args: { type: AccountSourceType.Seed, params: inputs },
                 }),
             ).pipe(
                 take(1),
@@ -286,7 +287,7 @@ export class BackgroundClient {
                     if (!isMethodPayload(payload, 'accountSourceCreationResponse')) {
                         throw new Error('Unknown response');
                     }
-                    if ('seed' !== payload.args.accountSource.type) {
+                    if (AccountSourceType.Seed !== payload.args.accountSource.type) {
                         throw new Error(
                             `Unexpected account source type response ${payload.args.accountSource.type}`,
                         );
@@ -570,7 +571,7 @@ export class BackgroundClient {
                 network: payload.network,
             });
         } else if (isMethodPayload(payload, 'entitiesUpdated')) {
-            const entitiesQueryKey = entitiesToClientQueryKeys[payload.args.type];
+            const entitiesQueryKey = ENTITIES_TO_CLIENT_QUERY_KEYS[payload.args.type];
             if (entitiesQueryKey) {
                 queryClient.invalidateQueries({ queryKey: entitiesQueryKey });
             }

@@ -26,7 +26,7 @@
         "zklogin"
     ],
     "engines": {
-        "node": ">=16"
+        "node": ">=20"
     },
     "type": "commonjs",
     "exports": {
@@ -136,7 +136,7 @@
         "vite": "^4.4.4",
         "vitest": "^0.33.0",
         "wait-on": "^7.0.1",
-        "ws": "^8.14.2"
+        "ws": "^8.17.1"
     },
     "dependencies": {
         "@graphql-typed-document-node/core": "^3.2.0",

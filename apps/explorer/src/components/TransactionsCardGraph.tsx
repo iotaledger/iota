@@ -9,7 +9,7 @@ import { ParentSize } from '@visx/responsive';
 import clsx from 'clsx';
 
 import { AreaGraph } from './AreaGraph';
-import { FormattedStatsAmount } from './HomeMetrics/FormattedStatsAmount';
+import { FormattedStatsAmount } from './home-metrics/FormattedStatsAmount';
 import { ErrorBoundary } from './error-boundary/ErrorBoundary';
 import { Card } from '~/ui/Card';
 

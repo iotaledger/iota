@@ -4,7 +4,7 @@
 
 import { useMemo } from 'react';
 
-import { defaultSortOrder, groupByType } from '../helpers/accounts';
+import { DEFAULT_SORT_ORDER, groupByType } from '../helpers/accounts';
 import { useAccounts } from './useAccounts';
 
 export function useAccountGroups() {
@@ -15,7 +15,7 @@ export function useAccountGroups() {
     }, [accounts]);
 
     const list = () => {
-        return defaultSortOrder.flatMap((type) => {
+        return DEFAULT_SORT_ORDER.flatMap((type) => {
             const group = sortedAndGroupedAccounts[type];
             return Object.values(group).flat();
         });

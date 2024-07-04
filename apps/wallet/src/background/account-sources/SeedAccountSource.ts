@@ -15,25 +15,26 @@ import { backupDB, getDB } from '../db';
 import { makeUniqueKey } from '../storage-utils';
 import {
     AccountSource,
+    AccountSourceType,
     type AccountSourceSerialized,
     type AccountSourceSerializedUI,
 } from './AccountSource';
 import { accountSourcesEvents } from './events';
-import { makeDerivationPath } from './bipPath';
+import { type MakeDerivationOptions, makeDerivationPath } from './bip44Path';
 
 type DataDecrypted = {
     seed: string;
 };
 
 interface SeedAccountSourceSerialized extends AccountSourceSerialized {
-    type: 'seed';
+    type: AccountSourceType.Seed;
     encryptedData: string;
     // hash of entropy to be used for comparing sources (even when locked)
     sourceHash: string;
 }
 
 interface SeedAccountSourceSerializedUI extends AccountSourceSerializedUI {
-    type: 'seed';
+    type: AccountSourceType.Seed;
 }
 
 export function deriveKeypairFromSeed(seedHex: string, derivationPath: string) {
@@ -44,7 +45,7 @@ export class SeedAccountSource extends AccountSource<SeedAccountSourceSerialized
     static async createNew({ password, seed }: { password: string; seed: string }) {
         const dataSerialized: SeedAccountSourceSerialized = {
             id: makeUniqueKey(),
-            type: 'seed',
+            type: AccountSourceType.Seed,
             encryptedData: await SeedAccountSource.createEncryptedData(seed, password),
             sourceHash: bytesToHex(sha256(seed)),
             createdAt: Date.now(),
@@ -64,7 +65,7 @@ export class SeedAccountSource extends AccountSource<SeedAccountSourceSerialized
     static isOfType(
         serialized: AccountSourceSerialized,
     ): serialized is SeedAccountSourceSerialized {
-        return serialized.type === 'seed';
+        return serialized.type === AccountSourceType.Seed;
     }
 
     static async save(
@@ -92,7 +93,7 @@ export class SeedAccountSource extends AccountSource<SeedAccountSourceSerialized
     }
 
     constructor(id: string) {
-        super({ type: 'seed', id });
+        super({ type: AccountSourceType.Seed, id });
     }
 
     async isLocked() {
@@ -115,12 +116,12 @@ export class SeedAccountSource extends AccountSource<SeedAccountSourceSerialized
         accountSourcesEvents.emit('accountSourceStatusUpdated', { accountSourceID: this.id });
     }
 
-    async deriveAccount({ derivationPathIndex }: { derivationPathIndex?: number } = {}): Promise<
-        Omit<SeedSerializedAccount, 'id'>
-    > {
+    async deriveAccount(
+        derivationOptions?: MakeDerivationOptions,
+    ): Promise<Omit<SeedSerializedAccount, 'id'>> {
         const derivationPath =
-            typeof derivationPathIndex !== 'undefined'
-                ? makeDerivationPath(derivationPathIndex)
+            typeof derivationOptions !== 'undefined'
+                ? makeDerivationPath(derivationOptions)
                 : await this.#getAvailableDerivationPath();
         const keyPair = await this.deriveKeyPair(derivationPath);
         return SeedAccount.createNew({ keyPair, derivationPath, sourceID: this.id });
@@ -177,7 +178,9 @@ export class SeedAccountSource extends AccountSource<SeedAccountSourceSerialized
         let derivationPath = '';
         let temp;
         do {
-            temp = makeDerivationPath(index++);
+            temp = makeDerivationPath({
+                accountIndex: index++,
+            });
             if (!derivationPathMap[temp]) {
                 derivationPath = temp;
             }

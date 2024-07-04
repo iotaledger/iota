@@ -1,7 +1,5 @@
 # Copyright(C) Facebook, Inc. and its affiliates.
 # Copyright (c) Mysten Labs, Inc.
-# SPDX-License-Identifier: Apache-2.0
-
 # Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 import subprocess
@@ -97,7 +95,8 @@ class Demo:
                 pk = subprocess.check_output(cmd_pk, encoding='utf-8').strip()
                 primary_network_names += [pk]
 
-            committee = LocalCommittee(primary_names, primary_network_names, self.BASE_PORT)
+            committee = LocalCommittee(
+                primary_names, primary_network_names, self.BASE_PORT)
             committee.print(PathMaker.committee_file())
 
             worker_names = []

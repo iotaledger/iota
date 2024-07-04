@@ -11,7 +11,7 @@ import { toEntropy } from '_src/shared/utils/bip39';
 
 import { type UiConnection } from '../connections/UiConnection';
 import { getDB } from '../db';
-import { type AccountSourceSerialized, type AccountSourceType } from './AccountSource';
+import { AccountSourceType, type AccountSourceSerialized } from './AccountSource';
 import { MnemonicAccountSource } from './MnemonicAccountSource';
 import { SeedAccountSource } from './SeedAccountSource';
 
@@ -51,7 +51,7 @@ export async function getAllSerializedUIAccountSources() {
 async function createAccountSource({ type, params }: MethodPayload<'createAccountSource'>['args']) {
     const { password } = params;
     switch (type) {
-        case 'mnemonic':
+        case AccountSourceType.Mnemonic:
             const entropy = params.entropy;
             return (
                 await MnemonicAccountSource.save(
@@ -61,7 +61,7 @@ async function createAccountSource({ type, params }: MethodPayload<'createAccoun
                     }),
                 )
             ).toUISerialized();
-        case 'seed':
+        case AccountSourceType.Seed:
             return (
                 await SeedAccountSource.save(
                     await SeedAccountSource.createNew({
@@ -171,10 +171,10 @@ export async function accountSourcesHandleUIMessage(msg: Message, uiConnection: 
         ) {
             throw new Error('Invalid account source type');
         }
-        if (type === 'mnemonic') {
+        if (type === AccountSourceType.Mnemonic) {
             await accountSource.verifyRecoveryData(payload.args.data.entropy);
         }
-        if (type === 'seed') {
+        if (type === AccountSourceType.Seed) {
             await accountSource.verifyRecoveryData(payload.args.data.seed);
         }
         uiConnection.send(createMessage({ type: 'done' }, msg.id));

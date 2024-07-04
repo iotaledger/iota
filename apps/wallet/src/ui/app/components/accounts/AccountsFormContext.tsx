@@ -12,15 +12,25 @@ import {
     type ReactNode,
 } from 'react';
 
+export enum AccountsFormType {
+    NewMnemonic = 'new-mnemonic',
+    ImportMnemonic = 'import-mnemonic',
+    ImportSeed = 'import-seed',
+    ImportPrivateKey = 'import-private-key',
+    ImportLedger = 'import-ledger',
+    MnemonicSource = 'mnemonic-source',
+    SeedSource = 'seed-source',
+}
+
 export type AccountsFormValues =
-    | { type: 'new-mnemonic' }
-    | { type: 'import-mnemonic'; entropy: string }
-    | { type: 'mnemonic-derived'; sourceID: string }
-    | { type: 'import-seed'; seed: string }
-    | { type: 'seed-derived'; sourceID: string }
-    | { type: 'imported'; keyPair: string }
+    | { type: AccountsFormType.NewMnemonic }
+    | { type: AccountsFormType.ImportMnemonic; entropy: string }
+    | { type: AccountsFormType.ImportSeed; seed: string }
+    | { type: AccountsFormType.MnemonicSource; sourceID: string }
+    | { type: AccountsFormType.SeedSource; sourceID: string }
+    | { type: AccountsFormType.ImportPrivateKey; keyPair: string }
     | {
-          type: 'ledger';
+          type: AccountsFormType.ImportLedger;
           accounts: { publicKey: string; derivationPath: string; address: string }[];
       }
     | null;
@@ -32,7 +42,11 @@ type AccountsFormContextType = [
 
 const AccountsFormContext = createContext<AccountsFormContextType | null>(null);
 
-export const AccountsFormProvider = ({ children }: { children: ReactNode }) => {
+interface AccountsFormProviderProps {
+    children: ReactNode;
+}
+
+export const AccountsFormProvider = ({ children }: AccountsFormProviderProps) => {
     const valuesRef = useRef<AccountsFormValues>(null);
     const setter = useCallback((values: AccountsFormValues) => {
         valuesRef.current = values;

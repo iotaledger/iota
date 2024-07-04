@@ -40,8 +40,39 @@ env:
   RUSTDOCFLAGS: -D warnings
 
 jobs:
+  changes:
+    runs-on: [self-hosted-rust]
+    outputs:
+      components: ${{ steps.filter.outputs.changes }}
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          list-files: 'json'
+          filters: .github/crates-filters.yml
+  
+  test:
+    name: Test ${{ matrix.components }}
+    env:
+      # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
+      # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
+      # non-deterministic `test` job.
+      IOTA_SKIP_SIMTESTS: 1
+    strategy:
+      matrix: 
+        components: ${{ fromJson(needs.changes.outputs.components) }}
+      fail-fast: false
+    runs-on: [self-hosted-rust]
+    needs: changes
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      - uses: taiki-e/install-action@nextest
+      - name: cargo test
+        run: cargo nextest run --profile ci -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
+
   diff:
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     outputs:
       isRust: ${{ steps.diff.outputs.isRust }}
       isMove: ${{ steps.diff.outputs.isMove }}
@@ -54,7 +85,7 @@ jobs:
 
   license-check:
     name: license-check
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
       - uses: bmwill/rust-cache@v1 # Fork of 'Swatinem/rust-cache' which allows caching additional paths
@@ -69,7 +100,7 @@ jobs:
     name: release-notes-check
     needs: diff
     if: needs.diff.outputs.isReleaseNotesEligible == 'true'
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
       - name: Check Pull Request Description
@@ -89,35 +120,9 @@ jobs:
             fi
           fi
 
-  test:
-    needs: diff
-    if: needs.diff.outputs.isRust == 'true'
-    timeout-minutes: 45
-    env:
-      # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
-      # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
-      # non-deterministic `test` job.
-      IOTA_SKIP_SIMTESTS: 1
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - [self-hosted-rust]
-      fail-fast: false
-    steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
-      - uses: taiki-e/install-action@nextest
-      - name: cargo test
-        run: |
-          cargo nextest run --profile ci
-      # Ensure there are no uncommitted changes in the repo after running tests
-      - run: scripts/changed-files.sh
-        shell: bash
-
   test-extra:
     needs: diff
     if: needs.diff.outputs.isRust == 'true'
-    timeout-minutes: 45
     env:
       # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
       # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
@@ -131,7 +136,6 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
-      - uses: taiki-e/install-action@nextest
       - name: benchmark (smoke)
         run: |
           cargo run --package iota-benchmark --bin stress -- --log-path /tmp/stress.log --num-client-threads 10 --num-server-threads 24 --num-transfer-accounts 2 bench --target-qps 100 --num-workers 10  --transfer-object 50 --shared-counter 50 --run-duration 10s --stress-stat-collection
@@ -156,25 +160,25 @@ jobs:
         shell: bash
 
   simtest:
-    needs: diff
-    if: needs.diff.outputs.isRust == 'true'
+    name: Simtest ${{ matrix.components }}
+    needs: changes
     timeout-minutes: 45
     runs-on: [self-hosted-rust]
+    strategy:
+      matrix: 
+        components: ${{ fromJson(needs.changes.outputs.components) }}
+      fail-fast: false
     env:
       MSIM_WATCHDOG_TIMEOUT_MS: 60000
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
       - uses: taiki-e/install-action@nextest
-      - name: Set Swap Space
-        uses: pierotofy/set-swap-space@master
-        with:
-          swap-size-gb: 256
       - name: cargo simtest
         run: |
-          scripts/simtest/cargo-simtest simtest
+          scripts/simtest/cargo-simtest simtest -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
       - name: check new tests for flakiness
         run: |
-          scripts/simtest/stress-new-tests.sh
+          scripts/simtest/stress-new-tests.sh -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
 
   # This job ensures that Move unit tests are run if there are changes
   # to Move code but not Rust code (If there are Rust changes, they
@@ -227,40 +231,6 @@ jobs:
   #         ./bin/rosetta-cli --configuration-file rosetta_cli.json check:data
   #       shell: bash
 
-  # This is a no-op job that allows the resulting action names to line up when
-  # there are no rust changes in a given PR/commit. This ensures that we can
-  # continue to block on the rust tests passing in the case of rust changes and
-  # otherwise not block pushes to main.
-  test-notrust:
-    name: test
-    needs: diff
-    if: needs.diff.outputs.isRust == 'false'
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - [self-hosted-rust]
-      fail-fast: false
-    steps:
-      - run: 'echo "No build required" '
-
-  # This is a no-op job that allows the resulting action names to line up when
-  # there are no rust changes in a given PR/commit. This ensures that we can
-  # continue to block on the rust tests passing in the case of rust changes and
-  # otherwise not block pushes to main.
-  test-extra-notrust:
-    name: test-extra
-    needs: diff
-    if: needs.diff.outputs.isRust == 'false'
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - [self-hosted-rust]
-      fail-fast: false
-    steps:
-      - run: 'echo "No build required" '
-
   clippy:
     needs: diff
     if: needs.diff.outputs.isRust == 'true'
@@ -280,25 +250,26 @@ jobs:
       #     path: ~/.cargo/registry/src/**/librocksdb-sys-*
 
       # See '.cargo/config' for list of enabled/disappled clippy lints
-      - name: cargo clippy
-        run: cargo xclippy -D warnings
+      - name: Check Clippy Lints
+        run: cargo ci-clippy
 
   rustfmt:
     needs: diff
     if: needs.diff.outputs.isRust == 'true'
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
       - name: Install latest nightly
         run: rustup toolchain install nightly --component rustfmt --allow-downgrade
       - name: Check Rust formatting
-        run: cargo +nightly fmt --check
+        run: cargo +nightly ci-fmt
 
   dprint-format:
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
       - name: Install dprint
-        run: npm install -g dprint
+        run: cargo install dprint
       - name: Check dprint formatting
         run: dprint check
 
@@ -306,10 +277,10 @@ jobs:
     name: cargo-deny (advisories, licenses, bans, ...)
     needs: diff
     if: needs.diff.outputs.isRust == 'true'
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
-      - uses: mystenlabs/cargo-deny-action@main
+      - uses: EmbarkStudios/cargo-deny-action@v1
 
   iota-excution-cut:
     name: cutting a new execution layer

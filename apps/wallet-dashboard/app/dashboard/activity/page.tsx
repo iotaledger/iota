@@ -4,20 +4,31 @@
 'use client';
 
 import React from 'react';
-import { VirtualList, ActivityTile } from '@/components';
-import { Activity, ActivityState } from '@/lib/interfaces';
+import { useCurrentAccount } from '@iota/dapp-kit';
+import { VirtualList, TransactionTile } from '@/components';
+import { useQueryTransactionsByAddress } from '@iota/core';
+import { getExtendedTransaction } from '@/lib/utils/transaction';
+import { IotaTransactionBlockResponse } from '@iota/iota.js/client';
 
-function StakingDashboardPage(): JSX.Element {
-    const virtualItem = (activity: Activity): JSX.Element => (
-        <ActivityTile key={activity.timestamp} activity={activity} />
-    );
+function ActivityPage(): JSX.Element {
+    const currentAccount = useCurrentAccount();
+    const { data: transactions, error } = useQueryTransactionsByAddress(currentAccount?.address);
+
+    if (error) {
+        return <div>{error?.message}</div>;
+    }
+
+    const virtualItem = (rawTransaction: IotaTransactionBlockResponse): JSX.Element => {
+        const transaction = getExtendedTransaction(rawTransaction, currentAccount?.address || '');
+        return <TransactionTile transaction={transaction} />;
+    };
 
     return (
         <div className="flex h-full w-full flex-col items-center justify-center space-y-4 pt-12">
             <h1>Your Activity</h1>
             <div className="flex w-1/2">
                 <VirtualList
-                    items={MOCK_ACTIVITIES}
+                    items={transactions || []}
                     estimateSize={() => 100}
                     render={virtualItem}
                 />
@@ -26,77 +37,4 @@ function StakingDashboardPage(): JSX.Element {
     );
 }
 
-const MOCK_ACTIVITIES: Activity[] = [
-    {
-        action: 'Send',
-        state: ActivityState.Successful,
-        timestamp: 1716538921485,
-    },
-    {
-        action: 'Transaction',
-        state: ActivityState.Successful,
-        timestamp: 1715868828552,
-    },
-    {
-        action: 'Send',
-        state: ActivityState.Successful,
-        timestamp: 1712186639729,
-    },
-    {
-        action: 'Rewards',
-        state: ActivityState.Successful,
-        timestamp: 1715868828552,
-    },
-    {
-        action: 'Receive',
-        state: ActivityState.Successful,
-        timestamp: 1712186639729,
-    },
-    {
-        action: 'Transaction',
-        state: ActivityState.Successful,
-        timestamp: 1715868828552,
-    },
-    {
-        action: 'Send',
-        state: ActivityState.Failed,
-        timestamp: 1712186639729,
-    },
-    {
-        action: 'Send',
-        state: ActivityState.Successful,
-        timestamp: 1716538921485,
-    },
-    {
-        action: 'Transaction',
-        state: ActivityState.Successful,
-        timestamp: 1715868828552,
-    },
-    {
-        action: 'Send',
-        state: ActivityState.Successful,
-        timestamp: 1712186639729,
-    },
-    {
-        action: 'Rewards',
-        state: ActivityState.Successful,
-        timestamp: 1715868828552,
-    },
-    {
-        action: 'Receive',
-        state: ActivityState.Successful,
-        timestamp: 1712186639729,
-    },
-    {
-        action: 'Transaction',
-        state: ActivityState.Successful,
-        timestamp: 1715868828552,
-    },
-    {
-        action: 'Send',
-        state: ActivityState.Failed,
-        timestamp: 1712186639729,
-    },
-];
-
-export default StakingDashboardPage;
+export default ActivityPage;

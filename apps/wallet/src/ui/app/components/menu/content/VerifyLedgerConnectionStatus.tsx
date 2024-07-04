@@ -16,19 +16,19 @@ import toast from 'react-hot-toast';
 import { useIotaLedgerClient } from '../../ledger/IotaLedgerClientProvider';
 import LoadingIndicator from '../../loading/LoadingIndicator';
 
-export type VerifyLedgerConnectionLinkProps = {
+export interface VerifyLedgerConnectionLinkProps {
     accountAddress: string;
     derivationPath: string;
-};
-
-enum VerificationStatus {
-    UNKNOWN = 'UNKNOWN',
-    VERIFIED = 'VERIFIED',
-    NOT_VERIFIED = 'NOT_VERIFIED',
 }
 
-const resetVerificationStatusDelay = 5000;
-const loadingStateDelay = 200;
+enum VerificationStatus {
+    Unknown = 'UNKNOWN',
+    Verified = 'VERIFIED',
+    NotVerified = 'NOT_VERIFIED',
+}
+
+const RESET_VERIFICATION_STATUS_DELAY = 5000;
+const LOADING_STATE_DELAY = 200;
 
 export function VerifyLedgerConnectionStatus({
     accountAddress,
@@ -36,10 +36,10 @@ export function VerifyLedgerConnectionStatus({
 }: VerifyLedgerConnectionLinkProps) {
     const { connectToLedger } = useIotaLedgerClient();
     const [isPending, setLoading] = useState(false);
-    const [verificationStatus, setVerificationStatus] = useState(VerificationStatus.UNKNOWN);
+    const [verificationStatus, setVerificationStatus] = useState(VerificationStatus.Unknown);
 
     switch (verificationStatus) {
-        case VerificationStatus.UNKNOWN:
+        case VerificationStatus.Unknown:
             if (isPending) {
                 return (
                     <div className="flex gap-1 text-hero-dark">
@@ -55,7 +55,7 @@ export function VerifyLedgerConnectionStatus({
                     onClick={async () => {
                         const loadingTimeoutId = setTimeout(() => {
                             setLoading(true);
-                        }, loadingStateDelay);
+                        }, LOADING_STATE_DELAY);
 
                         try {
                             const iotaLedgerClient = await connectToLedger();
@@ -68,8 +68,8 @@ export function VerifyLedgerConnectionStatus({
 
                             setVerificationStatus(
                                 accountAddress === iotaAddress
-                                    ? VerificationStatus.VERIFIED
-                                    : VerificationStatus.NOT_VERIFIED,
+                                    ? VerificationStatus.Verified
+                                    : VerificationStatus.NotVerified,
                             );
                         } catch (error) {
                             const errorMessage =
@@ -78,21 +78,21 @@ export function VerifyLedgerConnectionStatus({
                                 'Something went wrong';
                             toast.error(errorMessage);
 
-                            setVerificationStatus(VerificationStatus.NOT_VERIFIED);
+                            setVerificationStatus(VerificationStatus.NotVerified);
                         } finally {
                             clearTimeout(loadingTimeoutId);
                             setLoading(false);
 
                             window.setTimeout(() => {
-                                setVerificationStatus(VerificationStatus.UNKNOWN);
-                            }, resetVerificationStatusDelay);
+                                setVerificationStatus(VerificationStatus.Unknown);
+                            }, RESET_VERIFICATION_STATUS_DELAY);
                         }
                     }}
                     color="heroDark"
                     weight="medium"
                 />
             );
-        case VerificationStatus.NOT_VERIFIED:
+        case VerificationStatus.NotVerified:
             return (
                 <div className="flex items-center gap-1">
                     <X12 className="text-issue-dark" />
@@ -101,7 +101,7 @@ export function VerifyLedgerConnectionStatus({
                     </Text>
                 </div>
             );
-        case VerificationStatus.VERIFIED:
+        case VerificationStatus.Verified:
             return (
                 <div className="flex items-center gap-1">
                     <Check12 className="text-success-dark" />
