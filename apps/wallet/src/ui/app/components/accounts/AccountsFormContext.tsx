@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { AccountType } from '_src/background/accounts/Account';
 import {
     createContext,
     useCallback,
@@ -13,21 +12,25 @@ import {
     type ReactNode,
 } from 'react';
 
-export enum CreateAccountType {
+export enum AccountsFormType {
     NewMnemonic = 'new-mnemonic',
     ImportMnemonic = 'import-mnemonic',
     ImportSeed = 'import-seed',
+    ImportPrivateKey = 'import-private-key',
+    ImportLedger = 'import-ledger',
+    MnemonicSource = 'mnemonic-source',
+    SeedSource = 'seed-source',
 }
 
 export type AccountsFormValues =
-    | { type: CreateAccountType.NewMnemonic }
-    | { type: CreateAccountType.ImportMnemonic; entropy: string }
-    | { type: CreateAccountType.ImportSeed; seed: string }
-    | { type: AccountType.MnemonicDerived; sourceID: string }
-    | { type: AccountType.SeedDerived; sourceID: string }
-    | { type: AccountType.Imported; keyPair: string }
+    | { type: AccountsFormType.NewMnemonic }
+    | { type: AccountsFormType.ImportMnemonic; entropy: string }
+    | { type: AccountsFormType.ImportSeed; seed: string }
+    | { type: AccountsFormType.MnemonicSource; sourceID: string }
+    | { type: AccountsFormType.SeedSource; sourceID: string }
+    | { type: AccountsFormType.ImportPrivateKey; keyPair: string }
     | {
-          type: AccountType.Ledger;
+          type: AccountsFormType.ImportLedger;
           accounts: { publicKey: string; derivationPath: string; address: string }[];
       }
     | null;
@@ -39,7 +42,11 @@ type AccountsFormContextType = [
 
 const AccountsFormContext = createContext<AccountsFormContextType | null>(null);
 
-export const AccountsFormProvider = ({ children }: { children: ReactNode }) => {
+interface AccountsFormProviderProps {
+    children: ReactNode;
+}
+
+export const AccountsFormProvider = ({ children }: AccountsFormProviderProps) => {
     const valuesRef = useRef<AccountsFormValues>(null);
     const setter = useCallback((values: AccountsFormValues) => {
         valuesRef.current = values;

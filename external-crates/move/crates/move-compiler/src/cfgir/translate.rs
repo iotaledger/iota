@@ -254,7 +254,7 @@ fn constants(
             cycle_nodes.append(&mut scc.into_iter().collect());
         }
     }
-    // report any node that relies on a node in a cycle but is not iself part of
+    // report any node that relies on a node in a cycle but is not itself part of
     // that cycle
     for cycle_node in cycle_nodes.iter() {
         // petgraph retains edges for nodes that have been deleted, so we ensure the

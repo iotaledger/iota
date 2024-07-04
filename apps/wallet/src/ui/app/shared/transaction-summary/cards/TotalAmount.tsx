@@ -7,7 +7,12 @@ import { useFormatCoin } from '@iota/core';
 
 import { Card } from '../Card';
 
-export function TotalAmount({ amount, coinType }: { amount?: string; coinType?: string }) {
+interface TotalAmountProps {
+    amount?: string;
+    coinType?: string;
+}
+
+export function TotalAmount({ amount, coinType }: TotalAmountProps) {
     const [formatted, symbol] = useFormatCoin(amount, coinType);
     if (!amount) return null;
     return (

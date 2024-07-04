@@ -14,13 +14,13 @@ import { useActiveAddress, useTransactionGasBudget } from '../../hooks';
 import { GAS_SYMBOL } from '../../redux/slices/iota-objects/Coin';
 import { Heading } from '../../shared/heading';
 
-export type StakeFromProps = {
+export interface StakeFromProps {
     stakedIotaId: string;
     coinBalance: bigint;
     coinType: string;
     stakingReward?: string;
     epoch: number;
-};
+}
 
 export function UnStakeForm({
     stakedIotaId,

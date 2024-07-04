@@ -58,7 +58,7 @@ impl MoveVM {
     ///     other words, if there is a module publishing Session it must be the
     ///     only Session existing.
     ///   - In general, a new Move VM needs to be created whenever the storage
-    ///     gets modified by an outer envrionment, or otherwise the states may
+    ///     gets modified by an outer environment, or otherwise the states may
     ///     be out of sync. There are a few exceptional cases where this may not
     ///     be necessary, with the most notable one being the common module
     ///     publishing flow: you can keep using the same Move VM if you publish

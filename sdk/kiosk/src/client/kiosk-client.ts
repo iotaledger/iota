@@ -2,16 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import type { NetworkId } from '@iota/iota.js/client';
+import { getNetwork } from '@iota/iota.js/client';
 import type { IotaClient } from '@iota/iota.js/client';
 
-import {
-    FLOOR_PRICE_RULE_ADDRESS,
-    getBaseRules,
-    KIOSK_LOCK_RULE_ADDRESS,
-    PERSONAL_KIOSK_RULE_ADDRESS,
-    ROYALTY_RULE_ADDRESS,
-    rules,
-} from '../constants.js';
+import { getBaseRules, rules } from '../constants.js';
 import type { BaseRulePackageIds, TransferPolicyRule } from '../constants.js';
 import { fetchKiosk, fetchKioskExtension, getOwnedKiosks } from '../query/kiosk.js';
 import {
@@ -19,7 +14,6 @@ import {
     queryTransferPolicy,
     queryTransferPolicyCapsByType,
 } from '../query/transfer-policy.js';
-import { Network } from '../types/index.js';
 import type {
     FetchKioskOptions,
     KioskClientOptions,
@@ -35,7 +29,7 @@ import type {
  */
 export class KioskClient {
     client: IotaClient;
-    network: Network;
+    network: NetworkId;
     rules: TransferPolicyRule[];
     packageIds?: BaseRulePackageIds;
 
@@ -60,7 +54,8 @@ export class KioskClient {
     async getOwnedKiosks({ address }: { address: string }): Promise<OwnedKiosks> {
         const personalPackageId =
             this.packageIds?.personalKioskRulePackageId ||
-            PERSONAL_KIOSK_RULE_ADDRESS[this.network];
+            getNetwork(this.network).kiosk?.personalKioskRulePackageId ||
+            '';
 
         return getOwnedKiosks(this.client, address, {
             personalKioskType: personalPackageId
@@ -152,21 +147,13 @@ export class KioskClient {
         const rules = this.packageIds || {};
         const network = this.network;
 
+        const networkKiosk = getNetwork(network).kiosk;
+
         /// Check existence of rule based on network and throw an error if it's not found.
-        /// We always have a fallback for testnet or mainnet.
-        if (!rules[rule] && network !== Network.MAINNET && network !== Network.TESTNET) {
+        if (!rules[rule] || !networkKiosk) {
             throw new Error(`Missing packageId for rule ${rule}`);
         }
 
-        switch (rule) {
-            case 'kioskLockRulePackageId':
-                return rules[rule] || KIOSK_LOCK_RULE_ADDRESS[network];
-            case 'royaltyRulePackageId':
-                return rules[rule] || ROYALTY_RULE_ADDRESS[network];
-            case 'personalKioskRulePackageId':
-                return rules[rule] || PERSONAL_KIOSK_RULE_ADDRESS[network];
-            case 'floorPriceRulePackageId':
-                return rules[rule] || FLOOR_PRICE_RULE_ADDRESS[network];
-        }
+        return rules[rule] || networkKiosk[rule];
     }
 }

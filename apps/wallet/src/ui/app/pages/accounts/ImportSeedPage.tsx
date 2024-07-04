@@ -5,7 +5,7 @@ import { Text } from '_app/shared/text';
 import { useNavigate } from 'react-router-dom';
 
 import {
-    CreateAccountType,
+    AccountsFormType,
     useAccountsFormContext,
 } from '../../components/accounts/AccountsFormContext';
 import { ImportSeedForm } from '../../components/accounts/ImportSeedForm';
@@ -29,10 +29,14 @@ export function ImportSeedPage() {
                 <ImportSeedForm
                     onSubmit={({ seed }) => {
                         setAccountsFormValues({
-                            type: CreateAccountType.ImportSeed,
+                            type: AccountsFormType.ImportSeed,
                             seed,
                         });
-                        navigate('/accounts/protect-account?accountType=import-seed');
+                        navigate(
+                            `/accounts/protect-account?${new URLSearchParams({
+                                accountsFormType: AccountsFormType.ImportSeed,
+                            }).toString()}`,
+                        );
                     }}
                 />
             </div>

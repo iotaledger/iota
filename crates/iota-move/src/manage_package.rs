@@ -14,7 +14,7 @@ use move_package::BuildConfig;
 #[group(id = "iota-move-manage-package")]
 pub struct ManagePackage {
     #[clap(long)]
-    /// The network chain identifer. Use '35834a8a' for mainnet.
+    /// The network chain identifier. Use '35834a8a' for mainnet.
     pub network: String,
     #[clap(long = "original-id", value_parser = ObjectID::from_hex_literal)]
     /// The original address (Object ID) where this package is published.

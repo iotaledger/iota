@@ -5,7 +5,7 @@
 //! and verifying the total supply.
 use std::fs::File;
 
-use iota_genesis_builder::stardust::parse::HornetGenesisSnapshotParser;
+use iota_genesis_builder::stardust::parse::HornetSnapshotParser;
 use iota_types::gas_coin::TOTAL_SUPPLY_IOTA;
 
 fn main() -> anyhow::Result<()> {
@@ -14,7 +14,7 @@ fn main() -> anyhow::Result<()> {
     };
     let file = File::open(path)?;
 
-    let mut parser = HornetGenesisSnapshotParser::new(file)?;
+    let mut parser = HornetSnapshotParser::new::<true>(file)?;
     println!("Output count: {}", parser.header.output_count());
 
     let total_supply = parser.outputs().try_fold(0, |acc, output| {

@@ -13,9 +13,10 @@ import { AccountType } from '_src/background/accounts/Account';
 type LedgerAccountKeys = 'address' | 'publicKey' | 'type' | 'derivationPath';
 
 export type DerivedLedgerAccount = Pick<LedgerAccountSerializedUI, LedgerAccountKeys>;
-type UseDeriveLedgerAccountOptions = {
+interface UseDeriveLedgerAccountOptions
+    extends Pick<UseQueryOptions<DerivedLedgerAccount[], unknown>, 'select'> {
     numAccountsToDerive: number;
-} & Pick<UseQueryOptions<DerivedLedgerAccount[], unknown>, 'select'>;
+}
 
 export function useDeriveLedgerAccounts(options: UseDeriveLedgerAccountOptions) {
     const { numAccountsToDerive, ...useQueryOptions } = options;
@@ -47,7 +48,7 @@ async function deriveAccountsFromLedger(
         const publicKey = new Ed25519PublicKey(publicKeyResult.publicKey);
         const iotaAddress = publicKey.toIotaAddress();
         ledgerAccounts.push({
-            type: AccountType.Ledger,
+            type: AccountType.LedgerDerived,
             address: iotaAddress,
             derivationPath,
             publicKey: publicKey.toBase64(),
