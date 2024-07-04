@@ -5,7 +5,7 @@ module a::m {
     }
 }
 
-// cannot have mroe than one TxContext
+// cannot have more than one TxContext
 module a::n {
     use iota::tx_context;
     fun init(_ctx: &mut tx_context::TxContext, _ctx2: &mut tx_context::TxContext) {

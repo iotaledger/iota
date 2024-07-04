@@ -74,7 +74,7 @@ pub struct ModuleDefinition {
 /// Explicitly given dependency
 #[derive(Clone, Debug, PartialEq)]
 pub struct ModuleDependency {
-    /// Qualified identifer of the dependency
+    /// Qualified identifier of the dependency
     pub name: ModuleName,
     /// The structs (including resources) that the dependency defines
     pub structs: Vec<StructDependency>,

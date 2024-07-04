@@ -188,7 +188,7 @@ pub fn mock_get_logs(
 }
 
 /// Returns a test Log and corresponding BridgeAction
-// Refernece: https://github.com/rust-ethereum/ethabi/blob/master/ethabi/src/event.rs#L192
+// Reference: https://github.com/rust-ethereum/ethabi/blob/master/ethabi/src/event.rs#L192
 pub fn get_test_log_and_action(
     contract_address: EthAddress,
     tx_hash: TxHash,
@@ -199,7 +199,7 @@ pub fn get_test_log_and_action(
     let source_address = EthAddress::random();
     let iota_address: IotaAddress = IotaAddress::random_for_testing_only();
     let target_address = Hex::decode(&iota_address.to_string()).unwrap();
-    // Note: must use `encode` rather than `encode_packged`
+    // Note: must use `encode` rather than `encode_packaged`
     let encoded = ethers::abi::encode(&[
         // u8 is encoded as u256 in abi standard
         ethers::abi::Token::Uint(ethers::types::U256::from(token_code)),
