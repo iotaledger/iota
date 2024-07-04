@@ -12,226 +12,331 @@ import {
 } from '@iota/iota.js/client';
 import { getAccountSourceByID } from '../account-sources';
 import { type MakeDerivationOptions } from '_src/background/account-sources/bip44Path';
+import { AccountType } from '../accounts/Account';
+import { IOTA_GAS_COIN_TYPE } from '_redux/slices/iota-objects/Coin';
 
-interface SearchBoundaries {
-    [accountIndex: number]: {
-        start: number;
-        end: number;
-        accountMax: number;
-    };
+// Note: we exclude private keys for the account finder because more addresses cant be derived from them
+export type AllowedAccountTypes = Exclude<AccountType, AccountType.PrivateKeyDerived>;
+
+export enum AllowedBip44CoinTypes {
+    IOTA = 4218,
+    Shimmer = 4219,
 }
 
+export enum SearchAlgorithm {
+    BREADTH,
+    DEPTH,
+    ITERATIVE_DEEPENING_BREADTH_FIRST,
+}
+
+export interface SearchAccountsFinderParams {
+    bip44CoinType: AllowedBip44CoinTypes;
+    accountType: AllowedAccountTypes;
+    algorithm?: SearchAlgorithm;
+    coinType: string; // format: '0x2::iota::IOTA'
+    sourceID: string;
+    changeIndexes?: number[];
+    accountGapLimit?: number;
+    addressGapLimit?: number;
+}
+
+interface GapConfiguration {
+    accountGapLimit: number;
+    addressGapLimit: number;
+}
+
+export interface RecoverAccountsParams {
+    accountStartIndex: number;
+    accountGapLimit: number;
+    addressStartIndex: number;
+    addressGapLimit: number;
+}
+
+type GapConfigurationByCoinType = {
+    [key in AllowedAccountTypes]: GapConfiguration;
+};
+const GAP_CONFIGURATION: { [key in AllowedBip44CoinTypes]: GapConfigurationByCoinType } = {
+    // in IOTA we have chrysalis users which could have rotated addresses
+    [AllowedBip44CoinTypes.IOTA]: {
+        [AccountType.LedgerDerived]: {
+            accountGapLimit: 1,
+            addressGapLimit: 5,
+        },
+        [AccountType.MnemonicDerived]: {
+            accountGapLimit: 3,
+            addressGapLimit: 30,
+        },
+        [AccountType.SeedDerived]: {
+            accountGapLimit: 3,
+            addressGapLimit: 30,
+        },
+    },
+    // In shimmer we focus on accounts indexes and never rotate addresses
+    [AllowedBip44CoinTypes.Shimmer]: {
+        [AccountType.LedgerDerived]: {
+            accountGapLimit: 3,
+            addressGapLimit: 0,
+        },
+        [AccountType.MnemonicDerived]: {
+            accountGapLimit: 10,
+            addressGapLimit: 0,
+        },
+        [AccountType.SeedDerived]: {
+            accountGapLimit: 10,
+            addressGapLimit: 0,
+        },
+    },
+};
+
+const CHANGE_INDEXES: { [key in AllowedBip44CoinTypes]: number[] } = {
+    [AllowedBip44CoinTypes.IOTA]: [0, 1],
+    [AllowedBip44CoinTypes.Shimmer]: [0],
+};
+
+const DEFAULT_PARAMS = {
+    bip44CoinType: AllowedBip44CoinTypes.IOTA,
+    accountType: AccountType.LedgerDerived as AllowedAccountTypes,
+    coinType: IOTA_GAS_COIN_TYPE,
+    sourceID: '',
+    accountGapLimit: 0,
+    addressGapLimit: 0,
+};
+
 class AccountsFinder {
-    /** indicate if user is searching for the first time */
-    private isFirstSearch: boolean = true;
-
-    /**
-     * This property controls what range we need to use for search.
-     * Params start, end, accountMax are used to control the search range.
-     * - key - index of column or X position.
-     * - start - index of start Y position
-     * - end - end Y index for search
-     * - accountMax - index of accountGapLimit.
-     */
-    private searchBoundaries: SearchBoundaries = {};
-
-    /**
-     * Index of last column in searchBoundaries.
-     * This property uses to know how many columns we have in searchBoundaries.
-     * */
-    private lastAccountIndex: number = 0;
-
-    /** account gap limit provided by findMore function */
-    private accountGapLimit: number = 0;
-
-    /** address gap limit provided by findMore function */
-    private addressGapLimit: number = 0;
-
-    /** 4218 for IOTA or 4219 for Shimmer */
-    private coinType: number = 0;
-
-    private gasTypeArg: string = '';
-    private sourceID: string = '';
+    private algorithm: SearchAlgorithm = SearchAlgorithm.ITERATIVE_DEEPENING_BREADTH_FIRST;
+    private accountGapLimit: number = DEFAULT_PARAMS.accountGapLimit;
+    private addressGapLimit: number = DEFAULT_PARAMS.addressGapLimit;
+    private bip44CoinType: AllowedBip44CoinTypes = DEFAULT_PARAMS.bip44CoinType; // 4218 for IOTA or 4219 for Shimmer
+    private coinType: string = IOTA_GAS_COIN_TYPE;
+    private sourceID: string = DEFAULT_PARAMS.sourceID;
+    private changeIndexes: number[] = CHANGE_INDEXES[DEFAULT_PARAMS.bip44CoinType];
     public client: IotaClient | null = null;
 
-    /** Found accounts with balances. */
-    accounts: AccountFromFinder[] = [];
+    accounts: AccountFromFinder[] = []; // Found accounts with balances.
 
-    /**
-     * Initializes or resets the accounts array.
-     */
-    init() {
+    reset() {
         this.accounts = [];
     }
 
-    /**
-     * Init the search boundaries for the first time.
-     */
-    setupInitialBoundaries() {
-        for (let accountIndex = 0; accountIndex < this.accountGapLimit; accountIndex++) {
-            this.addColumnBoundary(accountIndex);
-        }
-
-        this.isFirstSearch = false;
-    }
-
-    /**
-     * Expand the search boundaries when we need to search more.
-     * This function change search range for columns that already exist and add more columns to search.
-     */
-    expandSearchBoundaries() {
-        for (let accountIndex = 0; accountIndex <= this.lastAccountIndex; accountIndex++) {
-            const { end } = this.searchBoundaries[accountIndex];
-
-            this.searchBoundaries[accountIndex].start = end + 1;
-            this.searchBoundaries[accountIndex].end = end + this.addressGapLimit;
-        }
-
-        this.addColumnsToBoundaries(this.lastAccountIndex);
-    }
-
-    /**
-     * Calculate how many columns we need to add to search boundaries.
-     * If we have a match, we need to add always "this.accountGapLimit" number of columns.
-     * @param currAccountIndex - index of current active column.
-     */
-    addColumnsToBoundaries(currAccountIndex: number) {
-        const columnsLeft = this.lastAccountIndex - currAccountIndex;
-        const columnsToAdd = this.accountGapLimit - columnsLeft;
-
-        const fromIndex = this.lastAccountIndex + 1;
-        const toIndex = this.lastAccountIndex + columnsToAdd;
-
-        for (let i = fromIndex; i <= toIndex; i++) {
-            this.addColumnBoundary(i);
-        }
-    }
-
-    /**
-     * Add a new column to search boundaries.
-     * @param columnIndex - index of new column.
-     */
-    addColumnBoundary(columnIndex: number) {
-        const accountLimitIndex = this.accountGapLimit - 1;
-        this.searchBoundaries[columnIndex] = {
-            start: 0,
-            end: accountLimitIndex + this.addressGapLimit,
-            accountMax: accountLimitIndex,
-        };
-        this.lastAccountIndex = columnIndex;
-    }
-
-    /**
-     * Calculate if we need to add new columns or increase the search range.
-     * @param currentAccountIndex - index of column/account that we are searching.
-     * @param currentAddressIndex - index of row/address that we are searching.
-     */
-    updateSearchRange(currentAccountIndex: number, currentAddressIndex: number) {
-        const { end, accountMax } = this.searchBoundaries[currentAccountIndex];
-
-        if (currentAddressIndex <= accountMax) {
-            // increase limit in column
-            const accountLimitDiff = accountMax - currentAddressIndex;
-            const accountsToAdd = this.accountGapLimit - accountLimitDiff;
-            this.searchBoundaries[currentAccountIndex].accountMax += accountsToAdd;
-            this.searchBoundaries[currentAccountIndex].end += accountsToAdd;
-
-            // add more columns
-            this.addColumnsToBoundaries(currentAccountIndex);
-        } else if (currentAddressIndex <= end) {
-            const addressLimitDiff = end - currentAddressIndex;
-            const addressesToAdd = this.addressGapLimit - addressLimitDiff;
-            this.searchBoundaries[currentAccountIndex].end += addressesToAdd;
-        }
-    }
-
-    /**
-     * Take the current column and check if balance exists.
-     * @param accountIndex - index of column/account
-     */
-    async searchByColumn(accountIndex: number) {
-        const res: string[] = [];
-        const account: AccountFromFinder = {
-            index: accountIndex,
-            addresses: [],
-        };
-        const { start, end } = this.searchBoundaries[accountIndex];
-        for (let addressIndex = start; addressIndex <= end; addressIndex++) {
-            const changeIndexes = [0, 1]; // in the past the change indexes were used as 0=deposit & 1=internal
-
-            for (const changeIndex of changeIndexes) {
-                const bipPath = {
-                    coinType: this.coinType,
-                    accountIndex: accountIndex,
-                    addressIndex: addressIndex,
-                    changeIndex,
-                };
-                const pubKeyHash = await this.getPublicKey(bipPath);
-
-                const balance = await this.getBalance({
-                    owner: pubKeyHash,
-                    coinType: this.gasTypeArg,
-                });
-
-                if (balance && hasBalance(balance)) {
-                    this.updateSearchRange(accountIndex, addressIndex);
-
-                    if (!account.addresses[addressIndex]) {
-                        account.addresses[addressIndex] = [];
-                    }
-
-                    account.addresses[addressIndex][changeIndex] = {
-                        pubKeyHash,
-                        bipPath: {
-                            addressIndex: addressIndex,
-                            accountIndex: account.index,
-                            changeIndex,
-                        },
-                        balance,
-                    };
-
-                    this.accounts.push(account);
-                }
-            }
-        }
-
-        return res;
-    }
-
-    /**
-     * This function calls each time when user press "Search" button
-     * @param coinType
-     * @param gasTypeArg
-     * @param sourceID
-     * @param accountGapLimit
-     * @param addressGaspLimit
-     */
-    async findMore(
-        coinType: number,
-        gasTypeArg: string,
-        sourceID: string,
-        accountGapLimit: number,
-        addressGaspLimit: number,
-    ) {
+    async setConfigs(params: SearchAccountsFinderParams) {
         const network = await NetworkEnv.getActiveNetwork();
         this.client = new IotaClient({
             url: network.customRpcUrl ? network.customRpcUrl : getFullnodeUrl(network.network),
         });
 
-        this.coinType = coinType;
-        this.gasTypeArg = gasTypeArg;
-        this.accountGapLimit = accountGapLimit;
-        this.addressGapLimit = addressGaspLimit;
-        this.sourceID = sourceID;
+        this.bip44CoinType = params.bip44CoinType;
+        this.coinType = params.coinType;
+        this.sourceID = params.sourceID;
+        this.changeIndexes = params.changeIndexes || CHANGE_INDEXES[params.bip44CoinType];
 
-        if (this.isFirstSearch) {
-            this.setupInitialBoundaries();
-        } else {
-            this.expandSearchBoundaries();
+        this.algorithm = params.algorithm || SearchAlgorithm.ITERATIVE_DEEPENING_BREADTH_FIRST;
+
+        this.accountGapLimit =
+            params.accountGapLimit ??
+            GAP_CONFIGURATION[this.bip44CoinType][params.accountType].accountGapLimit;
+
+        this.addressGapLimit =
+            params.addressGapLimit ??
+            GAP_CONFIGURATION[this.bip44CoinType][params.accountType].addressGapLimit;
+    }
+
+    async searchBalances(accountIndex: number, addressIndex: number) {
+        const addresses: AddressFromFinder[] = [];
+
+        // if any of the addresses has a balance, we increase the target address index to keep searching
+        let isBalanceExists = false;
+        for (const changeIndex of this.changeIndexes) {
+            const bipPath = {
+                coinType: this.bip44CoinType,
+                accountIndex: accountIndex,
+                addressIndex: addressIndex,
+                changeIndex,
+            };
+            const pubKeyHash = await this.getPublicKey(bipPath);
+
+            const balance = await this.getBalance({
+                owner: pubKeyHash,
+                coinType: this.coinType,
+            });
+
+            if (hasBalance(balance)) {
+                isBalanceExists = true;
+            }
+
+            addresses.push({
+                pubKeyHash,
+                balance,
+                bipPath,
+            });
+        }
+        return {
+            addresses,
+            isBalanceExists,
+        };
+    }
+
+    async recoverAccount(accountIndex: number, addressStartIndex: number, addressGapLimit: number) {
+        const account = this.accounts.find((acc) => acc.index === accountIndex) ?? {
+            index: accountIndex,
+            addresses: [],
+        };
+
+        // Flag to check if any of the addresses of the account has a balance
+        let isBalanceExists = false;
+
+        // Isolated search for no address rotation
+        if (!addressGapLimit) {
+            const { addresses, isBalanceExists: isBalanceExists } = await this.searchBalances(
+                accountIndex,
+                addressStartIndex,
+            );
+
+            account.addresses.push(addresses); // we add the addresses to the account
+
+            return {
+                account,
+                isBalanceExists,
+            };
         }
 
-        for (let accountIndex = 0; accountIndex <= this.lastAccountIndex; accountIndex++) {
-            await this.searchByColumn(accountIndex);
+        // on each fixed account index, we search for addresses in the given range
+        let targetAddressIndex = addressStartIndex + addressGapLimit;
+        for (
+            let addressIndex = addressStartIndex;
+            addressIndex < targetAddressIndex;
+            addressIndex++
+        ) {
+            const { addresses, isBalanceExists: isHasBalance } = await this.searchBalances(
+                accountIndex,
+                addressIndex,
+            );
+
+            if (isHasBalance) {
+                targetAddressIndex = addressIndex + addressGapLimit;
+                isBalanceExists = true;
+            }
+
+            account.addresses.push(addresses);
+        }
+
+        return { account, isBalanceExists };
+    }
+
+    async recoverAccounts(
+        params: RecoverAccountsParams = {
+            accountStartIndex: 0,
+            accountGapLimit: 0,
+            addressStartIndex: 0,
+            addressGapLimit: 0,
+        },
+    ) {
+        const { accountStartIndex, accountGapLimit, addressStartIndex, addressGapLimit } = params;
+
+        const accounts: AccountFromFinder[] = [];
+        let targetAccountIndex = accountStartIndex + accountGapLimit;
+
+        // isolated search for one account;
+        if (!accountGapLimit) {
+            const { account } = await this.recoverAccount(
+                accountStartIndex,
+                addressStartIndex,
+                addressGapLimit,
+            );
+            accounts.push(account);
+            return accounts;
+        }
+
+        // we search for accounts in the given range
+        for (
+            let accountIndex = accountStartIndex;
+            accountIndex < targetAccountIndex;
+            accountIndex++
+        ) {
+            const { isBalanceExists, account } = await this.recoverAccount(
+                accountIndex,
+                addressStartIndex,
+                addressGapLimit,
+            );
+
+            // if any of the addresses of the given account has a balance,
+            // we increase the target account index to keep searching
+            if (isBalanceExists) {
+                targetAccountIndex = accountIndex + accountGapLimit;
+            }
+            // we add the account to the list of accounts
+            accounts.push(account);
+        }
+        return accounts;
+    }
+
+    async runDepthSearch() {
+        const depthAccounts = this.accounts;
+
+        // if we have no accounts yet, we populate with empty accounts
+        if (!depthAccounts.length) {
+            for (let accountIndex = 0; accountIndex <= this.accountGapLimit; accountIndex++) {
+                depthAccounts.push({
+                    index: accountIndex,
+                    addresses: [],
+                });
+            }
+        }
+
+        // depth search is done by searching for more addresses for each account in isolation
+        for (const account of depthAccounts) {
+            // during depth search we search for 1 account at a time and start from the last address index
+            const foundAccounts = await this.recoverAccounts({
+                accountStartIndex: account.index, // we search for the current account
+                accountGapLimit: 0, // we only search for 1 account
+                addressStartIndex: account.addresses.length, // we start from the last address index
+                addressGapLimit: this.addressGapLimit, // we search for the full address gap limit
+            });
+
+            this.accounts = [...this.accounts, ...foundAccounts];
+        }
+        return this.accounts;
+    }
+
+    async runBreadthSearch() {
+        // during breadth search we always start by searching for new account indexes
+        const initialAccountIndex = this.accounts?.length ? this.accounts.length : 0; // next index or start from 0;
+
+        const foundAccounts = await this.recoverAccounts({
+            accountStartIndex: initialAccountIndex, // we start from the last existing account index
+            accountGapLimit: this.accountGapLimit, // we search for the full account gap limit
+            addressStartIndex: 0, // we start from the first address index
+            addressGapLimit: this.addressGapLimit, // we search for the full address gap limit
+        });
+
+        this.accounts = [...this.accounts, ...foundAccounts];
+        return this.accounts;
+    }
+
+    // This function calls each time when user press "Search" button
+    async find(
+        params: SearchAccountsFinderParams = {
+            bip44CoinType: DEFAULT_PARAMS.bip44CoinType,
+            accountType: DEFAULT_PARAMS.accountType,
+            coinType: DEFAULT_PARAMS.coinType,
+            sourceID: DEFAULT_PARAMS.sourceID,
+        },
+    ) {
+        console.log('--- find run1');
+        await this.setConfigs(params);
+
+        switch (this.algorithm) {
+            case SearchAlgorithm.BREADTH:
+                await this.runBreadthSearch();
+                break;
+            case SearchAlgorithm.DEPTH:
+                await this.runDepthSearch();
+                break;
+            case SearchAlgorithm.ITERATIVE_DEEPENING_BREADTH_FIRST:
+                await this.runBreadthSearch();
+                await this.runDepthSearch();
+                break;
+            default:
+                throw new Error(`Unsupported search algorithm: ${this.algorithm}`);
         }
     }
 
@@ -246,8 +351,21 @@ class AccountsFinder {
         return pubKey?.toIotaAddress();
     }
 
-    async getBalance(params: GetBalanceParams): Promise<CoinBalance | undefined> {
-        return this.client?.getBalance(params);
+    async getBalance(params: GetBalanceParams): Promise<CoinBalance> {
+        const emptyBalance: CoinBalance = {
+            coinType: this.coinType,
+            coinObjectCount: 0,
+            totalBalance: '0',
+            lockedBalance: {},
+        };
+
+        if (!this.client) {
+            throw new Error('IotaClient is not initialized');
+        }
+
+        const foundBalance = await this.client.getBalance(params);
+
+        return foundBalance || emptyBalance;
     }
 
     getResults(): AddressFromFinder[] {

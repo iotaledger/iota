@@ -49,7 +49,7 @@ import { SeedAccountSource } from '../account-sources/SeedAccountSource';
 import { AccountSourceType } from '../account-sources/AccountSource';
 import {
     isGetAccountsFinderResultsRequest,
-    isInitAccountsFinder,
+    isResetAccountsFinder,
     isSearchAccountsFinder,
 } from '_payloads/accounts-finder';
 import AccountsFinder from '../accounts-finder/AccountsFinder';
@@ -262,17 +262,18 @@ export class UiConnection extends Connection {
                 accountSourcesEvents.emit('accountSourcesChanged');
                 accountsEvents.emit('accountsChanged');
                 await this.send(createMessage({ type: 'done' }, msg.id));
-            } else if (isInitAccountsFinder(payload)) {
-                AccountsFinder.init();
+            } else if (isResetAccountsFinder(payload)) {
+                AccountsFinder.reset();
                 this.send(createMessage({ type: 'done' }, msg.id));
             } else if (isSearchAccountsFinder(payload)) {
-                await AccountsFinder.findMore(
-                    payload.coinType,
-                    payload.gasType,
-                    payload.sourceID,
-                    payload.accountGapLimit,
-                    payload.addressGapLimit,
-                );
+                await AccountsFinder.find({
+                    accountType: payload.accountType,
+                    bip44CoinType: payload.bip44CoinType,
+                    coinType: payload.coinType,
+                    sourceID: payload.sourceID,
+                    accountGapLimit: payload.accountGapLimit,
+                    addressGapLimit: payload.addressGapLimit,
+                });
                 this.send(createMessage({ type: 'done' }, msg.id));
             } else if (isGetAccountsFinderResultsRequest(payload)) {
                 const results = await AccountsFinder.getResults();

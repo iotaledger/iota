@@ -32,7 +32,7 @@ export type PayloadType =
     | 'set-network'
     | 'sign-message-request'
     | 'method-payload'
-    | 'init-accounts-finder'
+    | 'reset-accounts-finder'
     | 'search-accounts-finder'
     | 'get-accounts-finder-results-request'
     | 'get-accounts-finder-results-response';

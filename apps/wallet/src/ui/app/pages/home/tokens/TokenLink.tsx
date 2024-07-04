@@ -21,7 +21,7 @@ export function TokenLink({ coinBalance, centerAction, subtitle }: TokenLinkProp
             to={`/send?type=${encodeURIComponent(coinBalance.coinType)}`}
             onClick={() =>
                 ampli.selectedCoin({
-                    coinType: coinBalance.coinType,
+                    gasCoinType: coinBalance.coinType,
                     totalBalance: Number(BigInt(coinBalance.totalBalance) / MICROS_PER_IOTA),
                 })
             }

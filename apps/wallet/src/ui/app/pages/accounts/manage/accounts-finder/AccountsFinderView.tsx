@@ -12,7 +12,7 @@ export function AccountsFinderView(): JSX.Element {
     const {
         data: finderAddresses,
         searchMore,
-        init,
+        reset,
     } = useAccountsFinder({
         accountGapLimit: 10,
         addressGapLimit: 2,
@@ -32,7 +32,7 @@ export function AccountsFinderView(): JSX.Element {
                 })}
             </div>
             <div className="flex flex-col gap-2">
-                <Button variant="outline" size="tall" text={'Start again'} onClick={init} />
+                <Button variant="outline" size="tall" text={'Start again'} onClick={reset} />
                 <Button
                     variant="outline"
                     size="tall"

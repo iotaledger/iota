@@ -106,7 +106,7 @@ function GasBudgetEstimation({
             const tx = createTokenTransferTransaction({
                 to,
                 amount: values.amount,
-                coinType: IOTA_TYPE_ARG,
+                gasCoinType: IOTA_TYPE_ARG,
                 coinDecimals,
                 isPayAllIota: values.isPayAllIota,
                 coins,
