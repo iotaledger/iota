@@ -14,7 +14,7 @@ export const BORDER_RADIUS: TailwindScale = {
     xl: pxToRem(12),
     '2xl': pxToRem(16),
     '3xl': pxToRem(24),
-    full: '9999px',
+    full: pxToRem(120),
 };
 
 export const PADDINGS: TailwindScale = {
