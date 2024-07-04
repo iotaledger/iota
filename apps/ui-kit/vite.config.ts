@@ -3,7 +3,6 @@ import { resolve } from 'path';
 import react from '@vitejs/plugin-react-swc';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import dts from 'vite-plugin-dts';
-import tailwindcss from 'tailwindcss';
 
 export default defineConfig({
     build: {
@@ -32,9 +31,4 @@ export default defineConfig({
         react(),
         dts({ rollupTypes: true }),
     ],
-    css: {
-        postcss: {
-            plugins: [tailwindcss],
-        },
-    },
 });
