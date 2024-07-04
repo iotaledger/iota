@@ -82,7 +82,7 @@ impl BlockVerifier for SignedBlockVerifier {
             });
         }
 
-        // Verifiy the block's signature.
+        // Verify the block's signature.
         block.verify_signature(&self.context)?;
 
         // Verify the block's ancestor refs are consistent with the block's round,
