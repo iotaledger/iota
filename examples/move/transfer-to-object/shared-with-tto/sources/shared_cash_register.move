@@ -89,7 +89,7 @@ module shared_with_tto::shared_cash_register {
 
     /// Process a payment that has been made, removing it from the register and
     /// returning the coin that can then be combined or sent elsewhere by the authorized individual.
-    /// Payments can ony be processed by either an account in the / `authorized_individuals` set or by the owner of the cash register.
+    /// Payments can only be processed by either an account in the / `authorized_individuals` set or by the owner of the cash register.
     public fun process_payment(register: &mut CashRegister, payment_ticket: Receiving<IdentifiedPayment>, ctx: &TxContext): Coin<IOTA> {
         let sender = tx_context::sender(ctx);
         assert!(vec_set::contains(&register.authorized_individuals, &sender) || sender == register.register_owner, ENotAuthorized);
