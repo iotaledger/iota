@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
-    "dev": "docusaurus graphql-to-doc; rm '../content/references/iota-api/iota-graphql/reference/generated.md'; node src/utils/getopenrpcspecs.js; docusaurus start",
-    "build": "docusaurus graphql-to-doc; rm '../content/references/iota-api/iota-graphql/reference/generated.md'; node src/utils/getopenrpcspecs.js; docusaurus build",
+    "dev": "docusaurus graphql-to-doc; rm '../content/references/iota-api/iota-graphql/reference/generated.md'; docusaurus start",
+    "build": "docusaurus graphql-to-doc; rm '../content/references/iota-api/iota-graphql/reference/generated.md'; docusaurus build",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
     "clear": "docusaurus clear",
