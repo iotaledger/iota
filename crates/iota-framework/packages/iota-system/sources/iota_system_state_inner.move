@@ -848,12 +848,6 @@ module iota_system::iota_system_state_inner {
             EBpsTooLarge,
         );
 
-        // Do not overwrite the start epoch.
-        // TODO: remove this in later upgrade.
-        // if (self.parameters.stake_subsidy_start_epoch > 0) {
-        //     self.parameters.stake_subsidy_start_epoch = 20;
-        // };
-
         // Accumulate the gas summary during safe_mode before processing any rewards:
         let safe_mode_storage_rewards = self.safe_mode_storage_rewards.withdraw_all();
         storage_reward.join(safe_mode_storage_rewards);
