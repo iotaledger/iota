@@ -2110,10 +2110,11 @@ gas coins.
         <a href="iota_system_state_inner.md#0x3_iota_system_state_inner_EBpsTooLarge">EBpsTooLarge</a>,
     );
 
+    // Do not overwrite the start epoch.
     // TODO: remove this in later upgrade.
-    <b>if</b> (self.parameters.stake_subsidy_start_epoch &gt; 0) {
-        self.parameters.stake_subsidy_start_epoch = 20;
-    };
+    // <b>if</b> (self.parameters.stake_subsidy_start_epoch &gt; 0) {
+    //     self.parameters.stake_subsidy_start_epoch = 20;
+    // };
 
     // Accumulate the gas summary during safe_mode before processing any rewards:
     <b>let</b> safe_mode_storage_rewards = self.safe_mode_storage_rewards.withdraw_all();

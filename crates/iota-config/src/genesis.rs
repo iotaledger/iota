@@ -371,7 +371,7 @@ pub struct GenesisCeremonyParameters {
     pub epoch_duration_ms: u64,
 
     /// The starting epoch in which stake subsidies start being paid out.
-    #[serde(default)]
+    #[serde(default = "GenesisCeremonyParameters::default_stake_subsidy_start_epoch")]
     pub stake_subsidy_start_epoch: u64,
 
     /// The amount of stake subsidy to be drawn down per distribution.
@@ -398,7 +398,7 @@ impl GenesisCeremonyParameters {
             chain_start_timestamp_ms: Self::default_timestamp_ms(),
             protocol_version: ProtocolVersion::MAX,
             allow_insertion_of_extra_objects: true,
-            stake_subsidy_start_epoch: 0,
+            stake_subsidy_start_epoch: Self::default_stake_subsidy_start_epoch(),
             epoch_duration_ms: Self::default_epoch_duration_ms(),
             stake_subsidy_initial_distribution_amount:
                 Self::default_initial_stake_subsidy_distribution_amount(),
@@ -421,6 +421,12 @@ impl GenesisCeremonyParameters {
     fn default_epoch_duration_ms() -> u64 {
         // 24 hrs
         24 * 60 * 60 * 1000
+    }
+
+    fn default_stake_subsidy_start_epoch() -> u64 {
+        // Set to highest possible value so that the stake subsidy fund never pays out
+        // rewards.
+        u64::MAX
     }
 
     fn default_initial_stake_subsidy_distribution_amount() -> u64 {
