@@ -1,9 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Entity vesting schedule scenario.
+//! Portfolio mix with vesting outputs.
 //! 4-years, initial unlock, bi-weekly unlock.
-//! One mnemonic, one account, one address.
+//! One mnemonic/wallet, one account, multiple public and internal addresses.
 
 use iota_sdk::{
     client::secret::{mnemonic::MnemonicSecretManager, GenerateAddressOptions, SecretManage},
