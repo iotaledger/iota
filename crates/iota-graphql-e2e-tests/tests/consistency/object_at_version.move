@@ -11,7 +11,7 @@
 // 4  | 6
 // 5  | 7
 // Verify that the object is returned in its WrappedOrDeleted or Historical state. Increment
-// objects_snapshot to [0, 5). This coalesces objects in objects_snapshot to its verson at
+// objects_snapshot to [0, 5). This coalesces objects in objects_snapshot to its version at
 // checkpoint 4. The object would only be visible at version 6 from objects_snapshot, and at version
 // 7 from objects_history.
 

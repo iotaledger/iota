@@ -1036,7 +1036,7 @@ async fn gc_suspended_certificates_v1() {
     );
     let certificates = certificates.into_iter().collect_vec();
 
-    // Try to aceept certificates from round 2 and above. All of them should be
+    // Try to accept certificates from round 2 and above. All of them should be
     // suspended.
     let accept = FuturesUnordered::new();
     for cert in &certificates[NUM_AUTHORITIES..] {
@@ -1159,7 +1159,7 @@ async fn gc_suspended_certificates_v2() {
     );
     let certificates = certificates.into_iter().collect_vec();
 
-    // Try to aceept certificates from round 2 and above. All of them should be
+    // Try to accept certificates from round 2 and above. All of them should be
     // suspended.
     let accept = FuturesUnordered::new();
     for cert in &certificates[NUM_AUTHORITIES..] {

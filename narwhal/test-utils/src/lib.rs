@@ -551,7 +551,7 @@ pub enum TestLeaderSupport {
     Weak,
     // There will be strong support for the leader, meaning >= f+1
     Strong,
-    // Leader will be completely ommitted by the voters
+    // Leader will be completely omitted by the voters
     NoSupport,
 }
 
@@ -964,7 +964,7 @@ impl<R: rand::RngCore + rand::CryptoRng> Builder<R> {
             assert_eq!(
                 self.stake.len(),
                 self.committee_size.get(),
-                "Stake vector has been provided but is different length the committe - it should be the same"
+                "Stake vector has been provided but is different length the committee - it should be the same"
             );
         }
 
