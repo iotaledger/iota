@@ -8,9 +8,9 @@
 use iota_sdk::{
     client::secret::{mnemonic::MnemonicSecretManager, GenerateAddressOptions, SecretManage},
     types::block::{
-        address::Address,
+        address::{Address, Ed25519Address},
         output::{
-            unlock_condition::AddressUnlockCondition, BasicOutput, BasicOutputBuilder, Output,
+            unlock_condition::AddressUnlockCondition, BasicOutputBuilder, Output,
             OUTPUT_INDEX_RANGE,
         },
     },
@@ -32,28 +32,21 @@ const MNEMONIC: &str = "axis art silk merit assist hour bright always day legal 
 const ADDRESSES: &'static [[u32; 3]] = &[
     // public
     [0, 0, 0],
-    [0, 0, 1], // public, no coins, vested outputs
-    [0, 0, 2], // public, coins, no vested outputs
-    [0, 0, 3], // public, coins, vested outputs
+    [0, 0, 1],
+    [0, 0, 2],
     // internal
-    [0, 1, 0], // internal, no coins, no vested outputs
-    [0, 1, 1], // internal, no coins, vested outputs
-    [0, 1, 2], // internal, coins, no vested outputs
-    [0, 1, 3], // internal, coins, vested outputs
+    [0, 1, 0],
+    [0, 1, 1],
+    [0, 1, 2],
 ];
 
 pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let mut outputs = Vec::new();
     let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
-    let mut transaction_id = [0; 32];
 
     let randomness_seed = random::<u64>();
     let mut rng = StdRng::seed_from_u64(randomness_seed);
     println!("vesting_schedule_portfolio_mix randomness seed: {randomness_seed}");
-
-    // Prepare a transaction ID with the vested reward prefix.
-    transaction_id[0..28]
-        .copy_from_slice(&prefix_hex::decode::<[u8; 28]>(VESTED_REWARD_ID_PREFIX)?);
 
     for [account_index, internal, address_index] in ADDRESSES {
         let address = secret_manager
@@ -67,60 +60,14 @@ pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(Outpu
 
         match address_index {
             0 => {
-                // just basic output
-                let (header, basic) = random_basic_output(&mut rng, address);
-                outputs.push((header, basic.into()));
+                add_random_basic_output(&mut outputs, &mut rng, address);
             }
             1 => {
-                // basic output and vested outputs
-                let (header, basic) = random_basic_output(&mut rng, address);
-                outputs.push((header, basic.into()));
-                let (initial_unlock_amount, vested_amount) =
-                    initial_unlock_and_vested_amounts(&mut rng);
-                outputs.push(new_vested_output(
-                    &mut transaction_id,
-                    vested_index,
-                    initial_unlock_amount,
-                    address,
-                    None,
-                )?);
-                for offset in (0..=VESTING_WEEKS).step_by(VESTING_WEEKS_FREQUENCY) {
-                    let timelock = MERGE_TIMESTAMP_SECS + offset as u32 * 604_800;
-
-                    outputs.push(new_vested_output(
-                        &mut transaction_id,
-                        vested_index,
-                        vested_amount,
-                        address,
-                        Some(timelock),
-                    )?);
-                }
+                add_vested_outputs(&mut outputs, &mut rng, vested_index, address)?;
             }
             2 => {
-                // no funds at all
-            }
-            3 => {
-                // no coins, but vested outputs
-                let (initial_unlock_amount, vested_amount) =
-                    initial_unlock_and_vested_amounts(&mut rng);
-                outputs.push(new_vested_output(
-                    &mut transaction_id,
-                    vested_index,
-                    initial_unlock_amount,
-                    address,
-                    None,
-                )?);
-                for offset in (0..=VESTING_WEEKS).step_by(VESTING_WEEKS_FREQUENCY) {
-                    let timelock = MERGE_TIMESTAMP_SECS + offset as u32 * 604_800;
-
-                    outputs.push(new_vested_output(
-                        &mut transaction_id,
-                        vested_index,
-                        vested_amount,
-                        address,
-                        Some(timelock),
-                    )?);
-                }
+                add_random_basic_output(&mut outputs, &mut rng, address);
+                add_vested_outputs(&mut outputs, &mut rng, vested_index, address)?;
             }
             _ => unreachable!(),
         }
@@ -139,7 +86,11 @@ fn random_output_header(rng: &mut StdRng) -> OutputHeader {
     )
 }
 
-fn random_basic_output(rng: &mut StdRng, owner: impl Into<Address>) -> (OutputHeader, BasicOutput) {
+fn add_random_basic_output(
+    outputs: &mut Vec<(OutputHeader, Output)>,
+    rng: &mut StdRng,
+    owner: impl Into<Address>,
+) {
     let basic_output_header = random_output_header(rng);
 
     let amount = rng.gen_range(1_000_000..10_000_000);
@@ -148,7 +99,44 @@ fn random_basic_output(rng: &mut StdRng, owner: impl Into<Address>) -> (OutputHe
         .finish()
         .unwrap();
 
-    (basic_output_header, basic_output)
+    outputs.push((basic_output_header, basic_output.into()));
+}
+
+fn add_vested_outputs(
+    outputs: &mut Vec<(OutputHeader, Output)>,
+    rng: &mut StdRng,
+    vested_index: &mut u32,
+    address: Ed25519Address,
+) -> anyhow::Result<()> {
+    let (initial_unlock_amount, vested_amount) = initial_unlock_and_vested_amounts(rng);
+
+    let mut transaction_id = [0; 32];
+
+    // Prepare a transaction ID with the vested reward prefix.
+    transaction_id[0..28]
+        .copy_from_slice(&prefix_hex::decode::<[u8; 28]>(VESTED_REWARD_ID_PREFIX)?);
+
+    outputs.push(new_vested_output(
+        &mut transaction_id,
+        vested_index,
+        initial_unlock_amount,
+        address,
+        None,
+    )?);
+
+    for offset in (0..=VESTING_WEEKS).step_by(VESTING_WEEKS_FREQUENCY) {
+        let timelock = MERGE_TIMESTAMP_SECS + offset as u32 * 604_800;
+
+        outputs.push(new_vested_output(
+            &mut transaction_id,
+            vested_index,
+            vested_amount,
+            address,
+            Some(timelock),
+        )?);
+    }
+
+    Ok(())
 }
 
 fn initial_unlock_and_vested_amounts(rng: &mut StdRng) -> (u64, u64) {
