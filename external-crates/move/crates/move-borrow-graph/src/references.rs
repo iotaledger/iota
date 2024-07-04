@@ -71,8 +71,9 @@ pub(crate) struct Ref<Loc: Copy, Lbl: Clone + Ord> {
     pub(crate) borrowed_by: BorrowEdges<Loc, Lbl>,
     /// Child to parent
     /// 'self' borrows from _
-    /// Needed for efficient querying, but should be in one-to-one corespondence
-    /// with borrowed by i.e. x is borrowed by y IFF y borrows from x
+    /// Needed for efficient querying, but should be in one-to-one
+    /// correspondence with borrowed by i.e. x is borrowed by y IFF y
+    /// borrows from x
     pub(crate) borrows_from: BTreeSet<RefID>,
     /// true if mutable, false otherwise
     pub(crate) mutable: bool,

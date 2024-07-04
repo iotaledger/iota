@@ -143,7 +143,7 @@ The <code><a href="nft.md#0x107a_nft_Nft">Nft</a></code> module initializer.
         <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"description"),
         <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"creator"),
 
-        // The extra IRC27-nested fileds.
+        // The extra IRC27-nested fields.
         <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"version"),
         <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"media_type"),
         <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"collection_name"),
@@ -159,7 +159,7 @@ The <code><a href="nft.md#0x107a_nft_Nft">Nft</a></code> module initializer.
         <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"{immutable_metadata.description}"),
         <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"{immutable_metadata.issuer_name}"),
 
-        // The extra IRC27-nested fileds.
+        // The extra IRC27-nested fields.
         <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"{immutable_metadata.version}"),
         <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"{immutable_metadata.media_type}"),
         <a href="../move-stdlib/string.md#0x1_string_utf8">string::utf8</a>(b"{immutable_metadata.collection_name}"),

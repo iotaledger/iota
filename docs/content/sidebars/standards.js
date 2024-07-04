@@ -4,7 +4,17 @@
 
 const standards = [
 	'standards',
-	'standards/coin',
+	{
+		type: 'category',
+		label: 'Coin',
+		link: {
+			type: 'doc',
+			id: 'standards/coin',
+		},
+		items: [
+			'standards/coin-manager',
+		],
+	},
 	{
 		type: 'category',
 		label: 'Closed-Loop Token',

@@ -116,10 +116,10 @@ impl ResolvedGraph {
             let mut resolved_pkg = Package::new(package_path, &build_options)
                 .with_context(|| format!("Resolving package '{pkg_id}'"))?;
 
-            // Check dependencies package names from manifest are consistent with ther names
-            // in parent (this) manifest. We do this check only for local and git
-            // dependencies as we assume custom dependencies might not have a user-defined
-            // name.
+            // Check dependencies package names from manifest are consistent with their
+            // names in parent (this) manifest. We do this check only for local
+            // and git dependencies as we assume custom dependencies might not
+            // have a user-defined name.
             for (dep_name, dep) in &resolved_pkg.source_package.dependencies {
                 match dep {
                     PM::Dependency::External(_) => continue,
