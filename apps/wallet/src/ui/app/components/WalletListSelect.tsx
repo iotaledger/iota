@@ -10,7 +10,7 @@ import { Link } from '../shared/Link';
 import { SummaryCard } from './SummaryCard';
 import { WalletListSelectItem, type WalletListSelectItemProps } from './WalletListSelectItem';
 
-export type WalletListSelectProps = {
+export interface WalletListSelectProps {
     title: string;
     values: string[];
     visibleValues?: string[];
@@ -18,7 +18,7 @@ export type WalletListSelectProps = {
     disabled?: boolean;
     onChange: (values: string[]) => void;
     boxShadow?: boolean;
-};
+}
 
 export function WalletListSelect({
     title,

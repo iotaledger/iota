@@ -11,7 +11,12 @@ import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessage
 import { useActiveAddress } from '_src/ui/app/hooks';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 import { useSigner } from '_src/ui/app/hooks/useSigner';
-import { isIotaNSName, useGetKioskContents, useIotaNSEnabled } from '@iota/core';
+import {
+    createNftSendValidationSchema,
+    isIotaNSName,
+    useGetKioskContents,
+    useIotaNSEnabled,
+} from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
 import { ArrowRight16 } from '@iota/icons';
 import { TransactionBlock } from '@iota/iota.js/transactions';
@@ -21,23 +26,21 @@ import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
 import { useTransferKioskItem } from './useTransferKioskItem';
-import { createValidationSchema } from './validation';
 
-export function TransferNFTForm({
-    objectId,
-    objectType,
-}: {
+interface TransferNFTFormProps {
     objectId: string;
     objectType?: string | null;
-}) {
+}
+
+export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) {
     const activeAddress = useActiveAddress();
     const rpc = useIotaClient();
     const iotaNSEnabled = useIotaNSEnabled();
-    const validationSchema = createValidationSchema(
-        rpc,
-        iotaNSEnabled,
+    const validationSchema = createNftSendValidationSchema(
         activeAddress || '',
         objectId,
+        rpc,
+        iotaNSEnabled,
     );
     const activeAccount = useActiveAccount();
     const signer = useSigner(activeAccount);

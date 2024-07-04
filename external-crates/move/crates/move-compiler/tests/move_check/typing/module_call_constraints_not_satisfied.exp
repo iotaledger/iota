@@ -11,7 +11,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^^^
    │         │    │
    │         │    The type '0x8675309::M::S' does not have the ability 'key'
-   │         'key' constraint not satisifed
+   │         'key' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/module_call_constraints_not_satisfied.move:28:9
@@ -26,7 +26,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^^^
    │         │         │
    │         │         The type '0x8675309::M::Coin' does not have the ability 'copy'
-   │         'copy' constraint not satisifed
+   │         'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/module_call_constraints_not_satisfied.move:29:9
@@ -38,7 +38,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^
    │         │    │
    │         │    The type 'u64' does not have the ability 'key'
-   │         'key' constraint not satisifed
+   │         'key' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/module_call_constraints_not_satisfied.move:29:9
@@ -53,7 +53,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^
    │         │       │
    │         │       The type '0x8675309::M::Coin' does not have the ability 'copy'
-   │         'copy' constraint not satisifed
+   │         'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/module_call_constraints_not_satisfied.move:33:9
@@ -68,7 +68,7 @@ error[E05001]: ability constraint not satisfied
    │                 --- 'key' constraint declared here
    ·
 33 │         both(new_box<C>(), new_box<R>())
-   │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ 'key' constraint not satisifed
+   │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ 'key' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/module_call_constraints_not_satisfied.move:33:9
@@ -83,7 +83,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    │         │                          │
    │         │                          The type '0x8675309::M::Box<R>' can have the ability 'copy' but the type argument 'R' does not have the required ability 'copy'
-   │         'copy' constraint not satisifed
+   │         'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/module_call_constraints_not_satisfied.move:37:9
@@ -98,7 +98,7 @@ error[E05001]: ability constraint not satisfied
    │                 --- 'key' constraint declared here
    ·
 37 │         rsrc(new_box3<C, C, C>());
-   │         ^^^^^^^^^^^^^^^^^^^^^^^^^ 'key' constraint not satisifed
+   │         ^^^^^^^^^^^^^^^^^^^^^^^^^ 'key' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/module_call_constraints_not_satisfied.move:39:9
@@ -113,7 +113,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^^^^^^^^^^
    │         │            │
    │         │            The type '0x8675309::M::Box3<R, C, C>' can have the ability 'copy' but the type argument 'R' does not have the required ability 'copy'
-   │         'copy' constraint not satisifed
+   │         'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/module_call_constraints_not_satisfied.move:40:9
@@ -128,7 +128,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^^^^^^^^^^
    │         │            │
    │         │            The type '0x8675309::M::Box3<C, R, C>' can have the ability 'copy' but the type argument 'C' does not have the required ability 'copy'
-   │         'copy' constraint not satisifed
+   │         'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/module_call_constraints_not_satisfied.move:41:9
@@ -143,7 +143,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^^^^^^^^^^
    │         │            │
    │         │            The type '0x8675309::M::Box3<C, C, R>' can have the ability 'copy' but the type argument 'C' does not have the required ability 'copy'
-   │         'copy' constraint not satisifed
+   │         'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/module_call_constraints_not_satisfied.move:43:9
@@ -158,7 +158,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^^^^^^^^^^
    │         │            │
    │         │            The type '0x8675309::M::Box3<C, R, R>' can have the ability 'copy' but the type argument 'C' does not have the required ability 'copy'
-   │         'copy' constraint not satisifed
+   │         'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/module_call_constraints_not_satisfied.move:44:9
@@ -173,7 +173,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^^^^^^^^^^
    │         │            │
    │         │            The type '0x8675309::M::Box3<R, C, R>' can have the ability 'copy' but the type argument 'R' does not have the required ability 'copy'
-   │         'copy' constraint not satisifed
+   │         'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/module_call_constraints_not_satisfied.move:45:9
@@ -188,7 +188,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^^^^^^^^^^
    │         │            │
    │         │            The type '0x8675309::M::Box3<R, R, C>' can have the ability 'copy' but the type argument 'R' does not have the required ability 'copy'
-   │         'copy' constraint not satisifed
+   │         'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/module_call_constraints_not_satisfied.move:47:9
@@ -203,7 +203,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^^^^^^^^^^
    │         │            │
    │         │            The type '0x8675309::M::Box3<R, R, R>' can have the ability 'copy' but the type argument 'R' does not have the required ability 'copy'
-   │         'copy' constraint not satisifed
+   │         'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/module_call_constraints_not_satisfied.move:51:9
@@ -218,7 +218,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^^^^^^^^^^
    │         │            │
    │         │            The type '0x8675309::M::Box3<U, C, C>' can have the ability 'copy' but the type argument 'U' does not have the required ability 'copy'
-   │         'copy' constraint not satisifed
+   │         'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/module_call_constraints_not_satisfied.move:52:9
@@ -233,7 +233,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^^^^^^^^^^
    │         │            │
    │         │            The type '0x8675309::M::Box3<C, U, C>' can have the ability 'copy' but the type argument 'C' does not have the required ability 'copy'
-   │         'copy' constraint not satisifed
+   │         'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/module_call_constraints_not_satisfied.move:53:9
@@ -248,7 +248,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^^^^^^^^^^
    │         │            │
    │         │            The type '0x8675309::M::Box3<C, C, U>' can have the ability 'copy' but the type argument 'C' does not have the required ability 'copy'
-   │         'copy' constraint not satisifed
+   │         'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/module_call_constraints_not_satisfied.move:55:9
@@ -263,7 +263,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^^^^^^^^^^
    │         │            │
    │         │            The type '0x8675309::M::Box3<C, U, U>' can have the ability 'copy' but the type argument 'C' does not have the required ability 'copy'
-   │         'copy' constraint not satisifed
+   │         'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/module_call_constraints_not_satisfied.move:56:9
@@ -278,7 +278,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^^^^^^^^^^
    │         │            │
    │         │            The type '0x8675309::M::Box3<U, C, U>' can have the ability 'copy' but the type argument 'U' does not have the required ability 'copy'
-   │         'copy' constraint not satisifed
+   │         'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/module_call_constraints_not_satisfied.move:57:9
@@ -293,7 +293,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^^^^^^^^^^
    │         │            │
    │         │            The type '0x8675309::M::Box3<U, U, C>' can have the ability 'copy' but the type argument 'U' does not have the required ability 'copy'
-   │         'copy' constraint not satisifed
+   │         'copy' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/module_call_constraints_not_satisfied.move:59:9
@@ -308,5 +308,5 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^^^^^^^^^^
    │         │            │
    │         │            The type '0x8675309::M::Box3<U, U, U>' can have the ability 'copy' but the type argument 'U' does not have the required ability 'copy'
-   │         'copy' constraint not satisifed
+   │         'copy' constraint not satisfied
 

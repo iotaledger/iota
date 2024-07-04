@@ -34,7 +34,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
 ## Documentation for iota-sdk crate
 
-[GitHub Pages](https://mystenlabs.github.io/iota/iota_sdk/index.html) hosts the generated documentation for all Rust crates in the Iota repository.
+[GitHub Pages](https://iotaledger.github.io/iota/iota_sdk/index.html) hosts the generated documentation for all Rust crates in the Iota repository.
 
 ### Building documentation locally
 

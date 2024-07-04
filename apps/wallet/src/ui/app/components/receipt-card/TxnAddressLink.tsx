@@ -7,9 +7,9 @@ import { ExplorerLinkType } from '_components/explorer-link/ExplorerLinkType';
 import { isIotaNSName } from '@iota/core';
 import { formatAddress } from '@iota/iota.js/utils';
 
-type TxnAddressLinkProps = {
+interface TxnAddressLinkProps {
     address: string;
-};
+}
 
 export function TxnAddressLink({ address }: TxnAddressLinkProps) {
     return (

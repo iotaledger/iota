@@ -13,13 +13,12 @@ import { Link } from 'react-router-dom';
 import { TxnTypeLabel } from './TxnActionLabel';
 import { TxnIcon } from './TxnIcon';
 
-export function TransactionCard({
-    txn,
-    address,
-}: {
+interface TransactionCardProps {
     txn: IotaTransactionBlockResponse;
     address: string;
-}) {
+}
+
+export function TransactionCard({ txn, address }: TransactionCardProps) {
     const executionStatus = txn.effects?.status.status;
     const recognizedPackagesList = useRecognizedPackages();
 

@@ -6,13 +6,13 @@ import { AccountType } from '_src/background/accounts/Account';
 
 import { BadgeLabel } from './BadgeLabel';
 
-type AccountBadgeProps = {
+interface AccountBadgeProps {
     accountType: AccountType;
-};
+}
 
 const TYPE_TO_TEXT: Record<AccountType, string | null> = {
-    [AccountType.Ledger]: 'Ledger',
-    [AccountType.Imported]: 'Imported',
+    [AccountType.LedgerDerived]: 'Ledger',
+    [AccountType.PrivateKeyDerived]: 'Private Key',
     [AccountType.MnemonicDerived]: null,
     [AccountType.SeedDerived]: null,
 };

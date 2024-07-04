@@ -25,12 +25,12 @@ import { type FormValues } from './StakingCard';
 
 const HIDE_MAX = true;
 
-export type StakeFromProps = {
+export interface StakeFromProps {
     validatorAddress: string;
     coinBalance: bigint;
     coinType: string;
     epoch?: string | number;
-};
+}
 
 function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFromProps) {
     const { values, setFieldValue } = useFormikContext<FormValues>();
