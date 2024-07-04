@@ -86,7 +86,7 @@ fn idempotence() {
     let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // Build fully connected dag with empty blocks. Adding 5 rounds to the dag
-    // aka thte decision round of wave 1.
+    // aka the decision round of wave 1.
     let decision_round_wave_1 = committer.decision_round(1);
     build_dag(context, dag_state, None, decision_round_wave_1);
 

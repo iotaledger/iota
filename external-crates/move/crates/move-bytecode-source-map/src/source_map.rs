@@ -427,7 +427,7 @@ impl SourceMap {
             .insert(name, const_idx.0)
             .map_or(Ok(()), |_| {
                 Err(format_err!(
-                    "Multiple constans with same name encountered when constructing source map"
+                    "Multiple constants with same name encountered when constructing source map"
                 ))
             })
     }
