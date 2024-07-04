@@ -26,8 +26,7 @@ use crate::stardust::{
 const IOTA_COIN_TYPE: u32 = 4218;
 const VESTING_WEEKS: usize = 208;
 const VESTING_WEEKS_FREQUENCY: usize = 2;
-// TODO: already used by other test data, so better use a different one
-const MNEMONIC: &str = "rain flip mad lamp owner siren tower buddy wolf shy tray exit glad come dry tent they pond wrist web cliff mixed seek drum";
+const MNEMONIC: &str = "axis art silk merit assist hour bright always day legal misery arm laundry mule ship upon oil ski cup hat skin wet old sea";
 // bip path values for account, internal, address, then the scenario case
 // identifier
 const ADDRESSES: &'static [[u32; 3]] = &[
