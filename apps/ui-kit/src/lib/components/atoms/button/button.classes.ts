@@ -4,13 +4,13 @@
 import { ButtonSize, ButtonType } from './button.enums';
 
 export const PADDINGS: Record<ButtonSize, string> = {
-    [ButtonSize.Small]: 'px-4 py-2',
-    [ButtonSize.Medium]: 'px-4 py-3',
+    [ButtonSize.Small]: 'px-md py-xs',
+    [ButtonSize.Medium]: 'px-md py-sm',
 };
 
 export const PADDINGS_ONLY_ICON: Record<ButtonSize, string> = {
-    [ButtonSize.Small]: 'p-2',
-    [ButtonSize.Medium]: 'p-3',
+    [ButtonSize.Small]: 'p-xs',
+    [ButtonSize.Medium]: 'p-sm',
 };
 
 export const BACKGROUND_COLORS: Record<ButtonType, string> = {

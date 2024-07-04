@@ -35,12 +35,17 @@ interface ButtonProps {
      * The button is disabled or not.
      */
     disabled?: boolean;
+    /**
+     *
+     */
+    onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
 }
 
 export function Button({
     icon,
     text,
     disabled,
+    onClick,
     size = ButtonSize.Medium,
     type = ButtonType.Primary,
 }: ButtonProps): React.JSX.Element {
@@ -50,6 +55,7 @@ export function Button({
     const textSizes = TEXT_CLASSES[size];
     return (
         <button
+            onClick={onClick}
             className={cx(
                 'state-layer relative flex rounded-full disabled:opacity-40',
                 paddingClasses,
