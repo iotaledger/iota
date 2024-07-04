@@ -60,10 +60,11 @@ println!("Address: 0x{}", iota_address_string);
 This example generate a new address with the TypeScript SDK:
 
 ```ts
-import { Ed25519Keypair, Ed25519PublicKey } from '@iota/iota/keypairs/ed25519';
+import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
  
 const keypair = new Ed25519Keypair();
 const address = keypair.getPublicKey().toIotaAddress();
+console.log(address);
 ```
 
 ## Displaying addresses
@@ -134,72 +135,35 @@ async fn main() -> Result<(), anyhow::Error> {
 This example does the same with TypeScript:
 
 ```ts
-import { getFullnodeUrl, IotaClient } from '@iota/iota/client';
-import { NANO_PER_IOTA } from '@iota/iota/utils';
- 
-const MY_ADDRESS = '0x849d63687330447431a2e76fecca4f3c10f6884ebaa9909674123c6c662612a3';
- 
-// create a new SuiClient object pointing to the network you want to use
+import { getFullnodeUrl, IotaClient } from '@iota/iota.js/client';
+
 const iotaClient = new IotaClient({ url: getFullnodeUrl('devnet') });
- 
-// Convert Nanos to IOTA
-const balance = (balance) => {
-	return Number.parseInt(balance.totalBalance) / Number(NANO_PER_IOTA);
-};
- 
-// store the JSON representation for the SUI the address owns before using faucet
+
+const MY_ADDRESS = '0x849d63687330447431a2e76fecca4f3c10f6884ebaa9909674123c6c662612a3';
+
 const balance = await iotaClient.getBalance({
-	owner: MY_ADDRESS,
+    owner: MY_ADDRESS,
    // Optional CoinType can be added for other coins besides IOTA:
    //coinType: "0x2::smr::SMR"
 });
 
-console.log(balance);
+console.log('Balance in Nano (1_000_000_000 Nano = 1 IOTA): ', balance.totalBalance);
 ```
 
-:::warning
+:::info
 
-Content below wasn't checked yet and needs changes
+It's also possible to use event tracking to monitor addresses for incoming transactions. For more information on how events work and how to use them see the ["Using Events"](../developer/iota-101/using-events.mdx) guide.
 
 :::
 
-## Use events to track balance changes for an address
-
-You can also track the balance for an address by subscribing to all of the events emitted from it. Use a filter to include only the events related to IOTA coins, such as when the address acquires a coin or pays for a gas fee.
-The following example demonstrates how to filter events for an address using bash and cURL:
-
-```bash
-rpc="https://fullnode.devnet.iota.org:443"
-address="0x849d63687330447431a2e76fecca4f3c10f6884ebaa9909674123c6c662612a3"
-data="{\"jsonrpc\": \"2.0\", \"id\":1, \"method\": \"iota_getEvents\", \"params\": [{\"Recipient\": {\"AddressOwner\": \"0x849d63687330447431a2e76fecca4f3c10f6884ebaa9909674123c6c662612a3\"}}, null, null, true ]}"
-curl -X POST -H 'Content-type: application/json' --data-raw "$data" $rpc
-```
-
-The response can include a large number of events. Add pagination to the response using the `nextCursor` key in the request. You can determine the corresponding `txDigest` and `eventSeq` from the `id` field of a transaction.
-
-You can add the `txDigest` value instead of the first `null` within the `params`. The second `null` is an integer that defines how many results (up to 1000) to return and the `true` means ascending order. You can use the `nextCursor` so the response starts from a desired point.
-
-The `id` field of any transaction looks like:
-
-```bash
-"id": {
-    "txDigest": "GZQN9pE3Zr9ZfLzBK1BfVCXtbjx5xKMxPSEKaHDvL3E2",
-    "eventSeq": 6019
-}
-```
-
-With this data, create a `nextCursor` as follows:
-
-```bash
-nextCursor : {"txDigest": "GZQN9pE3Zr9ZfLzBK1BfVCXtbjx5xKMxPSEKaHDvL3E2","eventSeq": 6019}
-```
-
-## Blocks vs checkpoints
+## Blocks vs checkpoints and finality
 
 IOTA is a DAG-based blockchain and uses checkpoints for node synchronization and global transaction ordering. Checkpoints differ from blocks in the following ways:
- - IOTA creates checkpoints and adds finalized transactions. Note that transactions are finalized even before they are included in a checkpoint
+ - IOTA creates checkpoints and adds finalized transactions. Note that transactions are finalized even before they are included in a checkpoint.
  - Checkpoints do not fork, roll back, or reorganize.
  - IOTA creates one checkpoint about every 3 seconds.
+
+For more information about confirming finality see the section about [Verifying Finality](../../concepts/iota-architecture/transaction-lifecycle.mdx#verifying-finality) in the IOTA Architecture documentation.
 
 ### Checkpoint API operations
 
@@ -210,18 +174,26 @@ IOTA Checkpoint API operations include:
 
 ## IOTA balance transfer
 
-To transfer a specific amount of IOTA between addresses, you need a IOTA token object with that specific value. In IOTA, everything is an object, including IOTA tokens. The amount of IOTA in each IOTA token object varies. For example, an address could own 3 IOTA tokens with different values: one of 0.1 IOTA, a second of 1.0 IOTA, and a third with 0.005 IOTA. The total balance for the address equals the sum of the values of the individual IOTA token objects, in this case, 1.105 IOTA.
+To transfer a specific amount of IOTA between addresses, you need an IOTA token object with that specific value. In IOTA, everything is an object, including IOTA tokens. The amount of IOTA in each IOTA token object varies. For example, an address could own 3 IOTA tokens with different values: one of 0.1 IOTA, a second of 1.0 IOTA, and a third with 0.005 IOTA. The total balance for the address equals the sum of the values of the individual IOTA token objects, in this case, 1.105 IOTA.
 
 You can merge and split IOTA token objects to create token objects with specific values. To create a IOTA token worth .6 IOTA, split the token worth 1 IOTA into two token objects worth .6 IOTA and .4 IOTA.
 
 To transfer a specific amount of IOTA, you need a IOTA token worth that specific amount. To get a IOTA token with that specific value, you might need to split or merge existing IOTA tokens. IOTA supports several methods to accomplish this, including some that do not require you to manually split or merge coins.
 
+Keep in mind that in order to execute a transaction, including a normal transfer, you need to provide some IOTA for gas as well. This can not be the same IOTA object as the one you are trying to transfer. The [SDKs](../../references/iota-sdks.mdx) can automatically find another owned IOTA Coin object to use for gas if you don't manually select one. If you only have a single IOTA coin object you might need to split some off first to have a object to transfer and a object to pay for gas (these can not be the same).
+
 ## IOTA API operations for transfers
+
+:::warning
+
+While it's possible to directly call the JSON-RPC API to integrate, we highly recommend using on of our [SDKs](../../references/iota-sdks.mdx) instead. This will abstract away boilerplate complexity, makes integration easier, and avoids common mistakes.
+
+:::
 
 IOTA supports the following API operations related to transferring IOTA between addresses:
 
  - [iota_transferObject](/iota-api-ref#iota_transferObject)
-   Because IOTA tokens are objects, you can transfer IOTA tokens just like any other object. This method requires a gas token, and is useful in niche cases only.
+   Because IOTA tokens are objects, you can transfer IOTA tokens just like any other object. This method requires a gas token. For transfering tokens there are better alternatives, as listed below.
 
  - [iota_payAllIota](/iota-api-ref#iota_payAllIota)
    This method accepts an array of IOTA token IDs. It merges all existing tokens into one, deducts the gas fee, then sends the merged token to the recipient address.
@@ -235,14 +207,14 @@ IOTA supports the following API operations related to transferring IOTA between 
 
    The operation merges all of the tokens provided into one token object and settles the gas fees. It then splits the token according to the amounts in the amounts array and sends the first token to the first recipient, the second token to the second recipient, and so on. Any remaining IOTA on the token stays in the source address.
 
-   The benefits of this method include: no gas fees for merging or splitting tokens, and the abstracted token merge and split. The `iota_payIota` operation is a native function, so the merge and split operations are not considered IOTA transactions. The gas fees for them match typical transactions on IOTA.You can use this operation to split coins in your own address by setting the recipient as your own address. Note that the total value of the input coins must be greater than the total value of the amounts to send.
+   The benefits of this method include: no gas fees for merging or splitting tokens, and the abstracted token merge and split. The `iota_payIota` operation is a native function, so the merge and split operations are not considered IOTA transactions. The gas fees for them match typical transactions on IOTA. You can use this operation to split coins in your own address by setting the recipient as your own address. Note that the total value of the input coins must be greater than the total value of the amounts to send.
 
  - [iota_pay](/iota-api-ref#iota_pay)
    This method is similar to iota_payIota, but it accepts any kind of coin or token instead of only IOTA (like for example SMR). You must include a IOTA gas token, and all of the coins or tokens must be the same type.
 
- - [iota_transferIOTA](/iota-api-ref#iota_transferIota)
+ - [iota_transferIota](/iota-api-ref#iota_transferIota)
     This method accepts only one IOTA token object and an amount to send to the recipient. It uses the same token for gas fees, so the amount to transfer must be strictly less than the value of the IOTA token used.
 
 ## Signing transactions
 
-Refer to [IOTA Signatures](/concepts/cryptography/transaction-auth/signatures.mdx) for more details on signature validity requirements.
+Refer to [IOTA Signatures](../../concepts/cryptography/transaction-auth/signatures.mdx) for more details on signature validity requirements.
