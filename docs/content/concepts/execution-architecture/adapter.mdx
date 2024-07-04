@@ -23,6 +23,7 @@ Before we can execute a transaction however, we need to make sure that:
  - gas payment object(s) can cover the maximum budget of the transaction.
 
 This list of operations is done at the iota-node level. During execution of:
+
 ```rust
  fn prepare_certificate(
         &self,
@@ -77,4 +78,4 @@ Also used as a cache that is used after the execution to populate the created/mo
 
 ### Flow 
 
-![Iota Adapter Flow](../../images/iota_adapter.svg)
+![Iota Adapter Flow](/img/concepts/execution-architecture/iota-adapter.svg)
