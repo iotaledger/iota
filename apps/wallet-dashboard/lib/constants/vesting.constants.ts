@@ -20,7 +20,7 @@ interface Balance {
 interface Timelocked {
     id: UID;
     locked: Balance;
-    expirationTimestampMs: number; // The epoch time stamp of when the lock expires
+    expirationTimestampMs: number;
     label?: string;
 }
 
