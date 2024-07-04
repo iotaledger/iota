@@ -51,7 +51,7 @@ impl<'a> DuplicationChecker<'a> {
         let checker = Self { module };
         checker.check_field_handles()?;
         checker.check_field_instantiations()?;
-        checker.check_function_defintions()?;
+        checker.check_function_definitions()?;
         checker.check_struct_definitions()?;
         checker.check_struct_instantiations()
     }
@@ -263,7 +263,7 @@ impl<'a> DuplicationChecker<'a> {
         Ok(())
     }
 
-    fn check_function_defintions(&self) -> PartialVMResult<()> {
+    fn check_function_definitions(&self) -> PartialVMResult<()> {
         // FunctionDefinition - contained FunctionHandle defines uniqueness
         if let Some(idx) =
             Self::first_duplicate_element(self.module.function_defs().iter().map(|x| x.function))

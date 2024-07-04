@@ -11,7 +11,7 @@ const MIGRATION_DONE_STORAGE_KEY = 'storage-migration-done';
 let statusCache: Status | null = null;
 
 export async function getStatus() {
-    // placeholde for migration status, always returns ready
+    // placeholder for migration status, always returns ready
     if (statusCache) {
         return statusCache;
     }

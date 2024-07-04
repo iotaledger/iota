@@ -4,14 +4,17 @@
 //! Creating a stardust objects snapshot out of a Hornet snapshot.
 //! TIP that defines the Hornet snapshot file format:
 //! https://github.com/iotaledger/tips/blob/main/tips/TIP-0035/tip-0035.md
-use std::fs::File;
+use std::{
+    fs::File,
+    io::{BufWriter, Write},
+};
 
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
 use iota_genesis_builder::{
     stardust::{
         migration::{Migration, MigrationTargetNetwork},
-        parse::HornetGenesisSnapshotParser,
+        parse::HornetSnapshotParser,
     },
     BROTLI_COMPRESSOR_BUFFER_SIZE, BROTLI_COMPRESSOR_LG_WINDOW_SIZE, BROTLI_COMPRESSOR_QUALITY,
     OBJECT_SNAPSHOT_FILE_PATH,
@@ -30,6 +33,19 @@ use tracing_subscriber::FmtSubscriber;
 struct Cli {
     #[clap(subcommand)]
     snapshot: Snapshot,
+    #[clap(
+        short,
+        long,
+        default_value_t = false,
+        help = "Compress the resulting object snapshot"
+    )]
+    compress: bool,
+    #[clap(
+        long,
+        help = "Enable global snapshot verification",
+        default_value_t = true
+    )]
+    global_snapshot_verification: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -71,7 +87,11 @@ fn main() -> Result<()> {
     };
 
     // Start the Hornet snapshot parser
-    let snapshot_parser = HornetGenesisSnapshotParser::new(File::open(snapshot_path)?)?;
+    let mut snapshot_parser = if cli.global_snapshot_verification {
+        HornetSnapshotParser::new::<true>(File::open(snapshot_path)?)?
+    } else {
+        HornetSnapshotParser::new::<false>(File::open(snapshot_path)?)?
+    };
     let total_supply = match coin_type {
         CoinType::Iota => scale_amount_for_iota(snapshot_parser.total_supply()?)?,
         CoinType::Shimmer => snapshot_parser.total_supply()?,
@@ -85,13 +105,18 @@ fn main() -> Result<()> {
         coin_type,
     )?;
 
-    // Prepare the compressor writer for the objects snapshot
-    let object_snapshot_writer = brotli::CompressorWriter::new(
-        File::create(OBJECT_SNAPSHOT_FILE_PATH)?,
-        BROTLI_COMPRESSOR_BUFFER_SIZE,
-        BROTLI_COMPRESSOR_QUALITY,
-        BROTLI_COMPRESSOR_LG_WINDOW_SIZE,
-    );
+    // Prepare the writer for the objects snapshot
+    let output_file = File::create(OBJECT_SNAPSHOT_FILE_PATH)?;
+    let object_snapshot_writer: Box<dyn Write> = if cli.compress {
+        Box::new(brotli::CompressorWriter::new(
+            output_file,
+            BROTLI_COMPRESSOR_BUFFER_SIZE,
+            BROTLI_COMPRESSOR_QUALITY,
+            BROTLI_COMPRESSOR_LG_WINDOW_SIZE,
+        ))
+    } else {
+        Box::new(BufWriter::new(output_file))
+    };
 
     // Run the migration and write the objects snapshot
     snapshot_parser
@@ -106,6 +131,7 @@ fn main() -> Result<()> {
             }
         })
         .process_results(|outputs| migration.run(outputs, object_snapshot_writer))??;
+
     Ok(())
 }
 

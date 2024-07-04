@@ -186,7 +186,7 @@ fn module<'a>(
         .for_each(|(_fname, fdef)| function_body(context, &fdef.body));
     let graph = context.instantiation_graph();
     // - get the strongly connected components
-    // - fitler out SCCs that do not contain a 'nested' or 'strong' edge
+    // - filter out SCCs that do not contain a 'nested' or 'strong' edge
     // - report those cycles
     petgraph_scc(&graph)
         .into_iter()

@@ -14,7 +14,7 @@ import { type WalletSigner } from './WalletSigner';
 const ACCOUNT_TYPES_WITH_BACKGROUND_SIGNER: AccountType[] = [
     AccountType.MnemonicDerived,
     AccountType.SeedDerived,
-    AccountType.Imported,
+    AccountType.PrivateKeyDerived,
 ];
 
 export default class ApiProvider {
@@ -60,7 +60,7 @@ export default class ApiProvider {
         if (ACCOUNT_TYPES_WITH_BACKGROUND_SIGNER.includes(account.type)) {
             return this.getBackgroundSignerInstance(account, backgroundClient);
         }
-        if (AccountType.Ledger === account.type) {
+        if (AccountType.LedgerDerived === account.type) {
             // Ideally, Ledger transactions would be signed in the background
             // and exist as an asynchronous keypair; however, this isn't possible
             // because you can't connect to a Ledger device from the background

@@ -3,13 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { ReactNode } from 'react';
-
 import LoadingIndicator, { type LoadingIndicatorProps } from './LoadingIndicator';
 
-type LoadingProps = {
+interface LoadingProps extends LoadingIndicatorProps {
     loading: boolean;
     children: ReactNode | ReactNode[];
-} & LoadingIndicatorProps;
+}
 
 const Loading = ({ loading, children, ...indicatorProps }: LoadingProps) => {
     return loading ? (

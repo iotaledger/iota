@@ -1,6 +1,4 @@
 # Copyright (c) Mysten Labs, Inc.
-# SPDX-License-Identifier: Apache-2.0
-
 # Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
@@ -17,10 +15,11 @@ import lldb
 #     (lldb) command script import ./iota/scripts/lldb_frame_sizes
 #     Loaded "frame-sizes" command.
 #     (lldb) ...
-#     
+#
 #     Process XXXXX stopped
 #     ...
 #     (lldb) frame-sizes
+
 
 def frame_sizes(debugger, command, result, internal_dict):
     """Estimates the sizes of stack frames in the current backtrace.
@@ -58,6 +57,7 @@ def frame_sizes(debugger, command, result, internal_dict):
             ),
             file=result,
         )
+
 
 def __lldb_init_module(debugger, internal_dict):
     debugger.HandleCommand(

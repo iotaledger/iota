@@ -7,7 +7,7 @@ import { entropyToSerialized, mnemonicToEntropy } from '_src/shared/utils/bip39'
 import { useNavigate } from 'react-router-dom';
 
 import {
-    CreateAccountType,
+    AccountsFormType,
     useAccountsFormContext,
 } from '../../components/accounts/AccountsFormContext';
 import { ImportRecoveryPhraseForm } from '../../components/accounts/ImportRecoveryPhraseForm';
@@ -37,12 +37,16 @@ export function ImportPassphrasePage() {
                     submitButtonText="Add Account"
                     onSubmit={({ recoveryPhrase }) => {
                         setFormValues({
-                            type: CreateAccountType.ImportMnemonic,
+                            type: AccountsFormType.ImportMnemonic,
                             entropy: entropyToSerialized(
                                 mnemonicToEntropy(recoveryPhrase.join(' ')),
                             ),
                         });
-                        navigate('/accounts/protect-account?accountType=import-mnemonic');
+                        navigate(
+                            `/accounts/protect-account?${new URLSearchParams({
+                                accountsFormType: AccountsFormType.ImportMnemonic,
+                            }).toString()}`,
+                        );
                     }}
                 />
             </div>

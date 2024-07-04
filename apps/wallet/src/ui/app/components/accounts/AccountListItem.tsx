@@ -10,13 +10,13 @@ import { AccountItem } from './AccountItem';
 import { LockUnlockButton } from './LockUnlockButton';
 import { useUnlockAccount } from './UnlockAccountContext';
 
-type AccountListItemProps = {
+interface AccountListItemProps {
     account: SerializedUIAccount;
     editable?: boolean;
     showLock?: boolean;
     hideCopy?: boolean;
     hideExplorerLink?: boolean;
-};
+}
 
 export function AccountListItem({
     account,

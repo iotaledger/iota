@@ -11,13 +11,15 @@ import { Link } from 'react-router-dom';
 import { CoinItem } from './CoinItem';
 import { filterAndSortTokenBalances } from '@iota/core';
 
+interface ActiveCoinsCardProps {
+    activeCoinType: string;
+    showActiveCoin?: boolean;
+}
+
 export function ActiveCoinsCard({
     activeCoinType = IOTA_TYPE_ARG,
     showActiveCoin = true,
-}: {
-    activeCoinType: string;
-    showActiveCoin?: boolean;
-}) {
+}: ActiveCoinsCardProps) {
     const selectedAddress = useActiveAddress();
 
     const { staleTime, refetchInterval } = useCoinsReFetchingConfig();

@@ -4115,7 +4115,7 @@ fn check_restricted_name_all_cases(
             if Var::is_syntax_identifier_name(n.value) {
                 let msg = format!(
                     "Invalid {} name '{}'. Identifiers starting with '$' can be used only for \
-                    parameters and type paramters",
+                    parameters and type parameters",
                     case.name(),
                     n,
                 );
