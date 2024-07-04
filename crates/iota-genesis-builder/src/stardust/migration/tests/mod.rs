@@ -500,7 +500,7 @@ fn unlock_object(
     match (result, expected_test_result) {
         (Ok(_), UnlockObjectTestResult::Success) => Ok(()),
         (Ok(_), UnlockObjectTestResult::Failure(_)) => {
-            bail!("expected test failure, but test suceeded")
+            bail!("expected test failure, but test succeeded")
         }
         (Err(err), UnlockObjectTestResult::Success) => {
             bail!("expected test success, but test failed: {err}")

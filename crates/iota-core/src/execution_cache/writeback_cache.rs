@@ -148,7 +148,7 @@ enum CacheResult<T> {
     Miss,
 }
 
-/// UncommitedData stores execution outputs that are not yet written to the db.
+/// UncommittedData stores execution outputs that are not yet written to the db.
 /// Entries in this struct can only be purged after they are committed.
 struct UncommittedData {
     /// The object dirty set. All writes go into this table first. After we
