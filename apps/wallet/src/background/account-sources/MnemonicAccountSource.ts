@@ -11,7 +11,7 @@ import {
 } from '_shared/utils/bip39';
 import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
 import { mnemonicToSeedHex } from '@iota/iota.js/cryptography';
-import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
+import { Ed25519Keypair, type Ed25519PublicKey } from '@iota/iota.js/keypairs/ed25519';
 import { sha256 } from '@noble/hashes/sha256';
 import { bytesToHex } from '@noble/hashes/utils';
 import Dexie from 'dexie';
@@ -149,6 +149,11 @@ export class MnemonicAccountSource extends AccountSource<
                 : await this.#getAvailableDerivationPath();
         const keyPair = await this.deriveKeyPair(derivationPath);
         return MnemonicAccount.createNew({ keyPair, derivationPath, sourceID: this.id });
+    }
+
+    async derivePubKey(derivationOptions: MakeDerivationOptions): Promise<Ed25519PublicKey> {
+        const keyPair = await this.deriveKeyPair(makeDerivationPath(derivationOptions));
+        return keyPair.getPublicKey();
     }
 
     async deriveKeyPair(derivationPath: string) {

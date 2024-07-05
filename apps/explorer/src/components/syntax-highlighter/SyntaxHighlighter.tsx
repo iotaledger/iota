@@ -4,7 +4,7 @@
 
 import { useOnScreen } from '@iota/core';
 import { useRef, useEffect, useState } from 'react';
-import Highlight, { defaultProps } from 'prism-react-renderer';
+import { Highlight } from 'prism-react-renderer';
 import 'prism-themes/themes/prism-one-light.css';
 
 import type { Language } from 'prism-react-renderer';
@@ -26,7 +26,7 @@ export function SyntaxHighlighter({ code, language }: SyntaxHighlighterProps): J
     }, [isIntersecting]);
     return (
         <div className="overflow-auto whitespace-pre font-mono text-sm">
-            <Highlight {...defaultProps} code={code} language={language} theme={undefined}>
+            <Highlight code={code} language={language} theme={undefined}>
                 {({ style, tokens, getLineProps, getTokenProps }) => (
                     <pre className="overflow-auto bg-transparent !p-0 font-medium" style={style}>
                         {tokens.slice(0, loadedLines).map((line, i) => (
