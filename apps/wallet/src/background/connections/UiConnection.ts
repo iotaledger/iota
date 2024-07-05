@@ -47,6 +47,12 @@ import NetworkEnv from '../NetworkEnv';
 import { Connection } from './Connection';
 import { SeedAccountSource } from '../account-sources/SeedAccountSource';
 import { AccountSourceType } from '../account-sources/AccountSource';
+import {
+    isGetAccountsFinderResultsRequest,
+    isInitAccountsFinder,
+    isSearchAccountsFinder,
+} from '_payloads/accounts-finder';
+import AccountsFinder from '../accounts-finder/AccountsFinder';
 
 export class UiConnection extends Connection {
     public static readonly CHANNEL: PortChannelName = 'iota_ui<->background';
@@ -256,6 +262,21 @@ export class UiConnection extends Connection {
                 accountSourcesEvents.emit('accountSourcesChanged');
                 accountsEvents.emit('accountsChanged');
                 await this.send(createMessage({ type: 'done' }, msg.id));
+            } else if (isInitAccountsFinder(payload)) {
+                AccountsFinder.init();
+                this.send(createMessage({ type: 'done' }, msg.id));
+            } else if (isSearchAccountsFinder(payload)) {
+                await AccountsFinder.findMore(
+                    payload.coinType,
+                    payload.gasType,
+                    payload.sourceID,
+                    payload.accountGapLimit,
+                    payload.addressGapLimit,
+                );
+                this.send(createMessage({ type: 'done' }, msg.id));
+            } else if (isGetAccountsFinderResultsRequest(payload)) {
+                const results = await AccountsFinder.getResults();
+                this.send(createMessage({ type: 'done', results }, msg.id));
             } else {
                 throw new Error(
                     `Unhandled message ${msg.id}. (${JSON.stringify(

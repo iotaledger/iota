@@ -6,9 +6,8 @@ import { formatDate } from '@iota/core';
 import { Heading, Text } from '@iota/ui';
 import clsx from 'clsx';
 
+import { Card, ProgressBar } from '~/components/ui';
 import { getElapsedTime, useEpochProgress } from '~/pages/epochs/utils';
-import { Card } from '~/ui/Card';
-import { ProgressBar } from '~/ui/ProgressBar';
 
 interface EpochProgressProps {
     epoch?: string;

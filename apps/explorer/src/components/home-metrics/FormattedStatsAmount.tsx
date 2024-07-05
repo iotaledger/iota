@@ -4,7 +4,7 @@
 
 import { formatAmountParts } from '@iota/core';
 
-import { Stats, type StatsProps } from '~/ui/Stats';
+import { Stats, type StatsProps } from '~/components/ui';
 
 interface FormattedStatsAmountProps {
     amount?: string | number | bigint;
