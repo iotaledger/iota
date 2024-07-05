@@ -18,7 +18,7 @@
         "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
         "storybook": "storybook dev -p 6006",
         "build-storybook": "storybook build",
-        "build": "tsc && vite build",
+        "build": "tsc --project tsconfig.package.json && vite build",
         "dev": "pnpm run storybook"
     },
     "exports": {
@@ -27,9 +27,7 @@
             "require": "./dist/index.umd.js",
             "types": "./dist/index.d.ts"
         },
-        "./styles": "./dist/style.css",
-        "./preset": "./dist/tailwind/responsive.preset.js",
-        "./preset/static": "./dist/tailwind/static.preset.js"
+        "./styles": "./dist/style.css"
     },
     "dependencies": {
         "@iota/core": "workspace:*",
