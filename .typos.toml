@@ -2,7 +2,6 @@
 extend-ignore-re = ["[a-zA-Z0-9]{44}", "[a-zA-Z0-9]{9}"]
 
 [default.extend-words]
-splitted = "splitted"
 # accepted plurals
 froms = "froms"
 alls = "alls"
