@@ -8,6 +8,7 @@ import { useSendCoinTransaction, useNotifications } from '@/hooks';
 import { useSignAndExecuteTransactionBlock } from '@iota/dapp-kit';
 import { NotificationType } from '@/stores/notificationStore';
 import { Dropdown } from '@/components';
+import { useGetAllCoins } from '@iota/core';
 
 export interface FormDataValues {
     amount: string;
@@ -40,13 +41,16 @@ function SendCoinPopup({
     });
     const { addNotification } = useNotifications();
 
+    const { data: coinsData } = useGetAllCoins(selectedCoin.coinType, senderAddress);
+
     const {
         mutateAsync: signAndExecuteTransactionBlock,
         error,
         isPending,
     } = useSignAndExecuteTransactionBlock();
     const { data: sendCoinData } = useSendCoinTransaction(
-        selectedCoin,
+        coinsData || [],
+        selectedCoin.coinType,
         senderAddress,
         formData.recipientAddress,
         formData.amount,

@@ -28,7 +28,7 @@ function MyCoins(): React.JSX.Element {
             select: filterAndSortTokenBalances,
         },
     );
-    const { recognized } = useSortedCoinsByCategories(coinBalances ?? []);
+    const { recognized, unrecognized } = useSortedCoinsByCategories(coinBalances ?? []);
 
     function openSendTokenPopup(coin: CoinBalance, address: string): void {
         if (coinBalances) {
@@ -47,6 +47,17 @@ function MyCoins(): React.JSX.Element {
         <div className="flex w-2/3 flex-col items-center space-y-2">
             <h3>My Coins:</h3>
             {recognized?.map((coin, index) => {
+                return (
+                    <CoinItem
+                        key={index}
+                        coinType={coin.coinType}
+                        balance={BigInt(coin.totalBalance)}
+                        onClick={() => openSendTokenPopup(coin, account?.address ?? '')}
+                    />
+                );
+            })}
+            <span>Unrecognized coins</span>
+            {unrecognized?.map((coin, index) => {
                 return (
                     <CoinItem
                         key={index}
