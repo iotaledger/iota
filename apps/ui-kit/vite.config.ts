@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react-swc';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import dts from 'vite-plugin-dts';
 import tailwindcss from 'tailwindcss';
+import svgr from 'vite-plugin-svgr';
 
 export default defineConfig({
     build: {
@@ -30,6 +31,7 @@ export default defineConfig({
             root: __dirname,
         }),
         react(),
+        svgr(),
         dts({ rollupTypes: true }),
     ],
     css: {
