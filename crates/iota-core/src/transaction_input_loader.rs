@@ -4,7 +4,6 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
     error::{IotaError, IotaResult, UserInputError},
@@ -120,16 +119,10 @@ impl TransactionInputLoader {
         &self,
         tx_digest: &TransactionDigest,
         input_object_kinds: &[InputObjectKind],
-        protocol_config: &ProtocolConfig,
     ) -> IotaResult<InputObjects> {
-        self.read_objects_for_synchronous_execution_impl(
-            Some(tx_digest),
-            input_object_kinds,
-            &[],
-            protocol_config,
-        )
-        .await
-        .map(|r| r.0)
+        self.read_objects_for_synchronous_execution_impl(Some(tx_digest), input_object_kinds, &[])
+            .await
+            .map(|r| r.0)
     }
 
     /// Read input objects for a dry run execution.
@@ -139,13 +132,11 @@ impl TransactionInputLoader {
         tx_digest: &TransactionDigest,
         input_object_kinds: &[InputObjectKind],
         receiving_objects: &[ObjectRef],
-        protocol_config: &ProtocolConfig,
     ) -> IotaResult<(InputObjects, ReceivingObjects)> {
         self.read_objects_for_synchronous_execution_impl(
             Some(tx_digest),
             input_object_kinds,
             receiving_objects,
-            protocol_config,
         )
         .await
     }
@@ -156,13 +147,11 @@ impl TransactionInputLoader {
         &self,
         input_object_kinds: &[InputObjectKind],
         receiving_objects: &[ObjectRef],
-        protocol_config: &ProtocolConfig,
     ) -> IotaResult<(InputObjects, ReceivingObjects)> {
         self.read_objects_for_synchronous_execution_impl(
             None,
             input_object_kinds,
             receiving_objects,
-            protocol_config,
         )
         .await
     }
@@ -290,7 +279,6 @@ impl TransactionInputLoader {
         _tx_digest: Option<&TransactionDigest>,
         input_object_kinds: &[InputObjectKind],
         receiving_objects: &[ObjectRef],
-        _protocol_config: &ProtocolConfig,
     ) -> IotaResult<(InputObjects, ReceivingObjects)> {
         let mut results = Vec::with_capacity(input_object_kinds.len());
         // Length of input_object_kinds have been checked via validity_check() for

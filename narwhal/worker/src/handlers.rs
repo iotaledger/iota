@@ -10,7 +10,6 @@ use anyhow::Result;
 use async_trait::async_trait;
 use config::{AuthorityIdentifier, Committee, WorkerCache, WorkerId};
 use fastcrypto::hash::Hash;
-use iota_protocol_config::ProtocolConfig;
 use itertools::Itertools;
 use network::{client::NetworkClient, WorkerToPrimaryClient};
 use store::{rocks::DBMap, Map};
@@ -30,7 +29,6 @@ pub mod handlers_tests;
 /// Defines how the network receiver handles incoming workers messages.
 #[derive(Clone)]
 pub struct WorkerReceiverHandler<V> {
-    pub protocol_config: ProtocolConfig,
     pub id: WorkerId,
     pub client: NetworkClient,
     pub store: DBMap<BatchDigest, Batch>,
@@ -118,7 +116,6 @@ pub struct PrimaryReceiverHandler<V> {
     pub id: WorkerId,
     // The committee information.
     pub committee: Committee,
-    pub protocol_config: ProtocolConfig,
     // The worker information cache.
     pub worker_cache: WorkerCache,
     // The batch store

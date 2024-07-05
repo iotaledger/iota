@@ -46,7 +46,7 @@ async fn propose_header_and_form_certificate_v2() {
     let (certificate_store, payload_store) = create_db_stores();
 
     // Create a fake header.
-    let proposed_header = primary.header(&cert_v2_config, &committee);
+    let proposed_header = primary.header(&committee);
 
     // Set up network.
     let own_address = committee
@@ -168,7 +168,7 @@ async fn propose_header_failure() {
     let (certificate_store, payload_store) = create_db_stores();
 
     // Create a fake header.
-    let proposed_header = primary.header(&latest_protocol_version(), &committee);
+    let proposed_header = primary.header(&committee);
 
     // Set up network.
     let own_address = committee
@@ -290,7 +290,7 @@ async fn run_vote_aggregator_with_param(
     let (certificate_store, payload_store) = create_db_stores();
 
     // Create a fake header.
-    let proposed_header = primary.header(&latest_protocol_version(), &committee);
+    let proposed_header = primary.header(&committee);
 
     // Set up network.
     let own_address = committee
