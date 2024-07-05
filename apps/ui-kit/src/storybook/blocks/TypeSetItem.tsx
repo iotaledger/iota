@@ -11,7 +11,7 @@ interface TypeSetItemProps {
 export function TypeSetItem({ sampleText, fontClass, fontSize, sizeText }: TypeSetItemProps) {
     return (
         <div className="flex flex-row items-center gap-x-4">
-            <div className="text-xs text-gray-500">{fontSize}</div>
+            <div className="text-label-md text-gray-500">{fontSize}</div>
             <div className={fontClass}>
                 {sampleText} {sizeText}
             </div>

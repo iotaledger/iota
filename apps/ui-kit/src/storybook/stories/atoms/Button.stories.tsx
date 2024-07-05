@@ -8,10 +8,11 @@ import { Button } from '@/components';
 const meta = {
     component: Button,
     tags: ['autodocs'],
-    render: (props) => {
+    render: (props, context) => {
+        const { darkmode } = context;
         return (
             <div className="flex flex-col items-start gap-2">
-                <Button {...props}>Primary</Button>
+                <Button {...props} darkmode={darkmode} />
             </div>
         );
     },
