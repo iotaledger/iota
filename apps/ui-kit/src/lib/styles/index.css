@@ -61,11 +61,11 @@
         }
 
         &:hover::after {
-            @apply opacity-[0.08];
+            @apply opacity-8;
         }
 
-        &:focus::after {
-            @apply opacity-[0.12];
+        &:active::after {
+            @apply opacity-12;
         }
     }
 

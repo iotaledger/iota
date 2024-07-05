@@ -13,6 +13,8 @@ import {
     DISABLED_BACKGROUND_COLORS,
 } from './button.classes';
 import cx from 'classnames';
+import { Theme } from '@/lib/enums';
+import { resolveThemedClasses } from '@/lib/utils';
 
 interface ButtonProps {
     /**
@@ -36,9 +38,14 @@ interface ButtonProps {
      */
     disabled?: boolean;
     /**
-     *
+     * The onClick event of the button.
      */
     onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+
+    /**
+     * Wheter to use the darkmode theme in this component.
+     */
+    darkmode?: boolean;
 }
 
 export function Button({
@@ -46,13 +53,22 @@ export function Button({
     text,
     disabled,
     onClick,
+    darkmode,
     size = ButtonSize.Medium,
     type = ButtonType.Primary,
 }: ButtonProps): React.JSX.Element {
+    const theme = darkmode ? Theme.Dark : Theme.Light;
     const paddingClasses = icon && !text ? PADDINGS_ONLY_ICON[size] : PADDINGS[size];
-    const backgroundColors = disabled ? DISABLED_BACKGROUND_COLORS[type] : BACKGROUND_COLORS[type];
-    const textColors = disabled ? TEXT_COLOR_DISABLED[type] : TEXT_COLORS[type];
     const textSizes = TEXT_CLASSES[size];
+
+    const backgroundColors = resolveThemedClasses(
+        disabled ? DISABLED_BACKGROUND_COLORS[type] : BACKGROUND_COLORS[type],
+        theme,
+    );
+    const textColors = resolveThemedClasses(
+        disabled ? TEXT_COLOR_DISABLED[type] : TEXT_COLORS[type],
+        theme,
+    );
     return (
         <button
             onClick={onClick}
