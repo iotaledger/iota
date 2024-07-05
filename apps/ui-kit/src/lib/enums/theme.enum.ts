@@ -1,5 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export * from './screenSize.enum';
-export * from './theme.enum';
+export enum Theme {
+    Dark = 'dark',
+    Light = 'light',
+}
