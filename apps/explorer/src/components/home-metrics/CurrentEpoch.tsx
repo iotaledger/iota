@@ -2,17 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { formatDate, formatAmountParts } from '@iota/core';
-import { Text, Heading } from '@iota/ui';
+import { formatAmountParts, formatDate } from '@iota/core';
+import { Heading, Text } from '@iota/ui';
 import { format, isToday, isYesterday } from 'date-fns';
 import { useMemo } from 'react';
 
-import { Checkpoint } from '~/components/home-metrics/Checkpoint';
+import { Checkpoint } from '~/components';
+import { Card, LinkWithQuery, ProgressBar } from '~/components/ui';
+import { ampli } from '~/lib/utils';
 import { useEpochProgress } from '~/pages/epochs/utils';
-import { Card } from '~/ui/Card';
-import { ProgressBar } from '~/ui/ProgressBar';
-import { LinkWithQuery } from '~/ui/LinkWithQuery';
-import { ampli } from '~/utils/analytics/ampli';
 
 export function CurrentEpoch(): JSX.Element {
     const { epoch, progress, label, end, start } = useEpochProgress();

@@ -16,7 +16,7 @@ module A0::m {
     }
 }
 
-//# upgrade --package A0 --upgrade-capability 1,2 --sender A
+//# upgrade --package A0 --upgrade-capability 1,1 --sender A
 module A1::m {
     use iota::package::{Self, Publisher};
 
@@ -33,6 +33,6 @@ module A1::m {
     }
 }
 
-//# run A1::m::test --type-args A0::m::A --args object(1,1) --sender A
+//# run A1::m::test --type-args A0::m::A --args object(1,0) --sender A
 
-//# run A1::m::test --type-args A1::m::B --args object(1,1) --sender A
+//# run A1::m::test --type-args A1::m::B --args object(1,0) --sender A
