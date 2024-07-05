@@ -4,17 +4,14 @@
 
 import { ChevronRight12 } from '@iota/icons';
 import { type IotaEvent } from '@iota/iota.js/client';
-import { parseStructTag, formatAddress } from '@iota/iota.js/utils';
+import { formatAddress, parseStructTag } from '@iota/iota.js/utils';
 import { Text } from '@iota/ui';
 import * as Collapsible from '@radix-ui/react-collapsible';
 import clsx from 'clsx';
 import { useState } from 'react';
 
-import { SyntaxHighlighter } from '~/components/syntax-highlighter';
-import { CopyToClipboard } from '~/ui/CopyToClipboard';
-import { DescriptionItem } from '~/ui/DescriptionList';
-import { Divider } from '~/ui/Divider';
-import { ObjectLink } from '~/ui/InternalLink';
+import { SyntaxHighlighter } from '~/components';
+import { CopyToClipboard, DescriptionItem, Divider, ObjectLink } from '~/components/ui';
 
 function Event({ event, divider }: { event: IotaEvent; divider: boolean }): JSX.Element {
     const [open, setOpen] = useState(false);
