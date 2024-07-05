@@ -39,6 +39,11 @@ import { ACCOUNTS_QUERY_KEY } from '../helpers/query-client-keys';
 import { queryClient } from '../helpers/queryClient';
 import { ACCOUNT_SOURCES_QUERY_KEY } from '../hooks/useAccountSources';
 import { AccountSourceType } from '_src/background/account-sources/AccountSource';
+import {
+    type GetAccountsFinderResultsRequest,
+    type InitAccountsFinder,
+    type SearchAccountsFinder,
+} from '_src/shared/messaging/messages/payloads/accounts-finder';
 
 const ENTITIES_TO_CLIENT_QUERY_KEYS: Record<UIAccessibleEntityType, QueryKey> = {
     accounts: ACCOUNTS_QUERY_KEY,
@@ -526,6 +531,47 @@ export class BackgroundClient {
                     type: 'method-payload',
                     method: 'removeAccount',
                     args,
+                }),
+            ).pipe(take(1)),
+        );
+    }
+
+    public async initAccountsFinder() {
+        await lastValueFrom(
+            this.sendMessage(
+                createMessage<InitAccountsFinder>({
+                    type: 'init-accounts-finder',
+                }),
+            ).pipe(take(1)),
+        );
+    }
+
+    public async searchAccountsFinder(
+        coinType: number,
+        gasType: string,
+        sourceID: string,
+        accountGapLimit: number,
+        addressGapLimit: number,
+    ) {
+        await lastValueFrom(
+            this.sendMessage(
+                createMessage<SearchAccountsFinder>({
+                    type: 'search-accounts-finder',
+                    coinType,
+                    gasType,
+                    sourceID,
+                    accountGapLimit,
+                    addressGapLimit,
+                }),
+            ).pipe(take(1)),
+        );
+    }
+
+    public async getLastAccountFinderResults() {
+        return await lastValueFrom(
+            this.sendMessage(
+                createMessage<GetAccountsFinderResultsRequest>({
+                    type: 'get-accounts-finder-results-request',
                 }),
             ).pipe(take(1)),
         );
