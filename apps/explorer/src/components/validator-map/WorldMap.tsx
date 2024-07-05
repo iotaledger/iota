@@ -9,12 +9,12 @@ import * as topojson from 'topojson-client';
 import { MapFeature } from './MapFeature';
 import { ValidatorLocation } from './ValidatorLocation';
 import world from './topology.json';
-import { type Feature, type ValidatorMapValidator } from './types';
+import { type ValidatorMapFeature, type ValidatorMapValidator } from '~/lib/ui';
 
 // @ts-expect-error: The types of `world` here aren't aligned but they are correct
 const land = topojson.feature(world, world.objects.countries) as unknown as {
     type: 'FeatureCollection';
-    features: Feature[];
+    features: ValidatorMapFeature[];
 };
 
 // We hide Antarctica because there will not be validators there:

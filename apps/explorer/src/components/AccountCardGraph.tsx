@@ -14,7 +14,7 @@ import { FormattedStatsAmount } from './home-metrics/FormattedStatsAmount';
 import { ErrorBoundary } from './error-boundary/ErrorBoundary';
 import { useGetAddressMetrics } from '~/hooks/useGetAddressMetrics';
 import { useGetAllEpochAddressMetrics } from '~/hooks/useGetAllEpochAddressMetrics';
-import { Card } from '~/ui/Card';
+import { Card } from '~/components/ui';
 
 const GRAPH_DATA_FIELD = 'cumulativeAddresses';
 const GRAPH_DATA_TEXT = 'Total accounts';
