@@ -91,11 +91,11 @@ function SendCoinPopup({
         <>
             <Dropdown
                 options={coins}
-                value={selectedCoin}
+                selectedOption={selectedCoin}
                 onChange={handleSelectedCoin}
                 placeholder="Select a coin to send"
                 disabled={step !== FormStep.EnterValues}
-                valueFromOption={(_selectedCoin) => _selectedCoin.coinType}
+                getOptionId={(_selectedCoin) => _selectedCoin.coinType}
             />
             {step === FormStep.EnterValues && (
                 <EnterValuesFormView

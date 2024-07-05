@@ -5,24 +5,24 @@ import React from 'react';
 
 interface DropdownProps<T> {
     options: T[];
-    value: T | null | undefined;
+    selectedOption: T | null | undefined;
     onChange: (selectedOption: T) => void;
     placeholder?: string;
     disabled?: boolean;
-    valueFromOption: (option: T) => string | number;
+    getOptionId: (option: T) => string | number;
 }
 
 function Dropdown<T>({
     options,
-    value,
+    selectedOption,
     onChange,
     placeholder,
     disabled = false,
-    valueFromOption: getValue,
+    getOptionId,
 }: DropdownProps<T>): JSX.Element {
     function handleSelectionChange(e: React.ChangeEvent<HTMLSelectElement>): void {
         const selectedKey = e.target.value;
-        const selectedOption = options.find((option) => getValue(option) === selectedKey);
+        const selectedOption = options.find((option) => getOptionId(option) === selectedKey);
         if (selectedOption) {
             onChange(selectedOption);
         }
@@ -30,7 +30,7 @@ function Dropdown<T>({
 
     return (
         <select
-            value={value ? getValue(value) : ''}
+            value={selectedOption ? getOptionId(selectedOption) : ''}
             onChange={handleSelectionChange}
             className="px-2 py-3"
             disabled={disabled}
@@ -42,8 +42,8 @@ function Dropdown<T>({
             )}
 
             {options.map((option, index) => (
-                <option key={index} value={getValue(option)}>
-                    {getValue(option)}
+                <option key={index} value={getOptionId(option)}>
+                    {getOptionId(option)}
                 </option>
             ))}
         </select>
