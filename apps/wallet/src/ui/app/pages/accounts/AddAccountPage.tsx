@@ -13,7 +13,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import Browser from 'webextension-polyfill';
 
 import {
-    CreateAccountType,
+    AccountsFormType,
     useAccountsFormContext,
 } from '../../components/accounts/AccountsFormContext';
 import { ConnectLedgerModal } from '../../components/ledger/ConnectLedgerModal';
@@ -71,9 +71,9 @@ export function AddAccountPage() {
                         variant="outline"
                         size="tall"
                         text="Create a new Passphrase Account"
-                        to="/accounts/protect-account?accountType=new-mnemonic"
+                        to={`/accounts/protect-account?accountsFormType=${AccountsFormType.NewMnemonic}`}
                         onClick={() => {
-                            setAccountsFormValues({ type: CreateAccountType.NewMnemonic });
+                            setAccountsFormValues({ type: AccountsFormType.NewMnemonic });
                             ampli.clickedCreateNewAccount({ sourceFlow });
                         }}
                         disabled={createAccountsMutation.isPending}
