@@ -202,6 +202,15 @@ const concepts = [
 			'concepts/tokenomics/gas-in-iota',
 		],
 	},
+	{
+		type: 'category',
+		label: 'Execution Architecture',
+		items: [
+			'concepts/execution-architecture/iota-execution',
+			'concepts/execution-architecture/adapter',
+			'concepts/execution-architecture/natives',
+		],
+	},
 	'concepts/research-papers',
 ];
 module.exports = concepts;
