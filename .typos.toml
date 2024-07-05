@@ -2,16 +2,12 @@
 extend-ignore-re = ["[a-zA-Z0-9]{44}", "[a-zA-Z0-9]{9}"]
 
 [default.extend-words]
-groth = "groth"
-strat = "strat"
-assing = "assing"
-tring = "tring"
 splitted = "splitted"
+# accepted plurals
 froms = "froms"
 alls = "alls"
-mistic = "mistic"
-nd = "nd"             # ordinal numbers (2nd, ...)
-
+# ordinal numbers (2nd, ...)
+nd = "nd"
 # random identifiers, variables, functions, ...
 dbe = "dbe"
 thr = "thr"
@@ -27,3 +23,9 @@ Ot = "Ot"
 Hel = "Hel"
 numer = "numer"
 ratatui = "ratatui"
+groth = "groth"
+strat = "strat"
+mistic = "mistic"
+# actual typos purposedly used in tests
+assing = "assing"
+tring = "tring"
