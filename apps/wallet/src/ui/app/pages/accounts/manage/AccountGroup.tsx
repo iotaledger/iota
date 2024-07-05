@@ -177,10 +177,16 @@ export function AccountGroup({
                                 {getGroupTitle(accounts[0])}
                             </Heading>
                             <div className="flex h-px flex-1 flex-shrink-0 bg-gray-45" />
-                            {ACCOUNTS_WITH_ENABLED_BALANCE_FINDER.includes(type) ? (
+                            {ACCOUNTS_WITH_ENABLED_BALANCE_FINDER.includes(type) && accountSource ? (
                                 <ButtonOrLink
                                     className="flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase text-hero outline-none hover:text-hero-darkest"
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                        // prevent the collapsible from closing when clicking the "new" button
+                                        e.stopPropagation();
+                                        if (accountSource.isLocked) {
+                                            setPasswordModalVisible(true);
+                                            return;
+                                        }
                                         navigate(
                                             `/accounts/manage/accounts-finder/${accountSourceID}`,
                                         );
