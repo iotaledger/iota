@@ -28,10 +28,10 @@ export function Overview({ output }: { output: DryRunTransactionBlockResponse })
         network,
         status:
             output.effects.status?.status === 'success'
-                ? '✅ Transaction dry run executed succesfully!'
+                ? '✅ Transaction dry run executed successfully!'
                 : output.effects.status?.status === 'failure'
-                ? '❌ Transaction failed to execute!'
-                : null,
+                  ? '❌ Transaction failed to execute!'
+                  : null,
 
         sender: (
             <span className="flex gap-2 items-center">

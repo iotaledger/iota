@@ -3,23 +3,27 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useGetObject } from '@iota/core';
-import { Banner } from '~/ui/Banner';
-import { Divider } from '~/ui/Divider';
-import { FieldsContent } from '~/pages/object-result/views/TokenView';
-import { TabHeader } from '~/ui/Tabs';
-import { ErrorBoundary } from '~/components/error-boundary/ErrorBoundary';
-import { TransactionsForAddressTable } from '~/components/transactions/TransactionsForAddress';
-import TransactionBlocksForAddress from '~/components/TransactionBlocksForAddress';
-import { useBreakpoint } from '~/hooks/useBreakpoint';
-import { OwnedCoins } from '~/components/OwnedCoins';
-import { OwnedObjects } from '~/components/OwnedObjects';
-import { LocalStorageSplitPaneKey, SplitPanes } from '~/ui/SplitPanes';
 import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
+import {
+    ErrorBoundary,
+    OwnedCoins,
+    OwnedObjects,
+    TransactionBlocksForAddress,
+    TransactionsForAddressTable,
+} from '~/components';
+import { Banner, Divider, SplitPanes, TabHeader } from '~/components/ui';
+import { useBreakpoint } from '~/hooks/useBreakpoint';
+import { LocalStorageSplitPaneKey } from '~/lib/enums';
+import { FieldsContent } from '~/pages/object-result/views/TokenView';
 
 const LEFT_RIGHT_PANEL_MIN_SIZE = 30;
 
-function OwnedObjectsSection({ address }: { address: string }) {
+interface OwnedObjectsSectionProps {
+    address: string;
+}
+
+function OwnedObjectsSection({ address }: OwnedObjectsSectionProps): JSX.Element {
     const isMediumOrAbove = useBreakpoint('md');
 
     const leftPane = {
@@ -67,7 +71,12 @@ function OwnedObjectsSection({ address }: { address: string }) {
     );
 }
 
-function TransactionsSection({ address, isObject }: { address: string; isObject: boolean }) {
+interface TransactionsSectionProps {
+    address: string;
+    isObject: boolean;
+}
+
+function TransactionsSection({ address, isObject }: TransactionsSectionProps): JSX.Element {
     const client = useIotaClient();
 
     const {
@@ -110,7 +119,12 @@ function TransactionsSection({ address, isObject }: { address: string; isObject:
     );
 }
 
-export function PageContent({ address, error }: { address: string; error?: Error | null }) {
+interface PageContentProps {
+    address: string;
+    error?: Error | null;
+}
+
+export function PageContent({ address, error }: PageContentProps): JSX.Element {
     const { data } = useGetObject(address);
     const isObject = !!data?.data;
 

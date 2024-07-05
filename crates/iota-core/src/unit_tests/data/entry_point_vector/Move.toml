@@ -6,4 +6,4 @@ version = "0.0.1"
 Iota = { local = "../../../../../iota-framework/packages/iota-framework" }
 
 [addresses]
-entry_point_vector =  "0x0"
+entry_point_vector = "0x0"

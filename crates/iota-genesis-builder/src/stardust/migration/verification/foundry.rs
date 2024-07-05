@@ -4,10 +4,10 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, ensure, Result};
-use iota_sdk::types::block::output::{FoundryOutput, TokenId};
+use iota_sdk::types::block::output::{FoundryOutput, OutputId, TokenId};
 use iota_types::{
-    base_types::IotaAddress, coin::CoinMetadata, in_memory_storage::InMemoryStorage, object::Owner,
-    Identifier,
+    base_types::IotaAddress, coin_manager::CoinManager, in_memory_storage::InMemoryStorage,
+    object::Owner, Identifier,
 };
 use move_core_types::language_storage::ModuleId;
 
@@ -17,20 +17,22 @@ use crate::stardust::{
         verification::{
             util::{
                 truncate_to_max_allowed_u64_supply, verify_address_owner, verify_coin,
-                verify_parent,
+                verify_parent, verify_shared_object,
             },
             CreatedObjects,
         },
     },
     native_token::package_data::NativeTokenPackageData,
-    types::{capped_coin::MaxSupplyPolicy, token_scheme::SimpleTokenSchemeU64},
+    types::token_scheme::SimpleTokenSchemeU64,
 };
 
 pub(super) fn verify_foundry_output(
+    output_id: OutputId,
     output: &FoundryOutput,
     created_objects: &CreatedObjects,
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
+    total_value: &mut u64,
 ) -> Result<()> {
     let foundry_data = foundry_data
         .get(&output.token_id())
@@ -42,38 +44,49 @@ pub(super) fn verify_foundry_output(
         .expect("foundry outputs always have an immutable alias address")
         .address();
 
-    // Coin value and owner
-    verify_coin(output.amount(), alias_address, created_objects, storage)?;
-
-    // Minted coin value
-    let minted_coin_id = created_objects.minted_coin()?;
-    let minted_coin_obj = storage
-        .get_object(minted_coin_id)
-        .ok_or_else(|| anyhow!("missing coin"))?;
-    let minted_coin = minted_coin_obj
+    // Amount coin value and owner
+    let created_coin_obj = created_objects.coin().and_then(|id| {
+        storage
+            .get_object(id)
+            .ok_or_else(|| anyhow!("missing coin"))
+    })?;
+    let created_coin = created_coin_obj
         .as_coin_maybe()
         .ok_or_else(|| anyhow!("expected a coin"))?;
 
-    // Minted coins are transferred to `0x0`
+    verify_address_owner(alias_address, created_coin_obj, "coin")?;
+    verify_coin(output.amount(), &created_coin)?;
+    *total_value += created_coin.value();
+
+    // Native token coin value
+    let native_token_coin_id = created_objects.native_token_coin()?;
+    let native_token_coin_obj = storage
+        .get_object(native_token_coin_id)
+        .ok_or_else(|| anyhow!("missing native token coin"))?;
+    let native_token_coin = native_token_coin_obj
+        .as_coin_maybe()
+        .ok_or_else(|| anyhow!("expected a native token coin"))?;
+
+    // The minted native token coin should be owned by `0x0`
     let expected_owner = Owner::AddressOwner(IotaAddress::default());
     ensure!(
-        minted_coin_obj.owner == expected_owner,
-        "minted coin owner mismatch: found {}, expected {}",
-        minted_coin_obj.owner,
+        native_token_coin_obj.owner == expected_owner,
+        "native token coin owner mismatch: found {}, expected {}",
+        native_token_coin_obj.owner,
         expected_owner
     );
 
     ensure!(
-        foundry_data.minted_coin_id == *minted_coin_id,
+        foundry_data.native_token_coin_id == *native_token_coin_id,
         "coin ID mismatch: found {}, expected {}",
-        foundry_data.minted_coin_id,
-        minted_coin_id
+        foundry_data.native_token_coin_id,
+        native_token_coin_id
     );
 
     ensure!(
-        minted_coin.value() == foundry_data.minted_value,
+        native_token_coin.value() == foundry_data.minted_value,
         "minted coin amount mismatch: found {}, expected {}",
-        minted_coin.value(),
+        native_token_coin.value(),
         foundry_data.minted_value
     );
 
@@ -140,43 +153,57 @@ pub(super) fn verify_foundry_output(
         expected_token_scheme_u64
     );
 
-    // Coin Metadata
-    let minted_coin = created_objects
-        .coin_metadata()
-        .and_then(|id| {
+    // Coin Manager
+    let coin_manager = created_objects.coin_manager().and_then(|id| {
+        storage
+            .get_object(id)
+            .ok_or(anyhow!("missing coin manager"))
+            .and_then(|obj| {
+                verify_shared_object(obj, "coin manager").map(|_| {
+                    obj.to_rust::<CoinManager>()
+                        .ok_or(anyhow!("expected a coin manager"))
+                })?
+            })
+    })?;
+
+    let coin_manager_treasury_cap_obj =
+        created_objects.coin_manager_treasury_cap().and_then(|id| {
             storage
                 .get_object(id)
-                .ok_or_else(|| anyhow!("missing coin metadata"))
-        })?
-        .to_rust::<CoinMetadata>()
-        .ok_or_else(|| anyhow!("expected a coin metadata"))?;
+                .ok_or_else(|| anyhow!("missing coin manager treasury cap"))
+        })?;
+
+    // Coin Metadata
+    let coin_metadata = coin_manager
+        .metadata
+        .ok_or(anyhow!("missing coin metadata"))?;
 
     ensure!(
-        minted_coin.decimals == expected_package_data.module().decimals,
+        coin_metadata.decimals == expected_package_data.module().decimals,
         "coin decimals mismatch: expected {}, found {}",
         expected_package_data.module().decimals,
-        minted_coin.decimals
+        coin_metadata.decimals
     );
     ensure!(
-        minted_coin.name == expected_package_data.module().coin_name,
+        coin_metadata.name == expected_package_data.module().coin_name,
         "coin name mismatch: expected {}, found {}",
         expected_package_data.module().coin_name,
-        minted_coin.name
+        coin_metadata.name
     );
     ensure!(
-        minted_coin.symbol == expected_package_data.module().symbol,
+        coin_metadata.symbol == expected_package_data.module().symbol,
         "coin symbol mismatch: expected {}, found {}",
         expected_package_data.module().symbol,
-        minted_coin.symbol
+        coin_metadata.symbol
     );
     ensure!(
-        minted_coin.description == expected_package_data.module().coin_description,
+        coin_metadata.description == expected_package_data.module().coin_description,
         "coin description mismatch: expected {}, found {}",
         expected_package_data.module().coin_description,
-        minted_coin.description
+        coin_metadata.description
     );
     ensure!(
-        minted_coin.icon_url
+        coin_metadata.icon_url
             == expected_package_data
                 .module()
                 .icon_url
@@ -184,38 +211,37 @@ pub(super) fn verify_foundry_output(
                 .map(|u| u.to_string()),
         "coin icon url mismatch: expected {:?}, found {:?}",
         expected_package_data.module().icon_url,
-        minted_coin.icon_url
+        coin_metadata.icon_url
     );
 
     // Maximum Supply
-    let max_supply_policy_obj = created_objects.max_supply_policy().and_then(|id| {
-        storage
-            .get_object(id)
-            .ok_or_else(|| anyhow!("missing max supply policy"))
-    })?;
-    let max_supply_policy = max_supply_policy_obj
-        .to_rust::<MaxSupplyPolicy>()
-        .ok_or_else(|| anyhow!("expected a max supply policy"))?;
+    let max_supply = coin_manager
+        .maximum_supply
+        .ok_or(anyhow!("missing max supply"))?;
 
     ensure!(
-        max_supply_policy.maximum_supply == expected_package_data.module().maximum_supply,
+        max_supply == expected_package_data.module().maximum_supply,
         "maximum supply mismatch: expected {}, found {}",
         expected_package_data.module().maximum_supply,
-        max_supply_policy.maximum_supply
+        max_supply
     );
     let circulating_supply =
         truncate_to_max_allowed_u64_supply(output.token_scheme().as_simple().circulating_supply());
     ensure!(
-        max_supply_policy.treasury_cap.total_supply.value == circulating_supply,
+        coin_manager.treasury_cap.total_supply.value == circulating_supply,
         "treasury total supply mismatch: found {}, expected {}",
-        max_supply_policy.treasury_cap.total_supply.value,
+        coin_manager.treasury_cap.total_supply.value,
         circulating_supply
     );
 
     // Alias Address Unlock Condition
-    verify_address_owner(alias_address, max_supply_policy_obj, "max supply policy")?;
+    verify_address_owner(
+        alias_address,
+        coin_manager_treasury_cap_obj,
+        "coin manager treasury cap",
+    )?;
 
-    verify_parent(alias_address, storage)?;
+    verify_parent(&output_id, alias_address, storage)?;
 
     ensure!(
         created_objects.output().is_err(),

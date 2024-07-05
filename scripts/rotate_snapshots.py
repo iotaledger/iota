@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 # Copyright (c) Mysten Labs, Inc.
-# SPDX-License-Identifier: Apache-2.0
-
 # Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
@@ -30,12 +28,13 @@ def usage():
     print(
         f'   --dir=<iota-base-dir>   Base directory for iota. Must contain /snapshots and /instances dirs')
     print('  --help                 Print this help message')
-    
+
 
 def is_referenced(root_dir, filepath):
     instances_dir = os.path.join(root_dir, 'instances')
     try:
-        result = subprocess.check_output(['find', '-L', instances_dir, '-samefile', filepath])
+        result = subprocess.check_output(
+            ['find', '-L', instances_dir, '-samefile', filepath])
     except subprocess.CalledProcessError as e:
         print(f'find command failed with error {e.returncode}: {e.output}')
         exit(1)
@@ -63,21 +62,24 @@ def main(argv):
         elif opt == '--dir':
             root_dir = arg
             env = arg
-    
+
     os.chdir(root_dir)
     snapshots_dir = os.path.join(root_dir, 'snapshots')
     contents = os.listdir(snapshots_dir)
     epoch_dirs = [path for path in contents if 'epoch_' in path]
     epochs = [int(epoch_dir.split('epoch_')[1]) for epoch_dir in epoch_dirs]
     latest_epoch = max(epochs)
-    paths_to_rotate = [epoch_dir for epoch_dir in epoch_dirs if str(latest_epoch) not in epoch_dir]
+    paths_to_rotate = [epoch_dir for epoch_dir in epoch_dirs if str(
+        latest_epoch) not in epoch_dir]
     for path in paths_to_rotate:
         snapshot_path = os.path.join(snapshots_dir, path)
         if not is_referenced(root_dir, snapshot_path):
-            print(f'Old snapshot at {snapshot_path} is not referenced by any running processes. Deleting...')
+            print(
+                f'Old snapshot at {snapshot_path} is not referenced by any running processes. Deleting...')
             shutil.rmtree(snapshot_path, ignore_errors=True)
     print('Finished rotating snapshots on host')
     exit(0)
+
 
 if __name__ == "__main__":
     main(sys.argv[1:])

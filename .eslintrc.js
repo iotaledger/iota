@@ -32,6 +32,7 @@ module.exports = {
         'external-crates',
         'storybook-static',
         '**/*.config.js',
+        '**/*.config.ts',
         '**/preprocess.mjs',
         '**/storybook-static',
         '**/node_modules',
@@ -42,7 +43,7 @@ module.exports = {
         '**/dist/',
         '**/.next/',
         '**/.swc/',
-        '**/out/'
+        '**/out/',
     ],
     rules: {
         'no-case-declarations': 'off',
@@ -213,7 +214,7 @@ module.exports = {
                                 name: 'react-router-dom',
                                 importNames: ['Link', 'useNavigate', 'useSearchParams'],
                                 message:
-                                    'Please use `LinkWithQuery`, `useSearchParamsMerged`, and `useNavigateWithQuery` from "~/ui/utils/LinkWithQuery" instead.',
+                                    'Please use `LinkWithQuery`, `useSearchParamsMerged`, and `useNavigateWithQuery` from "~/components/ui/LinkWithQuery" instead.',
                             },
                         ],
                     },
@@ -257,9 +258,9 @@ module.exports = {
             },
         },
         {
-            files: ['sdk/ledgerjs-hw-app-sui/**/*', 'apps/wallet/**/*'],
+            files: ['sdk/ledgerjs-hw-app-iota/**/*', 'apps/wallet/**/*'],
             rules: {
-                // ledgerjs-hw-app-sui and wallet use Buffer
+                // ledgerjs-hw-app-iota and wallet use Buffer
                 'no-restricted-globals': ['off'],
                 '@typescript-eslint/ban-types': ['off'],
             },

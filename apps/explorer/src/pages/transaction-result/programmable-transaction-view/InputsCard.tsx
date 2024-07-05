@@ -5,9 +5,8 @@
 import { type IotaCallArg } from '@iota/iota.js/client';
 import { Text } from '@iota/ui';
 
-import { ProgrammableTxnBlockCard } from '~/components/transactions/ProgTxnBlockCard';
-import { AddressLink, ObjectLink } from '~/ui/InternalLink';
-import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
+import { ProgrammableTxnBlockCard } from '~/components';
+import { AddressLink, CollapsibleSection, ObjectLink } from '~/components/ui';
 
 const REGEX_NUMBER = /^\d+$/;
 
@@ -15,7 +14,7 @@ interface InputsCardProps {
     inputs: IotaCallArg[];
 }
 
-export function InputsCard({ inputs }: InputsCardProps) {
+export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
     if (!inputs?.length) {
         return null;
     }

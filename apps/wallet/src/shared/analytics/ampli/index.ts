@@ -25,7 +25,7 @@ import * as amplitude from '@amplitude/analytics-browser';
 
 export type Environment = 'production' | 'development';
 
-export const ApiKey: Record<Environment, string> = {
+const API_KEY: Record<Environment, string> = {
     production: '05c63856469c4e1d4aa9a6c1b2298d3b',
     development: '938968357fcb3bf031d27b5049f62449',
 };
@@ -33,7 +33,7 @@ export const ApiKey: Record<Environment, string> = {
 /**
  * Default Amplitude configuration options. Contains tracking plan information.
  */
-export const DefaultConfiguration: BrowserOptions = {
+const DEFAULT_CONFIGURATION: BrowserOptions = {
     plan: {
         version: '3',
         branch: 'main',
@@ -109,9 +109,9 @@ export interface AddedAccountsProperties {
      *
      * | Rule | Value |
      * |---|---|
-     * | Enum Values | Ledger, Derived, Imported, Zklogin |
+     * | Enum Values | Ledger, Derived, Private Key|
      */
-    accountType: 'Ledger' | 'Derived' | 'Imported' | 'Zklogin';
+    accountType: 'Ledger' | 'Derived' | 'Private Key';
     /**
      * The number of accounts imported.
      *
@@ -167,21 +167,6 @@ export interface ClickedImportPassphraseProperties {
 }
 
 export interface ClickedImportPrivateKeyProperties {
-    /**
-     * The flow the user came from.
-     */
-    sourceFlow: string;
-}
-
-export interface ClickedSocialSignInButtonProperties {
-    /**
-     * The name (e.g., Microsoft) of a social sign-in provider.
-     *
-     * | Rule | Value |
-     * |---|---|
-     * | Enum Values | Microsoft, Facebook, Google, Twitch, Kakao |
-     */
-    signInProvider: 'Microsoft' | 'Facebook' | 'Google' | 'Twitch' | 'Kakao';
     /**
      * The flow the user came from.
      */
@@ -467,14 +452,6 @@ export class ClickedImportPrivateKey implements BaseEvent {
     }
 }
 
-export class ClickedSocialSignInButton implements BaseEvent {
-    event_type = 'clicked social sign in button';
-
-    constructor(public event_properties: ClickedSocialSignInButtonProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
 export class ClickedStakeIota implements BaseEvent {
     event_type = 'clicked stake IOTA';
 
@@ -682,7 +659,7 @@ export class Ampli {
     if (options.client && 'apiKey' in options.client) {
       apiKey = options.client.apiKey;
     } else if ('environment' in options) {
-      apiKey = ApiKey[options.environment];
+      apiKey = API_KEY[options.environment];
     }
 
     if (options.client && 'instance' in options.client) {
@@ -690,7 +667,7 @@ export class Ampli {
     } else if (apiKey) {
       this.amplitude = amplitude.createInstance();
       const configuration = (options.client && 'configuration' in options.client) ? options.client.configuration : {};
-      return this.amplitude.init(apiKey, undefined, { ...DefaultConfiguration, ...configuration });
+      return this.amplitude.init(apiKey, undefined, { ...DEFAULT_CONFIGURATION, ...configuration });
     } else {
       console.error("ERROR: ampli.load() requires 'environment', 'client.apiKey', or 'client.instance'");
     }
@@ -928,23 +905,6 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new ClickedImportPrivateKey(properties), options);
-  }
-
-  /**
-   * clicked social sign in button
-   *
-   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Iota%20Wallet/events/main/latest/clicked%20social%20sign%20in%20button)
-   *
-   * When users click a social sign-in button to create an account.
-   *
-   * @param properties The event's properties (e.g. signInProvider)
-   * @param options Amplitude event options.
-   */
-  clickedSocialSignInButton(
-    properties: ClickedSocialSignInButtonProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new ClickedSocialSignInButton(properties), options);
   }
 
   /**

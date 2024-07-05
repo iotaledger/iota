@@ -9,12 +9,12 @@ import * as topojson from 'topojson-client';
 import { MapFeature } from './MapFeature';
 import { ValidatorLocation } from './ValidatorLocation';
 import world from './topology.json';
-import { type Feature, type ValidatorMapValidator } from './types';
+import { type ValidatorMapFeature, type ValidatorMapValidator } from '~/lib/ui';
 
 // @ts-expect-error: The types of `world` here aren't aligned but they are correct
 const land = topojson.feature(world, world.objects.countries) as unknown as {
     type: 'FeatureCollection';
-    features: Feature[];
+    features: ValidatorMapFeature[];
 };
 
 // We hide Antarctica because there will not be validators there:
@@ -23,7 +23,7 @@ const filteredLand = land.features.filter(
     (feature) => !HIDDEN_REGIONS.includes(feature.properties.name),
 );
 
-interface Props {
+interface BaseWorldMapProps {
     width: number;
     height: number;
     validators?: ValidatorMapValidator[];
@@ -31,7 +31,13 @@ interface Props {
     onMouseOut(): void;
 }
 
-function BaseWorldMap({ onMouseOver, onMouseOut, width, height, validators }: Props) {
+function BaseWorldMap({
+    onMouseOver,
+    onMouseOut,
+    width,
+    height,
+    validators,
+}: BaseWorldMapProps): JSX.Element {
     const centerX = width / 2;
     const centerY = height / 2;
 

@@ -5,12 +5,12 @@
 import { type IotaMoveNormalizedType } from '@iota/iota.js/client';
 import { normalizeIotaAddress } from '@iota/iota.js/utils';
 import cl from 'clsx';
-import Highlight, { defaultProps, Prism } from 'prism-react-renderer';
+import { Highlight, Prism } from 'prism-react-renderer';
 import 'prism-themes/themes/prism-one-light.css';
 import { useMemo } from 'react';
 
 import { useNormalizedMoveModule } from '~/hooks/useNormalizedMoveModule';
-import { LinkWithQuery } from '~/ui/utils/LinkWithQuery';
+import { LinkWithQuery } from '~/components/ui';
 
 import type { Language } from 'prism-react-renderer';
 
@@ -18,12 +18,11 @@ import styles from './ModuleView.module.css';
 
 // Include Rust language support.
 // TODO: Write a custom prismjs syntax for Move Bytecode.
-// @ts-expect-error: Defining global prism object:
 globalThis.Prism = Prism;
 // @ts-expect-error: This file is untyped:
 import('prismjs/components/prism-rust').catch(() => {});
 
-interface Props {
+interface ModuleViewProps {
     id?: string;
     name: string;
     code: string;
@@ -55,7 +54,7 @@ function unwrapTypeReference(type: IotaMoveNormalizedType): null | TypeReference
     return null;
 }
 
-function ModuleView({ id, name, code }: Props) {
+function ModuleView({ id, name, code }: ModuleViewProps): JSX.Element {
     const { data: normalizedModule } = useNormalizedMoveModule(id, name);
     const normalizedModuleReferences = useMemo(() => {
         const typeReferences: Record<string, TypeReference> = {};
@@ -81,12 +80,7 @@ function ModuleView({ id, name, code }: Props) {
     return (
         <section className={styles.modulewrapper}>
             <div className={cl(styles.code, styles.codeview)}>
-                <Highlight
-                    {...defaultProps}
-                    code={code}
-                    language={'rust' as Language}
-                    theme={undefined}
-                >
+                <Highlight code={code} language={'rust' as Language} theme={undefined}>
                     {({ className, style, tokens, getLineProps, getTokenProps }) => (
                         <pre className={className} style={style}>
                             {tokens.map((line, i) => (

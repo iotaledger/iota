@@ -5,9 +5,9 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 
-import { ampli } from '~/utils/analytics/ampli';
+import { ampli } from '~/lib/utils';
 
-export function useInitialPageView(activeNetwork: string) {
+export function useInitialPageView(activeNetwork: string): void {
     const location = useLocation();
 
     // Set user properties for the user's page information

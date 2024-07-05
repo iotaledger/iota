@@ -10,24 +10,25 @@ import Alert from '_components/alert';
 import LoadingIndicator from '_components/loading/LoadingIndicator';
 import { ampli } from '_src/shared/analytics/ampli';
 import {
+    formatDelegatedStake,
+    useGetDelegatedStake,
+    useTotalDelegatedRewards,
+    useTotalDelegatedStake,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
-} from '_src/shared/constants';
-import { useGetDelegatedStake } from '@iota/core';
+} from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Plus12 } from '@iota/icons';
-import type { StakeObject } from '@iota/iota.js/client';
 import { useMemo } from 'react';
 
 import { useActiveAddress } from '../../hooks/useActiveAddress';
-import { getAllStakeIota } from '../getAllStakeIota';
 import { StakeAmount } from '../home/StakeAmount';
-import { StakeCard, type DelegationObjectWithValidator } from '../home/StakedCard';
+import { StakeCard } from '../home/StakedCard';
 
 export function ValidatorsCard() {
     const accountAddress = useActiveAddress();
     const {
-        data: delegatedStake,
+        data: delegatedStakeData,
         isPending,
         isError,
         error,
@@ -39,15 +40,13 @@ export function ValidatorsCard() {
 
     const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const activeValidators = system?.activeValidators;
+    const delegatedStake = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
 
     // Total active stake for all Staked validators
-    const totalStake = useMemo(() => {
-        if (!delegatedStake) return 0n;
-        return getAllStakeIota(delegatedStake);
-    }, [delegatedStake]);
+    const totalDelegatedStake = useTotalDelegatedStake(delegatedStake);
 
     const delegations = useMemo(() => {
-        return delegatedStake?.flatMap((delegation) => {
+        return delegatedStakeData?.flatMap((delegation) => {
             return delegation.stakes.map((d) => ({
                 ...d,
                 // flag any inactive validator for the stakeIota object
@@ -66,22 +65,10 @@ export function ValidatorsCard() {
     );
 
     // Get total rewards for all delegations
-    const totalEarnTokenReward = useMemo(() => {
-        if (!delegatedStake || !activeValidators) return 0n;
-        return (
-            delegatedStake.reduce(
-                (acc, curr) =>
-                    curr.stakes.reduce(
-                        (total, { estimatedReward }: StakeObject & { estimatedReward?: string }) =>
-                            total + BigInt(estimatedReward || 0),
-                        acc,
-                    ),
-                0n,
-            ) || 0n
-        );
-    }, [delegatedStake, activeValidators]);
+    const delegatedStakes = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
+    const totalDelegatedRewards = useTotalDelegatedRewards(delegatedStakes);
 
-    const numberOfValidators = delegatedStake?.length || 0;
+    const numberOfValidators = delegatedStakeData?.length || 0;
 
     if (isPending) {
         return (
@@ -120,9 +107,7 @@ export function ValidatorsCard() {
                                     ?.filter(({ inactiveValidator }) => inactiveValidator)
                                     .map((delegation) => (
                                         <StakeCard
-                                            delegationObject={
-                                                delegation as DelegationObjectWithValidator
-                                            }
+                                            extendedStake={delegation}
                                             currentEpoch={Number(system.epoch)}
                                             key={delegation.stakedIotaId}
                                             inactiveValidator
@@ -146,11 +131,11 @@ export function ValidatorsCard() {
                         >
                             <div className="flex divide-x divide-y-0 divide-solid divide-gray-45">
                                 <CardItem title="Your Stake">
-                                    <StakeAmount balance={totalStake} variant="heading5" />
+                                    <StakeAmount balance={totalDelegatedStake} variant="heading5" />
                                 </CardItem>
                                 <CardItem title="Earned">
                                     <StakeAmount
-                                        balance={totalEarnTokenReward}
+                                        balance={totalDelegatedRewards}
                                         variant="heading5"
                                         isEarnedRewards
                                     />
@@ -164,9 +149,7 @@ export function ValidatorsCard() {
                                     ?.filter(({ inactiveValidator }) => !inactiveValidator)
                                     .map((delegation) => (
                                         <StakeCard
-                                            delegationObject={
-                                                delegation as DelegationObjectWithValidator
-                                            }
+                                            extendedStake={delegation}
                                             currentEpoch={Number(system.epoch)}
                                             key={delegation.stakedIotaId}
                                         />

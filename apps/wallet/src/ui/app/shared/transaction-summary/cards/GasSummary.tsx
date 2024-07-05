@@ -10,7 +10,11 @@ import { formatAddress } from '@iota/iota.js/utils';
 
 import { Text } from '../../text';
 
-export function GasSummary({ gasSummary }: { gasSummary?: GasSummaryType }) {
+interface GasSummaryProps {
+    gasSummary?: GasSummaryType;
+}
+
+export function GasSummary({ gasSummary }: GasSummaryProps) {
     const [gas, symbol] = useFormatCoin(gasSummary?.totalGas, GAS_TYPE_ARG);
     const address = useActiveAddress();
 
@@ -51,7 +55,7 @@ export function GasSummary({ gasSummary }: { gasSummary?: GasSummaryType }) {
                                 Sponsor
                             </Text>
                             <ExplorerLink
-                                type={ExplorerLinkType.address}
+                                type={ExplorerLinkType.Address}
                                 address={gasSummary.owner}
                                 className="text-hero-dark no-underline"
                             >

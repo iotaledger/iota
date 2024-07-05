@@ -5,30 +5,27 @@
 import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
 import {
     parseSerializedSignature,
-    type SignatureScheme,
     type PublicKey,
+    type SignatureScheme,
 } from '@iota/iota.js/cryptography';
 import { parsePartialSignatures } from '@iota/iota.js/multisig';
-import { toB64, normalizeIotaAddress } from '@iota/iota.js/utils';
+import { normalizeIotaAddress, toB64 } from '@iota/iota.js/utils';
 import { publicKeyFromRawBytes } from '@iota/iota.js/verify';
 import { Text } from '@iota/ui';
 
-import { DescriptionItem, DescriptionList } from '~/ui/DescriptionList';
-import { AddressLink } from '~/ui/InternalLink';
-import { TabHeader } from '~/ui/Tabs';
+import { AddressLink, DescriptionItem, DescriptionList, TabHeader } from '~/components/ui';
 
 type SignaturePubkeyPair = {
     signatureScheme: SignatureScheme;
     signature: Uint8Array;
 } & ({ address: string } | { publicKey: PublicKey });
 
-function SignaturePanel({
-    title,
-    signature: data,
-}: {
+interface SignaturePanelProps {
     title: string;
     signature: SignaturePubkeyPair;
-}) {
+}
+
+function SignaturePanel({ title, signature: data }: SignaturePanelProps): JSX.Element {
     const { signature, signatureScheme } = data;
     return (
         <TabHeader title={title}>
@@ -79,11 +76,11 @@ function getSignaturesExcludingAddress(
             normalizeIotaAddress(iotaAddress),
     );
 }
-interface Props {
+interface SignaturesProps {
     transaction: IotaTransactionBlockResponse;
 }
 
-export function Signatures({ transaction }: Props) {
+export function Signatures({ transaction }: SignaturesProps) {
     const sender = transaction.transaction?.data.sender;
     const gasData = transaction.transaction?.data.gasData;
     const transactionSignatures = transaction.transaction?.txSignatures;

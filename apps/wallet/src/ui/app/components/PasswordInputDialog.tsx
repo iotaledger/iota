@@ -21,7 +21,7 @@ const validation = object({
     password: YupString().ensure().required().label('Password'),
 });
 
-export type PasswordExportDialogProps = {
+export interface PasswordExportDialogProps {
     title: string;
     continueLabel?: string;
     showArrowIcon?: boolean;
@@ -30,8 +30,7 @@ export type PasswordExportDialogProps = {
     showBackButton?: boolean;
     spacing?: boolean;
     background?: boolean;
-    legacyAccounts?: boolean;
-};
+}
 
 /** @deprecated - use UnlockAccountModal instead **/
 export function PasswordInputDialog({
@@ -43,7 +42,6 @@ export function PasswordInputDialog({
     onPasswordVerified,
     onBackClicked,
     showBackButton = false,
-    legacyAccounts = false,
 }: PasswordExportDialogProps) {
     const navigate = useNavigate();
     const backgroundService = useBackgroundClient();
@@ -52,7 +50,7 @@ export function PasswordInputDialog({
             initialValues={{ password: '' }}
             onSubmit={async ({ password }, { setFieldError }) => {
                 try {
-                    await backgroundService.verifyPassword({ password, legacyAccounts });
+                    await backgroundService.verifyPassword({ password });
                     try {
                         await onPasswordVerified(password);
                     } catch (e) {

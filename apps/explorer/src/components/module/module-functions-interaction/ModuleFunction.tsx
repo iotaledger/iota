@@ -3,25 +3,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useZodForm } from '@iota/core';
-import { ArrowRight12 } from '@iota/icons';
-import { TransactionBlock, getPureSerializationType } from '@iota/iota.js/transactions';
-import { Button } from '@iota/ui';
 import {
     ConnectButton,
     useCurrentAccount,
     useSignAndExecuteTransactionBlock,
 } from '@iota/dapp-kit';
+import { ArrowRight12 } from '@iota/icons';
+import { TransactionBlock, getPureSerializationType } from '@iota/iota.js/transactions';
+import { Button } from '@iota/ui';
 import { useMutation } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useMemo } from 'react';
 import { useWatch } from 'react-hook-form';
 import { z } from 'zod';
 
+import { DisclosureBox, Input } from '~/components/ui';
+import { useFunctionParamsDetails, useFunctionTypeArguments } from '~/hooks';
 import { FunctionExecutionResult } from './FunctionExecutionResult';
-import { useFunctionParamsDetails } from './useFunctionParamsDetails';
-import { useFunctionTypeArguments } from './useFunctionTypeArguments';
-import { DisclosureBox } from '~/ui/DisclosureBox';
-import { Input } from '~/ui/Input';
 
 import type { IotaMoveNormalizedFunction } from '@iota/iota.js/client';
 import type { TypeOf } from 'zod';
@@ -31,7 +29,7 @@ const argsSchema = z.object({
     types: z.optional(z.array(z.string().trim().min(1))),
 });
 
-export type ModuleFunctionProps = {
+type ModuleFunctionProps = {
     packageId: string;
     moduleName: string;
     functionName: string;
@@ -45,7 +43,7 @@ export function ModuleFunction({
     moduleName,
     functionName,
     functionDetails,
-}: ModuleFunctionProps) {
+}: ModuleFunctionProps): JSX.Element {
     const currentAccount = useCurrentAccount();
     const { mutateAsync: signAndExecuteTransactionBlock } = useSignAndExecuteTransactionBlock();
     const { handleSubmit, formState, register, control } = useZodForm({
@@ -59,10 +57,10 @@ export function ModuleFunction({
         () => typeArguments.map((aType, index) => formTypeInputs?.[index] || aType),
         [typeArguments, formTypeInputs],
     );
-    const paramsDetails = useFunctionParamsDetails(
-        functionDetails.parameters,
-        resolvedTypeArguments,
-    );
+    const paramsDetails = useFunctionParamsDetails({
+        params: functionDetails.parameters,
+        functionTypeArgNames: resolvedTypeArguments,
+    });
 
     const execute = useMutation({
         mutationFn: async ({ params, types }: TypeOf<typeof argsSchema>) => {

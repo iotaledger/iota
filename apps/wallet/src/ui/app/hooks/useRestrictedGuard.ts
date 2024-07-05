@@ -2,32 +2,27 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { getAppsBackend } from '@iota/iota.js/client';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 export const RESTRICTED_ERROR = {
     status: 403,
-    body: 'error code: 1020',
 };
 
 export function useRestrictedGuard() {
     const navigate = useNavigate();
     const location = useLocation();
+    const backendUrl = getAppsBackend();
 
     const { data } = useQuery({
-        queryKey: ['restricted-guard'],
+        queryKey: ['restricted-guard', backendUrl],
         queryFn: async () => {
             // NOTE: We use fetch directly here instead of the RPC layer because we don't want this instrumented,
             // and we also need to work with the response object directly.
-            const res = await fetch('https://wallet-rpc.testnet.iota.io/', {
+            const res = await fetch(`${backendUrl}/api/restricted/`, {
                 method: 'POST',
-                body: JSON.stringify({
-                    id: 1,
-                    method: 'iota_getLatestCheckpointSequenceNumber',
-                    jsonrpc: '2.0',
-                    params: [],
-                }),
                 headers: {
                     // Resetting accept makes the response non-HTML
                     accept: '',
@@ -35,12 +30,7 @@ export function useRestrictedGuard() {
                 },
             });
 
-            if (res.status === RESTRICTED_ERROR.status) {
-                const body = await res.text();
-                return { restricted: body === RESTRICTED_ERROR.body };
-            }
-
-            return { restricted: false };
+            return { restricted: res.status === RESTRICTED_ERROR.status };
         },
         gcTime: 0,
         retry: 0,

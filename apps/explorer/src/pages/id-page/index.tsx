@@ -2,30 +2,27 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useParams } from 'react-router-dom';
 import {
     isIotaNSName,
     useGetObject,
     useResolveIotaNSAddress,
     useResolveIotaNSName,
 } from '@iota/core';
-import { PageLayout } from '~/components/Layout/PageLayout';
-import { PageHeader } from '~/ui/PageHeader';
 import { ObjectDetailsHeader } from '@iota/icons';
+import { useParams } from 'react-router-dom';
+import { ErrorBoundary, PageLayout } from '~/components';
 import { TotalStaked } from '~/pages/address-result/TotalStaked';
-import { ErrorBoundary } from '~/components/error-boundary/ErrorBoundary';
-import { ObjectView } from '~/pages/object-result/views/ObjectView';
 import { PageContent } from '~/pages/id-page/PageContent';
+import { ObjectView } from '~/pages/object-result/views/ObjectView';
+import { PageHeader } from '~/components/ui';
 
-function Header({
-    address,
-    loading,
-    error,
-}: {
+interface HeaderProps {
     address: string;
     loading?: boolean;
     error?: Error | null;
-}) {
+}
+
+function Header({ address, loading, error }: HeaderProps): JSX.Element {
     const {
         data: domainName,
         isLoading,
@@ -58,7 +55,11 @@ function Header({
     );
 }
 
-function PageLayoutContainer({ address }: { address: string }) {
+interface PageLayoutContainerProps {
+    address: string;
+}
+
+function PageLayoutContainer({ address }: PageLayoutContainerProps): JSX.Element {
     const { id } = useParams();
     const isIotaNSAddress = isIotaNSName(id!);
     const {
@@ -80,7 +81,7 @@ function PageLayoutContainer({ address }: { address: string }) {
     );
 }
 
-export function IdPage() {
+export function IdPage(): JSX.Element {
     const { id } = useParams();
 
     return <PageLayoutContainer address={id!} />;

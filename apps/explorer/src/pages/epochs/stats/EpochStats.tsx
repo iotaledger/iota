@@ -5,14 +5,14 @@
 import { Heading } from '@iota/ui';
 import { type ReactNode } from 'react';
 
-import { Card } from '~/ui/Card';
+import { Card } from '~/components/ui';
 
 interface EpochStatsProps {
     label: string;
     children: ReactNode;
 }
 
-export function EpochStats({ label, children }: EpochStatsProps) {
+export function EpochStats({ label, children }: EpochStatsProps): JSX.Element {
     return (
         <Card spacing="lg" rounded="2xl">
             <div className="flex flex-col gap-8">

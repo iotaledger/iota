@@ -2,13 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Link } from '~/ui/Link';
+import { Link } from '~/components/ui';
 
-export type LinkGroupProps = {
+type LinkGroupProps = {
     title: string;
 } & ({ text: string | null } | { links: { text: string; to: string }[] });
 
-export function LinkGroup(props: LinkGroupProps) {
+export function LinkGroup(props: LinkGroupProps): JSX.Element | null {
     const { title } = props;
     const isLinks = 'links' in props;
     const isText = 'text' in props;

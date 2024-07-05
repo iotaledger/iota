@@ -6,18 +6,17 @@ import { formatDate } from '@iota/core';
 import { Heading, Text } from '@iota/ui';
 import clsx from 'clsx';
 
+import { Card, ProgressBar } from '~/components/ui';
 import { getElapsedTime, useEpochProgress } from '~/pages/epochs/utils';
-import { Card } from '~/ui/Card';
-import { ProgressBar } from '~/ui/ProgressBar';
 
-export interface EpochProgressProps {
+interface EpochProgressProps {
     epoch?: string;
     start: number;
     end?: number;
     inProgress?: boolean;
 }
 
-export function EpochProgress({ epoch, start, end, inProgress }: EpochProgressProps) {
+export function EpochProgress({ epoch, start, end, inProgress }: EpochProgressProps): JSX.Element {
     const { progress, label } = useEpochProgress();
 
     const elapsedTime = !inProgress && start && end ? getElapsedTime(start, end) : undefined;

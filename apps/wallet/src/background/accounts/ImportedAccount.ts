@@ -3,13 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
-import {
-    fromExportedKeypair,
-    type LegacyExportedKeyPair,
-} from '_src/shared/utils/from-exported-keypair';
+import { fromExportedKeypair } from '_src/shared/utils/from-exported-keypair';
 
 import {
     Account,
+    AccountType,
     type KeyPairExportableAccount,
     type PasswordUnlockableAccount,
     type SerializedAccount,
@@ -17,24 +15,24 @@ import {
     type SigningAccount,
 } from './Account';
 
-type SessionStorageData = { keyPair: LegacyExportedKeyPair | string };
-type EncryptedData = { keyPair: LegacyExportedKeyPair | string };
+type SessionStorageData = { keyPair: string };
+type EncryptedData = { keyPair: string };
 
 export interface ImportedAccountSerialized extends SerializedAccount {
-    type: 'imported';
+    type: AccountType.PrivateKeyDerived;
     encrypted: string;
     publicKey: string;
 }
 
 export interface ImportedAccountSerializedUI extends SerializedUIAccount {
-    type: 'imported';
+    type: AccountType.PrivateKeyDerived;
     publicKey: string;
 }
 
 export function isImportedAccountSerializedUI(
     account: SerializedUIAccount,
 ): account is ImportedAccountSerializedUI {
-    return account.type === 'imported';
+    return account.type === AccountType.PrivateKeyDerived;
 }
 
 export class ImportedAccount
@@ -54,7 +52,7 @@ export class ImportedAccount
             keyPair: inputs.keyPair,
         };
         return {
-            type: 'imported',
+            type: AccountType.PrivateKeyDerived,
             address: keyPair.getPublicKey().toIotaAddress(),
             publicKey: keyPair.getPublicKey().toBase64(),
             encrypted: await encrypt(inputs.password, dataToEncrypt),
@@ -66,11 +64,11 @@ export class ImportedAccount
     }
 
     static isOfType(serialized: SerializedAccount): serialized is ImportedAccountSerialized {
-        return serialized.type === 'imported';
+        return serialized.type === AccountType.PrivateKeyDerived;
     }
 
     constructor({ id, cachedData }: { id: string; cachedData?: ImportedAccountSerialized }) {
-        super({ type: 'imported', id, cachedData });
+        super({ type: AccountType.PrivateKeyDerived, id, cachedData });
     }
 
     async lock(allowRead = false): Promise<void> {
@@ -124,13 +122,13 @@ export class ImportedAccount
     async exportKeyPair(password: string): Promise<string> {
         const { encrypted } = await this.getStoredData();
         const { keyPair } = await decrypt<EncryptedData>(password, encrypted);
-        return fromExportedKeypair(keyPair, true).getSecretKey();
+        return fromExportedKeypair(keyPair).getSecretKey();
     }
 
     async #getKeyPair() {
         const ephemeralData = await this.getEphemeralValue();
         if (ephemeralData) {
-            return fromExportedKeypair(ephemeralData.keyPair, true);
+            return fromExportedKeypair(ephemeralData.keyPair);
         }
         return null;
     }

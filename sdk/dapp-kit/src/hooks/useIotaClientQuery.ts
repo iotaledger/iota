@@ -25,12 +25,12 @@ export type IotaRpcMethods = {
               params: P;
           }
         : IotaClient[K] extends () => Promise<infer R>
-        ? {
-              name: K;
-              result: R;
-              params: undefined | object;
-          }
-        : never;
+          ? {
+                name: K;
+                result: R;
+                params: undefined | object;
+            }
+          : never;
 };
 
 export type UseIotaClientQueryOptions<T extends keyof IotaRpcMethods, TData> = PartialBy<

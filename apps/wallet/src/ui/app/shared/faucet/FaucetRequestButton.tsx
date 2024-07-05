@@ -13,10 +13,10 @@ import FaucetMessageInfo from './FaucetMessageInfo';
 import { useFaucetMutation } from './useFaucetMutation';
 import { useFaucetRateLimiter } from './useFaucetRateLimiter';
 
-export type FaucetRequestButtonProps = {
+export interface FaucetRequestButtonProps {
     variant?: ButtonProps['variant'];
     size?: ButtonProps['size'];
-};
+}
 
 function FaucetRequestButton({ variant = 'primary', size = 'narrow' }: FaucetRequestButtonProps) {
     const network = useAppSelector(({ app }) => app.network);

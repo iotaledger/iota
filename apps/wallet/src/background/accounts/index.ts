@@ -17,9 +17,9 @@ import { MnemonicAccountSource } from '../account-sources/MnemonicAccountSource'
 import { SeedAccountSource } from '../account-sources/SeedAccountSource';
 import { type UiConnection } from '../connections/UiConnection';
 import { backupDB, getDB } from '../db';
-import { LegacyVault } from '../legacy-accounts/LegacyVault';
 import { makeUniqueKey } from '../storage-utils';
 import {
+    AccountType,
     isKeyPairExportableAccount,
     isPasswordUnLockable,
     isSigningAccount,
@@ -30,7 +30,6 @@ import { ImportedAccount } from './ImportedAccount';
 import { LedgerAccount } from './LedgerAccount';
 import { MnemonicAccount } from './MnemonicAccount';
 import { SeedAccount } from './SeedAccount';
-import { ZkLoginAccount, type ZkLoginAccountSerialized } from './zklogin/ZkLoginAccount';
 
 function toAccount(account: SerializedAccount) {
     if (MnemonicAccount.isOfType(account)) {
@@ -44,9 +43,6 @@ function toAccount(account: SerializedAccount) {
     }
     if (LedgerAccount.isOfType(account)) {
         return new LedgerAccount({ id: account.id, cachedData: account });
-    }
-    if (ZkLoginAccount.isOfType(account)) {
-        return new ZkLoginAccount({ id: account.id, cachedData: account });
     }
     throw new Error(`Unknown account of type ${account.type}`);
 }
@@ -176,8 +172,6 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
         if (account) {
             if (isPasswordUnLockable(account)) {
                 await account.passwordUnlock(password);
-            } else {
-                await account.unlock();
             }
             await uiConnection.send(createMessage({ type: 'done' }, msg.id));
             return true;
@@ -207,7 +201,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
     if (isMethodPayload(payload, 'createAccounts')) {
         const newSerializedAccounts: Omit<SerializedAccount, 'id'>[] = [];
         const { type } = payload.args;
-        if (type === 'mnemonic-derived') {
+        if (type === AccountType.MnemonicDerived) {
             const { sourceID } = payload.args;
             const accountSource = await getAccountSourceByID(payload.args.sourceID);
             if (!accountSource) {
@@ -217,7 +211,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
                 throw new Error(`Invalid account source type`);
             }
             newSerializedAccounts.push(await accountSource.deriveAccount());
-        } else if (type === 'seed-derived') {
+        } else if (type === AccountType.SeedDerived) {
             const { sourceID } = payload.args;
             const accountSource = await getAccountSourceByID(payload.args.sourceID);
             if (!accountSource) {
@@ -227,17 +221,15 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
                 throw new Error(`Invalid account source type`);
             }
             newSerializedAccounts.push(await accountSource.deriveAccount());
-        } else if (type === 'imported') {
+        } else if (type === AccountType.PrivateKeyDerived) {
             newSerializedAccounts.push(await ImportedAccount.createNew(payload.args));
-        } else if (type === 'ledger') {
+        } else if (type === AccountType.LedgerDerived) {
             const { password, accounts } = payload.args;
             for (const aLedgerAccount of accounts) {
                 newSerializedAccounts.push(
                     await LedgerAccount.createNew({ ...aLedgerAccount, password }),
                 );
             }
-        } else if (type === 'zkLogin') {
-            newSerializedAccounts.push(await ZkLoginAccount.createNew(payload.args));
         } else {
             throw new Error(`Unknown accounts type to create ${type}`);
         }
@@ -266,13 +258,6 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
         return true;
     }
     if (isMethodPayload(payload, 'verifyPassword')) {
-        if (payload.args.legacyAccounts) {
-            if (!(await LegacyVault.verifyPassword(payload.args.password))) {
-                throw new Error('Wrong password');
-            }
-            await uiConnection.send(createMessage({ type: 'done' }, msg.id));
-            return true;
-        }
         const allAccounts = await getAllAccounts();
         for (const anAccount of allAccounts) {
             if (isPasswordUnLockable(anAccount)) {
@@ -342,21 +327,6 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
         await backupDB();
         accountsEvents.emit('accountsChanged');
         accountSourcesEvents.emit('accountSourcesChanged');
-        await uiConnection.send(createMessage({ type: 'done' }, msg.id));
-        return true;
-    }
-    if (isMethodPayload(payload, 'acknowledgeZkLoginWarning')) {
-        const { accountID } = payload.args;
-        const account = await getAccountByID(accountID);
-        if (!account) {
-            throw new Error(`Account with id ${accountID} not found.`);
-        }
-        if (!(account instanceof ZkLoginAccount)) {
-            throw new Error(`Account with id ${accountID} is not a zkLogin account.`);
-        }
-        const updates: Partial<ZkLoginAccountSerialized> = { warningAcknowledged: true };
-        await (await getDB()).accounts.update(accountID, updates);
-        accountsEvents.emit('accountStatusChanged', { accountID });
         await uiConnection.send(createMessage({ type: 'done' }, msg.id));
         return true;
     }

@@ -1,20 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 import { type MoveCallMetric } from '@iota/iota.js/client';
 import { Text } from '@iota/ui';
 import { useMemo } from 'react';
 
-import { ObjectLink } from '~/ui/InternalLink';
-import { PlaceholderTable } from '~/ui/PlaceholderTable';
-import { TableCard } from '~/ui/TableCard';
+import { ObjectLink, PlaceholderTable, TableCard } from '~/components/ui';
 
 interface TopPackagesTableProps {
     data: MoveCallMetric[];
     isLoading: boolean;
 }
 
-function TxnCountHeader() {
+function TxnCountHeader(): JSX.Element {
     return (
         <div className="w-full text-right">
             <Text variant="bodySmall/medium">Transactions</Text>

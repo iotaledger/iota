@@ -9,12 +9,10 @@ import { LoadingIndicator, Text } from '@iota/ui';
 import React, { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 
-import { PageLayout } from '~/components/Layout/PageLayout';
-import { ValidatorMeta } from '~/components/validator/ValidatorMeta';
-import { ValidatorStats } from '~/components/validator/ValidatorStats';
-import { Banner } from '~/ui/Banner';
-import { getValidatorMoveEvent } from '~/utils/getValidatorMoveEvent';
-import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/utils/validatorConstants';
+import { PageLayout, ValidatorMeta, ValidatorStats } from '~/components';
+import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib/constants';
+import { getValidatorMoveEvent } from '~/lib/utils';
+import { Banner } from '~/components/ui';
 
 const getAtRiskRemainingEpochs = (
     data: IotaSystemStateSummary | undefined,
@@ -25,7 +23,7 @@ const getAtRiskRemainingEpochs = (
     return atRisk ? VALIDATOR_LOW_STAKE_GRACE_PERIOD - Number(atRisk[1]) : null;
 };
 
-function ValidatorDetails() {
+function ValidatorDetails(): JSX.Element {
     const { id } = useParams();
     const { data, isPending } = useIotaClientQuery('getLatestIotaSystemState');
 

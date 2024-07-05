@@ -2,14 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { useIotaClient } from '@iota/dapp-kit';
-import { IotaClient } from '@iota/iota.js/client';
+import { IotaClient, Network } from '@iota/iota.js/client';
 import { useMemo } from 'react';
 
-import { useNetwork } from '~/context';
-import { Network } from '~/utils/api/DefaultRpcClient';
+import { useNetwork } from '~/hooks';
 
 // TODO: Use enhanced RPC locally by default
-export function useEnhancedRpcClient() {
+export function useEnhancedRpcClient(): IotaClient {
     const [network] = useNetwork();
     const client = useIotaClient();
     const enhancedRpc = useMemo(() => {

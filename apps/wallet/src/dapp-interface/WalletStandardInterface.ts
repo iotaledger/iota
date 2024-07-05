@@ -52,12 +52,12 @@ type WalletEventsMap = {
 };
 
 // NOTE: Because this runs in a content script, we can't fetch the manifest.
-const name = process.env.APP_NAME || 'Iota Wallet';
+const NAME = process.env.APP_NAME || 'Iota Wallet';
 
 export class IotaWallet implements Wallet {
     readonly #events: Emitter<WalletEventsMap>;
     readonly #version = '1.0.0' as const;
-    readonly #name = name;
+    readonly #name = NAME;
     #accounts: ReadonlyWalletAccount[];
     #messagesStream: WindowMessageStream;
     #activeChain: ChainType | null = null;

@@ -9,6 +9,7 @@ Utility functions for time-locked balance.
 -  [Function `join`](#0x10cf_timelocked_balance_join)
 -  [Function `join_vec`](#0x10cf_timelocked_balance_join_vec)
 -  [Function `split`](#0x10cf_timelocked_balance_split)
+-  [Function `split_balance`](#0x10cf_timelocked_balance_split_balance)
 
 
 <pre><code><b>use</b> <a href="timelock.md#0x10cf_timelock">0x10cf::timelock</a>;
@@ -136,6 +137,32 @@ Split a <code>TimeLock&lt;Balance&lt;T&gt;&gt;</code> and take a sub balance fro
 
     // Pack the splitted <a href="../iota-framework/balance.md#0x2_balance">balance</a> into a <a href="timelock.md#0x10cf_timelock">timelock</a>.
     <a href="timelock.md#0x10cf_timelock_pack">timelock::pack</a>(value, self.expiration_timestamp_ms(), self.label(), ctx)
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="0x10cf_timelocked_balance_split_balance"></a>
+
+## Function `split_balance`
+
+Split the given <code>TimeLock&lt;Balance&lt;T&gt;&gt;</code> to the two parts, one with principal <code>value</code>,
+transfer the newly split part to the sender address.
+
+
+<pre><code><b>public</b> entry <b>fun</b> <a href="timelocked_balance.md#0x10cf_timelocked_balance_split_balance">split_balance</a>&lt;T&gt;(stake: &<b>mut</b> <a href="timelock.md#0x10cf_timelock_TimeLock">timelock::TimeLock</a>&lt;<a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;T&gt;&gt;, value: u64, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> entry <b>fun</b> <a href="timelocked_balance.md#0x10cf_timelocked_balance_split_balance">split_balance</a>&lt;T&gt;(stake: &<b>mut</b> TimeLock&lt;Balance&lt;T&gt;&gt;, value: u64, ctx: &<b>mut</b> TxContext) {
+    <a href="timelocked_balance.md#0x10cf_timelocked_balance_split">split</a>(stake, value, ctx).self_transfer(ctx)
 }
 </code></pre>
 

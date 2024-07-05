@@ -25,16 +25,16 @@ use crate::{
     IOTA_FRAMEWORK_ADDRESS,
 };
 
-/// The number of Micros per Iota token
-pub const MICROS_PER_IOTA: u64 = 1_000_000_000;
+/// The number of Nanos per Iota token
+pub const NANOS_PER_IOTA: u64 = 1_000_000_000;
 
 /// Total supply denominated in Iota
-pub const TOTAL_SUPPLY_IOTA: u64 = 10_000_000_000;
+pub const TOTAL_SUPPLY_IOTA: u64 = 4_600_000_000;
 
 // Note: cannot use checked arithmetic here since `const unwrap` is still
 // unstable.
-/// Total supply denominated in Micros
-pub const TOTAL_SUPPLY_MICROS: u64 = TOTAL_SUPPLY_IOTA * MICROS_PER_IOTA;
+/// Total supply denominated in Nanos
+pub const TOTAL_SUPPLY_NANOS: u64 = TOTAL_SUPPLY_IOTA * NANOS_PER_IOTA;
 
 pub const GAS_MODULE_NAME: &IdentStr = ident_str!("iota");
 pub const GAS_STRUCT_NAME: &IdentStr = ident_str!("IOTA");

@@ -1,30 +1,27 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 import {
+    type BalanceChange,
     type BalanceChangeSummary,
     CoinFormat,
-    useFormatCoin,
-    useCoinMetadata,
-    type BalanceChange,
-    useResolveIotaNSName,
     getRecognizedUnRecognizedTokenChanges,
+    useCoinMetadata,
+    useFormatCoin,
+    useResolveIotaNSName,
 } from '@iota/core';
 import { Heading, Text } from '@iota/ui';
 import clsx from 'clsx';
 import { useMemo } from 'react';
 
-import { Banner } from '~/ui/Banner';
-import { Coin } from '~/ui/CoinsStack';
-import { AddressLink } from '~/ui/InternalLink';
-import { CollapsibleCard } from '~/ui/collapsible/CollapsibleCard';
-import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
+import { AddressLink, Banner, Coin, CollapsibleCard, CollapsibleSection } from '~/components/ui';
 
 interface BalanceChangesProps {
     changes: BalanceChangeSummary;
 }
 
-function BalanceChangeEntry({ change }: { change: BalanceChange }) {
+function BalanceChangeEntry({ change }: { change: BalanceChange }): JSX.Element | null {
     const { amount, coinType, recipient, unRecognizedToken } = change;
     const [formatted, symbol] = useFormatCoin(amount, coinType, CoinFormat.FULL);
     const { data: coinMetaData } = useCoinMetadata(coinType);

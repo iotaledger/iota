@@ -3,11 +3,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { LinkGroup } from './LinkGroup';
-import { Banner } from '~/ui/Banner';
+import { Banner } from '~/components/ui';
 
 import type { IotaTransactionBlockResponse, OwnedObjectRef } from '@iota/iota.js/client';
 
-function toObjectLink(object: OwnedObjectRef) {
+interface ToObjectLink {
+    text: string;
+    to: string;
+}
+
+function toObjectLink(object: OwnedObjectRef): ToObjectLink {
     return {
         text: object.reference.objectId,
         to: `/object/${encodeURIComponent(object.reference.objectId)}`,

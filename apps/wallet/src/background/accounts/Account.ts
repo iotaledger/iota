@@ -19,7 +19,12 @@ import {
 } from '../session-ephemeral-values';
 import { accountsEvents } from './events';
 
-export type AccountType = 'mnemonic-derived' | 'seed-derived' | 'imported' | 'ledger' | 'zkLogin';
+export enum AccountType {
+    MnemonicDerived = 'mnemonic-derived',
+    SeedDerived = 'seed-derived',
+    PrivateKeyDerived = 'private-key-derived',
+    LedgerDerived = 'ledger-derived',
+}
 
 export abstract class Account<
     T extends SerializedAccount = SerializedAccount,

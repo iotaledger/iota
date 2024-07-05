@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui';
 import { Text } from '@iota/ui';
 
 import ModuleView from './ModuleView';
@@ -21,7 +21,7 @@ export function ModuleCodeTabs({
     moduleName,
     moduleBytecode,
     isCompact,
-}: ModuleCodeTabsProps) {
+}: ModuleCodeTabsProps): JSX.Element {
     const { data: verifiedSourceCode } = useVerifiedSourceCode({
         packageId,
         moduleName,

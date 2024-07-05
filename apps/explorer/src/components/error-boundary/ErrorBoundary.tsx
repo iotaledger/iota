@@ -5,12 +5,12 @@
 import { ErrorBoundary as ReactErrorBoundary } from 'react-error-boundary';
 import { useLocation } from 'react-router-dom';
 
-import { Banner } from '~/ui/Banner';
+import { Banner } from '~/components/ui';
 
 import type { ReactNode } from 'react';
 import type { FallbackProps } from 'react-error-boundary';
 
-function Fallback({ error }: FallbackProps) {
+function Fallback({ error }: FallbackProps): JSX.Element {
     return (
         <Banner variant="error" fullWidth>
             {error.message}
@@ -18,11 +18,11 @@ function Fallback({ error }: FallbackProps) {
     );
 }
 
-export type ErrorBoundaryProps = {
+type ErrorBoundaryProps = {
     children: ReactNode | ReactNode[];
 };
 
-export function ErrorBoundary({ children }: ErrorBoundaryProps) {
+export function ErrorBoundary({ children }: ErrorBoundaryProps): JSX.Element {
     const location = useLocation();
     return (
         <ReactErrorBoundary FallbackComponent={Fallback} resetKeys={[location]}>

@@ -36,8 +36,8 @@ export const iotansClient = new IotansClient(client, {
 ```
 
 > **Note:** To ensure best performance, please make sure to create only one instance of the
-> IotansClient class in your application. Then, import the created `iotansClient` instance to use its
-> functions.
+> IotansClient class in your application. Then, import the created `iotansClient` instance to use
+> its functions.
 
 Fetch an address linked to a name:
 
@@ -78,4 +78,4 @@ const nameObject = await iotansClient.getNameObject('iotans.iota', {
 
 ## License
 
-[Apache-2.0](https://github.com/IotaNSdapp/toolkit/blob/main/LICENSE)
+[Apache-2.0](https://github.com/SuiNSdapp/toolkit/blob/main/LICENSE)

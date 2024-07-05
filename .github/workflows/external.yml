@@ -35,8 +35,47 @@ env:
   RUSTDOCFLAGS: -D warnings
 
 jobs:
+  changes:
+    runs-on: [self-hosted-rust]
+    outputs:
+      components: ${{ steps.filter.outputs.changes }}
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          list-files: 'json'
+          filters: .github/external-crates-filters.yml
+  
+  test:
+    name: Test ${{ matrix.components }}
+    env:
+      # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
+      # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
+      # non-deterministic `test` job.
+      IOTA_SKIP_SIMTESTS: 1
+    strategy:
+      matrix: 
+        components: ${{ fromJson(needs.changes.outputs.components) }}
+      fail-fast: false
+    runs-on: [self-hosted-rust]
+    needs: changes
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      - uses: taiki-e/install-action@nextest
+      - name: Install python dependencies
+        run:  pip install pyopenssl --upgrade
+      - name: cargo test
+        run: >
+          cargo nextest run
+          --config-file .config/nextest.toml
+          --manifest-path external-crates/move/Cargo.toml
+          -E '!test(prove) and !test(run_all::simple_build_with_docs/args.txt) and !test(run_test::nested_deps_bad_parent/Move.toml) and rdeps(${{matrix.components}})'
+          -p ${{matrix.components}}
+          --profile ci
+
   diff:
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     outputs:
       isRust: ${{ steps.diff.outputs.isRust }}
       isMove: ${{ steps.diff.outputs.isMove }}
@@ -45,48 +84,6 @@ jobs:
       - name: Detect Changes
         uses: "./.github/actions/diffs"
         id: diff
-
-  external-crates-test:
-    needs: diff
-    if: needs.diff.outputs.isRust == 'true'
-    timeout-minutes: 45
-    env:
-      # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
-      # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
-      # non-deterministic `test` job.
-      IOTA_SKIP_SIMTESTS: 1
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - [self-hosted-rust]
-      fail-fast: false
-    steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
-      - uses: taiki-e/install-action@nextest
-      - name: Install python dependencies
-        run: |
-          pip install pyopenssl --upgrade
-      - name: External crates tests
-        run: |
-          cargo xtest
-
-  # This is a no-op job that allows the resulting action names to line up when
-  # there are no rust changes in a given PR/commit. This ensures that we can
-  # continue to block on the rust tests passing in the case of rust changes and
-  # otherwise not block pushes to main.
-  external-crates-test-notrust:
-    name: external-crates-test
-    needs: diff
-    if: needs.diff.outputs.isRust == 'false'
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - [self-hosted-rust]
-      fail-fast: false
-    steps:
-      - run: 'echo "No build required" '
 
   clippy:
     needs: diff
@@ -99,27 +96,25 @@ jobs:
       # See '.cargo/config' for list of enabled/disappled clippy lints
       - name: cargo move-clippy
         run: |
-          cd external-crates/move
-          cargo move-clippy -D warnings
+          cargo ci-clippy-external
 
   rustfmt:
     needs: diff
     if: needs.diff.outputs.isRust == 'true'
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
       - name: Install latest nightly
         run: rustup toolchain install nightly --component rustfmt --allow-downgrade
       - name: Check Rust formatting
         run: |
-          cd external-crates/move
-          cargo +nightly fmt --check
+          cargo +nightly ci-fmt-external
 
   cargo-deny:
     name: cargo-deny (advisories, licenses, bans, ...)
     needs: diff
     if: needs.diff.outputs.isRust == 'true'
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
-      - uses: mystenlabs/cargo-deny-action@main
+      - uses: EmbarkStudios/cargo-deny-action@v1

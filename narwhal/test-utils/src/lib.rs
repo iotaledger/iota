@@ -473,7 +473,7 @@ fn rounds_of_certificates(
             certificates.push_back(certificate);
             next_parents.insert(digest);
         }
-        parents = next_parents.clone();
+        parents.clone_from(&next_parents);
     }
     (certificates, next_parents)
 }
@@ -540,7 +540,7 @@ pub fn make_certificates_with_slow_nodes(
             certificates.push_back(certificate.clone());
             next_parents.push(certificate);
         }
-        parents = next_parents.clone();
+        parents.clone_from(&next_parents);
     }
     (certificates, next_parents)
 }
@@ -659,7 +659,7 @@ pub fn make_certificates_with_leader_configuration(
             certificates.push_back(certificate.clone());
             next_parents.insert(certificate.digest());
         }
-        parents = next_parents.clone();
+        parents.clone_from(&next_parents);
     }
     (certificates, next_parents)
 }
@@ -755,7 +755,7 @@ pub fn make_certificates_with_epoch(
             certificates.push_back(certificate);
             next_parents.insert(digest);
         }
-        parents = next_parents.clone();
+        parents.clone_from(&next_parents);
     }
     (certificates, next_parents)
 }

@@ -6,116 +6,48 @@
 import React from 'react';
 import { IotaObjectData } from '@iota/iota.js/client';
 import { AssetCard, VirtualList } from '@/components/index';
+import { useCurrentAccount } from '@iota/dapp-kit';
+import { hasDisplayData, useGetOwnedObjects } from '@iota/core';
+import { useRouter } from 'next/navigation';
 
 function VisualAssetsPage(): JSX.Element {
-    const virtualItem = (asset: IotaObjectData): JSX.Element => (
-        <AssetCard key={asset.objectId} asset={asset} />
-    );
+    const account = useCurrentAccount();
+    const router = useRouter();
+    const {
+        data: ownedObjects,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+    } = useGetOwnedObjects(account?.address);
+
+    const visualAssets =
+        ownedObjects?.pages
+            .flatMap((page) => page.data)
+            .filter((asset) => asset.data && asset.data.objectId && hasDisplayData(asset))
+            .map((response) => response.data!) ?? [];
+
+    const virtualItem = (asset: IotaObjectData): JSX.Element => <AssetCard asset={asset} />;
+
+    const handleClick = (objectId: string) => {
+        router.push(`/dashboard/assets/visual-assets/${objectId}`);
+    };
 
     return (
         <div className="flex h-full w-full flex-col items-center justify-center space-y-4">
             <h1>VISUAL ASSETS</h1>
             <div className="flex w-1/2">
                 <VirtualList
-                    items={HARCODED_VISUAL_ASSETS}
-                    estimateSize={() => 130}
+                    items={visualAssets}
+                    hasNextPage={hasNextPage}
+                    isFetchingNextPage={isFetchingNextPage}
+                    fetchNextPage={fetchNextPage}
+                    estimateSize={() => 180}
                     render={virtualItem}
+                    onClick={(asset) => handleClick(asset.objectId)}
                 />
             </div>
         </div>
     );
 }
-
-const HARCODED_VISUAL_ASSETS: IotaObjectData[] = [
-    {
-        digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51xy',
-        objectId: '0x9303adf2c711dcc239rbd78c0d0666666df06e2b3a35837',
-        version: '286606',
-        display: {
-            data: {
-                name: 'IOTA',
-                // Update next.config.js to include the image domain in the list of domains
-                image: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
-            },
-        },
-    },
-    {
-        digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51xy',
-        objectId: '0x9303adf2c711dcc239rbd78c0d0666666df06e2b3a35837',
-        version: '286606',
-        display: {
-            data: {
-                name: 'IOTA',
-                image: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
-            },
-        },
-    },
-    {
-        digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51xy',
-        objectId: '0x9303adf2c711dcc239rbd78c0d0666666df06e2b3a35837',
-        version: '286606',
-        display: {
-            data: {
-                name: 'IOTA',
-                image: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
-            },
-        },
-    },
-    {
-        digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51xy',
-        objectId: '0x9303adf2c711dcc239rbd78c0d0666666df06e2b3a35837',
-        version: '286606',
-        display: {
-            data: {
-                name: 'IOTA',
-                image: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
-            },
-        },
-    },
-    {
-        digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51xy',
-        objectId: '0x9303adf2c711dcc239rbd78c0d0666666df06e2b3a35837',
-        version: '286606',
-        display: {
-            data: {
-                name: 'IOTA',
-                image: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
-            },
-        },
-    },
-    {
-        digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51xy',
-        objectId: '0x9303adf2c711dcc239rbd78c0d0666666df06e2b3a35837',
-        version: '286606',
-        display: {
-            data: {
-                name: 'IOTA',
-                image: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
-            },
-        },
-    },
-    {
-        digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51xy',
-        objectId: '0x9303adf2c711dcc239rbd78c0d0666666df06e2b3a35837',
-        version: '286606',
-        display: {
-            data: {
-                name: 'IOTA',
-                image: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
-            },
-        },
-    },
-    {
-        digest: 'dh3bxjGDzm62bdidFFehtaajwqBSaKFdm8Ujr23J51xy',
-        objectId: '0x9303adf2c711dcc239rbd78c0d0666666df06e2b3a35837',
-        version: '286606',
-        display: {
-            data: {
-                name: 'IOTA',
-                image: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
-            },
-        },
-    },
-];
 
 export default VisualAssetsPage;

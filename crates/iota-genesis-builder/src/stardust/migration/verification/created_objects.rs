@@ -4,16 +4,17 @@
 use anyhow::{anyhow, bail, Result};
 use iota_types::base_types::ObjectID;
 
-/// Defines objects that may have been created by migrating an [`Output`].
+/// Defines objects that may have been created by migrating an
+/// [`Output`](iota_sdk::types::block::output::Output).
 #[derive(Default)]
 pub struct CreatedObjects {
     output: Option<ObjectID>,
-    coin: Option<ObjectID>,
-    coin_metadata: Option<ObjectID>,
     package: Option<ObjectID>,
-    max_supply_policy: Option<ObjectID>,
+    coin: Option<ObjectID>,
+    native_token_coin: Option<ObjectID>,
     native_tokens: Option<Vec<ObjectID>>,
-    minted_coin: Option<ObjectID>,
+    coin_manager: Option<ObjectID>,
+    coin_manager_treasury_cap: Option<ObjectID>,
 }
 
 impl CreatedObjects {
@@ -31,34 +32,6 @@ impl CreatedObjects {
         Ok(())
     }
 
-    pub fn coin(&self) -> Result<&ObjectID> {
-        self.coin
-            .as_ref()
-            .ok_or_else(|| anyhow!("no created coin object"))
-    }
-
-    pub(crate) fn set_coin(&mut self, id: ObjectID) -> Result<()> {
-        if let Some(id) = self.coin {
-            bail!("coin already set: {id}")
-        }
-        self.coin.replace(id);
-        Ok(())
-    }
-
-    pub fn coin_metadata(&self) -> Result<&ObjectID> {
-        self.coin_metadata
-            .as_ref()
-            .ok_or_else(|| anyhow!("no created coin metadata object"))
-    }
-
-    pub(crate) fn set_coin_metadata(&mut self, id: ObjectID) -> Result<()> {
-        if let Some(id) = self.coin_metadata {
-            bail!("coin metadata already set: {id}")
-        }
-        self.coin_metadata.replace(id);
-        Ok(())
-    }
-
     pub fn package(&self) -> Result<&ObjectID> {
         self.package
             .as_ref()
@@ -73,17 +46,31 @@ impl CreatedObjects {
         Ok(())
     }
 
-    pub fn max_supply_policy(&self) -> Result<&ObjectID> {
-        self.max_supply_policy
+    pub fn coin(&self) -> Result<&ObjectID> {
+        self.coin
             .as_ref()
-            .ok_or_else(|| anyhow!("no created max supply policy object"))
+            .ok_or_else(|| anyhow!("no created coin object"))
     }
 
-    pub(crate) fn set_max_supply_policy(&mut self, id: ObjectID) -> Result<()> {
-        if let Some(id) = self.max_supply_policy {
-            bail!("max supply policy already set: {id}")
+    pub(crate) fn set_coin(&mut self, id: ObjectID) -> Result<()> {
+        if let Some(id) = self.coin {
+            bail!("coin already set: {id}")
         }
-        self.max_supply_policy.replace(id);
+        self.coin.replace(id);
+        Ok(())
+    }
+
+    pub fn native_token_coin(&self) -> Result<&ObjectID> {
+        self.native_token_coin
+            .as_ref()
+            .ok_or_else(|| anyhow!("no native token coin object"))
+    }
+
+    pub(crate) fn set_native_token_coin(&mut self, id: ObjectID) -> Result<()> {
+        if let Some(id) = self.native_token_coin {
+            bail!("native token coin already set: {id}")
+        }
+        self.native_token_coin.replace(id);
         Ok(())
     }
 
@@ -101,17 +88,31 @@ impl CreatedObjects {
         Ok(())
     }
 
-    pub fn minted_coin(&self) -> Result<&ObjectID> {
-        self.minted_coin
+    pub fn coin_manager(&self) -> Result<&ObjectID> {
+        self.coin_manager
             .as_ref()
-            .ok_or_else(|| anyhow!("no minted coin object"))
+            .ok_or_else(|| anyhow!("no created coin manager object"))
     }
 
-    pub(crate) fn set_minted_coin(&mut self, id: ObjectID) -> Result<()> {
-        if let Some(id) = self.minted_coin {
-            bail!("minted coin already set: {id}")
+    pub(crate) fn set_coin_manager(&mut self, id: ObjectID) -> Result<()> {
+        if let Some(id) = self.coin_manager {
+            bail!("coin manager already set: {id}")
         }
-        self.minted_coin.replace(id);
+        self.coin_manager.replace(id);
+        Ok(())
+    }
+
+    pub fn coin_manager_treasury_cap(&self) -> Result<&ObjectID> {
+        self.coin_manager_treasury_cap
+            .as_ref()
+            .ok_or_else(|| anyhow!("no coin manager treasury cap object"))
+    }
+
+    pub(crate) fn set_coin_manager_treasury_cap(&mut self, id: ObjectID) -> Result<()> {
+        if let Some(id) = self.coin_manager_treasury_cap {
+            bail!("coin manager treasury cap already set: {id}")
+        }
+        self.coin_manager_treasury_cap.replace(id);
         Ok(())
     }
 }

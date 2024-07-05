@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { useActiveAddress } from '_app/hooks/useActiveAddress';
 import Loading from '_components/loading';
 import { NFTDisplayCard } from '_components/nft-display';
 import Overlay from '_components/overlay';
@@ -10,11 +11,13 @@ import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 
 import { TransferNFTForm } from './TransferNFTForm';
+import { isAssetTransferable } from '@iota/core';
 
 function NftTransferPage() {
     const { nftId } = useParams();
+    const address = useActiveAddress();
     // verify that the nft is owned by the user and is transferable
-    const { data: ownedNFT, isPending: isNftLoading } = useOwnedNFT(nftId || '');
+    const { data: ownedNFT, isPending: isNftLoading } = useOwnedNFT(nftId || '', address);
     const navigate = useNavigate();
     const isGuardLoading = useUnlockedGuard();
     const isPending = isNftLoading || isGuardLoading;
@@ -22,10 +25,7 @@ function NftTransferPage() {
         <Overlay showModal={true} title="Send NFT" closeOverlay={() => navigate('/nfts')}>
             <div className="flex h-full w-full flex-col">
                 <Loading loading={isPending}>
-                    {ownedNFT &&
-                    nftId &&
-                    ownedNFT.content?.dataType === 'moveObject' &&
-                    ownedNFT.content.hasPublicTransfer ? (
+                    {nftId && !!ownedNFT && isAssetTransferable(ownedNFT) ? (
                         <>
                             <div className="mb-7.5">
                                 <NFTDisplayCard objectId={nftId} wideView size="sm" />

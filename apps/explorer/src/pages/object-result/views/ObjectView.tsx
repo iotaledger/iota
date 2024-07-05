@@ -4,28 +4,38 @@
 
 import { CoinFormat, useFormatCoin, useResolveIotaNSName } from '@iota/core';
 import { ArrowUpRight16, Info16 } from '@iota/icons';
-import { type ObjectOwner, type IotaObjectResponse } from '@iota/iota.js/client';
+import { type IotaObjectResponse, type ObjectOwner } from '@iota/iota.js/client';
 import {
     formatAddress,
+    IOTA_TYPE_ARG,
     normalizeStructTag,
     parseStructTag,
-    IOTA_TYPE_ARG,
 } from '@iota/iota.js/utils';
 import { Heading, Text } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { type ReactNode, useEffect, useState } from 'react';
 
+import {
+    AddressLink,
+    Card,
+    Description,
+    Divider,
+    Link,
+    ObjectLink,
+    ObjectVideoImage,
+    Tooltip,
+    TransactionLink,
+} from '~/components/ui';
 import { useResolveVideo } from '~/hooks/useResolveVideo';
-import { Card } from '~/ui/Card';
-import { Description } from '~/ui/Description';
-import { Divider } from '~/ui/Divider';
-import { AddressLink, ObjectLink, TransactionLink } from '~/ui/InternalLink';
-import { Link } from '~/ui/Link';
-import { ObjectVideoImage } from '~/ui/ObjectVideoImage';
-import { extractName, getDisplayUrl, parseImageURL, parseObjectType } from '~/utils/objectUtils';
-import { genFileTypeMsg, trimStdLibPrefix } from '~/utils/stringUtils';
-import { Tooltip } from '~/ui/Tooltip';
+import {
+    extractName,
+    genFileTypeMsg,
+    getDisplayUrl,
+    parseImageURL,
+    parseObjectType,
+    trimStdLibPrefix,
+} from '~/lib/utils';
 
 interface HeroVideoImageProps {
     title: string;
@@ -34,7 +44,7 @@ interface HeroVideoImageProps {
     video?: string | null;
 }
 
-function HeroVideoImage({ title, subtitle, src, video }: HeroVideoImageProps) {
+function HeroVideoImage({ title, subtitle, src, video }: HeroVideoImageProps): JSX.Element {
     const [open, setOpen] = useState(false);
 
     return (
@@ -58,7 +68,11 @@ function HeroVideoImage({ title, subtitle, src, video }: HeroVideoImageProps) {
     );
 }
 
-function ObjectViewCard({ children }: { children: ReactNode }) {
+interface ObjectLinkProps {
+    children?: ReactNode;
+}
+
+function ObjectViewCard({ children }: ObjectLinkProps): JSX.Element {
     return (
         <Card bg="white/80" spacing="lg" height="full">
             <div className="flex flex-col gap-4">{children}</div>
@@ -66,7 +80,11 @@ function ObjectViewCard({ children }: { children: ReactNode }) {
     );
 }
 
-function LinkWebsite({ value }: { value: string }) {
+interface LinkWebsiteProps {
+    value: string;
+}
+
+function LinkWebsite({ value }: LinkWebsiteProps): JSX.Element | null {
     const urlData = getDisplayUrl(value);
 
     if (!urlData) {
@@ -84,22 +102,21 @@ function LinkWebsite({ value }: { value: string }) {
     );
 }
 
+interface DescriptionCardProps {
+    name?: string | null;
+    display?: {
+        [key: string]: string;
+    } | null;
+    objectType: string;
+    objectId: string;
+}
+
 function DescriptionCard({
     name,
     display,
     objectType,
     objectId,
-}: {
-    name?: string | null;
-    display?:
-        | {
-              [key: string]: string;
-          }
-        | null
-        | undefined;
-    objectType: string;
-    objectId: string;
-}) {
+}: DescriptionCardProps): JSX.Element {
     const { address, module, typeParams, ...rest } = parseStructTag(objectType);
 
     const formattedTypeParams = typeParams.map((typeParam) => {
@@ -163,7 +180,12 @@ function DescriptionCard({
     );
 }
 
-function VersionCard({ version, digest }: { version?: string; digest: string }) {
+interface VersionCardProps {
+    version?: string;
+    digest: string;
+}
+
+function VersionCard({ version, digest }: VersionCardProps): JSX.Element {
     return (
         <ObjectViewCard>
             <Description title="Version">
@@ -179,23 +201,25 @@ function VersionCard({ version, digest }: { version?: string; digest: string }) 
     );
 }
 
-function AddressOwner({ address }: { address: string }) {
+interface AddressOwnerProps {
+    address: string;
+}
+
+function AddressOwner({ address }: AddressOwnerProps): JSX.Element {
     const { data: iotansDomainName } = useResolveIotaNSName(address);
 
     return <AddressLink address={address} label={iotansDomainName} />;
 }
 
-function OwnerCard({
-    objOwner,
-    display,
-    storageRebate,
-}: {
+interface OwnerCardProps {
     objOwner?: ObjectOwner | null;
     display?: {
         [key: string]: string;
     } | null;
     storageRebate?: string | null;
-}) {
+}
+
+function OwnerCard({ objOwner, display, storageRebate }: OwnerCardProps): JSX.Element | null {
     const [storageRebateFormatted] = useFormatCoin(storageRebate, IOTA_TYPE_ARG, CoinFormat.FULL);
 
     if (!objOwner && !display) {
@@ -255,7 +279,7 @@ interface ObjectViewProps {
     data: IotaObjectResponse;
 }
 
-export function ObjectView({ data }: ObjectViewProps) {
+export function ObjectView({ data }: ObjectViewProps): JSX.Element {
     const [fileType, setFileType] = useState<undefined | string>(undefined);
     const display = data.data?.display?.data;
     const imgUrl = parseImageURL(display);
