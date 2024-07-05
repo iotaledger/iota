@@ -6,8 +6,7 @@ import { COIN_GECKO_IOTA_URL, useIotaCoinData } from '@iota/core';
 import { Iota } from '@iota/icons';
 import { Text } from '@iota/ui';
 
-import { Card } from '~/ui/Card';
-import { ButtonOrLink } from '~/ui/ButtonOrLink';
+import { ButtonOrLink, Card } from '~/components/ui';
 
 export function IotaTokenCard(): JSX.Element {
     const { data } = useIotaCoinData();

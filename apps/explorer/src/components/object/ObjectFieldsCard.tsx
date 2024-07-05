@@ -4,16 +4,15 @@
 
 import { Search24 } from '@iota/icons';
 import { type IotaMoveNormalizedStruct, type IotaObjectResponse } from '@iota/iota.js/client';
-import { Text, LoadingIndicator, Combobox, ComboboxInput, ComboboxList } from '@iota/ui';
+import { Combobox, ComboboxInput, ComboboxList, LoadingIndicator, Text } from '@iota/ui';
 import clsx from 'clsx';
 import { useCallback, useEffect, useState } from 'react';
 
+import { FieldCollapsible, FieldsCard, FieldsContainer } from '~/components';
+import { Banner, Description } from '~/components/ui';
+import { getFieldTypeValue } from '~/lib/ui';
 import { FieldItem } from './FieldItem';
 import { ScrollToViewCard } from './ScrollToViewCard';
-import { getFieldTypeValue } from './utils';
-import { FieldsCard, FieldCollapsible, FieldsContainer } from '~/components/object/FieldsUtils';
-import { Banner } from '~/ui/Banner';
-import { Description } from '~/ui/Description';
 
 const DEFAULT_OPEN_FIELDS = 3;
 const DEFAULT_FIELDS_COUNT_TO_SHOW_SEARCH = 10;

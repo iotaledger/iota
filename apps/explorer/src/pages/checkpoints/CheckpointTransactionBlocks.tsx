@@ -4,14 +4,12 @@
 
 import { useState } from 'react';
 
-import { genTableDataFromTxData } from '~/components/transactions/TxCardUtils';
+import { genTableDataFromTxData } from '~/components';
+import { Pagination, PlaceholderTable, TableCard, useCursorPagination } from '~/components/ui';
 import {
     DEFAULT_TRANSACTIONS_LIMIT,
     useGetTransactionBlocks,
 } from '~/hooks/useGetTransactionBlocks';
-import { Pagination, useCursorPagination } from '~/ui/Pagination';
-import { PlaceholderTable } from '~/ui/PlaceholderTable';
-import { TableCard } from '~/ui/TableCard';
 
 export function CheckpointTransactionBlocks({ id }: { id: string }): JSX.Element {
     const [limit, setLimit] = useState(DEFAULT_TRANSACTIONS_LIMIT);
