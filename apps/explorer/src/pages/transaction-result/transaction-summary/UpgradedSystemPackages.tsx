@@ -4,9 +4,7 @@
 
 import { Text } from '@iota/ui';
 
-import { ObjectLink } from '~/ui/InternalLink';
-import { CollapsibleCard } from '~/ui/collapsible/CollapsibleCard';
-import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
+import { CollapsibleCard, CollapsibleSection, ObjectLink } from '~/components/ui';
 
 import type { OwnedObjectRef } from '@iota/iota.js/client';
 
