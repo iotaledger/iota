@@ -54,7 +54,7 @@ fn test_serde_batch() {
             },
             Token::Struct {
                 name: "MetadataV1",
-                len: 1,
+                len: 2,
             },
             Token::Str("created_at"),
             Token::U64(1666205365890),
