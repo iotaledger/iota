@@ -31,7 +31,7 @@ export const PADDINGS: TailwindScale = {
 
 export const OPACITY: TailwindScale = {
     0: '0',
-    8: '0.8',
+    8: '0.08',
     12: '0.12',
     16: '0.16',
     40: '0.4',
