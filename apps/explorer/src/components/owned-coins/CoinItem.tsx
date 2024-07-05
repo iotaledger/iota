@@ -6,7 +6,7 @@ import { useFormatCoin } from '@iota/core';
 import { type CoinStruct } from '@iota/iota.js/client';
 import { Text } from '@iota/ui';
 
-import { ObjectLink } from '~/ui/InternalLink';
+import { ObjectLink } from '~/components/ui';
 
 type CoinItemProps = {
     coin: CoinStruct;
