@@ -6,16 +6,19 @@ import { Button } from '_src/ui/app/shared/ButtonUI';
 import { AccountBalanceItem } from '_src/ui/app/components/accounts/AccountBalanceItem';
 import { useAccountsFinder } from '_src/ui/app/hooks/useAccountsFinder';
 import { useParams } from 'react-router-dom';
+import { useActiveAccount } from '_app/hooks/useActiveAccount';
+import { type AllowedAccountTypes } from '_src/background/accounts-finder';
 
 export function AccountsFinderView(): JSX.Element {
     const { accountSourceId } = useParams();
+    const currentAccount = useActiveAccount();
+
     const {
         data: finderAddresses,
         searchMore,
         reset,
     } = useAccountsFinder({
-        accountGapLimit: 10,
-        addressGapLimit: 2,
+        accountType: currentAccount?.type as AllowedAccountTypes,
         sourceID: accountSourceId || '',
     });
 

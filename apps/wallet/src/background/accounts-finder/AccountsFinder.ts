@@ -68,7 +68,7 @@ const GAP_CONFIGURATION: { [key in AllowedBip44CoinTypes]: GapConfigurationByCoi
         },
         [AccountType.SeedDerived]: {
             accountGapLimit: 3,
-            addressGapLimit: 30,
+            addressGapLimit: 2,
         },
     },
     // In shimmer we focus on accounts indexes and never rotate addresses
@@ -173,6 +173,48 @@ class AccountsFinder {
             addresses,
             isBalanceExists,
         };
+    }
+
+    // Merge function
+    mergeAccounts(accountsLists: AccountFromFinder[][]): AccountFromFinder[] {
+        const mergedAccountsMap: Map<number, Array<Array<AddressFromFinder>>> = new Map();
+
+        // Flatten the list of account lists and process each account
+        accountsLists.flat().forEach((account) => {
+            if (!mergedAccountsMap.has(account.index)) {
+                // If the account index is not yet in the map, add it directly
+                mergedAccountsMap.set(account.index, account.addresses);
+            } else {
+                // If the account index exists, merge the addresses
+                const existingAddresses = mergedAccountsMap.get(account.index);
+
+                if (existingAddresses) {
+                    const newAddresses = this.mergeAddresses(existingAddresses, account.addresses);
+                    mergedAccountsMap.set(account.index, newAddresses);
+                }
+            }
+        });
+
+        // Convert the map back to an array of AccountFromFinder
+        return Array.from(mergedAccountsMap, ([index, addresses]) => ({
+            index,
+            addresses,
+        }));
+    }
+
+    // Helper function to merge two arrays of arrays of addresses
+    mergeAddresses(
+        existingAddresses: Array<Array<AddressFromFinder>>,
+        newAddresses: Array<Array<AddressFromFinder>>,
+    ): Array<Array<AddressFromFinder>> {
+        const maxLength = Math.max(existingAddresses.length, newAddresses.length);
+        const merged: Array<Array<AddressFromFinder>> = [];
+
+        for (let i = 0; i < maxLength; i++) {
+            merged[i] = [...(existingAddresses[i] || []), ...(newAddresses[i] || [])];
+        }
+
+        return merged;
     }
 
     async recoverAccount(accountIndex: number, addressStartIndex: number, addressGapLimit: number) {

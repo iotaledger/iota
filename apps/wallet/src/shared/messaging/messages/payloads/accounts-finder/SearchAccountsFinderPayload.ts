@@ -3,21 +3,16 @@
 
 import { isBasePayload } from '_payloads';
 import type { BasePayload, Payload } from '_payloads';
-import {
-    type AllowedAccountTypes,
-    type AllowedBip44CoinTypes,
-} from '_src/background/accounts-finder';
+import { type SearchAccountsFinderParams } from '_src/background/accounts-finder';
 
-export interface SearchAccountsFinderPayload extends BasePayload {
+interface SearchAccountsFinder extends BasePayload {
     type: 'search-accounts-finder';
-    bip44CoinType: AllowedBip44CoinTypes;
-    accountType: AllowedAccountTypes;
-    coinType: string;
-    sourceID: string;
-    accountGapLimit: number;
-    addressGapLimit: number;
 }
 
-export function isSearchAccountsFinder(payload: Payload): payload is SearchAccountsFinderPayload {
+export type SearchAccountsFinderPayload = SearchAccountsFinder & SearchAccountsFinderParams;
+
+export function isSearchAccountsFinder(
+    payload: Payload,
+): payload is SearchAccountsFinderPayload & SearchAccountsFinderParams {
     return isBasePayload(payload) && payload.type === 'search-accounts-finder';
 }
