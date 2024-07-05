@@ -9,7 +9,7 @@ use eyre::WrapErr;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::messages_consensus::{ConsensusTransaction, ConsensusTransactionKind};
 use mysten_metrics::monitored_scope;
-use narwhal_types::{validate_batch_version, BatchAPI};
+use narwhal_types::BatchAPI;
 use narwhal_worker::TransactionValidator;
 use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
 use tap::TapFallible;
@@ -132,16 +132,8 @@ impl TransactionValidator for IotaTxValidator {
         Ok(())
     }
 
-    fn validate_batch(
-        &self,
-        b: &narwhal_types::Batch,
-        protocol_config: &ProtocolConfig,
-    ) -> Result<(), Self::Error> {
+    fn validate_batch(&self, b: &narwhal_types::Batch) -> Result<(), Self::Error> {
         let _scope = monitored_scope("ValidateBatch");
-
-        // TODO: Remove once we have removed BatchV1 from the codebase.
-        validate_batch_version(b, protocol_config)
-            .map_err(|err| eyre::eyre!(format!("Invalid Batch: {err}")))?;
 
         let txs = b
             .transactions()
@@ -207,7 +199,7 @@ mod tests {
         signature::GenericSignature,
     };
     use narwhal_test_utils::latest_protocol_version;
-    use narwhal_types::{Batch, BatchV1};
+    use narwhal_types::Batch;
     use narwhal_worker::TransactionValidator;
 
     use crate::{
@@ -263,7 +255,7 @@ mod tests {
             .collect();
 
         let batch = Batch::new(transaction_bytes, latest_protocol_config);
-        let res_batch = validator.validate_batch(&batch, latest_protocol_config);
+        let res_batch = validator.validate_batch(&batch);
         assert!(res_batch.is_ok(), "{res_batch:?}");
 
         let bogus_transaction_bytes: Vec<_> = certificates
@@ -280,21 +272,13 @@ mod tests {
             .collect();
 
         let batch = Batch::new(bogus_transaction_bytes, latest_protocol_config);
-        let res_batch = validator.validate_batch(&batch, latest_protocol_config);
-        assert!(res_batch.is_err());
-
-        // TODO: Remove once we have removed BatchV1 from the codebase.
-        let batch_v1 = Batch::V1(BatchV1::new(vec![]));
-
-        // Case #1: Receive BatchV1 but network has upgraded past v11 so we fail because
-        // we expect BatchV2
-        let res_batch = validator.validate_batch(&batch_v1, latest_protocol_config);
+        let res_batch = validator.validate_batch(&batch);
         assert!(res_batch.is_err());
 
         let batch_v2 = Batch::new(vec![], latest_protocol_config);
 
         // Case #2: Receive BatchV2 and network is upgraded past v11 so we are okay
-        let res_batch = validator.validate_batch(&batch_v2, latest_protocol_config);
+        let res_batch = validator.validate_batch(&batch_v2);
         assert!(res_batch.is_ok());
     }
 }

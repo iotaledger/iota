@@ -35,9 +35,9 @@ use store::rocks::{DBMap, MetricConf, ReadWriteOptions};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tracing::info;
 use types::{
-    Batch, BatchDigest, BatchV1, Certificate, CertificateAPI, CertificateDigest,
-    FetchBatchesRequest, FetchBatchesResponse, FetchCertificatesRequest, FetchCertificatesResponse,
-    Header, HeaderAPI, HeaderV1Builder, PrimaryToPrimary, PrimaryToPrimaryServer, PrimaryToWorker,
+    Batch, BatchDigest, Certificate, CertificateAPI, CertificateDigest, FetchBatchesRequest,
+    FetchBatchesResponse, FetchCertificatesRequest, FetchCertificatesResponse, Header, HeaderAPI,
+    HeaderV1Builder, PrimaryToPrimary, PrimaryToPrimaryServer, PrimaryToWorker,
     PrimaryToWorkerServer, RequestBatchesRequest, RequestBatchesResponse, RequestVoteRequest,
     RequestVoteResponse, Round, SendCertificateRequest, SendCertificateResponse, TimestampMs,
     Transaction, Vote, VoteAPI, WorkerBatchMessage, WorkerSynchronizeMessage, WorkerToWorker,
@@ -354,10 +354,6 @@ impl WorkerToWorker for WorkerToWorkerMockServer {
 // Fixture
 pub fn batch(protocol_config: &ProtocolConfig) -> Batch {
     let transactions = vec![transaction(), transaction()];
-    // TODO: Remove once we have removed BatchV1 from the codebase.
-    if protocol_config.version < ProtocolVersion::new(12) {
-        return Batch::V1(BatchV1::new(transactions));
-    }
     Batch::new(transactions, protocol_config)
 }
 

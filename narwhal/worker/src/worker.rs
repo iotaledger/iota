@@ -298,7 +298,6 @@ impl Worker {
             network.clone(),
             worker.store.clone(),
             node_metrics.clone(),
-            protocol_config.clone(),
         );
         client.set_primary_to_worker_local_handler(
             worker_peer_id,

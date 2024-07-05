@@ -46,7 +46,6 @@ impl TransactionValidator for NilTxValidator {
     fn validate_batch(
         &self,
         _txs: &Batch,
-        _protocol_config: &ProtocolConfig,
     ) -> Result<(), Self::Error> {
         eyre::bail!("Invalid batch");
     }

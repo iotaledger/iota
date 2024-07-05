@@ -147,7 +147,6 @@ impl MetadataAPI for MetadataV1 {
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Arbitrary)]
 #[enum_dispatch(BatchAPI)]
 pub enum Batch {
-    V1(BatchV1),
     V2(BatchV2),
 }
 
@@ -158,7 +157,6 @@ impl Batch {
 
     pub fn size(&self) -> usize {
         match self {
-            Batch::V1(data) => data.size(),
             Batch::V2(data) => data.size(),
         }
     }
@@ -169,7 +167,6 @@ impl Hash<{ crypto::DIGEST_LENGTH }> for Batch {
 
     fn digest(&self) -> BatchDigest {
         match self {
-            Batch::V1(data) => data.digest(),
             Batch::V2(data) => data.digest(),
         }
     }
@@ -189,54 +186,6 @@ pub trait BatchAPI {
 }
 
 pub type Transaction = Vec<u8>;
-#[derive(Clone, Serialize, Deserialize, Default, Debug, PartialEq, Eq, Arbitrary)]
-pub struct BatchV1 {
-    pub transactions: Vec<Transaction>,
-    pub metadata: Metadata,
-}
-
-impl BatchAPI for BatchV1 {
-    fn transactions(&self) -> &Vec<Transaction> {
-        &self.transactions
-    }
-
-    fn transactions_mut(&mut self) -> &mut Vec<Transaction> {
-        &mut self.transactions
-    }
-
-    fn into_transactions(self) -> Vec<Transaction> {
-        self.transactions
-    }
-
-    fn metadata(&self) -> &Metadata {
-        &self.metadata
-    }
-
-    fn metadata_mut(&mut self) -> &mut Metadata {
-        &mut self.metadata
-    }
-
-    fn versioned_metadata(&self) -> &VersionedMetadata {
-        unimplemented!("BatchV1 does not have a VersionedMetadata field");
-    }
-
-    fn versioned_metadata_mut(&mut self) -> &mut VersionedMetadata {
-        unimplemented!("BatchV1 does not have a VersionedMetadata field");
-    }
-}
-
-impl BatchV1 {
-    pub fn new(transactions: Vec<Transaction>) -> Self {
-        Self {
-            transactions,
-            metadata: Metadata::default(),
-        }
-    }
-
-    pub fn size(&self) -> usize {
-        self.transactions.iter().map(|t| t.len()).sum()
-    }
-}
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Arbitrary)]
 pub struct BatchV2 {
@@ -285,21 +234,6 @@ impl BatchV2 {
 
     pub fn size(&self) -> usize {
         self.transactions.iter().map(|t| t.len()).sum()
-    }
-}
-
-// TODO: Remove once we have removed BatchV1 from the codebase.
-pub fn validate_batch_version(
-    batch: &Batch,
-    protocol_config: &ProtocolConfig,
-) -> anyhow::Result<()> {
-    // We will only accept BatchV2 from the network.
-    match batch {
-        Batch::V1(_) => Err(anyhow::anyhow!(format!(
-            "Received {batch:?} but network is at {:?} and this batch version is no longer supported",
-            protocol_config.version
-        ))),
-        Batch::V2(_) => Ok(()),
     }
 }
 
@@ -356,16 +290,6 @@ impl AsRef<[u8]> for BatchDigest {
 impl BatchDigest {
     pub fn new(val: [u8; crypto::DIGEST_LENGTH]) -> BatchDigest {
         BatchDigest(val)
-    }
-}
-
-impl Hash<{ crypto::DIGEST_LENGTH }> for BatchV1 {
-    type TypedDigest = BatchDigest;
-
-    fn digest(&self) -> Self::TypedDigest {
-        BatchDigest::new(
-            crypto::DefaultHashFunction::digest_iterator(self.transactions.iter()).into(),
-        )
     }
 }
 
