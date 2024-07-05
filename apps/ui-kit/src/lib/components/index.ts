@@ -4,3 +4,4 @@
 import '../styles/index.css';
 
 export * from './atoms/button/Button';
+export * from './atoms/address/Address';
