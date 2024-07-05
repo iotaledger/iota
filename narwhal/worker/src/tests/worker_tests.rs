@@ -43,10 +43,7 @@ impl TransactionValidator for NilTxValidator {
     fn validate(&self, _tx: &[u8]) -> Result<(), Self::Error> {
         eyre::bail!("Invalid transaction");
     }
-    fn validate_batch(
-        &self,
-        _txs: &Batch,
-    ) -> Result<(), Self::Error> {
+    fn validate_batch(&self, _txs: &Batch) -> Result<(), Self::Error> {
         eyre::bail!("Invalid batch");
     }
 }
