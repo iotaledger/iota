@@ -38,7 +38,7 @@ BatchV2:
         TYPENAME: VersionedMetadata
 Certificate:
   ENUM:
-    1:
+    0:
       V2:
         NEWTYPE:
           TYPENAME: CertificateV2
