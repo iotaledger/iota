@@ -41,7 +41,7 @@ impl Display for KeyIdentity {
 }
 
 /// Get the IotaAddress corresponding to this key identity.
-/// If no string is provided, then the curernt active address is returned.
+/// If no string is provided, then the current active address is returned.
 pub fn get_identity_address(
     input: Option<KeyIdentity>,
     ctx: &mut WalletContext,

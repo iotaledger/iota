@@ -18,7 +18,7 @@ interface AccountIconProps {
 }
 
 export function AccountIcon({ account }: AccountIconProps) {
-    if (account.type === AccountType.Ledger) {
+    if (account.type === AccountType.LedgerDerived) {
         return <LedgerLogo17 className="h-4 w-4" />;
     }
     return <IotaIcon />;

@@ -643,7 +643,7 @@ fn find_token(
             if rest_text.starts_with('\'') {
                 let diag = maybe_diag! {
                     let loc = make_loc(file_hash, start_offset, start_offset + len + 1);
-                    let msg = "Charater literals are not supported";
+                    let msg = "Character literals are not supported";
                     let mut diag = diag!(Syntax::UnexpectedToken, (loc, msg));
                     diag.add_note("String literals use double-quote (\").");
                     Box::new(diag)

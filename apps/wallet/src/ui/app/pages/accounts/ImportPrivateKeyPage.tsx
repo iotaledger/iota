@@ -5,10 +5,12 @@
 import { Text } from '_app/shared/text';
 import { useNavigate } from 'react-router-dom';
 
-import { useAccountsFormContext } from '../../components/accounts/AccountsFormContext';
+import {
+    AccountsFormType,
+    useAccountsFormContext,
+} from '../../components/accounts/AccountsFormContext';
 import { ImportPrivateKeyForm } from '../../components/accounts/ImportPrivateKeyForm';
 import { Heading } from '../../shared/heading';
-import { AccountType } from '_src/background/accounts/Account';
 
 export function ImportPrivateKeyPage() {
     const navigate = useNavigate();
@@ -28,10 +30,14 @@ export function ImportPrivateKeyPage() {
                 <ImportPrivateKeyForm
                     onSubmit={({ privateKey }) => {
                         setAccountsFormValues({
-                            type: AccountType.Imported,
+                            type: AccountsFormType.ImportPrivateKey,
                             keyPair: privateKey,
                         });
-                        navigate('/accounts/protect-account?accountType=imported');
+                        navigate(
+                            `/accounts/protect-account?${new URLSearchParams({
+                                accountsFormType: AccountsFormType.ImportPrivateKey,
+                            }).toString()}`,
+                        );
                     }}
                 />
             </div>

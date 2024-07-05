@@ -1,7 +1,12 @@
 [default]
-extend-ignore-re = [
-  "[a-zA-Z0-9]{44}",
-]
+extend-ignore-re = ["[a-zA-Z0-9]{44}", "[a-zA-Z0-9]{9}"]
 
 [default.extend-words]
 groth = "groth"
+BA = "BA"
+DAA = "DAA"
+UE = "UE"
+tto = "tto"
+ser = "ser"
+pn = "pn"
+strat = "strat"
