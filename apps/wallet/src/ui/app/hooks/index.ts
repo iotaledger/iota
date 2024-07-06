@@ -15,7 +15,7 @@ export { useTransactionDryRun } from './useTransactionDryRun';
 export { useGetTxnRecipientAddress } from './useGetTxnRecipientAddress';
 export { useGetTransferAmount } from './useGetTransferAmount';
 export { useOwnedNFT } from './useOwnedNFT';
-export { useSortedCoinsByCategories } from './useSortedCoinsByCategories';
+
 export * from './useTransactionData';
 export * from './useActiveAddress';
 export * from './useCoinsReFetchingConfig';
