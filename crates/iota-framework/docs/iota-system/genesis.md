@@ -20,6 +20,7 @@ title: Module `0x3::genesis`
 <b>use</b> <a href="../iota-framework/coin.md#0x2_coin">0x2::coin</a>;
 <b>use</b> <a href="../iota-framework/iota.md#0x2_iota">0x2::iota</a>;
 <b>use</b> <a href="../iota-framework/object.md#0x2_object">0x2::object</a>;
+<b>use</b> <a href="../iota-framework/timelock.md#0x2_timelock">0x2::timelock</a>;
 <b>use</b> <a href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
 <b>use</b> <a href="iota_system.md#0x3_iota_system">0x3::iota_system</a>;
 <b>use</b> <a href="iota_system_state_inner.md#0x3_iota_system_state_inner">0x3::iota_system_state_inner</a>;
@@ -311,22 +312,22 @@ title: Module `0x3::genesis`
 ## Constants
 
 
-<a name="0x3_genesis_EDuplicateValidator"></a>
-
-The <code>create</code> function was called with duplicate validators.
-
-
-<pre><code><b>const</b> <a href="genesis.md#0x3_genesis_EDuplicateValidator">EDuplicateValidator</a>: u64 = 1;
-</code></pre>
-
-
-
 <a name="0x3_genesis_ENotCalledAtGenesis"></a>
 
 The <code>create</code> function was called at a non-genesis epoch.
 
 
 <pre><code><b>const</b> <a href="genesis.md#0x3_genesis_ENotCalledAtGenesis">ENotCalledAtGenesis</a>: u64 = 0;
+</code></pre>
+
+
+
+<a name="0x3_genesis_EDuplicateValidator"></a>
+
+The <code>create</code> function was called with duplicate validators.
+
+
+<pre><code><b>const</b> <a href="genesis.md#0x3_genesis_EDuplicateValidator">EDuplicateValidator</a>: u64 = 1;
 </code></pre>
 
 
@@ -340,7 +341,7 @@ It will create a singleton IotaSystemState object, which contains
 all the information we need in the system.
 
 
-<pre><code><b>fun</b> <a href="genesis.md#0x3_genesis_create">create</a>(iota_system_state_id: <a href="../iota-framework/object.md#0x2_object_UID">object::UID</a>, iota_supply: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, genesis_chain_parameters: <a href="genesis.md#0x3_genesis_GenesisChainParameters">genesis::GenesisChainParameters</a>, genesis_validators: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="genesis.md#0x3_genesis_GenesisValidatorMetadata">genesis::GenesisValidatorMetadata</a>&gt;, token_distribution_schedule: <a href="genesis.md#0x3_genesis_TokenDistributionSchedule">genesis::TokenDistributionSchedule</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code><b>fun</b> <a href="genesis.md#0x3_genesis_create">create</a>(iota_system_state_id: <a href="../iota-framework/object.md#0x2_object_UID">object::UID</a>, iota_supply: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, genesis_chain_parameters: <a href="genesis.md#0x3_genesis_GenesisChainParameters">genesis::GenesisChainParameters</a>, genesis_validators: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="genesis.md#0x3_genesis_GenesisValidatorMetadata">genesis::GenesisValidatorMetadata</a>&gt;, token_distribution_schedule: <a href="genesis.md#0x3_genesis_TokenDistributionSchedule">genesis::TokenDistributionSchedule</a>, system_timelock_cap: <a href="../iota-framework/timelock.md#0x2_timelock_SystemTimelockCap">timelock::SystemTimelockCap</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -355,6 +356,7 @@ all the information we need in the system.
     genesis_chain_parameters: <a href="genesis.md#0x3_genesis_GenesisChainParameters">GenesisChainParameters</a>,
     genesis_validators: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="genesis.md#0x3_genesis_GenesisValidatorMetadata">GenesisValidatorMetadata</a>&gt;,
     token_distribution_schedule: <a href="genesis.md#0x3_genesis_TokenDistributionSchedule">TokenDistributionSchedule</a>,
+    system_timelock_cap: SystemTimelockCap,
     ctx: &<b>mut</b> TxContext,
 ) {
     // Ensure this is only called at <a href="genesis.md#0x3_genesis">genesis</a>
@@ -462,6 +464,7 @@ all the information we need in the system.
         genesis_chain_parameters.chain_start_timestamp_ms,
         system_parameters,
         <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a>,
+        system_timelock_cap,
         ctx,
     );
 }
