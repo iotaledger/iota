@@ -8,7 +8,7 @@ use move_core_types::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{balance::Balance, base_types::ObjectID, id::UID, TIMELOCK_ADDRESS};
+use crate::{balance::Balance, base_types::ObjectID, id::UID, IOTA_FRAMEWORK_ADDRESS};
 
 #[cfg(test)]
 #[path = "../unit_tests/timelock/timelock_tests.rs"]
@@ -43,7 +43,7 @@ impl<T> TimeLock<T> {
     /// Get the TimeLock's `type`.
     pub fn type_(type_param: TypeTag) -> StructTag {
         StructTag {
-            address: TIMELOCK_ADDRESS,
+            address: IOTA_FRAMEWORK_ADDRESS,
             module: TIMELOCK_MODULE_NAME.to_owned(),
             name: TIMELOCK_STRUCT_NAME.to_owned(),
             type_params: vec![type_param],
@@ -88,7 +88,7 @@ where
 
 /// Is this other StructTag representing a TimeLock?
 pub fn is_timelock(other: &StructTag) -> bool {
-    other.address == TIMELOCK_ADDRESS
+    other.address == IOTA_FRAMEWORK_ADDRESS
         && other.module.as_ident_str() == TIMELOCK_MODULE_NAME
         && other.name.as_ident_str() == TIMELOCK_STRUCT_NAME
 }

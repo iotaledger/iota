@@ -51,7 +51,7 @@ use iota_types::{
         Transaction,
     },
     IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_STATE_OBJECT_ID,
-    IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION, TIMELOCK_ADDRESS,
+    IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
 };
 use move_binary_format::CompiledModule;
 use move_core_types::ident_str;
@@ -462,11 +462,9 @@ impl Builder {
 
             // Validators should not have duplicate addresses so the result of insertion
             // should be None.
-            assert!(
-                address_to_pool_id
-                    .insert(metadata.iota_address, onchain_validator.staking_pool.id)
-                    .is_none()
-            );
+            assert!(address_to_pool_id
+                .insert(metadata.iota_address, onchain_validator.staking_pool.id)
+                .is_none());
             assert_eq!(validator.info.iota_address(), metadata.iota_address);
             assert_eq!(validator.info.protocol_key(), metadata.iota_pubkey_bytes());
             assert_eq!(validator.info.network_key, metadata.network_pubkey);
@@ -1333,8 +1331,8 @@ pub fn generate_genesis_timelock_allocation(
                     builder.pure(allocation.surplus_nanos)?,
                 ];
                 let surplus_timelock = builder.programmable_move_call(
-                    TIMELOCK_ADDRESS.into(),
-                    ident_str!("timelocked_balance").to_owned(),
+                    IOTA_FRAMEWORK_ADDRESS.into(),
+                    ident_str!("timelock").to_owned(),
                     ident_str!("split").to_owned(),
                     vec![GAS::type_tag()],
                     arguments,
@@ -1344,7 +1342,7 @@ pub fn generate_genesis_timelock_allocation(
                     builder.pure(allocation.recipient_address)?,
                 ];
                 builder.programmable_move_call(
-                    TIMELOCK_ADDRESS.into(),
+                    IOTA_FRAMEWORK_ADDRESS.into(),
                     ident_str!("timelock").to_owned(),
                     ident_str!("transfer").to_owned(),
                     vec![Balance::type_tag(GAS::type_tag())],
@@ -1367,7 +1365,7 @@ pub fn generate_genesis_timelock_allocation(
                 builder.pure(allocation.staked_with_validator)?,
             ];
             let receipt_vector = builder.programmable_move_call(
-                TIMELOCK_ADDRESS.into(),
+                IOTA_SYSTEM_ADDRESS.into(),
                 ident_str!("timelocked_staking").to_owned(),
                 ident_str!("request_add_stake_mul_bal_non_entry").to_owned(),
                 vec![],
@@ -1375,8 +1373,8 @@ pub fn generate_genesis_timelock_allocation(
             );
             let arguments = vec![receipt_vector, builder.pure(allocation.recipient_address)?];
             builder.programmable_move_call(
-                TIMELOCK_ADDRESS.into(),
-                ident_str!("timelocked_staked_iota").to_owned(),
+                IOTA_SYSTEM_ADDRESS.into(),
+                ident_str!("timelocked_staking").to_owned(),
                 ident_str!("transfer_multiple").to_owned(),
                 vec![],
                 arguments,
