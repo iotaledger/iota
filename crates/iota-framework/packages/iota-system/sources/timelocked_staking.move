@@ -321,4 +321,24 @@ module iota_system::timelocked_staking {
         vector::destroy_empty(stakes);
     }
 
+    // == Genesis ==
+    
+    /// Request to add timelocked stake to the validator's staking pool at genesis
+    public(package) fun request_add_stake_at_genesis(
+        validator: &mut Validator,
+        stake: Balance<IOTA>,
+        staker_address: address,
+        expiration_timestamp_ms: u64,
+        label: Option<String>,
+        ctx: &mut TxContext,
+    ) {
+        let staked_iota = validator.request_add_timelocked_stake_at_genesis_internal(stake, ctx);
+        let timelocked_staked_iota = TimelockedStakedIota {
+            id: object::new(ctx),
+            staked_iota,
+            expiration_timestamp_ms,
+            label,
+        };
+        transfer(timelocked_staked_iota, staker_address);
+    }
 }
