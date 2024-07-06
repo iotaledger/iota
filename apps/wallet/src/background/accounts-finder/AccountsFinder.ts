@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type AccountFromFinder, type AddressFromFinder } from '_src/shared/accounts';
-import { hasBalance } from './accounts-finder';
+import { hasBalance, mergeAccounts } from './accounts-finder';
 import NetworkEnv from '../NetworkEnv';
 import {
     IotaClient,
@@ -175,48 +175,6 @@ class AccountsFinder {
         };
     }
 
-    // Merge function
-    mergeAccounts(accountsLists: AccountFromFinder[][]): AccountFromFinder[] {
-        const mergedAccountsMap: Map<number, Array<Array<AddressFromFinder>>> = new Map();
-
-        // Flatten the list of account lists and process each account
-        accountsLists.flat().forEach((account) => {
-            if (!mergedAccountsMap.has(account.index)) {
-                // If the account index is not yet in the map, add it directly
-                mergedAccountsMap.set(account.index, account.addresses);
-            } else {
-                // If the account index exists, merge the addresses
-                const existingAddresses = mergedAccountsMap.get(account.index);
-
-                if (existingAddresses) {
-                    const newAddresses = this.mergeAddresses(existingAddresses, account.addresses);
-                    mergedAccountsMap.set(account.index, newAddresses);
-                }
-            }
-        });
-
-        // Convert the map back to an array of AccountFromFinder
-        return Array.from(mergedAccountsMap, ([index, addresses]) => ({
-            index,
-            addresses,
-        }));
-    }
-
-    // Helper function to merge two arrays of arrays of addresses
-    mergeAddresses(
-        existingAddresses: Array<Array<AddressFromFinder>>,
-        newAddresses: Array<Array<AddressFromFinder>>,
-    ): Array<Array<AddressFromFinder>> {
-        const maxLength = Math.max(existingAddresses.length, newAddresses.length);
-        const merged: Array<Array<AddressFromFinder>> = [];
-
-        for (let i = 0; i < maxLength; i++) {
-            merged[i] = [...(existingAddresses[i] || []), ...(newAddresses[i] || [])];
-        }
-
-        return merged;
-    }
-
     async recoverAccount(accountIndex: number, addressStartIndex: number, addressGapLimit: number) {
         const account = this.accounts.find((acc) => acc.index === accountIndex) ?? {
             index: accountIndex,
@@ -334,7 +292,7 @@ class AccountsFinder {
                 addressGapLimit: this.addressGapLimit, // we search for the full address gap limit
             });
 
-            this.accounts = [...this.accounts, ...foundAccounts];
+            this.accounts = mergeAccounts(this.accounts, foundAccounts);
         }
         return this.accounts;
     }
@@ -363,7 +321,6 @@ class AccountsFinder {
             sourceID: DEFAULT_PARAMS.sourceID,
         },
     ) {
-        console.log('--- find run1');
         await this.setConfigs(params);
 
         switch (this.algorithm) {

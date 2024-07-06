@@ -132,3 +132,55 @@ async function searchAddressesWithObjects(
 export function hasBalance(balance: CoinBalance): boolean {
     return balance.coinObjectCount > 0;
 }
+
+// Transform list of accounts and found balances to format.
+// This function allow to remove duplicates in the list of accounts.
+// {
+//   'addressIndex-accountIndex-changeIndex': 'AddressFromFinder
+// }
+function transformToBipMap(accounts: AccountFromFinder[]) {
+    const bipMap: Record<string, AddressFromFinder> = {};
+
+    accounts.forEach((account) => {
+        account.addresses.forEach((address) => {
+            address.forEach((changeIndexObj) => {
+                const { accountIndex, addressIndex, changeIndex } = changeIndexObj.bipPath;
+                const key = `${accountIndex}-${addressIndex}-${changeIndex}`;
+                bipMap[key] = changeIndexObj;
+            });
+        });
+    });
+    return bipMap;
+}
+
+// Transform bipMap to list of accounts back.
+function transformFromBipMap(bipMap: Record<string, AddressFromFinder>) {
+    const accounts: AccountFromFinder[] = [];
+
+    Object.entries(bipMap).forEach(([key, address]) => {
+        const [accountIndex, addressIndex, changeIndex] = key.split('-').map(Number);
+
+        // add empty accounts if they don't exist
+        if (!accounts[accountIndex]) {
+            accounts[accountIndex] = {
+                index: accountIndex,
+                addresses: [],
+            };
+        }
+
+        // add empty addresses if they don't exist
+        if (!accounts[accountIndex].addresses[addressIndex]) {
+            accounts[accountIndex].addresses[addressIndex] = [];
+        }
+
+        accounts[accountIndex].addresses[addressIndex][changeIndex] = address;
+    });
+
+    return accounts;
+}
+
+// Merge two lists of accounts and remove duplicates.
+export function mergeAccounts(accounts1: AccountFromFinder[], accounts2: AccountFromFinder[]) {
+    const bipMap = transformToBipMap([...accounts1, ...accounts2]);
+    return transformFromBipMap(bipMap);
+}
