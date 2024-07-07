@@ -6,17 +6,16 @@ import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
 import clsx from 'clsx';
 import { type ReactNode, useState } from 'react';
 
-import { Signatures } from './Signatures';
-import { ErrorBoundary } from '~/components/error-boundary/ErrorBoundary';
+import { ErrorBoundary } from '~/components';
+import { SplitPanes, Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui';
 import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { Events } from '~/pages/transaction-result/Events';
 import { TransactionData } from '~/pages/transaction-result/TransactionData';
 import { TransactionSummary } from '~/pages/transaction-result/transaction-summary';
-import { SplitPanes } from '~/ui/SplitPanes';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
+import { Signatures } from './Signatures';
 
-import styles from './TransactionResult.module.css';
 import { LocalStorageSplitPaneKey } from '~/lib/enums';
+import styles from './TransactionResult.module.css';
 
 interface TabsContentContainerProps {
     value: string;

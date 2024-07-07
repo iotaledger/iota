@@ -2,11 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type GetBalanceParams, type CoinBalance } from '@iota/iota.js/client';
-import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
 import { type AccountFromFinder, type AddressFromFinder } from '_src/shared/accounts';
-import { makeDerivationPath } from '../account-sources/bip44Path';
+import { type MakeDerivationOptions } from '../account-sources/bip44Path';
 
-type GetBalanceCallback = (bipPath: string, params: GetBalanceParams) => Promise<CoinBalance>;
+type GetBalance = (
+    makeDerivationOptions: MakeDerivationOptions,
+    params: GetBalanceParams,
+) => Promise<CoinBalance>;
+export type GetPublicKey = (makeDerivationOptions: MakeDerivationOptions) => Promise<string>;
 
 /**
  * Function to search for accounts/addresses with objects
@@ -16,20 +19,20 @@ type GetBalanceCallback = (bipPath: string, params: GetBalanceParams) => Promise
  *   @param {number} accountGapLimit The number of accounts to search for, after the last account with unspent outputs.
  *   @param {number} addressGapLimit The number of addresses to search for, after the last address with unspent outputs, in each account.
  *   @param {AccountFromFinder[]} accounts Array buffer to store the found accounts.
- *   @param {string} seed The seed of the wallet.
  *   @param {number} coinType Coin ID to be used.
- *   @param {GetBalanceCallback} getBalance Callback to retrieve a balance of a given address, usually by using the IotaClient.
+ *   @param {GetBalance} getBalance Callback to retrieve a balance of a given address, usually by using the IotaClient.
  *   @param {gasTypeArg} gasTypeArg The Coin type name of Move.
+ *   @param {GetPublicKey} getPublicKey Callback to retrieve the public key of the keypair in a given bippath.
  */
 export async function findAccounts(
     accountStartIndex: number,
     accountGapLimit: number,
     addressGapLimit: number,
     accounts: AccountFromFinder[],
-    seed: string,
     coinType: number,
-    getBalance: GetBalanceCallback,
+    getBalance: GetBalance,
     gasTypeArg: string,
+    getPublicKey: GetPublicKey,
 ): Promise<AccountFromFinder[]> {
     // TODO: first check that accounts: Account[] is correctly sorted, if not, throw exception or something
     // Check new addresses for existing accounts
@@ -41,10 +44,10 @@ export async function findAccounts(
             accounts[account.index] = await searchAddressesWithObjects(
                 addressGapLimit,
                 account,
-                seed,
                 coinType,
                 getBalance,
                 gasTypeArg,
+                getPublicKey,
             );
         }
     }
@@ -60,10 +63,10 @@ export async function findAccounts(
         account = await searchAddressesWithObjects(
             addressGapLimit,
             account,
-            seed,
             coinType,
             getBalance,
             gasTypeArg,
+            getPublicKey,
         );
         accounts[accountIndex] = account;
         if (account.addresses.flat().find((a: AddressFromFinder) => hasBalance(a.balance))) {
@@ -78,10 +81,10 @@ export async function findAccounts(
 async function searchAddressesWithObjects(
     addressGapLimit: number,
     account: AccountFromFinder,
-    seed: string,
     coinType: number,
-    getBalance: GetBalanceCallback,
+    getBalance: GetBalance,
     gasTypeArg: string,
+    getPublicKey: GetPublicKey,
 ): Promise<AccountFromFinder> {
     const accountAddressesLength = account.addresses.length;
     let targetIndex = accountAddressesLength + addressGapLimit;
@@ -89,15 +92,13 @@ async function searchAddressesWithObjects(
     for (let addressIndex = accountAddressesLength; addressIndex < targetIndex; addressIndex += 1) {
         const changeIndexes = [0, 1]; // in the past the change indexes were used as 0=deposit & 1=internal
         for (const changeIndex of changeIndexes) {
-            const bipPath = makeDerivationPath({
+            const bipPath = {
                 coinType,
                 accountIndex: account.index,
-                changeIndex,
                 addressIndex,
-            });
-            const pubKeyHash = Ed25519Keypair.deriveKeypairFromSeed(seed, bipPath)
-                .getPublicKey()
-                .toIotaAddress();
+                changeIndex,
+            };
+            const pubKeyHash = await getPublicKey(bipPath);
 
             const balance = await getBalance(bipPath, {
                 owner: pubKeyHash,
@@ -128,6 +129,6 @@ async function searchAddressesWithObjects(
     return account;
 }
 
-function hasBalance(balance: CoinBalance): boolean {
+export function hasBalance(balance: CoinBalance): boolean {
     return balance.coinObjectCount > 0;
 }
