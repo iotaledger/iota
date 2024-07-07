@@ -138,7 +138,7 @@ export function TokenRow({ coinBalance, renderActions, onClick }: TokenRowProps)
                                 to={`/send?${params.toString()}`}
                                 onClick={() =>
                                     ampli.selectedCoin({
-                                        gasCoinType: coinBalance.coinType,
+                                        coinType: coinBalance.coinType,
                                         totalBalance: Number(formatted),
                                     })
                                 }
@@ -224,7 +224,7 @@ export function MyTokens({ coinBalances, isLoading, isFetched }: MyTokensProps) 
                                 <PinButton
                                     unpin
                                     onClick={() => {
-                                        ampli.unpinnedCoin({ gasCoinType: coinBalance.coinType });
+                                        ampli.unpinnedCoin({ coinType: coinBalance.coinType });
                                         unpinCoinType(coinBalance.coinType);
                                     }}
                                 />
@@ -251,7 +251,7 @@ export function MyTokens({ coinBalances, isLoading, isFetched }: MyTokensProps) 
                             centerAction={
                                 <PinButton
                                     onClick={() => {
-                                        ampli.pinnedCoin({ gasCoinType: coinBalance.coinType });
+                                        ampli.pinnedCoin({ coinType: coinBalance.coinType });
                                         pinCoinType(coinBalance.coinType);
                                     }}
                                 />
@@ -294,7 +294,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
         isError,
         isPending,
         isFetched,
-    } = useBalance(activeAccountAddress!, { gasCoinType: activeCoinType });
+    } = useBalance(activeAccountAddress!, { coinType: activeCoinType });
     const network = useAppSelector((state) => state.app.network);
     const isMainnet = network === Network.Mainnet;
     const { request } = useAppsBackend();

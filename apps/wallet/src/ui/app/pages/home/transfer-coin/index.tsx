@@ -40,7 +40,7 @@ function TransferCoinPage() {
         if (!coinType || !signer || !formData || !address) return null;
 
         return createTokenTransferTransaction({
-            coinType: gasCoinType,
+            coinType,
             coinDecimals: coinMetadata?.decimals ?? 0,
             ...formData,
         });
@@ -73,7 +73,7 @@ function TransferCoinPage() {
             queryClient.invalidateQueries({ queryKey: ['coin-balance'] });
 
             ampli.sentCoins({
-                gasCoinType: coinType!,
+                coinType: coinType!,
             });
 
             const receiptUrl = `/receipt?txdigest=${encodeURIComponent(

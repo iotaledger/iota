@@ -44,7 +44,7 @@ import {
     type ResetAccountsFinder,
     type SearchAccountsFinderPayload,
 } from '_src/shared/messaging/messages/payloads/accounts-finder';
-import { type SearchAccountsFinderParams } from '_src/background/accounts-finder';
+import { type AccountFinderConfigParams } from '_src/background/accounts-finder';
 
 const ENTITIES_TO_CLIENT_QUERY_KEYS: Record<UIAccessibleEntityType, QueryKey> = {
     accounts: ACCOUNTS_QUERY_KEY,
@@ -547,7 +547,7 @@ export class BackgroundClient {
         );
     }
 
-    public async searchAccountsFinder(params: SearchAccountsFinderParams) {
+    public async searchAccountsFinder(params: AccountFinderConfigParams) {
         await lastValueFrom(
             this.sendMessage(
                 createMessage<SearchAccountsFinderPayload>({

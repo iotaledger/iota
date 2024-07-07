@@ -2,18 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type AccountFromFinder, type AddressFromFinder } from '_src/shared/accounts';
-import { hasBalance, mergeAccounts } from './accounts-finder';
+import { hasBalance, mergeAccounts, recoverAccounts } from './accounts-finder';
 import NetworkEnv from '../NetworkEnv';
-import {
-    IotaClient,
-    getFullnodeUrl,
-    type GetBalanceParams,
-    type CoinBalance,
-} from '@iota/iota.js/client';
-import { getAccountSourceByID } from '../account-sources';
-import { type MakeDerivationOptions } from '_src/background/account-sources/bip44Path';
+import { IotaClient, getFullnodeUrl } from '@iota/iota.js/client';
 import { AccountType } from '../accounts/Account';
 import { IOTA_GAS_COIN_TYPE } from '_redux/slices/iota-objects/Coin';
+import { getEmptyBalance, getPublicKey } from '_src/background/accounts-finder/helpers';
+import { type FindBalance } from '_src/background/accounts-finder/types';
 
 // Note: we exclude private keys for the account finder because more addresses cant be derived from them
 export type AllowedAccountTypes = Exclude<AccountType, AccountType.PrivateKeyDerived>;
@@ -29,7 +24,7 @@ export enum SearchAlgorithm {
     ITERATIVE_DEEPENING_BREADTH_FIRST,
 }
 
-export interface SearchAccountsFinderParams {
+export interface AccountFinderConfigParams {
     bip44CoinType: AllowedBip44CoinTypes;
     accountType: AllowedAccountTypes;
     algorithm?: SearchAlgorithm;
@@ -45,16 +40,10 @@ interface GapConfiguration {
     addressGapLimit: number;
 }
 
-export interface RecoverAccountsParams {
-    accountStartIndex: number;
-    accountGapLimit: number;
-    addressStartIndex: number;
-    addressGapLimit: number;
-}
-
 type GapConfigurationByCoinType = {
     [key in AllowedAccountTypes]: GapConfiguration;
 };
+
 const GAP_CONFIGURATION: { [key in AllowedBip44CoinTypes]: GapConfigurationByCoinType } = {
     // in IOTA we have chrysalis users which could have rotated addresses
     [AllowedBip44CoinTypes.IOTA]: {
@@ -93,23 +82,15 @@ const CHANGE_INDEXES: { [key in AllowedBip44CoinTypes]: number[] } = {
     [AllowedBip44CoinTypes.Shimmer]: [0],
 };
 
-const DEFAULT_PARAMS = {
-    bip44CoinType: AllowedBip44CoinTypes.IOTA,
-    accountType: AccountType.LedgerDerived as AllowedAccountTypes,
-    coinType: IOTA_GAS_COIN_TYPE,
-    sourceID: '',
-    accountGapLimit: 0,
-    addressGapLimit: 0,
-};
-
 class AccountsFinder {
+    private accountGapLimit: number = 0;
+    private addressGapLimit: number = 0;
+    private changeIndexes: number[] = [0];
+
     private algorithm: SearchAlgorithm = SearchAlgorithm.ITERATIVE_DEEPENING_BREADTH_FIRST;
-    private accountGapLimit: number = DEFAULT_PARAMS.accountGapLimit;
-    private addressGapLimit: number = DEFAULT_PARAMS.addressGapLimit;
-    private bip44CoinType: AllowedBip44CoinTypes = DEFAULT_PARAMS.bip44CoinType; // 4218 for IOTA or 4219 for Shimmer
+    private bip44CoinType: AllowedBip44CoinTypes = AllowedBip44CoinTypes.IOTA; // 4218 for IOTA or 4219 for Shimmer
     private coinType: string = IOTA_GAS_COIN_TYPE;
-    private sourceID: string = DEFAULT_PARAMS.sourceID;
-    private changeIndexes: number[] = CHANGE_INDEXES[DEFAULT_PARAMS.bip44CoinType];
+    private sourceID: string = '';
     public client: IotaClient | null = null;
 
     accounts: AccountFromFinder[] = []; // Found accounts with balances.
@@ -118,155 +99,26 @@ class AccountsFinder {
         this.accounts = [];
     }
 
-    async setConfigs(params: SearchAccountsFinderParams) {
+    async setConfig(config: AccountFinderConfigParams) {
         const network = await NetworkEnv.getActiveNetwork();
         this.client = new IotaClient({
             url: network.customRpcUrl ? network.customRpcUrl : getFullnodeUrl(network.network),
         });
 
-        this.bip44CoinType = params.bip44CoinType;
-        this.coinType = params.coinType;
-        this.sourceID = params.sourceID;
-        this.changeIndexes = params.changeIndexes || CHANGE_INDEXES[params.bip44CoinType];
+        this.bip44CoinType = config.bip44CoinType;
+        this.coinType = config.coinType;
+        this.sourceID = config.sourceID;
+        this.changeIndexes = config.changeIndexes || CHANGE_INDEXES[config.bip44CoinType];
 
-        this.algorithm = params.algorithm || SearchAlgorithm.ITERATIVE_DEEPENING_BREADTH_FIRST;
+        this.algorithm = config.algorithm || SearchAlgorithm.ITERATIVE_DEEPENING_BREADTH_FIRST;
 
         this.accountGapLimit =
-            params.accountGapLimit ??
-            GAP_CONFIGURATION[this.bip44CoinType][params.accountType].accountGapLimit;
+            config.accountGapLimit ??
+            GAP_CONFIGURATION[this.bip44CoinType][config.accountType].accountGapLimit;
 
         this.addressGapLimit =
-            params.addressGapLimit ??
-            GAP_CONFIGURATION[this.bip44CoinType][params.accountType].addressGapLimit;
-    }
-
-    async searchBalances(accountIndex: number, addressIndex: number) {
-        const addresses: AddressFromFinder[] = [];
-
-        // if any of the addresses has a balance, we increase the target address index to keep searching
-        let isBalanceExists = false;
-        for (const changeIndex of this.changeIndexes) {
-            const bipPath = {
-                coinType: this.bip44CoinType,
-                accountIndex: accountIndex,
-                addressIndex: addressIndex,
-                changeIndex,
-            };
-            const pubKeyHash = await this.getPublicKey(bipPath);
-
-            const balance = await this.getBalance({
-                owner: pubKeyHash,
-                coinType: this.coinType,
-            });
-
-            if (hasBalance(balance)) {
-                isBalanceExists = true;
-            }
-
-            addresses.push({
-                pubKeyHash,
-                balance,
-                bipPath,
-            });
-        }
-        return {
-            addresses,
-            isBalanceExists,
-        };
-    }
-
-    async recoverAccount(accountIndex: number, addressStartIndex: number, addressGapLimit: number) {
-        const account = this.accounts.find((acc) => acc.index === accountIndex) ?? {
-            index: accountIndex,
-            addresses: [],
-        };
-
-        // Flag to check if any of the addresses of the account has a balance
-        let isBalanceExists = false;
-
-        // Isolated search for no address rotation
-        if (!addressGapLimit) {
-            const { addresses, isBalanceExists: isBalanceExists } = await this.searchBalances(
-                accountIndex,
-                addressStartIndex,
-            );
-
-            account.addresses.push(addresses); // we add the addresses to the account
-
-            return {
-                account,
-                isBalanceExists,
-            };
-        }
-
-        // on each fixed account index, we search for addresses in the given range
-        let targetAddressIndex = addressStartIndex + addressGapLimit;
-        for (
-            let addressIndex = addressStartIndex;
-            addressIndex < targetAddressIndex;
-            addressIndex++
-        ) {
-            const { addresses, isBalanceExists: isHasBalance } = await this.searchBalances(
-                accountIndex,
-                addressIndex,
-            );
-
-            if (isHasBalance) {
-                targetAddressIndex = addressIndex + addressGapLimit;
-                isBalanceExists = true;
-            }
-
-            account.addresses.push(addresses);
-        }
-
-        return { account, isBalanceExists };
-    }
-
-    async recoverAccounts(
-        params: RecoverAccountsParams = {
-            accountStartIndex: 0,
-            accountGapLimit: 0,
-            addressStartIndex: 0,
-            addressGapLimit: 0,
-        },
-    ) {
-        const { accountStartIndex, accountGapLimit, addressStartIndex, addressGapLimit } = params;
-
-        const accounts: AccountFromFinder[] = [];
-        let targetAccountIndex = accountStartIndex + accountGapLimit;
-
-        // isolated search for one account;
-        if (!accountGapLimit) {
-            const { account } = await this.recoverAccount(
-                accountStartIndex,
-                addressStartIndex,
-                addressGapLimit,
-            );
-            accounts.push(account);
-            return accounts;
-        }
-
-        // we search for accounts in the given range
-        for (
-            let accountIndex = accountStartIndex;
-            accountIndex < targetAccountIndex;
-            accountIndex++
-        ) {
-            const { isBalanceExists, account } = await this.recoverAccount(
-                accountIndex,
-                addressStartIndex,
-                addressGapLimit,
-            );
-
-            // if any of the addresses of the given account has a balance,
-            // we increase the target account index to keep searching
-            if (isBalanceExists) {
-                targetAccountIndex = accountIndex + accountGapLimit;
-            }
-            // we add the account to the list of accounts
-            accounts.push(account);
-        }
-        return accounts;
+            config.addressGapLimit ??
+            GAP_CONFIGURATION[this.bip44CoinType][config.accountType].addressGapLimit;
     }
 
     async runDepthSearch() {
@@ -285,11 +137,13 @@ class AccountsFinder {
         // depth search is done by searching for more addresses for each account in isolation
         for (const account of depthAccounts) {
             // during depth search we search for 1 account at a time and start from the last address index
-            const foundAccounts = await this.recoverAccounts({
+            const foundAccounts = await recoverAccounts({
                 accountStartIndex: account.index, // we search for the current account
                 accountGapLimit: 0, // we only search for 1 account
                 addressStartIndex: account.addresses.length, // we start from the last address index
                 addressGapLimit: this.addressGapLimit, // we search for the full address gap limit
+                changeIndexes: this.changeIndexes,
+                findBalance: this.findBalance,
             });
 
             this.accounts = mergeAccounts(this.accounts, foundAccounts);
@@ -301,11 +155,13 @@ class AccountsFinder {
         // during breadth search we always start by searching for new account indexes
         const initialAccountIndex = this.accounts?.length ? this.accounts.length : 0; // next index or start from 0;
 
-        const foundAccounts = await this.recoverAccounts({
+        const foundAccounts = await recoverAccounts({
             accountStartIndex: initialAccountIndex, // we start from the last existing account index
             accountGapLimit: this.accountGapLimit, // we search for the full account gap limit
             addressStartIndex: 0, // we start from the first address index
             addressGapLimit: this.addressGapLimit, // we search for the full address gap limit
+            changeIndexes: this.changeIndexes,
+            findBalance: this.findBalance,
         });
 
         this.accounts = [...this.accounts, ...foundAccounts];
@@ -313,15 +169,8 @@ class AccountsFinder {
     }
 
     // This function calls each time when user press "Search" button
-    async find(
-        params: SearchAccountsFinderParams = {
-            bip44CoinType: DEFAULT_PARAMS.bip44CoinType,
-            accountType: DEFAULT_PARAMS.accountType,
-            coinType: DEFAULT_PARAMS.coinType,
-            sourceID: DEFAULT_PARAMS.sourceID,
-        },
-    ) {
-        await this.setConfigs(params);
+    async find(config: AccountFinderConfigParams) {
+        await this.setConfig(config);
 
         switch (this.algorithm) {
             case SearchAlgorithm.BREADTH:
@@ -339,35 +188,34 @@ class AccountsFinder {
         }
     }
 
-    async getPublicKey(options: MakeDerivationOptions) {
-        const accountSource = await getAccountSourceByID(this.sourceID);
-
-        if (!accountSource) {
-            throw new Error('Could not find account source');
-        }
-
-        const pubKey = await accountSource.derivePubKey(options);
-        return pubKey?.toIotaAddress();
-    }
-
-    async getBalance(params: GetBalanceParams): Promise<CoinBalance> {
-        const emptyBalance: CoinBalance = {
-            coinType: this.coinType,
-            coinObjectCount: 0,
-            totalBalance: '0',
-            lockedBalance: {},
-        };
+    findBalance: FindBalance = async (params) => {
+        const emptyBalance = getEmptyBalance(this.coinType);
 
         if (!this.client) {
             throw new Error('IotaClient is not initialized');
         }
 
-        const foundBalance = await this.client.getBalance(params);
+        const publicKeyHash = await getPublicKey({
+            sourceID: this.sourceID,
+            coinType: this.bip44CoinType,
+            accountIndex: params.accountIndex,
+            addressIndex: params.addressIndex,
+            changeIndex: params.changeIndex,
+        });
 
-        return foundBalance || emptyBalance;
-    }
+        const foundBalance = await this.client.getBalance({
+            owner: publicKeyHash,
+            coinType: this.coinType,
+        });
+
+        return {
+            publicKeyHash,
+            balance: foundBalance || emptyBalance,
+        };
+    };
 
     getResults(): AddressFromFinder[] {
+        console.log('--- this.accounts', this.accounts);
         return this.accounts
             .flatMap((acc) => acc.addresses.flat())
             .filter((addr) => hasBalance(addr.balance));
