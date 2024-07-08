@@ -5,9 +5,8 @@
 import { type IotaValidatorSummary } from '@iota/iota.js/client';
 import { Heading } from '@iota/ui';
 
+import { Card, Stats } from '~/components/ui';
 import { DelegationAmount } from './DelegationAmount';
-import { Card } from '~/ui/Card';
-import { Stats } from '~/ui/Stats';
 
 type StatsCardProps = {
     validatorData: IotaValidatorSummary;

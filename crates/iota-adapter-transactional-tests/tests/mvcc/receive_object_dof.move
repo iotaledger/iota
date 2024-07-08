@@ -62,20 +62,20 @@ module tto::M1 {
 
 //# view-object 2,0
 
-//# view-object 2,3
-
 //# view-object 2,1
+
+//# view-object 2,3
 
 //# view-object 2,2
 
-//# run tto::M1::receive --args object(2,2) receiving(2,1) --sender A
+//# run tto::M1::receive --args object(2,2) receiving(2,3) --sender A
 
 //# view-object 2,0
 
 // The grand parent
-//# view-object 2,3
-
 //# view-object 2,1
+
+//# view-object 2,3
 
 //# view-object 2,2
 
@@ -85,9 +85,9 @@ module tto::M1 {
 //# view-object 2,0
 
 // The grand parent
-//# view-object 2,3
-
 //# view-object 2,1
+
+//# view-object 2,3
 
 //# view-object 2,2
 

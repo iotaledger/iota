@@ -5,17 +5,15 @@
 import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
 import {
     parseSerializedSignature,
-    type SignatureScheme,
     type PublicKey,
+    type SignatureScheme,
 } from '@iota/iota.js/cryptography';
 import { parsePartialSignatures } from '@iota/iota.js/multisig';
-import { toB64, normalizeIotaAddress } from '@iota/iota.js/utils';
+import { normalizeIotaAddress, toB64 } from '@iota/iota.js/utils';
 import { publicKeyFromRawBytes } from '@iota/iota.js/verify';
 import { Text } from '@iota/ui';
 
-import { DescriptionItem, DescriptionList } from '~/ui/DescriptionList';
-import { AddressLink } from '~/ui/InternalLink';
-import { TabHeader } from '~/ui/Tabs';
+import { AddressLink, DescriptionItem, DescriptionList, TabHeader } from '~/components/ui';
 
 type SignaturePubkeyPair = {
     signatureScheme: SignatureScheme;
