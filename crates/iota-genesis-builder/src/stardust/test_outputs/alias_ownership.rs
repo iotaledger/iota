@@ -3,35 +3,51 @@
 
 use std::collections::VecDeque;
 
-use iota_sdk::types::block::{
-    address::{Address, AliasAddress, Ed25519Address},
-    output::{
-        feature::{Irc27Metadata, IssuerFeature, MetadataFeature},
-        unlock_condition::{
-            AddressUnlockCondition, GovernorAddressUnlockCondition,
-            ImmutableAliasAddressUnlockCondition, StateControllerAddressUnlockCondition,
+use iota_sdk::{
+    client::secret::{mnemonic::MnemonicSecretManager, SecretManage},
+    types::block::{
+        address::{Address, AliasAddress},
+        output::{
+            feature::{Irc27Metadata, IssuerFeature, MetadataFeature},
+            unlock_condition::{
+                AddressUnlockCondition, GovernorAddressUnlockCondition,
+                ImmutableAliasAddressUnlockCondition, StateControllerAddressUnlockCondition,
+            },
+            AliasId, AliasOutput, AliasOutputBuilder, BasicOutput, BasicOutputBuilder, Feature,
+            FoundryOutput, FoundryOutputBuilder, NftId, NftOutput, NftOutputBuilder, Output,
+            SimpleTokenScheme, UnlockCondition, OUTPUT_INDEX_RANGE,
         },
-        AliasId, AliasOutput, AliasOutputBuilder, BasicOutput, BasicOutputBuilder, Feature,
-        FoundryOutput, FoundryOutputBuilder, NftId, NftOutput, NftOutputBuilder, Output,
-        SimpleTokenScheme, UnlockCondition,
     },
 };
 use rand::{rngs::StdRng, Rng, SeedableRng};
 
-use crate::stardust::{test_outputs::random_output_header, types::output_header::OutputHeader};
+use crate::stardust::{
+    test_outputs::{MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS},
+    types::{output_header::OutputHeader, output_index::OutputIndex},
+};
 
-pub(crate) fn outputs() -> Vec<(OutputHeader, Output)> {
+// TODO: use different one
+const MNEMONIC: &str = "giant dynamic museum toddler six deny defense ostrich bomb access mercy blood explain muscle shoot shallow glad autumn author calm heavy hawk abuse rally";
+const COIN_TYPE: u32 = 4218;
+const OWNING_ALIAS_COUNT: u32 = 10;
+
+pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let mut outputs = Vec::new();
+    let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
 
     // create a randomized ownership dependency tree
     let randomness_seed = rand::random();
     let mut rng = StdRng::seed_from_u64(randomness_seed);
     println!("alias ownership randomness seed: {randomness_seed}");
 
+    let alias_owners = secret_manager
+        .generate_ed25519_addresses(COIN_TYPE, 0, 0..OWNING_ALIAS_COUNT, None)
+        .await?;
+
     // create 10 different alias outputs with each owning various other assets
-    for _ in 0..10 {
+    for alias_owner in alias_owners {
         let alias_output_header = random_output_header(&mut rng);
-        let alias_owner = Ed25519Address::from(rng.gen::<[u8; Ed25519Address::LENGTH]>());
+
         let alias_output = AliasOutputBuilder::new_with_amount(1_000_000, AliasId::new(rng.gen()))
             .add_unlock_condition(GovernorAddressUnlockCondition::new(alias_owner))
             .add_unlock_condition(StateControllerAddressUnlockCondition::new(alias_owner))
@@ -88,13 +104,14 @@ pub(crate) fn outputs() -> Vec<(OutputHeader, Output)> {
             }
         }
     }
-    outputs
+    Ok(outputs)
 }
 
 fn random_basic_output(owner: impl Into<Address>) -> (OutputHeader, BasicOutput) {
     let basic_output_header = random_output_header();
 
-    let basic_output = BasicOutputBuilder::new_with_amount(1_000_000)
+    let amount = rng.gen_range(1_000_000..10_000_000);
+    let basic_output = BasicOutputBuilder::new_with_amount(amount)
         .add_unlock_condition(AddressUnlockCondition::new(owner))
         .finish()
         .unwrap();
@@ -114,7 +131,8 @@ fn random_nft_output(owner: impl Into<Address>) -> (OutputHeader, NftOutput) {
     .with_collection_name("collection_name")
     .with_description("description");
 
-    let nft_output = NftOutputBuilder::new_with_amount(1_000_000, NftId::new(rand::random()))
+    let amount = rng.gen_range(1_000_000..10_000_000);
+    let nft_output = NftOutputBuilder::new_with_amount(amount, NftId::new(rng.gen()))
         .add_unlock_condition(AddressUnlockCondition::new(owner.clone()))
         .with_immutable_features(vec![
             Feature::Metadata(
@@ -132,7 +150,8 @@ fn random_alias_output(rng: &mut StdRng, owner: impl Into<Address>) -> (OutputHe
     let owner = owner.into();
     let alias_output_header = random_output_header(rng);
 
-    let alias_output = AliasOutputBuilder::new_with_amount(1_000_000, AliasId::new(rng.gen()))
+    let amount = rng.gen_range(1_000_000..10_000_000);
+    let alias_output = AliasOutputBuilder::new_with_amount(amount, AliasId::new(rng.gen()))
         .add_unlock_condition(GovernorAddressUnlockCondition::new(owner.clone()))
         .add_unlock_condition(StateControllerAddressUnlockCondition::new(owner))
         .finish()
@@ -144,14 +163,29 @@ fn random_alias_output(rng: &mut StdRng, owner: impl Into<Address>) -> (OutputHe
 fn random_foundry_output(owner: impl Into<AliasAddress>) -> (OutputHeader, FoundryOutput) {
     let foundry_output_header = random_output_header();
 
-    let supply = 1_000_000;
+    let amount = rng.gen_range(1_000_000..10_000_000);
+    let supply = rng.gen_range(1_000_000..100_000_000);
     let token_scheme = SimpleTokenScheme::new(supply, 0, supply).unwrap();
-    let foundry_output = FoundryOutputBuilder::new_with_amount(1_000_000, 1, token_scheme.into())
-        .with_unlock_conditions([UnlockCondition::from(
-            ImmutableAliasAddressUnlockCondition::new(owner),
-        )])
-        .finish_with_params(supply)
-        .unwrap();
+    let foundry_output =
+        FoundryOutputBuilder::new_with_amount(amount, *serial_number, token_scheme.into())
+            .with_unlock_conditions([UnlockCondition::from(
+                ImmutableAliasAddressUnlockCondition::new(owner),
+            )])
+            .finish_with_params(supply)
+            .unwrap();
+
+    *serial_number += 1;
 
     (foundry_output_header, foundry_output)
+}
+
+fn random_output_header(rng: &mut StdRng) -> OutputHeader {
+    OutputHeader::new_testing(
+        rng.gen(),
+        OutputIndex::new(rng.gen_range(OUTPUT_INDEX_RANGE))
+            .expect("range is guaranteed to be valid"),
+        rng.gen(),
+        MERGE_MILESTONE_INDEX,
+        MERGE_TIMESTAMP_SECS,
+    )
 }
