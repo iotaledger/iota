@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export const IOTA_COLOR_PALETTE = {
+export const IOTA_PRIMITIVES_COLOR_PALETTE = {
     primary: {
         '0': '#000000',
         '10': '#061244',
@@ -72,5 +72,56 @@ export const IOTA_COLOR_PALETTE = {
         '96': '#eff4fa',
         '98': '#f8fafc',
         '100': '#ffffff',
+    },
+};
+
+export const SHADER_COLOR_PALETTE = {
+    'primary-dark': {
+        '0': '#bed8ff00',
+        '8': '#bed8ff14',
+        '12': '#bed8ff1e',
+        '16': '#bed8ff28',
+        '48': '#bed8ff7a',
+        '72': '#bed8ffb7',
+    },
+    'inverted-dark': {
+        '0': '#002f6d00',
+        '8': '#002f6d14',
+        '12': '#002f6d1e',
+        '16': '#002f6d28',
+        '48': '#002f6d7a',
+        '72': '#002f6db7',
+    },
+    'neutral-dark': {
+        '0': '#bed8ff00',
+        '8': '#bed8ff14',
+        '12': '#bed8ff1e',
+        '16': '#bed8ff28',
+        '48': '#bed8ff7a',
+        '72': '#bed8ffb7',
+    },
+    'primary-light': {
+        0: '#0067ee00',
+        8: '#0066ee14',
+        12: '#0067ee1e',
+        16: '#0067ee28',
+        48: '#0067ee7a',
+        72: '#0067eeb7',
+    },
+    'inverted-light': {
+        0: '#bed8ff00',
+        8: '#bed8ff14',
+        12: '#bed8ff1e',
+        16: '#bed8ff28',
+        48: '#bed8ff7a',
+        72: '#bed8ffb7',
+    },
+    'neutral-light': {
+        0: '#002f6d00',
+        8: '#002f6d14',
+        12: '#002f6d1e',
+        16: '#002f6d28',
+        48: '#002f6d7a',
+        72: '#002f6db7',
     },
 };
