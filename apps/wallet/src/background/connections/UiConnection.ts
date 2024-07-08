@@ -49,7 +49,7 @@ import { SeedAccountSource } from '../account-sources/SeedAccountSource';
 import { AccountSourceType } from '../account-sources/AccountSource';
 import {
     isGetAccountsFinderResultsRequest,
-    isResetAccountsFinder,
+    isInitAccountsFinder,
     isSearchAccountsFinder,
 } from '_payloads/accounts-finder';
 import AccountsFinder from '../accounts-finder/AccountsFinder';
@@ -262,7 +262,7 @@ export class UiConnection extends Connection {
                 accountSourcesEvents.emit('accountSourcesChanged');
                 accountsEvents.emit('accountsChanged');
                 await this.send(createMessage({ type: 'done' }, msg.id));
-            } else if (isResetAccountsFinder(payload)) {
+            } else if (isInitAccountsFinder(payload)) {
                 AccountsFinder.reset();
                 this.send(createMessage({ type: 'done' }, msg.id));
             } else if (isSearchAccountsFinder(payload)) {

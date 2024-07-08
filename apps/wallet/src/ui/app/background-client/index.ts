@@ -41,7 +41,7 @@ import { ACCOUNT_SOURCES_QUERY_KEY } from '../hooks/useAccountSources';
 import { AccountSourceType } from '_src/background/account-sources/AccountSource';
 import {
     type GetAccountsFinderResultsRequest,
-    type ResetAccountsFinder,
+    type InitAccountsFinder,
     type SearchAccountsFinderPayload,
 } from '_src/shared/messaging/messages/payloads/accounts-finder';
 import { type AccountFinderConfigParams } from '_src/background/accounts-finder';
@@ -540,8 +540,8 @@ export class BackgroundClient {
     public async resetAccountsFinder() {
         await lastValueFrom(
             this.sendMessage(
-                createMessage<ResetAccountsFinder>({
-                    type: 'reset-accounts-finder',
+                createMessage<InitAccountsFinder>({
+                    type: 'init-accounts-finder',
                 }),
             ).pipe(take(1)),
         );
