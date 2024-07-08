@@ -249,7 +249,7 @@ jobs:
             #   with:
             #     path: ~/.cargo/registry/src/**/librocksdb-sys-*
 
-            # See '.cargo/config' for list of enabled/disappled clippy lints
+            # See '.cargo/config' for list of enabled/disabled clippy lints
             - name: Check Clippy Lints
               run: cargo ci-clippy
 
