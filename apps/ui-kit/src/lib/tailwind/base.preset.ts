@@ -7,6 +7,7 @@ import { CUSTOM_FONT_SIZES, BORDER_RADIUS, PADDINGS, OPACITY } from './constants
 
 export const BASE_CONFIG: Partial<Config> = {
     content: ['./src/**/*.{html,js,jsx,ts,tsx,md,mdx}'],
+    darkMode: 'class',
     plugins: [],
     theme: {
         fontSize: {
