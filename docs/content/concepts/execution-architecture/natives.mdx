@@ -1,0 +1,32 @@
+---
+title: Natives & Object Runtime
+description: This document describes the object runtime and native functions flow.
+---
+
+## IOTA Move Natives
+
+Native functions are basically new bytecodes added to the instruction set of the VM. They are implemented in Rust, the VM is blind to their implementation, it only knows what values to pass to the function and what values to expect back. Native functions that are not included in the standard library of Move programming language. These functions are implemented in Rust and can be added to the Move VM to extend its functionality.
+The native functions are passed to the Move VM upon its instantiation. Therefore, if the VM encounters a native function as an instruction in the compiled move bytecode, the execution will continue in a context that is external to the Move language.
+
+
+```rust
+pub fn all_natives(silent: bool) -> NativeFunctionTable
+```
+
+Contains all registered native functions.
+The resulting NativeFunctionTable object contains information about all the native functions that can be called from a Move contract.
+
+![Native functions](/img/concepts/execution-architecture/native-fns-flow.svg)
+
+## Object runtime
+
+It is essential for managing the ledger's state in an object-centric manner. 
+It serves as the core interface for interacting, transferring the objects, managing their lifecycle, and enforcing rules related to transaction execution and state changes:
+- Transfer object
+- Delete object
+- Receive object
+- Emit event
+- Child object management etc
+Also handles information about transaction objects, which are stored in the ObjectRuntimeState as an internal state.
+
+Object store - manages child/dynamic objects(inner store).
