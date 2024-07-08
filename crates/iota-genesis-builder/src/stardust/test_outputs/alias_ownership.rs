@@ -48,28 +48,38 @@ pub(crate) fn outputs() -> Vec<(OutputHeader, Output)> {
             if depth > max_depth {
                 continue;
             }
+            let mut serial_number = 1;
             // create a random number of random assets
-            for _ in 0..rng.gen_range(1usize..=5) {
-                match rng.gen_range(0u8..=3) {
-                    0 /* alias */ => {
-                        let (output_header, alias) = random_alias_output(owning_addr);
-                        owning_addresses
-                            .push_back((depth + 1, alias.alias_address(&output_header.output_id()).into()));
+            for _ in 0usize..rng.gen_range(1..=5) {
+                match rng.gen_range(0..=3) {
+                    0 => {
+                        // alias
+                        let (output_header, alias) = random_alias_output(&mut rng, owning_addr);
+                        owning_addresses.push_back((
+                            depth + 1,
+                            alias.alias_address(&output_header.output_id()).into(),
+                        ));
                         outputs.push((output_header, alias.into()));
                     }
-                    1 /* nft */ => {
-                        let (output_header, nft) = random_nft_output(owning_addr);
-                        owning_addresses
-                            .push_back((depth + 1, nft.nft_address(&output_header.output_id()).into()));
+                    1 => {
+                        // nft
+                        let (output_header, nft) = random_nft_output(&mut rng, owning_addr);
+                        owning_addresses.push_back((
+                            depth + 1,
+                            nft.nft_address(&output_header.output_id()).into(),
+                        ));
                         outputs.push((output_header, nft.into()));
                     }
-                    2 /* basic */ => {
-                        let (output_header, basic) = random_basic_output(owning_addr);
+                    2 => {
+                        // basic
+                        let (output_header, basic) = random_basic_output(&mut rng, owning_addr);
                         outputs.push((output_header, basic.into()));
                     }
-                    3 /* foundry */=> {
-                        if let Address::Alias(child) = owning_addr {
-                            let (output_header, foundry) = random_foundry_output(child);
+                    3 => {
+                        // foundry
+                        if let Address::Alias(owning_addr) = owning_addr {
+                            let (output_header, foundry) =
+                                random_foundry_output(&mut rng, &mut serial_number, owning_addr);
                             outputs.push((output_header, foundry.into()));
                         }
                     }
