@@ -38,7 +38,7 @@ fn create_bag_with_pt() {
         .with_unlock_conditions([UnlockCondition::from(
             ImmutableAliasAddressUnlockCondition::new(owner),
         )])
-        .finish_with_params(supply)
+        .finish()
         .unwrap();
     let foundry_id = foundry.id();
     let foundry_package_data = NativeTokenPackageData::new(
