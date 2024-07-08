@@ -18,7 +18,7 @@
     "pull-amplitude": "ampli pull web"
   },
   "dependencies": {
-    "@amplitude/analytics-browser": "^2.8.1",
+    "@amplitude/analytics-browser": "^1.10.3",
     "@docsearch/react": "^3.6.0",
     "@docusaurus/core": "3.4.0",
     "@docusaurus/preset-classic": "3.4.0",
@@ -37,7 +37,7 @@
     "@tanstack/react-query": "^5.0.0",
     "autoprefixer": "^10.4.14",
     "axios": "^1.7.2",
-    "clsx": "^2.1.1",
+    "clsx": "^2.0.0",
     "copy-text-to-clipboard": "^3.2.0",
     "dotenv": "^16.4.5",
     "graphql": "^16.8.1",
