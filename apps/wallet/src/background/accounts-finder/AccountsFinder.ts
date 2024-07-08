@@ -215,7 +215,6 @@ class AccountsFinder {
     };
 
     getResults(): AddressFromFinder[] {
-        console.log('--- this.accounts', this.accounts);
         return this.accounts
             .flatMap((acc) => acc.addresses.flat())
             .filter((addr) => hasBalance(addr.balance));

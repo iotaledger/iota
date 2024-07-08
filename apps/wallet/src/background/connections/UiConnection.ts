@@ -277,7 +277,6 @@ export class UiConnection extends Connection {
                 this.send(createMessage({ type: 'done' }, msg.id));
             } else if (isGetAccountsFinderResultsRequest(payload)) {
                 const results = await AccountsFinder.getResults();
-                console.log('--- results', results);
                 this.send(createMessage({ type: 'done', results }, msg.id));
             } else {
                 throw new Error(
