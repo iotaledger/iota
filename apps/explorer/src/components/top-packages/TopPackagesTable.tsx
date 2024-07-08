@@ -6,9 +6,7 @@ import { type MoveCallMetric } from '@iota/iota.js/client';
 import { Text } from '@iota/ui';
 import { useMemo } from 'react';
 
-import { ObjectLink } from '~/ui/InternalLink';
-import { PlaceholderTable } from '~/ui/PlaceholderTable';
-import { TableCard } from '~/ui/TableCard';
+import { ObjectLink, PlaceholderTable, TableCard } from '~/components/ui';
 
 interface TopPackagesTableProps {
     data: MoveCallMetric[];

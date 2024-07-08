@@ -34,8 +34,9 @@ function EnterValuesFormView({
 
     return (
         <div className="flex flex-col gap-4">
-            <h1 className="mb-4 text-center text-xl">Send {coinMeta?.name.toUpperCase()}</h1>
+            <h1 className="mb-4 text-center text-xl">Send</h1>
             <div className="flex flex-col gap-4">
+                <h3>{coinMeta?.name.toUpperCase() ?? coinType}</h3>
                 <p>
                     Balance: {formattedCoin} {coinSymbol}
                 </p>
