@@ -2,13 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { usePinnedCoinTypes } from '_app/hooks/usePinnedCoinTypes';
-import { useRecognizedPackages } from '_app/hooks/useRecognizedPackages';
-import { type CoinBalance as CoinBalanceType } from '@iota/iota.js/client';
+import { type CoinBalance } from '@iota/iota.js/client';
 import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import { useMemo } from 'react';
+import { DEFAULT_RECOGNIZED_PACKAGES } from '../constants';
 
-function sortCoins(balances: CoinBalanceType[]) {
+function sortCoins(balances: CoinBalance[]) {
     return balances.sort((a, b) => {
         if (a.coinType === IOTA_TYPE_ARG) {
             return -1;
@@ -18,26 +17,30 @@ function sortCoins(balances: CoinBalanceType[]) {
     });
 }
 
-export function useSortedCoinsByCategories(coinBalances: CoinBalanceType[]) {
-    const recognizedPackages = useRecognizedPackages();
-    const [pinnedCoinTypes] = usePinnedCoinTypes();
+export function useSortedCoinsByCategories(coinBalances: CoinBalance[]) {
+    const recognizedPackages = DEFAULT_RECOGNIZED_PACKAGES; // previous: useRecognizedPackages();
+
+    // Commented out pinnedCoinTypes until https://github.com/iotaledger/iota/issues/832 is resolved
+    // const [pinnedCoinTypes] = usePinnedCoinTypes();
 
     return useMemo(() => {
         const reducedCoinBalances = coinBalances?.reduce(
             (acc, coinBalance) => {
                 if (recognizedPackages.includes(coinBalance.coinType.split('::')[0])) {
                     acc.recognized.push(coinBalance);
-                } else if (pinnedCoinTypes.includes(coinBalance.coinType)) {
-                    acc.pinned.push(coinBalance);
-                } else {
+                }
+                // else if (pinnedCoinTypes.includes(coinBalance.coinType)) {
+                //     acc.pinned.push(coinBalance);
+                // }
+                else {
                     acc.unrecognized.push(coinBalance);
                 }
                 return acc;
             },
             {
-                recognized: [] as CoinBalanceType[],
-                pinned: [] as CoinBalanceType[],
-                unrecognized: [] as CoinBalanceType[],
+                recognized: [] as CoinBalance[],
+                pinned: [] as CoinBalance[],
+                unrecognized: [] as CoinBalance[],
             },
         ) ?? { recognized: [], pinned: [], unrecognized: [] };
 
@@ -46,5 +49,5 @@ export function useSortedCoinsByCategories(coinBalances: CoinBalanceType[]) {
             pinned: sortCoins(reducedCoinBalances.pinned),
             unrecognized: sortCoins(reducedCoinBalances.unrecognized),
         };
-    }, [coinBalances, recognizedPackages, pinnedCoinTypes]);
+    }, [coinBalances, recognizedPackages /*pinnedCoinTypes*/]);
 }
