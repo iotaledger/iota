@@ -2,6 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Timelocked, TimelockedStakedIota } from '../interfaces';
+import { DAYS_PER_WEEK, DAYS_PER_YEAR, MILLISECONDS_PER_DAY } from './time.constants';
+
+export const SUPPLY_INCREASE_VESTING_PAYOUT_SCHEDULE = 2 * DAYS_PER_WEEK;
+export const SUPPLY_INCREASE_VESTING_PAYOUT_SCHEDULE_MILLISECONDS =
+    SUPPLY_INCREASE_VESTING_PAYOUT_SCHEDULE * MILLISECONDS_PER_DAY;
+export const SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR = Math.round(
+    DAYS_PER_YEAR / SUPPLY_INCREASE_VESTING_PAYOUT_SCHEDULE,
+);
+export const SUPPLY_INCREASE_STARTING_VESTING_YEAR: number = 2023;
+export const SUPPLY_INCREASE_STAKER_VESTING_DURATION = 2; // Years
+export const SUPPLY_INCREASE_INVESTOR_VESTING_DURATION = 4; // Years
 
 // https://github.com/iotaledger/iota/blob/1ec56b585905d7b96fb059a9f47135df6a82cd89/crates/iota-types/src/timelock/stardust_upgrade_label.rs#L12
 export const VESTING_LABEL =

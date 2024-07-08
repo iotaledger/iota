@@ -33,3 +33,15 @@ export interface TimelockedStakedIota {
     expirationTimestampMs: number;
     label?: string;
 }
+
+export enum SupplyIncreaseUserType {
+    Staker = 'Staker',
+    Entity = 'Entity',
+}
+
+export interface SupplyIncreaseVestingPayout {
+    amount: number;
+    expirationTimestampMs: number;
+}
+
+export type SupplyIncreaseVestingPortfolio = SupplyIncreaseVestingPayout[];
