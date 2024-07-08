@@ -9,10 +9,10 @@ import { useActiveAddress } from '../../hooks';
 import { Text } from '../../shared/text';
 import { NftImage, type NftImageProps } from './NftImage';
 
-type KioskProps = {
+interface KioskProps extends Partial<NftImageProps> {
     object: IotaObjectResponse;
     orientation?: 'vertical' | 'horizontal' | null;
-} & Partial<NftImageProps>;
+}
 
 // used to prevent the top image from overflowing the bottom of the container
 // (clip-path is used instead of overflow-hidden as it can be animated)

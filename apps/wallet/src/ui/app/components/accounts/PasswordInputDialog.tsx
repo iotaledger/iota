@@ -29,7 +29,7 @@ const formSchema = z.object({
     password: z.string().nonempty('Required'),
 });
 
-export type PasswordModalDialogProps = {
+export interface PasswordModalDialogProps {
     onClose: () => void;
     open: boolean;
     showForgotPassword?: boolean;
@@ -39,7 +39,7 @@ export type PasswordModalDialogProps = {
     cancelText: string;
     onSubmit: (password: string) => Promise<void> | void;
     verify?: boolean;
-};
+}
 
 export function PasswordModalDialog({
     onClose,

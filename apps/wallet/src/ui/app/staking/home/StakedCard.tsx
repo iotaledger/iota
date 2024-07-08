@@ -19,27 +19,27 @@ import { Link } from 'react-router-dom';
 import { ValidatorLogo } from '../validators/ValidatorLogo';
 
 export enum StakeState {
-    WARM_UP = 'WARM_UP',
-    EARNING = 'EARNING',
-    COOL_DOWN = 'COOL_DOWN',
-    WITHDRAW = 'WITHDRAW',
-    IN_ACTIVE = 'IN_ACTIVE',
+    WarmUp = 'WARM_UP',
+    Earning = 'EARNING',
+    CoolDown = 'COOL_DOWN',
+    Withdraw = 'WITHDRAW',
+    InActive = 'IN_ACTIVE',
 }
 
 const STATUS_COPY = {
-    [StakeState.WARM_UP]: 'Starts Earning',
-    [StakeState.EARNING]: 'Staking Rewards',
-    [StakeState.COOL_DOWN]: 'Available to withdraw',
-    [StakeState.WITHDRAW]: 'Withdraw',
-    [StakeState.IN_ACTIVE]: 'Inactive',
+    [StakeState.WarmUp]: 'Starts Earning',
+    [StakeState.Earning]: 'Staking Rewards',
+    [StakeState.CoolDown]: 'Available to withdraw',
+    [StakeState.Withdraw]: 'Withdraw',
+    [StakeState.InActive]: 'Inactive',
 };
 
 const STATUS_VARIANT = {
-    [StakeState.WARM_UP]: 'warmUp',
-    [StakeState.EARNING]: 'earning',
-    [StakeState.COOL_DOWN]: 'coolDown',
-    [StakeState.WITHDRAW]: 'withDraw',
-    [StakeState.IN_ACTIVE]: 'inActive',
+    [StakeState.WarmUp]: 'warmUp',
+    [StakeState.Earning]: 'earning',
+    [StakeState.CoolDown]: 'coolDown',
+    [StakeState.Withdraw]: 'withDraw',
+    [StakeState.InActive]: 'inActive',
 } as const;
 
 const cardStyle = cva(
@@ -128,10 +128,10 @@ export function StakeCard({
         Number(stakeRequestEpoch) + NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE;
     const isEarnedRewards = currentEpoch >= Number(earningRewardsEpoch);
     const delegationState = inactiveValidator
-        ? StakeState.IN_ACTIVE
+        ? StakeState.InActive
         : isEarnedRewards
-          ? StakeState.EARNING
-          : StakeState.WARM_UP;
+          ? StakeState.Earning
+          : StakeState.WarmUp;
 
     const rewards = isEarnedRewards && estimatedReward ? BigInt(estimatedReward) : 0n;
 
@@ -141,19 +141,19 @@ export function StakeCard({
         IOTA_TYPE_ARG,
     );
     const [rewardsStaked] = useFormatCoin(rewards, IOTA_TYPE_ARG);
-    const isEarning = delegationState === StakeState.EARNING && rewards > 0n;
+    const isEarning = delegationState === StakeState.Earning && rewards > 0n;
 
     // Applicable only for warm up
-    const epochBeforeRewards = delegationState === StakeState.WARM_UP ? earningRewardsEpoch : null;
+    const epochBeforeRewards = delegationState === StakeState.WarmUp ? earningRewardsEpoch : null;
 
     const statusText = {
         // Epoch time before earning
-        [StakeState.WARM_UP]: `Epoch #${earningRewardsEpoch}`,
-        [StakeState.EARNING]: `${rewardsStaked} ${symbol}`,
+        [StakeState.WarmUp]: `Epoch #${earningRewardsEpoch}`,
+        [StakeState.Earning]: `${rewardsStaked} ${symbol}`,
         // Epoch time before redrawing
-        [StakeState.COOL_DOWN]: `Epoch #`,
-        [StakeState.WITHDRAW]: 'Now',
-        [StakeState.IN_ACTIVE]: 'Not earning rewards',
+        [StakeState.CoolDown]: `Epoch #`,
+        [StakeState.Withdraw]: 'Now',
+        [StakeState.InActive]: 'Not earning rewards',
     };
 
     return (

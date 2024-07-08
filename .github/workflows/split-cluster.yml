@@ -6,7 +6,7 @@ on:
       - main
 jobs:
   validate-mainnet:
-    runs-on: ubuntu-ghcloud
+    runs-on: self-hosted-rust
     steps:
       - name: checkout code repository
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
@@ -30,7 +30,7 @@ jobs:
         run: exit 1
 
   validate-testnet:
-    runs-on: ubuntu-ghcloud
+    runs-on: self-hosted-rust
     steps:
       - name: checkout code repository
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1

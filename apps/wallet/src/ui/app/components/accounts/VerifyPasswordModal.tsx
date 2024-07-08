@@ -4,9 +4,11 @@
 
 import { PasswordModalDialog, type PasswordModalDialogProps } from './PasswordInputDialog';
 
-type VerifyPasswordModalProps = Pick<PasswordModalDialogProps, 'open' | 'onClose'> & {
+interface VerifyPasswordModalProps {
+    open: PasswordModalDialogProps['open'];
+    onClose: PasswordModalDialogProps['onClose'];
     onVerify: (password: string) => Promise<void> | void;
-};
+}
 
 export function VerifyPasswordModal({ onClose, onVerify, open }: VerifyPasswordModalProps) {
     return (

@@ -5,7 +5,7 @@
 import { Heading } from '_app/shared/heading';
 import { Text } from '_app/shared/text';
 import { useAppSelector } from '_hooks';
-import { FEATURES } from '_src/shared/experimentation/features';
+import { Feature } from '_src/shared/experimentation/features';
 import { prepareLinkToCompare } from '_src/shared/utils';
 import { useFeature } from '@growthbook/growthbook-react';
 import { useMemo } from 'react';
@@ -17,7 +17,7 @@ import { IotaApp, type DAppEntry } from './IotaApp';
 import { IotaAppEmpty } from './IotaAppEmpty';
 
 function AppsPlayGround() {
-    const ecosystemApps = useFeature<DAppEntry[]>(FEATURES.WALLET_DAPPS).value;
+    const ecosystemApps = useFeature<DAppEntry[]>(Feature.WalletDapps).value;
     const { tagName } = useParams();
 
     const filteredEcosystemApps = useMemo(() => {

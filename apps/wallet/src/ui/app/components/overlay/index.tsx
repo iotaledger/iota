@@ -12,7 +12,7 @@ import { AppType } from '../../redux/slices/app/AppType';
 import { Portal } from '../../shared/Portal';
 import st from './Overlay.module.scss';
 
-type OverlayProps = {
+interface OverlayProps {
     title?: ReactNode;
     children: ReactNode;
     showModal: boolean;
@@ -20,7 +20,7 @@ type OverlayProps = {
     closeIcon?: ReactNode | null;
     setShowModal?: (showModal: boolean) => void;
     background?: 'bg-iota-lightest';
-};
+}
 
 function Overlay({
     title,
@@ -39,7 +39,7 @@ function Overlay({
         [closeOverlay, setShowModal],
     );
     const appType = useAppSelector((state) => state.app.appType);
-    const isFullScreen = appType === AppType.fullscreen;
+    const isFullScreen = appType === AppType.Fullscreen;
 
     return showModal ? (
         <Portal containerId="overlay-portal-container">
