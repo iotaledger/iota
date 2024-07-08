@@ -4,17 +4,15 @@
 
 import { Feature } from '_src/shared/experimentation/features';
 import { useFeatureValue } from '@growthbook/growthbook-react';
-
-const DEFAULT_REFETCH_INTERVAL = 20_000;
-const DEFAULT_STALE_TIME = 20_000;
+import { COINS_QUERY_REFETCH_INTERVAL, COINS_QUERY_STALE_TIME } from '@iota/core';
 
 export function useCoinsReFetchingConfig() {
     const refetchInterval = useFeatureValue(
         Feature.WalletBalanceRefetchInterval,
-        DEFAULT_REFETCH_INTERVAL,
+        COINS_QUERY_REFETCH_INTERVAL,
     );
     return {
         refetchInterval,
-        staleTime: DEFAULT_STALE_TIME,
+        staleTime: COINS_QUERY_STALE_TIME,
     };
 }

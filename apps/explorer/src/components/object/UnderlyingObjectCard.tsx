@@ -6,7 +6,7 @@ import { useIotaClientQuery } from '@iota/dapp-kit';
 import { LoadingIndicator } from '@iota/ui';
 
 import { FieldItem } from './FieldItem';
-import { Banner } from '~/ui/Banner';
+import { Banner } from '~/components/ui';
 
 import type { DynamicFieldName } from '@iota/iota.js/client';
 

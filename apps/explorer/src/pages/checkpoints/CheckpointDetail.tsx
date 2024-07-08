@@ -3,18 +3,24 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClient } from '@iota/dapp-kit';
-import { Text, LoadingIndicator } from '@iota/ui';
+import { LoadingIndicator, Text } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 
+import { IotaAmount, PageLayout } from '~/components';
+import {
+    Banner,
+    DescriptionItem,
+    DescriptionList,
+    EpochLink,
+    PageHeader,
+    TabHeader,
+    Tabs,
+    TabsContent,
+    TabsList,
+    TabsTrigger,
+} from '~/components/ui';
 import { CheckpointTransactionBlocks } from './CheckpointTransactionBlocks';
-import { PageLayout } from '~/components/layout/PageLayout';
-import { IotaAmount } from '~/components/table/IotaAmount';
-import { Banner } from '~/ui/Banner';
-import { DescriptionList, DescriptionItem } from '~/ui/DescriptionList';
-import { EpochLink } from '~/ui/InternalLink';
-import { PageHeader } from '~/ui/PageHeader';
-import { TabHeader, Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
 
 export default function CheckpointDetail(): JSX.Element {
     const { id } = useParams<{ id: string }>();
