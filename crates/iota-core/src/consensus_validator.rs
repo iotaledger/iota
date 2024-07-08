@@ -266,11 +266,5 @@ mod tests {
         let batch = Batch::new(bogus_transaction_bytes);
         let res_batch = validator.validate_batch(&batch);
         assert!(res_batch.is_err());
-
-        let batch_v2 = Batch::new(vec![]);
-
-        // Case #2: Receive BatchV2 and network is upgraded past v11 so we are okay
-        let res_batch = validator.validate_batch(&batch_v2);
-        assert!(res_batch.is_ok());
     }
 }
