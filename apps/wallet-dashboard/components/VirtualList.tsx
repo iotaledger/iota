@@ -8,7 +8,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 
 interface VirtualListProps<T> {
     items: T[];
-    estimateSize: () => number;
+    estimateSize: (index: number) => number;
     render: (item: T, index: number) => ReactNode;
     onClick?: (item: T) => void;
 }

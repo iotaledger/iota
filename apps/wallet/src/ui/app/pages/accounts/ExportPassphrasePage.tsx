@@ -11,6 +11,7 @@ import Loading from '../../components/loading';
 import Overlay from '../../components/overlay';
 import { useAccountSources } from '../../hooks/useAccountSources';
 import { useExportPassphraseMutation } from '../../hooks/useExportPassphraseMutation';
+import { AccountSourceType } from '_src/background/account-sources/AccountSource';
 
 export function ExportPassphrasePage() {
     const { accountSourceID } = useParams();
@@ -18,7 +19,7 @@ export function ExportPassphrasePage() {
     const accountSource = allAccountSources?.find(({ id }) => id === accountSourceID) || null;
     const navigate = useNavigate();
     const exportMutation = useExportPassphraseMutation();
-    if (!isPending && accountSource?.type !== 'mnemonic') {
+    if (!isPending && accountSource?.type !== AccountSourceType.Mnemonic) {
         return <Navigate to="/accounts/manage" />;
     }
     return (

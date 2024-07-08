@@ -3,11 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
+import { useGetTransaction } from '@iota/core';
 import { useParams } from 'react-router-dom';
 
 import { TransactionView } from './TransactionView';
 import { PageLayout } from '~/components/layout/PageLayout';
-import { useGetTransaction } from '~/hooks/useGetTransaction';
 import { Banner } from '~/ui/Banner';
 import { PageHeader } from '~/ui/PageHeader';
 import { StatusIcon } from '~/ui/StatusIcon';
