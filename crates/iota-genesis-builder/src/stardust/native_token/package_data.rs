@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The [`package_data`] module provides the [`NativeTokenPackageData`] struct,
+//! The `package_data` module provides the [`NativeTokenPackageData`] struct,
 //! which encapsulates all the data necessary to build a Stardust native token
 //! package.
 

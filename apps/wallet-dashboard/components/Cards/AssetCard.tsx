@@ -5,25 +5,27 @@
 
 import { IotaObjectData } from '@iota/iota.js/client';
 import React from 'react';
-import { Box } from '@/components/index';
-import Image from 'next/image';
+import { Box, ExternalImage } from '@/components/index';
+import { useGetNFTMeta } from '@iota/core';
+import { FlexDirection } from '@/lib/ui/enums';
 
 interface AssetCardProps {
     asset: IotaObjectData;
+    flexDirection?: FlexDirection;
 }
 
-function AssetCard({ asset }: AssetCardProps): JSX.Element {
-    const assetDisplayData = asset.display?.data;
-
+function AssetCard({ asset, flexDirection }: AssetCardProps): React.JSX.Element {
+    const { data: nftMeta } = useGetNFTMeta(asset.objectId);
     return (
         <Box>
-            <div className="flex flex-col gap-2">
-                {assetDisplayData && assetDisplayData.image && (
-                    <Image
-                        src={assetDisplayData.image}
-                        alt={assetDisplayData.name}
+            <div className={`flex ${flexDirection} w-full gap-2`}>
+                {asset.display && nftMeta && nftMeta.imageUrl && (
+                    <ExternalImage
+                        src={nftMeta.imageUrl}
+                        alt={nftMeta.name ?? asset.display.data?.name}
                         width={80}
-                        height={40}
+                        height={80}
+                        className="object-cover"
                     />
                 )}
                 <div>

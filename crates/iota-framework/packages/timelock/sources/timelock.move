@@ -33,6 +33,17 @@ module timelock::timelock {
         pack(locked, expiration_timestamp_ms, option::none(), ctx)
     }
 
+    /// Function to lock an object `obj` until `expiration_timestamp_ms` and transfer it to address `to`.
+    /// Since `Timelock<T>` does not support public transfer, use this function to lock an object to an address.
+    public fun lock_to<T: store>(
+        obj: T,
+        to: address,
+        expiration_timestamp_ms: u64,
+        ctx: &mut TxContext
+    ) {
+        transfer::transfer(lock(obj, expiration_timestamp_ms, ctx), to);
+    }
+
     /// Function to lock a labeled object till a unix timestamp in milliseconds.
     public fun lock_with_label<T: store, L>(
         _: &LabelerCap<L>,
@@ -48,6 +59,18 @@ module timelock::timelock {
 
         // Create a labeled timelock.
         pack(locked, expiration_timestamp_ms, option::some(label), ctx)
+    }
+
+    /// Function to lock a labeled object `obj` until `expiration_timestamp_ms` and transfer it to address `to`.
+    /// Since `Timelock<T>` does not support public transfer, use this function to lock a labeled object to an address.
+    public fun lock_with_label_to<T: store, L>(
+        labeler: &LabelerCap<L>,
+        obj: T,
+        to: address,
+        expiration_timestamp_ms: u64,
+        ctx: &mut TxContext
+    ) {
+        transfer::transfer(lock_with_label(labeler, obj, expiration_timestamp_ms, ctx), to);
     }
 
     /// Function to unlock the object from a `TimeLock`.
@@ -144,9 +167,9 @@ module timelock::timelock {
         (locked, expiration_timestamp_ms, label)
     }
 
-    /// An utility function to transfer a `TimeLock`.
-    public(package) fun transfer<T: store>(lock: TimeLock<T>, recipient: address) {
-        transfer::transfer(lock, recipient);
+    /// A utility function to transfer a `TimeLock` to its original owner.
+    public fun self_transfer<T: store>(lock: TimeLock<T>, ctx: &TxContext) {
+        transfer::transfer(lock, ctx.sender())
     }
 
     /// An utility function to check that the `expiration_timestamp_ms` value is valid.

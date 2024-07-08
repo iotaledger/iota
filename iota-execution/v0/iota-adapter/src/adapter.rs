@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub use checked::*;
-
 #[iota_macros::with_checked_arithmetic]
 mod checked {
     use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
@@ -19,7 +18,8 @@ mod checked {
         storage::ChildObjectResolver,
     };
     use iota_verifier::{
-        check_for_verifier_timeout, verifier::iota_verify_module_metered_check_timeout_only,
+        check_for_verifier_timeout, default_verifier_config,
+        verifier::iota_verify_module_metered_check_timeout_only,
     };
     use move_binary_format::{access::ModuleAccess, file_format::CompiledModule};
     use move_bytecode_verifier::{meter::Meter, verify_module_with_config_metered};
@@ -35,53 +35,6 @@ mod checked {
         native_functions::NativeFunctionTable,
     };
     use tracing::instrument;
-
-    pub fn default_verifier_config(
-        protocol_config: &ProtocolConfig,
-        is_metered: bool,
-    ) -> VerifierConfig {
-        let (
-            max_back_edges_per_function,
-            max_back_edges_per_module,
-            max_per_fun_meter_units,
-            max_per_mod_meter_units,
-        ) = if is_metered {
-            (
-                Some(protocol_config.max_back_edges_per_function() as usize),
-                Some(protocol_config.max_back_edges_per_module() as usize),
-                Some(protocol_config.max_verifier_meter_ticks_per_function() as u128),
-                Some(protocol_config.max_meter_ticks_per_module() as u128),
-            )
-        } else {
-            (None, None, None, None)
-        };
-
-        VerifierConfig {
-            max_loop_depth: Some(protocol_config.max_loop_depth() as usize),
-            max_generic_instantiation_length: Some(
-                protocol_config.max_generic_instantiation_length() as usize,
-            ),
-            max_function_parameters: Some(protocol_config.max_function_parameters() as usize),
-            max_basic_blocks: Some(protocol_config.max_basic_blocks() as usize),
-            max_value_stack_size: protocol_config.max_value_stack_size() as usize,
-            max_type_nodes: Some(protocol_config.max_type_nodes() as usize),
-            max_push_size: Some(protocol_config.max_push_size() as usize),
-            max_dependency_depth: Some(protocol_config.max_dependency_depth() as usize),
-            max_fields_in_struct: Some(protocol_config.max_fields_in_struct() as usize),
-            max_function_definitions: Some(protocol_config.max_function_definitions() as usize),
-            max_struct_definitions: Some(protocol_config.max_struct_definitions() as usize),
-            max_constant_vector_len: Some(protocol_config.max_move_vector_len()),
-            max_back_edges_per_function,
-            max_back_edges_per_module,
-            max_basic_blocks_in_script: None,
-            max_per_fun_meter_units,
-            max_per_mod_meter_units,
-            max_idenfitier_len: protocol_config.max_move_identifier_len_as_option(), /* Before protocol version 9, there was no limit */
-            allow_receiving_object_id: protocol_config.allow_receiving_object_id(),
-            reject_mutable_random_on_entry_functions: protocol_config
-                .reject_mutable_random_on_entry_functions(),
-        }
-    }
 
     pub fn new_move_vm(
         natives: NativeFunctionTable,
@@ -113,10 +66,9 @@ mod checked {
                     .disable_invariant_violation_check_in_swap_loc(),
                 check_no_extraneous_bytes_during_deserialization: protocol_config
                     .no_extraneous_module_bytes(),
+                profiler_config: vm_profiler_config,
                 // Don't augment errors with execution state on-chain
                 error_execution_state: false,
-
-                profiler_config: vm_profiler_config,
                 binary_config: to_binary_config(protocol_config),
             },
         )
@@ -127,8 +79,9 @@ mod checked {
         child_resolver: &'r dyn ChildObjectResolver,
         input_objects: BTreeMap<ObjectID, object_runtime::InputObject>,
         is_metered: bool,
-        protocol_config: &ProtocolConfig,
+        protocol_config: &'r ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
+        current_epoch_id: EpochId,
     ) -> NativeContextExtensions<'r> {
         let mut extensions = NativeContextExtensions::default();
         extensions.add(ObjectRuntime::new(
@@ -137,6 +90,7 @@ mod checked {
             is_metered,
             protocol_config,
             metrics,
+            current_epoch_id,
         ));
         extensions.add(NativesCostTable::from_protocol_config(protocol_config));
         extensions
@@ -192,7 +146,6 @@ mod checked {
     #[instrument(level = "trace", skip_all)]
     pub fn run_metered_move_bytecode_verifier(
         modules: &[CompiledModule],
-        protocol_config: &ProtocolConfig,
         verifier_config: &VerifierConfig,
         meter: &mut impl Meter,
         metrics: &Arc<BytecodeVerifierMetrics>,
@@ -222,10 +175,10 @@ mod checked {
                     });
                 };
             } else if let Err(err) = iota_verify_module_metered_check_timeout_only(
-                protocol_config,
                 module,
                 &BTreeMap::new(),
                 meter,
+                verifier_config,
             ) {
                 // We only checked that the failure was due to timeout
                 // Discard success timer, but record timeout/failure timer
