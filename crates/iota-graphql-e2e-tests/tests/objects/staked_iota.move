@@ -2,10 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//# init --protocol-version 39 --simulator --accounts C
+//# init --protocol-version 1 --simulator --accounts C
 
 //# run-graphql
-{ # init --protocol-version 39ial query yields only the validator's stake
+{ # Initial query yields only the validator's stake
   objects(filter: { type: "0x3::staking_pool::StakedIota" }) {
     edges {
       cursor

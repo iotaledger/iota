@@ -34,7 +34,7 @@ module q_2::m {
     public fun y(): u64 { r::m::y() }
 }
 
-//# programmable --sender A --inputs 10 @A object(2,1) 0u8 digest(q_2)
+//# programmable --sender A --inputs 10 @A object(2,0) 0u8 digest(q_2)
 //> 0: iota::package::authorize_upgrade(Input(2), Input(3), Input(4));
 //> 1: SplitCoins(Gas, [Input(0)]);
 //> 2: Upgrade(q_2, [iota,std,r], q, Result(0));
@@ -45,7 +45,7 @@ module q_2::m {
 //> 0: q::m::x();
 //> p::m::foo(Result(0))
 
-//# set-address q_2 object(5,0)
+//# set-address q_2 object(5,1)
 
 //# programmable --sender A
 //> 0: q_2::m::x();
