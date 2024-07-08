@@ -16,6 +16,10 @@ overrides:
 importers:
 
   .:
+    dependencies:
+      copy-text-to-clipboard:
+        specifier: ^3.2.0
+        version: 3.2.0
     devDependencies:
       '@changesets/cli':
         specifier: ^2.27.5
@@ -1284,6 +1288,9 @@ importers:
       '@amplitude/analytics-browser':
         specifier: ^1.10.3
         version: 1.10.3
+      '@docsearch/react':
+        specifier: ^3.6.0
+        version: 3.6.0(@algolia/client-search@4.23.3)(@types/react@18.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@docusaurus/core':
         specifier: 3.4.0
         version: 3.4.0(@docusaurus/types@3.4.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(eslint@8.57.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.4.5)(vue-template-compiler@2.7.16)
@@ -1299,6 +1306,9 @@ importers:
       '@docusaurus/theme-mermaid':
         specifier: ^3.4.0
         version: 3.4.0(eslint@8.57.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.4.5)(vue-template-compiler@2.7.16)
+      '@docusaurus/theme-search-algolia':
+        specifier: ^3.4.0
+        version: 3.4.0(@algolia/client-search@4.23.3)(@docusaurus/types@3.4.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react@18.3.3)(eslint@8.57.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.4.5)(vue-template-compiler@2.7.16)
       '@emotion/react':
         specifier: ^11.11.4
         version: 11.11.4(@types/react@18.3.3)(react@18.3.1)
@@ -1335,6 +1345,9 @@ importers:
       clsx:
         specifier: ^2.0.0
         version: 2.1.1
+      copy-text-to-clipboard:
+        specifier: ^3.2.0
+        version: 3.2.0
       dotenv:
         specifier: ^16.4.5
         version: 16.4.5
@@ -20207,7 +20220,7 @@ snapshots:
       '@docusaurus/utils-validation': 3.4.0(@docusaurus/types@3.4.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(typescript@5.4.5)
       '@types/react-router-config': 5.0.11
       combine-promises: 1.2.0
-      fs-extra: 11.1.1
+      fs-extra: 11.2.0
       js-yaml: 4.1.0
       lodash: 4.17.21
       react: 18.3.1
@@ -20583,7 +20596,7 @@ snapshots:
       algoliasearch-helper: 3.22.1(algoliasearch@4.23.3)
       clsx: 2.1.1
       eta: 2.2.0
-      fs-extra: 11.1.1
+      fs-extra: 11.2.0
       lodash: 4.17.21
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
@@ -20613,7 +20626,7 @@ snapshots:
 
   '@docusaurus/theme-translations@3.4.0':
     dependencies:
-      fs-extra: 11.1.1
+      fs-extra: 11.2.0
       tslib: 2.6.2
 
   '@docusaurus/tsconfig@3.4.0': {}
@@ -20670,7 +20683,7 @@ snapshots:
       '@svgr/webpack': 8.1.0(typescript@5.4.5)
       escape-string-regexp: 4.0.0
       file-loader: 6.2.0(webpack@5.90.1)
-      fs-extra: 11.1.1
+      fs-extra: 11.2.0
       github-slugger: 1.5.0
       globby: 11.1.0
       gray-matter: 4.0.3
@@ -24222,7 +24235,7 @@ snapshots:
       esbuild-plugin-alias: 0.2.1
       express: 4.19.2
       find-cache-dir: 3.3.2
-      fs-extra: 11.1.1
+      fs-extra: 11.2.0
       process: 0.11.10
       util: 0.12.5
     transitivePeerDependencies:
@@ -24921,7 +24934,7 @@ snapshots:
 
   '@svgr/hast-util-to-babel-ast@8.0.0':
     dependencies:
-      '@babel/types': 7.24.6
+      '@babel/types': 7.24.7
       entities: 4.5.0
 
   '@svgr/plugin-jsx@7.0.0':
@@ -24961,7 +24974,7 @@ snapshots:
       '@svgr/core': 8.1.0(typescript@5.4.5)
       cosmiconfig: 8.3.6(typescript@5.4.5)
       deepmerge: 4.3.1
-      svgo: 3.0.2
+      svgo: 3.3.2
     transitivePeerDependencies:
       - typescript
 
