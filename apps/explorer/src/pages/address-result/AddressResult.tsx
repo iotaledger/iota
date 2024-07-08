@@ -7,18 +7,17 @@ import { Domain32 } from '@iota/icons';
 import { LoadingIndicator } from '@iota/ui';
 import { useParams } from 'react-router-dom';
 
-import { PageLayout } from '~/components/layout/PageLayout';
-import { OwnedCoins } from '~/components/owned-coins';
-import { OwnedObjects } from '~/components/owned-objects';
-import { ErrorBoundary } from '~/components/error-boundary/ErrorBoundary';
-import { TransactionsForAddress } from '~/components/transactions/TransactionsForAddress';
+import {
+    ErrorBoundary,
+    OwnedCoins,
+    OwnedObjects,
+    PageLayout,
+    TransactionsForAddress,
+} from '~/components';
+import { Divider, PageHeader, SplitPanes, TabHeader, TabsList, TabsTrigger } from '~/components/ui';
 import { useBreakpoint } from '~/hooks/useBreakpoint';
-import { Divider } from '~/ui/Divider';
-import { PageHeader } from '~/ui/PageHeader';
-import { SplitPanes } from '~/ui/SplitPanes';
-import { TabHeader, TabsList, TabsTrigger } from '~/ui/Tabs';
-import { TotalStaked } from './TotalStaked';
 import { LocalStorageSplitPaneKey } from '~/lib/enums';
+import { TotalStaked } from './TotalStaked';
 
 interface AddressResultPageHeaderProps {
     address: string;

@@ -5,7 +5,7 @@
 import { Heading } from '@iota/ui';
 import { type ReactNode } from 'react';
 
-import { Card } from '~/ui/Card';
+import { Card } from '~/components/ui';
 
 interface EpochStatsProps {
     label: string;

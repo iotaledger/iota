@@ -7,7 +7,7 @@ import { Iota, Unstaked } from '@iota/icons';
 import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
 
-import { ImageIcon } from '~/ui/ImageIcon';
+import { ImageIcon } from '~/components/ui';
 
 const imageStyle = cva(['flex rounded-2xl'], {
     variants: {
