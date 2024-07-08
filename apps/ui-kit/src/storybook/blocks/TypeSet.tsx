@@ -18,7 +18,7 @@ export function TypeSet({ typeset, label, fontWeight, fontFamily }: TypeSetProps
             <p>Font Weight: {fontWeight}</p>
             <span>Font Family: {fontFamily}</span>
 
-            <div className="mt-4 flex flex-col gap-y-2 rounded-md border border-gray-200 px-5 py-8 shadow-md">
+            <div className="px-5 py-8 mt-4 flex flex-col gap-y-2 rounded-md border border-gray-200 shadow-md">
                 {Object.entries(typeset).map(([fontClass, [fontSize]], index) => {
                     const size = Number(fontSize.replace('px', ''));
                     const sizeText = getFontSizeLabelFromClass(fontClass);
