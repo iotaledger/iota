@@ -2,20 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React from 'react';
-import { Theme } from '../enums';
 
 export interface ButtonProps {
     label: string;
-    darkmode?: boolean;
 }
 
-const THEME_CLASSES: Record<Theme, string> = {
-    [Theme.Light]: 'bg-primary-40 text-white',
-    [Theme.Dark]: 'bg-primary-70 text-neutral-20',
-};
-
-export function Button({ label, darkmode }: ButtonProps): React.JSX.Element {
-    const mode = darkmode ? Theme.Dark : Theme.Light;
-    const themeClass = THEME_CLASSES[mode];
-    return <button className={`rounded-full px-xs py-xxs ${themeClass}`}>{label}</button>;
+export function Button({ label }: ButtonProps): React.JSX.Element {
+    return (
+        <button className="rounded-full bg-primary-40 px-xs py-xxs text-white dark:bg-primary-70 dark:text-neutral-20">
+            {label}
+        </button>
+    );
 }
