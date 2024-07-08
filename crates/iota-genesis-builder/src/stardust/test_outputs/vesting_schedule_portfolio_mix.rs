@@ -8,7 +8,7 @@
 use iota_sdk::{
     client::secret::{mnemonic::MnemonicSecretManager, GenerateAddressOptions, SecretManage},
     types::block::{
-        address::{Address, Ed25519Address},
+        address::Ed25519Address,
         output::{
             unlock_condition::AddressUnlockCondition, BasicOutputBuilder, Output,
             OUTPUT_INDEX_RANGE,
@@ -59,13 +59,13 @@ pub(crate) async fn outputs(vested_index: &mut u32) -> anyhow::Result<Vec<(Outpu
 
         match address_index {
             0 => {
-                add_random_basic_output(&mut outputs, &mut rng, address);
+                add_random_basic_output(&mut outputs, &mut rng, address)?;
             }
             1 => {
                 add_vested_outputs(&mut outputs, &mut rng, vested_index, address)?;
             }
             2 => {
-                add_random_basic_output(&mut outputs, &mut rng, address);
+                add_random_basic_output(&mut outputs, &mut rng, address)?;
                 add_vested_outputs(&mut outputs, &mut rng, vested_index, address)?;
             }
             _ => unreachable!(),
@@ -88,17 +88,18 @@ fn random_output_header(rng: &mut StdRng) -> OutputHeader {
 fn add_random_basic_output(
     outputs: &mut Vec<(OutputHeader, Output)>,
     rng: &mut StdRng,
-    owner: impl Into<Address>,
-) {
+    address: Ed25519Address,
+) -> anyhow::Result<()> {
     let basic_output_header = random_output_header(rng);
 
     let amount = rng.gen_range(1_000_000..10_000_000);
     let basic_output = BasicOutputBuilder::new_with_amount(amount)
-        .add_unlock_condition(AddressUnlockCondition::new(owner))
-        .finish()
-        .unwrap();
+        .add_unlock_condition(AddressUnlockCondition::new(address))
+        .finish()?;
 
     outputs.push((basic_output_header, basic_output.into()));
+
+    Ok(())
 }
 
 fn add_vested_outputs(
