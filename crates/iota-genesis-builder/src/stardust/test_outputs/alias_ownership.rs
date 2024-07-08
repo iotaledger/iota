@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 use iota_sdk::{
     client::secret::{mnemonic::MnemonicSecretManager, SecretManage},
     types::block::{
-        address::{Address, AliasAddress, NftAddress},
+        address::{Address, AliasAddress},
         output::{
             feature::{Irc27Metadata, IssuerFeature, MetadataFeature},
             unlock_condition::{
@@ -53,8 +53,7 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
         )
         .add_unlock_condition(GovernorAddressUnlockCondition::new(alias_owner))
         .add_unlock_condition(StateControllerAddressUnlockCondition::new(alias_owner))
-        .finish()
-        .unwrap();
+        .finish()?;
         let alias_address = AliasAddress::new(*alias_output.alias_id());
 
         // let this alias own various other assets, that may themselves own other assets
@@ -72,28 +71,30 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
                 match rng.gen_range(0..=3) {
                     0 => {
                         // alias
-                        let (output_header, alias) = random_alias_output(&mut rng, owning_addr);
+                        let (output_header, alias) = random_alias_output(&mut rng, owning_addr)?;
                         owning_addresses
                             .push_back((depth + 1, AliasAddress::new(*alias.alias_id()).into()));
                         outputs.push((output_header, alias.into()));
                     }
                     1 => {
                         // nft
-                        let (output_header, nft) = random_nft_output(&mut rng, owning_addr);
-                        owning_addresses
-                            .push_back((depth + 1, NftAddress::new(*nft.nft_id()).into()));
+                        let (output_header, nft) = random_nft_output(&mut rng, owning_addr)?;
+                        owning_addresses.push_back((
+                            depth + 1,
+                            nft.nft_address(&output_header.output_id()).into(),
+                        ));
                         outputs.push((output_header, nft.into()));
                     }
                     2 => {
                         // basic
-                        let (output_header, basic) = random_basic_output(&mut rng, owning_addr);
+                        let (output_header, basic) = random_basic_output(&mut rng, owning_addr)?;
                         outputs.push((output_header, basic.into()));
                     }
                     3 => {
                         // foundry
                         if let Address::Alias(owning_addr) = owning_addr {
                             let (output_header, foundry) =
-                                random_foundry_output(&mut rng, &mut serial_number, owning_addr);
+                                random_foundry_output(&mut rng, &mut serial_number, owning_addr)?;
                             outputs.push((output_header, foundry.into()));
                         }
                     }
@@ -105,46 +106,47 @@ pub(crate) async fn outputs() -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     Ok(outputs)
 }
 
-fn random_basic_output(owner: impl Into<Address>) -> (OutputHeader, BasicOutput) {
-    let basic_output_header = random_output_header();
+fn random_basic_output(
+    rng: &mut StdRng,
+    owner: impl Into<Address>,
+) -> anyhow::Result<(OutputHeader, BasicOutput)> {
+    let basic_output_header = random_output_header(rng);
 
     let amount = rng.gen_range(1_000_000..10_000_000);
     let basic_output = BasicOutputBuilder::new_with_amount(amount)
         .add_unlock_condition(AddressUnlockCondition::new(owner))
-        .finish()
-        .unwrap();
+        .finish()?;
 
-    (basic_output_header, basic_output)
+    Ok((basic_output_header, basic_output))
 }
 
-fn random_nft_output(owner: impl Into<Address>) -> (OutputHeader, NftOutput) {
+fn random_nft_output(
+    rng: &mut StdRng,
+    owner: impl Into<Address>,
+) -> anyhow::Result<(OutputHeader, NftOutput)> {
     let owner = owner.into();
-    let nft_output_header = random_output_header();
-    let nft_metadata = Irc27Metadata::new(
-        "image/png",
-        "https://nft.org/nft.png".parse().unwrap(),
-        "NFT",
-    )
-    .with_issuer_name("issuer_name")
-    .with_collection_name("collection_name")
-    .with_description("description");
+    let nft_output_header = random_output_header(rng);
+    let nft_metadata = Irc27Metadata::new("image/png", "https://nft.org/nft.png".parse()?, "NFT")
+        .with_issuer_name("issuer_name")
+        .with_collection_name("collection_name")
+        .with_description("description");
 
     let amount = rng.gen_range(1_000_000..10_000_000);
     let nft_output = NftOutputBuilder::new_with_amount(amount, NftId::new(rng.gen()))
         .add_unlock_condition(AddressUnlockCondition::new(owner.clone()))
         .with_immutable_features(vec![
-            Feature::Metadata(
-                MetadataFeature::new(serde_json::to_vec(&nft_metadata).unwrap()).unwrap(),
-            ),
+            Feature::Metadata(MetadataFeature::new(serde_json::to_vec(&nft_metadata)?)?),
             Feature::Issuer(IssuerFeature::new(owner)),
         ])
-        .finish()
-        .unwrap();
+        .finish()?;
 
-    (nft_output_header, nft_output)
+    Ok((nft_output_header, nft_output))
 }
 
-fn random_alias_output(rng: &mut StdRng, owner: impl Into<Address>) -> (OutputHeader, AliasOutput) {
+fn random_alias_output(
+    rng: &mut StdRng,
+    owner: impl Into<Address>,
+) -> anyhow::Result<(OutputHeader, AliasOutput)> {
     let owner = owner.into();
     let alias_output_header = random_output_header(rng);
 
@@ -152,29 +154,31 @@ fn random_alias_output(rng: &mut StdRng, owner: impl Into<Address>) -> (OutputHe
     let alias_output = AliasOutputBuilder::new_with_amount(amount, AliasId::new(rng.gen()))
         .add_unlock_condition(GovernorAddressUnlockCondition::new(owner.clone()))
         .add_unlock_condition(StateControllerAddressUnlockCondition::new(owner))
-        .finish()
-        .unwrap();
+        .finish()?;
 
-    (alias_output_header, alias_output)
+    Ok((alias_output_header, alias_output))
 }
 
-fn random_foundry_output(owner: impl Into<AliasAddress>) -> (OutputHeader, FoundryOutput) {
-    let foundry_output_header = random_output_header();
+fn random_foundry_output(
+    rng: &mut StdRng,
+    serial_number: &mut u32,
+    owner: impl Into<AliasAddress>,
+) -> anyhow::Result<(OutputHeader, FoundryOutput)> {
+    let foundry_output_header = random_output_header(rng);
 
     let amount = rng.gen_range(1_000_000..10_000_000);
     let supply = rng.gen_range(1_000_000..100_000_000);
-    let token_scheme = SimpleTokenScheme::new(supply, 0, supply).unwrap();
+    let token_scheme = SimpleTokenScheme::new(supply, 0, supply)?;
     let foundry_output =
         FoundryOutputBuilder::new_with_amount(amount, *serial_number, token_scheme.into())
             .with_unlock_conditions([UnlockCondition::from(
                 ImmutableAliasAddressUnlockCondition::new(owner),
             )])
-            .finish()
-            .unwrap();
+            .finish()?;
 
     *serial_number += 1;
 
-    (foundry_output_header, foundry_output)
+    Ok((foundry_output_header, foundry_output))
 }
 
 fn random_output_header(rng: &mut StdRng) -> OutputHeader {
