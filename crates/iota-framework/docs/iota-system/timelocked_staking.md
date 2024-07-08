@@ -832,7 +832,7 @@ Request to add timelocked stake to the validator's staking pool at genesis
     label: Option&lt;String&gt;,
     ctx: &<b>mut</b> TxContext,
 ) {
-    <b>let</b> staked_iota = <a href="validator.md#0x3_validator">validator</a>.request_add_timelocked_stake_at_genesis_internal(stake, ctx);
+    <b>let</b> staked_iota = <a href="validator.md#0x3_validator">validator</a>.request_add_stake_at_genesis_with_receipt(stake, ctx);
     <b>let</b> timelocked_staked_iota = <a href="timelocked_staking.md#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</a> {
         id: <a href="../iota-framework/object.md#0x2_object_new">object::new</a>(ctx),
         staked_iota,

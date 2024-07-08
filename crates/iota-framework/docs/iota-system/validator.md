@@ -16,7 +16,7 @@ title: Module `0x3::validator`
 -  [Function `adjust_stake_and_gas_price`](#0x3_validator_adjust_stake_and_gas_price)
 -  [Function `request_add_stake`](#0x3_validator_request_add_stake)
 -  [Function `request_add_stake_at_genesis`](#0x3_validator_request_add_stake_at_genesis)
--  [Function `request_add_timelocked_stake_at_genesis_internal`](#0x3_validator_request_add_timelocked_stake_at_genesis_internal)
+-  [Function `request_add_stake_at_genesis_with_receipt`](#0x3_validator_request_add_stake_at_genesis_with_receipt)
 -  [Function `request_withdraw_stake`](#0x3_validator_request_withdraw_stake)
 -  [Function `request_set_gas_price`](#0x3_validator_request_set_gas_price)
 -  [Function `set_candidate_gas_price`](#0x3_validator_set_candidate_gas_price)
@@ -943,7 +943,7 @@ Request to add stake to the validator's staking pool at genesis
     staker_address: <b>address</b>,
     ctx: &<b>mut</b> TxContext,
 ) {
-    <b>let</b> staked_iota = <a href="validator.md#0x3_validator_request_add_timelocked_stake_at_genesis_internal">request_add_timelocked_stake_at_genesis_internal</a>(
+    <b>let</b> staked_iota = <a href="validator.md#0x3_validator_request_add_stake_at_genesis_with_receipt">request_add_stake_at_genesis_with_receipt</a>(
         self,
         stake,
         ctx
@@ -956,15 +956,15 @@ Request to add stake to the validator's staking pool at genesis
 
 </details>
 
-<a name="0x3_validator_request_add_timelocked_stake_at_genesis_internal"></a>
+<a name="0x3_validator_request_add_stake_at_genesis_with_receipt"></a>
 
-## Function `request_add_timelocked_stake_at_genesis_internal`
+## Function `request_add_stake_at_genesis_with_receipt`
 
-Internal request to add timelocked stake to the validator's staking pool at genesis.
+Internal request to add stake to the validator's staking pool at genesis.
 Returns a StakedIota
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator.md#0x3_validator_request_add_timelocked_stake_at_genesis_internal">request_add_timelocked_stake_at_genesis_internal</a>(self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">validator::Validator</a>, stake: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="staking_pool.md#0x3_staking_pool_StakedIota">staking_pool::StakedIota</a>
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator.md#0x3_validator_request_add_stake_at_genesis_with_receipt">request_add_stake_at_genesis_with_receipt</a>(self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">validator::Validator</a>, stake: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="staking_pool.md#0x3_staking_pool_StakedIota">staking_pool::StakedIota</a>
 </code></pre>
 
 
@@ -973,7 +973,7 @@ Returns a StakedIota
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(package) <b>fun</b> <a href="validator.md#0x3_validator_request_add_timelocked_stake_at_genesis_internal">request_add_timelocked_stake_at_genesis_internal</a>(
+<pre><code><b>public</b>(package) <b>fun</b> <a href="validator.md#0x3_validator_request_add_stake_at_genesis_with_receipt">request_add_stake_at_genesis_with_receipt</a>(
     self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">Validator</a>,
     stake: Balance&lt;IOTA&gt;,
     ctx: &<b>mut</b> TxContext,

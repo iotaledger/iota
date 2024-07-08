@@ -332,7 +332,7 @@ module iota_system::timelocked_staking {
         label: Option<String>,
         ctx: &mut TxContext,
     ) {
-        let staked_iota = validator.request_add_timelocked_stake_at_genesis_internal(stake, ctx);
+        let staked_iota = validator.request_add_stake_at_genesis_with_receipt(stake, ctx);
         let timelocked_staked_iota = TimelockedStakedIota {
             id: object::new(ctx),
             staked_iota,

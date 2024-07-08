@@ -328,7 +328,7 @@ module iota_system::validator {
         staker_address: address,
         ctx: &mut TxContext,
     ) {
-        let staked_iota = request_add_timelocked_stake_at_genesis_internal(
+        let staked_iota = request_add_stake_at_genesis_with_receipt(
             self,
             stake,
             ctx
@@ -336,9 +336,9 @@ module iota_system::validator {
         transfer::public_transfer(staked_iota, staker_address);
     }
 
-    /// Internal request to add timelocked stake to the validator's staking pool at genesis.
+    /// Internal request to add stake to the validator's staking pool at genesis.
     /// Returns a StakedIota
-    public(package) fun request_add_timelocked_stake_at_genesis_internal(
+    public(package) fun request_add_stake_at_genesis_with_receipt(
         self: &mut Validator,
         stake: Balance<IOTA>,
         ctx: &mut TxContext,
