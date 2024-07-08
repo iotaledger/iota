@@ -9,7 +9,7 @@ use iota_sdk::types::block::{
         feature::{Irc27Metadata, IssuerFeature, MetadataFeature},
         unlock_condition::{
             AddressUnlockCondition, GovernorAddressUnlockCondition,
-            ImmutableAliasAddressUnlockCondition,
+            ImmutableAliasAddressUnlockCondition, StateControllerAddressUnlockCondition,
         },
         AliasId, AliasOutput, AliasOutputBuilder, BasicOutput, BasicOutputBuilder, Feature,
         FoundryOutput, FoundryOutputBuilder, NftId, NftOutput, NftOutputBuilder, Output,
@@ -30,13 +30,13 @@ pub(crate) fn outputs() -> Vec<(OutputHeader, Output)> {
 
     // create 10 different alias outputs with each owning various other assets
     for _ in 0..10 {
-        let alias_output_header = random_output_header();
-        let alias_owner = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
-        let alias_output =
-            AliasOutputBuilder::new_with_amount(1_000_000, AliasId::new(rand::random()))
-                .add_unlock_condition(GovernorAddressUnlockCondition::new(alias_owner))
-                .finish()
-                .unwrap();
+        let alias_output_header = random_output_header(&mut rng);
+        let alias_owner = Ed25519Address::from(rng.gen::<[u8; Ed25519Address::LENGTH]>());
+        let alias_output = AliasOutputBuilder::new_with_amount(1_000_000, AliasId::new(rng.gen()))
+            .add_unlock_condition(GovernorAddressUnlockCondition::new(alias_owner))
+            .add_unlock_condition(StateControllerAddressUnlockCondition::new(alias_owner))
+            .finish()
+            .unwrap();
         let alias_address = alias_output.alias_address(&alias_output_header.output_id());
 
         // let this alias own various other assets, that may themselves own other assets
@@ -128,11 +128,13 @@ fn random_nft_output(owner: impl Into<Address>) -> (OutputHeader, NftOutput) {
     (nft_output_header, nft_output)
 }
 
-fn random_alias_output(owner: impl Into<Address>) -> (OutputHeader, AliasOutput) {
-    let alias_output_header = random_output_header();
+fn random_alias_output(rng: &mut StdRng, owner: impl Into<Address>) -> (OutputHeader, AliasOutput) {
+    let owner = owner.into();
+    let alias_output_header = random_output_header(rng);
 
-    let alias_output = AliasOutputBuilder::new_with_amount(1_000_000, AliasId::null())
-        .add_unlock_condition(GovernorAddressUnlockCondition::new(owner))
+    let alias_output = AliasOutputBuilder::new_with_amount(1_000_000, AliasId::new(rng.gen()))
+        .add_unlock_condition(GovernorAddressUnlockCondition::new(owner.clone()))
+        .add_unlock_condition(StateControllerAddressUnlockCondition::new(owner))
         .finish()
         .unwrap();
 
