@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { IOTA_GAS_COIN_TYPE } from '_redux/slices/iota-objects/Coin';
+import { GAS_TYPE_ARG } from '_redux/slices/iota-objects/Coin';
 import { useFormatCoin } from '@iota/core';
 
 export interface FaucetMessageInfoProps {
@@ -18,7 +18,7 @@ function FaucetMessageInfo({
 }: FaucetMessageInfoProps) {
     const [coinsReceivedFormatted, coinsReceivedSymbol] = useFormatCoin(
         totalReceived,
-        IOTA_GAS_COIN_TYPE,
+        GAS_TYPE_ARG,
     );
     if (loading) {
         return <>Request in progress</>;
