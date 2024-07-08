@@ -6,14 +6,16 @@ import { Text } from '_src/ui/app/shared/text';
 import { formatAddress } from '@iota/iota.js/utils';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { IconButton } from '../IconButton';
+import { type AddressFromFinder } from '_src/shared/accounts';
 
 interface AccountBalanceItemProps {
-    address: string;
-    balance: number;
+    finderAddress: AddressFromFinder;
 }
 
-export function AccountBalanceItem({ address, balance }: AccountBalanceItemProps): JSX.Element {
-    const copyAddress = useCopyToClipboard(address, {
+export function AccountBalanceItem({
+    finderAddress: finderAccount,
+}: AccountBalanceItemProps): JSX.Element {
+    const copyAddress = useCopyToClipboard(finderAccount.pubKeyHash, {
         copySuccessMessage: 'Address copied',
     });
     return (
@@ -21,7 +23,7 @@ export function AccountBalanceItem({ address, balance }: AccountBalanceItemProps
             <div className="flex w-full flex-row items-center justify-between">
                 <div className="flex gap-1.5 leading-none text-steel-dark">
                     <Text variant="body" weight="semibold">
-                        {formatAddress(address)}
+                        {formatAddress(finderAccount.pubKeyHash)}
                     </Text>
                     <div className="flex gap-1 opacity-0 duration-100 group-hover:opacity-100">
                         <IconButton
@@ -33,7 +35,7 @@ export function AccountBalanceItem({ address, balance }: AccountBalanceItemProps
                 </div>
 
                 <Text variant="bodySmall" weight="semibold" color="steel-darker">
-                    {balance} IOTA
+                    {finderAccount.balance.totalBalance} IOTA
                 </Text>
             </div>
         </div>

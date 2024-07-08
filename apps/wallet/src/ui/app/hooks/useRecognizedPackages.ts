@@ -4,11 +4,8 @@
 
 import { useFeatureValue } from '@growthbook/growthbook-react';
 import { Network } from '@iota/iota.js/client';
-import { IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS } from '@iota/iota.js/utils';
-
 import useAppSelector from './useAppSelector';
-
-const DEFAULT_RECOGNIZED_PACKAGES = [IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS];
+import { DEFAULT_RECOGNIZED_PACKAGES } from '@iota/core';
 
 export function useRecognizedPackages() {
     const network = useAppSelector((app) => app.app.network);

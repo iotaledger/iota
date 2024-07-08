@@ -26,7 +26,7 @@ module bridge::committee {
     const IOTA_MESSAGE_PREFIX: vector<u8> = b"IOTA_BRIDGE_MESSAGE";
 
     struct BridgeCommittee has store {
-        // commitee pub key and weight
+        // committee pub key and weight
         members: VecMap<vector<u8>, CommitteeMember>,
         // threshold for each message type
         thresholds: VecMap<u8, u64>

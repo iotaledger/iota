@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Link } from '~/ui/Link';
+import { Link } from '~/components/ui';
 
 type LinkGroupProps = {
     title: string;

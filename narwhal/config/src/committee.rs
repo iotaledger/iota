@@ -48,7 +48,7 @@ impl Authority {
     /// CommitteeBuilder). As some internal properties of Authority are
     /// initialised via the Committee, to ensure that the user will not
     /// accidentally use stale Authority data, should always derive them via
-    /// the Commitee.
+    /// the Committee.
     fn new(
         protocol_key: PublicKey,
         stake: Stake,

@@ -102,6 +102,6 @@ module tto::M1 {
 // Try to load an invalid type that will cause indexing to fail.
 //# run tto::M1::receive_b_parent --args object(2,8) receiving(2,9) --sender A
 
-//# run tto::M1::receive_b_parent --args object(2,8) receiving(2,6) --sender A
+//# run tto::M1::receive_b_parent --args object(2,8) receiving(2,7) --sender A
 
 //# run tto::M1::receive_wrapped --args object(2,8) receiving(2,9) --sender A
