@@ -9,10 +9,10 @@ use iota_sdk::types::block::{output::OutputId, payload::milestone::MilestoneInde
 use iota_types::base_types::ObjectID;
 use packable::Packable;
 
-/// The total supply on the iota-mainnet
-pub const TOTAL_SUPPLY_IOTA: u64 = 4_600_000_000_000_000;
+use crate::stardust::types::output_index::OutputIndex;
 
-/// The header of an [`Output`] in the snapshot
+/// The header of an [`Output`](iota_sdk::types::block::output::Output) in the
+/// snapshot
 #[derive(Debug, Clone, Packable)]
 pub struct OutputHeader {
     output_id: OutputId,
@@ -59,6 +59,7 @@ impl OutputHeader {
     /// Creates a new OutputHeader for testing.
     pub fn new_testing(
         transaction_id_bytes: [u8; 32],
+        output_index: OutputIndex,
         block_id_bytes: [u8; 32],
         milestone_index: u32,
         milestone_timestamp: u32,
@@ -66,7 +67,8 @@ impl OutputHeader {
         use iota_sdk::types::block::payload::transaction::TransactionId;
 
         OutputHeader {
-            output_id: OutputId::new(TransactionId::new(transaction_id_bytes), 0).unwrap(),
+            output_id: OutputId::new(TransactionId::new(transaction_id_bytes), output_index.get())
+                .unwrap(),
             block_id: BlockId::new(block_id_bytes),
             ms_index: MilestoneIndex::new(milestone_index),
             ms_ts: milestone_timestamp,

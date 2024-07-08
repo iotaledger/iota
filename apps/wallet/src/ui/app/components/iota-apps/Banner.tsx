@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli } from '_src/shared/analytics/ampli';
-import { FEATURES } from '_src/shared/experimentation/features';
+import { Feature } from '_src/shared/experimentation/features';
 import { useFeature } from '@growthbook/growthbook-react';
 
 import ExternalLink from '../external-link';
@@ -15,7 +15,7 @@ export type BannerProps = {
 };
 
 export function AppsPageBanner() {
-    const AppsBannerConfig = useFeature<BannerProps>(FEATURES.WALLET_APPS_BANNER_CONFIG);
+    const AppsBannerConfig = useFeature<BannerProps>(Feature.WalletAppsBannerConfig);
 
     if (!AppsBannerConfig.value?.enabled) {
         return null;

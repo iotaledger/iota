@@ -2,15 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { useGetTransaction } from '@iota/core';
 import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
 import { useParams } from 'react-router-dom';
 
+import { PageLayout } from '~/components';
+import { Banner, PageHeader, StatusIcon } from '~/components/ui';
 import { TransactionView } from './TransactionView';
-import { PageLayout } from '~/components/layout/PageLayout';
-import { useGetTransaction } from '~/hooks/useGetTransaction';
-import { Banner } from '~/ui/Banner';
-import { PageHeader } from '~/ui/PageHeader';
-import { StatusIcon } from '~/ui/StatusIcon';
 
 interface TransactionResultPageHeaderProps {
     transaction?: IotaTransactionBlockResponse;

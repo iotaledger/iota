@@ -22,9 +22,9 @@ export function DescriptionItem({ title, children }: DescriptionItemProps) {
     );
 }
 
-export type DescriptionListProps = {
+export interface DescriptionListProps {
     children: ReactNode;
-};
+}
 
 export function DescriptionList({ children }: DescriptionListProps) {
     return <dl className="m-0 flex flex-col gap-2">{children}</dl>;

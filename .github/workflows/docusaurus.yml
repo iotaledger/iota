@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     name: Lint, Build, and Test
-    runs-on: ubuntu-latest
+    runs-on: self-hosted-rust
     steps:
       - name: Checkout
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
@@ -25,7 +25,5 @@ jobs:
           cache: "pnpm"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-        working-directory: ./docs/site
       - name: Build
-        run: pnpm build
-        working-directory: ./docs/site
+        run: pnpm iota-docs build

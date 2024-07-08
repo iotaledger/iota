@@ -9,14 +9,9 @@ import { ButtonOrLink } from '_app/shared/utils/ButtonOrLink';
 import Alert from '_components/alert';
 import { CoinIcon } from '_components/coin-icon';
 import Loading from '_components/loading';
-import { filterAndSortTokenBalances } from '_helpers';
-import { useAppSelector, useCoinsReFetchingConfig, useSortedCoinsByCategories } from '_hooks';
-import {
-    DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
-    DELEGATED_STAKES_QUERY_STALE_TIME,
-} from '_shared/constants';
+import { useAppSelector, useCoinsReFetchingConfig } from '_hooks';
 import { ampli } from '_src/shared/analytics/ampli';
-import { FEATURES } from '_src/shared/experimentation/features';
+import { Feature } from '_src/shared/experimentation/features';
 import { AccountsList } from '_src/ui/app/components/accounts/AccountsList';
 import { UnlockAccountButton } from '_src/ui/app/components/accounts/UnlockAccountButton';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
@@ -25,6 +20,7 @@ import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import PageTitle from '_src/ui/app/shared/PageTitle';
 import { useFeature } from '@growthbook/growthbook-react';
 import {
+    filterAndSortTokenBalances,
     useAppsBackend,
     useBalance,
     useBalanceInUSD,
@@ -32,6 +28,9 @@ import {
     useFormatCoin,
     useGetDelegatedStake,
     useResolveIotaNSName,
+    DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
+    DELEGATED_STAKES_QUERY_STALE_TIME,
+    useSortedCoinsByCategories,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Info12, Pin16, Unpin16 } from '@iota/icons';
@@ -48,11 +47,16 @@ import { TokenIconLink } from './TokenIconLink';
 import { TokenLink } from './TokenLink';
 import { TokenList } from './TokenList';
 
-type TokenDetailsProps = {
+interface TokenDetailsProps {
     coinType?: string;
-};
+}
 
-function PinButton({ unpin, onClick }: { unpin?: boolean; onClick: () => void }) {
+interface PinButtonProps {
+    unpin?: boolean;
+    onClick: () => void;
+}
+
+function PinButton({ unpin, onClick }: PinButtonProps) {
     return (
         <button
             type="button"
@@ -69,17 +73,14 @@ function PinButton({ unpin, onClick }: { unpin?: boolean; onClick: () => void })
     );
 }
 
-function TokenRowButton({
-    coinBalance,
-    children,
-    to,
-    onClick,
-}: {
+interface TokenRowButtonProps {
     coinBalance: CoinBalanceType;
     children: ReactNode;
     to: string;
     onClick?: () => void;
-}) {
+}
+
+function TokenRowButton({ coinBalance, children, to, onClick }: TokenRowButtonProps) {
     return (
         <ButtonOrLink
             to={to}
@@ -92,15 +93,13 @@ function TokenRowButton({
     );
 }
 
-export function TokenRow({
-    coinBalance,
-    renderActions,
-    onClick,
-}: {
+interface TokenRowProps {
     coinBalance: CoinBalanceType;
     renderActions?: boolean;
     onClick?: () => void;
-}) {
+}
+
+export function TokenRow({ coinBalance, renderActions, onClick }: TokenRowProps) {
     const coinType = coinBalance.coinType;
     const balance = BigInt(coinBalance.totalBalance);
     const [formatted, symbol, { data: coinMeta }] = useFormatCoin(balance, coinType);
@@ -181,15 +180,13 @@ export function TokenRow({
     );
 }
 
-export function MyTokens({
-    coinBalances,
-    isLoading,
-    isFetched,
-}: {
+interface MyTokensProps {
     coinBalances: CoinBalanceType[];
     isLoading: boolean;
     isFetched: boolean;
-}) {
+}
+
+export function MyTokens({ coinBalances, isLoading, isFetched }: MyTokensProps) {
     const isDefiWalletEnabled = useIsWalletDefiEnabled();
     const network = useAppSelector(({ app }) => app.network);
 
@@ -336,7 +333,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
     });
 
     const walletInterstitialConfig = useFeature<InterstitialConfig>(
-        FEATURES.WALLET_INTERSTITIAL_CONFIG,
+        Feature.WalletInterstitialConfig,
     ).value;
 
     const tokenBalance = BigInt(coinBalance?.totalBalance ?? 0);

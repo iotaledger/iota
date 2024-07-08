@@ -544,7 +544,8 @@ impl Fold for CheckArithmetic {
 /// This proc macro generates a function `order_to_variant_map` which returns a
 /// map of the position of each variant to the name of the variant.
 /// It is intended to catch changes in enum order when backward compat is
-/// required. ```rust,ignore
+/// required.
+/// ```rust,ignore
 ///    /// Example for this enum
 ///    #[derive(EnumVariantOrder)]
 ///    pub enum MyEnum {

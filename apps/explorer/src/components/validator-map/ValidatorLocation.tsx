@@ -4,7 +4,7 @@
 
 import { useCallback } from 'react';
 
-import { type ValidatorMapValidator } from './types';
+import { type ValidatorMapValidator } from '~/lib/ui/interfaces';
 
 interface ValidatorLocationProps {
     validator: ValidatorMapValidator;

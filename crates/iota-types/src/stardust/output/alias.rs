@@ -184,7 +184,7 @@ impl AliasOutput {
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
         version: SequenceNumber,
-        coin_type: &CoinType,
+        coin_type: CoinType,
     ) -> anyhow::Result<Object> {
         // Construct the Alias Output object.
         let move_alias_output_object = unsafe {

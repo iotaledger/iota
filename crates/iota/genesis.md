@@ -2,22 +2,23 @@
 
 This document lays out the step-by-step process for orchestrating a Iota Genesis Ceremony.
 
-## Prerequisites 
+## Prerequisites
 
 Each validator participating in the ceremony will need the following:
 
-- Ed25519 Public key
-- Iota network address // WAN
-- Narwhal_primary_to_primary network address // WAN
-- Narwhal_worker_to_primary network address // LAN
-- Narwhal_primary_to_worker network address // LAN
-- Narwhal_worker_to_worker network address // WAN
-- Narwhal_consensus_address network address // LAN
+-   Ed25519 Public key
+-   Iota network address // WAN
+-   Narwhal_primary_to_primary network address // WAN
+-   Narwhal_worker_to_primary network address // LAN
+-   Narwhal_primary_to_worker network address // LAN
+-   Narwhal_worker_to_worker network address // WAN
+-   Narwhal_consensus_address network address // LAN
 
 Note:
-- Network addresses should be Multiaddrs in the form of `/dns/{dns name}/tcp/{port}/http` and
-only the addresses marked WAN need to be publicly accessible by the wider internet.
-- An Ed25519 key can be created using `iota keytool generate`
+
+-   Network addresses should be Multiaddrs in the form of `/dns/{dns name}/tcp/{port}/http` and
+    only the addresses marked WAN need to be publicly accessible by the wider internet.
+-   An Ed25519 key can be created using `iota keytool generate`
 
 ## Ceremony
 
@@ -31,7 +32,7 @@ The MC (Master of Ceremony) will create a new git repository and initialize the 
 
 ```
 $ git init genesis && cd genesis
-$ iota genesis-ceremony 
+$ iota genesis-ceremony
 $ git add .
 $ git commit -m "init genesis"
 $ git push
@@ -66,7 +67,7 @@ Add configuration for any initial gas objects that should be created at genesis.
 $ iota genesis-ceremony add-gas-object \
     --address <IotaAddress> \
     --object-id <ObjectId> \
-    --valud <# of iota coins>
+    --value <# of iota coins>
 $ git add .
 $ git commit -m "add gas object"
 $ git push

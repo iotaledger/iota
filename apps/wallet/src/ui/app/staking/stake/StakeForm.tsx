@@ -10,23 +10,27 @@ import {
     NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_STARTS,
 } from '_src/shared/constants';
 import { CountDownTimer } from '_src/ui/app/shared/countdown-timer';
-import { useCoinMetadata, useFormatCoin, useGetTimeBeforeEpochNumber } from '@iota/core';
+import {
+    createStakeTransaction,
+    parseAmount,
+    useCoinMetadata,
+    useFormatCoin,
+    useGetTimeBeforeEpochNumber,
+} from '@iota/core';
 import { Field, Form, useFormikContext } from 'formik';
 import { memo, useCallback, useMemo } from 'react';
 
-import { parseAmount } from '../../helpers';
 import { useActiveAddress, useTransactionGasBudget } from '../../hooks';
 import { type FormValues } from './StakingCard';
-import { createStakeTransaction } from './utils/transaction';
 
 const HIDE_MAX = true;
 
-export type StakeFromProps = {
+export interface StakeFromProps {
     validatorAddress: string;
     coinBalance: bigint;
     coinType: string;
     epoch?: string | number;
-};
+}
 
 function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFromProps) {
     const { values, setFieldValue } = useFormikContext<FormValues>();

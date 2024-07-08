@@ -11,12 +11,11 @@ export { default as useOnClickOutside } from './useOnClickOutside';
 export { default as useOnKeyboardEvent } from './useOnKeyboardEvent';
 export { default as useFileExtensionType } from './useFileExtensionType';
 export { default as useNFTBasicData } from './useNFTBasicData';
-export { useGetNFTMeta } from './useGetNFTMeta';
 export { useTransactionDryRun } from './useTransactionDryRun';
 export { useGetTxnRecipientAddress } from './useGetTxnRecipientAddress';
 export { useGetTransferAmount } from './useGetTransferAmount';
 export { useOwnedNFT } from './useOwnedNFT';
-export { useSortedCoinsByCategories } from './useSortedCoinsByCategories';
+
 export * from './useTransactionData';
 export * from './useActiveAddress';
 export * from './useCoinsReFetchingConfig';

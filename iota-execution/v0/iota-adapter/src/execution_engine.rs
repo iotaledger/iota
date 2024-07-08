@@ -6,12 +6,18 @@ pub use checked::*;
 
 #[iota_macros::with_checked_arithmetic]
 mod checked {
+
     use std::{collections::HashSet, sync::Arc};
 
     use iota_protocol_config::{check_limit_by_meter, LimitThresholdCrossed, ProtocolConfig};
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
     use iota_types::{
+        authenticator_state::{
+            AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME,
+            AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME, AUTHENTICATOR_STATE_MODULE_NAME,
+            AUTHENTICATOR_STATE_UPDATE_FUNCTION_NAME,
+        },
         balance::{
             BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME,
             BALANCE_MODULE_NAME,
@@ -19,6 +25,7 @@ mod checked {
         base_types::{IotaAddress, ObjectRef, TransactionDigest, TxContext},
         clock::{CLOCK_MODULE_NAME, CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME},
         committee::EpochId,
+        deny_list::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
         effects::TransactionEffects,
         error::{ExecutionError, ExecutionErrorKind},
         execution::is_certificate_denied,
@@ -36,12 +43,18 @@ mod checked {
         metrics::LimitsMetrics,
         object::{Object, ObjectInner, OBJECT_START_VERSION},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        storage::{BackingStore, WriteKind},
-        transaction::{
-            Argument, CallArg, ChangeEpoch, CheckedInputObjects, Command, GenesisTransaction,
-            ProgrammableTransaction, TransactionKind,
+        randomness_state::{
+            RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_CREATE_FUNCTION_NAME,
+            RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
         },
-        IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID,
+        storage::BackingStore,
+        transaction::{
+            Argument, AuthenticatorStateExpire, AuthenticatorStateUpdate, CallArg, ChangeEpoch,
+            CheckedInputObjects, Command, EndOfEpochTransactionKind, GenesisTransaction, ObjectArg,
+            ProgrammableTransaction, RandomnessStateUpdate, TransactionKind,
+        },
+        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
+        IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID,
     };
     use move_binary_format::{access::ModuleAccess, CompiledModule};
     use move_vm_runtime::move_vm::MoveVM;
@@ -75,10 +88,24 @@ mod checked {
         Result<Mode::ExecutionResults, ExecutionError>,
     ) {
         let input_objects = input_objects.into_inner();
+        let mutable_inputs = if enable_expensive_checks {
+            input_objects.mutable_inputs().keys().copied().collect()
+        } else {
+            HashSet::new()
+        };
         let shared_object_refs = input_objects.filter_shared_objects();
+        let receiving_objects = transaction_kind.receiving_objects();
         let mut transaction_dependencies = input_objects.transaction_dependencies();
-        let mut temporary_store =
-            TemporaryStore::new(store, input_objects, transaction_digest, protocol_config);
+        let contains_deleted_input = input_objects.contains_deleted_objects();
+
+        let mut temporary_store = TemporaryStore::new(
+            store,
+            input_objects,
+            receiving_objects,
+            transaction_digest,
+            protocol_config,
+        );
+
         let mut gas_charger =
             GasCharger::new(transaction_digest, gas_coins, gas_status, protocol_config);
 
@@ -89,7 +116,7 @@ mod checked {
             epoch_timestamp_ms,
         );
 
-        let is_epoch_change = matches!(transaction_kind, TransactionKind::ChangeEpoch(_));
+        let is_epoch_change = transaction_kind.is_end_of_epoch_tx();
 
         let deny_cert = is_certificate_denied(&transaction_digest, certificate_deny_set);
         let (gas_cost_summary, execution_result) = execute_transaction::<Mode>(
@@ -102,7 +129,7 @@ mod checked {
             metrics,
             enable_expensive_checks,
             deny_cert,
-            false,
+            contains_deleted_input,
         );
 
         let status = if let Err(error) = &execution_result {
@@ -158,24 +185,32 @@ mod checked {
             status
         );
 
-        // Remove from dependencies the generic hash
+        // Genesis writes a special digest to indicate that an object was created during
+        // genesis and not written by any normal transaction - remove that from the
+        // dependencies
         transaction_dependencies.remove(&TransactionDigest::genesis_marker());
 
         if enable_expensive_checks && !Mode::allow_arbitrary_function_calls() {
             temporary_store
-                .check_ownership_invariants(&transaction_signer, &mut gas_charger, is_epoch_change)
+                .check_ownership_invariants(
+                    &transaction_signer,
+                    &mut gas_charger,
+                    &mutable_inputs,
+                    is_epoch_change,
+                )
                 .unwrap()
         } // else, in dev inspect mode and anything goes--don't check
 
-        let (inner, effects) = temporary_store.to_effects(
+        let (inner, effects) = temporary_store.into_effects(
             shared_object_refs,
             &transaction_digest,
-            transaction_dependencies.into_iter().collect(),
+            transaction_dependencies,
             gas_cost_summary,
             status,
             &mut gas_charger,
             *epoch_id,
         );
+
         (
             inner,
             gas_charger.into_gas_status(),
@@ -194,8 +229,13 @@ mod checked {
         pt: ProgrammableTransaction,
     ) -> Result<InnerTemporaryStore, ExecutionError> {
         let input_objects = input_objects.into_inner();
-        let mut temporary_store =
-            TemporaryStore::new(store, input_objects, tx_context.digest(), protocol_config);
+        let mut temporary_store = TemporaryStore::new(
+            store,
+            input_objects,
+            vec![],
+            tx_context.digest(),
+            protocol_config,
+        );
         let mut gas_charger = GasCharger::new_unmetered(tx_context.digest());
         programmable_transactions::execution::execute::<execution_mode::Genesis>(
             protocol_config,
@@ -233,6 +273,7 @@ mod checked {
             gas_charger.no_charges(),
             "No gas charges must be applied yet"
         );
+
         let is_genesis_tx = matches!(transaction_kind, TransactionKind::Genesis(_));
         let advance_epoch_gas_summary = transaction_kind.get_advance_epoch_tx_gas_summary();
 
@@ -263,70 +304,25 @@ mod checked {
                 )
             };
 
-            let effects_estimated_size = temporary_store.estimate_effects_size_upperbound();
+            let meter_check = check_meter_limit(
+                temporary_store,
+                gas_charger,
+                protocol_config,
+                metrics.clone(),
+            );
+            if let Err(e) = meter_check {
+                execution_result = Err(e);
+            }
 
-            // Check if a limit threshold was crossed.
-            // For metered transactions, there is not soft limit.
-            // For system transactions, we allow a soft limit with alerting, and a hard
-            // limit where we terminate
-            match check_limit_by_meter!(
-                !gas_charger.is_unmetered(),
-                effects_estimated_size,
-                protocol_config.max_serialized_tx_effects_size_bytes(),
-                protocol_config.max_serialized_tx_effects_size_bytes_system_tx(),
-                metrics.excessive_estimated_effects_size
-            ) {
-                LimitThresholdCrossed::None => (),
-                LimitThresholdCrossed::Soft(_, limit) => {
-                    warn!(
-                        effects_estimated_size = effects_estimated_size,
-                        soft_limit = limit,
-                        "Estimated transaction effects size crossed soft limit",
-                    )
-                }
-                LimitThresholdCrossed::Hard(_, lim) => {
-                    execution_result = Err(ExecutionError::new_with_source(
-                        ExecutionErrorKind::EffectsTooLarge {
-                            current_size: effects_estimated_size as u64,
-                            max_size: lim as u64,
-                        },
-                        "Transaction effects are too large",
-                    ))
-                }
-            };
             if execution_result.is_ok() {
-                // This limit is only present in Version 3 and up, so use this to gate it
-                if let (Some(normal_lim), Some(system_lim)) = (
-                    protocol_config.max_size_written_objects_as_option(),
-                    protocol_config.max_size_written_objects_system_tx_as_option(),
-                ) {
-                    let written_objects_size = temporary_store.written_objects_size();
-
-                    match check_limit_by_meter!(
-                        !gas_charger.is_unmetered(),
-                        written_objects_size,
-                        normal_lim,
-                        system_lim,
-                        metrics.excessive_written_objects_size
-                    ) {
-                        LimitThresholdCrossed::None => (),
-                        LimitThresholdCrossed::Soft(_, limit) => {
-                            warn!(
-                                written_objects_size = written_objects_size,
-                                soft_limit = limit,
-                                "Written objects size crossed soft limit",
-                            )
-                        }
-                        LimitThresholdCrossed::Hard(_, lim) => {
-                            execution_result = Err(ExecutionError::new_with_source(
-                                ExecutionErrorKind::WrittenObjectsTooLarge {
-                                    current_size: written_objects_size as u64,
-                                    max_size: lim as u64,
-                                },
-                                "Written objects size crossed hard limit",
-                            ))
-                        }
-                    };
+                let gas_check = check_written_objects_limit::<Mode>(
+                    temporary_store,
+                    gas_charger,
+                    protocol_config,
+                    metrics,
+                );
+                if let Err(e) = gas_check {
+                    execution_result = Err(e);
                 }
             }
 
@@ -344,19 +340,58 @@ mod checked {
         // to the 0x5 object so that it's not lost.
         temporary_store.conserve_unmetered_storage_rebate(gas_charger.unmetered_storage_rebate());
 
-        // === begin IOTA conservation checks ===
-        if !is_genesis_tx && !Mode::allow_arbitrary_values() {
+        if let Err(e) = run_conservation_checks::<Mode>(
+            temporary_store,
+            gas_charger,
+            tx_ctx,
+            move_vm,
+            protocol_config.simple_conservation_checks(),
+            enable_expensive_checks,
+            &cost_summary,
+            is_genesis_tx,
+            advance_epoch_gas_summary,
+        ) {
+            // FIXME: we cannot fail the transaction if this is an epoch change transaction.
+            result = Err(e);
+        }
+
+        (cost_summary, result)
+    }
+
+    #[instrument(name = "run_conservation_checks", level = "debug", skip_all)]
+    fn run_conservation_checks<Mode: ExecutionMode>(
+        temporary_store: &mut TemporaryStore<'_>,
+        gas_charger: &mut GasCharger,
+        tx_ctx: &mut TxContext,
+        move_vm: &Arc<MoveVM>,
+        simple_conservation_checks: bool,
+        enable_expensive_checks: bool,
+        cost_summary: &GasCostSummary,
+        is_genesis_tx: bool,
+        advance_epoch_gas_summary: Option<(u64, u64)>,
+    ) -> Result<(), ExecutionError> {
+        let mut result: std::result::Result<(), iota_types::error::ExecutionError> = Ok(());
+        if !is_genesis_tx && !Mode::skip_conservation_checks() {
             // ensure that this transaction did not create or destroy IOTA, try to recover
             // if the check fails
             let conservation_result = {
-                let mut layout_resolver =
-                    TypeLayoutResolver::new(move_vm, Box::new(&*temporary_store));
-                temporary_store.check_iota_conserved(
-                    &cost_summary,
-                    advance_epoch_gas_summary,
-                    &mut layout_resolver,
-                    enable_expensive_checks,
-                )
+                temporary_store
+                    .check_iota_conserved(simple_conservation_checks, cost_summary)
+                    .and_then(|()| {
+                        if enable_expensive_checks {
+                            // ensure that this transaction did not create or destroy IOTA, try to
+                            // recover if the check fails
+                            let mut layout_resolver =
+                                TypeLayoutResolver::new(move_vm, Box::new(&*temporary_store));
+                            temporary_store.check_iota_conserved_expensive(
+                                cost_summary,
+                                advance_epoch_gas_summary,
+                                &mut layout_resolver,
+                            )
+                        } else {
+                            Ok(())
+                        }
+                    })
             };
             if let Err(conservation_err) = conservation_result {
                 // conservation violated. try to avoid panic by dumping all writes, charging for
@@ -366,14 +401,25 @@ mod checked {
                 gas_charger.reset(temporary_store);
                 gas_charger.charge_gas(temporary_store, &mut result);
                 // check conservation once more more
-                let mut layout_resolver =
-                    TypeLayoutResolver::new(move_vm, Box::new(&*temporary_store));
-                if let Err(recovery_err) = temporary_store.check_iota_conserved(
-                    &cost_summary,
-                    advance_epoch_gas_summary,
-                    &mut layout_resolver,
-                    enable_expensive_checks,
-                ) {
+                if let Err(recovery_err) = {
+                    temporary_store
+                        .check_iota_conserved(simple_conservation_checks, cost_summary)
+                        .and_then(|()| {
+                            if enable_expensive_checks {
+                                // ensure that this transaction did not create or destroy IOTA, try
+                                // to recover if the check fails
+                                let mut layout_resolver =
+                                    TypeLayoutResolver::new(move_vm, Box::new(&*temporary_store));
+                                temporary_store.check_iota_conserved_expensive(
+                                    cost_summary,
+                                    advance_epoch_gas_summary,
+                                    &mut layout_resolver,
+                                )
+                            } else {
+                                Ok(())
+                            }
+                        })
+                } {
                     // if we still fail, it's a problem with gas
                     // charging that happens even in the "aborted" case--no other option but panic.
                     // we will create or destroy IOTA otherwise
@@ -387,10 +433,93 @@ mod checked {
             }
         } // else, we're in the genesis transaction which mints the IOTA supply, and hence does not satisfy IOTA conservation, or
         // we're in the non-production dev inspect mode which allows us to violate
-        // conservation === end IOTA conservation checks ===
-        (cost_summary, result)
+        // conservation
+        result
     }
 
+    #[instrument(name = "check_meter_limit", level = "debug", skip_all)]
+    fn check_meter_limit(
+        temporary_store: &mut TemporaryStore<'_>,
+        gas_charger: &mut GasCharger,
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+    ) -> Result<(), ExecutionError> {
+        let effects_estimated_size = temporary_store.estimate_effects_size_upperbound();
+
+        // Check if a limit threshold was crossed.
+        // For metered transactions, there is not soft limit.
+        // For system transactions, we allow a soft limit with alerting, and a hard
+        // limit where we terminate
+        match check_limit_by_meter!(
+            !gas_charger.is_unmetered(),
+            effects_estimated_size,
+            protocol_config.max_serialized_tx_effects_size_bytes(),
+            protocol_config.max_serialized_tx_effects_size_bytes_system_tx(),
+            metrics.excessive_estimated_effects_size
+        ) {
+            LimitThresholdCrossed::None => Ok(()),
+            LimitThresholdCrossed::Soft(_, limit) => {
+                warn!(
+                    effects_estimated_size = effects_estimated_size,
+                    soft_limit = limit,
+                    "Estimated transaction effects size crossed soft limit",
+                );
+                Ok(())
+            }
+            LimitThresholdCrossed::Hard(_, lim) => Err(ExecutionError::new_with_source(
+                ExecutionErrorKind::EffectsTooLarge {
+                    current_size: effects_estimated_size as u64,
+                    max_size: lim as u64,
+                },
+                "Transaction effects are too large",
+            )),
+        }
+    }
+
+    #[instrument(name = "check_written_objects_limit", level = "debug", skip_all)]
+    fn check_written_objects_limit<Mode: ExecutionMode>(
+        temporary_store: &mut TemporaryStore<'_>,
+        gas_charger: &mut GasCharger,
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+    ) -> Result<(), ExecutionError> {
+        if let (Some(normal_lim), Some(system_lim)) = (
+            protocol_config.max_size_written_objects_as_option(),
+            protocol_config.max_size_written_objects_system_tx_as_option(),
+        ) {
+            let written_objects_size = temporary_store.written_objects_size();
+
+            match check_limit_by_meter!(
+                !gas_charger.is_unmetered(),
+                written_objects_size,
+                normal_lim,
+                system_lim,
+                metrics.excessive_written_objects_size
+            ) {
+                LimitThresholdCrossed::None => (),
+                LimitThresholdCrossed::Soft(_, limit) => {
+                    warn!(
+                        written_objects_size = written_objects_size,
+                        soft_limit = limit,
+                        "Written objects size crossed soft limit",
+                    )
+                }
+                LimitThresholdCrossed::Hard(_, lim) => {
+                    return Err(ExecutionError::new_with_source(
+                        ExecutionErrorKind::WrittenObjectsTooLarge {
+                            current_size: written_objects_size as u64,
+                            max_size: lim as u64,
+                        },
+                        "Written objects size crossed hard limit",
+                    ));
+                }
+            };
+        }
+
+        Ok(())
+    }
+
+    #[instrument(level = "debug", skip_all)]
     fn execution_loop<Mode: ExecutionMode>(
         temporary_store: &mut TemporaryStore<'_>,
         transaction_kind: TransactionKind,
@@ -400,9 +529,11 @@ mod checked {
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
     ) -> Result<Mode::ExecutionResults, ExecutionError> {
-        match transaction_kind {
+        let result = match transaction_kind {
             TransactionKind::ChangeEpoch(change_epoch) => {
+                let builder = ProgrammableTransactionBuilder::new();
                 advance_epoch(
+                    builder,
                     change_epoch,
                     temporary_store,
                     tx_ctx,
@@ -427,7 +558,7 @@ mod checked {
                                 previous_transaction: tx_ctx.digest(),
                                 storage_rebate: 0,
                             };
-                            temporary_store.write_object(object.into(), WriteKind::Create);
+                            temporary_store.create_object(object.into());
                         }
                     }
                 }
@@ -456,7 +587,7 @@ mod checked {
                     protocol_config,
                     metrics,
                 )
-                .expect("ConsensusCommitPrologue cannot fail");
+                .expect("ConsensusCommitPrologueV2 cannot fail");
                 Ok(Mode::empty_results())
             }
             TransactionKind::ProgrammableTransaction(pt) => {
@@ -470,16 +601,77 @@ mod checked {
                     pt,
                 )
             }
-            TransactionKind::AuthenticatorStateUpdate(_) => {
-                panic!("AuthenticatorStateUpdate should not exist in execution layer v0");
+            TransactionKind::EndOfEpochTransaction(txns) => {
+                let mut builder = ProgrammableTransactionBuilder::new();
+                let len = txns.len();
+                for (i, tx) in txns.into_iter().enumerate() {
+                    match tx {
+                        EndOfEpochTransactionKind::ChangeEpoch(change_epoch) => {
+                            assert_eq!(i, len - 1);
+                            advance_epoch(
+                                builder,
+                                change_epoch,
+                                temporary_store,
+                                tx_ctx,
+                                move_vm,
+                                gas_charger,
+                                protocol_config,
+                                metrics,
+                            )?;
+                            return Ok(Mode::empty_results());
+                        }
+                        EndOfEpochTransactionKind::AuthenticatorStateCreate => {
+                            assert!(protocol_config.enable_jwk_consensus_updates());
+                            builder = setup_authenticator_state_create(builder);
+                        }
+                        EndOfEpochTransactionKind::AuthenticatorStateExpire(expire) => {
+                            assert!(protocol_config.enable_jwk_consensus_updates());
+
+                            // TODO: it would be nice if a failure of this function didn't cause
+                            // safe mode.
+                            builder = setup_authenticator_state_expire(builder, expire);
+                        }
+                        EndOfEpochTransactionKind::RandomnessStateCreate => {
+                            assert!(protocol_config.random_beacon());
+                            builder = setup_randomness_state_create(builder);
+                        }
+                        EndOfEpochTransactionKind::DenyListStateCreate => {
+                            assert!(protocol_config.enable_coin_deny_list());
+                            builder = setup_coin_deny_list_state_create(builder);
+                        }
+                    }
+                }
+                unreachable!(
+                    "EndOfEpochTransactionKind::ChangeEpoch should be the last transaction in the list"
+                )
             }
-            TransactionKind::RandomnessStateUpdate(_) => {
-                panic!("RandomnessStateUpdate should not exist in execution layer v0");
+            TransactionKind::AuthenticatorStateUpdate(auth_state_update) => {
+                setup_authenticator_state_update(
+                    auth_state_update,
+                    temporary_store,
+                    tx_ctx,
+                    move_vm,
+                    gas_charger,
+                    protocol_config,
+                    metrics,
+                )?;
+                Ok(Mode::empty_results())
             }
-            TransactionKind::EndOfEpochTransaction(_) => {
-                panic!("EndOfEpochTransaction should not exist in execution layer v0");
+            TransactionKind::RandomnessStateUpdate(randomness_state_update) => {
+                setup_randomness_state_update(
+                    randomness_state_update,
+                    temporary_store,
+                    tx_ctx,
+                    move_vm,
+                    gas_charger,
+                    protocol_config,
+                    metrics,
+                )?;
+                Ok(Mode::empty_results())
             }
-        }
+        }?;
+        temporary_store.check_execution_results_consistency()?;
+        Ok(result)
     }
 
     fn mint_epoch_rewards_in_pt(
@@ -517,9 +709,9 @@ mod checked {
     }
 
     pub fn construct_advance_epoch_pt(
+        mut builder: ProgrammableTransactionBuilder,
         params: &AdvanceEpochParams,
     ) -> Result<ProgrammableTransaction, ExecutionError> {
-        let mut builder = ProgrammableTransactionBuilder::new();
         // Step 1: Create storage and computation rewards.
         let (storage_rewards, computation_rewards) = mint_epoch_rewards_in_pt(&mut builder, params);
 
@@ -618,6 +810,7 @@ mod checked {
     }
 
     fn advance_epoch(
+        builder: ProgrammableTransactionBuilder,
         change_epoch: ChangeEpoch,
         temporary_store: &mut TemporaryStore<'_>,
         tx_ctx: &mut TxContext,
@@ -637,7 +830,7 @@ mod checked {
             reward_slashing_rate: protocol_config.reward_slashing_rate(),
             epoch_start_timestamp_ms: change_epoch.epoch_start_timestamp_ms,
         };
-        let advance_epoch_pt = construct_advance_epoch_pt(&params)?;
+        let advance_epoch_pt = construct_advance_epoch_pt(builder, &params)?;
         let result = programmable_transactions::execution::execute::<execution_mode::System>(
             protocol_config,
             metrics.clone(),
@@ -729,7 +922,7 @@ mod checked {
                     .decrement_version();
 
                 // upgrade of a previously existing framework module
-                temporary_store.write_object(new_package, WriteKind::Mutate);
+                temporary_store.upgrade_system_package(new_package);
             }
         }
 
@@ -777,5 +970,158 @@ mod checked {
             gas_charger,
             pt,
         )
+    }
+
+    fn setup_authenticator_state_create(
+        mut builder: ProgrammableTransactionBuilder,
+    ) -> ProgrammableTransactionBuilder {
+        builder
+            .move_call(
+                IOTA_FRAMEWORK_ADDRESS.into(),
+                AUTHENTICATOR_STATE_MODULE_NAME.to_owned(),
+                AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME.to_owned(),
+                vec![],
+                vec![],
+            )
+            .expect("Unable to generate authenticator_state_create transaction!");
+        builder
+    }
+
+    fn setup_randomness_state_create(
+        mut builder: ProgrammableTransactionBuilder,
+    ) -> ProgrammableTransactionBuilder {
+        builder
+            .move_call(
+                IOTA_FRAMEWORK_ADDRESS.into(),
+                RANDOMNESS_MODULE_NAME.to_owned(),
+                RANDOMNESS_STATE_CREATE_FUNCTION_NAME.to_owned(),
+                vec![],
+                vec![],
+            )
+            .expect("Unable to generate randomness_state_create transaction!");
+        builder
+    }
+
+    fn setup_authenticator_state_update(
+        update: AuthenticatorStateUpdate,
+        temporary_store: &mut TemporaryStore<'_>,
+        tx_ctx: &mut TxContext,
+        move_vm: &Arc<MoveVM>,
+        gas_charger: &mut GasCharger,
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+    ) -> Result<(), ExecutionError> {
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            let res = builder.move_call(
+                IOTA_FRAMEWORK_ADDRESS.into(),
+                AUTHENTICATOR_STATE_MODULE_NAME.to_owned(),
+                AUTHENTICATOR_STATE_UPDATE_FUNCTION_NAME.to_owned(),
+                vec![],
+                vec![
+                    CallArg::Object(ObjectArg::SharedObject {
+                        id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+                        initial_shared_version: update.authenticator_obj_initial_shared_version,
+                        mutable: true,
+                    }),
+                    CallArg::Pure(bcs::to_bytes(&update.new_active_jwks).unwrap()),
+                ],
+            );
+            assert_invariant!(
+                res.is_ok(),
+                "Unable to generate authenticator_state_update transaction!"
+            );
+            builder.finish()
+        };
+        programmable_transactions::execution::execute::<execution_mode::System>(
+            protocol_config,
+            metrics,
+            move_vm,
+            temporary_store,
+            tx_ctx,
+            gas_charger,
+            pt,
+        )
+    }
+
+    fn setup_authenticator_state_expire(
+        mut builder: ProgrammableTransactionBuilder,
+        expire: AuthenticatorStateExpire,
+    ) -> ProgrammableTransactionBuilder {
+        builder
+            .move_call(
+                IOTA_FRAMEWORK_ADDRESS.into(),
+                AUTHENTICATOR_STATE_MODULE_NAME.to_owned(),
+                AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME.to_owned(),
+                vec![],
+                vec![
+                    CallArg::Object(ObjectArg::SharedObject {
+                        id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+                        initial_shared_version: expire.authenticator_obj_initial_shared_version,
+                        mutable: true,
+                    }),
+                    CallArg::Pure(bcs::to_bytes(&expire.min_epoch).unwrap()),
+                ],
+            )
+            .expect("Unable to generate authenticator_state_expire transaction!");
+        builder
+    }
+
+    fn setup_randomness_state_update(
+        update: RandomnessStateUpdate,
+        temporary_store: &mut TemporaryStore<'_>,
+        tx_ctx: &mut TxContext,
+        move_vm: &Arc<MoveVM>,
+        gas_charger: &mut GasCharger,
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+    ) -> Result<(), ExecutionError> {
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            let res = builder.move_call(
+                IOTA_FRAMEWORK_ADDRESS.into(),
+                RANDOMNESS_MODULE_NAME.to_owned(),
+                RANDOMNESS_STATE_UPDATE_FUNCTION_NAME.to_owned(),
+                vec![],
+                vec![
+                    CallArg::Object(ObjectArg::SharedObject {
+                        id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
+                        initial_shared_version: update.randomness_obj_initial_shared_version,
+                        mutable: true,
+                    }),
+                    CallArg::Pure(bcs::to_bytes(&update.randomness_round).unwrap()),
+                    CallArg::Pure(bcs::to_bytes(&update.random_bytes).unwrap()),
+                ],
+            );
+            assert_invariant!(
+                res.is_ok(),
+                "Unable to generate randomness_state_update transaction!"
+            );
+            builder.finish()
+        };
+        programmable_transactions::execution::execute::<execution_mode::System>(
+            protocol_config,
+            metrics,
+            move_vm,
+            temporary_store,
+            tx_ctx,
+            gas_charger,
+            pt,
+        )
+    }
+
+    fn setup_coin_deny_list_state_create(
+        mut builder: ProgrammableTransactionBuilder,
+    ) -> ProgrammableTransactionBuilder {
+        builder
+            .move_call(
+                IOTA_FRAMEWORK_ADDRESS.into(),
+                DENY_LIST_MODULE.to_owned(),
+                DENY_LIST_CREATE_FUNC.to_owned(),
+                vec![],
+                vec![],
+            )
+            .expect("Unable to generate coin_deny_list_create transaction!");
+        builder
     }
 }

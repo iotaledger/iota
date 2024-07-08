@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useRecognizedPackages } from '_src/ui/app/hooks/useRecognizedPackages';
-import { useTransactionSummary } from '@iota/core';
+import { useTransactionSummary, STAKING_REQUEST_EVENT, UNSTAKING_REQUEST_EVENT } from '@iota/core';
 import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
 
 import { DateCard } from '../../shared/date-card';
@@ -14,12 +14,12 @@ import { StakeTxnCard } from './StakeTxnCard';
 import { StatusIcon } from './StatusIcon';
 import { UnStakeTxnCard } from './UnstakeTxnCard';
 
-type ReceiptCardProps = {
-    txn: IotaTransactionBlockResponse;
-    activeAddress: string;
-};
+interface TransactionStatusProps {
+    success: boolean;
+    timestamp?: string;
+}
 
-function TransactionStatus({ success, timestamp }: { success: boolean; timestamp?: string }) {
+function TransactionStatus({ success, timestamp }: TransactionStatusProps) {
     return (
         <div className="mb-4 flex flex-col items-center justify-center gap-3">
             <StatusIcon status={success} />
@@ -29,6 +29,11 @@ function TransactionStatus({ success, timestamp }: { success: boolean; timestamp
             {timestamp && <DateCard timestamp={Number(timestamp)} size="md" />}
         </div>
     );
+}
+
+interface ReceiptCardProps {
+    txn: IotaTransactionBlockResponse;
+    activeAddress: string;
 }
 
 export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
@@ -42,9 +47,9 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
 
     if (!summary) return null;
 
-    const stakedTxn = events?.find(({ type }) => type === '0x3::validator::StakingRequestEvent');
+    const stakedTxn = events?.find(({ type }) => type === STAKING_REQUEST_EVENT);
 
-    const unstakeTxn = events?.find(({ type }) => type === '0x3::validator::UnstakingRequestEvent');
+    const unstakeTxn = events?.find(({ type }) => type === UNSTAKING_REQUEST_EVENT);
 
     // todo: re-using the existing staking cards for now
     if (stakedTxn || unstakeTxn)

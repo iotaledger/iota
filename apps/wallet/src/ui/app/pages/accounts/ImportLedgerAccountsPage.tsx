@@ -14,7 +14,10 @@ import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-import { useAccountsFormContext } from '../../components/accounts/AccountsFormContext';
+import {
+    AccountsFormType,
+    useAccountsFormContext,
+} from '../../components/accounts/AccountsFormContext';
 import {
     LedgerAccountList,
     type SelectableLedgerAccount,
@@ -157,7 +160,7 @@ export function ImportLedgerAccountsPage() {
                         disabled={isUnlockButtonDisabled}
                         onClick={() => {
                             setAccountsFormValues({
-                                type: 'ledger',
+                                type: AccountsFormType.ImportLedger,
                                 accounts: selectedLedgerAccounts.map(
                                     ({ address, derivationPath, publicKey }) => ({
                                         address,
@@ -168,7 +171,7 @@ export function ImportLedgerAccountsPage() {
                             });
                             navigate(
                                 `/accounts/protect-account?${new URLSearchParams({
-                                    accountType: 'ledger',
+                                    accountsFormType: AccountsFormType.ImportLedger,
                                     successRedirect,
                                 }).toString()}`,
                             );

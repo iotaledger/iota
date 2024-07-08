@@ -5,7 +5,7 @@
 import { Text } from '@iota/ui';
 
 import { useEpochProgress } from '~/pages/epochs/utils';
-import { ProgressCircle } from '~/ui/ProgressCircle';
+import { ProgressCircle } from '~/components/ui';
 
 export function EpochTimer(): JSX.Element | null {
     const { epoch, progress, label } = useEpochProgress();

@@ -45,8 +45,8 @@
 //! on-hover, type def and doc string info here; also note that identifier in
 //! the definition of the constant maps to itself):
 //!
-//! [7] -> [UseDef(col_start:6,  col_end:13, DefLoc(7:6, FHASH))]
-//! [9] -> [UseDef(col_start:0,  col_end: 9, DefLoc(7:6, FHASH))],
+//! \[7\] -> [UseDef(col_start:6,  col_end:13, DefLoc(7:6, FHASH))]
+//! \[9\] -> [UseDef(col_start:0,  col_end: 9, DefLoc(7:6, FHASH))],
 //!        [UseDef(col_start:13, col_end:22, DefLoc(7:6, FHASH))]
 //!
 //! We also associate all uses of an identifier with its definition to support
@@ -3536,9 +3536,9 @@ pub fn on_document_symbol_request(context: &Context, request: &Request, symbols:
 /// Helper function to handle struct fields
 #[allow(deprecated)]
 fn handle_struct_fields(struct_def: StructDef, fields: &mut Vec<DocumentSymbol>) {
-    let clonded_fileds = struct_def.field_defs;
+    let cloned_fields = struct_def.field_defs;
 
-    for field_def in clonded_fileds {
+    for field_def in cloned_fields {
         let field_range = Range {
             start: field_def.start,
             end: field_def.start,
@@ -6322,11 +6322,11 @@ fn implicit_uses_test() {
         3,
         12,
         "implicit_uses.move",
-        76,
+        77,
         18,
         "object.move",
         "struct iota::object::UID{\n\tid: iota::object::ID\n}",
-        Some((76, 18, "object.move")),
+        Some((77, 18, "object.move")),
     );
     // implicit struct as parameter type
     assert_use_def(
@@ -6336,11 +6336,11 @@ fn implicit_uses_test() {
         6,
         29,
         "implicit_uses.move",
-        20,
+        21,
         18,
         "tx_context.move",
         "struct iota::tx_context::TxContext{\n\tepoch: u64,\n\tepoch_timestamp_ms: u64,\n\tids_created: u64,\n\tsender: address,\n\ttx_hash: vector<u8>\n}",
-        Some((20, 18, "tx_context.move")),
+        Some((21, 18, "tx_context.move")),
     );
     // implicit module name in function call
     assert_use_def(
@@ -6350,8 +6350,8 @@ fn implicit_uses_test() {
         7,
         18,
         "implicit_uses.move",
-        4,
-        12,
+        5,
+        13,
         "object.move",
         "module iota::object",
         None,

@@ -53,11 +53,13 @@ pub(super) fn verify_basic_output(
             .ok_or_else(|| anyhow!("invalid timelock object"))?;
 
         // Locked timestamp
+        let output_timelock_timestamp =
+            output.unlock_conditions().timelock().unwrap().timestamp() as u64 * 1000;
         ensure!(
-            created_timelock.expiration_timestamp_ms() == target_milestone_timestamp as u64,
+            created_timelock.expiration_timestamp_ms() == output_timelock_timestamp,
             "timelock timestamp mismatch: found {}, expected {}",
             created_timelock.expiration_timestamp_ms(),
-            target_milestone_timestamp
+            output_timelock_timestamp
         );
 
         // Amount
@@ -86,8 +88,8 @@ pub(super) fn verify_basic_output(
         return Ok(());
     }
 
-    // If the output has multiple unlock conditions, then a genesis object should
-    // have been created.
+    // If the output has multiple unlock conditions or a metadata, tag or sender
+    // feature, then a genesis object should have been created.
     if output.unlock_conditions().expiration().is_some()
         || output
             .unlock_conditions()
@@ -96,6 +98,7 @@ pub(super) fn verify_basic_output(
         || output
             .unlock_conditions()
             .is_time_locked(target_milestone_timestamp)
+        || !output.features().is_empty()
     {
         ensure!(created_objects.coin().is_err(), "unexpected coin created");
 
@@ -202,7 +205,7 @@ pub(super) fn verify_basic_output(
         )?;
     }
 
-    verify_parent(output.address(), storage)?;
+    verify_parent(&output_id, output.address(), storage)?;
 
     ensure!(
         created_objects.native_token_coin().is_err(),

@@ -6,39 +6,48 @@
 use std::{fs::File, path::Path};
 
 use iota_genesis_builder::stardust::{
-    parse::FullSnapshotParser, test_outputs::add_snapshot_test_outputs,
+    parse::HornetSnapshotParser, test_outputs::add_snapshot_test_outputs,
 };
+use iota_types::gas_coin::TOTAL_SUPPLY_IOTA;
 
-fn parse_snapshot<P: AsRef<Path>>(path: P) -> anyhow::Result<()> {
+fn parse_snapshot<P: AsRef<Path>, const VERIFY: bool>(path: P) -> anyhow::Result<()> {
     let file = File::open(path)?;
-    let parser = FullSnapshotParser::new(file)?;
+    let mut parser = HornetSnapshotParser::new::<VERIFY>(file)?;
 
     println!("Output count: {}", parser.header.output_count());
 
-    let total_supply_header = parser.total_supply()?;
-    let total_supply_outputs = parser.outputs().try_fold(0, |acc, output| {
+    let total_supply = parser.outputs().try_fold(0, |acc, output| {
         Ok::<_, anyhow::Error>(acc + output?.1.amount())
     })?;
 
-    assert_eq!(total_supply_header, total_supply_outputs);
+    // Total supply is in IOTA, snapshot supply is Micros
+    assert_eq!(total_supply, TOTAL_SUPPLY_IOTA * 1_000_000);
 
-    println!("Total supply: {total_supply_header}");
+    println!("Total supply: {total_supply}");
 
     Ok(())
 }
 
-fn main() -> anyhow::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     let Some(current_path) = std::env::args().nth(1) else {
         anyhow::bail!("please provide path to the full-snapshot file");
     };
     let mut new_path = String::from("test-");
-    new_path.push_str(&current_path);
+    // prepend "test-" before the file name
+    if let Some(pos) = current_path.rfind('/') {
+        let mut current_path = current_path.clone();
+        current_path.insert_str(pos + 1, &new_path);
+        new_path = current_path;
+    } else {
+        new_path.push_str(&current_path);
+    }
 
-    parse_snapshot(&current_path)?;
+    parse_snapshot::<_, true>(&current_path)?;
 
-    add_snapshot_test_outputs(&current_path, &new_path)?;
+    add_snapshot_test_outputs::<_, true>(&current_path, &new_path).await?;
 
-    parse_snapshot(&new_path)?;
+    parse_snapshot::<_, true>(&new_path)?;
 
     Ok(())
 }

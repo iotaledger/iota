@@ -46,6 +46,13 @@ import { clearStatus, doMigration, getStatus } from '../storage-migration';
 import NetworkEnv from '../NetworkEnv';
 import { Connection } from './Connection';
 import { SeedAccountSource } from '../account-sources/SeedAccountSource';
+import { AccountSourceType } from '../account-sources/AccountSource';
+import {
+    isGetAccountsFinderResultsRequest,
+    isInitAccountsFinder,
+    isSearchAccountsFinder,
+} from '_payloads/accounts-finder';
+import AccountsFinder from '../accounts-finder/AccountsFinder';
 
 export class UiConnection extends Connection {
     public static readonly CHANNEL: PortChannelName = 'iota_ui<->background';
@@ -211,10 +218,10 @@ export class UiConnection extends Connection {
                     ) {
                         throw new Error('Invalid account source type');
                     }
-                    if (type === 'mnemonic') {
+                    if (type === AccountSourceType.Mnemonic) {
                         await accountSource.verifyRecoveryData(data.entropy);
                     }
-                    if (type === 'seed') {
+                    if (type === AccountSourceType.Seed) {
                         await accountSource.verifyRecoveryData(data.seed);
                     }
                 }
@@ -232,7 +239,7 @@ export class UiConnection extends Connection {
                         .delete();
                     for (const data of recoveryData) {
                         const { accountSourceID, type } = data;
-                        if (type === 'mnemonic') {
+                        if (type === AccountSourceType.Mnemonic) {
                             await db.accountSources.update(accountSourceID, {
                                 encryptedData: await Dexie.waitFor(
                                     MnemonicAccountSource.createEncryptedData(
@@ -242,7 +249,7 @@ export class UiConnection extends Connection {
                                 ),
                             });
                         }
-                        if (type === 'seed') {
+                        if (type === AccountSourceType.Seed) {
                             await db.accountSources.update(accountSourceID, {
                                 encryptedData: await Dexie.waitFor(
                                     SeedAccountSource.createEncryptedData(data.seed, password),
@@ -255,6 +262,21 @@ export class UiConnection extends Connection {
                 accountSourcesEvents.emit('accountSourcesChanged');
                 accountsEvents.emit('accountsChanged');
                 await this.send(createMessage({ type: 'done' }, msg.id));
+            } else if (isInitAccountsFinder(payload)) {
+                AccountsFinder.init();
+                this.send(createMessage({ type: 'done' }, msg.id));
+            } else if (isSearchAccountsFinder(payload)) {
+                await AccountsFinder.findMore(
+                    payload.coinType,
+                    payload.gasType,
+                    payload.sourceID,
+                    payload.accountGapLimit,
+                    payload.addressGapLimit,
+                );
+                this.send(createMessage({ type: 'done' }, msg.id));
+            } else if (isGetAccountsFinderResultsRequest(payload)) {
+                const results = await AccountsFinder.getResults();
+                this.send(createMessage({ type: 'done', results }, msg.id));
             } else {
                 throw new Error(
                     `Unhandled message ${msg.id}. (${JSON.stringify(

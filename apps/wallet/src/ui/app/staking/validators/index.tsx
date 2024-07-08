@@ -6,10 +6,10 @@ import Alert from '_components/alert';
 import Loading from '_components/loading';
 import Overlay from '_components/overlay';
 import {
+    useGetDelegatedStake,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
-} from '_src/shared/constants';
-import { useGetDelegatedStake } from '@iota/core';
+} from '@iota/core';
 import { useNavigate } from 'react-router-dom';
 
 import { useActiveAddress } from '../../hooks/useActiveAddress';
