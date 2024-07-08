@@ -39,9 +39,10 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-A system transaction that updates epoch information on-chain (increments the current epoch).
-Executed by the system once per epoch, without using gas. Epoch change transactions cannot be
-submitted by users, because validators will refuse to sign them.
+A system transaction that updates epoch information on-chain (increments the
+current epoch). Executed by the system once per epoch, without using gas.
+Epoch change transactions cannot be submitted by users, because validators
+will refuse to sign them.
 
 This transaction kind is deprecated in favour of `EndOfEpochTransaction`.
 
@@ -84,26 +85,29 @@ type ChangeEpochTransaction {
 #### [<code style={{ fontWeight: 'normal' }}>ChangeEpochTransaction.<b>storageCharge</b></code>](#)<Bullet />[`BigInt!`](/references/iota-api/iota-graphql/reference/types/scalars/big-int) <Badge class="badge badge--secondary" text="non-null"/> <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
-> The total amount of gas charged for storage during the previous epoch (in MICROS).
+> The total amount of gas charged for storage during the previous epoch
+> (in MICROS).
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>ChangeEpochTransaction.<b>computationCharge</b></code>](#)<Bullet />[`BigInt!`](/references/iota-api/iota-graphql/reference/types/scalars/big-int) <Badge class="badge badge--secondary" text="non-null"/> <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
-> The total amount of gas charged for computation during the previous epoch (in MICROS).
+> The total amount of gas charged for computation during the previous
+> epoch (in MICROS).
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>ChangeEpochTransaction.<b>storageRebate</b></code>](#)<Bullet />[`BigInt!`](/references/iota-api/iota-graphql/reference/types/scalars/big-int) <Badge class="badge badge--secondary" text="non-null"/> <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
-> The IOTA returned to transaction senders for cleaning up objects (in MICROS).
+> The IOTA returned to transaction senders for cleaning up objects (in
+> MICROS).
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>ChangeEpochTransaction.<b>nonRefundableStorageFee</b></code>](#)<Bullet />[`BigInt!`](/references/iota-api/iota-graphql/reference/types/scalars/big-int) <Badge class="badge badge--secondary" text="non-null"/> <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
-> The total gas retained from storage fees, that will not be returned by storage rebates when
-> the relevant objects are cleaned up (in MICROS).
+> The total gas retained from storage fees, that will not be returned by
+> storage rebates when the relevant objects are cleaned up (in MICROS).
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>ChangeEpochTransaction.<b>startTimestamp</b></code>](#)<Bullet />[`DateTime!`](/references/iota-api/iota-graphql/reference/types/scalars/date-time) <Badge class="badge badge--secondary" text="non-null"/> <Badge class="badge badge--secondary" text="scalar"/> 
@@ -115,9 +119,9 @@ type ChangeEpochTransaction {
 #### [<code style={{ fontWeight: 'normal' }}>ChangeEpochTransaction.<b>systemPackages</b></code>](#)<Bullet />[`MovePackageConnection!`](/references/iota-api/iota-graphql/reference/types/objects/move-package-connection) <Badge class="badge badge--secondary" text="non-null"/> <Badge class="badge badge--secondary" text="object"/> 
 > 
 > 
-> System packages (specifically framework and move stdlib) that are written before the new
-> epoch starts, to upgrade them on-chain. Validators write these packages out when running the
-> transaction.
+> System packages (specifically framework and move stdlib) that are
+> written before the new epoch starts, to upgrade them on-chain.
+> Validators write these packages out when running the transaction.
 > ##### [<code style={{ fontWeight: 'normal' }}>ChangeEpochTransaction.systemPackages.<b>first</b></code>](#)<Bullet />[`Int`](/references/iota-api/iota-graphql/reference/types/scalars/int) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 

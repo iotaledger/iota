@@ -60,35 +60,36 @@ type StakeSubsidy {
 #### [<code style={{ fontWeight: 'normal' }}>StakeSubsidy.<b>balance</b></code>](#)<Bullet />[`BigInt`](/references/iota-api/iota-graphql/reference/types/scalars/big-int) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
-> IOTA set aside for stake subsidies -- reduces over time as stake subsidies are paid out over
-> time.
+> IOTA set aside for stake subsidies -- reduces over time as stake
+> subsidies are paid out over time.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>StakeSubsidy.<b>distributionCounter</b></code>](#)<Bullet />[`Int`](/references/iota-api/iota-graphql/reference/types/scalars/int) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
-> Number of times stake subsidies have been distributed subsidies are distributed with other
-> staking rewards, at the end of the epoch.
+> Number of times stake subsidies have been distributed subsidies are
+> distributed with other staking rewards, at the end of the epoch.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>StakeSubsidy.<b>currentDistributionAmount</b></code>](#)<Bullet />[`BigInt`](/references/iota-api/iota-graphql/reference/types/scalars/big-int) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
-> Amount of stake subsidy deducted from the balance per distribution -- decays over time.
+> Amount of stake subsidy deducted from the balance per distribution --
+> decays over time.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>StakeSubsidy.<b>periodLength</b></code>](#)<Bullet />[`Int`](/references/iota-api/iota-graphql/reference/types/scalars/int) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
-> Maximum number of stake subsidy distributions that occur with the same distribution amount
-> (before the amount is reduced).
+> Maximum number of stake subsidy distributions that occur with the same
+> distribution amount (before the amount is reduced).
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>StakeSubsidy.<b>decreaseRate</b></code>](#)<Bullet />[`Int`](/references/iota-api/iota-graphql/reference/types/scalars/int) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
-> Percentage of the current distribution amount to deduct at the end of the current subsidy
-> period, expressed in basis points.
+> Percentage of the current distribution amount to deduct at the end of
+> the current subsidy period, expressed in basis points.
 > 
 
 

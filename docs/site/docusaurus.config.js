@@ -173,6 +173,16 @@ const config = {
           autoCollapseCategories: false,
         },
       },
+      colorMode:{
+        defaultMode: 'dark'
+      },
+      announcementBar:{
+        id: 'integrate_your_exchange',
+        content:
+            '<a target="_blank" rel="noopener noreferrer" href="/developer/exchange-integration/">integrate your exchange</a>. If you supported Stardust, please make sure to also <a target="_blank" rel="noopener noreferrer" href="/developer/stardust/exchanges"> migrate from Stardust</a>.',
+        isCloseable: false,
+
+      },
       navbar: {
         title: "IOTA Documentation",
         logo: {
@@ -196,11 +206,6 @@ const config = {
               label: "References",
               to: "references",
           },
-          {
-              label: "Integrate Your Exchange",
-              to: "developer/exchange-integration/",
-          },
-
           /*
           {
             type: "docsVersionDropdown",

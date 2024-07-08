@@ -54,23 +54,25 @@ union ObjectOwner = Immutable | Shared | Parent | AddressOwner
 #### [<code style={{ fontWeight: 'normal' }}>ObjectOwner.<b>Immutable</b></code>](/references/iota-api/iota-graphql/reference/types/objects/immutable) <Badge class="badge badge--secondary" text="object"/> 
 > 
 > 
-> An immutable object is an object that can't be mutated, transferred, or deleted.
-> Immutable objects have no owner, so anyone can use them.
+> An immutable object is an object that can't be mutated, transferred, or
+> deleted. Immutable objects have no owner, so anyone can use them.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>ObjectOwner.<b>Shared</b></code>](/references/iota-api/iota-graphql/reference/types/objects/shared) <Badge class="badge badge--secondary" text="object"/> 
 > 
 > 
-> A shared object is an object that is shared using the 0x2::transfer::share_object function.
-> Unlike owned objects, once an object is shared, it stays mutable and is accessible by anyone.
+> A shared object is an object that is shared using the
+> 0x2::transfer::share_object function. Unlike owned objects, once an object
+> is shared, it stays mutable and is accessible by anyone.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>ObjectOwner.<b>Parent</b></code>](/references/iota-api/iota-graphql/reference/types/objects/parent) <Badge class="badge badge--secondary" text="object"/> 
 > 
 > 
-> If the object's owner is a Parent, this object is part of a dynamic field (it is the value of
-> the dynamic field, or the intermediate Field object itself). Also note that if the owner
-> is a parent, then it's guaranteed to be an object.
+> If the object's owner is a Parent, this object is part of a dynamic field
+> (it is the value of the dynamic field, or the intermediate Field object
+> itself). Also note that if the owner is a parent, then it's guaranteed to be
+> an object.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>ObjectOwner.<b>AddressOwner</b></code>](/references/iota-api/iota-graphql/reference/types/objects/address-owner) <Badge class="badge badge--secondary" text="object"/> 
@@ -78,7 +80,8 @@ union ObjectOwner = Immutable | Shared | Parent | AddressOwner
 > 
 > An address-owned object is owned by a specific 32-byte address that is
 > either an account address (derived from a particular signature scheme) or
-> an object ID. An address-owned object is accessible only to its owner and no others.
+> an object ID. An address-owned object is accessible only to its owner and no
+> others.
 > 
 
 

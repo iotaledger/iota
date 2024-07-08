@@ -63,59 +63,64 @@ type TransactionBlock {
 #### [<code style={{ fontWeight: 'normal' }}>TransactionBlock.<b>digest</b></code>](#)<Bullet />[`String`](/references/iota-api/iota-graphql/reference/types/scalars/string) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
-> A 32-byte hash that uniquely identifies the transaction block contents, encoded in Base58.
-> This serves as a unique id for the block on chain.
+> A 32-byte hash that uniquely identifies the transaction block contents,
+> encoded in Base58. This serves as a unique id for the block on
+> chain.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>TransactionBlock.<b>sender</b></code>](#)<Bullet />[`Address`](/references/iota-api/iota-graphql/reference/types/objects/address) <Badge class="badge badge--secondary" text="object"/> 
 > 
 > 
-> The address corresponding to the public key that signed this transaction. System
-> transactions do not have senders.
+> The address corresponding to the public key that signed this
+> transaction. System transactions do not have senders.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>TransactionBlock.<b>gasInput</b></code>](#)<Bullet />[`GasInput`](/references/iota-api/iota-graphql/reference/types/objects/gas-input) <Badge class="badge badge--secondary" text="object"/> 
 > 
 > 
-> The gas input field provides information on what objects were used as gas as well as the
-> owner of the gas object(s) and information on the gas price and budget.
+> The gas input field provides information on what objects were used as
+> gas as well as the owner of the gas object(s) and information on the
+> gas price and budget.
 > 
-> If the owner of the gas object(s) is not the same as the sender, the transaction block is a
-> sponsored transaction block.
+> If the owner of the gas object(s) is not the same as the sender, the
+> transaction block is a sponsored transaction block.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>TransactionBlock.<b>kind</b></code>](#)<Bullet />[`TransactionBlockKind`](/references/iota-api/iota-graphql/reference/types/unions/transaction-block-kind) <Badge class="badge badge--secondary" text="union"/> 
 > 
 > 
-> The type of this transaction as well as the commands and/or parameters comprising the
-> transaction of this kind.
+> The type of this transaction as well as the commands and/or parameters
+> comprising the transaction of this kind.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>TransactionBlock.<b>signatures</b></code>](#)<Bullet />[`[Base64!]`](/references/iota-api/iota-graphql/reference/types/scalars/base-64) <Badge class="badge badge--secondary" text="list"/> <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
-> A list of all signatures, Base64-encoded, from senders, and potentially the gas owner if
-> this is a sponsored transaction.
+> A list of all signatures, Base64-encoded, from senders, and potentially
+> the gas owner if this is a sponsored transaction.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>TransactionBlock.<b>effects</b></code>](#)<Bullet />[`TransactionBlockEffects`](/references/iota-api/iota-graphql/reference/types/objects/transaction-block-effects) <Badge class="badge badge--secondary" text="object"/> 
 > 
 > 
-> The effects field captures the results to the chain of executing this transaction.
+> The effects field captures the results to the chain of executing this
+> transaction.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>TransactionBlock.<b>expiration</b></code>](#)<Bullet />[`Epoch`](/references/iota-api/iota-graphql/reference/types/objects/epoch) <Badge class="badge badge--secondary" text="object"/> 
 > 
 > 
-> This field is set by senders of a transaction block. It is an epoch reference that sets a
-> deadline after which validators will no longer consider the transaction valid. By default,
-> there is no deadline for when a transaction must execute.
+> This field is set by senders of a transaction block. It is an epoch
+> reference that sets a deadline after which validators will no longer
+> consider the transaction valid. By default, there is no deadline for
+> when a transaction must execute.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>TransactionBlock.<b>bcs</b></code>](#)<Bullet />[`Base64`](/references/iota-api/iota-graphql/reference/types/scalars/base-64) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
-> Serialized form of this transaction's `SenderSignedData`, BCS serialized and Base64 encoded.
+> Serialized form of this transaction's `SenderSignedData`, BCS serialized
+> and Base64 encoded.
 > 
 
 

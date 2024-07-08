@@ -71,20 +71,22 @@ type ValidatorSet {
 #### [<code style={{ fontWeight: 'normal' }}>ValidatorSet.<b>totalStake</b></code>](#)<Bullet />[`BigInt`](/references/iota-api/iota-graphql/reference/types/scalars/big-int) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
-> Total amount of stake for all active validators at the beginning of the epoch.
+> Total amount of stake for all active validators at the beginning of the
+> epoch.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>ValidatorSet.<b>pendingRemovals</b></code>](#)<Bullet />[`[Int!]`](/references/iota-api/iota-graphql/reference/types/scalars/int) <Badge class="badge badge--secondary" text="list"/> <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
-> Validators that are pending removal from the active validator set, expressed as indices in
-> to `activeValidators`.
+> Validators that are pending removal from the active validator set,
+> expressed as indices in to `activeValidators`.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>ValidatorSet.<b>pendingActiveValidatorsId</b></code>](#)<Bullet />[`IotaAddress`](/references/iota-api/iota-graphql/reference/types/scalars/iota-address) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
-> Object ID of the wrapped object `TableVec` storing the pending active validators.
+> Object ID of the wrapped object `TableVec` storing the pending active
+> validators.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>ValidatorSet.<b>pendingActiveValidatorsSize</b></code>](#)<Bullet />[`Int`](/references/iota-api/iota-graphql/reference/types/scalars/int) <Badge class="badge badge--secondary" text="scalar"/> 
@@ -96,9 +98,10 @@ type ValidatorSet {
 #### [<code style={{ fontWeight: 'normal' }}>ValidatorSet.<b>stakingPoolMappingsId</b></code>](#)<Bullet />[`IotaAddress`](/references/iota-api/iota-graphql/reference/types/scalars/iota-address) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
-> Object ID of the `Table` storing the mapping from staking pool ids to the addresses
-> of the corresponding validators. This is needed because a validator's address
-> can potentially change but the object ID of its pool will not.
+> Object ID of the `Table` storing the mapping from staking pool ids to
+> the addresses of the corresponding validators. This is needed
+> because a validator's address can potentially change but the object
+> ID of its pool will not.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>ValidatorSet.<b>stakingPoolMappingsSize</b></code>](#)<Bullet />[`Int`](/references/iota-api/iota-graphql/reference/types/scalars/int) <Badge class="badge badge--secondary" text="scalar"/> 

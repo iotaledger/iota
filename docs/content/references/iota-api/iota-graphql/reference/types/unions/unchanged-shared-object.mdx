@@ -39,10 +39,10 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-Details pertaining to shared objects that are referenced by but not changed by a transaction.
-This information is considered part of the effects, because although the transaction specifies
-the shared object as input, consensus must schedule it and pick the version that is actually
-used.
+Details pertaining to shared objects that are referenced by but not changed
+by a transaction. This information is considered part of the effects,
+because although the transaction specifies the shared object as input,
+consensus must schedule it and pick the version that is actually used.
 
 
 ```graphql
@@ -63,8 +63,8 @@ union UnchangedSharedObject = SharedObjectRead | SharedObjectDelete
 #### [<code style={{ fontWeight: 'normal' }}>UnchangedSharedObject.<b>SharedObjectDelete</b></code>](/references/iota-api/iota-graphql/reference/types/objects/shared-object-delete) <Badge class="badge badge--secondary" text="object"/> 
 > 
 > 
-> The transaction accepted a shared object as input, but it was deleted before the transaction
-> executed.
+> The transaction accepted a shared object as input, but it was deleted before
+> the transaction executed.
 > 
 
 

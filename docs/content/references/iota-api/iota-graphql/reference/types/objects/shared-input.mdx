@@ -70,11 +70,12 @@ type SharedInput {
 #### [<code style={{ fontWeight: 'normal' }}>SharedInput.<b>mutable</b></code>](#)<Bullet />[`Boolean!`](/references/iota-api/iota-graphql/reference/types/scalars/boolean) <Badge class="badge badge--secondary" text="non-null"/> <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
-> Controls whether the transaction block can reference the shared object as a mutable
-> reference or by value. This has implications for scheduling: Transactions that just read
-> shared objects at a certain version (mutable = false) can be executed concurrently, while
-> transactions that write shared objects (mutable = true) must be executed serially with
-> respect to each other.
+> Controls whether the transaction block can reference the shared object
+> as a mutable reference or by value. This has implications for
+> scheduling: Transactions that just read shared objects at a certain
+> version (mutable = false) can be executed concurrently, while
+> transactions that write shared objects (mutable = true) must be executed
+> serially with respect to each other.
 > 
 
 

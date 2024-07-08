@@ -39,8 +39,9 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-A MovePackage is a kind of Move object that represents code that has been published on chain.
-It exposes information about its modules, type definitions, functions, and dependencies.
+A MovePackage is a kind of Move object that represents code that has been
+published on chain. It exposes information about its modules, type
+definitions, functions, and dependencies.
 
 
 ```graphql
@@ -129,8 +130,8 @@ type MovePackage implements IObject, IOwner {
 > 
 > Objects owned by this package, optionally `filter`-ed.
 > 
-> Note that objects owned by a package are inaccessible, because packages are immutable and
-> cannot be owned by an address.
+> Note that objects owned by a package are inaccessible, because packages
+> are immutable and cannot be owned by an address.
 > ##### [<code style={{ fontWeight: 'normal' }}>MovePackage.objects.<b>first</b></code>](#)<Bullet />[`Int`](/references/iota-api/iota-graphql/reference/types/scalars/int) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
@@ -164,11 +165,11 @@ type MovePackage implements IObject, IOwner {
 #### [<code style={{ fontWeight: 'normal' }}>MovePackage.<b>balance</b></code>](#)<Bullet />[`Balance`](/references/iota-api/iota-graphql/reference/types/objects/balance) <Badge class="badge badge--secondary" text="object"/> 
 > 
 > 
-> Total balance of all coins with marker type owned by this package. If type is not supplied,
-> it defaults to `0x2::iota::IOTA`.
+> Total balance of all coins with marker type owned by this package. If
+> type is not supplied, it defaults to `0x2::iota::IOTA`.
 > 
-> Note that coins owned by a package are inaccessible, because packages are immutable and
-> cannot be owned by an address.
+> Note that coins owned by a package are inaccessible, because packages
+> are immutable and cannot be owned by an address.
 > ##### [<code style={{ fontWeight: 'normal' }}>MovePackage.balance.<b>type</b></code>](#)<Bullet />[`String`](/references/iota-api/iota-graphql/reference/types/scalars/string) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
@@ -180,8 +181,8 @@ type MovePackage implements IObject, IOwner {
 > 
 > The balances of all coin types owned by this package.
 > 
-> Note that coins owned by a package are inaccessible, because packages are immutable and
-> cannot be owned by an address.
+> Note that coins owned by a package are inaccessible, because packages
+> are immutable and cannot be owned by an address.
 > ##### [<code style={{ fontWeight: 'normal' }}>MovePackage.balances.<b>first</b></code>](#)<Bullet />[`Int`](/references/iota-api/iota-graphql/reference/types/scalars/int) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
@@ -211,10 +212,11 @@ type MovePackage implements IObject, IOwner {
 > 
 > The coin objects owned by this package.
 > 
-> `type` is a filter on the coin's type parameter, defaulting to `0x2::iota::IOTA`.
+> `type` is a filter on the coin's type parameter, defaulting to
+> `0x2::iota::IOTA`.
 > 
-> Note that coins owned by a package are inaccessible, because packages are immutable and
-> cannot be owned by an address.
+> Note that coins owned by a package are inaccessible, because packages
+> are immutable and cannot be owned by an address.
 > ##### [<code style={{ fontWeight: 'normal' }}>MovePackage.coins.<b>first</b></code>](#)<Bullet />[`Int`](/references/iota-api/iota-graphql/reference/types/scalars/int) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
@@ -250,8 +252,8 @@ type MovePackage implements IObject, IOwner {
 > 
 > The `0x3::staking_pool::StakedIota` objects owned by this package.
 > 
-> Note that objects owned by a package are inaccessible, because packages are immutable and
-> cannot be owned by an address.
+> Note that objects owned by a package are inaccessible, because packages
+> are immutable and cannot be owned by an address.
 > ##### [<code style={{ fontWeight: 'normal' }}>MovePackage.stakedIotas.<b>first</b></code>](#)<Bullet />[`Int`](/references/iota-api/iota-graphql/reference/types/scalars/int) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
@@ -279,7 +281,8 @@ type MovePackage implements IObject, IOwner {
 #### [<code style={{ fontWeight: 'normal' }}>MovePackage.<b>defaultIotansName</b></code>](#)<Bullet />[`String`](/references/iota-api/iota-graphql/reference/types/scalars/string) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
-> The domain explicitly configured as the default domain pointing to this object.
+> The domain explicitly configured as the default domain pointing to this
+> object.
 > ##### [<code style={{ fontWeight: 'normal' }}>MovePackage.defaultIotansName.<b>format</b></code>](#)<Bullet />[`DomainFormat`](/references/iota-api/iota-graphql/reference/types/enums/domain-format) <Badge class="badge badge--secondary" text="enum"/> 
 > 
 > 
@@ -289,11 +292,11 @@ type MovePackage implements IObject, IOwner {
 #### [<code style={{ fontWeight: 'normal' }}>MovePackage.<b>iotansRegistrations</b></code>](#)<Bullet />[`IotansRegistrationConnection!`](/references/iota-api/iota-graphql/reference/types/objects/iotans-registration-connection) <Badge class="badge badge--secondary" text="non-null"/> <Badge class="badge badge--secondary" text="object"/> 
 > 
 > 
-> The IotansRegistration NFTs owned by this package. These grant the owner the capability to
-> manage the associated domain.
+> The IotansRegistration NFTs owned by this package. These grant the owner
+> the capability to manage the associated domain.
 > 
-> Note that objects owned by a package are inaccessible, because packages are immutable and
-> cannot be owned by an address.
+> Note that objects owned by a package are inaccessible, because packages
+> are immutable and cannot be owned by an address.
 > ##### [<code style={{ fontWeight: 'normal' }}>MovePackage.iotansRegistrations.<b>first</b></code>](#)<Bullet />[`Int`](/references/iota-api/iota-graphql/reference/types/scalars/int) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
@@ -327,19 +330,22 @@ type MovePackage implements IObject, IOwner {
 #### [<code style={{ fontWeight: 'normal' }}>MovePackage.<b>status</b></code>](#)<Bullet />[`ObjectKind!`](/references/iota-api/iota-graphql/reference/types/enums/object-kind) <Badge class="badge badge--secondary" text="non-null"/> <Badge class="badge badge--secondary" text="enum"/> 
 > 
 > 
-> The current status of the object as read from the off-chain store. The possible states are:
-> NOT_INDEXED, the object is loaded from serialized data, such as the contents of a genesis or
-> system package upgrade transaction. LIVE, the version returned is the most recent for the
-> object, and it is not deleted or wrapped at that version. HISTORICAL, the object was
-> referenced at a specific version or checkpoint, so is fetched from historical tables and may
-> not be the latest version of the object. WRAPPED_OR_DELETED, the object is deleted or
-> wrapped and only partial information can be loaded."
+> The current status of the object as read from the off-chain store. The
+> possible states are: NOT_INDEXED, the object is loaded from
+> serialized data, such as the contents of a genesis or system package
+> upgrade transaction. LIVE, the version returned is the most recent for
+> the object, and it is not deleted or wrapped at that version.
+> HISTORICAL, the object was referenced at a specific version or
+> checkpoint, so is fetched from historical tables and may not be the
+> latest version of the object. WRAPPED_OR_DELETED, the object is deleted
+> or wrapped and only partial information can be loaded."
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>MovePackage.<b>digest</b></code>](#)<Bullet />[`String`](/references/iota-api/iota-graphql/reference/types/scalars/string) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
-> 32-byte hash that identifies the package's contents, encoded as a Base58 string.
+> 32-byte hash that identifies the package's contents, encoded as a Base58
+> string.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>MovePackage.<b>owner</b></code>](#)<Bullet />[`ObjectOwner`](/references/iota-api/iota-graphql/reference/types/unions/object-owner) <Badge class="badge badge--secondary" text="union"/> 
@@ -358,11 +364,12 @@ type MovePackage implements IObject, IOwner {
 #### [<code style={{ fontWeight: 'normal' }}>MovePackage.<b>storageRebate</b></code>](#)<Bullet />[`BigInt`](/references/iota-api/iota-graphql/reference/types/scalars/big-int) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
-> The amount of IOTA we would rebate if this object gets deleted or mutated. This number is
-> recalculated based on the present storage gas price.
+> The amount of IOTA we would rebate if this object gets deleted or
+> mutated. This number is recalculated based on the present storage
+> gas price.
 > 
-> Note that packages cannot be deleted or mutated, so this number is provided purely for
-> reference.
+> Note that packages cannot be deleted or mutated, so this number is
+> provided purely for reference.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>MovePackage.<b>receivedTransactionBlocks</b></code>](#)<Bullet />[`TransactionBlockConnection!`](/references/iota-api/iota-graphql/reference/types/objects/transaction-block-connection) <Badge class="badge badge--secondary" text="non-null"/> <Badge class="badge badge--secondary" text="object"/> 
@@ -410,8 +417,8 @@ type MovePackage implements IObject, IOwner {
 #### [<code style={{ fontWeight: 'normal' }}>MovePackage.<b>module</b></code>](#)<Bullet />[`MoveModule`](/references/iota-api/iota-graphql/reference/types/objects/move-module) <Badge class="badge badge--secondary" text="object"/> 
 > 
 > 
-> A representation of the module called `name` in this package, including the
-> structs and functions it defines.
+> A representation of the module called `name` in this package, including
+> the structs and functions it defines.
 > ##### [<code style={{ fontWeight: 'normal' }}>MovePackage.module.<b>name</b></code>](#)<Bullet />[`String!`](/references/iota-api/iota-graphql/reference/types/scalars/string) <Badge class="badge badge--secondary" text="non-null"/> <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
@@ -461,8 +468,9 @@ type MovePackage implements IObject, IOwner {
 #### [<code style={{ fontWeight: 'normal' }}>MovePackage.<b>moduleBcs</b></code>](#)<Bullet />[`Base64`](/references/iota-api/iota-graphql/reference/types/scalars/base-64) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
-> BCS representation of the package's modules.  Modules appear as a sequence of pairs (module
-> name, followed by module bytes), in alphabetic order by module name.
+> BCS representation of the package's modules.  Modules appear as a
+> sequence of pairs (module name, followed by module bytes), in
+> alphabetic order by module name.
 > 
 
 ### Interfaces
@@ -470,17 +478,18 @@ type MovePackage implements IObject, IOwner {
 #### [`IObject`](/references/iota-api/iota-graphql/reference/types/interfaces/iobject) <Badge class="badge badge--secondary" text="interface"/> 
 > 
 > 
-> Interface implemented by on-chain values that are addressable by an ID (also referred to as its
-> address). This includes Move objects and packages.
+> Interface implemented by on-chain values that are addressable by an ID (also
+> referred to as its address). This includes Move objects and packages.
 > 
 
 #### [`IOwner`](/references/iota-api/iota-graphql/reference/types/interfaces/iowner) <Badge class="badge badge--secondary" text="interface"/> 
 > 
 > 
-> Interface implemented by GraphQL types representing entities that can own objects. Object owners
-> are identified by an address which can represent either the public key of an account or another
-> object. The same address can only refer to an account or an object, never both, but it is not
-> possible to know which up-front.
+> Interface implemented by GraphQL types representing entities that can own
+> objects. Object owners are identified by an address which can represent
+> either the public key of an account or another object. The same address can
+> only refer to an account or an object, never both, but it is not possible to
+> know which up-front.
 > 
 
 

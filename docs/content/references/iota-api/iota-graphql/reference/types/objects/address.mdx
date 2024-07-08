@@ -39,7 +39,8 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-The 32-byte address that is an account address (corresponding to a public key).
+The 32-byte address that is an account address (corresponding to a public
+key).
 
 
 ```graphql
@@ -142,8 +143,8 @@ type Address implements IOwner {
 #### [<code style={{ fontWeight: 'normal' }}>Address.<b>balance</b></code>](#)<Bullet />[`Balance`](/references/iota-api/iota-graphql/reference/types/objects/balance) <Badge class="badge badge--secondary" text="object"/> 
 > 
 > 
-> Total balance of all coins with marker type owned by this address. If type is not supplied,
-> it defaults to `0x2::iota::IOTA`.
+> Total balance of all coins with marker type owned by this address. If
+> type is not supplied, it defaults to `0x2::iota::IOTA`.
 > ##### [<code style={{ fontWeight: 'normal' }}>Address.balance.<b>type</b></code>](#)<Bullet />[`String`](/references/iota-api/iota-graphql/reference/types/scalars/string) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
@@ -183,7 +184,8 @@ type Address implements IOwner {
 > 
 > The coin objects for this address.
 > 
-> `type` is a filter on the coin's type parameter, defaulting to `0x2::iota::IOTA`.
+> `type` is a filter on the coin's type parameter, defaulting to
+> `0x2::iota::IOTA`.
 > ##### [<code style={{ fontWeight: 'normal' }}>Address.coins.<b>first</b></code>](#)<Bullet />[`Int`](/references/iota-api/iota-graphql/reference/types/scalars/int) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
@@ -245,7 +247,8 @@ type Address implements IOwner {
 #### [<code style={{ fontWeight: 'normal' }}>Address.<b>defaultIotansName</b></code>](#)<Bullet />[`String`](/references/iota-api/iota-graphql/reference/types/scalars/string) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
-> The domain explicitly configured as the default domain pointing to this address.
+> The domain explicitly configured as the default domain pointing to this
+> address.
 > ##### [<code style={{ fontWeight: 'normal' }}>Address.defaultIotansName.<b>format</b></code>](#)<Bullet />[`DomainFormat`](/references/iota-api/iota-graphql/reference/types/enums/domain-format) <Badge class="badge badge--secondary" text="enum"/> 
 > 
 > 
@@ -255,8 +258,8 @@ type Address implements IOwner {
 #### [<code style={{ fontWeight: 'normal' }}>Address.<b>iotansRegistrations</b></code>](#)<Bullet />[`IotansRegistrationConnection!`](/references/iota-api/iota-graphql/reference/types/objects/iotans-registration-connection) <Badge class="badge badge--secondary" text="non-null"/> <Badge class="badge badge--secondary" text="object"/> 
 > 
 > 
-> The IotansRegistration NFTs owned by this address. These grant the owner the capability to
-> manage the associated domain.
+> The IotansRegistration NFTs owned by this address. These grant the owner
+> the capability to manage the associated domain.
 > ##### [<code style={{ fontWeight: 'normal' }}>Address.iotansRegistrations.<b>first</b></code>](#)<Bullet />[`Int`](/references/iota-api/iota-graphql/reference/types/scalars/int) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
@@ -284,8 +287,9 @@ type Address implements IOwner {
 #### [<code style={{ fontWeight: 'normal' }}>Address.<b>transactionBlocks</b></code>](#)<Bullet />[`TransactionBlockConnection!`](/references/iota-api/iota-graphql/reference/types/objects/transaction-block-connection) <Badge class="badge badge--secondary" text="non-null"/> <Badge class="badge badge--secondary" text="object"/> 
 > 
 > 
-> Similar behavior to the `transactionBlocks` in Query but supporting the additional
-> `AddressTransactionBlockRelationship` filter, which defaults to `SIGN`.
+> Similar behavior to the `transactionBlocks` in Query but supporting the
+> additional `AddressTransactionBlockRelationship` filter, which
+> defaults to `SIGN`.
 > ##### [<code style={{ fontWeight: 'normal' }}>Address.transactionBlocks.<b>first</b></code>](#)<Bullet />[`Int`](/references/iota-api/iota-graphql/reference/types/scalars/int) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
@@ -327,10 +331,11 @@ type Address implements IOwner {
 #### [`IOwner`](/references/iota-api/iota-graphql/reference/types/interfaces/iowner) <Badge class="badge badge--secondary" text="interface"/> 
 > 
 > 
-> Interface implemented by GraphQL types representing entities that can own objects. Object owners
-> are identified by an address which can represent either the public key of an account or another
-> object. The same address can only refer to an account or an object, never both, but it is not
-> possible to know which up-front.
+> Interface implemented by GraphQL types representing entities that can own
+> objects. Object owners are identified by an address which can represent
+> either the public key of an account or another object. The same address can
+> only refer to an account or an object, never both, but it is not possible to
+> know which up-front.
 > 
 
 

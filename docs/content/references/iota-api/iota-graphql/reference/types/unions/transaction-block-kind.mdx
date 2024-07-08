@@ -39,7 +39,8 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-The kind of transaction block, either a programmable transaction or a system transaction.
+The kind of transaction block, either a programmable transaction or a system
+transaction.
 
 
 ```graphql
@@ -54,22 +55,25 @@ union TransactionBlockKind = ConsensusCommitPrologueTransaction | GenesisTransac
 #### [<code style={{ fontWeight: 'normal' }}>TransactionBlockKind.<b>ConsensusCommitPrologueTransaction</b></code>](/references/iota-api/iota-graphql/reference/types/objects/consensus-commit-prologue-transaction) <Badge class="badge badge--secondary" text="object"/> 
 > 
 > 
-> System transaction that runs at the beginning of a checkpoint, and is responsible for setting
-> the current value of the clock, based on the timestamp from consensus.
+> System transaction that runs at the beginning of a checkpoint, and is
+> responsible for setting the current value of the clock, based on the
+> timestamp from consensus.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>TransactionBlockKind.<b>GenesisTransaction</b></code>](/references/iota-api/iota-graphql/reference/types/objects/genesis-transaction) <Badge class="badge badge--secondary" text="object"/> 
 > 
 > 
-> System transaction that initializes the network and writes the initial set of objects on-chain.
+> System transaction that initializes the network and writes the initial set
+> of objects on-chain.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>TransactionBlockKind.<b>ChangeEpochTransaction</b></code>](/references/iota-api/iota-graphql/reference/types/objects/change-epoch-transaction) <Badge class="badge badge--secondary" text="object"/> 
 > 
 > 
-> A system transaction that updates epoch information on-chain (increments the current epoch).
-> Executed by the system once per epoch, without using gas. Epoch change transactions cannot be
-> submitted by users, because validators will refuse to sign them.
+> A system transaction that updates epoch information on-chain (increments the
+> current epoch). Executed by the system once per epoch, without using gas.
+> Epoch change transactions cannot be submitted by users, because validators
+> will refuse to sign them.
 > 
 > This transaction kind is deprecated in favour of `EndOfEpochTransaction`.
 > 
@@ -77,8 +81,9 @@ union TransactionBlockKind = ConsensusCommitPrologueTransaction | GenesisTransac
 #### [<code style={{ fontWeight: 'normal' }}>TransactionBlockKind.<b>ProgrammableTransactionBlock</b></code>](/references/iota-api/iota-graphql/reference/types/objects/programmable-transaction-block) <Badge class="badge badge--secondary" text="object"/> 
 > 
 > 
-> A user transaction that allows the interleaving of native commands (like transfer, split coins,
-> merge coins, etc) and move calls, executed atomically.
+> A user transaction that allows the interleaving of native commands (like
+> transfer, split coins, merge coins, etc) and move calls, executed
+> atomically.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>TransactionBlockKind.<b>AuthenticatorStateUpdateTransaction</b></code>](/references/iota-api/iota-graphql/reference/types/objects/authenticator-state-update-transaction) <Badge class="badge badge--secondary" text="object"/> 
@@ -96,9 +101,10 @@ union TransactionBlockKind = ConsensusCommitPrologueTransaction | GenesisTransac
 #### [<code style={{ fontWeight: 'normal' }}>TransactionBlockKind.<b>EndOfEpochTransaction</b></code>](/references/iota-api/iota-graphql/reference/types/objects/end-of-epoch-transaction) <Badge class="badge badge--secondary" text="object"/> 
 > 
 > 
-> System transaction that supersedes `ChangeEpochTransaction` as the new way to run transactions
-> at the end of an epoch. Behaves similarly to `ChangeEpochTransaction` but can accommodate other
-> optional transactions to run at the end of the epoch.
+> System transaction that supersedes `ChangeEpochTransaction` as the new way
+> to run transactions at the end of an epoch. Behaves similarly to
+> `ChangeEpochTransaction` but can accommodate other optional transactions to
+> run at the end of the epoch.
 > 
 
 

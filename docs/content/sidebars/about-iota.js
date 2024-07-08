@@ -25,6 +25,15 @@ const aboutIota = [
 	},
 	{
 		type: 'category',
+		label: 'Execution Architecture',
+		items: [
+			'about-iota/execution-architecture/iota-execution',
+			'about-iota/execution-architecture/adapter',
+			'about-iota/execution-architecture/natives',
+		],
+	},
+	{
+		type: 'category',
 		label: 'Tokenomics',
 		collapsed: false,
 		link: {

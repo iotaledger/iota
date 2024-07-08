@@ -93,7 +93,8 @@ type Validator {
 #### [<code style={{ fontWeight: 'normal' }}>Validator.<b>credentials</b></code>](#)<Bullet />[`ValidatorCredentials`](/references/iota-api/iota-graphql/reference/types/objects/validator-credentials) <Badge class="badge badge--secondary" text="object"/> 
 > 
 > 
-> Validator's set of credentials such as public keys, network addresses and others.
+> Validator's set of credentials such as public keys, network addresses
+> and others.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>Validator.<b>nextEpochCredentials</b></code>](#)<Bullet />[`ValidatorCredentials`](/references/iota-api/iota-graphql/reference/types/objects/validator-credentials) <Badge class="badge badge--secondary" text="object"/> 
@@ -130,22 +131,24 @@ type Validator {
 > 
 > 
 > The validator's current valid `Cap` object. Validators can delegate
-> the operation ability to another address. The address holding this `Cap` object
-> can then update the reference gas price and tallying rule on behalf of the validator.
+> the operation ability to another address. The address holding this `Cap`
+> object can then update the reference gas price and tallying rule on
+> behalf of the validator.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>Validator.<b>stakingPool</b></code>](#)<Bullet />[`MoveObject`](/references/iota-api/iota-graphql/reference/types/objects/move-object) <Badge class="badge badge--secondary" text="object"/> 
 > 
 > 
-> The validator's current staking pool object, used to track the amount of stake
-> and to compound staking rewards.
+> The validator's current staking pool object, used to track the amount of
+> stake and to compound staking rewards.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>Validator.<b>exchangeRates</b></code>](#)<Bullet />[`MoveObject`](/references/iota-api/iota-graphql/reference/types/objects/move-object) <Badge class="badge badge--secondary" text="object"/> 
 > 
 > 
-> The validator's current exchange object. The exchange rate is used to determine
-> the amount of IOTA tokens that each past IOTA staker can withdraw in the future.
+> The validator's current exchange object. The exchange rate is used to
+> determine the amount of IOTA tokens that each past IOTA staker can
+> withdraw in the future.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>Validator.<b>exchangeRatesSize</b></code>](#)<Bullet />[`Int`](/references/iota-api/iota-graphql/reference/types/scalars/int) <Badge class="badge badge--secondary" text="scalar"/> 
@@ -187,19 +190,22 @@ type Validator {
 #### [<code style={{ fontWeight: 'normal' }}>Validator.<b>pendingTotalIotaWithdraw</b></code>](#)<Bullet />[`BigInt`](/references/iota-api/iota-graphql/reference/types/scalars/big-int) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
-> Pending stake withdrawn during the current epoch, emptied at epoch boundaries.
+> Pending stake withdrawn during the current epoch, emptied at epoch
+> boundaries.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>Validator.<b>pendingPoolTokenWithdraw</b></code>](#)<Bullet />[`BigInt`](/references/iota-api/iota-graphql/reference/types/scalars/big-int) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
-> Pending pool token withdrawn during the current epoch, emptied at epoch boundaries.
+> Pending pool token withdrawn during the current epoch, emptied at epoch
+> boundaries.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>Validator.<b>votingPower</b></code>](#)<Bullet />[`Int`](/references/iota-api/iota-graphql/reference/types/scalars/int) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
-> The voting power of this validator in basis points (e.g., 100 = 1% voting power).
+> The voting power of this validator in basis points (e.g., 100 = 1%
+> voting power).
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>Validator.<b>gasPrice</b></code>](#)<Bullet />[`BigInt`](/references/iota-api/iota-graphql/reference/types/scalars/big-int) <Badge class="badge badge--secondary" text="scalar"/> 

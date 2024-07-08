@@ -39,12 +39,13 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-Constrains the set of objects returned. All filters are optional, and the resulting set of
-objects are ones whose
+Constrains the set of objects returned. All filters are optional, and the
+resulting set of objects are ones whose
 
 - Type matches the `type` filter,
 - AND, whose owner matches the `owner` filter,
-- AND, whose ID is in `objectIds` OR whose ID and version is in `objectKeys`.
+- AND, whose ID is in `objectIds` OR whose ID and version is in
+`objectKeys`.
 
 
 ```graphql
@@ -64,14 +65,15 @@ input ObjectFilter {
 #### [<code style={{ fontWeight: 'normal' }}>ObjectFilter.<b>type</b></code>](#)<Bullet />[`String`](/references/iota-api/iota-graphql/reference/types/scalars/string) <Badge class="badge badge--secondary" text="scalar"/> 
 > 
 > 
-> This field is used to specify the type of objects that should be included in the query
-> results.
+> This field is used to specify the type of objects that should be
+> included in the query results.
 > 
-> Objects can be filtered by their type's package, package::module, or their fully qualified
-> type name.
+> Objects can be filtered by their type's package, package::module, or
+> their fully qualified type name.
 > 
-> Generic types can be queried by either the generic type name, e.g. `0x2::coin::Coin`, or by
-> the full type name, such as `0x2::coin::Coin<0x2::iota::IOTA>`.
+> Generic types can be queried by either the generic type name, e.g.
+> `0x2::coin::Coin`, or by the full type name, such as
+> `0x2::coin::Coin<0x2::iota::IOTA>`.
 > 
 
 #### [<code style={{ fontWeight: 'normal' }}>ObjectFilter.<b>owner</b></code>](#)<Bullet />[`IotaAddress`](/references/iota-api/iota-graphql/reference/types/scalars/iota-address) <Badge class="badge badge--secondary" text="scalar"/> 
@@ -89,7 +91,8 @@ input ObjectFilter {
 #### [<code style={{ fontWeight: 'normal' }}>ObjectFilter.<b>objectKeys</b></code>](#)<Bullet />[`[ObjectKey!]`](/references/iota-api/iota-graphql/reference/types/inputs/object-key) <Badge class="badge badge--secondary" text="list"/> <Badge class="badge badge--secondary" text="input"/> 
 > 
 > 
-> Filter for live or potentially historical objects by their ID and version.
+> Filter for live or potentially historical objects by their ID and
+> version.
 > 
 
 

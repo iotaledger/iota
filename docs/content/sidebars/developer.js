@@ -307,6 +307,7 @@ const developer = [
 				items: [
 					'developer/standards/standards',
 					'developer/standards/coin',
+					'developer/standards/coin-manager',
 					{
 						type: 'category',
 						label: 'Closed-Loop Token',
@@ -350,9 +351,29 @@ const developer = [
 				label: 'Integrate Your Exchange',
 				items:[
 					'developer/exchange-integration/exchange-integration',
-					'developer/exchange-integration/stardust-migration',
+
+					{
+						type: 'category',
+						label: 'Migrating IOTA/Shimmer Stardust',
+						link: {
+							type: 'doc',
+							id: 'developer/stardust/stardust-migration',
+						},
+						items: [
+							'developer/stardust/exchanges',
+							'developer/stardust/move-models',
+							'developer/stardust/addresses',
+							'developer/stardust/units',
+							'developer/stardust/migration-process',
+							'developer/stardust/claiming',
+							'developer/stardust/vested',
+							'developer/stardust/testing',
+							'developer/stardust/if-tools',
+							'developer/stardust/faq',
+						],
+					},
 				]
-			}
+			},
 		]
 ;
 module.exports = developer;
