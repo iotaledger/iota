@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import React from "react";
-import Link from "@docusaurus/Link";
 import { useThemeConfig, ErrorCauseBoundary } from "@docusaurus/theme-common";
 import {
   splitNavbarItems,
@@ -10,10 +9,8 @@ import {
 } from "@docusaurus/theme-common/internal";
 import NavbarItem from "@theme/NavbarItem";
 import NavbarColorModeToggle from "@theme/Navbar/ColorModeToggle";
-import SearchBar from "@theme/SearchBar";
 import NavbarMobileSidebarToggle from "@theme/Navbar/MobileSidebar/Toggle";
 import NavbarLogo from "@theme/Navbar/Logo";
-import NavbarSearch from "@theme/Navbar/Search";
 import styles from "./styles.module.css";
 import { useLocation } from "@docusaurus/router";
 
@@ -75,19 +72,6 @@ export default function NavbarContent() {
           <NavbarItems items={rightItems} />
           {!isHomePage && (
             <NavbarColorModeToggle className={styles.colorModeToggle} />
-          )}
-          {!searchBarItem && (
-            <NavbarSearch>
-              <SearchBar />
-              {isHomePage && (
-                <Link
-                  to="/guides#get-started-developing-on-iota"
-                  className="button-cta"
-                >
-                  Get started
-                </Link>
-              )}
-            </NavbarSearch>
           )}
         </>
       }
