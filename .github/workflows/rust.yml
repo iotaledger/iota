@@ -3,11 +3,11 @@ name: Rust tests
 on:
   push:
     branches:
-      - 'develop'
-      - 'devnet'
-      - 'testnet'
-      - 'mainnet'
-      - 'releases/iota-*-release'
+      - "develop"
+      - "devnet"
+      - "testnet"
+      - "mainnet"
+      - "releases/iota-*-release"
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
@@ -49,9 +49,9 @@ jobs:
       - uses: dorny/paths-filter@v3
         id: filter
         with:
-          list-files: 'json'
+          list-files: "json"
           filters: .github/crates-filters.yml
-  
+
   test:
     name: Test ${{ matrix.components }}
     env:
@@ -60,7 +60,7 @@ jobs:
       # non-deterministic `test` job.
       IOTA_SKIP_SIMTESTS: 1
     strategy:
-      matrix: 
+      matrix:
         components: ${{ fromJson(needs.changes.outputs.components) }}
       fail-fast: false
     runs-on: [self-hosted-rust]
@@ -78,7 +78,7 @@ jobs:
       isMove: ${{ steps.diff.outputs.isMove }}
       isReleaseNotesEligible: ${{ steps.diff.outputs.isReleaseNotesEligible }}
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - name: Detect Changes
         uses: "./.github/actions/diffs"
         id: diff
@@ -87,9 +87,9 @@ jobs:
     name: license-check
     runs-on: [self-hosted-rust]
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - uses: bmwill/rust-cache@v1 # Fork of 'Swatinem/rust-cache' which allows caching additional paths
-      
+
       - name: Install cargo-license-template
         run: cargo install --force cargo-license-template
 
@@ -102,7 +102,7 @@ jobs:
     if: needs.diff.outputs.isReleaseNotesEligible == 'true'
     runs-on: [self-hosted-rust]
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - name: Check Pull Request Description
         shell: bash
         run: |
@@ -135,7 +135,7 @@ jobs:
           - [self-hosted-rust]
       fail-fast: false
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - name: benchmark (smoke)
         run: |
           cargo run --package iota-benchmark --bin stress -- --log-path /tmp/stress.log --num-client-threads 10 --num-server-threads 24 --num-transfer-accounts 2 bench --target-qps 100 --num-workers 10  --transfer-object 50 --shared-counter 50 --run-duration 10s --stress-stat-collection
@@ -165,13 +165,13 @@ jobs:
     timeout-minutes: 45
     runs-on: [self-hosted-rust]
     strategy:
-      matrix: 
+      matrix:
         components: ${{ fromJson(needs.changes.outputs.components) }}
       fail-fast: false
     env:
       MSIM_WATCHDOG_TIMEOUT_MS: 60000
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - uses: taiki-e/install-action@nextest
       - name: cargo simtest
         run: |
@@ -189,7 +189,7 @@ jobs:
     timeout-minutes: 10
     runs-on: [self-hosted-rust]
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - uses: taiki-e/install-action@nextest
       - name: Run move tests
         run: |
@@ -240,7 +240,7 @@ jobs:
         # this avoids rate-limiting
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - run: rustup component add clippy
       # TODO(bradh): debug and re-enable this; the caching is breaking the clippy build
       # Enable caching of the 'librocksdb-sys' crate by additionally caching the
@@ -258,7 +258,7 @@ jobs:
     if: needs.diff.outputs.isRust == 'true'
     runs-on: [self-hosted-rust]
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - name: Install latest nightly
         run: rustup toolchain install nightly --component rustfmt --allow-downgrade
       - name: Check Rust formatting
@@ -267,7 +267,7 @@ jobs:
   dprint-format:
     runs-on: [self-hosted-rust]
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - name: Install dprint
         run: cargo install dprint
       - name: Check dprint formatting
@@ -279,7 +279,7 @@ jobs:
     if: needs.diff.outputs.isRust == 'true'
     runs-on: [self-hosted-rust]
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - uses: EmbarkStudios/cargo-deny-action@v1
 
   iota-excution-cut:
@@ -288,18 +288,17 @@ jobs:
     if: needs.diff.outputs.isRust == 'true'
     runs-on: [self-hosted-rust]
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - name: Install cargo-hakari, and cache the binary
         uses: baptiste0928/cargo-install@1cd874a5478fdca35d868ccc74640c5aabbb8f1b # pin@v3.0.0
         with:
           crate: cargo-hakari
           locked: true
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
       - name: Make cut
         run: ./scripts/execution_layer.py cut for_ci_test
       - name: Check execution builds
         run: cargo build -p iota-execution
-
 
   #indexer:
   #  name: indexer
@@ -330,43 +329,45 @@ jobs:
   #        POSTGRES_PORT: 5432
 
   graphql-rpc:
-   name: graphql-rpc
-   needs: diff
-   if: needs.diff.outputs.isRust == 'true'
-   timeout-minutes: 45
-   runs-on: [self-hosted-rust]
-   services:
-     postgres:
-       image: postgres
-       env:
-         POSTGRES_PASSWORD: postgrespw
-       options: >-
-         --health-cmd pg_isready
-         --health-interval 10s
-         --health-timeout 5s
-         --health-retries 5
-         --name postgres_container
-       ports:
-         - 5432:5432
-   steps:
-     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
-     - uses: taiki-e/install-action@nextest
-     - name: Setup db
-       run: |
-         PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U $POSTGRES_USER -c 'CREATE DATABASE iota_indexer;' -c 'ALTER SYSTEM SET max_connections = 500;'
-       env:
+    name: graphql-rpc
+    needs: diff
+    if: needs.diff.outputs.isRust == 'true'
+    timeout-minutes: 45
+    runs-on: [self-hosted-rust]
+    services:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_PASSWORD: postgrespw
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --name postgres_container
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: taiki-e/install-action@nextest
+      - name: Install postgresql-client
+        run: sudo apt-get install -y postgresql-client
+      - name: Setup db
+        run: |
+          PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U $POSTGRES_USER -c 'CREATE DATABASE iota_indexer;' -c 'ALTER SYSTEM SET max_connections = 500;'
+        env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgrespw
-     - run: docker restart --time 0 postgres_container
-     - run: sleep 5
-     - name: tests-requiring-postgres
-       run: |
-         cargo nextest run --test-threads 1 --package iota-graphql-rpc --test e2e_tests --test examples_validation_tests --features pg_integration
-         cargo nextest run --test-threads 1 --package iota-graphql-rpc --lib --features pg_integration -- test_query_cost
-         cargo nextest run --test-threads 8 --package iota-graphql-e2e-tests --features pg_integration
-         cargo nextest run --test-threads 1 --package iota-cluster-test --test local_cluster_test --features pg_integration
-         cargo nextest run --test-threads 1 --package iota-indexer --test ingestion_tests --features pg_integration
+      - run: docker restart --time 0 postgres_container
+      - run: sleep 5
+      - name: tests-requiring-postgres
+        run: |
+          cargo nextest run --test-threads 1 --package iota-graphql-rpc --test e2e_tests --test examples_validation_tests --features pg_integration
+          cargo nextest run --test-threads 1 --package iota-graphql-rpc --lib --features pg_integration -- test_query_cost
+          cargo nextest run --test-threads 8 --package iota-graphql-e2e-tests --features pg_integration
+          cargo nextest run --test-threads 1 --package iota-cluster-test --test local_cluster_test --features pg_integration
+          cargo nextest run --test-threads 1 --package iota-indexer --test ingestion_tests --features pg_integration
 
-       env:
-         POSTGRES_HOST: localhost
-         POSTGRES_PORT: 5432
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
