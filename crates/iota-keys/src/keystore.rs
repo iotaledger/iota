@@ -136,13 +136,7 @@ pub trait AccountKeystore: Send + Sync {
         let mnemonic = Mnemonic::from_phrase(phrase, Language::English)
             .map_err(|e| anyhow::anyhow!("Invalid mnemonic phrase: {:?}", e))?;
         let seed = Seed::new(&mnemonic, "");
-        match derive_key_pair_from_path(seed.as_bytes(), derivation_path, &key_scheme) {
-            Ok((address, kp)) => {
-                self.add_key(None, kp)?;
-                Ok(address)
-            }
-            Err(e) => Err(anyhow!("error getting keypair {:?}", e)),
-        }
+        self.import_from_seed(seed.as_bytes(), key_scheme, derivation_path)
     }
 
     fn import_from_seed(
