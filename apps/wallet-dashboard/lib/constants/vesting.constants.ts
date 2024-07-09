@@ -18,7 +18,7 @@ export const SUPPLY_INCREASE_INVESTOR_VESTING_DURATION = 4; // Years
 export const VESTING_LABEL =
     '00000000000000000000000000000000000000000000000000000000000010cf::stardust_upgrade_label::STARDUST_UPGRADE_LABEL';
 
-export const MOCKED_VESTING_TIMELOCKED_OBJECT: Timelocked[] = [
+export const MOCKED_VESTING_TIMELOCKED_OBJECTS: Timelocked[] = [
     {
         id: { id: { bytes: '0xc455b0619ed8f1e6b1fee1176a5f8ea36f8494b9bd5f1f17ec5ac81f1d8b2e51' } },
         locked: { value: 1000 },
