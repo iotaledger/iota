@@ -12,7 +12,6 @@ use byteorder::{BigEndian, ReadBytesExt};
 use config::WorkerId;
 use fastcrypto::hash::Hash;
 use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
-use iota_protocol_config::ProtocolConfig;
 use mysten_metrics::{
     metered_channel::{Receiver, Sender},
     monitored_scope, spawn_logged_monitored_task,
@@ -62,7 +61,6 @@ pub struct BatchMaker {
     client: NetworkClient,
     /// The batch store to store our own batches.
     store: DBMap<BatchDigest, Batch>,
-    protocol_config: ProtocolConfig,
 }
 
 impl BatchMaker {
@@ -77,7 +75,6 @@ impl BatchMaker {
         node_metrics: Arc<WorkerMetrics>,
         client: NetworkClient,
         store: DBMap<BatchDigest, Batch>,
-        protocol_config: ProtocolConfig,
     ) -> JoinHandle<()> {
         spawn_logged_monitored_task!(
             async move {
@@ -92,7 +89,6 @@ impl BatchMaker {
                     node_metrics,
                     client,
                     store,
-                    protocol_config,
                 }
                 .run()
                 .await;
@@ -106,7 +102,7 @@ impl BatchMaker {
         let timer = sleep(self.max_batch_delay);
         tokio::pin!(timer);
 
-        let mut current_batch = Batch::new(vec![], &self.protocol_config);
+        let mut current_batch = Batch::new(vec![]);
         let mut current_responses = Vec::new();
         let mut current_batch_size = 0;
 
@@ -129,7 +125,7 @@ impl BatchMaker {
                         }
                         self.node_metrics.parallel_worker_batches.set(batch_pipeline.len() as i64);
 
-                        current_batch = Batch::new(vec![], &self.protocol_config);
+                        current_batch = Batch::new(vec![]);
                         current_responses = Vec::new();
                         current_batch_size = 0;
 
@@ -150,7 +146,7 @@ impl BatchMaker {
                         }
                         self.node_metrics.parallel_worker_batches.set(batch_pipeline.len() as i64);
 
-                        current_batch = Batch::new(vec![], &self.protocol_config);
+                        current_batch = Batch::new(vec![]);
                         current_responses = Vec::new();
                         current_batch_size = 0;
                     }

@@ -12,11 +12,7 @@ pub trait Verifier {
     /// This function only fails if the verification does not complete within
     /// the limit.  If the modules fail to verify but verification completes
     /// within the meter limit, the function succeeds.
-    fn meter_compiled_modules(
-        &mut self,
-        protocol_config: &ProtocolConfig,
-        modules: &[CompiledModule],
-    ) -> IotaResult<()>;
+    fn meter_compiled_modules(&mut self, modules: &[CompiledModule]) -> IotaResult<()>;
 
     fn meter_module_bytes(
         &mut self,
@@ -33,13 +29,12 @@ pub trait Verifier {
             return Ok(());
         };
 
-        self.meter_compiled_modules(protocol_config, &modules)
+        self.meter_compiled_modules(&modules)
     }
 
     fn meter_compiled_modules_with_overrides(
         &mut self,
         modules: &[CompiledModule],
-        protocol_config: &ProtocolConfig,
         config_overrides: &VerifierOverrides,
     ) -> IotaResult<VerifierMeteredValues>;
 }
