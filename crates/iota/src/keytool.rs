@@ -656,7 +656,7 @@ impl KeyToolCommand {
                         } else {
                             info!("Importing seed to keystore");
                             keystore.import_from_seed(
-                                &input_string,
+                                input_string.as_bytes(),
                                 key_scheme,
                                 derivation_path,
                             )?
