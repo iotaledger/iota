@@ -1061,9 +1061,7 @@ impl TestClusterBuilder {
 
         if let Some(fullnode_rpc_addr) = self.fullnode_rpc_addr {
             builder = builder.with_fullnode_rpc_addr(fullnode_rpc_addr);
-        }
-
-        if let Some(fullnode_rpc_port) = self.fullnode_rpc_port {
+        } else if let Some(fullnode_rpc_port) = self.fullnode_rpc_port {
             builder = builder.with_fullnode_rpc_port(fullnode_rpc_port);
         }
 
