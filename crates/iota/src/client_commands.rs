@@ -1199,11 +1199,8 @@ impl IotaClientCommands {
                     if modules.len() != 1 { "s" } else { "" },
                 );
 
-                let verifier_values = verifier.meter_compiled_modules_with_overrides(
-                    &modules,
-                    &protocol_config,
-                    &overrides,
-                )?;
+                let verifier_values =
+                    verifier.meter_compiled_modules_with_overrides(&modules, &overrides)?;
                 IotaClientCommandResult::VerifyBytecodeMeter {
                     max_module_ticks: verifier_values
                         .max_per_mod_meter_current

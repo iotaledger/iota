@@ -11,12 +11,14 @@ const meta = {
     render: (props) => {
         return (
             <div className="flex flex-col items-start gap-2">
-                <Button {...props}>Primary</Button>
+                <Button {...props} />
             </div>
         );
     },
 } satisfies Meta<typeof Button>;
+
 export default meta;
+
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {

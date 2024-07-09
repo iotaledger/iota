@@ -8,5 +8,9 @@ export interface ButtonProps {
 }
 
 export function Button({ label }: ButtonProps): React.JSX.Element {
-    return <button className="rounded-full border border-blue-500 p-2">{label}</button>;
+    return (
+        <button className="rounded-full bg-primary-40 px-xs py-xxs text-white dark:bg-primary-70 dark:text-neutral-20">
+            {label}
+        </button>
+    );
 }
