@@ -16,7 +16,7 @@ use fastcrypto::{
 };
 use iota_types::{
     authenticator_state::{get_authenticator_state, AuthenticatorStateInner},
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{IotaAddress, ObjectID},
     clock::Clock,
     committee::{Committee, CommitteeWithNetworkMetadata, EpochId, ProtocolVersion},
     crypto::DefaultHash,
@@ -498,7 +498,6 @@ impl TokenDistributionSchedule {
     >(
         &self,
         validators: I,
-        timelock_allocation: HashMap<IotaAddress, u64>,
     ) {
         let mut validators: HashMap<IotaAddress, u64> =
             validators.into_iter().map(|a| (a, 0)).collect();
@@ -519,20 +518,9 @@ impl TokenDistributionSchedule {
         let minimum_required_stake = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_MICROS;
         for (validator, stake) in validators {
             if stake < minimum_required_stake {
-                let mut total_stake = stake;
-                let meets_threshold =
-                    timelock_allocation
-                        .get(&validator)
-                        .map_or(false, |&timelock_alloc_stake| {
-                            total_stake += timelock_alloc_stake;
-                            total_stake >= minimum_required_stake
-                        });
-
-                if !meets_threshold {
-                    panic!(
-                        "validator {validator} has '{total_stake}' stake and does not meet the minimum required stake threshold of '{minimum_required_stake}'"
-                    );
-                }
+                panic!(
+                    "validator {validator} has '{stake}' stake and does not meet the minimum required stake threshold of '{minimum_required_stake}'"
+                );
             }
         }
     }
@@ -551,6 +539,7 @@ impl TokenDistributionSchedule {
                     recipient_address: a,
                     amount_micros: default_allocation,
                     staked_with_validator: Some(a),
+                    staked_with_timelock: vec![],
                 }
             })
             .collect();
@@ -615,6 +604,7 @@ impl TokenDistributionSchedule {
             recipient_address: IotaAddress::default(),
             amount_micros: self.stake_subsidy_fund_nanos,
             staked_with_validator: None,
+            staked_with_timelock: vec![],
         })?;
 
         Ok(())
@@ -630,18 +620,9 @@ pub struct TokenAllocation {
     /// Indicates if this allocation should be staked at genesis and with which
     /// validator
     pub staked_with_validator: Option<IotaAddress>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct TimelockAllocation {
-    pub recipient_address: IotaAddress,
-    pub amount_nanos: u64,
-    /// The surplus of the total balance of the
-    /// timelock objects w.r.t. the target stake.
-    pub surplus_nanos: u64,
-    pub timelock_objects: Vec<ObjectRef>,
-    pub staked_with_validator: IotaAddress,
+    /// Indicates and containe the (amount, timelock_expiration) pairs if this
+    /// allocation should be staked with timelock at genesis
+    pub staked_with_timelock: Vec<(u64, u64)>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -670,6 +651,7 @@ impl TokenDistributionScheduleBuilder {
                 recipient_address: validator,
                 amount_micros: default_allocation,
                 staked_with_validator: Some(validator),
+                staked_with_timelock: vec![],
             });
         }
     }

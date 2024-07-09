@@ -305,17 +305,25 @@ impl MigrationObjects {
     ///
     /// The returned objects are ordered by expiration timestamp, in descending
     /// order.
-    pub fn get_sorted_timelocks_by_owner(&self, address: IotaAddress) -> Option<Vec<&Object>> {
-        self.get_timelocks_by_owner(address).map(|mut timelocks| {
-            timelocks.sort_by_cached_key(|object| {
-                Reverse(
-                    object
-                        .to_rust::<TimeLock<Balance>>()
-                        .expect("this should be a TimeLock object")
-                        .expiration_timestamp_ms(),
-                )
-            });
-            timelocks
+    pub fn get_sorted_timelocks_by_owner(
+        &self,
+        address: IotaAddress,
+    ) -> Option<Vec<(&Object, u64)>> {
+        self.get_timelocks_by_owner(address).map(|timelocks| {
+            let mut timelock_tuple: Vec<(&Object, u64)> = timelocks
+                .iter()
+                .map(|&object| {
+                    (
+                        object,
+                        object
+                            .to_rust::<TimeLock<Balance>>()
+                            .expect("this should be a TimeLock object")
+                            .expiration_timestamp_ms(),
+                    )
+                })
+                .collect();
+            timelock_tuple.sort_by_cached_key(|&(_, timestamp)| Reverse(timestamp));
+            timelock_tuple
         })
     }
 
