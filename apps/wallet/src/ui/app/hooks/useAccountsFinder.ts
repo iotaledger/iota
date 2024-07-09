@@ -62,7 +62,7 @@ export function useAccountsFinder({
 
     return {
         ...accountsQuery,
-        reset: reset,
+        reset,
         searchMore,
     };
 }

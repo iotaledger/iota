@@ -53,11 +53,11 @@ const GAP_CONFIGURATION: { [key in AllowedBip44CoinTypes]: GapConfigurationByCoi
         },
         [AccountType.MnemonicDerived]: {
             accountGapLimit: 3,
-            addressGapLimit: 30,
+            addressGapLimit: 10,
         },
         [AccountType.SeedDerived]: {
             accountGapLimit: 3,
-            addressGapLimit: 2,
+            addressGapLimit: 10,
         },
     },
     // In shimmer we focus on accounts indexes and never rotate addresses
