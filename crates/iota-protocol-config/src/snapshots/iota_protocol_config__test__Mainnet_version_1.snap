@@ -119,7 +119,7 @@ obj_access_cost_verify_per_byte: 200
 gas_model_version: 8
 obj_data_cost_refundable: 100
 obj_metadata_cost_non_refundable: 50
-storage_rebate_rate: 9900
+storage_rebate_rate: 10000
 storage_fund_reinvest_rate: 0
 reward_slashing_rate: 10000
 storage_gas_price: 76
@@ -260,3 +260,4 @@ max_age_of_jwk_in_epochs: 1
 random_beacon_reduction_allowed_delta: 800
 consensus_max_transaction_size_bytes: 262144
 consensus_max_transactions_in_block_bytes: 6291456
+
