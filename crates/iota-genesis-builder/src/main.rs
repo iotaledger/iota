@@ -42,7 +42,7 @@ struct Cli {
     compress: bool,
     #[clap(
         long,
-        help = "Enable global snapshot verification",
+        help = "Disable global snapshot verification",
         default_value_t = false
     )]
     disable_global_snapshot_verification: bool,
