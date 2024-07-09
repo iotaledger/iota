@@ -102,7 +102,7 @@ export const SHADER_COLOR_PALETTE = {
     },
     'shader-primary-light': {
         0: '#0067ee00',
-        8: '#0066ee14',
+        8: '#0067ee14',
         12: '#0067ee1e',
         16: '#0067ee28',
         48: '#0067ee7a',
