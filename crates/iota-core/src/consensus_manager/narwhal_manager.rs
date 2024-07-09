@@ -185,7 +185,6 @@ impl ConsensusManagerTrait for NarwhalManager {
                     name.clone(),
                     id_keypair_copy,
                     committee.clone(),
-                    protocol_config.clone(),
                     worker_cache.clone(),
                     network_client.clone(),
                     &store,
