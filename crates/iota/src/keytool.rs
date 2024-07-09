@@ -58,7 +58,7 @@ use tabled::{
     builder::Builder,
     settings::{object::Rows, Modify, Rotate, Width},
 };
-use tracing::info;
+use tracing::{error, info};
 
 use crate::{
     key_identity::{get_identity_address_from_keystore, KeyIdentity},
@@ -653,13 +653,15 @@ impl KeyToolCommand {
                                 key_scheme,
                                 derivation_path,
                             )?
-                        } else {
+                        } else if let Ok(seed) =  Hex::decode(&input_string) {
                             info!("Importing seed to keystore");
                             keystore.import_from_seed(
-                                input_string.as_bytes(),
+                                &input_string,
                                 key_scheme,
                                 derivation_path,
                             )?
+                        } else {
+                            error!("Failed to select a valid import method.");
                         };
                         let skp = keystore.get_key(&iota_address)?;
                         let key = Key::from(skp);
