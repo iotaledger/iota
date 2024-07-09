@@ -7,9 +7,8 @@ import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
 import { LoadingIndicator, Text } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 
+import { Banner, TableCard } from '~/components/ui';
 import { genTableDataFromTxData } from './TxCardUtils';
-import { Banner } from '~/ui/Banner';
-import { TableCard } from '~/ui/TableCard';
 
 interface TransactionsForAddressProps {
     address: string;

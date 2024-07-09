@@ -7,7 +7,7 @@ import { Text } from '@iota/ui';
 import { LegalLinks, LegalText } from './Legal';
 import { FooterIcon } from './FooterIcon';
 import { ReactComponent as MystenLabsRed } from '../../assets/mysten_labs_red.svg';
-import { Link } from '~/ui/Link';
+import { Link } from '~/components/ui';
 import { FOOTER_LINKS, SOCIAL_LINKS } from '~/lib/constants';
 import Icon from '../Icon';
 
