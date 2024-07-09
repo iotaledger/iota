@@ -10,6 +10,7 @@ module iota_system::rewards_distribution_tests {
     use iota_system::governance_test_utils::{
         advance_epoch,
         advance_epoch_with_reward_amounts,
+        advance_epoch_with_reward_amounts_return_rebate,
         advance_epoch_with_reward_amounts_and_slashing_rates,
         advance_epoch_with_target_reward_amounts,
         assert_validator_total_stake_amounts,
@@ -21,8 +22,7 @@ module iota_system::rewards_distribution_tests {
         total_iota_balance, total_supply,
         unstake
     };
-    use iota::balance;
-    use iota::test_utils::assert_eq;
+    use iota::test_utils::{assert_eq, destroy};
     use iota::address;
 
     const VALIDATOR_ADDR_1: address = @0x1;
@@ -497,7 +497,7 @@ module iota_system::rewards_distribution_tests {
     }
 
     #[test]
-    fun leftover_is_burned() {
+    fun test_slashed_validators_leftover_burning() {
         set_up_iota_system_state();
         let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
         let scenario = &mut scenario_val;
@@ -521,7 +521,7 @@ module iota_system::rewards_distribution_tests {
 
     #[test]
     #[expected_failure(abort_code = iota::balance::EOverflow)]
-    fun leftover_is_larger_than_supply() {
+    fun test_leftover_is_larger_than_supply() {
         set_up_iota_system_state();
         let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
         let scenario = &mut scenario_val;
@@ -535,6 +535,26 @@ module iota_system::rewards_distribution_tests {
             1000, 1700, 10_000, scenario
         );
 
+        scenario_val.end();
+    }
+
+    #[test]
+    fun test_leftover_burning_after_reward_distribution() {
+        set_up_iota_system_state();
+        let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
+        let scenario = &mut scenario_val;
+
+        // The leftover comes from the unequal distribution of rewards to validators.
+        // As example 1_000_000_000_1 cannot be splitted into equal parts, so it cause leftover.
+        let storage_rebate = advance_epoch_with_reward_amounts_return_rebate(1_000_000_000_1, 1_000_000_000_000, 1_000_000_000_1, 0, 0, scenario);
+        destroy(storage_rebate);
+
+        scenario.next_tx(@0x0);
+        let mut system_state = scenario.take_shared<IotaSystemState>();
+        // Total supply after leftover has burned.
+        assert_eq(system_state.get_iota_supply(), 999_999_999_999);
+
+        test_scenario::return_shared(system_state);
         scenario_val.end();
     }
 
