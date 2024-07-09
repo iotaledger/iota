@@ -18,7 +18,8 @@
         "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
         "storybook": "storybook dev -p 6006",
         "build-storybook": "storybook build",
-        "build": "tsc --project tsconfig.package.json && vite build",
+        "build-package": "tsc --project tsconfig.package.json && vite build",
+        "build": "cross-env BUILD_ENV=package pnpm run build-package",
         "dev": "pnpm run storybook"
     },
     "exports": {
@@ -32,6 +33,7 @@
     "dependencies": {
         "@iota/core": "workspace:*",
         "@iota/icons": "workspace:*",
+        "cross-env": "^7.0.3",
         "lodash.merge": "^4.6.2",
         "react": "^18.3.1",
         "react-dom": "^18.3.1"
