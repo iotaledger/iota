@@ -43,7 +43,6 @@ struct Cli {
     #[clap(
         long,
         help = "Disable global snapshot verification",
-        default_value_t = false
     )]
     disable_global_snapshot_verification: bool,
 }
