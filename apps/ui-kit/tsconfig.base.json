@@ -17,7 +17,9 @@
         "paths": {
             "@/*": ["./src/*"],
             "@/components": ["./src/lib/components"],
-            "@/components/*": ["./src/lib/components/*"]
+            "@/components/*": ["./src/lib/components/*"],
+            "@/enums": ["./src/lib/enums"],
+            "@/enums/*": ["./src/lib/enums/*"]
         }
     }
 }
