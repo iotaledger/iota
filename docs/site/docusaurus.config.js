@@ -174,7 +174,7 @@ const config = {
         },
       },
       navbar: {
-        title: "IOTA Documentation",
+        title: "",
         logo: {
           alt: "IOTA Docs Logo",
           src: "img/iota-logo.svg",
@@ -196,32 +196,24 @@ const config = {
             label: "References",
             to: "references",
           },
-
-          /*
-          {
-            type: "docsVersionDropdown",
-            position: "right",
-            dropdownActiveClassDisabled: true,
-          },
-          {
-            type: "localeDropdown",
-            position: "right",
-          },
-          */
         ],
       },
       footer: {
         logo: {
-          alt: "IOTA Logo",
-          src: "img/iota-logo-footer.svg",
-          href: "https://iota.org",
+          alt: "IOTA Wiki Logo",
+          src: "img/iota-logo.svg",
         },
-        style: "dark",
-        copyright: `© ${new Date().getFullYear()} IOTA Foundation | Documentation distributed under <a href="https://github.com/iota-foundation/iota-docs/blob/main/LICENSE">CC BY 4.0</a>`,
+        copyright: `
+        <div style="display: flex; flex-direction:column;">
+           ©  ${new Date().getFullYear()} IOTA Foundation
+          <div>
+                 <a>Privacy Policy</a> • <a>Impressum</a> • <a>Contact Us</a>
+          </div>
+        </div>`,
       },
       prism: {
         theme: themes.github,
-        darkTheme: themes.nightOwl,
+        darkTheme: themes.jettwaveDark,
         additionalLanguages: ["rust", "typescript", "toml", "solidity"],
       },
     }),
