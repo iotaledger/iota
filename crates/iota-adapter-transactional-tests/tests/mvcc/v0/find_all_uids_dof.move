@@ -4,7 +4,7 @@
 
 // tests finding UIDs for dynamic object field access
 
-//# init --addresses test=0x0 --accounts A --protocol-version 16
+//# init --addresses test=0x0 --accounts A --protocol-version 1
 
 //# publish
 

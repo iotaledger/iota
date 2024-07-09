@@ -7,13 +7,21 @@ import React from "react";
 import Layout from "@theme/Layout";
 import Link from "@docusaurus/Link";
 import styles from "./index.module.css";
-
+import heroCardBg from "@site/static/img/heroCardBg.png";
+import heroCardBg1 from "@site/static/img/heroCardBg1.png";
+import heroCardBg2 from "@site/static/img/heroCardBg2.png";
 export default function Home() {
   const HomeCard = (props) => {
-    const { title, children } = props;
+    const { title, children, heroCardBg } = props;
+
     return (
       <div className={`p-px col-span-3 w-[350px]`}>
-        <div className={styles.card}>
+        <div
+          className={styles.card}
+          style={{
+            background: `black url(${heroCardBg}) no-repeat top`,
+          }}
+        >
           {title && <h4 className="h4 text-white">{title}</h4>}
           <div className={styles.cardLinksContainer}>{children}</div>
         </div>
@@ -24,7 +32,12 @@ export default function Home() {
     const { children } = props;
     return (
       <div className={`p-px col-span-3 w-[350px]`}>
-        <div className={styles.cardCTA}>
+        <div
+          className={styles.cardCTA}
+          style={{
+            background: `black url(${heroCardBg}) no-repeat top`,
+          }}
+        >
           <div className={styles.cardLinksContainer}>{children}</div>
         </div>
       </div>
@@ -32,18 +45,38 @@ export default function Home() {
   };
 
   return (
-    <Layout>
+    <Layout
+      style={{
+        background: "var(--iota-black)",
+      }}
+    >
+      {" "}
       <div className="bg-iota-black overflow-hidden">
-        <div className="w-full mt-24 mb-12 mx-auto bg-iota-black">
-          <div className={styles.heroText}>
-            <h1 className="h1 center-text text-white">IOTA Documentation</h1>
-            <h2 className="h2 text-gray center-text h3">
-              Discover the power of IOTA through examples, guides, and concepts
-            </h2>
+        <div className={styles.backgroundImage}>
+          <div className="w-full mt-24 mb-12 mx-auto">
+            <div className={styles.heroText}>
+              <h1 className="text-5xl center-text text-white">
+                IOTA Documentation
+              </h1>
+              <h2
+                className="h2 text-gray center-text h3"
+                style={{ fontSize: "16px" }}
+              >
+                Discover the power of IOTA through examples, guides, and
+                concepts
+              </h2>
+              <Link
+                to="/guides#get-started-developing-on-iota"
+                className="button-cta"
+              >
+                Get started
+              </Link>
+            </div>
           </div>
         </div>
+
         <div className="flex flex-row flex-wrap justify-center gap-2 max-w-[1066px] mx-auto">
-          <HomeCard title="About IOTA">
+          <HomeCard title="About IOTA" heroCardBg={heroCardBg}>
             <Link className={styles.cardLink} to="./concepts/tokenomics">
               Tokenomics
             </Link>
@@ -54,7 +87,7 @@ export default function Home() {
               Standards
             </Link>
           </HomeCard>
-          <HomeCard title="Developers">
+          <HomeCard title="Developers" heroCardBg={heroCardBg1}>
             <Link
               className={styles.cardLink}
               to="./guides/developer/getting-started"
@@ -64,11 +97,17 @@ export default function Home() {
             <Link className={styles.cardLink} to="./guides/developer/iota-101">
               IOTA Developer Basics
             </Link>
-            <Link className={styles.cardLink} to="./concepts/iota-move-concepts">
+            <Link
+              className={styles.cardLink}
+              to="./concepts/iota-move-concepts"
+            >
               Move
             </Link>
           </HomeCard>
-          <HomeCard title="Validators and Node operators">
+          <HomeCard
+            title="Validators and Node operators"
+            heroCardBg={heroCardBg2}
+          >
             <Link
               className={styles.cardLink}
               to="./guides/operator/validator-config"
@@ -83,7 +122,7 @@ export default function Home() {
               <span className="block bg-auto bg-[url(../static/img/index/right-arrow.svg)]"></span>
             </Link>
           </HomeCard>
-          <HomeCard title="References" aux>
+          <HomeCard title="References" aux heroCardBg={heroCardBg1}>
             <Link
               className={styles.cardLink}
               to="https://sdk.mystenlabs.com/dapp-kit?ref=blog.iota.io"
@@ -106,7 +145,7 @@ export default function Home() {
               Rust SDK (GitHub)
             </Link>
           </HomeCard>
-          <HomeCard title="Resources" aux>
+          <HomeCard title="Resources" aux heroCardBg={heroCardBg2}>
             <Link
               className={styles.cardLink}
               to="https://iota.directory/?_project_type=api%2Cdeveloper-tools%2Cinfrastructure%2Csdk"
@@ -152,12 +191,8 @@ export default function Home() {
           </h3>
         </div>
         <div className={styles.why}>
-          <div className="">
-            <img
-              height={"100%"}
-              src="/img/index/blocks.png"
-              alt="Decorative visual"
-            />
+          <div className={styles.whyImgCard}>
+            <img height={"90%"} src="/img/blocks.png" alt="Decorative visual" />
           </div>
           <div className={styles.cardsB}>
             <div className={styles.cardB}>
