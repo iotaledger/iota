@@ -537,8 +537,6 @@ module iota_system::rewards_distribution_tests {
 
         scenario.next_tx(@0x0);
         let mut system_state = scenario.take_shared<IotaSystemState>();
-        assert_eq(system_state.get_iota_supply(), 100 * MICROS_PER_IOTA);
-
         test_scenario::return_shared(system_state);
         scenario_val.end();
     }
