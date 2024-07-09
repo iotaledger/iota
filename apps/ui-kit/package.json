@@ -18,7 +18,8 @@
         "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
         "storybook": "storybook dev -p 6006",
         "build-storybook": "storybook build",
-        "build": "tsc --project tsconfig.package.json && vite build",
+        "build-package": "tsc --project tsconfig.package.json && vite build",
+        "build": "cross-env BUILD_ENV=package pnpm run build-package",
         "dev": "pnpm run storybook"
     },
     "exports": {
@@ -51,6 +52,7 @@
         "@types/react": "^18.2.15",
         "@vitejs/plugin-react-swc": "^3.3.2",
         "autoprefixer": "^10.4.14",
+        "cross-env": "^7.0.3",
         "postcss": "^8.4.31",
         "storybook": "^7.1.0",
         "storybook-dark-mode": "^4.0.2",
