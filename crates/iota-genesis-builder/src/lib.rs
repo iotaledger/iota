@@ -14,8 +14,8 @@ use anyhow::{bail, Context};
 use camino::Utf8Path;
 use fastcrypto::{hash::HashFunction, traits::KeyPair};
 use iota_config::genesis::{
-    Genesis, GenesisCeremonyParameters, GenesisChainParameters, TimelockAllocation,
-    TokenDistributionSchedule, UnsignedGenesis,
+    Genesis, GenesisCeremonyParameters, GenesisChainParameters, TokenDistributionSchedule,
+    UnsignedGenesis,
 };
 use iota_execution::{self, Executor};
 use iota_framework::{BuiltInFramework, SystemPackage};
@@ -24,7 +24,8 @@ use iota_sdk::types::block::address::Address;
 use iota_types::{
     balance::Balance,
     base_types::{
-        ExecutionDigests, IotaAddress, ObjectID, SequenceNumber, TransactionDigest, TxContext,
+        ExecutionDigests, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
+        TxContext,
     },
     committee::Committee,
     crypto::{
@@ -50,8 +51,7 @@ use iota_types::{
         CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectArg, ObjectReadResult,
         Transaction,
     },
-    IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_STATE_OBJECT_ID,
-    IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION, TIMELOCK_ADDRESS,
+    IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
 };
 use move_binary_format::CompiledModule;
 use move_core_types::ident_str;
@@ -278,9 +278,9 @@ impl Builder {
         self.built_genesis = Some(build_unsigned_genesis_data(
             &self.parameters,
             &token_distribution_schedule,
-            self.genesis_stake.timelock_allocations(),
             &validators,
             objects,
+            &mut self.genesis_stake,
         ));
 
         self.token_distribution_schedule = Some(token_distribution_schedule);
@@ -378,17 +378,6 @@ impl Builder {
             token_distribution_schedule.validate();
             token_distribution_schedule.check_all_stake_operations_are_for_valid_validators(
                 self.validators.values().map(|v| v.info.iota_address()),
-                (!self.is_vanilla())
-                    .then(|| {
-                        self.genesis_stake
-                            .timelock_allocations()
-                            .iter()
-                            .map(|allocation| {
-                                (allocation.staked_with_validator, allocation.amount_nanos)
-                            })
-                            .collect()
-                    })
-                    .unwrap_or_default(),
             );
         }
 
@@ -833,9 +822,9 @@ fn get_genesis_protocol_config(version: ProtocolVersion) -> ProtocolConfig {
 fn build_unsigned_genesis_data(
     parameters: &GenesisCeremonyParameters,
     token_distribution_schedule: &TokenDistributionSchedule,
-    timelock_allocations: &[TimelockAllocation],
     validators: &[GenesisValidatorInfo],
     objects: Vec<Object>,
+    genesis_stake: &mut GenesisStake,
 ) -> UnsignedGenesis {
     if !parameters.allow_insertion_of_extra_objects && !objects.is_empty() {
         panic!(
@@ -853,14 +842,6 @@ fn build_unsigned_genesis_data(
     token_distribution_schedule.validate();
     token_distribution_schedule.check_all_stake_operations_are_for_valid_validators(
         genesis_validators.iter().map(|v| v.iota_address),
-        (!timelock_allocations.is_empty())
-            .then(|| {
-                timelock_allocations
-                    .iter()
-                    .map(|allocation| (allocation.staked_with_validator, allocation.amount_nanos))
-                    .collect()
-            })
-            .unwrap_or_default(),
     );
 
     let epoch_data = EpochData::new_genesis(genesis_chain_parameters.chain_start_timestamp_ms);
@@ -890,7 +871,7 @@ fn build_unsigned_genesis_data(
         &genesis_validators,
         &genesis_chain_parameters,
         token_distribution_schedule,
-        timelock_allocations,
+        genesis_stake,
         system_packages,
         metrics.clone(),
     );
@@ -1027,7 +1008,7 @@ fn create_genesis_objects(
     validators: &[GenesisValidatorMetadata],
     parameters: &GenesisChainParameters,
     token_distribution_schedule: &TokenDistributionSchedule,
-    timelock_allocations: &[TimelockAllocation],
+    genesis_stake: &mut GenesisStake,
     system_packages: Vec<SystemPackage>,
     metrics: Arc<LimitsMetrics>,
 ) -> Vec<Object> {
@@ -1061,6 +1042,18 @@ fn create_genesis_objects(
         store.insert_object(object);
     }
 
+    if !genesis_stake.is_empty() {
+        split_timelocks(
+            &mut store,
+            executor.as_ref(),
+            genesis_ctx,
+            parameters,
+            &mut genesis_stake.take_timelocks_to_split(),
+            metrics.clone(),
+        )
+        .unwrap();
+    }
+
     generate_genesis_system_object(
         &mut store,
         executor.as_ref(),
@@ -1068,23 +1061,17 @@ fn create_genesis_objects(
         genesis_ctx,
         parameters,
         token_distribution_schedule,
-        metrics.clone(),
+        metrics,
     )
     .unwrap();
 
-    if !timelock_allocations.is_empty() {
-        generate_genesis_timelock_allocation(
-            &mut store,
-            executor.as_ref(),
-            genesis_ctx,
-            parameters,
-            timelock_allocations,
-            metrics,
-        )
-        .unwrap();
-    }
-
-    store.into_inner().into_values().collect()
+    let mut intermediate_store = store.into_inner();
+    // The equivalent of migration_objects evict for timelocks
+    let _ = genesis_stake
+        .take_timelocks_to_burn()
+        .iter()
+        .map(|(id, _, _)| intermediate_store.remove(id));
+    intermediate_store.into_values().collect()
 }
 
 pub(crate) fn process_package(
@@ -1278,12 +1265,12 @@ pub fn generate_genesis_system_object(
     Ok(())
 }
 
-pub fn generate_genesis_timelock_allocation(
+pub fn split_timelocks(
     store: &mut InMemoryStorage,
     executor: &dyn Executor,
     genesis_ctx: &mut TxContext,
     genesis_chain_parameters: &GenesisChainParameters,
-    timelock_allocations: &[TimelockAllocation],
+    timelocks_to_split: &[(ObjectRef, u64, IotaAddress)],
     metrics: Arc<LimitsMetrics>,
 ) -> anyhow::Result<()> {
     let protocol_config = ProtocolConfig::get_for_version(
@@ -1291,94 +1278,32 @@ pub fn generate_genesis_timelock_allocation(
         ChainIdentifier::default().chain(),
     );
 
-    // Timelock allocation
-    let mut timelock_allocation_input_objects: Vec<ObjectReadResult> = vec![];
-    timelock_allocation_input_objects.push(ObjectReadResult::new(
-        InputObjectKind::SharedMoveObject {
-            id: IOTA_SYSTEM_STATE_OBJECT_ID,
-            initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
-            mutable: true,
-        },
-        store
-            .get_object(&IOTA_SYSTEM_STATE_OBJECT_ID)
-            .unwrap()
-            .clone()
-            .into(),
-    ));
+    // Timelock split
+    let mut timelock_split_input_objects: Vec<ObjectReadResult> = vec![];
     let pt = {
-        // Step 6: Handle the timelock allocations.
         let mut builder = ProgrammableTransactionBuilder::new();
-        for allocation in timelock_allocations {
-            timelock_allocation_input_objects.append(
-                &mut allocation
-                    .timelock_objects
-                    .iter()
-                    .map(|&timelock_ref| {
-                        ObjectReadResult::new(
-                            InputObjectKind::ImmOrOwnedMoveObject(timelock_ref),
-                            store.get_object(&timelock_ref.0).unwrap().clone().into(),
-                        )
-                    })
-                    .collect(),
-            );
-
-            if allocation.surplus_nanos > 0 {
-                // Split the surplus amount.
-                let timelock = *allocation
-                    .timelock_objects
-                    .last()
-                    .expect("there should be at least two objects");
-                let arguments = vec![
-                    builder.obj(ObjectArg::ImmOrOwnedObject(timelock))?,
-                    builder.pure(allocation.surplus_nanos)?,
-                ];
-                let surplus_timelock = builder.programmable_move_call(
-                    TIMELOCK_ADDRESS.into(),
-                    ident_str!("timelocked_balance").to_owned(),
-                    ident_str!("split").to_owned(),
-                    vec![GAS::type_tag()],
-                    arguments,
-                );
-                let arguments = vec![
-                    surplus_timelock,
-                    builder.pure(allocation.recipient_address)?,
-                ];
-                builder.programmable_move_call(
-                    TIMELOCK_ADDRESS.into(),
-                    ident_str!("timelock").to_owned(),
-                    ident_str!("transfer").to_owned(),
-                    vec![Balance::type_tag(GAS::type_tag())],
-                    arguments,
-                );
-            }
-            // Add the stake
+        for (timelock, surplus_amount, recipient) in timelocks_to_split {
+            timelock_split_input_objects.push(ObjectReadResult::new(
+                InputObjectKind::ImmOrOwnedMoveObject(timelock.clone()),
+                store.get_object(&timelock.0).unwrap().clone().into(),
+            ));
             let arguments = vec![
-                builder.obj(ObjectArg::SharedObject {
-                    id: IOTA_SYSTEM_STATE_OBJECT_ID,
-                    initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
-                    mutable: true,
-                })?,
-                builder.make_obj_vec(
-                    allocation
-                        .timelock_objects
-                        .iter()
-                        .map(|&timelock| ObjectArg::ImmOrOwnedObject(timelock)),
-                )?,
-                builder.pure(allocation.staked_with_validator)?,
+                builder.obj(ObjectArg::ImmOrOwnedObject(*timelock))?,
+                builder.pure(surplus_amount)?,
             ];
-            let receipt_vector = builder.programmable_move_call(
-                TIMELOCK_ADDRESS.into(),
-                ident_str!("timelocked_staking").to_owned(),
-                ident_str!("request_add_stake_mul_bal_non_entry").to_owned(),
-                vec![],
+            let surplus_timelock = builder.programmable_move_call(
+                IOTA_FRAMEWORK_ADDRESS.into(),
+                ident_str!("timelock").to_owned(),
+                ident_str!("split").to_owned(),
+                vec![GAS::type_tag()],
                 arguments,
             );
-            let arguments = vec![receipt_vector, builder.pure(allocation.recipient_address)?];
+            let arguments = vec![surplus_timelock, builder.pure(*recipient)?];
             builder.programmable_move_call(
-                TIMELOCK_ADDRESS.into(),
-                ident_str!("timelocked_staked_iota").to_owned(),
-                ident_str!("transfer_multiple").to_owned(),
-                vec![],
+                IOTA_FRAMEWORK_ADDRESS.into(),
+                ident_str!("timelock").to_owned(),
+                ident_str!("transfer").to_owned(),
+                vec![Balance::type_tag(GAS::type_tag())],
                 arguments,
             );
         }
@@ -1390,7 +1315,7 @@ pub fn generate_genesis_timelock_allocation(
         &protocol_config,
         metrics,
         genesis_ctx,
-        CheckedInputObjects::new_for_genesis(timelock_allocation_input_objects),
+        CheckedInputObjects::new_for_genesis(timelock_split_input_objects),
         pt,
     )?;
 
