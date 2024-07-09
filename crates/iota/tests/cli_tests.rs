@@ -2649,10 +2649,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_stake_with_none_amount() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new()
-        .with_epoch_duration_ms(100)
-        .build()
-        .await;
+    let mut test_cluster = TestClusterBuilder::new().build().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
 
@@ -2692,7 +2689,8 @@ async fn test_stake_with_none_amount() -> Result<(), anyhow::Error> {
     ])
     .await?;
 
-    let stake = get_stakes(&client, address).await?;
+    let stake = client.governance_api().get_stakes(address).await?;
+
     assert_eq!(1, stake.len());
     assert_eq!(
         coins.first().unwrap().balance,
@@ -2703,10 +2701,7 @@ async fn test_stake_with_none_amount() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_stake_with_u64_amount() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new()
-        .with_epoch_duration_ms(100)
-        .build()
-        .await;
+    let mut test_cluster = TestClusterBuilder::new().build().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
 
@@ -2746,40 +2741,14 @@ async fn test_stake_with_u64_amount() -> Result<(), anyhow::Error> {
     ])
     .await?;
 
-    let stake = get_stakes(&client, address).await?;
+    let stake = client.governance_api().get_stakes(address).await?;
+
     assert_eq!(1, stake.len());
     assert_eq!(
         1000000000,
         stake.first().unwrap().stakes.first().unwrap().principal
     );
     Ok(())
-}
-
-// Helper function for test_stake_with_none_amount() and
-// test_stake_with_u64_amount(). To be used with the combination of
-// .with_epoch_duration_ms(100). This is required for the tests to pass, as
-// .get_stakes(address) uses exchange_rates() internally and this is cached
-// with the epoch index across tests and can then return cached values from
-// the other test.
-async fn get_stakes(
-    client: &iota_sdk::IotaClient,
-    address: IotaAddress,
-) -> Result<Vec<iota_json_rpc_types::DelegatedStake>, anyhow::Error> {
-    let mut i = 0;
-    // We may have to try multiple times until the epoch changes and new data is
-    // cached
-    Ok(loop {
-        i += 1;
-        match client.governance_api().get_stakes(address).await {
-            Ok(stake) => break stake,
-            Err(e) => {
-                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                if i == 40 {
-                    return Err(e.into());
-                }
-            }
-        }
-    })
 }
 
 async fn test_with_iota_binary(args: &[&str]) -> Result<(), anyhow::Error> {
