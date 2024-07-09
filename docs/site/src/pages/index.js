@@ -66,7 +66,7 @@ export default function Home() {
                 explanations/
               </h2>
               <Link
-                to="/guides#get-started-developing-on-iota"
+                to="/developer/getting-started"
                 className="button-cta"
               >
                 Get started
