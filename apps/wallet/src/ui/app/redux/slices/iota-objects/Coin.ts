@@ -8,7 +8,7 @@ const COIN_TYPE = '0x2::coin::Coin';
 const COIN_TYPE_ARG_REGEX = /^0x2::coin::Coin<(.+)>$/;
 
 export const IOTA_COIN_TYPE_ID = 4218;
-export const GAS_TYPE_ARG = '0x2::iota::IOTA';
+export const GAS_COIN_TYPE = '0x2::iota::IOTA';
 export const GAS_SYMBOL = 'IOTA';
 
 // TODO use sdk

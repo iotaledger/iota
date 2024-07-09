@@ -6,7 +6,7 @@ import { hasBalance, mergeAccounts, recoverAccounts } from './accounts-finder';
 import NetworkEnv from '../NetworkEnv';
 import { IotaClient, getFullnodeUrl } from '@iota/iota.js/client';
 import { AccountType } from '../accounts/Account';
-import { GAS_TYPE_ARG } from '_redux/slices/iota-objects/Coin';
+import { GAS_COIN_TYPE } from '_redux/slices/iota-objects/Coin';
 import { getEmptyBalance, getPublicKey } from '_src/background/accounts-finder/helpers';
 import { type FindBalance } from '_src/background/accounts-finder/types';
 
@@ -89,7 +89,7 @@ class AccountsFinder {
 
     private algorithm: SearchAlgorithm = SearchAlgorithm.ITERATIVE_DEEPENING_BREADTH_FIRST;
     private bip44CoinType: AllowedBip44CoinTypes = AllowedBip44CoinTypes.IOTA; // 4218 for IOTA or 4219 for Shimmer
-    private coinType: string = GAS_TYPE_ARG;
+    private coinType: string = GAS_COIN_TYPE;
     private sourceID: string = '';
     public client: IotaClient | null = null;
 
@@ -207,6 +207,14 @@ class AccountsFinder {
             owner: publicKeyHash,
             coinType: this.coinType,
         });
+
+        console.log(
+            '--- foundBalance',
+            params.accountIndex,
+            params.addressIndex,
+            params.changeIndex,
+            foundBalance,
+        );
 
         return {
             publicKeyHash,

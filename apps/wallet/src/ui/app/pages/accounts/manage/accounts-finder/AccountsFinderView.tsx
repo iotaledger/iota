@@ -22,6 +22,8 @@ export function AccountsFinderView(): JSX.Element {
         sourceID: accountSourceId || '',
     });
 
+    console.log(finderAddresses);
+
     return (
         <div className="flex h-full flex-1 flex-col justify-between">
             <div className="flex h-96 flex-col gap-4 overflow-y-auto">
