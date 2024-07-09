@@ -21,6 +21,7 @@ module iota_system::rewards_distribution_tests {
         total_iota_balance, total_supply,
         unstake
     };
+    use iota::balance;
     use iota::test_utils::assert_eq;
     use iota::address;
 
@@ -378,18 +379,7 @@ module iota_system::rewards_distribution_tests {
         let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
         let scenario = &mut scenario_val;
 
-        report_validator(VALIDATOR_ADDR_1, VALIDATOR_ADDR_4, scenario);
-        report_validator(VALIDATOR_ADDR_2, VALIDATOR_ADDR_4, scenario);
-        report_validator(VALIDATOR_ADDR_3, VALIDATOR_ADDR_4, scenario);
-        report_validator(VALIDATOR_ADDR_1, VALIDATOR_ADDR_3, scenario);
-        report_validator(VALIDATOR_ADDR_2, VALIDATOR_ADDR_3, scenario);
-        report_validator(VALIDATOR_ADDR_4, VALIDATOR_ADDR_3, scenario);
-        report_validator(VALIDATOR_ADDR_1, VALIDATOR_ADDR_2, scenario);
-        report_validator(VALIDATOR_ADDR_3, VALIDATOR_ADDR_2, scenario);
-        report_validator(VALIDATOR_ADDR_4, VALIDATOR_ADDR_2, scenario);
-        report_validator(VALIDATOR_ADDR_2, VALIDATOR_ADDR_1, scenario);
-        report_validator(VALIDATOR_ADDR_3, VALIDATOR_ADDR_1, scenario);
-        report_validator(VALIDATOR_ADDR_4, VALIDATOR_ADDR_1, scenario);
+        slash_all_validators(scenario);
 
         advance_epoch_with_reward_amounts_and_slashing_rates(
             1000, 500, 10_000, scenario
@@ -506,6 +496,53 @@ module iota_system::rewards_distribution_tests {
         scenario_val.end();
     }
 
+    #[test]
+    fun leftover_is_burned() {
+        set_up_iota_system_state();
+        let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
+        let scenario = &mut scenario_val;
+
+        // To get the leftover, we have to slash every validator. This way, the computation reward will remain as leftover.
+        slash_all_validators(scenario);
+
+        // Pass 700 IOTA as computation reward(for an instance). 
+        advance_epoch_with_reward_amounts_and_slashing_rates(
+            1000, 700, 10_000, scenario
+        );
+
+        scenario.next_tx(@0x0);
+        // The total supply should be reduced by 700 IOTA because the 700 IOTA becomes leftover and should be burned.
+        let mut system_state = scenario.take_shared<IotaSystemState>();
+        assert_eq(system_state.get_iota_supply(), 300 * MICROS_PER_IOTA);
+
+        test_scenario::return_shared(system_state);
+        scenario_val.end();
+    }
+
+    #[test]
+    #[expected_failure(abort_code = iota::balance::EOverflow)]
+    fun leftover_is_larger_than_supply() {
+        set_up_iota_system_state();
+        let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
+        let scenario = &mut scenario_val;
+
+        // To get the leftover, we have to slash every validator. This way, the computation reward will remain as leftover.
+        slash_all_validators(scenario);
+
+        // Pass 1700 IOTA as computation reward(for an instance).
+        // It should be larger than total supply.
+        advance_epoch_with_reward_amounts_and_slashing_rates(
+            1000, 1700, 10_000, scenario
+        );
+
+        scenario.next_tx(@0x0);
+        let mut system_state = scenario.take_shared<IotaSystemState>();
+        assert_eq(system_state.get_iota_supply(), 100 * MICROS_PER_IOTA);
+
+        test_scenario::return_shared(system_state);
+        scenario_val.end();
+    }
+
     fun set_up_iota_system_state() {
         let mut scenario_val = test_scenario::begin(@0x0);
         let scenario = &mut scenario_val;
@@ -556,5 +593,20 @@ module iota_system::rewards_distribution_tests {
         system_state.report_validator(&cap, reportee);
         scenario.return_to_sender(cap);
         test_scenario::return_shared(system_state);
+    }
+
+    fun slash_all_validators(scenario: &mut Scenario) {
+        report_validator(VALIDATOR_ADDR_1, VALIDATOR_ADDR_4, scenario);
+        report_validator(VALIDATOR_ADDR_2, VALIDATOR_ADDR_4, scenario);
+        report_validator(VALIDATOR_ADDR_3, VALIDATOR_ADDR_4, scenario);
+        report_validator(VALIDATOR_ADDR_1, VALIDATOR_ADDR_3, scenario);
+        report_validator(VALIDATOR_ADDR_2, VALIDATOR_ADDR_3, scenario);
+        report_validator(VALIDATOR_ADDR_4, VALIDATOR_ADDR_3, scenario);
+        report_validator(VALIDATOR_ADDR_1, VALIDATOR_ADDR_2, scenario);
+        report_validator(VALIDATOR_ADDR_3, VALIDATOR_ADDR_2, scenario);
+        report_validator(VALIDATOR_ADDR_4, VALIDATOR_ADDR_2, scenario);
+        report_validator(VALIDATOR_ADDR_2, VALIDATOR_ADDR_1, scenario);
+        report_validator(VALIDATOR_ADDR_3, VALIDATOR_ADDR_1, scenario);
+        report_validator(VALIDATOR_ADDR_4, VALIDATOR_ADDR_1, scenario);
     }
 }
