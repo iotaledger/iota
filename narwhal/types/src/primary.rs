@@ -22,7 +22,6 @@ use fastcrypto::{
     traits::{AggregateAuthenticator, Signer, VerifyingKey},
 };
 use indexmap::IndexMap;
-use iota_protocol_config::ProtocolConfig;
 use mysten_util_mem::MallocSizeOf;
 use once_cell::sync::OnceCell;
 use proptest_derive::Arbitrary;
@@ -99,11 +98,17 @@ pub enum VersionedMetadata {
 }
 
 impl VersionedMetadata {
-    pub fn new(_protocol_config: &ProtocolConfig) -> Self {
+    pub fn new() -> Self {
         Self::V1(MetadataV1 {
             created_at: now(),
             received_at: None,
         })
+    }
+}
+
+impl Default for VersionedMetadata {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -147,18 +152,16 @@ impl MetadataAPI for MetadataV1 {
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Arbitrary)]
 #[enum_dispatch(BatchAPI)]
 pub enum Batch {
-    V1(BatchV1),
     V2(BatchV2),
 }
 
 impl Batch {
-    pub fn new(transactions: Vec<Transaction>, protocol_config: &ProtocolConfig) -> Self {
-        Self::V2(BatchV2::new(transactions, protocol_config))
+    pub fn new(transactions: Vec<Transaction>) -> Self {
+        Self::V2(BatchV2::new(transactions))
     }
 
     pub fn size(&self) -> usize {
         match self {
-            Batch::V1(data) => data.size(),
             Batch::V2(data) => data.size(),
         }
     }
@@ -169,7 +172,6 @@ impl Hash<{ crypto::DIGEST_LENGTH }> for Batch {
 
     fn digest(&self) -> BatchDigest {
         match self {
-            Batch::V1(data) => data.digest(),
             Batch::V2(data) => data.digest(),
         }
     }
@@ -180,8 +182,6 @@ pub trait BatchAPI {
     fn transactions(&self) -> &Vec<Transaction>;
     fn transactions_mut(&mut self) -> &mut Vec<Transaction>;
     fn into_transactions(self) -> Vec<Transaction>;
-    fn metadata(&self) -> &Metadata;
-    fn metadata_mut(&mut self) -> &mut Metadata;
 
     // BatchV2 APIs
     fn versioned_metadata(&self) -> &VersionedMetadata;
@@ -189,54 +189,6 @@ pub trait BatchAPI {
 }
 
 pub type Transaction = Vec<u8>;
-#[derive(Clone, Serialize, Deserialize, Default, Debug, PartialEq, Eq, Arbitrary)]
-pub struct BatchV1 {
-    pub transactions: Vec<Transaction>,
-    pub metadata: Metadata,
-}
-
-impl BatchAPI for BatchV1 {
-    fn transactions(&self) -> &Vec<Transaction> {
-        &self.transactions
-    }
-
-    fn transactions_mut(&mut self) -> &mut Vec<Transaction> {
-        &mut self.transactions
-    }
-
-    fn into_transactions(self) -> Vec<Transaction> {
-        self.transactions
-    }
-
-    fn metadata(&self) -> &Metadata {
-        &self.metadata
-    }
-
-    fn metadata_mut(&mut self) -> &mut Metadata {
-        &mut self.metadata
-    }
-
-    fn versioned_metadata(&self) -> &VersionedMetadata {
-        unimplemented!("BatchV1 does not have a VersionedMetadata field");
-    }
-
-    fn versioned_metadata_mut(&mut self) -> &mut VersionedMetadata {
-        unimplemented!("BatchV1 does not have a VersionedMetadata field");
-    }
-}
-
-impl BatchV1 {
-    pub fn new(transactions: Vec<Transaction>) -> Self {
-        Self {
-            transactions,
-            metadata: Metadata::default(),
-        }
-    }
-
-    pub fn size(&self) -> usize {
-        self.transactions.iter().map(|t| t.len()).sum()
-    }
-}
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Arbitrary)]
 pub struct BatchV2 {
@@ -258,14 +210,6 @@ impl BatchAPI for BatchV2 {
         self.transactions
     }
 
-    fn metadata(&self) -> &Metadata {
-        unimplemented!("BatchV2 does not have a Metadata field");
-    }
-
-    fn metadata_mut(&mut self) -> &mut Metadata {
-        unimplemented!("BatchV2 does not have a Metadata field");
-    }
-
     fn versioned_metadata(&self) -> &VersionedMetadata {
         &self.versioned_metadata
     }
@@ -276,30 +220,15 @@ impl BatchAPI for BatchV2 {
 }
 
 impl BatchV2 {
-    pub fn new(transactions: Vec<Transaction>, protocol_config: &ProtocolConfig) -> Self {
+    pub fn new(transactions: Vec<Transaction>) -> Self {
         Self {
             transactions,
-            versioned_metadata: VersionedMetadata::new(protocol_config),
+            versioned_metadata: VersionedMetadata::new(),
         }
     }
 
     pub fn size(&self) -> usize {
         self.transactions.iter().map(|t| t.len()).sum()
-    }
-}
-
-// TODO: Remove once we have removed BatchV1 from the codebase.
-pub fn validate_batch_version(
-    batch: &Batch,
-    protocol_config: &ProtocolConfig,
-) -> anyhow::Result<()> {
-    // We will only accept BatchV2 from the network.
-    match batch {
-        Batch::V1(_) => Err(anyhow::anyhow!(format!(
-            "Received {batch:?} but network is at {:?} and this batch version is no longer supported",
-            protocol_config.version
-        ))),
-        Batch::V2(_) => Ok(()),
     }
 }
 
@@ -356,16 +285,6 @@ impl AsRef<[u8]> for BatchDigest {
 impl BatchDigest {
     pub fn new(val: [u8; crypto::DIGEST_LENGTH]) -> BatchDigest {
         BatchDigest(val)
-    }
-}
-
-impl Hash<{ crypto::DIGEST_LENGTH }> for BatchV1 {
-    type TypedDigest = BatchDigest;
-
-    fn digest(&self) -> Self::TypedDigest {
-        BatchDigest::new(
-            crypto::DefaultHashFunction::digest_iterator(self.transactions.iter()).into(),
-        )
     }
 }
 
@@ -873,64 +792,44 @@ impl PartialEq for Vote {
 #[derive(Clone, Serialize, Deserialize, MallocSizeOf)]
 #[enum_dispatch(CertificateAPI)]
 pub enum Certificate {
-    V1(CertificateV1),
     V2(CertificateV2),
 }
 
 impl Certificate {
-    pub fn genesis(protocol_config: &ProtocolConfig, committee: &Committee) -> Vec<Self> {
-        if protocol_config.narwhal_certificate_v2() {
-            CertificateV2::genesis(committee)
-                .into_iter()
-                .map(Self::V2)
-                .collect()
-        } else {
-            CertificateV1::genesis(committee)
-                .into_iter()
-                .map(Self::V1)
-                .collect()
-        }
+    pub fn genesis(committee: &Committee) -> Vec<Self> {
+        CertificateV2::genesis(committee)
+            .into_iter()
+            .map(Self::V2)
+            .collect()
     }
 
     pub fn new_unverified(
-        protocol_config: &ProtocolConfig,
         committee: &Committee,
         header: Header,
         votes: Vec<(AuthorityIdentifier, Signature)>,
     ) -> DagResult<Certificate> {
-        if protocol_config.narwhal_certificate_v2() {
-            CertificateV2::new_unverified(committee, header, votes)
-        } else {
-            CertificateV1::new_unverified(committee, header, votes)
-        }
+        CertificateV2::new_unverified(committee, header, votes)
     }
 
     pub fn new_unsigned(
-        protocol_config: &ProtocolConfig,
         committee: &Committee,
         header: Header,
         votes: Vec<(AuthorityIdentifier, Signature)>,
     ) -> DagResult<Certificate> {
-        if protocol_config.narwhal_certificate_v2() {
-            CertificateV2::new_unsigned(committee, header, votes)
-        } else {
-            CertificateV1::new_unsigned(committee, header, votes)
-        }
+        CertificateV2::new_unsigned(committee, header, votes)
     }
 
     /// This function requires that certificate was verified against given
     /// committee
     pub fn signed_authorities(&self, committee: &Committee) -> Vec<PublicKey> {
         match self {
-            Certificate::V1(certificate) => certificate.signed_authorities(committee),
-            Certificate::V2(certificate) => certificate.signed_authorities(committee),
+            Self::V2(certificate) => certificate.signed_authorities(committee),
         }
     }
 
     pub fn signed_by(&self, committee: &Committee) -> (Stake, Vec<PublicKey>) {
         match self {
-            Certificate::V1(certificate) => certificate.signed_by(committee),
-            Certificate::V2(certificate) => certificate.signed_by(committee),
+            Self::V2(certificate) => certificate.signed_by(committee),
         }
     }
 
@@ -940,39 +839,32 @@ impl Certificate {
         worker_cache: &WorkerCache,
     ) -> DagResult<Certificate> {
         match self {
-            Certificate::V1(certificate) => certificate.verify(committee, worker_cache),
-            Certificate::V2(certificate) => certificate.verify(committee, worker_cache),
+            Self::V2(certificate) => certificate.verify(committee, worker_cache),
         }
     }
 
     pub fn round(&self) -> Round {
         match self {
-            Certificate::V1(certificate) => certificate.round(),
-            Certificate::V2(certificate) => certificate.round(),
+            Self::V2(certificate) => certificate.round(),
         }
     }
 
     pub fn epoch(&self) -> Epoch {
         match self {
-            Certificate::V1(certificate) => certificate.epoch(),
-            Certificate::V2(certificate) => certificate.epoch(),
+            Self::V2(certificate) => certificate.epoch(),
         }
     }
 
     pub fn origin(&self) -> AuthorityIdentifier {
         match self {
-            Certificate::V1(certificate) => certificate.origin(),
-            Certificate::V2(certificate) => certificate.origin(),
+            Self::V2(certificate) => certificate.origin(),
         }
     }
+}
 
-    // Used for testing
-    pub fn default(protocol_config: &ProtocolConfig) -> Certificate {
-        if protocol_config.narwhal_certificate_v2() {
-            Certificate::V2(CertificateV2::default())
-        } else {
-            Certificate::V1(CertificateV1::default())
-        }
+impl Default for Certificate {
+    fn default() -> Self {
+        Self::V2(CertificateV2::default())
     }
 }
 
@@ -981,7 +873,6 @@ impl Hash<{ crypto::DIGEST_LENGTH }> for Certificate {
 
     fn digest(&self) -> CertificateDigest {
         match self {
-            Certificate::V1(data) => data.digest(),
             Certificate::V2(data) => data.digest(),
         }
     }
@@ -1001,227 +892,6 @@ pub trait CertificateAPI {
     // CertificateV2
     fn signature_verification_state(&self) -> &SignatureVerificationState;
     fn set_signature_verification_state(&mut self, state: SignatureVerificationState);
-}
-
-#[serde_as]
-#[derive(Clone, Serialize, Deserialize, Default, MallocSizeOf)]
-pub struct CertificateV1 {
-    pub header: Header,
-    pub aggregated_signature: AggregateSignatureBytes,
-    #[serde_as(as = "NarwhalBitmap")]
-    signed_authorities: roaring::RoaringBitmap,
-    pub metadata: Metadata,
-}
-
-impl CertificateAPI for CertificateV1 {
-    fn header(&self) -> &Header {
-        &self.header
-    }
-
-    fn aggregated_signature(&self) -> Option<&AggregateSignatureBytes> {
-        Some(&self.aggregated_signature)
-    }
-
-    fn signature_verification_state(&self) -> &SignatureVerificationState {
-        unimplemented!("CertificateV2 field! Use aggregated_signature.");
-    }
-
-    fn set_signature_verification_state(&mut self, _state: SignatureVerificationState) {
-        unimplemented!("CertificateV2 field! Use aggregated_signature.");
-    }
-
-    fn signed_authorities(&self) -> &roaring::RoaringBitmap {
-        &self.signed_authorities
-    }
-
-    fn metadata(&self) -> &Metadata {
-        &self.metadata
-    }
-
-    // Used for testing.
-    fn update_header(&mut self, header: Header) {
-        self.header = header;
-    }
-
-    fn header_mut(&mut self) -> &mut Header {
-        &mut self.header
-    }
-}
-
-impl CertificateV1 {
-    pub fn genesis(committee: &Committee) -> Vec<Self> {
-        committee
-            .authorities()
-            .map(|authority| Self {
-                header: Header::V1(HeaderV1 {
-                    author: authority.id(),
-                    epoch: committee.epoch(),
-                    ..Default::default()
-                }),
-                ..Self::default()
-            })
-            .collect()
-    }
-
-    pub fn new_unverified(
-        committee: &Committee,
-        header: Header,
-        votes: Vec<(AuthorityIdentifier, Signature)>,
-    ) -> DagResult<Certificate> {
-        Self::new_unsafe(committee, header, votes, true)
-    }
-
-    pub fn new_unsigned(
-        committee: &Committee,
-        header: Header,
-        votes: Vec<(AuthorityIdentifier, Signature)>,
-    ) -> DagResult<Certificate> {
-        Self::new_unsafe(committee, header, votes, false)
-    }
-
-    fn new_unsafe(
-        committee: &Committee,
-        header: Header,
-        votes: Vec<(AuthorityIdentifier, Signature)>,
-        check_stake: bool,
-    ) -> DagResult<Certificate> {
-        let mut votes = votes;
-        votes.sort_by_key(|(pk, _)| *pk);
-        let mut votes: VecDeque<_> = votes.into_iter().collect();
-
-        let mut weight = 0;
-        let mut sigs = Vec::new();
-
-        let filtered_votes = committee
-            .authorities()
-            .enumerate()
-            .filter(|(_, authority)| {
-                if !votes.is_empty() && authority.id() == votes.front().unwrap().0 {
-                    sigs.push(votes.pop_front().unwrap());
-                    weight += authority.stake();
-                    // If there are repeats, also remove them
-                    while !votes.is_empty() && votes.front().unwrap() == sigs.last().unwrap() {
-                        votes.pop_front().unwrap();
-                    }
-                    return true;
-                }
-                false
-            })
-            .map(|(index, _)| index as u32);
-
-        let signed_authorities= roaring::RoaringBitmap::from_sorted_iter(filtered_votes)
-            .map_err(|_| DagError::InvalidBitmap("Failed to convert votes into a bitmap of authority keys. Something is likely very wrong...".to_string()))?;
-
-        // Ensure that all authorities in the set of votes are known
-        ensure!(
-            votes.is_empty(),
-            DagError::UnknownAuthority(votes.front().unwrap().0.to_string())
-        );
-
-        // Ensure that the authorities have enough weight
-        ensure!(
-            !check_stake || weight >= committee.quorum_threshold(),
-            DagError::CertificateRequiresQuorum
-        );
-
-        let aggregated_signature = if sigs.is_empty() {
-            AggregateSignature::default()
-        } else {
-            AggregateSignature::aggregate::<Signature, Vec<&Signature>>(
-                sigs.iter().map(|(_, sig)| sig).collect(),
-            )
-            .map_err(|_| DagError::InvalidSignature)?
-        };
-
-        Ok(Certificate::V1(CertificateV1 {
-            header,
-            aggregated_signature: AggregateSignatureBytes::from(&aggregated_signature),
-            signed_authorities,
-            metadata: Metadata::default(),
-        }))
-    }
-
-    /// This function requires that certificate was verified against given
-    /// committee
-    pub fn signed_authorities(&self, committee: &Committee) -> Vec<PublicKey> {
-        assert_eq!(committee.epoch(), self.epoch());
-        let (_stake, pks) = self.signed_by(committee);
-        pks
-    }
-
-    pub fn signed_by(&self, committee: &Committee) -> (Stake, Vec<PublicKey>) {
-        // Ensure the certificate has a quorum.
-        let mut weight = 0;
-
-        let auth_indexes = self.signed_authorities.iter().collect::<Vec<_>>();
-        let mut auth_iter = 0;
-        let pks = committee
-            .authorities()
-            .enumerate()
-            .filter(|(i, authority)| match auth_indexes.get(auth_iter) {
-                Some(index) if *index == *i as u32 => {
-                    weight += authority.stake();
-                    auth_iter += 1;
-                    true
-                }
-                _ => false,
-            })
-            .map(|(_, authority)| authority.protocol_key().clone())
-            .collect();
-        (weight, pks)
-    }
-
-    /// Verifies the validity of the certificate.
-    pub fn verify(
-        self,
-        committee: &Committee,
-        worker_cache: &WorkerCache,
-    ) -> DagResult<Certificate> {
-        // Ensure the header is from the correct epoch.
-        ensure!(
-            self.epoch() == committee.epoch(),
-            DagError::InvalidEpoch {
-                expected: committee.epoch(),
-                received: self.epoch()
-            }
-        );
-
-        // Genesis certificates are always valid.
-        if self.round() == 0 && Self::genesis(committee).contains(&self) {
-            return Ok(Certificate::V1(self));
-        }
-
-        // Save signature verifications when the header is invalid.
-        self.header.validate(committee, worker_cache)?;
-
-        let (weight, pks) = self.signed_by(committee);
-
-        ensure!(
-            weight >= committee.quorum_threshold(),
-            DagError::CertificateRequiresQuorum
-        );
-
-        // Verify the signatures
-        let certificate_digest: Digest<{ crypto::DIGEST_LENGTH }> = Digest::from(self.digest());
-        AggregateSignature::try_from(&self.aggregated_signature)
-            .map_err(|_| DagError::InvalidSignature)?
-            .verify_secure(&to_intent_message(certificate_digest), &pks[..])
-            .map_err(|_| DagError::InvalidSignature)?;
-
-        Ok(Certificate::V1(self))
-    }
-
-    pub fn round(&self) -> Round {
-        self.header.round()
-    }
-
-    pub fn epoch(&self) -> Epoch {
-        self.header.epoch()
-    }
-
-    pub fn origin(&self) -> AuthorityIdentifier {
-        self.header.author()
-    }
 }
 
 // Holds AggregateSignatureBytes but with the added layer to specify the
@@ -1516,41 +1186,17 @@ impl CertificateV2 {
 // SignatureVerificationState is why the modified certificate is being returned.
 pub fn validate_received_certificate_version(
     mut certificate: Certificate,
-    protocol_config: &ProtocolConfig,
 ) -> anyhow::Result<Certificate> {
-    // If network has advanced to using version 28, which sets
-    // narwhal_certificate_v2 to true, we will start using CertificateV2 locally
-    // and so we will only accept CertificateV2 from the network. Otherwise
-    // CertificateV1 is used.
     match certificate {
-        Certificate::V1(_) => {
-            // CertificateV1 does not have a concept of aggregated signature state
-            // so there is nothing to reset.
-            if protocol_config.narwhal_certificate_v2() {
-                return Err(anyhow::anyhow!(format!(
-                    "Received CertificateV1 {certificate:?} but network is at {:?} and this certificate version is no longer supported",
-                    protocol_config.version
-                )));
-            }
-        }
         Certificate::V2(_) => {
-            if !protocol_config.narwhal_certificate_v2() {
-                return Err(anyhow::anyhow!(format!(
-                    "Received CertificateV2 {certificate:?} but network is at {:?} and this certificate version is not supported yet",
-                    protocol_config.version
-                )));
-            } else {
-                // CertificateV2 was received from the network so we need to mark
-                // certificate aggregated signature state as unverified.
-                certificate.set_signature_verification_state(
-                    SignatureVerificationState::Unverified(
-                        certificate
-                            .aggregated_signature()
-                            .ok_or(anyhow::anyhow!("Invalid signature"))?
-                            .clone(),
-                    ),
-                );
-            }
+            // CertificateV2 was received from the network so we need to mark
+            // certificate aggregated signature state as unverified.
+            certificate.set_signature_verification_state(SignatureVerificationState::Unverified(
+                certificate
+                    .aggregated_signature()
+                    .ok_or(anyhow::anyhow!("Invalid signature"))?
+                    .clone(),
+            ));
         }
     };
     Ok(certificate)
@@ -1613,14 +1259,6 @@ impl fmt::Display for CertificateDigest {
     }
 }
 
-impl Hash<{ crypto::DIGEST_LENGTH }> for CertificateV1 {
-    type TypedDigest = CertificateDigest;
-
-    fn digest(&self) -> CertificateDigest {
-        CertificateDigest(self.header.digest().0)
-    }
-}
-
 impl Hash<{ crypto::DIGEST_LENGTH }> for CertificateV2 {
     type TypedDigest = CertificateDigest;
 
@@ -1632,15 +1270,6 @@ impl Hash<{ crypto::DIGEST_LENGTH }> for CertificateV2 {
 impl fmt::Debug for Certificate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
-            Certificate::V1(data) => write!(
-                f,
-                "{}: C{}({}, {}, E{})",
-                data.digest(),
-                data.round(),
-                data.origin(),
-                data.header.digest(),
-                data.epoch()
-            ),
             Certificate::V2(data) => write!(
                 f,
                 "{}: C{}({}, {}, E{})",
@@ -1657,25 +1286,8 @@ impl fmt::Debug for Certificate {
 impl PartialEq for Certificate {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Certificate::V1(data), Certificate::V1(other_data)) => data.eq(other_data),
             (Certificate::V2(data), Certificate::V2(other_data)) => data.eq(other_data),
-            (Certificate::V1(_), Certificate::V2(_)) => {
-                unimplemented!("Invalid comparison between CertificateV1 & CertificateV2");
-            }
-            (Certificate::V2(_), Certificate::V1(_)) => {
-                unimplemented!("Invalid comparison between CertificateV2 & CertificateV1");
-            }
         }
-    }
-}
-
-impl PartialEq for CertificateV1 {
-    fn eq(&self, other: &Self) -> bool {
-        let mut ret = self.header().digest() == other.header().digest();
-        ret &= self.round() == other.round();
-        ret &= self.epoch() == other.epoch();
-        ret &= self.origin() == other.origin();
-        ret
     }
 }
 
@@ -1906,14 +1518,13 @@ impl From<&Vote> for VoteInfo {
 mod tests {
     use std::time::Duration;
 
-    use test_utils::latest_protocol_version;
     use tokio::time::sleep;
 
     use crate::{Batch, BatchAPI, BatchV2, MetadataAPI, MetadataV1, Timestamp, VersionedMetadata};
 
     #[tokio::test]
     async fn test_elapsed() {
-        let batch = Batch::new(vec![], &latest_protocol_version());
+        let batch = Batch::new(vec![]);
 
         assert!(*batch.versioned_metadata().created_at() > 0);
 

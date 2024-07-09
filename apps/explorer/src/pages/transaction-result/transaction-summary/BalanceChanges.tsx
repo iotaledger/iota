@@ -3,23 +3,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+    type BalanceChange,
     type BalanceChangeSummary,
     CoinFormat,
-    useFormatCoin,
-    useCoinMetadata,
-    type BalanceChange,
-    useResolveIotaNSName,
     getRecognizedUnRecognizedTokenChanges,
+    useCoinMetadata,
+    useFormatCoin,
+    useResolveIotaNSName,
 } from '@iota/core';
 import { Heading, Text } from '@iota/ui';
 import clsx from 'clsx';
 import { useMemo } from 'react';
 
-import { Banner } from '~/ui/Banner';
-import { Coin } from '~/ui/CoinsStack';
-import { AddressLink } from '~/ui/InternalLink';
-import { CollapsibleCard } from '~/ui/collapsible/CollapsibleCard';
-import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
+import { AddressLink, Banner, Coin, CollapsibleCard, CollapsibleSection } from '~/components/ui';
 
 interface BalanceChangesProps {
     changes: BalanceChangeSummary;

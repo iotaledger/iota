@@ -7,8 +7,7 @@ import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Heading, Text } from '@iota/ui';
 import { useMemo } from 'react';
 
-import { Card } from '~/ui/Card';
-import { RingChart, RingChartLegend } from '~/ui/RingChart';
+import { Card, RingChart, RingChartLegend } from '~/components/ui';
 
 export function ValidatorStatus(): JSX.Element | null {
     const { data } = useIotaClientQuery('getLatestIotaSystemState');
