@@ -4,43 +4,54 @@
 import React from 'react';
 import { DividerType } from './divider.enums';
 import cx from 'classnames';
-import { BACKGROUND_COLORS } from './divider.classes';
+import { BACKGROUND_COLORS, DIVIDER_FULL_WIDTH } from './divider.classes';
 
-const DEFAULT_SIZE = '1px';
-const FULL_WIDTH = '100%';
+const DEFAULT_LINE_HEIGHT = '1px';
+
 interface DividerProps {
-    /**
-     * The width of the divider.
-     */
-    width?: string;
     /**
      * The type of the button
      */
     type?: DividerType;
     /**
+     * The width of the divider.
+     */
+    width?: string;
+    /**
+     * The height of the divider.
+     */
+    height?: string;
+    /**
+     * The line height of the divider.
+     */
+    lineHight?: string;
+    /**
      * The color of the divider.
      */
     color?: string;
-    /**
-     * The size of the divider.
-     */
-    size?: string;
 }
 
 export function Divider({
+    width,
+    height,
     color,
-    width = FULL_WIDTH,
-    size = DEFAULT_SIZE,
+    lineHight = DEFAULT_LINE_HEIGHT,
     type = DividerType.Horizontal,
 }: DividerProps): React.JSX.Element {
-    // Define the base styles for the divider
+    // Set width and height of divider line based on type
     const baseStyle = {
-        width: type === DividerType.Horizontal ? width : size,
-        height: type === DividerType.Vertical ? width : size,
+        ...(type === DividerType.Horizontal ? { height: lineHight } : { width: lineHight }),
     };
 
-    // Use classnames to conditionally apply classes based on orientation
-    const dividerClasses = cx(BACKGROUND_COLORS);
+    const backgroundColors = color ? color : BACKGROUND_COLORS;
+
+    let dividerSize = DIVIDER_FULL_WIDTH[type];
+    if (width && type === DividerType.Horizontal) {
+        dividerSize = width;
+    } else if (height && type === DividerType.Vertical) {
+        dividerSize = height;
+    }
+    const dividerClasses = cx(backgroundColors, dividerSize);
 
     return <div className={dividerClasses} style={baseStyle} />;
 }

@@ -9,13 +9,9 @@ import { DividerType } from '@/components/atoms/divider';
 const meta = {
     component: Divider,
     tags: ['autodocs'],
-    render: (props, context) => {
-        // const height = props.type === DividerType.Horizontal ? 'h-1' : 'w-1';
-        const baseStyle = {
-            height: '500px',
-        };
+    render: (props) => {
         return (
-            <div className="flex flex-col items-start gap-2" style={baseStyle}>
+            <div className="flex h-96 justify-center">
                 <Divider {...props} />
             </div>
         );
@@ -27,6 +23,10 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
+    args: {
+        width: 'w-3/4',
+        height: 'h-3/4',
+    },
     argTypes: {
         width: {
             control: 'text',
