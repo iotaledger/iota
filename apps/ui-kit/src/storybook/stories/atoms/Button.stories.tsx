@@ -10,13 +10,15 @@ const meta = {
     tags: ['autodocs'],
     render: (props) => {
         return (
-            <div className="flex flex-col gap-2 items-start">
-                <Button {...props}>Primary</Button>
+            <div className="flex flex-col items-start gap-2">
+                <Button {...props} />
             </div>
         );
     },
 } satisfies Meta<typeof Button>;
+
 export default meta;
+
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {

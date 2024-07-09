@@ -1,0 +1,48 @@
+/* Copyright (c) 2024 IOTA Stiftung
+ SPDX-License-Identifier: Apache-2.0 */
+
+@import './fonts.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    .text-display-lg,
+    .text-display-md,
+    .text-display-sm,
+    .text-headline-lg,
+    .text-headline-md,
+    .text-headline-sm,
+    .text-title-lg,
+    .text-title-md,
+    .text-title-sm {
+        @apply font-alliance-no2;
+    }
+
+    .text-body-lg,
+    .text-body-md,
+    .text-body-sm,
+    .text-body-ds-lg,
+    .text-body-ds-md,
+    .text-body-ds-sm,
+    .text-label-lg,
+    .text-label-md,
+    .text-label-sm {
+        @apply font-inter;
+    }
+
+    .text-display-lg,
+    .text-display-md,
+    .text-display-sm,
+    .text-headline-lg,
+    .text-headline-md,
+    .text-headline-sm,
+    .text-body-ds-lg {
+        font-feature-settings: 'ss02' on;
+    }
+
+    .text-label-md {
+        font-feature-settings: 'ss01' on;
+    }
+}
