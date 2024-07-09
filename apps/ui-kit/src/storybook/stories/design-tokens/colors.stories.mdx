@@ -1,0 +1,23 @@
+import { Meta, ColorPalette, ColorItem } from '@storybook/blocks';
+import {
+    IOTA_PRIMITIVES_COLOR_PALETTE,
+    SHADER_COLOR_PALETTE,
+} from '../../../lib/tailwind/constants/colors.constants';
+
+<Meta title="Design Tokens/Colors" />
+
+## Primitives
+
+<ColorPalette>
+    {Object.entries(IOTA_PRIMITIVES_COLOR_PALETTE).map(([color, values]) => {
+        return <ColorItem key={color} title={color} colors={values} />;
+    })}
+</ColorPalette>
+
+## Shaders
+
+<ColorPalette>
+    {Object.entries(SHADER_COLOR_PALETTE).map(([color, values]) => {
+        return <ColorItem key={color} title={color} colors={values} />;
+    })}
+</ColorPalette>
