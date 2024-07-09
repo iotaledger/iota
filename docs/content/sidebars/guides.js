@@ -226,6 +226,7 @@ const guides = [
 			'guides/stardust/vested',
 			'guides/stardust/testing',
 			'guides/stardust/if-tools',
+			'guides/stardust/exchanges',
 			'guides/stardust/faq',
 		],
 	},

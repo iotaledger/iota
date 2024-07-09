@@ -9,13 +9,8 @@ import { ButtonSize, ButtonType } from '@/components/atoms/button';
 const meta = {
     component: Button,
     tags: ['autodocs'],
-    render: (props, context) => {
-        const { darkmode } = context;
-        return (
-            <div className="flex flex-col items-start gap-2">
-                <Button {...props} darkmode={darkmode} />
-            </div>
-        );
+    render: (props) => {
+        return <Button {...props} />;
     },
 } satisfies Meta<typeof Button>;
 
