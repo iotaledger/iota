@@ -840,7 +840,6 @@ mod tests {
         },
     };
     use narwhal_config::AuthorityIdentifier;
-    use narwhal_test_utils::latest_protocol_version;
     use narwhal_types::{Batch, Certificate, CommittedSubDag, HeaderV1Builder, ReputationScores};
     use prometheus::Registry;
     use shared_crypto::intent::Intent;
@@ -861,8 +860,6 @@ mod tests {
         // GIVEN
         let mut objects = test_gas_objects();
         objects.push(Object::shared_for_testing());
-
-        let latest_protocol_config = &latest_protocol_version();
 
         let network_config =
             iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
@@ -905,7 +902,7 @@ mod tests {
             )
             .unwrap();
 
-            let batch = Batch::new(vec![transaction_bytes], latest_protocol_config);
+            let batch = Batch::new(vec![transaction_bytes]);
 
             batches.push(vec![batch.clone()]);
 
@@ -919,13 +916,7 @@ mod tests {
                 .build()
                 .unwrap();
 
-            let certificate = Certificate::new_unsigned(
-                latest_protocol_config,
-                &committee,
-                header.into(),
-                vec![],
-            )
-            .unwrap();
+            let certificate = Certificate::new_unsigned(&committee, header.into(), vec![]).unwrap();
 
             certificates.push(certificate);
         }

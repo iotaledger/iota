@@ -71,6 +71,33 @@ jobs:
       - name: cargo test
         run: cargo nextest run --profile ci -E 'rdeps(${{matrix.components}})' -p ${{matrix.components}}
 
+  iota-sdk-changes:
+    runs-on: [self-hosted-rust]
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            iota-sdk:
+              - 'crates/iota-sdk/**'
+
+  test-iota-sdk:
+    name: Test iota-sdk
+    if: needs.iota-sdk-changes.outputs.iota-sdk == 'true'
+    env:
+      # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
+      # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
+      # non-deterministic `test` job.
+      IOTA_SKIP_SIMTESTS: 1
+    runs-on: [self-hosted-rust]
+    needs: iota-sdk-changes
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      - uses: taiki-e/install-action@nextest
+      - name: cargo test
+        run: cargo nextest run --profile ci -E 'rdeps(iota-sdk)' -p iota-sdk@1.22.0
+
   diff:
     runs-on: [self-hosted-rust]
     outputs:
