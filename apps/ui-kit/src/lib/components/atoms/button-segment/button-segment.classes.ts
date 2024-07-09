@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-const BACKGROUND_COLOR = 'bg-transparent';
+const BACKGROUND_COLOR = 'bg-primary-100 dark:bg-transparent';
 const BACKGROUND_COLORS_HOVERED =
     'hover:bg-shader-primary-light-8 dark:hover:bg-shader-primary-dark-8';
 const BACKGROUND_COLORS_FOCUSED =
