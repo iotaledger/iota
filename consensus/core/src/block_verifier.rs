@@ -147,7 +147,7 @@ impl BlockVerifier for SignedBlockVerifier {
         // TODO: check transaction size, total size and count.
         let batch: Vec<_> = block.transactions().iter().map(|t| t.data()).collect();
         self.transaction_verifier
-            .verify_batch(&self.context.protocol_config, &batch)
+            .verify_batch(&batch)
             .map_err(|e| ConsensusError::InvalidTransaction(format!("{e:?}")))
     }
 
@@ -204,11 +204,7 @@ mod test {
 
     impl TransactionVerifier for TxnSizeVerifier {
         // Fails verification if any transaction is < 4 bytes.
-        fn verify_batch(
-            &self,
-            _protocol_config: &iota_protocol_config::ProtocolConfig,
-            transactions: &[&[u8]],
-        ) -> Result<(), ValidationError> {
+        fn verify_batch(&self, transactions: &[&[u8]]) -> Result<(), ValidationError> {
             for txn in transactions {
                 if txn.len() < 4 {
                     return Err(ValidationError::InvalidTransaction(format!(

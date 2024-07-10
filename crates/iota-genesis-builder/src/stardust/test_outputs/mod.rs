@@ -5,6 +5,7 @@ mod alias_ownership;
 mod stardust_mix;
 mod vesting_schedule_entity;
 mod vesting_schedule_iota_airdrop;
+mod vesting_schedule_portfolio_mix;
 
 use std::{fs::File, io::BufWriter, path::Path, str::FromStr};
 
@@ -79,6 +80,7 @@ pub async fn add_snapshot_test_outputs<const VERIFY: bool>(
         stardust_mix::outputs(&mut vested_index).await?,
         vesting_schedule_entity::outputs(&mut vested_index).await?,
         vesting_schedule_iota_airdrop::outputs(&mut vested_index).await?,
+        vesting_schedule_portfolio_mix::outputs(&mut vested_index).await?,
     ]
     .concat();
     let new_amount = new_outputs.iter().map(|o| o.1.amount()).sum::<u64>();
