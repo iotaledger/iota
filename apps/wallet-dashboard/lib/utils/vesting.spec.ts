@@ -11,6 +11,7 @@ import {
     buildVestingSchedule as buildVestingPortfolio,
     getLastVestingPayout,
     getUserType,
+    getVestingOverview,
 } from './vesting';
 
 describe('get last vesting payout', () => {
@@ -77,5 +78,41 @@ describe('build vesting portfolio', () => {
         const vestingPortfolio = buildVestingPortfolio(lastPayout!);
 
         expect(vestingPortfolio.length).toEqual(52);
+    });
+});
+
+describe('vesting overview', () => {
+    it.only('should get correct vesting overview data with mixed objects', () => {
+        const mixedObjects = MOCKED_VESTING_TIMELOCKED_AND_TIMELOCK_STAKED_OBJECTS;
+
+        const vestingOverview = getVestingOverview(mixedObjects);
+
+        expect(vestingOverview.totalVested).toEqual(52000);
+        expect(vestingOverview.totalLocked).toEqual(52000);
+        expect(vestingOverview.totalUnlocked).toEqual(0);
+        expect(vestingOverview.availableClaiming).toEqual(589);
+        expect(vestingOverview.availableStaking).toEqual(7556);
+    });
+    it('should get correct vesting overview data with timelocked objects', () => {
+        const timelockedObjects = MOCKED_VESTING_TIMELOCKED_OBJECTS;
+
+        const vestingOverview = getVestingOverview(timelockedObjects);
+
+        expect(vestingOverview.totalVested).toEqual(52000);
+        expect(vestingOverview.totalLocked).toEqual(52000);
+        expect(vestingOverview.totalUnlocked).toEqual(0);
+        expect(vestingOverview.availableClaiming).toEqual(1000);
+        expect(vestingOverview.availableStaking).toEqual(0);
+    });
+    it('should get correct vesting overview data with timelocked staked objects', () => {
+        const timelockedStakedObjects = MOCKED_VESTING_TIMELOCKED_STAKED_OBJECTS;
+
+        const vestingOverview = getVestingOverview(timelockedStakedObjects);
+
+        expect(vestingOverview.totalVested).toEqual(52000);
+        expect(vestingOverview.totalLocked).toEqual(52000);
+        expect(vestingOverview.totalUnlocked).toEqual(0);
+        expect(vestingOverview.availableClaiming).toEqual(0);
+        expect(vestingOverview.availableStaking).toEqual(24000);
     });
 });
