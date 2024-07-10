@@ -528,7 +528,7 @@ impl AbstractState {
     pub fn stack_push(&mut self, item: AbstractValue) {
         // Programs that are large enough to exceed this bound
         // will not be generated
-        debug_assert!(self.stack.len() < usize::max_value());
+        debug_assert!(self.stack.len() < usize::MAX);
         self.stack.push(item);
     }
 
@@ -538,7 +538,7 @@ impl AbstractState {
         if let Some(abstract_value) = self.register_move() {
             // Programs that are large enough to exceed this bound
             // will not be generated
-            debug_assert!(self.stack.len() < usize::max_value());
+            debug_assert!(self.stack.len() < usize::MAX);
             self.stack.push(abstract_value);
             Ok(())
         } else {
