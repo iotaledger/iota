@@ -259,7 +259,7 @@ impl GenesisConfig {
                     recipient_address: address,
                     amount_nanos: *a,
                     staked_with_validator: None,
-                    staked_with_timelock: vec![],
+                    staked_with_timelock_expiration: None,
                 });
             });
         }

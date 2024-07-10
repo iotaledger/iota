@@ -539,7 +539,7 @@ impl TokenDistributionSchedule {
                     recipient_address: a,
                     amount_nanos: default_allocation,
                     staked_with_validator: Some(a),
-                    staked_with_timelock: vec![],
+                    staked_with_timelock_expiration: None,
                 }
             })
             .collect();
@@ -604,7 +604,7 @@ impl TokenDistributionSchedule {
             recipient_address: IotaAddress::default(),
             amount_nanos: self.stake_subsidy_fund_nanos,
             staked_with_validator: None,
-            staked_with_timelock: vec![],
+            staked_with_timelock_expiration: None,
         })?;
 
         Ok(())
@@ -620,9 +620,9 @@ pub struct TokenAllocation {
     /// Indicates if this allocation should be staked at genesis and with which
     /// validator
     pub staked_with_validator: Option<IotaAddress>,
-    /// Indicates and containe the (amount, timelock_expiration) pairs if this
-    /// allocation should be staked with timelock at genesis
-    pub staked_with_timelock: Vec<(u64, u64)>,
+    /// Indicates if this allocation should be staked with timelock at genesis
+    /// and containe its timelock_expiration
+    pub staked_with_timelock_expiration: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -651,7 +651,7 @@ impl TokenDistributionScheduleBuilder {
                 recipient_address: validator,
                 amount_nanos: default_allocation,
                 staked_with_validator: Some(validator),
-                staked_with_timelock: vec![],
+                staked_with_timelock_expiration: None,
             });
         }
     }

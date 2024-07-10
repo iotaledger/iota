@@ -180,32 +180,34 @@ pub fn delegate_genesis_stake(
         let mut timelock_objects = pick_objects_for_allocation(&mut timelocks_pool, target_stake);
         // TODO: This is not an optimal solution because the last timelock
         // might have a surplus amount, which cannot be used without splitting.
-        if !timelock_objects.inner.is_empty() {
-            // For timelocks we create a `TokenAllocation` object with
-            // `staked_with_timelock` filled with entries
-            genesis_stake.token_allocation.push(TokenAllocation {
-                recipient_address: delegator,
-                amount_nanos: timelock_objects.amount_nanos,
-                staked_with_validator: Some(validator.info.iota_address()),
-                staked_with_timelock: timelock_objects.staked_with_timelock,
-            });
-            // Get the reference to the timelock to split needed to get exactly
-            // `amount_nanos`
-            let timelock_to_split = *timelock_objects
-                .inner
-                .last()
-                .expect("there should be at least two objects");
-            // Save all the references to timelocks to burn
-            genesis_stake
-                .timelocks_to_burn
-                .append(&mut timelock_objects.inner);
-            // Save the reference for the token to split (and then burn)
-            genesis_stake.timelocks_to_split.push((
-                timelock_to_split,
-                timelock_objects.surplus_nanos,
-                delegator,
-            ))
-        }
+        timelock_objects.staked_with_timelock.iter().for_each(
+            |&(timelocked_amount, expiration_timestamp)| {
+                // For timelocks we create a `TokenAllocation` object with
+                // `staked_with_timelock` filled with entries
+                genesis_stake.token_allocation.push(TokenAllocation {
+                    recipient_address: delegator,
+                    amount_nanos: timelocked_amount,
+                    staked_with_validator: Some(validator.info.iota_address()),
+                    staked_with_timelock_expiration: Some(expiration_timestamp),
+                });
+                // Get the reference to the timelock to split needed to get exactly
+                // `amount_nanos`
+                let timelock_to_split = *timelock_objects
+                    .inner
+                    .last()
+                    .expect("there should be at least two objects");
+                // Save all the references to timelocks to burn
+                genesis_stake
+                    .timelocks_to_burn
+                    .append(&mut timelock_objects.inner);
+                // Save the reference for the token to split (and then burn)
+                genesis_stake.timelocks_to_split.push((
+                    timelock_to_split,
+                    timelock_objects.surplus_nanos,
+                    delegator,
+                ))
+            },
+        );
 
         // Then cover any remaining target stake with gas coins
         let remainder_target_stake = target_stake - timelock_objects.amount_nanos;
@@ -228,7 +230,7 @@ pub fn delegate_genesis_stake(
                 recipient_address: delegator,
                 amount_nanos: gas_coin_objects.amount_nanos,
                 staked_with_validator: Some(validator.info.iota_address()),
-                staked_with_timelock: vec![],
+                staked_with_timelock_expiration: None,
             });
             if gas_coin_objects.surplus_nanos > 0 {
                 // This essentially schedules returning any surplus amount
@@ -238,7 +240,7 @@ pub fn delegate_genesis_stake(
                     recipient_address: delegator,
                     amount_nanos: gas_coin_objects.surplus_nanos,
                     staked_with_validator: None,
-                    staked_with_timelock: vec![],
+                    staked_with_timelock_expiration: None,
                 });
             }
         }
