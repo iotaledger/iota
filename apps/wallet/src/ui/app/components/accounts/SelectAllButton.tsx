@@ -11,13 +11,13 @@ interface SelectAllButtonProps {
     deselectAllText?: string;
 }
 
-export const SelectAllButton = ({
+export function SelectAllButton({
     accountIds = [],
     selectedAccountIds = [],
     onChange,
     selectAllText = 'Select All Accounts',
     deselectAllText = 'Deselect All Accounts',
-}: SelectAllButtonProps) => {
+}: SelectAllButtonProps) {
     return (
         <Button
             onClick={() => {
@@ -32,4 +32,4 @@ export const SelectAllButton = ({
             text={selectedAccountIds.length < accountIds.length ? selectAllText : deselectAllText}
         />
     );
-};
+}
