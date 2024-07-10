@@ -5,30 +5,31 @@ import { TransactionAction, TransactionState } from '@/lib/interfaces';
 import { IotaLogoMark } from '@iota/icons';
 
 const icons = {
-    // [TransactionAction.Send]: (
+    [TransactionAction.Send]: null,
     //     <ArrowRight16
     //         fill="currentColor"
     //         className="text-gradient-blue-start text-body -rotate-45"
     //     />
     // ),
-    // [TransactionAction.Receive]: (
+    [TransactionAction.Receive]: null,
     //     <ArrowRight16
     //         fill="currentColor"
     //         className="text-gradient-blue-start text-body rotate-135"
     //     />
     // ),
-    // [TransactionAction.Transaction]: (
+    [TransactionAction.Transaction]: null,
     //     <ArrowRight16
     //         fill="currentColor"
     //         className="text-gradient-blue-start text-body -rotate-45"
     //     />
     // ),
-    // [TransactionAction.Staked]: (
+    [TransactionAction.Staked]: null,
     //     <WalletActionStake24 className="text-gradient-blue-start text-heading2 bg-transparent" />
     // ),
-    // [TransactionAction.Unstaked]: <Unstaked className="text-gradient-blue-start text-heading3" />,
+    [TransactionAction.Unstaked]: null,
+    // <Unstaked className="text-gradient-blue-start text-heading3" />,
     [TransactionAction.Rewards]: <IotaLogoMark />,
-    // [TransactionAction.PersonalMessage]: (
+    [TransactionAction.PersonalMessage]: null,
     //     <Account24 fill="currentColor" className="text-gradient-blue-start text-body" />
     // ),
 };
