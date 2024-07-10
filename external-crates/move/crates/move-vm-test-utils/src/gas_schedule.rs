@@ -9,10 +9,7 @@
 //! It is important to note that the cost schedule defined in this file does not
 //! track hashing operations or other native operations; the cost of each native
 //! operation will be returned by the native function itself.
-use std::{
-    ops::{Add, Mul},
-    u64,
-};
+use std::ops::{Add, Mul};
 
 use move_binary_format::{
     errors::{PartialVMError, PartialVMResult},
