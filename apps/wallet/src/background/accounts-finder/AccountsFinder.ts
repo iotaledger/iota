@@ -130,6 +130,16 @@ class AccountsFinder {
             GAP_CONFIGURATION[this.bip44CoinType][config.accountType].addressGapLimit;
     }
 
+    async processAccounts({ foundAccounts }: { foundAccounts: AccountFromFinder[] }) {
+        const mergedAccounts = mergeAccounts(this.accounts, foundAccounts);
+
+        // Persist new addresses
+        const newAddressesBipPaths = diffAddressesBipPaths(foundAccounts, this.accounts);
+        await persistAddressesToSource(this.sourceID, newAddressesBipPaths);
+
+        this.accounts = mergedAccounts;
+    }
+
     async runDepthSearch() {
         const depthAccounts = this.accounts;
 
@@ -155,13 +165,7 @@ class AccountsFinder {
                 findBalance: this.findBalance,
             });
 
-            const mergedAccounts = mergeAccounts(this.accounts, foundAccounts);
-
-            // Persist new addresses
-            const newAddressesBipPaths = diffAddressesBipPaths(foundAccounts, this.accounts);
-            await persistAddressesToSource(this.sourceID, newAddressesBipPaths);
-
-            this.accounts = mergedAccounts;
+            await this.processAccounts({ foundAccounts });
         }
     }
 
@@ -178,13 +182,7 @@ class AccountsFinder {
             findBalance: this.findBalance,
         });
 
-        const mergedAccounts = mergeAccounts(this.accounts, foundAccounts);
-
-        // Persist new addresses
-        const newAddressesBipPaths = diffAddressesBipPaths(foundAccounts, this.accounts);
-        await persistAddressesToSource(this.sourceID, newAddressesBipPaths);
-
-        this.accounts = mergedAccounts;
+        await this.processAccounts({ foundAccounts });
     }
 
     // This function calls each time when user press "Search" button
