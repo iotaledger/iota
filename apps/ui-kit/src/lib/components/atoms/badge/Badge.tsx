@@ -36,16 +36,18 @@ export function Badge({
     const borderClasses = variant === BadgeType.Outlined ? OUTLINED_BORDER : '';
 
     return (
-        <button
+        <div
             className={cx(
-                'flex items-center space-x-2 rounded-full px-xs py-xxs disabled:opacity-30',
+                'inline-flex items-center space-x-2 rounded-full px-xs py-xxs disabled:opacity-30',
                 backgroundClasses,
                 borderClasses,
+                {
+                    'opacity-30': disabled,
+                },
             )}
-            disabled={disabled}
         >
             {icon && <span className={cx(textClasses)}>{icon}</span>}
             <span className={cx(BADGE_TEXT_CLASS, textClasses)}>{label}</span>
-        </button>
+        </div>
     );
 }
