@@ -15,6 +15,7 @@ import {
     SupplyIncreaseVestingPortfolio,
     Timelocked,
     TimelockedStakedIota,
+    VestingOverview,
 } from '../interfaces';
 
 export function getLastVestingPayout(
@@ -104,6 +105,56 @@ export function buildVestingSchedule(
         });
     }
     return vestingPortfolio.reverse();
+}
+
+export function getVestingOverview(
+    objects: (Timelocked | TimelockedStakedIota)[],
+): VestingOverview {
+    const vestingObjects = objects.filter((obj) => obj.label === VESTING_LABEL);
+    const latestPayout = getLastVestingPayout(vestingObjects);
+
+    if (vestingObjects.length === 0 || !latestPayout) {
+        return {
+            totalVested: 0,
+            totalUnlocked: 0,
+            totalLocked: 0,
+            availableClaiming: 0,
+            availableStaking: 0,
+        };
+    }
+
+    const vestingSchedule = buildVestingSchedule(latestPayout);
+    const vestingLocked = vestingSchedule.filter(
+        (vestingPayout) => vestingPayout.expirationTimestampMs > Date.now(),
+    );
+
+    const totalVestedAmount = vestingSchedule.reduce((acc, current) => acc + current.amount, 0);
+    const totalLockedVestedAmount = vestingLocked.reduce((acc, current) => acc + current.amount, 0);
+    const totalUnlockedVestedAmount = totalVestedAmount - totalLockedVestedAmount;
+
+    const timelockedObjects = vestingObjects.filter(isTimelocked);
+    const timelockedStakedObjects = vestingObjects.filter(isTimelockedStakedIota);
+
+    const totalAvailbleClaimingAmount = timelockedObjects.reduce(
+        (acc, current) =>
+            current.expirationTimestampMs < Date.now() ? acc + current.locked.value : acc,
+        0,
+    );
+    const totalAvailbleStakingAmount = timelockedStakedObjects.reduce(
+        (acc, current) =>
+            current.expirationTimestampMs > Date.now()
+                ? acc + current.stakedIota.principal.value
+                : acc,
+        0,
+    );
+
+    return {
+        totalVested: totalVestedAmount,
+        totalUnlocked: totalUnlockedVestedAmount,
+        totalLocked: totalLockedVestedAmount,
+        availableClaiming: totalAvailbleClaimingAmount,
+        availableStaking: totalAvailbleStakingAmount,
+    };
 }
 
 // Get number of payouts to construct vesting schedule
