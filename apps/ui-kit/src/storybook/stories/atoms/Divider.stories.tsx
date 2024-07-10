@@ -11,7 +11,7 @@ const meta = {
     tags: ['autodocs'],
     render: (props) => {
         return (
-            <div className="flex h-96 justify-center">
+            <div className="flex h-96 items-center justify-center">
                 <Divider {...props} />
             </div>
         );
@@ -29,9 +29,6 @@ export const Default: Story = {
     },
     argTypes: {
         width: {
-            control: 'text',
-        },
-        color: {
             control: 'text',
         },
         type: {

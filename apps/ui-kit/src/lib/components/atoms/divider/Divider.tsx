@@ -10,7 +10,7 @@ const DEFAULT_LINE_HEIGHT = '1px';
 
 interface DividerProps {
     /**
-     * The type of the button
+     * The type of the divider
      */
     type?: DividerType;
     /**
@@ -24,18 +24,18 @@ interface DividerProps {
     /**
      * The line height of the divider.
      */
-    lineHight?: string;
+    lineHeight?: string;
 }
 
 export function Divider({
     type = DividerType.Horizontal,
     width,
     height,
-    lineHight = DEFAULT_LINE_HEIGHT,
+    lineHeight = DEFAULT_LINE_HEIGHT,
 }: DividerProps): React.JSX.Element {
     // Set width and height of divider line based on type
-    const baseStyle = {
-        ...(type === DividerType.Horizontal ? { height: lineHight } : { width: lineHight }),
+    const lineStyle = {
+        ...(type === DividerType.Horizontal ? { height: lineHeight } : { width: lineHeight }),
     };
 
     let dividerSize = DIVIDER_FULL_WIDTH[type];
@@ -45,5 +45,5 @@ export function Divider({
         dividerSize = height;
     }
 
-    return <div className={cx(BACKGROUND_COLORS, dividerSize)} style={baseStyle} />;
+    return <div className={cx(BACKGROUND_COLORS, dividerSize)} style={lineStyle} />;
 }
