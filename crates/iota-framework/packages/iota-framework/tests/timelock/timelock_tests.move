@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module timelock::timelock_tests {
+module iota::timelock_tests {
 
     use std::string;
 
@@ -11,11 +11,11 @@ module timelock::timelock_tests {
     use iota::test_scenario;
     use iota::test_utils::{Self, assert_eq};
 
-    use timelock::labeler::LabelerCap;
-    use timelock::timelock::{Self, TimeLock};
+    use iota::labeler::LabelerCap;
+    use iota::timelock::{Self, TimeLock};
 
-    use timelock::test_label_one::{Self, TEST_LABEL_ONE};
-    use timelock::test_label_two::TEST_LABEL_TWO;
+    use iota::test_label_one::{Self, TEST_LABEL_ONE};
+    use iota::test_label_two::TEST_LABEL_TWO;
 
     #[test]
     fun test_lock_unlock_flow() {
@@ -98,7 +98,7 @@ module timelock::timelock_tests {
         assert_eq(timelock.is_labeled_with<Balance<IOTA>, TEST_LABEL_ONE>(), true);
         assert_eq(timelock.is_labeled_with<Balance<IOTA>, TEST_LABEL_TWO>(), false);
 
-        assert_eq(*timelock.label().borrow(), string::utf8(b"00000000000000000000000000000000000000000000000000000000000010cf::test_label_one::TEST_LABEL_ONE"));
+        assert_eq(*timelock.label().borrow(), string::utf8(b"0000000000000000000000000000000000000000000000000000000000000002::test_label_one::TEST_LABEL_ONE"));
 
         // Increment epoch timestamp.
         scenario.ctx().increment_epoch_timestamp(10);
@@ -228,7 +228,7 @@ module timelock::timelock_tests {
         assert_eq(timelock.is_labeled_with<Balance<IOTA>, TEST_LABEL_ONE>(), true);
         assert_eq(timelock.is_labeled_with<Balance<IOTA>, TEST_LABEL_TWO>(), false);
 
-        assert_eq(*timelock.label().borrow(), string::utf8(b"00000000000000000000000000000000000000000000000000000000000010cf::test_label_one::TEST_LABEL_ONE"));
+        assert_eq(*timelock.label().borrow(), string::utf8(b"0000000000000000000000000000000000000000000000000000000000000002::test_label_one::TEST_LABEL_ONE"));
 
         // Increment epoch timestamp.
         scenario.ctx().increment_epoch_timestamp(10);

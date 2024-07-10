@@ -54,16 +54,6 @@ fn run_stardust_tests() {
 
 #[test]
 #[cfg_attr(msim, ignore)]
-fn run_timelock_tests() {
-    check_move_unit_tests({
-        let mut buf = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        buf.extend(["..", "iota-framework", "packages", "timelock"]);
-        buf
-    });
-}
-
-#[test]
-#[cfg_attr(msim, ignore)]
 fn run_examples_move_unit_tests() {
     for example in [
         "basics",

@@ -61,8 +61,7 @@ use iota_types::{
     DEEPBOOK_ADDRESS, DEEPBOOK_PACKAGE_ID, IOTA_CLOCK_OBJECT_ID, IOTA_DENY_LIST_OBJECT_ID,
     IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
     IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_ADDRESS,
-    MOVE_STDLIB_PACKAGE_ID, STARDUST_ADDRESS, STARDUST_PACKAGE_ID, TIMELOCK_ADDRESS,
-    TIMELOCK_PACKAGE_ID,
+    MOVE_STDLIB_PACKAGE_ID, STARDUST_ADDRESS, STARDUST_PACKAGE_ID,
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
@@ -111,7 +110,6 @@ const WELL_KNOWN_OBJECTS: &[ObjectID] = &[
     IOTA_FRAMEWORK_PACKAGE_ID,
     IOTA_SYSTEM_PACKAGE_ID,
     STARDUST_PACKAGE_ID,
-    TIMELOCK_PACKAGE_ID,
     IOTA_SYSTEM_STATE_OBJECT_ID,
     IOTA_CLOCK_OBJECT_ID,
     IOTA_DENY_LIST_OBJECT_ID,
@@ -530,7 +528,9 @@ impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
                     Ok(obj) => obj,
                 }
             }};
-            ($fake_id:ident) => {{ get_obj!($fake_id, None) }};
+            ($fake_id:ident) => {{
+                get_obj!($fake_id, None)
+            }};
         }
         match command {
             IotaSubcommand::ForceObjectSnapshotCatchup(ForceObjectSnapshotCatchup {
@@ -1676,7 +1676,11 @@ impl<'a> IotaTestAdapter {
         out.push('\n');
         write!(out, "gas summary: {}", gas_summary).unwrap();
 
-        if out.is_empty() { None } else { Some(out) }
+        if out.is_empty() {
+            None
+        } else {
+            Some(out)
+        }
     }
 
     fn list_events(&self, events: &[Event], summarize: bool) -> String {
@@ -1857,13 +1861,6 @@ static NAMED_ADDRESSES: Lazy<BTreeMap<String, NumericalAddress>> = Lazy::new(|| 
         "stardust".to_string(),
         NumericalAddress::new(
             STARDUST_ADDRESS.into_bytes(),
-            move_compiler::shared::NumberFormat::Hex,
-        ),
-    );
-    map.insert(
-        "timelock".to_string(),
-        NumericalAddress::new(
-            TIMELOCK_ADDRESS.into_bytes(),
             move_compiler::shared::NumberFormat::Hex,
         ),
     );

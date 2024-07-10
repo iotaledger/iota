@@ -23,7 +23,6 @@ use iota_types::{
     object::Object,
     timelock::timelock::{is_timelocked_balance, TimeLock},
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
-    TIMELOCK_PACKAGE_ID,
 };
 use tracing::info;
 
@@ -40,12 +39,11 @@ use crate::stardust::{
 pub const MIGRATION_PROTOCOL_VERSION: u64 = 1;
 
 /// The dependencies of the generated packages for native tokens.
-pub const PACKAGE_DEPS: [ObjectID; 5] = [
+pub const PACKAGE_DEPS: [ObjectID; 4] = [
     MOVE_STDLIB_PACKAGE_ID,
     IOTA_FRAMEWORK_PACKAGE_ID,
     IOTA_SYSTEM_PACKAGE_ID,
     STARDUST_PACKAGE_ID,
-    TIMELOCK_PACKAGE_ID,
 ];
 
 pub(crate) const NATIVE_TOKEN_BAG_KEY_TYPE: &str = "0x01::ascii::String";

@@ -6,6 +6,7 @@ module iota_system::genesis {
 
     use iota::balance::{Self, Balance};
     use iota::iota::{Self, IOTA};
+    use iota::timelock::SystemTimelockCap;
     use iota_system::iota_system;
     use iota_system::validator::{Self, Validator};
     use iota_system::validator_set;
@@ -83,6 +84,7 @@ module iota_system::genesis {
         genesis_chain_parameters: GenesisChainParameters,
         genesis_validators: vector<GenesisValidatorMetadata>,
         token_distribution_schedule: TokenDistributionSchedule,
+        system_timelock_cap: SystemTimelockCap,
         ctx: &mut TxContext,
     ) {
         // Ensure this is only called at genesis
@@ -190,6 +192,7 @@ module iota_system::genesis {
             genesis_chain_parameters.chain_start_timestamp_ms,
             system_parameters,
             stake_subsidy,
+            system_timelock_cap,
             ctx,
         );
     }

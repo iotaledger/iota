@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module timelock::timelocked_stake_tests {
+module iota_system::timelocked_stake_tests {
 
     use iota::balance;
     use iota::balance::Balance;
@@ -29,14 +29,13 @@ module timelock::timelocked_stake_tests {
         total_iota_balance,
         unstake,
     };
+    use iota_system::timelocked_staking::{Self, TimelockedStakedIota};
 
-    use timelock::labeler::LabelerCap;
-    use timelock::timelock::{Self, TimeLock};
-    use timelock::timelocked_staked_iota::{Self, TimelockedStakedIota};
-    use timelock::timelocked_staking;
+    use iota::labeler::LabelerCap;
+    use iota::timelock::{Self, TimeLock};
 
-    use timelock::test_label_one::{Self, TEST_LABEL_ONE};
-    use timelock::test_label_two::{Self, TEST_LABEL_TWO};
+    use iota::test_label_one::{Self, TEST_LABEL_ONE};
+    use iota::test_label_two::{Self, TEST_LABEL_TWO};
 
     const VALIDATOR_ADDR_1: address = @0x1;
     const VALIDATOR_ADDR_2: address = @0x2;
@@ -92,7 +91,7 @@ module timelock::timelocked_stake_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = timelocked_staked_iota::EIncompatibleTimelockedStakedIota)]
+    #[expected_failure(abort_code = timelocked_staking::EIncompatibleTimelockedStakedIota)]
     fun test_join_different_epochs() {
         set_up_iota_system_state();
         let mut scenario_val = test_scenario::begin(STAKER_ADDR_1);
@@ -117,7 +116,7 @@ module timelock::timelocked_stake_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = timelocked_staked_iota::EIncompatibleTimelockedStakedIota)]
+    #[expected_failure(abort_code = timelocked_staking::EIncompatibleTimelockedStakedIota)]
     fun test_join_different_timestamps() {
         set_up_iota_system_state();
         let mut scenario_val = test_scenario::begin(STAKER_ADDR_1);
@@ -179,7 +178,7 @@ module timelock::timelocked_stake_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = timelocked_staked_iota::EIncompatibleTimelockedStakedIota)]
+    #[expected_failure(abort_code = timelocked_staking::EIncompatibleTimelockedStakedIota)]
     fun test_join_different_labels() {
         set_up_iota_system_state();
 

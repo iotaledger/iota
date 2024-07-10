@@ -2,19 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module timelock::timelocked_balance_tests {
+module iota::timelocked_balance_tests {
 
     use iota::balance::{Self, Balance};
     use iota::iota::IOTA;
     use iota::test_scenario;
     use iota::test_utils::{Self, assert_eq};
 
-    use timelock::labeler::LabelerCap;
-    use timelock::timelock::{Self, TimeLock};
-    use timelock::timelocked_balance;
+    use iota::labeler::LabelerCap;
+    use iota::timelock::{Self, TimeLock};
 
-    use timelock::test_label_one::{Self, TEST_LABEL_ONE};
-    use timelock::test_label_two::{Self, TEST_LABEL_TWO};
+    use iota::test_label_one::{Self, TEST_LABEL_ONE};
+    use iota::test_label_two::{Self, TEST_LABEL_TWO};
 
     #[test]
     fun test_join_timelocked_balances() {
@@ -31,7 +30,7 @@ module timelock::timelocked_balance_tests {
         let timelock2 = timelock::lock(iota2, 100, scenario.ctx());
 
         // Join the timelocks.
-        timelocked_balance::join(&mut timelock1, timelock2);
+        timelock::join(&mut timelock1, timelock2);
     
         // Check the joined timelock.
         assert_eq(timelock1.expiration_timestamp_ms(), 100);
@@ -68,7 +67,7 @@ module timelock::timelocked_balance_tests {
         let timelock2 = timelock::lock_with_label(&labeler_one, iota2, 100, scenario.ctx());
 
         // Join the timelocks.
-        timelocked_balance::join(&mut timelock1, timelock2);
+        timelock::join(&mut timelock1, timelock2);
     
         // Check the joined timelock.
         assert_eq(timelock1.locked().value(), 25);
@@ -84,7 +83,7 @@ module timelock::timelocked_balance_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = timelocked_balance::EDifferentExpirationTime)]
+    #[expected_failure(abort_code = timelock::EDifferentExpirationTime)]
     fun test_join_timelocked_balances_with_different_exp_time() {
         // Set up a test environment.
         let sender = @0xA;
@@ -99,7 +98,7 @@ module timelock::timelocked_balance_tests {
         let timelock2 = timelock::lock(iota2, 200, scenario.ctx());
 
         // Join the timelocks.
-        timelocked_balance::join(&mut timelock1, timelock2);
+        timelock::join(&mut timelock1, timelock2);
 
         // Cleanup.
         test_utils::destroy(timelock1);
@@ -108,7 +107,7 @@ module timelock::timelocked_balance_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = timelocked_balance::EDifferentLabels)]
+    #[expected_failure(abort_code = timelock::EDifferentLabels)]
     fun test_join_labeled_timelocked_balances_with_different_labels() {
         // Set up a test environment.
         let sender = @0xA;
@@ -134,7 +133,7 @@ module timelock::timelocked_balance_tests {
         let timelock2 = timelock::lock_with_label(&labeler_two, iota2, 100, scenario.ctx());
 
         // Join the timelocks.
-        timelocked_balance::join(&mut timelock1, timelock2);
+        timelock::join(&mut timelock1, timelock2);
 
         // Cleanup.
         test_utils::destroy(timelock1);
@@ -167,7 +166,7 @@ module timelock::timelocked_balance_tests {
         others.push_back(timelock::lock(iota4, 100, scenario.ctx()));
 
         // Join the timelocks.
-        timelocked_balance::join_vec(&mut timelock1, others);
+        timelock::join_vec(&mut timelock1, others);
     
         // Check the joined timelock.
         assert_eq(timelock1.expiration_timestamp_ms(), 100);
@@ -193,7 +192,7 @@ module timelock::timelocked_balance_tests {
         let others = vector[];
 
         // Join the timelocks.
-        timelocked_balance::join_vec(&mut timelock, others);
+        timelock::join_vec(&mut timelock, others);
     
         // Check the joined timelock.
         assert_eq(timelock.expiration_timestamp_ms(), 100);
@@ -206,7 +205,7 @@ module timelock::timelocked_balance_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = timelocked_balance::EDifferentExpirationTime)]
+    #[expected_failure(abort_code = timelock::EDifferentExpirationTime)]
     fun test_join_vec_timelocked_balances_with_different_exp_time() {
         // Set up a test environment.
         let sender = @0xA;
@@ -228,7 +227,7 @@ module timelock::timelocked_balance_tests {
         others.push_back(timelock::lock(iota4, 100, scenario.ctx()));
 
         // Join the timelocks.
-        timelocked_balance::join_vec(&mut timelock1, others);
+        timelock::join_vec(&mut timelock1, others);
 
         // Cleanup.
         test_utils::destroy(timelock1);
@@ -249,7 +248,7 @@ module timelock::timelocked_balance_tests {
         let mut original = timelock::lock(iota, 100, scenario.ctx());
 
         // Split the timelock.
-        let splitted = timelocked_balance::split(&mut original, 3, scenario.ctx());
+        let splitted = timelock::split(&mut original, 3, scenario.ctx());
     
         // Check the original timelock.
         assert_eq(original.expiration_timestamp_ms(), 100);
@@ -279,7 +278,7 @@ module timelock::timelocked_balance_tests {
         let mut original = timelock::lock(iota, 100, scenario.ctx());
 
         // Split and transfer the timelock.
-        let splitted = timelocked_balance::split(&mut original, 3, scenario.ctx());
+        let splitted = timelock::split(&mut original, 3, scenario.ctx());
         splitted.transfer_to_sender(scenario.ctx());
         scenario.next_tx(sender);
 
@@ -312,7 +311,7 @@ module timelock::timelocked_balance_tests {
         let mut original = timelock::lock(iota, 100, scenario.ctx());
 
         // Split the timelock.
-        let splitted = timelocked_balance::split(&mut original, 0, scenario.ctx());
+        let splitted = timelock::split(&mut original, 0, scenario.ctx());
     
         // Check the original timelock.
         assert_eq(original.expiration_timestamp_ms(), 100);
@@ -342,7 +341,7 @@ module timelock::timelocked_balance_tests {
         let mut original = timelock::lock(iota, 100, scenario.ctx());
 
         // Split the timelock.
-        let splitted = timelocked_balance::split(&mut original, 10, scenario.ctx());
+        let splitted = timelock::split(&mut original, 10, scenario.ctx());
 
         // Check the original timelock.
         assert_eq(original.expiration_timestamp_ms(), 100);
@@ -381,7 +380,7 @@ module timelock::timelocked_balance_tests {
         let mut original = timelock::lock_with_label(&labeler_one, iota, 100, scenario.ctx());
 
         // Split the timelock.
-        let splitted = timelocked_balance::split(&mut original, 3, scenario.ctx());
+        let splitted = timelock::split(&mut original, 3, scenario.ctx());
     
         // Check the original timelock.
         assert_eq(original.locked().value(), 7);
@@ -416,7 +415,7 @@ module timelock::timelocked_balance_tests {
         let mut original = timelock::lock(iota, 100, scenario.ctx());
 
         // Split the timelock.
-        let splitted = timelocked_balance::split(&mut original, 11, scenario.ctx());
+        let splitted = timelock::split(&mut original, 11, scenario.ctx());
 
         // Cleanup.
         test_utils::destroy(original);
