@@ -47,11 +47,7 @@ import NetworkEnv from '../NetworkEnv';
 import { Connection } from './Connection';
 import { SeedAccountSource } from '../account-sources/SeedAccountSource';
 import { AccountSourceType } from '../account-sources/AccountSource';
-import {
-    isGetAccountsFinderResultsRequest,
-    isInitAccountsFinder,
-    isSearchAccountsFinder,
-} from '_payloads/accounts-finder';
+import { isInitAccountsFinder, isSearchAccountsFinder } from '_payloads/accounts-finder';
 import AccountsFinder from '../accounts-finder/AccountsFinder';
 
 export class UiConnection extends Connection {
@@ -275,9 +271,6 @@ export class UiConnection extends Connection {
                     addressGapLimit: payload.addressGapLimit,
                 });
                 this.send(createMessage({ type: 'done' }, msg.id));
-            } else if (isGetAccountsFinderResultsRequest(payload)) {
-                const results = await AccountsFinder.getResults();
-                this.send(createMessage({ type: 'done', results }, msg.id));
             } else {
                 throw new Error(
                     `Unhandled message ${msg.id}. (${JSON.stringify(
