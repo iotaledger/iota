@@ -1055,7 +1055,7 @@ fn create_genesis_objects(
             executor.as_ref(),
             genesis_ctx,
             parameters,
-            &mut genesis_stake.take_timelocks_to_split(),
+            &genesis_stake.take_timelocks_to_split(),
             metrics.clone(),
         )
         .unwrap();
@@ -1291,7 +1291,7 @@ pub fn split_timelocks(
         let mut builder = ProgrammableTransactionBuilder::new();
         for (timelock, surplus_amount, recipient) in timelocks_to_split {
             timelock_split_input_objects.push(ObjectReadResult::new(
-                InputObjectKind::ImmOrOwnedMoveObject(timelock.clone()),
+                InputObjectKind::ImmOrOwnedMoveObject(*timelock),
                 store.get_object(&timelock.0).unwrap().clone().into(),
             ));
             let arguments = vec![

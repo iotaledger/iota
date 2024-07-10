@@ -185,17 +185,16 @@ pub fn delegate_genesis_stake(
             // `staked_with_timelock` filled with entries
             genesis_stake.token_allocation.push(TokenAllocation {
                 recipient_address: delegator,
-                amount_micros: timelock_objects.amount_nanos,
+                amount_nanos: timelock_objects.amount_nanos,
                 staked_with_validator: Some(validator.info.iota_address()),
                 staked_with_timelock: timelock_objects.staked_with_timelock,
             });
             // Get the reference to the timelock to split needed to get exactly
             // `amount_nanos`
-            let timelock_to_split = timelock_objects
+            let timelock_to_split = *timelock_objects
                 .inner
                 .last()
-                .expect("there should be at least two objects")
-                .clone();
+                .expect("there should be at least two objects");
             // Save all the references to timelocks to burn
             genesis_stake
                 .timelocks_to_burn

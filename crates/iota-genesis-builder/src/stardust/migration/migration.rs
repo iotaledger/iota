@@ -417,11 +417,10 @@ mod tests {
         gas_coin::GasCoin,
         id::UID,
         object::{Data, Owner},
-        timelock::timelock::TimeLock,
+        timelock::timelock::{to_genesis_object, TimeLock},
     };
 
     use super::*;
-    use crate::stardust::types::timelock::to_genesis_object;
 
     #[test]
     fn migration_objects_get_timelocks() {
