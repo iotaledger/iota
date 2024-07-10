@@ -1180,11 +1180,7 @@ impl AuthorityState {
         let input_objects = &certificate.data().transaction_data().input_objects()?;
         if certificate.data().transaction_data().is_end_of_epoch_tx() {
             self.input_loader
-                .read_objects_for_synchronous_execution(
-                    certificate.digest(),
-                    input_objects,
-                    epoch_store.protocol_config(),
-                )
+                .read_objects_for_synchronous_execution(certificate.digest(), input_objects)
                 .await
         } else {
             self.input_loader
@@ -1709,7 +1705,6 @@ impl AuthorityState {
                 &transaction_digest,
                 &input_object_kinds,
                 &receiving_object_refs,
-                epoch_store.protocol_config(),
             )
             .await?;
 
@@ -1925,11 +1920,7 @@ impl AuthorityState {
 
         let (mut input_objects, receiving_objects) = self
             .input_loader
-            .read_objects_for_dev_inspect(
-                &input_object_kinds,
-                &receiving_object_refs,
-                protocol_config,
-            )
+            .read_objects_for_dev_inspect(&input_object_kinds, &receiving_object_refs)
             .await?;
 
         // Create and use a dummy gas object if there is no gas object provided.
@@ -4590,7 +4581,6 @@ impl AuthorityState {
                     .intent_message()
                     .value
                     .input_objects()?,
-                epoch_store.protocol_config(),
             )
             .await?;
 

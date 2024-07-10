@@ -150,7 +150,7 @@ impl ConsensusStore {
 mod test {
     use std::collections::HashMap;
 
-    use test_utils::{latest_protocol_version, CommitteeFixture};
+    use test_utils::CommitteeFixture;
     use types::{Certificate, CommittedSubDag, ReputationScores};
 
     use crate::ConsensusStore;
@@ -166,7 +166,7 @@ mod test {
         for sequence_number in 0..10 {
             let sub_dag = CommittedSubDag::new(
                 vec![],
-                Certificate::default(&latest_protocol_version()),
+                Certificate::default(),
                 sequence_number,
                 ReputationScores::new(&committee),
                 None,
@@ -195,7 +195,7 @@ mod test {
 
             let sub_dag = CommittedSubDag::new(
                 vec![],
-                Certificate::default(&latest_protocol_version()),
+                Certificate::default(),
                 sequence_number,
                 scores,
                 None,

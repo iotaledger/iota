@@ -4,7 +4,6 @@
 
 use std::fmt::{Debug, Display};
 
-use iota_protocol_config::ProtocolConfig;
 use types::Batch;
 
 /// Defines the validation procedure for receiving either a new single
@@ -16,11 +15,7 @@ pub trait TransactionValidator: Clone + Send + Sync + 'static {
     /// a batch
     fn validate(&self, t: &[u8]) -> Result<(), Self::Error>;
     /// Determines if this batch can be voted on
-    fn validate_batch(
-        &self,
-        b: &Batch,
-        protocol_config: &ProtocolConfig,
-    ) -> Result<(), Self::Error>;
+    fn validate_batch(&self, b: &Batch) -> Result<(), Self::Error>;
 }
 
 /// Simple validator that accepts all transactions and batches.
@@ -34,11 +29,7 @@ impl TransactionValidator for TrivialTransactionValidator {
         Ok(())
     }
 
-    fn validate_batch(
-        &self,
-        _b: &Batch,
-        _protocol_config: &ProtocolConfig,
-    ) -> Result<(), Self::Error> {
+    fn validate_batch(&self, _b: &Batch) -> Result<(), Self::Error> {
         Ok(())
     }
 }

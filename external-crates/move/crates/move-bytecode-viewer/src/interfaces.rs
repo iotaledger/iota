@@ -45,7 +45,7 @@ pub trait LeftScreen {
 /// `RightScreen` trait.
 pub trait RightScreen<Indexer: LeftScreen> {
     /// Take a `SourceIndex` from the `Indexer` and turn it into a context that
-    /// will be diplayed on the right screen.
+    /// will be displayed on the right screen.
     fn source_for_code_location(
         &self,
         bytecode_info: &Indexer::SourceIndex,
