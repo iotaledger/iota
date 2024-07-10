@@ -512,10 +512,8 @@ module iota_system::rewards_distribution_tests {
 
         scenario.next_tx(@0x0);
         // The total supply of 1000 IOTA should be reduced by 700 IOTA because the 700 IOTA becomes leftover and should be burned.
-        let mut system_state = scenario.take_shared<IotaSystemState>();
-        assert_eq(system_state.get_iota_supply(), 300 * MICROS_PER_IOTA);
+        assert_eq(total_supply(scenario), 300 * MICROS_PER_IOTA);
 
-        test_scenario::return_shared(system_state);
         scenario_val.end();
     }
 
@@ -549,11 +547,11 @@ module iota_system::rewards_distribution_tests {
         destroy(storage_rebate);
 
         scenario.next_tx(@0x0);
-        let mut system_state = scenario.take_shared<IotaSystemState>();
-        // Total supply after leftover has burned.
-        assert_eq(system_state.get_iota_supply(), 999_999_999_999);
 
-        test_scenario::return_shared(system_state);
+        // Total supply after leftover has burned.
+        // The 999,999,999,999 is obtained by subtracting the leftover from the total supply: 1,000,000,000,000 - 1 = 999,999,999,999.
+        assert_eq(total_supply(scenario), 999_999_999_999);
+
         scenario_val.end();
     }
 
