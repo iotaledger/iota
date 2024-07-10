@@ -41,7 +41,7 @@ pub struct CheckpointReader {
 
 #[derive(Clone)]
 pub struct ReaderOptions {
-    pub tick_interal_ms: u64,
+    pub tick_interval_ms: u64,
     pub timeout_secs: u64,
     pub batch_size: usize,
 }
@@ -49,7 +49,7 @@ pub struct ReaderOptions {
 impl Default for ReaderOptions {
     fn default() -> Self {
         Self {
-            tick_interal_ms: 100,
+            tick_interval_ms: 100,
             timeout_secs: 5,
             batch_size: 100,
         }
@@ -287,7 +287,7 @@ impl CheckpointReader {
                 Some(gc_checkpoint_number) = self.processed_receiver.recv() => {
                     self.gc_processed_files(gc_checkpoint_number).expect("Failed to clean the directory");
                 }
-                Ok(Some(_)) | Err(_) = timeout(Duration::from_millis(self.options.tick_interal_ms), inotify_recv.recv())  => {
+                Ok(Some(_)) | Err(_) = timeout(Duration::from_millis(self.options.tick_interval_ms), inotify_recv.recv())  => {
                     self.sync().await.expect("Failed to read checkpoint files");
                 }
             }

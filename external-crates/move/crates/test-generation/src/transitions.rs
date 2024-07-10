@@ -1254,7 +1254,7 @@ macro_rules! state_local_take_borrow {
     };
 }
 
-/// Wrapper for enclosing the arguments of `local_palce` so that only the
+/// Wrapper for enclosing the arguments of `local_place` so that only the
 /// `state` needs to be given.
 #[macro_export]
 macro_rules! state_local_place {

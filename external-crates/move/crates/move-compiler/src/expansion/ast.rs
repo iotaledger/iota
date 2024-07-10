@@ -928,17 +928,14 @@ impl AstDebug for ImplicitUseFunCandidate {
             ImplicitUseFunKind::UseAlias { used: false } => "#unused",
             ImplicitUseFunKind::FunctionDeclaration => "#fundecl",
         };
-        w.writeln(&format!("implcit{kind_str}#use fun {m}::{n};"));
+        w.writeln(&format!("implicit{kind_str}#use fun {m}::{n};"));
     }
 }
 
 impl AstDebug for UseFuns {
     fn ast_debug(&self, w: &mut AstWriter) {
-        let UseFuns {
-            explicit: explict,
-            implicit,
-        } = self;
-        for use_fun in explict {
+        let UseFuns { explicit, implicit } = self;
+        for use_fun in explicit {
             use_fun.ast_debug(w);
         }
         for (_, _, use_fun) in implicit {

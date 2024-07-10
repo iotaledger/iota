@@ -155,7 +155,7 @@ pub struct Version {
     pub sha: &'static str,
     /// The full version string.
     /// Note that this extra field is used only for the uptime_metric function
-    /// which requries a &'static str.
+    /// which requires a &'static str.
     pub full: &'static str,
 }
 
