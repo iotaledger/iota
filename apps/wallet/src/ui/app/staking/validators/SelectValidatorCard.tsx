@@ -12,7 +12,7 @@ import { calculateStakeShare, formatPercentageDisplay, useGetValidatorsApy } fro
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Right } from '@iota/icons';
 import { useMemo, useState } from 'react';
-
+import cl from 'clsx';
 import { ValidatorListItem } from './ValidatorListItem';
 
 type SortKeys = 'name' | 'stakeShare' | 'apy';
