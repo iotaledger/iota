@@ -32,6 +32,7 @@
     },
     "dependencies": {
         "@fontsource/inter": "^5.0.17",
+        "classnames": "^2.5.1",
         "lodash.merge": "^4.6.2",
         "react": "^18.3.1",
         "react-dom": "^18.3.1"

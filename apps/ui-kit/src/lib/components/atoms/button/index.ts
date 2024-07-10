@@ -1,4 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export { Header } from './Header';
+export * from './Button';
+
+export * from './button.enums';
