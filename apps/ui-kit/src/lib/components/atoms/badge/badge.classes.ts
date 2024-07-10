@@ -17,3 +17,5 @@ export const TEXT_COLORS: Record<BadgeType, string> = {
 
 export const OUTLINED_BORDER = 'border border-neutral-70 dark:border-neutral-40';
 export const BADGE_TEXT_CLASS = 'text-body-md';
+
+export const DISABLED_OPACITY = 'disabled:opacity-30';

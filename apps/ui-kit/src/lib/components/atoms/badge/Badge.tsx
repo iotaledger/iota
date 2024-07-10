@@ -29,25 +29,23 @@ export function Badge({
     type: variant = BadgeType.Outlined,
     label,
     icon,
-    disabled = false,
+    disabled,
 }: BadgeProps): React.JSX.Element {
     const backgroundClasses = BACKGROUND_COLORS[variant];
     const textClasses = TEXT_COLORS[variant];
     const borderClasses = variant === BadgeType.Outlined ? OUTLINED_BORDER : '';
 
     return (
-        <div
+        <button
             className={cx(
-                'flex items-center space-x-2 rounded-full px-xs py-xxs',
+                'flex items-center space-x-2 rounded-full px-xs py-xxs disabled:opacity-30',
                 backgroundClasses,
                 borderClasses,
-                {
-                    'opacity-30': disabled,
-                },
             )}
+            disabled={disabled}
         >
             {icon && <span className={cx(textClasses)}>{icon}</span>}
             <span className={cx(BADGE_TEXT_CLASS, textClasses)}>{label}</span>
-        </div>
+        </button>
     );
 }

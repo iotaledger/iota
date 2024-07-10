@@ -8,11 +8,7 @@ const meta = {
     component: Badge,
     tags: ['autodocs'],
     render: (props) => {
-        return (
-            <div className="flex flex-col items-start">
-                <Badge {...props} />
-            </div>
-        );
+        return <Badge {...props} />;
     },
 } satisfies Meta<typeof Badge>;
 
