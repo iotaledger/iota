@@ -2,7 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type CoinBalance } from '@iota/iota.js/client';
-import { type AccountFromFinder, type AddressFromFinder } from '_src/shared/accounts';
+import {
+    type Bip44Path,
+    type AccountFromFinder,
+    type AddressFromFinder,
+} from '_src/shared/accounts';
 import type { FindBalance } from '_src/background/accounts-finder/types';
 
 /**
@@ -220,4 +224,22 @@ function transformFromBipMap(bipMap: Record<string, AddressFromFinder>) {
 export function mergeAccounts(accounts1: AccountFromFinder[], accounts2: AccountFromFinder[]) {
     const bipMap = transformToBipMap([...accounts1, ...accounts2]);
     return transformFromBipMap(bipMap);
+}
+
+// Diff the found  and persisted accounts so we know
+// what addresses have not persisted yet and have balance.
+export function diffAddressesBipPaths(
+    foundAccounts: AccountFromFinder[],
+    persistedAccounts: AccountFromFinder[],
+): Bip44Path[] {
+    const foundBipMap = transformToBipMap(foundAccounts);
+    const persistedBipMap = transformToBipMap(persistedAccounts);
+
+    const foundBipMapKeys = Object.entries(foundBipMap);
+    const persistedBipMapKeys = Object.keys(persistedBipMap);
+    const diffBipPaths = foundBipMapKeys.filter(
+        ([key, address]) => !persistedBipMapKeys.includes(key) && hasBalance(address.balance),
+    );
+
+    return diffBipPaths.map(([_, account]) => account.bipPath);
 }
