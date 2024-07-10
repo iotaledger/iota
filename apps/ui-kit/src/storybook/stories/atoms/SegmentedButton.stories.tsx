@@ -25,9 +25,9 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
     args: {
         elements: [
-            { label: 'Label 1' },
+            { label: 'Label 1', selected: true },
             { label: 'Label 2' },
-            { label: 'Label 3' },
+            { label: 'Label 3', disabled: true },
             { label: 'Label 4' },
         ],
     },

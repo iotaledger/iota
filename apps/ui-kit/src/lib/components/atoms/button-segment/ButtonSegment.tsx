@@ -2,10 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React from 'react';
-import { BACKGROUND_COLORS, TEXT_COLORS, TEXT_SELECTED } from './button-segment.classes';
+import {
+    BACKGROUND_COLORS,
+    BACKGROUND_COLORS_SELECTED,
+    TEXT_COLORS,
+    TEXT_COLORS_SELECTED,
+} from './button-segment.classes';
 import cx from 'classnames';
 
-interface ButtonSegmentProps {
+export interface ButtonSegmentProps {
     /**
      * The label of the button.
      */
@@ -31,24 +36,25 @@ interface ButtonSegmentProps {
 export function ButtonSegment({
     icon,
     label,
-    selected = false,
+    selected,
     disabled,
     onClick,
 }: ButtonSegmentProps): React.JSX.Element {
-    const textColors = selected ? TEXT_SELECTED : TEXT_COLORS;
+    const backgroundColors = selected ? BACKGROUND_COLORS_SELECTED : BACKGROUND_COLORS;
+    const textColors = selected ? TEXT_COLORS_SELECTED : TEXT_COLORS;
     return (
         <button
             onClick={onClick}
             className={cx(
-                'relative flex rounded-full px-md py-sm disabled:opacity-40',
+                'flex items-center rounded-full px-sm py-2xxs disabled:opacity-40',
+                backgroundColors,
                 textColors,
-                BACKGROUND_COLORS,
             )}
             disabled={disabled}
         >
-            <div className={cx('flex flex-row items-center justify-center gap-2')}>
+            <div className={cx('flex flex-row items-center justify-center gap-2 text-body-md')}>
                 {icon && <span>{icon}</span>}
-                <span className={cx('font-inter text-label-md')}>{label}</span>
+                <span className={cx('font-inter')}>{label}</span>
             </div>
         </button>
     );

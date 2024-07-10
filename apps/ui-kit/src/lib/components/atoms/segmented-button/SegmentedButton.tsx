@@ -1,17 +1,16 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { useState } from 'react';
-import { BACKGROUND_COLORS } from './segmented-button.classes';
+import React from 'react';
+import { BACKGROUND_COLORS, OUTLINED_BORDER } from './segmented-button.classes';
 import cx from 'classnames';
-import { ButtonSegment } from '../button-segment';
+import { ButtonSegment, ButtonSegmentProps } from '../button-segment';
 import { SegmentedButtonType } from './segmented-button.enums';
-
 interface SegmentedButtonProps {
     /**
      * The text of the button.
      */
-    elements: { label: string; icon?: React.ReactNode; disabled?: boolean }[];
+    elements: ButtonSegmentProps[];
     /**
      * The type of the button
      */
@@ -19,38 +18,28 @@ interface SegmentedButtonProps {
     /**
      * The onSelected event of the button.
      */
-    onSelected?: (selectedElement: { label: string }) => void;
+    onSelected?: (selectedElement: ButtonSegmentProps) => void;
 }
 
 export function SegmentedButton({
     elements,
-    onSelected,
     type = SegmentedButtonType.Filled,
+    onSelected,
 }: SegmentedButtonProps): React.JSX.Element {
-    const [selected, setSelected] = useState<string | null>(null);
     const backgroundColors = BACKGROUND_COLORS[type];
-
-    const handleButtonClick = (
-        element: { label: string; icon?: React.ReactNode; disabled?: boolean },
-        index: number,
-    ) => {
-        if (element.disabled || element.label === selected) {
-            // Do nothing if the button is disabled or already selected
-            return;
-        }
-        const newSelected = element.label;
-        setSelected(newSelected);
-        onSelected?.(element);
-    };
+    const borderColors = type === SegmentedButtonType.Outlined ? OUTLINED_BORDER : '';
     return (
-        <div className={cx('flex flex-row gap-2 rounded-full p-xxs', backgroundColors)}>
+        <div
+            className={cx('flex flex-row gap-2 rounded-full p-xxs', backgroundColors, borderColors)}
+        >
             {elements.map((element, index) => (
                 <ButtonSegment
                     key={index}
                     label={element.label}
                     icon={element.icon}
-                    selected={element.label === selected}
-                    onClick={() => handleButtonClick(element, index)}
+                    selected={element.selected}
+                    disabled={element.disabled}
+                    onClick={() => onSelected && onSelected(element)}
                 />
             ))}
         </div>
