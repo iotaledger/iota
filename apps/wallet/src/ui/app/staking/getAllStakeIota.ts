@@ -5,7 +5,7 @@
 import { type DelegatedStake } from '@iota/iota.js/client';
 
 // Get staked Iota
-export const getAllStakeIota = (allDelegation: DelegatedStake[]) => {
+export function getAllStakeIota(allDelegation: DelegatedStake[]) {
     return (
         allDelegation.reduce(
             (acc, curr) =>
@@ -13,4 +13,4 @@ export const getAllStakeIota = (allDelegation: DelegatedStake[]) => {
             0n,
         ) || 0n
     );
-};
+}

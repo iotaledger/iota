@@ -5,8 +5,7 @@
 import type { IotaParsedData } from '@iota/iota.js/client';
 import { useMemo } from 'react';
 
-export const parseIpfsUrl = (ipfsUrl: string) =>
-    ipfsUrl.replace(/^ipfs:\/\//, 'https://ipfs.io/ipfs/');
+const parseIpfsUrl = (ipfsUrl: string) => ipfsUrl.replace(/^ipfs:\/\//, 'https://ipfs.io/ipfs/');
 
 export default function useMediaUrl(objData: IotaParsedData | null) {
     const { fields } =

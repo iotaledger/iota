@@ -166,7 +166,7 @@ fn modules(
     for (mident, friends) in all_new_friends {
         let mdef = typed_modules.get_mut(&mident).unwrap();
         // point of interest: if we have any new friends, we know there can't be any
-        // "current" friends becahse all thew new friends are generated off of
+        // "current" friends because all thew new friends are generated off of
         // `public(package)` usage, which disallows other friends.
         mdef.friends = UniqueMap::maybe_from_iter(friends.into_iter())
             .expect("ICE compiler added duplicate friends to public(package) friend list");
@@ -1769,7 +1769,7 @@ fn binop(
         Range | Implies | Iff => {
             context
                 .env
-                .add_diag(ice!((loc, "ICE unexpect specification operator")));
+                .add_diag(ice!((loc, "ICE unexpected specification operator")));
             (context.error_type(loc), context.error_type(loc))
         }
     };

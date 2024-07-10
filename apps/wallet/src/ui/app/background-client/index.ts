@@ -42,8 +42,9 @@ import { AccountSourceType } from '_src/background/account-sources/AccountSource
 import {
     type GetAccountsFinderResultsRequest,
     type InitAccountsFinder,
-    type SearchAccountsFinder,
+    type SearchAccountsFinderPayload,
 } from '_src/shared/messaging/messages/payloads/accounts-finder';
+import { type AccountFinderConfigParams } from '_src/background/accounts-finder';
 
 const ENTITIES_TO_CLIENT_QUERY_KEYS: Record<UIAccessibleEntityType, QueryKey> = {
     accounts: ACCOUNTS_QUERY_KEY,
@@ -536,7 +537,7 @@ export class BackgroundClient {
         );
     }
 
-    public async initAccountsFinder() {
+    public async resetAccountsFinder() {
         await lastValueFrom(
             this.sendMessage(
                 createMessage<InitAccountsFinder>({
@@ -546,22 +547,12 @@ export class BackgroundClient {
         );
     }
 
-    public async searchAccountsFinder(
-        coinType: number,
-        gasType: string,
-        sourceID: string,
-        accountGapLimit: number,
-        addressGapLimit: number,
-    ) {
+    public async searchAccountsFinder(params: AccountFinderConfigParams) {
         await lastValueFrom(
             this.sendMessage(
-                createMessage<SearchAccountsFinder>({
+                createMessage<SearchAccountsFinderPayload>({
                     type: 'search-accounts-finder',
-                    coinType,
-                    gasType,
-                    sourceID,
-                    accountGapLimit,
-                    addressGapLimit,
+                    ...params,
                 }),
             ).pipe(take(1)),
         );
