@@ -17,13 +17,13 @@ import { useUnlockAccount } from './accounts/UnlockAccountContext';
 import { DAppPermissionsList } from './DAppPermissionsList';
 import { SummaryCard } from './SummaryCard';
 
-export type DAppInfoCardProps = {
+export interface DAppInfoCardProps {
     name: string;
     url: string;
     iconUrl?: string;
     connectedAddress?: string;
     permissions?: PermissionType[];
-};
+}
 
 export function DAppInfoCard({
     name,

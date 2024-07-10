@@ -336,7 +336,7 @@ impl BlocklistCommitteeAction {
         bytes.push(u8::try_from(self.blocklisted_members.len()).unwrap());
 
         // Add list of updated members
-        // Members are represented as pubkey dervied evm addresses (20 bytes)
+        // Members are represented as pubkey derived evm addresses (20 bytes)
         let members_bytes = self
             .blocklisted_members
             .iter()
@@ -759,7 +759,7 @@ mod tests {
         .to_bytes();
 
         // Construct the expected bytes
-        let prefix_bytes = BRIDGE_MESSAGE_PREFIX.to_vec(); // len: 18
+        let prefix_bytes = BRIDGE_MESSAGE_PREFIX.to_vec(); // len: 19
         let message_type = vec![BridgeActionType::TokenTransfer as u8]; // len: 1
         let message_version = vec![TOKEN_TRANSFER_MESSAGE_VERSION]; // len: 1
         let nonce_bytes = nonce.to_be_bytes().to_vec(); // len: 8
@@ -794,7 +794,7 @@ mod tests {
         // TODO: for each action type add a test to assert the length
         assert_eq!(
             combined_bytes.len(),
-            18 + 1 + 1 + 8 + 1 + 1 + 32 + 1 + 20 + 1 + 1 + 8
+            19 + 1 + 1 + 8 + 1 + 1 + 32 + 1 + 20 + 1 + 1 + 8
         );
         Ok(())
     }
@@ -836,15 +836,17 @@ mod tests {
         })
         .to_bytes();
         assert_eq!(
-            encoded_bytes,
-            Hex::decode("5355495f4252494447455f4d4553534147450001000000000000000a012000000000000000000000000000000000000000000000000000000000000000640b1400000000000000000000000000000000000000c8030000000000003039").unwrap(),
+            Hex::encode(&encoded_bytes),
+            format!(
+                "{}0001000000000000000a012000000000000000000000000000000000000000000000000000000000000000640b1400000000000000000000000000000000000000c8030000000000003039",
+                Hex::encode(BRIDGE_MESSAGE_PREFIX)
+            )
         );
 
         let hash = Keccak256::digest(encoded_bytes).digest;
         assert_eq!(
-            hash.to_vec(),
-            Hex::decode("6ab34c52b6264cbc12fe8c3874f9b08f8481d2e81530d136386646dbe2f8baf4")
-                .unwrap(),
+            Hex::encode(hash),
+            "0fc6f3e2a8c64915217ac56ee10c722c633ce4cabe8ef17f1ee67c403c76608e",
         );
         Ok(())
     }
@@ -867,7 +869,7 @@ mod tests {
             blocklisted_members: vec![pub_key_bytes.clone()],
         });
         let bytes = blocklist_action.to_bytes();
-        // 5355495f4252494447455f4d455353414745: prefix
+        // b"IOTA_BRIDGE_MESSAGE" prefix
         // 01: msg type
         // 01: msg version
         // 0000000000000081: nonce
@@ -877,14 +879,27 @@ mod tests {
         // [
         // 68b43fd906c0b8f024a18c56e06744f7c6157c65
         // ]: blocklisted members abi-encoded
-        assert_eq!(bytes, Hex::decode("5355495f4252494447455f4d4553534147450101000000000000008103000168b43fd906c0b8f024a18c56e06744f7c6157c65").unwrap());
+        assert_eq!(
+            Hex::encode(bytes),
+            format!(
+                "{}\
+                01\
+                01\
+                0000000000000081\
+                03\
+                00\
+                01\
+                68b43fd906c0b8f024a18c56e06744f7c6157c65",
+                Hex::encode(BRIDGE_MESSAGE_PREFIX)
+            )
+        );
 
         let pub_key_bytes_2 = BridgeAuthorityPublicKeyBytes::from_bytes(
             &Hex::decode("027f1178ff417fc9f5b8290bd8876f0a157a505a6c52db100a8492203ddd1d4279")
                 .unwrap(),
         )
         .unwrap();
-        // its evem address: 0xacaef39832cb995c4e049437a3e2ec6a7bad1ab5
+        // its evm address: 0xacaef39832cb995c4e049437a3e2ec6a7bad1ab5
         let blocklist_action = BridgeAction::BlocklistCommitteeAction(BlocklistCommitteeAction {
             nonce: 68,
             chain_id: BridgeChainId::IotaDevnet,
@@ -892,7 +907,7 @@ mod tests {
             blocklisted_members: vec![pub_key_bytes.clone(), pub_key_bytes_2.clone()],
         });
         let bytes = blocklist_action.to_bytes();
-        // 5355495f4252494447455f4d455353414745: prefix
+        // b"IOTA_BRIDGE_MESSAGE" prefix
         // 01: msg type
         // 01: msg version
         // 0000000000000044: nonce
@@ -903,7 +918,21 @@ mod tests {
         // 68b43fd906c0b8f024a18c56e06744f7c6157c65
         // acaef39832cb995c4e049437a3e2ec6a7bad1ab5
         // ]: blocklisted members abi-encoded
-        assert_eq!(bytes, Hex::decode("5355495f4252494447455f4d4553534147450101000000000000004402010268b43fd906c0b8f024a18c56e06744f7c6157c65acaef39832cb995c4e049437a3e2ec6a7bad1ab5").unwrap());
+        assert_eq!(
+            Hex::encode(bytes),
+            format!(
+                "{}\
+                01\
+                01\
+                0000000000000044\
+                02\
+                01\
+                02\
+                68b43fd906c0b8f024a18c56e06744f7c6157c65\
+                acaef39832cb995c4e049437a3e2ec6a7bad1ab5",
+                Hex::encode(BRIDGE_MESSAGE_PREFIX)
+            )
+        );
 
         let blocklist_action = BridgeAction::BlocklistCommitteeAction(BlocklistCommitteeAction {
             nonce: 49,
@@ -912,7 +941,7 @@ mod tests {
             blocklisted_members: vec![pub_key_bytes.clone()],
         });
         let bytes = blocklist_action.to_bytes();
-        // 5355495f4252494447455f4d455353414745: prefix
+        // b"IOTA_BRIDGE_MESSAGE" prefix
         // 01: msg type
         // 01: msg version
         // 0000000000000031: nonce
@@ -922,7 +951,20 @@ mod tests {
         // [
         // 68b43fd906c0b8f024a18c56e06744f7c6157c65
         // ]: blocklisted members abi-encoded
-        assert_eq!(bytes, Hex::decode("5355495f4252494447455f4d455353414745010100000000000000310c000168b43fd906c0b8f024a18c56e06744f7c6157c65").unwrap());
+        assert_eq!(
+            Hex::encode(bytes),
+            format!(
+                "{}\
+                01\
+                01\
+                0000000000000031\
+                0c\
+                00\
+                01\
+                68b43fd906c0b8f024a18c56e06744f7c6157c65",
+                Hex::encode(BRIDGE_MESSAGE_PREFIX)
+            )
+        );
 
         let blocklist_action = BridgeAction::BlocklistCommitteeAction(BlocklistCommitteeAction {
             nonce: 94,
@@ -931,7 +973,7 @@ mod tests {
             blocklisted_members: vec![pub_key_bytes.clone(), pub_key_bytes_2.clone()],
         });
         let bytes = blocklist_action.to_bytes();
-        // 5355495f4252494447455f4d455353414745: prefix
+        // b"IOTA_BRIDGE_MESSAGE" prefix
         // 01: msg type
         // 01: msg version
         // 000000000000005e: nonce
@@ -939,10 +981,24 @@ mod tests {
         // 01: blocklist type
         // 02: length of updated members
         // [
-        // 00000000000000000000000068b43fd906c0b8f024a18c56e06744f7c6157c65
-        // 000000000000000000000000acaef39832cb995c4e049437a3e2ec6a7bad1ab5
+        // 68b43fd906c0b8f024a18c56e06744f7c6157c65
+        // acaef39832cb995c4e049437a3e2ec6a7bad1ab5
         // ]: blocklisted members abi-encoded
-        assert_eq!(bytes, Hex::decode("5355495f4252494447455f4d4553534147450101000000000000005e0b010268b43fd906c0b8f024a18c56e06744f7c6157c65acaef39832cb995c4e049437a3e2ec6a7bad1ab5").unwrap());
+        assert_eq!(
+            Hex::encode(bytes),
+            format!(
+                "{}\
+                01\
+                01\
+                000000000000005e\
+                0b\
+                01\
+                02\
+                68b43fd906c0b8f024a18c56e06744f7c6157c65\
+                acaef39832cb995c4e049437a3e2ec6a7bad1ab5",
+                Hex::encode(BRIDGE_MESSAGE_PREFIX)
+            )
+        );
     }
 
     #[test]
@@ -953,15 +1009,23 @@ mod tests {
             action_type: EmergencyActionType::Pause,
         });
         let bytes = action.to_bytes();
-        // 5355495f4252494447455f4d455353414745: prefix
+        // b"IOTA_BRIDGE_MESSAGE" prefix
         // 02: msg type
         // 01: msg version
         // 0000000000000037: nonce
         // 03: chain id
         // 00: action type
         assert_eq!(
-            bytes,
-            Hex::decode("5355495f4252494447455f4d455353414745020100000000000000370300").unwrap()
+            Hex::encode(bytes),
+            format!(
+                "{}\
+                02\
+                01\
+                0000000000000037\
+                03\
+                00",
+                Hex::encode(BRIDGE_MESSAGE_PREFIX)
+            )
         );
 
         let action = BridgeAction::EmergencyAction(EmergencyAction {
@@ -970,15 +1034,23 @@ mod tests {
             action_type: EmergencyActionType::Unpause,
         });
         let bytes = action.to_bytes();
-        // 5355495f4252494447455f4d455353414745: prefix
+        // b"IOTA_BRIDGE_MESSAGE" prefix
         // 02: msg type
         // 01: msg version
         // 0000000000000038: nonce
         // 0b: chain id
         // 01: action type
         assert_eq!(
-            bytes,
-            Hex::decode("5355495f4252494447455f4d455353414745020100000000000000380b01").unwrap()
+            Hex::encode(bytes),
+            format!(
+                "{}\
+                02\
+                01\
+                0000000000000038\
+                0b\
+                01",
+                Hex::encode(BRIDGE_MESSAGE_PREFIX)
+            )
         );
     }
 
@@ -991,7 +1063,7 @@ mod tests {
             new_usd_limit: 1_000_000 * USD_MULTIPLIER, // $1M USD
         });
         let bytes = action.to_bytes();
-        // 5355495f4252494447455f4d455353414745: prefix
+        // b"IOTA_BRIDGE_MESSAGE" prefix
         // 03: msg type
         // 01: msg version
         // 000000000000000f: nonce
@@ -999,11 +1071,17 @@ mod tests {
         // 0c: sending chain id
         // 00000002540be400: new usd limit
         assert_eq!(
-            bytes,
-            Hex::decode(
-                "5355495f4252494447455f4d4553534147450301000000000000000f030c00000002540be400"
+            Hex::encode(bytes),
+            format!(
+                "{}\
+                03\
+                01\
+                000000000000000f\
+                03\
+                0c\
+                00000002540be400",
+                Hex::encode(BRIDGE_MESSAGE_PREFIX)
             )
-            .unwrap()
         );
     }
 
@@ -1016,7 +1094,7 @@ mod tests {
             new_usd_price: 100_000 * USD_MULTIPLIER, // $100k USD
         });
         let bytes = action.to_bytes();
-        // 5355495f4252494447455f4d455353414745: prefix
+        // b"IOTA_BRIDGE_MESSAGE" prefix
         // 04: msg type
         // 01: msg version
         // 000000000000010a: nonce
@@ -1024,11 +1102,17 @@ mod tests {
         // 01: token id
         // 000000003b9aca00: new usd price
         assert_eq!(
-            bytes,
-            Hex::decode(
-                "5355495f4252494447455f4d4553534147450401000000000000010a0301000000003b9aca00"
+            Hex::encode(bytes),
+            format!(
+                "{}\
+                04\
+                01\
+                000000000000010a\
+                03\
+                01\
+                000000003b9aca00",
+                Hex::encode(BRIDGE_MESSAGE_PREFIX)
             )
-            .unwrap()
         );
     }
 
@@ -1048,7 +1132,7 @@ mod tests {
             new_impl_address: EthAddress::repeat_byte(9),
             call_data,
         });
-        // 5355495f4252494447455f4d455353414745: prefix
+        // b"IOTA_BRIDGE_MESSAGE" prefix
         // 05: msg type
         // 01: msg version
         // 000000000000007b: nonce
@@ -1062,8 +1146,20 @@ mod tests {
         // 0000000000000000000000000000000000000000000000000000000000000004
         // 5cd8a76b00000000000000000000000000000000000000000000000000000000: call data
         assert_eq!(
-            Hex::encode(action.to_bytes().clone()),
-            "5355495f4252494447455f4d4553534147450501000000000000007b0c00000000000000000000000006060606060606060606060606060606060606060000000000000000000000000909090909090909090909090909090909090909000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000045cd8a76b00000000000000000000000000000000000000000000000000000000"
+            Hex::encode(action.to_bytes()),
+            format!(
+                "{}\
+                05\
+                01\
+                000000000000007b\
+                0c\
+                0000000000000000000000000606060606060606060606060606060606060606\
+                0000000000000000000000000909090909090909090909090909090909090909\
+                0000000000000000000000000000000000000000000000000000000000000060\
+                0000000000000000000000000000000000000000000000000000000000000004\
+                5cd8a76b00000000000000000000000000000000000000000000000000000000",
+                Hex::encode(BRIDGE_MESSAGE_PREFIX)
+            )
         );
 
         // Calldata with one parameter: `function newMockFunction(bool)`
@@ -1082,7 +1178,7 @@ mod tests {
             new_impl_address: EthAddress::repeat_byte(9),
             call_data,
         });
-        // 5355495f4252494447455f4d455353414745: prefix
+        // b"IOTA_BRIDGE_MESSAGE" prefix
         // 05: msg type
         // 01: msg version
         // 000000000000007b: nonce
@@ -1097,8 +1193,21 @@ mod tests {
         // 417795ef00000000000000000000000000000000000000000000000000000000
         // 0000000100000000000000000000000000000000000000000000000000000000: call data
         assert_eq!(
-            Hex::encode(action.to_bytes().clone()),
-            "5355495f4252494447455f4d4553534147450501000000000000007b0c0000000000000000000000000606060606060606060606060606060606060606000000000000000000000000090909090909090909090909090909090909090900000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000024417795ef000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000"
+            Hex::encode(action.to_bytes()),
+            format!(
+                "{}\
+                05\
+                01\
+                000000000000007b\
+                0c\
+                0000000000000000000000000606060606060606060606060606060606060606\
+                0000000000000000000000000909090909090909090909090909090909090909\
+                0000000000000000000000000000000000000000000000000000000000000060\
+                0000000000000000000000000000000000000000000000000000000000000024\
+                417795ef00000000000000000000000000000000000000000000000000000000\
+                0000000100000000000000000000000000000000000000000000000000000000",
+                Hex::encode(BRIDGE_MESSAGE_PREFIX)
+            )
         );
 
         // Calldata with two parameters: `function newerMockFunction(bool, uint8)`
@@ -1120,7 +1229,7 @@ mod tests {
             new_impl_address: EthAddress::repeat_byte(9),
             call_data,
         });
-        // 5355495f4252494447455f4d455353414745: prefix
+        // b"IOTA_BRIDGE_MESSAGE" prefix
         // 05: msg type
         // 01: msg version
         // 000000000000007b: nonce
@@ -1136,8 +1245,22 @@ mod tests {
         // 0000000100000000000000000000000000000000000000000000000000000000
         // 0000002a00000000000000000000000000000000000000000000000000000000: call data
         assert_eq!(
-            Hex::encode(action.to_bytes().clone()),
-            "5355495f4252494447455f4d4553534147450501000000000000007b0c0000000000000000000000000606060606060606060606060606060606060606000000000000000000000000090909090909090909090909090909090909090900000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044be8fc25d0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002a00000000000000000000000000000000000000000000000000000000"
+            Hex::encode(action.to_bytes()),
+            format!(
+                "{}\
+                05\
+                01\
+                000000000000007b\
+                0c\
+                0000000000000000000000000606060606060606060606060606060606060606\
+                0000000000000000000000000909090909090909090909090909090909090909\
+                0000000000000000000000000000000000000000000000000000000000000060\
+                0000000000000000000000000000000000000000000000000000000000000044\
+                be8fc25d00000000000000000000000000000000000000000000000000000000\
+                0000000100000000000000000000000000000000000000000000000000000000\
+                0000002a00000000000000000000000000000000000000000000000000000000",
+                Hex::encode(BRIDGE_MESSAGE_PREFIX)
+            )
         );
 
         // Empty calldate
@@ -1148,7 +1271,7 @@ mod tests {
             new_impl_address: EthAddress::repeat_byte(9),
             call_data: vec![],
         });
-        // 5355495f4252494447455f4d455353414745: prefix
+        // b"IOTA_BRIDGE_MESSAGE" prefix
         // 05: msg type
         // 01: msg version
         // 000000000000007b: nonce
@@ -1162,12 +1285,23 @@ mod tests {
         // 0000000000000000000000000000000000000000000000000000000000000000: call data
         let data = action.to_bytes();
         assert_eq!(
-            Hex::encode(data.clone()),
-            "5355495f4252494447455f4d4553534147450501000000000000007b0c0000000000000000000000000606060606060606060606060606060606060606000000000000000000000000090909090909090909090909090909090909090900000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
+            Hex::encode(&data),
+            format!(
+                "{}\
+                05\
+                01\
+                000000000000007b\
+                0c\
+                0000000000000000000000000606060606060606060606060606060606060606\
+                0000000000000000000000000909090909090909090909090909090909090909\
+                0000000000000000000000000000000000000000000000000000000000000060\
+                0000000000000000000000000000000000000000000000000000000000000000",
+                Hex::encode(BRIDGE_MESSAGE_PREFIX)
+            )
         );
         let types = vec![ParamType::Address, ParamType::Address, ParamType::Bytes];
-        // Ensure that the call data (start from bytes 29) can be decoded
-        ethers::abi::decode(&types, &data[29..]).unwrap();
+        // Ensure that the call data (start from byte 30) can be decoded
+        ethers::abi::decode(&types, &data[30..]).unwrap();
     }
 
     #[test]
@@ -1207,15 +1341,17 @@ mod tests {
         .to_bytes();
 
         assert_eq!(
-            encoded_bytes,
-            Hex::decode("5355495f4252494447455f4d4553534147450001000000000000000a0b1400000000000000000000000000000000000000c801200000000000000000000000000000000000000000000000000000000000000064030000000000003039").unwrap(),
+            Hex::encode(&encoded_bytes),
+            format!(
+                "{}0001000000000000000a0b1400000000000000000000000000000000000000c801200000000000000000000000000000000000000000000000000000000000000064030000000000003039",
+                Hex::encode(BRIDGE_MESSAGE_PREFIX)
+            )
         );
 
         let hash = Keccak256::digest(encoded_bytes).digest;
         assert_eq!(
-            hash.to_vec(),
-            Hex::decode("b352508c301a37bb1b68a75dd0fc42b6f692b2650818631c8f8a4d4d3e5bef46")
-                .unwrap(),
+            Hex::encode(hash),
+            "cffec5fb6bf31c8fae7441a49bbf17127eadfb96efe14da8f8f81c1cdd538597",
         );
         Ok(())
     }

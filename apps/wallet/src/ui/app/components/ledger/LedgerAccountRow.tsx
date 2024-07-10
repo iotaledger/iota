@@ -3,33 +3,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Text } from '_src/ui/app/shared/text';
-import { useFormatCoin, useResolveIotaNSName } from '@iota/core';
-import { useIotaClientQuery } from '@iota/dapp-kit';
+import { useBalance, useFormatCoin, useResolveIotaNSName } from '@iota/core';
 import { CheckFill16 } from '@iota/icons';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import cl from 'clsx';
 
-import { useCoinsReFetchingConfig } from '../../hooks';
-
-type LedgerAccountRowProps = {
+interface LedgerAccountRowProps {
     isSelected: boolean;
     address: string;
-};
+}
 
 export function LedgerAccountRow({ isSelected, address }: LedgerAccountRowProps) {
-    const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
-
-    const { data: coinBalance } = useIotaClientQuery(
-        'getBalance',
-        {
-            coinType: IOTA_TYPE_ARG,
-            owner: address,
-        },
-        {
-            refetchInterval,
-            staleTime,
-        },
-    );
+    const { data: coinBalance } = useBalance(address);
     const { data: domainName } = useResolveIotaNSName(address);
     const [totalAmount, totalAmountSymbol] = useFormatCoin(
         coinBalance?.totalBalance ?? 0,

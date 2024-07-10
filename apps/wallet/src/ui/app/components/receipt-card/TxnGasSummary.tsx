@@ -5,16 +5,14 @@
 import { GAS_TYPE_ARG } from '_redux/slices/iota-objects/Coin';
 import { Text } from '_src/ui/app/shared/text';
 import { useFormatCoin } from '@iota/core';
-import type { GasCostSummary } from '@iota/iota.js/client';
 
-type TxnGasSummaryProps = {
-    gasSummary?: GasCostSummary;
+interface TxnGasSummaryProps {
     totalGas: bigint;
     transferAmount: bigint | null;
-};
+}
 
 //TODO add gas breakdown
-export function TxnGasSummary({ gasSummary, totalGas, transferAmount }: TxnGasSummaryProps) {
+export function TxnGasSummary({ totalGas, transferAmount }: TxnGasSummaryProps) {
     const [totalAmount, totalAmountSymbol] = useFormatCoin(
         totalGas + (transferAmount || 0n),
         GAS_TYPE_ARG,

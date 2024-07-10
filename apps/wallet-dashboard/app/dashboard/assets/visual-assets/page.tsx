@@ -13,16 +13,20 @@ import { useRouter } from 'next/navigation';
 function VisualAssetsPage(): JSX.Element {
     const account = useCurrentAccount();
     const router = useRouter();
-    const { data } = useGetOwnedObjects(account?.address);
+    const {
+        data: ownedObjects,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+    } = useGetOwnedObjects(account?.address);
+
     const visualAssets =
-        data?.pages
+        ownedObjects?.pages
             .flatMap((page) => page.data)
             .filter((asset) => asset.data && asset.data.objectId && hasDisplayData(asset))
             .map((response) => response.data!) ?? [];
 
-    const virtualItem = (asset: IotaObjectData): JSX.Element => (
-        <AssetCard key={asset.objectId} asset={asset} />
-    );
+    const virtualItem = (asset: IotaObjectData): JSX.Element => <AssetCard asset={asset} />;
 
     const handleClick = (objectId: string) => {
         router.push(`/dashboard/assets/visual-assets/${objectId}`);
@@ -34,7 +38,10 @@ function VisualAssetsPage(): JSX.Element {
             <div className="flex w-1/2">
                 <VirtualList
                     items={visualAssets}
-                    estimateSize={() => 130}
+                    hasNextPage={hasNextPage}
+                    isFetchingNextPage={isFetchingNextPage}
+                    fetchNextPage={fetchNextPage}
+                    estimateSize={() => 180}
                     render={virtualItem}
                     onClick={(asset) => handleClick(asset.objectId)}
                 />

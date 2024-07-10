@@ -2,19 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type AccountType } from '_src/background/accounts/Account';
+import { AccountType } from '_src/background/accounts/Account';
 
 import { BadgeLabel } from './BadgeLabel';
 
-type AccountBadgeProps = {
+interface AccountBadgeProps {
     accountType: AccountType;
-};
+}
 
 const TYPE_TO_TEXT: Record<AccountType, string | null> = {
-    ledger: 'Ledger',
-    imported: 'Imported',
-    'mnemonic-derived': null,
-    'seed-derived': null,
+    [AccountType.LedgerDerived]: 'Ledger',
+    [AccountType.PrivateKeyDerived]: 'Private Key',
+    [AccountType.MnemonicDerived]: null,
+    [AccountType.SeedDerived]: null,
 };
 
 export function AccountBadge({ accountType }: AccountBadgeProps) {

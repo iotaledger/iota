@@ -2,7 +2,7 @@ name: Changesets CI
 on: pull_request
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted-rust
     steps:
       - name: checkout code repository
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
@@ -14,7 +14,7 @@ jobs:
       - name: Install Nodejs
         uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
         with:
-          node-version: "18"
+          node-version: "20"
           cache: "pnpm"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

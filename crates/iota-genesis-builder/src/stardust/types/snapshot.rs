@@ -1,16 +1,11 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Types representing blocks of data in a Stardust snapshot.
-use std::mem::size_of;
-
-use anyhow::Result;
 use iota_sdk::types::block::{
-    output::OutputId,
     payload::milestone::{MilestoneId, MilestoneIndex, MilestoneOption},
     protocol::ProtocolParameters,
-    BlockId,
 };
+use iota_types::stardust::error::StardustError;
 use packable::{
     error::{UnpackError, UnpackErrorExt},
     packer::Packer,
@@ -18,84 +13,35 @@ use packable::{
     Packable, PackableExt,
 };
 
-use crate::stardust::error::StardustError;
-
 /// The snapshot version supported currently
 const SNAPSHOT_VERSION: u8 = 2;
-/// The total supply on the iota-mainnet
-pub const TOTAL_SUPPLY_IOTA: u64 = 4_600_000_000_000_000;
 
-/// The kind of a snapshot.
-#[repr(u8)]
-#[derive(Debug, Copy, Clone, Eq, PartialEq, packable::Packable)]
-#[packable(unpack_error = StardustError)]
-pub enum SnapshotKind {
-    /// Full is a snapshot which contains the full ledger entry for a given
-    /// milestone plus the milestone diffs which subtracted to the ledger
-    /// milestone reduce to the snapshot milestone ledger.
-    Full = 0,
-    /// Delta is a snapshot which contains solely diffs of milestones newer than
-    /// a certain ledger milestone instead of the complete ledger state of a
-    /// given milestone.
-    Delta = 1,
-}
+#[derive(Copy, Clone, Debug)]
+struct MilestoneDiffCount(u32);
 
-/// The header of an [`Output`] in the snapshot
-#[derive(Debug, Clone, Packable)]
-pub struct OutputHeader {
-    output_id: OutputId,
-    block_id: BlockId,
-    ms_index: MilestoneIndex,
-    ms_ts: u32,
-    length: u32,
-}
+impl Packable for MilestoneDiffCount {
+    type UnpackVisitor = ();
+    type UnpackError = StardustError;
 
-impl OutputHeader {
-    /// The length of the header in bytes
-    pub const LENGTH: usize = OutputId::LENGTH
-        + size_of::<BlockId>()
-        + size_of::<MilestoneIndex>()
-        + 2 * size_of::<u32>();
+    fn pack<P: Packer>(&self, packer: &mut P) -> Result<(), P::Error> {
+        self.0.pack(packer)?;
 
-    pub fn output_id(&self) -> OutputId {
-        self.output_id
+        Ok(())
     }
 
-    pub fn block_id(&self) -> BlockId {
-        self.block_id
-    }
+    fn unpack<U: Unpacker, const VERIFY: bool>(
+        unpacker: &mut U,
+        _: &(),
+    ) -> Result<Self, UnpackError<Self::UnpackError, U::Error>> {
+        let milestone_diff_count = u32::unpack::<_, VERIFY>(unpacker, &()).coerce()?;
 
-    /// Get the milestone index
-    pub fn ms_index(&self) -> MilestoneIndex {
-        self.ms_index
-    }
-
-    /// Get the milestone timestamp in Unix time
-    pub fn ms_timestamp(&self) -> u32 {
-        self.ms_ts
-    }
-
-    /// The length of the output in bytes.
-    pub fn length(&self) -> u32 {
-        self.length
-    }
-
-    /// Creates a new OutputHeader for testing.
-    pub fn new_testing(
-        transaction_id_bytes: [u8; 32],
-        block_id_bytes: [u8; 32],
-        milestone_index: u32,
-        milestone_timestamp: u32,
-    ) -> OutputHeader {
-        use iota_sdk::types::block::payload::transaction::TransactionId;
-
-        OutputHeader {
-            output_id: OutputId::new(TransactionId::new(transaction_id_bytes), 0).unwrap(),
-            block_id: BlockId::new(block_id_bytes),
-            ms_index: MilestoneIndex::new(milestone_index),
-            ms_ts: milestone_timestamp,
-            length: 1,
+        if VERIFY && milestone_diff_count != 0 {
+            return Err(UnpackError::Packable(
+                StardustError::InvalidHornetGenesisSnapshot(milestone_diff_count),
+            ));
         }
+
+        Ok(Self(milestone_diff_count))
     }
 }
 
@@ -110,8 +56,8 @@ pub struct FullSnapshotHeader {
     treasury_output_milestone_id: MilestoneId,
     treasury_output_amount: u64,
     parameters_milestone_option: MilestoneOption,
-    output_count: u64,
-    milestone_diff_count: u32,
+    pub(crate) output_count: u64,
+    milestone_diff_count: MilestoneDiffCount,
     sep_count: u16,
 }
 
@@ -165,8 +111,10 @@ impl FullSnapshotHeader {
     }
 
     /// Returns the milestone diff count of a [`FullSnapshotHeader`].
+    ///
+    /// Note: For a genesis snapshot this getter must return 0.
     pub fn milestone_diff_count(&self) -> u32 {
-        self.milestone_diff_count
+        self.milestone_diff_count.0
     }
 
     /// Returns the SEP count of a [`FullSnapshotHeader`].
@@ -208,16 +156,16 @@ impl Packable for FullSnapshotHeader {
 
         if VERIFY && SNAPSHOT_VERSION != version {
             return Err(UnpackError::Packable(
-                StardustError::UnsupportedSnapshotVersion(SNAPSHOT_VERSION, version),
+                StardustError::UnsupportedHornetSnapshotVersion(SNAPSHOT_VERSION, version),
             ));
         }
 
         let kind = SnapshotKind::unpack::<_, VERIFY>(unpacker, &()).coerce()?;
 
         if VERIFY && kind != SnapshotKind::Full {
-            return Err(UnpackError::Packable(StardustError::InvalidSnapshotKind(
-                kind as u8,
-            )));
+            return Err(UnpackError::Packable(
+                StardustError::InvalidHornetSnapshotKind(kind as u8),
+            ));
         }
 
         let genesis_milestone_index =
@@ -236,7 +184,8 @@ impl Packable for FullSnapshotHeader {
             MilestoneOption::unpack::<_, true>(unpacker, &ProtocolParameters::default())
                 .coerce()?;
         let output_count = u64::unpack::<_, VERIFY>(unpacker, &()).coerce()?;
-        let milestone_diff_count = u32::unpack::<_, VERIFY>(unpacker, &()).coerce()?;
+        let milestone_diff_count =
+            MilestoneDiffCount::unpack::<_, VERIFY>(unpacker, &()).coerce()?;
         let sep_count = u16::unpack::<_, VERIFY>(unpacker, &()).coerce()?;
 
         Ok(Self {
@@ -253,4 +202,19 @@ impl Packable for FullSnapshotHeader {
             sep_count,
         })
     }
+}
+
+/// The kind of a snapshot.
+#[repr(u8)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, packable::Packable)]
+#[packable(unpack_error = StardustError)]
+pub enum SnapshotKind {
+    /// Full is a snapshot which contains the full ledger entry for a given
+    /// milestone plus the milestone diffs which subtracted to the ledger
+    /// milestone reduce to the snapshot milestone ledger.
+    Full = 0,
+    /// Delta is a snapshot which contains solely diffs of milestones newer than
+    /// a certain ledger milestone instead of the complete ledger state of a
+    /// given milestone.
+    Delta = 1,
 }

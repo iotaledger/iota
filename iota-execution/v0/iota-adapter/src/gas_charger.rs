@@ -14,10 +14,12 @@ pub mod checked {
         digests::TransactionDigest,
         error::ExecutionError,
         gas::{deduct_gas, GasCostSummary, IotaGasStatus},
-        gas_model::{gas_predicates::dont_charge_budget_on_storage_oog, tables::GasStatus},
+        gas_model::{
+            gas_predicates::{charge_upgrades, dont_charge_budget_on_storage_oog},
+            tables::GasStatus,
+        },
         is_system_package,
         object::Data,
-        storage::{DeleteKindWithOldVersion, WriteKind},
     };
     use tracing::trace;
 
@@ -136,6 +138,7 @@ pub mod checked {
             if gas_coin_count == 1 {
                 return;
             }
+
             // sum the value of all gas coins
             let new_balance = self
                 .gas_coins
@@ -178,9 +181,9 @@ pub mod checked {
                 })
                 .clone();
             // delete all gas objects except the primary_gas_object
-            for (id, version, _digest) in &self.gas_coins[1..] {
+            for (id, _version, _digest) in &self.gas_coins[1..] {
                 debug_assert_ne!(*id, primary_gas_object.id());
-                temporary_store.delete_object(id, DeleteKindWithOldVersion::Normal(*version));
+                temporary_store.delete_input_object(id);
             }
             primary_gas_object
                 .data
@@ -194,7 +197,7 @@ pub mod checked {
                     )
                 })
                 .set_coin_value_unsafe(new_balance);
-            temporary_store.write_object(primary_gas_object, WriteKind::Mutate);
+            temporary_store.mutate_input_object(primary_gas_object);
         }
 
         // Gas charging operations
@@ -216,6 +219,14 @@ pub mod checked {
 
         pub fn charge_publish_package(&mut self, size: usize) -> Result<(), ExecutionError> {
             self.gas_status.charge_publish_package(size)
+        }
+
+        pub fn charge_upgrade_package(&mut self, size: usize) -> Result<(), ExecutionError> {
+            if charge_upgrades(self.gas_model_version) {
+                self.gas_status.charge_publish_package(size)
+            } else {
+                Ok(())
+            }
         }
 
         pub fn charge_input_objects(
@@ -283,7 +294,7 @@ pub mod checked {
             }
 
             // compute and collect storage charges
-            temporary_store.ensure_gas_and_input_mutated(self);
+            temporary_store.ensure_active_inputs_mutated();
             temporary_store.collect_storage_and_rebate(self);
 
             if self.smashed_gas_coin.is_some() {
@@ -309,7 +320,7 @@ pub mod checked {
                 #[skip_checked_arithmetic]
                 trace!(gas_used, gas_obj_id =? gas_object.id(), gas_obj_ver =? gas_object.version(), "Updated gas object");
 
-                temporary_store.write_object(gas_object, WriteKind::Mutate);
+                temporary_store.mutate_input_object(gas_object);
                 cost_summary
             } else {
                 GasCostSummary::default()
@@ -324,7 +335,7 @@ pub mod checked {
             if let Err(err) = self.gas_status.charge_storage_and_rebate() {
                 self.reset(temporary_store);
                 self.gas_status.adjust_computation_on_out_of_gas();
-                temporary_store.ensure_gas_and_input_mutated(self);
+                temporary_store.ensure_active_inputs_mutated();
                 temporary_store.collect_rebate(self);
                 if execution_result.is_ok() {
                     *execution_result = Err(err);
@@ -341,14 +352,14 @@ pub mod checked {
                 // we run out of gas charging storage, reset and try charging for storage again.
                 // Input objects are touched and so they have a storage cost
                 self.reset(temporary_store);
-                temporary_store.ensure_gas_and_input_mutated(self);
+                temporary_store.ensure_active_inputs_mutated();
                 temporary_store.collect_storage_and_rebate(self);
                 if let Err(err) = self.gas_status.charge_storage_and_rebate() {
                     // we run out of gas attempting to charge for the input objects exclusively,
                     // deal with this edge case by not charging for storage
                     self.reset(temporary_store);
                     self.gas_status.adjust_computation_on_out_of_gas();
-                    temporary_store.ensure_gas_and_input_mutated(self);
+                    temporary_store.ensure_active_inputs_mutated();
                     temporary_store.collect_rebate(self);
                     if execution_result.is_ok() {
                         *execution_result = Err(err);

@@ -4,21 +4,22 @@
 
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
 import Loading from '_components/loading';
-import { filterAndSortTokenBalances } from '_helpers';
 import { useCoinsReFetchingConfig } from '_hooks';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import { Link } from 'react-router-dom';
-
 import { CoinItem } from './CoinItem';
+import { filterAndSortTokenBalances } from '@iota/core';
+
+interface ActiveCoinsCardProps {
+    activeCoinType: string;
+    showActiveCoin?: boolean;
+}
 
 export function ActiveCoinsCard({
     activeCoinType = IOTA_TYPE_ARG,
     showActiveCoin = true,
-}: {
-    activeCoinType: string;
-    showActiveCoin?: boolean;
-}) {
+}: ActiveCoinsCardProps) {
     const selectedAddress = useActiveAddress();
 
     const { staleTime, refetchInterval } = useCoinsReFetchingConfig();

@@ -4,7 +4,7 @@
 
 // tests accessing version of the input parent, not the runtime parent
 
-//# init --addresses test=0x0 --accounts P1 P2 --protocol-version 16
+//# init --addresses test=0x0 --accounts P1 P2 --protocol-version 1
 
 //# publish
 
@@ -66,7 +66,7 @@ module test::m {
 //# view-object 2,0
 
 
-// Create object B witha version 2 and 3 for it's dynamic field
+// Create object B with a version 2 and 3 for it's dynamic field
 
 //# programmable --sender P2 --inputs @P2
 //> 0: test::m::b();

@@ -5,30 +5,33 @@
 import { Search24 } from '@iota/icons';
 import { Combobox, ComboboxInput, ComboboxList } from '@iota/ui';
 import clsx from 'clsx';
-import { useState, useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { type Direction } from 'react-resizable-panels';
 
-import { ModuleFunctionsInteraction } from './module-functions-interaction';
+import {
+    ListItem,
+    SplitPanes,
+    TabHeader,
+    useSearchParamsMerged,
+    VerticalList,
+} from '~/components/ui';
 import { useBreakpoint } from '~/hooks/useBreakpoint';
-import { SplitPanes } from '~/ui/SplitPanes';
-import { TabHeader } from '~/ui/Tabs';
-import { ListItem, VerticalList } from '~/ui/VerticalList';
-import { useSearchParamsMerged } from '~/ui/utils/LinkWithQuery';
+import { ModuleFunctionsInteraction } from './module-functions-interaction';
 import { ModuleCodeTabs } from './ModuleCodeTabs';
 
 type ModuleType = [moduleName: string, code: string];
 
-interface PkgModuleViewWrapperProps {
+interface PkgModulesWrapperProps {
     id: string;
     modules: ModuleType[];
     splitPanelOrientation: Direction;
 }
 
-function PkgModuleViewWrapper({
+export function PkgModulesWrapper({
     id,
     modules,
     splitPanelOrientation,
-}: PkgModuleViewWrapperProps): JSX.Element {
+}: PkgModulesWrapperProps): JSX.Element {
     const isMediumOrAbove = useBreakpoint('md');
 
     const [searchParams, setSearchParams] = useSearchParamsMerged();
@@ -157,4 +160,3 @@ function PkgModuleViewWrapper({
         </div>
     );
 }
-export default PkgModuleViewWrapper;

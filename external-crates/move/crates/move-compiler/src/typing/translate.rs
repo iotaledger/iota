@@ -19,7 +19,7 @@ use crate::{
         Attribute, AttributeValue_, Attribute_, DottedUsage, Fields, Friend, ModuleAccess_,
         ModuleIdent, ModuleIdent_, Mutability, Value_, Visibility,
     },
-    ice,
+    ice, iota_mode,
     naming::ast::{
         self as N, BlockLabel, IndexSyntaxMethods, TParam, TParamID, Type, TypeName_, Type_,
     },
@@ -33,7 +33,6 @@ use crate::{
         unique_map::UniqueMap,
         *,
     },
-    iota_mode,
     typing::{
         ast as T,
         core::{
@@ -167,7 +166,7 @@ fn modules(
     for (mident, friends) in all_new_friends {
         let mdef = typed_modules.get_mut(&mident).unwrap();
         // point of interest: if we have any new friends, we know there can't be any
-        // "current" friends becahse all thew new friends are generated off of
+        // "current" friends because all thew new friends are generated off of
         // `public(package)` usage, which disallows other friends.
         mdef.friends = UniqueMap::maybe_from_iter(friends.into_iter())
             .expect("ICE compiler added duplicate friends to public(package) friend list");
@@ -1770,7 +1769,7 @@ fn binop(
         Range | Implies | Iff => {
             context
                 .env
-                .add_diag(ice!((loc, "ICE unexpect specification operator")));
+                .add_diag(ice!((loc, "ICE unexpected specification operator")));
             (context.error_type(loc), context.error_type(loc))
         }
     };
@@ -2132,7 +2131,7 @@ fn add_field_types<T>(
         N::StructFields::Native(nloc) => {
             let msg = format!(
                 "Invalid {} usage for native struct '{}::{}'. Native structs cannot be directly \
-                 constructed/deconstructed, and their fields cannot be dirctly accessed",
+                 constructed/deconstructed, and their fields cannot be directly accessed",
                 verb, m, n
             );
             context.env.add_diag(diag!(

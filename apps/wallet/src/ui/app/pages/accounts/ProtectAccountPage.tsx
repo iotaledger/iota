@@ -4,6 +4,7 @@
 
 import { Text } from '_app/shared/text';
 import { isMnemonicSerializedUiAccount } from '_src/background/accounts/MnemonicAccount';
+import { isSeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
@@ -14,27 +15,34 @@ import Loading from '../../components/loading';
 import { useAccounts } from '../../hooks/useAccounts';
 import { autoLockDataToMinutes } from '../../hooks/useAutoLockMinutes';
 import { useAutoLockMinutesMutation } from '../../hooks/useAutoLockMinutesMutation';
-import { useCreateAccountsMutation, type CreateType } from '../../hooks/useCreateAccountMutation';
+import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation';
 import { Heading } from '../../shared/heading';
+import { AccountsFormType } from '../../components/accounts/AccountsFormContext';
 
-const allowedAccountTypes: CreateType[] = [
-    'new-mnemonic',
-    'import-mnemonic',
-    'mnemonic-derived',
-    'import-seed',
-    'imported',
-    'ledger',
+const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
+    AccountsFormType.NewMnemonic,
+    AccountsFormType.ImportMnemonic,
+    AccountsFormType.ImportSeed,
+    AccountsFormType.MnemonicSource,
+    AccountsFormType.SeedSource,
+    AccountsFormType.ImportPrivateKey,
+    AccountsFormType.ImportLedger,
 ];
 
-type AllowedAccountTypes = (typeof allowedAccountTypes)[number];
+const REDIRECT_TO_ACCOUNTS_FINDER: AccountsFormType[] = [
+    AccountsFormType.ImportMnemonic,
+    AccountsFormType.ImportSeed,
+];
+
+type AllowedAccountTypes = (typeof ALLOWED_ACCOUNT_TYPES)[number];
 
 function isAllowedAccountType(accountType: string): accountType is AllowedAccountTypes {
-    return allowedAccountTypes.includes(accountType as CreateType);
+    return ALLOWED_ACCOUNT_TYPES.includes(accountType as AccountsFormType);
 }
 
 export function ProtectAccountPage() {
     const [searchParams] = useSearchParams();
-    const accountType = searchParams.get('accountType') || '';
+    const accountsFormType = searchParams.get('accountsFormType') || '';
     const successRedirect = searchParams.get('successRedirect') || '/tokens';
     const navigate = useNavigate();
     const { data: accounts } = useAccounts();
@@ -53,17 +61,32 @@ export function ProtectAccountPage() {
         }
     }, [hasPasswordAccounts, createMutation.isSuccess, createMutation.isPending]);
     const createAccountCallback = useCallback(
-        async (password: string, type: CreateType) => {
+        async (password: string, type: AccountsFormType) => {
             try {
                 const createdAccounts = await createMutation.mutateAsync({
                     type,
                     password,
                 });
-                if (type === 'new-mnemonic' && isMnemonicSerializedUiAccount(createdAccounts[0])) {
+                if (
+                    type === AccountsFormType.NewMnemonic &&
+                    isMnemonicSerializedUiAccount(createdAccounts[0])
+                ) {
                     navigate(`/accounts/backup/${createdAccounts[0].sourceID}`, {
                         replace: true,
                         state: {
                             onboarding: true,
+                        },
+                    });
+                } else if (
+                    REDIRECT_TO_ACCOUNTS_FINDER.includes(type) &&
+                    (isMnemonicSerializedUiAccount(createdAccounts[0]) ||
+                        isSeedSerializedUiAccount(createdAccounts[0]))
+                ) {
+                    const path = `/accounts/manage/accounts-finder/${createdAccounts[0].sourceID}`;
+                    navigate(path, {
+                        replace: true,
+                        state: {
+                            type: type,
                         },
                     });
                 } else {
@@ -76,7 +99,7 @@ export function ProtectAccountPage() {
         [createMutation, navigate, successRedirect],
     );
     const autoLockMutation = useAutoLockMinutesMutation();
-    if (!isAllowedAccountType(accountType)) {
+    if (!isAllowedAccountType(accountsFormType)) {
         return <Navigate to="/" replace />;
     }
 
@@ -87,7 +110,7 @@ export function ProtectAccountPage() {
                     <VerifyPasswordModal
                         open
                         onClose={() => navigate(-1)}
-                        onVerify={(password) => createAccountCallback(password, accountType)}
+                        onVerify={(password) => createAccountCallback(password, accountsFormType)}
                     />
                 ) : (
                     <>
@@ -107,7 +130,7 @@ export function ProtectAccountPage() {
                                     await autoLockMutation.mutateAsync({
                                         minutes: autoLockDataToMinutes(autoLock),
                                     });
-                                    await createAccountCallback(password.input, accountType);
+                                    await createAccountCallback(password.input, accountsFormType);
                                 }}
                             />
                         </div>

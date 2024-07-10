@@ -12,8 +12,6 @@ use anemo::Request;
 use config::{AuthorityIdentifier, Committee};
 use crypto::NetworkPublicKey;
 use futures::{stream::FuturesUnordered, StreamExt};
-use iota_protocol_config::ProtocolConfig;
-use itertools::Itertools;
 use mysten_metrics::{
     metered_channel::Receiver, monitored_future, monitored_scope, spawn_logged_monitored_task,
 };
@@ -22,7 +20,7 @@ use rand::{rngs::ThreadRng, seq::SliceRandom};
 use storage::CertificateStore;
 use tokio::{
     sync::watch,
-    task::{spawn_blocking, JoinHandle, JoinSet},
+    task::{JoinHandle, JoinSet},
     time::{sleep, timeout, Instant},
 };
 use tracing::{debug, error, instrument, trace, warn};
@@ -41,17 +39,13 @@ pub mod certificate_fetcher_tests;
 
 // Maximum number of certificates to fetch with one request.
 const MAX_CERTIFICATES_TO_FETCH: usize = 2_000;
-// Seconds to wait for a response before isiotang another parallel fetch
+// Seconds to wait for a response before issuing another parallel fetch
 // request.
 const PARALLEL_FETCH_REQUEST_INTERVAL_SECS: Duration = Duration::from_secs(5);
 // The timeout for an iteration of parallel fetch requests over all peers would
 // be num peers * PARALLEL_FETCH_REQUEST_INTERVAL_SECS +
 // PARALLEL_FETCH_REQUEST_ADDITIONAL_TIMEOUT
 const PARALLEL_FETCH_REQUEST_ADDITIONAL_TIMEOUT: Duration = Duration::from_secs(15);
-// Number of certificates to verify in a batch. Verifications in each batch run
-// serially. Batch size is chosen so that verifying a batch takes non-trival
-// time (verifying a batch of 200 certificates should take > 100ms).
-const VERIFY_CERTIFICATES_BATCH_SIZE: usize = 200;
 
 #[derive(Clone, Debug)]
 pub enum CertificateFetcherCommand {
@@ -76,7 +70,6 @@ pub(crate) struct CertificateFetcher {
     state: Arc<CertificateFetcherState>,
     /// The committee information.
     committee: Committee,
-    protocol_config: ProtocolConfig,
     /// Persistent storage for certificates. Read-only usage.
     certificate_store: CertificateStore,
     /// Receiver for signal of round changes.
@@ -113,7 +106,6 @@ impl CertificateFetcher {
     pub fn spawn(
         authority_id: AuthorityIdentifier,
         committee: Committee,
-        protocol_config: ProtocolConfig,
         network: anemo::Network,
         certificate_store: CertificateStore,
         rx_consensus_round_updates: watch::Receiver<ConsensusRound>,
@@ -134,7 +126,6 @@ impl CertificateFetcher {
                 Self {
                     state,
                     committee,
-                    protocol_config,
                     certificate_store,
                     rx_consensus_round_updates,
                     rx_shutdown,
@@ -289,7 +280,6 @@ impl CertificateFetcher {
 
         let state = self.state.clone();
         let committee = self.committee.clone();
-        let protocol_config = self.protocol_config.clone();
 
         debug!(
             "Starting task to fetch missing certificates: max target {}, gc round {:?}",
@@ -302,15 +292,7 @@ impl CertificateFetcher {
                 state.metrics.certificate_fetcher_inflight_fetch.inc();
 
                 let now = Instant::now();
-                match run_fetch_task(
-                    &protocol_config,
-                    state.clone(),
-                    committee,
-                    gc_round,
-                    written_rounds,
-                )
-                .await
-                {
+                match run_fetch_task(state.clone(), committee, gc_round, written_rounds).await {
                     Ok(_) => {
                         debug!(
                             "Finished task to fetch certificates successfully, elapsed = {}s",
@@ -334,7 +316,6 @@ impl CertificateFetcher {
 #[allow(clippy::mutable_key_type)]
 #[instrument(level = "debug", skip_all)]
 async fn run_fetch_task(
-    protocol_config: &ProtocolConfig,
     state: Arc<CertificateFetcherState>,
     committee: Committee,
     gc_round: Round,
@@ -352,13 +333,7 @@ async fn run_fetch_task(
 
     // Process and store fetched certificates.
     let num_certs_fetched = response.certificates.len();
-    process_certificates_helper(
-        protocol_config,
-        response,
-        &state.synchronizer,
-        state.metrics.clone(),
-    )
-    .await?;
+    process_certificates_helper(response, &state.synchronizer).await?;
     state
         .metrics
         .certificate_fetcher_num_certificates_processed
@@ -451,10 +426,8 @@ async fn fetch_certificates_helper(
 
 #[instrument(level = "debug", skip_all)]
 async fn process_certificates_helper(
-    protocol_config: &ProtocolConfig,
     response: FetchCertificatesResponse,
     synchronizer: &Synchronizer,
-    metrics: Arc<PrimaryMetrics>,
 ) -> DagResult<()> {
     trace!("Start sending fetched certificates to processing");
     if response.certificates.len() > MAX_CERTIFICATES_TO_FETCH {
@@ -471,7 +444,7 @@ async fn process_certificates_helper(
         .certificates
         .into_iter()
         .map(|cert| {
-            validate_received_certificate_version(cert, protocol_config).map_err(|err| {
+            validate_received_certificate_version(cert).map_err(|err| {
                 error!("fetched certficate processing error: {err}");
                 DagError::InvalidCertificateVersion
             })
@@ -484,60 +457,11 @@ async fn process_certificates_helper(
     // effective anyway.
     let _scope = monitored_scope("ProcessingFetchedCertificates");
 
-    if protocol_config.narwhal_certificate_v2() {
-        synchronizer
-            .try_accept_fetched_certificates(certificates)
-            .await?;
-    } else {
-        process_certificates_v1_helper(certificates, synchronizer, metrics).await?;
-    }
+    synchronizer
+        .try_accept_fetched_certificates(certificates)
+        .await?;
 
     trace!("Fetched certificates have been processed");
-
-    Ok(())
-}
-
-// Verify certificates in parallel.
-async fn process_certificates_v1_helper(
-    certificates: Vec<Certificate>,
-    synchronizer: &Synchronizer,
-    metrics: Arc<PrimaryMetrics>,
-) -> DagResult<()> {
-    let verify_tasks = certificates
-        .chunks(VERIFY_CERTIFICATES_BATCH_SIZE)
-        .map(|certs| {
-            let certs = certs.to_vec();
-            let sync = synchronizer.clone();
-            let metrics = metrics.clone();
-            // Use threads dedicated to computation heavy work.
-            spawn_blocking(move || {
-                let now = Instant::now();
-                let mut sanitized_certs = Vec::new();
-                for c in certs {
-                    sanitized_certs.push(sync.sanitize_certificate(c)?);
-                }
-                metrics
-                    .certificate_fetcher_total_verification_us
-                    .inc_by(now.elapsed().as_micros() as u64);
-                Ok::<Vec<Certificate>, DagError>(sanitized_certs)
-            })
-        })
-        .collect_vec();
-    // Process verified certificates in the same order as received.
-    for task in verify_tasks {
-        let certificates = task.await.map_err(|_| DagError::Canceled)??;
-        let now = Instant::now();
-        for cert in certificates {
-            if let Err(e) = synchronizer.try_accept_fetched_certificate(cert).await {
-                // It is possible that subsequent certificates are useful,
-                // so not stopping early.
-                warn!("Failed to accept fetched certificate: {e}");
-            }
-        }
-        metrics
-            .certificate_fetcher_total_accept_us
-            .inc_by(now.elapsed().as_micros() as u64);
-    }
 
     Ok(())
 }

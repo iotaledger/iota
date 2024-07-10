@@ -7,14 +7,14 @@ import { CoinIcon } from '_components/coin-icon';
 import { useFormatCoin } from '@iota/core';
 import { type ReactNode } from 'react';
 
-type CoinItemProps = {
+interface CoinItemProps {
     coinType: string;
     balance: bigint;
     isActive?: boolean;
     usd?: number;
     centerAction?: ReactNode;
     subtitle?: string;
-};
+}
 
 export function CoinItem({
     coinType,

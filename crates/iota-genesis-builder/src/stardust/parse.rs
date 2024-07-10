@@ -8,38 +8,56 @@ use anyhow::Result;
 use iota_sdk::types::block::{
     output::Output, payload::milestone::MilestoneOption, protocol::ProtocolParameters,
 };
-use packable::{unpacker::IoUnpacker, Packable};
-
-use super::{
-    error::StardustError,
-    types::snapshot::{FullSnapshotHeader, OutputHeader},
+use iota_types::stardust::error::StardustError;
+use packable::{
+    unpacker::{IoUnpacker, Unpacker},
+    Packable,
 };
 
-/// Parse a full-snapshot using a [`BufReader`] internally.
-pub struct FullSnapshotParser<R: Read> {
+use super::types::{output_header::OutputHeader, snapshot::FullSnapshotHeader};
+
+/// Parse a Hornet genesis snapshot using a [`BufReader`] internally.
+pub struct HornetSnapshotParser<R: Read> {
     reader: IoUnpacker<BufReader<R>>,
     /// The full-snapshot header
     pub header: FullSnapshotHeader,
 }
 
-impl<R: Read> FullSnapshotParser<R> {
-    pub fn new(reader: R) -> Result<Self> {
+impl<R: Read> HornetSnapshotParser<R> {
+    /// Creates a new [`HornetSnapshotParser`].
+    ///
+    /// `VERIFY = true` ensures that only global snapshots parse successfully.
+    pub fn new<const VERIFY: bool>(reader: R) -> Result<Self> {
         let mut reader = IoUnpacker::new(std::io::BufReader::new(reader));
-        let header = FullSnapshotHeader::unpack::<_, true>(&mut reader, &())?;
-
+        let header = FullSnapshotHeader::unpack::<_, VERIFY>(&mut reader, &())?;
         Ok(Self { reader, header })
     }
 
     /// Provide an iterator over the Stardust UTXOs recorded in the snapshot.
-    pub fn outputs(
-        mut self,
-    ) -> impl Iterator<Item = Result<(OutputHeader, Output), anyhow::Error>> {
+    pub fn outputs(&mut self) -> impl Iterator<Item = anyhow::Result<(OutputHeader, Output)>> + '_ {
         (0..self.header.output_count()).map(move |_| {
             Ok((
                 OutputHeader::unpack::<_, true>(&mut self.reader, &())?,
                 Output::unpack::<_, true>(&mut self.reader, &ProtocolParameters::default())?,
             ))
         })
+    }
+
+    /// Get the bytes of the solid entry points.
+    pub fn solid_entry_points_bytes(mut self) -> anyhow::Result<Vec<u8>> {
+        let mut remaining_bytes = vec![];
+        // Workaround as .read_to_end() is not available
+        let mut next_byte = vec![0u8; 1];
+        while self.reader.unpack_bytes(&mut next_byte).is_ok() {
+            remaining_bytes.push(next_byte[0]);
+        }
+
+        let sep_bytes = remaining_bytes
+            .get(remaining_bytes.len() - self.header.sep_count() as usize * 32..)
+            .expect("missing SEP bytes")
+            .to_vec();
+
+        Ok(sep_bytes)
     }
 
     /// Provide the target milestone timestamp extracted from the snapshot

@@ -8,11 +8,11 @@ import { useFormContext } from 'react-hook-form';
 import Alert from '../../components/alert';
 import { FormLabel } from './FormLabel';
 
-type FormFieldProps = {
+interface FormFieldProps {
     name: string;
     label?: ReactNode;
     children: ReactNode;
-};
+}
 
 export function FormField({ children, name, label }: FormFieldProps) {
     const { getFieldState, formState } = useFormContext();

@@ -9,7 +9,7 @@ on:
 
 jobs:
   diff:
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
     outputs:
       isDoc: ${{ steps.diff.outputs.isDoc }}
       isOldDoc: ${{ steps.diff.outputs.isOldDoc }}
@@ -23,7 +23,7 @@ jobs:
     name: Lint documentation
     needs: diff
     if: needs.diff.outputs.isDoc == 'true'
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted-rust]
 
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1

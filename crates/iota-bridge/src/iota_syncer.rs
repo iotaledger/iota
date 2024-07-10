@@ -81,7 +81,7 @@ where
 
     async fn run_event_listening_task(
         // The module where interested events are defined.
-        // Moudle is always of bridge package 0x9.
+        // Module is always of bridge package 0x9.
         module: Identifier,
         mut cursor: EventID,
         events_sender: mysten_metrics::metered_channel::Sender<(Identifier, Vec<IotaEvent>)>,

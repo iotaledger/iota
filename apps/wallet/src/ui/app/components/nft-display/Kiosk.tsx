@@ -9,16 +9,16 @@ import { useActiveAddress } from '../../hooks';
 import { Text } from '../../shared/text';
 import { NftImage, type NftImageProps } from './NftImage';
 
-type KioskProps = {
+interface KioskProps extends Partial<NftImageProps> {
     object: IotaObjectResponse;
     orientation?: 'vertical' | 'horizontal' | null;
-} & Partial<NftImageProps>;
+}
 
 // used to prevent the top image from overflowing the bottom of the container
 // (clip-path is used instead of overflow-hidden as it can be animated)
-const clipPath = '[clip-path:inset(0_0_7px_0_round_12px)] group-hover:[clip-path:inset(0_0_0_0)]';
+const CLIP_PATH = '[clip-path:inset(0_0_7px_0_round_12px)] group-hover:[clip-path:inset(0_0_0_0)]';
 
-const timing =
+const TIMING =
     'transition-all group-hover:delay-[0.25s] duration-300 ease-[cubic-bezier(0.68,-0.55,0.265,1.55)]';
 const cardStyles = [
     `scale-100 group-hover:scale-95 object-cover origin-bottom z-30 group-hover:translate-y-0 translate-y-2 group-hover:shadow-md`,
@@ -62,14 +62,14 @@ export function Kiosk({ object, orientation, ...nftImageProps }: KioskProps) {
                                 key={item.data?.objectId}
                                 className={cl(
                                     'absolute rounded-xl border',
-                                    timing,
+                                    TIMING,
                                     showCardStackAnimation ? cardStyles[idx] : '',
                                 )}
                             >
                                 <div
                                     className={`${
-                                        idx === 0 && showCardStackAnimation ? clipPath : ''
-                                    } ${timing}`}
+                                        idx === 0 && showCardStackAnimation ? CLIP_PATH : ''
+                                    } ${TIMING}`}
                                 >
                                     <NftImage
                                         {...nftImageProps}
@@ -86,7 +86,7 @@ export function Kiosk({ object, orientation, ...nftImageProps }: KioskProps) {
             {orientation !== 'horizontal' && (
                 <div
                     className={cl(
-                        timing,
+                        TIMING,
                         {
                             'group-hover:-translate-x-0.5 group-hover:scale-95':
                                 showCardStackAnimation,

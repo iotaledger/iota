@@ -8,12 +8,10 @@ use iota_config::genesis::{
 use iota_types::{
     base_types::{IotaAddress, ObjectRef},
     object::Object,
+    stardust::coin_kind::get_gas_balance_maybe,
 };
 
-use crate::{
-    stardust::{migration::MigrationObjects, types::coin_kind::get_gas_balance_maybe},
-    validator_info::GenesisValidatorInfo,
-};
+use crate::{stardust::migration::MigrationObjects, validator_info::GenesisValidatorInfo};
 
 #[derive(Default, Debug, Clone)]
 pub struct GenesisStake {
@@ -55,7 +53,7 @@ impl GenesisStake {
     pub fn sum_token_allocation(&self) -> u64 {
         self.token_allocation
             .iter()
-            .map(|allocation| allocation.amount_micros)
+            .map(|allocation| allocation.amount_nanos)
             .sum()
     }
 
@@ -229,7 +227,7 @@ pub fn delegate_genesis_stake(
             // an empty`staked_with_timelock`
             genesis_stake.token_allocation.push(TokenAllocation {
                 recipient_address: delegator,
-                amount_micros: gas_coin_objects.amount_nanos,
+                amount_nanos: gas_coin_objects.amount_nanos,
                 staked_with_validator: Some(validator.info.iota_address()),
                 staked_with_timelock: vec![],
             });
@@ -239,7 +237,7 @@ pub fn delegate_genesis_stake(
                 // as a new coin, so that the split is not needed
                 genesis_stake.token_allocation.push(TokenAllocation {
                     recipient_address: delegator,
-                    amount_micros: gas_coin_objects.surplus_nanos,
+                    amount_nanos: gas_coin_objects.surplus_nanos,
                     staked_with_validator: None,
                     staked_with_timelock: vec![],
                 });

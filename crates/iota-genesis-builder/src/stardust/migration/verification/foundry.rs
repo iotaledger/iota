@@ -4,10 +4,10 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, ensure, Result};
-use iota_sdk::types::block::output::{FoundryOutput, TokenId};
+use iota_sdk::types::block::output::{FoundryOutput, OutputId, TokenId};
 use iota_types::{
-    base_types::IotaAddress, coin::CoinMetadata, in_memory_storage::InMemoryStorage, object::Owner,
-    Identifier,
+    base_types::IotaAddress, coin_manager::CoinManager, in_memory_storage::InMemoryStorage,
+    object::Owner, Identifier,
 };
 use move_core_types::language_storage::ModuleId;
 
@@ -17,16 +17,17 @@ use crate::stardust::{
         verification::{
             util::{
                 truncate_to_max_allowed_u64_supply, verify_address_owner, verify_coin,
-                verify_parent,
+                verify_parent, verify_shared_object,
             },
             CreatedObjects,
         },
     },
     native_token::package_data::NativeTokenPackageData,
-    types::{capped_coin::MaxSupplyPolicy, token_scheme::SimpleTokenSchemeU64},
+    types::token_scheme::SimpleTokenSchemeU64,
 };
 
 pub(super) fn verify_foundry_output(
+    output_id: OutputId,
     output: &FoundryOutput,
     created_objects: &CreatedObjects,
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
@@ -43,19 +44,19 @@ pub(super) fn verify_foundry_output(
         .expect("foundry outputs always have an immutable alias address")
         .address();
 
-    // Gas coin value and owner
-    let created_gas_coin_obj = created_objects.gas_coin().and_then(|id| {
+    // Amount coin value and owner
+    let created_coin_obj = created_objects.coin().and_then(|id| {
         storage
             .get_object(id)
-            .ok_or_else(|| anyhow!("missing gas coin"))
+            .ok_or_else(|| anyhow!("missing coin"))
     })?;
-    let created_gas_coin = created_gas_coin_obj
+    let created_coin = created_coin_obj
         .as_coin_maybe()
-        .ok_or_else(|| anyhow!("expected a gas coin"))?;
+        .ok_or_else(|| anyhow!("expected a coin"))?;
 
-    verify_address_owner(alias_address, created_gas_coin_obj, "gas coin")?;
-    verify_coin(output.amount(), &created_gas_coin)?;
-    *total_value += created_gas_coin.value();
+    verify_address_owner(alias_address, created_coin_obj, "coin")?;
+    verify_coin(output.amount(), &created_coin)?;
+    *total_value += created_coin.value();
 
     // Native token coin value
     let native_token_coin_id = created_objects.native_token_coin()?;
@@ -152,16 +153,30 @@ pub(super) fn verify_foundry_output(
         expected_token_scheme_u64
     );
 
-    // Coin Metadata
-    let coin_metadata = created_objects
-        .coin_metadata()
-        .and_then(|id| {
+    // Coin Manager
+    let coin_manager = created_objects.coin_manager().and_then(|id| {
+        storage
+            .get_object(id)
+            .ok_or(anyhow!("missing coin manager"))
+            .and_then(|obj| {
+                verify_shared_object(obj, "coin manager").map(|_| {
+                    obj.to_rust::<CoinManager>()
+                        .ok_or(anyhow!("expected a coin manager"))
+                })?
+            })
+    })?;
+
+    let coin_manager_treasury_cap_obj =
+        created_objects.coin_manager_treasury_cap().and_then(|id| {
             storage
                 .get_object(id)
-                .ok_or_else(|| anyhow!("missing coin metadata"))
-        })?
-        .to_rust::<CoinMetadata>()
-        .ok_or_else(|| anyhow!("expected a coin metadata"))?;
+                .ok_or_else(|| anyhow!("missing coin manager treasury cap"))
+        })?;
+
+    // Coin Metadata
+    let coin_metadata = coin_manager
+        .metadata
+        .ok_or(anyhow!("missing coin metadata"))?;
 
     ensure!(
         coin_metadata.decimals == expected_package_data.module().decimals,
@@ -200,34 +215,33 @@ pub(super) fn verify_foundry_output(
     );
 
     // Maximum Supply
-    let max_supply_policy_obj = created_objects.max_supply_policy().and_then(|id| {
-        storage
-            .get_object(id)
-            .ok_or_else(|| anyhow!("missing max supply policy"))
-    })?;
-    let max_supply_policy = max_supply_policy_obj
-        .to_rust::<MaxSupplyPolicy>()
-        .ok_or_else(|| anyhow!("expected a max supply policy"))?;
+    let max_supply = coin_manager
+        .maximum_supply
+        .ok_or(anyhow!("missing max supply"))?;
 
     ensure!(
-        max_supply_policy.maximum_supply == expected_package_data.module().maximum_supply,
+        max_supply == expected_package_data.module().maximum_supply,
         "maximum supply mismatch: expected {}, found {}",
         expected_package_data.module().maximum_supply,
-        max_supply_policy.maximum_supply
+        max_supply
     );
     let circulating_supply =
         truncate_to_max_allowed_u64_supply(output.token_scheme().as_simple().circulating_supply());
     ensure!(
-        max_supply_policy.treasury_cap.total_supply.value == circulating_supply,
+        coin_manager.treasury_cap.total_supply.value == circulating_supply,
         "treasury total supply mismatch: found {}, expected {}",
-        max_supply_policy.treasury_cap.total_supply.value,
+        coin_manager.treasury_cap.total_supply.value,
         circulating_supply
     );
 
     // Alias Address Unlock Condition
-    verify_address_owner(alias_address, max_supply_policy_obj, "max supply policy")?;
+    verify_address_owner(
+        alias_address,
+        coin_manager_treasury_cap_obj,
+        "coin manager treasury cap",
+    )?;
 
-    verify_parent(alias_address, storage)?;
+    verify_parent(&output_id, alias_address, storage)?;
 
     ensure!(
         created_objects.output().is_err(),

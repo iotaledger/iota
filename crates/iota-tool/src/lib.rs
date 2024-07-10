@@ -65,7 +65,6 @@ use iota_types::{
         TransactionInfoRequest, TransactionStatus,
     },
     multiaddr::Multiaddr,
-    object::Owner,
     storage::{ReadStore, SharedInMemoryStore},
 };
 use itertools::Itertools;
@@ -133,9 +132,6 @@ pub struct ObjectData {
 trait OptionDebug<T> {
     fn opt_debug(&self, def_str: &str) -> String;
 }
-trait OptionDisplay<T> {
-    fn opt_display(&self, def_str: &str) -> String;
-}
 
 impl<T> OptionDebug<T> for Option<T>
 where
@@ -145,40 +141,6 @@ where
         match self {
             None => def_str.to_string(),
             Some(t) => format!("{:?}", t),
-        }
-    }
-}
-
-impl<T> OptionDisplay<T> for Option<T>
-where
-    T: std::fmt::Display,
-{
-    fn opt_display(&self, def_str: &str) -> String {
-        match self {
-            None => def_str.to_string(),
-            Some(t) => format!("{}", t),
-        }
-    }
-}
-
-struct OwnerOutput(Owner);
-
-// grep/awk-friendly output for Owner
-impl std::fmt::Display for OwnerOutput {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self.0 {
-            Owner::AddressOwner(address) => {
-                write!(f, "address({})", address)
-            }
-            Owner::ObjectOwner(address) => {
-                write!(f, "object({})", address)
-            }
-            Owner::Immutable => {
-                write!(f, "immutable")
-            }
-            Owner::Shared { .. } => {
-                write!(f, "shared")
-            }
         }
     }
 }

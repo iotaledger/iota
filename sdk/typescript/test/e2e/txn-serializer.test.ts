@@ -5,7 +5,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { SharedObjectRef } from '../../src/bcs';
-import { IotaTransactionBlockResponse } from '../../src/client';
+import { IotaTransactionBlockResponse, OwnedObjectRef } from '../../src/client';
 import { BuilderCallArg, TransactionBlock } from '../../src/transactions';
 import { TransactionBlockDataBuilder } from '../../src/transactions/TransactionBlockData';
 import { IOTA_SYSTEM_STATE_OBJECT_ID } from '../../src/utils';
@@ -21,12 +21,12 @@ describe('Transaction Serialization and deserialization', () => {
         toolbox = await setup();
         const packagePath = __dirname + '/./data/serializer';
         ({ packageId, publishTxn } = await publishPackage(packagePath));
-        const sharedObject = (publishTxn.effects?.created)!.filter(
+        const sharedObject = publishTxn.effects?.created!.find(
             (o) =>
                 typeof o.owner === 'object' &&
                 'Shared' in o.owner &&
                 o.owner.Shared.initial_shared_version !== undefined,
-        )[0];
+        ) as OwnedObjectRef;
         sharedObjectId = sharedObject.reference.objectId;
     });
 

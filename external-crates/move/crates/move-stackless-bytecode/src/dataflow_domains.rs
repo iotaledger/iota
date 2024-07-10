@@ -253,7 +253,7 @@ impl<K: Ord + Clone, V: AbstractDomain + Clone> MapDomain<K, V> {
         (ordmap! {k => v}).into()
     }
 
-    /// Join `v` with self[k] if `k` is bound, insert `v` otherwise
+    /// Join `v` with `self[k]` if `k` is bound, insert `v` otherwise
     pub fn insert_join(&mut self, k: K, v: V) -> JoinResult {
         let mut change = JoinResult::Unchanged;
         self.0
@@ -276,7 +276,7 @@ impl<K: Ord + Clone, V: AbstractDomain + Clone + PartialEq> MapDomain<K, V> {
     /// reasons (because entries are shared), so we need to use this pattern
     /// here instead.
     pub fn update_values(&mut self, mut f: impl FnMut(&mut V)) {
-        // Commpute the key-values which actually changed. If the change is small, we
+        // Compute the key-values which actually changed. If the change is small, we
         // preserve structure sharing.
         let new_values = self
             .iter()

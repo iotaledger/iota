@@ -82,15 +82,15 @@ async fn main() -> Result<(), anyhow::Error> {
     // this is the format of a private key exported from Iota Wallet or
     // iota.keystore.
     let _skp_import_with_flag_0 = IotaKeyPair::decode(
-        "iotaprivkey1qzdlfxn2qa2lj5uprl8pyhexs02sg2wrhdy7qaq50cqgnffw4c2477kg9h3",
+        "iotaprivkey1qzdlfxn2qa2lj5uprl8pyhexs02sg2wrhdy7qaq50cqgnffw4c247zslwv6",
     )
     .map_err(|_| anyhow!("Invalid Bech32"))?;
     let _skp_import_with_flag_1 = IotaKeyPair::decode(
-        "iotaprivkey1qqesr6xhua2dkt840v9yefely578q5ad90znnpmhhgpekfvwtxke6ef2xyg",
+        "iotaprivkey1qqesr6xhua2dkt840v9yefely578q5ad90znnpmhhgpekfvwtxke690adlr",
     )
     .map_err(|_| anyhow!("Invalid Bech32"))?;
     let _skp_import_with_flag_2 = IotaKeyPair::decode(
-        "iotaprivkey1qprzkcs823gcrk7n4hy8pzhntdxakpqk32qwjg9f2wyc3myj78egvtw3ecr",
+        "iotaprivkey1qprzkcs823gcrk7n4hy8pzhntdxakpqk32qwjg9f2wyc3myj78egvhgxjrg",
     )
     .map_err(|_| anyhow!("Invalid Bech32"))?;
 

@@ -5,7 +5,7 @@
 use std::{
     collections::{BTreeMap, HashSet},
     fs::{self, File},
-    io::{BufReader, BufWriter},
+    io::{prelude::Read, BufReader, BufWriter},
     path::Path,
     sync::Arc,
 };
@@ -13,6 +13,7 @@ use std::{
 use anyhow::{bail, Context};
 use camino::Utf8Path;
 use fastcrypto::{hash::HashFunction, traits::KeyPair};
+use flate2::bufread::GzDecoder;
 use iota_config::genesis::{
     Genesis, GenesisCeremonyParameters, GenesisChainParameters, TokenDistributionSchedule,
     UnsignedGenesis,
@@ -20,7 +21,7 @@ use iota_config::genesis::{
 use iota_execution::{self, Executor};
 use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk::types::block::address::Address;
+use iota_sdk::{types::block::address::Address, Url};
 use iota_types::{
     balance::Balance,
     base_types::{
@@ -47,6 +48,7 @@ use iota_types::{
     metrics::LimitsMetrics,
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
+    stardust::stardust_to_iota_address,
     transaction::{
         CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectArg, ObjectReadResult,
         Transaction,
@@ -57,7 +59,7 @@ use move_binary_format::CompiledModule;
 use move_core_types::ident_str;
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use stake::{delegate_genesis_stake, GenesisStake};
-use stardust::{migration::MigrationObjects, types::stardust_to_iota_address};
+use stardust::migration::MigrationObjects;
 use tracing::trace;
 use validator_info::{GenesisValidatorInfo, GenesisValidatorMetadata, ValidatorInfo};
 
@@ -76,10 +78,14 @@ const GENESIS_BUILDER_SIGNATURE_DIR: &str = "signatures";
 const GENESIS_BUILDER_UNSIGNED_GENESIS_FILE: &str = "unsigned-genesis";
 
 pub const BROTLI_COMPRESSOR_BUFFER_SIZE: usize = 4096;
-pub const BROTLI_COMPRESSOR_QUALITY: u32 = 11; // Compression levels go from 0 to 11, where 11 has the highest compression ratio but requires more time
-pub const BROTLI_COMPRESSOR_LG_WINDOW_SIZE: u32 = 22; // set LZ77 window size (0, 10-24) where bigger windows size improves density
-
+/// Compression levels go from 0 to 11, where 11 has the highest compression
+/// ratio but requires more time.
+pub const BROTLI_COMPRESSOR_QUALITY: u32 = 11;
+/// The LZ77 window size (0, 10-24) where bigger windows size improves density.
+pub const BROTLI_COMPRESSOR_LG_WINDOW_SIZE: u32 = 22;
 pub const OBJECT_SNAPSHOT_FILE_PATH: &str = "stardust_object_snapshot.bin";
+pub const IOTA_OBJECT_SNAPSHOT_URL: &str = "https://stardust-objects.s3.eu-central-1.amazonaws.com/iota/alphanet/latest/stardust_object_snapshot.bin.gz";
+pub const SHIMMER_OBJECT_SNAPSHOT_URL: &str = "https://stardust-objects.s3.eu-central-1.amazonaws.com/shimmer/alphanet/latest/stardust_object_snapshot.bin.gz";
 
 pub struct Builder {
     parameters: GenesisCeremonyParameters,
@@ -195,15 +201,16 @@ impl Builder {
         self
     }
 
-    /// Utility to load Stardust Migration Objects into the builder from a
-    /// snapshot file
-    pub fn load_stardust_migration_objects(
-        mut self,
-        snapshot: impl AsRef<Path>,
-    ) -> anyhow::Result<Self> {
-        self.migration_objects =
-            MigrationObjects::new(bcs::from_reader(BufReader::new(File::open(snapshot)?))?);
+    pub fn add_migration_objects(mut self, reader: impl Read) -> anyhow::Result<Self> {
+        self.migration_objects = MigrationObjects::new(bcs::from_reader(reader)?);
         Ok(self)
+    }
+
+    /// Reads a gzip compressed object snapshot from the S3.
+    pub fn read_snapshot_from_s3(url: SnapshotUrl) -> anyhow::Result<impl Read> {
+        Ok(GzDecoder::new(BufReader::new(reqwest::blocking::get(
+            url.to_url(),
+        )?)))
     }
 
     pub fn unsigned_genesis_checkpoint(&self) -> Option<UnsignedGenesis> {
@@ -221,8 +228,8 @@ impl Builder {
                 stardust_to_iota_address(Address::try_from_bech32(IF_STARDUST_ADDRESS).unwrap())
                     .unwrap();
             // TODO: check whether we need to start with
-            // VALIDATOR_LOW_STAKE_THRESHOLD_MICROS
-            let minimum_stake = iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_MICROS;
+            // VALIDATOR_LOW_STAKE_THRESHOLD_NANOS
+            let minimum_stake = iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_NANOS;
             self.genesis_stake = delegate_genesis_stake(
                 &validators,
                 delegator,
@@ -584,7 +591,7 @@ impl Builder {
                             panic!("gas object owner must be address owner");
                         };
                         *owner == allocation.recipient_address
-                            && s.principal() == allocation.amount_micros
+                            && s.principal() == allocation.amount_nanos
                             && s.pool_id() == staking_pool_id
                     })
                     .map(|(k, _)| *k)
@@ -595,7 +602,7 @@ impl Builder {
                     staked_iota_object.0.owner,
                     Owner::AddressOwner(allocation.recipient_address)
                 );
-                assert_eq!(staked_iota_object.1.principal(), allocation.amount_micros);
+                assert_eq!(staked_iota_object.1.principal(), allocation.amount_nanos);
                 assert_eq!(staked_iota_object.1.pool_id(), staking_pool_id);
                 assert_eq!(staked_iota_object.1.activation_epoch(), 0);
             } else {
@@ -604,7 +611,7 @@ impl Builder {
                     .find(|(_k, (o, g))| {
                         if let Owner::AddressOwner(owner) = &o.owner {
                             *owner == allocation.recipient_address
-                                && g.value() == allocation.amount_micros
+                                && g.value() == allocation.amount_nanos
                         } else {
                             false
                         }
@@ -616,7 +623,7 @@ impl Builder {
                     gas_object.0.owner,
                     Owner::AddressOwner(allocation.recipient_address)
                 );
-                assert_eq!(gas_object.1.value(), allocation.amount_micros,);
+                assert_eq!(gas_object.1.value(), allocation.amount_nanos,);
             }
         }
 
@@ -628,7 +635,7 @@ impl Builder {
 
         let committee = system_state.get_current_epoch_committee().committee;
         for signature in self.signatures.values() {
-            if self.validators.get(&signature.authority).is_none() {
+            if !self.validators.contains_key(&signature.authority) {
                 panic!("found signature for unknown validator: {:#?}", signature);
             }
 
@@ -1322,6 +1329,23 @@ pub fn split_timelocks(
     store.finish(written);
 
     Ok(())
+}
+
+/// The URLs to download Iota or Shimmer object snapshots.
+#[derive(Debug, Clone)]
+pub enum SnapshotUrl {
+    Iota,
+    Shimmer,
+}
+
+impl SnapshotUrl {
+    /// Returns the Iota or Shimmer object snapshot download URL.
+    pub fn to_url(&self) -> Url {
+        match self {
+            Self::Iota => Url::parse(IOTA_OBJECT_SNAPSHOT_URL).expect("should be valid URL"),
+            Self::Shimmer => Url::parse(SHIMMER_OBJECT_SNAPSHOT_URL).expect("should be valid URL"),
+        }
+    }
 }
 
 #[cfg(test)]

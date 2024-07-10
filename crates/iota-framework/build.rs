@@ -26,17 +26,13 @@ fn main() {
     let iota_system_path = packages_path.join("iota-system");
     let iota_framework_path = packages_path.join("iota-framework");
     let stardust_path = packages_path.join("stardust");
-    let deepbook_path_clone = deepbook_path.clone();
-    let iota_system_path_clone = iota_system_path.clone();
-    let iota_framework_path_clone = iota_framework_path.clone();
-    let stardust_path_clone = stardust_path.clone();
     let move_stdlib_path = packages_path.join("move-stdlib");
 
     build_packages(
-        deepbook_path_clone,
-        iota_system_path_clone,
-        iota_framework_path_clone,
-        stardust_path_clone,
+        deepbook_path.clone(),
+        iota_system_path.clone(),
+        iota_framework_path.clone(),
+        stardust_path.clone(),
         out_dir,
     );
 

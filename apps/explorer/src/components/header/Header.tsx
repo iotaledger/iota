@@ -6,9 +6,9 @@ import { Iota, IotaLogoTxt } from '@iota/icons';
 import clsx from 'clsx';
 import { useEffect, useState } from 'react';
 
-import NetworkSelect from '../network/Network';
+import { NetworkSelector } from '../network';
 import Search from '../search/Search';
-import { LinkWithQuery } from '~/ui/utils/LinkWithQuery';
+import { LinkWithQuery } from '~/components/ui';
 
 function Header(): JSX.Element {
     const [isScrolled, setIsScrolled] = useState(window.scrollY > 0);
@@ -42,7 +42,7 @@ function Header(): JSX.Element {
                     <div className="flex-1">
                         <Search />
                     </div>
-                    <NetworkSelect />
+                    <NetworkSelector />
                 </div>
             </div>
         </header>

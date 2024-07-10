@@ -197,7 +197,7 @@ pub enum DependencyMode {
 }
 
 /// Wrapper struct to display a package as an inline table in the lock file
-/// (matching the convention in the source manifest).  This is necessary becase
+/// (matching the convention in the source manifest). This is necessary because
 /// the `toml` crate does not currently support serializing types as inline
 /// tables.
 struct PackageTOML<'a>(&'a Package);
@@ -596,9 +596,9 @@ impl DependencyGraph {
                 &mut dev_o,
                 mode == DependencyMode::DevOnly,
             )?;
-            self.prune_overriden_pkgs(root_package_name, mode, &o, &dev_o)?;
+            self.prune_overridden_pkgs(root_package_name, mode, &o, &dev_o)?;
         } else {
-            self.prune_overriden_pkgs(root_package_name, mode, overrides, dev_overrides)?;
+            self.prune_overridden_pkgs(root_package_name, mode, overrides, dev_overrides)?;
         }
         Ok(())
     }
@@ -679,7 +679,7 @@ impl DependencyGraph {
 
     /// Prunes packages in a sub-graph based on the overrides information from
     /// the outer graph.
-    fn prune_overriden_pkgs(
+    fn prune_overridden_pkgs(
         &mut self,
         root_pkg_name: PM::PackageName,
         mode: DependencyMode,

@@ -31,6 +31,7 @@ pub(crate) trait Store: Send + Sync {
     fn contains_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>>;
 
     /// Checks whether there is any block at the given slot
+    #[allow(dead_code)]
     fn contains_block_at_slot(&self, slot: Slot) -> ConsensusResult<bool>;
 
     /// Reads blocks for an authority, from start_round.
@@ -44,6 +45,7 @@ pub(crate) trait Store: Send + Sync {
     // ascending order. When a `before_round` is defined then the blocks of
     // round `<=before_round` are returned. If not then the max value for round
     // will be used as cut off.
+    #[allow(dead_code)]
     fn scan_last_blocks_by_author(
         &self,
         author: AuthorityIndex,

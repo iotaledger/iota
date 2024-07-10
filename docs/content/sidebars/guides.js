@@ -209,5 +209,26 @@ const guides = [
 			'guides/operator/exchange-integration',
 		],
 	},
+	{
+		type: 'category',
+		label: 'Migrating IOTA/Shimmer Stardust',
+		link: {
+			type: 'doc',
+			id: 'guides/stardust-migration',
+		},
+		items: [
+			'guides/stardust/move-models',
+			'guides/stardust/addresses',
+			'guides/stardust/units',
+			'guides/stardust/migration-process',
+			'guides/stardust/claiming',
+			'guides/stardust/vested',
+			'guides/stardust/testing',
+			'guides/stardust/if-tools',
+			'guides/stardust/exchanges',
+			'guides/stardust/faq',
+			'guides/stardust/advanced',
+		],
+	},
 ];
 module.exports = guides;

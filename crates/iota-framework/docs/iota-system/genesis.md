@@ -252,7 +252,7 @@ title: Module `0x3::genesis`
 
 <dl>
 <dt>
-<code>stake_subsidy_fund_micros: u64</code>
+<code>stake_subsidy_fund_nanos: u64</code>
 </dt>
 <dd>
 
@@ -291,7 +291,7 @@ title: Module `0x3::genesis`
 
 </dd>
 <dt>
-<code>amount_micros: u64</code>
+<code>amount_nanos: u64</code>
 </dt>
 <dd>
 
@@ -363,11 +363,11 @@ all the information we need in the system.
     <b>assert</b>!(ctx.epoch() == 0, <a href="genesis.md#0x3_genesis_ENotCalledAtGenesis">ENotCalledAtGenesis</a>);
 
     <b>let</b> <a href="genesis.md#0x3_genesis_TokenDistributionSchedule">TokenDistributionSchedule</a> {
-        stake_subsidy_fund_micros,
+        stake_subsidy_fund_nanos,
         allocations,
     } = token_distribution_schedule;
 
-    <b>let</b> subsidy_fund = iota_supply.split(stake_subsidy_fund_micros);
+    <b>let</b> subsidy_fund = iota_supply.split(stake_subsidy_fund_nanos);
     <b>let</b> <a href="storage_fund.md#0x3_storage_fund">storage_fund</a> = <a href="../iota-framework/balance.md#0x2_balance_zero">balance::zero</a>();
 
     // Create all the `Validator` structs
@@ -499,15 +499,17 @@ all the information we need in the system.
     <b>while</b> (!allocations.is_empty()) {
         <b>let</b> <a href="genesis.md#0x3_genesis_TokenAllocation">TokenAllocation</a> {
             recipient_address,
-            amount_micros,
+            amount_nanos,
             staked_with_validator,
         } = allocations.pop_back();
 
-        <b>let</b> allocation_balance = iota_supply.split(amount_micros);
+        <b>let</b> allocation_balance = iota_supply.split(amount_nanos);
 
         <b>if</b> (staked_with_validator.is_some()) {
             <b>let</b> validator_address = staked_with_validator.destroy_some();
-            <b>let</b> <a href="validator.md#0x3_validator">validator</a> = <a href="validator_set.md#0x3_validator_set_get_validator_mut">validator_set::get_validator_mut</a>(validators, validator_address);
+            <b>let</b> <a href="validator.md#0x3_validator">validator</a> = <a href="validator_set.md#0x3_validator_set_get_validator_mut">validator_set::get_validator_mut</a>(
+                validators, validator_address
+            );
             <a href="validator.md#0x3_validator">validator</a>.request_add_stake_at_genesis(
                 allocation_balance,
                 recipient_address,

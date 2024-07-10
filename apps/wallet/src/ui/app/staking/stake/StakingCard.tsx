@@ -7,18 +7,21 @@ import { Button } from '_app/shared/ButtonUI';
 import { Collapsible } from '_app/shared/collapse';
 import { Text } from '_app/shared/text';
 import Loading from '_components/loading';
-import { parseAmount } from '_helpers';
-import { useCoinsReFetchingConfig } from '_hooks';
 import { Coin } from '_redux/slices/iota-objects/Coin';
 import { ampli } from '_src/shared/analytics/ampli';
+import { MIN_NUMBER_IOTA_TO_STAKE } from '_src/shared/constants';
+import { Feature } from '_src/shared/experimentation/features';
+import { useFeatureIsOn } from '@growthbook/growthbook-react';
 import {
+    createStakeTransaction,
+    createUnstakeTransaction,
+    parseAmount,
+    useBalance,
+    useCoinMetadata,
+    useGetDelegatedStake,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
-    MIN_NUMBER_IOTA_TO_STAKE,
-} from '_src/shared/constants';
-import { FEATURES } from '_src/shared/experimentation/features';
-import { useFeatureIsOn } from '@growthbook/growthbook-react';
-import { useCoinMetadata, useGetDelegatedStake } from '@iota/core';
+} from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { ArrowLeft16 } from '@iota/icons';
 import type { StakeObject } from '@iota/iota.js/client';
@@ -39,26 +42,21 @@ import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
 import { getStakeIotaByIotaId } from '../getStakeIotaByIotaId';
 import StakeForm from './StakeForm';
 import { UnStakeForm } from './UnstakeForm';
-import { createStakeTransaction, createUnstakeTransaction } from './utils/transaction';
 import { createValidationSchema } from './utils/validation';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 
-const initialValues = {
+const INITIAL_VALUES = {
     amount: '',
 };
 
-export type FormValues = typeof initialValues;
+export type FormValues = typeof INITIAL_VALUES;
 
 function StakingCard() {
     const coinType = IOTA_TYPE_ARG;
     const activeAccount = useActiveAccount();
     const accountAddress = activeAccount?.address;
-    const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
-    const { data: iotaBalance, isPending: loadingIotaBalances } = useIotaClientQuery(
-        'getBalance',
-        { coinType: IOTA_TYPE_ARG, owner: accountAddress! },
-        { refetchInterval, staleTime, enabled: !!accountAddress },
-    );
+    const { data: iotaBalance, isPending: loadingIotaBalances } = useBalance(accountAddress!);
+
     const coinBalance = BigInt(iotaBalance?.totalBalance || 0);
     const [searchParams] = useSearchParams();
     const validatorAddress = searchParams.get('address');
@@ -70,7 +68,7 @@ function StakingCard() {
         refetchInterval: DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     });
     const effectsOnlySharedTransactions = useFeatureIsOn(
-        FEATURES.WALLET_EFFECTS_ONLY_SHARED_TRANSACTION as string,
+        Feature.WalletEffectsOnlySharedTransaction as string,
     );
 
     const { data: system, isPending: validatorsisPending } = useIotaClientQuery(
@@ -187,7 +185,7 @@ function StakingCard() {
         },
     });
 
-    const onHandleSubmit = useCallback(
+    const onSubmit = useCallback(
         async ({ amount }: FormValues, { resetForm }: FormikHelpers<FormValues>) => {
             if (coinType === null || validatorAddress === null) {
                 return;
@@ -271,9 +269,9 @@ function StakingCard() {
         <div className="flex w-full flex-grow flex-col flex-nowrap">
             <Loading loading={isPending || validatorsisPending || loadingIotaBalances}>
                 <Formik
-                    initialValues={initialValues}
+                    initialValues={INITIAL_VALUES}
                     validationSchema={validationSchema}
-                    onSubmit={onHandleSubmit}
+                    onSubmit={onSubmit}
                     validateOnMount
                 >
                     {({ isSubmitting, isValid, submitForm, errors, touched }) => (

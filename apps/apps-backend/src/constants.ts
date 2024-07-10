@@ -1,4 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export const APPS_BACKEND_IOTA_URL = 'https://apps-backend.iota.io';
+export const tokenPriceKey = (coinName: string) => `tokenPrice${coinName}`;
+export const TOKEN_PRICE_CURRENCY = 'usd';
+export const TOKEN_PRICE_COINS = ['iota'];

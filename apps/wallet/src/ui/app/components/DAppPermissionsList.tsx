@@ -7,11 +7,11 @@ import { CheckFill12 } from '@iota/icons';
 
 import { Text } from '../shared/text';
 
-export type DAppPermissionsListProps = {
+export interface DAppPermissionsListProps {
     permissions: PermissionType[];
-};
+}
 
-const permissionTypeToTxt: Record<PermissionType, string> = {
+const PERMISSION_TYPE_TO_TEXT: Record<PermissionType, string> = {
     viewAccount: 'Share wallet address',
     suggestTransactions: 'Suggest transactions to approve',
 };
@@ -23,7 +23,7 @@ export function DAppPermissionsList({ permissions }: DAppPermissionsListProps) {
                 <li key={aPermission} className="flex flex-row flex-nowrap items-center gap-2">
                     <CheckFill12 className="text-steel" />
                     <Text variant="bodySmall" weight="medium" color="steel-darker">
-                        {permissionTypeToTxt[aPermission]}
+                        {PERMISSION_TYPE_TO_TEXT[aPermission]}
                     </Text>
                 </li>
             ))}

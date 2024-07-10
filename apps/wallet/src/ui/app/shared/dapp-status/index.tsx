@@ -71,7 +71,7 @@ function DappStatus() {
             bubbles: false,
         }),
     ]);
-    const onHandleDisconnect = useCallback(async () => {
+    const handleDisconnect = useCallback(async () => {
         if (!disconnecting && isConnected && activeOriginUrl && activeAddress) {
             setDisconnecting(true);
             try {
@@ -145,7 +145,7 @@ function DappStatus() {
                                 <button
                                     type="button"
                                     className={st.disconnect}
-                                    onClick={onHandleDisconnect}
+                                    onClick={handleDisconnect}
                                     disabled={disconnecting}
                                 >
                                     Disconnect App

@@ -12,7 +12,7 @@ import { Button } from '../../shared/ButtonUI';
 import { UnlockAccountButton } from '../accounts/UnlockAccountButton';
 import { DAppInfoCard } from '../DAppInfoCard';
 
-type UserApproveContainerProps = {
+interface UserApproveContainerProps {
     children: ReactNode | ReactNode[];
     origin: string;
     originFavIcon?: string;
@@ -28,7 +28,7 @@ type UserApproveContainerProps = {
     blended?: boolean;
     permissions?: PermissionType[];
     checkAccountLock?: boolean;
-};
+}
 
 export function UserApproveContainer({
     origin,

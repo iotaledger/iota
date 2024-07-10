@@ -235,22 +235,22 @@ module iota_system::timelocked_stake_tests {
             advance_epoch(scenario);
         };
 
-        // Verify that it can be splitted
+        // Verify that it can be split
         scenario.next_tx(STAKER_ADDR_1);
         {
             let mut original = scenario.take_from_sender<TimelockedStakedIota>();
-            let splitted = original.split(20 * MICROS_PER_IOTA, scenario.ctx());
+            let split = original.split(20 * MICROS_PER_IOTA, scenario.ctx());
 
             assert_eq(original.staked_iota_amount(), 40 * MICROS_PER_IOTA);
             assert_eq(original.expiration_timestamp_ms(), 10);
             assert_eq(original.is_labeled_with<TEST_LABEL_ONE>(), true);
 
-            assert_eq(splitted.staked_iota_amount(), 20 * MICROS_PER_IOTA);
-            assert_eq(splitted.expiration_timestamp_ms(), 10);
-            assert_eq(splitted.is_labeled_with<TEST_LABEL_ONE>(), true);
+            assert_eq(split.staked_iota_amount(), 20 * MICROS_PER_IOTA);
+            assert_eq(split.expiration_timestamp_ms(), 10);
+            assert_eq(split.is_labeled_with<TEST_LABEL_ONE>(), true);
 
             scenario.return_to_sender(original);
-            test_utils::destroy(splitted);
+            test_utils::destroy(split);
         };
         scenario_val.end();
     }

@@ -439,7 +439,7 @@ pub struct GlobalEnv {
     pub module_data: Vec<ModuleData>,
     /// A type-indexed container for storing extension data in the environment.
     extensions: RefCell<BTreeMap<TypeId, Box<dyn Any>>>,
-    /// The address of the standard and extension libaries.
+    /// The address of the standard and extension libraries.
     stdlib_address: Option<BigUint>,
     extlib_address: Option<BigUint>,
 }
@@ -513,7 +513,7 @@ impl GlobalEnv {
     }
 
     /// Retrieves extension data from the environment. Use as in
-    /// `env.get_extension::<T>()`. An Rc<T> is returned because extension
+    /// `env.get_extension::<T>()`. An `Rc<T>` is returned because extension
     /// data is stored in a RefCell and we can't use lifetimes (`&'a T`) to
     /// control borrowing.
     pub fn get_extension<T: Any>(&self) -> Option<Rc<T>> {
@@ -2668,7 +2668,7 @@ impl<'env> FunctionEnv<'env> {
         self.definition_view().visibility()
     }
 
-    /// Return true if the function is an entry fucntion
+    /// Return true if the function is an entry function
     pub fn is_entry(&self) -> bool {
         self.definition_view().is_entry()
     }
@@ -2705,7 +2705,7 @@ impl<'env> FunctionEnv<'env> {
 
     /// Returns true if the function is a script function
     pub fn is_script(&self) -> bool {
-        // The main function of a scipt is a script function
+        // The main function of a script is a script function
         self.module_env.is_script_module() || self.definition_view().is_entry()
     }
 

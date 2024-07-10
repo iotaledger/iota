@@ -417,8 +417,17 @@ mod tests {
         core_thread::{CoreError, CoreThreadDispatcher},
         network::NetworkClient,
         storage::mem_store::MemStore,
-        transaction::NoopTransactionVerifier,
+        ValidationError,
     };
+
+    /// `NoopTransactionVerifier` accepts all transactions.
+    struct NoopTransactionVerifier;
+
+    impl TransactionVerifier for NoopTransactionVerifier {
+        fn verify_batch(&self, _batch: &[&[u8]]) -> Result<(), ValidationError> {
+            Ok(())
+        }
+    }
 
     struct FakeCoreThreadDispatcher {
         blocks: Mutex<Vec<VerifiedBlock>>,
