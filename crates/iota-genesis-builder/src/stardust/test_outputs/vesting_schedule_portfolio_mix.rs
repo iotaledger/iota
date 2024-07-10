@@ -28,7 +28,7 @@ const VESTING_WEEKS: usize = 208;
 const VESTING_WEEKS_FREQUENCY: usize = 2;
 const MNEMONIC: &str = "axis art silk merit assist hour bright always day legal misery arm laundry mule ship upon oil ski cup hat skin wet old sea";
 // bip path values for account, internal, address
-const ADDRESSES: &'static [[u32; 3]] = &[
+const ADDRESSES: &[[u32; 3]] = &[
     // public
     [0, 0, 0],
     [0, 0, 1],
