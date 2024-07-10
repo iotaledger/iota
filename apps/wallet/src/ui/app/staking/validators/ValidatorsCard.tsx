@@ -168,7 +168,7 @@ export function ValidatorsCard() {
                                 sourceFlow: 'Validator card',
                             })
                         }
-                        before={<Plus12 />}
+                        // before={<Plus12 />}
                         text="Stake IOTA"
                     />
                 </Menu>
