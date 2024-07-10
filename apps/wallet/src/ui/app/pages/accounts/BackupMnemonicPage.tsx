@@ -8,7 +8,7 @@ import { Text } from '_app/shared/text';
 import Alert from '_components/alert';
 import Loading from '_components/loading';
 import { HideShowDisplayBox } from '_src/ui/app/components/HideShowDisplayBox';
-import { Checkmark } from '@iota/icons';
+import { Checkmark, Left } from '@iota/icons';
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 
@@ -145,9 +145,7 @@ export function BackupMnemonicPage() {
                             disabled={!passwordCopied && isOnboardingFlow}
                             to="/"
                             text="Open Iota Wallet"
-                            // after={
-                            //     <ArrowLeft16 className="rotate-135 text-pBodySmall font-normal" />
-                            // }
+                            after={<Left className="rotate-135 text-pBodySmall font-normal" />}
                         />
                     </div>
                 </CardLayout>

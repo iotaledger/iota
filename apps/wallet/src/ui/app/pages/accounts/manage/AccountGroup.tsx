@@ -27,7 +27,7 @@ import {
 import { Heading } from '_src/ui/app/shared/heading';
 import { Text } from '_src/ui/app/shared/text';
 import { ButtonOrLink, type ButtonOrLinkProps } from '_src/ui/app/shared/utils/ButtonOrLink';
-// import { ArrowBgFill16, Plus12, Search } from '@iota/icons';
+import { Search } from '@iota/icons';
 import * as CollapsiblePrimitive from '@radix-ui/react-collapsible';
 import { useMutation } from '@tanstack/react-query';
 import { forwardRef, useState } from 'react';
@@ -186,7 +186,7 @@ export function AccountGroup({
                                         );
                                     }}
                                 >
-                                    {/* <Search /> */}
+                                    <Search />
                                 </ButtonOrLink>
                             ) : null}
                             {(isMnemonicDerivedGroup || isSeedDerivedGroup) && accountSource ? (

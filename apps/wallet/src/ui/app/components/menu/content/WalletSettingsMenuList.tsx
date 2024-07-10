@@ -10,7 +10,7 @@ import { formatAutoLock, useAutoLockMinutes } from '_src/ui/app/hooks/useAutoLoc
 import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { Link } from '_src/ui/app/shared/Link';
 import { Text } from '_src/ui/app/shared/text';
-// import { ArrowUpRight12, Clipboard24, Domain24, LockLocked24, More24 } from '@iota/icons';
+import { ArrowTopRight, LockLocked, MoreHoriz } from '@iota/icons';
 import { getNetwork, Network } from '@iota/iota.js/client';
 import Browser from 'webextension-polyfill';
 
@@ -38,7 +38,7 @@ function MenuList() {
                 />
                 <MenuListItem
                     to={autoLockUrl}
-                    icon={null}
+                    icon={<LockLocked />}
                     title="Auto-lock Accounts"
                     subtitle={
                         <Loading loading={autoLockInterval?.isPending}>
@@ -50,7 +50,7 @@ function MenuList() {
                     }
                 />
                 <MenuListItem icon={null} title="FAQ" href={FAQ_LINK} />
-                <MenuListItem icon={null} title="More options" to={moreOptionsUrl} />
+                <MenuListItem icon={<MoreHoriz />} title="More options" to={moreOptionsUrl} />
             </div>
             <div className="flex-1" />
             <div className="mt-2.5 flex flex-col items-stretch">
@@ -60,7 +60,7 @@ function MenuList() {
                 <Link
                     href={ToS_LINK}
                     text="Terms of service"
-                    after={null}
+                    after={<ArrowTopRight />}
                     color="steelDark"
                     weight="semibold"
                 />

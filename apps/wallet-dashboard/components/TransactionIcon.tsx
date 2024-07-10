@@ -2,27 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { TransactionAction, TransactionState } from '@/lib/interfaces';
-import { IotaLogoMark } from '@iota/icons';
+import { IotaLogoMark, Right } from '@iota/icons';
 
 const icons = {
-    [TransactionAction.Send]: null,
-    //     <ArrowRight16
-    //         fill="currentColor"
-    //         className="text-gradient-blue-start text-body -rotate-45"
-    //     />
-    // ),
-    [TransactionAction.Receive]: null,
-    //     <ArrowRight16
-    //         fill="currentColor"
-    //         className="text-gradient-blue-start text-body rotate-135"
-    //     />
-    // ),
-    [TransactionAction.Transaction]: null,
-    //     <ArrowRight16
-    //         fill="currentColor"
-    //         className="text-gradient-blue-start text-body -rotate-45"
-    //     />
-    // ),
+    [TransactionAction.Send]: (
+        <Right fill="currentColor" className="text-gradient-blue-start text-body -rotate-45" />
+    ),
+    [TransactionAction.Receive]: (
+        <Right fill="currentColor" className="text-gradient-blue-start text-body rotate-135" />
+    ),
+    [TransactionAction.Transaction]: (
+        <Right fill="currentColor" className="text-gradient-blue-start text-body -rotate-45" />
+    ),
     [TransactionAction.Staked]: null,
     //     <WalletActionStake24 className="text-gradient-blue-start text-heading2 bg-transparent" />
     // ),

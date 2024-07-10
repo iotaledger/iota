@@ -10,7 +10,7 @@ import LoadingIndicator from '_components/loading/LoadingIndicator';
 import { ampli } from '_src/shared/analytics/ampli';
 import { calculateStakeShare, formatPercentageDisplay, useGetValidatorsApy } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-// import { ArrowRight16 } from '@iota/icons';
+import { Right } from '@iota/icons';
 import { useMemo, useState } from 'react';
 
 import { ValidatorListItem } from './ValidatorListItem';
@@ -135,14 +135,14 @@ export function SelectValidatorCard() {
                                         >
                                             {value}
                                         </Text>
-                                        {/* {sortKey === key && (
-                                            <ArrowRight16
+                                        {sortKey === key && (
+                                            <Right
                                                 className={cl(
                                                     'text-captionSmall font-thin text-hero',
                                                     sortAscending ? 'rotate-90' : '-rotate-90',
                                                 )}
                                             />
-                                        )} */}
+                                        )}
                                     </button>
                                 );
                             })}
@@ -191,7 +191,7 @@ export function SelectValidatorCard() {
                             })
                         }
                         text="Select Amount"
-                        // after={<ArrowRight16 />}
+                        after={<Right />}
                     />
                 </Menu>
             )}
