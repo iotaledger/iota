@@ -16,7 +16,7 @@ export interface ConfirmationModalProps {
     confirmStyle?: ButtonProps['variant'];
     cancelText?: string;
     cancelStyle?: ButtonProps['variant'];
-    onResponse: (confirmed: boolean) => void;
+    onResponse: (confirmed: boolean) => Promise<void>;
 }
 
 export function ConfirmationModal({
