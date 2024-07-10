@@ -68,7 +68,7 @@ export abstract class SignerWithProvider implements Signer {
     protected async prepareTransactionBlock(transactionBlock: Uint8Array | TransactionBlock) {
         if (isTransactionBlock(transactionBlock)) {
             // If the sender has not yet been set on the transaction, then set it.
-            // NOTE: This allows for signing transactions with mis-matched senders, which is important for sponsored transactions.
+            // NOTE: This allows for signing transactions with mismatched senders, which is important for sponsored transactions.
             transactionBlock.setSenderIfNotSet(await this.getAddress());
             return await transactionBlock.build({
                 client: this.client,
@@ -143,7 +143,7 @@ export abstract class SignerWithProvider implements Signer {
     }
 
     /**
-     * Runs the transaction in dev-inpsect mode. Which allows for nearly any
+     * Runs the transaction in dev-inspect mode. Which allows for nearly any
      * transaction (or Move call) with any arguments. Detailed results are
      * provided, including both the transaction effects and any return values.
      */
