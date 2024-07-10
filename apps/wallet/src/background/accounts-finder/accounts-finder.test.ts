@@ -3,7 +3,7 @@
 
 import { CoinBalance } from '@iota/iota.js/client';
 import { mnemonicToSeedHex } from '@iota/iota.js/cryptography';
-import { entropyToMnemonic, getRandomEntropy } from '_shared/utils/bip39';
+import { entropyToMnemonic, getRandomEntropy } from '_src/shared/utils/bip39';
 import { findAccounts } from './accounts-finder';
 import { test, assert } from 'vitest';
 import { AccountFromFinder } from '_src/shared/accounts';
