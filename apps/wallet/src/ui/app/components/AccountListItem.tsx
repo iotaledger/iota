@@ -4,10 +4,8 @@
 
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
 import { useResolveIotaNSName } from '@iota/core';
-import { Check12, Copy12 } from '@iota/icons';
+// import { Checkmark, Copy } from '@iota/icons';
 import { formatAddress } from '@iota/iota.js/utils';
-
-import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 import { Text } from '../shared/text';
 import { AccountBadge } from './AccountBadge';
 
@@ -18,10 +16,10 @@ export interface AccountItemProps {
 
 /** @deprecated - use AccountListItem from the `accounts` folder **/
 export function AccountListItem({ account, onAccountSelected }: AccountItemProps) {
-    const { address, type, selected } = account;
-    const copy = useCopyToClipboard(address, {
-        copySuccessMessage: 'Address Copied',
-    });
+    const { address, type } = account;
+    // const copy = useCopyToClipboard(address, {
+    //     copySuccessMessage: 'Address Copied',
+    // });
     const { data: domainName } = useResolveIotaNSName(address);
 
     return (
@@ -40,11 +38,11 @@ export function AccountListItem({ account, onAccountSelected }: AccountItemProps
                     </div>
                     <AccountBadge accountType={type} />
                 </div>
-                {selected ? <Check12 className="text-success" /> : null}
-                <Copy12
+                {/* {selected ? <Checkmark className="text-success" /> : null}
+                <Copy
                     className="text-gray-60 transition-colors hover:!text-hero-dark group-hover:text-steel"
                     onClick={copy}
-                />
+                /> */}
             </button>
         </li>
     );

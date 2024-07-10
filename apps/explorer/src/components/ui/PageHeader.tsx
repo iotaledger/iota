@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Flag16, Info12 } from '@iota/icons';
+// import { Flag16, Info12 } from '@iota/icons';
 import { Heading, Placeholder, Text } from '@iota/ui';
 
 import { Banner, CopyToClipboard } from '~/components/ui';
@@ -27,7 +27,7 @@ const TYPE_TO_COPY: Partial<Record<PageHeaderType, string>> = {
 
 const TYPE_TO_ICON: Record<PageHeaderType, typeof CallIcon | null> = {
     Transaction: null,
-    Checkpoint: Flag16,
+    Checkpoint: null, // Previously Flag16,
     Object: null,
     Package: CallIcon,
     Address: null,
@@ -49,7 +49,7 @@ export function PageHeader({
             <div className="flex w-full items-center gap-3 sm:gap-5">
                 {before && (
                     <div className="self-start sm:self-center">
-                        <div className="sm:min-w-16 flex h-10 w-10 min-w-10 items-center justify-center rounded-lg bg-white/60 sm:h-16 sm:w-16 sm:rounded-xl lg:h-18 lg:w-18 lg:min-w-18">
+                        <div className="flex h-10 w-10 min-w-10 items-center justify-center rounded-lg bg-white/60 sm:h-16 sm:w-16 sm:min-w-16 sm:rounded-xl lg:h-18 lg:w-18 lg:min-w-18">
                             {loading ? (
                                 <Placeholder rounded="xl" width="100%" height="100%" />
                             ) : (
@@ -113,7 +113,7 @@ export function PageHeader({
                         <div className="mt-2">
                             <Banner
                                 variant="neutralWhite"
-                                icon={<Info12 className="text-issue-dark" />}
+                                // icon={<Info12 className="text-issue-dark" />}
                             >
                                 <Text variant="pBody/medium" color="issue-dark">
                                     {error}

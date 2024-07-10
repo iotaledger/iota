@@ -2,12 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ChevronRight12 } from '@iota/icons';
+// import { ChevronRight12 } from '@iota/icons';
 import { type IotaEvent } from '@iota/iota.js/client';
 import { formatAddress, parseStructTag } from '@iota/iota.js/utils';
 import { Text } from '@iota/ui';
 import * as Collapsible from '@radix-ui/react-collapsible';
-import clsx from 'clsx';
 import { useState } from 'react';
 
 import { SyntaxHighlighter } from '~/components';
@@ -44,10 +43,10 @@ function Event({ event, divider }: { event: IotaEvent; divider: boolean }): JSX.
                             <Text variant="body/semibold" color="steel-dark">
                                 {open ? 'Hide' : 'View'} Event Data
                             </Text>
-
+                            {/* 
                             <ChevronRight12
                                 className={clsx('h-3 w-3 text-steel-dark', open && 'rotate-90')}
-                            />
+                            /> */}
                         </Collapsible.Trigger>
 
                         <Collapsible.Content className="rounded-lg border border-transparent bg-white p-5">

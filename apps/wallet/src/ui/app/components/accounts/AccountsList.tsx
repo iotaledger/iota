@@ -4,7 +4,7 @@
 
 import { ampli } from '_src/shared/analytics/ampli';
 import { Collapsible } from '_src/ui/app/shared/collapse';
-import { Filter16, Plus12 } from '@iota/icons';
+// import { Filter16, Plus12 } from '@iota/icons';
 import * as ToggleGroup from '@radix-ui/react-toggle-group';
 import { useMemo, useState } from 'react';
 
@@ -91,13 +91,13 @@ export function AccountsList() {
             <div className="flex justify-between">
                 <FooterLink
                     color="steelDarker"
-                    icon={<Filter16 />}
+                    // icon={<Filter16 />}
                     to="/accounts/manage"
                     text="Manage"
                 />
                 <FooterLink
                     color="steelDarker"
-                    icon={<Plus12 />}
+                    // icon={<Plus12 />}
                     to="/accounts/add-account"
                     text="Add"
                 />

@@ -4,15 +4,13 @@
 
 import { Text } from '_src/ui/app/shared/text';
 import { useResolveIotaNSName } from '@iota/core';
-import { ArrowUpRight12, Copy12 } from '@iota/icons';
+import { Copy } from '@iota/icons';
 import { formatAddress } from '@iota/iota.js/utils';
 import cn from 'clsx';
 import { forwardRef, type ReactNode } from 'react';
 
 import { useAccounts } from '../../hooks/useAccounts';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
-import { useExplorerLink } from '../../hooks/useExplorerLink';
-import { ExplorerLinkType } from '../explorer-link/ExplorerLinkType';
 import { IconButton } from '../IconButton';
 import { EditableAccountName } from './EditableAccountName';
 
@@ -57,10 +55,10 @@ export const AccountItem = forwardRef<HTMLDivElement, AccountItemProps>(
         const copyAddress = useCopyToClipboard(account?.address || '', {
             copySuccessMessage: 'Address copied',
         });
-        const explorerHref = useExplorerLink({
-            type: ExplorerLinkType.Address,
-            address: account?.address,
-        });
+        // const explorerHref = useExplorerLink({
+        //     type: ExplorerLinkType.Address,
+        //     address: account?.address,
+        // });
         if (!account) return null;
 
         return (
@@ -94,11 +92,11 @@ export const AccountItem = forwardRef<HTMLDivElement, AccountItemProps>(
                                 {hideCopy ? null : (
                                     <IconButton
                                         variant="transparent"
-                                        icon={<Copy12 className="h-2.5 w-2.5" />}
+                                        icon={<Copy className="h-2.5 w-2.5" />}
                                         onClick={copyAddress}
                                     />
                                 )}
-                                {hideExplorerLink || !explorerHref ? null : (
+                                {/* {hideExplorerLink || !explorerHref ? null : (
                                     <IconButton
                                         variant="transparent"
                                         title="View on Explorer"
@@ -106,7 +104,7 @@ export const AccountItem = forwardRef<HTMLDivElement, AccountItemProps>(
                                         icon={<ArrowUpRight12 className="h-2.5 w-2.5" />}
                                         onClick={(e) => e.stopPropagation()}
                                     />
-                                )}
+                                )} */}
                             </div>
                         </div>
                     </div>

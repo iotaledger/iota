@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { getTotalGasUsed } from '@iota/core';
-import { X12, Dot12 } from '@iota/icons';
+import { Close, MoreHoriz } from '@iota/icons';
 import { type IotaClient, type IotaTransactionBlockResponse } from '@iota/iota.js/client';
 
 import { IotaAmount } from '../table/IotaAmount';
@@ -48,9 +48,9 @@ export function genTableDataFromTxData(results: IotaTransactionBlockResponse[]):
                             digest={transaction.digest}
                             before={
                                 status === 'success' ? (
-                                    <Dot12 className="text-success" />
+                                    <MoreHoriz className="text-success" />
                                 ) : (
-                                    <X12 className="text-issue-dark" />
+                                    <Close className="text-issue-dark" />
                                 )
                             }
                         />
