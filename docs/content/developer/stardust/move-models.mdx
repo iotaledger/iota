@@ -40,7 +40,7 @@ genesis of the network.
     - [`timelock_unlock_condition`](../../references/framework/stardust/timelock_unlock_condition.md): Defines how a timelock unlock condition is modeled.
     - [`irc27`](../../references/framework/stardust/irc27.md): Defines how an IRC-27 metadata is modeled.
     - [`utilities`](../../references/framework/stardust/utilities.md): Contains utility functions for the stardust package, primarily to help with extracting assets from containers.
- - There is no dedicated module for foundries and native tokens, since they are converted to [move-native tokens](../developer/evm-to-move/creating-token.mdx)
+ - There is no dedicated module for foundries and native tokens, since they are converted to [move-native tokens](../evm-to-move/creating-token.mdx)
    along with the base tokens (IOTA/SMR). These models are already part of the [`iota-framework`](../../references/framework/iota-framework).
 
 There is intentionally no constructor for any of the object types defined in the Stardust package, since they can
@@ -122,7 +122,7 @@ to hold balances of tokens, as well as the [`CoinManager`](../../references/fram
 to control the supply of the token through minting and burning.
 
 A native token and its foundry from the Stardust ledger therefore translate to the following in the move ledger:
- - A published move package that defines the currency type ([one-time witness](../../concepts/iota-move-concepts/one-time-witness.mdx))
+ - A published move package that defines the currency type ([one-time witness](../iota-101/iota-move-concepts/one-time-witness.mdx))
    for the native token. The template that is used for every native token package can be found in the [IOTA Genesis Builder](https://github.com/iotaledger/iota/blob/develop/crates/iota-genesis-builder/src/stardust/native_token/package_template/sources/native_token_template.move).
    The parameters of the template are filled with the [IRC-30 metadata](https://github.com/iotaledger/tips/blob/main/tips/TIP-0030/tip-0030.md) of the native token from Stardust.
  - The `CoinManager` shared object that gives access to the coin metadata and supply on-chain.
@@ -151,7 +151,7 @@ A more detailed description on the process can be found in [Advanced Topics](./a
 
 The unique `AliasID` of the Stardust asset is persisted as the `ObjectID` of the migrated `Alias` object. All assets and outputs
 that were owned by the `Alias Address` in Stardust are now owned by the `Alias` object in move. There is a special [receiving
-functionality in the new move framework](../../concepts/transfers/transfer-to-object.mdx#receiving-objects) that
+functionality in the new move framework](../iota-101/objects/transfers/transfer-to-object.mdx#receiving-objects) that
  allows one to receive assets on the an `ObjectID` that is an `AliasID`. The following functions let an `Alias` receive
  other Stardust containers:
   - [`unlock_alias_address_owned_basic`](../../references/framework/stardust/address_unlock_condition.md#function-unlock_alias_address_owned_basic)
@@ -163,7 +163,7 @@ functionality in the new move framework](../../concepts/transfers/transfer-to-ob
 NFTs are migrated very similarly to aliases. The NFT object in move is called [`Nft`](../../references/framework/stardust/nft.md#resource-nft).
 The unique `NftID` of the Stardust asset is persisted as the `ObjectID` of the migrated `Nft` object. All assets and outputs
 that were owned by the `Nft Address` in Stardust are now owned by the `Nft` object in move. There is a special [receiving
-functionality in the new move framework](../../concepts/transfers/transfer-to-object.mdx#receiving-objects) that
+functionality in the new move framework](../iota-101/objects/transfers/transfer-to-object.mdx#receiving-objects) that
  allows one to receive assets on the an `ObjectID` that is an `NftID`. The following functions let an `Nft` receive
     other Stardust containers:
     - [`unlock_nft_address_owned_basic`](../../references/framework/stardust/address_unlock_condition.md#function-unlock_nft_address_owned_basic)
@@ -181,7 +181,7 @@ Once that happens, they are destroyed. The containers are:
  - [`NftOutput`](../../references/framework/stardust/nft_output#resource-nftoutput): Represents an NFT output container.
 
 On move level, all of them are defined with only a `key` type ability, which means that they only support [custom transfer
-rules](../../concepts/transfers/custom-rules.mdx). The only way to interact with the containers is to call `extract_assets()`
+rules](../iota-101/objects/transfers/custom-rules.mdx). The only way to interact with the containers is to call `extract_assets()`
 move function on them, which will return the assets they hold and destroy the container.
 
 During the `extract_assets()` call, the legacy unlock conditions are checked, that is, the claiming transaction will fail
@@ -192,7 +192,7 @@ if they are not respected. This is required to not change semantically the rules
 The most common unlock condition (which is mandatory for most outputs) in legacy Stardust is the
 [`Address Unlock Condition`](https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md#address-unlock-condition).
 It simply locks the output behind an address, therefore, in move it is represented as a simple [address ownership of the
-object](../../concepts/object-ownership/address-owned.mdx).
+object](../iota-101/objects/object-ownership/address-owned.mdx).
  - All migrated objects, except the ones with Expiration Unlock Condition, become owned objects in the move ledger.
  - The address that owns the object is the address that was in the `Address Unlock Condition` of the Stardust output.
  - Move addresses are 32 bytes, which is the same length as the legacy addresses in Stardust without the type byte.
@@ -247,7 +247,7 @@ which checks if the expiration time has passed and if so, transfers the ownershi
 :::info
 
 Since the conditional ownership can only be modeled in on-chain move code, outputs from Stardust with expiration unlock conditions are
-migrated to [Shared Objects](../../concepts/object-ownership/shared.mdx). As opposed to owned objects, shared objects
+migrated to [Shared Objects](../iota-101/objects/object-ownership/shared.mdx). As opposed to owned objects, shared objects
 can be touched by anyone, however the move level code ensures that only the rightful owner can claim the assets.
 
 :::
@@ -349,7 +349,7 @@ There are two ways to interact with `BasicOutputs` in move:
   of the base token balance and from the native token balances extracted from the `Bag`. The [Claiming Stardust Assets](./claiming.mdx)
   guide explains in detail what is the recommended way to deal with these results.
 
-2. Receive them on an `ObjectID` address. The [Receiving Objects](../../concepts/transfers/transfer-to-object.mdx#receiving-objects)
+2. Receive them on an `ObjectID` address. The [Receiving Objects](../iota-101/objects/transfers/transfer-to-object.mdx#receiving-objects)
   guide explains how to receive assets on an object. In the Stardust models the following two functions are used to receive `BasicOutputs`
   that were locked in the legacy network to `Alias` or `Nft` addresses:
    - [`unlock_alias_address_owned_basic()`](../../references/framework/stardust/address_unlock_condition.md#function-unlock_alias_address_owned_basic)
@@ -364,7 +364,7 @@ following assets:
  - Base token balance (IOTA/SMR) of the migrated Stardust output,
  - A `Bag` that holds native tokens of the migrated Stardust output, and
  - The [`Alias`](../../references/framework/stardust/alias#resource-alias) object that represents the alias in the move ledger.
-   While this latter asset is not part of the container as a field, it is added to it as a [`dynamic object field`](../../concepts/dynamic-fields)
+   While this latter asset is not part of the container as a field, it is added to it as a [`dynamic object field`](../iota-101/objects/dynamic-fields/dynamic-fields.mdx)
    during the migration process. This has the added benefit that the previous `AliasID` of the Stardust output is preserved
    as the `ObjectID` of the `Alias` object, and can be directly queried from the node API/indexer. During the claiming process,
    the `extract_assets()` function automatically loads the `Alias`, removes it as a dynamic field from the container and returns it.
@@ -441,7 +441,7 @@ The [`NftOutput`](../../references/framework/stardust/nft_output#resource-nftout
  - Base token balance (IOTA/SMR) of the migrated Stardust output,
  - A `Bag` that holds native tokens of the migrated Stardust output, and
  - The [`Nft`](../../references/framework/stardust/nft#resource-nft) object that represents the NFT in the move ledger.
-   While this latter asset is not part of the container as a field, it is added to it as a [`dynamic object field`](../../concepts/dynamic-fields)
+   While this latter asset is not part of the container as a field, it is added to it as a [`dynamic object field`](../iota-101/objects/dynamic-fields/dynamic-fields.mdx)
    during the migration process. This has the added benefit that the previous `NftID` of the Stardust output is preserved
    as the `ObjectID` of the `Nft` object, and can be directly queried from the node API/indexer. During the claiming process,
    the `extract_assets()` function automatically loads the `Nft`, removes it as a dynamic field from the container and returns it.

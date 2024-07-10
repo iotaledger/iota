@@ -1,6 +1,6 @@
 ---
- title: Stardust Migration
- description: Describes the migration from IOTA Stardust to the IOTA Move-based ledger.
+title: Stardust Migration
+description: Describes the migration from IOTA Stardust to the IOTA Move-based ledger.
 ---
 
 The (legacy) IOTA and Shimmer networks run the Stardust protocol version that represents assets and tokens in a UTXO-based ledger.
@@ -16,7 +16,7 @@ The Stardust ledger state, and hence the assets and tokens in the network, are r
 Transactions consume previously unspent outputs, essentially removing them from the ledger, and create new outputs, thus updating the ledger state.
 
 With the introduction of the object-based Move ledger in IOTA Rebased, transactions no longer consume and create outputs,
-but [`Move Objects`](../concepts/object-model.mdx) instead. A move transaction names `input objects` that it intends to operate on (consume), and executing
+but [`Move Objects`](../iota-101/objects/object-model.mdx) instead. A move transaction names `input objects` that it intends to operate on (consume), and executing
 the transaction produces the set of new objects to be written into the ledger, while the `input objects` are removed.
 
 The two models are conceptually really similar, but the underlying data structures are different, since move objects can
@@ -58,7 +58,7 @@ All previous IOTA and Shimmer integrations are broken and have to be reimplement
 need to migrate secrets.**
 
 While the Ed25519 address scheme stays the same, address representation changes from Bech32 to Base58 hex encoding with
- a `0x` prefix. The [Addresses and Keys](./stardust/addresses.mdx) guide provides help on how to acquire how to parse Bech32 addresses to the new format.
+ a `0x` prefix. The [Addresses and Keys](./addresses.mdx) guide provides help on how to acquire how to parse Bech32 addresses to the new format.
 
 ## How Can I Access Migrated Assets?
 
@@ -67,7 +67,7 @@ find their assets on the IOTA Rebased network. Should it be necessary based on t
 that talks to the browser extension wallet helps users to claim their assets.
 
 Developers can use the official SDKs and APIs to claim assets programmatically based on the information provided on the
-following pages. Example transactions on how to claim are described in the [Claiming Stardust Assets](./stardust/claiming.mdx) guide.
+following pages. Example transactions on how to claim are described in the [Claiming Stardust Assets](./claiming.mdx) guide.
 
 ## What Tools Can I Use?
 
