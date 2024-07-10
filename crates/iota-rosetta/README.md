@@ -19,7 +19,7 @@ Checkout the [Iota source code](https://github.com/iotaledger/iota) and compile 
 
 #### 1. Genesis
 
-`./iota genesis -f`\
+`./iota genesis -f`
 The Iota genesis process will create configs and coins for testing, the config files are stored in `~/.iota/iota_config` by
 default.
 
