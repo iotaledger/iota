@@ -1,5 +1,6 @@
-// Copyright (c) Mysten Labs, Inc.
+// Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 import { SVGProps } from 'react';
 const SvgApps = (props: SVGProps<SVGSVGElement>) => (
     <svg
