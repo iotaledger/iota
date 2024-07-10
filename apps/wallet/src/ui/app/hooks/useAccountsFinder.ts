@@ -6,12 +6,14 @@ import { useBackgroundClient } from './useBackgroundClient';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IOTA_COIN_TYPE_ID, GAS_TYPE_ARG } from '../redux/slices/iota-objects/Coin';
 import { type GetAccountsFinderResultsResponse } from '_src/shared/messaging/messages/payloads/accounts-finder';
+import { type AllowedAccountTypes } from '_src/background/accounts-finder';
 
 export interface UseAccountFinderOptions {
+    accountType?: AllowedAccountTypes;
     coinType?: number;
     gasType?: string;
-    accountGapLimit: number;
-    addressGapLimit: number;
+    accountGapLimit?: number;
+    addressGapLimit?: number;
     sourceID: string;
 }
 
@@ -21,6 +23,7 @@ export function useAccountsFinder({
     addressGapLimit,
     accountGapLimit,
     sourceID,
+    accountType,
 }: UseAccountFinderOptions) {
     const backgroundClient = useBackgroundClient();
     const queryClient = useQueryClient();
@@ -34,21 +37,24 @@ export function useAccountsFinder({
         enabled: !!sourceID,
     });
 
-    async function init() {
-        await backgroundClient.initAccountsFinder();
+    async function reset() {
+        await backgroundClient.resetAccountsFinder();
         queryClient.invalidateQueries({
             queryKey: ['accounts-finder-results'],
         });
     }
 
     async function searchMore() {
-        await backgroundClient.searchAccountsFinder(
-            coinType,
-            gasType,
+        if (!accountType) return;
+
+        await backgroundClient.searchAccountsFinder({
+            accountType,
+            bip44CoinType: coinType,
+            coinType: gasType,
             sourceID,
             accountGapLimit,
             addressGapLimit,
-        );
+        });
         queryClient.invalidateQueries({
             queryKey: ['accounts-finder-results'],
         });
@@ -56,7 +62,7 @@ export function useAccountsFinder({
 
     return {
         ...accountsQuery,
-        init,
+        reset,
         searchMore,
     };
 }

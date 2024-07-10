@@ -3,7 +3,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use prometheus::Registry;
-use test_utils::{create_batch_store, latest_protocol_version, transaction};
+use test_utils::{create_batch_store, transaction};
 use types::{MockWorkerToPrimary, PreSubscribedBroadcastSender};
 
 use super::*;
@@ -43,7 +43,6 @@ async fn make_batch() {
         Arc::new(node_metrics),
         client,
         store.clone(),
-        latest_protocol_version(),
     );
 
     // Send enough transactions to seal a batch.
@@ -54,7 +53,7 @@ async fn make_batch() {
     tx_batch_maker.send((tx.clone(), s1)).await.unwrap();
 
     // Ensure the batch is as expected.
-    let expected_batch = Batch::new(vec![tx.clone(), tx.clone()], &latest_protocol_version());
+    let expected_batch = Batch::new(vec![tx.clone(), tx.clone()]);
     let (batch, resp) = rx_quorum_waiter.recv().await.unwrap();
 
     assert_eq!(batch.transactions(), expected_batch.transactions());
@@ -100,7 +99,6 @@ async fn batch_timeout() {
         Arc::new(node_metrics),
         client,
         store.clone(),
-        latest_protocol_version(),
     );
 
     // Do not send enough transactions to seal a batch.
@@ -110,7 +108,7 @@ async fn batch_timeout() {
 
     // Ensure the batch is as expected.
     let (batch, resp) = rx_quorum_waiter.recv().await.unwrap();
-    let expected_batch = Batch::new(vec![tx.clone()], &latest_protocol_version());
+    let expected_batch = Batch::new(vec![tx.clone()]);
     assert_eq!(batch.transactions(), expected_batch.transactions());
 
     // Eventually deliver message

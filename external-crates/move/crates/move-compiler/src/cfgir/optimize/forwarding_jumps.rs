@@ -18,7 +18,7 @@
 // Label 3:
 //     ...
 //
-// This optimization instead fowards these jumps, eliminating the other blocks:
+// This optimization instead forwards these jumps, eliminating the other blocks:
 // Label 0:
 //     JumpIf(<exp>, 2, 1)
 // Label 1:

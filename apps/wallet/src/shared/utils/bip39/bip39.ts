@@ -43,7 +43,7 @@ export function getRandomEntropy(strength: 128 | 256 = 256) {
  * @returns {boolean} true
  * @throws if entropy is invalid
  */
-export function validateEntropy(entropy: Uint8Array) {
+export function validateEntropy(entropy: Uint8Array): boolean {
     assertBytes(entropy, 16, 20, 24, 28, 32);
     return true;
 }

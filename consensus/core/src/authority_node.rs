@@ -424,11 +424,7 @@ mod tests {
     struct NoopTransactionVerifier;
 
     impl TransactionVerifier for NoopTransactionVerifier {
-        fn verify_batch(
-            &self,
-            _protocol_config: &ProtocolConfig,
-            _batch: &[&[u8]],
-        ) -> Result<(), ValidationError> {
+        fn verify_batch(&self, _batch: &[&[u8]]) -> Result<(), ValidationError> {
             Ok(())
         }
     }

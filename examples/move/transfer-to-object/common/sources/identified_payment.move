@@ -43,7 +43,7 @@ module common::identified_payment {
     /// and the `originator` of the payment.
     struct SentPaymentEvent has copy, drop {
         payment_id: u64,
-        payed_to: address,
+        paid_to: address,
         payment_amount: u64,
         originator: address,
     }
@@ -67,7 +67,7 @@ module common::identified_payment {
         };
         event::emit(SentPaymentEvent {
             payment_id,
-            payed_to: to,
+            paid_to: to,
             payment_amount,
             originator: tx_context::sender(ctx),
         });
@@ -84,7 +84,7 @@ module common::identified_payment {
         };
         event::emit(SentPaymentEvent {
             payment_id,
-            payed_to: object::uid_to_address(register_uid),
+            paid_to: object::uid_to_address(register_uid),
             payment_amount,
             originator: tx_context::sender(ctx),
         });

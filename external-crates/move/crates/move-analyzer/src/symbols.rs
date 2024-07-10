@@ -2057,7 +2057,7 @@ impl<'a> ParsingSymbolicator<'a> {
         let no = match chain {
             NA::One(n) => Some(*n), // this can be an aliased struct or function
             NA::Two(leading_name, _) => {
-                // the only thing aliased here coud be a module
+                // the only thing aliased here could be a module
                 if let P::LeadingNameAccess_::Name(n) = leading_name.value {
                     Some(n)
                 } else {
@@ -3608,12 +3608,12 @@ fn assert_use_def_with_doc_string(
             .ends_with(def_file),
         "for use in column {use_col} of line {use_line} in file {use_file}"
     );
-    let info = def_info.get(&use_def.def_loc).unwrap();
+    let info = def_info.get(&use_def.def_loc).unwrap().to_string();
     assert!(
-        type_str == format!("{}", info),
+        type_str == info,
         "'{}' != '{}' for use in column {use_col} of line {use_line} in file {use_file}",
         type_str,
-        format!("{}", info)
+        info
     );
 
     if doc_string.is_some() {
