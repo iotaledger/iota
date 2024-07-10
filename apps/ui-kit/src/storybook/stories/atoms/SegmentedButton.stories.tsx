@@ -12,16 +12,13 @@ const meta = {
     component: SegmentedButton,
     tags: ['autodocs'],
     render: (props) => {
-        console.log('props', props);
         const [elements, setElements] = useState<ButtonSegmentProps[]>(props.elements || []);
 
         const handleElementClick = (clickedElementLabel: string) => {
-            console.log('clickedElementLabel', clickedElementLabel);
             const updatedElements = elements.map((element: ButtonSegmentProps) => ({
                 ...element,
                 selected: element.label === clickedElementLabel,
             }));
-            console.log('updatedElements', updatedElements);
             setElements(updatedElements);
         };
 
