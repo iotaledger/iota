@@ -95,7 +95,7 @@ mod sim_only_tests {
 
         fullnode
             .with_async(|node| async {
-                // Wait until the wraping transaction is included in checkpoint.
+                // Wait until the wrapping transaction is included in checkpoint.
                 let checkpoint = timeout(
                     Duration::from_secs(60),
                     wait_until_txn_in_checkpoint(node, &wrap_child_txn_digest),

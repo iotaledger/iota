@@ -122,7 +122,6 @@
 /** navbar overrides */
 [data-theme="light"] .menu__link {
   color: #525860;
-  font-weight: lighter;
 }
 
 [data-theme="light"] .menu__link--active {

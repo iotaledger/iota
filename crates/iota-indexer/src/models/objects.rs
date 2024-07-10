@@ -349,7 +349,7 @@ impl TryFrom<StoredObject> for IotaCoin {
         let balance = o
             .coin_balance
             .ok_or(IndexerError::PersistentStorageDataCorruptionError(format!(
-                "Object {} is supposed to be a coin but has an empy coin_balance column",
+                "Object {} is supposed to be a coin but has an empty coin_balance column",
                 coin_object_id,
             )))?;
         Ok(IotaCoin {

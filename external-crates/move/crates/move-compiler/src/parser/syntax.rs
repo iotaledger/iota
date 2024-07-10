@@ -1370,7 +1370,7 @@ fn parse_block_label(context: &mut Context) -> Result<BlockLabel, Box<Diagnostic
 // AND NOT,       if (cond) e1 else ({ e2 } + 1)
 // But otherwise, if (cond) e1 else e2 + 1
 // should be,     if (cond) e1 else (e2 + 1)
-// This also aplies to any named block
+// This also applies to any named block
 // e.g.           if (cond) e1 else 'a: { e2 } + 1
 // should be,    (if (cond) e1 else 'a: { e2 }) + 1
 fn parse_control_exp(context: &mut Context) -> Result<(Exp, bool), Box<Diagnostic>> {
