@@ -42,10 +42,9 @@ struct Cli {
     compress: bool,
     #[clap(
         long,
-        help = "Enable global snapshot verification",
-        default_value_t = true
+        help = "Disable global snapshot verification",
     )]
-    global_snapshot_verification: bool,
+    disable_global_snapshot_verification: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -87,10 +86,10 @@ fn main() -> Result<()> {
     };
 
     // Start the Hornet snapshot parser
-    let mut snapshot_parser = if cli.global_snapshot_verification {
-        HornetSnapshotParser::new::<true>(File::open(snapshot_path)?)?
-    } else {
+    let mut snapshot_parser = if cli.disable_global_snapshot_verification {
         HornetSnapshotParser::new::<false>(File::open(snapshot_path)?)?
+    } else {
+        HornetSnapshotParser::new::<true>(File::open(snapshot_path)?)?
     };
     let total_supply = match coin_type {
         CoinType::Iota => scale_amount_for_iota(snapshot_parser.total_supply()?)?,

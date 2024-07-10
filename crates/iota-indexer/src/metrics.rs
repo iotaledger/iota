@@ -201,7 +201,7 @@ impl IndexerMetrics {
             )
             .unwrap(),
             total_transaction_chunk_committed: register_int_counter_with_registry!(
-                "total_transaction_chunk_commited",
+                "total_transaction_chunk_committed",
                 "Total number of transaction chunk committed",
                 registry,
             )

@@ -321,7 +321,7 @@ impl<'r, 'b, 'l> StructDriver<'r, 'b, 'l> {
 
 /// Visit a serialized Move value with the provided `layout`, held in `bytes`,
 /// using the provided visitor to build a value out of it. See
-/// `annoted_value::MoveValue::visit_deserialize` for details.
+/// `annotated_value::MoveValue::visit_deserialize` for details.
 pub(crate) fn visit_value<V: Visitor + ?Sized>(
     bytes: &mut &[u8],
     layout: &MoveTypeLayout,

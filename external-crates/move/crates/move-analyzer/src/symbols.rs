@@ -2057,7 +2057,7 @@ impl<'a> ParsingSymbolicator<'a> {
         let no = match chain {
             NA::One(n) => Some(*n), // this can be an aliased struct or function
             NA::Two(leading_name, _) => {
-                // the only thing aliased here coud be a module
+                // the only thing aliased here could be a module
                 if let P::LeadingNameAccess_::Name(n) = leading_name.value {
                     Some(n)
                 } else {
