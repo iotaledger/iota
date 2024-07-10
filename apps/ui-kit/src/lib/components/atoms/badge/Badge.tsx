@@ -3,14 +3,14 @@
 
 import React from 'react';
 import cx from 'classnames';
-import { BadgeVariant } from './badge.enums';
+import { BadgeType } from './badge.enums';
 import { BACKGROUND_COLORS, BADGE_TEXT_CLASS, OUTLINED_BORDER, TEXT_COLORS } from './badge.classes';
 
 interface BadgeProps {
     /**
-     * The variant of the badge.
+     * The type of the badge.
      */
-    variant?: BadgeVariant;
+    type?: BadgeType;
     /**
      * The label of the badge.
      */
@@ -26,14 +26,14 @@ interface BadgeProps {
 }
 
 export function Badge({
-    variant = BadgeVariant.Outlined,
+    type: variant = BadgeType.Outlined,
     label,
     icon,
     disabled = false,
 }: BadgeProps): React.JSX.Element {
     const backgroundClasses = BACKGROUND_COLORS[variant];
     const textClasses = TEXT_COLORS[variant];
-    const borderClasses = variant === BadgeVariant.Outlined ? OUTLINED_BORDER : '';
+    const borderClasses = variant === BadgeType.Outlined ? OUTLINED_BORDER : '';
 
     return (
         <div

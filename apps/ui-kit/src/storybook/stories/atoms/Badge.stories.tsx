@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Meta, StoryObj } from '@storybook/react';
-import { Badge, BadgeVariant } from '@/components';
+import { Badge, BadgeType } from '@/components';
 
 const meta = {
     component: Badge,
@@ -25,10 +25,10 @@ export const Default: Story = {
         label: 'Badge',
     },
     argTypes: {
-        variant: {
+        type: {
             control: {
                 type: 'select',
-                options: Object.values(BadgeVariant),
+                options: Object.values(BadgeType),
             },
         },
         disabled: {

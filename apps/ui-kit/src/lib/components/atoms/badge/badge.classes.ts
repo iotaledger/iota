@@ -1,18 +1,18 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { BadgeVariant } from './badge.enums';
+import { BadgeType } from './badge.enums';
 
 export const BACKGROUND_COLORS = {
-    [BadgeVariant.Outlined]: 'bg-transparent',
-    [BadgeVariant.NeutralFill]: 'bg-neutral-92 dark:bg-neutral-12',
-    [BadgeVariant.PrimaryFill]: 'bg-primary-90 dark:bg-primary-10',
+    [BadgeType.Outlined]: 'bg-transparent',
+    [BadgeType.NeutralFill]: 'bg-neutral-92 dark:bg-neutral-12',
+    [BadgeType.PrimaryFill]: 'bg-primary-90 dark:bg-primary-10',
 };
 
-export const TEXT_COLORS: Record<BadgeVariant, string> = {
-    [BadgeVariant.Outlined]: 'text-neutral-10 dark:text-neutral-92',
-    [BadgeVariant.NeutralFill]: 'text-neutral-10 dark:text-neutral-92',
-    [BadgeVariant.PrimaryFill]: 'text-primary-20 dark:text-primary-90',
+export const TEXT_COLORS: Record<BadgeType, string> = {
+    [BadgeType.Outlined]: 'text-neutral-10 dark:text-neutral-92',
+    [BadgeType.NeutralFill]: 'text-neutral-10 dark:text-neutral-92',
+    [BadgeType.PrimaryFill]: 'text-primary-20 dark:text-primary-90',
 };
 
 export const OUTLINED_BORDER = 'border border-neutral-70 dark:border-neutral-40';
