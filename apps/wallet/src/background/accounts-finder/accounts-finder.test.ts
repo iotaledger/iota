@@ -1,188 +1,117 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinBalance } from '@iota/iota.js/client';
-import { mnemonicToSeedHex } from '@iota/iota.js/cryptography';
-import { entropyToMnemonic, getRandomEntropy } from '_src/shared/utils/bip39';
-import { findAccounts } from './accounts-finder';
-import { test, assert } from 'vitest';
-import { AccountFromFinder } from '_src/shared/accounts';
-import { MakeDerivationOptions, makeDerivationPath } from '../account-sources/bip44Path';
-import { Ed25519Keypair } from '@iota/iota.js/keypairs/ed25519';
+import { recoverAccounts, mergeAccounts } from './accounts-finder';
+import { assert, test } from 'vitest';
+import { FindBalance } from '_src/background/accounts-finder/types';
 
-const GAS_TYPE_ARG = '0x2::iota::IOTA';
-const IOTA_COIN_TYPE = 4218; // 4219 for Shimmer
-
-test('existing accounts', async () => {
-    const coinType = IOTA_COIN_TYPE;
-    const mnemonic =
-        'power dragon mercy range fee book twenty cash room coil trend first seed apple accuse purity remain rather tip use card sock south retreat';
-    const seed = mnemonicToSeedHex(mnemonic);
-    const publicKeyDerivator = (bipPathOptions: MakeDerivationOptions) => {
-        return Promise.resolve(
-            Ed25519Keypair.deriveKeypairFromSeed(seed, makeDerivationPath(bipPathOptions))
-                .getPublicKey()
-                .toIotaAddress(),
-        );
-    };
-
-    const getBalance = (bipPathOptions: MakeDerivationOptions): Promise<CoinBalance> => {
-        let balance: CoinBalance = {
-            totalBalance: '0',
-            coinType: '4218',
-            coinObjectCount: 0,
-            lockedBalance: {},
-        };
-        const bipPath = makeDerivationPath(bipPathOptions);
+const findBalanceFactory = (
+    accountIndexesWithBalance: number[],
+    addressIndexesWithBalance: number[],
+    changeIndexesWithBalance: number[],
+): FindBalance => {
+    return ({ accountIndex, addressIndex, changeIndex }) => {
         if (
-            bipPath === `m/44'/${coinType}'/1'/0'/15'` ||
-            bipPath === `m/44'/${coinType}'/0'/0'/0'`
+            accountIndexesWithBalance.includes(accountIndex) &&
+            addressIndexesWithBalance.includes(addressIndex) &&
+            changeIndexesWithBalance.includes(changeIndex)
         ) {
-            balance = {
-                totalBalance: '100000000',
-                coinType: '4218',
-                coinObjectCount: 1,
-                lockedBalance: {},
-            };
+            return Promise.resolve({
+                publicKeyHash: '',
+                balance: {
+                    totalBalance: '100',
+                    coinObjectCount: 2,
+                    coinType: '4218',
+                    lockedBalance: {},
+                },
+            });
         }
-        return Promise.resolve(balance);
-    };
 
-    let accounts: AccountFromFinder[] = [
-        {
-            index: 0,
-            addresses: [],
-        },
-    ];
-
-    accounts = await findAccounts(
-        0,
-        0,
-        1,
-        accounts,
-        coinType,
-        getBalance,
-        GAS_TYPE_ARG,
-        publicKeyDerivator,
-    );
-    let expectedAccounts = 1;
-    assert(
-        accounts.length == expectedAccounts,
-        `accounts length mismatch ${accounts.length}/${expectedAccounts}`,
-    );
-    let expectedAddresses = 2;
-    assert(
-        accounts[0].addresses.length == expectedAddresses,
-        `addresses length mismatch ${accounts[0].addresses.length}/${expectedAddresses}`,
-    );
-
-    accounts = await findAccounts(
-        0,
-        1,
-        16,
-        accounts,
-        coinType,
-        getBalance,
-        GAS_TYPE_ARG,
-        publicKeyDerivator,
-    );
-    assert(accounts.length == accounts[accounts.length - 1].index + 1, `accounts length mismatch`);
-    expectedAccounts = 3;
-    assert(
-        accounts.length == expectedAccounts,
-        `accounts length mismatch ${accounts.length}/${expectedAccounts}`,
-    );
-    expectedAddresses = 18;
-    assert(
-        accounts[0].addresses.length == expectedAddresses,
-        `addresses length mismatch ${accounts[0].addresses.length}/${expectedAddresses}`,
-    );
-    expectedAddresses = 32;
-    assert(
-        accounts[1].addresses.length == expectedAddresses,
-        `addresses length mismatch ${accounts[1].addresses.length}/${expectedAddresses}`,
-    );
-});
-
-// One existing account without object
-test('empty accounts', async () => {
-    const coinType = IOTA_COIN_TYPE;
-    const mnemonic = entropyToMnemonic(getRandomEntropy());
-    const seed = mnemonicToSeedHex(mnemonic);
-    const publicKeyDerivator = (options: MakeDerivationOptions) => {
-        return Promise.resolve(
-            Ed25519Keypair.deriveKeypairFromSeed(seed, makeDerivationPath(options))
-                .getPublicKey()
-                .toIotaAddress(),
-        );
-    };
-
-    const getBalance = (): Promise<CoinBalance> => {
         return Promise.resolve({
-            totalBalance: '0',
-            coinType: '4218',
-            coinObjectCount: 0,
-            lockedBalance: {},
+            publicKeyHash: '',
+            balance: {
+                totalBalance: '0',
+                coinObjectCount: 0,
+                coinType: '4218',
+                lockedBalance: {},
+            },
         });
     };
+};
 
-    let accounts: AccountFromFinder[] = [];
+test('BreadthSearch with not found addresses', async () => {
+    const findBalance = findBalanceFactory([], [], []);
 
-    accounts = await findAccounts(
-        0,
-        0,
-        10,
-        accounts,
-        coinType,
-        getBalance,
-        GAS_TYPE_ARG,
-        publicKeyDerivator,
-    );
-    let expectedAccounts = 0;
-    assert(
-        accounts.length == expectedAccounts,
-        `accounts length mismatch ${accounts.length}/${expectedAccounts}`,
-    );
+    const foundAccounts = await recoverAccounts({
+        accountStartIndex: 0,
+        accountGapLimit: 2,
+        addressStartIndex: 0,
+        addressGapLimit: 0,
+        changeIndexes: [0],
+        findBalance: findBalance,
+    });
 
-    accounts = await findAccounts(
-        0,
-        1,
-        10,
-        accounts,
-        coinType,
-        getBalance,
-        GAS_TYPE_ARG,
-        publicKeyDerivator,
-    );
-    expectedAccounts = 1;
-    assert(
-        accounts.length == expectedAccounts,
-        `accounts length mismatch ${accounts.length}/${expectedAccounts}`,
-    );
-    let expectedAddresses = 10;
-    assert(
-        accounts[0].addresses.length == expectedAddresses,
-        `addresses length mismatch ${accounts[0].addresses.length}/${expectedAddresses}`,
-    );
+    assert(foundAccounts.length === 2); // expected number of accounts - 2;
+    assert(foundAccounts[0].addresses.length === 1); // expected number of addresses - 1 as we provided addressGapLimit = 0;
+});
 
-    accounts = await findAccounts(
-        0,
-        5,
-        5,
-        accounts,
-        coinType,
-        getBalance,
-        GAS_TYPE_ARG,
-        publicKeyDerivator,
-    );
-    expectedAccounts = 6;
-    assert(
-        accounts.length == expectedAccounts,
-        `accounts length mismatch ${accounts.length}/${expectedAccounts}`,
-    );
-    expectedAddresses = 15;
-    assert(
-        accounts[0].addresses.length == expectedAddresses,
-        `addresses length mismatch ${accounts[0].addresses.length}/${expectedAddresses}`,
-    );
+test('BreadthSearch with found addresses', async () => {
+    const findBalance = findBalanceFactory([0], [0], [0]);
+
+    const foundAccounts = await recoverAccounts({
+        accountStartIndex: 0,
+        accountGapLimit: 2,
+        addressStartIndex: 0,
+        addressGapLimit: 0,
+        changeIndexes: [0, 1],
+        findBalance: findBalance,
+    });
+
+    assert(foundAccounts.length === 3); // expected number of accounts - 3 as we have a hit on position 0,0,0;
+    assert(foundAccounts[0].addresses.length === 1); // expected number of addresses - 1 as we provided addressGapLimit = 0;
+});
+
+test('DepthSearch with found addresses', async () => {
+    const findBalance = findBalanceFactory([0], [0, 2], [0]);
+
+    const foundAccounts = await recoverAccounts({
+        accountStartIndex: 0,
+        accountGapLimit: 0,
+        addressStartIndex: 0,
+        addressGapLimit: 4,
+        changeIndexes: [0, 1],
+        findBalance: findBalance,
+    });
+
+    assert(foundAccounts.length === 1); // expected number of accounts - 1 as we make a search by isolated address;
+    assert(foundAccounts[0].addresses.length === 7); // expected number of addresses - 5 as we have a hit on positions: (0,0,0), (0,2,0);
+});
+
+test('Merge accounts', async () => {
+    const findBalance = findBalanceFactory([], [], []);
+
+    const foundAccounts1 = await recoverAccounts({
+        accountStartIndex: 0,
+        accountGapLimit: 3,
+        addressStartIndex: 0,
+        addressGapLimit: 4,
+        changeIndexes: [0, 1],
+        findBalance: findBalance,
+    });
+    const foundAccounts2 = await recoverAccounts({
+        accountStartIndex: 1,
+        accountGapLimit: 3,
+        addressStartIndex: 0,
+        addressGapLimit: 5,
+        changeIndexes: [0, 1],
+        findBalance: findBalance,
+    });
+
+    const mergedAccounts = mergeAccounts(foundAccounts1, foundAccounts2);
+
+    // merged accounts count is 4 because max index for both accounts is 4.
+    assert(mergedAccounts.length === 4);
+
+    // merged accounts count is 4 because max index for both accounts is 5.
+    assert(mergedAccounts[0].addresses.length === 5); // expected number of addresses - 5 as we have a hit on positions: (0,0,0), (0,2,0);
 });
