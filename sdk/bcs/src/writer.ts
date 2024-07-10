@@ -7,7 +7,7 @@ import { ulebEncode } from './uleb.js';
 import { encodeStr } from './utils.js';
 
 export interface BcsWriterOptions {
-    /** The initial size (in bytes) of the buffer tht will be allocated */
+    /** The initial size (in bytes) of the buffer that will be allocated */
     size?: number;
     /** The maximum size (in bytes) that the buffer is allowed to grow to */
     maxSize?: number;

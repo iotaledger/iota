@@ -117,7 +117,7 @@ impl Cluster {
             self.start_node(id, false, workers_per_authority).await;
 
             if let Some(d) = boot_wait_time {
-                // we don't want to wait after the last node has been boostraped
+                // we don't want to wait after the last node has been bootstrapped
                 if id < authorities - 1 {
                     info!(
                         "#### Will wait for {} seconds before starting the next node ####",
@@ -424,7 +424,7 @@ impl WorkerNodeDetails {
         worker_cache: WorkerCache,
     ) -> Self {
         let registry_service = RegistryService::new(Registry::new());
-        let node = WorkerNode::new(id, latest_protocol_version(), parameters, registry_service);
+        let node = WorkerNode::new(id, parameters, registry_service);
 
         Self {
             id,

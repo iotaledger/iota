@@ -57,11 +57,11 @@ const GAP_CONFIGURATION: { [key in AllowedBip44CoinTypes]: GapConfigurationByCoi
         },
         [AccountType.MnemonicDerived]: {
             accountGapLimit: 3,
-            addressGapLimit: 30,
+            addressGapLimit: 10,
         },
         [AccountType.SeedDerived]: {
             accountGapLimit: 3,
-            addressGapLimit: 2,
+            addressGapLimit: 10,
         },
     },
     // In shimmer we focus on accounts indexes and never rotate addresses
@@ -125,6 +125,16 @@ class AccountsFinder {
             GAP_CONFIGURATION[this.bip44CoinType][config.accountType].addressGapLimit;
     }
 
+    async processAccounts({ foundAccounts }: { foundAccounts: AccountFromFinder[] }) {
+        const mergedAccounts = mergeAccounts(this.accounts, foundAccounts);
+
+        // Persist new addresses
+        const newAddressesBipPaths = diffAddressesBipPaths(foundAccounts, this.accounts);
+        await persistAddressesToSource(this.sourceID, newAddressesBipPaths);
+
+        this.accounts = mergedAccounts;
+    }
+
     async runDepthSearch() {
         const depthAccounts = this.accounts;
 
@@ -150,13 +160,7 @@ class AccountsFinder {
                 findBalance: this.findBalance,
             });
 
-            const mergedAccounts = mergeAccounts(this.accounts, foundAccounts);
-
-            // Persist new addresses
-            const newAddressesBipPaths = diffAddressesBipPaths(foundAccounts, this.accounts);
-            await persistAddressesToSource(this.sourceID, newAddressesBipPaths);
-
-            this.accounts = mergedAccounts;
+            await this.processAccounts({ foundAccounts });
         }
     }
 
@@ -173,13 +177,7 @@ class AccountsFinder {
             findBalance: this.findBalance,
         });
 
-        const mergedAccounts = mergeAccounts(this.accounts, foundAccounts);
-
-        // Persist new addresses
-        const newAddressesBipPaths = diffAddressesBipPaths(foundAccounts, this.accounts);
-        await persistAddressesToSource(this.sourceID, newAddressesBipPaths);
-
-        this.accounts = mergedAccounts;
+        await this.processAccounts({ foundAccounts });
     }
 
     // This function calls each time when user press "Search" button

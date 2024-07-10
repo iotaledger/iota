@@ -22,7 +22,7 @@ pub struct ConstantPoolGen {
 }
 
 impl ConstantPoolGen {
-    // Return a `Strategy` that builds a ConstantPool with a number of `addresse`s
+    // Return a `Strategy` that builds a ConstantPool with a number of `addresses`
     // and `vector<u8>` respectively driven by `address_count` and
     // `byte_array_count`
     pub fn strategy(

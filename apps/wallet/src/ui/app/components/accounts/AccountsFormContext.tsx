@@ -46,21 +46,21 @@ interface AccountsFormProviderProps {
     children: ReactNode;
 }
 
-export const AccountsFormProvider = ({ children }: AccountsFormProviderProps) => {
+export function AccountsFormProvider({ children }: AccountsFormProviderProps) {
     const valuesRef = useRef<AccountsFormValues>(null);
     const setter = useCallback((values: AccountsFormValues) => {
         valuesRef.current = values;
     }, []);
     const value = useMemo(() => [valuesRef, setter] as AccountsFormContextType, [setter]);
     return <AccountsFormContext.Provider value={value}>{children}</AccountsFormContext.Provider>;
-};
+}
 
 // a simple hook that allows form values to be shared between forms when setting up an account
 // for the first time, or when importing an existing account.
-export const useAccountsFormContext = () => {
+export function useAccountsFormContext() {
     const context = useContext(AccountsFormContext);
     if (!context) {
         throw new Error('useAccountsFormContext must be used within the AccountsFormProvider');
     }
     return context;
-};
+}

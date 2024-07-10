@@ -133,7 +133,7 @@ fn random_nft_output(
 
     let amount = rng.gen_range(1_000_000..10_000_000);
     let nft_output = NftOutputBuilder::new_with_amount(amount, NftId::new(rng.gen()))
-        .add_unlock_condition(AddressUnlockCondition::new(owner.clone()))
+        .add_unlock_condition(AddressUnlockCondition::new(owner))
         .with_immutable_features(vec![
             Feature::Metadata(MetadataFeature::new(serde_json::to_vec(&nft_metadata)?)?),
             Feature::Issuer(IssuerFeature::new(owner)),
@@ -152,7 +152,7 @@ fn random_alias_output(
 
     let amount = rng.gen_range(1_000_000..10_000_000);
     let alias_output = AliasOutputBuilder::new_with_amount(amount, AliasId::new(rng.gen()))
-        .add_unlock_condition(GovernorAddressUnlockCondition::new(owner.clone()))
+        .add_unlock_condition(GovernorAddressUnlockCondition::new(owner))
         .add_unlock_condition(StateControllerAddressUnlockCondition::new(owner))
         .finish()?;
 
