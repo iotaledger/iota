@@ -4,10 +4,10 @@
 /// A timelock implementation.
 module iota::timelock {
 
-    use std::string::String;
+    use std::string::{Self, String};
 
     use iota::balance::Balance;
-    use iota::labeler::{Self, LabelerCap};
+    use iota::labeler::LabelerCap;
 
     /// The `new` function was called at a non-genesis epoch.
     const ENotCalledAtGenesis: u64 = 0;
@@ -58,7 +58,7 @@ module iota::timelock {
         check_expiration_timestamp_ms(expiration_timestamp_ms, ctx);
 
         // Calculate a label value.
-        let label = labeler::type_name<L>();
+        let label = type_name<L>();
 
         // Create a labeled timelock.
         pack(locked, expiration_timestamp_ms, option::some(label), ctx)
@@ -167,6 +167,12 @@ module iota::timelock {
         unpack(lock)
     }
 
+    /// Return a fully qualified type name with the original package IDs
+    /// that is used as type related a label value.
+    public fun type_name<L>(): String {
+        string::from_ascii(std::type_name::get_with_original_ids<L>().into_string())
+    }
+
     // === TimeLock getters ===
 
     /// Function to get the expiration timestamp of a `TimeLock`.
@@ -207,7 +213,7 @@ module iota::timelock {
     /// Check if a `TimeLock` is labeled with the type `L`.
     public fun is_labeled_with<T: store, L>(self: &TimeLock<T>): bool {
         if (self.label.is_some()) {
-            self.label.borrow() == labeler::type_name<L>()
+            self.label.borrow() == type_name<L>()
         }
         else {
             false
@@ -217,7 +223,7 @@ module iota::timelock {
     // === Internal ===
 
     /// A utility function to pack a `TimeLock`.
-    public(package) fun pack<T: store>(
+    fun pack<T: store>(
         locked: T,
         expiration_timestamp_ms: u64,
         label: Option<String>,
@@ -249,7 +255,7 @@ module iota::timelock {
     }
 
     /// A utility function to transfer a `TimeLock` to a receiver.
-    public(package) fun transfer<T: store>(lock: TimeLock<T>, receiver: address) {
+    fun transfer<T: store>(lock: TimeLock<T>, receiver: address) {
         transfer::transfer(lock, receiver);
     }
 

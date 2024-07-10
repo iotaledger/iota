@@ -36,7 +36,6 @@ title: Module `0x3::timelocked_staking`
 <b>use</b> <a href="../iota-framework/balance.md#0x2_balance">0x2::balance</a>;
 <b>use</b> <a href="../iota-framework/coin.md#0x2_coin">0x2::coin</a>;
 <b>use</b> <a href="../iota-framework/iota.md#0x2_iota">0x2::iota</a>;
-<b>use</b> <a href="../iota-framework/labeler.md#0x2_labeler">0x2::labeler</a>;
 <b>use</b> <a href="../iota-framework/object.md#0x2_object">0x2::object</a>;
 <b>use</b> <a href="../iota-framework/timelock.md#0x2_timelock">0x2::timelock</a>;
 <b>use</b> <a href="../iota-framework/transfer.md#0x2_transfer">0x2::transfer</a>;
@@ -705,7 +704,7 @@ Check if a <code><a href="timelocked_staking.md#0x3_timelocked_staking_Timelocke
 
 <pre><code><b>public</b> <b>fun</b> <a href="timelocked_staking.md#0x3_timelocked_staking_is_labeled_with">is_labeled_with</a>&lt;L&gt;(self: &<a href="timelocked_staking.md#0x3_timelocked_staking_TimelockedStakedIota">TimelockedStakedIota</a>): bool {
     <b>if</b> (self.label.is_some()) {
-        self.label.borrow() == <a href="../iota-framework/labeler.md#0x2_labeler_type_name">labeler::type_name</a>&lt;L&gt;()
+        self.label.borrow() == <a href="../iota-framework/timelock.md#0x2_timelock_type_name">timelock::type_name</a>&lt;L&gt;()
     }
     <b>else</b> {
         <b>false</b>

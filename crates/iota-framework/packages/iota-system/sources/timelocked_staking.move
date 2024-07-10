@@ -8,7 +8,6 @@ module iota_system::timelocked_staking {
     use iota::balance::{Self, Balance};
     use iota::iota::IOTA;
     use iota::timelock::{Self, TimeLock};
-    use iota::labeler;
 
     use iota_system::iota_system::{IotaSystemState};
     use iota_system::staking_pool::StakedIota;
@@ -280,7 +279,7 @@ module iota_system::timelocked_staking {
     /// Check if a `TimelockedStakedIota` is labeled with the type `L`.
     public fun is_labeled_with<L>(self: &TimelockedStakedIota): bool {
         if (self.label.is_some()) {
-            self.label.borrow() == labeler::type_name<L>()
+            self.label.borrow() == timelock::type_name<L>()
         }
         else {
             false

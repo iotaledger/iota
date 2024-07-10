@@ -20,6 +20,7 @@ A timelock implementation.
 -  [Function `transfer_to_sender`](#0x2_timelock_transfer_to_sender)
 -  [Function `system_pack`](#0x2_timelock_system_pack)
 -  [Function `system_unpack`](#0x2_timelock_system_unpack)
+-  [Function `type_name`](#0x2_timelock_type_name)
 -  [Function `expiration_timestamp_ms`](#0x2_timelock_expiration_timestamp_ms)
 -  [Function `is_locked`](#0x2_timelock_is_locked)
 -  [Function `remaining_time`](#0x2_timelock_remaining_time)
@@ -33,8 +34,10 @@ A timelock implementation.
 -  [Function `new_system_timelock_cap`](#0x2_timelock_new_system_timelock_cap)
 
 
-<pre><code><b>use</b> <a href="../move-stdlib/option.md#0x1_option">0x1::option</a>;
+<pre><code><b>use</b> <a href="../move-stdlib/ascii.md#0x1_ascii">0x1::ascii</a>;
+<b>use</b> <a href="../move-stdlib/option.md#0x1_option">0x1::option</a>;
 <b>use</b> <a href="../move-stdlib/string.md#0x1_string">0x1::string</a>;
+<b>use</b> <a href="../move-stdlib/type_name.md#0x1_type_name">0x1::type_name</a>;
 <b>use</b> <a href="../iota-framework/balance.md#0x2_balance">0x2::balance</a>;
 <b>use</b> <a href="../iota-framework/labeler.md#0x2_labeler">0x2::labeler</a>;
 <b>use</b> <a href="../iota-framework/object.md#0x2_object">0x2::object</a>;
@@ -238,7 +241,7 @@ Function to lock a labeled object till a unix timestamp in milliseconds.
     <a href="../iota-framework/timelock.md#0x2_timelock_check_expiration_timestamp_ms">check_expiration_timestamp_ms</a>(expiration_timestamp_ms, ctx);
 
     // Calculate a label value.
-    <b>let</b> label = <a href="../iota-framework/labeler.md#0x2_labeler_type_name">labeler::type_name</a>&lt;L&gt;();
+    <b>let</b> label = <a href="../move-stdlib/type_name.md#0x1_type_name">type_name</a>&lt;L&gt;();
 
     // Create a labeled <a href="../iota-framework/timelock.md#0x2_timelock">timelock</a>.
     <a href="../iota-framework/timelock.md#0x2_timelock_pack">pack</a>(locked, expiration_timestamp_ms, <a href="../move-stdlib/option.md#0x1_option_some">option::some</a>(label), ctx)
@@ -548,6 +551,32 @@ An utility function to unpack a <code><a href="../iota-framework/timelock.md#0x2
 
 </details>
 
+<a name="0x2_timelock_type_name"></a>
+
+## Function `type_name`
+
+Return a fully qualified type name with the original package IDs
+that is used as type related a label value.
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../move-stdlib/type_name.md#0x1_type_name">type_name</a>&lt;L&gt;(): <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../move-stdlib/type_name.md#0x1_type_name">type_name</a>&lt;L&gt;(): String {
+    <a href="../move-stdlib/string.md#0x1_string_from_ascii">string::from_ascii</a>(std::type_name::get_with_original_ids&lt;L&gt;().into_string())
+}
+</code></pre>
+
+
+
+</details>
+
 <a name="0x2_timelock_expiration_timestamp_ms"></a>
 
 ## Function `expiration_timestamp_ms`
@@ -701,7 +730,7 @@ Check if a <code><a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">T
 
 <pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_is_labeled_with">is_labeled_with</a>&lt;T: store, L&gt;(self: &<a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a>&lt;T&gt;): bool {
     <b>if</b> (self.label.is_some()) {
-        self.label.borrow() == <a href="../iota-framework/labeler.md#0x2_labeler_type_name">labeler::type_name</a>&lt;L&gt;()
+        self.label.borrow() == <a href="../move-stdlib/type_name.md#0x1_type_name">type_name</a>&lt;L&gt;()
     }
     <b>else</b> {
         <b>false</b>
@@ -720,7 +749,7 @@ Check if a <code><a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">T
 A utility function to pack a <code><a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a></code>.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_pack">pack</a>&lt;T: store&gt;(locked: T, expiration_timestamp_ms: u64, label: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">timelock::TimeLock</a>&lt;T&gt;
+<pre><code><b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_pack">pack</a>&lt;T: store&gt;(locked: T, expiration_timestamp_ms: u64, label: <a href="../move-stdlib/option.md#0x1_option_Option">option::Option</a>&lt;<a href="../move-stdlib/string.md#0x1_string_String">string::String</a>&gt;, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">timelock::TimeLock</a>&lt;T&gt;
 </code></pre>
 
 
@@ -729,7 +758,7 @@ A utility function to pack a <code><a href="../iota-framework/timelock.md#0x2_ti
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(package) <b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_pack">pack</a>&lt;T: store&gt;(
+<pre><code><b>fun</b> <a href="../iota-framework/timelock.md#0x2_timelock_pack">pack</a>&lt;T: store&gt;(
     locked: T,
     expiration_timestamp_ms: u64,
     label: Option&lt;String&gt;,
@@ -792,7 +821,7 @@ An utility function to unpack a <code><a href="../iota-framework/timelock.md#0x2
 A utility function to transfer a <code><a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a></code> to a receiver.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="../iota-framework/transfer.md#0x2_transfer">transfer</a>&lt;T: store&gt;(lock: <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">timelock::TimeLock</a>&lt;T&gt;, receiver: <b>address</b>)
+<pre><code><b>fun</b> <a href="../iota-framework/transfer.md#0x2_transfer">transfer</a>&lt;T: store&gt;(lock: <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">timelock::TimeLock</a>&lt;T&gt;, receiver: <b>address</b>)
 </code></pre>
 
 
@@ -801,7 +830,7 @@ A utility function to transfer a <code><a href="../iota-framework/timelock.md#0x
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(package) <b>fun</b> <a href="../iota-framework/transfer.md#0x2_transfer">transfer</a>&lt;T: store&gt;(lock: <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a>&lt;T&gt;, receiver: <b>address</b>) {
+<pre><code><b>fun</b> <a href="../iota-framework/transfer.md#0x2_transfer">transfer</a>&lt;T: store&gt;(lock: <a href="../iota-framework/timelock.md#0x2_timelock_TimeLock">TimeLock</a>&lt;T&gt;, receiver: <b>address</b>) {
     <a href="../iota-framework/transfer.md#0x2_transfer_transfer">transfer::transfer</a>(lock, receiver);
 }
 </code></pre>

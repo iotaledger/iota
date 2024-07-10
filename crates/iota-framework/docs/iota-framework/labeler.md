@@ -8,13 +8,9 @@ title: Module `0x2::labeler`
 -  [Constants](#@Constants_0)
 -  [Function `create_labeler_cap`](#0x2_labeler_create_labeler_cap)
 -  [Function `destroy_labeler_cap`](#0x2_labeler_destroy_labeler_cap)
--  [Function `type_name`](#0x2_labeler_type_name)
 
 
-<pre><code><b>use</b> <a href="../move-stdlib/ascii.md#0x1_ascii">0x1::ascii</a>;
-<b>use</b> <a href="../move-stdlib/string.md#0x1_string">0x1::string</a>;
-<b>use</b> <a href="../move-stdlib/type_name.md#0x1_type_name">0x1::type_name</a>;
-<b>use</b> <a href="../iota-framework/object.md#0x2_object">0x2::object</a>;
+<pre><code><b>use</b> <a href="../iota-framework/object.md#0x2_object">0x2::object</a>;
 <b>use</b> <a href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
 <b>use</b> <a href="../iota-framework/types.md#0x2_types">0x2::types</a>;
 </code></pre>
@@ -83,7 +79,7 @@ Can be created only by consuming a one time witness.
 
 
 <pre><code><b>public</b> <b>fun</b> <a href="../iota-framework/labeler.md#0x2_labeler_create_labeler_cap">create_labeler_cap</a>&lt;L: drop&gt;(witness: L, ctx: &<b>mut</b> TxContext): <a href="../iota-framework/labeler.md#0x2_labeler_LabelerCap">LabelerCap</a>&lt;L&gt; {
-    <b>assert</b>!(<a href="../iota-framework/types.md#0x2_types_is_one_time_witness">types::is_one_time_witness</a>(&witness), <a href="../iota-framework/labeler.md#0x2_labeler_ENotOneTimeWitness">ENotOneTimeWitness</a>);
+    <b>assert</b>!(iota::types::is_one_time_witness(&witness), <a href="../iota-framework/labeler.md#0x2_labeler_ENotOneTimeWitness">ENotOneTimeWitness</a>);
 
     <a href="../iota-framework/labeler.md#0x2_labeler_LabelerCap">LabelerCap</a>&lt;L&gt; {
         id: <a href="../iota-framework/object.md#0x2_object_new">object::new</a>(ctx),
@@ -118,32 +114,6 @@ If a capability is destroyed, it is impossible to add the related labels.
     } = cap;
 
     <a href="../iota-framework/object.md#0x2_object_delete">object::delete</a>(id);
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="0x2_labeler_type_name"></a>
-
-## Function `type_name`
-
-Return a fully qualified type name with the original package IDs
-that is used as type related a label value.
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../move-stdlib/type_name.md#0x1_type_name">type_name</a>&lt;L&gt;(): <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../move-stdlib/type_name.md#0x1_type_name">type_name</a>&lt;L&gt;(): String {
-    <a href="../move-stdlib/string.md#0x1_string_from_ascii">string::from_ascii</a>(std::type_name::get_with_original_ids&lt;L&gt;().into_string())
 }
 </code></pre>
 
