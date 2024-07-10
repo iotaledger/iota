@@ -25,25 +25,18 @@ interface DividerProps {
      * The line height of the divider.
      */
     lineHight?: string;
-    /**
-     * The color of the divider.
-     */
-    color?: string;
 }
 
 export function Divider({
+    type = DividerType.Horizontal,
     width,
     height,
-    color,
     lineHight = DEFAULT_LINE_HEIGHT,
-    type = DividerType.Horizontal,
 }: DividerProps): React.JSX.Element {
     // Set width and height of divider line based on type
     const baseStyle = {
         ...(type === DividerType.Horizontal ? { height: lineHight } : { width: lineHight }),
     };
-
-    const backgroundColors = color ? color : BACKGROUND_COLORS;
 
     let dividerSize = DIVIDER_FULL_WIDTH[type];
     if (width && type === DividerType.Horizontal) {
@@ -51,7 +44,6 @@ export function Divider({
     } else if (height && type === DividerType.Vertical) {
         dividerSize = height;
     }
-    const dividerClasses = cx(backgroundColors, dividerSize);
 
-    return <div className={dividerClasses} style={baseStyle} />;
+    return <div className={cx(BACKGROUND_COLORS, dividerSize)} style={baseStyle} />;
 }
