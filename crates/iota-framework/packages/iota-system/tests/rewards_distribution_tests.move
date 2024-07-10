@@ -529,8 +529,7 @@ module iota_system::rewards_distribution_tests {
         // To get the leftover, we have to slash every validator. This way, the computation reward will remain as leftover.
         slash_all_validators(scenario);
 
-        // Pass 1700 IOTA as computation reward(for an instance).
-        // It should be larger than total supply.
+        // Pass 1700 IOTA as computation reward which is larger than the total supply of 1000 IOTA.
         advance_epoch_with_reward_amounts_and_slashing_rates(
             1000, 1700, 10_000, scenario
         );
