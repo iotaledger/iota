@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromExportedKeypair } from '_src/shared/utils/from-exported-keypair';
+import { fromExportedKeypair } from '_src/shared/utils';
 import { type Keypair } from '@iota/iota.js/cryptography';
 
 import { SeedAccountSource } from '../account-sources/SeedAccountSource';
