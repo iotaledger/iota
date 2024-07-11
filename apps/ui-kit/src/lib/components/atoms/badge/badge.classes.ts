@@ -15,7 +15,12 @@ export const TEXT_COLORS: Record<BadgeType, string> = {
     [BadgeType.PrimaryFill]: 'text-primary-20 dark:text-primary-90',
 };
 
-export const OUTLINED_BORDER = 'border border-neutral-70 dark:border-neutral-40';
+export const BORDER_COLORS: Record<BadgeType, string> = {
+    [BadgeType.Outlined]: 'border-neutral-70 dark:border-neutral-40',
+    [BadgeType.NeutralFill]: 'border-neutral-92 dark:border-neutral-12',
+    [BadgeType.PrimaryFill]: 'border-primary-90 dark:border-primary-10',
+};
+
 export const BADGE_TEXT_CLASS = 'text-body-md';
 
 export const DISABLED_OPACITY = 'disabled:opacity-30';
