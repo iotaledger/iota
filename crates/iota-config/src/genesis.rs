@@ -630,18 +630,9 @@ pub struct TokenAllocation {
     /// Indicates if this allocation should be staked at genesis and with which
     /// validator
     pub staked_with_validator: Option<IotaAddress>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct TimelockAllocation {
-    pub recipient_address: IotaAddress,
-    pub amount_nanos: u64,
-    /// The surplus of the total balance of the
-    /// timelock objects w.r.t. the target stake.
-    pub surplus_nanos: u64,
-    pub timelock_objects: Vec<ObjectRef>,
-    pub staked_with_validator: IotaAddress,
+    /// Indicates if this allocation should be staked with timelock at genesis
+    /// and contains its timelock_expiration
+    pub staked_with_timelock_expiration: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

@@ -46,6 +46,8 @@ use iota_types::{
     metrics::LimitsMetrics,
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
+    stardust::stardust_to_iota_address,
+    timelock::stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,
     transaction::{
         CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectArg, ObjectReadResult,
         Transaction,
@@ -1230,7 +1232,16 @@ pub fn generate_genesis_system_object(
             vec![],
         );
 
-        // Step 5: Run genesis.
+        // Step 5: Create System Timelock Cap.
+        let system_timelock_cap = builder.programmable_move_call(
+            IOTA_FRAMEWORK_ADDRESS.into(),
+            ident_str!("timelock").to_owned(),
+            ident_str!("new_system_timelock_cap").to_owned(),
+            vec![],
+            vec![],
+        );
+
+        // Step 6: Run genesis.
         // The first argument is the system state uid we got from step 1 and the second
         // one is the IOTA supply we got from step 3.
         let mut arguments = vec![iota_system_state_uid, iota_supply];
@@ -1238,11 +1249,13 @@ pub fn generate_genesis_system_object(
             CallArg::Pure(bcs::to_bytes(&genesis_chain_parameters).unwrap()),
             CallArg::Pure(bcs::to_bytes(&genesis_validators).unwrap()),
             CallArg::Pure(bcs::to_bytes(&token_distribution_schedule).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&Some(STARDUST_UPGRADE_LABEL_VALUE)).unwrap()),
         ]
         .into_iter()
         .map(|a| builder.input(a))
         .collect::<anyhow::Result<_, _>>()?;
         arguments.append(&mut call_arg_arguments);
+        arguments.push(system_timelock_cap);
         builder.programmable_move_call(
             IOTA_SYSTEM_ADDRESS.into(),
             ident_str!("genesis").to_owned(),
