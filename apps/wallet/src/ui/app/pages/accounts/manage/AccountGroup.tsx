@@ -27,7 +27,7 @@ import {
 import { Heading } from '_src/ui/app/shared/heading';
 import { Text } from '_src/ui/app/shared/text';
 import { ButtonOrLink, type ButtonOrLinkProps } from '_src/ui/app/shared/utils/ButtonOrLink';
-import { ArrowBgFill16, Plus12, Search16 } from '@iota/icons';
+import { Search } from '@iota/icons';
 import * as CollapsiblePrimitive from '@radix-ui/react-collapsible';
 import { useMutation } from '@tanstack/react-query';
 import { forwardRef, useState } from 'react';
@@ -172,7 +172,7 @@ export function AccountGroup({
                 <div className="flex w-full flex-col gap-4">
                     <CollapsiblePrimitive.Trigger asChild>
                         <div className="group flex w-full flex-shrink-0 cursor-pointer items-center justify-center gap-2 [&>*]:select-none">
-                            <ArrowBgFill16 className="h-4 w-4 text-hero-darkest/20 group-data-[state=open]:rotate-90" />
+                            {/* <ArrowBgFill16 className="h-4 w-4 text-hero-darkest/20 group-data-[state=open]:rotate-90" /> */}
                             <Heading variant="heading5" weight="semibold" color="steel-darker">
                                 {getGroupTitle(accounts[0])}
                             </Heading>
@@ -186,7 +186,7 @@ export function AccountGroup({
                                         );
                                     }}
                                 >
-                                    <Search16 />
+                                    <Search />
                                 </ButtonOrLink>
                             ) : null}
                             {(isMnemonicDerivedGroup || isSeedDerivedGroup) && accountSource ? (
@@ -213,7 +213,7 @@ export function AccountGroup({
                                         }}
                                         className="flex cursor-pointer appearance-none items-center justify-center gap-0.5 border-0 bg-transparent uppercase text-hero outline-none hover:text-hero-darkest"
                                     >
-                                        <Plus12 />
+                                        {/* <Plus12 /> */}
                                         <Text variant="bodySmall" weight="semibold">
                                             New
                                         </Text>

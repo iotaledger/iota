@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { LockLocked16, LockUnlocked16 } from '@iota/icons';
+// import { LockLocked16, LockUnlocked16 } from '@iota/icons';
 import { type ComponentPropsWithoutRef } from 'react';
 
 import { Tooltip } from '../../shared/tooltip';
@@ -21,13 +21,13 @@ export function LockUnlockButton({ isLocked, onClick, isLoading }: LockUnlockBut
                 onClick={onClick}
                 data-testid={isLocked ? 'unlock-account-button' : 'lock-account-button'}
             >
-                {isLoading ? (
-                    <LoadingIndicator />
-                ) : isLocked ? (
+                {/* {isLoading ? ( */}
+                <LoadingIndicator />
+                {/* ) : isLocked ? (
                     <LockLocked16 className="h-4 w-4" />
                 ) : (
                     <LockUnlocked16 className="h-4 w-4" />
-                )}
+                )} */}
             </button>
         </Tooltip>
     );

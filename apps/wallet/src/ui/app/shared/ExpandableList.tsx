@@ -2,10 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ChevronDown12 } from '@iota/icons';
-import clsx from 'clsx';
+// import { ChevronDown12 } from '@iota/icons';
 import { useMemo, useState, type ReactNode } from 'react';
-
 import { Link } from './Link';
 import { Text } from './text';
 
@@ -33,15 +31,15 @@ export function ExpandableList({ items, defaultItemsToShow }: ExpandableListProp
                 <div className="flex w-full cursor-pointer items-center">
                     <Link
                         onClick={handleShowAllClick}
-                        after={
-                            <ChevronDown12
-                                height={12}
-                                width={12}
-                                className={clsx('text-steel hover:text-steel-dark', {
-                                    'rotate-180': showAll,
-                                })}
-                            />
-                        }
+                        // after={
+                        //     <ChevronDown12
+                        //         height={12}
+                        //         width={12}
+                        //         className={clsx('text-steel hover:text-steel-dark', {
+                        //             'rotate-180': showAll,
+                        //         })}
+                        //     />
+                        // }
                     >
                         <Text variant="bodySmall">{showAll ? 'Show Less' : 'Show All'}</Text>
                     </Link>

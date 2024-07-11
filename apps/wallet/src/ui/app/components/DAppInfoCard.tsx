@@ -4,9 +4,7 @@
 
 import { type PermissionType } from '_src/shared/messaging/messages/payloads/permissions';
 import { getValidDAppUrl } from '_src/shared/utils';
-import { CheckFill16 } from '@iota/icons';
-import cn from 'clsx';
-
+// import { CheckFill16 } from '@iota/icons';
 import { useAccountByAddress } from '../hooks/useAccountByAddress';
 import { Heading } from '../shared/heading';
 import { Link } from '../shared/Link';
@@ -84,12 +82,12 @@ export function DAppInfoCard({
                                     />
                                 </div>
                             ) : null}
-                            <CheckFill16
+                            {/* <CheckFill16
                                 className={cn(
                                     'h-4 w-4',
                                     account.isLocked ? 'text-hero/10' : 'text-success',
                                 )}
-                            />
+                            /> */}
                         </div>
                     }
                     hideCopy

@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CheckFill16, XFill16 } from '@iota/icons';
+// import { CheckFill16, XFill16 } from '@iota/icons';
 import { formatAddress } from '@iota/iota.js/utils';
-import { cva, cx, type VariantProps } from 'class-variance-authority';
+import { cva, type VariantProps } from 'class-variance-authority';
 import { useEffect, useRef } from 'react';
 
 import { Text } from '../shared/text';
@@ -79,17 +79,17 @@ export function WalletListSelectItem({
 
     return (
         <div ref={elementRef} className={styles({ selected, mode, disabled })}>
-            {isSelect ? (
+            {/* {isSelect ? (
                 <CheckFill16
                     className={cx(
                         selected ? 'text-success' : 'text-gray-50',
                         'text-base font-bold transition',
                     )}
                 />
-            ) : null}
-            {isDisconnect && selected ? (
+            ) : null} */}
+            {/* {isDisconnect && selected ? (
                 <XFill16 className="text-base font-bold text-issue-dark" />
-            ) : null}
+            ) : null} */}
             <Text mono variant="body" weight="semibold">
                 {formatAddress(address)}
             </Text>

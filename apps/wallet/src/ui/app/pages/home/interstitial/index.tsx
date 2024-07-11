@@ -4,7 +4,7 @@
 
 import { ampli } from '_src/shared/analytics/ampli';
 import ExternalLink from '_src/ui/app/components/external-link';
-import { X32 } from '@iota/icons';
+import { Close } from '@iota/icons';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -63,7 +63,7 @@ function Interstitial({ enabled, dismissKey, imageUrl, bannerUrl, onClose }: Int
                     className="absolute bottom-0 w-full cursor-pointer appearance-none border-none bg-transparent pb-5"
                     onClick={() => closeInterstitial(dismissKey)}
                 >
-                    <X32 className="h-8 w-8 text-black" />
+                    <Close />
                 </button>
             </div>
         </Portal>

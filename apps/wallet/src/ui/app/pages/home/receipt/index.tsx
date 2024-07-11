@@ -9,7 +9,7 @@ import { ReceiptCard } from '_src/ui/app/components/receipt-card';
 import { useActiveAddress } from '_src/ui/app/hooks/useActiveAddress';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { useIotaClient } from '@iota/dapp-kit';
-import { Check32 } from '@iota/icons';
+// import { Check32 } from '@iota/icons';
 import { type IotaTransactionBlockResponse } from '@iota/iota.js/client';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
@@ -77,7 +77,7 @@ function ReceiptPage() {
                 setShowModal={setShowModal}
                 title={pageTitle}
                 closeOverlay={closeReceipt}
-                closeIcon={<Check32 fill="currentColor" className="h-8 w-8 text-iota-light" />}
+                // closeIcon={<Check32 fill="currentColor" className="h-8 w-8 text-iota-light" />}
             >
                 {isError ? (
                     <div className="mb-2 h-fit">

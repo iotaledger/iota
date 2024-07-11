@@ -3,11 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
-import { CheckFill16 } from '@iota/icons';
+// import { CheckFill16 } from '@iota/icons';
 
 import { Link } from '../../shared/Link';
 import { Text } from '../../shared/text';
-import { Tooltip } from '../../shared/tooltip';
 import { AccountListItem } from './AccountListItem';
 
 export interface RecoverAccountsGroupProps {
@@ -42,11 +41,11 @@ export function RecoverAccountsGroup({
                             onClick={onRecover}
                         />
                     ) : null}
-                    {recoverDone ? (
+                    {/* {recoverDone ? (
                         <Tooltip tip="Recovery process done">
                             <CheckFill16 className="h-4 w-4 text-success" />
                         </Tooltip>
-                    ) : null}
+                    ) : null} */}
                 </div>
             </div>
             {accounts.map((anAccount) => (

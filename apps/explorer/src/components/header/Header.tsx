@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Iota, IotaLogoTxt } from '@iota/icons';
+import { IotaLogoMark } from '@iota/icons';
 import clsx from 'clsx';
 import { useEffect, useState } from 'react';
 
@@ -35,8 +35,7 @@ function Header(): JSX.Element {
                     to="/"
                     className="flex flex-nowrap items-center gap-1 text-hero-darkest"
                 >
-                    <Iota className="h-[26px] w-5" />
-                    <IotaLogoTxt className="h-[17px] w-[27px]" />
+                    <IotaLogoMark className="h-[17px] w-[27px]" />
                 </LinkWithQuery>
                 <div className="flex w-full gap-2">
                     <div className="flex-1">

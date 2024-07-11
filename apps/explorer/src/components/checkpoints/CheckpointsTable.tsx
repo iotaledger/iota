@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { ArrowRight12 } from '@iota/icons';
+import { Right } from '@iota/icons';
 import { Text } from '@iota/ui';
 import { useMemo, useState } from 'react';
 
@@ -88,7 +88,7 @@ export function CheckpointsTable({
                 ) : (
                     <Link
                         to="/recent?tab=checkpoints"
-                        after={<ArrowRight12 className="h-3 w-3 -rotate-45" />}
+                        after={<Right className="h-3 w-3 -rotate-45" />}
                     >
                         View all
                     </Link>

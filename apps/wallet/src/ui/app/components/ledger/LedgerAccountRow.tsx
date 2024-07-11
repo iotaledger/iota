@@ -4,9 +4,8 @@
 
 import { Text } from '_src/ui/app/shared/text';
 import { useBalance, useFormatCoin, useResolveIotaNSName } from '@iota/core';
-import { CheckFill16 } from '@iota/icons';
+// import { CheckFill16 } from '@iota/icons';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota.js/utils';
-import cl from 'clsx';
 
 interface LedgerAccountRowProps {
     isSelected: boolean;
@@ -23,12 +22,12 @@ export function LedgerAccountRow({ isSelected, address }: LedgerAccountRowProps)
 
     return (
         <div className="flex items-center gap-3">
-            <CheckFill16
+            {/* <CheckFill16
                 className={cl('h-4 w-4', {
                     'text-gray-50': !isSelected,
                     'text-success': isSelected,
                 })}
-            />
+            /> */}
             <Text
                 mono
                 variant="bodySmall"

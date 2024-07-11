@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ChevronDown12, ChevronRight12 } from '@iota/icons';
+// import { ChevronDown12, ChevronRight12 } from '@iota/icons';
 import * as CollapsiblePrimitive from '@radix-ui/react-collapsible';
 import cn from 'clsx';
 import { useState, type ReactNode } from 'react';
@@ -61,7 +61,7 @@ export function Collapsible({
                         'text-gray-45': shade === 'lighter',
                     })}
                 >
-                    {open ? <ChevronDown12 /> : <ChevronRight12 />}
+                    {/* {open ? <ChevronDown12 /> : <ChevronRight12 />} */}
                 </div>
             </CollapsiblePrimitive.Trigger>
 

@@ -8,7 +8,7 @@ import FieldLabel from '_src/ui/app/shared/field-label';
 import { Heading } from '_src/ui/app/shared/heading';
 import { PasswordInputField } from '_src/ui/app/shared/input/password';
 import { Text } from '_src/ui/app/shared/text';
-import { ArrowLeft16, ArrowRight16 } from '@iota/icons';
+import { Left, Right } from '@iota/icons';
 import classNames from 'clsx';
 import { ErrorMessage, Form, Formik } from 'formik';
 import { toast } from 'react-hot-toast';
@@ -97,7 +97,7 @@ export function PasswordInputDialog({
                                 color="heroDark"
                                 size="tall"
                                 variant="outline"
-                                before={<ArrowLeft16 />}
+                                before={<Left />}
                                 onClick={() => {
                                     if (typeof onBackClicked === 'function') {
                                         onBackClicked();
@@ -115,7 +115,7 @@ export function PasswordInputDialog({
                             text={continueLabel}
                             loading={isSubmitting}
                             disabled={!isValid}
-                            after={showArrowIcon ? <ArrowRight16 /> : null}
+                            after={showArrowIcon ? <Right /> : null}
                         />
                     </div>
                 </Form>
