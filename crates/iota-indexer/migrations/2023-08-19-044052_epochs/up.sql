@@ -26,5 +26,5 @@ CREATE TABLE epochs
     -- of the epoch
     epoch_commitments               bytea,
     burnt_tokens_amount             BIGINT,
-    minted_tokens_amount            BIGINT,
+    minted_tokens_amount            BIGINT
 );
