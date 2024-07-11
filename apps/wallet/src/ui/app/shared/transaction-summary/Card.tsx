@@ -26,13 +26,13 @@ interface CardProps extends VariantProps<typeof cardStyles> {
 
 type ExtendedCardProps = CardProps & AnchorHTMLAttributes<HTMLAnchorElement>;
 
-export const SummaryCardFooter = ({ children }: { children: ReactNode }) => {
+export function SummaryCardFooter({ children }: { children: ReactNode }) {
     return (
         <div className="-mx-4.5 -mb-4.5 flex items-center justify-between rounded-b-2xl bg-iota/10 px-4 py-2 ">
             {children}
         </div>
     );
-};
+}
 
 export function Card({
     as = 'div',

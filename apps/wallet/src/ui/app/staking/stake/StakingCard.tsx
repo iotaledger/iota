@@ -185,7 +185,7 @@ function StakingCard() {
         },
     });
 
-    const onHandleSubmit = useCallback(
+    const onSubmit = useCallback(
         async ({ amount }: FormValues, { resetForm }: FormikHelpers<FormValues>) => {
             if (coinType === null || validatorAddress === null) {
                 return;
@@ -271,7 +271,7 @@ function StakingCard() {
                 <Formik
                     initialValues={INITIAL_VALUES}
                     validationSchema={validationSchema}
-                    onSubmit={onHandleSubmit}
+                    onSubmit={onSubmit}
                     validateOnMount
                 >
                     {({ isSubmitting, isValid, submitForm, errors, touched }) => (

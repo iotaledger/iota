@@ -8,10 +8,11 @@ import {
     getRandomEntropy,
     toEntropy,
     validateEntropy,
-} from '_shared/utils/bip39';
+    deriveKeypairFromSeed,
+} from '_src/shared/utils';
 import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
 import { mnemonicToSeedHex } from '@iota/iota.js/cryptography';
-import { Ed25519Keypair, type Ed25519PublicKey } from '@iota/iota.js/keypairs/ed25519';
+import type { Ed25519PublicKey } from '@iota/iota.js/keypairs/ed25519';
 import { sha256 } from '@noble/hashes/sha256';
 import { bytesToHex } from '@noble/hashes/utils';
 import Dexie from 'dexie';
@@ -45,10 +46,6 @@ interface MnemonicAccountSourceSerialized extends AccountSourceSerialized {
 
 interface MnemonicAccountSourceSerializedUI extends AccountSourceSerializedUI {
     type: AccountSourceType.Mnemonic;
-}
-
-export function deriveKeypairFromSeed(mnemonicSeedHex: string, derivationPath: string) {
-    return Ed25519Keypair.deriveKeypairFromSeed(mnemonicSeedHex, derivationPath);
 }
 
 export class MnemonicAccountSource extends AccountSource<
