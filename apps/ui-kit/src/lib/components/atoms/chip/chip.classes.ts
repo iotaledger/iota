@@ -10,8 +10,13 @@ export const BACKGROUND_CLASSES: Record<ChipState, string> = {
     [ChipState.Selected]: 'bg-primary-90 dark:bg-primary-10',
 };
 
-export const STATE_LAYER_CLASSES =
-    'hover:bg-shader-primary-light-8 active:bg-shader-primary-light-12 dark:hover:bg-shader-primary-dark-8 dark:active:bg-shader-primary-dark-12 focus:bg-shader-primary-light-12 dark:focus:bg-shader-primary-dark-12 outline outline-1 outline-transparent hover:outline-shader-primary-light-8 active:outline-shader-primary-light-12 dark:hover:outline-shader-primary-dark-8 dark:active:outline-shader-primary-dark-12';
+const STATE_LAYER_OUTLINE =
+    'outline outline-1 outline-transparent hover:outline-shader-primary-light-8 active:outline-shader-primary-light-12 dark:hover:outline-shader-primary-dark-8 dark:active:outline-shader-primary-dark-12';
+
+const STATE_LAYER_BG_CLASSES =
+    'hover:bg-shader-primary-light-8 active:bg-shader-primary-light-12 dark:hover:bg-shader-primary-dark-8 dark:active:bg-shader-primary-dark-12 focus:bg-shader-primary-light-12 dark:focus:bg-shader-primary-dark-12';
+
+export const STATE_LAYER_CLASSES = `${STATE_LAYER_OUTLINE} ${STATE_LAYER_BG_CLASSES}`;
 
 export const BORDER_CLASSES: Record<ChipState, string> = {
     [ChipState.Default]: 'border-neutral-70 dark:border-neutral-40',
