@@ -73,6 +73,7 @@ export function AccountsFinderView(): JSX.Element {
                             password,
                         });
                         setPasswordModalVisible(false);
+                        search();
                     }}
                     onClose={() => setPasswordModalVisible(false)}
                 />
