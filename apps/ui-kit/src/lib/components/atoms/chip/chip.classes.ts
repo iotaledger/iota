@@ -1,0 +1,24 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { ChipState } from './chip.enums';
+
+export const ROUNDED_CLASS = 'rounded-full';
+
+export const BACKGROUND_CLASSES: Record<ChipState, string> = {
+    [ChipState.Default]: 'bg-transparent',
+    [ChipState.Selected]: 'bg-primary-90 dark:bg-primary-10',
+};
+
+export const STATE_LAYER_CLASSES =
+    'hover:bg-shader-primary-light-8 active:bg-shader-primary-light-12 dark:hover:bg-shader-primary-dark-8 dark:active:bg-shader-primary-dark-12 outline outline-1 outline-transparent hover:outline-shader-primary-light-8 active:outline-shader-primary-light-12 dark:hover:outline-shader-primary-dark-8 dark:active:outline-shader-primary-dark-12';
+
+export const BORDER_CLASSES: Record<ChipState, string> = {
+    [ChipState.Default]: 'border-neutral-70 dark:border-neutral-40',
+    [ChipState.Selected]: 'border-transparent',
+};
+
+export const TEXT_COLOR: Record<ChipState, string> = {
+    [ChipState.Default]: 'text-neutral-40 dark:text-neutral-60',
+    [ChipState.Selected]: 'text-neutral-10 dark:text-neutral-92',
+};
