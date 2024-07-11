@@ -644,23 +644,20 @@ impl KeyToolCommand {
                         CommandOutput::Import(key)
                     }
                     Err(_) => {
-                        // Assume it is a mnemonic if it has spaces
-                        let contains_spaces = input_string.contains(char::is_whitespace);
+                        info!("Importing mneomonics to keystore");
+                        let mut iota_address = keystore.import_from_mnemonic(
+                            &input_string,
+                            key_scheme,
+                            derivation_path.clone(),
+                        );
+                        if iota_address.is_err() {
+                            if let Ok(seed) = Hex::decode(&input_string) {
+                                info!("Importing mneomonics to keystore failed, importing from seed now");
+                                iota_address = keystore.import_from_seed(&seed, key_scheme, derivation_path);
+                            }
+                        }
 
-                        let iota_address = if contains_spaces {
-                            info!("Importing mnemonic to keystore");
-                            keystore.import_from_mnemonic(
-                                &input_string,
-                                key_scheme,
-                                derivation_path,
-                            )?
-                        } else if let Ok(seed) = Hex::decode(&input_string) {
-                            info!("Importing seed to keystore");
-                            keystore.import_from_seed(&input_string, key_scheme, derivation_path)?
-                        } else {
-                            error!("Failed to select a valid import method.");
-                        };
-                        let skp = keystore.get_key(&iota_address)?;
+                        let skp = keystore.get_key(&iota_address?)?;
                         let key = Key::from(skp);
                         CommandOutput::Import(key)
                     }
