@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// import { ChevronRight16 } from '@iota/icons';
+import { ChevronRight16 } from '@iota/icons';
 import clsx from 'clsx';
 import type { MouseEventHandler, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
@@ -47,9 +47,7 @@ function MenuListItem({
                         </div>
                     ) : null}
                     <div className="flex flex-none text-base text-steel transition group-hover:text-steel-darker">
-                        {iconAfter ||
-                            // || (to && <ChevronRight16 />)
-                            null}
+                        {iconAfter || (to && <ChevronRight16 />) || null}
                     </div>
                 </div>
             ) : null}

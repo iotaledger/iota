@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Listbox, Transition } from '@headlessui/react';
-import { Checkmark } from '@iota/icons';
+import { Check12, ChevronDown16 } from '@iota/icons';
 import { Text } from '@iota/ui';
 import { Fragment } from 'react';
 
@@ -23,10 +23,10 @@ export function ListboxSelect<T extends string>({
             <div className="relative">
                 <Listbox.Button className="group flex w-full flex-nowrap items-center gap-1 overflow-hidden text-hero-dark transition-all hover:text-hero-darkest">
                     <Text variant="body/semibold">{value}</Text>
-                    {/* <ChevronDown16
+                    <ChevronDown16
                         className="text-gray-400 pointer-events-none h-4 w-4 text-steel transition-all group-hover:text-steel-dark"
                         aria-hidden="true"
-                    /> */}
+                    />
                 </Listbox.Button>
                 <Transition
                     as={Fragment}
@@ -53,7 +53,7 @@ export function ListboxSelect<T extends string>({
                                             </Text>
                                         </span>
                                         {selected ? (
-                                            <Checkmark
+                                            <Check12
                                                 className="h-4 w-4 text-steel-darker"
                                                 aria-hidden="true"
                                             />

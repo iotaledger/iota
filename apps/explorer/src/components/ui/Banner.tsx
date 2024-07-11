@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Close } from '@iota/icons';
+import { X12 } from '@iota/icons';
 import { Text, IconButton } from '@iota/ui';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { type ReactNode } from 'react';
@@ -125,7 +125,7 @@ export function Banner({
             {onDismiss ? (
                 <div className="absolute right-0 top-0">
                     <IconButton onClick={onDismiss} aria-label="Close">
-                        <Close />
+                        <X12 />
                     </IconButton>
                 </div>
             ) : null}

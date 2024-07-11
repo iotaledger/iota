@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// import { CheckFill16, Search } from '@iota/icons';
+import { CheckFill16, Search16 } from '@iota/icons';
 import type { Meta, StoryObj } from '@storybook/react';
 
 import { Button } from './Button';
@@ -26,15 +26,15 @@ const meta = {
                 <Button loading {...props}>
                     Loading
                 </Button>
-                {/* <Button before={<CheckFill16 />} {...props}>
+                <Button before={<CheckFill16 />} {...props}>
                     Before
                 </Button>
-                <Button after={<Search />} {...props}>
+                <Button after={<Search16 />} {...props}>
                     After
                 </Button>
-                <Button before={<CheckFill16 />} after={<Search />} {...props}>
+                <Button before={<CheckFill16 />} after={<Search16 />} {...props}>
                     Before & After
-                </Button> */}
+                </Button>
             </div>
         );
     },

@@ -13,7 +13,7 @@ import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 import { useSigner } from '_src/ui/app/hooks/useSigner';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { createTokenTransferTransaction, useCoinMetadata } from '@iota/core';
-import { Left, Right } from '@iota/icons';
+import { ArrowLeft16, ArrowRight16 } from '@iota/icons';
 // import * as Sentry from '@sentry/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
@@ -124,7 +124,7 @@ function TransferCoinPage() {
                                 variant="secondary"
                                 onClick={() => setShowTransactionPreview(false)}
                                 text="Back"
-                                before={<Left />}
+                                before={<ArrowLeft16 />}
                             />
 
                             <Button
@@ -133,7 +133,7 @@ function TransferCoinPage() {
                                 onClick={() => executeTransfer.mutateAsync()}
                                 text="Send Now"
                                 disabled={coinType === null}
-                                after={<Right />}
+                                after={<ArrowRight16 />}
                                 loading={executeTransfer.isPending}
                             />
                         </Menu>

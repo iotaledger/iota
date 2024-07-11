@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useGetKioskContents, useGetOwnedObjects, useLocalStorage } from '@iota/core';
-import { ListViewMedium } from '@iota/icons';
+import { ThumbnailsOnly16, ViewList16, ViewSmallThumbnails16 } from '@iota/icons';
 import { Heading, IconButton, RadioGroup, RadioGroupItem, Text } from '@iota/ui';
 import clsx from 'clsx';
 import { useEffect, useMemo, useState } from 'react';
@@ -33,9 +33,9 @@ const FILTER_OPTIONS = [
 ];
 
 const VIEW_MODES = [
-    { icon: <ListViewMedium />, value: ObjectViewMode.List },
-    // { icon: <ViewSmallThumbnails16 />, value: ObjectViewMode.SmallThumbnail },
-    // { icon: <ThumbnailsOnly16 />, value: ObjectViewMode.Thumbnail },
+    { icon: <ViewList16 />, value: ObjectViewMode.List },
+    { icon: <ViewSmallThumbnails16 />, value: ObjectViewMode.SmallThumbnail },
+    { icon: <ThumbnailsOnly16 />, value: ObjectViewMode.Thumbnail },
 ];
 
 function getItemsRangeFromCurrentPage(

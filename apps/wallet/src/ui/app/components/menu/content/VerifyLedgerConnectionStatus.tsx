@@ -8,7 +8,7 @@ import {
 } from '_src/ui/app/helpers/errorMessages';
 import { Link } from '_src/ui/app/shared/Link';
 import { Text } from '_src/ui/app/shared/text';
-import { Checkmark, Close } from '@iota/icons';
+import { Check12, X12 } from '@iota/icons';
 import { Ed25519PublicKey } from '@iota/iota.js/keypairs/ed25519';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
@@ -95,7 +95,7 @@ export function VerifyLedgerConnectionStatus({
         case VerificationStatus.NotVerified:
             return (
                 <div className="flex items-center gap-1">
-                    <Close className="text-issue-dark" />
+                    <X12 className="text-issue-dark" />
                     <Text variant="bodySmall" color="issue-dark">
                         Ledger is not connected
                     </Text>
@@ -104,7 +104,7 @@ export function VerifyLedgerConnectionStatus({
         case VerificationStatus.Verified:
             return (
                 <div className="flex items-center gap-1">
-                    <Checkmark className="text-success-dark" />
+                    <Check12 className="text-success-dark" />
                     <Text variant="bodySmall" color="success-dark">
                         Ledger is connected
                     </Text>

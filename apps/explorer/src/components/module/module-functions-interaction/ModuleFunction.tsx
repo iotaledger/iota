@@ -8,7 +8,7 @@ import {
     useCurrentAccount,
     useSignAndExecuteTransactionBlock,
 } from '@iota/dapp-kit';
-import { Right } from '@iota/icons';
+import { ArrowRight12 } from '@iota/icons';
 import { TransactionBlock, getPureSerializationType } from '@iota/iota.js/transactions';
 import { Button } from '@iota/ui';
 import { useMutation } from '@tanstack/react-query';
@@ -133,7 +133,7 @@ export function ModuleFunction({
                         connectText={
                             <>
                                 Connect Wallet
-                                <Right fill="currentColor" className="-rotate-45" />
+                                <ArrowRight12 fill="currentColor" className="-rotate-45" />
                             </>
                         }
                         className={clsx(

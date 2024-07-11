@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// import { Copy16, EyeClose16, EyeOpen16 } from '@iota/icons';
+import { Copy16, EyeClose16, EyeOpen16 } from '@iota/icons';
 import { cx } from 'class-variance-authority';
 import { useEffect, useState } from 'react';
 
@@ -81,7 +81,7 @@ export function HideShowDisplayBox({
                             weight="medium"
                             size="body"
                             text="Copy"
-                            // before={<Copy16 className="text-base leading-none" />}
+                            before={<Copy16 className="text-base leading-none" />}
                             onClick={copyCallback}
                         />
                     ) : null}
@@ -91,13 +91,13 @@ export function HideShowDisplayBox({
                         color="steelDark"
                         size="base"
                         weight="medium"
-                        // text={
-                        //     valueHidden ? (
-                        //         <EyeClose16 className="block" />
-                        //     ) : (
-                        //         <EyeOpen16 className="block" />
-                        //     )
-                        // }
+                        text={
+                            valueHidden ? (
+                                <EyeClose16 className="block" />
+                            ) : (
+                                <EyeOpen16 className="block" />
+                            )
+                        }
                         onClick={() => setValueHidden((v) => !v)}
                     />
                 </div>

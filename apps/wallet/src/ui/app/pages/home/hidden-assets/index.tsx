@@ -5,6 +5,7 @@
 import Alert from '_components/alert';
 import { ErrorBoundary } from '_components/error-boundary';
 import Loading from '_components/loading';
+import LoadingSpinner from '_components/loading/LoadingIndicator';
 import { NFTDisplayCard } from '_components/nft-display';
 import { ampli } from '_src/shared/analytics/ampli';
 import { Button } from '_src/ui/app/shared/ButtonUI';
@@ -15,7 +16,7 @@ import {
     isKioskOwnerToken,
     useMultiGetObjects,
 } from '@iota/core';
-// import { EyeClose16 } from '@iota/icons';
+import { EyeClose16 } from '@iota/icons';
 import { keepPreviousData } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
@@ -60,7 +61,11 @@ function HiddenNftsPage() {
     }, [hiddenAssetIds, data]);
 
     if (isLoading) {
-        return <div className="mt-1 flex w-full justify-center">{/* <LoadingSpinner /> */}</div>;
+        return (
+            <div className="mt-1 flex w-full justify-center">
+                <LoadingSpinner />
+            </div>
+        );
     }
 
     return (
@@ -117,7 +122,7 @@ function HiddenNftsPage() {
                                             onClick={() => {
                                                 showAsset(objectId);
                                             }}
-                                            // after={<EyeClose16 />}
+                                            after={<EyeClose16 />}
                                         />
                                     </div>
                                 </div>

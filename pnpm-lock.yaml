@@ -619,9 +619,6 @@ importers:
       '@fontsource/inter':
         specifier: ^5.0.17
         version: 5.0.18
-      '@iota/icons':
-        specifier: workspace:*
-        version: link:../icons
       classnames:
         specifier: ^2.5.1
         version: 2.5.1

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// import { Image32, LockLocked16, MediaPlay16 } from '@iota/icons';
+import { Image32, LockLocked16, MediaPlay16 } from '@iota/icons';
 import { cva } from 'class-variance-authority';
 import type { VariantProps } from 'class-variance-authority';
 import cl from 'clsx';
@@ -92,7 +92,7 @@ export function NftImage({
                     />
                 ) : (
                     <div className="pointer-events-none absolute bottom-2 right-2 z-10 flex items-center justify-center rounded-full text-black opacity-80">
-                        {/* <MediaPlay16 className="h-8 w-8" /> */}
+                        <MediaPlay16 className="h-8 w-8" />
                     </div>
                 )
             ) : error || !imgSrc ? (
@@ -104,7 +104,7 @@ export function NftImage({
                     )}
                     title={title}
                 >
-                    {/* <Image32 className="h-6 w-6 text-3xl text-steel" /> */}
+                    <Image32 className="h-6 w-6 text-3xl text-steel" />
                     {showLabel ? (
                         <span className="text-captionSmall font-medium">No media</span>
                     ) : null}
@@ -120,7 +120,7 @@ export function NftImage({
             )}
             {isLocked ? (
                 <div className="absolute bottom-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-md bg-gray-100 text-white">
-                    {/* <LockLocked16 className="h-3.5 w-3.5" /> */}
+                    <LockLocked16 className="h-3.5 w-3.5" />
                 </div>
             ) : null}
         </div>

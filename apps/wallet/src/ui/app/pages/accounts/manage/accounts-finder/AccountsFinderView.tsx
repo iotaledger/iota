@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Search } from '@iota/icons';
+import { Search24 } from '@iota/icons';
 import { Button } from '_src/ui/app/shared/ButtonUI';
 import { AccountBalanceItem } from '_src/ui/app/components/accounts/AccountBalanceItem';
 import { useAccountsFinder } from '_src/ui/app/hooks/useAccountsFinder';
@@ -40,7 +40,7 @@ export function AccountsFinderView(): JSX.Element {
                     variant="outline"
                     size="tall"
                     text={finderAddresses?.length == 0 ? 'Search' : 'Search again'}
-                    after={<Search />}
+                    after={<Search24 />}
                     onClick={searchMore}
                 />
 

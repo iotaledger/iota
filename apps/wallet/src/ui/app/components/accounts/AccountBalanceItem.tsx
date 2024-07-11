@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Copy } from '@iota/icons';
+import { Copy12 } from '@iota/icons';
 import { Text } from '_src/ui/app/shared/text';
 import { formatAddress } from '@iota/iota.js/utils';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
@@ -28,7 +28,7 @@ export function AccountBalanceItem({
                     <div className="flex gap-1 opacity-0 duration-100 group-hover:opacity-100">
                         <IconButton
                             variant="transparent"
-                            icon={<Copy className="h-2.5 w-2.5" />}
+                            icon={<Copy12 className="h-2.5 w-2.5" />}
                             onClick={copyAddress}
                         />
                     </div>
