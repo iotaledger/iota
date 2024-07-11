@@ -1,11 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type AddressFromFinder } from '_src/shared/accounts';
 import { useBackgroundClient } from './useBackgroundClient';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { IOTA_COIN_TYPE_ID, GAS_TYPE_ARG } from '../redux/slices/iota-objects/Coin';
-import { type GetAccountsFinderResultsResponse } from '_src/shared/messaging/messages/payloads/accounts-finder';
 import { type AllowedAccountTypes } from '_src/background/accounts-finder';
 
 export interface UseAccountFinderOptions {
@@ -27,15 +25,6 @@ export function useAccountsFinder({
 }: UseAccountFinderOptions) {
     const backgroundClient = useBackgroundClient();
     const queryClient = useQueryClient();
-    const accountsQuery = useQuery<AddressFromFinder[]>({
-        queryKey: ['accounts-finder-results'],
-        async queryFn() {
-            const response = await backgroundClient.getLastAccountFinderResults();
-            const payload = response.payload as GetAccountsFinderResultsResponse;
-            return payload.results;
-        },
-        enabled: !!sourceID,
-    });
 
     async function reset() {
         await backgroundClient.resetAccountsFinder();
@@ -44,7 +33,7 @@ export function useAccountsFinder({
         });
     }
 
-    async function searchMore() {
+    async function search() {
         if (!accountType) return;
 
         await backgroundClient.searchAccountsFinder({
@@ -61,8 +50,7 @@ export function useAccountsFinder({
     }
 
     return {
-        ...accountsQuery,
         reset,
-        searchMore,
+        search,
     };
 }
