@@ -846,7 +846,7 @@ impl IndexerReader {
                     ),
                     (None, Some(_)) => {
                         return Err(IndexerError::InvalidArgumentError(
-                            "Function cannot be present wihtout Module.".into(),
+                            "Function cannot be present without Module.".into(),
                         ));
                     }
                     (None, None) => (

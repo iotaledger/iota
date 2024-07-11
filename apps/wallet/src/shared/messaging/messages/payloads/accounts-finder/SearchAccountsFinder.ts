@@ -3,16 +3,16 @@
 
 import { isBasePayload } from '_payloads';
 import type { BasePayload, Payload } from '_payloads';
+import { type AccountFinderConfigParams } from '_src/background/accounts-finder';
 
-export interface SearchAccountsFinder extends BasePayload {
+interface SearchAccountsFinder extends BasePayload {
     type: 'search-accounts-finder';
-    coinType: number;
-    gasType: string;
-    sourceID: string;
-    accountGapLimit: number;
-    addressGapLimit: number;
 }
 
-export function isSearchAccountsFinder(payload: Payload): payload is SearchAccountsFinder {
+export type SearchAccountsFinderPayload = SearchAccountsFinder & AccountFinderConfigParams;
+
+export function isSearchAccountsFinder(
+    payload: Payload,
+): payload is SearchAccountsFinderPayload & AccountFinderConfigParams {
     return isBasePayload(payload) && payload.type === 'search-accounts-finder';
 }

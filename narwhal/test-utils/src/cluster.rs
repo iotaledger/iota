@@ -117,7 +117,7 @@ impl Cluster {
             self.start_node(id, false, workers_per_authority).await;
 
             if let Some(d) = boot_wait_time {
-                // we don't want to wait after the last node has been boostraped
+                // we don't want to wait after the last node has been bootstrapped
                 if id < authorities - 1 {
                     info!(
                         "#### Will wait for {} seconds before starting the next node ####",
