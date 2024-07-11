@@ -46,7 +46,7 @@ export function ButtonSegment({
         <button
             onClick={onClick}
             className={cx(
-                'flex items-center rounded-full px-sm py-2xxs disabled:opacity-40',
+                'state-layer relative flex items-center rounded-full px-sm py-2xxs disabled:opacity-40',
                 backgroundColors,
                 textColors,
             )}
