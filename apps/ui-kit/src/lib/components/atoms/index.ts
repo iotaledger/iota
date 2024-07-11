@@ -3,3 +3,4 @@
 
 export * from './button';
 export * from './button-segment';
+export * from './divider';
