@@ -64,12 +64,8 @@ impl VotesAggregator {
             .votes_received_last_round
             .set(self.votes.len() as i64);
         if self.weight >= committee.quorum_threshold() {
-            let mut cert = Certificate::new_unverified(
-                &self.protocol_config,
-                committee,
-                header.clone(),
-                self.votes.clone(),
-            )?;
+            let mut cert =
+                Certificate::new_unverified(committee, header.clone(), self.votes.clone())?;
             let (_, pks) = cert.signed_by(committee);
 
             let certificate_digest: Digest<{ crypto::DIGEST_LENGTH }> = Digest::from(cert.digest());

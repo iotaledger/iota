@@ -6,10 +6,9 @@ import { CoinFormat, formatBalance } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Heading } from '@iota/ui';
 
-import { FormattedStatsAmount, StatsWrapper } from './FormattedStatsAmount';
+import { Card, Divider } from '~/components/ui';
 import { useGetNetworkMetrics } from '~/hooks/useGetNetworkMetrics';
-import { Card } from '~/ui/Card';
-import { Divider } from '~/ui/Divider';
+import { FormattedStatsAmount, StatsWrapper } from './FormattedStatsAmount';
 
 export function OnTheNetwork(): JSX.Element {
     const { data: networkMetrics } = useGetNetworkMetrics();

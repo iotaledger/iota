@@ -203,18 +203,13 @@ impl executor::Executor for Executor {
 }
 
 impl<'m> verifier::Verifier for Verifier<'m> {
-    fn meter_compiled_modules(
-        &mut self,
-        _protocol_config: &ProtocolConfig,
-        modules: &[CompiledModule],
-    ) -> IotaResult<()> {
+    fn meter_compiled_modules(&mut self, modules: &[CompiledModule]) -> IotaResult<()> {
         run_metered_move_bytecode_verifier(modules, &self.config, &mut self.meter, self.metrics)
     }
 
     fn meter_compiled_modules_with_overrides(
         &mut self,
         modules: &[CompiledModule],
-        _protocol_config: &ProtocolConfig,
         config_overrides: &VerifierOverrides,
     ) -> IotaResult<VerifierMeteredValues> {
         let mut config = self.config.clone();

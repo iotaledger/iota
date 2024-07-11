@@ -379,7 +379,7 @@ impl IndexStore {
                 Some((*owner, coin_type_tag.to_string(), *obj_id))
             }).collect::<Vec<_>>();
         trace!(
-            tx_digset=?digest,
+            tx_digest=?digest,
             "coin_delete_keys: {:?}",
             coin_delete_keys,
         );
@@ -427,7 +427,7 @@ impl IndexStore {
             Some(((*owner, coin_type_tag.to_string(), *obj_id), (CoinInfo {version: obj_info.version, digest: obj_info.digest, balance: coin.balance.value(), previous_transaction: *digest})))
         }).collect::<Vec<_>>();
         trace!(
-            tx_digset=?digest,
+            tx_digest=?digest,
             "coin_add_keys: {:?}",
             coin_add_keys,
         );

@@ -17,7 +17,7 @@ class Alarms {
     }
 
     public async setCleanUpAlarm() {
-        await Browser.alarms.create(CLEAN_UP_ALARM_NAME, { periodInMinutes: 60 * 6 }); //  every 6 hours
+        Browser.alarms.create(CLEAN_UP_ALARM_NAME, { periodInMinutes: 60 * 6 }); //  every 6 hours
     }
 }
 

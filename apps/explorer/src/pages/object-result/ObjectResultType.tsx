@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { parseObjectType } from '../../utils/objectUtils';
+import { parseObjectType } from '../../lib/utils';
 
 import type { IotaObjectResponse, ObjectOwner, MoveStruct } from '@iota/iota.js/client';
 

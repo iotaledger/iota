@@ -1,20 +1,12 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
-import { type Preview, Decorator } from '@storybook/react';
-import { useDarkMode } from 'storybook-dark-mode';
+import { type Preview } from '@storybook/react';
 import { themes } from '@storybook/theming';
 
 import '../src/lib/styles/index.css';
 
-const withDarkMode: Decorator = (Story, context) => {
-    const darkmode = useDarkMode();
-    return <Story {...context} darkmode={darkmode} />;
-};
-
 const preview: Preview = {
-    decorators: [withDarkMode],
     parameters: {
         actions: { argTypesRegex: '^on[A-Z].*' },
         controls: {

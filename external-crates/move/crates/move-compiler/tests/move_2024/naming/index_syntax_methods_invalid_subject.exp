@@ -17,7 +17,7 @@ error[E02019]: invalid 'syntax' method type
 error[E02019]: invalid 'syntax' method type
    ┌─ tests/move_2024/naming/index_syntax_methods_invalid_subject.move:12:40
    │
-12 │     public fun index_multi_s(_mutli_s: (S,S), i: &u64): &u64 { i }
+12 │     public fun index_multi_s(_multi_s: (S,S), i: &u64): &u64 { i }
    │                                        ^^^^^ Invalid type for syntax method definition
    │
    = Syntax methods may only be defined for single base types
@@ -25,7 +25,7 @@ error[E02019]: invalid 'syntax' method type
 error[E04005]: expected a single type
    ┌─ tests/move_2024/naming/index_syntax_methods_invalid_subject.move:12:40
    │
-12 │     public fun index_multi_s(_mutli_s: (S,S), i: &u64): &u64 { i }
+12 │     public fun index_multi_s(_multi_s: (S,S), i: &u64): &u64 { i }
    │                                        ^^^^^
    │                                        │
    │                                        Invalid parameter type

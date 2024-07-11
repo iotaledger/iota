@@ -198,7 +198,7 @@ export class IotaWallet implements Wallet {
     }) => {
         if (!isTransactionBlock(transactionBlock)) {
             throw new Error(
-                'Unexpect transaction format found. Ensure that you are using the `Transaction` class.',
+                'Unexpected transaction format found. Ensure that you are using the `Transaction` class.',
             );
         }
 
@@ -220,7 +220,7 @@ export class IotaWallet implements Wallet {
     #signAndExecuteTransactionBlock: IotaSignAndExecuteTransactionBlockMethod = async (input) => {
         if (!isTransactionBlock(input.transactionBlock)) {
             throw new Error(
-                'Unexpect transaction format found. Ensure that you are using the `Transaction` class.',
+                'Unexpected transaction format found. Ensure that you are using the `Transaction` class.',
             );
         }
 

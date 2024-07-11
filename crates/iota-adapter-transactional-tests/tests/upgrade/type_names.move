@@ -15,7 +15,7 @@ module A0::m {
 
 }
 
-//# upgrade --package A0 --upgrade-capability 1,1 --sender A
+//# upgrade --package A0 --upgrade-capability 1,0 --sender A
 module A1::m {
     public struct Canary has key {
         id: UID,
@@ -26,7 +26,7 @@ module A1::m {
     public struct B {}
 }
 
-//# upgrade --package A1 --upgrade-capability 1,1 --sender A
+//# upgrade --package A1 --upgrade-capability 1,0 --sender A
 module A2::m {
     use std::ascii;
     use std::type_name;
