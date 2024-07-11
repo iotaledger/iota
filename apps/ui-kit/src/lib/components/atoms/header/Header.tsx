@@ -59,7 +59,7 @@ export function Header({
             )}
 
             <div className={cx('flex-grow', titleCenteredClasses)}>
-                <span className="text-title-lg">{title}</span>
+                <span className="font-inter text-title-lg">{title}</span>
             </div>
 
             {hasRightIcon && (
