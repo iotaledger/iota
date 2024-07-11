@@ -8,6 +8,7 @@ module iota_system::genesis {
 
     use iota::balance::{Self, Balance};
     use iota::iota::{Self, IOTA};
+    use iota::timelock::SystemTimelockCap;
     use iota_system::iota_system;
     use iota_system::validator::{Self, Validator};
     use iota_system::validator_set;
@@ -58,13 +59,13 @@ module iota_system::genesis {
     }
 
     public struct TokenDistributionSchedule {
-        stake_subsidy_fund_micros: u64,
+        stake_subsidy_fund_nanos: u64,
         allocations: vector<TokenAllocation>,
     }
 
     public struct TokenAllocation {
         recipient_address: address,
-        amount_micros: u64,
+        amount_nanos: u64,
 
         /// Indicates if this allocation should be staked at genesis and with which validator
         staked_with_validator: Option<address>,
@@ -97,11 +98,11 @@ module iota_system::genesis {
         assert!(ctx.epoch() == 0, ENotCalledAtGenesis);
 
         let TokenDistributionSchedule {
-            stake_subsidy_fund_micros,
+            stake_subsidy_fund_nanos,
             allocations,
         } = token_distribution_schedule;
 
-        let subsidy_fund = iota_supply.split(stake_subsidy_fund_micros);
+        let subsidy_fund = iota_supply.split(stake_subsidy_fund_nanos);
         let storage_fund = balance::zero();
 
         // Create all the `Validator` structs
@@ -199,6 +200,7 @@ module iota_system::genesis {
             genesis_chain_parameters.chain_start_timestamp_ms,
             system_parameters,
             stake_subsidy,
+            system_timelock_cap,
             ctx,
         );
     }
@@ -214,12 +216,12 @@ module iota_system::genesis {
         while (!allocations.is_empty()) {
             let TokenAllocation {
                 recipient_address,
-                amount_micros,
+                amount_nanos,
                 staked_with_validator,
                 staked_with_timelock_expiration,
             } = allocations.pop_back();
 
-            let allocation_balance = iota_supply.split(amount_micros);
+            let allocation_balance = iota_supply.split(amount_nanos);
 
             if (staked_with_validator.is_some()) {
                 let validator_address = staked_with_validator.destroy_some();

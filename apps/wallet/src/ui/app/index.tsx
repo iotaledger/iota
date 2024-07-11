@@ -55,6 +55,7 @@ import { AppType } from './redux/slices/app/AppType';
 import { Staking } from './staking/home';
 import { StorageMigrationPage } from './pages/StorageMigrationPage';
 import { useStorageMigrationStatus } from './hooks/useStorageMigrationStatus';
+import { AccountsFinderPage } from './pages/accounts/manage/accounts-finder/AccountsFinderPage';
 
 const HIDDEN_MENU_PATHS = [
     '/nft-details',
@@ -65,11 +66,11 @@ const HIDDEN_MENU_PATHS = [
     '/apps/disconnectapp',
 ];
 
-const notifyUserActiveInterval = 5 * 1000; // 5 seconds
+const NOTIFY_USER_ACTIVE_INTERVAL = 5 * 1000; // 5 seconds
 
 const App = () => {
     const dispatch = useAppDispatch();
-    const isPopup = useAppSelector((state) => state.app.appType === AppType.popup);
+    const isPopup = useAppSelector((state) => state.app.appType === AppType.Popup);
     useEffect(() => {
         document.body.classList.remove('app-initializing');
     }, [isPopup]);
@@ -111,9 +112,8 @@ const App = () => {
                     for (const { derivationPath, id } of allLedgerWithoutPublicKey) {
                         if (derivationPath) {
                             try {
-                                const { publicKey } = await iotaLedgerClient.getPublicKey(
-                                    derivationPath,
-                                );
+                                const { publicKey } =
+                                    await iotaLedgerClient.getPublicKey(derivationPath);
                                 publicKeysToStore.push({
                                     accountID: id,
                                     publicKey: toB64(publicKey),
@@ -141,7 +141,7 @@ const App = () => {
             return;
         }
         const sendUpdateThrottled = throttle(
-            notifyUserActiveInterval,
+            NOTIFY_USER_ACTIVE_INTERVAL,
             () => {
                 backgroundClient.notifyUserActive();
             },
@@ -189,6 +189,10 @@ const App = () => {
                 <Route path="import-private-key" element={<ImportPrivateKeyPage />} />
                 <Route path="import-seed" element={<ImportSeedPage />} />
                 <Route path="manage" element={<ManageAccountsPage />} />
+                <Route
+                    path="manage/accounts-finder/:accountSourceId"
+                    element={<AccountsFinderPage />}
+                />
                 <Route path="protect-account" element={<ProtectAccountPage />} />
                 <Route path="backup/:accountSourceID" element={<BackupMnemonicPage />} />
                 <Route path="export/:accountID" element={<ExportAccountPage />} />

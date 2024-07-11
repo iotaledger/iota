@@ -279,7 +279,7 @@ pub trait SimpleAbsInt: Sized {
         ls: &[LValue],
         values: Vec<<Self::State as SimpleDomain>::Value>,
     ) {
-        // pad with defautl to account for errors
+        // pad with default to account for errors
         let padded_values = values.into_iter().chain(std::iter::repeat(
             <Self::State as SimpleDomain>::Value::default(),
         ));

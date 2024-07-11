@@ -10,7 +10,7 @@ import { SummaryCard } from '../SummaryCard';
 import { Command } from './Command';
 import { Input } from './Input';
 
-interface Props {
+interface TransactionDetailsProps {
     sender?: string;
     transaction: TransactionBlock;
 }
@@ -22,7 +22,7 @@ const Tab = (props: TabProps<'div'>) => (
     />
 );
 
-export function TransactionDetails({ sender, transaction }: Props) {
+export function TransactionDetails({ sender, transaction }: TransactionDetailsProps) {
     const { data: transactionData, isPending, isError } = useTransactionData(sender, transaction);
     if (transactionData?.transactions.length === 0 && transactionData.inputs.length === 0) {
         return null;

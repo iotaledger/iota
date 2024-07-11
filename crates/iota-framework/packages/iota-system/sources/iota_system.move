@@ -46,6 +46,7 @@ module iota_system::iota_system {
     use iota_system::staking_pool::StakedIota;
     use iota::iota::IOTA;
     use iota::table::Table;
+    use iota::timelock::SystemTimelockCap;
     use iota_system::validator::Validator;
     use iota_system::validator_cap::UnverifiedValidatorOperationCap;
     use iota_system::iota_system_state_inner::{Self, SystemParameters, IotaSystemStateInner, IotaSystemStateInnerV2};
@@ -72,6 +73,8 @@ module iota_system::iota_system {
     const ENotSystemAddress: u64 = 0;
     const EWrongInnerVersion: u64 = 1;
 
+    const SYSTEM_TIMELOCK_CAP_DF_KEY: vector<u8> = b"sys_timelock_cap";
+
     // ==== functions that can only be called by genesis ====
 
     /// Create a new IotaSystemState object and make it shared.
@@ -84,6 +87,7 @@ module iota_system::iota_system {
         epoch_start_timestamp_ms: u64,
         parameters: SystemParameters,
         stake_subsidy: StakeSubsidy,
+        system_timelock_cap: SystemTimelockCap,
         ctx: &mut TxContext,
     ) {
         let system_state = iota_system_state_inner::create(
@@ -101,6 +105,7 @@ module iota_system::iota_system {
             version,
         };
         dynamic_field::add(&mut self.id, version, system_state);
+        dynamic_field::add(&mut self.id, SYSTEM_TIMELOCK_CAP_DF_KEY, system_timelock_cap);
         transfer::share_object(self);
     }
 
@@ -590,6 +595,13 @@ module iota_system::iota_system {
         );
         assert!(inner.system_state_version() == self.version, EWrongInnerVersion);
         inner
+    }
+
+    public(package) fun load_system_timelock_cap(self: &IotaSystemState): &SystemTimelockCap {
+        dynamic_field::borrow(
+            &self.id,
+            SYSTEM_TIMELOCK_CAP_DF_KEY
+        )
     }
 
     #[test_only]

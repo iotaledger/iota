@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The [`package_builder`] module provides the [`PackageBuilder`] struct, which
-//! is responsible for building and compiling Stardust native token packages.
+//! The `package_builder` module provides functions for building and
+//! compiling Stardust native token packages.
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -12,9 +12,10 @@ use std::{
 use anyhow::Result;
 use fs_extra::dir::{copy, CopyOptions};
 use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
+use iota_types::stardust::error::StardustError;
 use tempfile::tempdir;
 
-use crate::stardust::{error::StardustError, native_token::package_data::NativeTokenPackageData};
+use crate::stardust::native_token::package_data::NativeTokenPackageData;
 
 /// Builds and compiles a Stardust native token package.
 pub fn build_and_compile(package: NativeTokenPackageData) -> Result<CompiledPackage> {

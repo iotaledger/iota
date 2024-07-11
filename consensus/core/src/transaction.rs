@@ -4,7 +4,6 @@
 
 use std::sync::Arc;
 
-use iota_protocol_config::ProtocolConfig;
 use mysten_metrics::{metered_channel, metered_channel::channel_with_total};
 use tap::tap::TapFallible;
 use thiserror::Error;
@@ -183,30 +182,13 @@ impl TransactionClient {
 /// transactions in a block, before acceptance of the block.
 pub trait TransactionVerifier: Send + Sync + 'static {
     /// Determines if this batch can be voted on
-    fn verify_batch(
-        &self,
-        protocol_config: &ProtocolConfig,
-        batch: &[&[u8]],
-    ) -> Result<(), ValidationError>;
+    fn verify_batch(&self, batch: &[&[u8]]) -> Result<(), ValidationError>;
 }
 
 #[derive(Debug, Error)]
 pub enum ValidationError {
     #[error("Invalid transaction: {0}")]
     InvalidTransaction(String),
-}
-
-/// `NoopTransactionVerifier` accepts all transactions.
-pub(crate) struct NoopTransactionVerifier;
-
-impl TransactionVerifier for NoopTransactionVerifier {
-    fn verify_batch(
-        &self,
-        _protocol_config: &ProtocolConfig,
-        _batch: &[&[u8]],
-    ) -> Result<(), ValidationError> {
-        Ok(())
-    }
 }
 
 #[cfg(test)]

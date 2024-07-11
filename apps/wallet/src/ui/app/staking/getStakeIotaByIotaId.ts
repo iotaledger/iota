@@ -5,10 +5,7 @@
 import { type DelegatedStake } from '@iota/iota.js/client';
 
 // Get Stake IOTA by stakeIotaId
-export const getStakeIotaByIotaId = (
-    allDelegation: DelegatedStake[],
-    stakeIotaId?: string | null,
-) => {
+export function getStakeIotaByIotaId(allDelegation: DelegatedStake[], stakeIotaId?: string | null) {
     return (
         allDelegation.reduce((acc, curr) => {
             const total = BigInt(
@@ -18,4 +15,4 @@ export const getStakeIotaByIotaId = (
             return total + acc;
         }, 0n) || 0n
     );
-};
+}

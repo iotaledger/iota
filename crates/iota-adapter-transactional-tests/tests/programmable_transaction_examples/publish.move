@@ -25,6 +25,7 @@ module q::m {
 }
 
 
+
 //# programmable --sender A --inputs 10 @A
 //> 0: SplitCoins(Gas, [Input(0)]);
 //> 1: Publish(q, []);
@@ -32,9 +33,13 @@ module q::m {
 //> 3: Publish(p, []);
 //> TransferObjects([Result(1), Result(3)], Input(1))
 
-//# set-address p object(3,1)
+//# view-object 3,3
 
-//# set-address q object(3,0)
+//# view-object 3,4
+
+//# set-address p object(3,4)
+
+//# set-address q object(3,3)
 
 //# programmable --sender A
 //> 0: q::m::x();

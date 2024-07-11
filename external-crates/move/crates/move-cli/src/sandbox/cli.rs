@@ -78,9 +78,9 @@ pub enum SandboxCommand {
         /// bool literals (true, false),
         /// u64 literals (e.g., 10, 58),
         /// address literals (e.g., 0x12, 0x0000000000000000000000000000000f),
-        /// hexadecimal strings (e.g., x"0012" will parse as the vector<u8>
+        /// hexadecimal strings (e.g., x"0012" will parse as the `vector<u8>`
         /// value [00, 12]), and ASCII strings (e.g., 'b"hi" will parse
-        /// as the vector<u8> value [68, 69]).
+        /// as the `vector<u8>` value [68, 69]).
         #[clap(
             long = "args",
             value_parser = parser::parse_transaction_argument,
@@ -99,7 +99,7 @@ pub enum SandboxCommand {
         )]
         type_args: Vec<TypeTag>,
         /// Maximum number of gas units to be consumed by execution.
-        /// When the budget is exhaused, execution will abort.
+        /// When the budget is exhausted, execution will abort.
         /// By default, no `gas-budget` is specified and gas metering is
         /// disabled.
         #[clap(long = "gas-budget", short = 'g')]

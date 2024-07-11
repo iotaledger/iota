@@ -1,12 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromExportedKeypair } from '_src/shared/utils/from-exported-keypair';
+import { fromExportedKeypair } from '_src/shared/utils';
 import { type Keypair } from '@iota/iota.js/cryptography';
 
 import { SeedAccountSource } from '../account-sources/SeedAccountSource';
 import {
     Account,
+    AccountType,
     type KeyPairExportableAccount,
     type PasswordUnlockableAccount,
     type SerializedAccount,
@@ -15,14 +16,14 @@ import {
 } from './Account';
 
 export interface SeedSerializedAccount extends SerializedAccount {
-    type: 'seed-derived';
+    type: AccountType.SeedDerived;
     sourceID: string;
     derivationPath: string;
     publicKey: string;
 }
 
 export interface SeedSerializedUiAccount extends SerializedUIAccount {
-    type: 'seed-derived';
+    type: AccountType.SeedDerived;
     publicKey: string;
     derivationPath: string;
     sourceID: string;
@@ -31,7 +32,7 @@ export interface SeedSerializedUiAccount extends SerializedUIAccount {
 export function isSeedSerializedUiAccount(
     account: SerializedUIAccount,
 ): account is SeedSerializedUiAccount {
-    return account.type === 'seed-derived';
+    return account.type === AccountType.SeedDerived;
 }
 
 type SessionStorageData = { keyPair: string };
@@ -45,7 +46,7 @@ export class SeedAccount
     readonly exportableKeyPair = true;
 
     static isOfType(serialized: SerializedAccount): serialized is SeedSerializedAccount {
-        return serialized.type === 'seed-derived';
+        return serialized.type === AccountType.SeedDerived;
     }
 
     static createNew({
@@ -58,7 +59,7 @@ export class SeedAccount
         sourceID: string;
     }): Omit<SeedSerializedAccount, 'id'> {
         return {
-            type: 'seed-derived',
+            type: AccountType.SeedDerived,
             sourceID,
             address: keyPair.getPublicKey().toIotaAddress(),
             derivationPath,
@@ -71,7 +72,7 @@ export class SeedAccount
     }
 
     constructor({ id, cachedData }: { id: string; cachedData?: SeedSerializedAccount }) {
-        super({ type: 'seed-derived', id, cachedData });
+        super({ type: AccountType.SeedDerived, id, cachedData });
     }
 
     async isLocked(): Promise<boolean> {

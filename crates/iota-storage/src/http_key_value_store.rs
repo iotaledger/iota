@@ -165,12 +165,7 @@ impl HttpKVStore {
 
     async fn multi_fetch(&self, uris: Vec<Key>) -> Vec<IotaResult<Option<Bytes>>> {
         let uris_vec = uris.to_vec();
-        let fetches = stream::iter(
-            uris_vec
-                .into_iter()
-                .enumerate()
-                .map(|(_i, uri)| self.fetch(uri)),
-        );
+        let fetches = stream::iter(uris_vec.into_iter().map(|uri| self.fetch(uri)));
         fetches.buffered(uris.len()).collect::<Vec<_>>().await
     }
 
@@ -236,7 +231,7 @@ fn multi_split_slice<'a, T>(slice: &'a [T], lengths: &'a [usize]) -> Vec<&'a [T]
         .collect()
 }
 
-fn deser_check_digest<T, D: std::fmt::Debug>(
+fn deser_check_digest<T, D>(
     digest: &D,
     bytes: &Bytes,
     get_expected_digest: impl FnOnce(&T) -> D,

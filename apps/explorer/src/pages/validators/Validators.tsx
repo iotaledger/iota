@@ -5,35 +5,33 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import {
+    formatPercentageDisplay,
     roundFloat,
     useGetValidatorsApy,
-    type ApyByValidator,
     useGetValidatorsEvents,
-    formatPercentageDisplay,
+    type ApyByValidator,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { type IotaEvent, type IotaValidatorSummary } from '@iota/iota.js/client';
 import { Heading, Text } from '@iota/ui';
 import { lazy, Suspense, useMemo } from 'react';
 
-import { PageLayout } from '~/components/Layout/PageLayout';
-import { ErrorBoundary } from '~/components/error-boundary/ErrorBoundary';
-import { StakeColumn } from '~/components/top-validators-card/StakeColumn';
-import { DelegationAmount } from '~/components/validator/DelegationAmount';
-import { Banner } from '~/ui/Banner';
-import { Card } from '~/ui/Card';
-import { ImageIcon } from '~/ui/ImageIcon';
-import { Link } from '~/ui/Link';
-import { PlaceholderTable } from '~/ui/PlaceholderTable';
-import { Stats } from '~/ui/Stats';
-import { TableCard } from '~/ui/TableCard';
-import { TableHeader } from '~/ui/TableHeader';
-import { Tooltip } from '~/ui/Tooltip';
-import { ampli } from '~/utils/analytics/ampli';
-import { getValidatorMoveEvent } from '~/utils/getValidatorMoveEvent';
-import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/utils/validatorConstants';
+import { DelegationAmount, ErrorBoundary, PageLayout, StakeColumn } from '~/components';
+import {
+    Banner,
+    Card,
+    ImageIcon,
+    Link,
+    PlaceholderTable,
+    Stats,
+    TableCard,
+    TableHeader,
+    Tooltip,
+} from '~/components/ui';
+import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib/constants';
+import { ampli, getValidatorMoveEvent } from '~/lib/utils';
 
-const ValidatorMap = lazy(() => import('../../components/validator-map'));
+const ValidatorMap = lazy(() => import('../../components/validator-map/ValidatorMap'));
 
 export function validatorsTableData(
     validators: IotaValidatorSummary[],

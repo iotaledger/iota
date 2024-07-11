@@ -9,9 +9,10 @@ import Methods from "./api-ref/method";
 
 import ScrollSpy from "react-ui-scrollspy";
 
-import openrpc_mainnet from "../../open-spec/mainnet/openrpc.json";
-import openrpc_testnet from "../../open-spec/testnet/openrpc.json";
-import openrpc_devnet from "../../open-spec/devnet/openrpc.json";
+// TODO: Once the repo is public, we can use the old imports again and reactivate the ../../utils/getopenrpcspecs.js script
+import openrpc_mainnet from "../../../../../crates/iota-open-rpc/spec/openrpc.json";
+import openrpc_testnet from "../../../../../crates/iota-open-rpc/spec/openrpc.json";
+import openrpc_devnet from "../../../../../crates/iota-open-rpc/spec/openrpc.json";
 
 export function getRef(url) {
   return url.substring(url.lastIndexOf("/") + 1, url.length);

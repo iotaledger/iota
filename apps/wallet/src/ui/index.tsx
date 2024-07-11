@@ -34,12 +34,13 @@ import { useAppSelector } from './app/hooks';
 
 import './styles/global.scss';
 import 'bootstrap-icons/font/bootstrap-icons.scss';
+import { type Query } from '@tanstack/react-query';
 
 async function init() {
     if (process.env.NODE_ENV === 'development') {
         Object.defineProperty(window, 'store', { value: store });
     }
-    store.dispatch(initAppType(getFromLocationSearch(window.location.search)));
+    store.dispatch(initAppType(getFromLocationSearch()));
     await thunkExtras.background.init(store.dispatch);
     const { network, customRpc } = store.getState().app;
     setAttributes({ network, customRpc });
@@ -62,7 +63,7 @@ function renderApp() {
 
 function AppWrapper() {
     const network = useAppSelector(({ app: { network, customRpc } }) => `${network}_${customRpc}`);
-    const isFullscreen = useAppSelector((state) => state.app.appType === AppType.fullscreen);
+    const isFullscreen = useAppSelector((state) => state.app.appType === AppType.Fullscreen);
     return (
         <GrowthBookProvider growthbook={growthbook}>
             <HashRouter>
@@ -78,7 +79,8 @@ function AppWrapper() {
                             persistOptions={{
                                 persister,
                                 dehydrateOptions: {
-                                    shouldDehydrateQuery: ({ meta }) => !meta?.skipPersistedCache,
+                                    shouldDehydrateQuery: ({ meta }: Query) =>
+                                        !meta?.skipPersistedCache,
                                 },
                             }}
                         >

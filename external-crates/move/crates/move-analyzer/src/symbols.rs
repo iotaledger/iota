@@ -45,8 +45,8 @@
 //! on-hover, type def and doc string info here; also note that identifier in
 //! the definition of the constant maps to itself):
 //!
-//! [7] -> [UseDef(col_start:6,  col_end:13, DefLoc(7:6, FHASH))]
-//! [9] -> [UseDef(col_start:0,  col_end: 9, DefLoc(7:6, FHASH))],
+//! \[7\] -> [UseDef(col_start:6,  col_end:13, DefLoc(7:6, FHASH))]
+//! \[9\] -> [UseDef(col_start:0,  col_end: 9, DefLoc(7:6, FHASH))],
 //!        [UseDef(col_start:13, col_end:22, DefLoc(7:6, FHASH))]
 //!
 //! We also associate all uses of an identifier with its definition to support
@@ -484,7 +484,7 @@ fn visibility_to_ide_string(visibility: &Visibility) -> String {
     visibility_str
 }
 
-fn type_args_to_ide_string(type_args: &Vec<Type>) -> String {
+fn type_args_to_ide_string(type_args: &[Type]) -> String {
     let mut type_args_str = "".to_string();
     if !type_args.is_empty() {
         type_args_str.push('<');
@@ -494,7 +494,7 @@ fn type_args_to_ide_string(type_args: &Vec<Type>) -> String {
     type_args_str
 }
 
-fn struct_type_args_to_ide_string(type_args: &Vec<(Type, bool)>) -> String {
+fn struct_type_args_to_ide_string(type_args: &[(Type, bool)]) -> String {
     let mut type_args_str = "".to_string();
     if !type_args.is_empty() {
         type_args_str.push('<');
@@ -641,12 +641,9 @@ fn ast_exp_to_ide_string(exp: &Exp) -> Option<String> {
         UE::UnaryExp(op, exp) => ast_exp_to_ide_string(exp).map(|s| format!("{op}{s}")),
 
         UE::BinopExp(lexp, op, _, rexp) => {
-            let Some(ls) = ast_exp_to_ide_string(lexp) else {
-                return None;
-            };
-            let Some(rs) = ast_exp_to_ide_string(rexp) else {
-                return None;
-            };
+            let ls = ast_exp_to_ide_string(lexp)?;
+            let rs = ast_exp_to_ide_string(rexp)?;
+
             Some(format!("{ls} {op} {rs}"))
         }
         _ => None,
@@ -2060,7 +2057,7 @@ impl<'a> ParsingSymbolicator<'a> {
         let no = match chain {
             NA::One(n) => Some(*n), // this can be an aliased struct or function
             NA::Two(leading_name, _) => {
-                // the only thing aliased here coud be a module
+                // the only thing aliased here could be a module
                 if let P::LeadingNameAccess_::Name(n) = leading_name.value {
                     Some(n)
                 } else {
@@ -2530,7 +2527,7 @@ impl<'a> TypingSymbolicator<'a> {
             .get(&expansion_mod_ident_to_map_key(&mod_ident.value))
             .unwrap();
 
-        if mod_def.functions.get(&mod_call.name.value()).is_none() {
+        if !mod_def.functions.contains_key(&mod_call.name.value()) {
             return;
         }
 
@@ -3138,13 +3135,9 @@ fn extract_doc_string(
     name_start: &Position,
     file_hash: &FileHash,
 ) -> Option<String> {
-    let Some(file_id) = file_id_mapping.get(file_hash) else {
-        return None;
-    };
+    let file_id = file_id_mapping.get(file_hash)?;
 
-    let Some(file_lines) = file_id_to_lines.get(file_id) else {
-        return None;
-    };
+    let file_lines = file_id_to_lines.get(file_id)?;
 
     if name_start.line == 0 {
         return None;
@@ -3543,9 +3536,9 @@ pub fn on_document_symbol_request(context: &Context, request: &Request, symbols:
 /// Helper function to handle struct fields
 #[allow(deprecated)]
 fn handle_struct_fields(struct_def: StructDef, fields: &mut Vec<DocumentSymbol>) {
-    let clonded_fileds = struct_def.field_defs;
+    let cloned_fields = struct_def.field_defs;
 
-    for field_def in clonded_fileds {
+    for field_def in cloned_fields {
         let field_range = Range {
             start: field_def.start,
             end: field_def.start,
@@ -6329,11 +6322,11 @@ fn implicit_uses_test() {
         3,
         12,
         "implicit_uses.move",
-        76,
+        77,
         18,
         "object.move",
         "struct iota::object::UID{\n\tid: iota::object::ID\n}",
-        Some((76, 18, "object.move")),
+        Some((77, 18, "object.move")),
     );
     // implicit struct as parameter type
     assert_use_def(
@@ -6343,11 +6336,11 @@ fn implicit_uses_test() {
         6,
         29,
         "implicit_uses.move",
-        20,
+        21,
         18,
         "tx_context.move",
         "struct iota::tx_context::TxContext{\n\tepoch: u64,\n\tepoch_timestamp_ms: u64,\n\tids_created: u64,\n\tsender: address,\n\ttx_hash: vector<u8>\n}",
-        Some((20, 18, "tx_context.move")),
+        Some((21, 18, "tx_context.move")),
     );
     // implicit module name in function call
     assert_use_def(
@@ -6357,8 +6350,8 @@ fn implicit_uses_test() {
         7,
         18,
         "implicit_uses.move",
-        4,
-        12,
+        5,
+        13,
         "object.move",
         "module iota::object",
         None,

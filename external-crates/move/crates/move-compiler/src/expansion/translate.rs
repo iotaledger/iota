@@ -120,7 +120,7 @@ impl<'env, 'map> Context<'env, 'map> {
         }
     }
 
-    /// Pushes a new alias map onto the alias information in the pash expander.
+    /// Pushes a new alias map onto the alias information in the path expander.
     pub fn push_alias_scope(&mut self, loc: Loc, new_scope: AliasMapBuilder) {
         let res = self
             .path_expander
@@ -373,7 +373,8 @@ fn default_aliases(context: &mut Context) -> AliasMapBuilder {
     }
     // if iota is defined and the current package is in Iota mode, add implicit iota
     // aliases
-    if iota_address.is_some() && context.env().package_config(current_package).flavor == Flavor::Iota
+    if iota_address.is_some()
+        && context.env().package_config(current_package).flavor == Flavor::Iota
     {
         let iota_address = iota_address.unwrap();
         modules.extend(
@@ -4114,7 +4115,7 @@ fn check_restricted_name_all_cases(
             if Var::is_syntax_identifier_name(n.value) {
                 let msg = format!(
                     "Invalid {} name '{}'. Identifiers starting with '$' can be used only for \
-                    parameters and type paramters",
+                    parameters and type parameters",
                     case.name(),
                     n,
                 );

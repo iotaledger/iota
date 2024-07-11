@@ -3,10 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
-import { fromExportedKeypair } from '_src/shared/utils/from-exported-keypair';
+import { fromExportedKeypair } from '_src/shared/utils';
 
 import {
     Account,
+    AccountType,
     type KeyPairExportableAccount,
     type PasswordUnlockableAccount,
     type SerializedAccount,
@@ -18,20 +19,20 @@ type SessionStorageData = { keyPair: string };
 type EncryptedData = { keyPair: string };
 
 export interface ImportedAccountSerialized extends SerializedAccount {
-    type: 'imported';
+    type: AccountType.PrivateKeyDerived;
     encrypted: string;
     publicKey: string;
 }
 
 export interface ImportedAccountSerializedUI extends SerializedUIAccount {
-    type: 'imported';
+    type: AccountType.PrivateKeyDerived;
     publicKey: string;
 }
 
 export function isImportedAccountSerializedUI(
     account: SerializedUIAccount,
 ): account is ImportedAccountSerializedUI {
-    return account.type === 'imported';
+    return account.type === AccountType.PrivateKeyDerived;
 }
 
 export class ImportedAccount
@@ -51,7 +52,7 @@ export class ImportedAccount
             keyPair: inputs.keyPair,
         };
         return {
-            type: 'imported',
+            type: AccountType.PrivateKeyDerived,
             address: keyPair.getPublicKey().toIotaAddress(),
             publicKey: keyPair.getPublicKey().toBase64(),
             encrypted: await encrypt(inputs.password, dataToEncrypt),
@@ -63,11 +64,11 @@ export class ImportedAccount
     }
 
     static isOfType(serialized: SerializedAccount): serialized is ImportedAccountSerialized {
-        return serialized.type === 'imported';
+        return serialized.type === AccountType.PrivateKeyDerived;
     }
 
     constructor({ id, cachedData }: { id: string; cachedData?: ImportedAccountSerialized }) {
-        super({ type: 'imported', id, cachedData });
+        super({ type: AccountType.PrivateKeyDerived, id, cachedData });
     }
 
     async lock(allowRead = false): Promise<void> {

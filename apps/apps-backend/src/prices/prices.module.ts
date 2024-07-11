@@ -4,8 +4,10 @@
 import { Module } from '@nestjs/common';
 
 import { PricesController } from './prices.controller';
+import { CoinGeckoModule } from '../coingecko/coingecko.module';
 
 @Module({
+    imports: [CoinGeckoModule],
     controllers: [PricesController],
 })
 export class PricesModule {}

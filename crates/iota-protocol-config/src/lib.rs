@@ -1588,7 +1588,7 @@ impl ProtocolConfig {
 
             gas_rounding_step: Some(1_000),
 
-            execution_version: Some(3),
+            execution_version: Some(1),
 
             // We maintain the same total size limit for events, but increase the number of
             // events that can be emitted.
@@ -1997,10 +1997,10 @@ mod test {
                 .is_none()
         );
         assert!(
-            prot.feature_flags
+            !prot
+                .feature_flags
                 .attr_map()
-                .get("some random string")
-                .is_none()
+                .contains_key("some random string")
         );
 
         // Was false in v1 on Mainnet

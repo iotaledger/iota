@@ -174,7 +174,7 @@ impl IndexerReader {
 }
 
 thread_local! {
-    static CALLED_FROM_BLOCKING_POOL: std::cell::RefCell<bool> = std::cell::RefCell::new(false);
+    static CALLED_FROM_BLOCKING_POOL: std::cell::RefCell<bool> = const { std::cell::RefCell::new(false) };
 }
 
 /// Check that we are in a context conducive to making blocking calls.
@@ -846,7 +846,7 @@ impl IndexerReader {
                     ),
                     (None, Some(_)) => {
                         return Err(IndexerError::InvalidArgumentError(
-                            "Function cannot be present wihtout Module.".into(),
+                            "Function cannot be present without Module.".into(),
                         ));
                     }
                     (None, None) => (

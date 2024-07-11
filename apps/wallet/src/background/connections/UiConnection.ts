@@ -25,7 +25,7 @@ import {
     type MethodPayload,
     type UIAccessibleEntityType,
 } from '_src/shared/messaging/messages/payloads/MethodPayload';
-import { toEntropy } from '_src/shared/utils/bip39';
+import { toEntropy } from '_src/shared/utils';
 import Dexie from 'dexie';
 import { BehaviorSubject, filter, switchMap, takeUntil } from 'rxjs';
 import Browser from 'webextension-polyfill';
@@ -41,11 +41,18 @@ import { MnemonicAccountSource } from '../account-sources/MnemonicAccountSource'
 import { accountsHandleUIMessage, getAllSerializedUIAccounts } from '../accounts';
 import { accountsEvents } from '../accounts/events';
 import { getAutoLockMinutes, notifyUserActive, setAutoLockMinutes } from '../auto-lock-accounts';
-import { backupDB, getDB, settingsKeys } from '../db';
+import { backupDB, getDB, SETTINGS_KEYS } from '../db';
 import { clearStatus, doMigration, getStatus } from '../storage-migration';
 import NetworkEnv from '../NetworkEnv';
 import { Connection } from './Connection';
 import { SeedAccountSource } from '../account-sources/SeedAccountSource';
+import { AccountSourceType } from '../account-sources/AccountSource';
+import {
+    isGetAccountsFinderResultsRequest,
+    isInitAccountsFinder,
+    isSearchAccountsFinder,
+} from '_payloads/accounts-finder';
+import AccountsFinder from '../accounts-finder/AccountsFinder';
 
 export class UiConnection extends Connection {
     public static readonly CHANNEL: PortChannelName = 'iota_ui<->background';
@@ -173,10 +180,10 @@ export class UiConnection extends Connection {
                 await db.delete();
                 await db.open();
                 // prevents future run of auto backup process of the db (we removed everything nothing to backup after logout)
-                await db.settings.put({ setting: settingsKeys.isPopulated, value: true });
+                await db.settings.put({ setting: SETTINGS_KEYS.isPopulated, value: true });
                 this.send(createMessage({ type: 'done' }, id));
             } else if (isMethodPayload(payload, 'getAutoLockMinutes')) {
-                await this.send(
+                this.send(
                     createMessage<MethodPayload<'getAutoLockMinutesResponse'>>(
                         {
                             type: 'method-payload',
@@ -188,11 +195,11 @@ export class UiConnection extends Connection {
                 );
             } else if (isMethodPayload(payload, 'setAutoLockMinutes')) {
                 await setAutoLockMinutes(payload.args.minutes);
-                await this.send(createMessage({ type: 'done' }, msg.id));
+                this.send(createMessage({ type: 'done' }, msg.id));
                 return true;
             } else if (isMethodPayload(payload, 'notifyUserActive')) {
-                await notifyUserActive();
-                await this.send(createMessage({ type: 'done' }, msg.id));
+                notifyUserActive();
+                this.send(createMessage({ type: 'done' }, msg.id));
                 return true;
             } else if (isMethodPayload(payload, 'resetPassword')) {
                 const { password, recoveryData } = payload.args;
@@ -211,10 +218,10 @@ export class UiConnection extends Connection {
                     ) {
                         throw new Error('Invalid account source type');
                     }
-                    if (type === 'mnemonic') {
+                    if (type === AccountSourceType.Mnemonic) {
                         await accountSource.verifyRecoveryData(data.entropy);
                     }
-                    if (type === 'seed') {
+                    if (type === AccountSourceType.Seed) {
                         await accountSource.verifyRecoveryData(data.seed);
                     }
                 }
@@ -232,7 +239,7 @@ export class UiConnection extends Connection {
                         .delete();
                     for (const data of recoveryData) {
                         const { accountSourceID, type } = data;
-                        if (type === 'mnemonic') {
+                        if (type === AccountSourceType.Mnemonic) {
                             await db.accountSources.update(accountSourceID, {
                                 encryptedData: await Dexie.waitFor(
                                     MnemonicAccountSource.createEncryptedData(
@@ -242,7 +249,7 @@ export class UiConnection extends Connection {
                                 ),
                             });
                         }
-                        if (type === 'seed') {
+                        if (type === AccountSourceType.Seed) {
                             await db.accountSources.update(accountSourceID, {
                                 encryptedData: await Dexie.waitFor(
                                     SeedAccountSource.createEncryptedData(data.seed, password),
@@ -254,7 +261,22 @@ export class UiConnection extends Connection {
                 await backupDB();
                 accountSourcesEvents.emit('accountSourcesChanged');
                 accountsEvents.emit('accountsChanged');
-                await this.send(createMessage({ type: 'done' }, msg.id));
+                this.send(createMessage({ type: 'done' }, msg.id));
+            } else if (isInitAccountsFinder(payload)) {
+                AccountsFinder.init();
+                this.send(createMessage({ type: 'done' }, msg.id));
+            } else if (isSearchAccountsFinder(payload)) {
+                await AccountsFinder.findMore(
+                    payload.coinType,
+                    payload.gasType,
+                    payload.sourceID,
+                    payload.accountGapLimit,
+                    payload.addressGapLimit,
+                );
+                this.send(createMessage({ type: 'done' }, msg.id));
+            } else if (isGetAccountsFinderResultsRequest(payload)) {
+                const results = await AccountsFinder.getResults();
+                this.send(createMessage({ type: 'done', results }, msg.id));
             } else {
                 throw new Error(
                     `Unhandled message ${msg.id}. (${JSON.stringify(

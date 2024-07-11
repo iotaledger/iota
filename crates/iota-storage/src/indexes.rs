@@ -379,7 +379,7 @@ impl IndexStore {
                 Some((*owner, coin_type_tag.to_string(), *obj_id))
             }).collect::<Vec<_>>();
         trace!(
-            tx_digset=?digest,
+            tx_digest=?digest,
             "coin_delete_keys: {:?}",
             coin_delete_keys,
         );
@@ -407,7 +407,7 @@ impl IndexStore {
             });
             let coin = obj.as_coin_maybe().unwrap_or_else(|| {
                 panic!(
-                    "object_id: {:?} in written_coins cannot be deserialzied as a Coin, written_coins: {:?}, tx_digest: {:?}",
+                    "object_id: {:?} in written_coins cannot be deserialized as a Coin, written_coins: {:?}, tx_digest: {:?}",
                     obj_id, written_coins, digest
                 )
             });
@@ -427,7 +427,7 @@ impl IndexStore {
             Some(((*owner, coin_type_tag.to_string(), *obj_id), (CoinInfo {version: obj_info.version, digest: obj_info.digest, balance: coin.balance.value(), previous_transaction: *digest})))
         }).collect::<Vec<_>>();
         trace!(
-            tx_digset=?digest,
+            tx_digest=?digest,
             "coin_add_keys: {:?}",
             coin_add_keys,
         );

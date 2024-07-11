@@ -2,10 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Activity } from '../../components/Activity';
-import { ErrorBoundary } from '../../components/error-boundary/ErrorBoundary';
-import { PageLayout } from '~/components/Layout/PageLayout';
-import { useSearchParamsMerged } from '~/ui/utils/LinkWithQuery';
+import { Activity, ErrorBoundary, PageLayout } from '~/components';
+import { useSearchParamsMerged } from '~/components/ui';
 
 const TRANSACTIONS_LIMIT = 20;
 

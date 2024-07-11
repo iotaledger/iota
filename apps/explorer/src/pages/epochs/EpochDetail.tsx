@@ -10,18 +10,23 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 
+import { CheckpointsTable, PageLayout } from '~/components';
+import {
+    Banner,
+    Stats,
+    TableCard,
+    Tabs,
+    TabsContent,
+    TabsList,
+    TabsTrigger,
+    type StatsProps,
+} from '~/components/ui';
+import { useEnhancedRpcClient } from '~/hooks/useEnhancedRpc';
+import { getEpochStorageFundFlow } from '~/lib/utils';
+import { validatorsTableData } from '../validators/Validators';
 import { EpochProgress } from './stats/EpochProgress';
 import { EpochStats } from './stats/EpochStats';
 import { ValidatorStatus } from './stats/ValidatorStatus';
-import { validatorsTableData } from '../validators/Validators';
-import { PageLayout } from '~/components/Layout/PageLayout';
-import { CheckpointsTable } from '~/components/checkpoints/CheckpointsTable';
-import { useEnhancedRpcClient } from '~/hooks/useEnhancedRpc';
-import { Banner } from '~/ui/Banner';
-import { Stats, type StatsProps } from '~/ui/Stats';
-import { TableCard } from '~/ui/TableCard';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/ui/Tabs';
-import { getEpochStorageFundFlow } from '~/utils/getStorageFundFlow';
 
 function IotaStats({
     amount,

@@ -217,7 +217,7 @@ fn main() {
                     Ok(Message::Request(request)) => {
                         // the server should not quit after receiving the shutdown request to give itself
                         // a chance of completing pending requests (but should not accept new requests
-                        // either which is handled inside on_requst) - instead it quits after receiving
+                        // either which is handled inside on_request) - instead it quits after receiving
                         // the exit notification from the client, which is handled below
                         shutdown_req_received = on_request(&context, &request, ide_files_root.clone(), shutdown_req_received);
                     }

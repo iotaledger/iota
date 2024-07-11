@@ -10,7 +10,7 @@ concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted-rust
     steps:
       - name: Dispatch Changesets To Operations
         uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # pin@v3.0.0
@@ -21,7 +21,7 @@ jobs:
           client-payload: '{"ref": "${{ github.ref }}", "sha": "${{ github.sha }}"}'
 
   version:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted-rust
     steps:
       - name: Generate token
         id: generate_token
@@ -41,7 +41,7 @@ jobs:
       - name: Install Nodejs
         uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
         with:
-          node-version: "18"
+          node-version: "20"
           cache: "pnpm"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

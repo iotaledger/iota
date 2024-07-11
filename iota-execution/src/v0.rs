@@ -5,7 +5,7 @@
 use std::{collections::HashSet, path::PathBuf, sync::Arc};
 
 use iota_adapter_v0::{
-    adapter::{default_verifier_config, new_move_vm, run_metered_move_bytecode_verifier},
+    adapter::{new_move_vm, run_metered_move_bytecode_verifier},
     execution_engine::{execute_genesis_state_update, execute_transaction_to_effects},
     type_layout_resolver::TypeLayoutResolver,
 };
@@ -26,7 +26,7 @@ use iota_types::{
     transaction::{CheckedInputObjects, ProgrammableTransaction, TransactionKind},
     type_resolver::LayoutResolver,
 };
-use iota_verifier_v0::meter::IotaVerifierMeter;
+use iota_verifier_v0::{default_verifier_config, meter::IotaVerifierMeter};
 use move_binary_format::CompiledModule;
 use move_bytecode_verifier_v0::meter::Scope;
 use move_vm_config::verifier::VerifierConfig;
@@ -203,24 +203,13 @@ impl executor::Executor for Executor {
 }
 
 impl<'m> verifier::Verifier for Verifier<'m> {
-    fn meter_compiled_modules(
-        &mut self,
-        protocol_config: &ProtocolConfig,
-        modules: &[CompiledModule],
-    ) -> IotaResult<()> {
-        run_metered_move_bytecode_verifier(
-            modules,
-            protocol_config,
-            &self.config,
-            &mut self.meter,
-            self.metrics,
-        )
+    fn meter_compiled_modules(&mut self, modules: &[CompiledModule]) -> IotaResult<()> {
+        run_metered_move_bytecode_verifier(modules, &self.config, &mut self.meter, self.metrics)
     }
 
     fn meter_compiled_modules_with_overrides(
         &mut self,
         modules: &[CompiledModule],
-        protocol_config: &ProtocolConfig,
         config_overrides: &VerifierOverrides,
     ) -> IotaResult<VerifierMeteredValues> {
         let mut config = self.config.clone();
@@ -228,13 +217,7 @@ impl<'m> verifier::Verifier for Verifier<'m> {
         let max_per_mod_meter_current = config.max_per_mod_meter_units;
         config.max_per_fun_meter_units = config_overrides.max_per_fun_meter_units;
         config.max_per_mod_meter_units = config_overrides.max_per_mod_meter_units;
-        run_metered_move_bytecode_verifier(
-            modules,
-            protocol_config,
-            &config,
-            &mut self.meter,
-            self.metrics,
-        )?;
+        run_metered_move_bytecode_verifier(modules, &config, &mut self.meter, self.metrics)?;
         let fun_meter_units_result = self.meter.get_usage(Scope::Function);
         let mod_meter_units_result = self.meter.get_usage(Scope::Module);
         Ok(VerifierMeteredValues::new(
