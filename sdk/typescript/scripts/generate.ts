@@ -793,7 +793,7 @@ export function normalizeMethodName(name: string): string {
 
     const parts = name.split('_');
 
-    return parts.map((part) => part[0].toUpperCase() + part.slice(1)).join('');
+    return parts.map((part) => (part[0] || '').toUpperCase() + part.slice(1)).join('');
 }
 
 export function normalizeParamName(method: string, name: string) {
