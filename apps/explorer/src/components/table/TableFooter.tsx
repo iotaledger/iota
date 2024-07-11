@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ArrowRight12 } from '@iota/icons';
+import { Right } from '@iota/icons';
 import { Text } from '@iota/ui';
 
 import {
@@ -39,7 +39,7 @@ export function TableFooter({
         <div className="flex items-center justify-between">
             {disablePagination ? (
                 <>
-                    <Link to={href} after={<ArrowRight12 />}>
+                    <Link to={href} after={<Right />}>
                         More {label}
                     </Link>
                     <Text variant="body/medium" color="steel-dark">

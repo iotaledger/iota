@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Text } from '_src/ui/app/shared/text';
-import { Check12 } from '@iota/icons';
+import { Checkmark } from '@iota/icons';
 import { get, set } from 'idb-keyval';
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { toast } from 'react-hot-toast';
@@ -73,7 +73,7 @@ export const HiddenAssetsProvider = ({ children }: { children: ReactNode }) => {
                             }}
                         >
                             <div className="flex items-center gap-2">
-                                <Check12 className="text-gray-90" />
+                                <Checkmark className="text-gray-90" />
                                 <div
                                     onClick={() => {
                                         toast.dismiss(t.id);
@@ -153,7 +153,7 @@ export const HiddenAssetsProvider = ({ children }: { children: ReactNode }) => {
                             }}
                         >
                             <div className="flex items-center gap-1">
-                                <Check12 className="text-gray-90" />
+                                <Checkmark className="text-gray-90" />
                                 <div
                                     onClick={() => {
                                         toast.dismiss(t.id);

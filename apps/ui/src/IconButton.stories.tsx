@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { X12 } from '@iota/icons';
+import { Close } from '@iota/icons';
 import { type Meta, type StoryObj } from '@storybook/react';
 
 import { IconButton } from './IconButton';
@@ -16,7 +16,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
-    args: { 'aria-label': 'Close', children: <X12 /> },
+    args: { 'aria-label': 'Close', children: <Close /> },
 };
 
 export const Disabled: Story = {
@@ -28,7 +28,7 @@ export const AsChild: Story = {
         ...Default.args,
         children: (
             <a href="https://google.com">
-                <X12 />
+                <Close />
             </a>
         ),
         asChild: true,

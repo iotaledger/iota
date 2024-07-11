@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCopyToClipboard } from '@iota/core';
-import { Check12, CheckStroke16, CheckStroke24, Copy12, Copy16, Copy24 } from '@iota/icons';
+import { Checkmark, Copy } from '@iota/icons';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
@@ -40,16 +40,16 @@ export interface CopyToClipboardProps extends Omit<IconStylesProps, 'success'> {
     onSuccessMessage?: string;
 }
 
-const COPY_ICON_SIZES = {
-    sm: Copy12,
-    md: Copy16,
-    lg: Copy24,
-};
+// const COPY_ICON_SIZES = {
+// sm: Copy,
+// md: Copy16,
+// lg: Copy24,
+// };
 
 const CHECK_ICON_SIZES = {
-    sm: Check12,
-    md: CheckStroke16,
-    lg: CheckStroke24,
+    sm: Checkmark,
+    md: Checkmark,
+    lg: Checkmark,
 };
 
 const TIMEOUT_TIMER = 2000;
@@ -63,7 +63,7 @@ export function CopyToClipboard({
     const [copied, setCopied] = useState(false);
     const copyToClipBoard = useCopyToClipboard(() => toast.success(onSuccessMessage));
 
-    const CopyIcon = COPY_ICON_SIZES[size!];
+    // const CopyIcon = COPY_ICON_SIZES[size!];
     const CheckIcon = CHECK_ICON_SIZES[size!];
 
     const handleCopy = async () => {
@@ -92,7 +92,7 @@ export function CopyToClipboard({
                     animate={{ opacity: 1 }}
                     transition={{ duration: 0.2 }}
                 >
-                    <CopyIcon className={iconStyles({ size, color, success: false })} />
+                    <Copy />
                 </motion.div>
             )}
         </Link>

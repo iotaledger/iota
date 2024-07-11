@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Search16 } from '@iota/icons';
+import { Search as SearchIcon } from '@iota/icons';
 import { Text, Combobox, ComboboxInput, ComboboxList } from '@iota/ui';
 
 export type SearchResult = {
@@ -32,7 +32,7 @@ export function Search({
         <Combobox value={queryValue} onValueChange={onChange}>
             <div className="relative flex h-10 items-center">
                 <div className="absolute left-0 ml-3 block items-center text-2xl text-hero-darkest/80">
-                    <Search16 />
+                    <SearchIcon />
                 </div>
 
                 <ComboboxInput

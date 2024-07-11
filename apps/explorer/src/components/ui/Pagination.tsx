@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { PaginationFirst24, PaginationNext24, PaginationPrev24 } from '@iota/icons';
+// import { PaginationFirst24, PaginationNext24, PaginationPrev24 } from '@iota/icons';
 import { type InfiniteData, type UseInfiniteQueryResult } from '@tanstack/react-query';
 import { useState } from 'react';
 
@@ -86,7 +86,7 @@ export function usePaginationStack<Cursor = string>() {
 
 interface PaginationButtonProps {
     label: string;
-    icon: typeof PaginationFirst24;
+    icon: null; // Previously: typeof PaginationFirst24;
     disabled: boolean;
     onClick(): void;
 }
@@ -105,7 +105,7 @@ function PaginationButton({
             disabled={disabled}
             onClick={onClick}
         >
-            <Icon className="text-[24px]" />
+            {/* <Icon className="text-[24px]" /> */}
         </button>
     );
 }
@@ -121,19 +121,19 @@ export function Pagination({
         <div className="flex gap-2">
             <PaginationButton
                 label="Go to First"
-                icon={PaginationFirst24}
+                icon={null} // Previously: PaginationFirst24
                 disabled={!hasPrev}
                 onClick={onFirst}
             />
             <PaginationButton
                 label="Previous"
-                icon={PaginationPrev24}
+                icon={null} // Previously: PaginationPrev24
                 disabled={!hasPrev}
                 onClick={onPrev}
             />
             <PaginationButton
                 label="Next"
-                icon={PaginationNext24}
+                icon={null} // Previously: PaginationNext24
                 disabled={!hasNext}
                 onClick={onNext}
             />

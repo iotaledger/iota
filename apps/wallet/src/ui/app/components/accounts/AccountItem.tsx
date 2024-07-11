@@ -4,17 +4,17 @@
 
 import { Text } from '_src/ui/app/shared/text';
 import { useResolveIotaNSName } from '@iota/core';
-import { ArrowUpRight12, Copy12 } from '@iota/icons';
+import { ArrowTopRight, Copy } from '@iota/icons';
 import { formatAddress } from '@iota/iota.js/utils';
 import cn from 'clsx';
 import { forwardRef, type ReactNode } from 'react';
 
 import { useAccounts } from '../../hooks/useAccounts';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
-import { useExplorerLink } from '../../hooks/useExplorerLink';
-import { ExplorerLinkType } from '../explorer-link/ExplorerLinkType';
 import { IconButton } from '../IconButton';
 import { EditableAccountName } from './EditableAccountName';
+import { useExplorerLink } from '../../hooks/useExplorerLink';
+import { ExplorerLinkType } from '../explorer-link/ExplorerLinkType';
 
 interface AccountItemProps {
     accountID: string;
@@ -94,7 +94,7 @@ export const AccountItem = forwardRef<HTMLDivElement, AccountItemProps>(
                                 {hideCopy ? null : (
                                     <IconButton
                                         variant="transparent"
-                                        icon={<Copy12 className="h-2.5 w-2.5" />}
+                                        icon={<Copy className="h-2.5 w-2.5" />}
                                         onClick={copyAddress}
                                     />
                                 )}
@@ -103,7 +103,7 @@ export const AccountItem = forwardRef<HTMLDivElement, AccountItemProps>(
                                         variant="transparent"
                                         title="View on Explorer"
                                         href={explorerHref}
-                                        icon={<ArrowUpRight12 className="h-2.5 w-2.5" />}
+                                        icon={<ArrowTopRight className="h-2.5 w-2.5" />}
                                         onClick={(e) => e.stopPropagation()}
                                     />
                                 )}

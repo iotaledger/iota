@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useGetObject } from '@iota/core';
-import { ObjectDetailsHeader } from '@iota/icons';
+// import { ObjectDetailsHeader } from '@iota/icons';
 import { LoadingIndicator } from '@iota/ui';
 import clsx from 'clsx';
 import { useParams } from 'react-router-dom';
@@ -51,7 +51,7 @@ export function ObjectResult(): JSX.Element {
                                   <PageHeader
                                       type="Object"
                                       title={resp?.id ?? ''}
-                                      before={<ObjectDetailsHeader className="h-6 w-6" />}
+                                      //   before={<ObjectDetailsHeader className="h-6 w-6" />}
                                   />
 
                                   <ErrorBoundary>

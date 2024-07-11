@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { ExplorerLinkType } from '_src/ui/app/components/explorer-link/ExplorerLinkType';
 import { useExplorerLink } from '_src/ui/app/hooks/useExplorerLink';
-import { ArrowUpRight12 } from '@iota/icons';
+import { ArrowTopRight } from '@iota/icons';
 import { useEffect, useState } from 'react';
 
 import { Text } from '../../text';
@@ -45,7 +45,7 @@ export function ExplorerLinkCard({ digest, timestamp }: ExplorerLinkCardProps) {
                 <Text variant="captionSmall" weight="semibold">
                     View on Explorer
                 </Text>
-                <ArrowUpRight12 className="text-pSubtitle text-steel" />
+                <ArrowTopRight className="text-pSubtitle text-steel" />
             </div>
         </Card>
     );

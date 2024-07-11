@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { isIotaNSName, useResolveIotaNSAddress, useResolveIotaNSName } from '@iota/core';
-import { Domain32 } from '@iota/icons';
+// import { Domain32 } from '@iota/icons';
 import { LoadingIndicator } from '@iota/ui';
 import { useParams } from 'react-router-dom';
 
@@ -40,7 +40,7 @@ function AddressResultPageHeader({ address, loading }: AddressResultPageHeaderPr
             type="Address"
             title={address}
             subtitle={domainName}
-            before={<Domain32 className="h-6 w-6 text-steel-darker sm:h-10 sm:w-10" />}
+            // before={<Domain32 className="h-6 w-6 text-steel-darker sm:h-10 sm:w-10" />}
             after={<TotalStaked address={address} />}
         />
     );

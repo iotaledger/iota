@@ -12,7 +12,7 @@
 import { autoUpdate, flip, FloatingPortal, offset, shift, useFloating } from '@floating-ui/react';
 import { Popover } from '@headlessui/react';
 import { useZodForm } from '@iota/core';
-import { HamburgerRest16 } from '@iota/icons';
+// import { HamburgerRest16 } from '@iota/icons';
 import { Text } from '@iota/ui';
 import clsx from 'clsx';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -209,7 +209,7 @@ function NetworkSelectPanel({
 function ResponsiveIcon(): JSX.Element {
     return (
         <div>
-            <HamburgerRest16 className="hidden md:block" />
+            {/* <HamburgerRest16 className="hidden md:block" /> */}
             <MenuIcon className="block md:hidden" />
         </div>
     );

@@ -22,7 +22,7 @@ import {
     parseAmount,
 } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
-import { ArrowRight16 } from '@iota/icons';
+import { Right } from '@iota/icons';
 import { type CoinStruct } from '@iota/iota.js/client';
 import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import { useQuery } from '@tanstack/react-query';
@@ -336,7 +336,7 @@ export function SendTokenForm({
                                     }
                                     size="tall"
                                     text="Review"
-                                    after={<ArrowRight16 />}
+                                    after={<Right />}
                                 />
                             </Menu>
                         </BottomMenuLayout>

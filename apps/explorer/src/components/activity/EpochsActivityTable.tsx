@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClient, useIotaClientInfiniteQuery } from '@iota/dapp-kit';
-import { ArrowRight12 } from '@iota/icons';
+import { Right } from '@iota/icons';
 import { Text } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -79,10 +79,7 @@ export function EpochsActivityTable({
                 {!disablePagination ? (
                     <Pagination {...pagination} />
                 ) : (
-                    <Link
-                        to="/recent?tab=epochs"
-                        after={<ArrowRight12 className="h-3 w-3 -rotate-45" />}
-                    >
+                    <Link to="/recent?tab=epochs" after={<Right className="h-3 w-3 -rotate-45" />}>
                         View all
                     </Link>
                 )}
