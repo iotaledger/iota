@@ -2,10 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import IotaLedgerClient from '@iota/ledgerjs-hw-app-iota';
 import TransportWebHID from '@ledgerhq/hw-transport-webhid';
 import TransportWebUSB from '@ledgerhq/hw-transport-webusb';
-import SpeculosHttpTransport from './SpeculosHttpTransport';
-import IotaLedgerClient from '@iota/ledgerjs-hw-app-iota';
+import SpeculosHttpTransport from '_src/ui/app/SpeculosHttpTransport';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import {
