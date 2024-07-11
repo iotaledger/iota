@@ -33,9 +33,7 @@ export type PayloadType =
     | 'sign-message-request'
     | 'method-payload'
     | 'init-accounts-finder'
-    | 'search-accounts-finder'
-    | 'get-accounts-finder-results-request'
-    | 'get-accounts-finder-results-response';
+    | 'search-accounts-finder';
 
 export interface BasePayload {
     type: PayloadType;

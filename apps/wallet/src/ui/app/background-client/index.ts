@@ -40,7 +40,6 @@ import { queryClient } from '../helpers/queryClient';
 import { ACCOUNT_SOURCES_QUERY_KEY } from '../hooks/useAccountSources';
 import { AccountSourceType } from '_src/background/account-sources/AccountSource';
 import {
-    type GetAccountsFinderResultsRequest,
     type InitAccountsFinder,
     type SearchAccountsFinderPayload,
 } from '_src/shared/messaging/messages/payloads/accounts-finder';
@@ -553,16 +552,6 @@ export class BackgroundClient {
                 createMessage<SearchAccountsFinderPayload>({
                     type: 'search-accounts-finder',
                     ...params,
-                }),
-            ).pipe(take(1)),
-        );
-    }
-
-    public async getLastAccountFinderResults() {
-        return await lastValueFrom(
-            this.sendMessage(
-                createMessage<GetAccountsFinderResultsRequest>({
-                    type: 'get-accounts-finder-results-request',
                 }),
             ).pipe(take(1)),
         );
