@@ -1042,7 +1042,7 @@ fn create_genesis_objects(
             &protocol_config,
             metrics.clone(),
         )
-        .unwrap();
+        .expect("Processing a package should not fail here");
     }
 
     for object in input_objects {
@@ -1058,7 +1058,7 @@ fn create_genesis_objects(
             &genesis_stake.take_timelocks_to_split(),
             metrics.clone(),
         )
-        .unwrap();
+        .expect("Splitting timelocks should not fail here");
     }
 
     generate_genesis_system_object(
@@ -1070,14 +1070,13 @@ fn create_genesis_objects(
         token_distribution_schedule,
         metrics,
     )
-    .unwrap();
+    .expect("Genesis creation should not fail here");
 
     let mut intermediate_store = store.into_inner();
     // The equivalent of migration_objects evict for timelocks
-    let _ = genesis_stake
-        .take_timelocks_to_burn()
-        .iter()
-        .map(|(id, _, _)| intermediate_store.remove(id));
+    for (id, _, _) in genesis_stake.take_timelocks_to_burn() {
+        intermediate_store.remove(&id);
+    }
     intermediate_store.into_values().collect()
 }
 
