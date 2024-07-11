@@ -3,10 +3,10 @@
 
 import type { Meta, StoryObj } from '@storybook/react';
 
-import { SegmentedButton } from '@/components/atoms/segmented-button/SegmentedButton';
-import { SegmentedButtonType } from '@/lib/components/atoms/segmented-button';
+import { SegmentedButton } from '@/components';
+import { SegmentedButtonType } from '@/lib/components';
 import { useState } from 'react';
-import { ButtonSegmentProps } from '@/lib/components/atoms/button-segment';
+import { ButtonSegmentProps } from '@/lib/components';
 
 const meta = {
     component: SegmentedButton,

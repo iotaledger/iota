@@ -4,7 +4,7 @@
 import React from 'react';
 import { BACKGROUND_COLORS, OUTLINED_BORDER } from './segmented-button.classes';
 import cx from 'classnames';
-import { ButtonSegment, ButtonSegmentProps } from '../button-segment';
+import { ButtonSegment, ButtonSegmentProps } from '../../atoms/button-segment';
 import { SegmentedButtonType } from './segmented-button.enums';
 interface SegmentedButtonProps {
     /**
