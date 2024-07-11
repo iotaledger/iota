@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! This file contains the definition of the IotaBridgeEvent enum, of
-//! which each variant is an emitted Event struct defind in the Move
+//! which each variant is an emitted Event struct defined in the Move
 //! Bridge module. We rely on structures in this file to decode
 //! the bcs content of the emitted events.
 

@@ -6,10 +6,13 @@ import { ArrowUpRight12 } from '@iota/icons';
 import { type IotaValidatorSummary } from '@iota/iota.js/client';
 import { Heading, Text } from '@iota/ui';
 
-import { CopyToClipboard } from '~/ui/CopyToClipboard';
-import { DescriptionList, DescriptionItem } from '~/ui/DescriptionList';
-import { ImageIcon } from '~/ui/ImageIcon';
-import { AddressLink } from '~/ui/InternalLink';
+import {
+    AddressLink,
+    CopyToClipboard,
+    DescriptionItem,
+    DescriptionList,
+    ImageIcon,
+} from '~/components/ui';
 
 type ValidatorMetaProps = {
     validatorData: IotaValidatorSummary;

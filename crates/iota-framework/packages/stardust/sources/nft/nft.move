@@ -45,7 +45,7 @@ module stardust::nft {
             string::utf8(b"description"),
             string::utf8(b"creator"),
 
-            // The extra IRC27-nested fileds.
+            // The extra IRC27-nested fields.
             string::utf8(b"version"),
             string::utf8(b"media_type"),
             string::utf8(b"collection_name"),
@@ -61,7 +61,7 @@ module stardust::nft {
             string::utf8(b"{immutable_metadata.description}"),
             string::utf8(b"{immutable_metadata.issuer_name}"),
 
-            // The extra IRC27-nested fileds.
+            // The extra IRC27-nested fields.
             string::utf8(b"{immutable_metadata.version}"),
             string::utf8(b"{immutable_metadata.media_type}"),
             string::utf8(b"{immutable_metadata.collection_name}"),

@@ -9,7 +9,7 @@ import { ButtonOrLink } from '_app/shared/utils/ButtonOrLink';
 import Alert from '_components/alert';
 import { CoinIcon } from '_components/coin-icon';
 import Loading from '_components/loading';
-import { useAppSelector, useCoinsReFetchingConfig, useSortedCoinsByCategories } from '_hooks';
+import { useAppSelector, useCoinsReFetchingConfig } from '_hooks';
 import { ampli } from '_src/shared/analytics/ampli';
 import { Feature } from '_src/shared/experimentation/features';
 import { AccountsList } from '_src/ui/app/components/accounts/AccountsList';
@@ -30,6 +30,7 @@ import {
     useResolveIotaNSName,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
+    useSortedCoinsByCategories,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Info12, Pin16, Unpin16 } from '@iota/icons';

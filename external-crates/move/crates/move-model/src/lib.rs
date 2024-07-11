@@ -75,7 +75,7 @@ pub fn run_model_builder<
 }
 
 /// Build the move model with default compilation flags and custom options and a
-/// set of provided named addreses.
+/// set of provided named addresses.
 /// This collects transitive dependencies for move sources from the provided
 /// directory list.
 pub fn run_model_builder_with_options<

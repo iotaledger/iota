@@ -115,7 +115,7 @@ module iota::kiosk {
     const EListedExclusively: u64 = 4;
     /// `PurchaseCap` does not match the `Kiosk`.
     const EWrongKiosk: u64 = 5;
-    /// Tryng to exclusively list an already listed item.
+    /// Trying to exclusively list an already listed item.
     const EAlreadyListed: u64 = 6;
     /// Trying to call `uid_mut` when `allow_extensions` set to false.
     const EUidAccessNotAllowed: u64 = 7;

@@ -612,17 +612,13 @@ impl<T: Cache> CertificateStore<T> {
     /// Retrieves the highest round number in the store.
     /// Returns 0 if there is no certificate in the store.
     pub fn highest_round_number(&self) -> Round {
-        if let Some(((round, _), _)) = self
-            .certificate_id_by_round
+        self.certificate_id_by_round
             .unbounded_iter()
             .skip_to_last()
             .reverse()
             .next()
-        {
-            round
-        } else {
-            0
-        }
+            .map(|((round, _), _)| round)
+            .unwrap_or_default()
     }
 
     /// Retrieves the last round number of the given origin.
@@ -698,7 +694,7 @@ mod test {
         reopen,
         rocks::{open_cf, DBMap, MetricConf, ReadWriteOptions},
     };
-    use test_utils::{latest_protocol_version, temp_dir, CommitteeFixture};
+    use test_utils::{temp_dir, CommitteeFixture};
     use types::{Certificate, CertificateAPI, CertificateDigest, HeaderAPI, Round};
 
     use crate::{certificate_store::CertificateStore, Cache, CertificateStoreCache};
@@ -809,28 +805,23 @@ mod test {
     fn certificates(rounds: u64) -> Vec<Certificate> {
         let fixture = CommitteeFixture::builder().build();
         let committee = fixture.committee();
-        let mut current_round: Vec<_> =
-            Certificate::genesis(&latest_protocol_version(), &committee)
-                .into_iter()
-                .map(|cert| cert.header().clone())
-                .collect();
+        let mut current_round: Vec<_> = Certificate::genesis(&committee)
+            .into_iter()
+            .map(|cert| cert.header().clone())
+            .collect();
 
         let mut result: Vec<Certificate> = Vec::new();
         for i in 0..rounds {
             let parents: BTreeSet<_> = current_round
                 .iter()
-                .map(|header| {
-                    fixture
-                        .certificate(&latest_protocol_version(), header)
-                        .digest()
-                })
+                .map(|header| fixture.certificate(header).digest())
                 .collect();
-            (_, current_round) = fixture.headers_round(i, &parents, &latest_protocol_version());
+            (_, current_round) = fixture.headers_round(i, &parents);
 
             result.extend(
                 current_round
                     .iter()
-                    .map(|h| fixture.certificate(&latest_protocol_version(), h))
+                    .map(|h| fixture.certificate(h))
                     .collect::<Vec<Certificate>>(),
             );
         }

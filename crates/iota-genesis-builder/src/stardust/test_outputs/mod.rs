@@ -1,16 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+mod alias_ownership;
 mod stardust_mix;
 mod vesting_schedule_entity;
 mod vesting_schedule_iota_airdrop;
+mod vesting_schedule_portfolio_mix;
 
-use std::{
-    fs::{File, OpenOptions},
-    io::BufWriter,
-    path::Path,
-    str::FromStr,
-};
+use std::{fs::File, io::BufWriter, path::Path, str::FromStr};
 
 use iota_sdk::types::block::{
     address::Ed25519Address,
@@ -25,7 +22,7 @@ use packable::{
 };
 
 use crate::stardust::{
-    parse::HornetGenesisSnapshotParser,
+    parse::HornetSnapshotParser,
     types::{output_header::OutputHeader, output_index::random_output_index},
 };
 
@@ -65,26 +62,25 @@ pub(crate) fn new_vested_output(
 }
 
 /// Adds outputs to test specific and intricate scenario in the full snapshot.
-pub async fn add_snapshot_test_outputs<P: AsRef<Path> + core::fmt::Debug>(
-    current_path: P,
-    new_path: P,
+pub async fn add_snapshot_test_outputs<const VERIFY: bool>(
+    current_path: impl AsRef<Path> + core::fmt::Debug,
+    new_path: impl AsRef<Path> + core::fmt::Debug,
 ) -> anyhow::Result<()> {
     let current_file = File::open(current_path)?;
-    let new_file = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(new_path)?;
+    let new_file = File::create(new_path)?;
+
     let mut writer = IoPacker::new(BufWriter::new(new_file));
-    let mut parser = HornetGenesisSnapshotParser::new(current_file)?;
+    let mut parser = HornetSnapshotParser::new::<VERIFY>(current_file)?;
     let output_to_decrease_amount_from = OutputId::from_str(OUTPUT_TO_DECREASE_AMOUNT_FROM)?;
     let mut new_header = parser.header.clone();
     let mut vested_index = u32::MAX;
 
     let new_outputs = [
+        alias_ownership::outputs().await?,
         stardust_mix::outputs(&mut vested_index).await?,
         vesting_schedule_entity::outputs(&mut vested_index).await?,
         vesting_schedule_iota_airdrop::outputs(&mut vested_index).await?,
+        vesting_schedule_portfolio_mix::outputs(&mut vested_index).await?,
     ]
     .concat();
     let new_amount = new_outputs.iter().map(|o| o.1.amount()).sum::<u64>();

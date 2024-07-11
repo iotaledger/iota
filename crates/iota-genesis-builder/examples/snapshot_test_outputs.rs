@@ -6,13 +6,13 @@
 use std::{fs::File, path::Path};
 
 use iota_genesis_builder::stardust::{
-    parse::HornetGenesisSnapshotParser, test_outputs::add_snapshot_test_outputs,
+    parse::HornetSnapshotParser, test_outputs::add_snapshot_test_outputs,
 };
 use iota_types::gas_coin::TOTAL_SUPPLY_IOTA;
 
-fn parse_snapshot<P: AsRef<Path>>(path: P) -> anyhow::Result<()> {
+fn parse_snapshot<const VERIFY: bool>(path: impl AsRef<Path>) -> anyhow::Result<()> {
     let file = File::open(path)?;
-    let mut parser = HornetGenesisSnapshotParser::new(file)?;
+    let mut parser = HornetSnapshotParser::new::<VERIFY>(file)?;
 
     println!("Output count: {}", parser.header.output_count());
 
@@ -43,11 +43,11 @@ async fn main() -> anyhow::Result<()> {
         new_path.push_str(&current_path);
     }
 
-    parse_snapshot(&current_path)?;
+    parse_snapshot::<false>(&current_path)?;
 
-    add_snapshot_test_outputs(&current_path, &new_path).await?;
+    add_snapshot_test_outputs::<false>(&current_path, &new_path).await?;
 
-    parse_snapshot(&new_path)?;
+    parse_snapshot::<false>(&new_path)?;
 
     Ok(())
 }

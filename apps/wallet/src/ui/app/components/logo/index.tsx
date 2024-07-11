@@ -17,7 +17,7 @@ const NETWORK_LOGOS = {
     [Network.Custom]: IotaCustomRpc,
 };
 
-const Logo = ({ network }: LogoProps) => {
+function Logo({ network }: LogoProps) {
     let LogoComponent = NETWORK_LOGOS[Network.Custom];
 
     if (network && NETWORK_LOGOS[network]) {
@@ -25,6 +25,6 @@ const Logo = ({ network }: LogoProps) => {
     }
 
     return <LogoComponent className="h-7 w-walletLogo text-gray-90" />;
-};
+}
 
 export default Logo;

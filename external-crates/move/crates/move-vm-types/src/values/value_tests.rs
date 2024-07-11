@@ -141,7 +141,7 @@ fn global_value_non_struct() -> PartialVMResult<()> {
 }
 
 #[test]
-fn leagacy_ref_abstract_memory_size_consistency() -> PartialVMResult<()> {
+fn legacy_ref_abstract_memory_size_consistency() -> PartialVMResult<()> {
     let mut locals = Locals::new(10);
 
     locals.store_loc(0, Value::u128(0), true)?;
@@ -164,7 +164,7 @@ fn leagacy_ref_abstract_memory_size_consistency() -> PartialVMResult<()> {
 }
 
 #[test]
-fn legacy_struct_abstract_memory_size_consistenty() -> PartialVMResult<()> {
+fn legacy_struct_abstract_memory_size_consistency() -> PartialVMResult<()> {
     let structs = [
         Struct::pack([]),
         Struct::pack([Value::struct_(Struct::pack([Value::u8(0), Value::u64(0)]))]),

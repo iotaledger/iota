@@ -120,7 +120,7 @@ impl<'env, 'map> Context<'env, 'map> {
         }
     }
 
-    /// Pushes a new alias map onto the alias information in the pash expander.
+    /// Pushes a new alias map onto the alias information in the path expander.
     pub fn push_alias_scope(&mut self, loc: Loc, new_scope: AliasMapBuilder) {
         let res = self
             .path_expander

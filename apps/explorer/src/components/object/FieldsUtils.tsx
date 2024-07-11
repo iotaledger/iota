@@ -5,8 +5,7 @@
 import clsx from 'clsx';
 import { type ReactNode } from 'react';
 
-import { Card } from '~/ui/Card';
-import { CollapsibleSection } from '~/ui/collapsible/CollapsibleSection';
+import { Card, CollapsibleSection } from '~/components/ui';
 
 interface FieldCollapsibleProps {
     name: string | ReactNode;
