@@ -21,10 +21,8 @@ CREATE TABLE epochs
     stake_subsidy_amount            BIGINT,
     total_gas_fees                  BIGINT,
     total_stake_rewards_distributed BIGINT,
-    burnt_leftover_amount           BIGINT,
+    leftover_storage_fund_inflow    BIGINT,
     -- bcs serialized Vec<EpochCommitment> bytes, found in last CheckpointSummary
     -- of the epoch
-    epoch_commitments               bytea,
-    burnt_tokens_amount             BIGINT,
-    minted_tokens_amount            BIGINT
+    epoch_commitments               bytea
 );
