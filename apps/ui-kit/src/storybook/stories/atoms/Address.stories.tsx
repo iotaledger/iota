@@ -29,5 +29,11 @@ export const Default: Story = {
         text: {
             control: 'text',
         },
+        isCopyable: {
+            control: 'boolean',
+        },
+        isExternal: {
+            control: 'boolean',
+        },
     },
 };

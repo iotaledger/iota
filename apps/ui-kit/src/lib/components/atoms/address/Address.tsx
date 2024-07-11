@@ -12,11 +12,11 @@ interface AddressProps {
     /**
      * Has copy icon (optional).
      */
-    hasCopy?: boolean;
+    isCopyable?: boolean;
     /**
      * Has open icon  (optional).
      */
-    hasOpen?: boolean;
+    isExternal?: boolean;
     /**
      * The onCopy event of the Address  (optional).
      */
@@ -29,15 +29,15 @@ interface AddressProps {
 
 export function Address({
     text,
-    hasCopy,
-    hasOpen,
+    isCopyable,
+    isExternal,
     onCopy,
     onOpen,
 }: AddressProps): React.JSX.Element {
     return (
         <div className="flex flex-row items-center justify-center gap-1 text-neutral-40 dark:text-neutral-60">
             <span className={cx('font-inter text-body-sm')}>{text}</span>
-            {hasCopy && (
+            {isCopyable && (
                 <span onClick={onCopy}>
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -55,7 +55,7 @@ export function Address({
                     </svg>
                 </span>
             )}
-            {hasOpen && (
+            {isExternal && (
                 <span onClick={onOpen}>
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
