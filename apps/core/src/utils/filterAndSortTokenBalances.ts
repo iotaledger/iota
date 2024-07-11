@@ -4,7 +4,6 @@
 import { type CoinBalance } from '@iota/iota.js/client';
 import { getCoinSymbol } from '../hooks';
 
-// Move this to the API backend https://github.com/iotaledger/iota/issues/922
 /**
  * Filter and sort token balances by symbol and total balance.
  * IOTA tokens are always sorted first.
