@@ -17,7 +17,9 @@ export function AccountBalanceItem({ account }: AccountBalanceItemProps): JSX.El
     const copyAddress = useCopyToClipboard(account.address, {
         copySuccessMessage: 'Address copied',
     });
-    const { data: balance } = useBalance(account.address);
+    const { data: balance } = useBalance(account.address, {
+        refetchInterval: false
+    });
 
     return (
         <div className="group flex cursor-pointer flex-col gap-3 rounded-xl border border-solid border-hero/10 bg-white/40 px-4 py-3">
