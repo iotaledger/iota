@@ -18,7 +18,7 @@ export function AccountBalanceItem({ account }: AccountBalanceItemProps): JSX.El
         copySuccessMessage: 'Address copied',
     });
     const { data: balance } = useBalance(account.address, {
-        refetchInterval: false
+        refetchInterval: false,
     });
 
     return (
