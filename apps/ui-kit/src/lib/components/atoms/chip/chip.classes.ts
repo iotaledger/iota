@@ -11,7 +11,7 @@ export const BACKGROUND_CLASSES: Record<ChipState, string> = {
 };
 
 export const STATE_LAYER_CLASSES =
-    'hover:bg-shader-primary-light-8 active:bg-shader-primary-light-12 dark:hover:bg-shader-primary-dark-8 dark:active:bg-shader-primary-dark-12 outline outline-1 outline-transparent hover:outline-shader-primary-light-8 active:outline-shader-primary-light-12 dark:hover:outline-shader-primary-dark-8 dark:active:outline-shader-primary-dark-12';
+    'hover:bg-shader-primary-light-8 active:bg-shader-primary-light-12 dark:hover:bg-shader-primary-dark-8 dark:active:bg-shader-primary-dark-12 focus:bg-shader-primary-light-12 dark:focus:bg-shader-primary-dark-12 outline outline-1 outline-transparent hover:outline-shader-primary-light-8 active:outline-shader-primary-light-12 dark:hover:outline-shader-primary-dark-8 dark:active:outline-shader-primary-dark-12';
 
 export const BORDER_CLASSES: Record<ChipState, string> = {
     [ChipState.Default]: 'border-neutral-70 dark:border-neutral-40',
@@ -22,3 +22,6 @@ export const TEXT_COLOR: Record<ChipState, string> = {
     [ChipState.Default]: 'text-neutral-40 dark:text-neutral-60',
     [ChipState.Selected]: 'text-neutral-10 dark:text-neutral-92',
 };
+
+export const FOCUS_CLASSES =
+    'focus-visible:shadow-[0_0_0_2px] focus-visible:shadow-primary-30 focus-visible:outline-none dark:focus-visible:shadow-primary-80';

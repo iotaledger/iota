@@ -9,6 +9,7 @@ import {
     ROUNDED_CLASS,
     STATE_LAYER_CLASSES,
     TEXT_COLOR,
+    FOCUS_CLASSES,
 } from './chip.classes';
 
 interface ChipProps {
@@ -37,12 +38,13 @@ interface ChipProps {
 export function Chip({ label, showClose, selected, onClose, leadingElement }: ChipProps) {
     const chipState = selected ? ChipState.Selected : ChipState.Default;
     return (
-        <div
+        <button
             className={cx(
                 'border',
                 ROUNDED_CLASS,
                 BACKGROUND_CLASSES[chipState],
                 BORDER_CLASSES[chipState],
+                FOCUS_CLASSES,
             )}
         >
             <span
@@ -63,6 +65,6 @@ export function Chip({ label, showClose, selected, onClose, leadingElement }: Ch
                     </span>
                 )}
             </span>
-        </div>
+        </button>
     );
 }
