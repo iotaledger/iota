@@ -10,7 +10,7 @@ import {
 } from './button-segment.classes';
 import cx from 'classnames';
 
-export interface ButtonSegmentProps {
+interface ButtonSegmentProps {
     /**
      * The label of the button.
      */

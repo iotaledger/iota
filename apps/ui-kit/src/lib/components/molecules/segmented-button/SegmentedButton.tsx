@@ -1,16 +1,16 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
+import React, { ComponentProps } from 'react';
 import { BACKGROUND_COLORS, OUTLINED_BORDER } from './segmented-button.classes';
 import cx from 'classnames';
-import { ButtonSegment, ButtonSegmentProps } from '../../atoms/button-segment';
+import { ButtonSegment } from '../../atoms';
 import { SegmentedButtonType } from './segmented-button.enums';
 interface SegmentedButtonProps {
     /**
      * The text of the button.
      */
-    elements: ButtonSegmentProps[];
+    elements: ComponentProps<typeof ButtonSegment>[];
     /**
      * The type of the button
      */
@@ -18,7 +18,7 @@ interface SegmentedButtonProps {
     /**
      * The onSelected event of the button.
      */
-    onSelected?: (selectedElement: ButtonSegmentProps) => void;
+    onSelected?: (selectedElement: ComponentProps<typeof ButtonSegment>) => void;
 }
 
 export function SegmentedButton({
@@ -28,9 +28,10 @@ export function SegmentedButton({
 }: SegmentedButtonProps): React.JSX.Element {
     const backgroundColors = BACKGROUND_COLORS[type];
     const borderColors = type === SegmentedButtonType.Outlined ? OUTLINED_BORDER : '';
+    console.log('SegmentedButton', borderColors, type);
     return (
         <div
-            className={cx('flex flex-row gap-2 rounded-full p-xxs', backgroundColors, borderColors)}
+            className={cx('flex flex-row gap-1 rounded-full p-xxs', backgroundColors, borderColors)}
         >
             {elements.map((element, index) => (
                 <ButtonSegment

@@ -3,19 +3,20 @@
 
 import type { Meta, StoryObj } from '@storybook/react';
 
-import { SegmentedButton } from '@/components';
+import { ButtonSegment, SegmentedButton } from '@/components';
 import { SegmentedButtonType } from '@/lib/components';
-import { useState } from 'react';
-import { ButtonSegmentProps } from '@/lib/components';
+import { ComponentProps, useState } from 'react';
 
 const meta = {
     component: SegmentedButton,
     tags: ['autodocs'],
     render: (props) => {
-        const [elements, setElements] = useState<ButtonSegmentProps[]>(props.elements || []);
+        const [elements, setElements] = useState<ComponentProps<typeof ButtonSegment>[]>(
+            props.elements || [],
+        );
 
         const handleElementClick = (clickedElementLabel: string) => {
-            const updatedElements = elements.map((element: ButtonSegmentProps) => ({
+            const updatedElements = elements.map((element) => ({
                 ...element,
                 selected: element.label === clickedElementLabel,
             }));
@@ -23,12 +24,11 @@ const meta = {
         };
 
         return (
-            <div className="flex flex-col items-start gap-2">
+            <div className="flex flex-col items-start">
                 <SegmentedButton
+                    type={props.type}
                     elements={elements}
-                    onSelected={(selectedElement: ButtonSegmentProps) =>
-                        handleElementClick(selectedElement.label)
-                    }
+                    onSelected={(selectedElement) => handleElementClick(selectedElement.label)}
                 />
             </div>
         );
