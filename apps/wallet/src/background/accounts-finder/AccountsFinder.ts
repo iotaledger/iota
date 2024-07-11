@@ -2,12 +2,21 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type AccountFromFinder, type AddressFromFinder } from '_src/shared/accounts';
-import { hasBalance, mergeAccounts, recoverAccounts } from './accounts-finder';
+import {
+    diffAddressesBipPaths,
+    hasBalance,
+    mergeAccounts,
+    recoverAccounts,
+} from './accounts-finder';
 import NetworkEnv from '../NetworkEnv';
 import { IotaClient, getFullnodeUrl } from '@iota/iota.js/client';
 import { AccountType } from '../accounts/Account';
 import { GAS_TYPE_ARG } from '_redux/slices/iota-objects/Coin';
-import { getEmptyBalance, getPublicKey } from '_src/background/accounts-finder/helpers';
+import {
+    persistAddressesToSource,
+    getEmptyBalance,
+    getPublicKey,
+} from '_src/background/accounts-finder/helpers';
 import { type FindBalance } from '_src/background/accounts-finder/types';
 
 // Note: we exclude private keys for the account finder because more addresses cant be derived from them
@@ -121,6 +130,16 @@ class AccountsFinder {
             GAP_CONFIGURATION[this.bip44CoinType][config.accountType].addressGapLimit;
     }
 
+    async processAccounts({ foundAccounts }: { foundAccounts: AccountFromFinder[] }) {
+        const mergedAccounts = mergeAccounts(this.accounts, foundAccounts);
+
+        // Persist new addresses
+        const newAddressesBipPaths = diffAddressesBipPaths(foundAccounts, this.accounts);
+        await persistAddressesToSource(this.sourceID, newAddressesBipPaths);
+
+        this.accounts = mergedAccounts;
+    }
+
     async runDepthSearch() {
         const depthAccounts = this.accounts;
 
@@ -146,9 +165,8 @@ class AccountsFinder {
                 findBalance: this.findBalance,
             });
 
-            this.accounts = mergeAccounts(this.accounts, foundAccounts);
+            await this.processAccounts({ foundAccounts });
         }
-        return this.accounts;
     }
 
     async runBreadthSearch() {
@@ -164,8 +182,7 @@ class AccountsFinder {
             findBalance: this.findBalance,
         });
 
-        this.accounts = [...this.accounts, ...foundAccounts];
-        return this.accounts;
+        await this.processAccounts({ foundAccounts });
     }
 
     // This function calls each time when user press "Search" button
