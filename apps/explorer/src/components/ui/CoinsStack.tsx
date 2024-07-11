@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCoinMetadata } from '@iota/core';
-import { Iota, Unstaked } from '@iota/icons';
+import { IotaLogoMark } from '@iota/icons';
 import { type CoinMetadata } from '@iota/iota.js/client';
 import clsx from 'clsx';
 
@@ -15,14 +15,15 @@ interface CoinIconProps {
 
 function CoinIcon({ coinMetadata }: CoinIconProps): JSX.Element {
     if (coinMetadata?.symbol === 'IOTA') {
-        return <Iota className="h-2.5 w-2.5" />;
+        return <IotaLogoMark className="h-2.5 w-2.5" />;
     }
 
     if (coinMetadata?.iconUrl) {
         return <Image rounded="full" alt={coinMetadata?.description} src={coinMetadata?.iconUrl} />;
     }
 
-    return <Unstaked className="h-2.5 w-2.5" />;
+    // return <Unstaked className="h-2.5 w-2.5" />;
+    return <div />;
 }
 
 interface CoinProps {

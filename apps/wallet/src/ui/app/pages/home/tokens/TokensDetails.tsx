@@ -33,7 +33,7 @@ import {
     useSortedCoinsByCategories,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { Info12, Pin16, Unpin16 } from '@iota/icons';
+// import { Info12, Pin16, Unpin16 } from '@iota/icons';
 import { Network, type CoinBalance as CoinBalanceType } from '@iota/iota.js/client';
 import { formatAddress, parseStructTag, IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import { useQuery } from '@tanstack/react-query';
@@ -68,7 +68,7 @@ function PinButton({ unpin, onClick }: PinButtonProps) {
                 onClick();
             }}
         >
-            {unpin ? <Unpin16 /> : <Pin16 />}
+            {/* {unpin ? <Unpin16 /> : <Pin16 />} */}
         </button>
     );
 }
@@ -374,7 +374,7 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
         <>
             {isMainnet && data?.degraded && (
                 <div className="mb-4 flex items-center rounded-2xl border border-solid border-warning-dark/20 bg-warning-light px-3 py-2 text-warning-dark">
-                    <Info12 className="shrink-0" />
+                    {/* <Info12 className="shrink-0" /> */}
                     <div className="ml-2">
                         <Text variant="pBodySmall" weight="medium">
                             We're sorry that the app is running slower than usual. We're working to

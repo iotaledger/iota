@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Spinner16 } from '@iota/icons';
+// import { Spinner16 } from '@iota/icons';
 import { cva, type VariantProps } from 'class-variance-authority';
 
 const styles = cva('', {
@@ -16,8 +16,9 @@ const styles = cva('', {
 
 export type LoadingIndicatorProps = VariantProps<typeof styles>;
 
-function LoadingIndicator({ color = 'iota' }: LoadingIndicatorProps) {
-    return <Spinner16 className={styles({ className: 'animate-spin', color })} />;
-}
+const LoadingIndicator = ({ color = 'iota' }: LoadingIndicatorProps) => {
+    return null;
+    // <Spinner16 className={styles({ className: 'animate-spin', color })} />;
+};
 
 export default LoadingIndicator;

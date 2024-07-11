@@ -2,35 +2,27 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { TransactionAction, TransactionState } from '@/lib/interfaces';
-import { Account24, ArrowRight16, Iota, Unstaked, WalletActionStake24 } from '@iota/icons';
+import { IotaLogoMark, Right } from '@iota/icons';
 
 const icons = {
     [TransactionAction.Send]: (
-        <ArrowRight16
-            fill="currentColor"
-            className="text-gradient-blue-start text-body -rotate-45"
-        />
+        <Right fill="currentColor" className="text-gradient-blue-start text-body -rotate-45" />
     ),
     [TransactionAction.Receive]: (
-        <ArrowRight16
-            fill="currentColor"
-            className="text-gradient-blue-start text-body rotate-135"
-        />
+        <Right fill="currentColor" className="text-gradient-blue-start text-body rotate-135" />
     ),
     [TransactionAction.Transaction]: (
-        <ArrowRight16
-            fill="currentColor"
-            className="text-gradient-blue-start text-body -rotate-45"
-        />
+        <Right fill="currentColor" className="text-gradient-blue-start text-body -rotate-45" />
     ),
-    [TransactionAction.Staked]: (
-        <WalletActionStake24 className="text-gradient-blue-start text-heading2 bg-transparent" />
-    ),
-    [TransactionAction.Unstaked]: <Unstaked className="text-gradient-blue-start text-heading3" />,
-    [TransactionAction.Rewards]: <Iota className="text-gradient-blue-start text-body" />,
-    [TransactionAction.PersonalMessage]: (
-        <Account24 fill="currentColor" className="text-gradient-blue-start text-body" />
-    ),
+    [TransactionAction.Staked]: null,
+    //     <WalletActionStake24 className="text-gradient-blue-start text-heading2 bg-transparent" />
+    // ),
+    [TransactionAction.Unstaked]: null,
+    // <Unstaked className="text-gradient-blue-start text-heading3" />,
+    [TransactionAction.Rewards]: <IotaLogoMark />,
+    [TransactionAction.PersonalMessage]: null,
+    //     <Account24 fill="currentColor" className="text-gradient-blue-start text-body" />
+    // ),
 };
 
 interface TransactionIconProps {

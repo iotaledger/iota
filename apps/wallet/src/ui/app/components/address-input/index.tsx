@@ -5,7 +5,7 @@
 import { Text } from '_app/shared/text';
 import Alert from '_src/ui/app/components/alert';
 import { useIotaClient } from '@iota/dapp-kit';
-import { QrCode, X12 } from '@iota/icons';
+import { QrCode, Close } from '@iota/icons';
 import { isValidIotaAddress } from '@iota/iota.js/utils';
 import { useQuery } from '@tanstack/react-query';
 import { cx } from 'class-variance-authority';
@@ -125,7 +125,7 @@ export function AddressInput({
                     className="right-0 ml-4 flex w-11 max-w-[20%] cursor-pointer items-center justify-center bg-gray-40"
                 >
                     {meta.touched && field.value ? (
-                        <X12 className="h-3 w-3 text-steel-darker" />
+                        <Close className="h-3 w-3 text-steel-darker" />
                     ) : (
                         <QrCode className="h-5 w-5 text-steel-darker" />
                     )}

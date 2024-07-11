@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { X12 } from '@iota/icons';
+import { Close } from '@iota/icons';
 import { Text, Heading, IconButton } from '@iota/ui';
 
 import { Modal, type ModalProps } from './Modal';
@@ -52,7 +52,7 @@ export function ObjectModal({
                     className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border-0 bg-gray-90 p-0 text-iota-light outline-none hover:scale-105 active:scale-100"
                     aria-label="Close"
                 >
-                    <X12 />
+                    <Close />
                 </IconButton>
             </div>
         </Modal>

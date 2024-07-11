@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Text } from '_app/shared/text';
-import { CheckFill16 } from '@iota/icons';
+// import { CheckFill16 } from '@iota/icons';
 import { cx } from 'class-variance-authority';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -31,12 +31,12 @@ export function ValidatorListItem({ selected, value, validatorAddress }: Validat
                 >
                     <div className="flex items-center justify-start gap-2.5">
                         <div className="relative flex w-full gap-0.5">
-                            {selected && (
+                            {/* {selected && (
                                 <CheckFill16
                                     fill="fillCurrent"
                                     className="absolute -translate-y-1 translate-x-4 rounded-full bg-white text-heading6 text-success"
                                 />
-                            )}
+                            )} */}
                             <ValidatorLogo
                                 validatorAddress={validatorAddress}
                                 showAddress

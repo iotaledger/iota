@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { X32 } from '@iota/icons';
+import { Close } from '@iota/icons';
 import cl from 'clsx';
 import { useCallback } from 'react';
 import type { ReactNode } from 'react';
@@ -28,7 +28,7 @@ function Overlay({
     showModal,
     closeOverlay,
     setShowModal,
-    closeIcon = <X32 fill="currentColor" className="h-8 w-8 text-iota-light" />,
+    closeIcon = <Close />,
     background,
 }: OverlayProps) {
     const closeModal = useCallback(

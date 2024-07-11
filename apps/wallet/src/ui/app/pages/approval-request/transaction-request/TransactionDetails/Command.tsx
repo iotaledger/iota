@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Text } from '_src/ui/app/shared/text';
-import { ChevronDown12, ChevronRight12 } from '@iota/icons';
+// import { ChevronDown12, ChevronRight12 } from '@iota/icons';
 import { TypeTagSerializer, type TypeTag } from '@iota/iota.js/bcs';
 import { type TransactionArgument, type Transactions } from '@iota/iota.js/transactions';
 import { formatAddress, normalizeIotaAddress, toB64 } from '@iota/iota.js/utils';
@@ -107,7 +107,7 @@ export function Command({ command }: CommandProps) {
                 </Text>
                 <div className="h-px flex-1 bg-gray-40" />
                 <div className="text-steel">
-                    {expanded ? <ChevronDown12 /> : <ChevronRight12 />}
+                    {/* {expanded ? <ChevronDown12 /> : <ChevronRight12 />} */}
                 </div>
             </button>
 

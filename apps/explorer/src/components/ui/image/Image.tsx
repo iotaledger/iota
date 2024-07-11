@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { EyeClose16, NftTypeImage24 } from '@iota/icons';
+// import { EyeClose16, NftTypeImage24 } from '@iota/icons';
 import { LoadingIndicator } from '@iota/ui';
 import { cva, cx, type VariantProps } from 'class-variance-authority';
 import clsx from 'clsx';
@@ -108,12 +108,12 @@ function BaseImage({
                         )}
                         onClick={() => setIsBlurred(!isBlurred)}
                     >
-                        <EyeClose16 />
+                        {/* <EyeClose16 /> */}
                     </div>
                 )
-            ) : status === 'failed' ? (
-                <NftTypeImage24 />
-            ) : null}
+            ) : // ) : status === 'failed' ? (
+            //     <NftTypeImage24 />
+            null}
             {status === 'loaded' && (
                 <img
                     alt={alt}

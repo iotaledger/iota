@@ -12,7 +12,7 @@ import {
     type IotaObjectChangeTypes,
     type IotaObjectChangeWithDisplay,
 } from '@iota/core';
-import { ChevronDown12, ChevronRight12 } from '@iota/icons';
+// import { ChevronDown12, ChevronRight12 } from '@iota/icons';
 import { formatAddress } from '@iota/iota.js/utils';
 import cx from 'clsx';
 
@@ -21,17 +21,17 @@ import { Card } from '../Card';
 import { OwnerFooter } from '../OwnerFooter';
 import { ObjectChangeDisplay } from './objectSummary/ObjectChangeDisplay';
 
-interface ChevronDownProps {
-    expanded: boolean;
-}
+// interface ChevronDownProps {
+//     expanded: boolean;
+// }
 
-function ChevronDown({ expanded }: ChevronDownProps) {
-    return expanded ? (
-        <ChevronDown12 className="text-gray-45" />
-    ) : (
-        <ChevronRight12 className="text-gray-45" />
-    );
-}
+// function ChevronDown({ expanded }: ChevronDownProps) {
+// return expanded ? (
+//     <ChevronDown12 className="text-gray-45" />
+// ) : (
+//     <ChevronRight12 className="text-gray-45" />
+// );
+// }
 
 interface ObjectDetailProps {
     change: IotaObjectChangeWithDisplay;
@@ -39,7 +39,7 @@ interface ObjectDetailProps {
     display?: boolean;
 }
 
-export function ObjectDetail({ change, display }: ObjectDetailProps) {
+export function ObjectDetail({ change }: ObjectDetailProps) {
     if (change.type === 'transferred' || change.type === 'published') {
         return null;
     }
@@ -55,11 +55,11 @@ export function ObjectDetail({ change, display }: ObjectDetailProps) {
                             <Text variant="pBody" weight="medium">
                                 Object
                             </Text>
-                            {open ? (
+                            {/* {open ? (
                                 <ChevronDown12 className="text-gray-45" />
                             ) : (
                                 <ChevronRight12 className="text-gray-45" />
-                            )}
+                            )} */}
                         </Disclosure.Button>
                         {change.objectId && (
                             <div className="justify-self-end">
@@ -170,7 +170,7 @@ export function ObjectChangeEntry({ changes, type }: ObjectChangeEntryProps) {
                                                 {getObjectChangeLabel(type)}
                                             </Text>
                                             <div className="h-px w-full bg-gray-40" />
-                                            <ChevronDown expanded={open} />
+                                            {/* <ChevronDown expanded={open} /> */}
                                         </div>
                                     </Disclosure.Button>
                                     <Disclosure.Panel as="div" className="flex flex-col gap-4">

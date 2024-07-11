@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useFormatCoin } from '@iota/core';
-import { ArrowShowAndHideRight12, Warning16 } from '@iota/icons';
+import { Right } from '@iota/icons';
 import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 import { Text } from '@iota/ui';
 import * as Collapsible from '@radix-ui/react-collapsible';
@@ -36,7 +36,7 @@ export default function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Ele
                 )}
             >
                 <div className="flex w-[45%] items-center gap-1 truncate">
-                    <ArrowShowAndHideRight12
+                    <Right
                         width={12}
                         className={clsx('text-gray-60', open && 'rotate-90 transform')}
                     />
@@ -60,7 +60,8 @@ export default function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Ele
                             }
                         >
                             <Banner variant="warning" icon={null} border spacing="sm">
-                                <Warning16 />
+                                Warning
+                                {/* <Warning16 /> */}
                             </Banner>
                         </Tooltip>
                     )}

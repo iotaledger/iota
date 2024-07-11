@@ -5,11 +5,11 @@
 import { Button } from '_src/ui/app/shared/ButtonUI';
 import { Link } from '_src/ui/app/shared/Link';
 import { Text } from '_src/ui/app/shared/text';
-import {
-    Spinner16 as SpinnerIcon,
-    ThumbUpStroke32 as ThumbUpIcon,
-    LockUnlocked16 as UnlockedLockIcon,
-} from '@iota/icons';
+// import {
+//     Spinner16 as SpinnerIcon,
+//     ThumbUpStroke32 as ThumbUpIcon,
+//     LockUnlocked16 as UnlockedLockIcon,
+// } from '@iota/icons';
 import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -87,7 +87,7 @@ export function ImportLedgerAccountsPage() {
     if (areLedgerAccountsLoading) {
         summaryCardBody = (
             <div className="flex h-full w-full flex-col items-center justify-center gap-2">
-                <SpinnerIcon className="h-4 w-4 animate-spin text-steel" />
+                {/* <SpinnerIcon className="h-4 w-4 animate-spin text-steel" /> */}
                 <Text variant="pBodySmall" color="steel-darker">
                     Looking for accounts
                 </Text>
@@ -96,7 +96,7 @@ export function ImportLedgerAccountsPage() {
     } else if (areAllAccountsImported) {
         summaryCardBody = (
             <div className="flex h-full w-full flex-col items-center justify-center gap-2">
-                <ThumbUpIcon className="h-8 w-8 text-steel" />
+                {/* <ThumbUpIcon className="h-8 w-8 text-steel" /> */}
                 <Text variant="pBodySmall" color="steel-darker">
                     All Ledger accounts have been imported.
                 </Text>
@@ -155,7 +155,7 @@ export function ImportLedgerAccountsPage() {
                     <Button
                         variant="primary"
                         size="tall"
-                        before={<UnlockedLockIcon />}
+                        // before={<UnlockedLockIcon />}
                         text="Next"
                         disabled={isUnlockButtonDisabled}
                         onClick={() => {

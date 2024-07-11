@@ -14,7 +14,7 @@ import {
     useFloating,
     useInteractions,
 } from '@floating-ui/react';
-import { ChevronDown12, Dot12 } from '@iota/icons';
+import { MoreHoriz } from '@iota/icons';
 import { AnimatePresence, motion } from 'framer-motion';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 
@@ -101,9 +101,9 @@ function DappStatus() {
         <>
             <ButtonConnectedTo
                 truncate
-                iconBefore={<Dot12 className="text-success" />}
+                iconBefore={<MoreHoriz className="text-success" />}
                 text={activeOrigin || ''}
-                iconAfter={<ChevronDown12 />}
+                // iconAfter={<ChevronDown12 />}
                 ref={reference}
                 {...getReferenceProps()}
             />
