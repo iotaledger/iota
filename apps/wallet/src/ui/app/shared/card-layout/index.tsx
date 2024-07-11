@@ -4,7 +4,7 @@
 
 import { Heading } from '_app/shared/heading';
 import { Text } from '_app/shared/text';
-// import { Iota, ThumbUpFill32 } from '@iota/icons';
+import { Iota, ThumbUpFill32 } from '@iota/icons';
 import type { ReactNode } from 'react';
 
 export interface CardLayoutProps {
@@ -21,13 +21,13 @@ export function CardLayout({ children, title, subtitle, headerCaption, icon }: C
             {icon === 'success' ? (
                 <div className="mb-2.5 flex h-12 w-12 items-center justify-center rounded-full border-2 border-dotted border-success p-1">
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-success">
-                        {/* <ThumbUpFill32 className="text-2xl text-white" /> */}
+                        <ThumbUpFill32 className="text-2xl text-white" />
                     </div>
                 </div>
             ) : null}
             {icon === 'iota' ? (
                 <div className="mb-7 flex h-16 w-16 flex-col flex-nowrap items-center justify-center rounded-full bg-iota">
-                    {/* <Iota className="text-4xl text-white" /> */}
+                    <Iota className="text-4xl text-white" />
                 </div>
             ) : null}
             {headerCaption ? (

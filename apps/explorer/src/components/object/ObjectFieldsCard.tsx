@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Search } from '@iota/icons';
+import { Search24 } from '@iota/icons';
 import { type IotaMoveNormalizedStruct, type IotaObjectResponse } from '@iota/iota.js/client';
 import { Combobox, ComboboxInput, ComboboxList, LoadingIndicator, Text } from '@iota/ui';
 import clsx from 'clsx';
@@ -121,7 +121,7 @@ export function ObjectFieldsCard({
                                 className="w-full border-none focus:outline-0"
                             />
                             <button className="border-none bg-inherit pr-2" type="submit">
-                                <Search className="h-4.5 w-4.5 cursor-pointer fill-steel align-middle text-gray-60" />
+                                <Search24 className="h-4.5 w-4.5 cursor-pointer fill-steel align-middle text-gray-60" />
                             </button>
                         </div>
                         <ComboboxList

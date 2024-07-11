@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import LoadingIndicator from '_components/loading/LoadingIndicator';
-import { Checkmark, Info } from '@iota/icons';
+import { CheckStroke16, Info16 } from '@iota/icons';
 import { cva, type VariantProps } from 'class-variance-authority';
 import type { ReactNode } from 'react';
 
@@ -46,9 +46,9 @@ export interface AlertProps extends VariantProps<typeof alertStyles> {
 }
 
 const MODE_TO_ICON = {
-    warning: <Info className="h-3.5 w-3.5" />,
-    issue: <Info className="h-3.5 w-3.5" />,
-    success: <Checkmark className="h-3 w-3" />,
+    warning: <Info16 className="h-3.5 w-3.5" />,
+    issue: <Info16 className="h-3.5 w-3.5" />,
+    success: <CheckStroke16 className="h-3 w-3" />,
     loading: <LoadingIndicator color="inherit" />,
 };
 

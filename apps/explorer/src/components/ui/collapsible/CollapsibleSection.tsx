@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-// import { ChevronRight12 } from '@iota/icons';
+import { ChevronRight12 } from '@iota/icons';
 import { Text } from '@iota/ui';
 import * as Collapsible from '@radix-ui/react-collapsible';
+import clsx from 'clsx';
 import { type ReactNode, useState } from 'react';
 
 import { Divider } from '~/components/ui';
@@ -44,12 +45,12 @@ export function CollapsibleSection({
                             title
                         )}
                         <Divider />
-                        {/* <ChevronRight12
+                        <ChevronRight12
                             className={clsx(
                                 'h-4 w-4 cursor-pointer text-gray-45',
                                 isOpenState && 'rotate-90',
                             )}
-                        /> */}
+                        />
                     </div>
                 </Collapsible.Trigger>
             )}

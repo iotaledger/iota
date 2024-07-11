@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// import { ThumbUpFill32 } from '@iota/icons';
+import { ThumbUpFill32 } from '@iota/icons';
 import cl from 'clsx';
 
 interface StatusIconProps {
@@ -23,10 +23,10 @@ export function StatusIcon({ status }: StatusIconProps) {
                     status ? 'bg-success' : 'bg-issue',
                 )}
             >
-                {/* <ThumbUpFill32
+                <ThumbUpFill32
                     fill="currentColor"
                     className={cl('text-2xl text-white', !status && 'rotate-180')}
-                /> */}
+                />
             </div>
         </div>
     );

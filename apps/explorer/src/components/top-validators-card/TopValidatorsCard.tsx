@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { Right } from '@iota/icons';
+import { ArrowRight12 } from '@iota/icons';
 import { type IotaValidatorSummary } from '@iota/iota.js/client';
 import { Text } from '@iota/ui';
 import { type ReactNode, useMemo } from 'react';
@@ -157,7 +157,7 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
                         <Link to="/validators">
                             <div className="flex items-center gap-2">
                                 View all
-                                <Right fill="currentColor" className="h-3 w-3 -rotate-45" />
+                                <ArrowRight12 fill="currentColor" className="h-3 w-3 -rotate-45" />
                             </div>
                         </Link>
                         <Text variant="body/medium" color="steel-dark">

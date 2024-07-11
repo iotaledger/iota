@@ -10,7 +10,7 @@ import { formatAutoLock, useAutoLockMinutes } from '_src/ui/app/hooks/useAutoLoc
 import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { Link } from '_src/ui/app/shared/Link';
 import { Text } from '_src/ui/app/shared/text';
-import { ArrowTopRight, LockLocked, MoreHoriz } from '@iota/icons';
+import { ArrowUpRight12, Clipboard24, Domain24, LockLocked24, More24 } from '@iota/icons';
 import { getNetwork, Network } from '@iota/iota.js/client';
 import Browser from 'webextension-polyfill';
 
@@ -32,13 +32,13 @@ function MenuList() {
             <div className="flex flex-col divide-x-0 divide-y divide-solid divide-gray-45">
                 <MenuListItem
                     to={networkUrl}
-                    icon={null}
+                    icon={<Domain24 />}
                     title="Network"
                     subtitle={networkConfig.name}
                 />
                 <MenuListItem
                     to={autoLockUrl}
-                    icon={<LockLocked />}
+                    icon={<LockLocked24 />}
                     title="Auto-lock Accounts"
                     subtitle={
                         <Loading loading={autoLockInterval?.isPending}>
@@ -49,8 +49,12 @@ function MenuList() {
                         </Loading>
                     }
                 />
-                <MenuListItem icon={null} title="FAQ" href={FAQ_LINK} />
-                <MenuListItem icon={<MoreHoriz />} title="More options" to={moreOptionsUrl} />
+                <MenuListItem icon={<Clipboard24 />} title="FAQ" href={FAQ_LINK} />
+                <MenuListItem
+                    icon={<More24 className="text-steel-darker" />}
+                    title="More options"
+                    to={moreOptionsUrl}
+                />
             </div>
             <div className="flex-1" />
             <div className="mt-2.5 flex flex-col items-stretch">
@@ -60,7 +64,7 @@ function MenuList() {
                 <Link
                     href={ToS_LINK}
                     text="Terms of service"
-                    after={<ArrowTopRight />}
+                    after={<ArrowUpRight12 />}
                     color="steelDark"
                     weight="semibold"
                 />

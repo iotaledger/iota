@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-// import { ChevronDown16, ChevronRight16 } from '@iota/icons';
+import { ChevronDown16, ChevronRight16 } from '@iota/icons';
 import clsx from 'clsx';
 import { useState, type ReactNode } from 'react';
 
@@ -42,7 +42,7 @@ export function SummaryCard({
                 {badge}
 
                 <div className="flex items-center justify-center text-steel">
-                    {/* {expanded ? <ChevronDown16 /> : <ChevronRight16 />} */}
+                    {expanded ? <ChevronDown16 /> : <ChevronRight16 />}
                 </div>
             </button>
             {expanded && <div className="px-4 py-3">{children}</div>}

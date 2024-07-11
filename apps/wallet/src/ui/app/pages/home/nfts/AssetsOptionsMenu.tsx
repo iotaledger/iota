@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Menu } from '@headlessui/react';
-// import { Ooo24 } from '@iota/icons';
+import { Ooo24 } from '@iota/icons';
 import { Link } from 'react-router-dom';
 
 const AssetsOptionsMenu = () => {
@@ -18,7 +18,7 @@ const AssetsOptionsMenu = () => {
                     cursor: 'pointer',
                 }}
             >
-                {/* <Ooo24 className="h-full w-full text-gray-90" /> */}
+                <Ooo24 className="h-full w-full text-gray-90" />
             </Menu.Button>
             <Menu.Items className="divide-gray-200 absolute right-0 top-4 z-50 mt-2 w-50 divide-y rounded-md bg-white">
                 <div className="h-full w-full rounded-md p-2 shadow-card-soft">

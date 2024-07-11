@@ -6,8 +6,9 @@ import { useAppDispatch, useAppSelector } from '_hooks';
 import { changeActiveNetwork } from '_redux/slices/app';
 import { ampli } from '_src/shared/analytics/ampli';
 import { getCustomNetwork } from '_src/shared/api-env';
-// import { Check24 } from '@iota/icons';
+import { Check24 } from '@iota/icons';
 import { getAllNetworks, Network, type NetworkConfiguration } from '@iota/iota.js/client';
+import cl from 'clsx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
@@ -65,7 +66,7 @@ function NetworkSelector() {
                             }}
                             className={st.networkSelector}
                         >
-                            {/* <Check24
+                            <Check24
                                 className={cl(
                                     st.networkIcon,
                                     st.selectedNetwork,
@@ -74,7 +75,7 @@ function NetworkSelector() {
                                         isCustomRpcInputVisible &&
                                         st.customRpcActive,
                                 )}
-                            /> */}
+                            />
 
                             {network.name}
                         </button>

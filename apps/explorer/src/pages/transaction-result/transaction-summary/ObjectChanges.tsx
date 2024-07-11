@@ -10,7 +10,7 @@ import {
     type ObjectChangesByOwner,
     type ObjectChangeSummary,
 } from '@iota/core';
-// import { ChevronRight12 } from '@iota/icons';
+import { ChevronRight12 } from '@iota/icons';
 import {
     type DisplayFieldsResponse,
     type IotaObjectChange,
@@ -91,9 +91,9 @@ function ObjectDetailPanel({ panelContent, headerContent }: ObjectDetailPanelPro
                             Object
                         </Text>
 
-                        {/* <ChevronRight12
+                        <ChevronRight12
                             className={clsx('h-3 w-3 text-steel-dark', open && 'rotate-90')}
-                        /> */}
+                        />
                     </div>
                 </Collapsible.Trigger>
                 {headerContent}

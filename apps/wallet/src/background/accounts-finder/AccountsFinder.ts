@@ -1,13 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type AccountFromFinder, type AddressFromFinder } from '_src/shared/accounts';
-import {
-    diffAddressesBipPaths,
-    hasBalance,
-    mergeAccounts,
-    recoverAccounts,
-} from './accounts-finder';
+import { type AccountFromFinder } from '_src/shared/accounts';
+import { diffAddressesBipPaths, mergeAccounts, recoverAccounts } from './accounts-finder';
 import NetworkEnv from '../NetworkEnv';
 import { IotaClient, getFullnodeUrl } from '@iota/iota.js/client';
 import { AccountType } from '../accounts/Account';
@@ -230,12 +225,6 @@ class AccountsFinder {
             balance: foundBalance || emptyBalance,
         };
     };
-
-    getResults(): AddressFromFinder[] {
-        return this.accounts
-            .flatMap((acc) => acc.addresses.flat())
-            .filter((addr) => hasBalance(addr.balance));
-    }
 }
 
 const accountsFinder = new AccountsFinder();
