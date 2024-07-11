@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { entropyToSerialized, mnemonicToEntropy } from '_src/shared/utils/bip39';
+import { entropyToSerialized, mnemonicToEntropy } from '_src/shared/utils';
 import { ImportRecoveryPhraseForm } from '_src/ui/app/components/accounts/ImportRecoveryPhraseForm';
 import { useRecoveryDataMutation } from '_src/ui/app/hooks/useRecoveryDataMutation';
 import { useEffect } from 'react';

@@ -5,10 +5,10 @@
 import { type DelegatedStake } from '@iota/iota.js/client';
 
 // Get total Stake IOTA for a specific validator address
-export const getTokenStakeIotaForValidator = (
+export function getTokenStakeIotaForValidator(
     allDelegation: DelegatedStake[],
     validatorAddress?: string | null,
-) => {
+) {
     return (
         allDelegation.reduce((acc, curr) => {
             if (validatorAddress === curr.validatorAddress) {
@@ -17,4 +17,4 @@ export const getTokenStakeIotaForValidator = (
             return acc;
         }, 0n) || 0n
     );
-};
+}

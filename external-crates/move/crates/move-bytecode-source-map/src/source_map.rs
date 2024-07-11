@@ -89,7 +89,7 @@ pub struct SourceMap {
     // A mapping of `StructDefinitionIndex` to source map for each struct/resource.
     struct_map: BTreeMap<TableIndex, StructSourceMap>,
 
-    // A mapping of `FunctionDefinitionIndex` to the soure map for that function.
+    // A mapping of `FunctionDefinitionIndex` to the source map for that function.
     // For scripts, this map has a single element that points to a source map corresponding to the
     // script's "main" function.
     function_map: BTreeMap<TableIndex, FunctionSourceMap>,
@@ -427,7 +427,7 @@ impl SourceMap {
             .insert(name, const_idx.0)
             .map_or(Ok(()), |_| {
                 Err(format_err!(
-                    "Multiple constans with same name encountered when constructing source map"
+                    "Multiple constants with same name encountered when constructing source map"
                 ))
             })
     }

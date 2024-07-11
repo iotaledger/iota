@@ -86,7 +86,7 @@ fn idempotence() {
     let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // Build fully connected dag with empty blocks. Adding 5 rounds to the dag
-    // aka thte decision round of wave 1.
+    // aka the decision round of wave 1.
     let decision_round_wave_1 = committer.decision_round(1);
     build_dag(context, dag_state, None, decision_round_wave_1);
 
@@ -333,12 +333,13 @@ fn indirect_commit() {
     };
 
     // Quick Summary:
-    // Leader of wave 2 or C6 has the necessary votes/certs to be directly commited.
-    // Then, when we get to the leader of wave 1 or D3, we see that we cannot direct
-    // commit and it is marked as undecided. But this time we have a committed
-    // anchor so we check if there is a certified link from the anchor (c6) to
-    // the undecided leader (d3). There is a certified link through A5 with
-    // votes A4,B4,C4. So we can mark this leader as committed indirectly.
+    // Leader of wave 2 or C6 has the necessary votes/certs to be directly
+    // committed. Then, when we get to the leader of wave 1 or D3, we see that
+    // we cannot direct commit and it is marked as undecided. But this time we
+    // have a committed anchor so we check if there is a certified link from the
+    // anchor (c6) to the undecided leader (d3). There is a certified link
+    // through A5 with votes A4,B4,C4. So we can mark this leader as committed
+    // indirectly.
 
     // Ensure we commit the leader of wave 1 indirectly with the committed leader
     // of wave 2 as the anchor.

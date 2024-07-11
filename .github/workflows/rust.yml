@@ -276,7 +276,7 @@ jobs:
       #   with:
       #     path: ~/.cargo/registry/src/**/librocksdb-sys-*
 
-      # See '.cargo/config' for list of enabled/disappled clippy lints
+      # See '.cargo/config' for list of enabled/disabled clippy lints
       - name: Check Clippy Lints
         run: cargo ci-clippy
 
@@ -361,11 +361,12 @@ jobs:
     if: needs.diff.outputs.isRust == 'true'
     timeout-minutes: 45
     runs-on: [self-hosted-rust]
+    env:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespw
     services:
       postgres:
         image: postgres
-        env:
-          POSTGRES_PASSWORD: postgrespw
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -382,9 +383,6 @@ jobs:
       - name: Setup db
         run: |
           PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U $POSTGRES_USER -c 'CREATE DATABASE iota_indexer;' -c 'ALTER SYSTEM SET max_connections = 500;'
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgrespw
       - run: docker restart --time 0 postgres_container
       - run: sleep 5
       - name: tests-requiring-postgres
@@ -394,7 +392,3 @@ jobs:
           cargo nextest run --no-fail-fast --test-threads 8 --package iota-graphql-e2e-tests --features pg_integration
           cargo nextest run --no-fail-fast --test-threads 1 --package iota-cluster-test --test local_cluster_test --features pg_integration
           cargo nextest run --no-fail-fast --test-threads 1 --package iota-indexer --test ingestion_tests --features pg_integration
-
-        env:
-          POSTGRES_HOST: localhost
-          POSTGRES_PORT: 5432

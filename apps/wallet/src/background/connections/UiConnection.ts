@@ -25,7 +25,7 @@ import {
     type MethodPayload,
     type UIAccessibleEntityType,
 } from '_src/shared/messaging/messages/payloads/MethodPayload';
-import { toEntropy } from '_src/shared/utils/bip39';
+import { toEntropy } from '_src/shared/utils';
 import Dexie from 'dexie';
 import { BehaviorSubject, filter, switchMap, takeUntil } from 'rxjs';
 import Browser from 'webextension-polyfill';
@@ -47,11 +47,7 @@ import NetworkEnv from '../NetworkEnv';
 import { Connection } from './Connection';
 import { SeedAccountSource } from '../account-sources/SeedAccountSource';
 import { AccountSourceType } from '../account-sources/AccountSource';
-import {
-    isGetAccountsFinderResultsRequest,
-    isInitAccountsFinder,
-    isSearchAccountsFinder,
-} from '_payloads/accounts-finder';
+import { isInitAccountsFinder, isSearchAccountsFinder } from '_payloads/accounts-finder';
 import AccountsFinder from '../accounts-finder/AccountsFinder';
 
 export class UiConnection extends Connection {
@@ -183,7 +179,7 @@ export class UiConnection extends Connection {
                 await db.settings.put({ setting: SETTINGS_KEYS.isPopulated, value: true });
                 this.send(createMessage({ type: 'done' }, id));
             } else if (isMethodPayload(payload, 'getAutoLockMinutes')) {
-                await this.send(
+                this.send(
                     createMessage<MethodPayload<'getAutoLockMinutesResponse'>>(
                         {
                             type: 'method-payload',
@@ -195,11 +191,11 @@ export class UiConnection extends Connection {
                 );
             } else if (isMethodPayload(payload, 'setAutoLockMinutes')) {
                 await setAutoLockMinutes(payload.args.minutes);
-                await this.send(createMessage({ type: 'done' }, msg.id));
+                this.send(createMessage({ type: 'done' }, msg.id));
                 return true;
             } else if (isMethodPayload(payload, 'notifyUserActive')) {
-                await notifyUserActive();
-                await this.send(createMessage({ type: 'done' }, msg.id));
+                notifyUserActive();
+                this.send(createMessage({ type: 'done' }, msg.id));
                 return true;
             } else if (isMethodPayload(payload, 'resetPassword')) {
                 const { password, recoveryData } = payload.args;
@@ -261,22 +257,20 @@ export class UiConnection extends Connection {
                 await backupDB();
                 accountSourcesEvents.emit('accountSourcesChanged');
                 accountsEvents.emit('accountsChanged');
-                await this.send(createMessage({ type: 'done' }, msg.id));
+                this.send(createMessage({ type: 'done' }, msg.id));
             } else if (isInitAccountsFinder(payload)) {
-                AccountsFinder.init();
+                AccountsFinder.reset();
                 this.send(createMessage({ type: 'done' }, msg.id));
             } else if (isSearchAccountsFinder(payload)) {
-                await AccountsFinder.findMore(
-                    payload.coinType,
-                    payload.gasType,
-                    payload.sourceID,
-                    payload.accountGapLimit,
-                    payload.addressGapLimit,
-                );
+                await AccountsFinder.find({
+                    accountType: payload.accountType,
+                    bip44CoinType: payload.bip44CoinType,
+                    coinType: payload.coinType,
+                    sourceID: payload.sourceID,
+                    accountGapLimit: payload.accountGapLimit,
+                    addressGapLimit: payload.addressGapLimit,
+                });
                 this.send(createMessage({ type: 'done' }, msg.id));
-            } else if (isGetAccountsFinderResultsRequest(payload)) {
-                const results = await AccountsFinder.getResults();
-                this.send(createMessage({ type: 'done', results }, msg.id));
             } else {
                 throw new Error(
                     `Unhandled message ${msg.id}. (${JSON.stringify(
