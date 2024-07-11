@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// import { Flag16, Info12 } from '@iota/icons';
+import { Flag16, Info12 } from '@iota/icons';
 import { Heading, Placeholder, Text } from '@iota/ui';
 
 import { Banner, CopyToClipboard } from '~/components/ui';
@@ -27,7 +27,7 @@ const TYPE_TO_COPY: Partial<Record<PageHeaderType, string>> = {
 
 const TYPE_TO_ICON: Record<PageHeaderType, typeof CallIcon | null> = {
     Transaction: null,
-    Checkpoint: null, // Previously Flag16,
+    Checkpoint: Flag16,
     Object: null,
     Package: CallIcon,
     Address: null,
@@ -113,7 +113,7 @@ export function PageHeader({
                         <div className="mt-2">
                             <Banner
                                 variant="neutralWhite"
-                                // icon={<Info12 className="text-issue-dark" />}
+                                icon={<Info12 className="text-issue-dark" />}
                             >
                                 <Text variant="pBody/medium" color="issue-dark">
                                     {error}

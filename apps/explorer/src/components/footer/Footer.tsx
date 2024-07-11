@@ -5,9 +5,11 @@
 import { Text } from '@iota/ui';
 
 import { LegalLinks, LegalText } from './Legal';
+import { FooterIcon } from './FooterIcon';
 import { ReactComponent as MystenLabsRed } from '../../assets/mysten_labs_red.svg';
 import { Link } from '~/components/ui';
 import { FOOTER_LINKS, SOCIAL_LINKS } from '~/lib/constants';
+import Icon from '../Icon';
 
 function FooterLinks(): JSX.Element {
     return (
@@ -25,13 +27,13 @@ function FooterLinks(): JSX.Element {
             </ul>
 
             <ul className="flex justify-center gap-6">
-                {SOCIAL_LINKS.map(({ href }) => (
+                {SOCIAL_LINKS.map(({ icon, href }) => (
                     <li key={href}>
                         <Link variant="text" color="steel-darker" href={href}>
                             <div className="mt-2">
-                                {/* <FooterIcon>
+                                <FooterIcon>
                                     <Icon icon={icon} width="16" height="16" />
-                                </FooterIcon> */}
+                                </FooterIcon>
                             </div>
                         </Link>
                     </li>

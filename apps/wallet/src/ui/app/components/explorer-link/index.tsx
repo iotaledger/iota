@@ -3,12 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import ExternalLink from '_components/external-link';
-import { ArrowTopRight } from '@iota/icons';
+import { ArrowUpRight16 } from '@iota/icons';
 import { formatAddress } from '@iota/iota.js/utils';
 import type { ReactNode } from 'react';
-import st from './ExplorerLink.module.scss';
+
 import { useExplorerLink, type ExplorerLinkConfig } from '../../hooks/useExplorerLink';
 import { Text } from '../../shared/text';
+import st from './ExplorerLink.module.scss';
 import { ExplorerLinkType } from './ExplorerLinkType';
 
 export type ExplorerLinkProps = ExplorerLinkConfig & {
@@ -35,8 +36,7 @@ function ExplorerLink({
     return (
         <ExternalLink href={explorerHref} className={className} title={title}>
             <>
-                {children}
-                {showIcon && <ArrowTopRight className={st.explorerIcon} />}
+                {children} {showIcon && <ArrowUpRight16 className={st.explorerIcon} />}
             </>
         </ExternalLink>
     );

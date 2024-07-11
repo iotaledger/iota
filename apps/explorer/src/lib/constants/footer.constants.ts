@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// import { SocialDiscord24, SocialLinkedin24, SocialTwitter24 } from '@iota/icons';
+import { SocialDiscord24, SocialLinkedin24, SocialTwitter24 } from '@iota/icons';
 
 export const FOOTER_LINKS = [
     { title: 'Blog', href: 'https://mystenlabs.com/blog' },
@@ -23,15 +23,15 @@ export const FOOTER_LINKS = [
 
 export const SOCIAL_LINKS = [
     {
-        // icon: SocialDiscord24,
+        icon: SocialDiscord24,
         href: 'https://discord.gg/BK6WFhud',
     },
     {
-        // icon: SocialTwitter24,
+        icon: SocialTwitter24,
         href: 'https://twitter.com/Mysten_Labs',
     },
     {
-        // icon: SocialLinkedin24,
+        icon: SocialLinkedin24,
         href: 'https://www.linkedin.com/company/mysten-labs/',
     },
 ];

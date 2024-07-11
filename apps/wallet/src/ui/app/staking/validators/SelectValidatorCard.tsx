@@ -10,9 +10,10 @@ import LoadingIndicator from '_components/loading/LoadingIndicator';
 import { ampli } from '_src/shared/analytics/ampli';
 import { calculateStakeShare, formatPercentageDisplay, useGetValidatorsApy } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { Right } from '@iota/icons';
-import { useMemo, useState } from 'react';
+import { ArrowRight16 } from '@iota/icons';
 import cl from 'clsx';
+import { useMemo, useState } from 'react';
+
 import { ValidatorListItem } from './ValidatorListItem';
 
 type SortKeys = 'name' | 'stakeShare' | 'apy';
@@ -136,7 +137,7 @@ export function SelectValidatorCard() {
                                             {value}
                                         </Text>
                                         {sortKey === key && (
-                                            <Right
+                                            <ArrowRight16
                                                 className={cl(
                                                     'text-captionSmall font-thin text-hero',
                                                     sortAscending ? 'rotate-90' : '-rotate-90',
@@ -191,7 +192,7 @@ export function SelectValidatorCard() {
                             })
                         }
                         text="Select Amount"
-                        after={<Right />}
+                        after={<ArrowRight16 />}
                     />
                 </Menu>
             )}

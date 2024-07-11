@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Text } from '_app/shared/text';
-// import { ChevronDown12 } from '@iota/icons';
+import { ChevronDown12 } from '@iota/icons';
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { forwardRef } from 'react';
 
@@ -21,7 +21,7 @@ const SelectTrigger = forwardRef<
     >
         {children}
         <SelectPrimitive.Icon asChild>
-            {/* <ChevronDown12 className="text-steel transition group-hover:text-steel-darker group-active:text-steel-dark group-disabled:text-gray-45" /> */}
+            <ChevronDown12 className="text-steel transition group-hover:text-steel-darker group-active:text-steel-dark group-disabled:text-gray-45" />
         </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
 ));

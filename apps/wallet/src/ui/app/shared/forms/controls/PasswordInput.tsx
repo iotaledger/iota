@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// import { EyeClose16, EyeOpen16 } from '@iota/icons';
+import { EyeClose16, EyeOpen16 } from '@iota/icons';
 import { forwardRef, useState, type ComponentProps } from 'react';
 
 import { ButtonOrLink } from '../../utils/ButtonOrLink';
@@ -15,7 +15,7 @@ type PasswordInputProps = {
 export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
     ({ placeholder, ...props }, forwardedRef) => {
         const [passwordShown, setPasswordShown] = useState(false);
-        // const IconComponent = passwordShown ? EyeOpen16 : EyeClose16;
+        const IconComponent = passwordShown ? EyeOpen16 : EyeClose16;
 
         return (
             <div className="relative flex w-full items-center">
@@ -30,7 +30,7 @@ export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
                     className="absolute right-3 flex cursor-pointer appearance-none border-none bg-transparent text-gray-60 peer-focus:text-steel"
                     onClick={() => setPasswordShown((prevState) => !prevState)}
                 >
-                    {/* <IconComponent className="h-4 w-4" /> */}
+                    <IconComponent className="h-4 w-4" />
                 </ButtonOrLink>
             </div>
         );

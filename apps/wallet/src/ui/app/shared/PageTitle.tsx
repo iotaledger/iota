@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Left } from '@iota/icons';
+import { ArrowLeft16 } from '@iota/icons';
 import { type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -36,7 +36,7 @@ function PageTitle({ title = '', back, after }: PageTitleProps) {
                         to={typeof back === 'string' ? back : undefined}
                         onClick={backOnClick}
                         size="xs"
-                        before={<Left className="text-base leading-none" />}
+                        before={<ArrowLeft16 className="text-base leading-none" />}
                         variant="plain"
                     />
                 </div>

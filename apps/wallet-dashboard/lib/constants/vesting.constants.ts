@@ -154,9 +154,7 @@ export const MOCKED_VESTING_TIMELOCKED_OBJECT: Timelocked[] = [
         label: VESTING_LABEL,
     },
     {
-        id: {
-            id: { bytes: '0Closef6152d586e9456a1a3cc7d3d0c9def8352850d06f9284f1b234b63345dd18b' },
-        },
+        id: { id: { bytes: '0x12f6152d586e9456a1a3cc7d3d0c9def8352850d06f9284f1b234b63345dd18b' } },
         locked: { value: 1000 },
         expirationTimestampMs: 1743033600000,
         label: VESTING_LABEL,

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ArrowTopRight } from '@iota/icons';
+import { ArrowUpRight12 } from '@iota/icons';
 import { type IotaValidatorSummary } from '@iota/iota.js/client';
 import { Heading, Text } from '@iota/ui';
 
@@ -41,7 +41,7 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
                             className="mt-2.5 inline-flex items-center gap-1.5 text-body font-medium text-iota-dark no-underline"
                         >
                             {projectUrl.replace(/\/$/, '')}
-                            <ArrowTopRight className="text-steel" />
+                            <ArrowUpRight12 className="text-steel" />
                         </a>
                     )}
                 </div>

@@ -7,7 +7,7 @@ import { LockUnlockButton } from '_components/accounts/LockUnlockButton';
 import { useUnlockAccount } from '_components/accounts/UnlockAccountContext';
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
 import { useResolveIotaNSName } from '@iota/core';
-// import { CheckFill16 } from '@iota/icons';
+import { CheckFill16 } from '@iota/icons';
 import { formatAddress } from '@iota/iota.js/utils';
 import clsx from 'clsx';
 
@@ -84,7 +84,7 @@ export function AccountItemApproveConnection({
                         'text-success': selected,
                     })}
                 >
-                    {/* <CheckFill16 className={clsx('h-4 w-4', { 'opacity-50': !selected })} /> */}
+                    <CheckFill16 className={clsx('h-4 w-4', { 'opacity-50': !selected })} />
                 </div>
             </div>
         </div>

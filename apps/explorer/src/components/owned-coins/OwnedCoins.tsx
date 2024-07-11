@@ -4,7 +4,7 @@
 
 import { getCoinSymbol } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { Info } from '@iota/icons';
+import { Info16 } from '@iota/icons';
 import { type CoinBalance } from '@iota/iota.js/client';
 import { normalizeIotaAddress } from '@iota/iota.js/utils';
 import { Heading, Text, LoadingIndicator, RadioGroup, RadioGroupItem } from '@iota/ui';
@@ -142,7 +142,7 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                     {filterValue === CoinFilter.Unrecognized && (
                         <div className="flex items-center gap-2 rounded-2xl border border-gray-45 p-2 text-steel-darker">
                             <div>
-                                <Info width="16px" />
+                                <Info16 width="16px" />
                             </div>
                             <Text color="steel-darker" variant="body/medium">
                                 These coins have not been recognized by Iota Foundation.
