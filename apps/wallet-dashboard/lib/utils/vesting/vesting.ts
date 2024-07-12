@@ -8,14 +8,15 @@ import {
     SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR,
     SUPPLY_INCREASE_VESTING_PAYOUT_SCHEDULE,
     VESTING_LABEL,
-} from '../constants/vesting.constants';
+} from '../../constants';
+
 import {
     SupplyIncreaseUserType,
     SupplyIncreaseVestingPayout,
     SupplyIncreaseVestingPortfolio,
     Timelocked,
     TimelockedStakedIota,
-} from '../interfaces';
+} from '../../interfaces';
 
 export function getLastVestingPayout(
     objects: (Timelocked | TimelockedStakedIota)[],
