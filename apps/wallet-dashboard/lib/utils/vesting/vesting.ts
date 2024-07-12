@@ -98,16 +98,11 @@ export function buildVestingSchedule(
 
     const payoutsCount = getVestingPayoutsCount(userType);
 
-    const vestingPortfolio: SupplyIncreaseVestingPortfolio = [];
-
-    for (let i = payoutsCount; i > 0; i--) {
-        vestingPortfolio.push({
-            amount: referencePayout.amount,
-            expirationTime:
-                referencePayout.expirationTime - SUPPLY_INCREASE_VESTING_PAYOUT_SCHEDULE * i,
-        });
-    }
-    return vestingPortfolio.reverse();
+    return Array.from({ length: payoutsCount }).map((_, i) => ({
+        amount: referencePayout.amount,
+        expirationTime:
+            referencePayout.expirationTime - SUPPLY_INCREASE_VESTING_PAYOUT_SCHEDULE * i,
+    }));
 }
 
 // Get number of payouts to construct vesting schedule
