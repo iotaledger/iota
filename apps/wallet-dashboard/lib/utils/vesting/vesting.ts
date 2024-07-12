@@ -31,7 +31,7 @@ export function getLastVestingPayout(
 
     const payouts: SupplyIncreaseVestingPayout[] = Array.from(timestampToVestingPayout.values());
 
-    return payouts.sort((a, b) => b.expirationTimestampMs - a.expirationTimestampMs)[0];
+    return payouts.sort((a, b) => b.expirationTime - a.expirationTime)[0];
 }
 
 function buildExpirationToVestingPayoutMap(
@@ -50,7 +50,7 @@ function buildExpirationToVestingPayoutMap(
         if (!expirationToVestingPayout.has(vestingObject.expirationTimestampMs)) {
             expirationToVestingPayout.set(vestingObject.expirationTimestampMs, {
                 amount: objectValue,
-                expirationTimestampMs: vestingObject.expirationTimestampMs,
+                expirationTime: vestingObject.expirationTimestampMs,
             });
         } else {
             const vestingPayout = expirationToVestingPayout.get(
@@ -73,7 +73,7 @@ function buildExpirationToVestingPayoutMap(
 export function getVestingUserType(
     vestingUserPayouts: SupplyIncreaseVestingPayout[],
 ): SupplyIncreaseUserType | undefined {
-    const payoutTimelocks = vestingUserPayouts.map((payout) => payout.expirationTimestampMs);
+    const payoutTimelocks = vestingUserPayouts.map((payout) => payout.expirationTime);
     const latestPayout = payoutTimelocks.sort((a, b) => b - a)[0];
 
     if (!latestPayout) {
@@ -91,7 +91,7 @@ export function buildVestingSchedule(
 ): SupplyIncreaseVestingPortfolio {
     const userType = getVestingUserType([referencePayout]);
 
-    if (!userType || Date.now() >= referencePayout.expirationTimestampMs) {
+    if (!userType || Date.now() >= referencePayout.expirationTime) {
         // if the latest payout has already been unlocked, we cant build a vesting schedule
         return [];
     }
@@ -103,8 +103,8 @@ export function buildVestingSchedule(
     for (let i = payoutsCount; i > 0; i--) {
         vestingPortfolio.push({
             amount: referencePayout.amount,
-            expirationTimestampMs:
-                referencePayout.expirationTimestampMs - SUPPLY_INCREASE_VESTING_PAYOUT_SCHEDULE * i,
+            expirationTime:
+                referencePayout.expirationTime - SUPPLY_INCREASE_VESTING_PAYOUT_SCHEDULE * i,
         });
     }
     return vestingPortfolio.reverse();

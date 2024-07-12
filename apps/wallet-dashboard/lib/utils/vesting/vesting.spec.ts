@@ -25,7 +25,7 @@ describe('get last vesting payout', () => {
 
         const lastPayout = getLastVestingPayout(timelockedObjects);
 
-        expect(lastPayout?.expirationTimestampMs).toEqual(expectedObject.expirationTimestampMs);
+        expect(lastPayout?.expirationTime).toEqual(expectedObject.expirationTimestampMs);
         expect(lastPayout?.amount).toEqual(expectedObject.locked.value);
     });
 });
@@ -34,7 +34,7 @@ describe('get user type', () => {
     it('should return staker, if last payout is two years away from vesting starting year (2023)', () => {
         const vestingPayout: SupplyIncreaseVestingPayout = {
             amount: 1000,
-            expirationTimestampMs: 1735689661000, // Wednesday, 1 January 2025 00:01:01
+            expirationTime: 1735689661000, // Wednesday, 1 January 2025 00:01:01
         };
         const userType = getVestingUserType([vestingPayout]);
         expect(userType).toEqual(SupplyIncreaseUserType.Staker);
@@ -43,7 +43,7 @@ describe('get user type', () => {
     it('should return entity, if last payout is more than two years away from vesting starting year (2023)', () => {
         const vestingPayout: SupplyIncreaseVestingPayout = {
             amount: 1000,
-            expirationTimestampMs: 1798761661000, // Friday, 1 January 2027 00:01:01
+            expirationTime: 1798761661000, // Friday, 1 January 2027 00:01:01
         };
         const userType = getVestingUserType([vestingPayout]);
         expect(userType).toEqual(SupplyIncreaseUserType.Entity);

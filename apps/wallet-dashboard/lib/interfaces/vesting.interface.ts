@@ -41,7 +41,7 @@ export enum SupplyIncreaseUserType {
 
 export interface SupplyIncreaseVestingPayout {
     amount: number;
-    expirationTimestampMs: number;
+    expirationTime: number;
 }
 
 export type SupplyIncreaseVestingPortfolio = SupplyIncreaseVestingPayout[];
