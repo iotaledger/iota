@@ -2,9 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import IotaLedgerClient from '@iota/ledgerjs-hw-app-iota';
 import TransportWebHID from '@ledgerhq/hw-transport-webhid';
 import TransportWebUSB from '@ledgerhq/hw-transport-webusb';
-import IotaLedgerClient from '@iota/ledgerjs-hw-app-iota';
+import SpeculosHttpTransport from '_src/ui/app/SpeculosHttpTransport';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import {
@@ -42,13 +43,19 @@ export function IotaLedgerClientProvider({ children }: IotaLedgerClientProviderP
 
     const connectToLedger = useCallback(
         async (requestPermissionsFirst = false) => {
+            let ledgerTransport: TransportWebHID | TransportWebUSB | SpeculosHttpTransport;
             // If we've already connected to a Ledger device, we need
             // to close the connection before we try to re-connect
             await resetIotaLedgerClient();
 
-            const ledgerTransport = requestPermissionsFirst
-                ? await requestLedgerConnection()
-                : await openLedgerConnection();
+            if (await SpeculosHttpTransport.check()) {
+                ledgerTransport = await SpeculosHttpTransport.open();
+            } else {
+                ledgerTransport = requestPermissionsFirst
+                    ? await requestLedgerConnection()
+                    : await openLedgerConnection();
+            }
+
             const ledgerClient = new IotaLedgerClient(ledgerTransport);
             setIotaLedgerClient(ledgerClient);
             return ledgerClient;
