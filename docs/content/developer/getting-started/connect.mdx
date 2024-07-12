@@ -9,7 +9,7 @@ IOTA has Mainnet, Devnet, and Testnet networks available. You can use one of the
 
 The IOTA Testnet and Devnet networks consist of four validator nodes operated by Mysten Labs. Clients send transactions and read requests via this endpoint: `https://fullnode.<IOTA-NETWORK-VERSION>.iota.io:443` using [JSON-RPC](/references/iota-api/json-rpc-format.mdx).
 
-You can [request test IOTA tokens](#request-test-tokens) through the IOTA [devnet-faucet](https://discordapp.com/channels/916379725201563759/971488439931392130) and [testnet-faucet](https://discord.com/channels/916379725201563759/1037811694564560966) Discord channels, depending on which version of the network you use. If connected to Localnet, use cURL to request tokens from your [local faucet](local-network.mdx#use-the-local-faucet). The coins on these networks have no financial value. There is no faucet service for Mainnet.
+You can [request test IOTA tokens](get-coins.mdx) through the IOTA [devnet-faucet](https://discordapp.com/channels/916379725201563759/971488439931392130) and [testnet-faucet](https://discord.com/channels/916379725201563759/1037811694564560966) Discord channels, depending on which version of the network you use. If connected to Localnet, use cURL to request tokens from your [local faucet](local-network.mdx#use-the-local-faucet). The coins on these networks have no financial value. There is no faucet service for Mainnet.
 
 See announcements about IOTA in the [#announcements](https://discord.com/channels/916379725201563759/925109817834631189) Discord channel.
 
@@ -28,7 +28,7 @@ IOTA provides [IOTA command line interface (CLI)](/references/cli/client.mdx) to
 
 ## Environment set up
 
-First, [Install IOTA](iota-install.mdx#install-binaries). After you install IOTA, [request IOTA test tokens](#request-gas-tokens) through Discord for the network you are using: [Devnet](https://discordapp.com/channels/916379725201563759/971488439931392130) or [Testnet](https://discord.com/channels/916379725201563759/1037811694564560966). If connected to Localnet, use cURL to request tokens from your [local faucet](local-network.mdx#use-the-local-faucet).
+First, [Install IOTA](iota-install.mdx#install-binaries). After you install IOTA, [request IOTA test tokens](get-coins.mdx) through Discord for the network you are using: [Devnet](https://discordapp.com/channels/916379725201563759/971488439931392130) or [Testnet](https://discord.com/channels/916379725201563759/1037811694564560966). If connected to Localnet, use cURL to request tokens from your [local faucet](local-network.mdx#use-the-local-faucet).
 
 To check whether IOTA is already installed, run the following command:
 
@@ -116,4 +116,4 @@ To switch the active network, run the following command:
 iota client switch --env <ALIAS>
 ```
 
-If you encounter an issue, delete the IOTA configuration directory (`~/.iota/iota_config`) and reinstall the latest [IOTA binaries](iota-install.mdx#install-iota-binaries).
+If you encounter an issue, delete the IOTA configuration directory (`~/.iota/iota_config`) and reinstall the latest [IOTA binaries](iota-install.mdx#install-binaries).

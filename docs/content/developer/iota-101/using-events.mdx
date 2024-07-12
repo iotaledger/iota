@@ -22,7 +22,7 @@ An event object in IOTA consists of the following attributes:
 
 ## Discovering events
 
-If you want to subscribe to events on chain, you first need to know what events are available. You typically know or can discover the events your own code emits, but it's not as straightforward when you need to subscribe to on-chain events from packages you don't own. The IOTA RPC provides a [queryEvents](/iota-api-ref#iotax_queryEvents) method to query on-chain packages and return available events that you can subscribe to.
+If you want to subscribe to events on chain, you first need to know what events are available. You typically know or can discover the events your own code emits, but it's not as straightforward when you need to subscribe to on-chain events from packages you don't own. The IOTA RPC provides a [queryEvents](/iota-api-ref#iotax_queryevents) method to query on-chain packages and return available events that you can subscribe to.
 
 ## Filter events
 
@@ -54,7 +54,7 @@ public fun collect_profits( _: &ShopOwnerCap, shop: &mut DonutShop, ctx: &mut Tx
 
 Firing events is not very useful in a vacuum. You also need the ability to listen for those events so that you can act on them. In IOTA, you subscribe to those events and provide logic that triggers when the event fires.
 
-IOTA Full nodes support subscribe functionality using JSON-RPC notifications transmitted through the WebSocket API. You can interact with the RPC directly ([iotax_subscribeEvent](/iota-api-ref#iotax_subscribeEvent), [iotax_subscribeTransaction](/iota-api-ref#iotax_subscribeTransaction)) or you can use an SDK like the IOTA TypeScript SDK. The following excerpt from one of the examples uses the TypeScript SDK to create an asynchronous subscription to the filter identified in the filter.
+IOTA Full nodes support subscribe functionality using JSON-RPC notifications transmitted through the WebSocket API. You can interact with the RPC directly ([iotax_subscribeEvent](/iota-api-ref#iotax_subscribeevent), [iotax_subscribeTransaction](/iota-api-ref#iotax_subscribetransaction)) or you can use an SDK like the IOTA TypeScript SDK. The following excerpt from one of the examples uses the TypeScript SDK to create an asynchronous subscription to the filter identified in the filter.
 
 ```move
 let unsubscribe = await provider.subscribeEvent({
