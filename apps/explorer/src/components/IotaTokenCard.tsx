@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { COIN_GECKO_IOTA_URL, useIotaCoinData } from '@iota/core';
-import { IotaLogoMark } from '@iota/icons';
+import { Iota } from '@iota/icons';
 import { Text } from '@iota/ui';
 
 import { ButtonOrLink, Card } from '~/components/ui';
@@ -24,7 +24,7 @@ export function IotaTokenCard(): JSX.Element {
             <Card growOnHover bg="white/80" spacing="lg" height="full">
                 <div className="flex items-center gap-2">
                     <div className="h-5 w-5 flex-shrink-0 rounded-full bg-iota p-1">
-                        <IotaLogoMark className="h-full w-full text-white" />
+                        <Iota className="h-full w-full text-white" />
                     </div>
                     <div className="flex w-full flex-col gap-0.5">
                         <Text variant="body/semibold" color="steel-darker">

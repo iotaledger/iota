@@ -8,7 +8,7 @@ import {
     useResolveIotaNSAddress,
     useResolveIotaNSName,
 } from '@iota/core';
-// import { ObjectDetailsHeader } from '@iota/icons';
+import { ObjectDetailsHeader } from '@iota/icons';
 import { useParams } from 'react-router-dom';
 import { ErrorBoundary, PageLayout } from '~/components';
 import { TotalStaked } from '~/pages/address-result/TotalStaked';
@@ -40,7 +40,7 @@ function Header({ address, loading, error }: HeaderProps): JSX.Element {
                 type={isObject ? 'Object' : 'Address'}
                 title={address}
                 subtitle={domainName}
-                // before={<ObjectDetailsHeader className="h-6 w-6" />}
+                before={<ObjectDetailsHeader className="h-6 w-6" />}
                 after={<TotalStaked address={address} />}
             />
 

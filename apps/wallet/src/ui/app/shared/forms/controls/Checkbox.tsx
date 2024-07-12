@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Checkmark } from '@iota/icons';
+import { Check12 } from '@iota/icons';
 import * as RadixCheckbox from '@radix-ui/react-checkbox';
 import { forwardRef } from 'react';
 import type { ComponentProps, ReactNode } from 'react';
@@ -21,7 +21,7 @@ export const Checkbox = forwardRef<HTMLButtonElement, CheckboxProps>(
                 {...props}
             >
                 <div className="flex h-5 w-5 items-center justify-center rounded border border-solid border-steel bg-white disabled:border-hero-darkest/10 group-data-[state=checked]:border-0 group-data-[state=checked]:bg-success">
-                    <Checkmark className="text-body font-semibold text-hero-darkest/10 group-data-[state=checked]:text-white" />
+                    <Check12 className="text-body font-semibold text-hero-darkest/10 group-data-[state=checked]:text-white" />
                 </div>
             </RadixCheckbox.Root>
             <label

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Dialog, Transition } from '@headlessui/react';
-import { Close } from '@iota/icons';
+import { X12 } from '@iota/icons';
 import { Heading } from '@iota/ui';
 import { Fragment, type ReactNode } from 'react';
 
@@ -24,7 +24,7 @@ export function CloseButton({ onClick }: CloseButtonProps): JSX.Element {
             type="button"
             className="absolute right-0 top-0 p-4 text-steel hover:text-steel-darker"
         >
-            <Close />
+            <X12 />
         </button>
     );
 }

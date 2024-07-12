@@ -16,7 +16,7 @@ import { useExplorerLink } from '_src/ui/app/hooks/useExplorerLink';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import PageTitle from '_src/ui/app/shared/PageTitle';
 import { useGetKioskContents, useGetNFTMeta } from '@iota/core';
-import { Right, ArrowTopRight } from '@iota/icons';
+import { ArrowRight16, ArrowUpRight12 } from '@iota/icons';
 import { formatAddress } from '@iota/iota.js/utils';
 import cl from 'clsx';
 import { Navigate, useSearchParams } from 'react-router-dom';
@@ -99,7 +99,7 @@ function NFTDetailsPage() {
                                         size="captionSmall"
                                         href={objectExplorerLink || ''}
                                         text="VIEW ON EXPLORER"
-                                        after={<ArrowTopRight />}
+                                        after={<ArrowUpRight12 />}
                                     />
                                 ) : null}
                             </div>
@@ -190,13 +190,13 @@ function NFTDetailsPage() {
                             {isContainedInKiosk && kioskItem?.isLocked ? (
                                 <div className="mb-3 flex flex-col gap-2">
                                     <Button
-                                        after={<ArrowTopRight />}
+                                        after={<ArrowUpRight12 />}
                                         variant="outline"
                                         href="https://docs.sui.io/build/sui-kiosk"
                                         text="Learn more about Kiosks"
                                     />
                                     <Button
-                                        after={<ArrowTopRight />}
+                                        after={<ArrowUpRight12 />}
                                         variant="outline"
                                         href={`https://sui.hyperspace.xyz/wallet/sui/${accountAddress}?tokenAddress=${nftId}`}
                                         text="Marketplace"
@@ -215,7 +215,7 @@ function NFTDetailsPage() {
                                                 : "Unable to send. NFT doesn't have public transfer method"
                                         }
                                         text="Send NFT"
-                                        after={<Right />}
+                                        after={<ArrowRight16 />}
                                     />
                                 </div>
                             )}

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Search } from '@iota/icons';
+import { Search24 } from '@iota/icons';
 import { Combobox, ComboboxInput, ComboboxList } from '@iota/ui';
 import clsx from 'clsx';
 import { useCallback, useEffect, useState } from 'react';
@@ -119,7 +119,7 @@ export function PkgModulesWrapper({
                             className="border-none bg-inherit pr-2"
                             type="submit"
                         >
-                            <Search className="h-4.5 w-4.5 cursor-pointer fill-steel align-middle text-gray-60" />
+                            <Search24 className="h-4.5 w-4.5 cursor-pointer fill-steel align-middle text-gray-60" />
                         </button>
                     </div>
 

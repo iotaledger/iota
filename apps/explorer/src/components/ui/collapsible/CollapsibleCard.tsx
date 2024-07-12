@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// import { ChevronRight16 } from '@iota/icons';
+import { ChevronRight16 } from '@iota/icons';
 import { Heading } from '@iota/ui';
 import * as Collapsible from '@radix-ui/react-collapsible';
 import clsx from 'clsx';
@@ -52,11 +52,11 @@ function CollapsibleCardHeader({
                 title
             )}
 
-            {/* {collapsible && (
+            {collapsible && (
                 <ChevronRight16
                     className={clsx('cursor-pointer text-steel', open && 'rotate-90')}
                 />
-            )} */}
+            )}
         </div>
     );
 

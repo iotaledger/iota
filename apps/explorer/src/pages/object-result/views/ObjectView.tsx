@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { CoinFormat, useFormatCoin, useResolveIotaNSName } from '@iota/core';
-import { ArrowTopRight, Info } from '@iota/icons';
+import { ArrowUpRight16, Info16 } from '@iota/icons';
 import { type IotaObjectResponse, type ObjectOwner } from '@iota/iota.js/client';
 import {
     formatAddress,
@@ -62,7 +62,7 @@ function HeroVideoImage({ title, subtitle, src, video }: HeroVideoImageProps): J
                 rounded="xl"
             />
             <div className="absolute right-3 top-3 hidden h-8 w-8 items-center justify-center rounded-md bg-white/40 backdrop-blur group-hover:flex">
-                <ArrowTopRight />
+                <ArrowUpRight16 />
             </div>
         </div>
     );
@@ -166,7 +166,7 @@ function DescriptionCard({
                         </Text>
 
                         <Tooltip tip={<div className="flex flex-wrap break-all">{objectType}</div>}>
-                            <Info />
+                            <Info16 />
                         </Tooltip>
                     </div>
                 }

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Right } from '@iota/icons';
+import { ArrowRight12 } from '@iota/icons';
 import {
     type ColumnDef,
     flexRender,
@@ -24,7 +24,7 @@ export interface TableCardProps<DataType extends object> {
 
 function AscDescIcon({ sorting }: { sorting: 'asc' | 'desc' }): JSX.Element {
     return (
-        <Right
+        <ArrowRight12
             fill="currentColor"
             className={clsx(sorting === 'asc' ? '-rotate-90' : 'rotate-90', ' text-steel-darker')}
         />

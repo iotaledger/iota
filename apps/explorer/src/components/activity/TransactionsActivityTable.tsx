@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClient } from '@iota/dapp-kit';
-import { Right } from '@iota/icons';
+import { ArrowRight12 } from '@iota/icons';
 import { Text } from '@iota/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
@@ -82,7 +82,7 @@ export function TransactionsActivityTable({
                     {!disablePagination ? (
                         <Pagination {...pagination} />
                     ) : (
-                        <Link to="/recent" after={<Right className="h-3 w-3 -rotate-45" />}>
+                        <Link to="/recent" after={<ArrowRight12 className="h-3 w-3 -rotate-45" />}>
                             View all
                         </Link>
                     )}

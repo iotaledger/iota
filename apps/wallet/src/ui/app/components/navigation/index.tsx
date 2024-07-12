@@ -4,7 +4,7 @@
 
 import { useAppSelector } from '_hooks';
 import { getNavIsVisible } from '_redux/slices/app';
-// import { Activity32, Apps32, Nft132, Tokens32 } from '@iota/icons';
+import { Activity32, Apps32, Nft132, Tokens32 } from '@iota/icons';
 import cl from 'clsx';
 import { NavLink } from 'react-router-dom';
 
@@ -35,7 +35,7 @@ export function Navigation() {
                     className={makeLinkClsNoDisabled}
                     title="Home"
                 >
-                    {/* <Tokens32 className="h-8 w-8" /> */}
+                    <Tokens32 className="h-8 w-8" />
                     <span className={st.title}>Home</span>
                 </NavLink>
                 <NavLink
@@ -48,7 +48,7 @@ export function Navigation() {
                         }
                     }}
                 >
-                    {/* <Nft132 className="h-8 w-8" /> */}
+                    <Nft132 className="h-8 w-8" />
                     <span className={st.title}>Assets</span>
                 </NavLink>
                 <NavLink
@@ -61,7 +61,7 @@ export function Navigation() {
                         }
                     }}
                 >
-                    {/* <Apps32 className="h-8 w-8" /> */}
+                    <Apps32 className="h-8 w-8" />
                     <span className={st.title}>Apps</span>
                 </NavLink>
                 <NavLink
@@ -75,7 +75,7 @@ export function Navigation() {
                         }
                     }}
                 >
-                    {/* <Activity32 className="h-8 w-8" /> */}
+                    <Activity32 className="h-8 w-8" />
                     <span className={st.title}>Activity</span>
                 </NavLink>
             </div>

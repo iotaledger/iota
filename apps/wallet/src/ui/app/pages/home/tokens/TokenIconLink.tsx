@@ -13,7 +13,7 @@ import {
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
 } from '@iota/core';
-// import { WalletActionStake24 } from '@iota/icons';
+import { WalletActionStake24 } from '@iota/icons';
 import { IOTA_TYPE_ARG } from '@iota/iota.js/utils';
 
 export function TokenIconLink({
@@ -50,7 +50,7 @@ export function TokenIconLink({
                 });
             }}
             loading={isPending || queryResultStake.isPending}
-            // before={<WalletActionStake24 />}
+            before={<WalletActionStake24 />}
             data-testid={`stake-button-${formattedDelegatedStake}-${symbol}`}
         >
             <div className="flex flex-col">

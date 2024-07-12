@@ -6,7 +6,7 @@ import { ErrorBoundary } from '_components/error-boundary';
 import { ampli } from '_src/shared/analytics/ampli';
 import { NFTDisplayCard } from '_src/ui/app/components/nft-display';
 import { Button } from '_src/ui/app/shared/ButtonUI';
-// import { EyeClose16 } from '@iota/icons';
+import { EyeClose16 } from '@iota/icons';
 import { type IotaObjectData } from '@iota/iota.js/client';
 import { Link } from 'react-router-dom';
 
@@ -59,7 +59,7 @@ export default function VisualAssets({ items }: VisualAssetsProps) {
                                             });
                                             hideAsset(object.objectId);
                                         }}
-                                        // after={<EyeClose16 />}
+                                        after={<EyeClose16 />}
                                     />
                                 </div>
                             ) : null}

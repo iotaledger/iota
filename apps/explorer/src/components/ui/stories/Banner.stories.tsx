@@ -5,7 +5,7 @@
 import { type Meta, type StoryObj } from '@storybook/react';
 
 import { Banner, type BannerProps } from '../Banner';
-import { ReactComponent as CheckIcon } from '../icons/check_12Close.svg';
+import { ReactComponent as CheckIcon } from '../icons/check_12x12.svg';
 
 export default {
     component: Banner,

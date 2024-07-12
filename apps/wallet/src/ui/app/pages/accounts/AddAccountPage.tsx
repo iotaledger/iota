@@ -6,7 +6,7 @@ import { Button } from '_app/shared/ButtonUI';
 import { Text } from '_app/shared/text';
 import Overlay from '_components/overlay';
 import { ampli } from '_src/shared/analytics/ampli';
-// import { LedgerLogo17 as LedgerLogo } from '@iota/icons';
+import { LedgerLogo17 as LedgerLogo } from '@iota/icons';
 import { useState, type ReactNode } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -53,7 +53,7 @@ export function AddAccountPage() {
                         variant="outline"
                         size="tall"
                         text="Set up Ledger"
-                        // before={<LedgerLogo className="h-4 w-4 text-gray-90" />}
+                        before={<LedgerLogo className="h-4 w-4 text-gray-90" />}
                         onClick={async () => {
                             ampli.openedConnectLedgerFlow({ sourceFlow });
                             if (isPopup) {

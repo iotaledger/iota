@@ -9,7 +9,6 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - 'apps/ui-kit/**'
-      - 'apps/icons/**'
       - '.github/workflows/apps-ui-kit-preview.deploy.yml'
 
 jobs:

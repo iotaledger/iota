@@ -18,7 +18,7 @@ import {
     useIotaNSEnabled,
 } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
-import { Right } from '@iota/icons';
+import { ArrowRight16 } from '@iota/icons';
 import { TransactionBlock } from '@iota/iota.js/transactions';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Field, Form, Formik } from 'formik';
@@ -146,7 +146,7 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
                                 disabled={!isValid}
                                 size="tall"
                                 text="Send NFT Now"
-                                after={<Right />}
+                                after={<ArrowRight16 />}
                             />
                         </Menu>
                     </BottomMenuLayout>
