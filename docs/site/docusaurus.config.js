@@ -198,18 +198,15 @@ const config = {
           },
         ],
       },
+      colorMode: {
+        defaultMode: 'dark',
+        disableSwitch: false,
+      },
       footer: {
         logo: {
           alt: "IOTA Wiki Logo",
           src: "img/iota-logo.svg",
         },
-        copyright: `
-        <div style="display: flex; flex-direction:column;">
-           ©  ${new Date().getFullYear()} IOTA Foundation
-          <div>
-                 <a>Privacy Policy</a> • <a>Impressum</a> • <a>Contact Us</a>
-          </div>
-        </div>`,
       },
       prism: {
         theme: themes.github,

@@ -1,7 +1,7 @@
 module a::m {
     // invalid cycle
-    macro fun self_cyle(): u64 {
-        1 + self_cyle!()
+    macro fun self_cycle(): u64 {
+        1 + self_cycle!()
     }
 
     // invalid cycle of more than 1 node
@@ -36,7 +36,7 @@ module a::m {
     }
 
     fun t() {
-        self_cyle!();
+        self_cycle!();
         cycle1!();
         cycle_app!(|| 1);
         cycle_by_name!(1);

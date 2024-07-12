@@ -47,7 +47,7 @@ module timelock::timelocked_balance {
         // Split the locked balance.
         let value = self.locked_mut().split(value);
 
-        // Pack the splitted balance into a timelock.
+        // Pack the split balance into a timelock.
         timelock::pack(value, self.expiration_timestamp_ms(), self.label(), ctx)
     }
 

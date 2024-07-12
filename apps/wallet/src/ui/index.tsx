@@ -40,7 +40,7 @@ async function init() {
     if (process.env.NODE_ENV === 'development') {
         Object.defineProperty(window, 'store', { value: store });
     }
-    store.dispatch(initAppType(getFromLocationSearch(window.location.search)));
+    store.dispatch(initAppType(getFromLocationSearch()));
     await thunkExtras.background.init(store.dispatch);
     const { network, customRpc } = store.getState().app;
     setAttributes({ network, customRpc });

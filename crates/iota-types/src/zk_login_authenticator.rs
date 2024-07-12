@@ -102,7 +102,7 @@ impl AuthenticatorTrait for ZkLoginAuthenticator {
         Ok(())
     }
 
-    /// This verifies the addresss derivation and ephemeral signature.
+    /// This verifies the address derivation and ephemeral signature.
     /// It does not verify the zkLogin inputs (that includes the expensive zk
     /// proof verify).
     fn verify_uncached_checks<T>(

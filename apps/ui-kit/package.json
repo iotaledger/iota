@@ -31,9 +31,8 @@
         "./styles": "./dist/style.css"
     },
     "dependencies": {
-        "@iota/core": "workspace:*",
-        "@iota/icons": "workspace:*",
-        "cross-env": "^7.0.3",
+        "@fontsource/inter": "^5.0.17",
+        "classnames": "^2.5.1",
         "lodash.merge": "^4.6.2",
         "react": "^18.3.1",
         "react-dom": "^18.3.1"
@@ -53,8 +52,10 @@
         "@types/react": "^18.2.15",
         "@vitejs/plugin-react-swc": "^3.3.2",
         "autoprefixer": "^10.4.14",
+        "cross-env": "^7.0.3",
         "postcss": "^8.4.31",
         "storybook": "^7.1.0",
+        "storybook-dark-mode": "^4.0.2",
         "tailwindcss": "^3.3.3",
         "typescript": "^5.3.3",
         "vite": "^4.4.4",

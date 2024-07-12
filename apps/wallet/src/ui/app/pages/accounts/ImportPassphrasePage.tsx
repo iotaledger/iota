@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Text } from '_app/shared/text';
-import { entropyToSerialized, mnemonicToEntropy } from '_src/shared/utils/bip39';
+import { entropyToSerialized, mnemonicToEntropy } from '_src/shared/utils';
 import { useNavigate } from 'react-router-dom';
 
 import {

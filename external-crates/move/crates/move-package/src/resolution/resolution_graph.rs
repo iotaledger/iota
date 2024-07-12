@@ -48,7 +48,7 @@ use crate::{
 ///    receive its value through unification across the package graph.
 ///
 /// Named addresses can also be renamed in a package and will be re-exported
-/// under thes new names in this case.
+/// under these new names in this case.
 #[derive(Debug, Clone)]
 pub struct ResolvedGraph {
     pub graph: DG::DependencyGraph,
