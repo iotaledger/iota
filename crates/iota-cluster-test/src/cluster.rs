@@ -9,6 +9,7 @@ use iota_config::{
     genesis::Genesis, Config, PersistedConfig, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME,
     IOTA_NETWORK_CONFIG,
 };
+use iota_genesis_builder::SnapshotSource;
 use iota_graphql_rpc::{
     config::ConnectionConfig, test_infra::cluster::start_graphql_server_with_fn_rpc,
 };
@@ -215,7 +216,19 @@ impl Cluster for LocalNewCluster {
             cluster_builder = cluster_builder.with_config_dir(config_dir);
         } else {
             // Let the faucet account hold 1000 gas objects on genesis
-            let genesis_config = GenesisConfig::custom_genesis(1, 100);
+            let mut genesis_config = GenesisConfig::custom_genesis(1, 100);
+            // Add any migration sources
+            let local_snapshots = options
+                .local_migration_snapshots
+                .iter()
+                .cloned()
+                .map(SnapshotSource::Local);
+            let remote_snapshots = options
+                .remote_migration_snapshots
+                .iter()
+                .cloned()
+                .map(SnapshotSource::S3);
+            genesis_config.migration_sources = local_snapshots.chain(remote_snapshots).collect();
             // Custom genesis should be build here where we add the extra accounts
             cluster_builder = cluster_builder.set_genesis_config(genesis_config);
 

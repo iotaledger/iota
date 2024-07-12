@@ -356,6 +356,17 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             let mut builder = iota_genesis_builder::Builder::new()
                 .with_parameters(genesis_config.parameters)
                 .add_objects(self.additional_objects);
+            for source in &genesis_config.migration_sources {
+                let reader = source
+                    .to_reader()
+                    .expect("migration source should be readable");
+                builder = builder
+                    .add_migration_objects(reader)
+                    .expect("migrated stated should be added without errors");
+            }
+            if !genesis_config.migration_sources.is_empty() {
+                tracing::info!("Added migrated state");
+            }
 
             for (i, validator) in validators.iter().enumerate() {
                 let name = validator

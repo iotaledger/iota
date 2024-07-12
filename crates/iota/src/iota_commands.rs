@@ -17,6 +17,7 @@ use iota_config::{
     IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG,
     IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
 };
+use iota_genesis_builder::{SnapshotSource, SnapshotUrl};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_move::{self, execute_move_command};
 use iota_move_build::IotaPackageHooks;
@@ -99,6 +100,16 @@ pub enum IotaCommand {
             default_value_t = DEFAULT_NUMBER_OF_AUTHORITIES
         )]
         num_validators: usize,
+        #[clap(long, help = "The path to a local migration snapshot.", name = "path")]
+        #[arg(num_args(0..))]
+        local_migration_snapshots: Vec<PathBuf>,
+        #[clap(
+            long,
+            name = "iota|smr|<full-url>",
+            help = "The remote migration snapshot."
+        )]
+        #[arg(num_args(0..))]
+        remote_migration_snapshots: Vec<SnapshotUrl>,
     },
     GenesisCeremony(Ceremony),
     /// Iota keystore tool.
@@ -192,6 +203,8 @@ impl IotaCommand {
                         None,
                         false,
                         DEFAULT_NUMBER_OF_AUTHORITIES,
+                        Default::default(),
+                        Default::default(),
                     )
                     .await?;
                 }
@@ -283,6 +296,8 @@ impl IotaCommand {
                 benchmark_ips,
                 with_faucet,
                 num_validators,
+                local_migration_snapshots: with_local_migration_snapshot,
+                remote_migration_snapshots: with_remote_migration_snapshot,
             } => {
                 genesis(
                     from_config,
@@ -293,6 +308,8 @@ impl IotaCommand {
                     benchmark_ips,
                     with_faucet,
                     num_validators,
+                    with_local_migration_snapshot,
+                    with_remote_migration_snapshot,
                 )
                 .await
             }
@@ -371,6 +388,8 @@ async fn genesis(
     benchmark_ips: Option<Vec<String>>,
     with_faucet: bool,
     num_validators: usize,
+    local_migration_snapshots: Vec<PathBuf>,
+    remote_migration_snapshots: Vec<SnapshotUrl>,
 ) -> Result<(), anyhow::Error> {
     let iota_config_dir = &match working_dir {
         // if a directory is specified, it must exist (it
@@ -464,6 +483,13 @@ async fn genesis(
             }
         }
     };
+    let local_snapshots = local_migration_snapshots
+        .into_iter()
+        .map(SnapshotSource::Local);
+    let remote_snapshots = remote_migration_snapshots
+        .into_iter()
+        .map(SnapshotSource::S3);
+    genesis_conf.migration_sources = local_snapshots.chain(remote_snapshots).collect();
 
     // Adds an extra faucet account to the genesis
     if with_faucet {
