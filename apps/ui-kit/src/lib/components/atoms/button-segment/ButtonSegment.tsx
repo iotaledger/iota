@@ -49,6 +49,9 @@ export function ButtonSegment({
                 'state-layer relative flex items-center rounded-full px-sm py-2xxs disabled:opacity-40',
                 backgroundColors,
                 textColors,
+                {
+                    'pl-xs': !!icon,
+                },
             )}
             disabled={disabled}
         >
