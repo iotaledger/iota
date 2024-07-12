@@ -215,7 +215,6 @@ const config = {
         darkTheme: themes.jettwaveDark,
         additionalLanguages: ["rust", "typescript", "toml", "solidity"],
       },
-
     }),
 };
 
