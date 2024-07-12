@@ -34,6 +34,9 @@ export const BASE_CONFIG: Partial<Config> = {
             padding: {
                 '2xxs': '0.375rem',
             },
+            opacity: {
+                30: '0.3',
+            },
         },
     },
 };
