@@ -81,6 +81,7 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         epoch_duration_ms: None,
         benchmark_ips: None,
         with_faucet: false,
+        num_validators: 1,
     }
     .execute()
     .await?;
@@ -120,6 +121,7 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         epoch_duration_ms: None,
         benchmark_ips: None,
         with_faucet: false,
+        num_validators: 1,
     }
     .execute()
     .await;
