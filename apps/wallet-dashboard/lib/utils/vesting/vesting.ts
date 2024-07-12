@@ -27,14 +27,14 @@ export function getLastVestingPayout(
         return undefined;
     }
 
-    const timestampToVestingPayout = buildExpirationToVestingPayoutMap(vestingObjects);
+    const vestingPayoutMap = vestingObjectsToPayoutMap(vestingObjects);
 
-    const payouts: SupplyIncreaseVestingPayout[] = Array.from(timestampToVestingPayout.values());
+    const payouts: SupplyIncreaseVestingPayout[] = Array.from(vestingPayoutMap.values());
 
     return payouts.sort((a, b) => b.expirationTime - a.expirationTime)[0];
 }
 
-function buildExpirationToVestingPayoutMap(
+function vestingObjectsToPayoutMap(
     vestingObjects: (Timelocked | TimelockedStakedIota)[],
 ): Map<number, SupplyIncreaseVestingPayout> {
     const expirationToVestingPayout = new Map<number, SupplyIncreaseVestingPayout>();
