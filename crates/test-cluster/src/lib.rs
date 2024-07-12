@@ -158,7 +158,7 @@ impl TestCluster {
     pub async fn spawn_new_fullnode(&mut self) -> FullNodeHandle {
         self.start_fullnode_from_config(
             self.fullnode_config_builder()
-                .build(&mut OsRng, &self.swarm.config()),
+                .build(&mut OsRng, self.swarm.config()),
         )
         .await
     }
