@@ -7,7 +7,7 @@ import {
     MOCKED_VESTING_TIMELOCKED_STAKED_OBJECTS,
 } from '../../constants';
 
-import { SupplyIncreaseUserType } from '../../interfaces';
+import { SupplyIncreaseUserType, SupplyIncreaseVestingPayout } from '../../interfaces';
 
 import {
     buildVestingSchedule as buildVestingPortfolio,
@@ -32,14 +32,20 @@ describe('get last vesting payout', () => {
 
 describe('get user type', () => {
     it('should return staker, if last payout is two years away from vesting starting year (2023)', () => {
-        const lastPayoutTimestampMs = 1735689661000; // Wednesday, 1 January 2025 00:01:01
-        const userType = getVestingUserType([lastPayoutTimestampMs]);
+        const vestingPayout: SupplyIncreaseVestingPayout = {
+            amount: 1000,
+            expirationTimestampMs: 1735689661000, // Wednesday, 1 January 2025 00:01:01
+        };
+        const userType = getVestingUserType([vestingPayout]);
         expect(userType).toEqual(SupplyIncreaseUserType.Staker);
     });
 
     it('should return entity, if last payout is more than two years away from vesting starting year (2023)', () => {
-        const lastPayoutTimestampMs = 1798761661000; // Friday, 1 January 2027 00:01:01
-        const userType = getVestingUserType([lastPayoutTimestampMs]);
+        const vestingPayout: SupplyIncreaseVestingPayout = {
+            amount: 1000,
+            expirationTimestampMs: 1798761661000, // Friday, 1 January 2027 00:01:01
+        };
+        const userType = getVestingUserType([vestingPayout]);
         expect(userType).toEqual(SupplyIncreaseUserType.Entity);
     });
 });
