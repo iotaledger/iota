@@ -179,7 +179,7 @@ const config = {
       announcementBar:{
         id: 'integrate_your_exchange',
         content:
-            '<a target="_blank" rel="noopener noreferrer" href="/developer/exchange-integration/">integrate your exchange</a>. If you supported Stardust, please make sure to also <a target="_blank" rel="noopener noreferrer" href="/developer/stardust/exchanges"> migrate from Stardust</a>.',
+            '<a target="_blank" rel="noopener noreferrer" href="/developer/exchange-integration/">Integrate your exchange</a>. If you supported Stardust, please make sure to also <a target="_blank" rel="noopener noreferrer" href="/developer/stardust/exchanges"> migrate from Stardust</a>.',
         isCloseable: false,
 
       },
