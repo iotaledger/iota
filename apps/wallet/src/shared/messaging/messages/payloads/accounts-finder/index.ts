@@ -3,5 +3,3 @@
 
 export * from './InitAccountsFinder';
 export * from './SearchAccountsFinder';
-export * from './GetAccountsFinderResultsRequest';
-export * from './GetAccountsFinderResultsResponse';
