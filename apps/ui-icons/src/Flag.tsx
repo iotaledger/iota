@@ -14,7 +14,7 @@ export default function SvgFlag(props: SVGProps<SVGSVGElement>) {
         >
             <path
                 fill="currentColor"
-                d="M7 4a1 1 0 0 0-1 1v15a1 1 0 1 0 2 0v-7h9a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1H8V5a1 1 0 0 0-1-1"
+                d="M7 4a1 1 0 0 0-1 1v15a1 1 0 1 0 2 0v-7h9a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1H8V5a1 1 0 0 0-1-1Z"
             />
         </svg>
     );
