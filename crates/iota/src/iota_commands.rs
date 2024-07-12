@@ -210,6 +210,10 @@ impl IotaCommand {
                     .await?;
                 }
 
+                // Load the config of the Iota authority.
+                let network_config_path = config
+                    .clone()
+                    .unwrap_or(iota_config_dir()?.join(IOTA_NETWORK_CONFIG));
                 let NetworkConfigLight {
                     validator_configs,
                     account_keys,
