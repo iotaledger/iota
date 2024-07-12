@@ -1,11 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module timelock::labeler {
-
-    use std::string::{Self, String};
-
-    use iota::types;
+module iota::labeler {
 
     /// Error code for when a type passed to the `create_labeler_cap` function is not a one-time witness.
     const ENotOneTimeWitness: u64 = 0;
@@ -19,7 +15,7 @@ module timelock::labeler {
     /// Create a `LabelerCap` instance.
     /// Can be created only by consuming a one time witness.
     public fun create_labeler_cap<L: drop>(witness: L, ctx: &mut TxContext): LabelerCap<L> {
-        assert!(types::is_one_time_witness(&witness), ENotOneTimeWitness);
+        assert!(iota::types::is_one_time_witness(&witness), ENotOneTimeWitness);
 
         LabelerCap<L> {
             id: object::new(ctx),
@@ -34,11 +30,5 @@ module timelock::labeler {
         } = cap;
 
         object::delete(id);
-    }
-
-    /// Return a fully qualified type name with the original package IDs
-    /// that is used as type related a label value.
-    public(package) fun type_name<L>(): String {
-        string::from_ascii(std::type_name::get_with_original_ids<L>().into_string())
     }
 }
