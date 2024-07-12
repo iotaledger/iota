@@ -40,9 +40,11 @@ export function Header({
     onClose,
 }: HeaderProps): JSX.Element {
     const titleCenteredClasses = titleCentered ? 'text-center' : 'ml-1';
+    const keepSpaceForIcon = titleCentered && (!hasLeftIcon || !hasRightIcon);
+
     return (
         <div className="flex min-h-[56px] w-full items-center bg-neutral-100 px-lg pb-xs pt-sm text-neutral-10 dark:bg-neutral-6 dark:text-neutral-92">
-            {hasLeftIcon && (
+            {hasLeftIcon ? (
                 <Button
                     size={ButtonSize.Small}
                     type={ButtonType.Ghost}
@@ -62,13 +64,15 @@ export function Header({
                         </svg>
                     }
                 />
+            ) : (
+                keepSpaceForIcon && <div className="w-9" />
             )}
 
             <div className={cx('flex-grow', titleCenteredClasses)}>
                 <span className="font-inter text-title-lg">{title}</span>
             </div>
 
-            {hasRightIcon && (
+            {hasRightIcon ? (
                 <Button
                     size={ButtonSize.Small}
                     type={ButtonType.Ghost}
@@ -90,6 +94,8 @@ export function Header({
                         </svg>
                     }
                 />
+            ) : (
+                keepSpaceForIcon && <div className="w-9" />
             )}
         </div>
     );
