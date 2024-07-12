@@ -758,6 +758,9 @@ importers:
       '@ledgerhq/hw-transport-webusb':
         specifier: ^6.27.13
         version: 6.27.13
+      '@ledgerhq/logs':
+        specifier: ^6.12.0
+        version: 6.12.0
       '@metamask/browser-passworder':
         specifier: ^4.1.0
         version: 4.1.0
@@ -797,6 +800,9 @@ importers:
       '@tanstack/react-query-persist-client':
         specifier: ^5.40.1
         version: 5.45.0(@tanstack/react-query@5.0.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
+      axios:
+        specifier: ^1.7.2
+        version: 1.7.2
       bech32:
         specifier: ^2.0.0
         version: 2.0.0
@@ -4870,9 +4876,6 @@ packages:
 
   '@ledgerhq/hw-transport@6.30.6':
     resolution: {integrity: sha512-fT0Z4IywiuJuZrZE/+W0blkV5UCotDPFTYKLkKCLzYzuE6javva7D/ajRaIeR+hZ4kTmKF4EqnsmDCXwElez+w==}
-
-  '@ledgerhq/logs@6.10.1':
-    resolution: {integrity: sha512-z+ILK8Q3y+nfUl43ctCPuR4Y2bIxk/ooCQFwZxhtci1EhAtMDzMAx2W25qx8G1PPL9UUOdnUax19+F0OjXoj4w==}
 
   '@ledgerhq/logs@6.12.0':
     resolution: {integrity: sha512-ExDoj1QV5eC6TEbMdLUMMk9cfvNKhhv5gXol4SmULRVCx/3iyCPhJ74nsb3S0Vb+/f+XujBEj3vQn5+cwS0fNA==}
@@ -22238,14 +22241,14 @@ snapshots:
       '@ledgerhq/devices': 8.0.3
       '@ledgerhq/errors': 6.12.6
       '@ledgerhq/hw-transport': 6.30.6
-      '@ledgerhq/logs': 6.10.1
+      '@ledgerhq/logs': 6.12.0
 
   '@ledgerhq/hw-transport-webusb@6.27.13':
     dependencies:
       '@ledgerhq/devices': 8.0.1
       '@ledgerhq/errors': 6.12.4
       '@ledgerhq/hw-transport': 6.30.6
-      '@ledgerhq/logs': 6.10.1
+      '@ledgerhq/logs': 6.12.0
 
   '@ledgerhq/hw-transport@6.30.6':
     dependencies:
@@ -22253,8 +22256,6 @@ snapshots:
       '@ledgerhq/errors': 6.16.4
       '@ledgerhq/logs': 6.12.0
       events: 3.3.0
-
-  '@ledgerhq/logs@6.10.1': {}
 
   '@ledgerhq/logs@6.12.0': {}
 
