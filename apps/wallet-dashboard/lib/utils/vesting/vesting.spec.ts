@@ -5,6 +5,8 @@ import {
     MOCKED_VESTING_TIMELOCKED_AND_TIMELOCK_STAKED_OBJECTS,
     MOCKED_VESTING_TIMELOCKED_OBJECTS,
     MOCKED_VESTING_TIMELOCKED_STAKED_OBJECTS,
+    SUPPLY_INCREASE_STAKER_VESTING_DURATION,
+    SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR,
 } from '../../constants';
 
 import { SupplyIncreaseUserType, SupplyIncreaseVestingPayout } from '../../interfaces';
@@ -72,7 +74,9 @@ describe('build vesting portfolio', () => {
 
         const vestingPortfolio = buildVestingPortfolio(lastPayout!);
 
-        expect(vestingPortfolio.length).toEqual(52);
+        expect(vestingPortfolio.length).toEqual(
+            SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR * SUPPLY_INCREASE_STAKER_VESTING_DURATION,
+        );
     });
 
     it('should build propery with mix of mocked timelocked and timelocked staked objects', () => {
@@ -84,6 +88,8 @@ describe('build vesting portfolio', () => {
 
         const vestingPortfolio = buildVestingPortfolio(lastPayout!);
 
-        expect(vestingPortfolio.length).toEqual(52);
+        expect(vestingPortfolio.length).toEqual(
+            SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR * SUPPLY_INCREASE_STAKER_VESTING_DURATION,
+        );
     });
 });
