@@ -2,27 +2,26 @@
 title: Proof of Stake
 ---
 
-The IOTA platform relies on delegated proof-of-stake (DPoS) to determine the set of validators that process transactions.
+The Iota platform relies on delegated proof-of-stake (DPoS) to determine the set of validators that process transactions.
 
-## IOTA token staking {#staking}
+## Iota token staking {#staking}
 
 Within each epoch, a fixed set of validators process operations, each with a specific amount of stake from IOTA token holders. A validator's share of total stake is relevant in that it determines each validator's share of voting power for processing transactions. Staking IOTA implies the IOTA tokens are locked for the entire epoch. IOTA token holders are free to withdraw their IOTA or to change their selected validator when the epoch changes.
 
 ## Economic model {#economic-model}
 
-This section covers how the different components of the IOTA economy interact with each other to introduce the IOTA DPoS system. For reference, see the Staking and Tokenomics diagram in the [IOTA Tokenomics](../tokenomics.mdx) overview.
+This section covers how the different components of the Iota economy interact with each other to introduce the Iota DPoS system. For reference, see the Staking and Tokenomics diagram in the [IOTA Tokenomics](../tokenomics.mdx) overview.
 
-The IOTA economic model works as follows:
+The Iota economic model works as follows:
 
 At the beginning of each epoch, three important events happen:
 
-- IOTA holders stake (some) of their tokens to validators and a new [committee](../../operator/validator-committee.mdx) is formed.
-- The reference gas prices are set as described in [IOTA Gas Pricing](./gas-pricing.mdx).
-- The [storage fund](./storage-fund.mdx) size is adjusted using the net inflow of the previous epoch.
+- IOTA holders stake (some) of their tokens to validators and a new [committee](../../guides/operator/validator-committee.mdx) is formed.
+- The reference gas prices are set as described in [Iota Gas Pricing](./gas-pricing.mdx).
 
-Following these actions, the protocol computes the total amount of stake as the sum of staked IOTA plus the storage fund. Call the share of user stake $\alpha$.
+Following these actions, the protocol computes the total amount of stake as the sum of staked IOTA. Call the share of user stake $\alpha$.
 
-During each epoch: Users submit transactions to the IOTA platform and validators process them. For each transaction, users pay the associated computation and storage gas fees. In cases where users delete previous transaction data, users obtain a partial rebate of their storage fees. Validators observe the behavior of other validators and evaluate each other's performance.
+During each epoch: Users submit transactions to the Iota platform and validators process them. For each transaction, users pay the associated computation and storage gas fees. In cases where users delete previous transaction data, users obtain a partial rebate of their storage fees. Validators observe the behavior of other validators and evaluate each other's performance.
 
 At the end of each epoch: The protocol distributes stake rewards to participants of the DPoS mechanism. This occurs through two main steps:
 
@@ -41,10 +40,8 @@ The $\mu_v$ variable captures the output of the [tallying rule](gas-pricing.mdx#
 
 Consequently, validators with more stake earn more stake rewards and the joint $\mu_v\sigma_v$ term incentivizes validators to increase their share of stake while also operating the network performantly. In the long-run, this incentive encourages users to shift the stake distribution towards the network's most efficient validators, delivering a cost-efficient and decentralized network.
 
-Finally, the storage fund rewards accrue to all $N$ validators equally (since all validators face a similar burden of holding data in storage). The small amount of stake rewards that is not distributed out to either users or validators, namely the share $(1-\alpha)(1-\gamma)$ of stake rewards, gets reinvested in the storage fund.
+On net, this design encourages validators to operate with low gas price quotes, but not too low or they receive slashed stake rewards. Consequently, the Iota gas price mechanism and DPoS system encourages a healthy competition for fair prices where validators set low gas fees while operating with viable business models.
 
-On net, this design encourages validators to operate with low gas price quotes, but not too low or they receive slashed stake rewards. Consequently, the IOTA gas price mechanism and DPoS system encourages a healthy competition for fair prices where validators set low gas fees while operating with viable business models.
+## Iota incentives {#incentives}
 
-## IOTA incentives {#incentives}
-
-The IOTA economic model bestows IOTA users with an important monitoring role. On the one hand, users want their transactions processed as quickly and efficiently as possible. User clients, such as wallets, encourage this by prioritizing communication with the most responsive validators. Such efficient operations are compensated with boosted rewards relative to less responsive validators. On the other hand, IOTA token stakers receive the same boosted or penalized rewards as their selected validator. An unresponsive validator is thus doubly exposed to IOTA incentives: they lose directly through slashed rewards and indirectly through reduced user stake in future epochs as stakers move their tokens to more responsive validators.
+The Iota economic model bestows Iota users with an important monitoring role. On the one hand, users want their transactions processed as quickly and efficiently as possible. User clients, such as wallets, encourage this by prioritizing communication with the most responsive validators. Such efficient operations are compensated with boosted rewards relative to less responsive validators. On the other hand, IOTA token stakers receive the same boosted or penalized rewards as their selected validator. An unresponsive validator is thus doubly exposed to Iota incentives: they lose directly through slashed rewards and indirectly through reduced user stake in future epochs as stakers move their tokens to more responsive validators.
