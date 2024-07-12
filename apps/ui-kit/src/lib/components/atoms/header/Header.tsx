@@ -39,7 +39,7 @@ export function Header({
     onBack,
     onClose,
 }: HeaderProps): JSX.Element {
-    const titleCenteredClasses = titleCentered ? 'text-center' : 'ml-1';
+    const titleCenteredClasses = titleCentered ? 'text-center' : hasLeftIcon ? 'ml-1' : '';
     const keepSpaceForIcon = titleCentered && (!hasLeftIcon || !hasRightIcon);
 
     return (
