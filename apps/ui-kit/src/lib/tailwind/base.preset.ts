@@ -31,6 +31,9 @@ export const BASE_CONFIG: Partial<Config> = {
                 'alliance-no2': ['AllianceNo2', 'sans-serif'],
                 inter: ['Inter', 'sans-serif'],
             },
+            opacity: {
+                30: '0.3',
+            },
         },
     },
 };
