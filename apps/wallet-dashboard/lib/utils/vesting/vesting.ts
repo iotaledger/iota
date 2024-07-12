@@ -70,7 +70,7 @@ function buildExpirationToVestingPayoutMap(
     return expirationToVestingPayout;
 }
 
-export function getUserType(payoutTimelocks: number[]): SupplyIncreaseUserType | undefined {
+export function getVestingUserType(payoutTimelocks: number[]): SupplyIncreaseUserType | undefined {
     const latestPayout = payoutTimelocks.sort((a, b) => b - a)[0];
 
     if (!latestPayout) {
@@ -86,7 +86,7 @@ export function getUserType(payoutTimelocks: number[]): SupplyIncreaseUserType |
 export function buildVestingSchedule(
     referencePayout: SupplyIncreaseVestingPayout,
 ): SupplyIncreaseVestingPortfolio {
-    const userType = getUserType([referencePayout.expirationTimestampMs]);
+    const userType = getVestingUserType([referencePayout.expirationTimestampMs]);
 
     if (!userType || Date.now() >= referencePayout.expirationTimestampMs) {
         // if the latest payout has already been unlocked, we cant build a vesting schedule
