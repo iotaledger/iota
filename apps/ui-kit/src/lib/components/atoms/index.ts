@@ -4,4 +4,5 @@
 export * from './badge';
 export * from './button';
 export * from './button-segment';
+export * from './header';
 export * from './divider';
