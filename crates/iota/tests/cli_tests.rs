@@ -82,6 +82,8 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         benchmark_ips: None,
         with_faucet: false,
         num_validators: 1,
+        local_migration_snapshots: vec![],
+        remote_migration_snapshots: vec![],
     }
     .execute()
     .await?;
@@ -122,6 +124,8 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         benchmark_ips: None,
         with_faucet: false,
         num_validators: 1,
+        local_migration_snapshots: vec![],
+        remote_migration_snapshots: vec![],
     }
     .execute()
     .await;
