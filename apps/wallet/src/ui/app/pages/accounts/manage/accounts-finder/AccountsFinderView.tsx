@@ -10,10 +10,11 @@ import { useActiveAccount } from '_app/hooks/useActiveAccount';
 import { type AllowedAccountTypes } from '_src/background/accounts-finder';
 import { useAccounts } from '_src/ui/app/hooks/useAccounts';
 import { getKey } from '_src/ui/app/helpers/accounts';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { VerifyPasswordModal } from '_src/ui/app/components/accounts/VerifyPasswordModal';
 import { useAccountSources } from '_src/ui/app/hooks/useAccountSources';
 import { useUnlockMutation } from '_src/ui/app/hooks/useUnlockMutation';
+import LoadingIndicator from '_components/loading/LoadingIndicator';
 
 export function AccountsFinderView(): JSX.Element {
     const { accountSourceId } = useParams();
@@ -29,16 +30,32 @@ export function AccountsFinderView(): JSX.Element {
     const { data: accountSources } = useAccountSources();
     const unlockAccountSourceMutation = useUnlockMutation();
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
+    const [isSearchProcessing, setIsSearchProcessing] = useState(false);
     const accountSource = accountSources?.find(({ id }) => id === accountSourceId);
 
-    function searchMore() {
+    async function searchMore() {
         if (accountSource?.isLocked) {
             setPasswordModalVisible(true);
         } else {
-            setSearched(true);
-            search();
+            try {
+                setSearched(true);
+                setIsSearchProcessing(true);
+                await search();
+            } finally {
+                setIsSearchProcessing(false);
+            }
         }
     }
+
+    const searchOptions = useMemo(() => {
+        if (isSearchProcessing)
+            return {
+                text: '',
+                icon: <LoadingIndicator />,
+            };
+
+        return { text: searched ? 'Search again' : 'Search', icon: <Search24 /> };
+    }, [searched, isSearchProcessing]);
 
     return (
         <>
@@ -49,18 +66,35 @@ export function AccountsFinderView(): JSX.Element {
                     })}
                 </div>
                 <div className="flex flex-col gap-2">
-                    <Button variant="outline" size="tall" text={'Start again'} onClick={reset} />
                     <Button
                         variant="outline"
                         size="tall"
-                        text={searched ? 'Search again' : 'Search'}
-                        after={<Search24 />}
+                        text={'Start again'}
+                        onClick={reset}
+                        disabled={isSearchProcessing}
+                    />
+                    <Button
+                        variant="outline"
+                        size="tall"
+                        text={searchOptions.text}
+                        after={searchOptions.icon}
                         onClick={searchMore}
+                        disabled={isSearchProcessing}
                     />
 
                     <div className="flex flex-row gap-2">
-                        <Button variant="outline" size="tall" text="Skip" />
-                        <Button variant="outline" size="tall" text="Continue" />
+                        <Button
+                            variant="outline"
+                            size="tall"
+                            text="Skip"
+                            disabled={isSearchProcessing}
+                        />
+                        <Button
+                            variant="outline"
+                            size="tall"
+                            text="Continue"
+                            disabled={isSearchProcessing}
+                        />
                     </div>
                 </div>
             </div>

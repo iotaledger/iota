@@ -7,7 +7,7 @@ import { formatAddress } from '@iota/iota.js/utils';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { IconButton } from '../IconButton';
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
-import { useBalance } from '@iota/core';
+import { useBalance, useFormatCoin } from '@iota/core';
 
 interface AccountBalanceItemProps {
     account: SerializedUIAccount;
@@ -20,6 +20,10 @@ export function AccountBalanceItem({ account }: AccountBalanceItemProps): JSX.El
     const { data: balance } = useBalance(account.address, {
         refetchInterval: false,
     });
+
+    const totalBalance = balance?.totalBalance || '0';
+    const coinType = balance?.coinType;
+    const [formatted, symbol] = useFormatCoin(BigInt(totalBalance), coinType);
 
     return (
         <div className="group flex cursor-pointer flex-col gap-3 rounded-xl border border-solid border-hero/10 bg-white/40 px-4 py-3">
@@ -38,7 +42,7 @@ export function AccountBalanceItem({ account }: AccountBalanceItemProps): JSX.El
                 </div>
 
                 <Text variant="bodySmall" weight="semibold" color="steel-darker">
-                    {balance?.totalBalance} IOTA
+                    {formatted} {symbol}
                 </Text>
             </div>
         </div>

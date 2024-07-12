@@ -103,7 +103,17 @@ class AccountsFinder {
         this.accounts = [];
     }
 
+    // Reset accounts if sourceID or account type changes or we use a ledger derived account
+    compareSourceId(sourceID: string, accountType: AllowedAccountTypes) {
+        if (this.sourceID !== sourceID || accountType === AccountType.LedgerDerived) {
+            this.reset();
+            return;
+        }
+    }
+
     async setConfig(config: AccountFinderConfigParams) {
+        this.compareSourceId(config.sourceID, config.accountType);
+
         const network = await NetworkEnv.getActiveNetwork();
         this.client = new IotaClient({
             url: network.customRpcUrl ? network.customRpcUrl : getFullnodeUrl(network.network),
