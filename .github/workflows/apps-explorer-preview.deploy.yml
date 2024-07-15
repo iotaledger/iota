@@ -27,6 +27,8 @@ jobs:
         with:
           node-version: '20'
           cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
       - name: Turbo Cache
         id: turbo-cache
         uses: actions/cache@v3
