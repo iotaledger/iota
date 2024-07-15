@@ -32,7 +32,7 @@ export interface AccountFinderConfigParams {
     bip44CoinType: AllowedBip44CoinTypes;
     accountType: AllowedAccountTypes;
     algorithm?: SearchAlgorithm;
-    gasCoinType: string; // format: '0x2::iota::IOTA'
+    coinType: string; // format: '0x2::iota::IOTA'
     sourceID: string;
     changeIndexes?: number[];
     accountGapLimit?: number;
@@ -93,7 +93,7 @@ class AccountsFinder {
 
     private algorithm: SearchAlgorithm = SearchAlgorithm.ITERATIVE_DEEPENING_BREADTH_FIRST;
     private bip44CoinType: AllowedBip44CoinTypes = AllowedBip44CoinTypes.IOTA; // 4218 for IOTA or 4219 for Shimmer
-    private gasCoinType: string = GAS_COIN_TYPE;
+    private coinType: string = GAS_COIN_TYPE;
     private sourceID: string = '';
     public client: IotaClient | null = null;
 
@@ -110,7 +110,7 @@ class AccountsFinder {
         });
 
         this.bip44CoinType = config.bip44CoinType;
-        this.gasCoinType = config.gasCoinType;
+        this.coinType = config.coinType;
         this.sourceID = config.sourceID;
         this.changeIndexes = config.changeIndexes || CHANGE_INDEXES[config.bip44CoinType];
 
@@ -201,7 +201,7 @@ class AccountsFinder {
     }
 
     findBalance: FindBalance = async (params) => {
-        const emptyBalance = getEmptyBalance(this.gasCoinType);
+        const emptyBalance = getEmptyBalance(this.coinType);
 
         if (!this.client) {
             throw new Error('IotaClient is not initialized');
@@ -217,7 +217,7 @@ class AccountsFinder {
 
         const foundBalance = await this.client.getBalance({
             owner: publicKeyHash,
-            coinType: this.gasCoinType,
+            coinType: this.coinType,
         });
 
         return {

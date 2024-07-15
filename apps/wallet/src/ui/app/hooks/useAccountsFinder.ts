@@ -9,7 +9,7 @@ import { type AllowedAccountTypes } from '_src/background/accounts-finder';
 export interface UseAccountFinderOptions {
     accountType?: AllowedAccountTypes;
     bip44CoinType?: number;
-    gasCoinType?: string;
+    coinType?: string;
     accountGapLimit?: number;
     addressGapLimit?: number;
     sourceID: string;
@@ -17,7 +17,7 @@ export interface UseAccountFinderOptions {
 
 export function useAccountsFinder({
     bip44CoinType = BIP44_COIN_TYPE,
-    gasCoinType = GAS_COIN_TYPE,
+    coinType = GAS_COIN_TYPE,
     addressGapLimit,
     accountGapLimit,
     sourceID,
@@ -38,8 +38,8 @@ export function useAccountsFinder({
 
         await backgroundClient.searchAccountsFinder({
             accountType,
-            bip44CoinType: bip44CoinType,
-            gasCoinType: gasCoinType,
+            bip44CoinType,
+            coinType,
             sourceID,
             accountGapLimit,
             addressGapLimit,
