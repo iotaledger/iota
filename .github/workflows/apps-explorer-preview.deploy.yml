@@ -27,12 +27,22 @@ jobs:
         with:
           node-version: '20'
           cache: 'pnpm'
+      - name: Turbo Cache
+        id: turbo-cache
+        uses: actions/cache@v3
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-
+      - name: Build Explorer
+        run: pnpm explorer build
       - name: Install Vercel CLI
         run: pnpm add --global vercel@canary
       - name: Pull Vercel Environment Information
-        run: vercel pull ./ --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
-      - name: Build Project Artifacts
-        run: vercel build --cwd ./apps/explorer --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull ./apps/explorer --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+      # - name: Build Project Artifacts
+      #   run: vercel build --cwd ./apps/explorer --token=${{ secrets.VERCEL_TOKEN }}
       - name: Deploy Project Artifacts to Vercel
         run: vercel deploy --cwd ./apps/explorer --prebuilt --token=${{ secrets.VERCEL_TOKEN }} > vercel_output.txt
       - name: Extract Deploy URL
