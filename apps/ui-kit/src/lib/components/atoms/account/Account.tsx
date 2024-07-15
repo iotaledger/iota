@@ -4,19 +4,10 @@
 import React, { useState } from 'react';
 import cx from 'classnames';
 import { AccountType } from './account.enums';
-import {
-    BACKGROUND_BADGE_COLORS,
-    TEXT_COLORS,
-    BADGE_TEXT_CLASS,
-    BACKGROUND_COLOR,
-} from './account.classes';
+import { BACKGROUND_BADGE_COLORS, TEXT_COLORS, BADGE_TEXT_CLASS } from './account.classes';
 import { Button, ButtonSize, ButtonType } from '../button';
 
 interface AccountProps {
-    /**
-     * Leading element to be displayed before the label.
-     */
-    leadingElement?: React.ReactNode;
     /**
      * The title of the account.
      */
@@ -44,7 +35,6 @@ interface AccountProps {
 }
 
 export function Account({
-    leadingElement,
     title,
     subtitle,
     accountType,
@@ -56,18 +46,24 @@ export function Account({
 
     const backgroundBadgeClasses = accountType ? BACKGROUND_BADGE_COLORS[accountType] : '';
     const textClasses = accountType ? TEXT_COLORS[accountType] : '';
-    const backgroundColorClass = BACKGROUND_COLOR;
+    const circleFillClass = isLocked ? 'fill-neutral-80 dark:fill-neutral-30' : 'fill-primary-30';
+
     return (
         <div
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
-            className={cx(
-                'group flex w-full items-center justify-between space-x-3 rounded-xl px-sm py-xs hover:cursor-pointer',
-                backgroundColorClass,
-            )}
+            className="state-layer relative flex w-full items-center justify-between space-x-3 rounded-xl px-sm py-xs hover:cursor-pointer"
         >
             <div className="flex items-center space-x-3">
-                {leadingElement}
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="33"
+                    height="32"
+                    viewBox="0 0 33 32"
+                    fill="none"
+                >
+                    <circle cx="16.5" cy="16" r="16" className={cx(circleFillClass)} />
+                </svg>
                 <div className="flex flex-col items-start py-xs">
                     <div className="flex items-center space-x-2">
                         <span className="text-title-md text-neutral-10 dark:text-neutral-92">
@@ -90,7 +86,7 @@ export function Account({
                 </div>
             </div>
             <div
-                className={cx('ml-auto flex items-center space-x-2', {
+                className={cx('z-10 ml-auto flex items-center space-x-2', {
                     hidden: !isHovered && !isLocked,
                 })}
             >

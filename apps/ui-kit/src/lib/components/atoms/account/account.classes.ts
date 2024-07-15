@@ -3,9 +3,6 @@
 
 import { AccountType } from './account.enums';
 
-export const BACKGROUND_COLOR =
-    'bg-transparent hover:bg-shader-primary-light-8 dark:hover:bg-shader-primary-dark-8 active:bg-shader-primary-light-12 active:dark:focused:bg-shader-primary-dark-12';
-
 export const BACKGROUND_BADGE_COLORS = {
     [AccountType.Main]: 'bg-tertiary-90 dark:bg-tertiary-10',
     [AccountType.Legacy]: 'bg-error-90 dark:bg-tertiary-10',
