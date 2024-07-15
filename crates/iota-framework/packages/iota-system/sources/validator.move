@@ -328,6 +328,21 @@ module iota_system::validator {
         staker_address: address,
         ctx: &mut TxContext,
     ) {
+        let staked_iota = request_add_stake_at_genesis_with_receipt(
+            self,
+            stake,
+            ctx
+        );
+        transfer::public_transfer(staked_iota, staker_address);
+    }
+
+    /// Internal request to add stake to the validator's staking pool at genesis.
+    /// Returns a StakedIota
+    public(package) fun request_add_stake_at_genesis_with_receipt(
+        self: &mut Validator,
+        stake: Balance<IOTA>,
+        ctx: &mut TxContext,
+    ) : StakedIota {
         assert!(ctx.epoch() == 0, ECalledDuringNonGenesis);
         let stake_amount = stake.value();
         assert!(stake_amount > 0, EInvalidStakeAmount);
@@ -338,11 +353,11 @@ module iota_system::validator {
             ctx
         );
 
-        transfer::public_transfer(staked_iota, staker_address);
-
         // Process stake right away
         self.staking_pool.process_pending_stake();
         self.next_epoch_stake = self.next_epoch_stake + stake_amount;
+        
+        staked_iota
     }
 
     /// Request to withdraw stake from the validator's staking pool, processed at the end of the epoch.

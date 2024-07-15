@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module timelock::test_label_one {
+module iota::test_label_one {
 
-    use timelock::labeler;
+    use iota::labeler;
 
     /// Name of the label.
     public struct TEST_LABEL_ONE has drop {}
