@@ -77,7 +77,7 @@ impl CFG {
         parameters: &Signature,
         target_blocks: BlockIDSize,
     ) -> CFG {
-        assert!(target_blocks > 0, "The CFG must haave at least one block");
+        assert!(target_blocks > 0, "The CFG must have at least one block");
         let mut basic_blocks: HashMap<BlockIDSize, BasicBlock> = HashMap::new();
         // Generate basic blocks
         for i in 0..target_blocks {
@@ -99,22 +99,22 @@ impl CFG {
             // The number of edges will be at most `2*target_blocks``
             // Since target blocks is at most a `u16`, this will not overflow even if
             // `usize` is a `u32`
-            debug_assert!(edges.len() < usize::max_value());
+            debug_assert!(edges.len() < usize::MAX);
             edges.push((parent_block_id, current_block_id));
             block_queue.push_back(current_block_id);
             // `current_block_id` is bound by the max og `target_block_size`
-            debug_assert!(current_block_id < u16::max_value());
+            debug_assert!(current_block_id < u16::MAX);
             current_block_id += 1;
             // Generate a second child edge with prob = 1/2
             if rng.gen_bool(0.5) && current_block_id < target_blocks {
                 // The number of edges will be at most `2*target_blocks``
                 // Since target blocks is at most a `u16`, this will not overflow even if
                 // `usize` is a `u32`
-                debug_assert!(edges.len() < usize::max_value());
+                debug_assert!(edges.len() < usize::MAX);
                 edges.push((parent_block_id, current_block_id));
                 block_queue.push_back(current_block_id);
                 // `current_block_id` is bound by the max og `target_block_size`
-                debug_assert!(current_block_id < u16::max_value());
+                debug_assert!(current_block_id < u16::MAX);
                 current_block_id += 1;
             }
         }
@@ -161,7 +161,7 @@ impl CFG {
         for (parent, child) in self.edges.iter() {
             if *parent == block_id {
                 // Length is bound by iteration on `self.edges`
-                debug_assert!(children_ids.len() < usize::max_value());
+                debug_assert!(children_ids.len() < usize::MAX);
                 children_ids.push(*child);
             }
         }
@@ -181,7 +181,7 @@ impl CFG {
         for (parent, child) in self.edges.iter() {
             if *child == block_id {
                 // Iteration is bound by the self.edges vector length
-                debug_assert!(parent_ids.len() < usize::max_value());
+                debug_assert!(parent_ids.len() < usize::MAX);
                 parent_ids.push(*parent);
             }
         }

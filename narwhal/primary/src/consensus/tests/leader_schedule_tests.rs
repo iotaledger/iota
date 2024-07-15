@@ -158,13 +158,8 @@ async fn test_leader_schedule() {
     assert!(leader_certificate.is_none());
 
     // Populate the leader's certificate and try again
-    let (digest, certificate) = mock_certificate(
-        &committee,
-        &latest_protocol_version(),
-        leader_authority.id(),
-        2,
-        BTreeSet::new(),
-    );
+    let (digest, certificate) =
+        mock_certificate(&committee, leader_authority.id(), 2, BTreeSet::new());
     dag.entry(2)
         .or_default()
         .insert(leader_authority.id(), (digest, certificate.clone()));
@@ -197,13 +192,7 @@ async fn test_leader_schedule_from_store() {
         scores.add_score(id, score as u64);
     }
 
-    let sub_dag = CommittedSubDag::new(
-        vec![],
-        Certificate::default(&latest_protocol_version()),
-        0,
-        scores,
-        None,
-    );
+    let sub_dag = CommittedSubDag::new(vec![], Certificate::default(), 0, scores, None);
 
     store
         .write_consensus_state(&HashMap::new(), &sub_dag)

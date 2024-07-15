@@ -203,9 +203,9 @@ impl GovernanceReadApi {
         for (pool_id, stakes) in pools {
             // Rate table and rate can be null when the pool is not active
             let rate_table = rates.get(&pool_id).ok_or_else(|| {
-                IotaRpcInputError::GenericNotFound(
-                    "Cannot find rates for staking pool {pool_id}".to_string(),
-                )
+                IotaRpcInputError::GenericNotFound(format!(
+                    "Cannot find rates for staking pool {pool_id}"
+                ))
             })?;
             let current_rate = rate_table.rates.first().map(|(_, rate)| rate);
 
@@ -266,9 +266,9 @@ impl GovernanceReadApi {
         for (pool_id, stakes) in pools {
             // Rate table and rate can be null when the pool is not active
             let rate_table = rates.get(&pool_id).ok_or_else(|| {
-                IotaRpcInputError::GenericNotFound(
-                    "Cannot find rates for staking pool {pool_id}".to_string(),
-                )
+                IotaRpcInputError::GenericNotFound(format!(
+                    "Cannot find rates for staking pool {pool_id}"
+                ))
             })?;
             let current_rate = rate_table.rates.first().map(|(_, rate)| rate);
 

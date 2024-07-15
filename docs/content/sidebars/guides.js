@@ -138,7 +138,6 @@ const guides = [
 					'guides/developer/advanced/move-2024-migration',
 					'guides/developer/advanced/asset-tokenization',
 					'guides/developer/advanced/custom-indexer',
-					'guides/developer/advanced/stardust-on-move',
 				],
 			},
 			{
@@ -228,6 +227,7 @@ const guides = [
 			'guides/stardust/if-tools',
 			'guides/stardust/exchanges',
 			'guides/stardust/faq',
+			'guides/stardust/advanced',
 		],
 	},
 ];

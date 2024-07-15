@@ -5,10 +5,10 @@
 import type { DelegatedStake } from '@iota/iota.js/client';
 
 // Helper function to get the delegation by stakedIotaId
-export const getDelegationDataByStakeId = (
+export function getDelegationDataByStakeId(
     delegationsStake: DelegatedStake[],
     stakeIotaId: string,
-) => {
+) {
     let stake = null;
     for (const { stakes } of delegationsStake) {
         stake = stakes.find(({ stakedIotaId }) => stakedIotaId === stakeIotaId) || null;
@@ -16,4 +16,4 @@ export const getDelegationDataByStakeId = (
     }
 
     return stake;
-};
+}
