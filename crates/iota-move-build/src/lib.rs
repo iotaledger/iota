@@ -19,7 +19,7 @@ use iota_types::{
     is_system_package,
     move_package::{FnInfo, FnInfoKey, FnInfoMap, MovePackage},
     DEEPBOOK_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,
-    STARDUST_ADDRESS, TIMELOCK_ADDRESS,
+    STARDUST_ADDRESS,
 };
 use iota_verifier::{default_verifier_config, verifier as iota_bytecode_verifier};
 use move_binary_format::{
@@ -448,12 +448,6 @@ impl CompiledPackage {
     pub fn get_stardust_modules(&self) -> impl Iterator<Item = &CompiledModule> {
         self.get_modules_and_deps()
             .filter(|m| *m.self_id().address() == STARDUST_ADDRESS)
-    }
-
-    /// Get bytecode modules from Timelock that are used by this package
-    pub fn get_timelock_modules(&self) -> impl Iterator<Item = &CompiledModule> {
-        self.get_modules_and_deps()
-            .filter(|m| *m.self_id().address() == TIMELOCK_ADDRESS)
     }
 
     /// Generate layout schemas for all types declared by this package, as well
