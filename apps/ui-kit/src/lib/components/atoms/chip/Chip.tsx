@@ -30,12 +30,16 @@ interface ChipProps {
      */
     onClose?: () => void;
     /**
-     * Leading element to be displayed before the label.
+     * Avatar to show in the chip.
      */
-    leadingElement?: React.ReactNode;
+    avatar?: React.JSX.Element;
+    /**
+     * Icon to show in the chip.
+     */
+    icon?: React.JSX.Element;
 }
 
-export function Chip({ label, showClose, selected, onClose, leadingElement }: ChipProps) {
+export function Chip({ label, showClose, selected, onClose, avatar, icon }: ChipProps) {
     const chipState = selected ? ChipState.Selected : ChipState.Default;
     return (
         <button
@@ -49,15 +53,16 @@ export function Chip({ label, showClose, selected, onClose, leadingElement }: Ch
         >
             <span
                 className={cx(
-                    'flex h-full w-full flex-row items-center gap-x-2 py-[6px]',
+                    'flex h-full w-full flex-row items-center gap-x-2',
+                    avatar ? 'py-xxs' : 'py-[6px]',
+                    avatar ? 'pl-xxs' : icon ? 'pl-xs' : 'pl-sm',
                     ROUNDED_CLASS,
                     STATE_LAYER_CLASSES,
-                    leadingElement ? 'pl-xs' : 'pl-sm',
                     showClose ? 'pr-xs' : 'pr-sm',
                     TEXT_COLOR[chipState],
                 )}
             >
-                {leadingElement}
+                {avatar ?? icon}
                 <span className="text-body-md">{label}</span>
                 {showClose && (
                     <span onClick={onClose} className="cursor-pointer text-body-md">
